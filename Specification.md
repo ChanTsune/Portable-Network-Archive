@@ -107,7 +107,7 @@ The compression method is recorded.
 The encryption method is recorded.
 0 is not encryption
 1 is AES
-2 is Camelia
+2 is Camellia
 
 ###### File type
 
