@@ -16,12 +16,20 @@ func main() {
 	}
 	wf.Write(pna.Header)
 	pna.NewAHEDChunk(
-		uint8(pna.MajorVersion),
-		uint8(pna.MinorVersion),
+		pna.MajorVersion,
+		pna.MinorVersion,
 	).WriteTo(wf)
 
 	filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
 		fmt.Println(path, info, err)
+		pna.NewFHEDChunk(
+			pna.MajorVersion,
+			pna.MinorVersion,
+			pna.NoCompression,
+			pna.NoEncryption,
+			pna.FileTypeNormal,
+			path,
+		)
 		return nil
 	})
 
