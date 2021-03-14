@@ -50,8 +50,7 @@ Chunk Data
 |--|--|--|
 |Major version|1-byte|Major version of PNA|
 |Minor version|1-byte|Minor version of PNA|
-|Archive number|4-byte|Archive number|
-|Number of archives|4-byte|Number of archives|
+|General purpose bit flag|2-byte|Bit flags|
 
 ##### Major version
 
@@ -63,24 +62,13 @@ Currently only 0 is defined.
 It may be changed when there is a change in the type of chunks that make up the PNA.
 Currently only 0 is defined.
 
-##### Archive number
+##### General purpose bit flag
 
-Contains the number of the archive when the archive is split.  
-0 if not split.
+__Bit0__ Use solid mode.
 
-##### Number of archives
+__Bit1__ ~ __Bit15__ currently dose not used. reserve for future.
 
-Contains the total number of split archives.
-0 if not split.
-
-#### ADAT
-
-The `ADAT` also contains chunk structure data.
-
-`ADAT` contains chunk structure data.  
-Like PAN, these chunks make up the file data from several `required chunks` and `auxiliary chunks`.
-
-##### FHED
+#### FHED
 
 Basic information of each file and directory is stored.  
 
@@ -94,7 +82,7 @@ Basic information of each file and directory is stored.
 |Null|1-byte|Separator|
 |Path|n-byte|file path|
 
-###### Compression method
+##### Compression method
 
 The compression method is recorded.
 0 is not compression
@@ -102,14 +90,14 @@ The compression method is recorded.
 2 is zstandard
 4 is lzma
 
-###### Encryption method
+##### Encryption method
 
 The encryption method is recorded.
 0 is not encryption
 1 is AES
 2 is Camellia
 
-###### File type
+##### File type
 
 The file type is recorded.
 0 is normal file
@@ -117,36 +105,14 @@ The file type is recorded.
 2 is symbolic link
 4 is a file that has previously appeared in the archive
 
-##### FDAT
+#### FDAT
 
 The actual data of the file is recorded.
 
-##### FEND
+#### FEND
 
 This signals the end of the file data stream.  
 The chunk data area is empty.  
-
-##### cTIM
-
-File creation datetime are recorded in unix time.
-
-##### mTIM
-
-File last modified datetime are recorded in unix time.
-
-##### fPRM
-
-File permissions are recorded.
-
-|significance|size|description|
-|--|--|--|
-|uid|8-byte|user ID|
-|gid|8-byte|group ID|
-|permissions|10-byte|file permission characters|
-
-###### permissions
-
-Unix file permission characters like `-rwxr-xr-x`.
 
 #### AEND
 
@@ -165,3 +131,66 @@ The last modified date of the archive is recorded in Unix time.
 |size|description|
 |--|--|
 |8byte|unix time stamp|
+
+#### cTIM
+
+File creation datetime are recorded in unix time.
+This chunk appeared after `FHAD` chunk and before `FEND` chunk.
+
+|size|description|
+|--|--|
+|8byte|unix time stamp|
+
+#### mTIM
+
+File last modified datetime are recorded in unix time.
+This chunk appeared after `FHAD` chunk and before `FEND` chunk.
+
+|size|description|
+|--|--|
+|8byte|unix time stamp|
+
+#### fPRM
+
+File permissions are recorded.
+This chunk appeared after `FHAD` chunk and before `FEND` chunk.
+
+|significance|size|description|
+|--|--|--|
+|uid|8-byte|user ID|
+|gid|8-byte|group ID|
+|permissions|10-byte|file permission characters|
+
+##### permissions
+
+Unix file permission characters like `-rwxr-xr-x`.
+#### aNUM
+
+|significance|size|description|
+|--|--|--|
+|Archive number|4-byte|Archive number|
+|Number of archives|4-byte|Number of archives|
+
+##### Archive number
+
+Contains the number of the archive when the archive is split.  
+Archive number is start with 0.
+
+##### Number of archives
+
+Contains the total number of split archives.
+
+#### aHED
+
+Basic information of Solid mode archive is stored.  
+
+|significance|size|description|
+|--|--|--|
+|Major version|1-byte|Major version|
+|Minor version|1-byte|Minor version|
+|Compression method|1-byte|Compression method|
+|Encryption method|1-byte|Encryption method|
+
+#### aDAT
+
+Solid mode archive data.
