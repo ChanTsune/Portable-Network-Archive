@@ -31,16 +31,27 @@ func NewChunk(chunkType string, data []byte) *Chunk {
 	}
 }
 
-func NewAHEDChunk() *Chunk {
-	return NewChunk("AHED", bytes.Join([][]byte{}, []byte{}))
+func NewAHEDChunk(majorVersion, minorVersion uint8) *Chunk {
+	return NewChunk("AHED", bytes.Join([][]byte{
+		{majorVersion},
+		{minorVersion},
+		{0x00, 0x00}, // General purpose bit flag
+	}, []byte{}))
 }
 
-func NewFHEDChunk() *Chunk {
-	return NewChunk("FHED", []byte{})
+func NewFHEDChunk(majorVersion, minorVersion, compressionMethod, encryptionMethod, fileType uint8, fileName string) *Chunk {
+	return NewChunk("FHED", bytes.Join([][]byte{
+		{majorVersion},
+		{minorVersion},
+		{compressionMethod},
+		{encryptionMethod},
+		{fileType},
+		{0x00}, // Null byte
+	}, []byte{}))
 }
 
-func NewFDATChunk() *Chunk {
-	return NewChunk("FDAT", []byte{})
+func NewFDATChunk(data []byte) *Chunk {
+	return NewChunk("FDAT", data)
 }
 
 func NewFENDChunk() *Chunk {

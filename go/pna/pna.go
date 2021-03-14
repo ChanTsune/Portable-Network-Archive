@@ -10,3 +10,6 @@ var Header = []byte{
 	0x1A, // Ctrl-Z
 	0x0A, // LF(Ctrl-J)
 }
+
+var MajorVersion = 0 // MajorVersion
+var MinorVersion = 0 // MinorVersion

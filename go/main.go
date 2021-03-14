@@ -15,7 +15,10 @@ func main() {
 		log.Fatalln(err)
 	}
 	wf.Write(pna.Header)
-	pna.NewAHEDChunk().WriteTo(wf)
+	pna.NewAHEDChunk(
+		uint8(pna.MajorVersion),
+		uint8(pna.MinorVersion),
+	).WriteTo(wf)
 
 	filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
 		fmt.Println(path, info, err)
