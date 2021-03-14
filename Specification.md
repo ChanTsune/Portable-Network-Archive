@@ -50,8 +50,7 @@ Chunk Data
 |--|--|--|
 |Major version|1-byte|Major version of PNA|
 |Minor version|1-byte|Minor version of PNA|
-|Archive number|4-byte|Archive number|
-|Number of archives|4-byte|Number of archives|
+|General purpose bit flag|2-byte|Bit flags|
 
 ##### Major version
 
@@ -63,15 +62,11 @@ Currently only 0 is defined.
 It may be changed when there is a change in the type of chunks that make up the PNA.
 Currently only 0 is defined.
 
-##### Archive number
+##### General purpose bit flag
 
-Contains the number of the archive when the archive is split.  
-0 if not split.
+__Bit0__ Use solid mode.
 
-##### Number of archives
-
-Contains the total number of split archives.
-0 if not split.
+__Bit1__ ~ __Bit15__ currently dose not used. reserve for future.
 
 #### FHED
 
@@ -169,3 +164,33 @@ This chunk appeared after `FHAD` chunk and before `FEND` chunk.
 ##### permissions
 
 Unix file permission characters like `-rwxr-xr-x`.
+#### aNUM
+
+|significance|size|description|
+|--|--|--|
+|Archive number|4-byte|Archive number|
+|Number of archives|4-byte|Number of archives|
+
+##### Archive number
+
+Contains the number of the archive when the archive is split.  
+Archive number is start with 0.
+
+##### Number of archives
+
+Contains the total number of split archives.
+
+#### aHED
+
+Basic information of Solid mode archive is stored.  
+
+|significance|size|description|
+|--|--|--|
+|Major version|1-byte|Major version|
+|Minor version|1-byte|Minor version|
+|Compression method|1-byte|Compression method|
+|Encryption method|1-byte|Encryption method|
+
+#### aDAT
+
+Solid mode archive data.
