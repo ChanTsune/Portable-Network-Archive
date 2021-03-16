@@ -6,9 +6,15 @@ import (
 	"strings"
 )
 
-func uint32ToBytes(n uint32) []byte {
+func Uint32ToBytes(n uint32) []byte {
 	r := make([]byte, 4)
 	binary.BigEndian.PutUint32(r, n)
+	return r
+}
+
+func Uint16ToBytes(n uint16) []byte {
+	r := make([]byte, 2)
+	binary.BigEndian.PutUint16(r, n)
 	return r
 }
 

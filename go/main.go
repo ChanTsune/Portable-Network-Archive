@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -19,10 +20,13 @@ func main() {
 		pna.MajorVersion,
 		pna.MinorVersion,
 	).WriteTo(wf)
-
-	filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
-		fmt.Println(path, info, err)
-		pna.NewFHEDChunk(
+	inputDir := "./pna"
+	filepath.Walk(inputDir, func(path string, info os.FileInfo, err error) error {
+		fmt.Println(path)
+		if info.IsDir() {
+			return nil
+		}
+		fhed := pna.NewFHEDChunk(
 			pna.MajorVersion,
 			pna.MinorVersion,
 			pna.NoCompression,
@@ -30,6 +34,16 @@ func main() {
 			pna.FileTypeNormal,
 			path,
 		)
+		data, err := ioutil.ReadFile(path)
+		if err != nil {
+			fmt.Print(err)
+			return nil
+		}
+		fdat := pna.NewFDATChunk(data)
+		fhed.WriteTo(wf)
+		fdat.WriteTo(wf)
+		pna.NewFENDChunk().WriteTo(wf)
+
 		return nil
 	})
 

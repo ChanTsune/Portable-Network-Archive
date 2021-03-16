@@ -15,19 +15,29 @@ type Chunk struct {
 
 // WriteTo ...
 func (c *Chunk) WriteTo(w io.Writer) (int64, error) {
-	w.Write(uint32ToBytes(c.Length))
+	w.Write(Uint32ToBytes(c.Length))
 	w.Write([]byte(c.Type))
 	w.Write(c.Data)
-	w.Write(uint32ToBytes(c.CRC))
+	w.Write(Uint32ToBytes(c.CRC))
 	return 4 + 4 + int64(c.Length) + 4, nil
 }
 
+func (c Chunk) Check() bool {
+	crc := crc32.NewIEEE()
+	crc.Write([]byte(c.Type))
+	crc.Write(c.Data)
+	return c.CRC == crc.Sum32()
+}
+
 func NewChunk(chunkType string, data []byte) *Chunk {
+	crc := crc32.NewIEEE()
+	crc.Write([]byte(chunkType))
+	crc.Write(data)
 	return &Chunk{
 		Length: uint32(len(data)),
 		Type:   chunkType,
 		Data:   data,
-		CRC:    crc32.ChecksumIEEE(data),
+		CRC:    crc.Sum32(),
 	}
 }
 
