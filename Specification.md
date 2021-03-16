@@ -180,7 +180,7 @@ Archive number is start with 0.
 
 Contains the total number of split archives.
 
-#### aHED
+#### aSLD
 
 Basic information of Solid mode archive is stored.  
 
