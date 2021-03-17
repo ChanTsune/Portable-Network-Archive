@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"pna/pna/chunk"
 	"pna/pna/constants"
 )
@@ -37,21 +38,38 @@ func ExtractAll(extractTo, name string) error {
 		return err
 	}
 	buf := make([]byte, 0)
-	for chunk, err := chunk.ReadChunk(file); err != nil; {
-		if chunk.Type == "AHAD" {
-			fmt.Println(chunk)
-		} else if chunk.Type == "FHAD" {
-			fmt.Println(chunk)
-		} else if chunk.Type == "FDAT" {
-			buf = append(buf, chunk.Data...)
-		} else if chunk.Type == "FEND" {
+	var fhad chunk.FHEDChunk
+	for {
+		cnk, err := chunk.ReadChunk(file)
+		if err != nil {
+			return err
+		}
+		switch cnk.Type {
+		case "AHED":
+			fmt.Println(cnk)
+		case "FHED":
+			fhad = chunk.ToFHEDChunk(cnk)
+			fmt.Println(cnk)
+		case "FDAT":
+			buf = append(buf, cnk.Data...)
+		case "FEND":
+			switch fhad.EncryptionMethod() {
+			case constants.NoCompression:
+				extractPath := filepath.Join(extractTo, fhad.FileName())
+				os.MkdirAll(filepath.Dir(extractPath), 0755)
+				f, err := os.Create(extractPath)
+				defer f.Close()
+				if err != nil {
+					return err
+				}
+				f.Write(buf)
+			}
 			buf = make([]byte, 0)
-			fmt.Println(chunk)
-		} else if chunk.Type == "AEND" {
-			break
+			fmt.Println(cnk)
+		case "AEND":
+			return nil
 		}
 	}
-	return nil
 }
 
 func IsPnaFile(name string) (bool, error) {

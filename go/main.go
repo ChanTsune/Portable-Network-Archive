@@ -35,14 +35,14 @@ func main() {
 		if info.IsDir() {
 			return nil
 		}
-		fhed := chunk.NewFHEDChunk(
+		fhed := chunk.From(chunk.NewFHEDChunk(
 			constants.MajorVersion,
 			constants.MinorVersion,
 			constants.NoCompression,
 			constants.NoEncryption,
 			constants.FileTypeNormal,
 			path,
-		)
+		))
 		data, err := ioutil.ReadFile(path)
 		if err != nil {
 			fmt.Print(err)

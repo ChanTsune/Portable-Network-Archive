@@ -1,7 +1,6 @@
 package chunk
 
 import (
-	"bytes"
 	"encoding/binary"
 	"hash/crc32"
 	"io"
@@ -92,18 +91,6 @@ func NewChunk(chunkType string, data []byte) *chunk {
 		Data:   data,
 		CRC:    crc.Sum32(),
 	}
-}
-
-func NewFHEDChunk(majorVersion, minorVersion, compressionMethod, encryptionMethod, fileType uint8, fileName string) *chunk {
-	return NewChunk("FHED", bytes.Join([][]byte{
-		{majorVersion},
-		{minorVersion},
-		{compressionMethod},
-		{encryptionMethod},
-		{fileType},
-		{0x00}, // Null byte
-		[]byte(fileName),
-	}, []byte{}))
 }
 
 func NewFDATChunk(data []byte) *chunk {
