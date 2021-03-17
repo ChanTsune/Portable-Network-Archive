@@ -24,10 +24,11 @@ func main() {
 		log.Fatalln(err)
 	}
 	wf.Write(constants.Header)
-	chunk.NewAHEDChunk(
+	chunk.From(chunk.NewAHEDChunk(
 		constants.MajorVersion,
 		constants.MinorVersion,
-	).WriteTo(wf)
+		0,
+	)).WriteTo(wf)
 	inputDir := "./pna"
 	filepath.Walk(inputDir, func(path string, info os.FileInfo, err error) error {
 		fmt.Println(path)

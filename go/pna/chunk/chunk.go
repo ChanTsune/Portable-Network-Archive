@@ -23,7 +23,7 @@ type chunk struct {
 	CRC    uint32
 }
 
-func ChunkFrom(c Chunk) *chunk {
+func From(c Chunk) *chunk {
 	return &chunk{
 		Length: c.Length(),
 		Type:   c.Type(),
@@ -92,14 +92,6 @@ func NewChunk(chunkType string, data []byte) *chunk {
 		Data:   data,
 		CRC:    crc.Sum32(),
 	}
-}
-
-func NewAHEDChunk(majorVersion, minorVersion uint8) *chunk {
-	return NewChunk("AHED", bytes.Join([][]byte{
-		{majorVersion},
-		{minorVersion},
-		{0x00, 0x00}, // General purpose bit flag
-	}, []byte{}))
 }
 
 func NewFHEDChunk(majorVersion, minorVersion, compressionMethod, encryptionMethod, fileType uint8, fileName string) *chunk {
