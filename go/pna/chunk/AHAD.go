@@ -3,7 +3,7 @@ package chunk
 import (
 	"bytes"
 	"hash/crc32"
-	"pna/pna"
+	"pna/pna/utils"
 )
 
 type AHADChunk interface {
@@ -50,7 +50,7 @@ func (c *aHADChunk) Data() []byte {
 	return bytes.Join([][]byte{
 		{c.MajorVersion()},
 		{c.MinorVersion()},
-		pna.Uint16ToBytes(c.GeneralPurposeBitFlag()),
+		utils.Uint16ToBytes(c.GeneralPurposeBitFlag()),
 	}, []byte{})
 }
 

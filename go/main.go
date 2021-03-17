@@ -7,18 +7,26 @@ import (
 	"os"
 	"path/filepath"
 	"pna/pna"
+	"pna/pna/chunk"
+	"pna/pna/constants"
 )
 
 func main() {
+
+	if err := pna.ExtractAll("./ext", "./sample.pna"); err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+
 	wf, err := os.Create("./sample.pna")
 	defer wf.Close()
 	if err != nil {
 		log.Fatalln(err)
 	}
-	wf.Write(pna.Header)
-	pna.NewAHEDChunk(
-		pna.MajorVersion,
-		pna.MinorVersion,
+	wf.Write(constants.Header)
+	chunk.NewAHEDChunk(
+		constants.MajorVersion,
+		constants.MinorVersion,
 	).WriteTo(wf)
 	inputDir := "./pna"
 	filepath.Walk(inputDir, func(path string, info os.FileInfo, err error) error {
@@ -26,12 +34,12 @@ func main() {
 		if info.IsDir() {
 			return nil
 		}
-		fhed := pna.NewFHEDChunk(
-			pna.MajorVersion,
-			pna.MinorVersion,
-			pna.NoCompression,
-			pna.NoEncryption,
-			pna.FileTypeNormal,
+		fhed := chunk.NewFHEDChunk(
+			constants.MajorVersion,
+			constants.MinorVersion,
+			constants.NoCompression,
+			constants.NoEncryption,
+			constants.FileTypeNormal,
 			path,
 		)
 		data, err := ioutil.ReadFile(path)
@@ -39,13 +47,13 @@ func main() {
 			fmt.Print(err)
 			return nil
 		}
-		fdat := pna.NewFDATChunk(data)
+		fdat := chunk.NewFDATChunk(data)
 		fhed.WriteTo(wf)
 		fdat.WriteTo(wf)
-		pna.NewFENDChunk().WriteTo(wf)
+		chunk.NewFENDChunk().WriteTo(wf)
 
 		return nil
 	})
 
-	pna.NewAENDChunk().WriteTo(wf)
+	chunk.NewAENDChunk().WriteTo(wf)
 }

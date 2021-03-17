@@ -1,29 +1,78 @@
 package pna
 
-var Header = []byte{
-	0x89, // ¥x89
-	0x50, // P
-	0x4E, // N
-	0x41, // A
-	0x0D, // CR(Ctrl-M)
-	0x0A, // LF(Ctrl-J)
-	0x1A, // Ctrl-Z
-	0x0A, // LF(Ctrl-J)
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"os"
+	"pna/pna/chunk"
+	"pna/pna/constants"
+)
+
+type PnaFile struct {
 }
 
-var MajorVersion uint8 = 0 // MajorVersion ...
-var MinorVersion uint8 = 0 // MinorVersion ...
+func Open(path string) (*PnaFile, error) {
+	return &PnaFile{}, nil
+}
 
-var NoCompression uint8 = 0      // NoCompression ...
-var DeflateCompression uint8 = 1 // DeflateCompression ...
-var ZstdCompression uint8 = 2    // ZstdCompression ...
-var LzmaCompression uint8 = 4    // LzmaCompression ...
+func (f *PnaFile) Close() error {
+	return nil
+}
 
-var NoEncryption uint8 = 0       // NoEncryption ...
-var AesEncryption uint8 = 1      // AesEncryption ...
-var CamelliaEncryption uint8 = 2 // CamelliaEncryption ...
+func ExtractAll(extractTo, name string) error {
+	isPna, err := IsPnaFile(name)
+	if err != nil {
+		return err
+	}
+	if !isPna {
+		return fmt.Errorf("%s is not pna file.", name)
+	}
+	file, err := os.Open(name)
+	defer file.Close()
+	if err != nil {
+		return err
+	}
+	if _, err := chunk.ReadHeader(file); err != nil {
+		return err
+	}
+	buf := make([]byte, 0)
+	for chunk, err := chunk.ReadChunk(file); err != nil; {
+		if chunk.Type == "AHAD" {
+			fmt.Println(chunk)
+		} else if chunk.Type == "FHAD" {
+			fmt.Println(chunk)
+		} else if chunk.Type == "FDAT" {
+			buf = append(buf, chunk.Data...)
+		} else if chunk.Type == "FEND" {
+			buf = make([]byte, 0)
+			fmt.Println(chunk)
+		} else if chunk.Type == "AEND" {
+			break
+		}
+	}
+	return nil
+}
 
-var FileTypeNormal uint8 = 0    // FileTypeNormal ...
-var FileTypeDirectory uint8 = 1 // FileTypeDirectory ...
-var FileTypeSymlink uint8 = 2   // FileTypeSymlink ...
-var FileTypeAlias uint8 = 4     // FileTypeAlias ...
+func IsPnaFile(name string) (bool, error) {
+	file, err := os.Open(name)
+	defer file.Close()
+	if err != nil {
+		return false, err
+	}
+	headerLen := len(constants.Header)
+	header := make([]byte, headerLen)
+	fh, err := file.Read(header)
+	if err == io.EOF || fh != headerLen || bytes.Compare(header, constants.Header) != 0 {
+		return false, nil
+	}
+	return true, nil
+}
+
+func IsPna(data []byte) bool {
+	l := len(constants.Header)
+	if len(data) < l {
+		return false
+	}
+	return bytes.Compare(data[:l], constants.Header) == 0
+}
