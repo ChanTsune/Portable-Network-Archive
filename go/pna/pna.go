@@ -4,10 +4,14 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"pna/pna/chunk"
 	"pna/pna/constants"
+
+	"github.com/DataDog/zstd"
 )
 
 type PnaFile struct {
@@ -53,16 +57,22 @@ func ExtractAll(extractTo, name string) error {
 		case "FDAT":
 			buf = append(buf, cnk.Data...)
 		case "FEND":
+			extractPath := filepath.Join(extractTo, fhad.FileName())
+			os.MkdirAll(filepath.Dir(extractPath), 0755)
+			f, err := os.Create(extractPath)
+			defer f.Close()
+			if err != nil {
+				return err
+			}
 			switch fhad.EncryptionMethod() {
 			case constants.NoCompression:
-				extractPath := filepath.Join(extractTo, fhad.FileName())
-				os.MkdirAll(filepath.Dir(extractPath), 0755)
-				f, err := os.Create(extractPath)
-				defer f.Close()
+				f.Write(buf)
+			case constants.ZstdCompression:
+				dst, err := zstd.Decompress(nil, buf)
 				if err != nil {
 					return err
 				}
-				f.Write(buf)
+				f.Write(dst)
 			}
 			buf = make([]byte, 0)
 			fmt.Println(cnk)
@@ -70,6 +80,52 @@ func ExtractAll(extractTo, name string) error {
 			return nil
 		}
 	}
+}
+
+func ArchiveAll(dir, name string) error {
+	wf, err := os.Create(name)
+	defer wf.Close()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	wf.Write(constants.Header)
+	chunk.From(chunk.NewAHEDChunk(
+		constants.MajorVersion,
+		constants.MinorVersion,
+		0,
+	)).WriteTo(wf)
+	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		fmt.Println(path)
+		if info.IsDir() {
+			return nil
+		}
+		fhed := chunk.From(chunk.NewFHEDChunk(
+			constants.MajorVersion,
+			constants.MinorVersion,
+			constants.NoCompression,
+			constants.ZstdCompression,
+			constants.FileTypeNormal,
+			path,
+		))
+		data, err := ioutil.ReadFile(path)
+		if err != nil {
+			fmt.Print(err)
+			return err
+		}
+		cData, err := zstd.Compress(nil, data)
+		if err != nil {
+			return err
+		}
+		fdat := chunk.NewFDATChunk(cData)
+		fhed.WriteTo(wf)
+		fdat.WriteTo(wf)
+		chunk.NewFENDChunk().WriteTo(wf)
+
+		return nil
+	})
+
+	chunk.NewAENDChunk().WriteTo(wf)
+	return nil
 }
 
 func IsPnaFile(name string) (bool, error) {
