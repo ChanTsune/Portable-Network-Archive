@@ -17,3 +17,6 @@ run:
 
 build:
 	go build main.go
+
+build_opt:
+	go build -ldflags="-s -w" -trimpath -o main main.go
