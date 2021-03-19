@@ -64,7 +64,7 @@ func ExtractAll(extractTo, name string) error {
 			if err != nil {
 				return err
 			}
-			switch fhad.EncryptionMethod() {
+			switch fhad.CompressionMethod() {
 			case constants.NoCompression:
 				f.Write(buf)
 			case constants.ZstdCompression:
@@ -102,8 +102,8 @@ func ArchiveAll(dir, name string) error {
 		fhed := chunk.From(chunk.NewFHEDChunk(
 			constants.MajorVersion,
 			constants.MinorVersion,
-			constants.NoCompression,
 			constants.ZstdCompression,
+			constants.NoEncryption,
 			constants.FileTypeNormal,
 			path,
 		))

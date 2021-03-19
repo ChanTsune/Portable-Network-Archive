@@ -3,24 +3,26 @@ package chunk
 import (
 	"bytes"
 	"hash/crc32"
+
+	"pna/pna/constants"
 )
 
 type FHEDChunk interface {
 	Chunk
 	MajorVersion() uint8
 	MinorVersion() uint8
-	CompressionMethod() uint8
-	EncryptionMethod() uint8
-	FileType() uint8
+	CompressionMethod() constants.CompressionMethod
+	EncryptionMethod() constants.EncryptionMethod
+	FileType() constants.FileType
 	FileName() string
 }
 
 type fHEDChunk struct {
 	majorVersion      uint8
 	minorVersion      uint8
-	compressionMethod uint8
-	encryptionMethod  uint8
-	fileType          uint8
+	compressionMethod constants.CompressionMethod
+	encryptionMethod  constants.EncryptionMethod
+	fileType          constants.FileType
 	fileName          string
 }
 
@@ -34,9 +36,9 @@ func (c *fHEDChunk) Data() []byte {
 	return bytes.Join([][]byte{
 		{c.majorVersion},
 		{c.minorVersion},
-		{c.compressionMethod},
-		{c.encryptionMethod},
-		{c.fileType},
+		{uint8(c.compressionMethod)},
+		{uint8(c.encryptionMethod)},
+		{uint8(c.fileType)},
 		{0x00}, // Null byte
 		[]byte(c.fileName),
 	}, []byte{})
@@ -54,20 +56,20 @@ func (c *fHEDChunk) MajorVersion() uint8 {
 func (c *fHEDChunk) MinorVersion() uint8 {
 	return c.minorVersion
 }
-func (c *fHEDChunk) CompressionMethod() uint8 {
+func (c *fHEDChunk) CompressionMethod() constants.CompressionMethod {
 	return c.compressionMethod
 }
-func (c *fHEDChunk) EncryptionMethod() uint8 {
+func (c *fHEDChunk) EncryptionMethod() constants.EncryptionMethod {
 	return c.encryptionMethod
 }
-func (c *fHEDChunk) FileType() uint8 {
+func (c *fHEDChunk) FileType() constants.FileType {
 	return c.fileType
 }
 func (c *fHEDChunk) FileName() string {
 	return c.fileName
 }
 
-func NewFHEDChunk(majorVersion, minorVersion, compressionMethod, encryptionMethod, fileType uint8, fileName string) FHEDChunk {
+func NewFHEDChunk(majorVersion, minorVersion uint8, compressionMethod constants.CompressionMethod, encryptionMethod constants.EncryptionMethod, fileType constants.FileType, fileName string) FHEDChunk {
 	return &fHEDChunk{
 		majorVersion:      majorVersion,
 		minorVersion:      minorVersion,
@@ -82,9 +84,9 @@ func ToFHEDChunk(c *chunk) FHEDChunk {
 	return NewFHEDChunk(
 		c.Data[0],
 		c.Data[1],
-		c.Data[2],
-		c.Data[3],
-		c.Data[4],
+		constants.CompressionMethod(c.Data[2]),
+		constants.EncryptionMethod(c.Data[3]),
+		constants.FileType(c.Data[4]),
 		string(c.Data[6:]),
 	)
 }
