@@ -51,14 +51,14 @@ func ExtractAll(extractTo, name string, pwd string) error {
 		if err != nil {
 			return err
 		}
-		switch cnk.Type {
+		switch cnk.Type() {
 		case "AHED":
 			fmt.Println(cnk)
 		case "FHED":
 			fhad = chunk.ToFHEDChunk(cnk)
 			fmt.Println(cnk)
 		case "FDAT":
-			buf = append(buf, cnk.Data...)
+			buf = append(buf, cnk.Data()...)
 		case "FEND":
 			extractPath := filepath.Join(extractTo, fhad.FileName())
 			os.MkdirAll(filepath.Dir(extractPath), 0755)

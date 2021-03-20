@@ -64,5 +64,5 @@ func NewAHEDChunk(majorVersion, minorVersion uint8, generalPurposeBitFlag uint16
 }
 
 func ToAHEDChunk(c *chunk) AHEDChunk {
-	return NewAHEDChunk(c.Data[0], c.Data[1], binary.BigEndian.Uint16(c.Data[2:4]))
+	return NewAHEDChunk(c.Data()[0], c.Data()[1], binary.BigEndian.Uint16(c.Data()[2:4]))
 }

@@ -16,35 +16,52 @@ type Chunk interface {
 }
 
 type chunk struct {
-	Length uint32
-	Type   string
-	Data   []byte
-	CRC    uint32
+	raw    *[]byte
+	length uint32
+	type_  string
+	data   []byte
+	crc    uint32
+}
+
+func (c *chunk) Length() uint32 {
+	return c.length
+}
+
+func (c *chunk) Type() string {
+	return c.type_
+}
+
+func (c *chunk) Data() []byte {
+	return c.data
+}
+
+func (c *chunk) CRC() uint32 {
+	return c.crc
 }
 
 func From(c Chunk) *chunk {
 	return &chunk{
-		Length: c.Length(),
-		Type:   c.Type(),
-		Data:   c.Data(),
-		CRC:    c.CRC(),
+		length: c.Length(),
+		type_:  c.Type(),
+		data:   c.Data(),
+		crc:    c.CRC(),
 	}
 }
 
 // WriteTo ...
 func (c *chunk) WriteTo(w io.Writer) (int64, error) {
-	w.Write(utils.Uint32ToBytes(c.Length))
-	w.Write([]byte(c.Type))
-	w.Write(c.Data)
-	w.Write(utils.Uint32ToBytes(c.CRC))
-	return 4 + 4 + int64(c.Length) + 4, nil
+	w.Write(utils.Uint32ToBytes(c.Length()))
+	w.Write([]byte(c.Type()))
+	w.Write(c.Data())
+	w.Write(utils.Uint32ToBytes(c.CRC()))
+	return 4 + 4 + int64(c.Length()) + 4, nil
 }
 
 func (c chunk) Check() bool {
 	crc := crc32.NewIEEE()
-	crc.Write([]byte(c.Type))
-	crc.Write(c.Data)
-	return c.CRC == crc.Sum32()
+	crc.Write([]byte(c.Type()))
+	crc.Write(c.Data())
+	return c.CRC() == crc.Sum32()
 }
 
 func ReadHeader(r io.Reader) ([]byte, error) {
@@ -74,10 +91,10 @@ func ReadChunk(r io.Reader) (*chunk, error) {
 		return nil, err
 	}
 	return &chunk{
-		Length: length,
-		Type:   string(type_),
-		Data:   data,
-		CRC:    binary.BigEndian.Uint32(crc32_),
+		length: length,
+		type_:  string(type_),
+		data:   data,
+		crc:    binary.BigEndian.Uint32(crc32_),
 	}, nil
 }
 
@@ -86,9 +103,9 @@ func NewChunk(chunkType string, data []byte) *chunk {
 	crc.Write([]byte(chunkType))
 	crc.Write(data)
 	return &chunk{
-		Length: uint32(len(data)),
-		Type:   chunkType,
-		Data:   data,
-		CRC:    crc.Sum32(),
+		length: uint32(len(data)),
+		type_:  chunkType,
+		data:   data,
+		crc:    crc.Sum32(),
 	}
 }

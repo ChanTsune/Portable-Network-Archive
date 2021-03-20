@@ -82,11 +82,11 @@ func NewFHEDChunk(majorVersion, minorVersion uint8, compressionMethod constants.
 
 func ToFHEDChunk(c *chunk) FHEDChunk {
 	return NewFHEDChunk(
-		c.Data[0],
-		c.Data[1],
-		constants.CompressionMethod(c.Data[2]),
-		constants.EncryptionMethod(c.Data[3]),
-		constants.FileType(c.Data[4]),
-		string(c.Data[6:]),
+		c.Data()[0],
+		c.Data()[1],
+		constants.CompressionMethod(c.Data()[2]),
+		constants.EncryptionMethod(c.Data()[3]),
+		constants.FileType(c.Data()[4]),
+		string(c.Data()[6:]),
 	)
 }
