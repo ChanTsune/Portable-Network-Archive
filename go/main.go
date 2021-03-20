@@ -46,7 +46,7 @@ func extractProcess(context *cli.Context) error {
 	if len(archiveName) == 0 {
 		return errors.New("no files or directories specified")
 	}
-	if err := pna.ExtractAll("./ext", archiveName); err != nil {
+	if err := pna.ExtractAll("./ext", archiveName, ""); err != nil {
 		return err
 	}
 	return nil
