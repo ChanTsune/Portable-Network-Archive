@@ -92,7 +92,3 @@ func NewChunk(chunkType string, data []byte) *chunk {
 		CRC:    crc.Sum32(),
 	}
 }
-
-func NewFDATChunk(data []byte) *chunk {
-	return NewChunk("FDAT", data)
-}
