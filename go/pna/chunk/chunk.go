@@ -96,11 +96,3 @@ func NewChunk(chunkType string, data []byte) *chunk {
 func NewFDATChunk(data []byte) *chunk {
 	return NewChunk("FDAT", data)
 }
-
-func NewFENDChunk() *chunk {
-	return NewChunk("FEND", []byte{})
-}
-
-func NewAENDChunk() *chunk {
-	return NewChunk("AEND", []byte{})
-}
