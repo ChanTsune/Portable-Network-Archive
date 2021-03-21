@@ -2,12 +2,19 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"pna/pna"
+	"pna/pna/constants"
 
 	"github.com/urfave/cli"
 )
+
+type Option struct {
+	EncryptionMethod  constants.EncryptionMethod
+	CompressionMethod constants.CompressionMethod
+}
 
 func main() {
 	app := cli.NewApp()
@@ -23,6 +30,19 @@ func main() {
 		cli.BoolFlag{
 			Name:  "extract, x",
 			Usage: "extarct archive",
+		},
+		cli.StringFlag{
+			Name:  "zip",
+			Usage: "compression method. deflate, zstd and lzma is supported. or no is not compress",
+			Value: "zstd",
+		},
+		cli.StringFlag{
+			Name:  "encrypt",
+			Usage: "encryption method. aes and camellia is supported",
+		},
+		cli.StringFlag{
+			Name:  "password",
+			Usage: "encryption/decryption password",
 		},
 	}
 
@@ -56,6 +76,35 @@ func archiveProcess(context *cli.Context) error {
 	archiveName := context.Args().First()
 	if len(archiveName) == 0 {
 		return errors.New("no files or directories specified")
+	}
+	argEncryptionMethod := context.String("e")
+	password := context.String("password")
+	argCompressionMethod := context.String("zip")
+	option := Option{
+		EncryptionMethod:  constants.NoEncryption,
+		CompressionMethod: constants.ZstdCompression,
+	}
+	switch argCompressionMethod {
+	case "", "zstd":
+		option.CompressionMethod = constants.ZstdCompression
+	case "lzma":
+		option.CompressionMethod = constants.LzmaCompression
+	case "deflate":
+		option.CompressionMethod = constants.DeflateCompression
+	case "no":
+		option.CompressionMethod = constants.NoCompression
+	default:
+		return fmt.Errorf("Unsupported compression method %s", argCompressionMethod)
+	}
+	switch argEncryptionMethod {
+	case "", "aes":
+		option.EncryptionMethod = constants.AesEncryption
+	case "camellia":
+		option.EncryptionMethod = constants.CamelliaEncryption
+	default:
+		return fmt.Errorf("Unsupported encryption method %s", argEncryptionMethod)
+	}
+	if password != "" {
 	}
 	if err := pna.ArchiveAll("./pna", archiveName); err != nil {
 		return err
