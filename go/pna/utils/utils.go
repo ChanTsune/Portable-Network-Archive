@@ -1,6 +1,9 @@
 package utils
 
 import (
+	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha1"
 	"encoding/binary"
@@ -8,6 +11,7 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/dgryski/go-camellia"
 	"golang.org/x/crypto/pbkdf2"
 )
 
@@ -49,7 +53,62 @@ func RandBytes(n int) []byte {
 	return b
 }
 
-func StretchPassword(password string) ([]byte, []byte) {
+func StretchPassword(password string, salt []byte) []byte {
+	return pbkdf2.Key([]byte(password), salt, 10000, 32, sha1.New)
+}
+
+func CamelliaEncryption(src []byte, password string) ([]byte, error) {
 	salt := RandBytes(16)
-	return salt, pbkdf2.Key([]byte(password), salt, 10000, 32, sha1.New)
+	pwd := StretchPassword(password, salt)
+	ci, err := camellia.New(pwd)
+	if err != nil {
+		return nil, err
+	}
+	iv := RandBytes(16)
+	// TODO: src padding to block size
+	dist := make([]byte, len(src))
+	cipher.NewCBCEncrypter(ci, iv).CryptBlocks(dist, src)
+	return bytes.Join([][]byte{salt, iv, dist}, []byte{}), nil
+}
+
+func CamelliaDecryption(src []byte, password string) ([]byte, error) {
+	salt := src[:16]
+	pwd := StretchPassword(password, salt)
+	ci, err := camellia.New(pwd)
+	if err != nil {
+		return nil, err
+	}
+	iv := src[16 : 16+16]
+	dist := make([]byte, len(src))
+	cipher.NewCBCDecrypter(ci, iv).CryptBlocks(dist, src[16+16:])
+	// TODO: dist unpadding to block size
+	return dist, nil
+}
+
+func AesEncryption(src []byte, password string) ([]byte, error) {
+	salt := RandBytes(16)
+	pwd := StretchPassword(password, salt)
+	ci, err := aes.NewCipher(pwd)
+	if err != nil {
+		return nil, err
+	}
+	iv := RandBytes(16)
+	// TODO: src padding to block size
+	dist := make([]byte, len(src))
+	cipher.NewCBCEncrypter(ci, iv).CryptBlocks(dist, src)
+	return bytes.Join([][]byte{salt, iv, dist}, []byte{}), nil
+}
+
+func AESDecryption(src []byte, password string) ([]byte, error) {
+	salt := src[:16]
+	pwd := StretchPassword(password, salt)
+	ci, err := aes.NewCipher(pwd)
+	if err != nil {
+		return nil, err
+	}
+	iv := src[16 : 16+16]
+	dist := make([]byte, len(src))
+	cipher.NewCBCDecrypter(ci, iv).CryptBlocks(dist, src[16+16:])
+	// TODO: dist unpadding to block size
+	return dist, nil
 }

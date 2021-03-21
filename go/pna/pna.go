@@ -2,8 +2,6 @@ package pna
 
 import (
 	"bytes"
-	"crypto/aes"
-	"crypto/cipher"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -12,9 +10,9 @@ import (
 	"path/filepath"
 	"pna/pna/chunk"
 	"pna/pna/constants"
+	"pna/pna/utils"
 
 	"github.com/DataDog/zstd"
-	"github.com/dgryski/go-camellia"
 )
 
 type PnaFile struct {
@@ -69,21 +67,15 @@ func ExtractAll(extractTo, name string, pwd string) error {
 			}
 			switch fhad.EncryptionMethod() {
 			case constants.AesEncryption:
-				ci, err := aes.NewCipher([]byte(pwd))
+				buf, err = utils.AESDecryption(buf, pwd)
 				if err != nil {
 					return err
 				}
-				dist := make([]byte, len(buf))
-				cipher.NewCBCDecrypter(ci, []byte{}).CryptBlocks(dist, buf)
-				buf = dist
 			case constants.CamelliaEncryption:
-				ci, err := camellia.New([]byte(pwd))
+				buf, err = utils.CamelliaDecryption(buf, pwd)
 				if err != nil {
 					return err
 				}
-				dist := make([]byte, len(buf))
-				cipher.NewCBCDecrypter(ci, []byte{}).CryptBlocks(dist, buf)
-				buf = dist
 			}
 			switch fhad.CompressionMethod() {
 			case constants.NoCompression:
