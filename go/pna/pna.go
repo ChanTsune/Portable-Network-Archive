@@ -95,7 +95,11 @@ func ExtractAll(extractTo, name string, pwd string) error {
 	}
 }
 
-func ArchiveAll(dir, name string) error {
+func ArchiveAll(dir, name string, options ...Option) error {
+	option := mergeOption(options...)
+	if err := option.validate(); err != nil {
+		return err
+	}
 	wf, err := os.Create(name)
 	defer wf.Close()
 	if err != nil {
@@ -115,8 +119,8 @@ func ArchiveAll(dir, name string) error {
 		fhed := chunk.From(chunk.NewFHEDChunk(
 			constants.MajorVersion,
 			constants.MinorVersion,
-			constants.ZstdCompression,
-			constants.NoEncryption,
+			option.compressionMethod,
+			option.encryptionMethod,
 			constants.FileTypeNormal,
 			path,
 		))
@@ -125,11 +129,32 @@ func ArchiveAll(dir, name string) error {
 			fmt.Print(err)
 			return err
 		}
-		cData, err := zstd.Compress(nil, data)
-		if err != nil {
-			return err
+		switch option.compressionMethod {
+		case constants.NoCompression:
+		case constants.ZstdCompression:
+			data, err = zstd.Compress(nil, data)
+			if err != nil {
+				return err
+			}
+		case constants.LzmaCompression:
+			panic("unsupported lzma compress")
+		case constants.DeflateCompression:
+			panic("unsupported deflate compress")
 		}
-		fdat := chunk.NewFDATChunk(cData)
+		switch option.encryptionMethod {
+		case constants.AesEncryption:
+			data, err = utils.AesEncryption(data, option.password)
+			if err != nil {
+				return err
+			}
+		case constants.CamelliaEncryption:
+			data, err = utils.CamelliaEncryption(data, option.password)
+			if err != nil {
+				return err
+			}
+		case constants.NoEncryption:
+		}
+		fdat := chunk.NewFDATChunk(data)
 		fhed.WriteTo(wf)
 		fdat.WriteTo(wf)
 		chunk.NewFENDChunk().WriteTo(wf)

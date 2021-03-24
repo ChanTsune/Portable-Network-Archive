@@ -28,11 +28,20 @@ func defaultPnaArchiveConfig() *pnaArchiveConfig {
 	}
 }
 
+func mergeOption(o ...Option) *pnaArchiveConfig {
+	option := defaultPnaArchiveConfig()
+	for _, op := range o {
+		op(option)
+	}
+	return option
+}
+
 func Password(password string) Option {
 	return func(p *pnaArchiveConfig) {
 		p.password = password
 	}
 }
+
 func Compression(method constants.CompressionMethod) Option {
 	return func(p *pnaArchiveConfig) {
 		p.compressionMethod = method

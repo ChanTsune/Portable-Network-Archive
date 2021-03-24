@@ -44,6 +44,10 @@ func main() {
 			Name:  "password",
 			Usage: "encryption/decryption password",
 		},
+		// cli.BoolFlag{
+		// 	Name:  "p",
+		// 	Usage: "keep file permission",
+		// },
 	}
 
 	app.Action = func(context *cli.Context) error {
@@ -77,7 +81,7 @@ func archiveProcess(context *cli.Context) error {
 	if len(archiveName) == 0 {
 		return errors.New("no files or directories specified")
 	}
-	argEncryptionMethod := context.String("e")
+	argEncryptionMethod := context.String("encrypt")
 	password := context.String("password")
 	argCompressionMethod := context.String("zip")
 	option := Option{
@@ -96,17 +100,29 @@ func archiveProcess(context *cli.Context) error {
 	default:
 		return fmt.Errorf("Unsupported compression method %s", argCompressionMethod)
 	}
-	switch argEncryptionMethod {
-	case "", "aes":
-		option.EncryptionMethod = constants.AesEncryption
-	case "camellia":
-		option.EncryptionMethod = constants.CamelliaEncryption
-	default:
-		return fmt.Errorf("Unsupported encryption method %s", argEncryptionMethod)
-	}
 	if password != "" {
+		switch argEncryptionMethod {
+		case "", "aes":
+			option.EncryptionMethod = constants.AesEncryption
+		case "camellia":
+			option.EncryptionMethod = constants.CamelliaEncryption
+		default:
+			return fmt.Errorf("Unsupported encryption method %s", argEncryptionMethod)
+		}
+	} else {
+		switch argEncryptionMethod {
+		case "", "aes", "camellia":
+		default:
+			return fmt.Errorf("Unsupported encryption method %s", argEncryptionMethod)
+		}
 	}
-	if err := pna.ArchiveAll("./pna", archiveName); err != nil {
+	if err := pna.ArchiveAll(
+		"./pna",
+		archiveName,
+		pna.Compression(option.CompressionMethod),
+		pna.Encryption(option.EncryptionMethod),
+		pna.Password(password),
+	); err != nil {
 		return err
 	}
 	return nil
