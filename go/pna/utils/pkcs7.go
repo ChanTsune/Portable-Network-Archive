@@ -27,9 +27,8 @@ func pkcs7unpad(data []byte, blockSize int) ([]byte, error) {
 func pkcs7pad(data []byte, blockSize int) ([]byte, error) {
 	if blockSize < 0 || blockSize > 256 {
 		return nil, fmt.Errorf("pkcs7: Invalid block size %d", blockSize)
-	} else {
-		padLen := blockSize - len(data)%blockSize
-		padding := bytes.Repeat([]byte{byte(padLen)}, padLen)
-		return append(data, padding...), nil
 	}
+	padLen := blockSize - len(data)%blockSize
+	padding := bytes.Repeat([]byte{byte(padLen)}, padLen)
+	return append(data, padding...), nil
 }
