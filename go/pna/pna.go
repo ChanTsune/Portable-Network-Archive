@@ -2,6 +2,7 @@ package pna
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -26,7 +27,7 @@ func (f *PnaFile) Close() error {
 	return nil
 }
 
-func ExtractAll(extractTo, name string, pwd string) error {
+func ExtractAll(extractTo, name string, password string) error {
 	isPna, err := IsPnaFile(name)
 	if err != nil {
 		return err
@@ -67,12 +68,18 @@ func ExtractAll(extractTo, name string, pwd string) error {
 			}
 			switch fhad.EncryptionMethod() {
 			case constants.AesEncryption:
-				buf, err = utils.AESDecryption(buf, pwd)
+				if len(password) == 0 {
+					return errors.New("this file is encrypted but password not given")
+				}
+				buf, err = utils.AESDecryption(buf, password)
 				if err != nil {
 					return err
 				}
 			case constants.CamelliaEncryption:
-				buf, err = utils.CamelliaDecryption(buf, pwd)
+				if len(password) == 0 {
+					return errors.New("this file is encrypted but password not given")
+				}
+				buf, err = utils.CamelliaDecryption(buf, password)
 				if err != nil {
 					return err
 				}
