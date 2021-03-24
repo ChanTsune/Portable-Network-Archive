@@ -82,7 +82,7 @@ func CamelliaDecryption(src []byte, password string) ([]byte, error) {
 		return nil, err
 	}
 	iv := src[16 : 16+16]
-	dist := make([]byte, len(src))
+	dist := make([]byte, len(src)-32)
 	cipher.NewCBCDecrypter(ci, iv).CryptBlocks(dist, src[16+16:])
 	dist, err = pkcs7unpad(dist, 16)
 	if err != nil {
@@ -116,7 +116,7 @@ func AESDecryption(src []byte, password string) ([]byte, error) {
 		return nil, err
 	}
 	iv := src[16 : 16+16]
-	dist := make([]byte, len(src))
+	dist := make([]byte, len(src)-32)
 	cipher.NewCBCDecrypter(ci, iv).CryptBlocks(dist, src[16+16:])
 	dist, err = pkcs7unpad(dist, 16)
 	if err != nil {
