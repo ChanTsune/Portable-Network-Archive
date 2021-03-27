@@ -102,25 +102,18 @@ func ArchiveAll(dir, name string, options ...Option) error {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	wf.Write(constants.Header)
-	chunk.From(chunk.NewAHEDChunk(
+	writer := chunk.NewWriter(wf)
+	writer.WritePNAHeader()
+	writer.WriteChunk(chunk.NewAHEDChunk(
 		constants.MajorVersion,
 		constants.MinorVersion,
 		0,
-	)).WriteTo(wf)
+	))
 	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		fmt.Println(path)
 		if info.IsDir() {
 			return nil
 		}
-		fhed := chunk.From(chunk.NewFHEDChunk(
-			constants.MajorVersion,
-			constants.MinorVersion,
-			option.compressionMethod,
-			option.encryptionMethod,
-			constants.FileTypeNormal,
-			path,
-		))
 		data, err := ioutil.ReadFile(path)
 		if err != nil {
 			fmt.Print(err)
@@ -151,15 +144,20 @@ func ArchiveAll(dir, name string, options ...Option) error {
 			}
 		case constants.NoEncryption:
 		}
-		fdat := chunk.NewFDATChunk(data)
-		fhed.WriteTo(wf)
-		fdat.WriteTo(wf)
-		chunk.NewFENDChunk().WriteTo(wf)
+		writer.WriteChunk(chunk.NewFHEDChunk(
+			constants.MajorVersion,
+			constants.MinorVersion,
+			option.compressionMethod,
+			option.encryptionMethod,
+			constants.FileTypeNormal,
+			path,
+		))
+		writer.WriteChunk(chunk.NewFDATChunk(data))
+		writer.WriteChunk(chunk.NewFENDChunk())
 
 		return nil
 	})
-
-	chunk.NewAENDChunk().WriteTo(wf)
+	writer.WriteChunk(chunk.NewAENDChunk())
 	return nil
 }
 
