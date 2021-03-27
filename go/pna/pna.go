@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"pna/pna/chunk"
@@ -107,10 +106,10 @@ func ArchiveAll(dir, name string, options ...Option) error {
 		return err
 	}
 	wf, err := os.Create(name)
-	defer wf.Close()
 	if err != nil {
-		log.Fatalln(err)
+		return err
 	}
+	defer wf.Close()
 	writer := chunk.NewWriter(wf)
 	writer.WritePNAHeader()
 	writer.WriteChunk(chunk.NewAHEDChunk(
