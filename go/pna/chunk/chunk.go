@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"hash/crc32"
 	"io"
-	"pna/pna/constants"
 	"pna/pna/utils"
 )
 
@@ -57,19 +56,11 @@ func (c *chunk) WriteTo(w io.Writer) (int64, error) {
 	return 4 + 4 + int64(c.Length()) + 4, nil
 }
 
-func (c chunk) Check() bool {
+func (c chunk) Validate() bool {
 	crc := crc32.NewIEEE()
 	crc.Write([]byte(c.Type()))
 	crc.Write(c.Data())
 	return c.CRC() == crc.Sum32()
-}
-
-func ReadHeader(r io.Reader) ([]byte, error) {
-	h := make([]byte, len(constants.Header))
-	if _, err := r.Read(h); err != nil {
-		return nil, err
-	}
-	return h, nil
 }
 
 func ReadChunk(r io.Reader) (*chunk, error) {

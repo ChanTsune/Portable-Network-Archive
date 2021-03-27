@@ -16,17 +16,6 @@ import (
 	"github.com/DataDog/zstd"
 )
 
-type PnaFile struct {
-}
-
-func Open(path string) (*PnaFile, error) {
-	return &PnaFile{}, nil
-}
-
-func (f *PnaFile) Close() error {
-	return nil
-}
-
 func ExtractAll(extractTo, name string, password string) error {
 	isPna, err := IsPnaFile(name)
 	if err != nil {
@@ -40,13 +29,14 @@ func ExtractAll(extractTo, name string, password string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := chunk.ReadHeader(file); err != nil {
+	reader := chunk.NewReader(file)
+	if _, err := reader.ReadPNAHeader(); err != nil {
 		return err
 	}
 	buf := make([]byte, 0)
 	var fhad chunk.FHEDChunk
 	for {
-		cnk, err := chunk.ReadChunk(file)
+		cnk, err := reader.ReadChunk()
 		if err != nil {
 			return err
 		}
