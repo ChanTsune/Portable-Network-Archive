@@ -50,42 +50,51 @@ func ExtractAll(extractTo, name string, password string) error {
 			buf = append(buf, cnk.Data()...)
 		case "FEND":
 			extractPath := filepath.Join(extractTo, fhad.FileName())
-			os.MkdirAll(filepath.Dir(extractPath), 0755)
+			if err := os.MkdirAll(filepath.Dir(extractPath), 0755); err != nil {
+				return err
+			}
 			f, err := os.Create(extractPath)
-			defer f.Close()
 			if err != nil {
 				return err
 			}
-			switch fhad.EncryptionMethod() {
-			case constants.AesEncryption:
-				if len(password) == 0 {
-					return errors.New("this file is encrypted but password not given")
+			defer f.Close()
+			switch fhad.FileType() {
+			case constants.FileTypeNormal:
+				switch fhad.EncryptionMethod() {
+				case constants.AesEncryption:
+					if len(password) == 0 {
+						return errors.New("this file is encrypted but password not given")
+					}
+					buf, err = utils.AESDecryption(buf, password)
+					if err != nil {
+						return err
+					}
+				case constants.CamelliaEncryption:
+					if len(password) == 0 {
+						return errors.New("this file is encrypted but password not given")
+					}
+					buf, err = utils.CamelliaDecryption(buf, password)
+					if err != nil {
+						return err
+					}
 				}
-				buf, err = utils.AESDecryption(buf, password)
-				if err != nil {
-					return err
+				switch fhad.CompressionMethod() {
+				case constants.NoCompression:
+					f.Write(buf)
+				case constants.ZstdCompression:
+					dst, err := zstd.Decompress(nil, buf)
+					if err != nil {
+						return err
+					}
+					f.Write(dst)
 				}
-			case constants.CamelliaEncryption:
-				if len(password) == 0 {
-					return errors.New("this file is encrypted but password not given")
-				}
-				buf, err = utils.CamelliaDecryption(buf, password)
-				if err != nil {
-					return err
+				buf = make([]byte, 0)
+				fmt.Println(cnk)
+			case constants.FileTypeDirectory:
+				if err := os.MkdirAll(fhad.FileName(), 0755); err != nil {
+					return nil
 				}
 			}
-			switch fhad.CompressionMethod() {
-			case constants.NoCompression:
-				f.Write(buf)
-			case constants.ZstdCompression:
-				dst, err := zstd.Decompress(nil, buf)
-				if err != nil {
-					return err
-				}
-				f.Write(dst)
-			}
-			buf = make([]byte, 0)
-			fmt.Println(cnk)
 		case "AEND":
 			return nil
 		}
