@@ -8,7 +8,7 @@ import (
 	"pna/pna"
 	"pna/pna/constants"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 type Option struct {
@@ -23,29 +23,36 @@ func main() {
 	app.Version = "0.0.0"
 
 	app.Flags = []cli.Flag{
-		cli.BoolFlag{
-			Name:  "create, c",
-			Usage: "create archive",
+		&cli.BoolFlag{
+			Name:    "create",
+			Aliases: []string{"c"},
+			Usage:   "create archive",
 		},
-		cli.BoolFlag{
-			Name:  "extract, x",
-			Usage: "extarct archive",
+		&cli.BoolFlag{
+			Name:    "extract",
+			Aliases: []string{"x"},
+			Usage:   "extarct archive",
 		},
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:  "zip",
 			Usage: "compression method. deflate, zstd and lzma is supported. or no is not compress",
 			Value: "zstd",
 		},
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:  "encrypt",
 			Usage: "encryption method. aes and camellia is supported",
 		},
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:  "password",
 			Usage: "encryption/decryption password",
 		},
+		&cli.StringFlag{
+			Name:    "output",
+			Aliases: []string{"o"},
+			Usage:   "output path",
+		},
 		// cli.BoolFlag{
-		// 	Name:  "p",
+		// 	Name:  "keep-permission",
 		// 	Usage: "keep file permission",
 		// },
 	}
@@ -71,7 +78,11 @@ func extractProcess(context *cli.Context) error {
 		return errors.New("no files or directories specified")
 	}
 	password := context.String("password")
-	if err := pna.ExtractAll("./ext", archiveName, password); err != nil {
+	outputPath := context.String("output")
+	if len(outputPath) == 0 {
+		outputPath = "."
+	}
+	if err := pna.ExtractAll(outputPath, archiveName, password); err != nil {
 		return err
 	}
 	return nil
