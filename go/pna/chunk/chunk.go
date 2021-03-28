@@ -15,7 +15,7 @@ type Chunk interface {
 }
 
 type chunk struct {
-	raw    *[]byte
+	// raw    *[]byte
 	length uint32
 	type_  string
 	data   []byte
