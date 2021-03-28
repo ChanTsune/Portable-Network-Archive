@@ -146,62 +146,35 @@ func ArchiveAll(dir, name string, options ...Option) error {
 		return err
 	}
 	defer wf.Close()
-	writer := chunk.NewWriter(wf)
-	writer.WritePNAHeader()
-	writer.WriteChunk(chunk.NewAHEDChunk(
-		constants.MajorVersion,
-		constants.MinorVersion,
-		0,
-	))
+	pnaWriter, err := NewWriter(wf)
+	if err != nil {
+		return err
+	}
+
 	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		fmt.Println(path)
 		if info.IsDir() {
 			return nil
+		}
+		fileWriter, err := pnaWriter.CreateWithFileInfo(NewFileInfo(
+			option.compressionMethod,
+			option.encryptionMethod,
+			constants.FileTypeNormal,
+			path,
+			option.password,
+		))
+		if err != nil {
+			return err
 		}
 		data, err := ioutil.ReadFile(path)
 		if err != nil {
 			fmt.Print(err)
 			return err
 		}
-		switch option.compressionMethod {
-		case constants.NoCompression:
-		case constants.ZstdCompression:
-			data, err = zstd.Compress(nil, data)
-			if err != nil {
-				return err
-			}
-		case constants.LzmaCompression:
-			panic("unsupported lzma compress")
-		case constants.DeflateCompression:
-			panic("unsupported deflate compress")
-		}
-		switch option.encryptionMethod {
-		case constants.AesEncryption:
-			data, err = utils.AesEncryption(data, option.password)
-			if err != nil {
-				return err
-			}
-		case constants.CamelliaEncryption:
-			data, err = utils.CamelliaEncryption(data, option.password)
-			if err != nil {
-				return err
-			}
-		case constants.NoEncryption:
-		}
-		writer.WriteChunk(chunk.NewFHEDChunk(
-			constants.MajorVersion,
-			constants.MinorVersion,
-			option.compressionMethod,
-			option.encryptionMethod,
-			constants.FileTypeNormal,
-			path,
-		))
-		writer.WriteChunk(chunk.NewFDATChunk(data))
-		writer.WriteChunk(chunk.NewFENDChunk())
+		fileWriter.Write(data)
 
 		return nil
 	})
-	writer.WriteChunk(chunk.NewAENDChunk())
 	return nil
 }
 
