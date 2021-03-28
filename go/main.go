@@ -128,9 +128,9 @@ func archiveProcess(context *cli.Context) error {
 			return fmt.Errorf("Unsupported encryption method %s", argEncryptionMethod)
 		}
 	}
-	if err := pna.ArchiveAll(
-		"./pna",
+	if err := pna.Archive(
 		archiveName,
+		context.Args().Slice()[1:],
 		pna.Compression(option.CompressionMethod),
 		pna.Encryption(option.EncryptionMethod),
 		pna.Password(password),

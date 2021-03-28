@@ -100,6 +100,42 @@ func ExtractAll(extractTo, name string, password string) error {
 	}
 }
 
+func Archive(name string, names []string, options ...Option) error {
+	option := mergeOption(options...)
+	if err := option.validate(); err != nil {
+		return err
+	}
+	wf, err := os.Create(name)
+	if err != nil {
+		return err
+	}
+	defer wf.Close()
+	pnaWriter, err := NewWriter(wf)
+	if err != nil {
+		return err
+	}
+
+	for _, fileName := range names {
+		fileWriter, err := pnaWriter.CreateWithFileInfo(NewFileInfo(
+			option.compressionMethod,
+			option.encryptionMethod,
+			constants.FileTypeNormal,
+			fileName,
+			option.password,
+		))
+		if err != nil {
+			return err
+		}
+		data, err := ioutil.ReadFile(fileName)
+		if err != nil {
+			fmt.Print(err)
+			return err
+		}
+		fileWriter.Write(data)
+	}
+	return pnaWriter.Close()
+}
+
 func ArchiveAll(dir, name string, options ...Option) error {
 	option := mergeOption(options...)
 	if err := option.validate(); err != nil {
