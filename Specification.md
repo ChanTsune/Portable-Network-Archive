@@ -51,6 +51,7 @@ Chunk Data
 |Major version|1-byte|Major version of PNA|
 |Minor version|1-byte|Minor version of PNA|
 |General purpose bit flag|2-byte|Bit flags|
+|Archive number|4-byte|Archive number|
 
 ##### Major version
 
@@ -67,6 +68,11 @@ Currently only 0 is defined.
 __Bit0__ Use solid mode.
 
 __Bit1__ ~ __Bit15__ currently dose not used. reserve for future.
+
+##### Archive number
+
+Contains the number of the archive when the archive is split.  
+Archive number is start with 0.
 
 #### FHED
 
@@ -100,9 +106,10 @@ The encryption method is recorded.
 ##### File type
 
 The file type is recorded.
-0 is normal file
+0 is regular file
 1 is directory
 2 is symbolic link
+3 is hard link
 4 is a file that has previously appeared in the archive
 
 #### FDAT
@@ -164,21 +171,13 @@ This chunk appeared after `FHAD` chunk and before `FEND` chunk.
 ##### permissions
 
 Unix file permission characters like `-rwxr-xr-x`.
-#### aNUM
 
-|significance|size|description|
-|--|--|--|
-|Archive number|4-byte|Archive number|
-|Number of archives|4-byte|Number of archives|
+#### aNXT
 
-##### Archive number
-
-Contains the number of the archive when the archive is split.  
-Archive number is start with 0.
-
-##### Number of archives
-
-Contains the total number of split archives.
+Indicates that the archive is split and the following file exists.
+The Archive number field of the `AHED` chunk of the next file will be the value of the Archive number field of the `AHED` chunk of the current file incremented by 1.
+Immediately after this chunk must be an `AEND` chunk.  
+The chunk data area is empty.  
 
 #### aSLD
 
