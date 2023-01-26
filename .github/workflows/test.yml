@@ -1,0 +1,41 @@
+name: Test
+on:
+  pull_request:
+  push:
+jobs:
+  rust_doc_test:
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - name: echo rust version
+        run: rustc --version
+      - name: Cache cargo
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache build
+        id: cache-build
+        uses: actions/cache@v3
+        with:
+          path: |
+            wiz/target
+          key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.toml') }}
+      - name: run test
+        run: cargo test --locked --release
+        env:
+          RUST_BACKTRACE: 1
