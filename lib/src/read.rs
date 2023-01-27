@@ -82,7 +82,7 @@ mod tests {
 
     #[test]
     fn decode() {
-        let file_bytes = include_bytes!("../resources/empty_archive.pna");
+        let file_bytes = include_bytes!("../../resources/empty_archive.pna");
         let reader = Cursor::new(file_bytes);
         let decoder = Decoder::new();
         let mut reader = decoder.read_header(reader).unwrap();

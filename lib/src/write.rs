@@ -59,7 +59,6 @@ mod tests {
 
     #[test]
     fn encode() {
-        // let file = std::fs::File::create(std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/empty_archive.pna")).unwrap();
         let file = tempfile::tempfile().unwrap();
         let encoder = Encoder::new();
         let mut writer = encoder.write_header(BufWriter::new(file)).unwrap();
