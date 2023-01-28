@@ -48,8 +48,8 @@ impl<R: Read> ArchiveReader<R> {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
     use super::Decoder;
+    use std::io::Cursor;
 
     #[test]
     fn decode() {
