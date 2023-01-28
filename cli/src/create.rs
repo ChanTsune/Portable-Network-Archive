@@ -7,7 +7,7 @@ pub(crate) fn create_archive<A: AsRef<Path>, F: AsRef<Path>>(
     options: Options,
 ) -> io::Result<()> {
     let archive = archive.as_ref();
-    if archive.exists() {
+    if !options.overwrite && archive.exists() {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
             format!("{} is alrady exists", archive.display()),

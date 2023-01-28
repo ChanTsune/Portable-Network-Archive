@@ -33,6 +33,8 @@ struct Args {
 struct Options {
     #[arg(short, long, help = "Add the directory to the archive recursively")]
     recursive: bool,
+    #[arg(long, help = "Overwrite file")]
+    overwrite: bool,
     #[arg(long, help = "Make some output more verbose")]
     verbose: bool,
     #[arg(long, help = "Make some output more quiet")]
@@ -61,6 +63,6 @@ mod tests {
 
     #[test]
     fn create_archive() {
-        entry(Args::parse_from(["pna", "-c", "c.pna"])).unwrap();
+        entry(Args::parse_from(["pna", "--overwrite", "-c", "c.pna"])).unwrap();
     }
 }
