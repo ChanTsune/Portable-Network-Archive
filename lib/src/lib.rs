@@ -1,11 +1,10 @@
 pub(crate) mod chunk;
-pub(crate) mod crc;
 pub(crate) mod header;
 pub(crate) mod read;
 pub(crate) mod write;
 
 pub use chunk::*;
-pub(crate) use crc::Crc32;
+pub(crate) use chunk::crc::Crc32;
 pub use header::PNA_HEADRE;
 pub use read::{ChunkReader, Decoder};
 pub use write::{ChunkWriter, Encoder};

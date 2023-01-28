@@ -1,4 +1,5 @@
 mod types;
+pub(crate) mod crc;
 
 pub(crate) use types::*;
 
