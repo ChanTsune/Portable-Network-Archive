@@ -63,6 +63,13 @@ mod tests {
 
     #[test]
     fn create_archive() {
-        entry(Args::parse_from(["pna", "--overwrite", "-c", "c.pna"])).unwrap();
+        entry(Args::parse_from([
+            "pna",
+            "--overwrite",
+            "--quiet",
+            "-c",
+            "c.pna",
+        ]))
+        .unwrap();
     }
 }

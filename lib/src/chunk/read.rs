@@ -1,28 +1,5 @@
-use crate::Crc32;
-use std::io::{self, Read, Seek};
-
-use crate::{ChunkType, PNA_HEADRE};
-
-#[derive(Default)]
-pub struct Decoder;
-
-impl Decoder {
-    pub fn new() -> Self {
-        Self
-    }
-
-    pub fn read_header<R: Read + Seek>(&self, mut reader: R) -> io::Result<ChunkReader<R>> {
-        let mut header = [0u8; PNA_HEADRE.len()];
-        reader.read_exact(&mut header)?;
-        if &header != PNA_HEADRE {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                String::from("not pna format"),
-            ));
-        }
-        Ok(ChunkReader::from(reader))
-    }
-}
+use crate::chunk::{crc::Crc32, ChunkType};
+use std::io::{self, Read};
 
 pub struct ChunkReader<R> {
     r: R,
@@ -67,26 +44,9 @@ impl<R: Read> ChunkReader<R> {
 
 impl<R> From<R> for ChunkReader<R>
 where
-    R: Read + Seek,
+    R: Read,
 {
     fn from(reader: R) -> Self {
         Self { r: reader }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::io::Cursor;
-
-    use super::Decoder;
-
-    #[test]
-    fn decode() {
-        let file_bytes = include_bytes!("../../resources/empty_archive.pna");
-        let reader = Cursor::new(file_bytes);
-        let decoder = Decoder::new();
-        let mut reader = decoder.read_header(reader).unwrap();
-        reader.read_chunk().unwrap();
-        reader.read_chunk().unwrap();
     }
 }

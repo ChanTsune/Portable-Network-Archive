@@ -1,1 +1,1 @@
-pub(crate) use crc32fast::Hasher as Crc32;
+pub(super) use crc32fast::Hasher as Crc32;

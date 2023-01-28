@@ -1,4 +1,5 @@
 use crate::Options;
+use libpna::Encoder;
 use std::{fs::File, io, path::Path};
 
 pub(crate) fn create_archive<A: AsRef<Path>, F: AsRef<Path>>(
@@ -16,7 +17,10 @@ pub(crate) fn create_archive<A: AsRef<Path>, F: AsRef<Path>>(
     if !options.quiet {
         println!("Create an archive: {}", archive.display());
     }
-    File::create(archive)?;
+    let file = File::create(archive)?;
+
+    let encoder = Encoder::new();
+    let mut writer = encoder.write_header(file)?;
 
     for file in files {
         let file = file.as_ref();
@@ -24,6 +28,8 @@ pub(crate) fn create_archive<A: AsRef<Path>, F: AsRef<Path>>(
             println!("Adding: {}", file.display());
         }
     }
+
+    writer.finalize()?;
 
     if !options.quiet {
         println!("Successfully created an archive");

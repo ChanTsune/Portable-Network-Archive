@@ -1,7 +1,11 @@
+mod crc;
+mod read;
 mod types;
-pub(crate) mod crc;
+mod write;
 
-pub(crate) use types::*;
+pub use read::ChunkReader;
+pub use types::*;
+pub use write::ChunkWriter;
 
 pub fn create_chunk_data_ahed(major: u8, minor: u8, archive_number: u32) -> [u8; 8] {
     let mut data = [0; 8];
