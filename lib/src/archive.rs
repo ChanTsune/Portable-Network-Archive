@@ -1,6 +1,6 @@
-pub(crate) mod header;
-pub(crate) mod read;
-pub(crate) mod write;
+mod header;
+mod read;
+mod write;
 
 pub use header::PNA_HEADER;
 pub use read::{ArchiveReader, Decoder};

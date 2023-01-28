@@ -48,13 +48,15 @@ impl<R: Read> ArchiveReader<R> {
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
     use super::Decoder;
 
     #[test]
     fn decode() {
         let file_bytes = include_bytes!("../../../resources/empty_archive.pna");
+        let reader = Cursor::new(file_bytes);
         let decoder = Decoder::new();
-        let mut reader = decoder.read_header(file_bytes).unwrap();
+        let mut reader = decoder.read_header(reader).unwrap();
         reader.read().unwrap();
     }
 }
