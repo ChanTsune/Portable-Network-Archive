@@ -48,11 +48,11 @@ fn main() -> io::Result<()> {
 
 fn entry(args: Args) -> io::Result<()> {
     if let Some(create) = args.create {
-        create::create_archive(&create, &args.files, args.options)?;
+        create::create_archive(create, &args.files, args.options)?;
     } else if let Some(append) = args.append {
         println!("Append archive {}", append.display());
     } else if let Some(extract) = args.extract {
-        extract::extract_archive(&extract, &args.files, args.options)?;
+        extract::extract_archive(extract, &args.files, args.options)?;
     }
     Ok(())
 }

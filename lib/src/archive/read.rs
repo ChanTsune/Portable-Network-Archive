@@ -48,10 +48,12 @@ impl<R: Read> ArchiveReader<R> {
             }
         }
         Ok(Some(Item {
-            info: info.ok_or(io::Error::new(
-                io::ErrorKind::InvalidData,
-                String::from("FHED chunk not found"),
-            ))?,
+            info: info.ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    String::from("FHED chunk not found"),
+                )
+            })?,
             reader: Cursor::new(all_data),
         }))
     }
