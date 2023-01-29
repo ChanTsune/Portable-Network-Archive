@@ -1,0 +1,13 @@
+[package]
+name = "portable-network-archive"
+version = "0.0.0"
+edition = "2021"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = { version = "4.1.4", features = ["derive"] }
+libpna = { version = "0.0.0", path = "../lib" }
+
+[[bin]]
+name = "pna"
+path = "src/main.rs"
