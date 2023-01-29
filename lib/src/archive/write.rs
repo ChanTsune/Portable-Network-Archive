@@ -49,6 +49,7 @@ impl<W: Write> ArchiveWriter<W> {
 
     pub fn start_file_with_options(&mut self, name: &str, options: Options) -> io::Result<()> {
         self.end_file()?;
+        self.file_closed = false;
         self.options = options;
 
         self.w.write_chunk(

@@ -1,4 +1,5 @@
 mod create;
+mod extract;
 
 use clap::{ArgGroup, Parser};
 use std::{io, path::PathBuf};
@@ -51,7 +52,7 @@ fn entry(args: Args) -> io::Result<()> {
     } else if let Some(append) = args.append {
         println!("Append archive {}", append.display());
     } else if let Some(extract) = args.extract {
-        println!("Extract archive {}", extract.display());
+        extract::extract_archive(&extract, &args.files, args.options)?;
     }
     Ok(())
 }

@@ -27,7 +27,7 @@ pub fn create_chunk_data_fhed(
     name: &str,
 ) -> Box<[u8]> {
     let name = name.as_bytes();
-    let mut data = vec![0u8; name.len()];
+    let mut data = vec![0u8; 6 + name.len()];
     data[0] = major;
     data[1] = minor;
     data[2] = compression;
