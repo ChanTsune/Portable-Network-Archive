@@ -1,7 +1,8 @@
+use crate::archive::item::{Compression, Encryption, Options};
 use crate::{
     archive::PNA_HEADER,
     chunk::{self, ChunkWriter},
-    create_chunk_data_ahed,
+    create_chunk_data_ahed, create_chunk_data_fhed,
 };
 use std::io::{self, Write};
 
@@ -17,20 +18,88 @@ impl Encoder {
         write.write_all(PNA_HEADER)?;
         let mut chunk_writer = ChunkWriter::from(write);
         chunk_writer.write_chunk(chunk::AHED, &create_chunk_data_ahed(0, 0, 0))?;
-        Ok(ArchiveWriter {
-            w: chunk_writer,
-            finalized: false,
-        })
+        Ok(ArchiveWriter::new(chunk_writer))
     }
 }
 
 pub struct ArchiveWriter<W: Write> {
     w: ChunkWriter<W>,
+    // temporary use fields
+    options: Options,
+    buf: Vec<u8>,
+    file_closed: bool,
+    // end temporary
     finalized: bool,
 }
 
 impl<W: Write> ArchiveWriter<W> {
+    fn new(chunk_writer: ChunkWriter<W>) -> Self {
+        Self {
+            w: chunk_writer,
+            options: Options::default(),
+            buf: Vec::new(),
+            file_closed: true,
+            finalized: false,
+        }
+    }
+
+    pub fn start_file(&mut self, name: &str) -> io::Result<()> {
+        self.start_file_with_options(name, Options::default())
+    }
+
+    pub fn start_file_with_options(&mut self, name: &str, options: Options) -> io::Result<()> {
+        self.end_file()?;
+        self.options = options;
+
+        self.w.write_chunk(
+            chunk::FHED,
+            &create_chunk_data_fhed(
+                0,
+                0,
+                self.options.compression as u8,
+                self.options.encryption as u8,
+                0,
+                name,
+            ),
+        )?;
+        Ok(())
+    }
+
+    pub fn write_all(&mut self, data: &[u8]) -> io::Result<()> {
+        self.buf.extend(data);
+        Ok(())
+    }
+
+    pub fn end_file(&mut self) -> io::Result<()> {
+        if self.file_closed {
+            return Ok(());
+        }
+        let mut data = Vec::new();
+        std::mem::swap(&mut data, &mut self.buf);
+
+        let data = match self.options.compression {
+            Compression::No => data,
+            Compression::Deflate => todo!("Deflate compression"),
+            Compression::ZStandard => todo!("ZStandard compression"),
+            Compression::XZ => todo!("XZ compression"),
+        };
+
+        let data = match self.options.encryption {
+            Encryption::No => data,
+            Encryption::AES => todo!("Aes encryption"),
+            Encryption::Camellia => todo!("Camellia encryption"),
+        };
+
+        self.w.write_chunk(chunk::FDAT, &data)?;
+
+        // Write end of file
+        self.w.write_chunk(chunk::FEND, &[])?;
+        self.file_closed = true;
+        Ok(())
+    }
+
     pub fn finalize(&mut self) -> io::Result<()> {
+        self.end_file()?;
         if !self.finalized {
             self.w.write_chunk(chunk::AEND, &[])?;
             self.finalized = true;

@@ -16,6 +16,26 @@ pub fn create_chunk_data_ahed(major: u8, minor: u8, archive_number: u32) -> [u8;
     data
 }
 
+pub fn create_chunk_data_fhed(
+    major: u8,
+    minor: u8,
+    compression: u8,
+    encryption: u8,
+    file_type: u8,
+    name: &str,
+) -> Box<[u8]> {
+    let name = name.as_bytes();
+    let mut data = vec![0u8; name.len()];
+    data[0] = major;
+    data[1] = minor;
+    data[2] = compression;
+    data[3] = encryption;
+    data[4] = file_type;
+    data[5] = 0; // null character
+    data[6..].copy_from_slice(name);
+    data.into_boxed_slice()
+}
+
 #[cfg(test)]
 mod tests {
     use crate::create_chunk_data_ahed;
