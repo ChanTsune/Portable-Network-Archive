@@ -1,7 +1,7 @@
 # Portable-Network-Archive
 
-Portable-Network-Archive(PNA)
-Highly scalable archive format with file compression, splitting and encryption.
+Portable-Network-Archive (PNA)  
+Highly scalable archive format based on the PNG data structure with file compression, splitting and encryption.
 
 ## Data structure
 
