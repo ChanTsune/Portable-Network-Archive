@@ -83,6 +83,13 @@ impl Default for Options {
     }
 }
 
+impl Options {
+    pub fn compression(mut self, compression: Compression) -> Self {
+        self.compression = compression;
+        self
+    }
+}
+
 pub struct ItemInfo {
     pub(crate) major: u8,
     pub(crate) minor: u8,
