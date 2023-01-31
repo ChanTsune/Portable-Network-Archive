@@ -59,7 +59,11 @@ fn write_internal<W: Write>(
         }
     } else if path.is_file() {
         let item_option =
-            libpna::Options::default().compression(if let Some(zstd_level) = options.zstd_level {
+            libpna::Options::default().compression(if let Some(lzma_level) = options.lzma_level {
+                libpna::Compression::XZ
+            } else if options.lzma {
+                libpna::Compression::XZ
+            } else if let Some(zstd_level) = options.zstd_level {
                 libpna::Compression::ZStandard
             } else if options.zstd {
                 libpna::Compression::ZStandard

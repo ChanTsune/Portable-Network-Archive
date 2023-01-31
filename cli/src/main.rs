@@ -45,6 +45,15 @@ struct Options {
         help = "Zstd compression level [level: 1-21]"
     )]
     zstd_level: Option<u8>,
+    #[arg(long, help = "Use xz for compression")]
+    lzma: bool,
+    #[arg(
+        long,
+        value_name = "level",
+        value_parser = value_parser!(u8).range(0..=9),
+        help = "Xz compression level [level: 0-9]"
+    )]
+    lzma_level: Option<u8>,
     #[arg(long, help = "Make some output more verbose")]
     verbose: bool,
     #[arg(long, help = "Make some output more quiet")]
@@ -91,5 +100,15 @@ mod tests {
         assert_eq!(args.options.zstd, true);
         let args = Args::parse_from(["pna", "-c", "c.pna", "--zstd-level", "5"]);
         assert_eq!(args.options.zstd_level, Some(5u8))
+    }
+
+    #[test]
+    fn lzma_level() {
+        let args = Args::parse_from(["pna", "-c", "c.pna"]);
+        assert_eq!(args.options.lzma, false);
+        let args = Args::parse_from(["pna", "-c", "c.pna", "--lzma"]);
+        assert_eq!(args.options.lzma, true);
+        let args = Args::parse_from(["pna", "-c", "c.pna", "--lzma-level", "5"]);
+        assert_eq!(args.options.lzma_level, Some(5u8))
     }
 }
