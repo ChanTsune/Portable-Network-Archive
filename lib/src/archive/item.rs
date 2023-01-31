@@ -1,4 +1,4 @@
-use std::io::{self, Cursor, Read};
+use std::io::{self, Read};
 
 #[derive(Copy, Clone)]
 #[repr(u8)]
@@ -101,7 +101,7 @@ pub struct ItemInfo {
 
 pub struct Item {
     pub(crate) info: ItemInfo,
-    pub(crate) reader: Cursor<Vec<u8>>,
+    pub(crate) reader: Box<dyn Read>,
 }
 
 impl Read for Item {

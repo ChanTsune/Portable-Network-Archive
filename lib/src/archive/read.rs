@@ -53,16 +53,13 @@ impl<R: Read> ArchiveReader<R> {
                 String::from("FHED chunk not found"),
             )
         })?;
-        let data = match info.compression {
-            Compression::No => all_data,
+        let reader: Box<dyn Read> = match info.compression {
+            Compression::No => Box::new(Cursor::new(all_data)),
             Compression::Deflate => todo!(),
-            Compression::ZStandard => zstd::decode_all(all_data.as_slice())?,
-            Compression::XZ => todo!(),
+            Compression::ZStandard => Box::new(Cursor::new(zstd::decode_all(all_data.as_slice())?)),
+            Compression::XZ => Box::new(xz2::read::XzDecoder::new(Cursor::new(all_data))),
         };
-        Ok(Some(Item {
-            info,
-            reader: Cursor::new(data),
-        }))
+        Ok(Some(Item { info, reader }))
     }
 }
 
