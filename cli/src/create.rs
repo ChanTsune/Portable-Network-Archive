@@ -64,8 +64,10 @@ fn write_internal<W: Write>(
             libpna::Compression::XZ
         } else if let Some(zstd_level) = options.zstd {
             libpna::Compression::ZStandard
+        } else if let Some(deflate_level) = options.deflate {
+            libpna::Compression::Deflate
         } else {
-            libpna::Compression::No
+            libpna::Compression::ZStandard
         });
         writer.start_file_with_options(path.as_os_str().to_string_lossy().as_ref(), item_option)?;
         writer.write_all(&fs::read(path)?)?;
