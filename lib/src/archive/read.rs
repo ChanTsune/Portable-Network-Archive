@@ -56,8 +56,8 @@ impl<R: Read> ArchiveReader<R> {
         let reader: Box<dyn Read> = match info.compression {
             Compression::No => Box::new(Cursor::new(all_data)),
             Compression::Deflate => todo!(),
-            Compression::XZ => todo!(),
             Compression::ZStandard => Box::new(Cursor::new(zstd::decode_all(all_data.as_slice())?)),
+            Compression::XZ => Box::new(xz2::read::XzDecoder::new(Cursor::new(all_data))),
         };
         Ok(Some(Item { info, reader }))
     }

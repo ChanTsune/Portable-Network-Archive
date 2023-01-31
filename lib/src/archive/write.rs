@@ -82,7 +82,12 @@ impl<W: Write> ArchiveWriter<W> {
             Compression::No => data,
             Compression::Deflate => todo!("Deflate compression"),
             Compression::ZStandard => zstd::encode_all(data.as_slice(), 0)?,
-            Compression::XZ => todo!("XZ compression"),
+            Compression::XZ => {
+                let mut dist = Vec::new();
+                let mut reader = xz2::read::XzEncoder::new(data.as_slice(), 6);
+                io::copy(&mut reader, &mut dist)?;
+                dist
+            }
         };
 
         let data = match self.options.encryption {
