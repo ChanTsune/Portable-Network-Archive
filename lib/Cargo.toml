@@ -6,6 +6,7 @@ edition = "2021"
 
 [dependencies]
 crc32fast = "1.2.0"
+xz2 = "0.1.7"
 zstd = "0.12.2"
 
 [dev-dependencies]
