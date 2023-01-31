@@ -81,7 +81,7 @@ impl<W: Write> ArchiveWriter<W> {
         let data = match self.options.compression {
             Compression::No => data,
             Compression::Deflate => todo!("Deflate compression"),
-            Compression::ZStandard => todo!("ZStandard compression"),
+            Compression::ZStandard => zstd::encode_all(data.as_slice(), 0)?,
             Compression::XZ => todo!("XZ compression"),
         };
 

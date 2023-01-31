@@ -1,5 +1,5 @@
 use crate::archive::item::Item;
-use crate::archive::PNA_HEADER;
+use crate::archive::{Compression, PNA_HEADER};
 use crate::chunk::{self, from_chunk_data_fhed, ChunkReader};
 use std::io::{self, Cursor, Read, Seek};
 
@@ -47,12 +47,21 @@ impl<R: Read> ArchiveReader<R> {
                 _ => continue,
             }
         }
-        Ok(Some(Item {
-            info: info.ok_or(io::Error::new(
+        let info = info.ok_or_else(|| {
+            io::Error::new(
                 io::ErrorKind::InvalidData,
                 String::from("FHED chunk not found"),
-            ))?,
-            reader: Cursor::new(all_data),
+            )
+        })?;
+        let data = match info.compression {
+            Compression::No => all_data,
+            Compression::Deflate => todo!(),
+            Compression::ZStandard => zstd::decode_all(all_data.as_slice())?,
+            Compression::XZ => todo!(),
+        };
+        Ok(Some(Item {
+            info,
+            reader: Cursor::new(data),
         }))
     }
 }
