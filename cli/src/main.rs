@@ -41,6 +41,13 @@ struct Options {
     #[arg(
         long,
         value_name = "level",
+        value_parser = value_parser!(u8).range(1..=9),
+        help = "Use deflate for compression [possible level: 1-9]"
+    )]
+    deflate: Option<Option<u8>>,
+    #[arg(
+        long,
+        value_name = "level",
         value_parser = value_parser!(u8).range(1..=21),
         help = "Use zstd for compression [possible level: 1-21]"
     )]
@@ -79,8 +86,21 @@ mod tests {
     use clap::Parser;
 
     #[test]
-    fn create_archive() {
-        Args::parse_from(["pna", "-c", "c.pna"]);
+    fn store_archive() {
+        let args = Args::parse_from(["pna", "-c", "c.pna"]);
+        assert_eq!(args.options.store, false);
+        let args = Args::parse_from(["pna", "-c", "c.pna", "--store"]);
+        assert_eq!(args.options.store, true);
+    }
+
+    #[test]
+    fn deflate_level() {
+        let args = Args::parse_from(["pna", "-c", "c.pna"]);
+        assert_eq!(args.options.deflate, None);
+        let args = Args::parse_from(["pna", "-c", "c.pna", "--deflate"]);
+        assert_eq!(args.options.deflate, Some(None));
+        let args = Args::parse_from(["pna", "-c", "c.pna", "--deflate", "5"]);
+        assert_eq!(args.options.deflate, Some(Some(5u8)))
     }
 
     #[test]
