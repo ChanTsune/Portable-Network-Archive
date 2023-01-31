@@ -9,6 +9,8 @@ crc32fast = "1.2.0"
 flate2 = "1.0.25"
 xz2 = "0.1.7"
 zstd = "0.12.2"
+aes = "0.8.2"
+block-modes = "0.9.1"
 
 [dev-dependencies]
 tempfile = "3.3.0"
