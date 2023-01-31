@@ -80,7 +80,15 @@ impl<W: Write> ArchiveWriter<W> {
 
         let data = match self.options.compression {
             Compression::No => data,
-            Compression::Deflate => todo!("Deflate compression"),
+            Compression::Deflate => {
+                let mut dist = Vec::new();
+                let mut encoder = flate2::read::DeflateEncoder::new(
+                    data.as_slice(),
+                    flate2::Compression::default(),
+                );
+                io::copy(&mut encoder, &mut dist)?;
+                dist
+            }
             Compression::ZStandard => zstd::encode_all(data.as_slice(), 0)?,
             Compression::XZ => {
                 let mut dist = Vec::new();

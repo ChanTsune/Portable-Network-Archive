@@ -15,6 +15,16 @@ mod tests {
     use super::{Compression, Decoder, Encoder, Options};
 
     #[test]
+    fn store_archive() {
+        archive(b"src data", Compression::No)
+    }
+
+    #[test]
+    fn deflate_archive() {
+        archive(b"src data", Compression::Deflate)
+    }
+
+    #[test]
     fn zstd_archive() {
         archive(b"src data", Compression::ZStandard)
     }
