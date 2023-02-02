@@ -16,31 +16,43 @@ mod tests {
 
     #[test]
     fn store_archive() {
-        archive(b"src data", Compression::No)
+        archive(
+            b"src data bytes",
+            Options::default().compression(Compression::No),
+        )
     }
 
     #[test]
     fn deflate_archive() {
-        archive(b"src data", Compression::Deflate)
+        archive(
+            b"src data bytes",
+            Options::default().compression(Compression::Deflate),
+        )
     }
 
     #[test]
     fn zstd_archive() {
-        archive(b"src data", Compression::ZStandard)
+        archive(
+            b"src data bytes",
+            Options::default().compression(Compression::ZStandard),
+        )
     }
 
     #[test]
     fn xz_archive() {
-        archive(b"src data", Compression::XZ)
+        archive(
+            b"src data bytes",
+            Options::default().compression(Compression::XZ),
+        )
     }
 
-    fn archive(src: &[u8], compression: Compression) {
+    fn archive(src: &[u8], options: Options) {
         let mut archived_temp = Vec::new();
         {
             let encoder = Encoder::new();
             let mut archive_writer = encoder.write_header(&mut archived_temp).unwrap();
             archive_writer
-                .start_file_with_options("test/text", Options::default().compression(compression))
+                .start_file_with_options("test/text", options)
                 .unwrap();
             archive_writer.write_all(src).unwrap();
             archive_writer.end_file().unwrap();
