@@ -88,14 +88,24 @@ impl Options {
         self.compression = compression;
         self
     }
+
+    pub fn encryption(mut self, encryption: Encryption) -> Self {
+        self.encryption = encryption;
+        self
+    }
+
+    pub fn password(mut self, password: Option<String>) -> Self {
+        self.password = password;
+        self
+    }
 }
 
 pub struct ItemInfo {
     pub(crate) major: u8,
     pub(crate) minor: u8,
+    pub(crate) data_kind: DataKind,
     pub(crate) compression: Compression,
     pub(crate) encryption: Encryption,
-    pub(crate) data_kind: DataKind,
     pub(crate) path: String,
 }
 
