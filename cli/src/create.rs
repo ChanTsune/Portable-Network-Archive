@@ -58,17 +58,19 @@ fn write_internal<W: Write>(
             }
         }
     } else if path.is_file() {
-        let item_option = libpna::Options::default().compression(if options.store {
-            libpna::Compression::No
-        } else if let Some(lzma_level) = options.lzma {
-            libpna::Compression::XZ
-        } else if let Some(zstd_level) = options.zstd {
-            libpna::Compression::ZStandard
-        } else if let Some(deflate_level) = options.deflate {
-            libpna::Compression::Deflate
-        } else {
-            libpna::Compression::ZStandard
-        });
+        let item_option = libpna::Options::default()
+            .compression(if options.store {
+                libpna::Compression::No
+            } else if let Some(lzma_level) = options.lzma {
+                libpna::Compression::XZ
+            } else if let Some(zstd_level) = options.zstd {
+                libpna::Compression::ZStandard
+            } else if let Some(deflate_level) = options.deflate {
+                libpna::Compression::Deflate
+            } else {
+                libpna::Compression::ZStandard
+            })
+            .password(options.password.clone().flatten());
         writer.start_file_with_options(path.as_os_str().to_string_lossy().as_ref(), item_option)?;
         writer.write_all(&fs::read(path)?)?;
         writer.end_file()?;
