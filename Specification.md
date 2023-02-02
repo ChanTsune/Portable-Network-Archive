@@ -82,9 +82,9 @@ Basic information of each file and directory is stored.
 |--|--|--|
 |Major version|1-byte|Major version|
 |Minor version|1-byte|Minor version|
+|File type|1-byte|file type|
 |Compression method|1-byte|Compression method|
 |Encryption method|1-byte|Encryption method|
-|File type|1-byte|file type|
 |Null|1-byte|Separator|
 |Path|n-byte|file path|
 

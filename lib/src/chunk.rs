@@ -30,9 +30,9 @@ pub fn create_chunk_data_fhed(
     let mut data = vec![0u8; 6 + name.len()];
     data[0] = major;
     data[1] = minor;
-    data[2] = compression;
-    data[3] = encryption;
-    data[4] = file_type;
+    data[2] = file_type;
+    data[3] = compression;
+    data[4] = encryption;
     data[5] = 0; // null character
     data[6..].copy_from_slice(name);
     data.into_boxed_slice()
@@ -42,11 +42,11 @@ pub(crate) fn from_chunk_data_fhed(data: &[u8]) -> io::Result<ItemInfo> {
     Ok(ItemInfo {
         major: data[0],
         minor: data[1],
-        compression: Compression::try_from(data[2])
+        data_kind: DataKind::try_from(data[2])
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
-        encryption: Encryption::try_from(data[3])
+        compression: Compression::try_from(data[3])
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
-        data_kind: DataKind::try_from(data[4])
+        encryption: Encryption::try_from(data[4])
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
         path: String::from_utf8(data[6..].to_vec())
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
