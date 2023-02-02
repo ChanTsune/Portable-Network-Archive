@@ -59,6 +59,8 @@ struct Options {
         help = "Use xz for compression [possible level: 0-9]"
     )]
     lzma: Option<Option<u8>>,
+    #[arg(long, help = "Password of archive. If password is not given it's asked from the tty")]
+    password: Option<Option<String>>,
     #[arg(long, help = "Make some output more verbose")]
     verbose: bool,
     #[arg(long, help = "Make some output more quiet")]
@@ -69,7 +71,12 @@ fn main() -> io::Result<()> {
     entry(Args::parse())
 }
 
-fn entry(args: Args) -> io::Result<()> {
+fn entry(mut args: Args) -> io::Result<()> {
+    if let Some(Some(_)) = args.options.password {
+        eprintln!("warning: Using a password on the command line interface can be insecure.");
+    } else if let Some(None) = args.options.password {
+        args.options.password = Some(Some(rpassword::prompt_password("Enter password: ")?));
+    }
     if let Some(create) = args.create {
         create::create_archive(create, &args.files, args.options)?;
     } else if let Some(append) = args.append {
