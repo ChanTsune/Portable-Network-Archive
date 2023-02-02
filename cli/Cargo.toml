@@ -7,6 +7,7 @@ edition = "2021"
 [dependencies]
 clap = { version = "4.1.4", features = ["derive"] }
 libpna = { version = "0.0.0", path = "../lib" }
+rpassword = "7.2.0"
 
 [[bin]]
 name = "pna"
