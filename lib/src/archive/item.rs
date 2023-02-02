@@ -93,9 +93,9 @@ impl Options {
 pub struct ItemInfo {
     pub(crate) major: u8,
     pub(crate) minor: u8,
+    pub(crate) data_kind: DataKind,
     pub(crate) compression: Compression,
     pub(crate) encryption: Encryption,
-    pub(crate) data_kind: DataKind,
     pub(crate) path: String,
 }
 
