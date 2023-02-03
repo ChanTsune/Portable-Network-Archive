@@ -103,6 +103,8 @@ The encryption method is recorded.
 1 is AES
 2 is Camellia
 
+When this field value is 0, `PHSF` chunk is not required.  
+
 ##### File type
 
 The file type is recorded.
@@ -111,6 +113,18 @@ The file type is recorded.
 2 is symbolic link
 3 is hard link
 4 is a file that has previously appeared in the archive
+
+#### PHSF
+
+The information about the key derivation function when encrypting a file.  
+This chunk appeared after `FHAD` chunk and before `FDAT` chunk.  
+If the value of encryption method field of `FHAD` chunk is not 0, this chunk is required.  
+
+|size|description|
+|--|--|
+|n-byte|PHC string format|
+
+About [PHC string format](https://github.com/P-H-C/phc-string-format/blob/master/phc-sf-spec.md)
 
 #### FDAT
 
