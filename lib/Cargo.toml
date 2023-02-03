@@ -5,6 +5,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+argon2 = "0.4.1"
 crc32fast = "1.2.0"
 flate2 = "1.0.25"
 rand = "0.8.5"
