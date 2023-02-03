@@ -7,6 +7,7 @@ edition = "2021"
 [dependencies]
 crc32fast = "1.2.0"
 flate2 = "1.0.25"
+rand = "0.8.5"
 xz2 = "0.1.7"
 zstd = "0.12.3"
 aes = "0.8.2"
