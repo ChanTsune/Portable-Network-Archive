@@ -1,6 +1,5 @@
-use aes::cipher::block_padding::Pkcs7;
-use aes::cipher::{BlockDecryptMut, BlockEncryptMut, BlockSizeUser};
-use aes::{cipher::KeyIvInit, Aes256};
+use aes::Aes256;
+use cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, BlockSizeUser, KeyIvInit};
 use std::io;
 
 pub(crate) fn encrypt_aes256(key: &[u8], iv: &[u8], data: &[u8]) -> io::Result<Vec<u8>> {
@@ -23,8 +22,8 @@ pub(crate) fn decrypt_aes256(key: &[u8], data: &[u8]) -> io::Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::{decrypt_aes256, encrypt_aes256};
-    use aes::cipher::{BlockSizeUser, KeySizeUser};
     use aes::Aes256;
+    use cipher::{BlockSizeUser, KeySizeUser};
 
     #[test]
     fn aes() {

@@ -5,9 +5,8 @@ use crate::{
     chunk::{self, ChunkWriter},
     create_chunk_data_ahed, create_chunk_data_fhed, hash, random,
 };
-use aes::cipher::KeySizeUser;
 use aes::Aes256;
-use cbc::cipher::BlockSizeUser;
+use cipher::{BlockSizeUser, KeySizeUser};
 use std::io::{self, Write};
 
 #[derive(Default)]
