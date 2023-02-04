@@ -67,6 +67,7 @@ impl TryFrom<u8> for DataKind {
     }
 }
 
+#[derive(Clone)]
 pub struct Options {
     pub(crate) compression: Compression,
     pub(crate) encryption: Encryption,

@@ -9,6 +9,8 @@ pub const AHED: ChunkType = ChunkType(*b"AHED");
 pub const AEND: ChunkType = ChunkType(*b"AEND");
 /// File header
 pub const FHED: ChunkType = ChunkType(*b"FHED");
+/// Password hash string format
+pub const PHSF: ChunkType = ChunkType(*b"PHSF");
 /// File data
 pub const FDAT: ChunkType = ChunkType(*b"FDAT");
 /// File end

@@ -1,9 +1,13 @@
 use crate::archive::item::{Compression, Encryption, Options};
+use crate::cipher::encrypt_aes256;
 use crate::{
     archive::PNA_HEADER,
     chunk::{self, ChunkWriter},
-    create_chunk_data_ahed, create_chunk_data_fhed,
+    create_chunk_data_ahed, create_chunk_data_fhed, hash, random,
 };
+use aes::cipher::KeySizeUser;
+use aes::Aes256;
+use cbc::cipher::BlockSizeUser;
 use std::io::{self, Write};
 
 #[derive(Default)]
@@ -100,7 +104,21 @@ impl<W: Write> ArchiveWriter<W> {
 
         let data = match self.options.encryption {
             Encryption::No => data,
-            Encryption::AES => todo!("Aes encryption"),
+            Encryption::AES => {
+                let salt = random::salt_string();
+                let mut password_hash = hash::argon2_with_salt(
+                    self.options.password.as_ref().unwrap(),
+                    Aes256::key_size(),
+                    &salt,
+                );
+                let hash = password_hash.hash.take();
+                self.w
+                    .write_chunk(chunk::PHSF, password_hash.to_string().as_bytes())?;
+
+                let mut iv = vec![0; Aes256::block_size()];
+                random::random_bytes(&mut iv)?;
+                encrypt_aes256(hash.unwrap().as_bytes(), &iv, &data)?
+            }
             Encryption::Camellia => todo!("Camellia encryption"),
         };
 

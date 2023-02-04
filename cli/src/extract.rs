@@ -17,7 +17,7 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
     let file = File::open(archive)?;
     let decoder = Decoder::new();
     let mut reader = decoder.read_header(file)?;
-    while let Some(mut item) = reader.read()? {
+    while let Some(mut item) = reader.read(None)? {
         let path = Path::new(item.path());
         if !files.is_empty() {
             if !files.contains(&path) {
