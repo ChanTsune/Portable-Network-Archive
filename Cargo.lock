@@ -320,6 +320,7 @@ dependencies = [
  "cbc",
  "crc32fast",
  "flate2",
+ "password-hash",
  "rand",
  "tempfile",
  "xz2",
