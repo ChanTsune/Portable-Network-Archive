@@ -318,6 +318,7 @@ dependencies = [
  "aes",
  "argon2",
  "cbc",
+ "cipher",
  "crc32fast",
  "flate2",
  "password-hash",
