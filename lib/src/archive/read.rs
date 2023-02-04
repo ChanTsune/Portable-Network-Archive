@@ -72,7 +72,7 @@ impl<R: Read> ArchiveReader<R> {
         }
         let all_data = match info.encryption {
             Encryption::No => all_data,
-            Encryption::AES => decrypt_aes256(phsf.unwrap().hash.unwrap().as_bytes(), &all_data)?,
+            Encryption::Aes => decrypt_aes256(phsf.unwrap().hash.unwrap().as_bytes(), &all_data)?,
             Encryption::Camellia => todo!(),
         };
         let reader: Box<dyn Read> = match info.compression {

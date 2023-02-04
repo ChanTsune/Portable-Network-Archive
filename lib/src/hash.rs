@@ -30,7 +30,7 @@ pub(crate) fn verify_password<'a>(phsf: &'a str, password: &'a str) -> PasswordH
                 .verify_password(&[&a], password.as_bytes())
                 .unwrap();
         }
-        a => panic!("Unsupported algorithm {:?}", a),
+        a => panic!("Unsupported algorithm {a:?}"),
     }
     password_hash
 }

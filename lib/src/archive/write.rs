@@ -104,7 +104,7 @@ impl<W: Write> ArchiveWriter<W> {
 
         let data = match self.options.encryption {
             Encryption::No => data,
-            Encryption::AES => {
+            Encryption::Aes => {
                 let salt = random::salt_string();
                 let mut password_hash = hash::argon2_with_salt(
                     self.options.password.as_ref().unwrap(),

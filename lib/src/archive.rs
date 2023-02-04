@@ -60,7 +60,7 @@ mod tests {
             b"plain text",
             Options::default()
                 .compression(Compression::ZStandard)
-                .encryption(Encryption::AES)
+                .encryption(Encryption::Aes)
                 .password(Some("password".to_string())),
         )
         .unwrap();
