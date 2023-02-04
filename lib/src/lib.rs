@@ -5,6 +5,6 @@ pub(crate) mod hash;
 pub(crate) mod random;
 
 pub use archive::{
-    ArchiveReader, ArchiveWriter, Compression, Decoder, Encoder, Options, PNA_HEADER,
+    ArchiveReader, ArchiveWriter, Compression, Decoder, Encoder, Encryption, Options, PNA_HEADER,
 };
 pub use chunk::*;
