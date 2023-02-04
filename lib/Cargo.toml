@@ -5,15 +5,15 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+aes = "0.8.2"
 argon2 = "0.4.1"
+cbc = { version = "0.1.2", features = ["alloc"] }
 crc32fast = "1.2.0"
 flate2 = "1.0.25"
+password-hash = "0.4.2"
 rand = "0.8.5"
 xz2 = "0.1.7"
 zstd = "0.12.3"
-aes = "0.8.2"
-cbc = "0.1.2"
-password-hash = "0.4.2"
 
 [dev-dependencies]
 tempfile = "3.3.0"
