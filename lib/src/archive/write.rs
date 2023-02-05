@@ -1,5 +1,5 @@
 use crate::archive::item::{Compression, Encryption, Options};
-use crate::cipher::encrypt_aes256;
+use crate::cipher::encrypt_aes256_cbc;
 use crate::{
     archive::PNA_HEADER,
     chunk::{self, ChunkWriter},
@@ -116,7 +116,7 @@ impl<W: Write> ArchiveWriter<W> {
 
                 let mut iv = vec![0; Aes256::block_size()];
                 random::random_bytes(&mut iv)?;
-                encrypt_aes256(hash.unwrap().as_bytes(), &iv, &data)?
+                encrypt_aes256_cbc(hash.unwrap().as_bytes(), &iv, &data)?
             }
             Encryption::Camellia => todo!("Camellia encryption"),
         };
