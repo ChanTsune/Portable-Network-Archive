@@ -151,9 +151,13 @@ mod tests {
 
     #[test]
     fn encode() {
-        let file = tempfile::tempfile().unwrap();
-        let encoder = Encoder::new();
-        let mut writer = encoder.write_header(file).unwrap();
-        writer.finalize().unwrap()
+        let mut file = Vec::new();
+        {
+            let encoder = Encoder::new();
+            let mut writer = encoder.write_header(&mut file).unwrap();
+            writer.finalize().unwrap();
+        }
+        let expected = include_bytes!("../../../resources/empty_archive.pna");
+        assert_eq!(file.as_slice(), expected.as_slice());
     }
 }
