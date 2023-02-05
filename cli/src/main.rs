@@ -64,6 +64,10 @@ struct Options {
         help = "Password of archive. If password is not given it's asked from the tty"
     )]
     password: Option<Option<String>>,
+    #[arg(long, help = "Use aes for encryption")]
+    aes: bool,
+    #[arg(long, help = "use camellia for encryption")]
+    camellia: bool,
     #[arg(long, help = "Make some output more verbose")]
     verbose: bool,
     #[arg(long, help = "Make some output more quiet")]
@@ -75,10 +79,20 @@ fn main() -> io::Result<()> {
 }
 
 fn entry(mut args: Args) -> io::Result<()> {
-    if let Some(Some(_)) = args.options.password {
-        eprintln!("warning: Using a password on the command line interface can be insecure.");
-    } else if let Some(None) = args.options.password {
-        args.options.password = Some(Some(rpassword::prompt_password("Enter password: ")?));
+    match args.options.password {
+        Some(Some(_)) => {
+            eprintln!("warning: Using a password on the command line interface can be insecure.");
+        }
+        Some(None) => {
+            args.options.password = Some(Some(rpassword::prompt_password("Enter password: ")?));
+        }
+        None => {
+            if args.options.aes {
+                eprintln!("warning: Using `--aes` option but, `--password` was not provided. It will not encrypt.");
+            } else if args.options.camellia {
+                eprintln!("warning: Using `--camellia` option but, `--password` was not provided. It will not encrypt.");
+            }
+        }
     }
     if let Some(create) = args.create {
         create::create_archive(create, &args.files, args.options)?;
