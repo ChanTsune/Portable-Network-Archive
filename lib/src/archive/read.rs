@@ -1,7 +1,6 @@
-use crate::archive::item::Item;
-use crate::archive::{Compression, Encryption, PNA_HEADER};
+use crate::archive::{item::Item, Compression, Encryption, PNA_HEADER};
 use crate::chunk::{self, from_chunk_data_fhed, ChunkReader};
-use crate::cipher::decrypt_aes256_cbc;
+use crate::cipher::{decrypt_aes256_cbc, decrypt_camellia256_cbc};
 use crate::hash::verify_password;
 use std::io::{self, Cursor, Read, Seek};
 
@@ -73,7 +72,7 @@ impl<R: Read> ArchiveReader<R> {
         }
         let all_data = match info.encryption {
             Encryption::No => all_data,
-            Encryption::Aes => {
+            Encryption::Aes | Encryption::Camellia => {
                 let s = phsf.ok_or_else(|| {
                     io::Error::new(
                         io::ErrorKind::InvalidData,
@@ -89,9 +88,12 @@ impl<R: Read> ArchiveReader<R> {
                         )
                     })?,
                 );
-                decrypt_aes256_cbc(phsf.hash.unwrap().as_bytes(), &all_data)?
+                if let Encryption::Aes = info.encryption {
+                    decrypt_aes256_cbc(phsf.hash.unwrap().as_bytes(), &all_data)?
+                } else {
+                    decrypt_camellia256_cbc(phsf.hash.unwrap().as_bytes(), &all_data)?
+                }
             }
-            Encryption::Camellia => todo!(),
         };
         let reader: Box<dyn Read> = match info.compression {
             Compression::No => Box::new(Cursor::new(all_data)),

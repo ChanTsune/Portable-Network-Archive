@@ -10,10 +10,8 @@ pub use write::{ArchiveWriter, Encoder};
 
 #[cfg(test)]
 mod tests {
-    use crate::archive::Encryption;
+    use super::{Compression, Decoder, Encoder, Encryption, Options};
     use std::io;
-
-    use super::{Compression, Decoder, Encoder, Options};
 
     #[test]
     fn store_archive() {
@@ -53,14 +51,23 @@ mod tests {
 
     #[test]
     fn zstd_with_aes_archive() {
-        let a = [0, 1, 2, 3];
-        assert_eq!(a[0..2], [0, 1]);
-        assert_eq!(a[2..], [2, 3]);
         archive(
             b"plain text",
             Options::default()
                 .compression(Compression::ZStandard)
                 .encryption(Encryption::Aes)
+                .password(Some("password".to_string())),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn zstd_with_camellia_archive() {
+        archive(
+            b"plain text",
+            Options::default()
+                .compression(Compression::ZStandard)
+                .encryption(Encryption::Camellia)
                 .password(Some("password".to_string())),
         )
         .unwrap();

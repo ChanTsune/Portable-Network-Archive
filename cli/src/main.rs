@@ -64,6 +64,10 @@ struct Options {
         help = "Password of archive. If password is not given it's asked from the tty"
     )]
     password: Option<Option<String>>,
+    #[arg(long, help = "Use aes for encryption")]
+    aes: bool,
+    #[arg(long, help = "use camellia for encryption")]
+    camellia: bool,
     #[arg(long, help = "Make some output more verbose")]
     verbose: bool,
     #[arg(long, help = "Make some output more quiet")]

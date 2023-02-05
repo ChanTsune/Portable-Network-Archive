@@ -71,7 +71,13 @@ fn write_internal<W: Write>(
                 libpna::Compression::ZStandard
             })
             .encryption(if let Some(Some(_)) = &options.password {
-                libpna::Encryption::Aes
+                if options.aes {
+                    libpna::Encryption::Aes
+                } else if options.camellia {
+                    libpna::Encryption::Camellia
+                } else {
+                    libpna::Encryption::Aes
+                }
             } else {
                 libpna::Encryption::No
             })

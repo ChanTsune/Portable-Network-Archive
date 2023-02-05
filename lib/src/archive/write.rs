@@ -1,11 +1,14 @@
-use crate::archive::item::{Compression, Encryption, Options};
-use crate::cipher::encrypt_aes256_cbc;
 use crate::{
-    archive::PNA_HEADER,
+    archive::{
+        item::{Compression, Encryption, Options},
+        PNA_HEADER,
+    },
     chunk::{self, ChunkWriter},
+    cipher::{encrypt_aes256_cbc, encrypt_camellia256_cbc},
     create_chunk_data_ahed, create_chunk_data_fhed, hash, random,
 };
 use aes::Aes256;
+use camellia::Camellia256;
 use cipher::{BlockSizeUser, KeySizeUser};
 use std::io::{self, Write};
 
@@ -118,7 +121,21 @@ impl<W: Write> ArchiveWriter<W> {
                 random::random_bytes(&mut iv)?;
                 encrypt_aes256_cbc(hash.unwrap().as_bytes(), &iv, &data)?
             }
-            Encryption::Camellia => todo!("Camellia encryption"),
+            Encryption::Camellia => {
+                let salt = random::salt_string();
+                let mut password_hash = hash::argon2_with_salt(
+                    self.options.password.as_ref().unwrap(),
+                    Camellia256::key_size(),
+                    &salt,
+                );
+                let hash = password_hash.hash.take();
+                self.w
+                    .write_chunk(chunk::PHSF, password_hash.to_string().as_bytes())?;
+
+                let mut iv = vec![0; Camellia256::block_size()];
+                random::random_bytes(&mut iv)?;
+                encrypt_camellia256_cbc(hash.unwrap().as_bytes(), &iv, &data)?
+            }
         };
 
         self.w.write_chunk(chunk::FDAT, &data)?;
