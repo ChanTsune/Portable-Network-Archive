@@ -83,6 +83,12 @@ fn entry(mut args: Args) -> io::Result<()> {
         eprintln!("warning: Using a password on the command line interface can be insecure.");
     } else if let Some(None) = args.options.password {
         args.options.password = Some(Some(rpassword::prompt_password("Enter password: ")?));
+    } else if let None = args.options.password {
+        if args.options.aes {
+            eprintln!("warning: Using `--aes` option but, `--password` was not provided. It will not encrypt.");
+        } else if args.options.camellia {
+            eprintln!("warning: Using `--camellia` option but, `--password` was not provided. It will not encrypt.");
+        }
     }
     if let Some(create) = args.create {
         create::create_archive(create, &args.files, args.options)?;
