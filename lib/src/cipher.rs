@@ -16,7 +16,7 @@ pub(crate) fn decrypt_aes256_cbc(key: &[u8], data: &[u8]) -> io::Result<Vec<u8>>
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
     let data = decryptor
         .decrypt_padded_vec_mut::<Pkcs7>(&data[Aes256::block_size()..])
-        .map_err(|io| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
     Ok(data)
 }
 

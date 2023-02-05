@@ -7,7 +7,7 @@ edition = "2021"
 [dependencies]
 aes = "0.8.2"
 argon2 = "0.4.1"
-cbc = { version = "0.1.2", features = ["alloc"] }
+cbc = { version = "0.1.2", features = ["std"] }
 cipher = "0.4.3"
 crc32fast = "1.2.0"
 flate2 = "1.0.25"
