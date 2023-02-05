@@ -27,7 +27,7 @@ impl TryFrom<u8> for Compression {
 #[repr(u8)]
 pub enum Encryption {
     No = 0,
-    AES = 1,
+    Aes = 1,
     Camellia = 2,
 }
 
@@ -37,7 +37,7 @@ impl TryFrom<u8> for Encryption {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             0 => Ok(Self::No),
-            1 => Ok(Self::AES),
+            1 => Ok(Self::Aes),
             2 => Ok(Self::Camellia),
             value => Err(format!("unknown value {}", value)),
         }
@@ -67,6 +67,7 @@ impl TryFrom<u8> for DataKind {
     }
 }
 
+#[derive(Clone)]
 pub struct Options {
     pub(crate) compression: Compression,
     pub(crate) encryption: Encryption,

@@ -59,7 +59,10 @@ struct Options {
         help = "Use xz for compression [possible level: 0-9]"
     )]
     lzma: Option<Option<u8>>,
-    #[arg(long, help = "Password of archive. If password is not given it's asked from the tty")]
+    #[arg(
+        long,
+        help = "Password of archive. If password is not given it's asked from the tty"
+    )]
     password: Option<Option<String>>,
     #[arg(long, help = "Make some output more verbose")]
     verbose: bool,

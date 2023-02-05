@@ -1,9 +1,12 @@
 use crate::archive::item::{Compression, Encryption, Options};
+use crate::cipher::encrypt_aes256_cbc;
 use crate::{
     archive::PNA_HEADER,
     chunk::{self, ChunkWriter},
-    create_chunk_data_ahed, create_chunk_data_fhed,
+    create_chunk_data_ahed, create_chunk_data_fhed, hash, random,
 };
+use aes::Aes256;
+use cipher::{BlockSizeUser, KeySizeUser};
 use std::io::{self, Write};
 
 #[derive(Default)]
@@ -100,7 +103,21 @@ impl<W: Write> ArchiveWriter<W> {
 
         let data = match self.options.encryption {
             Encryption::No => data,
-            Encryption::AES => todo!("Aes encryption"),
+            Encryption::Aes => {
+                let salt = random::salt_string();
+                let mut password_hash = hash::argon2_with_salt(
+                    self.options.password.as_ref().unwrap(),
+                    Aes256::key_size(),
+                    &salt,
+                );
+                let hash = password_hash.hash.take();
+                self.w
+                    .write_chunk(chunk::PHSF, password_hash.to_string().as_bytes())?;
+
+                let mut iv = vec![0; Aes256::block_size()];
+                random::random_bytes(&mut iv)?;
+                encrypt_aes256_cbc(hash.unwrap().as_bytes(), &iv, &data)?
+            }
             Encryption::Camellia => todo!("Camellia encryption"),
         };
 
@@ -134,9 +151,13 @@ mod tests {
 
     #[test]
     fn encode() {
-        let file = tempfile::tempfile().unwrap();
-        let encoder = Encoder::new();
-        let mut writer = encoder.write_header(file).unwrap();
-        writer.finalize().unwrap()
+        let mut file = Vec::new();
+        {
+            let encoder = Encoder::new();
+            let mut writer = encoder.write_header(&mut file).unwrap();
+            writer.finalize().unwrap();
+        }
+        let expected = include_bytes!("../../../resources/empty_archive.pna");
+        assert_eq!(file.as_slice(), expected.as_slice());
     }
 }

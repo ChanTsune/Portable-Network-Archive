@@ -70,6 +70,11 @@ fn write_internal<W: Write>(
             } else {
                 libpna::Compression::ZStandard
             })
+            .encryption(if let Some(Some(_)) = &options.password {
+                libpna::Encryption::Aes
+            } else {
+                libpna::Encryption::No
+            })
             .password(options.password.clone().flatten());
         writer.start_file_with_options(path.as_os_str().to_string_lossy().as_ref(), item_option)?;
         writer.write_all(&fs::read(path)?)?;
