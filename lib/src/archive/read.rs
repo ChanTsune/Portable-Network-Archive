@@ -77,7 +77,7 @@ impl<R: Read> ArchiveReader<R> {
                 let s = phsf.ok_or_else(|| {
                     io::Error::new(
                         io::ErrorKind::InvalidData,
-                        format!("Item is encrypted, but `PHSF` chunk not found"),
+                        String::from("Item is encrypted, but `PHSF` chunk not found"),
                     )
                 })?;
                 let phsf = verify_password(
