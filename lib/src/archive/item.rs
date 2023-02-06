@@ -18,8 +18,25 @@ impl TryFrom<u8> for Compression {
             1 => Ok(Self::Deflate),
             2 => Ok(Self::ZStandard),
             4 => Ok(Self::XZ),
-            value => Err(format!("unknown value {}", value)),
+            value => Err(format!("unknown value {value}")),
         }
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub struct CompressionLevel(pub(crate) u8);
+
+impl Default for CompressionLevel {
+    #[inline]
+    fn default() -> Self {
+        Self(u8::MAX)
+    }
+}
+
+impl From<u8> for CompressionLevel {
+    #[inline]
+    fn from(value: u8) -> Self {
+        Self(value)
     }
 }
 
@@ -39,7 +56,7 @@ impl TryFrom<u8> for Encryption {
             0 => Ok(Self::No),
             1 => Ok(Self::Aes),
             2 => Ok(Self::Camellia),
-            value => Err(format!("unknown value {}", value)),
+            value => Err(format!("unknown value {value}")),
         }
     }
 }
@@ -62,7 +79,7 @@ impl TryFrom<u8> for DataKind {
             1 => Ok(Self::Directory),
             2 => Ok(Self::SymbolicLink),
             3 => Ok(Self::HardLink),
-            value => Err(format!("unknown value {}", value)),
+            value => Err(format!("unknown value {value}")),
         }
     }
 }
@@ -70,6 +87,7 @@ impl TryFrom<u8> for DataKind {
 #[derive(Clone)]
 pub struct Options {
     pub(crate) compression: Compression,
+    pub(crate) compression_level: CompressionLevel,
     pub(crate) encryption: Encryption,
     pub(crate) password: Option<String>,
 }
@@ -78,6 +96,7 @@ impl Default for Options {
     fn default() -> Self {
         Self {
             compression: Compression::No,
+            compression_level: CompressionLevel::default(),
             encryption: Encryption::No,
             password: None,
         }
@@ -87,6 +106,11 @@ impl Default for Options {
 impl Options {
     pub fn compression(mut self, compression: Compression) -> Self {
         self.compression = compression;
+        self
+    }
+
+    pub fn compression_level(mut self, compression_level: CompressionLevel) -> Self {
+        self.compression_level = compression_level;
         self
     }
 

@@ -1,8 +1,5 @@
 use crate::{
-    archive::{
-        item::{Compression, Encryption, Options},
-        PNA_HEADER,
-    },
+    archive::{Compression, CompressionLevel, Encryption, Options, PNA_HEADER},
     chunk::{self, ChunkWriter},
     cipher::{encrypt_aes256_cbc, encrypt_camellia256_cbc},
     create_chunk_data_ahed, create_chunk_data_fhed, hash, random,
@@ -88,17 +85,32 @@ impl<W: Write> ArchiveWriter<W> {
             Compression::No => data,
             Compression::Deflate => {
                 let mut dist = Vec::new();
-                let mut encoder = flate2::read::DeflateEncoder::new(
-                    data.as_slice(),
-                    flate2::Compression::default(),
-                );
+                let mut encoder = flate2::read::DeflateEncoder::new(data.as_slice(), {
+                    if self.options.compression_level == CompressionLevel::default() {
+                        flate2::Compression::default()
+                    } else {
+                        flate2::Compression::new(self.options.compression_level.0 as u32)
+                    }
+                });
                 io::copy(&mut encoder, &mut dist)?;
                 dist
             }
-            Compression::ZStandard => zstd::encode_all(data.as_slice(), 0)?,
+            Compression::ZStandard => zstd::encode_all(data.as_slice(), {
+                if self.options.compression_level == CompressionLevel::default() {
+                    0
+                } else {
+                    self.options.compression_level.0 as i32
+                }
+            })?,
             Compression::XZ => {
                 let mut dist = Vec::new();
-                let mut reader = xz2::read::XzEncoder::new(data.as_slice(), 6);
+                let mut reader = xz2::read::XzEncoder::new(data.as_slice(), {
+                    if self.options.compression_level == CompressionLevel::default() {
+                        6
+                    } else {
+                        self.options.compression_level.0 as u32
+                    }
+                });
                 io::copy(&mut reader, &mut dist)?;
                 dist
             }

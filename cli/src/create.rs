@@ -58,18 +58,28 @@ fn write_internal<W: Write>(
             }
         }
     } else if path.is_file() {
-        let item_option = libpna::Options::default()
-            .compression(if options.store {
-                libpna::Compression::No
-            } else if let Some(lzma_level) = options.lzma {
-                libpna::Compression::XZ
-            } else if let Some(zstd_level) = options.zstd {
-                libpna::Compression::ZStandard
-            } else if let Some(deflate_level) = options.deflate {
-                libpna::Compression::Deflate
-            } else {
-                libpna::Compression::ZStandard
-            })
+        let mut item_option = libpna::Options::default();
+        if options.store {
+            item_option = item_option.compression(libpna::Compression::No);
+        } else if let Some(lzma_level) = options.lzma {
+            item_option = item_option.compression(libpna::Compression::XZ);
+            if let Some(level) = lzma_level {
+                item_option = item_option.compression_level(libpna::CompressionLevel::from(level))
+            }
+        } else if let Some(zstd_level) = options.zstd {
+            item_option = item_option.compression(libpna::Compression::ZStandard);
+            if let Some(level) = zstd_level {
+                item_option = item_option.compression_level(libpna::CompressionLevel::from(level))
+            }
+        } else if let Some(deflate_level) = options.deflate {
+            item_option = item_option.compression(libpna::Compression::Deflate);
+            if let Some(level) = deflate_level {
+                item_option = item_option.compression_level(libpna::CompressionLevel::from(level))
+            }
+        } else {
+            item_option = item_option.compression(libpna::Compression::ZStandard);
+        }
+        item_option = item_option
             .encryption(if let Some(Some(_)) = &options.password {
                 if options.aes {
                     libpna::Encryption::Aes
