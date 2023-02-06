@@ -18,7 +18,7 @@ impl TryFrom<u8> for Compression {
             1 => Ok(Self::Deflate),
             2 => Ok(Self::ZStandard),
             4 => Ok(Self::XZ),
-            value => Err(format!("unknown value {}", value)),
+            value => Err(format!("unknown value {value}")),
         }
     }
 }
@@ -39,7 +39,7 @@ impl TryFrom<u8> for Encryption {
             0 => Ok(Self::No),
             1 => Ok(Self::Aes),
             2 => Ok(Self::Camellia),
-            value => Err(format!("unknown value {}", value)),
+            value => Err(format!("unknown value {value}")),
         }
     }
 }
@@ -62,7 +62,7 @@ impl TryFrom<u8> for DataKind {
             1 => Ok(Self::Directory),
             2 => Ok(Self::SymbolicLink),
             3 => Ok(Self::HardLink),
-            value => Err(format!("unknown value {}", value)),
+            value => Err(format!("unknown value {value}")),
         }
     }
 }
