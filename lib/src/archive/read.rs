@@ -3,6 +3,7 @@ use crate::chunk::{self, from_chunk_data_fhed, ChunkReader};
 use crate::cipher::{decrypt_aes256_cbc, decrypt_camellia256_cbc};
 use crate::hash::verify_password;
 use std::io::{self, Cursor, Read, Seek};
+use std::sync::Mutex;
 
 #[derive(Default)]
 pub struct Decoder;
@@ -95,15 +96,31 @@ impl<R: Read> ArchiveReader<R> {
                 }
             }
         };
-        let reader: Box<dyn Read> = match info.compression {
+        let reader: Box<dyn Read + Sync + Send> = match info.compression {
             Compression::No => Box::new(Cursor::new(all_data)),
             Compression::Deflate => {
                 Box::new(flate2::read::DeflateDecoder::new(Cursor::new(all_data)))
             }
-            Compression::ZStandard => Box::new(zstd::Decoder::new(Cursor::new(all_data))?),
+            Compression::ZStandard => Box::new(MutexRead::new(zstd::Decoder::new(Cursor::new(all_data))?)),
             Compression::XZ => Box::new(xz2::read::XzDecoder::new(Cursor::new(all_data))),
         };
         Ok(Some(Item { info, reader }))
+    }
+}
+
+// NOTE: zstd crate not support Sync + Send trait
+struct MutexRead<R: Read>(Mutex<R>);
+
+impl<R: Read> MutexRead<R> {
+    fn new(reader: R) -> Self {
+        Self(Mutex::new(reader))
+    }
+}
+
+impl<R: Read> Read for MutexRead<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let reader = self.0.get_mut().unwrap();
+        reader.read(buf)
     }
 }
 

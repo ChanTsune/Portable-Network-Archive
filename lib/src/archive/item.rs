@@ -136,7 +136,7 @@ pub struct ItemInfo {
 
 pub struct Item {
     pub(crate) info: ItemInfo,
-    pub(crate) reader: Box<dyn Read>,
+    pub(crate) reader: Box<dyn Read + Sync + Send>,
 }
 
 impl Read for Item {

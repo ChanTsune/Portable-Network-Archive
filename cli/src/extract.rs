@@ -1,8 +1,9 @@
 use crate::Options;
 use libpna::Decoder;
 use std::fs::File;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{fs, io};
+use threadpool::ThreadPool;
 
 pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
     archive: A,
@@ -15,12 +16,14 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
 
     let files = files.iter().map(AsRef::as_ref).collect::<Vec<_>>();
     let file = File::open(archive)?;
+
+    let pool = ThreadPool::default();
     let decoder = Decoder::new();
     let mut reader = decoder.read_header(file)?;
     while let Some(mut item) = reader.read(options.password.clone().flatten().as_deref())? {
-        let path = Path::new(item.path());
+        let path = PathBuf::from(item.path());
         if !files.is_empty() {
-            if !files.contains(&path) {
+            if !files.contains(&path.as_path()) {
                 if !options.quiet && options.verbose {
                     println!("Skip: {}", item.path())
                 }
@@ -33,15 +36,19 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
                 format!("{} is alrady exists", path.display()),
             ));
         }
-        if !options.quiet && options.verbose {
-            println!("Extract: {}", path.display());
-        }
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        let mut file = File::create(path)?;
-        io::copy(&mut item, &mut file)?;
+        pool.execute(move || {
+            if !options.quiet && options.verbose {
+                println!("Extract: {}", path.display());
+            }
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).unwrap();
+            }
+            let mut file = File::create(path).unwrap();
+            io::copy(&mut item, &mut file).unwrap();
+        });
     }
+    pool.join();
+
     if !options.quiet {
         println!("Successfully extracted an archive");
     }
