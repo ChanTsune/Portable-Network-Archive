@@ -8,6 +8,7 @@ edition = "2021"
 clap = { version = "4.1.4", features = ["derive"] }
 libpna = { version = "0.0.0", path = "../lib" }
 rpassword = "7.2.0"
+threadpool = "1.8.1"
 
 [[bin]]
 name = "pna"
