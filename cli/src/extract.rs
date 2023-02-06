@@ -27,7 +27,7 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
                 continue;
             }
         }
-        if path.exists() && options.overwrite {
+        if path.exists() && !options.overwrite {
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
                 format!("{} is alrady exists", path.display()),
