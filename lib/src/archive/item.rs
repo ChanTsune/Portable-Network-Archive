@@ -62,6 +62,12 @@ impl TryFrom<u8> for Encryption {
 }
 
 #[derive(Copy, Clone)]
+pub enum HashAlgorithm {
+    Pbkdf2Sha256,
+    Argon2Id,
+}
+
+#[derive(Copy, Clone)]
 #[repr(u8)]
 pub enum DataKind {
     File = 0,
@@ -89,6 +95,7 @@ pub struct Options {
     pub(crate) compression: Compression,
     pub(crate) compression_level: CompressionLevel,
     pub(crate) encryption: Encryption,
+    pub(crate) hash_algorithm: HashAlgorithm,
     pub(crate) password: Option<String>,
 }
 
@@ -98,6 +105,7 @@ impl Default for Options {
             compression: Compression::No,
             compression_level: CompressionLevel::default(),
             encryption: Encryption::No,
+            hash_algorithm: HashAlgorithm::Argon2Id,
             password: None,
         }
     }
@@ -116,6 +124,11 @@ impl Options {
 
     pub fn encryption(mut self, encryption: Encryption) -> Self {
         self.encryption = encryption;
+        self
+    }
+
+    pub fn hash_algorithm(mut self, algorithm: HashAlgorithm) -> Self {
+        self.hash_algorithm = algorithm;
         self
     }
 
