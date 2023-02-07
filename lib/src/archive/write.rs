@@ -1,5 +1,5 @@
 use crate::{
-    archive::{Compression, CompressionLevel, Encryption, Options, PNA_HEADER},
+    archive::{Compression, CompressionLevel, Encryption, HashAlgorithm, Options, PNA_HEADER},
     chunk::{self, ChunkWriter},
     cipher::{encrypt_aes256_cbc, encrypt_camellia256_cbc},
     create_chunk_data_ahed, create_chunk_data_fhed, hash, random,
@@ -120,11 +120,16 @@ impl<W: Write> ArchiveWriter<W> {
             Encryption::No => data,
             Encryption::Aes => {
                 let salt = random::salt_string();
-                let mut password_hash = hash::argon2_with_salt(
-                    self.options.password.as_ref().unwrap(),
-                    Aes256::key_size(),
-                    &salt,
-                );
+                let mut password_hash = match self.options.hash_algorithm {
+                    HashAlgorithm::Argon2Id => hash::argon2_with_salt(
+                        self.options.password.as_ref().unwrap(),
+                        Aes256::key_size(),
+                        &salt,
+                    ),
+                    HashAlgorithm::Pbkdf2Sha256 => {
+                        hash::pbkdf2_with_salt(self.options.password.as_ref().unwrap(), &salt)
+                    }
+                };
                 let hash = password_hash.hash.take();
                 self.w
                     .write_chunk(chunk::PHSF, password_hash.to_string().as_bytes())?;
@@ -135,11 +140,16 @@ impl<W: Write> ArchiveWriter<W> {
             }
             Encryption::Camellia => {
                 let salt = random::salt_string();
-                let mut password_hash = hash::argon2_with_salt(
-                    self.options.password.as_ref().unwrap(),
-                    Camellia256::key_size(),
-                    &salt,
-                );
+                let mut password_hash = match self.options.hash_algorithm {
+                    HashAlgorithm::Argon2Id => hash::argon2_with_salt(
+                        self.options.password.as_ref().unwrap(),
+                        Aes256::key_size(),
+                        &salt,
+                    ),
+                    HashAlgorithm::Pbkdf2Sha256 => {
+                        hash::pbkdf2_with_salt(self.options.password.as_ref().unwrap(), &salt)
+                    }
+                };
                 let hash = password_hash.hash.take();
                 self.w
                     .write_chunk(chunk::PHSF, password_hash.to_string().as_bytes())?;
