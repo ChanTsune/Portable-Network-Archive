@@ -85,8 +85,17 @@ Basic information of each file and directory is stored.
 |File type|1-byte|file type|
 |Compression method|1-byte|Compression method|
 |Encryption method|1-byte|Encryption method|
-|Null|1-byte|Separator|
+|Cipher mode|1-byte|Cipher mode|
 |Path|n-byte|file path|
+
+##### File type
+
+The file type is recorded.
+0 is regular file
+1 is directory
+2 is symbolic link
+3 is hard link
+4 is a file that has previously appeared in the archive
 
 ##### Compression method
 
@@ -105,14 +114,14 @@ The encryption method is recorded.
 
 When this field value is 0, `PHSF` chunk is not required.  
 
-##### File type
+##### Cipher mode
 
-The file type is recorded.
-0 is regular file
-1 is directory
-2 is symbolic link
-3 is hard link
-4 is a file that has previously appeared in the archive
+Cipher mode of encryption.
+0 is cbc mode
+1 is ctr mode
+
+##### File path
+File path must be utf-8 encoded string.
 
 #### PHSF
 
