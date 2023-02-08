@@ -7,7 +7,7 @@ use crate::{
 use aes::Aes256;
 use camellia::Camellia256;
 use cipher::{BlockSizeUser, KeySizeUser};
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 
 #[derive(Default)]
 pub struct Encoder;
@@ -81,40 +81,35 @@ impl<W: Write> ArchiveWriter<W> {
         let mut data = Vec::new();
         std::mem::swap(&mut data, &mut self.buf);
 
-        let data = match self.options.compression {
-            Compression::No => data,
-            Compression::Deflate => {
-                let mut dist = Vec::new();
-                let mut encoder = flate2::read::DeflateEncoder::new(data.as_slice(), {
-                    if self.options.compression_level == CompressionLevel::default() {
-                        flate2::Compression::default()
-                    } else {
-                        flate2::Compression::new(self.options.compression_level.0 as u32)
-                    }
-                });
-                io::copy(&mut encoder, &mut dist)?;
-                dist
-            }
-            Compression::ZStandard => zstd::encode_all(data.as_slice(), {
+        let mut reader: Box<dyn Read> = match self.options.compression {
+            Compression::No => Box::new(io::Cursor::new(data)),
+            Compression::Deflate => Box::new(flate2::read::DeflateEncoder::new(data.as_slice(), {
                 if self.options.compression_level == CompressionLevel::default() {
-                    0
+                    flate2::Compression::default()
                 } else {
-                    self.options.compression_level.0 as i32
+                    flate2::Compression::new(self.options.compression_level.0 as u32)
                 }
-            })?,
-            Compression::XZ => {
-                let mut dist = Vec::new();
-                let mut reader = xz2::read::XzEncoder::new(data.as_slice(), {
+            })),
+            Compression::ZStandard => {
+                Box::new(zstd::stream::read::Encoder::new(data.as_slice(), {
                     if self.options.compression_level == CompressionLevel::default() {
-                        6
+                        0
                     } else {
-                        self.options.compression_level.0 as u32
+                        self.options.compression_level.0 as i32
                     }
-                });
-                io::copy(&mut reader, &mut dist)?;
-                dist
+                })?)
             }
+            Compression::XZ => Box::new(xz2::read::XzEncoder::new(data.as_slice(), {
+                if self.options.compression_level == CompressionLevel::default() {
+                    6
+                } else {
+                    self.options.compression_level.0 as u32
+                }
+            })),
         };
+
+        let mut data = Vec::new();
+        reader.read_to_end(&mut data)?;
 
         let data = match self.options.encryption {
             Encryption::No => data,
