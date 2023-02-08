@@ -337,6 +337,7 @@ dependencies = [
  "cbc",
  "cipher",
  "crc32fast",
+ "crypto-common",
  "ctr",
  "flate2",
  "password-hash",
