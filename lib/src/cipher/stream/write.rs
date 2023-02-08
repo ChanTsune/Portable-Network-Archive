@@ -1,6 +1,7 @@
-use cipher::typenum::{IsLess, Le, NonZero, U256};
-use cipher::{BlockSizeUser, KeyIvInit, StreamCipher, StreamCipherCoreWrapper};
-use ctr::CtrCore;
+use cipher::{
+    typenum::{IsLess, Le, NonZero, U256},
+    BlockSizeUser, KeyIvInit, StreamCipher, StreamCipherCoreWrapper,
+};
 use std::io::{self, Write};
 
 pub(crate) struct StreamCipherWriter<W, T>
@@ -49,13 +50,13 @@ where
     }
 }
 
-pub(crate) type CtrWriter<W, C, F> = StreamCipherWriter<W, CtrCore<C, F>>;
-
 #[cfg(test)]
 mod tests {
-    use super::CtrWriter;
+    use super::StreamCipherWriter;
+    use ctr::CtrCore;
     use std::io::Write;
 
+    type CtrWriter<W, C, F> = StreamCipherWriter<W, CtrCore<C, F>>;
     type Aes128Ctr64LEWriter<W> = CtrWriter<W, aes::Aes128, ctr::flavors::Ctr64LE>;
 
     #[test]

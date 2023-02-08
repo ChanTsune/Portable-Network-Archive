@@ -1,6 +1,7 @@
-use cipher::typenum::{IsLess, Le, NonZero, U256};
-use cipher::{BlockSizeUser, KeyIvInit, StreamCipher, StreamCipherCoreWrapper};
-use ctr::CtrCore;
+use cipher::{
+    typenum::{IsLess, Le, NonZero, U256},
+    BlockSizeUser, KeyIvInit, StreamCipher, StreamCipherCoreWrapper,
+};
 use std::io::{self, Read};
 
 pub(crate) struct StreamCipherReader<R, T>
@@ -45,13 +46,13 @@ where
     }
 }
 
-pub(crate) type CtrReader<W, C, F> = StreamCipherReader<W, CtrCore<C, F>>;
-
 #[cfg(test)]
 mod tests {
-    use super::CtrReader;
+    use super::StreamCipherReader;
+    use ctr::CtrCore;
     use std::io::Read;
 
+    type CtrReader<W, C, F> = StreamCipherReader<W, CtrCore<C, F>>;
     type Aes128Ctr64LEReader<R> = CtrReader<R, aes::Aes128, ctr::flavors::Ctr64LE>;
 
     #[test]
