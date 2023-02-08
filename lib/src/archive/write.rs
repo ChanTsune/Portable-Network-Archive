@@ -7,7 +7,10 @@ use crate::{
 use aes::Aes256;
 use camellia::Camellia256;
 use cipher::{BlockSizeUser, KeySizeUser};
+use flate2::read::DeflateEncoder;
 use std::io::{self, Read, Write};
+use xz2::read::XzEncoder;
+use zstd::stream::read::Encoder as ZstdEncoder;
 
 #[derive(Default)]
 pub struct Encoder;
@@ -83,23 +86,21 @@ impl<W: Write> ArchiveWriter<W> {
 
         let mut reader: Box<dyn Read> = match self.options.compression {
             Compression::No => Box::new(io::Cursor::new(data)),
-            Compression::Deflate => Box::new(flate2::read::DeflateEncoder::new(data.as_slice(), {
+            Compression::Deflate => Box::new(DeflateEncoder::new(data.as_slice(), {
                 if self.options.compression_level == CompressionLevel::default() {
                     flate2::Compression::default()
                 } else {
                     flate2::Compression::new(self.options.compression_level.0 as u32)
                 }
             })),
-            Compression::ZStandard => {
-                Box::new(zstd::stream::read::Encoder::new(data.as_slice(), {
-                    if self.options.compression_level == CompressionLevel::default() {
-                        0
-                    } else {
-                        self.options.compression_level.0 as i32
-                    }
-                })?)
-            }
-            Compression::XZ => Box::new(xz2::read::XzEncoder::new(data.as_slice(), {
+            Compression::ZStandard => Box::new(ZstdEncoder::new(data.as_slice(), {
+                if self.options.compression_level == CompressionLevel::default() {
+                    0
+                } else {
+                    self.options.compression_level.0 as i32
+                }
+            })?),
+            Compression::XZ => Box::new(XzEncoder::new(data.as_slice(), {
                 if self.options.compression_level == CompressionLevel::default() {
                     6
                 } else {
