@@ -4,13 +4,15 @@ mod read;
 mod write;
 
 pub use header::PNA_HEADER;
-pub use item::{Compression, CompressionLevel, DataKind, Encryption, Item, ItemInfo, Options};
+pub use item::{
+    Compression, CompressionLevel, DataKind, Encryption, HashAlgorithm, Item, ItemInfo, Options,
+};
 pub use read::{ArchiveReader, Decoder};
 pub use write::{ArchiveWriter, Encoder};
 
 #[cfg(test)]
 mod tests {
-    use super::{Compression, Decoder, Encoder, Encryption, Options};
+    use super::{Compression, Decoder, Encoder, Encryption, HashAlgorithm, Options};
     use std::io;
 
     #[test]
@@ -71,6 +73,32 @@ mod tests {
                 .password(Some("password".to_string())),
         )
         .unwrap();
+    }
+
+    #[test]
+    fn xz_with_aes_archive() {
+        archive(
+            b"plain text",
+            Options::default()
+                .compression(Compression::XZ)
+                .encryption(Encryption::Aes)
+                .hash_algorithm(HashAlgorithm::Pbkdf2Sha256)
+                .password(Some("password".to_string())),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn xz_with_camellia_archive() {
+        archive(
+            b"plain text",
+            Options::default()
+                .compression(Compression::XZ)
+                .encryption(Encryption::Camellia)
+                .hash_algorithm(HashAlgorithm::Pbkdf2Sha256)
+                .password(Some("password".to_string())),
+        )
+        .unwrap()
     }
 
     fn archive(src: &[u8], options: Options) -> io::Result<()> {

@@ -1,5 +1,5 @@
 use crate::{
-    archive::{Compression, CompressionLevel, Encryption, Options, PNA_HEADER},
+    archive::{Compression, CompressionLevel, Encryption, HashAlgorithm, Options, PNA_HEADER},
     chunk::{self, ChunkWriter},
     cipher::{encrypt_aes256_cbc, encrypt_camellia256_cbc},
     create_chunk_data_ahed, create_chunk_data_fhed, hash, random,
@@ -7,7 +7,10 @@ use crate::{
 use aes::Aes256;
 use camellia::Camellia256;
 use cipher::{BlockSizeUser, KeySizeUser};
-use std::io::{self, Write};
+use flate2::read::DeflateEncoder;
+use std::io::{self, Read, Write};
+use xz2::read::XzEncoder;
+use zstd::stream::read::Encoder as ZstdEncoder;
 
 #[derive(Default)]
 pub struct Encoder;
@@ -81,50 +84,48 @@ impl<W: Write> ArchiveWriter<W> {
         let mut data = Vec::new();
         std::mem::swap(&mut data, &mut self.buf);
 
-        let data = match self.options.compression {
-            Compression::No => data,
-            Compression::Deflate => {
-                let mut dist = Vec::new();
-                let mut encoder = flate2::read::DeflateEncoder::new(data.as_slice(), {
-                    if self.options.compression_level == CompressionLevel::default() {
-                        flate2::Compression::default()
-                    } else {
-                        flate2::Compression::new(self.options.compression_level.0 as u32)
-                    }
-                });
-                io::copy(&mut encoder, &mut dist)?;
-                dist
-            }
-            Compression::ZStandard => zstd::encode_all(data.as_slice(), {
+        let mut reader: Box<dyn Read> = match self.options.compression {
+            Compression::No => Box::new(io::Cursor::new(data)),
+            Compression::Deflate => Box::new(DeflateEncoder::new(data.as_slice(), {
+                if self.options.compression_level == CompressionLevel::default() {
+                    flate2::Compression::default()
+                } else {
+                    flate2::Compression::new(self.options.compression_level.0 as u32)
+                }
+            })),
+            Compression::ZStandard => Box::new(ZstdEncoder::new(data.as_slice(), {
                 if self.options.compression_level == CompressionLevel::default() {
                     0
                 } else {
                     self.options.compression_level.0 as i32
                 }
-            })?,
-            Compression::XZ => {
-                let mut dist = Vec::new();
-                let mut reader = xz2::read::XzEncoder::new(data.as_slice(), {
-                    if self.options.compression_level == CompressionLevel::default() {
-                        6
-                    } else {
-                        self.options.compression_level.0 as u32
-                    }
-                });
-                io::copy(&mut reader, &mut dist)?;
-                dist
-            }
+            })?),
+            Compression::XZ => Box::new(XzEncoder::new(data.as_slice(), {
+                if self.options.compression_level == CompressionLevel::default() {
+                    6
+                } else {
+                    self.options.compression_level.0 as u32
+                }
+            })),
         };
+
+        let mut data = Vec::new();
+        reader.read_to_end(&mut data)?;
 
         let data = match self.options.encryption {
             Encryption::No => data,
             Encryption::Aes => {
                 let salt = random::salt_string();
-                let mut password_hash = hash::argon2_with_salt(
-                    self.options.password.as_ref().unwrap(),
-                    Aes256::key_size(),
-                    &salt,
-                );
+                let mut password_hash = match self.options.hash_algorithm {
+                    HashAlgorithm::Argon2Id => hash::argon2_with_salt(
+                        self.options.password.as_ref().unwrap(),
+                        Aes256::key_size(),
+                        &salt,
+                    ),
+                    HashAlgorithm::Pbkdf2Sha256 => {
+                        hash::pbkdf2_with_salt(self.options.password.as_ref().unwrap(), &salt)
+                    }
+                };
                 let hash = password_hash.hash.take();
                 self.w
                     .write_chunk(chunk::PHSF, password_hash.to_string().as_bytes())?;
@@ -135,11 +136,16 @@ impl<W: Write> ArchiveWriter<W> {
             }
             Encryption::Camellia => {
                 let salt = random::salt_string();
-                let mut password_hash = hash::argon2_with_salt(
-                    self.options.password.as_ref().unwrap(),
-                    Camellia256::key_size(),
-                    &salt,
-                );
+                let mut password_hash = match self.options.hash_algorithm {
+                    HashAlgorithm::Argon2Id => hash::argon2_with_salt(
+                        self.options.password.as_ref().unwrap(),
+                        Aes256::key_size(),
+                        &salt,
+                    ),
+                    HashAlgorithm::Pbkdf2Sha256 => {
+                        hash::pbkdf2_with_salt(self.options.password.as_ref().unwrap(), &salt)
+                    }
+                };
                 let hash = password_hash.hash.take();
                 self.w
                     .write_chunk(chunk::PHSF, password_hash.to_string().as_bytes())?;
