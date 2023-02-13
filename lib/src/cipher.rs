@@ -1,3 +1,5 @@
+mod block;
+
 use aes::Aes256;
 use camellia::Camellia256;
 use cipher::{block_padding::Pkcs7, BlockCipher, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
