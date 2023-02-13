@@ -4,7 +4,7 @@ use std::io::{self, BufRead, Read};
 use std::marker::PhantomData;
 use zstd::zstd_safe::WriteBuf;
 
-pub(crate) struct CbcBlockCipherReader<R, C, P>
+pub(crate) struct CbcBlockCipherDecryptReader<R, C, P>
 where
     R: BufRead,
     C: BlockDecryptMut + BlockCipher,
@@ -16,7 +16,7 @@ where
     buf: Vec<u8>,
 }
 
-impl<R, C, P> CbcBlockCipherReader<R, C, P>
+impl<R, C, P> CbcBlockCipherDecryptReader<R, C, P>
 where
     R: BufRead,
     C: BlockDecryptMut + BlockCipher,
@@ -47,7 +47,7 @@ where
     }
 }
 
-impl<R, C, P> Read for CbcBlockCipherReader<R, C, P>
+impl<R, C, P> Read for CbcBlockCipherDecryptReader<R, C, P>
 where
     R: BufRead,
     C: BlockDecryptMut + BlockCipher,
@@ -99,7 +99,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::CbcBlockCipherReader;
+    use super::CbcBlockCipherDecryptReader;
     use cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
     use std::io::Read;
 
@@ -129,7 +129,7 @@ mod tests {
 
         let mut dec_buf = [0u8; 34];
         let mut dec =
-            CbcBlockCipherReader::<_, aes::Aes128, Pkcs7>::new_with_iv(buf.as_slice(), &key, &iv)
+            CbcBlockCipherDecryptReader::<_, aes::Aes128, Pkcs7>::new_with_iv(buf.as_slice(), &key, &iv)
                 .unwrap();
         for d in dec_buf.chunks_mut(28) {
             dec.read(d).unwrap();
