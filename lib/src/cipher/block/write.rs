@@ -89,9 +89,7 @@ where
             if b.len() == block_size {
                 total_written += self.encrypt_write(b)?;
             } else {
-                {
-                    self.buf.extend_from_slice(b)
-                };
+                self.buf.extend_from_slice(b);
             }
         }
         Ok(total_written)
