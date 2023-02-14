@@ -128,9 +128,12 @@ mod tests {
         assert_eq!(ct, &ciphertext[..]);
 
         let mut dec_buf = [0u8; 34];
-        let mut dec =
-            CbcBlockCipherDecryptReader::<_, aes::Aes128, Pkcs7>::new_with_iv(buf.as_slice(), &key, &iv)
-                .unwrap();
+        let mut dec = CbcBlockCipherDecryptReader::<_, aes::Aes128, Pkcs7>::new_with_iv(
+            buf.as_slice(),
+            &key,
+            &iv,
+        )
+        .unwrap();
         for d in dec_buf.chunks_mut(28) {
             dec.read(d).unwrap();
         }

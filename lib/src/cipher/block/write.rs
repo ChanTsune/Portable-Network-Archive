@@ -1,0 +1,175 @@
+use cipher::block_padding::Padding;
+use cipher::{Block, BlockCipher, BlockEncryptMut, BlockSizeUser, KeyIvInit};
+use std::io::{self, Write};
+use std::marker::PhantomData;
+
+pub(crate) struct CbcBlockCipherEncryptWriter<W, C, P>
+where
+    W: Write,
+    C: BlockEncryptMut + BlockCipher,
+    P: Padding<<C as BlockSizeUser>::BlockSize>,
+{
+    w: W,
+    c: cbc::Encryptor<C>,
+    padding: PhantomData<P>,
+    buf: Vec<u8>,
+}
+
+impl<W, C, P> CbcBlockCipherEncryptWriter<W, C, P>
+where
+    W: Write,
+    C: BlockEncryptMut + BlockCipher,
+    P: Padding<<C as BlockSizeUser>::BlockSize>,
+    cbc::Encryptor<C>: KeyIvInit,
+{
+    pub(crate) fn new_with_iv(mut w: W, key: &[u8], iv: &[u8]) -> io::Result<Self> {
+        w.write_all(iv)?;
+        Ok(Self {
+            w,
+            c: cbc::Encryptor::<C>::new_from_slices(key, iv).unwrap(),
+            padding: PhantomData::default(),
+            buf: Vec::new(),
+        })
+    }
+}
+
+impl<W, C, P> CbcBlockCipherEncryptWriter<W, C, P>
+where
+    W: Write,
+    C: BlockEncryptMut + BlockCipher,
+    P: Padding<<C as BlockSizeUser>::BlockSize>,
+{
+    fn encrypt_write_block(&mut self, block: &Block<cbc::Encryptor<C>>) -> io::Result<usize> {
+        let mut out_block = Block::<cbc::Encryptor<C>>::default();
+        self.c.encrypt_block_b2b_mut(block, &mut out_block);
+        self.w.write(out_block.as_slice())
+    }
+
+    fn encrypt_write(&mut self, data: &[u8]) -> io::Result<usize> {
+        let in_block = Block::<cbc::Encryptor<C>>::from_slice(data);
+        self.encrypt_write_block(in_block)
+    }
+
+    fn encrypt_write_with_padding(&mut self) -> io::Result<usize> {
+        let (mut v, pos) = {
+            let d = self.buf.drain(..);
+            let pos = d.len();
+            let mut v = vec![0; cbc::Encryptor::<C>::block_size()];
+            v[..pos].copy_from_slice(d.as_slice());
+            (v, pos)
+        };
+        let block = Block::<cbc::Encryptor<C>>::from_mut_slice(&mut v);
+        P::pad(block, pos);
+        self.encrypt_write_block(block)
+    }
+}
+
+impl<W, C, P> Write for CbcBlockCipherEncryptWriter<W, C, P>
+where
+    W: Write,
+    C: BlockEncryptMut + BlockCipher,
+    P: Padding<<C as BlockSizeUser>::BlockSize>,
+{
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let block_size = cbc::Encryptor::<C>::block_size();
+        if buf.len() + self.buf.len() < block_size {
+            self.buf.extend_from_slice(buf);
+            return Ok(buf.len());
+        }
+        let (vec, remaining) = {
+            let d = self.buf.drain(..);
+            let remaining = block_size - d.len();
+            let mut vec = Vec::with_capacity(block_size);
+            vec.extend_from_slice(d.as_slice());
+            vec.extend_from_slice(&buf[..remaining]);
+            (vec, remaining)
+        };
+        let mut total_written = self.encrypt_write(&vec)?;
+        for b in buf[remaining..].chunks(block_size) {
+            if b.len() == block_size {
+                total_written += self.encrypt_write(b)?;
+            } else {
+                {
+                    self.buf.extend_from_slice(b)
+                };
+            }
+        }
+        Ok(total_written)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.w.flush()
+    }
+}
+
+impl<W, C, P> Drop for CbcBlockCipherEncryptWriter<W, C, P>
+where
+    W: Write,
+    C: BlockEncryptMut + BlockCipher,
+    P: Padding<<C as BlockSizeUser>::BlockSize>,
+{
+    fn drop(&mut self) {
+        self.encrypt_write_with_padding()
+            .expect("failed to write padding block");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::cipher::block::write::CbcBlockCipherEncryptWriter;
+    use cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
+    use std::io::Write;
+
+    type Aes128CbcEnc = cbc::Encryptor<aes::Aes128>;
+    type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
+
+    #[test]
+    fn read_decrypt() {
+        let key = [0x42; 16];
+        let iv = [0x24; 16];
+        let plaintext = *b"hello world! this is my plaintext.";
+        let ciphertext = [
+            199u8, 254, 36, 126, 249, 123, 33, 240, 124, 189, 210, 108, 181, 211, 70, 191, 210,
+            120, 103, 203, 0, 217, 72, 103, 35, 225, 89, 151, 143, 185, 165, 249, 20, 207, 178, 40,
+            167, 16, 222, 65, 113, 227, 150, 231, 182, 207, 133, 158,
+        ];
+
+        // encrypt/decrypt in-place
+        // buffer must be big enough for padded plaintext
+        let mut buf = [0u8; 48];
+        let pt_len = plaintext.len();
+        buf[..pt_len].copy_from_slice(&plaintext);
+        let ct = Aes128CbcEnc::new(&key.into(), &iv.into())
+            .encrypt_padded_mut::<Pkcs7>(&mut buf, pt_len)
+            .unwrap();
+        assert_eq!(ct, &ciphertext[..]);
+
+        let mut ct = Vec::new();
+        {
+            let mut writer = CbcBlockCipherEncryptWriter::<_, aes::Aes128, Pkcs7>::new_with_iv(
+                &mut ct, &key, &iv,
+            )
+            .unwrap();
+            writer.write(&plaintext).unwrap();
+        }
+        assert_eq!(&ct[iv.len()..], &ciphertext[..]);
+
+        let pt = Aes128CbcDec::new(&key.into(), &iv.into())
+            .decrypt_padded_mut::<Pkcs7>(&mut buf)
+            .unwrap();
+        assert_eq!(pt, &plaintext);
+
+        // encrypt/decrypt from buffer to buffer
+        let mut buf = [0u8; 48];
+        let ct = Aes128CbcEnc::new(&key.into(), &iv.into())
+            .encrypt_padded_b2b_mut::<Pkcs7>(&plaintext, &mut buf)
+            .unwrap();
+        assert_eq!(ct, &ciphertext[..]);
+
+        let mut buf = [0u8; 48];
+        let pt = Aes128CbcDec::new(&key.into(), &iv.into())
+            .decrypt_padded_b2b_mut::<Pkcs7>(&ct, &mut buf)
+            .unwrap();
+        assert_eq!(pt, &plaintext);
+    }
+}
