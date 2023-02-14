@@ -115,11 +115,8 @@ where
 #[cfg(test)]
 mod tests {
     use crate::cipher::block::write::CbcBlockCipherEncryptWriter;
-    use cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
+    use cipher::block_padding::Pkcs7;
     use std::io::Write;
-
-    type Aes128CbcEnc = cbc::Encryptor<aes::Aes128>;
-    type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 
     #[test]
     fn read_decrypt() {
@@ -132,42 +129,16 @@ mod tests {
             167, 16, 222, 65, 113, 227, 150, 231, 182, 207, 133, 158,
         ];
 
-        // encrypt/decrypt in-place
-        // buffer must be big enough for padded plaintext
-        let mut buf = [0u8; 48];
-        let pt_len = plaintext.len();
-        buf[..pt_len].copy_from_slice(&plaintext);
-        let ct = Aes128CbcEnc::new(&key.into(), &iv.into())
-            .encrypt_padded_mut::<Pkcs7>(&mut buf, pt_len)
-            .unwrap();
-        assert_eq!(ct, &ciphertext[..]);
-
         let mut ct = Vec::new();
         {
             let mut writer = CbcBlockCipherEncryptWriter::<_, aes::Aes128, Pkcs7>::new_with_iv(
                 &mut ct, &key, &iv,
             )
             .unwrap();
-            writer.write(&plaintext).unwrap();
+            for p in plaintext.chunks(8) {
+                writer.write(p).unwrap();
+            }
         }
         assert_eq!(&ct[iv.len()..], &ciphertext[..]);
-
-        let pt = Aes128CbcDec::new(&key.into(), &iv.into())
-            .decrypt_padded_mut::<Pkcs7>(&mut buf)
-            .unwrap();
-        assert_eq!(pt, &plaintext);
-
-        // encrypt/decrypt from buffer to buffer
-        let mut buf = [0u8; 48];
-        let ct = Aes128CbcEnc::new(&key.into(), &iv.into())
-            .encrypt_padded_b2b_mut::<Pkcs7>(&plaintext, &mut buf)
-            .unwrap();
-        assert_eq!(ct, &ciphertext[..]);
-
-        let mut buf = [0u8; 48];
-        let pt = Aes128CbcDec::new(&key.into(), &iv.into())
-            .decrypt_padded_b2b_mut::<Pkcs7>(&ct, &mut buf)
-            .unwrap();
-        assert_eq!(pt, &plaintext);
     }
 }

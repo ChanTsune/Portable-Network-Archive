@@ -62,7 +62,7 @@ where
         if !self.buf.is_empty() && buf_len != 0 {
             let l = std::cmp::min(self.buf.len(), buf_len);
             let d = self.buf.drain(0..l);
-            buf[..l].copy_from_slice(&d.as_slice());
+            buf[..l].copy_from_slice(d.as_slice());
             total_written += l;
             if buf_len <= total_written {
                 return Ok(total_written);
@@ -71,7 +71,7 @@ where
         let block_size = cbc::Decryptor::<C>::block_size();
         let mut b = { self.r.fill_buf()? };
         loop {
-            let eof = b.len() == 0;
+            let eof = b.is_empty();
             let in_block = Block::<cbc::Decryptor<C>>::from_slice(&b[..block_size]);
             let mut out_block = Block::<cbc::Decryptor<C>>::default();
             self.c.decrypt_block_b2b_mut(in_block, &mut out_block);
@@ -100,11 +100,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::CbcBlockCipherDecryptReader;
-    use cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
+    use cipher::block_padding::Pkcs7;
     use std::io::Read;
-
-    type Aes128CbcEnc = cbc::Encryptor<aes::Aes128>;
-    type Aes128CbcDec = cbc::Decryptor<aes::Aes128>;
 
     #[test]
     fn read_decrypt() {
@@ -117,44 +114,16 @@ mod tests {
             167, 16, 222, 65, 113, 227, 150, 231, 182, 207, 133, 158,
         ];
 
-        // encrypt/decrypt in-place
-        // buffer must be big enough for padded plaintext
-        let mut buf = [0u8; 48];
-        let pt_len = plaintext.len();
-        buf[..pt_len].copy_from_slice(&plaintext);
-        let ct = Aes128CbcEnc::new(&key.into(), &iv.into())
-            .encrypt_padded_mut::<Pkcs7>(&mut buf, pt_len)
-            .unwrap();
-        assert_eq!(ct, &ciphertext[..]);
-
-        let mut dec_buf = [0u8; 34];
+        let mut buf = [0u8; 34];
         let mut dec = CbcBlockCipherDecryptReader::<_, aes::Aes128, Pkcs7>::new_with_iv(
-            buf.as_slice(),
+            ciphertext.as_slice(),
             &key,
             &iv,
         )
         .unwrap();
-        for d in dec_buf.chunks_mut(28) {
+        for d in buf.chunks_mut(28) {
             dec.read(d).unwrap();
         }
-        assert_eq!(dec_buf, plaintext);
-
-        let pt = Aes128CbcDec::new(&key.into(), &iv.into())
-            .decrypt_padded_mut::<Pkcs7>(&mut buf)
-            .unwrap();
-        assert_eq!(pt, &plaintext);
-
-        // encrypt/decrypt from buffer to buffer
-        let mut buf = [0u8; 48];
-        let ct = Aes128CbcEnc::new(&key.into(), &iv.into())
-            .encrypt_padded_b2b_mut::<Pkcs7>(&plaintext, &mut buf)
-            .unwrap();
-        assert_eq!(ct, &ciphertext[..]);
-
-        let mut buf = [0u8; 48];
-        let pt = Aes128CbcDec::new(&key.into(), &iv.into())
-            .decrypt_padded_b2b_mut::<Pkcs7>(&ct, &mut buf)
-            .unwrap();
-        assert_eq!(pt, &plaintext);
+        assert_eq!(buf, plaintext);
     }
 }
