@@ -13,7 +13,7 @@ where
     r: R,
     c: cbc::Decryptor<C>,
     padding: PhantomData<P>,
-    buf: Vec<u8>,
+    remaining: Vec<u8>,
 }
 
 impl<R, C, P> CbcBlockCipherDecryptReader<R, C, P>
@@ -36,7 +36,7 @@ where
             r,
             c: cbc::Decryptor::<C>::new_from_slices(key, iv).unwrap(),
             padding: PhantomData::default(),
-            buf: Vec::new(),
+            remaining: Vec::new(),
         })
     }
 
@@ -59,9 +59,9 @@ where
             return Ok(0);
         }
         let mut total_written = 0;
-        if !self.buf.is_empty() && buf_len != 0 {
-            let l = std::cmp::min(self.buf.len(), buf_len);
-            let d = self.buf.drain(0..l);
+        if !self.remaining.is_empty() && buf_len != 0 {
+            let l = std::cmp::min(self.remaining.len(), buf_len);
+            let d = self.remaining.drain(0..l);
             buf[..l].copy_from_slice(d.as_slice());
             total_written += l;
             if buf_len <= total_written {
@@ -88,7 +88,7 @@ where
             total_written += should_write_len;
             self.r.consume(block_size);
             if buf_len <= total_written || blk.len() != block_size {
-                self.buf.extend_from_slice(&blk[should_write_len..]);
+                self.remaining.extend_from_slice(&blk[should_write_len..]);
                 break;
             }
             b = self.r.fill_buf()?;
