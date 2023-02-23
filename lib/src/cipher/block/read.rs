@@ -25,15 +25,7 @@ where
     P: Padding<<C as BlockSizeUser>::BlockSize>,
     cbc::Decryptor<C>: KeyIvInit,
 {
-    pub(crate) fn new_with_iv(mut r: R, key: &[u8], iv: &[u8]) -> io::Result<Self> {
-        let block_size = cbc::Decryptor::<C>::block_size();
-        let b = r.fill_buf()?;
-        if b.len() < block_size {
-            return Err(io::Error::new(
-                io::ErrorKind::UnexpectedEof,
-                format!("Expected buffer size {block_size} but {}", b.len()),
-            ));
-        }
+    pub(crate) fn new_with_iv(r: R, key: &[u8], iv: &[u8]) -> io::Result<Self> {
         Ok(Self {
             r,
             c: cbc::Decryptor::<C>::new_from_slices(key, iv).unwrap(),
@@ -75,8 +67,14 @@ where
         let block_size = cbc::Decryptor::<C>::block_size();
         if self.buf.is_empty() {
             let mut prev = vec![0u8; block_size];
-            self.r.read(&mut prev)?;
+            let prev_len = self.r.read(&mut prev)?;
             self.buf = prev;
+            if prev_len != block_size {
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    format!("Expected buffer size {block_size} but {prev_len}"),
+                ));
+            }
         }
         loop {
             let mut next = vec![0u8; block_size];
