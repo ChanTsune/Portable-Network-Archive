@@ -1,12 +1,12 @@
 use cipher::block_padding::Padding;
 use cipher::{Block, BlockCipher, BlockDecryptMut, BlockSizeUser, KeyIvInit};
-use std::io::{self, BufRead, Read};
+use std::io::{self, Read};
 use std::marker::PhantomData;
 use zstd::zstd_safe::WriteBuf;
 
 pub(crate) struct CbcBlockCipherDecryptReader<R, C, P>
 where
-    R: BufRead,
+    R: Read,
     C: BlockDecryptMut + BlockCipher,
     P: Padding<<C as BlockSizeUser>::BlockSize>,
 {
@@ -14,11 +14,13 @@ where
     c: cbc::Decryptor<C>,
     padding: PhantomData<P>,
     remaining: Vec<u8>,
+    buf: Vec<u8>,
+    eof: bool,
 }
 
 impl<R, C, P> CbcBlockCipherDecryptReader<R, C, P>
 where
-    R: BufRead,
+    R: Read,
     C: BlockDecryptMut + BlockCipher,
     P: Padding<<C as BlockSizeUser>::BlockSize>,
     cbc::Decryptor<C>: KeyIvInit,
@@ -37,11 +39,13 @@ where
             c: cbc::Decryptor::<C>::new_from_slices(key, iv).unwrap(),
             padding: PhantomData::default(),
             remaining: Vec::new(),
+            buf: Vec::new(),
+            eof: false,
         })
     }
 
     pub(crate) fn new(mut r: R, key: &[u8]) -> io::Result<Self> {
-        let mut iv = vec![0; C::block_size()];
+        let mut iv = vec![0; cbc::Decryptor::<C>::block_size()];
         r.read_exact(&mut iv)?;
         Self::new_with_iv(r, key, &iv)
     }
@@ -49,13 +53,13 @@ where
 
 impl<R, C, P> Read for CbcBlockCipherDecryptReader<R, C, P>
 where
-    R: BufRead,
+    R: Read,
     C: BlockDecryptMut + BlockCipher,
     P: Padding<<C as BlockSizeUser>::BlockSize>,
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let buf_len = buf.len();
-        if buf_len == 0 {
+        if self.eof || buf_len == 0 {
             return Ok(0);
         }
         let mut total_written = 0;
@@ -69,13 +73,19 @@ where
             }
         }
         let block_size = cbc::Decryptor::<C>::block_size();
-        let mut b = { self.r.fill_buf()? };
+        if self.buf.is_empty() {
+            let mut prev = vec![0u8; block_size];
+            self.r.read(&mut prev)?;
+            self.buf = prev;
+        }
         loop {
-            let eof = b.is_empty();
-            let in_block = Block::<cbc::Decryptor<C>>::from_slice(&b[..block_size]);
+            let mut next = vec![0u8; block_size];
+            let next_len = self.r.read(&mut next)?;
+            self.eof = next_len == 0;
+            let in_block = Block::<cbc::Decryptor<C>>::from_slice(&self.buf);
             let mut out_block = Block::<cbc::Decryptor<C>>::default();
             self.c.decrypt_block_b2b_mut(in_block, &mut out_block);
-            let blk = if eof {
+            let blk = if self.eof {
                 P::unpad(&out_block)
                     .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
                     .as_slice()
@@ -86,12 +96,11 @@ where
             let end_of_slice_index = total_written + should_write_len;
             buf[total_written..end_of_slice_index].copy_from_slice(&blk[..should_write_len]);
             total_written += should_write_len;
-            self.r.consume(block_size);
-            if buf_len <= total_written || blk.len() != block_size {
+            self.buf = next;
+            if self.eof || buf_len <= total_written {
                 self.remaining.extend_from_slice(&blk[should_write_len..]);
                 break;
             }
-            b = self.r.fill_buf()?;
         }
         Ok(total_written)
     }
