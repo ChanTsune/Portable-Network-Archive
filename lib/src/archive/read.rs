@@ -1,6 +1,6 @@
 use crate::archive::{item::Item, Compression, Encryption, PNA_HEADER};
 use crate::chunk::{self, from_chunk_data_fhed, ChunkReader};
-use crate::cipher::{decrypt_aes256_cbc, decrypt_camellia256_cbc};
+use crate::cipher::{DecryptCbcAes256Reader, DecryptCbcCamellia256Reader};
 use crate::hash::verify_password;
 use std::io::{self, Cursor, Read, Seek};
 
@@ -70,8 +70,8 @@ impl<R: Read> ArchiveReader<R> {
                 ),
             ));
         }
-        let all_data = match info.encryption {
-            Encryption::No => all_data,
+        let all_data: Box<dyn Read> = match info.encryption {
+            Encryption::No => Box::new(Cursor::new(all_data)),
             Encryption::Aes | Encryption::Camellia => {
                 let s = phsf.ok_or_else(|| {
                     io::Error::new(
@@ -89,19 +89,23 @@ impl<R: Read> ArchiveReader<R> {
                     })?,
                 );
                 if let Encryption::Aes = info.encryption {
-                    decrypt_aes256_cbc(phsf.hash.unwrap().as_bytes(), &all_data)?
+                    Box::new(DecryptCbcAes256Reader::new(
+                        Cursor::new(all_data),
+                        phsf.hash.unwrap().as_bytes(),
+                    )?)
                 } else {
-                    decrypt_camellia256_cbc(phsf.hash.unwrap().as_bytes(), &all_data)?
+                    Box::new(DecryptCbcCamellia256Reader::new(
+                        Cursor::new(all_data),
+                        phsf.hash.unwrap().as_bytes(),
+                    )?)
                 }
             }
         };
         let reader: Box<dyn Read> = match info.compression {
-            Compression::No => Box::new(Cursor::new(all_data)),
-            Compression::Deflate => {
-                Box::new(flate2::read::DeflateDecoder::new(Cursor::new(all_data)))
-            }
-            Compression::ZStandard => Box::new(zstd::Decoder::new(Cursor::new(all_data))?),
-            Compression::XZ => Box::new(xz2::read::XzDecoder::new(Cursor::new(all_data))),
+            Compression::No => all_data,
+            Compression::Deflate => Box::new(flate2::read::DeflateDecoder::new(all_data)),
+            Compression::ZStandard => Box::new(zstd::Decoder::new(all_data)?),
+            Compression::XZ => Box::new(xz2::read::XzDecoder::new(all_data)),
         };
         Ok(Some(Item { info, reader }))
     }
