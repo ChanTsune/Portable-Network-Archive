@@ -1,9 +1,17 @@
+mod block;
 mod stream;
 
 use aes::Aes256;
 use camellia::Camellia256;
 use cipher::{block_padding::Pkcs7, BlockCipher, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
 use std::io;
+
+pub(crate) type EncryptCbcAes256Writer<W> = block::CbcBlockCipherEncryptWriter<W, Aes256, Pkcs7>;
+pub(crate) type DecryptCbcAes256Reader<R> = block::CbcBlockCipherDecryptReader<R, Aes256, Pkcs7>;
+pub(crate) type EncryptCbcCamellia256Writer<W> =
+    block::CbcBlockCipherEncryptWriter<W, Camellia256, Pkcs7>;
+pub(crate) type DecryptCbcCamellia256Reader<R> =
+    block::CbcBlockCipherDecryptReader<R, Camellia256, Pkcs7>;
 
 fn encrypt_cbc<Cipher>(key: &[u8], iv: &[u8], data: &[u8]) -> io::Result<Vec<u8>>
 where
