@@ -104,12 +104,8 @@ impl<R: Read> ArchiveReader<R> {
         };
         let reader: Box<dyn Read + Sync + Send> = match info.compression {
             Compression::No => all_data,
-            Compression::Deflate => {
-                Box::new(flate2::read::DeflateDecoder::new(all_data))
-            }
-            Compression::ZStandard => {
-                Box::new(MutexRead::new(zstd::Decoder::new(all_data)?))
-            }
+            Compression::Deflate => Box::new(flate2::read::DeflateDecoder::new(all_data)),
+            Compression::ZStandard => Box::new(MutexRead::new(zstd::Decoder::new(all_data)?)),
             Compression::XZ => Box::new(xz2::read::XzDecoder::new(all_data)),
         };
         Ok(Some(Item { info, reader }))
