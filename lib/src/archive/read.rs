@@ -71,7 +71,7 @@ impl<R: Read> ArchiveReader<R> {
                 ),
             ));
         }
-        let all_data: Box<dyn Read> = match info.encryption {
+        let all_data: Box<dyn Read + Sync + Send> = match info.encryption {
             Encryption::No => Box::new(Cursor::new(all_data)),
             Encryption::Aes | Encryption::Camellia => {
                 let s = phsf.ok_or_else(|| {
