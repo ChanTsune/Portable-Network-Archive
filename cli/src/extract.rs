@@ -1,9 +1,9 @@
 use crate::Options;
 use libpna::Decoder;
+use rayon::ThreadPoolBuilder;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
-use threadpool::ThreadPool;
 
 pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
     archive: A,
@@ -17,7 +17,10 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
     let files = files.iter().map(AsRef::as_ref).collect::<Vec<_>>();
     let file = File::open(archive)?;
 
-    let pool = ThreadPool::default();
+    let pool = ThreadPoolBuilder::default()
+        .build()
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    let (tx, rx) = std::sync::mpsc::channel();
     let decoder = Decoder::new();
     let mut reader = decoder.read_header(file)?;
     while let Some(mut item) = reader.read(options.password.clone().flatten().as_deref())? {
@@ -36,7 +39,8 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
                 format!("{} is alrady exists", path.display()),
             ));
         }
-        pool.execute(move || {
+        let tx = tx.clone();
+        pool.spawn(move || {
             if !options.quiet && options.verbose {
                 println!("Extract: {}", path.display());
             }
@@ -45,10 +49,11 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
             }
             let mut file = File::create(path).unwrap();
             io::copy(&mut item, &mut file).unwrap();
+            tx.send(()).unwrap();
         });
     }
-    pool.join();
-
+    drop(tx);
+    let _: Vec<_> = rx.into_iter().collect();
     if !options.quiet {
         println!("Successfully extracted an archive");
     }

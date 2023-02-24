@@ -101,7 +101,9 @@ impl<R: Read> ArchiveReader<R> {
             Compression::Deflate => {
                 Box::new(flate2::read::DeflateDecoder::new(Cursor::new(all_data)))
             }
-            Compression::ZStandard => Box::new(MutexRead::new(zstd::Decoder::new(Cursor::new(all_data))?)),
+            Compression::ZStandard => {
+                Box::new(MutexRead::new(zstd::Decoder::new(Cursor::new(all_data))?))
+            }
             Compression::XZ => Box::new(xz2::read::XzDecoder::new(Cursor::new(all_data))),
         };
         Ok(Some(Item { info, reader }))
