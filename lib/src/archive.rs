@@ -52,6 +52,18 @@ mod tests {
     }
 
     #[test]
+    fn store_with_aes_archive() {
+        archive(
+            b"plain text",
+            Options::default()
+                .compression(Compression::No)
+                .encryption(Encryption::Aes)
+                .password(Some("password".to_string())),
+        )
+        .unwrap();
+    }
+
+    #[test]
     fn zstd_with_aes_archive() {
         archive(
             b"plain text",
