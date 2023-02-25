@@ -114,7 +114,7 @@ impl<W: Write> ArchiveWriter<W> {
 
         let data = match self.options.encryption {
             Encryption::No => data,
-            Encryption::Aes => {
+            encryption @ Encryption::Aes | encryption @ Encryption::Camellia => {
                 let salt = random::salt_string();
                 let mut password_hash = match self.options.hash_algorithm {
                     HashAlgorithm::Argon2Id => hash::argon2_with_salt(
@@ -129,30 +129,15 @@ impl<W: Write> ArchiveWriter<W> {
                 let hash = password_hash.hash.take();
                 self.w
                     .write_chunk(chunk::PHSF, password_hash.to_string().as_bytes())?;
-
-                let mut iv = vec![0; Aes256::block_size()];
-                random::random_bytes(&mut iv)?;
-                encrypt_aes256_cbc(hash.unwrap().as_bytes(), &iv, &data)?
-            }
-            Encryption::Camellia => {
-                let salt = random::salt_string();
-                let mut password_hash = match self.options.hash_algorithm {
-                    HashAlgorithm::Argon2Id => hash::argon2_with_salt(
-                        self.options.password.as_ref().unwrap(),
-                        Aes256::key_size(),
-                        &salt,
-                    ),
-                    HashAlgorithm::Pbkdf2Sha256 => {
-                        hash::pbkdf2_with_salt(self.options.password.as_ref().unwrap(), &salt)
-                    }
-                };
-                let hash = password_hash.hash.take();
-                self.w
-                    .write_chunk(chunk::PHSF, password_hash.to_string().as_bytes())?;
-
-                let mut iv = vec![0; Camellia256::block_size()];
-                random::random_bytes(&mut iv)?;
-                encrypt_camellia256_cbc(hash.unwrap().as_bytes(), &iv, &data)?
+                if let Encryption::Aes = encryption {
+                    let mut iv = vec![0; Aes256::block_size()];
+                    random::random_bytes(&mut iv)?;
+                    encrypt_aes256_cbc(hash.unwrap().as_bytes(), &iv, &data)?
+                } else {
+                    let mut iv = vec![0; Camellia256::block_size()];
+                    random::random_bytes(&mut iv)?;
+                    encrypt_camellia256_cbc(hash.unwrap().as_bytes(), &iv, &data)?
+                }
             }
         };
 

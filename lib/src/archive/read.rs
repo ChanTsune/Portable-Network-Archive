@@ -74,7 +74,7 @@ impl<R: Read> ArchiveReader<R> {
         let raw_data_reader = Cursor::new(all_data);
         let decrypt_reader: Box<dyn Read + Sync + Send> = match info.encryption {
             Encryption::No => Box::new(raw_data_reader),
-            Encryption::Aes | Encryption::Camellia => {
+            encryption @ Encryption::Aes | encryption @ Encryption::Camellia => {
                 let s = phsf.ok_or_else(|| {
                     io::Error::new(
                         io::ErrorKind::InvalidData,
@@ -96,7 +96,7 @@ impl<R: Read> ArchiveReader<R> {
                         String::from("Failed to get hash"),
                     )
                 })?;
-                if let Encryption::Aes = info.encryption {
+                if let Encryption::Aes = encryption {
                     Box::new(DecryptCbcAes256Reader::new(
                         raw_data_reader,
                         hash.as_bytes(),
