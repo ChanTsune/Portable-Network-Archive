@@ -134,12 +134,10 @@ impl<W: Write> ArchiveWriter<W> {
                 self.w
                     .write_chunk(chunk::PHSF, password_hash.to_string().as_bytes())?;
                 if let Encryption::Aes = encryption {
-                    let mut iv = vec![0; Aes256::block_size()];
-                    random::random_bytes(&mut iv)?;
+                    let iv = random::random_vec(Aes256::block_size())?;
                     encrypt_aes256_cbc(hash.unwrap().as_bytes(), &iv, &data)?
                 } else {
-                    let mut iv = vec![0; Camellia256::block_size()];
-                    random::random_bytes(&mut iv)?;
+                    let iv = random::random_vec(Camellia256::block_size())?;
                     encrypt_camellia256_cbc(hash.unwrap().as_bytes(), &iv, &data)?
                 }
             }
