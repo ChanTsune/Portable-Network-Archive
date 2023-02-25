@@ -71,8 +71,9 @@ impl<R: Read> ArchiveReader<R> {
                 ),
             ));
         }
-        let all_data: Box<dyn Read + Sync + Send> = match info.encryption {
-            Encryption::No => Box::new(Cursor::new(all_data)),
+        let raw_data_reader = Cursor::new(all_data);
+        let decrypt_reader: Box<dyn Read + Sync + Send> = match info.encryption {
+            Encryption::No => Box::new(raw_data_reader),
             Encryption::Aes | Encryption::Camellia => {
                 let s = phsf.ok_or_else(|| {
                     io::Error::new(
@@ -89,24 +90,30 @@ impl<R: Read> ArchiveReader<R> {
                         )
                     })?,
                 );
+                let hash = phsf.hash.ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::Unsupported,
+                        String::from("Failed to get hash"),
+                    )
+                })?;
                 if let Encryption::Aes = info.encryption {
                     Box::new(DecryptCbcAes256Reader::new(
-                        Cursor::new(all_data),
-                        phsf.hash.unwrap().as_bytes(),
+                        raw_data_reader,
+                        hash.as_bytes(),
                     )?)
                 } else {
                     Box::new(DecryptCbcCamellia256Reader::new(
-                        Cursor::new(all_data),
-                        phsf.hash.unwrap().as_bytes(),
+                        raw_data_reader,
+                        hash.as_bytes(),
                     )?)
                 }
             }
         };
         let reader: Box<dyn Read + Sync + Send> = match info.compression {
-            Compression::No => all_data,
-            Compression::Deflate => Box::new(flate2::read::DeflateDecoder::new(all_data)),
-            Compression::ZStandard => Box::new(MutexRead::new(zstd::Decoder::new(all_data)?)),
-            Compression::XZ => Box::new(xz2::read::XzDecoder::new(all_data)),
+            Compression::No => decrypt_reader,
+            Compression::Deflate => Box::new(flate2::read::DeflateDecoder::new(decrypt_reader)),
+            Compression::ZStandard => Box::new(MutexRead::new(zstd::Decoder::new(decrypt_reader)?)),
+            Compression::XZ => Box::new(xz2::read::XzDecoder::new(decrypt_reader)),
         };
         Ok(Some(Item { info, reader }))
     }
