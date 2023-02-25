@@ -8,6 +8,7 @@ use aes::Aes256;
 use camellia::Camellia256;
 use cipher::{BlockSizeUser, KeySizeUser};
 use flate2::write::DeflateEncoder;
+use password_hash::{PasswordHash, SaltString};
 use std::io::{self, Write};
 use xz2::write::XzEncoder;
 use zstd::stream::write::Encoder as ZstdEncoder;
@@ -98,16 +99,12 @@ impl<W: Write> ArchiveWriter<W> {
             Encryption::No => data,
             encryption @ Encryption::Aes | encryption @ Encryption::Camellia => {
                 let salt = random::salt_string();
-                let mut password_hash = match self.options.hash_algorithm {
-                    HashAlgorithm::Argon2Id => hash::argon2_with_salt(
-                        self.options.password.as_ref().unwrap(),
-                        Aes256::key_size(),
-                        &salt,
-                    ),
-                    HashAlgorithm::Pbkdf2Sha256 => {
-                        hash::pbkdf2_with_salt(self.options.password.as_ref().unwrap(), &salt)
-                    }
-                };
+                let mut password_hash = hash(
+                    self.options.encryption,
+                    self.options.hash_algorithm,
+                    self.options.password.as_ref().unwrap(),
+                    &salt,
+                )?;
                 let hash = password_hash.hash.take().ok_or_else(|| {
                     io::Error::new(
                         io::ErrorKind::Unsupported,
@@ -148,6 +145,29 @@ impl<W: Write> Drop for ArchiveWriter<W> {
     fn drop(&mut self) {
         self.finalize().expect("archive finalize failed.");
     }
+}
+
+fn hash<'s, 'p: 's>(
+    encryption_algorithm: Encryption,
+    hash_algorithm: HashAlgorithm,
+    password: &'p str,
+    salt: &'s SaltString,
+) -> io::Result<PasswordHash<'s>> {
+    Ok(match (hash_algorithm, encryption_algorithm) {
+        (HashAlgorithm::Argon2Id, Encryption::Aes) => {
+            hash::argon2_with_salt(password, Aes256::key_size(), &salt)
+        }
+        (HashAlgorithm::Argon2Id, Encryption::Camellia) => {
+            hash::argon2_with_salt(password, Camellia256::key_size(), &salt)
+        }
+        (HashAlgorithm::Pbkdf2Sha256, _) => hash::pbkdf2_with_salt(password, &salt),
+        (_, _) => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("Invalid combination"),
+            ))
+        }
+    })
 }
 
 fn compression_writer<'w, W: Write + 'w>(
