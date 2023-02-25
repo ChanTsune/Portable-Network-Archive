@@ -40,7 +40,7 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
             ));
         }
         let tx = tx.clone();
-        pool.spawn(move || {
+        pool.spawn_fifo(move || {
             if !options.quiet && options.verbose {
                 println!("Extract: {}", path.display());
             }
