@@ -1,4 +1,5 @@
 mod block;
+mod stream;
 
 use aes::Aes256;
 use camellia::Camellia256;
