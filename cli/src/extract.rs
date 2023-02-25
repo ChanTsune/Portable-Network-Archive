@@ -47,8 +47,14 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
             if let Some(parent) = path.parent() {
                 fs::create_dir_all(parent).unwrap();
             }
-            let mut file = File::create(path).unwrap();
+            let mut file = File::create(&path).unwrap();
+            if !options.quiet && options.verbose {
+                println!("start: {}", path.display())
+            }
             io::copy(&mut item, &mut file).unwrap();
+            if !options.quiet && options.verbose {
+                println!("end: {}", path.display())
+            }
             tx.send(()).unwrap();
         });
     }
