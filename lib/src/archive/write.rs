@@ -7,10 +7,10 @@ use crate::{
 use aes::Aes256;
 use camellia::Camellia256;
 use cipher::{BlockSizeUser, KeySizeUser};
-use flate2::read::DeflateEncoder;
-use std::io::{self, Read, Write};
-use xz2::read::XzEncoder;
-use zstd::stream::read::Encoder as ZstdEncoder;
+use flate2::write::DeflateEncoder;
+use std::io::{self, Write};
+use xz2::write::XzEncoder;
+use zstd::stream::write::Encoder as ZstdEncoder;
 
 #[derive(Default)]
 pub struct Encoder;
@@ -82,36 +82,40 @@ impl<W: Write> ArchiveWriter<W> {
             return Ok(());
         }
         let mut data = Vec::new();
-        std::mem::swap(&mut data, &mut self.buf);
+        {
+            let mut writer = io::Cursor::new(&mut data);
 
-        let mut reader: Box<dyn Read> = match self.options.compression {
-            Compression::No => Box::new(io::Cursor::new(data)),
-            Compression::Deflate => Box::new(DeflateEncoder::new(data.as_slice(), {
-                if self.options.compression_level == CompressionLevel::default() {
-                    flate2::Compression::default()
-                } else {
-                    flate2::Compression::new(self.options.compression_level.0 as u32)
-                }
-            })),
-            Compression::ZStandard => Box::new(ZstdEncoder::new(data.as_slice(), {
-                if self.options.compression_level == CompressionLevel::default() {
-                    0
-                } else {
-                    self.options.compression_level.0 as i32
-                }
-            })?),
-            Compression::XZ => Box::new(XzEncoder::new(data.as_slice(), {
-                if self.options.compression_level == CompressionLevel::default() {
-                    6
-                } else {
-                    self.options.compression_level.0 as u32
-                }
-            })),
-        };
+            let mut compression_writer: Box<dyn Write> = match self.options.compression {
+                Compression::No => Box::new(writer),
+                Compression::Deflate => Box::new(DeflateEncoder::new(writer, {
+                    if self.options.compression_level == CompressionLevel::default() {
+                        flate2::Compression::default()
+                    } else {
+                        flate2::Compression::new(self.options.compression_level.0 as u32)
+                    }
+                })),
+                Compression::ZStandard => Box::new(
+                    ZstdEncoder::new(writer, {
+                        if self.options.compression_level == CompressionLevel::default() {
+                            0
+                        } else {
+                            self.options.compression_level.0 as i32
+                        }
+                    })?
+                    .auto_finish(),
+                ),
+                Compression::XZ => Box::new(XzEncoder::new(writer, {
+                    if self.options.compression_level == CompressionLevel::default() {
+                        6
+                    } else {
+                        self.options.compression_level.0 as u32
+                    }
+                })),
+            };
 
-        let mut data = Vec::new();
-        reader.read_to_end(&mut data)?;
-
+            compression_writer.write_all(&self.buf)?;
+            self.buf.clear();
+        }
         let data = match self.options.encryption {
             Encryption::No => data,
             encryption @ Encryption::Aes | encryption @ Encryption::Camellia => {
