@@ -1,5 +1,5 @@
 use crate::{
-    archive::{Compression, CompressionLevel, Encryption, HashAlgorithm, Options, PNA_HEADER},
+    archive::{Compression, Encryption, HashAlgorithm, Options, PNA_HEADER},
     chunk::{self, ChunkWriter},
     cipher::{encrypt_aes256_cbc, encrypt_camellia256_cbc},
     create_chunk_data_ahed, create_chunk_data_fhed, hash, random,
@@ -87,30 +87,17 @@ impl<W: Write> ArchiveWriter<W> {
 
             let mut compression_writer: Box<dyn Write> = match self.options.compression {
                 Compression::No => Box::new(writer),
-                Compression::Deflate => Box::new(DeflateEncoder::new(writer, {
-                    if self.options.compression_level == CompressionLevel::default() {
-                        flate2::Compression::default()
-                    } else {
-                        flate2::Compression::new(self.options.compression_level.0 as u32)
-                    }
-                })),
+                Compression::Deflate => Box::new(DeflateEncoder::new(
+                    writer,
+                    self.options.compression_level.into(),
+                )),
                 Compression::ZStandard => Box::new(
-                    ZstdEncoder::new(writer, {
-                        if self.options.compression_level == CompressionLevel::default() {
-                            0
-                        } else {
-                            self.options.compression_level.0 as i32
-                        }
-                    })?
-                    .auto_finish(),
+                    ZstdEncoder::new(writer, self.options.compression_level.into())?.auto_finish(),
                 ),
-                Compression::XZ => Box::new(XzEncoder::new(writer, {
-                    if self.options.compression_level == CompressionLevel::default() {
-                        6
-                    } else {
-                        self.options.compression_level.0 as u32
-                    }
-                })),
+                Compression::XZ => Box::new(XzEncoder::new(
+                    writer,
+                    self.options.compression_level.into(),
+                )),
             };
 
             compression_writer.write_all(&self.buf)?;
