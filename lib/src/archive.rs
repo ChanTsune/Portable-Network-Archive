@@ -58,7 +58,7 @@ mod tests {
             Options::default()
                 .compression(Compression::No)
                 .encryption(Encryption::Aes)
-                .password(Some("password".to_string())),
+                .password(Some("password")),
         )
         .unwrap();
     }
@@ -70,7 +70,7 @@ mod tests {
             Options::default()
                 .compression(Compression::ZStandard)
                 .encryption(Encryption::Aes)
-                .password(Some("password".to_string())),
+                .password(Some("password")),
         )
         .unwrap();
     }
@@ -82,7 +82,7 @@ mod tests {
             Options::default()
                 .compression(Compression::ZStandard)
                 .encryption(Encryption::Camellia)
-                .password(Some("password".to_string())),
+                .password(Some("password")),
         )
         .unwrap();
     }
@@ -95,7 +95,7 @@ mod tests {
                 .compression(Compression::XZ)
                 .encryption(Encryption::Aes)
                 .hash_algorithm(HashAlgorithm::Pbkdf2Sha256)
-                .password(Some("password".to_string())),
+                .password(Some("password")),
         )
         .unwrap()
     }
@@ -108,7 +108,7 @@ mod tests {
                 .compression(Compression::XZ)
                 .encryption(Encryption::Camellia)
                 .hash_algorithm(HashAlgorithm::Pbkdf2Sha256)
-                .password(Some("password".to_string())),
+                .password(Some("password")),
         )
         .unwrap()
     }
