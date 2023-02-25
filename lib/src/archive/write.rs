@@ -117,15 +117,20 @@ impl<W: Write> ArchiveWriter<W> {
                         hash::pbkdf2_with_salt(self.options.password.as_ref().unwrap(), &salt)
                     }
                 };
-                let hash = password_hash.hash.take();
+                let hash = password_hash.hash.take().ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::Unsupported,
+                        String::from("Failed to get hash"),
+                    )
+                })?;
                 self.w
                     .write_chunk(chunk::PHSF, password_hash.to_string().as_bytes())?;
                 if let Encryption::Aes = encryption {
                     let iv = random::random_vec(Aes256::block_size())?;
-                    encrypt_aes256_cbc(hash.unwrap().as_bytes(), &iv, &data)?
+                    encrypt_aes256_cbc(hash.as_bytes(), &iv, &data)?
                 } else {
                     let iv = random::random_vec(Camellia256::block_size())?;
-                    encrypt_camellia256_cbc(hash.unwrap().as_bytes(), &iv, &data)?
+                    encrypt_camellia256_cbc(hash.as_bytes(), &iv, &data)?
                 }
             }
         };
