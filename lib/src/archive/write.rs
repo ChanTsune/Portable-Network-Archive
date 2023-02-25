@@ -1,5 +1,5 @@
 use crate::{
-    archive::{Compression, Encryption, HashAlgorithm, Options, PNA_HEADER},
+    archive::{Compression, CompressionLevel, Encryption, HashAlgorithm, Options, PNA_HEADER},
     chunk::{self, ChunkWriter},
     cipher::{encrypt_aes256_cbc, encrypt_camellia256_cbc},
     create_chunk_data_ahed, create_chunk_data_fhed, hash, random,
@@ -85,20 +85,11 @@ impl<W: Write> ArchiveWriter<W> {
         {
             let mut writer = io::Cursor::new(&mut data);
 
-            let mut compression_writer: Box<dyn Write> = match self.options.compression {
-                Compression::No => Box::new(writer),
-                Compression::Deflate => Box::new(DeflateEncoder::new(
-                    writer,
-                    self.options.compression_level.into(),
-                )),
-                Compression::ZStandard => Box::new(
-                    ZstdEncoder::new(writer, self.options.compression_level.into())?.auto_finish(),
-                ),
-                Compression::XZ => Box::new(XzEncoder::new(
-                    writer,
-                    self.options.compression_level.into(),
-                )),
-            };
+            let mut compression_writer: Box<dyn Write> = compression_writer(
+                writer,
+                self.options.compression,
+                self.options.compression_level,
+            )?;
 
             compression_writer.write_all(&self.buf)?;
             self.buf.clear();
@@ -157,6 +148,19 @@ impl<W: Write> Drop for ArchiveWriter<W> {
     fn drop(&mut self) {
         self.finalize().expect("archive finalize failed.");
     }
+}
+
+fn compression_writer<'w, W: Write + 'w>(
+    writer: W,
+    algorithm: Compression,
+    level: CompressionLevel,
+) -> io::Result<Box<dyn Write + 'w>> {
+    Ok(match algorithm {
+        Compression::No => Box::new(writer),
+        Compression::Deflate => Box::new(DeflateEncoder::new(writer, level.into())),
+        Compression::ZStandard => Box::new(ZstdEncoder::new(writer, level.into())?.auto_finish()),
+        Compression::XZ => Box::new(XzEncoder::new(writer, level.into())),
+    })
 }
 
 #[cfg(test)]
