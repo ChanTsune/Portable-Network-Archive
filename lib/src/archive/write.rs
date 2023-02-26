@@ -8,7 +8,7 @@ use aes::Aes256;
 use camellia::Camellia256;
 use cipher::{BlockSizeUser, KeySizeUser};
 use flate2::write::DeflateEncoder;
-use password_hash::{PasswordHash, SaltString};
+use password_hash::{Output, PasswordHash, SaltString};
 use std::io::{self, Write};
 use xz2::write::XzEncoder;
 use zstd::stream::write::Encoder as ZstdEncoder;
@@ -99,20 +99,13 @@ impl<W: Write> ArchiveWriter<W> {
             Encryption::No => data,
             encryption @ Encryption::Aes | encryption @ Encryption::Camellia => {
                 let salt = random::salt_string();
-                let mut password_hash = hash(
+                let (hash, phsf) = hash(
                     self.options.encryption,
                     self.options.hash_algorithm,
                     self.options.password.as_ref().unwrap(),
                     &salt,
                 )?;
-                let hash = password_hash.hash.take().ok_or_else(|| {
-                    io::Error::new(
-                        io::ErrorKind::Unsupported,
-                        String::from("Failed to get hash"),
-                    )
-                })?;
-                self.w
-                    .write_chunk(chunk::PHSF, password_hash.to_string().as_bytes())?;
+                self.w.write_chunk(chunk::PHSF, phsf.as_bytes())?;
                 if let Encryption::Aes = encryption {
                     let iv = random::random_vec(Aes256::block_size())?;
                     encrypt_aes256_cbc(hash.as_bytes(), &iv, &data)?
@@ -152,8 +145,8 @@ fn hash<'s, 'p: 's>(
     hash_algorithm: HashAlgorithm,
     password: &'p str,
     salt: &'s SaltString,
-) -> io::Result<PasswordHash<'s>> {
-    Ok(match (hash_algorithm, encryption_algorithm) {
+) -> io::Result<(Output, String)> {
+    let mut password_hash = match (hash_algorithm, encryption_algorithm) {
         (HashAlgorithm::Argon2Id, Encryption::Aes) => {
             hash::argon2_with_salt(password, Aes256::key_size(), &salt)
         }
@@ -167,7 +160,14 @@ fn hash<'s, 'p: 's>(
                 format!("Invalid combination"),
             ))
         }
-    })
+    };
+    let hash = password_hash.hash.take().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::Unsupported,
+            String::from("Failed to get hash"),
+        )
+    })?;
+    Ok((hash, password_hash.to_string()))
 }
 
 fn compression_writer<'w, W: Write + 'w>(
