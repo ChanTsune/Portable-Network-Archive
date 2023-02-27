@@ -86,7 +86,7 @@ impl<W: Write> ArchiveWriter<W> {
         {
             let writer = io::Cursor::new(&mut data);
 
-            let mut compression_writer: Box<dyn Write> = compression_writer(
+            let mut compression_writer = compression_writer(
                 writer,
                 self.options.compression,
                 self.options.compression_level,
