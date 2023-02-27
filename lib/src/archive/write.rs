@@ -8,7 +8,7 @@ use aes::Aes256;
 use camellia::Camellia256;
 use cipher::{BlockSizeUser, KeySizeUser};
 use flate2::write::DeflateEncoder;
-use password_hash::{Output, PasswordHash, SaltString};
+use password_hash::{Output, SaltString};
 use std::io::{self, Write};
 use xz2::write::XzEncoder;
 use zstd::stream::write::Encoder as ZstdEncoder;
@@ -84,7 +84,7 @@ impl<W: Write> ArchiveWriter<W> {
         }
         let mut data = Vec::new();
         {
-            let mut writer = io::Cursor::new(&mut data);
+            let writer = io::Cursor::new(&mut data);
 
             let mut compression_writer: Box<dyn Write> = compression_writer(
                 writer,
@@ -148,16 +148,16 @@ fn hash<'s, 'p: 's>(
 ) -> io::Result<(Output, String)> {
     let mut password_hash = match (hash_algorithm, encryption_algorithm) {
         (HashAlgorithm::Argon2Id, Encryption::Aes) => {
-            hash::argon2_with_salt(password, Aes256::key_size(), &salt)
+            hash::argon2_with_salt(password, Aes256::key_size(), salt)
         }
         (HashAlgorithm::Argon2Id, Encryption::Camellia) => {
-            hash::argon2_with_salt(password, Camellia256::key_size(), &salt)
+            hash::argon2_with_salt(password, Camellia256::key_size(), salt)
         }
-        (HashAlgorithm::Pbkdf2Sha256, _) => hash::pbkdf2_with_salt(password, &salt),
+        (HashAlgorithm::Pbkdf2Sha256, _) => hash::pbkdf2_with_salt(password, salt),
         (_, _) => {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                format!("Invalid combination"),
+                String::from("Invalid combination"),
             ))
         }
     };
