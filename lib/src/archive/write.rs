@@ -7,10 +7,11 @@ use crate::{
 use aes::Aes256;
 use camellia::Camellia256;
 use cipher::{BlockSizeUser, KeySizeUser};
-use flate2::read::DeflateEncoder;
-use std::io::{self, Read, Write};
-use xz2::read::XzEncoder;
-use zstd::stream::read::Encoder as ZstdEncoder;
+use flate2::write::DeflateEncoder;
+use password_hash::{Output, SaltString};
+use std::io::{self, Write};
+use xz2::write::XzEncoder;
+use zstd::stream::write::Encoder as ZstdEncoder;
 
 #[derive(Default)]
 pub struct Encoder;
@@ -82,77 +83,36 @@ impl<W: Write> ArchiveWriter<W> {
             return Ok(());
         }
         let mut data = Vec::new();
-        std::mem::swap(&mut data, &mut self.buf);
+        {
+            let writer = io::Cursor::new(&mut data);
 
-        let mut reader: Box<dyn Read> = match self.options.compression {
-            Compression::No => Box::new(io::Cursor::new(data)),
-            Compression::Deflate => Box::new(DeflateEncoder::new(data.as_slice(), {
-                if self.options.compression_level == CompressionLevel::default() {
-                    flate2::Compression::default()
-                } else {
-                    flate2::Compression::new(self.options.compression_level.0 as u32)
-                }
-            })),
-            Compression::ZStandard => Box::new(ZstdEncoder::new(data.as_slice(), {
-                if self.options.compression_level == CompressionLevel::default() {
-                    0
-                } else {
-                    self.options.compression_level.0 as i32
-                }
-            })?),
-            Compression::XZ => Box::new(XzEncoder::new(data.as_slice(), {
-                if self.options.compression_level == CompressionLevel::default() {
-                    6
-                } else {
-                    self.options.compression_level.0 as u32
-                }
-            })),
-        };
+            let mut compression_writer = compression_writer(
+                writer,
+                self.options.compression,
+                self.options.compression_level,
+            )?;
 
-        let mut data = Vec::new();
-        reader.read_to_end(&mut data)?;
-
+            compression_writer.write_all(&self.buf)?;
+            self.buf.clear();
+        }
         let data = match self.options.encryption {
             Encryption::No => data,
-            Encryption::Aes => {
+            encryption @ Encryption::Aes | encryption @ Encryption::Camellia => {
                 let salt = random::salt_string();
-                let mut password_hash = match self.options.hash_algorithm {
-                    HashAlgorithm::Argon2Id => hash::argon2_with_salt(
-                        self.options.password.as_ref().unwrap(),
-                        Aes256::key_size(),
-                        &salt,
-                    ),
-                    HashAlgorithm::Pbkdf2Sha256 => {
-                        hash::pbkdf2_with_salt(self.options.password.as_ref().unwrap(), &salt)
-                    }
-                };
-                let hash = password_hash.hash.take();
-                self.w
-                    .write_chunk(chunk::PHSF, password_hash.to_string().as_bytes())?;
-
-                let mut iv = vec![0; Aes256::block_size()];
-                random::random_bytes(&mut iv)?;
-                encrypt_aes256_cbc(hash.unwrap().as_bytes(), &iv, &data)?
-            }
-            Encryption::Camellia => {
-                let salt = random::salt_string();
-                let mut password_hash = match self.options.hash_algorithm {
-                    HashAlgorithm::Argon2Id => hash::argon2_with_salt(
-                        self.options.password.as_ref().unwrap(),
-                        Aes256::key_size(),
-                        &salt,
-                    ),
-                    HashAlgorithm::Pbkdf2Sha256 => {
-                        hash::pbkdf2_with_salt(self.options.password.as_ref().unwrap(), &salt)
-                    }
-                };
-                let hash = password_hash.hash.take();
-                self.w
-                    .write_chunk(chunk::PHSF, password_hash.to_string().as_bytes())?;
-
-                let mut iv = vec![0; Camellia256::block_size()];
-                random::random_bytes(&mut iv)?;
-                encrypt_camellia256_cbc(hash.unwrap().as_bytes(), &iv, &data)?
+                let (hash, phsf) = hash(
+                    self.options.encryption,
+                    self.options.hash_algorithm,
+                    self.options.password.as_ref().unwrap(),
+                    &salt,
+                )?;
+                self.w.write_chunk(chunk::PHSF, phsf.as_bytes())?;
+                if let Encryption::Aes = encryption {
+                    let iv = random::random_vec(Aes256::block_size())?;
+                    encrypt_aes256_cbc(hash.as_bytes(), &iv, &data)?
+                } else {
+                    let iv = random::random_vec(Camellia256::block_size())?;
+                    encrypt_camellia256_cbc(hash.as_bytes(), &iv, &data)?
+                }
             }
         };
 
@@ -178,6 +138,49 @@ impl<W: Write> Drop for ArchiveWriter<W> {
     fn drop(&mut self) {
         self.finalize().expect("archive finalize failed.");
     }
+}
+
+fn hash<'s, 'p: 's>(
+    encryption_algorithm: Encryption,
+    hash_algorithm: HashAlgorithm,
+    password: &'p str,
+    salt: &'s SaltString,
+) -> io::Result<(Output, String)> {
+    let mut password_hash = match (hash_algorithm, encryption_algorithm) {
+        (HashAlgorithm::Argon2Id, Encryption::Aes) => {
+            hash::argon2_with_salt(password, Aes256::key_size(), salt)
+        }
+        (HashAlgorithm::Argon2Id, Encryption::Camellia) => {
+            hash::argon2_with_salt(password, Camellia256::key_size(), salt)
+        }
+        (HashAlgorithm::Pbkdf2Sha256, _) => hash::pbkdf2_with_salt(password, salt),
+        (_, _) => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                String::from("Invalid combination"),
+            ))
+        }
+    };
+    let hash = password_hash.hash.take().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::Unsupported,
+            String::from("Failed to get hash"),
+        )
+    })?;
+    Ok((hash, password_hash.to_string()))
+}
+
+fn compression_writer<'w, W: Write + 'w>(
+    writer: W,
+    algorithm: Compression,
+    level: CompressionLevel,
+) -> io::Result<Box<dyn Write + 'w>> {
+    Ok(match algorithm {
+        Compression::No => Box::new(writer),
+        Compression::Deflate => Box::new(DeflateEncoder::new(writer, level.into())),
+        Compression::ZStandard => Box::new(ZstdEncoder::new(writer, level.into())?.auto_finish()),
+        Compression::XZ => Box::new(XzEncoder::new(writer, level.into())),
+    })
 }
 
 #[cfg(test)]

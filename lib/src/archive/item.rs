@@ -132,8 +132,8 @@ impl Options {
         self
     }
 
-    pub fn password(mut self, password: Option<String>) -> Self {
-        self.password = password;
+    pub fn password<S: AsRef<str>>(mut self, password: Option<S>) -> Self {
+        self.password = password.map(|it| it.as_ref().to_string());
         self
     }
 }
