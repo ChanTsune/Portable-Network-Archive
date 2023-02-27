@@ -1,7 +1,10 @@
 use crate::{
     archive::{Compression, CompressionLevel, Encryption, HashAlgorithm, Options, PNA_HEADER},
     chunk::{self, ChunkWriter},
-    cipher::{encrypt_aes256_cbc, encrypt_camellia256_cbc},
+    cipher::{
+        encrypt_aes256_cbc, encrypt_camellia256_cbc, EncryptCbcAes256Writer,
+        EncryptCbcCamellia256Writer,
+    },
     create_chunk_data_ahed, create_chunk_data_fhed, hash, random,
 };
 use aes::Aes256;
@@ -168,6 +171,21 @@ fn hash<'s, 'p: 's>(
         )
     })?;
     Ok((hash, password_hash.to_string()))
+}
+
+fn encryption_writer<'w, W: Write + 'w>(
+    writer: W,
+    algorithm: Encryption,
+    key: &[u8],
+    iv: &[u8],
+) -> io::Result<Box<dyn Write + 'w>> {
+    Ok(match algorithm {
+        Encryption::No => Box::new(writer),
+        Encryption::Aes => Box::new(EncryptCbcAes256Writer::new_with_iv(writer, key, iv)?),
+        Encryption::Camellia => {
+            Box::new(EncryptCbcCamellia256Writer::new_with_iv(writer, key, iv)?)
+        }
+    })
 }
 
 fn compression_writer<'w, W: Write + 'w>(
