@@ -23,11 +23,12 @@ where
     Le<T::BlockSize, U256>: NonZero,
     StreamCipherCoreWrapper<T>: KeyIvInit,
 {
-    pub(crate) fn new(r: R, key: &[u8], iv: &[u8]) -> Self {
-        Self {
+    pub(crate) fn new(r: R, key: &[u8], iv: &[u8]) -> io::Result<Self> {
+        Ok(Self {
             r,
-            cipher: StreamCipherCoreWrapper::<T>::new_from_slices(key, iv).unwrap(),
-        }
+            cipher: StreamCipherCoreWrapper::<T>::new_from_slices(key, iv)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+        })
     }
 }
 
@@ -66,14 +67,14 @@ mod tests {
         ];
         // encrypt in-place
         let mut buf = [0u8; 34];
-        let mut cipher = Aes128Ctr64LEReader::new(plaintext.as_slice(), &key, &iv);
+        let mut cipher = Aes128Ctr64LEReader::new(plaintext.as_slice(), &key, &iv).unwrap();
         cipher.read(&mut buf).unwrap();
 
         assert_eq!(buf[..], ciphertext[..]);
 
         // CTR mode can be used with streaming messages
         let mut out_buf = [0u8; 34];
-        let mut cipher = Aes128Ctr64LEReader::new(buf.as_slice(), &key, &iv);
+        let mut cipher = Aes128Ctr64LEReader::new(buf.as_slice(), &key, &iv).unwrap();
         for chunk in out_buf.chunks_mut(3) {
             cipher.read_exact(chunk).unwrap();
         }

@@ -3,7 +3,7 @@ mod read;
 mod types;
 mod write;
 
-use crate::archive::{Compression, DataKind, Encryption, ItemInfo};
+use crate::archive::{CipherMode, Compression, DataKind, Encryption, ItemInfo};
 pub use read::ChunkReader;
 use std::io;
 pub use types::*;
@@ -23,6 +23,7 @@ pub fn create_chunk_data_fhed(
     minor: u8,
     compression: u8,
     encryption: u8,
+    cipher_mode: u8,
     file_type: u8,
     name: &str,
 ) -> Box<[u8]> {
@@ -33,7 +34,7 @@ pub fn create_chunk_data_fhed(
     data[2] = file_type;
     data[3] = compression;
     data[4] = encryption;
-    data[5] = 0; // null character
+    data[5] = cipher_mode;
     data[6..].copy_from_slice(name);
     data.into_boxed_slice()
 }
@@ -47,6 +48,8 @@ pub(crate) fn from_chunk_data_fhed(data: &[u8]) -> io::Result<ItemInfo> {
         compression: Compression::try_from(data[3])
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
         encryption: Encryption::try_from(data[4])
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+        cipher_mode: CipherMode::try_from(data[5])
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
         path: String::from_utf8(data[6..].to_vec())
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,

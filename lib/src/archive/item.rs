@@ -62,6 +62,25 @@ impl TryFrom<u8> for Encryption {
 }
 
 #[derive(Copy, Clone)]
+#[repr(u8)]
+pub enum CipherMode {
+    CBC = 0,
+    CTR = 1,
+}
+
+impl TryFrom<u8> for CipherMode {
+    type Error = String;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::CBC),
+            1 => Ok(Self::CTR),
+            value => Err(format!("unknown value {value}")),
+        }
+    }
+}
+
+#[derive(Copy, Clone)]
 pub enum HashAlgorithm {
     Pbkdf2Sha256,
     Argon2Id,
@@ -95,6 +114,7 @@ pub struct Options {
     pub(crate) compression: Compression,
     pub(crate) compression_level: CompressionLevel,
     pub(crate) encryption: Encryption,
+    pub(crate) cipher_mode: CipherMode,
     pub(crate) hash_algorithm: HashAlgorithm,
     pub(crate) password: Option<String>,
 }
@@ -105,6 +125,7 @@ impl Default for Options {
             compression: Compression::No,
             compression_level: CompressionLevel::default(),
             encryption: Encryption::No,
+            cipher_mode: CipherMode::CTR,
             hash_algorithm: HashAlgorithm::Argon2Id,
             password: None,
         }
@@ -127,6 +148,11 @@ impl Options {
         self
     }
 
+    pub fn cipher_mode(mut self, cipher_mode: CipherMode) -> Self {
+        self.cipher_mode = cipher_mode;
+        self
+    }
+
     pub fn hash_algorithm(mut self, algorithm: HashAlgorithm) -> Self {
         self.hash_algorithm = algorithm;
         self
@@ -144,6 +170,7 @@ pub struct ItemInfo {
     pub(crate) data_kind: DataKind,
     pub(crate) compression: Compression,
     pub(crate) encryption: Encryption,
+    pub(crate) cipher_mode: CipherMode,
     pub(crate) path: String,
 }
 
@@ -161,5 +188,9 @@ impl Read for Item {
 impl Item {
     pub fn path(&self) -> &str {
         &self.info.path
+    }
+
+    pub fn kind(&self) -> DataKind {
+        self.info.data_kind
     }
 }
