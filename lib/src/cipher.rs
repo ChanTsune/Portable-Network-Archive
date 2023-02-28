@@ -6,6 +6,9 @@ use camellia::Camellia256;
 use cipher::{block_padding::Pkcs7, BlockCipher, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
 use std::io;
 
+pub(crate) use stream::StreamCipherReader;
+pub(crate) use stream::StreamCipherWriter;
+
 pub(crate) type EncryptCbcAes256Writer<W> = block::CbcBlockCipherEncryptWriter<W, Aes256, Pkcs7>;
 pub(crate) type DecryptCbcAes256Reader<R> = block::CbcBlockCipherDecryptReader<R, Aes256, Pkcs7>;
 pub(crate) type EncryptCbcCamellia256Writer<W> =
