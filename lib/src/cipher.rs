@@ -3,8 +3,13 @@ mod stream;
 
 use aes::Aes256;
 use camellia::Camellia256;
-use cipher::{block_padding::Pkcs7, BlockCipher, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
-use std::io;
+use cipher::block_padding::Pkcs7;
+use ctr::{flavors::Ctr128BE, CtrCore};
+
+type CtrReader<R, C, F> = stream::StreamCipherReader<R, CtrCore<C, F>>;
+type CtrWriter<W, C, F> = stream::StreamCipherWriter<W, CtrCore<C, F>>;
+pub(crate) type Ctr128BEReader<R, C> = CtrReader<R, C, Ctr128BE>;
+pub(crate) type Ctr128BEWriter<W, C> = CtrWriter<W, C, Ctr128BE>;
 
 pub(crate) type EncryptCbcAes256Writer<W> = block::CbcBlockCipherEncryptWriter<W, Aes256, Pkcs7>;
 pub(crate) type DecryptCbcAes256Reader<R> = block::CbcBlockCipherDecryptReader<R, Aes256, Pkcs7>;
@@ -13,59 +18,65 @@ pub(crate) type EncryptCbcCamellia256Writer<W> =
 pub(crate) type DecryptCbcCamellia256Reader<R> =
     block::CbcBlockCipherDecryptReader<R, Camellia256, Pkcs7>;
 
-fn encrypt_cbc<Cipher>(key: &[u8], iv: &[u8], data: &[u8]) -> io::Result<Vec<u8>>
-where
-    Cipher: BlockEncryptMut + BlockCipher,
-    cbc::Encryptor<Cipher>: KeyIvInit,
-{
-    let encryptor = cbc::Encryptor::<Cipher>::new_from_slices(key, iv)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-    let mut d = encryptor.encrypt_padded_vec_mut::<Pkcs7>(data);
-    let mut e = Vec::from(iv);
-    e.append(&mut d);
-    Ok(e)
-}
-
-fn decrypt_cbc<Cipher: BlockDecryptMut + BlockCipher>(
-    key: &[u8],
-    data: &[u8],
-) -> io::Result<Vec<u8>>
-where
-    Cipher: BlockDecryptMut + BlockCipher,
-    cbc::Decryptor<Cipher>: KeyIvInit,
-{
-    let decryptor = cbc::Decryptor::<Cipher>::new_from_slices(key, &data[0..Cipher::block_size()])
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-    let data = decryptor
-        .decrypt_padded_vec_mut::<Pkcs7>(&data[Cipher::block_size()..])
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-    Ok(data)
-}
-
-pub(crate) fn encrypt_aes256_cbc(key: &[u8], iv: &[u8], data: &[u8]) -> io::Result<Vec<u8>> {
-    encrypt_cbc::<Aes256>(key, iv, data)
-}
-
-pub(crate) fn decrypt_aes256_cbc(key: &[u8], data: &[u8]) -> io::Result<Vec<u8>> {
-    decrypt_cbc::<Aes256>(key, data)
-}
-
-pub(crate) fn encrypt_camellia256_cbc(key: &[u8], iv: &[u8], data: &[u8]) -> io::Result<Vec<u8>> {
-    encrypt_cbc::<Camellia256>(key, iv, data)
-}
-
-pub(crate) fn decrypt_camellia256_cbc(key: &[u8], data: &[u8]) -> io::Result<Vec<u8>> {
-    decrypt_cbc::<Camellia256>(key, data)
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{
-        decrypt_aes256_cbc, decrypt_camellia256_cbc, encrypt_aes256_cbc, encrypt_camellia256_cbc,
-    };
     use aes::Aes256;
     use camellia::Camellia256;
-    use cipher::{BlockSizeUser, KeySizeUser};
+    use cipher::{
+        block_padding::Pkcs7, BlockCipher, BlockDecryptMut, BlockEncryptMut, BlockSizeUser,
+        KeyIvInit, KeySizeUser,
+    };
+    use std::io;
+
+    fn encrypt_cbc<Cipher>(key: &[u8], iv: &[u8], data: &[u8]) -> io::Result<Vec<u8>>
+    where
+        Cipher: BlockEncryptMut + BlockCipher,
+        cbc::Encryptor<Cipher>: KeyIvInit,
+    {
+        let encryptor = cbc::Encryptor::<Cipher>::new_from_slices(key, iv)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        let mut d = encryptor.encrypt_padded_vec_mut::<Pkcs7>(data);
+        let mut e = Vec::from(iv);
+        e.append(&mut d);
+        Ok(e)
+    }
+
+    fn decrypt_cbc<Cipher: BlockDecryptMut + BlockCipher>(
+        key: &[u8],
+        data: &[u8],
+    ) -> io::Result<Vec<u8>>
+    where
+        Cipher: BlockDecryptMut + BlockCipher,
+        cbc::Decryptor<Cipher>: KeyIvInit,
+    {
+        let decryptor =
+            cbc::Decryptor::<Cipher>::new_from_slices(key, &data[0..Cipher::block_size()])
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        let data = decryptor
+            .decrypt_padded_vec_mut::<Pkcs7>(&data[Cipher::block_size()..])
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        Ok(data)
+    }
+
+    pub(crate) fn encrypt_aes256_cbc(key: &[u8], iv: &[u8], data: &[u8]) -> io::Result<Vec<u8>> {
+        encrypt_cbc::<Aes256>(key, iv, data)
+    }
+
+    pub(crate) fn decrypt_aes256_cbc(key: &[u8], data: &[u8]) -> io::Result<Vec<u8>> {
+        decrypt_cbc::<Aes256>(key, data)
+    }
+
+    pub(crate) fn encrypt_camellia256_cbc(
+        key: &[u8],
+        iv: &[u8],
+        data: &[u8],
+    ) -> io::Result<Vec<u8>> {
+        encrypt_cbc::<Camellia256>(key, iv, data)
+    }
+
+    pub(crate) fn decrypt_camellia256_cbc(key: &[u8], data: &[u8]) -> io::Result<Vec<u8>> {
+        decrypt_cbc::<Camellia256>(key, data)
+    }
 
     #[test]
     fn aes() {

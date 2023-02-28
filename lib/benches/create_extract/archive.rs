@@ -1,7 +1,7 @@
 extern crate test;
 
 use crate::{bench_read_archive, bench_write_archive};
-use libpna::{Compression, Decoder, Encoder, Encryption, Options};
+use libpna::{CipherMode, Compression, Decoder, Encoder, Encryption, Options};
 use std::io::{self, Cursor};
 use test::Bencher;
 
@@ -40,21 +40,57 @@ bench_read_archive!(
 );
 
 bench_write_archive!(
-    write_aes_archive,
-    Options::default().encryption(Encryption::Aes)
+    write_aes_ctr_archive,
+    Options::default()
+        .encryption(Encryption::Aes)
+        .cipher_mode(CipherMode::CTR)
 );
 
 bench_read_archive!(
-    read_aes_archive,
-    Options::default().encryption(Encryption::Aes)
+    read_aes_ctr_archive,
+    Options::default()
+        .encryption(Encryption::Aes)
+        .cipher_mode(CipherMode::CTR)
 );
 
 bench_write_archive!(
-    write_camellia_archive,
-    Options::default().encryption(Encryption::Camellia)
+    write_aes_cbc_archive,
+    Options::default()
+        .encryption(Encryption::Aes)
+        .cipher_mode(CipherMode::CBC)
 );
 
 bench_read_archive!(
-    read_camellia_archive,
-    Options::default().encryption(Encryption::Camellia)
+    read_aes_cbc_archive,
+    Options::default()
+        .encryption(Encryption::Aes)
+        .cipher_mode(CipherMode::CBC)
+);
+
+bench_write_archive!(
+    write_camellia_ctr_archive,
+    Options::default()
+        .encryption(Encryption::Camellia)
+        .cipher_mode(CipherMode::CTR)
+);
+
+bench_read_archive!(
+    read_camellia_ctr_archive,
+    Options::default()
+        .encryption(Encryption::Camellia)
+        .cipher_mode(CipherMode::CTR)
+);
+
+bench_write_archive!(
+    write_camellia_cbc_archive,
+    Options::default()
+        .encryption(Encryption::Camellia)
+        .cipher_mode(CipherMode::CBC)
+);
+
+bench_read_archive!(
+    read_camellia_cbc_archive,
+    Options::default()
+        .encryption(Encryption::Camellia)
+        .cipher_mode(CipherMode::CBC)
 );

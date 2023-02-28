@@ -1,7 +1,9 @@
 use crate::{
-    archive::{Compression, CompressionLevel, Encryption, HashAlgorithm, Options, PNA_HEADER},
+    archive::{
+        CipherMode, Compression, CompressionLevel, Encryption, HashAlgorithm, Options, PNA_HEADER,
+    },
     chunk::{self, ChunkWriter},
-    cipher::{EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
+    cipher::{Ctr128BEWriter, EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
     create_chunk_data_ahed, create_chunk_data_fhed, hash, random,
 };
 use aes::Aes256;
@@ -66,6 +68,7 @@ impl<W: Write> ArchiveWriter<W> {
                 0,
                 self.options.compression as u8,
                 self.options.encryption as u8,
+                self.options.cipher_mode as u8,
                 0,
                 name,
             ),
@@ -152,14 +155,21 @@ fn hash<'s, 'p: 's>(
 fn encryption_writer<'w, W: Write + 'w>(
     writer: W,
     algorithm: Encryption,
+    mode: CipherMode,
     key: &[u8],
     iv: &[u8],
 ) -> io::Result<Box<dyn Write + 'w>> {
-    Ok(match algorithm {
-        Encryption::No => Box::new(writer),
-        Encryption::Aes => Box::new(EncryptCbcAes256Writer::new_with_iv(writer, key, iv)?),
-        Encryption::Camellia => {
+    Ok(match (algorithm, mode) {
+        (Encryption::No, _) => Box::new(writer),
+        (Encryption::Aes, CipherMode::CBC) => {
+            Box::new(EncryptCbcAes256Writer::new_with_iv(writer, key, iv)?)
+        }
+        (Encryption::Aes, CipherMode::CTR) => Box::new(aes_ctr_cipher_writer(writer, key, iv)?),
+        (Encryption::Camellia, CipherMode::CBC) => {
             Box::new(EncryptCbcCamellia256Writer::new_with_iv(writer, key, iv)?)
+        }
+        (Encryption::Camellia, CipherMode::CTR) => {
+            Box::new(camellia_ctr_cipher_writer(writer, key, iv)?)
         }
     })
 }
@@ -182,7 +192,10 @@ fn writer_and_hash<'w, W: Write + 'w>(
     options: &Options,
 ) -> io::Result<(Box<dyn Write + 'w>, Option<String>)> {
     let (writer, phsf) = match options.encryption {
-        algorithm @ Encryption::No => (encryption_writer(writer, algorithm, &[], &[])?, None),
+        algorithm @ Encryption::No => (
+            encryption_writer(writer, algorithm, options.cipher_mode, &[], &[])?,
+            None,
+        ),
         algorithm @ Encryption::Aes => {
             let salt = random::salt_string();
             let (hash, phsf) = hash(
@@ -193,7 +206,7 @@ fn writer_and_hash<'w, W: Write + 'w>(
             )?;
             let iv = random::random_vec(Aes256::block_size())?;
             (
-                encryption_writer(writer, algorithm, hash.as_bytes(), &iv)?,
+                encryption_writer(writer, algorithm, options.cipher_mode, hash.as_bytes(), &iv)?,
                 Some(phsf),
             )
         }
@@ -207,13 +220,31 @@ fn writer_and_hash<'w, W: Write + 'w>(
             )?;
             let iv = random::random_vec(Camellia256::block_size())?;
             (
-                encryption_writer(writer, algorithm, hash.as_bytes(), &iv)?,
+                encryption_writer(writer, algorithm, options.cipher_mode, hash.as_bytes(), &iv)?,
                 Some(phsf),
             )
         }
     };
     let writer = compression_writer(writer, options.compression, options.compression_level)?;
     Ok((writer, phsf))
+}
+
+fn aes_ctr_cipher_writer<W: Write>(
+    mut writer: W,
+    key: &[u8],
+    iv: &[u8],
+) -> io::Result<Ctr128BEWriter<W, Aes256>> {
+    writer.write_all(iv)?;
+    Ctr128BEWriter::new(writer, key, iv)
+}
+
+fn camellia_ctr_cipher_writer<W: Write>(
+    mut writer: W,
+    key: &[u8],
+    iv: &[u8],
+) -> io::Result<Ctr128BEWriter<W, Camellia256>> {
+    writer.write_all(iv)?;
+    Ctr128BEWriter::new(writer, key, iv)
 }
 
 #[cfg(test)]
