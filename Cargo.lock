@@ -28,6 +28,7 @@ dependencies = [
  "base64ct",
  "blake2",
  "password-hash",
+ "rayon",
 ]
 
 [[package]]
@@ -479,6 +480,7 @@ dependencies = [
  "digest",
  "hmac",
  "password-hash",
+ "rayon",
  "sha2",
 ]
 
