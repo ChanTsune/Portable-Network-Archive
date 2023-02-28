@@ -189,4 +189,8 @@ impl Item {
     pub fn path(&self) -> &str {
         &self.info.path
     }
+
+    pub fn kind(&self) -> DataKind {
+        self.info.data_kind
+    }
 }
