@@ -85,13 +85,11 @@ impl<W: Write> ArchiveWriter<W> {
         if self.file_closed {
             return Ok(());
         }
-        let mut buf = Vec::new();
-        std::mem::swap(&mut self.buf, &mut buf);
 
         let mut data = Vec::new();
         let phsf = {
             let (mut writer, phsf) = writer_and_hash(&mut data, &self.options)?;
-            writer.write_all(&buf)?;
+            writer.write_all(&self.buf)?;
             phsf
         };
 
