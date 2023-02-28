@@ -5,14 +5,15 @@ mod write;
 
 pub use header::PNA_HEADER;
 pub use item::{
-    Compression, CompressionLevel, DataKind, Encryption, HashAlgorithm, Item, ItemInfo, Options,
+    CipherMode, Compression, CompressionLevel, DataKind, Encryption, HashAlgorithm, Item, ItemInfo,
+    Options,
 };
 pub use read::{ArchiveReader, Decoder};
 pub use write::{ArchiveWriter, Encoder};
 
 #[cfg(test)]
 mod tests {
-    use super::{Compression, Decoder, Encoder, Encryption, HashAlgorithm, Options};
+    use super::{CipherMode, Compression, Decoder, Encoder, Encryption, HashAlgorithm, Options};
     use std::io;
 
     #[test]
@@ -52,48 +53,52 @@ mod tests {
     }
 
     #[test]
-    fn store_with_aes_archive() {
+    fn store_with_aes_cbc_archive() {
         archive(
             b"plain text",
             Options::default()
                 .compression(Compression::No)
                 .encryption(Encryption::Aes)
+                .cipher_mode(CipherMode::CBC)
                 .password(Some("password")),
         )
         .unwrap();
     }
 
     #[test]
-    fn zstd_with_aes_archive() {
+    fn zstd_with_aes_cbc_archive() {
         archive(
             b"plain text",
             Options::default()
                 .compression(Compression::ZStandard)
                 .encryption(Encryption::Aes)
+                .cipher_mode(CipherMode::CBC)
                 .password(Some("password")),
         )
         .unwrap();
     }
 
     #[test]
-    fn zstd_with_camellia_archive() {
+    fn zstd_with_camellia_cbc_archive() {
         archive(
             b"plain text",
             Options::default()
                 .compression(Compression::ZStandard)
                 .encryption(Encryption::Camellia)
+                .cipher_mode(CipherMode::CBC)
                 .password(Some("password")),
         )
         .unwrap();
     }
 
     #[test]
-    fn xz_with_aes_archive() {
+    fn xz_with_aes_cbc_archive() {
         archive(
             b"plain text",
             Options::default()
                 .compression(Compression::XZ)
                 .encryption(Encryption::Aes)
+                .cipher_mode(CipherMode::CBC)
                 .hash_algorithm(HashAlgorithm::Pbkdf2Sha256)
                 .password(Some("password")),
         )
@@ -101,12 +106,13 @@ mod tests {
     }
 
     #[test]
-    fn xz_with_camellia_archive() {
+    fn xz_with_camellia_cbc_archive() {
         archive(
             b"plain text",
             Options::default()
                 .compression(Compression::XZ)
                 .encryption(Encryption::Camellia)
+                .cipher_mode(CipherMode::CBC)
                 .hash_algorithm(HashAlgorithm::Pbkdf2Sha256)
                 .password(Some("password")),
         )

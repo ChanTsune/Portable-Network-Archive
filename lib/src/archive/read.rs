@@ -1,9 +1,11 @@
 use crate::{
-    archive::{item::Item, Compression, Encryption, PNA_HEADER},
+    archive::{item::Item, CipherMode, Compression, Encryption, PNA_HEADER},
     chunk::{self, from_chunk_data_fhed, ChunkReader},
     cipher::{Ctr128BEReader, DecryptCbcAes256Reader, DecryptCbcCamellia256Reader},
     hash::verify_password,
 };
+use aes::Aes256;
+use camellia::Camellia256;
 use cipher::BlockSizeUser;
 use std::io::{self, Cursor, Read, Seek};
 use std::sync::Mutex;
@@ -99,16 +101,21 @@ impl<R: Read> ArchiveReader<R> {
                         String::from("Failed to get hash"),
                     )
                 })?;
-                if let Encryption::Aes = encryption {
-                    Box::new(DecryptCbcAes256Reader::new(
+                match (encryption, info.cipher_mode) {
+                    (Encryption::Aes, CipherMode::CBC) => Box::new(DecryptCbcAes256Reader::new(
                         raw_data_reader,
                         hash.as_bytes(),
-                    )?)
-                } else {
-                    Box::new(DecryptCbcCamellia256Reader::new(
+                    )?),
+                    (Encryption::Aes, CipherMode::CTR) => {
+                        Box::new(aes_ctr_cipher_reader(raw_data_reader, hash.as_bytes())?)
+                    }
+                    (Encryption::Camellia, CipherMode::CBC) => Box::new(
+                        DecryptCbcCamellia256Reader::new(raw_data_reader, hash.as_bytes())?,
+                    ),
+                    _ => Box::new(camellia_ctr_cipher_reader(
                         raw_data_reader,
                         hash.as_bytes(),
-                    )?)
+                    )?),
                 }
             }
         };
@@ -141,21 +148,19 @@ impl<R: Read> Read for MutexRead<R> {
 fn aes_ctr_cipher_reader<R: Read>(
     mut reader: R,
     key: &[u8],
-) -> io::Result<Ctr128BEReader<R, aes::Aes256>> {
-    let mut iv = vec![0u8; aes::Aes256::block_size()];
+) -> io::Result<Ctr128BEReader<R, Aes256>> {
+    let mut iv = vec![0u8; Aes256::block_size()];
     reader.read_exact(&mut iv)?;
-    let reader = Ctr128BEReader::new(reader, key, &iv)?;
-    Ok(reader)
+    Ok(Ctr128BEReader::new(reader, key, &iv)?)
 }
 
 fn camellia_ctr_cipher_reader<R: Read>(
     mut reader: R,
     key: &[u8],
-) -> io::Result<Ctr128BEReader<R, camellia::Camellia256>> {
-    let mut iv = vec![0u8; camellia::Camellia256::block_size()];
+) -> io::Result<Ctr128BEReader<R, Camellia256>> {
+    let mut iv = vec![0u8; Camellia256::block_size()];
     reader.read_exact(&mut iv)?;
-    let reader = Ctr128BEReader::new(reader, key, &iv)?;
-    Ok(reader)
+    Ok(Ctr128BEReader::new(reader, key, &iv)?)
 }
 
 #[cfg(test)]
