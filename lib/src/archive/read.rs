@@ -151,7 +151,7 @@ fn aes_ctr_cipher_reader<R: Read>(
 ) -> io::Result<Ctr128BEReader<R, Aes256>> {
     let mut iv = vec![0u8; Aes256::block_size()];
     reader.read_exact(&mut iv)?;
-    Ok(Ctr128BEReader::new(reader, key, &iv)?)
+    Ctr128BEReader::new(reader, key, &iv)
 }
 
 fn camellia_ctr_cipher_reader<R: Read>(
@@ -160,7 +160,7 @@ fn camellia_ctr_cipher_reader<R: Read>(
 ) -> io::Result<Ctr128BEReader<R, Camellia256>> {
     let mut iv = vec![0u8; Camellia256::block_size()];
     reader.read_exact(&mut iv)?;
-    Ok(Ctr128BEReader::new(reader, key, &iv)?)
+    Ctr128BEReader::new(reader, key, &iv)
 }
 
 #[cfg(test)]
