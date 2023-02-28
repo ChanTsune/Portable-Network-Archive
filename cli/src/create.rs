@@ -81,9 +81,9 @@ fn write_internal<W: Write>(
         }
         item_option = item_option
             .encryption(if let Some(Some(_)) = &options.password {
-                if options.aes {
+                if let Some(mode) = options.aes {
                     libpna::Encryption::Aes
-                } else if options.camellia {
+                } else if let Some(mode) = options.camellia {
                     libpna::Encryption::Camellia
                 } else {
                     libpna::Encryption::Aes

@@ -1,7 +1,7 @@
 mod create;
 mod extract;
 
-use clap::{value_parser, ArgGroup, Parser};
+use clap::{value_parser, ArgGroup, Parser, ValueEnum};
 use std::{io, path::PathBuf};
 
 #[derive(Parser)]
@@ -64,14 +64,26 @@ struct Options {
         help = "Password of archive. If password is not given it's asked from the tty"
     )]
     password: Option<Option<String>>,
-    #[arg(long, help = "Use aes for encryption")]
-    aes: bool,
-    #[arg(long, help = "use camellia for encryption")]
-    camellia: bool,
+    #[arg(long, value_name = "cipher mode", help = "Use aes for encryption")]
+    aes: Option<Option<CipherMode>>,
+    #[arg(long, value_name = "cipher mode", help = "use camellia for encryption")]
+    camellia: Option<Option<CipherMode>>,
     #[arg(long, help = "Make some output more verbose")]
     verbose: bool,
     #[arg(long, help = "Make some output more quiet")]
     quiet: bool,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum CipherMode {
+    CBC,
+    CTR,
+}
+
+impl Default for CipherMode {
+    fn default() -> Self {
+        Self::CTR
+    }
 }
 
 fn main() -> io::Result<()> {
@@ -87,9 +99,9 @@ fn entry(mut args: Args) -> io::Result<()> {
             args.options.password = Some(Some(rpassword::prompt_password("Enter password: ")?));
         }
         None => {
-            if args.options.aes {
+            if let Some(_) = args.options.aes {
                 eprintln!("warning: Using `--aes` option but, `--password` was not provided. It will not encrypt.");
-            } else if args.options.camellia {
+            } else if let Some(_) = args.options.camellia {
                 eprintln!("warning: Using `--camellia` option but, `--password` was not provided. It will not encrypt.");
             }
         }
