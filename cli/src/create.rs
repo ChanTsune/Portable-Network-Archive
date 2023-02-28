@@ -1,4 +1,4 @@
-use crate::Options;
+use crate::{CipherMode, Options};
 use libpna::{ArchiveWriter, Encoder};
 use std::{
     fs::{self, File},
@@ -81,15 +81,22 @@ fn write_internal<W: Write>(
         }
         item_option = item_option
             .encryption(if let Some(Some(_)) = &options.password {
-                if options.aes {
+                if options.aes.is_some() {
                     libpna::Encryption::Aes
-                } else if options.camellia {
+                } else if options.camellia.is_some() {
                     libpna::Encryption::Camellia
                 } else {
                     libpna::Encryption::Aes
                 }
             } else {
                 libpna::Encryption::No
+            })
+            .cipher_mode(match match (options.aes, options.camellia) {
+                (Some(mode), _) | (_, Some(mode)) => mode.unwrap_or_default(),
+                (None, None) => CipherMode::default()
+            } {
+                CipherMode::Cbc => libpna::CipherMode::CBC,
+                CipherMode::Ctr => libpna::CipherMode::CTR,
             })
             .password(options.password.clone().flatten());
         writer.start_file_with_options(path.as_os_str().to_string_lossy().as_ref(), item_option)?;
