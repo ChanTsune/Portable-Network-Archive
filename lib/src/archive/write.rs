@@ -235,7 +235,7 @@ fn aes_ctr_cipher_writer<W: Write>(
     iv: &[u8],
 ) -> io::Result<Ctr128BEWriter<W, Aes256>> {
     writer.write_all(iv)?;
-    Ctr128BEWriter::new(writer, key, &iv)
+    Ctr128BEWriter::new(writer, key, iv)
 }
 
 fn camellia_ctr_cipher_writer<W: Write>(
@@ -244,7 +244,7 @@ fn camellia_ctr_cipher_writer<W: Write>(
     iv: &[u8],
 ) -> io::Result<Ctr128BEWriter<W, Camellia256>> {
     writer.write_all(iv)?;
-    Ctr128BEWriter::new(writer, key, &iv)
+    Ctr128BEWriter::new(writer, key, iv)
 }
 
 #[cfg(test)]
