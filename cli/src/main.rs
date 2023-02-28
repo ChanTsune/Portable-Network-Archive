@@ -76,13 +76,13 @@ struct Options {
 
 #[derive(Clone, Copy, ValueEnum)]
 enum CipherMode {
-    CBC,
-    CTR,
+    Cbc,
+    Ctr,
 }
 
 impl Default for CipherMode {
     fn default() -> Self {
-        Self::CTR
+        Self::Ctr
     }
 }
 
@@ -99,9 +99,9 @@ fn entry(mut args: Args) -> io::Result<()> {
             args.options.password = Some(Some(rpassword::prompt_password("Enter password: ")?));
         }
         None => {
-            if let Some(_) = args.options.aes {
+            if args.options.aes.is_some() {
                 eprintln!("warning: Using `--aes` option but, `--password` was not provided. It will not encrypt.");
-            } else if let Some(_) = args.options.camellia {
+            } else if args.options.camellia.is_some() {
                 eprintln!("warning: Using `--camellia` option but, `--password` was not provided. It will not encrypt.");
             }
         }
