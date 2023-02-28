@@ -46,7 +46,7 @@ where
     ) -> io::Result<usize> {
         let mut out_block = Block::<cbc::Encryptor<C>>::default();
         self.c.encrypt_block_b2b_mut(block, &mut out_block);
-        self.w.write(out_block.as_slice())?;
+        self.w.write_all(out_block.as_slice())?;
         Ok(len)
     }
 
