@@ -1,7 +1,7 @@
 use crate::{
     archive::{Compression, CompressionLevel, Encryption, HashAlgorithm, Options, PNA_HEADER},
     chunk::{self, ChunkWriter},
-    cipher::{encrypt_aes256_cbc, encrypt_camellia256_cbc},
+    cipher::{EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
     create_chunk_data_ahed, create_chunk_data_fhed, hash, random,
 };
 use aes::Aes256;
@@ -82,45 +82,24 @@ impl<W: Write> ArchiveWriter<W> {
         if self.file_closed {
             return Ok(());
         }
+
         let mut data = Vec::new();
-        {
-            let writer = io::Cursor::new(&mut data);
-
-            let mut compression_writer = compression_writer(
-                writer,
-                self.options.compression,
-                self.options.compression_level,
-            )?;
-
-            compression_writer.write_all(&self.buf)?;
-            self.buf.clear();
-        }
-        let data = match self.options.encryption {
-            Encryption::No => data,
-            encryption @ Encryption::Aes | encryption @ Encryption::Camellia => {
-                let salt = random::salt_string();
-                let (hash, phsf) = hash(
-                    self.options.encryption,
-                    self.options.hash_algorithm,
-                    self.options.password.as_ref().unwrap(),
-                    &salt,
-                )?;
-                self.w.write_chunk(chunk::PHSF, phsf.as_bytes())?;
-                if let Encryption::Aes = encryption {
-                    let iv = random::random_vec(Aes256::block_size())?;
-                    encrypt_aes256_cbc(hash.as_bytes(), &iv, &data)?
-                } else {
-                    let iv = random::random_vec(Camellia256::block_size())?;
-                    encrypt_camellia256_cbc(hash.as_bytes(), &iv, &data)?
-                }
-            }
+        let phsf = {
+            let (mut writer, phsf) = writer_and_hash(&mut data, &self.options)?;
+            writer.write_all(&self.buf)?;
+            phsf
         };
+
+        if let Some(phsf) = phsf {
+            self.w.write_chunk(chunk::PHSF, phsf.as_bytes())?;
+        }
 
         self.w.write_chunk(chunk::FDAT, &data)?;
 
         // Write end of file
         self.w.write_chunk(chunk::FEND, &[])?;
         self.file_closed = true;
+        self.buf.clear();
         Ok(())
     }
 
@@ -170,6 +149,21 @@ fn hash<'s, 'p: 's>(
     Ok((hash, password_hash.to_string()))
 }
 
+fn encryption_writer<'w, W: Write + 'w>(
+    writer: W,
+    algorithm: Encryption,
+    key: &[u8],
+    iv: &[u8],
+) -> io::Result<Box<dyn Write + 'w>> {
+    Ok(match algorithm {
+        Encryption::No => Box::new(writer),
+        Encryption::Aes => Box::new(EncryptCbcAes256Writer::new_with_iv(writer, key, iv)?),
+        Encryption::Camellia => {
+            Box::new(EncryptCbcCamellia256Writer::new_with_iv(writer, key, iv)?)
+        }
+    })
+}
+
 fn compression_writer<'w, W: Write + 'w>(
     writer: W,
     algorithm: Compression,
@@ -181,6 +175,45 @@ fn compression_writer<'w, W: Write + 'w>(
         Compression::ZStandard => Box::new(ZstdEncoder::new(writer, level.into())?.auto_finish()),
         Compression::XZ => Box::new(XzEncoder::new(writer, level.into())),
     })
+}
+
+fn writer_and_hash<'w, W: Write + 'w>(
+    writer: W,
+    options: &Options,
+) -> io::Result<(Box<dyn Write + 'w>, Option<String>)> {
+    let (writer, phsf) = match options.encryption {
+        algorithm @ Encryption::No => (encryption_writer(writer, algorithm, &[], &[])?, None),
+        algorithm @ Encryption::Aes => {
+            let salt = random::salt_string();
+            let (hash, phsf) = hash(
+                algorithm,
+                options.hash_algorithm,
+                options.password.as_ref().unwrap(),
+                &salt,
+            )?;
+            let iv = random::random_vec(Aes256::block_size())?;
+            (
+                encryption_writer(writer, algorithm, hash.as_bytes(), &iv)?,
+                Some(phsf),
+            )
+        }
+        algorithm @ Encryption::Camellia => {
+            let salt = random::salt_string();
+            let (hash, phsf) = hash(
+                algorithm,
+                options.hash_algorithm,
+                options.password.as_ref().unwrap(),
+                &salt,
+            )?;
+            let iv = random::random_vec(Camellia256::block_size())?;
+            (
+                encryption_writer(writer, algorithm, hash.as_bytes(), &iv)?,
+                Some(phsf),
+            )
+        }
+    };
+    let writer = compression_writer(writer, options.compression, options.compression_level)?;
+    Ok((writer, phsf))
 }
 
 #[cfg(test)]
