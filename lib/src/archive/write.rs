@@ -1,10 +1,7 @@
 use crate::{
     archive::{Compression, CompressionLevel, Encryption, HashAlgorithm, Options, PNA_HEADER},
     chunk::{self, ChunkWriter},
-    cipher::{
-        encrypt_aes256_cbc, encrypt_camellia256_cbc, EncryptCbcAes256Writer,
-        EncryptCbcCamellia256Writer,
-    },
+    cipher::{EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
     create_chunk_data_ahed, create_chunk_data_fhed, hash, random,
 };
 use aes::Aes256;
