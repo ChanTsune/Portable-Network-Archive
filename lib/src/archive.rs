@@ -66,6 +66,19 @@ mod tests {
     }
 
     #[test]
+    fn zstd_with_aes_ctr_archive() {
+        archive(
+            b"plain text",
+            Options::default()
+                .compression(Compression::ZStandard)
+                .encryption(Encryption::Aes)
+                .cipher_mode(CipherMode::CTR)
+                .password(Some("password")),
+        )
+        .unwrap();
+    }
+
+    #[test]
     fn zstd_with_aes_cbc_archive() {
         archive(
             b"plain text",
@@ -73,6 +86,19 @@ mod tests {
                 .compression(Compression::ZStandard)
                 .encryption(Encryption::Aes)
                 .cipher_mode(CipherMode::CBC)
+                .password(Some("password")),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn zstd_with_camellia_ctr_archive() {
+        archive(
+            b"plain text",
+            Options::default()
+                .compression(Compression::ZStandard)
+                .encryption(Encryption::Camellia)
+                .cipher_mode(CipherMode::CTR)
                 .password(Some("password")),
         )
         .unwrap();
