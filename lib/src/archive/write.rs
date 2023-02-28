@@ -1,7 +1,7 @@
 use crate::{
     archive::{Compression, CompressionLevel, Encryption, HashAlgorithm, Options, PNA_HEADER},
     chunk::{self, ChunkWriter},
-    cipher::{EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
+    cipher::{Ctr128BEWriter, EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
     create_chunk_data_ahed, create_chunk_data_fhed, hash, random,
 };
 use aes::Aes256;
@@ -214,6 +214,26 @@ fn writer_and_hash<'w, W: Write + 'w>(
     };
     let writer = compression_writer(writer, options.compression, options.compression_level)?;
     Ok((writer, phsf))
+}
+
+fn aes_ctr_cipher_writer<W: Write>(
+    mut writer: W,
+    key: &[u8],
+    iv: &[u8],
+) -> io::Result<Ctr128BEWriter<W, aes::Aes256>> {
+    writer.write_all(iv)?;
+    let writer = Ctr128BEWriter::new(writer, key, &iv)?;
+    Ok(writer)
+}
+
+fn camellia_ctr_cipher_writer<W: Write>(
+    mut writer: W,
+    key: &[u8],
+    iv: &[u8],
+) -> io::Result<Ctr128BEWriter<W, camellia::Camellia256>> {
+    writer.write_all(iv)?;
+    let writer = Ctr128BEWriter::new(writer, key, &iv)?;
+    Ok(writer)
 }
 
 #[cfg(test)]
