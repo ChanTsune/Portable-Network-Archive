@@ -39,15 +39,20 @@ where
     C: BlockEncryptMut + BlockCipher,
     P: Padding<<C as BlockSizeUser>::BlockSize>,
 {
-    fn encrypt_write_block(&mut self, block: &Block<cbc::Encryptor<C>>) -> io::Result<usize> {
+    fn encrypt_write_block(
+        &mut self,
+        block: &Block<cbc::Encryptor<C>>,
+        len: usize,
+    ) -> io::Result<usize> {
         let mut out_block = Block::<cbc::Encryptor<C>>::default();
         self.c.encrypt_block_b2b_mut(block, &mut out_block);
-        self.w.write(out_block.as_slice())
+        self.w.write(out_block.as_slice())?;
+        Ok(len)
     }
 
-    fn encrypt_write(&mut self, data: &[u8]) -> io::Result<usize> {
+    fn encrypt_write(&mut self, data: &[u8], len: usize) -> io::Result<usize> {
         let in_block = Block::<cbc::Encryptor<C>>::from_slice(data);
-        self.encrypt_write_block(in_block)
+        self.encrypt_write_block(in_block, len)
     }
 
     fn encrypt_write_with_padding(&mut self) -> io::Result<usize> {
@@ -60,7 +65,7 @@ where
         };
         let block = Block::<cbc::Encryptor<C>>::from_mut_slice(&mut v);
         P::pad(block, pos);
-        self.encrypt_write_block(block)
+        self.encrypt_write_block(block, pos)
     }
 }
 
@@ -84,12 +89,13 @@ where
             vec.extend_from_slice(&buf[..remaining]);
             (vec, remaining)
         };
-        let mut total_written = self.encrypt_write(&vec)?;
+        let mut total_written = self.encrypt_write(&vec, remaining)?;
         for b in buf[remaining..].chunks(block_size) {
             if b.len() == block_size {
-                total_written += self.encrypt_write(b)?;
+                total_written += self.encrypt_write(b, b.len())?;
             } else {
                 self.buf.extend_from_slice(b);
+                total_written += b.len();
             }
         }
         Ok(total_written)
@@ -140,5 +146,22 @@ mod tests {
             }
         }
         assert_eq!(&ct[iv.len()..], &ciphertext[..]);
+    }
+
+    #[test]
+    fn write_len() {
+        let key = [0x42; 16];
+        let iv = [0x24; 16];
+        let plaintext = *b"hello world! this is my plaintext.";
+        let mut ct = Vec::new();
+        {
+            let mut writer = CbcBlockCipherEncryptWriter::<_, aes::Aes128, Pkcs7>::new_with_iv(
+                &mut ct, &key, &iv,
+            )
+            .unwrap();
+            for p in plaintext.chunks(7) {
+                assert_eq!(writer.write(p).unwrap(), p.len())
+            }
+        };
     }
 }
