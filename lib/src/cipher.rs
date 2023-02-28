@@ -4,10 +4,13 @@ mod stream;
 use aes::Aes256;
 use camellia::Camellia256;
 use cipher::{block_padding::Pkcs7, BlockCipher, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
+use ctr::{flavors::Ctr128BE, CtrCore};
 use std::io;
 
-pub(crate) use stream::StreamCipherReader;
-pub(crate) use stream::StreamCipherWriter;
+type CtrReader<R, C, F> = stream::StreamCipherReader<R, CtrCore<C, F>>;
+type CtrWriter<W, C, F> = stream::StreamCipherWriter<W, CtrCore<C, F>>;
+pub(crate) type Ctr128BEReader<R, C> = CtrReader<R, C, Ctr128BE>;
+pub(crate) type Ctr128BEWriter<W, C> = CtrWriter<W, C, Ctr128BE>;
 
 pub(crate) type EncryptCbcAes256Writer<W> = block::CbcBlockCipherEncryptWriter<W, Aes256, Pkcs7>;
 pub(crate) type DecryptCbcAes256Reader<R> = block::CbcBlockCipherDecryptReader<R, Aes256, Pkcs7>;
