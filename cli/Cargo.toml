@@ -5,7 +5,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = { version = "4.1.7", features = ["derive"] }
+clap = { version = "4.1.8", features = ["derive"] }
 libpna = { version = "0.0.0", path = "../lib" }
 rayon = "1.6.1"
 rpassword = "7.2.0"
