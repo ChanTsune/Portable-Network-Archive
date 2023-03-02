@@ -1,4 +1,5 @@
 use crate::Options;
+use glob::Pattern;
 use libpna::Decoder;
 use std::fs::File;
 use std::io;
@@ -9,14 +10,18 @@ pub(crate) fn list_archive<A: AsRef<Path>, F: AsRef<Path>>(
     files: &[F],
     options: Options,
 ) -> io::Result<()> {
-    let files = files.iter().map(AsRef::as_ref).collect::<Vec<_>>();
+    let globs = files
+        .iter()
+        .map(|p| Pattern::new(&p.as_ref().to_string_lossy().to_string()))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
     let file = File::open(archive)?;
 
     let decoder = Decoder::new();
     let mut reader = decoder.read_header(file)?;
     while let Some(item) = reader.read(options.password.clone().flatten().as_deref())? {
         let path = PathBuf::from(item.path());
-        if !files.is_empty() && !files.contains(&path.as_path()) {
+        if !globs.is_empty() && !globs.iter().any(|glob| glob.matches_path(&path)) {
             if !options.quiet && options.verbose {
                 println!("Skip: {}", item.path())
             }
