@@ -11,14 +11,14 @@ macro_rules! bench_write_archive {
                 let mut vec = Vec::with_capacity(100000);
                 let encoder = Encoder::default();
                 let mut writer = encoder.write_header(&mut vec).unwrap();
-                for i in 0..100 {
+                for i in 0i32..10 {
                     writer
                         .start_file_with_options(
                             &format!("{i}"),
                             $options.password(Some("password".to_string())),
                         )
                         .unwrap();
-                    writer.write_all(&vec![i as u8; i * i]).unwrap();
+                    writer.write_all(&vec![i as u8; i.pow(4) as usize]).unwrap();
                     writer.end_file().unwrap();
                 }
                 writer.finalize().unwrap();
@@ -36,14 +36,14 @@ macro_rules! bench_read_archive {
             {
                 let encoder = Encoder::default();
                 let mut writer = encoder.write_header(&mut vec).unwrap();
-                for i in 0..100 {
+                for i in 0i32..10 {
                     writer
                         .start_file_with_options(
                             &format!("{i}"),
                             $options.password(Some("password".to_string())),
                         )
                         .unwrap();
-                    writer.write_all(&vec![i as u8; i * i]).unwrap();
+                    writer.write_all(&vec![i as u8; i.pow(4) as usize]).unwrap();
                     writer.end_file().unwrap();
                 }
                 writer.finalize().unwrap();
