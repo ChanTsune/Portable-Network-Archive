@@ -1,3 +1,5 @@
+mod name;
+
 use std::io::{self, Read};
 
 #[derive(Copy, Clone)]
