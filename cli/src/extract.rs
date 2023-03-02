@@ -25,13 +25,11 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
     let mut reader = decoder.read_header(file)?;
     while let Some(mut item) = reader.read(options.password.clone().flatten().as_deref())? {
         let path = PathBuf::from(item.path());
-        if !files.is_empty() {
-            if !files.contains(&path.as_path()) {
-                if !options.quiet && options.verbose {
-                    println!("Skip: {}", item.path())
-                }
-                continue;
+        if !files.is_empty() && !files.contains(&path.as_path()) {
+            if !options.quiet && options.verbose {
+                println!("Skip: {}", item.path())
             }
+            continue;
         }
         if path.exists() && !options.overwrite {
             return Err(io::Error::new(

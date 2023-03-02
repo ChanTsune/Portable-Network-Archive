@@ -91,13 +91,15 @@ fn write_internal<W: Write>(
             } else {
                 libpna::Encryption::No
             })
-            .cipher_mode(match match (options.aes, options.camellia) {
-                (Some(mode), _) | (_, Some(mode)) => mode.unwrap_or_default(),
-                (None, None) => CipherMode::default()
-            } {
-                CipherMode::Cbc => libpna::CipherMode::CBC,
-                CipherMode::Ctr => libpna::CipherMode::CTR,
-            })
+            .cipher_mode(
+                match match (options.aes, options.camellia) {
+                    (Some(mode), _) | (_, Some(mode)) => mode.unwrap_or_default(),
+                    (None, None) => CipherMode::default(),
+                } {
+                    CipherMode::Cbc => libpna::CipherMode::CBC,
+                    CipherMode::Ctr => libpna::CipherMode::CTR,
+                },
+            )
             .password(options.password.clone().flatten());
         writer.start_file_with_options(path.as_os_str().to_string_lossy().as_ref(), item_option)?;
         writer.write_all(&fs::read(path)?)?;
