@@ -1,5 +1,6 @@
 mod create;
 mod extract;
+mod list;
 
 use clap::{value_parser, ArgGroup, Parser, ValueEnum};
 use std::{io, path::PathBuf};
@@ -14,7 +15,7 @@ use std::{io, path::PathBuf};
     group(
         ArgGroup::new("archive")
             .required(true)
-            .args(["create", "append", "extract"]),
+            .args(["create", "append", "extract", "list"]),
     )
  )]
 struct Args {
@@ -24,6 +25,8 @@ struct Args {
     append: Option<PathBuf>,
     #[arg(short = 'x', long, value_name = "ARCHIVE", help = "Extract archive")]
     extract: Option<PathBuf>,
+    #[arg(short, long, value_name = "ARCHIVE", help = "List archive items")]
+    list: Option<PathBuf>,
     #[command(flatten)]
     options: Options,
     #[arg()]
@@ -112,6 +115,8 @@ fn entry(mut args: Args) -> io::Result<()> {
         println!("Append archive {}", append.display());
     } else if let Some(extract) = args.extract {
         extract::extract_archive(extract, &args.files, args.options)?;
+    } else if let Some(list) = args.list {
+        list::list_archive(list, &args.files, args.options)?;
     }
     Ok(())
 }
