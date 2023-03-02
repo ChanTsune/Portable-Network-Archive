@@ -12,7 +12,7 @@ pub(crate) fn list_archive<A: AsRef<Path>, F: AsRef<Path>>(
 ) -> io::Result<()> {
     let globs = files
         .iter()
-        .map(|p| Pattern::new(&p.as_ref().to_string_lossy().to_string()))
+        .map(|p| Pattern::new(&p.as_ref().to_string_lossy()))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
     let file = File::open(archive)?;
