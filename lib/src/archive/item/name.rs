@@ -5,7 +5,7 @@ use std::path::{Component, PathBuf};
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct ItemName(String);
 
-impl From<&str> for ItemName {
+impl<T: ?Sized + AsRef<OsStr>> From<&T> for ItemName {
     /// # Examples
     /// ```
     /// use libpna::ItemName;
@@ -18,9 +18,14 @@ impl From<&str> for ItemName {
     ///
     /// assert_eq!(ItemName::from("../test.txt"), ItemName::from("test.txt"));
     /// ```
-    fn from(value: &str) -> Self {
-        let buf = PathBuf::from(value);
-        let buf = buf
+    fn from(value: &T) -> Self {
+        Self::from(PathBuf::from(value))
+    }
+}
+
+impl From<PathBuf> for ItemName {
+    fn from(value: PathBuf) -> Self {
+        let buf = value
             .components()
             .filter_map(|c| match c {
                 Component::Prefix(_)
@@ -58,6 +63,11 @@ mod tests {
             ItemName::from("/test/test.txt"),
             ItemName::from("test/test.txt")
         );
+    }
+
+    #[test]
+    fn remove_last() {
+        assert_eq!(ItemName::from("test/"), ItemName::from("test"));
     }
 
     #[cfg(target_os = "windows")]
