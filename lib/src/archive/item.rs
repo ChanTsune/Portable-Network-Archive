@@ -1,5 +1,6 @@
 mod name;
 
+pub use name::*;
 use std::io::{self, Read};
 
 #[derive(Copy, Clone)]

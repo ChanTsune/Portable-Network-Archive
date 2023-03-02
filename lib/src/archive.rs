@@ -6,7 +6,7 @@ mod write;
 pub use header::PNA_HEADER;
 pub use item::{
     CipherMode, Compression, CompressionLevel, DataKind, Encryption, HashAlgorithm, Item, ItemInfo,
-    Options,
+    ItemName, Options,
 };
 pub use read::{ArchiveReader, Decoder};
 pub use write::{ArchiveWriter, Encoder};
