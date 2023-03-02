@@ -68,6 +68,7 @@ mod tests {
     #[test]
     fn remove_last() {
         assert_eq!(ItemName::from("test/"), ItemName::from("test"));
+        assert_eq!(ItemName::from("test/test/"), ItemName::from("test/test"));
     }
 
     #[cfg(target_os = "windows")]
