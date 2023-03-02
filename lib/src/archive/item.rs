@@ -174,7 +174,7 @@ pub struct ItemInfo {
     pub(crate) compression: Compression,
     pub(crate) encryption: Encryption,
     pub(crate) cipher_mode: CipherMode,
-    pub(crate) path: String,
+    pub(crate) path: ItemName,
 }
 
 pub struct Item {
@@ -190,7 +190,7 @@ impl Read for Item {
 
 impl Item {
     pub fn path(&self) -> &str {
-        &self.info.path
+        self.info.path.as_ref()
     }
 
     pub fn kind(&self) -> DataKind {
