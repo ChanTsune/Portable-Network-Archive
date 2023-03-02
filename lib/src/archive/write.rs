@@ -1,6 +1,7 @@
 use crate::{
     archive::{
-        CipherMode, Compression, CompressionLevel, Encryption, HashAlgorithm, Options, PNA_HEADER,
+        CipherMode, Compression, CompressionLevel, Encryption, HashAlgorithm, ItemName, Options,
+        PNA_HEADER,
     },
     chunk::{self, ChunkWriter},
     cipher::{Ctr128BEWriter, EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
@@ -52,11 +53,11 @@ impl<W: Write> ArchiveWriter<W> {
         }
     }
 
-    pub fn start_file(&mut self, name: &str) -> io::Result<()> {
+    pub fn start_file(&mut self, name: ItemName) -> io::Result<()> {
         self.start_file_with_options(name, Options::default())
     }
 
-    pub fn start_file_with_options(&mut self, name: &str, options: Options) -> io::Result<()> {
+    pub fn start_file_with_options(&mut self, name: ItemName, options: Options) -> io::Result<()> {
         self.end_file()?;
         self.file_closed = false;
         self.options = options;
@@ -70,7 +71,7 @@ impl<W: Write> ArchiveWriter<W> {
                 self.options.encryption as u8,
                 self.options.cipher_mode as u8,
                 0,
-                name,
+                name.as_ref(),
             ),
         )?;
         Ok(())

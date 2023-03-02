@@ -101,7 +101,7 @@ fn write_internal<W: Write>(
                 },
             )
             .password(options.password.clone().flatten());
-        writer.start_file_with_options(path.as_os_str().to_string_lossy().as_ref(), item_option)?;
+        writer.start_file_with_options(path.into(), item_option)?;
         writer.write_all(&fs::read(path)?)?;
         writer.end_file()?;
     }

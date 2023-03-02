@@ -150,7 +150,7 @@ mod tests {
         {
             let encoder = Encoder::new();
             let mut archive_writer = encoder.write_header(&mut archived_temp)?;
-            archive_writer.start_file_with_options("test/text", options.clone())?;
+            archive_writer.start_file_with_options("test/text".into(), options.clone())?;
             archive_writer.write_all(src)?;
             archive_writer.end_file()?;
             archive_writer.finalize()?;

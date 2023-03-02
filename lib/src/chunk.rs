@@ -9,7 +9,7 @@ use std::io;
 pub use types::*;
 pub use write::ChunkWriter;
 
-pub fn create_chunk_data_ahed(major: u8, minor: u8, archive_number: u32) -> [u8; 8] {
+pub(crate) fn create_chunk_data_ahed(major: u8, minor: u8, archive_number: u32) -> [u8; 8] {
     let mut data = [0; 8];
     data[0] = major;
     data[1] = minor;
@@ -18,7 +18,7 @@ pub fn create_chunk_data_ahed(major: u8, minor: u8, archive_number: u32) -> [u8;
     data
 }
 
-pub fn create_chunk_data_fhed(
+pub(crate) fn create_chunk_data_fhed(
     major: u8,
     minor: u8,
     compression: u8,
