@@ -3,13 +3,13 @@ mod read;
 mod types;
 mod write;
 
-use crate::archive::{CipherMode, Compression, DataKind, Encryption, ItemInfo};
+use crate::archive::{CipherMode, Compression, DataKind, Encryption, ItemInfo, ItemName};
 pub use read::ChunkReader;
 use std::io;
 pub use types::*;
 pub use write::ChunkWriter;
 
-pub fn create_chunk_data_ahed(major: u8, minor: u8, archive_number: u32) -> [u8; 8] {
+pub(crate) fn create_chunk_data_ahed(major: u8, minor: u8, archive_number: u32) -> [u8; 8] {
     let mut data = [0; 8];
     data[0] = major;
     data[1] = minor;
@@ -18,7 +18,7 @@ pub fn create_chunk_data_ahed(major: u8, minor: u8, archive_number: u32) -> [u8;
     data
 }
 
-pub fn create_chunk_data_fhed(
+pub(crate) fn create_chunk_data_fhed(
     major: u8,
     minor: u8,
     compression: u8,
@@ -52,6 +52,7 @@ pub(crate) fn from_chunk_data_fhed(data: &[u8]) -> io::Result<ItemInfo> {
         cipher_mode: CipherMode::try_from(data[5])
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
         path: String::from_utf8(data[6..].to_vec())
+            .map(|s| ItemName::from(&s))
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
     })
 }
