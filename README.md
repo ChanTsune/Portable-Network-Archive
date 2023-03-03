@@ -1,5 +1,9 @@
 # Portable-Network-Archive
 
+<div align="center">
+  <img src="./icon.svg" alt="PNA" width="100"/>
+</div>
+
 Portable-Network-Archive (PNA)  
 Highly scalable archive format based on the PNG data structure with file compression, splitting and encryption.  
 
