@@ -34,7 +34,7 @@ impl From<PathBuf> for ItemName {
                 | Component::ParentDir => None,
                 Component::Normal(p) => Some(p),
             })
-            .map(|i| i.to_string_lossy().to_string())
+            .map(|i| i.to_string_lossy())
             .collect::<Vec<_>>();
         Self(buf.join("/"))
     }
