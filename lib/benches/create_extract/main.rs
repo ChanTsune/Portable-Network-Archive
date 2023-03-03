@@ -14,7 +14,7 @@ macro_rules! bench_write_archive {
                 for i in 0i32..10 {
                     writer
                         .start_file_with_options(
-                            &format!("{i}"),
+                            (&format!("{i}")).into(),
                             $options.password(Some("password".to_string())),
                         )
                         .unwrap();
@@ -39,7 +39,7 @@ macro_rules! bench_read_archive {
                 for i in 0i32..10 {
                     writer
                         .start_file_with_options(
-                            &format!("{i}"),
+                            (&format!("{i}")).into(),
                             $options.password(Some("password".to_string())),
                         )
                         .unwrap();
