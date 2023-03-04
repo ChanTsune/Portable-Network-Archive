@@ -1,6 +1,5 @@
 mod header;
 mod item;
-mod option;
 mod read;
 mod write;
 
@@ -9,7 +8,6 @@ pub use item::{
     CipherMode, Compression, CompressionLevel, DataKind, Encryption, HashAlgorithm, Item, ItemInfo,
     Options,
 };
-pub use option::*;
 pub use read::{ArchiveReader, Decoder};
 pub use write::{ArchiveWriter, Encoder};
 

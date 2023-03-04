@@ -1,8 +1,6 @@
-use super::header::write_pna_header;
 use crate::{
     archive::{
-        ArchiveOption, CipherMode, Compression, CompressionLevel, Encryption, HashAlgorithm,
-        Options,
+        CipherMode, Compression, CompressionLevel, Encryption, HashAlgorithm, Options, PNA_HEADER,
     },
     chunk::{self, ChunkWriter},
     cipher::{Ctr128BEWriter, EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
@@ -25,8 +23,11 @@ impl Encoder {
         Self
     }
 
-    pub fn write_header<W: Write>(&self, write: W) -> io::Result<ArchiveWriter<W>> {
-        ArchiveWriter::write_header(write)
+    pub fn write_header<W: Write>(&self, mut write: W) -> io::Result<ArchiveWriter<W>> {
+        write.write_all(PNA_HEADER)?;
+        let mut chunk_writer = ChunkWriter::from(write);
+        chunk_writer.write_chunk(chunk::AHED, &create_chunk_data_ahed(0, 0, 0))?;
+        Ok(ArchiveWriter::new(chunk_writer))
     }
 }
 
@@ -37,32 +38,18 @@ pub struct ArchiveWriter<W: Write> {
     buf: Vec<u8>,
     file_closed: bool,
     // end temporary
-    archive_option: ArchiveOption,
-    current_archive_number: usize,
-    total_written: usize,
     finalized: bool,
 }
 
 impl<W: Write> ArchiveWriter<W> {
-    fn write_header(writer: W) -> io::Result<Self> {
-        Self::write_header_with_option(writer, ArchiveOption::default())
-    }
-
-    fn write_header_with_option(mut writer: W, option: ArchiveOption) -> io::Result<Self> {
-        let mut total_written = 0;
-        total_written += write_pna_header(&mut writer)?;
-        let mut chunk_writer = ChunkWriter::from(writer);
-        total_written += chunk_writer.write_chunk(chunk::AHED, &create_chunk_data_ahed(0, 0, 0))?;
-        Ok(Self {
+    fn new(chunk_writer: ChunkWriter<W>) -> Self {
+        Self {
             w: chunk_writer,
             options: Options::default(),
             buf: Vec::new(),
             file_closed: true,
-            archive_option: option,
-            current_archive_number: 0,
-            total_written: total_written,
             finalized: false,
-        })
+        }
     }
 
     pub fn start_file(&mut self, name: &str) -> io::Result<()> {
