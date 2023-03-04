@@ -30,7 +30,7 @@ impl Encoder {
 }
 
 pub struct ArchiveWriter<W: Write> {
-    w: ChunkWriter<W>,
+    w: W,
     // temporary use fields
     options: Options,
     buf: Vec<u8>,
@@ -45,7 +45,7 @@ impl<W: Write> ArchiveWriter<W> {
         let mut chunk_writer = ChunkWriter::from(write);
         chunk_writer.write_chunk(chunk::AHED, &create_chunk_data_ahed(0, 0, 0))?;
         Ok(Self {
-            w: chunk_writer,
+            w: chunk_writer.into_inner(),
             options: Options::default(),
             buf: Vec::new(),
             file_closed: true,
@@ -62,7 +62,9 @@ impl<W: Write> ArchiveWriter<W> {
         self.file_closed = false;
         self.options = options;
 
-        self.w.write_chunk(
+        let mut chunk_writer = ChunkWriter::from(&mut self.w);
+
+        chunk_writer.write_chunk(
             chunk::FHED,
             &create_chunk_data_fhed(
                 0,
@@ -94,14 +96,16 @@ impl<W: Write> ArchiveWriter<W> {
             phsf
         };
 
+        let mut chunk_writer = ChunkWriter::from(&mut self.w);
+
         if let Some(phsf) = phsf {
-            self.w.write_chunk(chunk::PHSF, phsf.as_bytes())?;
+            chunk_writer.write_chunk(chunk::PHSF, phsf.as_bytes())?;
         }
 
-        self.w.write_chunk(chunk::FDAT, &data)?;
+        chunk_writer.write_chunk(chunk::FDAT, &data)?;
 
         // Write end of file
-        self.w.write_chunk(chunk::FEND, &[])?;
+        chunk_writer.write_chunk(chunk::FEND, &[])?;
         self.file_closed = true;
         self.buf.clear();
         Ok(())
@@ -110,7 +114,8 @@ impl<W: Write> ArchiveWriter<W> {
     pub fn finalize(&mut self) -> io::Result<()> {
         self.end_file()?;
         if !self.finalized {
-            self.w.write_chunk(chunk::AEND, &[])?;
+            let mut chunk_writer = ChunkWriter::from(&mut self.w);
+            chunk_writer.write_chunk(chunk::AEND, &[])?;
             self.finalized = true;
         }
         Ok(())
