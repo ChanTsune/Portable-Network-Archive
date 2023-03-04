@@ -25,7 +25,7 @@ impl Encoder {
     }
 
     pub fn write_header<W: Write>(&self, write: W) -> io::Result<ArchiveWriter<W>> {
-        ArchiveWriter::writer_header(write)
+        ArchiveWriter::write_header(write)
     }
 }
 
@@ -40,7 +40,7 @@ pub struct ArchiveWriter<W: Write> {
 }
 
 impl<W: Write> ArchiveWriter<W> {
-    fn writer_header(mut write: W) -> io::Result<Self> {
+    fn write_header(mut write: W) -> io::Result<Self> {
         write.write_all(PNA_HEADER)?;
         let mut chunk_writer = ChunkWriter::from(write);
         chunk_writer.write_chunk(chunk::AHED, &create_chunk_data_ahed(0, 0, 0))?;
