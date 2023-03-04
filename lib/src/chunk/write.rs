@@ -5,6 +5,12 @@ pub struct ChunkWriter<W> {
     w: W,
 }
 
+impl<W> ChunkWriter<W> {
+    pub(crate) fn into_inner(self) -> W {
+        self.w
+    }
+}
+
 impl<W> From<W> for ChunkWriter<W>
 where
     W: Write,
