@@ -1,3 +1,3 @@
 mod deflate;
 mod xz;
-mod zstd;
+mod zstandard;
