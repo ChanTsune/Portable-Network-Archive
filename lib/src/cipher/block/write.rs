@@ -106,15 +106,15 @@ where
     }
 }
 
-impl<W, C, P> Drop for CbcBlockCipherEncryptWriter<W, C, P>
+impl<W, C, P> CbcBlockCipherEncryptWriter<W, C, P>
 where
     W: Write,
     C: BlockEncryptMut + BlockCipher,
     P: Padding<<C as BlockSizeUser>::BlockSize>,
 {
-    fn drop(&mut self) {
-        self.encrypt_write_with_padding()
-            .expect("failed to write padding block");
+    pub(crate) fn finish(mut self) -> io::Result<W> {
+        self.encrypt_write_with_padding()?;
+        Ok(self.w)
     }
 }
 
@@ -135,16 +135,18 @@ mod tests {
             167, 16, 222, 65, 113, 227, 150, 231, 182, 207, 133, 158,
         ];
 
-        let mut ct = Vec::new();
-        {
+        let mut ct = {
             let mut writer = CbcBlockCipherEncryptWriter::<_, aes::Aes128, Pkcs7>::new_with_iv(
-                &mut ct, &key, &iv,
+                Vec::new(),
+                &key,
+                &iv,
             )
             .unwrap();
             for p in plaintext.chunks(8) {
                 writer.write(p).unwrap();
             }
-        }
+            writer.finish().unwrap()
+        };
         assert_eq!(&ct[iv.len()..], &ciphertext[..]);
     }
 

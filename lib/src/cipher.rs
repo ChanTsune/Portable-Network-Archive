@@ -1,10 +1,12 @@
 mod block;
 mod stream;
 
+use crate::io::{TryIntoInner, TryIntoInnerWrite};
 use aes::Aes256;
 use camellia::Camellia256;
 use cipher::block_padding::Pkcs7;
 use ctr::{flavors::Ctr128BE, CtrCore};
+use std::io::{self, Write};
 
 type CtrReader<R, C, F> = stream::StreamCipherReader<R, CtrCore<C, F>>;
 type CtrWriter<W, C, F> = stream::StreamCipherWriter<W, CtrCore<C, F>>;
@@ -17,6 +19,50 @@ pub(crate) type EncryptCbcCamellia256Writer<W> =
     block::CbcBlockCipherEncryptWriter<W, Camellia256, Pkcs7>;
 pub(crate) type DecryptCbcCamellia256Reader<R> =
     block::CbcBlockCipherDecryptReader<R, Camellia256, Pkcs7>;
+
+pub(crate) enum CipherWriter<W: Write> {
+    No(W),
+    CbcAes(EncryptCbcAes256Writer<W>),
+    CbcCamellia(EncryptCbcCamellia256Writer<W>),
+    CtrAes(Ctr128BEWriter<W, Aes256>),
+    CtrCamellia(Ctr128BEWriter<W, Camellia256>),
+}
+
+impl<W: Write> Write for CipherWriter<W> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match self {
+            Self::No(w) => w.write(buf),
+            Self::CbcAes(w) => w.write(buf),
+            Self::CbcCamellia(w) => w.write(buf),
+            Self::CtrAes(w) => w.write(buf),
+            Self::CtrCamellia(w) => w.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        match self {
+            Self::No(w) => w.flush(),
+            Self::CbcAes(w) => w.flush(),
+            Self::CbcCamellia(w) => w.flush(),
+            Self::CtrAes(w) => w.flush(),
+            Self::CtrCamellia(w) => w.flush(),
+        }
+    }
+}
+
+impl<W: Write> TryIntoInner<W> for CipherWriter<W> {
+    fn try_into_inner(self) -> io::Result<W> {
+        match self {
+            Self::No(w) => Ok(w),
+            Self::CbcAes(w) => w.finish(),
+            Self::CbcCamellia(w) => w.finish(),
+            Self::CtrAes(w) => w.finish(),
+            Self::CtrCamellia(w) => w.finish(),
+        }
+    }
+}
+
+impl<W: Write> TryIntoInnerWrite<W> for CipherWriter<W> {}
 
 #[cfg(test)]
 mod tests {

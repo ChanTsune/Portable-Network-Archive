@@ -1,3 +1,6 @@
+use crate::cipher::CipherWriter;
+use crate::compress::CompressionWriter;
+use crate::io::TryIntoInner;
 use crate::{
     archive::{
         CipherMode, Compression, CompressionLevel, Encryption, HashAlgorithm, ItemName, Options,
@@ -89,11 +92,10 @@ impl<W: Write> ArchiveWriter<W> {
             return Ok(());
         }
 
-        let mut data = Vec::new();
-        let phsf = {
-            let (mut writer, phsf) = writer_and_hash(&mut data, &self.options)?;
+        let (phsf, data) = {
+            let (mut writer, phsf) = writer_and_hash(Vec::new(), &self.options)?;
             writer.write_all(&self.buf)?;
-            phsf
+            (phsf, writer.try_into_inner()?.try_into_inner()?)
         };
 
         let mut chunk_writer = ChunkWriter::from(&mut self.w);
@@ -158,24 +160,26 @@ fn hash<'s, 'p: 's>(
     Ok((hash, password_hash.to_string()))
 }
 
-fn encryption_writer<'w, W: Write + 'w>(
+fn encryption_writer<W: Write>(
     writer: W,
     algorithm: Encryption,
     mode: CipherMode,
     key: &[u8],
     iv: &[u8],
-) -> io::Result<Box<dyn Write + 'w>> {
+) -> io::Result<CipherWriter<W>> {
     Ok(match (algorithm, mode) {
-        (Encryption::No, _) => Box::new(writer),
+        (Encryption::No, _) => CipherWriter::No(writer),
         (Encryption::Aes, CipherMode::CBC) => {
-            Box::new(EncryptCbcAes256Writer::new_with_iv(writer, key, iv)?)
+            CipherWriter::CbcAes(EncryptCbcAes256Writer::new_with_iv(writer, key, iv)?)
         }
-        (Encryption::Aes, CipherMode::CTR) => Box::new(aes_ctr_cipher_writer(writer, key, iv)?),
+        (Encryption::Aes, CipherMode::CTR) => {
+            CipherWriter::CtrAes(aes_ctr_cipher_writer(writer, key, iv)?)
+        }
         (Encryption::Camellia, CipherMode::CBC) => {
-            Box::new(EncryptCbcCamellia256Writer::new_with_iv(writer, key, iv)?)
+            CipherWriter::CbcCamellia(EncryptCbcCamellia256Writer::new_with_iv(writer, key, iv)?)
         }
         (Encryption::Camellia, CipherMode::CTR) => {
-            Box::new(camellia_ctr_cipher_writer(writer, key, iv)?)
+            CipherWriter::CtrCamellia(camellia_ctr_cipher_writer(writer, key, iv)?)
         }
     })
 }
@@ -184,19 +188,21 @@ fn compression_writer<'w, W: Write + 'w>(
     writer: W,
     algorithm: Compression,
     level: CompressionLevel,
-) -> io::Result<Box<dyn Write + 'w>> {
+) -> io::Result<CompressionWriter<'w, W>> {
     Ok(match algorithm {
-        Compression::No => Box::new(writer),
-        Compression::Deflate => Box::new(DeflateEncoder::new(writer, level.into())),
-        Compression::ZStandard => Box::new(ZstdEncoder::new(writer, level.into())?.auto_finish()),
-        Compression::XZ => Box::new(XzEncoder::new(writer, level.into())),
+        Compression::No => CompressionWriter::No(writer),
+        Compression::Deflate => {
+            CompressionWriter::Deflate(DeflateEncoder::new(writer, level.into()))
+        }
+        Compression::ZStandard => CompressionWriter::Zstd(ZstdEncoder::new(writer, level.into())?),
+        Compression::XZ => CompressionWriter::Xz(XzEncoder::new(writer, level.into())),
     })
 }
 
-fn writer_and_hash<'w, W: Write + 'w>(
+fn writer_and_hash<'a, W: Write + 'a>(
     writer: W,
-    options: &Options,
-) -> io::Result<(Box<dyn Write + 'w>, Option<String>)> {
+    options: &'a Options,
+) -> io::Result<(CompressionWriter<CipherWriter<W>>, Option<String>)> {
     let (writer, phsf) = match options.encryption {
         algorithm @ Encryption::No => (
             encryption_writer(writer, algorithm, options.cipher_mode, &[], &[])?,
