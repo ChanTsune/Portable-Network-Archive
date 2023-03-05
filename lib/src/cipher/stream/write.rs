@@ -30,6 +30,10 @@ where
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
         })
     }
+
+    pub(crate) fn finish(self) -> io::Result<W> {
+        Ok(self.w)
+    }
 }
 
 impl<W, T> Write for StreamCipherWriter<W, T>
