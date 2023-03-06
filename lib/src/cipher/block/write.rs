@@ -135,7 +135,7 @@ mod tests {
             167, 16, 222, 65, 113, 227, 150, 231, 182, 207, 133, 158,
         ];
 
-        let mut ct = {
+        let ct = {
             let mut writer = CbcBlockCipherEncryptWriter::<_, aes::Aes128, Pkcs7>::new_with_iv(
                 Vec::new(),
                 &key,

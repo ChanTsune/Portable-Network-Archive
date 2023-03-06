@@ -1,6 +1,5 @@
 use crate::io::{TryIntoInner, TryIntoInnerWrite};
 use flate2::write::DeflateEncoder;
-use std::hash::Hasher;
 use std::io::{Result, Write};
 use xz2::write::XzEncoder;
 use zstd::stream::write::Encoder as ZstdEncoder;
