@@ -7,9 +7,10 @@ pub(crate) fn argon2_with_salt<'a>(
     salt: &'a SaltString,
 ) -> PasswordHash<'a> {
     let argon2 = Argon2::from({
-        let mut builder = ParamsBuilder::default();
-        builder.output_len(hash_length).unwrap();
-        builder.params().unwrap()
+        ParamsBuilder::default()
+            .output_len(hash_length)
+            .build()
+            .unwrap()
     });
     argon2.hash_password(password.as_bytes(), salt).unwrap()
 }
