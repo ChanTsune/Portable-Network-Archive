@@ -1,4 +1,3 @@
-use std::error::Error;
 use std::io;
 
 pub(crate) trait TryIntoInner<T> {
