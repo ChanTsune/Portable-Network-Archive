@@ -1,7 +1,9 @@
 mod name;
+mod write;
 
 pub use name::*;
 use std::io::{self, Read};
+pub(crate) use write::*;
 
 #[derive(Copy, Clone)]
 #[repr(u8)]
