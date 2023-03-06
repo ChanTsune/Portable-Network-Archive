@@ -27,7 +27,7 @@ checksum = "db4ce4441f99dbd377ca8a8f57b698c44d0d6e712d8329b5040da5a64aa1ce73"
 dependencies = [
  "base64ct",
  "blake2",
- "password-hash",
+ "password-hash 0.4.2",
  "rayon",
 ]
 
@@ -402,7 +402,7 @@ dependencies = [
  "crypto-common",
  "ctr",
  "flate2",
- "password-hash",
+ "password-hash 0.4.2",
  "pbkdf2",
  "rand",
  "xz2",
@@ -478,16 +478,26 @@ dependencies = [
 ]
 
 [[package]]
-name = "pbkdf2"
-version = "0.11.0"
+name = "password-hash"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83a0692ec44e4cf1ef28ca317f14f8f07da2d95ec3fa01f86e4467b725e60917"
+checksum = "346f04948ba92c43e8469c1ee6736c7563d71012b17d40745260fe106aac2166"
+dependencies = [
+ "base64ct",
+ "rand_core",
+ "subtle",
+]
+
+[[package]]
+name = "pbkdf2"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0ca0b5a68607598bf3bad68f32227a8164f6254833f84eafaac409cd6746c31"
 dependencies = [
  "digest",
  "hmac",
- "password-hash",
+ "password-hash 0.5.0",
  "rayon",
- "sha2",
 ]
 
 [[package]]
@@ -647,17 +657,6 @@ name = "scopeguard"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d29ab0c6d3fc0ee92fe66e2d99f700eab17a8d57d1c1d3b748380fb20baa78cd"
-
-[[package]]
-name = "sha2"
-version = "0.10.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82e6b795fe2e3b1e845bafcb27aa35405c4d47cdfc92af5fc8d3002f76cebdc0"
-dependencies = [
- "cfg-if",
- "cpufeatures",
- "digest",
-]
 
 [[package]]
 name = "strsim"
