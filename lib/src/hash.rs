@@ -39,13 +39,11 @@ pub(crate) fn verify_password<'a>(phsf: &'a str, password: &'a str) -> PasswordH
                 .verify_password(&[&a], password.as_bytes())
                 .unwrap();
         }
-        a if pbkdf2::Algorithm::Pbkdf2Sha256.ident() == a
-            || pbkdf2::Algorithm::Pbkdf2Sha512.ident() == a =>
-        {
+        pbkdf2::Algorithm::PBKDF2_SHA256_IDENT | pbkdf2::Algorithm::PBKDF2_SHA512_IDENT => {
             password_hash = pbkdf2::Pbkdf2
                 .hash_password_customized(
                     password.as_bytes(),
-                    Some(a),
+                    Some(password_hash.algorithm),
                     password_hash.version,
                     pbkdf2::Params::try_from(&password_hash).unwrap(),
                     password_hash.salt.unwrap(),
