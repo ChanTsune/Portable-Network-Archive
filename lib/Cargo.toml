@@ -4,6 +4,7 @@ version = "0.0.0-alpha.0"
 edition = "2021"
 license = "MIT"
 description = "PNA(Portable-Network-Archive) decoding and encoding library"
+repository = "https://github.com/ChanTsune/Portable-Network-Archive.git"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
