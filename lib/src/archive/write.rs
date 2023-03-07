@@ -91,7 +91,7 @@ mod tests {
             let mut writer = encoder.write_header(&mut file).unwrap();
             writer.finalize().unwrap();
         }
-        let expected = include_bytes!("../../../resources/empty_archive.pna");
+        let expected = include_bytes!("../../../resources/test/empty.pna");
         assert_eq!(file.as_slice(), expected.as_slice());
     }
 }
