@@ -1,6 +1,4 @@
-mod create;
-mod extract;
-mod list;
+mod command;
 
 use clap::{value_parser, ArgGroup, Parser, ValueEnum};
 use std::{io, path::PathBuf};
@@ -110,13 +108,13 @@ fn entry(mut args: Args) -> io::Result<()> {
         }
     }
     if let Some(create) = args.create {
-        create::create_archive(create, &args.files, args.options)?;
+        command::create::create_archive(create, &args.files, args.options)?;
     } else if let Some(append) = args.append {
         println!("Append archive {}", append.display());
     } else if let Some(extract) = args.extract {
-        extract::extract_archive(extract, &args.files, args.options)?;
+        command::extract::extract_archive(extract, &args.files, args.options)?;
     } else if let Some(list) = args.list {
-        list::list_archive(list, &args.files, args.options)?;
+        command::list::list_archive(list, &args.files, args.options)?;
     }
     Ok(())
 }
