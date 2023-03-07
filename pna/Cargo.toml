@@ -1,0 +1,25 @@
+[package]
+name = "pna"
+version = "0.0.0-alpha.0"
+edition = "2021"
+license = "MIT"
+description = "PNA(Portable-Network-Archive) decoding and encoding library"
+repository = "https://github.com/ChanTsune/Portable-Network-Archive.git"
+categories = ["data-structures", "filesystem"]
+keywords = ["pna", "archive", "crypto", "data"]
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+libpna = { version = "0.0.0-alpha.0", path = "../lib" }
+portable-network-archive = { version = "0.0.0-alpha.0", path = "../cli", optional = true }
+
+[lib]
+name = "pna"
+
+[features]
+cli = ["portable-network-archive"]
+
+[[bin]]
+name = "pna"
+path = "src/bin/pna.rs"
+required-features = ["cli"]

@@ -18,7 +18,7 @@ use std::{io, path::PathBuf};
         .args(["create", "append", "extract", "list"]),
     )
 )]
-pub(crate) struct Args {
+pub struct Args {
     #[arg(short, long, value_name = "ARCHIVE", help = "Create archive")]
     create: Option<PathBuf>,
     #[arg(short, long, value_name = "ARCHIVE", help = "Append files to archive")]
@@ -89,7 +89,7 @@ impl Default for CipherMode {
     }
 }
 
-pub(crate) fn entry(mut args: Args) -> io::Result<()> {
+pub fn entry(mut args: Args) -> io::Result<()> {
     match args.options.password {
         Some(Some(_)) => {
             eprintln!("warning: Using a password on the command line interface can be insecure.");
