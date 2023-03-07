@@ -1,4 +1,4 @@
-use crate::Options;
+use super::Options;
 use glob::Pattern;
 use libpna::Decoder;
 use std::fs::File;
