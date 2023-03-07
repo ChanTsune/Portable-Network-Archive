@@ -1,4 +1,4 @@
-use crate::{CipherMode, Options};
+use super::{CipherMode, Options};
 use libpna::{ArchiveWriter, Encoder};
 use std::{
     fs::{self, File},

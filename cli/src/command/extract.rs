@@ -1,4 +1,4 @@
-use crate::Options;
+use super::Options;
 use libpna::Decoder;
 use rayon::ThreadPoolBuilder;
 use std::fs::File;
