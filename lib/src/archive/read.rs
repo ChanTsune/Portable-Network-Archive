@@ -1,5 +1,8 @@
 use crate::{
-    archive::{item::Item, CipherMode, Compression, Encryption, PNA_HEADER},
+    archive::{
+        item::{Item, RawItem},
+        CipherMode, Compression, Encryption, PNA_HEADER,
+    },
     chunk::{self, from_chunk_data_fhed, ChunkReader},
     cipher::{Ctr128BEReader, DecryptCbcAes256Reader, DecryptCbcCamellia256Reader},
     hash::verify_password,
@@ -39,6 +42,20 @@ pub struct ArchiveReader<R> {
 }
 
 impl<R: Read> ArchiveReader<R> {
+    /// Read the next chunks from `FHED` to `FEND`
+    fn next_raw_item(&mut self) -> io::Result<Option<RawItem>> {
+        let mut chunks = Vec::new();
+        loop {
+            let (chunk_type, mut raw_data) = self.r.read_chunk()?;
+            match chunk_type {
+                chunk::FEND => break,
+                chunk::AEND => return Ok(None),
+                _ => chunks.push((chunk_type, raw_data)),
+            }
+        }
+        Ok(Some(RawItem { chunks }))
+    }
+
     pub fn read(&mut self, password: Option<&str>) -> io::Result<Option<Item>> {
         let mut all_data: Vec<u8> = vec![];
         let mut info = None;
@@ -125,11 +142,7 @@ impl<R: Read> ArchiveReader<R> {
             Compression::ZStandard => Box::new(MutexRead::new(zstd::Decoder::new(decrypt_reader)?)),
             Compression::XZ => Box::new(xz2::read::XzDecoder::new(decrypt_reader)),
         };
-        Ok(Some(Item {
-            info,
-            chunks: Vec::new(),
-            reader,
-        }))
+        Ok(Some(Item { info, reader }))
     }
 }
 

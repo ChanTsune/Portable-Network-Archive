@@ -180,9 +180,13 @@ pub struct ItemInfo {
     pub(crate) path: ItemName,
 }
 
+/// Chunks from `FHED` to `FEND`, containing `FHED` and `FEND`
+pub(crate) struct RawItem {
+    pub(crate) chunks: Vec<(ChunkType, Vec<u8>)>,
+}
+
 pub struct Item {
     pub(crate) info: ItemInfo,
-    pub(crate) chunks: Vec<(ChunkType, Vec<u8>)>,
     pub(crate) reader: Box<dyn Read + Sync + Send>,
 }
 
