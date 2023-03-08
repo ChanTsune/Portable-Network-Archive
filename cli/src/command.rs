@@ -39,6 +39,8 @@ pub(crate) struct Options {
     recursive: bool,
     #[arg(long, help = "Overwrite file")]
     overwrite: bool,
+    #[arg(long, help = "Output directory of extracted files")]
+    out_dir: Option<PathBuf>,
     #[arg(long, help = "No compression")]
     store: bool,
     #[arg(
