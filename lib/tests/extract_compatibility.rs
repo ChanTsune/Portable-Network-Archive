@@ -5,9 +5,10 @@ fn extract_all(bytes: &[u8], password: Option<&str>) {
     let decoder = Decoder::new();
     let mut archive_reader = decoder.read_header(io::Cursor::new(bytes)).unwrap();
     while let Some(mut item) = archive_reader.read(password.as_deref()).unwrap() {
+        let path = item.path().to_string();
         let mut dist = Vec::new();
-        io::copy(&mut item, &mut dist).unwrap();
-        match item.path() {
+        io::copy(&mut item.reader(), &mut dist).unwrap();
+        match &*path {
             "raw/first/second/third/pna.txt" => assert_eq!(
                 dist.as_slice(),
                 include_bytes!("../../resources/test/raw/first/second/third/pna.txt")

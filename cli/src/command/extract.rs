@@ -23,7 +23,7 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
     let (tx, rx) = std::sync::mpsc::channel();
     let decoder = Decoder::new();
     let mut reader = decoder.read_header(file)?;
-    while let Some(mut item) = reader.read(options.password.clone().flatten().as_deref())? {
+    while let Some(item) = reader.read(options.password.clone().flatten().as_deref())? {
         let item_path = PathBuf::from(item.path());
         if !files.is_empty() && !files.contains(&item_path.as_path()) {
             if !options.quiet && options.verbose {
@@ -54,7 +54,8 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
             if !options.quiet && options.verbose {
                 println!("start: {}", path.display())
             }
-            io::copy(&mut item, &mut file).unwrap();
+            let mut reader = item.reader();
+            io::copy(&mut reader, &mut file).unwrap();
             if !options.quiet && options.verbose {
                 println!("end: {}", path.display())
             }

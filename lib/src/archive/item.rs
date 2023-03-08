@@ -1,8 +1,9 @@
 mod name;
 mod write;
 
+use crate::ChunkType;
 pub use name::*;
-use std::io::{self, Read};
+use std::io::Read;
 pub(crate) use write::*;
 
 #[derive(Copy, Clone)]
@@ -181,16 +182,15 @@ pub struct ItemInfo {
 
 pub struct Item {
     pub(crate) info: ItemInfo,
+    pub(crate) chunks: Vec<(ChunkType, Vec<u8>)>,
     pub(crate) reader: Box<dyn Read + Sync + Send>,
 }
 
-impl Read for Item {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.reader.read(buf)
-    }
-}
-
 impl Item {
+    pub fn reader(self) -> impl Read + Sync + Send {
+        self.reader
+    }
+
     pub fn path(&self) -> &str {
         self.info.path.as_ref()
     }

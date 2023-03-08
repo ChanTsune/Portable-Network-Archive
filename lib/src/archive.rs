@@ -161,7 +161,8 @@ mod tests {
         let mut item = archive_reader
             .read(options.password.as_deref())
             .unwrap()
-            .unwrap();
+            .unwrap()
+            .reader();
         io::copy(&mut item, &mut dist)?;
         assert_eq!(src, dist.as_slice());
         Ok(())

@@ -27,7 +27,7 @@ fn read_empty_archive(b: &mut Bencher) {
         let decoder = Decoder::default();
         let mut reader = decoder.read_header(Cursor::new(vec.as_slice())).unwrap();
         while let Some(item) = reader.read(None).unwrap() {
-            io::read_to_string(item).unwrap();
+            io::read_to_string(item.reader()).unwrap();
         }
     })
 }
