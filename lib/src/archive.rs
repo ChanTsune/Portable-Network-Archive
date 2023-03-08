@@ -162,7 +162,8 @@ mod tests {
             .read(options.password.as_deref())
             .unwrap()
             .unwrap()
-            .reader();
+            .reader()
+            .unwrap();
         io::copy(&mut item, &mut dist)?;
         assert_eq!(src, dist.as_slice());
         Ok(())

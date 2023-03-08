@@ -3,7 +3,7 @@ mod write;
 
 use crate::ChunkType;
 pub use name::*;
-use std::io::Read;
+use std::io::{self, Read};
 pub(crate) use write::*;
 
 #[derive(Copy, Clone)]
@@ -187,8 +187,8 @@ pub struct Item {
 }
 
 impl Item {
-    pub fn reader(self) -> impl Read + Sync + Send {
-        self.reader
+    pub fn reader(self) -> io::Result<impl Read + Sync + Send> {
+        Ok(self.reader)
     }
 
     pub fn path(&self) -> &str {

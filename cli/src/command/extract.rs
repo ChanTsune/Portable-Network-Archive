@@ -54,7 +54,7 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
             if !options.quiet && options.verbose {
                 println!("start: {}", path.display())
             }
-            let mut reader = item.reader();
+            let mut reader = item.reader().unwrap();
             io::copy(&mut reader, &mut file).unwrap();
             if !options.quiet && options.verbose {
                 println!("end: {}", path.display())
