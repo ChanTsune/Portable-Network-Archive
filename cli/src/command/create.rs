@@ -21,6 +21,9 @@ pub(crate) fn create_archive<A: AsRef<Path>, F: AsRef<Path>>(
     if !options.quiet {
         println!("Create an archive: {}", archive.display());
     }
+    if let Some(parent) = archive.parent() {
+        fs::create_dir_all(parent)?;
+    }
     let file = File::create(archive)?;
 
     let encoder = Encoder::new();
