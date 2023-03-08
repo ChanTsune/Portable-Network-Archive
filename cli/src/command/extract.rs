@@ -24,13 +24,18 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
     let decoder = Decoder::new();
     let mut reader = decoder.read_header(file)?;
     while let Some(mut item) = reader.read(options.password.clone().flatten().as_deref())? {
-        let path = PathBuf::from(item.path());
-        if !files.is_empty() && !files.contains(&path.as_path()) {
+        let item_path = PathBuf::from(item.path());
+        if !files.is_empty() && !files.contains(&item_path.as_path()) {
             if !options.quiet && options.verbose {
                 println!("Skip: {}", item.path())
             }
             continue;
         }
+        let path = if let Some(out_dir) = &options.out_dir {
+            out_dir.join(&item_path)
+        } else {
+            item_path.clone()
+        };
         if path.exists() && !options.overwrite {
             return Err(io::Error::new(
                 io::ErrorKind::AlreadyExists,
@@ -40,7 +45,7 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
         let tx = tx.clone();
         pool.spawn_fifo(move || {
             if !options.quiet && options.verbose {
-                println!("Extract: {}", path.display());
+                println!("Extract: {}", item_path.display());
             }
             if let Some(parent) = path.parent() {
                 fs::create_dir_all(parent).unwrap();
