@@ -12,6 +12,12 @@ jobs:
           - macos-latest
     runs-on: ${{ matrix.os }}
     steps:
+      - name: git autocrlf false
+      - if: startsWith(matrix.os, 'windows')
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
       - uses: actions/checkout@v3
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
