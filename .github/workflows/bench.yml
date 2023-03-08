@@ -1,0 +1,30 @@
+name: rust-bench
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["*"]
+
+jobs:
+  rust-bench:
+    name: Run rust-bench
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Cache cargo
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install Rust toolchain
+        run: rustup update --no-self-update nightly && rustup default nightly
+      - name: echo rust version
+        run: rustc --version
+      - name: Run rust-bench
+        run: |
+          cargo bench --locked --all-features
