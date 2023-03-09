@@ -142,7 +142,7 @@ impl<R: Read> ArchiveReader<R> {
             Compression::ZStandard => Box::new(MutexRead::new(zstd::Decoder::new(decrypt_reader)?)),
             Compression::XZ => Box::new(xz2::read::XzDecoder::new(decrypt_reader)),
         };
-        Ok(Some(Entry { info, reader }))
+        Ok(Some(Entry { header: info, reader }))
     }
 }
 

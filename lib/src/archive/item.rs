@@ -186,7 +186,7 @@ pub(crate) struct RawEntry {
 }
 
 pub struct Entry {
-    pub(crate) info: EntryHeader,
+    pub(crate) header: EntryHeader,
     pub(crate) reader: Box<dyn Read + Sync + Send>,
 }
 
@@ -196,10 +196,10 @@ impl Entry {
     }
 
     pub fn path(&self) -> &str {
-        self.info.path.as_ref()
+        self.header.path.as_ref()
     }
 
     pub fn kind(&self) -> DataKind {
-        self.info.data_kind
+        self.header.data_kind
     }
 }
