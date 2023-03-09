@@ -107,8 +107,8 @@ impl TryFrom<u8> for DataKind {
     }
 }
 
-#[derive(Clone)]
-pub struct Options {
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct WriteOption {
     pub(crate) compression: Compression,
     pub(crate) compression_level: CompressionLevel,
     pub(crate) encryption: Encryption,
@@ -117,8 +117,24 @@ pub struct Options {
     pub(crate) password: Option<String>,
 }
 
-impl Default for Options {
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct WriteOptionBuilder {
+    pub(crate) compression: Compression,
+    pub(crate) compression_level: CompressionLevel,
+    pub(crate) encryption: Encryption,
+    pub(crate) cipher_mode: CipherMode,
+    pub(crate) hash_algorithm: HashAlgorithm,
+    pub(crate) password: Option<String>,
+}
+
+impl Default for WriteOptionBuilder {
     fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl WriteOptionBuilder {
+    pub fn new() -> Self {
         Self {
             compression: Compression::No,
             compression_level: CompressionLevel::default(),
@@ -128,36 +144,44 @@ impl Default for Options {
             password: None,
         }
     }
-}
-
-impl Options {
-    pub fn compression(mut self, compression: Compression) -> Self {
+    pub fn compression(&mut self, compression: Compression) -> &mut Self {
         self.compression = compression;
         self
     }
 
-    pub fn compression_level(mut self, compression_level: CompressionLevel) -> Self {
+    pub fn compression_level(&mut self, compression_level: CompressionLevel) -> &mut Self {
         self.compression_level = compression_level;
         self
     }
 
-    pub fn encryption(mut self, encryption: Encryption) -> Self {
+    pub fn encryption(&mut self, encryption: Encryption) -> &mut Self {
         self.encryption = encryption;
         self
     }
 
-    pub fn cipher_mode(mut self, cipher_mode: CipherMode) -> Self {
+    pub fn cipher_mode(&mut self, cipher_mode: CipherMode) -> &mut Self {
         self.cipher_mode = cipher_mode;
         self
     }
 
-    pub fn hash_algorithm(mut self, algorithm: HashAlgorithm) -> Self {
+    pub fn hash_algorithm(&mut self, algorithm: HashAlgorithm) -> &mut Self {
         self.hash_algorithm = algorithm;
         self
     }
 
-    pub fn password<S: AsRef<str>>(mut self, password: Option<S>) -> Self {
+    pub fn password<S: AsRef<str>>(&mut self, password: Option<S>) -> &mut Self {
         self.password = password.map(|it| it.as_ref().to_string());
         self
+    }
+
+    pub fn build(&self) -> WriteOption {
+        WriteOption {
+            compression: self.compression,
+            compression_level: self.compression_level,
+            encryption: self.encryption,
+            cipher_mode: self.cipher_mode,
+            hash_algorithm: self.hash_algorithm,
+            password: self.password.clone(),
+        }
     }
 }

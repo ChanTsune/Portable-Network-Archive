@@ -127,9 +127,9 @@ mod tests {
     #[test]
     fn store_archive() {
         let args = Args::parse_from(["pna", "-c", "c.pna"]);
-        assert_eq!(args.options.store, false);
+        assert!(!args.options.store);
         let args = Args::parse_from(["pna", "-c", "c.pna", "--store"]);
-        assert_eq!(args.options.store, true);
+        assert!(args.options.store);
     }
 
     #[test]

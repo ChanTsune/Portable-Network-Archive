@@ -1,6 +1,6 @@
 use crate::{
     archive::{
-        CipherMode, Compression, CompressionLevel, Encryption, HashAlgorithm, ItemName, Options,
+        CipherMode, Compression, CompressionLevel, Encryption, HashAlgorithm, ItemName, WriteOption,
     },
     chunk::{self, create_chunk_data_fhed, ChunkWriter},
     cipher::{CipherWriter, Ctr128BEWriter, EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
@@ -20,12 +20,12 @@ use zstd::stream::write::Encoder as ZstdEncoder;
 
 pub(crate) struct ItemWriter<W: Write> {
     w: W,
-    options: Options,
+    options: WriteOption,
     buf: Vec<u8>,
 }
 
 impl<W: Write> ItemWriter<W> {
-    pub(crate) fn new_file_with(w: W, name: ItemName, options: Options) -> io::Result<Self> {
+    pub(crate) fn new_file_with(w: W, name: ItemName, options: WriteOption) -> io::Result<Self> {
         let mut chunk_writer = ChunkWriter::from(w);
         chunk_writer.write_chunk(
             chunk::FHED,
@@ -146,7 +146,7 @@ fn compression_writer<'w, W: Write + 'w>(
 
 fn writer_and_hash<'a, W: Write + 'a>(
     writer: W,
-    options: &'a Options,
+    options: &'a WriteOption,
 ) -> io::Result<(CompressionWriter<CipherWriter<W>>, Option<String>)> {
     let (writer, phsf) = match options.encryption {
         algorithm @ Encryption::No => (

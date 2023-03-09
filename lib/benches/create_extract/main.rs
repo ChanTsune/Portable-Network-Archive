@@ -14,7 +14,7 @@ macro_rules! bench_write_archive {
                 writer
                     .start_file_with_options(
                         "bench".into(),
-                        $options.password(Some("password".to_string())),
+                        $options.password(Some("password")).build(),
                     )
                     .unwrap();
                 writer.write_all(&vec![24; 1111]).unwrap();
@@ -37,7 +37,7 @@ macro_rules! bench_read_archive {
                 writer
                     .start_file_with_options(
                         "bench".into(),
-                        $options.password(Some("password".to_string())),
+                        $options.password(Some("password")).build(),
                     )
                     .unwrap();
                 writer.write_all(&vec![24; 1111]).unwrap();
