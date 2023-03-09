@@ -48,7 +48,10 @@ impl<R: Read> ArchiveReader<R> {
         loop {
             let (chunk_type, raw_data) = self.r.read_chunk()?;
             match chunk_type {
-                chunk::FEND => break,
+                chunk::FEND => {
+                    chunks.push((chunk_type, raw_data));
+                    break;
+                }
                 chunk::AEND => return Ok(None),
                 _ => chunks.push((chunk_type, raw_data)),
             }
