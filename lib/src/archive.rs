@@ -6,14 +6,14 @@ mod write;
 pub use header::PNA_HEADER;
 pub use item::{
     CipherMode, Compression, CompressionLevel, DataKind, Encryption, Entry, EntryHeader,
-    HashAlgorithm, ItemName, Options,
+    HashAlgorithm, ItemName, Options, ReadOptionBuilder,
 };
 pub use read::{ArchiveReader, Decoder};
 pub use write::{ArchiveWriter, Encoder};
 
 #[cfg(test)]
 mod tests {
-    use super::{CipherMode, Compression, Decoder, Encoder, Encryption, HashAlgorithm, Options};
+    use super::*;
     use std::io;
 
     #[test]
@@ -162,7 +162,13 @@ mod tests {
             .read()
             .unwrap()
             .unwrap()
-            .reader(options.password.as_deref())
+            .to_reader({
+                let mut builder = ReadOptionBuilder::new();
+                if let Some(password) = options.password {
+                    builder.password(password);
+                }
+                builder.build()
+            })
             .unwrap();
         io::copy(&mut item, &mut dist)?;
         assert_eq!(src, dist.as_slice());

@@ -50,7 +50,7 @@ macro_rules! bench_read_archive {
                 let mut reader = decoder.read_header(Cursor::new(vec.as_slice())).unwrap();
                 while let Some(item) = reader.read().unwrap() {
                     let mut buf = Vec::with_capacity(1000);
-                    item.reader(Some("password"))
+                    item.to_reader(ReadOptionBuilder::new().password("password").build())
                         .unwrap()
                         .read_to_end(&mut buf)
                         .unwrap();
