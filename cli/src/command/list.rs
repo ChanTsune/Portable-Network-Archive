@@ -19,7 +19,7 @@ pub(crate) fn list_archive<A: AsRef<Path>, F: AsRef<Path>>(
 
     let decoder = Decoder::new();
     let mut reader = decoder.read_header(file)?;
-    while let Some(item) = reader.read(options.password.clone().flatten().as_deref())? {
+    while let Some(item) = reader.read()? {
         let path = PathBuf::from(item.path());
         if !globs.is_empty() && !globs.iter().any(|glob| glob.matches_path(&path)) {
             if !options.quiet && options.verbose {

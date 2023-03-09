@@ -48,9 +48,12 @@ macro_rules! bench_read_archive {
             b.iter(|| {
                 let decoder = Decoder::default();
                 let mut reader = decoder.read_header(Cursor::new(vec.as_slice())).unwrap();
-                while let Some(mut item) = reader.read(Some("password")).unwrap() {
+                while let Some(item) = reader.read().unwrap() {
                     let mut buf = Vec::with_capacity(1000);
-                    item.read_to_end(&mut buf).unwrap();
+                    item.reader(Some("password"))
+                        .unwrap()
+                        .read_to_end(&mut buf)
+                        .unwrap();
                 }
             })
         }

@@ -5,8 +5,8 @@ mod write;
 
 pub use header::PNA_HEADER;
 pub use item::{
-    CipherMode, Compression, CompressionLevel, DataKind, Encryption, HashAlgorithm, Item, ItemInfo,
-    ItemName, Options,
+    CipherMode, Compression, CompressionLevel, DataKind, Encryption, Entry, EntryHeader,
+    HashAlgorithm, ItemName, Options,
 };
 pub use read::{ArchiveReader, Decoder};
 pub use write::{ArchiveWriter, Encoder};
@@ -159,8 +159,10 @@ mod tests {
         let decoder = Decoder::new();
         let mut archive_reader = decoder.read_header(io::Cursor::new(archived_temp))?;
         let mut item = archive_reader
-            .read(options.password.as_deref())
+            .read()
             .unwrap()
+            .unwrap()
+            .reader(options.password.as_deref())
             .unwrap();
         io::copy(&mut item, &mut dist)?;
         assert_eq!(src, dist.as_slice());

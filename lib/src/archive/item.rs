@@ -1,175 +1,21 @@
 mod name;
+mod options;
+mod read;
 mod write;
 
+use crate::{
+    chunk::{self, from_chunk_data_fhed},
+    cipher::{DecryptCbcAes256Reader, DecryptCbcCamellia256Reader},
+    hash::verify_password,
+    ChunkType,
+};
 pub use name::*;
+pub use options::*;
+use read::*;
 use std::io::{self, Read};
 pub(crate) use write::*;
 
-#[derive(Copy, Clone)]
-#[repr(u8)]
-pub enum Compression {
-    No = 0,
-    Deflate = 1,
-    ZStandard = 2,
-    XZ = 4,
-}
-
-impl TryFrom<u8> for Compression {
-    type Error = String;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(Self::No),
-            1 => Ok(Self::Deflate),
-            2 => Ok(Self::ZStandard),
-            4 => Ok(Self::XZ),
-            value => Err(format!("unknown value {value}")),
-        }
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq)]
-pub struct CompressionLevel(pub(crate) u8);
-
-impl Default for CompressionLevel {
-    #[inline]
-    fn default() -> Self {
-        Self(u8::MAX)
-    }
-}
-
-impl From<u8> for CompressionLevel {
-    #[inline]
-    fn from(value: u8) -> Self {
-        Self(value)
-    }
-}
-
-#[derive(Copy, Clone)]
-#[repr(u8)]
-pub enum Encryption {
-    No = 0,
-    Aes = 1,
-    Camellia = 2,
-}
-
-impl TryFrom<u8> for Encryption {
-    type Error = String;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(Self::No),
-            1 => Ok(Self::Aes),
-            2 => Ok(Self::Camellia),
-            value => Err(format!("unknown value {value}")),
-        }
-    }
-}
-
-#[derive(Copy, Clone)]
-#[repr(u8)]
-pub enum CipherMode {
-    CBC = 0,
-    CTR = 1,
-}
-
-impl TryFrom<u8> for CipherMode {
-    type Error = String;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(Self::CBC),
-            1 => Ok(Self::CTR),
-            value => Err(format!("unknown value {value}")),
-        }
-    }
-}
-
-#[derive(Copy, Clone)]
-pub enum HashAlgorithm {
-    Pbkdf2Sha256,
-    Argon2Id,
-}
-
-#[derive(Copy, Clone)]
-#[repr(u8)]
-pub enum DataKind {
-    File = 0,
-    Directory = 1,
-    SymbolicLink = 2,
-    HardLink = 3,
-}
-
-impl TryFrom<u8> for DataKind {
-    type Error = String;
-
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
-        match value {
-            0 => Ok(Self::File),
-            1 => Ok(Self::Directory),
-            2 => Ok(Self::SymbolicLink),
-            3 => Ok(Self::HardLink),
-            value => Err(format!("unknown value {value}")),
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct Options {
-    pub(crate) compression: Compression,
-    pub(crate) compression_level: CompressionLevel,
-    pub(crate) encryption: Encryption,
-    pub(crate) cipher_mode: CipherMode,
-    pub(crate) hash_algorithm: HashAlgorithm,
-    pub(crate) password: Option<String>,
-}
-
-impl Default for Options {
-    fn default() -> Self {
-        Self {
-            compression: Compression::No,
-            compression_level: CompressionLevel::default(),
-            encryption: Encryption::No,
-            cipher_mode: CipherMode::CTR,
-            hash_algorithm: HashAlgorithm::Argon2Id,
-            password: None,
-        }
-    }
-}
-
-impl Options {
-    pub fn compression(mut self, compression: Compression) -> Self {
-        self.compression = compression;
-        self
-    }
-
-    pub fn compression_level(mut self, compression_level: CompressionLevel) -> Self {
-        self.compression_level = compression_level;
-        self
-    }
-
-    pub fn encryption(mut self, encryption: Encryption) -> Self {
-        self.encryption = encryption;
-        self
-    }
-
-    pub fn cipher_mode(mut self, cipher_mode: CipherMode) -> Self {
-        self.cipher_mode = cipher_mode;
-        self
-    }
-
-    pub fn hash_algorithm(mut self, algorithm: HashAlgorithm) -> Self {
-        self.hash_algorithm = algorithm;
-        self
-    }
-
-    pub fn password<S: AsRef<str>>(mut self, password: Option<S>) -> Self {
-        self.password = password.map(|it| it.as_ref().to_string());
-        self
-    }
-}
-
-pub struct ItemInfo {
+pub struct EntryHeader {
     pub(crate) major: u8,
     pub(crate) minor: u8,
     pub(crate) data_kind: DataKind,
@@ -179,23 +25,127 @@ pub struct ItemInfo {
     pub(crate) path: ItemName,
 }
 
-pub struct Item {
-    pub(crate) info: ItemInfo,
-    pub(crate) reader: Box<dyn Read + Sync + Send>,
+/// Chunks from `FHED` to `FEND`, containing `FHED` and `FEND`
+pub(crate) struct RawEntry {
+    pub(crate) chunks: Vec<(ChunkType, Vec<u8>)>,
 }
 
-impl Read for Item {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.reader.read(buf)
+impl RawEntry {
+    pub(crate) fn into_entry(self) -> io::Result<Entry> {
+        let mut extra = vec![];
+        let mut data = vec![];
+        let mut info = None;
+        let mut phsf = None;
+        for (chunk_type, mut raw_data) in self.chunks {
+            match chunk_type {
+                chunk::FEND => break,
+                chunk::FHED => {
+                    info = Some(from_chunk_data_fhed(&raw_data)?);
+                }
+                chunk::PHSF => {
+                    phsf = Some(
+                        String::from_utf8(raw_data)
+                            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+                    );
+                }
+                chunk::FDAT => data.append(&mut raw_data),
+                _ => extra.push((chunk_type, raw_data)),
+            }
+        }
+        let header = info.ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                String::from("FHED chunk not found"),
+            )
+        })?;
+        if header.major != 0 || header.minor != 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                format!(
+                    "item version {}.{} is not supported.",
+                    header.major, header.minor
+                ),
+            ));
+        }
+        Ok(Entry {
+            header,
+            phsf,
+            extra,
+            data,
+        })
     }
 }
 
-impl Item {
+pub struct Entry {
+    pub(crate) header: EntryHeader,
+    pub(crate) phsf: Option<String>,
+    pub(crate) extra: Vec<(ChunkType, Vec<u8>)>,
+    pub(crate) data: Vec<u8>,
+}
+
+impl Entry {
+    pub fn reader(self, password: Option<&str>) -> io::Result<impl Read + Sync + Send> {
+        let raw_data_reader = io::Cursor::new(self.data);
+        let decrypt_reader: Box<dyn Read + Sync + Send> = match self.header.encryption {
+            Encryption::No => Box::new(raw_data_reader),
+            encryption @ Encryption::Aes | encryption @ Encryption::Camellia => {
+                let s = self.phsf.ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        String::from("Item is encrypted, but `PHSF` chunk not found"),
+                    )
+                })?;
+                let phsf = verify_password(
+                    &s,
+                    password.ok_or_else(|| {
+                        io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            String::from("Item is encrypted, but password was not provided"),
+                        )
+                    })?,
+                );
+                let hash = phsf.hash.ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::Unsupported,
+                        String::from("Failed to get hash"),
+                    )
+                })?;
+                match (encryption, self.header.cipher_mode) {
+                    (Encryption::Aes, CipherMode::CBC) => Box::new(DecryptCbcAes256Reader::new(
+                        raw_data_reader,
+                        hash.as_bytes(),
+                    )?),
+                    (Encryption::Aes, CipherMode::CTR) => {
+                        Box::new(aes_ctr_cipher_reader(raw_data_reader, hash.as_bytes())?)
+                    }
+                    (Encryption::Camellia, CipherMode::CBC) => Box::new(
+                        DecryptCbcCamellia256Reader::new(raw_data_reader, hash.as_bytes())?,
+                    ),
+                    _ => Box::new(camellia_ctr_cipher_reader(
+                        raw_data_reader,
+                        hash.as_bytes(),
+                    )?),
+                }
+            }
+        };
+        let reader: Box<dyn Read + Sync + Send> = match self.header.compression {
+            Compression::No => decrypt_reader,
+            Compression::Deflate => Box::new(flate2::read::DeflateDecoder::new(decrypt_reader)),
+            Compression::ZStandard => Box::new(MutexRead::new(zstd::Decoder::new(decrypt_reader)?)),
+            Compression::XZ => Box::new(xz2::read::XzDecoder::new(decrypt_reader)),
+        };
+        Ok(reader)
+    }
+
     pub fn path(&self) -> &str {
-        self.info.path.as_ref()
+        self.header.path.as_ref()
     }
 
     pub fn kind(&self) -> DataKind {
-        self.info.data_kind
+        self.header.data_kind
+    }
+
+    pub fn extra(&self) -> &[(ChunkType, Vec<u8>)] {
+        &self.extra
     }
 }
