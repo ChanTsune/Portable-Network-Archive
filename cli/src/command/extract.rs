@@ -1,4 +1,5 @@
 use super::Options;
+use glob::Pattern;
 use libpna::Decoder;
 use rayon::ThreadPoolBuilder;
 use std::fs::File;
@@ -13,8 +14,12 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
     if !options.quiet {
         println!("Extract archive {}", archive.as_ref().display());
     }
+    let globs = files
+        .iter()
+        .map(|p| Pattern::new(&p.as_ref().to_string_lossy()))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-    let files = files.iter().map(AsRef::as_ref).collect::<Vec<_>>();
     let file = File::open(archive)?;
 
     let pool = ThreadPoolBuilder::default()
@@ -25,7 +30,7 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
     let mut reader = decoder.read_header(file)?;
     while let Some(item) = reader.read()? {
         let item_path = PathBuf::from(item.path());
-        if !files.is_empty() && !files.contains(&item_path.as_path()) {
+        if !globs.is_empty() && !globs.iter().any(|glob| glob.matches_path(&item_path)) {
             if !options.quiet && options.verbose {
                 println!("Skip: {}", item.path())
             }
