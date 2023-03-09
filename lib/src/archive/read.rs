@@ -46,7 +46,7 @@ impl<R: Read> ArchiveReader<R> {
     fn next_raw_item(&mut self) -> io::Result<Option<RawEntry>> {
         let mut chunks = Vec::new();
         loop {
-            let (chunk_type, mut raw_data) = self.r.read_chunk()?;
+            let (chunk_type, raw_data) = self.r.read_chunk()?;
             match chunk_type {
                 chunk::FEND => break,
                 chunk::AEND => return Ok(None),
@@ -57,11 +57,16 @@ impl<R: Read> ArchiveReader<R> {
     }
 
     pub fn read(&mut self, password: Option<&str>) -> io::Result<Option<Entry>> {
+        let raw_entry = self.next_raw_item()?;
+        let raw_entry = if let Some(raw_entry) = raw_entry {
+            raw_entry
+        } else {
+            return Ok(None);
+        };
         let mut all_data: Vec<u8> = vec![];
         let mut info = None;
         let mut phsf = None;
-        loop {
-            let (chunk_type, mut raw_data) = self.r.read_chunk()?;
+        for (chunk_type, mut raw_data) in raw_entry.chunks {
             match chunk_type {
                 chunk::FEND => break,
                 chunk::FHED => {
@@ -73,28 +78,27 @@ impl<R: Read> ArchiveReader<R> {
                             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
                     );
                 }
-                chunk::AEND => return Ok(None),
                 chunk::FDAT => all_data.append(&mut raw_data),
                 _ => continue,
             }
         }
-        let info = info.ok_or_else(|| {
+        let header = info.ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
                 String::from("FHED chunk not found"),
             )
         })?;
-        if info.major != 0 || info.minor != 0 {
+        if header.major != 0 || header.minor != 0 {
             return Err(io::Error::new(
                 io::ErrorKind::Unsupported,
                 format!(
                     "item version {}.{} is not supported.",
-                    info.major, info.minor
+                    header.major, header.minor
                 ),
             ));
         }
         let raw_data_reader = Cursor::new(all_data);
-        let decrypt_reader: Box<dyn Read + Sync + Send> = match info.encryption {
+        let decrypt_reader: Box<dyn Read + Sync + Send> = match header.encryption {
             Encryption::No => Box::new(raw_data_reader),
             encryption @ Encryption::Aes | encryption @ Encryption::Camellia => {
                 let s = phsf.ok_or_else(|| {
@@ -118,7 +122,7 @@ impl<R: Read> ArchiveReader<R> {
                         String::from("Failed to get hash"),
                     )
                 })?;
-                match (encryption, info.cipher_mode) {
+                match (encryption, header.cipher_mode) {
                     (Encryption::Aes, CipherMode::CBC) => Box::new(DecryptCbcAes256Reader::new(
                         raw_data_reader,
                         hash.as_bytes(),
@@ -136,13 +140,13 @@ impl<R: Read> ArchiveReader<R> {
                 }
             }
         };
-        let reader: Box<dyn Read + Sync + Send> = match info.compression {
+        let reader: Box<dyn Read + Sync + Send> = match header.compression {
             Compression::No => decrypt_reader,
             Compression::Deflate => Box::new(flate2::read::DeflateDecoder::new(decrypt_reader)),
             Compression::ZStandard => Box::new(MutexRead::new(zstd::Decoder::new(decrypt_reader)?)),
             Compression::XZ => Box::new(xz2::read::XzDecoder::new(decrypt_reader)),
         };
-        Ok(Some(Entry { header: info, reader }))
+        Ok(Some(Entry { header, reader }))
     }
 }
 
