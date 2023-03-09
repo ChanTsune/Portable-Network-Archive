@@ -1,6 +1,6 @@
 use super::Options;
 use glob::Pattern;
-use libpna::Decoder;
+use libpna::{Decoder, Entry, ReadOptionBuilder};
 use rayon::ThreadPoolBuilder;
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -29,10 +29,10 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
     let decoder = Decoder::new();
     let mut reader = decoder.read_header(file)?;
     while let Some(item) = reader.read()? {
-        let item_path = PathBuf::from(item.path());
+        let item_path = PathBuf::from(item.header().path().as_ref());
         if !globs.is_empty() && !globs.iter().any(|glob| glob.matches_path(&item_path)) {
             if !options.quiet && options.verbose {
-                println!("Skip: {}", item.path())
+                println!("Skip: {}", item.header().path())
             }
             continue;
         }
@@ -60,7 +60,15 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
             if !options.quiet && options.verbose {
                 println!("start: {}", path.display())
             }
-            let mut reader = item.reader(password.flatten().as_deref()).unwrap();
+            let mut reader = item
+                .to_reader({
+                    let mut builder = ReadOptionBuilder::new();
+                    if let Some(password) = password.flatten() {
+                        builder.password(password);
+                    }
+                    builder.build()
+                })
+                .unwrap();
             io::copy(&mut reader, &mut file).unwrap();
             if !options.quiet && options.verbose {
                 println!("end: {}", path.display())

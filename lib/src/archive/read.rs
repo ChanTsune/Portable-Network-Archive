@@ -53,7 +53,7 @@ impl<R: Read> ArchiveReader<R> {
         Ok(Some(RawEntry { chunks }))
     }
 
-    pub fn read(&mut self) -> io::Result<Option<Entry>> {
+    pub fn read(&mut self) -> io::Result<Option<impl Entry>> {
         let raw_entry = self.next_raw_item()?;
         if let Some(raw_entry) = raw_entry {
             Ok(Some(raw_entry.into_entry()?))

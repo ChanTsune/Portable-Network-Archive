@@ -1,6 +1,6 @@
 use super::Options;
 use glob::Pattern;
-use libpna::Decoder;
+use libpna::{Decoder, Entry};
 use std::fs::File;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -20,10 +20,10 @@ pub(crate) fn list_archive<A: AsRef<Path>, F: AsRef<Path>>(
     let decoder = Decoder::new();
     let mut reader = decoder.read_header(file)?;
     while let Some(item) = reader.read()? {
-        let path = PathBuf::from(item.path());
+        let path = PathBuf::from(item.header().path().as_ref());
         if !globs.is_empty() && !globs.iter().any(|glob| glob.matches_path(&path)) {
             if !options.quiet && options.verbose {
-                println!("Skip: {}", item.path())
+                println!("Skip: {}", item.header().path())
             }
             continue;
         }

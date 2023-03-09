@@ -15,6 +15,42 @@ use read::*;
 use std::io::{self, Read};
 pub(crate) use write::*;
 
+mod private {
+    use super::*;
+    pub trait SealedEntry {}
+    impl SealedEntry for ReadEntry {}
+}
+
+/// PNA archive entry
+pub trait Entry: private::SealedEntry {
+    type Reader: Read + Sync + Send;
+    fn to_reader(self, option: ReadOption) -> io::Result<Self::Reader>;
+    fn header(&self) -> &EntryHeader;
+}
+
+pub struct ReadOption {
+    password: Option<String>,
+}
+
+pub struct ReadOptionBuilder {
+    password: Option<String>,
+}
+
+impl ReadOptionBuilder {
+    pub fn new() -> Self {
+        Self { password: None }
+    }
+    pub fn password<T: AsRef<str>>(&mut self, password: T) -> &mut Self {
+        self.password = Some(password.as_ref().to_string());
+        self
+    }
+    pub fn build(&self) -> ReadOption {
+        ReadOption {
+            password: self.password.clone(),
+        }
+    }
+}
+
 pub struct EntryHeader {
     pub(crate) major: u8,
     pub(crate) minor: u8,
@@ -25,13 +61,19 @@ pub struct EntryHeader {
     pub(crate) path: ItemName,
 }
 
+impl EntryHeader {
+    pub fn path(&self) -> &ItemName {
+        &self.path
+    }
+}
+
 /// Chunks from `FHED` to `FEND`, containing `FHED` and `FEND`
 pub(crate) struct RawEntry {
     pub(crate) chunks: Vec<(ChunkType, Vec<u8>)>,
 }
 
 impl RawEntry {
-    pub(crate) fn into_entry(self) -> io::Result<Entry> {
+    pub(crate) fn into_entry(self) -> io::Result<ReadEntry> {
         let mut extra = vec![];
         let mut data = vec![];
         let mut info = None;
@@ -67,7 +109,7 @@ impl RawEntry {
                 ),
             ));
         }
-        Ok(Entry {
+        Ok(ReadEntry {
             header,
             phsf,
             extra,
@@ -76,15 +118,36 @@ impl RawEntry {
     }
 }
 
-pub struct Entry {
+/// Entry that read from PNA archive.
+pub struct ReadEntry {
     pub(crate) header: EntryHeader,
     pub(crate) phsf: Option<String>,
     pub(crate) extra: Vec<(ChunkType, Vec<u8>)>,
     pub(crate) data: Vec<u8>,
 }
 
-impl Entry {
-    pub fn reader(self, password: Option<&str>) -> io::Result<impl Read + Sync + Send> {
+pub struct EntryDataReader(Box<dyn Read + Sync + Send>);
+
+impl Read for EntryDataReader {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.read(buf)
+    }
+}
+
+impl Entry for ReadEntry {
+    type Reader = EntryDataReader;
+
+    fn to_reader(self, option: ReadOption) -> io::Result<Self::Reader> {
+        self.reader(option.password.as_deref())
+    }
+
+    fn header(&self) -> &EntryHeader {
+        &self.header
+    }
+}
+
+impl ReadEntry {
+    fn reader(self, password: Option<&str>) -> io::Result<EntryDataReader> {
         let raw_data_reader = io::Cursor::new(self.data);
         let decrypt_reader: Box<dyn Read + Sync + Send> = match self.header.encryption {
             Encryption::No => Box::new(raw_data_reader),
@@ -134,7 +197,7 @@ impl Entry {
             Compression::ZStandard => Box::new(MutexRead::new(zstd::Decoder::new(decrypt_reader)?)),
             Compression::XZ => Box::new(xz2::read::XzDecoder::new(decrypt_reader)),
         };
-        Ok(reader)
+        Ok(EntryDataReader(reader))
     }
 
     pub fn path(&self) -> &str {
