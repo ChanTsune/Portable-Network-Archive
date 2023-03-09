@@ -1,4 +1,4 @@
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
 pub enum Compression {
     No = 0,
@@ -21,7 +21,7 @@ impl TryFrom<u8> for Compression {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct CompressionLevel(pub(crate) u8);
 
 impl Default for CompressionLevel {
@@ -38,7 +38,7 @@ impl From<u8> for CompressionLevel {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
 pub enum Encryption {
     No = 0,
@@ -59,7 +59,7 @@ impl TryFrom<u8> for Encryption {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
 pub enum CipherMode {
     CBC = 0,
@@ -78,13 +78,13 @@ impl TryFrom<u8> for CipherMode {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum HashAlgorithm {
     Pbkdf2Sha256,
     Argon2Id,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
 pub enum DataKind {
     File = 0,
