@@ -11,7 +11,7 @@ use crate::{
 };
 pub use name::*;
 pub use options::*;
-pub(crate) use read::*;
+use read::*;
 use std::io::{self, Read};
 pub(crate) use write::*;
 
@@ -143,5 +143,9 @@ impl Entry {
 
     pub fn kind(&self) -> DataKind {
         self.header.data_kind
+    }
+
+    pub fn extra(&self) -> &[(ChunkType, Vec<u8>)] {
+        &self.extra
     }
 }
