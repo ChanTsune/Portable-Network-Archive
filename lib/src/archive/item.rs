@@ -28,10 +28,12 @@ pub trait Entry: private::SealedEntry {
     fn header(&self) -> &EntryHeader;
 }
 
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct ReadOption {
     password: Option<String>,
 }
 
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct ReadOptionBuilder {
     password: Option<String>,
 }
@@ -198,14 +200,6 @@ impl ReadEntry {
             Compression::XZ => Box::new(xz2::read::XzDecoder::new(decrypt_reader)),
         };
         Ok(EntryDataReader(reader))
-    }
-
-    pub fn path(&self) -> &str {
-        self.header.path.as_ref()
-    }
-
-    pub fn kind(&self) -> DataKind {
-        self.header.data_kind
     }
 
     pub fn extra(&self) -> &[(ChunkType, Vec<u8>)] {
