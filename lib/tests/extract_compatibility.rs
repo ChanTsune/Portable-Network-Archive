@@ -4,10 +4,10 @@ use std::io;
 fn extract_all(bytes: &[u8], password: Option<&str>) {
     let decoder = Decoder::new();
     let mut archive_reader = decoder.read_header(io::Cursor::new(bytes)).unwrap();
-    while let Some(item) = archive_reader.read(password.as_deref()).unwrap() {
+    while let Some(item) = archive_reader.read().unwrap() {
         let path = item.path().to_string();
         let mut dist = Vec::new();
-        io::copy(&mut item.reader().unwrap(), &mut dist).unwrap();
+        io::copy(&mut item.reader(password).unwrap(), &mut dist).unwrap();
         match &*path {
             "raw/first/second/third/pna.txt" => assert_eq!(
                 dist.as_slice(),

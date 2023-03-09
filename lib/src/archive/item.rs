@@ -2,10 +2,19 @@ mod name;
 mod options;
 mod write;
 
-use crate::ChunkType;
+use crate::{
+    chunk::{self, from_chunk_data_fhed},
+    cipher::{Ctr128BEReader, DecryptCbcAes256Reader, DecryptCbcCamellia256Reader},
+    hash::verify_password,
+    ChunkType,
+};
+use aes::Aes256;
+use camellia::Camellia256;
+use crypto_common::BlockSizeUser;
 pub use name::*;
 pub use options::*;
 use std::io::{self, Read};
+use std::sync::Mutex;
 pub(crate) use write::*;
 
 pub struct EntryHeader {
@@ -23,14 +32,111 @@ pub(crate) struct RawEntry {
     pub(crate) chunks: Vec<(ChunkType, Vec<u8>)>,
 }
 
+impl RawEntry {
+    pub(crate) fn into_entry(self) -> io::Result<Entry> {
+        let mut extra = vec![];
+        let mut data = vec![];
+        let mut info = None;
+        let mut phsf = None;
+        for (chunk_type, mut raw_data) in self.chunks {
+            match chunk_type {
+                chunk::FEND => break,
+                chunk::FHED => {
+                    info = Some(from_chunk_data_fhed(&raw_data)?);
+                }
+                chunk::PHSF => {
+                    phsf = Some(
+                        String::from_utf8(raw_data)
+                            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+                    );
+                }
+                chunk::FDAT => data.append(&mut raw_data),
+                _ => extra.push((chunk_type, raw_data)),
+            }
+        }
+        let header = info.ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                String::from("FHED chunk not found"),
+            )
+        })?;
+        if header.major != 0 || header.minor != 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                format!(
+                    "item version {}.{} is not supported.",
+                    header.major, header.minor
+                ),
+            ));
+        }
+        Ok(Entry {
+            header,
+            phsf,
+            extra,
+            data,
+        })
+    }
+}
+
 pub struct Entry {
     pub(crate) header: EntryHeader,
-    pub(crate) reader: Box<dyn Read + Sync + Send>,
+    pub(crate) phsf: Option<String>,
+    pub(crate) extra: Vec<(ChunkType, Vec<u8>)>,
+    pub(crate) data: Vec<u8>,
 }
 
 impl Entry {
-    pub fn reader(self) -> io::Result<impl Read + Sync + Send> {
-        Ok(self.reader)
+    pub fn reader(self, password: Option<&str>) -> io::Result<impl Read + Sync + Send> {
+        let raw_data_reader = io::Cursor::new(self.data);
+        let decrypt_reader: Box<dyn Read + Sync + Send> = match self.header.encryption {
+            Encryption::No => Box::new(raw_data_reader),
+            encryption @ Encryption::Aes | encryption @ Encryption::Camellia => {
+                let s = self.phsf.ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        String::from("Item is encrypted, but `PHSF` chunk not found"),
+                    )
+                })?;
+                let phsf = verify_password(
+                    &s,
+                    password.ok_or_else(|| {
+                        io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            String::from("Item is encrypted, but password was not provided"),
+                        )
+                    })?,
+                );
+                let hash = phsf.hash.ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::Unsupported,
+                        String::from("Failed to get hash"),
+                    )
+                })?;
+                match (encryption, self.header.cipher_mode) {
+                    (Encryption::Aes, CipherMode::CBC) => Box::new(DecryptCbcAes256Reader::new(
+                        raw_data_reader,
+                        hash.as_bytes(),
+                    )?),
+                    (Encryption::Aes, CipherMode::CTR) => {
+                        Box::new(aes_ctr_cipher_reader(raw_data_reader, hash.as_bytes())?)
+                    }
+                    (Encryption::Camellia, CipherMode::CBC) => Box::new(
+                        DecryptCbcCamellia256Reader::new(raw_data_reader, hash.as_bytes())?,
+                    ),
+                    _ => Box::new(camellia_ctr_cipher_reader(
+                        raw_data_reader,
+                        hash.as_bytes(),
+                    )?),
+                }
+            }
+        };
+        let reader: Box<dyn Read + Sync + Send> = match self.header.compression {
+            Compression::No => decrypt_reader,
+            Compression::Deflate => Box::new(flate2::read::DeflateDecoder::new(decrypt_reader)),
+            Compression::ZStandard => Box::new(MutexRead::new(zstd::Decoder::new(decrypt_reader)?)),
+            Compression::XZ => Box::new(xz2::read::XzDecoder::new(decrypt_reader)),
+        };
+        Ok(reader)
     }
 
     pub fn path(&self) -> &str {
@@ -40,4 +146,38 @@ impl Entry {
     pub fn kind(&self) -> DataKind {
         self.header.data_kind
     }
+}
+
+// NOTE: zstd crate not support Sync + Send trait
+struct MutexRead<R: Read>(Mutex<R>);
+
+impl<R: Read> MutexRead<R> {
+    fn new(reader: R) -> Self {
+        Self(Mutex::new(reader))
+    }
+}
+
+impl<R: Read> Read for MutexRead<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let reader = self.0.get_mut().unwrap();
+        reader.read(buf)
+    }
+}
+
+fn aes_ctr_cipher_reader<R: Read>(
+    mut reader: R,
+    key: &[u8],
+) -> io::Result<Ctr128BEReader<R, Aes256>> {
+    let mut iv = vec![0u8; Aes256::block_size()];
+    reader.read_exact(&mut iv)?;
+    Ctr128BEReader::new(reader, key, &iv)
+}
+
+fn camellia_ctr_cipher_reader<R: Read>(
+    mut reader: R,
+    key: &[u8],
+) -> io::Result<Ctr128BEReader<R, Camellia256>> {
+    let mut iv = vec![0u8; Camellia256::block_size()];
+    reader.read_exact(&mut iv)?;
+    Ctr128BEReader::new(reader, key, &iv)
 }
