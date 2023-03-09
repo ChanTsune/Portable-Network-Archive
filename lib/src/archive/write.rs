@@ -1,6 +1,6 @@
-use crate::archive::item::ItemWriter;
+use crate::archive::item::{ItemWriter, WriteOption};
 use crate::{
-    archive::{ItemName, Options, PNA_HEADER},
+    archive::{ItemName, WriteOptionBuilder, PNA_HEADER},
     chunk::{self, ChunkWriter},
     create_chunk_data_ahed,
 };
@@ -40,10 +40,14 @@ impl<W: Write> ArchiveWriter<W> {
     }
 
     pub fn start_file(&mut self, name: ItemName) -> io::Result<()> {
-        self.start_file_with_options(name, Options::default())
+        self.start_file_with_options(name, WriteOptionBuilder::default().build())
     }
 
-    pub fn start_file_with_options(&mut self, name: ItemName, options: Options) -> io::Result<()> {
+    pub fn start_file_with_options(
+        &mut self,
+        name: ItemName,
+        options: WriteOption,
+    ) -> io::Result<()> {
         self.end_file()?;
         self.inner = Some(ItemWriter::new_file_with(Vec::new(), name, options)?);
         Ok(())

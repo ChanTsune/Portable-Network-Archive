@@ -61,28 +61,28 @@ fn write_internal<W: Write>(
             }
         }
     } else if path.is_file() {
-        let mut item_option = libpna::Options::default();
+        let mut option_builder = libpna::WriteOptionBuilder::default();
         if options.store {
-            item_option = item_option.compression(libpna::Compression::No);
+            option_builder.compression(libpna::Compression::No);
         } else if let Some(lzma_level) = options.lzma {
-            item_option = item_option.compression(libpna::Compression::XZ);
+            option_builder.compression(libpna::Compression::XZ);
             if let Some(level) = lzma_level {
-                item_option = item_option.compression_level(libpna::CompressionLevel::from(level))
+                option_builder.compression_level(libpna::CompressionLevel::from(level));
             }
         } else if let Some(zstd_level) = options.zstd {
-            item_option = item_option.compression(libpna::Compression::ZStandard);
+            option_builder.compression(libpna::Compression::ZStandard);
             if let Some(level) = zstd_level {
-                item_option = item_option.compression_level(libpna::CompressionLevel::from(level))
+                option_builder.compression_level(libpna::CompressionLevel::from(level));
             }
         } else if let Some(deflate_level) = options.deflate {
-            item_option = item_option.compression(libpna::Compression::Deflate);
+            option_builder.compression(libpna::Compression::Deflate);
             if let Some(level) = deflate_level {
-                item_option = item_option.compression_level(libpna::CompressionLevel::from(level))
+                option_builder.compression_level(libpna::CompressionLevel::from(level));
             }
         } else {
-            item_option = item_option.compression(libpna::Compression::ZStandard);
+            option_builder.compression(libpna::Compression::ZStandard);
         }
-        item_option = item_option
+        option_builder
             .encryption(if let Some(Some(_)) = &options.password {
                 if options.aes.is_some() {
                     libpna::Encryption::Aes
@@ -104,7 +104,7 @@ fn write_internal<W: Write>(
                 },
             )
             .password(options.password.clone().flatten());
-        writer.start_file_with_options(path.into(), item_option)?;
+        writer.start_file_with_options(path.into(), option_builder.build())?;
         writer.write_all(&fs::read(path)?)?;
         writer.end_file()?;
     }

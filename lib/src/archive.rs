@@ -6,7 +6,7 @@ mod write;
 pub use header::PNA_HEADER;
 pub use item::{
     CipherMode, Compression, CompressionLevel, DataKind, Encryption, Entry, EntryHeader,
-    HashAlgorithm, ItemName, Options, ReadOptionBuilder,
+    HashAlgorithm, ItemName, ReadOption, ReadOptionBuilder, WriteOption, WriteOptionBuilder,
 };
 pub use read::{ArchiveReader, Decoder};
 pub use write::{ArchiveWriter, Encoder};
@@ -20,7 +20,9 @@ mod tests {
     fn store_archive() {
         archive(
             b"src data bytes",
-            Options::default().compression(Compression::No),
+            WriteOptionBuilder::default()
+                .compression(Compression::No)
+                .build(),
         )
         .unwrap()
     }
@@ -29,7 +31,9 @@ mod tests {
     fn deflate_archive() {
         archive(
             b"src data bytes",
-            Options::default().compression(Compression::Deflate),
+            WriteOptionBuilder::default()
+                .compression(Compression::Deflate)
+                .build(),
         )
         .unwrap()
     }
@@ -38,7 +42,9 @@ mod tests {
     fn zstd_archive() {
         archive(
             b"src data bytes",
-            Options::default().compression(Compression::ZStandard),
+            WriteOptionBuilder::default()
+                .compression(Compression::ZStandard)
+                .build(),
         )
         .unwrap()
     }
@@ -47,7 +53,9 @@ mod tests {
     fn xz_archive() {
         archive(
             b"src data bytes",
-            Options::default().compression(Compression::XZ),
+            WriteOptionBuilder::default()
+                .compression(Compression::XZ)
+                .build(),
         )
         .unwrap();
     }
@@ -56,11 +64,12 @@ mod tests {
     fn store_with_aes_cbc_archive() {
         archive(
             b"plain text",
-            Options::default()
+            WriteOptionBuilder::default()
                 .compression(Compression::No)
                 .encryption(Encryption::Aes)
                 .cipher_mode(CipherMode::CBC)
-                .password(Some("password")),
+                .password(Some("password"))
+                .build(),
         )
         .unwrap();
     }
@@ -69,11 +78,12 @@ mod tests {
     fn zstd_with_aes_ctr_archive() {
         archive(
             b"plain text",
-            Options::default()
+            WriteOptionBuilder::default()
                 .compression(Compression::ZStandard)
                 .encryption(Encryption::Aes)
                 .cipher_mode(CipherMode::CTR)
-                .password(Some("password")),
+                .password(Some("password"))
+                .build(),
         )
         .unwrap();
     }
@@ -82,11 +92,12 @@ mod tests {
     fn zstd_with_aes_cbc_archive() {
         archive(
             b"plain text",
-            Options::default()
+            WriteOptionBuilder::default()
                 .compression(Compression::ZStandard)
                 .encryption(Encryption::Aes)
                 .cipher_mode(CipherMode::CBC)
-                .password(Some("password")),
+                .password(Some("password"))
+                .build(),
         )
         .unwrap();
     }
@@ -95,11 +106,12 @@ mod tests {
     fn zstd_with_camellia_ctr_archive() {
         archive(
             b"plain text",
-            Options::default()
+            WriteOptionBuilder::default()
                 .compression(Compression::ZStandard)
                 .encryption(Encryption::Camellia)
                 .cipher_mode(CipherMode::CTR)
-                .password(Some("password")),
+                .password(Some("password"))
+                .build(),
         )
         .unwrap();
     }
@@ -108,11 +120,12 @@ mod tests {
     fn zstd_with_camellia_cbc_archive() {
         archive(
             b"plain text",
-            Options::default()
+            WriteOptionBuilder::default()
                 .compression(Compression::ZStandard)
                 .encryption(Encryption::Camellia)
                 .cipher_mode(CipherMode::CBC)
-                .password(Some("password")),
+                .password(Some("password"))
+                .build(),
         )
         .unwrap();
     }
@@ -121,12 +134,13 @@ mod tests {
     fn xz_with_aes_cbc_archive() {
         archive(
             b"plain text",
-            Options::default()
+            WriteOptionBuilder::default()
                 .compression(Compression::XZ)
                 .encryption(Encryption::Aes)
                 .cipher_mode(CipherMode::CBC)
                 .hash_algorithm(HashAlgorithm::Pbkdf2Sha256)
-                .password(Some("password")),
+                .password(Some("password"))
+                .build(),
         )
         .unwrap()
     }
@@ -135,17 +149,18 @@ mod tests {
     fn xz_with_camellia_cbc_archive() {
         archive(
             b"plain text",
-            Options::default()
+            WriteOptionBuilder::default()
                 .compression(Compression::XZ)
                 .encryption(Encryption::Camellia)
                 .cipher_mode(CipherMode::CBC)
                 .hash_algorithm(HashAlgorithm::Pbkdf2Sha256)
-                .password(Some("password")),
+                .password(Some("password"))
+                .build(),
         )
         .unwrap()
     }
 
-    fn archive(src: &[u8], options: Options) -> io::Result<()> {
+    fn archive(src: &[u8], options: WriteOption) -> io::Result<()> {
         let mut archived_temp = Vec::new();
         {
             let encoder = Encoder::new();
