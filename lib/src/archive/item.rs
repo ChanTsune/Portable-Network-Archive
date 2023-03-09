@@ -170,7 +170,7 @@ impl Options {
     }
 }
 
-pub struct ItemInfo {
+pub struct EntryHeader {
     pub(crate) major: u8,
     pub(crate) minor: u8,
     pub(crate) data_kind: DataKind,
@@ -186,7 +186,7 @@ pub(crate) struct RawEntry {
 }
 
 pub struct Entry {
-    pub(crate) info: ItemInfo,
+    pub(crate) info: EntryHeader,
     pub(crate) reader: Box<dyn Read + Sync + Send>,
 }
 

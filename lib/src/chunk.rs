@@ -3,7 +3,7 @@ mod read;
 mod types;
 mod write;
 
-use crate::archive::{CipherMode, Compression, DataKind, Encryption, ItemInfo, ItemName};
+use crate::archive::{CipherMode, Compression, DataKind, Encryption, EntryHeader, ItemName};
 pub use read::ChunkReader;
 use std::io;
 pub use types::*;
@@ -39,8 +39,8 @@ pub(crate) fn create_chunk_data_fhed(
     data.into_boxed_slice()
 }
 
-pub(crate) fn from_chunk_data_fhed(data: &[u8]) -> io::Result<ItemInfo> {
-    Ok(ItemInfo {
+pub(crate) fn from_chunk_data_fhed(data: &[u8]) -> io::Result<EntryHeader> {
+    Ok(EntryHeader {
         major: data[0],
         minor: data[1],
         data_kind: DataKind::try_from(data[2])
