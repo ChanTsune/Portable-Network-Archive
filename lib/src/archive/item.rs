@@ -181,7 +181,7 @@ pub struct ItemInfo {
 }
 
 /// Chunks from `FHED` to `FEND`, containing `FHED` and `FEND`
-pub(crate) struct RawItem {
+pub(crate) struct RawEntry {
     pub(crate) chunks: Vec<(ChunkType, Vec<u8>)>,
 }
 

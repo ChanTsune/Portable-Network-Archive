@@ -1,6 +1,6 @@
 use crate::{
     archive::{
-        item::{Item, RawItem},
+        item::{Item, RawEntry},
         CipherMode, Compression, Encryption, PNA_HEADER,
     },
     chunk::{self, from_chunk_data_fhed, ChunkReader},
@@ -43,7 +43,7 @@ pub struct ArchiveReader<R> {
 
 impl<R: Read> ArchiveReader<R> {
     /// Read the next chunks from `FHED` to `FEND`
-    fn next_raw_item(&mut self) -> io::Result<Option<RawItem>> {
+    fn next_raw_item(&mut self) -> io::Result<Option<RawEntry>> {
         let mut chunks = Vec::new();
         loop {
             let (chunk_type, mut raw_data) = self.r.read_chunk()?;
@@ -53,7 +53,7 @@ impl<R: Read> ArchiveReader<R> {
                 _ => chunks.push((chunk_type, raw_data)),
             }
         }
-        Ok(Some(RawItem { chunks }))
+        Ok(Some(RawEntry { chunks }))
     }
 
     pub fn read(&mut self, password: Option<&str>) -> io::Result<Option<Item>> {
