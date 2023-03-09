@@ -1,6 +1,6 @@
 use crate::{
     archive::{
-        item::{Item, RawEntry},
+        item::{Entry, RawEntry},
         CipherMode, Compression, Encryption, PNA_HEADER,
     },
     chunk::{self, from_chunk_data_fhed, ChunkReader},
@@ -56,7 +56,7 @@ impl<R: Read> ArchiveReader<R> {
         Ok(Some(RawEntry { chunks }))
     }
 
-    pub fn read(&mut self, password: Option<&str>) -> io::Result<Option<Item>> {
+    pub fn read(&mut self, password: Option<&str>) -> io::Result<Option<Entry>> {
         let mut all_data: Vec<u8> = vec![];
         let mut info = None;
         let mut phsf = None;
@@ -142,7 +142,7 @@ impl<R: Read> ArchiveReader<R> {
             Compression::ZStandard => Box::new(MutexRead::new(zstd::Decoder::new(decrypt_reader)?)),
             Compression::XZ => Box::new(xz2::read::XzDecoder::new(decrypt_reader)),
         };
-        Ok(Some(Item { info, reader }))
+        Ok(Some(Entry { info, reader }))
     }
 }
 

@@ -185,12 +185,12 @@ pub(crate) struct RawEntry {
     pub(crate) chunks: Vec<(ChunkType, Vec<u8>)>,
 }
 
-pub struct Item {
+pub struct Entry {
     pub(crate) info: ItemInfo,
     pub(crate) reader: Box<dyn Read + Sync + Send>,
 }
 
-impl Item {
+impl Entry {
     pub fn reader(self) -> io::Result<impl Read + Sync + Send> {
         Ok(self.reader)
     }
