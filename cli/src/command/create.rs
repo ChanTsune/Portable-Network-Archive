@@ -1,5 +1,6 @@
 use super::{CipherMode, Options};
-use libpna::{ArchiveWriter, Encoder};
+use libpna::{Encoder, WriteEntry};
+use rayon::ThreadPoolBuilder;
 use std::path::PathBuf;
 use std::{
     fs::{self, File},
@@ -12,6 +13,10 @@ pub(crate) fn create_archive<A: AsRef<Path>, F: AsRef<Path>>(
     files: &[F],
     options: Options,
 ) -> io::Result<()> {
+    let pool = ThreadPoolBuilder::default()
+        .build()
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+
     let archive = archive.as_ref();
     if !options.overwrite && archive.exists() {
         return Err(io::Error::new(
@@ -32,12 +37,22 @@ pub(crate) fn create_archive<A: AsRef<Path>, F: AsRef<Path>>(
     }
     let file = File::create(archive)?;
 
+    let (tx, rx) = std::sync::mpsc::channel();
     let encoder = Encoder::new();
     let mut writer = encoder.write_header(file)?;
 
     for file in target_items {
-        let file = file.as_ref();
-        write_internal(&mut writer, file, &options)?;
+        let options = options.clone();
+        let tx = tx.clone();
+        pool.spawn_fifo(move || {
+            tx.send(write_internal(&file, options))
+                .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
+        });
+    }
+
+    drop(tx);
+    for item in rx {
+        writer.add_entry(item?)?;
     }
 
     writer.finalize()?;
@@ -61,11 +76,7 @@ fn collect_items(result: &mut Vec<PathBuf>, path: &Path, options: &Options) -> i
     Ok(())
 }
 
-fn write_internal<W: Write>(
-    writer: &mut ArchiveWriter<W>,
-    path: &Path,
-    options: &Options,
-) -> io::Result<()> {
+fn write_internal(path: &Path, options: Options) -> io::Result<WriteEntry> {
     if !options.quiet && options.verbose {
         println!("Adding: {}", path.display());
     }
@@ -113,9 +124,12 @@ fn write_internal<W: Write>(
                 },
             )
             .password(options.password.clone().flatten());
-        writer.start_file_with_options(path.into(), option_builder.build())?;
-        writer.write_all(&fs::read(path)?)?;
-        writer.end_file()?;
+        let mut entry = WriteEntry::new_file(path.into(), option_builder.build())?;
+        entry.write_all(&fs::read(path)?)?;
+        return Ok(entry);
     }
-    Ok(())
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "Currently not a regular file is not supported.",
+    ))
 }
