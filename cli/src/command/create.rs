@@ -1,7 +1,9 @@
 use super::{CipherMode, Options};
+use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use libpna::{Encoder, WriteEntry};
 use rayon::ThreadPoolBuilder;
 use std::path::PathBuf;
+use std::time::Instant;
 use std::{
     fs::{self, File},
     io::{self, Write},
@@ -13,6 +15,7 @@ pub(crate) fn create_archive<A: AsRef<Path>, F: AsRef<Path>>(
     files: &[F],
     options: Options,
 ) -> io::Result<()> {
+    let start = Instant::now();
     let pool = ThreadPoolBuilder::default()
         .build()
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
@@ -31,6 +34,9 @@ pub(crate) fn create_archive<A: AsRef<Path>, F: AsRef<Path>>(
     for p in files {
         collect_items(&mut target_items, p.as_ref(), &options)?;
     }
+
+    let progress_bar = ProgressBar::new(target_items.len() as u64)
+        .with_style(ProgressStyle::default_bar().progress_chars("=> "));
 
     if let Some(parent) = archive.parent() {
         fs::create_dir_all(parent)?;
@@ -53,12 +59,18 @@ pub(crate) fn create_archive<A: AsRef<Path>, F: AsRef<Path>>(
     drop(tx);
     for item in rx {
         writer.add_entry(item?)?;
+        progress_bar.inc(1);
     }
 
     writer.finalize()?;
 
+    progress_bar.finish_and_clear();
+
     if !options.quiet {
-        println!("Successfully created an archive");
+        println!(
+            "Successfully created an archive in {}",
+            HumanDuration(start.elapsed())
+        );
     }
     Ok(())
 }
