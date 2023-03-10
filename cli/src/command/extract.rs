@@ -36,50 +36,52 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
             }
             continue;
         }
-        let path = if let Some(out_dir) = &options.out_dir {
-            out_dir.join(&item_path)
-        } else {
-            item_path.clone()
-        };
-        if path.exists() && !options.overwrite {
-            return Err(io::Error::new(
-                io::ErrorKind::AlreadyExists,
-                format!("{} is alrady exists", path.display()),
-            ));
-        }
         let tx = tx.clone();
-        let password = options.password.clone();
+        let options = options.clone();
         pool.spawn_fifo(move || {
-            if !options.quiet && options.verbose {
-                println!("Extract: {}", item_path.display());
-            }
-            if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent).unwrap();
-            }
-            let mut file = File::create(&path).unwrap();
-            if !options.quiet && options.verbose {
-                println!("start: {}", path.display())
-            }
-            let mut reader = item
-                .to_reader({
-                    let mut builder = ReadOptionBuilder::new();
-                    if let Some(password) = password.flatten() {
-                        builder.password(password);
-                    }
-                    builder.build()
-                })
-                .unwrap();
-            io::copy(&mut reader, &mut file).unwrap();
-            if !options.quiet && options.verbose {
-                println!("end: {}", path.display())
-            }
-            tx.send(()).unwrap();
+            tx.send(extract_entry(item_path, item, options)).unwrap();
         });
     }
     drop(tx);
     let _: Vec<_> = rx.into_iter().collect();
     if !options.quiet {
         println!("Successfully extracted an archive");
+    }
+    Ok(())
+}
+
+fn extract_entry(item_path: PathBuf, item: impl Entry, options: Options) -> io::Result<()> {
+    let path = if let Some(out_dir) = &options.out_dir {
+        out_dir.join(&item_path)
+    } else {
+        item_path.clone()
+    };
+    if path.exists() && !options.overwrite {
+        return Err(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            format!("{} is alrady exists", path.display()),
+        ));
+    }
+    if !options.quiet && options.verbose {
+        println!("Extract: {}", item_path.display());
+    }
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let mut file = File::create(&path)?;
+    if !options.quiet && options.verbose {
+        println!("start: {}", path.display())
+    }
+    let mut reader = item.to_reader({
+        let mut builder = ReadOptionBuilder::new();
+        if let Some(password) = options.password.flatten() {
+            builder.password(password);
+        }
+        builder.build()
+    })?;
+    io::copy(&mut reader, &mut file)?;
+    if !options.quiet && options.verbose {
+        println!("end: {}", path.display())
     }
     Ok(())
 }
