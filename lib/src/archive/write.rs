@@ -1,4 +1,4 @@
-use crate::archive::item::{ItemWriter, WriteOption};
+use crate::archive::item::{EntryWriter, WriteOption};
 use crate::{
     archive::{ItemName, WriteOptionBuilder, PNA_HEADER},
     chunk::{self, ChunkWriter},
@@ -22,7 +22,7 @@ impl Encoder {
 pub struct ArchiveWriter<W: Write> {
     w: W,
     // temporary use fields
-    inner: Option<ItemWriter<Vec<u8>>>,
+    inner: Option<EntryWriter<Vec<u8>>>,
     // end temporary
     finalized: bool,
 }
@@ -49,7 +49,7 @@ impl<W: Write> ArchiveWriter<W> {
         options: WriteOption,
     ) -> io::Result<()> {
         self.end_file()?;
-        self.inner = Some(ItemWriter::new_file_with(Vec::new(), name, options)?);
+        self.inner = Some(EntryWriter::new_file_with(Vec::new(), name, options)?);
         Ok(())
     }
 

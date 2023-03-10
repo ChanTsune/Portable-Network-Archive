@@ -18,13 +18,13 @@ use std::io::{self, Write};
 use xz2::write::XzEncoder;
 use zstd::stream::write::Encoder as ZstdEncoder;
 
-pub(crate) struct ItemWriter<W: Write> {
+pub(crate) struct EntryWriter<W: Write> {
     w: W,
     options: WriteOption,
     buf: Vec<u8>,
 }
 
-impl<W: Write> ItemWriter<W> {
+impl<W: Write> EntryWriter<W> {
     pub(crate) fn new_file_with(w: W, name: ItemName, options: WriteOption) -> io::Result<Self> {
         let mut chunk_writer = ChunkWriter::from(w);
         chunk_writer.write_chunk(
@@ -65,7 +65,7 @@ impl<W: Write> ItemWriter<W> {
     }
 }
 
-impl<W: Write> Write for ItemWriter<W> {
+impl<W: Write> Write for EntryWriter<W> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.buf.write(buf)
     }
