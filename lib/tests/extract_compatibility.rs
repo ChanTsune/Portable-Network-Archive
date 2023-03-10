@@ -1,13 +1,22 @@
-use libpna::Decoder;
+use libpna::{Decoder, Entry, ReadOptionBuilder};
 use std::io;
 
 fn extract_all(bytes: &[u8], password: Option<&str>) {
     let decoder = Decoder::new();
     let mut archive_reader = decoder.read_header(io::Cursor::new(bytes)).unwrap();
     while let Some(item) = archive_reader.read().unwrap() {
-        let path = item.path().to_string();
+        let path = item.header().path().to_string();
         let mut dist = Vec::new();
-        io::copy(&mut item.reader(password).unwrap(), &mut dist).unwrap();
+        let mut reader = item
+            .to_reader({
+                let mut builder = ReadOptionBuilder::new();
+                if let Some(password) = password {
+                    builder.password(password);
+                }
+                builder.build()
+            })
+            .unwrap();
+        io::copy(&mut reader, &mut dist).unwrap();
         match &*path {
             "raw/first/second/third/pna.txt" => assert_eq!(
                 dist.as_slice(),

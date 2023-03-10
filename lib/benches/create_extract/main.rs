@@ -14,7 +14,7 @@ macro_rules! bench_write_archive {
                 writer
                     .start_file_with_options(
                         "bench".into(),
-                        $options.password(Some("password".to_string())),
+                        $options.password(Some("password")).build(),
                     )
                     .unwrap();
                 writer.write_all(&vec![24; 1111]).unwrap();
@@ -37,7 +37,7 @@ macro_rules! bench_read_archive {
                 writer
                     .start_file_with_options(
                         "bench".into(),
-                        $options.password(Some("password".to_string())),
+                        $options.password(Some("password")).build(),
                     )
                     .unwrap();
                 writer.write_all(&vec![24; 1111]).unwrap();
@@ -50,7 +50,7 @@ macro_rules! bench_read_archive {
                 let mut reader = decoder.read_header(Cursor::new(vec.as_slice())).unwrap();
                 while let Some(item) = reader.read().unwrap() {
                     let mut buf = Vec::with_capacity(1000);
-                    item.reader(Some("password"))
+                    item.to_reader(ReadOptionBuilder::new().password("password").build())
                         .unwrap()
                         .read_to_end(&mut buf)
                         .unwrap();
