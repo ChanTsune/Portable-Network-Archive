@@ -12,13 +12,14 @@ use crate::{
 pub use name::*;
 pub use options::*;
 use read::*;
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 pub(crate) use write::*;
 
 mod private {
     use super::*;
     pub trait SealedEntry {}
     impl SealedEntry for ReadEntry {}
+    impl SealedEntry for WriteEntry {}
 }
 
 /// PNA archive entry
@@ -204,5 +205,27 @@ impl ReadEntry {
 
     pub fn extra(&self) -> &[(ChunkType, Vec<u8>)] {
         &self.extra
+    }
+}
+
+pub struct WriteEntry(EntryWriter<Vec<u8>>);
+
+impl WriteEntry {
+    pub fn new_file(name: ItemName, option: WriteOption) -> io::Result<Self> {
+        Ok(Self(EntryWriter::new_file_with(Vec::new(), name, option)?))
+    }
+
+    pub(crate) fn into_bytes(self) -> io::Result<Vec<u8>> {
+        self.0.finish()
+    }
+}
+
+impl Write for WriteEntry {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.0.flush()
     }
 }

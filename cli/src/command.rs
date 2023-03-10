@@ -33,7 +33,7 @@ pub struct Args {
     files: Vec<PathBuf>,
 }
 
-#[derive(Parser)]
+#[derive(Parser, Clone)]
 pub(crate) struct Options {
     #[arg(short, long, help = "Add the directory to the archive recursively")]
     recursive: bool,
