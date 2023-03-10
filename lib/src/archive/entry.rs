@@ -107,7 +107,7 @@ impl RawEntry {
             return Err(io::Error::new(
                 io::ErrorKind::Unsupported,
                 format!(
-                    "item version {}.{} is not supported.",
+                    "entry version {}.{} is not supported.",
                     header.major, header.minor
                 ),
             ));
