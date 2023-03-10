@@ -54,7 +54,7 @@ fn extract_all(bytes: &[u8], password: Option<&str>) {
                 dist.as_slice(),
                 include_bytes!("../../resources/test/raw/text.txt")
             ),
-            a => panic!("Unexpected item name {a}"),
+            a => panic!("Unexpected entry name {a}"),
         }
     }
 }

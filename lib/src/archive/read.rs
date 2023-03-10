@@ -1,6 +1,6 @@
 use crate::{
     archive::{
-        item::{Entry, RawEntry},
+        entry::{Entry, RawEntry},
         PNA_HEADER,
     },
     chunk::{self, ChunkReader},

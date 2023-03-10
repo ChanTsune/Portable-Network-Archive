@@ -1,4 +1,4 @@
-use crate::archive::item::{EntryWriter, WriteEntry, WriteOption};
+use crate::archive::entry::{EntryWriter, WriteEntry, WriteOption};
 use crate::{
     archive::{ItemName, WriteOptionBuilder, PNA_HEADER},
     chunk::{self, ChunkWriter},

@@ -1,14 +1,14 @@
+mod entry;
 mod header;
-mod item;
 mod read;
 mod write;
 
-pub use header::PNA_HEADER;
-pub use item::{
+pub use entry::{
     CipherMode, Compression, CompressionLevel, DataKind, Encryption, Entry, EntryHeader,
     HashAlgorithm, ItemName, ReadOption, ReadOptionBuilder, WriteEntry, WriteOption,
     WriteOptionBuilder,
 };
+pub use header::PNA_HEADER;
 pub use read::{ArchiveReader, Decoder};
 pub use write::{ArchiveWriter, Encoder};
 
