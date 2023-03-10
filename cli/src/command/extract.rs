@@ -1,9 +1,11 @@
 use super::Options;
 use glob::Pattern;
+use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use libpna::{Decoder, Entry, ReadOptionBuilder};
 use rayon::ThreadPoolBuilder;
 use std::fs::File;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 use std::{fs, io};
 
 pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
@@ -11,6 +13,7 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
     files: &[F],
     options: Options,
 ) -> io::Result<()> {
+    let start = Instant::now();
     if !options.quiet {
         println!("Extract archive {}", archive.as_ref().display());
     }
@@ -28,6 +31,10 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
     let (tx, rx) = std::sync::mpsc::channel();
     let decoder = Decoder::new();
     let mut reader = decoder.read_header(file)?;
+
+    let progress_bar =
+        ProgressBar::new(0).with_style(ProgressStyle::default_bar().progress_chars("=> "));
+
     while let Some(item) = reader.read()? {
         let item_path = PathBuf::from(item.header().path().as_ref());
         if !globs.is_empty() && !globs.iter().any(|glob| glob.matches_path(&item_path)) {
@@ -36,16 +43,26 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
             }
             continue;
         }
+        progress_bar.inc_length(1);
         let tx = tx.clone();
         let options = options.clone();
         pool.spawn_fifo(move || {
-            tx.send(extract_entry(item_path, item, options)).unwrap();
+            tx.send(extract_entry(item_path.clone(), item, options))
+                .unwrap_or_else(|e| panic!("{e}: {}", item_path.display()));
         });
     }
     drop(tx);
-    let _: Vec<_> = rx.into_iter().collect();
+    for result in rx {
+        result?;
+        progress_bar.inc(1);
+    }
+    progress_bar.finish_and_clear();
+
     if !options.quiet {
-        println!("Successfully extracted an archive");
+        println!(
+            "Successfully extracted an archive in {}",
+            HumanDuration(start.elapsed())
+        );
     }
     Ok(())
 }
