@@ -1,6 +1,6 @@
 use crate::{
     archive::{
-        CipherMode, Compression, CompressionLevel, Encryption, HashAlgorithm, ItemName, WriteOption,
+        CipherMode, Compression, CompressionLevel, Encryption, HashAlgorithm, EntryName, WriteOption,
     },
     chunk::{self, create_chunk_data_fhed, ChunkWriter},
     cipher::{CipherWriter, Ctr128BEWriter, EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
@@ -25,7 +25,7 @@ pub(crate) struct EntryWriter<W: Write> {
 }
 
 impl<W: Write> EntryWriter<W> {
-    pub(crate) fn new_file_with(w: W, name: ItemName, options: WriteOption) -> io::Result<Self> {
+    pub(crate) fn new_file_with(w: W, name: EntryName, options: WriteOption) -> io::Result<Self> {
         let mut chunk_writer = ChunkWriter::from(w);
         chunk_writer.write_chunk(
             chunk::FHED,

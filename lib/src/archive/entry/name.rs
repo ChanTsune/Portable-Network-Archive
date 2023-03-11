@@ -3,27 +3,27 @@ use std::fmt::{self, Display, Formatter};
 use std::path::{Component, PathBuf};
 
 #[derive(Clone, Eq, PartialEq, Debug)]
-pub struct ItemName(String);
+pub struct EntryName(String);
 
-impl<T: ?Sized + AsRef<OsStr>> From<&T> for ItemName {
+impl<T: ?Sized + AsRef<OsStr>> From<&T> for EntryName {
     /// # Examples
     /// ```
-    /// use libpna::ItemName;
+    /// use libpna::EntryName;
     ///
-    /// assert_eq!(ItemName::from("test.txt"), ItemName::from("test.txt"));
+    /// assert_eq!(EntryName::from("test.txt"), EntryName::from("test.txt"));
     ///
-    /// assert_eq!(ItemName::from("/test.txt"), ItemName::from("test.txt"));
+    /// assert_eq!(EntryName::from("/test.txt"), EntryName::from("test.txt"));
     ///
-    /// assert_eq!(ItemName::from("./test.txt"), ItemName::from("test.txt"));
+    /// assert_eq!(EntryName::from("./test.txt"), EntryName::from("test.txt"));
     ///
-    /// assert_eq!(ItemName::from("../test.txt"), ItemName::from("test.txt"));
+    /// assert_eq!(EntryName::from("../test.txt"), EntryName::from("test.txt"));
     /// ```
     fn from(value: &T) -> Self {
         Self::from(PathBuf::from(value))
     }
 }
 
-impl From<PathBuf> for ItemName {
+impl From<PathBuf> for EntryName {
     fn from(value: PathBuf) -> Self {
         let buf = value
             .components()
@@ -40,13 +40,13 @@ impl From<PathBuf> for ItemName {
     }
 }
 
-impl Display for ItemName {
+impl Display for EntryName {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str(&self.0)
     }
 }
 
-impl AsRef<str> for ItemName {
+impl AsRef<str> for EntryName {
     fn as_ref(&self) -> &str {
         &self.0
     }
@@ -58,26 +58,26 @@ mod tests {
 
     #[test]
     fn remove_root() {
-        assert_eq!(ItemName::from("/test.txt"), ItemName::from("test.txt"));
+        assert_eq!(EntryName::from("/test.txt"), EntryName::from("test.txt"));
         assert_eq!(
-            ItemName::from("/test/test.txt"),
-            ItemName::from("test/test.txt")
+            EntryName::from("/test/test.txt"),
+            EntryName::from("test/test.txt")
         );
     }
 
     #[test]
     fn remove_last() {
-        assert_eq!(ItemName::from("test/"), ItemName::from("test"));
-        assert_eq!(ItemName::from("test/test/"), ItemName::from("test/test"));
+        assert_eq!(EntryName::from("test/"), EntryName::from("test"));
+        assert_eq!(EntryName::from("test/test/"), EntryName::from("test/test"));
     }
 
     #[cfg(target_os = "windows")]
     #[test]
     fn remove_prefix() {
-        assert_eq!(ItemName::from("C:\\test.txt"), ItemName::from("test.txt"));
+        assert_eq!(EntryName::from("C:\\test.txt"), EntryName::from("test.txt"));
         assert_eq!(
-            ItemName::from("C:\\test\\test.txt"),
-            ItemName::from("test/test.txt")
+            EntryName::from("C:\\test\\test.txt"),
+            EntryName::from("test/test.txt")
         );
     }
 }

@@ -3,7 +3,7 @@ mod read;
 mod types;
 mod write;
 
-use crate::archive::{CipherMode, Compression, DataKind, Encryption, EntryHeader, ItemName};
+use crate::archive::{CipherMode, Compression, DataKind, Encryption, EntryHeader, EntryName};
 pub use read::ChunkReader;
 use std::io;
 pub use types::*;
@@ -52,7 +52,7 @@ pub(crate) fn from_chunk_data_fhed(data: &[u8]) -> io::Result<EntryHeader> {
         cipher_mode: CipherMode::try_from(data[5])
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
         path: String::from_utf8(data[6..].to_vec())
-            .map(|s| ItemName::from(&s))
+            .map(|s| EntryName::from(&s))
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
     })
 }

@@ -1,6 +1,6 @@
 use crate::archive::entry::{EntryWriter, WriteEntry, WriteOption};
 use crate::{
-    archive::{ItemName, WriteOptionBuilder, PNA_HEADER},
+    archive::{EntryName, WriteOptionBuilder, PNA_HEADER},
     chunk::{self, ChunkWriter},
     create_chunk_data_ahed,
 };
@@ -39,13 +39,13 @@ impl<W: Write> ArchiveWriter<W> {
         })
     }
 
-    pub fn start_file(&mut self, name: ItemName) -> io::Result<()> {
+    pub fn start_file(&mut self, name: EntryName) -> io::Result<()> {
         self.start_file_with_options(name, WriteOptionBuilder::default().build())
     }
 
     pub fn start_file_with_options(
         &mut self,
-        name: ItemName,
+        name: EntryName,
         options: WriteOption,
     ) -> io::Result<()> {
         self.end_file()?;
