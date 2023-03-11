@@ -89,7 +89,7 @@ fn extract_entry(item_path: PathBuf, item: impl Entry, options: Options) -> io::
     if !options.quiet && options.verbose {
         println!("start: {}", path.display())
     }
-    let mut reader = item.to_reader({
+    let mut reader = item.into_reader({
         let mut builder = ReadOptionBuilder::new();
         if let Some(password) = options.password.flatten() {
             builder.password(password);

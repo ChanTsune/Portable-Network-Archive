@@ -24,8 +24,8 @@ mod private {
 /// PNA archive entry
 pub trait Entry: private::SealedEntry {
     type Reader: Read + Sync + Send;
-    fn to_reader(self, option: ReadOption) -> io::Result<Self::Reader>;
     fn header(&self) -> &EntryHeader;
+    fn into_reader(self, option: ReadOption) -> io::Result<Self::Reader>;
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -141,15 +141,7 @@ impl RawEntry {
         })
     }
 }
-
-/// Entry that read from PNA archive.
-pub struct ReadEntry {
-    pub(crate) header: EntryHeader,
-    pub(crate) phsf: Option<String>,
-    pub(crate) extra: Chunks,
-    pub(crate) data: Vec<u8>,
-}
-
+/// [`Read`]
 pub struct EntryDataReader(Box<dyn Read + Sync + Send>);
 
 impl Read for EntryDataReader {
@@ -158,15 +150,23 @@ impl Read for EntryDataReader {
     }
 }
 
+/// [Entry] that read from PNA archive.
+pub struct ReadEntry {
+    pub(crate) header: EntryHeader,
+    pub(crate) phsf: Option<String>,
+    pub(crate) extra: Chunks,
+    pub(crate) data: Vec<u8>,
+}
+
 impl Entry for ReadEntry {
     type Reader = EntryDataReader;
 
-    fn to_reader(self, option: ReadOption) -> io::Result<Self::Reader> {
-        self.reader(option.password.as_deref())
-    }
-
     fn header(&self) -> &EntryHeader {
         &self.header
+    }
+
+    fn into_reader(self, option: ReadOption) -> io::Result<Self::Reader> {
+        self.reader(option.password.as_deref())
     }
 }
 

@@ -8,7 +8,7 @@ fn extract_all(bytes: &[u8], password: Option<&str>) {
         let path = item.header().path().to_string();
         let mut dist = Vec::new();
         let mut reader = item
-            .to_reader({
+            .into_reader({
                 let mut builder = ReadOptionBuilder::new();
                 if let Some(password) = password {
                     builder.password(password);

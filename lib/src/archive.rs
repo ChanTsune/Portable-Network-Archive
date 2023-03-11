@@ -177,7 +177,7 @@ mod tests {
             .read()
             .unwrap()
             .unwrap()
-            .to_reader({
+            .into_reader({
                 let mut builder = ReadOptionBuilder::new();
                 if let Some(password) = options.password {
                     builder.password(password);
