@@ -19,13 +19,14 @@ mod private {
     pub trait SealedEntry {}
     impl SealedEntry for ReadEntry {}
     impl SealedEntry for WriteEntry {}
+    impl SealedEntry for ChunkEntry {}
 }
 
 /// PNA archive entry
 pub trait Entry: private::SealedEntry {
     type Reader: Read + Sync + Send;
-    fn header(&self) -> &EntryHeader;
     fn into_reader(self, option: ReadOption) -> io::Result<Self::Reader>;
+    fn into_read_entry(self) -> io::Result<ReadEntry>;
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -92,11 +93,23 @@ impl TryFrom<&[u8]> for EntryHeader {
 }
 
 /// Chunks from `FHED` to `FEND`, containing `FHED` and `FEND`
-pub(crate) struct RawEntry {
+pub(crate) struct ChunkEntry {
     pub(crate) chunks: Chunks,
 }
 
-impl RawEntry {
+impl Entry for ChunkEntry {
+    type Reader = EntryDataReader;
+
+    fn into_reader(self, option: ReadOption) -> io::Result<Self::Reader> {
+        self.into_read_entry()?.into_reader(option)
+    }
+
+    fn into_read_entry(self) -> io::Result<ReadEntry> {
+        self.into_entry()
+    }
+}
+
+impl ChunkEntry {
     pub(crate) fn into_entry(self) -> io::Result<ReadEntry> {
         let mut extra = vec![];
         let mut data = vec![];
@@ -161,16 +174,20 @@ pub struct ReadEntry {
 impl Entry for ReadEntry {
     type Reader = EntryDataReader;
 
-    fn header(&self) -> &EntryHeader {
-        &self.header
-    }
-
     fn into_reader(self, option: ReadOption) -> io::Result<Self::Reader> {
         self.reader(option.password.as_deref())
+    }
+
+    fn into_read_entry(self) -> io::Result<ReadEntry> {
+        Ok(self)
     }
 }
 
 impl ReadEntry {
+    pub fn header(&self) -> &EntryHeader {
+        &self.header
+    }
+
     fn reader(self, password: Option<&str>) -> io::Result<EntryDataReader> {
         let raw_data_reader = io::Cursor::new(self.data);
         let decrypt_reader: Box<dyn Read + Sync + Send> = match self.header.encryption {

@@ -5,6 +5,7 @@ fn extract_all(bytes: &[u8], password: Option<&str>) {
     let decoder = Decoder::new();
     let mut archive_reader = decoder.read_header(io::Cursor::new(bytes)).unwrap();
     while let Some(item) = archive_reader.read().unwrap() {
+        let item = item.into_read_entry().unwrap();
         let path = item.header().path().to_string();
         let mut dist = Vec::new();
         let mut reader = item
