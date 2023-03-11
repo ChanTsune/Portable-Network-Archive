@@ -1,6 +1,6 @@
 use super::{CipherMode, Options};
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
-use libpna::{Encoder, WriteEntry};
+use libpna::{Encoder, EntryBuilder};
 use rayon::ThreadPoolBuilder;
 use std::path::PathBuf;
 use std::time::Instant;
@@ -88,7 +88,7 @@ fn collect_items(result: &mut Vec<PathBuf>, path: &Path, options: &Options) -> i
     Ok(())
 }
 
-fn write_internal(path: &Path, options: Options) -> io::Result<WriteEntry> {
+fn write_internal(path: &Path, options: Options) -> io::Result<EntryBuilder> {
     if !options.quiet && options.verbose {
         println!("Adding: {}", path.display());
     }
@@ -136,7 +136,7 @@ fn write_internal(path: &Path, options: Options) -> io::Result<WriteEntry> {
                 },
             )
             .password(options.password.clone().flatten());
-        let mut entry = WriteEntry::new_file(path.into(), option_builder.build())?;
+        let mut entry = EntryBuilder::new_file(path.into(), option_builder.build())?;
         entry.write_all(&fs::read(path)?)?;
         return Ok(entry);
     }

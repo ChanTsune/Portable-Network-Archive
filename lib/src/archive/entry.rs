@@ -18,7 +18,6 @@ mod private {
     use super::*;
     pub trait SealedEntry {}
     impl SealedEntry for ReadEntry {}
-    impl SealedEntry for WriteEntry {}
     impl SealedEntry for ChunkEntry {}
 }
 
@@ -246,24 +245,32 @@ impl ReadEntry {
     }
 }
 
-pub struct WriteEntry(EntryWriter<Vec<u8>>);
+pub struct EntryBuilder(EntryWriter<Vec<u8>>);
 
-impl WriteEntry {
+impl EntryBuilder {
     pub fn new_file(name: EntryName, option: WriteOption) -> io::Result<Self> {
         Ok(Self(EntryWriter::new_file_with(Vec::new(), name, option)?))
     }
 
-    pub(crate) fn into_bytes(self) -> io::Result<Vec<u8>> {
-        self.0.finish()
+    pub(crate) fn build(self) -> io::Result<BytesEntry> {
+        Ok(BytesEntry(self.0.finish()?))
     }
 }
 
-impl Write for WriteEntry {
+impl Write for EntryBuilder {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.0.write(buf)
     }
 
     fn flush(&mut self) -> io::Result<()> {
         self.0.flush()
+    }
+}
+
+pub(crate) struct BytesEntry(Vec<u8>);
+
+impl BytesEntry {
+    pub(crate) fn as_bytes(&self) -> &[u8] {
+        self.0.as_slice()
     }
 }

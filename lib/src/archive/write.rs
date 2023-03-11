@@ -1,4 +1,4 @@
-use crate::archive::entry::{EntryWriter, WriteEntry, WriteOption};
+use crate::archive::entry::{EntryBuilder, EntryWriter, WriteOption};
 use crate::{
     archive::{EntryName, WriteOptionBuilder, PNA_HEADER},
     chunk::{self, ChunkWriter},
@@ -66,8 +66,8 @@ impl<W: Write> ArchiveWriter<W> {
         Ok(())
     }
 
-    pub fn add_entry(&mut self, entry: WriteEntry) -> io::Result<()> {
-        self.w.write_all(&entry.into_bytes()?)
+    pub fn add_entry(&mut self, entry: EntryBuilder) -> io::Result<()> {
+        self.w.write_all(&entry.build()?.as_bytes())
     }
 
     pub fn finalize(&mut self) -> io::Result<()> {
