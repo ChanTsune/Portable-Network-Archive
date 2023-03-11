@@ -7,6 +7,9 @@ pub use read::ChunkReader;
 pub use types::*;
 pub use write::ChunkWriter;
 
+pub(crate) type Chunk = (ChunkType, Vec<u8>);
+pub(crate) type Chunks = Vec<Chunk>;
+
 pub(crate) fn create_chunk_data_ahed(major: u8, minor: u8, archive_number: u32) -> [u8; 8] {
     let mut data = [0; 8];
     data[0] = major;
