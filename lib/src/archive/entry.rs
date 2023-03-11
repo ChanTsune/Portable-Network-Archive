@@ -61,11 +61,11 @@ pub struct EntryHeader {
     pub(crate) compression: Compression,
     pub(crate) encryption: Encryption,
     pub(crate) cipher_mode: CipherMode,
-    pub(crate) path: ItemName,
+    pub(crate) path: EntryName,
 }
 
 impl EntryHeader {
-    pub fn path(&self) -> &ItemName {
+    pub fn path(&self) -> &EntryName {
         &self.path
     }
 }
@@ -211,7 +211,7 @@ impl ReadEntry {
 pub struct WriteEntry(EntryWriter<Vec<u8>>);
 
 impl WriteEntry {
-    pub fn new_file(name: ItemName, option: WriteOption) -> io::Result<Self> {
+    pub fn new_file(name: EntryName, option: WriteOption) -> io::Result<Self> {
         Ok(Self(EntryWriter::new_file_with(Vec::new(), name, option)?))
     }
 
