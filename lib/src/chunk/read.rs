@@ -1,4 +1,4 @@
-use crate::chunk::{crc::Crc32, ChunkType};
+use crate::chunk::{crc::Crc32, Chunk, ChunkType};
 use std::io::{self, Read};
 
 pub struct ChunkReader<R> {
@@ -6,7 +6,7 @@ pub struct ChunkReader<R> {
 }
 
 impl<R: Read> ChunkReader<R> {
-    pub fn read_chunk(&mut self) -> io::Result<(ChunkType, Vec<u8>)> {
+    pub fn read_chunk(&mut self) -> io::Result<Chunk> {
         let mut crc_hasher = Crc32::new();
 
         // read chunk length

@@ -4,10 +4,9 @@ mod read;
 mod write;
 
 use crate::{
-    chunk,
+    chunk::{self, Chunks},
     cipher::{DecryptCbcAes256Reader, DecryptCbcCamellia256Reader},
     hash::verify_password,
-    ChunkType,
 };
 pub use name::*;
 pub use options::*;
@@ -94,7 +93,7 @@ impl TryFrom<&[u8]> for EntryHeader {
 
 /// Chunks from `FHED` to `FEND`, containing `FHED` and `FEND`
 pub(crate) struct RawEntry {
-    pub(crate) chunks: Vec<(ChunkType, Vec<u8>)>,
+    pub(crate) chunks: Chunks,
 }
 
 impl RawEntry {
@@ -147,7 +146,7 @@ impl RawEntry {
 pub struct ReadEntry {
     pub(crate) header: EntryHeader,
     pub(crate) phsf: Option<String>,
-    pub(crate) extra: Vec<(ChunkType, Vec<u8>)>,
+    pub(crate) extra: Chunks,
     pub(crate) data: Vec<u8>,
 }
 
@@ -225,7 +224,7 @@ impl ReadEntry {
         Ok(EntryDataReader(reader))
     }
 
-    pub fn extra(&self) -> &[(ChunkType, Vec<u8>)] {
+    pub fn extra(&self) -> &Chunks {
         &self.extra
     }
 }
