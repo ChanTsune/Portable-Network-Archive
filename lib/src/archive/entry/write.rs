@@ -1,6 +1,7 @@
 use crate::{
     archive::{
-        CipherMode, Compression, CompressionLevel, Encryption, HashAlgorithm, EntryName, WriteOption,
+        CipherMode, Compression, CompressionLevel, Encryption, EntryName, HashAlgorithm,
+        WriteOption,
     },
     chunk::{self, create_chunk_data_fhed, ChunkWriter},
     cipher::{CipherWriter, Ctr128BEWriter, EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
