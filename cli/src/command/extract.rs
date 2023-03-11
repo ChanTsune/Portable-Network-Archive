@@ -36,7 +36,7 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
         ProgressBar::new(0).with_style(ProgressStyle::default_bar().progress_chars("=> "));
 
     while let Some(item) = reader.read()? {
-        let item_path = PathBuf::from(item.header().path().as_ref());
+        let item_path = PathBuf::from(item.header().path().as_str());
         if !globs.is_empty() && !globs.iter().any(|glob| glob.matches_path(&item_path)) {
             if !options.quiet && options.verbose {
                 println!("Skip: {}", item.header().path())

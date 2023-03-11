@@ -4,9 +4,8 @@ mod read;
 mod write;
 
 pub use entry::{
-    CipherMode, Compression, CompressionLevel, DataKind, Encryption, Entry, EntryHeader,
-    HashAlgorithm, EntryName, ReadOption, ReadOptionBuilder, WriteEntry, WriteOption,
-    WriteOptionBuilder,
+    CipherMode, Compression, CompressionLevel, DataKind, Encryption, Entry, EntryHeader, EntryName,
+    HashAlgorithm, ReadOption, ReadOptionBuilder, WriteEntry, WriteOption, WriteOptionBuilder,
 };
 pub use header::PNA_HEADER;
 pub use read::{ArchiveReader, Decoder};

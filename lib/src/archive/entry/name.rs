@@ -1,9 +1,23 @@
 use std::ffi::OsStr;
 use std::fmt::{self, Display, Formatter};
-use std::path::{Component, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct EntryName(String);
+
+impl EntryName {
+    pub fn as_str(&self) -> &str {
+        self.as_ref()
+    }
+
+    pub fn as_os_str(&self) -> &OsStr {
+        self.as_ref()
+    }
+
+    pub fn as_path(&self) -> &Path {
+        self.as_ref()
+    }
+}
 
 impl<T: ?Sized + AsRef<OsStr>> From<&T> for EntryName {
     /// # Examples
@@ -49,6 +63,18 @@ impl Display for EntryName {
 impl AsRef<str> for EntryName {
     fn as_ref(&self) -> &str {
         &self.0
+    }
+}
+
+impl AsRef<OsStr> for EntryName {
+    fn as_ref(&self) -> &OsStr {
+        self.0.as_ref()
+    }
+}
+
+impl AsRef<Path> for EntryName {
+    fn as_ref(&self) -> &Path {
+        self.0.as_ref()
     }
 }
 
