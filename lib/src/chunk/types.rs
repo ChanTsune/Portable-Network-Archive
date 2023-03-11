@@ -1,4 +1,4 @@
-#[derive(Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct ChunkType(pub [u8; 4]);
 
 // -- Critical chunks --
