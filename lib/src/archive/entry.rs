@@ -4,7 +4,7 @@ mod read;
 mod write;
 
 use crate::{
-    chunk::{self, from_chunk_data_fhed},
+    chunk,
     cipher::{DecryptCbcAes256Reader, DecryptCbcCamellia256Reader},
     hash::verify_password,
     ChunkType,
@@ -70,6 +70,28 @@ impl EntryHeader {
     }
 }
 
+impl TryFrom<&[u8]> for EntryHeader {
+    type Error = io::Error;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        Ok(EntryHeader {
+            major: bytes[0],
+            minor: bytes[1],
+            data_kind: DataKind::try_from(bytes[2])
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+            compression: Compression::try_from(bytes[3])
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+            encryption: Encryption::try_from(bytes[4])
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+            cipher_mode: CipherMode::try_from(bytes[5])
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+            path: String::from_utf8(bytes[6..].to_vec())
+                .map(|s| EntryName::from(&s))
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+        })
+    }
+}
+
 /// Chunks from `FHED` to `FEND`, containing `FHED` and `FEND`
 pub(crate) struct RawEntry {
     pub(crate) chunks: Vec<(ChunkType, Vec<u8>)>,
@@ -85,7 +107,7 @@ impl RawEntry {
             match chunk_type {
                 chunk::FEND => break,
                 chunk::FHED => {
-                    info = Some(from_chunk_data_fhed(&raw_data)?);
+                    info = Some(EntryHeader::try_from(raw_data.as_slice())?);
                 }
                 chunk::PHSF => {
                     phsf = Some(
