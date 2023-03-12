@@ -77,8 +77,8 @@ pub(crate) fn chunk_to_bytes(chunk: impl Chunk) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
-    use crate::create_chunk_data_ahed;
     use super::*;
+    use crate::create_chunk_data_ahed;
 
     #[test]
     fn ahed() {

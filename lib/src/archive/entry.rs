@@ -103,11 +103,7 @@ pub(crate) struct ChunkEntry {
 
 impl Entry for ChunkEntry {
     fn into_bytes(self) -> Vec<u8> {
-        self.chunks
-            .into_iter()
-            .map(chunk_to_bytes)
-            .flatten()
-            .collect()
+        self.chunks.into_iter().flat_map(chunk_to_bytes).collect()
     }
 }
 
