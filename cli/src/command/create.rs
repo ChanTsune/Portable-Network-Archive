@@ -138,7 +138,7 @@ fn write_internal(path: &Path, options: Options) -> io::Result<impl Entry> {
             .password(options.password.clone().flatten());
         let mut entry = EntryBuilder::new_file(path.into(), option_builder.build())?;
         entry.write_all(&fs::read(path)?)?;
-        return Ok(entry.build()?);
+        return entry.build();
     }
     Err(io::Error::new(
         io::ErrorKind::Unsupported,

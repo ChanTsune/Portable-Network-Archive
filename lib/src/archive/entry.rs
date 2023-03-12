@@ -188,10 +188,6 @@ impl ReadEntry for ReadEntryImpl {
 }
 
 impl ReadEntryImpl {
-    pub fn header(&self) -> &EntryHeader {
-        &self.header
-    }
-
     fn reader(self, password: Option<&str>) -> io::Result<EntryDataReader> {
         let raw_data_reader = io::Cursor::new(self.data);
         let decrypt_reader: Box<dyn Read + Sync + Send> = match self.header.encryption {
