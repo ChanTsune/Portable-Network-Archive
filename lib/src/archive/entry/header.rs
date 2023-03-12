@@ -15,12 +15,43 @@ pub struct EntryHeader {
 }
 
 impl EntryHeader {
+    pub(crate) fn new(
+        data_kind: DataKind,
+        compression: Compression,
+        encryption: Encryption,
+        cipher_mode: CipherMode,
+        path: EntryName,
+    ) -> Self {
+        Self {
+            major: 0,
+            minor: 0,
+            data_kind,
+            compression,
+            encryption,
+            cipher_mode,
+            path,
+        }
+    }
+
     pub fn path(&self) -> &EntryName {
         &self.path
     }
 
     pub fn data_kind(&self) -> DataKind {
         self.data_kind
+    }
+
+    pub(crate) fn to_bytes(&self) -> Vec<u8> {
+        let name = self.path.as_str().as_bytes();
+        let mut data = Vec::with_capacity(6 + name.len());
+        data.push(self.minor);
+        data.push(self.minor);
+        data.push(self.data_kind as u8);
+        data.push(self.compression as u8);
+        data.push(self.encryption as u8);
+        data.push(self.cipher_mode as u8);
+        data.extend_from_slice(name);
+        data
     }
 }
 

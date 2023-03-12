@@ -1,9 +1,9 @@
 use crate::{
     archive::{
-        CipherMode, Compression, CompressionLevel, Encryption, EntryName, HashAlgorithm,
-        WriteOption,
+        CipherMode, Compression, CompressionLevel, DataKind, Encryption, EntryHeader, EntryName,
+        HashAlgorithm, WriteOption,
     },
-    chunk::{self, create_chunk_data_fhed, ChunkWriter},
+    chunk::{self, ChunkWriter},
     cipher::{CipherWriter, Ctr128BEWriter, EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
     compress::CompressionWriter,
     hash,
@@ -30,15 +30,14 @@ impl<W: Write> EntryWriter<W> {
         let mut chunk_writer = ChunkWriter::from(w);
         chunk_writer.write_chunk(
             chunk::FHED,
-            &create_chunk_data_fhed(
-                0,
-                0,
-                options.compression as u8,
-                options.encryption as u8,
-                options.cipher_mode as u8,
-                0,
-                name.as_ref(),
-            ),
+            &EntryHeader::new(
+                DataKind::File,
+                options.compression,
+                options.encryption,
+                options.cipher_mode,
+                name,
+            )
+            .to_bytes(),
         )?;
         Ok(Self {
             w: chunk_writer.into_inner(),
