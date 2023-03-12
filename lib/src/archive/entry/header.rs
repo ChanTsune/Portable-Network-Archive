@@ -1,8 +1,9 @@
 use super::{CipherMode, Compression, DataKind, Encryption, EntryName};
-use crate::FHED;
 use std::io;
 
-/// Represents the entry information header that is expressed in the [`FHED`] chunk.
+/// Represents the entry information header that is expressed in the [FHED] chunk.
+///
+/// [FHED]: crate::FHED
 pub struct EntryHeader {
     pub(crate) major: u8,
     pub(crate) minor: u8,
@@ -16,6 +17,10 @@ pub struct EntryHeader {
 impl EntryHeader {
     pub fn path(&self) -> &EntryName {
         &self.path
+    }
+
+    pub fn data_kind(&self) -> DataKind {
+        self.data_kind
     }
 }
 
