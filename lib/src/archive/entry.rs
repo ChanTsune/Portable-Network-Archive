@@ -24,7 +24,7 @@ mod private {
 
 /// PNA archive entry
 pub trait Entry: private::SealedEntry {
-    fn as_bytes(&self) -> &[u8];
+    fn into_bytes(self) -> Vec<u8>;
 }
 
 pub trait ReadEntry: Entry {
@@ -102,7 +102,7 @@ pub(crate) struct ChunkEntry {
 }
 
 impl Entry for ChunkEntry {
-    fn as_bytes(&self) -> &[u8] {
+    fn into_bytes(self) -> Vec<u8> {
         todo!()
     }
 }
@@ -170,7 +170,7 @@ pub(crate) struct ReadEntryImpl {
 }
 
 impl Entry for ReadEntryImpl {
-    fn as_bytes(&self) -> &[u8] {
+    fn into_bytes(self) -> Vec<u8> {
         todo!()
     }
 }
@@ -271,7 +271,7 @@ impl Write for EntryBuilder {
 pub(crate) struct BytesEntry(Vec<u8>);
 
 impl Entry for BytesEntry {
-    fn as_bytes(&self) -> &[u8] {
-        self.0.as_slice()
+    fn into_bytes(self) -> Vec<u8> {
+        self.0
     }
 }

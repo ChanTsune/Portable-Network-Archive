@@ -1,4 +1,4 @@
-use libpna::{Decoder, Entry, ReadEntry, ReadOptionBuilder};
+use libpna::{Decoder, ReadEntry, ReadOptionBuilder};
 use std::io;
 
 fn extract_all(bytes: &[u8], password: Option<&str>) {
