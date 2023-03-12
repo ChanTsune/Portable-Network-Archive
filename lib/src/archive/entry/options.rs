@@ -119,12 +119,12 @@ pub struct WriteOption {
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct WriteOptionBuilder {
-    pub(crate) compression: Compression,
-    pub(crate) compression_level: CompressionLevel,
-    pub(crate) encryption: Encryption,
-    pub(crate) cipher_mode: CipherMode,
-    pub(crate) hash_algorithm: HashAlgorithm,
-    pub(crate) password: Option<String>,
+    compression: Compression,
+    compression_level: CompressionLevel,
+    encryption: Encryption,
+    cipher_mode: CipherMode,
+    hash_algorithm: HashAlgorithm,
+    password: Option<String>,
 }
 
 impl Default for WriteOptionBuilder {
@@ -181,6 +181,31 @@ impl WriteOptionBuilder {
             encryption: self.encryption,
             cipher_mode: self.cipher_mode,
             hash_algorithm: self.hash_algorithm,
+            password: self.password.clone(),
+        }
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct ReadOption {
+    pub(crate) password: Option<String>,
+}
+
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+pub struct ReadOptionBuilder {
+    password: Option<String>,
+}
+
+impl ReadOptionBuilder {
+    pub fn new() -> Self {
+        Self { password: None }
+    }
+    pub fn password<T: AsRef<str>>(&mut self, password: T) -> &mut Self {
+        self.password = Some(password.as_ref().to_string());
+        self
+    }
+    pub fn build(&self) -> ReadOption {
+        ReadOption {
             password: self.password.clone(),
         }
     }

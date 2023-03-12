@@ -33,31 +33,6 @@ pub trait ReadEntry: Entry {
     fn into_reader(self, option: ReadOption) -> io::Result<Self::Reader>;
 }
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct ReadOption {
-    password: Option<String>,
-}
-
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
-pub struct ReadOptionBuilder {
-    password: Option<String>,
-}
-
-impl ReadOptionBuilder {
-    pub fn new() -> Self {
-        Self { password: None }
-    }
-    pub fn password<T: AsRef<str>>(&mut self, password: T) -> &mut Self {
-        self.password = Some(password.as_ref().to_string());
-        self
-    }
-    pub fn build(&self) -> ReadOption {
-        ReadOption {
-            password: self.password.clone(),
-        }
-    }
-}
-
 pub struct EntryHeader {
     pub(crate) major: u8,
     pub(crate) minor: u8,
