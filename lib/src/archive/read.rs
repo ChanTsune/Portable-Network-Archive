@@ -26,7 +26,7 @@ impl Decoder {
         }
         let mut chunk_reader = ChunkReader::from(reader);
         // Read `AHED` chunk
-        let (_, _) = chunk_reader.read_chunk()?;
+        let _ = chunk_reader.read_chunk()?;
         Ok(ArchiveReader { r: chunk_reader })
     }
 }
