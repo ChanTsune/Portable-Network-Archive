@@ -45,27 +45,6 @@ pub(crate) fn create_chunk_data_ahed(major: u8, minor: u8, archive_number: u32) 
     data
 }
 
-pub(crate) fn create_chunk_data_fhed(
-    major: u8,
-    minor: u8,
-    compression: u8,
-    encryption: u8,
-    cipher_mode: u8,
-    file_type: u8,
-    name: &str,
-) -> Box<[u8]> {
-    let name = name.as_bytes();
-    let mut data = vec![0u8; 6 + name.len()];
-    data[0] = major;
-    data[1] = minor;
-    data[2] = file_type;
-    data[3] = compression;
-    data[4] = encryption;
-    data[5] = cipher_mode;
-    data[6..].copy_from_slice(name);
-    data.into_boxed_slice()
-}
-
 pub(crate) fn chunk_to_bytes(chunk: impl Chunk) -> Vec<u8> {
     let mut vec = Vec::with_capacity(12usize + chunk.length() as usize);
     vec.extend_from_slice(&chunk.length().to_be_bytes());
