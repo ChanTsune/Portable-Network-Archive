@@ -40,3 +40,34 @@ impl<W: Write> ChunkWriter<W> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::types::*;
+    use super::*;
+
+    #[test]
+    fn write_aend_chunk() {
+        let mut chunk_writer = ChunkWriter::from(Vec::new());
+        chunk_writer.write_chunk(AEND, &[]).unwrap();
+        assert_eq!(
+            chunk_writer.into_inner(),
+            [0, 0, 0, 0, 65, 69, 78, 68, 107, 246, 72, 109]
+        )
+    }
+
+    #[test]
+    fn write_fdat_chunk() {
+        let mut chunk_writer = ChunkWriter::from(Vec::new());
+        chunk_writer
+            .write_chunk(FDAT, "text data".as_bytes())
+            .unwrap();
+        assert_eq!(
+            chunk_writer.into_inner(),
+            [
+                0, 0, 0, 9, 70, 68, 65, 84, 116, 101, 120, 116, 32, 100, 97, 116, 97, 177, 70, 138,
+                128
+            ]
+        )
+    }
+}
