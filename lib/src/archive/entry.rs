@@ -4,7 +4,7 @@ mod read;
 mod write;
 
 use crate::{
-    chunk::{self, Chunks},
+    chunk::{self, chunk_to_bytes, Chunks},
     cipher::{DecryptCbcAes256Reader, DecryptCbcCamellia256Reader},
     hash::verify_password,
 };
@@ -103,7 +103,11 @@ pub(crate) struct ChunkEntry {
 
 impl Entry for ChunkEntry {
     fn into_bytes(self) -> Vec<u8> {
-        todo!()
+        self.chunks
+            .into_iter()
+            .map(chunk_to_bytes)
+            .flatten()
+            .collect()
     }
 }
 
