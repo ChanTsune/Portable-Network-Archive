@@ -1,7 +1,7 @@
-use crate::chunk::{crc::Crc32, ChunkType};
+use crate::chunk::{Chunk, ChunkType};
 use std::io::{self, Write};
 
-pub struct ChunkWriter<W> {
+pub(crate) struct ChunkWriter<W> {
     w: W,
 }
 
@@ -21,22 +21,21 @@ where
 }
 
 impl<W: Write> ChunkWriter<W> {
-    pub fn write_chunk(&mut self, type_: ChunkType, data: &[u8]) -> io::Result<()> {
-        let mut crc = Crc32::new();
+    pub(crate) fn write_chunk(&mut self, type_: ChunkType, data: &[u8]) -> io::Result<()> {
+        let chunk = (type_, data);
+
         // write length
-        let length = data.len() as u32;
+        let length = chunk.length();
         self.w.write_all(&length.to_be_bytes())?;
 
         // write chunk type
-        self.w.write_all(&type_.0)?;
-        crc.update(&type_.0);
+        self.w.write_all(&chunk.ty().0)?;
 
         // write data
-        self.w.write_all(data)?;
-        crc.update(data);
+        self.w.write_all(chunk.data())?;
 
         // write crc32
-        self.w.write_all(&crc.finalize().to_be_bytes())?;
+        self.w.write_all(&chunk.crc().to_be_bytes())?;
         Ok(())
     }
 }

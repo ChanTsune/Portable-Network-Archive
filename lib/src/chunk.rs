@@ -3,12 +3,38 @@ mod read;
 mod types;
 mod write;
 
-pub use read::ChunkReader;
+use crc::Crc32;
+pub(crate) use read::ChunkReader;
+use std::ops::Deref;
 pub use types::*;
-pub use write::ChunkWriter;
+pub(crate) use write::ChunkWriter;
 
-pub(crate) type Chunk = (ChunkType, Vec<u8>);
-pub(crate) type Chunks = Vec<Chunk>;
+trait Chunk {
+    fn length(&self) -> u32 {
+        self.data().len() as u32
+    }
+    fn ty(&self) -> &ChunkType;
+    fn data(&self) -> &[u8];
+    fn crc(&self) -> u32 {
+        let mut crc = Crc32::new();
+        crc.update(&self.ty().0);
+        crc.update(self.data());
+        crc.finalize()
+    }
+}
+
+pub(crate) type ChunkImpl = (ChunkType, Vec<u8>);
+pub(crate) type Chunks = Vec<ChunkImpl>;
+
+impl<T: Deref<Target = [u8]>> Chunk for (ChunkType, T) {
+    fn ty(&self) -> &ChunkType {
+        &self.0
+    }
+
+    fn data(&self) -> &[u8] {
+        self.1.deref()
+    }
+}
 
 pub(crate) fn create_chunk_data_ahed(major: u8, minor: u8, archive_number: u32) -> [u8; 8] {
     let mut data = [0; 8];
