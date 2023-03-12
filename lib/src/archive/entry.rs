@@ -1,3 +1,4 @@
+mod header;
 mod name;
 mod options;
 mod read;
@@ -8,6 +9,7 @@ use crate::{
     cipher::{DecryptCbcAes256Reader, DecryptCbcCamellia256Reader},
     hash::verify_password,
 };
+pub use header::*;
 pub use name::*;
 pub use options::*;
 use read::*;
@@ -31,44 +33,6 @@ pub trait ReadEntry: Entry {
     type Reader: Read + Sync + Send;
     fn header(&self) -> &EntryHeader;
     fn into_reader(self, option: ReadOption) -> io::Result<Self::Reader>;
-}
-
-pub struct EntryHeader {
-    pub(crate) major: u8,
-    pub(crate) minor: u8,
-    pub(crate) data_kind: DataKind,
-    pub(crate) compression: Compression,
-    pub(crate) encryption: Encryption,
-    pub(crate) cipher_mode: CipherMode,
-    pub(crate) path: EntryName,
-}
-
-impl EntryHeader {
-    pub fn path(&self) -> &EntryName {
-        &self.path
-    }
-}
-
-impl TryFrom<&[u8]> for EntryHeader {
-    type Error = io::Error;
-
-    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
-        Ok(EntryHeader {
-            major: bytes[0],
-            minor: bytes[1],
-            data_kind: DataKind::try_from(bytes[2])
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
-            compression: Compression::try_from(bytes[3])
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
-            encryption: Encryption::try_from(bytes[4])
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
-            cipher_mode: CipherMode::try_from(bytes[5])
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
-            path: String::from_utf8(bytes[6..].to_vec())
-                .map(|s| EntryName::from(&s))
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
-        })
-    }
 }
 
 /// Chunks from `FHED` to `FEND`, containing `FHED` and `FEND`
