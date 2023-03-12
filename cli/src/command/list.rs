@@ -1,6 +1,6 @@
 use super::Options;
 use glob::Pattern;
-use libpna::{Decoder, Entry};
+use libpna::{Decoder, ReadEntry};
 use std::fs::File;
 use std::io;
 use std::path::{Path, PathBuf};

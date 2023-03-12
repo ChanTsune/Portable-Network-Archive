@@ -1,7 +1,7 @@
 use super::Options;
 use glob::Pattern;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
-use libpna::{Decoder, Entry, ReadOptionBuilder};
+use libpna::{Decoder, ReadEntry, ReadOptionBuilder};
 use rayon::ThreadPoolBuilder;
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -67,7 +67,7 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
     Ok(())
 }
 
-fn extract_entry(item_path: PathBuf, item: impl Entry, options: Options) -> io::Result<()> {
+fn extract_entry(item_path: PathBuf, item: impl ReadEntry, options: Options) -> io::Result<()> {
     let path = if let Some(out_dir) = &options.out_dir {
         out_dir.join(&item_path)
     } else {
@@ -89,7 +89,7 @@ fn extract_entry(item_path: PathBuf, item: impl Entry, options: Options) -> io::
     if !options.quiet && options.verbose {
         println!("start: {}", path.display())
     }
-    let mut reader = item.to_reader({
+    let mut reader = item.into_reader({
         let mut builder = ReadOptionBuilder::new();
         if let Some(password) = options.password.flatten() {
             builder.password(password);

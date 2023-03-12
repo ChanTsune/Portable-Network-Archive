@@ -1,6 +1,6 @@
 extern crate test;
 
-use libpna::{Decoder, Encoder, Entry, ReadOptionBuilder};
+use libpna::{Decoder, Encoder, ReadEntry, ReadOptionBuilder};
 use std::io::{self, Cursor};
 use test::Bencher;
 
@@ -27,7 +27,8 @@ fn read_empty_archive(b: &mut Bencher) {
         let decoder = Decoder::default();
         let mut reader = decoder.read_header(Cursor::new(vec.as_slice())).unwrap();
         while let Some(item) = reader.read().unwrap() {
-            io::read_to_string(item.to_reader(ReadOptionBuilder::new().build()).unwrap()).unwrap();
+            io::read_to_string(item.into_reader(ReadOptionBuilder::new().build()).unwrap())
+                .unwrap();
         }
     })
 }

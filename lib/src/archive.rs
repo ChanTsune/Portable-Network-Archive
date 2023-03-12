@@ -4,8 +4,9 @@ mod read;
 mod write;
 
 pub use entry::{
-    CipherMode, Compression, CompressionLevel, DataKind, Encryption, Entry, EntryHeader, EntryName,
-    HashAlgorithm, ReadOption, ReadOptionBuilder, WriteEntry, WriteOption, WriteOptionBuilder,
+    CipherMode, Compression, CompressionLevel, DataKind, Encryption, Entry, EntryBuilder,
+    EntryHeader, EntryName, HashAlgorithm, ReadEntry, ReadOption, ReadOptionBuilder, WriteOption,
+    WriteOptionBuilder,
 };
 pub use header::PNA_HEADER;
 pub use read::{ArchiveReader, Decoder};
@@ -177,7 +178,7 @@ mod tests {
             .read()
             .unwrap()
             .unwrap()
-            .to_reader({
+            .into_reader({
                 let mut builder = ReadOptionBuilder::new();
                 if let Some(password) = options.password {
                     builder.password(password);

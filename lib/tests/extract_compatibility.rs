@@ -1,4 +1,4 @@
-use libpna::{Decoder, Entry, ReadOptionBuilder};
+use libpna::{Decoder, ReadEntry, ReadOptionBuilder};
 use std::io;
 
 fn extract_all(bytes: &[u8], password: Option<&str>) {
@@ -8,7 +8,7 @@ fn extract_all(bytes: &[u8], password: Option<&str>) {
         let path = item.header().path().to_string();
         let mut dist = Vec::new();
         let mut reader = item
-            .to_reader({
+            .into_reader({
                 let mut builder = ReadOptionBuilder::new();
                 if let Some(password) = password {
                     builder.password(password);

@@ -2,7 +2,7 @@ extern crate test;
 
 use crate::{bench_read_archive, bench_write_archive};
 use libpna::{
-    CipherMode, Compression, Decoder, Encoder, Encryption, Entry, ReadOptionBuilder,
+    CipherMode, Compression, Decoder, Encoder, Encryption, ReadEntry, ReadOptionBuilder,
     WriteOptionBuilder,
 };
 use std::io::{Cursor, Read};
