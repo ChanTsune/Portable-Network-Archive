@@ -17,15 +17,20 @@ pub(crate) use write::*;
 mod private {
     use super::*;
     pub trait SealedEntry {}
-    impl SealedEntry for ReadEntry {}
+    impl SealedEntry for ReadEntryImpl {}
     impl SealedEntry for ChunkEntry {}
+    impl SealedEntry for BytesEntry {}
 }
 
 /// PNA archive entry
 pub trait Entry: private::SealedEntry {
+    fn as_bytes(&self) -> &[u8];
+}
+
+pub trait ReadEntry: Entry {
     type Reader: Read + Sync + Send;
+    fn header(&self) -> &EntryHeader;
     fn into_reader(self, option: ReadOption) -> io::Result<Self::Reader>;
-    fn into_read_entry(self) -> io::Result<ReadEntry>;
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -97,19 +102,13 @@ pub(crate) struct ChunkEntry {
 }
 
 impl Entry for ChunkEntry {
-    type Reader = EntryDataReader;
-
-    fn into_reader(self, option: ReadOption) -> io::Result<Self::Reader> {
-        self.into_read_entry()?.into_reader(option)
-    }
-
-    fn into_read_entry(self) -> io::Result<ReadEntry> {
-        self.into_entry()
+    fn as_bytes(&self) -> &[u8] {
+        todo!()
     }
 }
 
 impl ChunkEntry {
-    pub(crate) fn into_entry(self) -> io::Result<ReadEntry> {
+    pub(crate) fn into_entry(self) -> io::Result<ReadEntryImpl> {
         let mut extra = vec![];
         let mut data = vec![];
         let mut info = None;
@@ -145,7 +144,7 @@ impl ChunkEntry {
                 ),
             ));
         }
-        Ok(ReadEntry {
+        Ok(ReadEntryImpl {
             header,
             phsf,
             extra,
@@ -163,26 +162,32 @@ impl Read for EntryDataReader {
 }
 
 /// [Entry] that read from PNA archive.
-pub struct ReadEntry {
+pub(crate) struct ReadEntryImpl {
     pub(crate) header: EntryHeader,
     pub(crate) phsf: Option<String>,
     pub(crate) extra: Chunks,
     pub(crate) data: Vec<u8>,
 }
 
-impl Entry for ReadEntry {
+impl Entry for ReadEntryImpl {
+    fn as_bytes(&self) -> &[u8] {
+        todo!()
+    }
+}
+
+impl ReadEntry for ReadEntryImpl {
     type Reader = EntryDataReader;
+
+    fn header(&self) -> &EntryHeader {
+        &self.header
+    }
 
     fn into_reader(self, option: ReadOption) -> io::Result<Self::Reader> {
         self.reader(option.password.as_deref())
     }
-
-    fn into_read_entry(self) -> io::Result<ReadEntry> {
-        Ok(self)
-    }
 }
 
-impl ReadEntry {
+impl ReadEntryImpl {
     pub fn header(&self) -> &EntryHeader {
         &self.header
     }
@@ -252,7 +257,7 @@ impl EntryBuilder {
         Ok(Self(EntryWriter::new_file_with(Vec::new(), name, option)?))
     }
 
-    pub(crate) fn build(self) -> io::Result<BytesEntry> {
+    pub fn build(self) -> io::Result<impl Entry> {
         Ok(BytesEntry(self.0.finish()?))
     }
 }
@@ -269,8 +274,8 @@ impl Write for EntryBuilder {
 
 pub(crate) struct BytesEntry(Vec<u8>);
 
-impl BytesEntry {
-    pub(crate) fn as_bytes(&self) -> &[u8] {
+impl Entry for BytesEntry {
+    fn as_bytes(&self) -> &[u8] {
         self.0.as_slice()
     }
 }

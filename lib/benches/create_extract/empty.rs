@@ -1,6 +1,6 @@
 extern crate test;
 
-use libpna::{Decoder, Encoder, Entry, ReadOptionBuilder};
+use libpna::{Decoder, Encoder, ReadEntry, ReadOptionBuilder};
 use std::io::{self, Cursor};
 use test::Bencher;
 

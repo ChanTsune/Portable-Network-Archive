@@ -5,7 +5,7 @@ mod write;
 
 pub use entry::{
     CipherMode, Compression, CompressionLevel, DataKind, Encryption, Entry, EntryBuilder,
-    EntryHeader, EntryName, HashAlgorithm, ReadOption, ReadOptionBuilder, WriteOption,
+    EntryHeader, EntryName, HashAlgorithm, ReadEntry, ReadOption, ReadOptionBuilder, WriteOption,
     WriteOptionBuilder,
 };
 pub use header::PNA_HEADER;

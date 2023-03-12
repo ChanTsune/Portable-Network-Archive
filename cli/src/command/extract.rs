@@ -1,7 +1,7 @@
 use super::Options;
 use glob::Pattern;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
-use libpna::{Decoder, Entry, ReadOptionBuilder};
+use libpna::{Decoder, ReadEntry, ReadOptionBuilder};
 use rayon::ThreadPoolBuilder;
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -36,7 +36,6 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
         ProgressBar::new(0).with_style(ProgressStyle::default_bar().progress_chars("=> "));
 
     while let Some(item) = reader.read()? {
-        let item = item.into_read_entry()?;
         let item_path = PathBuf::from(item.header().path().as_str());
         if !globs.is_empty() && !globs.iter().any(|glob| glob.matches_path(&item_path)) {
             if !options.quiet && options.verbose {
@@ -68,7 +67,7 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
     Ok(())
 }
 
-fn extract_entry(item_path: PathBuf, item: impl Entry, options: Options) -> io::Result<()> {
+fn extract_entry(item_path: PathBuf, item: impl ReadEntry, options: Options) -> io::Result<()> {
     let path = if let Some(out_dir) = &options.out_dir {
         out_dir.join(&item_path)
     } else {

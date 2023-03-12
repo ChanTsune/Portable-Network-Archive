@@ -1,6 +1,6 @@
 use crate::{
     archive::{
-        entry::{ChunkEntry, Entry},
+        entry::{ChunkEntry, ReadEntry},
         PNA_HEADER,
     },
     chunk::{self, ChunkReader},
@@ -53,8 +53,12 @@ impl<R: Read> ArchiveReader<R> {
         Ok(Some(ChunkEntry { chunks }))
     }
 
-    pub fn read(&mut self) -> io::Result<Option<impl Entry>> {
-        self.next_raw_item()
+    pub fn read(&mut self) -> io::Result<Option<impl ReadEntry>> {
+        let entry = self.next_raw_item()?;
+        match entry {
+            Some(entry) => Ok(Some(entry.into_entry()?)),
+            None => Ok(None),
+        }
     }
 }
 
