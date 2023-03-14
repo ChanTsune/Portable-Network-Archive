@@ -2,7 +2,8 @@ pub mod create;
 pub mod extract;
 pub mod list;
 
-use clap::{value_parser, ArgGroup, Parser, ValueEnum};
+use crate::cli::CipherMode;
+use clap::{value_parser, ArgGroup, Parser};
 use std::{io, path::PathBuf};
 
 #[derive(Parser)]
@@ -77,18 +78,6 @@ pub(crate) struct Options {
     verbose: bool,
     #[arg(long, help = "Make some output more quiet")]
     quiet: bool,
-}
-
-#[derive(Clone, Copy, ValueEnum)]
-enum CipherMode {
-    Cbc,
-    Ctr,
-}
-
-impl Default for CipherMode {
-    fn default() -> Self {
-        Self::Ctr
-    }
 }
 
 pub fn entry(mut args: Args) -> io::Result<()> {
