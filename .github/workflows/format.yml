@@ -1,0 +1,17 @@
+name: format
+on:
+  pull_request:
+  push:
+jobs:
+  rust_check_format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Rust toolchain
+        run: rustup update --no-self-update stable && rustup default stable
+      - name: echo rust version
+        run: rustc --version
+      - name: run check format
+        run: cargo fmt --check
+        env:
+          RUST_BACKTRACE: 1
