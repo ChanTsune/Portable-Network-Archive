@@ -1,6 +1,6 @@
-use pna::{clap::Parser, command};
+use pna::{clap::Parser, cli, command};
 use std::io;
 
 fn main() -> io::Result<()> {
-    command::entry(command::Args::parse())
+    command::entry(cli::Cli::parse())
 }
