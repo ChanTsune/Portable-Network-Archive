@@ -2,15 +2,15 @@
 extern crate test;
 
 use clap::Parser;
-use portable_network_archive::command;
+use portable_network_archive::{cli, command};
 use test::Bencher;
 
 #[bench]
 fn store(b: &mut Bencher) {
     b.iter(|| {
-        command::entry(command::Args::parse_from([
+        command::entry(cli::Cli::parse_from([
             "pna",
-            "-x",
+            "x",
             "../resources/test/empty.pna",
             "--overwrite",
             "--out-dir",
@@ -23,9 +23,9 @@ fn store(b: &mut Bencher) {
 #[bench]
 fn zstd(b: &mut Bencher) {
     b.iter(|| {
-        command::entry(command::Args::parse_from([
+        command::entry(cli::Cli::parse_from([
             "pna",
-            "-x",
+            "x",
             "../resources/test/zstd.pna",
             "--overwrite",
             "--out-dir",
@@ -38,9 +38,9 @@ fn zstd(b: &mut Bencher) {
 #[bench]
 fn deflate(b: &mut Bencher) {
     b.iter(|| {
-        command::entry(command::Args::parse_from([
+        command::entry(cli::Cli::parse_from([
             "pna",
-            "-x",
+            "x",
             "../resources/test/deflate.pna",
             "--overwrite",
             "--out-dir",
@@ -51,11 +51,11 @@ fn deflate(b: &mut Bencher) {
 }
 
 #[bench]
-fn lzma(b: &mut Bencher) {
+fn xz(b: &mut Bencher) {
     b.iter(|| {
-        command::entry(command::Args::parse_from([
+        command::entry(cli::Cli::parse_from([
             "pna",
-            "-x",
+            "x",
             "../resources/test/lzma.pna",
             "--overwrite",
             "--out-dir",

@@ -1,29 +1,29 @@
-use super::Options;
+use crate::cli::{ExtractArgs, Verbosity};
+use crate::command::ask_password;
 use glob::Pattern;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use libpna::{Decoder, ReadEntry, ReadOptionBuilder};
 use rayon::ThreadPoolBuilder;
 use std::fs::File;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Instant;
 use std::{fs, io};
 
-pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
-    archive: A,
-    files: &[F],
-    options: Options,
-) -> io::Result<()> {
+pub(crate) fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
+    let password = ask_password(args.password)?;
     let start = Instant::now();
-    if !options.quiet {
-        println!("Extract archive {}", archive.as_ref().display());
+    if verbosity != Verbosity::Quite {
+        println!("Extract archive {}", args.file.archive.display());
     }
-    let globs = files
+    let globs = args
+        .file
+        .files
         .iter()
-        .map(|p| Pattern::new(&p.as_ref().to_string_lossy()))
+        .map(|p| Pattern::new(&p.to_string_lossy()))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-    let file = File::open(archive)?;
+    let file = File::open(args.file.archive)?;
 
     let pool = ThreadPoolBuilder::default()
         .build()
@@ -38,17 +38,25 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
     while let Some(item) = reader.read()? {
         let item_path = PathBuf::from(item.header().path().as_str());
         if !globs.is_empty() && !globs.iter().any(|glob| glob.matches_path(&item_path)) {
-            if !options.quiet && options.verbose {
+            if verbosity == Verbosity::Verbose {
                 println!("Skip: {}", item.header().path())
             }
             continue;
         }
         progress_bar.inc_length(1);
         let tx = tx.clone();
-        let options = options.clone();
+        let password = password.clone();
+        let out_dir = args.out_dir.clone();
         pool.spawn_fifo(move || {
-            tx.send(extract_entry(item_path.clone(), item, options))
-                .unwrap_or_else(|e| panic!("{e}: {}", item_path.display()));
+            tx.send(extract_entry(
+                item_path.clone(),
+                item,
+                password,
+                args.overwrite,
+                out_dir,
+                verbosity,
+            ))
+            .unwrap_or_else(|e| panic!("{e}: {}", item_path.display()));
         });
     }
     drop(tx);
@@ -58,7 +66,7 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
     }
     progress_bar.finish_and_clear();
 
-    if !options.quiet {
+    if verbosity != Verbosity::Quite {
         println!(
             "Successfully extracted an archive in {}",
             HumanDuration(start.elapsed())
@@ -67,37 +75,44 @@ pub(crate) fn extract_archive<A: AsRef<Path>, F: AsRef<Path>>(
     Ok(())
 }
 
-fn extract_entry(item_path: PathBuf, item: impl ReadEntry, options: Options) -> io::Result<()> {
-    let path = if let Some(out_dir) = &options.out_dir {
+fn extract_entry(
+    item_path: PathBuf,
+    item: impl ReadEntry,
+    password: Option<String>,
+    overwrite: bool,
+    out_dir: Option<PathBuf>,
+    verbosity: Verbosity,
+) -> io::Result<()> {
+    let path = if let Some(out_dir) = &out_dir {
         out_dir.join(&item_path)
     } else {
         item_path.clone()
     };
-    if path.exists() && !options.overwrite {
+    if path.exists() && !overwrite {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
             format!("{} is alrady exists", path.display()),
         ));
     }
-    if !options.quiet && options.verbose {
+    if verbosity == Verbosity::Verbose {
         println!("Extract: {}", item_path.display());
     }
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
     let mut file = File::create(&path)?;
-    if !options.quiet && options.verbose {
+    if verbosity == Verbosity::Verbose {
         println!("start: {}", path.display())
     }
     let mut reader = item.into_reader({
         let mut builder = ReadOptionBuilder::new();
-        if let Some(password) = options.password.flatten() {
+        if let Some(password) = password {
             builder.password(password);
         }
         builder.build()
     })?;
     io::copy(&mut reader, &mut file)?;
-    if !options.quiet && options.verbose {
+    if verbosity == Verbosity::Verbose {
         println!("end: {}", path.display())
     }
     Ok(())
