@@ -102,6 +102,8 @@ pub(crate) struct ExtractArgs {
 pub(crate) struct ListArgs {
     #[arg(short, long, help = "Display extended file metadata as a table")]
     pub(crate) long: bool,
+    #[arg(short, long, help = "Add a header row to each column")]
+    pub(crate) header: bool,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
