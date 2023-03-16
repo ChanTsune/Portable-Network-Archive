@@ -1,4 +1,5 @@
 mod header;
+mod meta;
 mod name;
 mod options;
 mod read;
@@ -10,6 +11,7 @@ use crate::{
     hash::verify_password,
 };
 pub use header::*;
+pub use meta::*;
 pub use name::*;
 pub use options::*;
 use read::*;
@@ -32,6 +34,7 @@ pub trait Entry: private::SealedEntry {
 pub trait ReadEntry: Entry {
     type Reader: Read + Sync + Send;
     fn header(&self) -> &EntryHeader;
+    fn metadata(&self) -> &Metadata;
     fn into_reader(self, option: ReadOption) -> io::Result<Self::Reader>;
 }
 
@@ -87,6 +90,9 @@ impl ChunkEntry {
             header,
             phsf,
             extra,
+            metadata: Metadata {
+                compressed_size: data.len(),
+            },
             data,
         })
     }
@@ -106,6 +112,7 @@ pub(crate) struct ReadEntryImpl {
     pub(crate) phsf: Option<String>,
     pub(crate) extra: Chunks,
     pub(crate) data: Vec<u8>,
+    pub(crate) metadata: Metadata,
 }
 
 impl Entry for ReadEntryImpl {
@@ -117,10 +124,17 @@ impl Entry for ReadEntryImpl {
 impl ReadEntry for ReadEntryImpl {
     type Reader = EntryDataReader;
 
+    #[inline]
     fn header(&self) -> &EntryHeader {
         &self.header
     }
 
+    #[inline]
+    fn metadata(&self) -> &Metadata {
+        &self.metadata
+    }
+
+    #[inline]
     fn into_reader(self, option: ReadOption) -> io::Result<Self::Reader> {
         self.reader(option.password.as_deref())
     }
