@@ -7,17 +7,15 @@ pub(crate) struct Table {
 }
 
 impl Table {
-    pub(crate) fn new(header_style: Style) -> Self {
-        let header = TableRow::header(header_style);
-        let mut table = Self {
-            max_widths: vec![0; header.columns.len()],
+    pub(crate) fn new() -> Self {
+        Self {
+            max_widths: vec![0; 0],
             rows: Default::default(),
-        };
-        table.push(header);
-        table
+        }
     }
 
     pub(crate) fn push(&mut self, row: TableRow) {
+        self.max_widths.resize(row.columns.len(), 0);
         for (i, col) in row.columns.iter().enumerate() {
             self.max_widths[i] = self.max_widths[i].max(col.text.len());
         }
@@ -59,6 +57,7 @@ impl TableRow {
         Self::new(vec![
             Cell::new(style, "Encryption"),
             Cell::new(style, "Compression"),
+            Cell::new(style, "Compressed Size"),
             Cell::new(style, "Name"),
         ])
     }

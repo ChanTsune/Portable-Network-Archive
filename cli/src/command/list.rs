@@ -1,10 +1,10 @@
 mod table;
 
 use crate::cli::{ListArgs, Verbosity};
-use crate::command::list::table::{Cell, Table, TableRow};
+use crate::command::list::table::{Cell, Padding, Table, TableRow};
 use ansi_term::{Colour, Style};
 use glob::Pattern;
-use libpna::{Decoder, Encryption, EntryHeader, ReadEntry};
+use libpna::{Decoder, Encryption, EntryHeader, Metadata, ReadEntry};
 use std::fs::File;
 use std::io;
 
@@ -22,7 +22,7 @@ pub(crate) fn list_archive(args: ListArgs, _: Verbosity) -> io::Result<()> {
     let decoder = Decoder::new();
     let mut reader = decoder.read_header(file)?;
     while let Some(item) = reader.read()? {
-        entries.push(item.header().clone());
+        entries.push((item.header().clone(), item.metadata().clone()));
     }
 
     if entries.is_empty() {
@@ -34,30 +34,34 @@ pub(crate) fn list_archive(args: ListArgs, _: Verbosity) -> io::Result<()> {
     } else {
         entries
             .into_iter()
-            .filter(|h| globs.iter().any(|glob| glob.matches(h.path().as_ref())))
+            .filter(|(h, _)| globs.iter().any(|glob| glob.matches(h.path().as_ref())))
             .collect()
     };
     if args.long {
-        detail_list_entries(&entries);
+        detail_list_entries(&entries, args.header);
     } else {
         simple_list_entries(&entries);
     }
     Ok(())
 }
 
-fn simple_list_entries(entries: &[EntryHeader]) {
-    for entry in entries {
+fn simple_list_entries(entries: &[(EntryHeader, Metadata)]) {
+    for (entry, _) in entries {
         println!("{}", entry.path())
     }
 }
 
-fn detail_list_entries(entries: &[EntryHeader]) {
-    let style_header_line = Style::new().underline();
+fn detail_list_entries(entries: &[(EntryHeader, Metadata)], header: bool) {
     let style_encryption_column = Style::new().fg(Colour::Purple);
     let style_compression_column = Style::new().fg(Colour::Blue);
+    let style_compressed_size_column = Style::new().fg(Colour::Green);
     let style_entry = Style::new();
-    let mut table = Table::new(style_header_line);
-    for entry in entries {
+    let mut table = Table::new();
+    if header {
+        let style_header_line = Style::new().underline();
+        table.push(TableRow::header(style_header_line))
+    }
+    for (entry, metadata) in entries {
         table.push(TableRow::new(vec![
             Cell::new(
                 style_encryption_column,
@@ -70,6 +74,11 @@ fn detail_list_entries(entries: &[EntryHeader]) {
             Cell::new(
                 style_compression_column,
                 format!("{:?}", entry.compression()).to_ascii_lowercase(),
+            ),
+            Cell::new_with_pad_direction(
+                style_compressed_size_column,
+                Padding::Left,
+                metadata.compressed_size(),
             ),
             Cell::new(style_entry, entry.path()),
         ]));
