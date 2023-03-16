@@ -42,6 +42,18 @@ impl EntryHeader {
         self.data_kind
     }
 
+    pub fn compression(&self) -> Compression {
+        self.compression
+    }
+
+    pub fn encryption(&self) -> Encryption {
+        self.encryption
+    }
+
+    pub fn cipher_mode(&self) -> CipherMode {
+        self.cipher_mode
+    }
+
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
         let name = self.path.as_str().as_bytes();
         let mut data = Vec::with_capacity(6 + name.len());
