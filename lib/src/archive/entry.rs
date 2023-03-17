@@ -39,6 +39,7 @@ pub trait ReadEntry: Entry {
 }
 
 /// Chunks from `FHED` to `FEND`, containing `FHED` and `FEND`
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ChunkEntry {
     pub(crate) chunks: Chunks,
 }
