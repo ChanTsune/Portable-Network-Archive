@@ -4,7 +4,7 @@ use crate::cli::{ListArgs, Verbosity};
 use crate::command::list::table::{Cell, Padding, Table, TableRow};
 use ansi_term::{Colour, Style};
 use glob::Pattern;
-use libpna::{Decoder, Encryption, EntryHeader, Metadata, ReadEntry};
+use libpna::{ArchiveReader, Encryption, EntryHeader, Metadata, ReadEntry};
 use std::fs::File;
 use std::io;
 
@@ -19,9 +19,9 @@ pub(crate) fn list_archive(args: ListArgs, _: Verbosity) -> io::Result<()> {
     let file = File::open(args.file.archive)?;
 
     let mut entries = vec![];
-    let decoder = Decoder::new();
-    let mut reader = decoder.read_header(file)?;
-    while let Some(item) = reader.read()? {
+    let mut reader = ArchiveReader::read_header(file)?;
+    for entry in reader.entries() {
+        let item = entry?;
         entries.push((item.header().clone(), item.metadata().clone()));
     }
 

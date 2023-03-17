@@ -37,7 +37,7 @@ pub struct ArchiveReader<R> {
 }
 
 impl<R: Read> ArchiveReader<R> {
-    fn read_header(mut reader: R) -> io::Result<Self> {
+    pub fn read_header(mut reader: R) -> io::Result<Self> {
         read_pna_header(&mut reader)?;
         let mut chunk_reader = ChunkReader::from(reader);
         // Read `AHED` chunk
@@ -75,7 +75,7 @@ impl<R: Read> ArchiveReader<R> {
         }
     }
 
-    pub(crate) fn entries(&mut self) -> impl Iterator<Item = io::Result<impl ReadEntry>> + '_ {
+    pub fn entries(&mut self) -> impl Iterator<Item = io::Result<impl ReadEntry>> + '_ {
         Entries { reader: self }
     }
 }
