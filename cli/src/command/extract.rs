@@ -2,7 +2,7 @@ use crate::cli::{ExtractArgs, Verbosity};
 use crate::command::ask_password;
 use glob::Pattern;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
-use libpna::{Decoder, ReadEntry, ReadOptionBuilder};
+use libpna::{ArchiveReader, ReadEntry, ReadOptionBuilder};
 use rayon::ThreadPoolBuilder;
 use std::fs::File;
 use std::path::PathBuf;
@@ -29,13 +29,13 @@ pub(crate) fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Re
         .build()
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
     let (tx, rx) = std::sync::mpsc::channel();
-    let decoder = Decoder::new();
-    let mut reader = decoder.read_header(file)?;
+    let mut reader = ArchiveReader::read_header(file)?;
 
     let progress_bar =
         ProgressBar::new(0).with_style(ProgressStyle::default_bar().progress_chars("=> "));
 
-    while let Some(item) = reader.read()? {
+    for entry in reader.entries() {
+        let item = entry?;
         let item_path = PathBuf::from(item.header().path().as_str());
         if !globs.is_empty() && !globs.iter().any(|glob| glob.matches_path(&item_path)) {
             if verbosity == Verbosity::Verbose {
