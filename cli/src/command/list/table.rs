@@ -2,29 +2,29 @@ use ansi_term::Style;
 use std::vec::IntoIter;
 
 pub(crate) struct Table {
-    max_widths: Vec<usize>,
     rows: Vec<TableRow>,
 }
 
 impl Table {
     pub(crate) fn new() -> Self {
         Self {
-            max_widths: vec![0; 0],
             rows: Default::default(),
         }
     }
 
     pub(crate) fn push(&mut self, row: TableRow) {
-        self.max_widths.resize(row.columns.len(), 0);
-        for (i, col) in row.columns.iter().enumerate() {
-            self.max_widths[i] = self.max_widths[i].max(col.text.len());
-        }
         self.rows.push(row)
     }
 
     pub(crate) fn into_render_rows(self) -> TableIter {
+        let mut max_widths = vec![0; self.rows.first().map_or(0, |r| r.columns.len())];
+        for row in &self.rows {
+            for (i, col) in row.columns.iter().enumerate() {
+                max_widths[i] = max_widths[i].max(col.text.len());
+            }
+        }
         TableIter {
-            max_widths: self.max_widths,
+            max_widths,
             iter: self.rows.into_iter(),
         }
     }
