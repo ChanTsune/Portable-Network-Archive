@@ -7,6 +7,18 @@ use crate::{
 };
 use std::io::{self, Read, Seek};
 
+fn read_pna_header<R: Read>(mut reader: R) -> io::Result<()> {
+    let mut header = [0u8; PNA_HEADER.len()];
+    reader.read_exact(&mut header)?;
+    if &header != PNA_HEADER {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            String::from("not pna format"),
+        ));
+    }
+    Ok(())
+}
+
 #[derive(Default)]
 pub struct Decoder;
 
@@ -15,19 +27,8 @@ impl Decoder {
         Self
     }
 
-    pub fn read_header<R: Read + Seek>(&self, mut reader: R) -> io::Result<ArchiveReader<R>> {
-        let mut header = [0u8; PNA_HEADER.len()];
-        reader.read_exact(&mut header)?;
-        if &header != PNA_HEADER {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                String::from("not pna format"),
-            ));
-        }
-        let mut chunk_reader = ChunkReader::from(reader);
-        // Read `AHED` chunk
-        let _ = chunk_reader.read_chunk()?;
-        Ok(ArchiveReader { r: chunk_reader })
+    pub fn read_header<R: Read + Seek>(&self, reader: R) -> io::Result<ArchiveReader<R>> {
+        ArchiveReader::read_header(reader)
     }
 }
 
@@ -36,6 +37,14 @@ pub struct ArchiveReader<R> {
 }
 
 impl<R: Read> ArchiveReader<R> {
+    fn read_header(mut reader: R) -> io::Result<Self> {
+        read_pna_header(&mut reader)?;
+        let mut chunk_reader = ChunkReader::from(reader);
+        // Read `AHED` chunk
+        let _ = chunk_reader.read_chunk()?;
+        Ok(Self { r: chunk_reader })
+    }
+
     /// Read the next chunks from `FHED` to `FEND`
     fn next_raw_item(&mut self) -> io::Result<Option<ChunkEntry>> {
         let mut chunks = Vec::new();
