@@ -11,7 +11,7 @@ keywords = ["pna", "archive", "cli", "crypto", "data"]
 
 [dependencies]
 ansi_term = "0.12.1"
-clap = { version = "4.1.8", features = ["derive"] }
+clap = { version = "4.1.9", features = ["derive"] }
 glob = "0.3.1"
 indicatif = { version = "0.17.3", features = ["improved_unicode"] }
 libpna = { version = "0.0.0-alpha.1", path = "../lib" }
