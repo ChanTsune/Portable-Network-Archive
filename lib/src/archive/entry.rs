@@ -50,7 +50,7 @@ impl Entry for ChunkEntry {
 }
 
 impl ChunkEntry {
-    pub(crate) fn into_entry(self) -> io::Result<ReadEntryImpl> {
+    pub(crate) fn into_entry(self) -> io::Result<impl ReadEntry> {
         let mut extra = vec![];
         let mut data = vec![];
         let mut info = None;
