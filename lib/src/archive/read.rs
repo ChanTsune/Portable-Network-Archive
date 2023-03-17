@@ -74,19 +74,40 @@ impl<R: Read> ArchiveReader<R> {
             None => Ok(None),
         }
     }
+
+    pub(crate) fn entries(&mut self) -> impl Iterator<Item = io::Result<impl ReadEntry>> + '_ {
+        Entries { reader: self }
+    }
+}
+
+pub(crate) struct Entries<'r, R: Read> {
+    reader: &'r mut ArchiveReader<R>,
+}
+
+impl<'r, R: Read> Iterator for Entries<'r, R> {
+    type Item = io::Result<ReadEntryImpl>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let entry = self.reader.read_entry();
+        match entry {
+            Ok(entry) => entry.map(Ok),
+            Err(e) => Some(Err(e)),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::Decoder;
+    use super::*;
     use std::io::Cursor;
 
     #[test]
     fn decode() {
         let file_bytes = include_bytes!("../../../resources/test/empty.pna");
         let reader = Cursor::new(file_bytes);
-        let decoder = Decoder::new();
-        let mut reader = decoder.read_header(reader).unwrap();
-        assert!(reader.read().unwrap().is_none())
+        let mut reader = ArchiveReader::read_header(reader).unwrap();
+        for _entry in reader.entries() {
+            unreachable!()
+        }
     }
 }
