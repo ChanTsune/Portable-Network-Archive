@@ -16,6 +16,7 @@ use crypto_common::{BlockSizeUser, KeySizeUser};
 use flate2::write::DeflateEncoder;
 use password_hash::{Output, SaltString};
 use std::io::{self, Write};
+use std::time::Duration;
 use xz2::write::XzEncoder;
 use zstd::stream::write::Encoder as ZstdEncoder;
 
@@ -44,6 +45,23 @@ impl<W: Write> EntryWriter<W> {
             options,
             buf: Vec::new(),
         })
+    }
+
+    /// Add creation timestamp for this entry.
+    #[inline]
+    pub(crate) fn add_creation_timestamp(&mut self, since_unix_epoch: Duration) -> io::Result<()> {
+        self.add_timestamp(ChunkType::cTIM, since_unix_epoch)
+    }
+
+    /// Add last modified timestamp for this entry.
+    #[inline]
+    pub(crate) fn add_modified_timestamp(&mut self, since_unix_epoch: Duration) -> io::Result<()> {
+        self.add_timestamp(ChunkType::mTIM, since_unix_epoch)
+    }
+
+    fn add_timestamp(&mut self, chunk: ChunkType, since_unix_epoch: Duration) -> io::Result<()> {
+        let mut chunk_writer = ChunkWriter::from(&mut self.w);
+        chunk_writer.write_chunk(chunk, &since_unix_epoch.as_secs().to_be_bytes())
     }
 
     pub(crate) fn finish(mut self) -> io::Result<W> {
