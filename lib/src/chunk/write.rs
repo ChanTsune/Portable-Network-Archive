@@ -42,13 +42,13 @@ impl<W: Write> ChunkWriter<W> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::types::*;
+    use super::super::ChunkType;
     use super::*;
 
     #[test]
     fn write_aend_chunk() {
         let mut chunk_writer = ChunkWriter::from(Vec::new());
-        chunk_writer.write_chunk(AEND, &[]).unwrap();
+        chunk_writer.write_chunk(ChunkType::AEND, &[]).unwrap();
         assert_eq!(
             chunk_writer.into_inner(),
             [0, 0, 0, 0, 65, 69, 78, 68, 107, 246, 72, 109]
@@ -59,7 +59,7 @@ mod tests {
     fn write_fdat_chunk() {
         let mut chunk_writer = ChunkWriter::from(Vec::new());
         chunk_writer
-            .write_chunk(FDAT, "text data".as_bytes())
+            .write_chunk(ChunkType::FDAT, "text data".as_bytes())
             .unwrap();
         assert_eq!(
             chunk_writer.into_inner(),

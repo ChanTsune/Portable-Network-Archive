@@ -38,7 +38,7 @@ It is represented by the following data structure called a chunk.
 This is based on the PNG data structure.  
 Byte order is big endian.  
 
-### Required Chunks  
+### Critical Chunks  
 
 #### AHED  
 

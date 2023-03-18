@@ -3,7 +3,7 @@ use crate::{
         CipherMode, Compression, CompressionLevel, DataKind, Encryption, EntryHeader, EntryName,
         HashAlgorithm, WriteOption,
     },
-    chunk::{self, ChunkWriter},
+    chunk::{ChunkType, ChunkWriter},
     cipher::{CipherWriter, Ctr128BEWriter, EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
     compress::CompressionWriter,
     hash,
@@ -29,7 +29,7 @@ impl<W: Write> EntryWriter<W> {
     pub(crate) fn new_file_with(w: W, name: EntryName, options: WriteOption) -> io::Result<Self> {
         let mut chunk_writer = ChunkWriter::from(w);
         chunk_writer.write_chunk(
-            chunk::FHED,
+            ChunkType::FHED,
             &EntryHeader::new(
                 DataKind::File,
                 options.compression,
@@ -56,11 +56,11 @@ impl<W: Write> EntryWriter<W> {
         let mut chunk_writer = ChunkWriter::from(&mut self.w);
 
         if let Some(phsf) = phsf {
-            chunk_writer.write_chunk(chunk::PHSF, phsf.as_bytes())?;
+            chunk_writer.write_chunk(ChunkType::PHSF, phsf.as_bytes())?;
         }
-        chunk_writer.write_chunk(chunk::FDAT, &data)?;
+        chunk_writer.write_chunk(ChunkType::FDAT, &data)?;
 
-        chunk_writer.write_chunk(chunk::FEND, &[])?;
+        chunk_writer.write_chunk(ChunkType::FEND, &[])?;
         Ok(self.w)
     }
 }

@@ -6,7 +6,7 @@ mod read;
 mod write;
 
 use crate::{
-    chunk::{self, chunk_to_bytes, Chunks},
+    chunk::{chunk_to_bytes, ChunkType, Chunks},
     cipher::{DecryptCbcAes256Reader, DecryptCbcCamellia256Reader},
     hash::verify_password,
 };
@@ -57,17 +57,17 @@ impl ChunkEntry {
         let mut phsf = None;
         for (chunk_type, mut raw_data) in self.chunks {
             match chunk_type {
-                chunk::FEND => break,
-                chunk::FHED => {
+                ChunkType::FEND => break,
+                ChunkType::FHED => {
                     info = Some(EntryHeader::try_from(raw_data.as_slice())?);
                 }
-                chunk::PHSF => {
+                ChunkType::PHSF => {
                     phsf = Some(
                         String::from_utf8(raw_data)
                             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
                     );
                 }
-                chunk::FDAT => data.append(&mut raw_data),
+                ChunkType::FDAT => data.append(&mut raw_data),
                 _ => extra.push((chunk_type, raw_data)),
             }
         }

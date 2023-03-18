@@ -3,7 +3,7 @@ use crate::{
         entry::{ChunkEntry, ReadEntry},
         PNA_HEADER,
     },
-    chunk::{self, ChunkReader},
+    chunk::{ChunkReader, ChunkType},
 };
 use std::io::{self, Read, Seek};
 
@@ -42,11 +42,11 @@ impl<R: Read> ArchiveReader<R> {
         loop {
             let (chunk_type, raw_data) = self.r.read_chunk()?;
             match chunk_type {
-                chunk::FEND => {
+                ChunkType::FEND => {
                     chunks.push((chunk_type, raw_data));
                     break;
                 }
-                chunk::AEND => return Ok(None),
+                ChunkType::AEND => return Ok(None),
                 _ => chunks.push((chunk_type, raw_data)),
             }
         }

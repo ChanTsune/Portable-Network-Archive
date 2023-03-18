@@ -68,7 +68,7 @@ mod tests {
     #[test]
     fn to_bytes() {
         assert_eq!(
-            chunk_to_bytes((FDAT, "text data".as_bytes())),
+            chunk_to_bytes((ChunkType::FDAT, "text data".as_bytes())),
             [
                 0, 0, 0, 9, 70, 68, 65, 84, 116, 101, 120, 116, 32, 100, 97, 116, 97, 177, 70, 138,
                 128
