@@ -17,4 +17,11 @@ impl ChunkType {
     /// File end
     pub const FEND: ChunkType = ChunkType(*b"FEND");
 
+    // -- Auxiliary chunks --
+    /// Creation datetime
+    #[allow(non_upper_case_globals)]
+    pub const cTIM: ChunkType = ChunkType(*b"cTIM");
+    /// Last modified datetime
+    #[allow(non_upper_case_globals)]
+    pub const mTIM: ChunkType = ChunkType(*b"mTIM");
 }
