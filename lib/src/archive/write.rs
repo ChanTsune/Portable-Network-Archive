@@ -1,6 +1,6 @@
 use crate::{
     archive::{entry::EntryWriter, EntryName, WriteOption, WriteOptionBuilder, PNA_HEADER},
-    chunk::{self, ChunkWriter},
+    chunk::{ChunkType, ChunkWriter},
     create_chunk_data_ahed, Entry,
 };
 use std::io::{self, Write};
@@ -30,7 +30,7 @@ impl<W: Write> ArchiveWriter<W> {
     fn write_header(mut write: W) -> io::Result<Self> {
         write.write_all(PNA_HEADER)?;
         let mut chunk_writer = ChunkWriter::from(write);
-        chunk_writer.write_chunk(chunk::AHED, &create_chunk_data_ahed(0, 0, 0))?;
+        chunk_writer.write_chunk(ChunkType::AHED, &create_chunk_data_ahed(0, 0, 0))?;
         Ok(Self {
             w: chunk_writer.into_inner(),
             inner: None,
@@ -73,7 +73,7 @@ impl<W: Write> ArchiveWriter<W> {
         self.end_file()?;
         if !self.finalized {
             let mut chunk_writer = ChunkWriter::from(&mut self.w);
-            chunk_writer.write_chunk(chunk::AEND, &[])?;
+            chunk_writer.write_chunk(ChunkType::AEND, &[])?;
             self.finalized = true;
         }
         Ok(())
