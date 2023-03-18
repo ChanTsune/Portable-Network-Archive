@@ -154,31 +154,23 @@ The chunk data area is empty.
 
 All Auxiliary Chunks must appear before the `AEND` Chunk
 
-#### aTIM  
-
-The last modified date of the archive is recorded in Unix time.  
-
-|size|description|
-|--|--|
-|8byte|unix time stamp|
-
 #### cTIM
 
-File creation datetime are recorded in unix time.
-This chunk appeared after `FHAD` chunk and before `FEND` chunk.
+The creation datetime is recorded in unix time.
+When this chunk appears after the `FHAD` chunk and before the `FEND` chunk, it indicates the creation datetime of the file.
 
-|size|description|
-|--|--|
-|8byte|unix time stamp|
+|  size  | description     |
+|:------:|:----------------|
+| 8byte  | unix time stamp |
 
 #### mTIM
 
-File last modified datetime are recorded in unix time.
-This chunk appeared after `FHAD` chunk and before `FEND` chunk.
+The last modified datetime is recorded in unix time.
+When this chunk appears after the `FHAD` chunk and before the `FEND` chunk, it indicates the last modified datetime of the file.
 
-|size|description|
-|--|--|
-|8byte|unix time stamp|
+|  size  | description     |
+|:------:|:----------------|
+| 8byte  | unix time stamp |
 
 #### fPRM
 
