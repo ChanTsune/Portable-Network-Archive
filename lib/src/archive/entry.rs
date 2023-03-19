@@ -16,6 +16,7 @@ pub use name::*;
 pub use options::*;
 use read::*;
 use std::io::{self, Read, Write};
+use std::time::Duration;
 pub(crate) use write::*;
 
 mod private {
@@ -199,25 +200,83 @@ impl ReadEntryImpl {
     }
 }
 
-pub struct EntryBuilder(EntryWriter<Vec<u8>>);
+/// A builder for creating a new entry.
+pub struct EntryBuilder {
+    writer: EntryWriter<Vec<u8>>,
+    created: Option<Duration>,
+    last_modified: Option<Duration>,
+}
 
 impl EntryBuilder {
+    /// Creates a new file with the given name and write options.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name of the entry to create.
+    /// * `option` - The write options for the entry.
+    ///
+    /// # Returns
+    ///
+    /// A Result containing the new EntryBuilder, or an I/O error if creation fails.
     pub fn new_file(name: EntryName, option: WriteOption) -> io::Result<Self> {
-        Ok(Self(EntryWriter::new_file_with(Vec::new(), name, option)?))
+        Ok(Self {
+            writer: EntryWriter::new_file_with(Vec::new(), name, option)?,
+            created: None,
+            last_modified: None,
+        })
     }
 
-    pub fn build(self) -> io::Result<impl Entry> {
-        Ok(BytesEntry(self.0.finish()?))
+    /// Sets the creation timestamp of the entry.
+    ///
+    /// # Arguments
+    ///
+    /// * `since_unix_epoch` - The duration since the Unix epoch to set the creation timestamp to.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the EntryBuilder with the creation timestamp set.
+    pub fn created(&mut self, since_unix_epoch: Duration) -> &mut Self {
+        self.created = Some(since_unix_epoch);
+        self
+    }
+
+    /// Sets the last modified timestamp of the entry.
+    ///
+    /// # Arguments
+    ///
+    /// * `since_unix_epoch` - The duration since the Unix epoch to set the last modified timestamp to.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the EntryBuilder with the last modified timestamp set.
+    pub fn modified(&mut self, since_unix_epoch: Duration) -> &mut Self {
+        self.last_modified = Some(since_unix_epoch);
+        self
+    }
+
+    /// Builds the entry and returns a Result containing the new [Entry].
+    ///
+    /// # Returns
+    ///
+    /// A Result containing the new Entry, or an I/O error if the build fails.
+    pub fn build(mut self) -> io::Result<impl Entry> {
+        if let Some(c) = self.created {
+            self.writer.add_creation_timestamp(c)?;
+        }
+        if let Some(m) = self.last_modified {
+            self.writer.add_modified_timestamp(m)?;
+        }
+        Ok(BytesEntry(self.writer.finish()?))
     }
 }
 
 impl Write for EntryBuilder {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.0.write(buf)
+        self.writer.write(buf)
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        self.0.flush()
+        self.writer.flush()
     }
 }
 
