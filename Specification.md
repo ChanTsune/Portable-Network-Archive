@@ -28,12 +28,12 @@ The PNA is prefixed with the following header.
 
 It is represented by the following data structure called a chunk.
 
-|name|size|description|
-|--|--|--|
-|Length|4-byte|Length of Chunk Data|
-|Chunk Type|4-byte|Type of Chunk|
-|Chunk Data|n-byte|Different interpretation of data depending on the type of chunk|
-|CRC|4-byte|Crc32 calculated from Chunk Type and Chunk Data|
+| name       |  size   | description                                                     |
+|:-----------|:-------:|:----------------------------------------------------------------|
+| Length     | 4-byte  | Length of Chunk Data                                            |
+| Chunk Type | 4-byte  | Type of Chunk                                                   |
+| Chunk Data | n-byte  | Different interpretation of data depending on the type of chunk |
+| CRC        | 4-byte  | Crc32 calculated from Chunk Type and Chunk Data                 |
 
 This is based on the PNG data structure.  
 Byte order is big endian.  
