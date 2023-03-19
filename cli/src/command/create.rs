@@ -5,12 +5,11 @@ use crate::command::{ask_password, check_password};
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use libpna::{Encoder, Entry, EntryBuilder};
 use rayon::ThreadPoolBuilder;
-use std::path::PathBuf;
-use std::time::Instant;
 use std::{
-    fs::{self, File},
+    fs::{self, metadata, File},
     io::{self, Write},
-    path::Path,
+    path::{Path, PathBuf},
+    time::{Instant, UNIX_EPOCH},
 };
 
 pub(crate) fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Result<()> {
@@ -52,6 +51,7 @@ pub(crate) fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Resu
         let compression = args.compression.clone();
         let cipher = args.cipher.clone();
         let password = password.clone();
+        let keep_timestamp = args.keep_timestamp;
         let tx = tx.clone();
         pool.spawn_fifo(move || {
             tx.send(write_internal(
@@ -59,6 +59,7 @@ pub(crate) fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Resu
                 compression,
                 cipher,
                 password,
+                keep_timestamp,
                 verbosity,
             ))
             .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
@@ -102,6 +103,7 @@ fn write_internal(
     compression: CompressionAlgorithmArgs,
     cipher: CipherAlgorithmArgs,
     password: Option<String>,
+    keep_timestamp: bool,
     verbosity: Verbosity,
 ) -> io::Result<impl Entry> {
     if verbosity == Verbosity::Verbose {
@@ -152,6 +154,19 @@ fn write_internal(
             )
             .password(password);
         let mut entry = EntryBuilder::new_file(path.into(), option_builder.build())?;
+        if keep_timestamp {
+            let meta = metadata(path)?;
+            if let Ok(c) = meta.created() {
+                if let Ok(created_since_unix_epoch) = c.duration_since(UNIX_EPOCH) {
+                    entry.created(created_since_unix_epoch);
+                }
+            }
+            if let Ok(m) = meta.modified() {
+                if let Ok(modified_since_unix_epoch) = m.duration_since(UNIX_EPOCH) {
+                    entry.modified(modified_since_unix_epoch);
+                }
+            }
+        }
         entry.write_all(&fs::read(path)?)?;
         return entry.build();
     }
