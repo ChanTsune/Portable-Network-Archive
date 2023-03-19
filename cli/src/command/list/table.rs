@@ -1,23 +1,27 @@
 use ansi_term::Style;
 use std::vec::IntoIter;
 
-pub(crate) struct Table {
-    rows: Vec<TableRow>,
+pub(crate) struct Table<const N: usize> {
+    rows: Vec<TableRow<N>>,
 }
 
-impl Table {
+impl<const N: usize> Table<N> {
+    pub(crate) fn new_with_header(header: TableRow<N>) -> Self {
+        Self { rows: vec![header] }
+    }
+
     pub(crate) fn new() -> Self {
         Self {
             rows: Default::default(),
         }
     }
 
-    pub(crate) fn push(&mut self, row: TableRow) {
+    pub(crate) fn push(&mut self, row: TableRow<N>) {
         self.rows.push(row)
     }
 
-    pub(crate) fn into_render_rows(self) -> TableIter {
-        let mut max_widths = vec![0; self.rows.first().map_or(0, |r| r.columns.len())];
+    pub(crate) fn into_render_rows(self) -> TableIter<N> {
+        let mut max_widths = [0; N];
         for row in &self.rows {
             for (i, col) in row.columns.iter().enumerate() {
                 max_widths[i] = max_widths[i].max(col.text.len());
@@ -30,12 +34,12 @@ impl Table {
     }
 }
 
-pub(crate) struct TableIter {
-    max_widths: Vec<usize>,
-    iter: IntoIter<TableRow>,
+pub(crate) struct TableIter<const N: usize> {
+    max_widths: [usize; N],
+    iter: IntoIter<TableRow<N>>,
 }
 
-impl Iterator for TableIter {
+impl<const N: usize> Iterator for TableIter<N> {
     type Item = String;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -44,25 +48,27 @@ impl Iterator for TableIter {
     }
 }
 
-pub(crate) struct TableRow {
-    columns: Vec<Cell>,
+pub(crate) struct TableRow<const N: usize> {
+    columns: [Cell; N],
 }
 
-impl TableRow {
-    pub(crate) fn new(columns: Vec<Cell>) -> Self {
+pub(crate) fn header(style: Style) -> TableRow<6> {
+    TableRow::new([
+        Cell::new(style, "Encryption"),
+        Cell::new(style, "Compression"),
+        Cell::new(style, "Compressed Size"),
+        Cell::new(style, "Created"),
+        Cell::new(style, "Modified"),
+        Cell::new(style, "Name"),
+    ])
+}
+
+impl<const N: usize> TableRow<N> {
+    pub(crate) fn new(columns: [Cell; N]) -> Self {
         Self { columns }
     }
 
-    pub(crate) fn header(style: Style) -> Self {
-        Self::new(vec![
-            Cell::new(style, "Encryption"),
-            Cell::new(style, "Compression"),
-            Cell::new(style, "Compressed Size"),
-            Cell::new(style, "Name"),
-        ])
-    }
-
-    pub(crate) fn render(&self, max_widths: &[usize]) -> String {
+    pub(crate) fn render(&self, max_widths: &[usize; N]) -> String {
         self.columns
             .iter()
             .zip(max_widths)
