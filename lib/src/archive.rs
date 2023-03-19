@@ -11,7 +11,7 @@ pub use write::{ArchiveWriter, Encoder};
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io;
+    use std::io::{self, Write};
 
     #[test]
     fn store_archive() {
@@ -162,9 +162,11 @@ mod tests {
         {
             let encoder = Encoder::new();
             let mut archive_writer = encoder.write_header(&mut archived_temp)?;
-            archive_writer.start_file_with_options("test/text".into(), options.clone())?;
-            archive_writer.write_all(src)?;
-            archive_writer.end_file()?;
+            archive_writer.add_entry({
+                let mut builder = EntryBuilder::new_file("test/text".into(), options.clone())?;
+                builder.write_all(src)?;
+                builder.build()?
+            })?;
             archive_writer.finalize()?;
         }
         let mut dist = Vec::new();
