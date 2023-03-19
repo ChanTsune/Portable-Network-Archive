@@ -57,6 +57,8 @@ impl ChunkEntry {
         let mut data = vec![];
         let mut info = None;
         let mut phsf = None;
+        let mut ctime = None;
+        let mut mtime = None;
         for (chunk_type, mut raw_data) in self.chunks {
             match chunk_type {
                 ChunkType::FEND => break,
@@ -70,6 +72,8 @@ impl ChunkEntry {
                     );
                 }
                 ChunkType::FDAT => data.append(&mut raw_data),
+                ChunkType::cTIM => ctime = Some(timestamp(&raw_data)?),
+                ChunkType::mTIM => mtime = Some(timestamp(&raw_data)?),
                 _ => extra.push((chunk_type, raw_data)),
             }
         }
@@ -94,6 +98,8 @@ impl ChunkEntry {
             extra,
             metadata: Metadata {
                 compressed_size: data.len(),
+                created: ctime,
+                modified: mtime,
             },
             data,
         })
@@ -287,4 +293,12 @@ impl Entry for BytesEntry {
     fn into_bytes(self) -> Vec<u8> {
         self.0
     }
+}
+
+fn timestamp(bytes: &[u8]) -> io::Result<Duration> {
+    Ok(Duration::from_secs(u64::from_be_bytes(
+        bytes
+            .try_into()
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+    )))
 }
