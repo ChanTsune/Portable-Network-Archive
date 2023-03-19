@@ -1,99 +1,157 @@
 extern crate test;
 
 use crate::{bench_read_archive, bench_write_archive};
-use libpna::{
-    CipherMode, Compression, Decoder, Encoder, Encryption, ReadEntry, ReadOptionBuilder,
-    WriteOptionBuilder,
-};
-use std::io::{Cursor, Read};
+use libpna::{CipherMode, Compression, Encryption, WriteOptionBuilder};
 use test::Bencher;
 
-bench_write_archive!(write_store_archive, WriteOptionBuilder::default());
+#[bench]
+fn write_store_archive(b: &mut Bencher) {
+    bench_write_archive(b, WriteOptionBuilder::default());
+}
 
-bench_read_archive!(read_store_archive, WriteOptionBuilder::default());
+#[bench]
+fn read_store_archive(b: &mut Bencher) {
+    bench_read_archive(b, WriteOptionBuilder::default());
+}
 
-bench_write_archive!(
-    write_zstd_archive,
-    WriteOptionBuilder::default().compression(Compression::ZStandard)
-);
+#[bench]
+fn write_zstd_archive(b: &mut Bencher) {
+    bench_write_archive(b, {
+        let mut builder = WriteOptionBuilder::default();
+        builder.compression(Compression::ZStandard);
+        builder
+    });
+}
 
-bench_read_archive!(
-    read_zstd_archive,
-    WriteOptionBuilder::default().compression(Compression::ZStandard)
-);
+#[bench]
+fn read_zstd_archive(b: &mut Bencher) {
+    bench_read_archive(b, {
+        let mut builder = WriteOptionBuilder::default();
+        builder.compression(Compression::ZStandard);
+        builder
+    });
+}
 
-bench_write_archive!(
-    write_deflate_archive,
-    WriteOptionBuilder::default().compression(Compression::Deflate)
-);
+#[bench]
+fn write_deflate_archive(b: &mut Bencher) {
+    bench_write_archive(b, {
+        let mut builder = WriteOptionBuilder::default();
+        builder.compression(Compression::Deflate);
+        builder
+    });
+}
 
-bench_read_archive!(
-    read_deflate_archive,
-    WriteOptionBuilder::default().compression(Compression::Deflate)
-);
+#[bench]
+fn read_deflate_archive(b: &mut Bencher) {
+    bench_read_archive(b, {
+        let mut builder = WriteOptionBuilder::default();
+        builder.compression(Compression::Deflate);
+        builder
+    });
+}
 
-bench_write_archive!(
-    write_lzma_archive,
-    WriteOptionBuilder::default().compression(Compression::XZ)
-);
+#[bench]
+fn write_lzma_archive(b: &mut Bencher) {
+    bench_write_archive(b, {
+        let mut builder = WriteOptionBuilder::default();
+        builder.compression(Compression::XZ);
+        builder
+    });
+}
 
-bench_read_archive!(
-    read_lzma_archive,
-    WriteOptionBuilder::default().compression(Compression::XZ)
-);
+#[bench]
+fn read_lzma_archive(b: &mut Bencher) {
+    bench_read_archive(b, {
+        let mut builder = WriteOptionBuilder::default();
+        builder.compression(Compression::XZ);
+        builder
+    });
+}
 
-bench_write_archive!(
-    write_aes_ctr_archive,
-    WriteOptionBuilder::default()
-        .encryption(Encryption::Aes)
-        .cipher_mode(CipherMode::CTR)
-);
+#[bench]
+fn write_aes_ctr_archive(b: &mut Bencher) {
+    bench_write_archive(b, {
+        let mut builder = WriteOptionBuilder::default();
+        builder
+            .encryption(Encryption::Aes)
+            .cipher_mode(CipherMode::CTR);
+        builder
+    });
+}
 
-bench_read_archive!(
-    read_aes_ctr_archive,
-    WriteOptionBuilder::default()
-        .encryption(Encryption::Aes)
-        .cipher_mode(CipherMode::CTR)
-);
+#[bench]
+fn read_aes_ctr_archive(b: &mut Bencher) {
+    bench_read_archive(b, {
+        let mut builder = WriteOptionBuilder::default();
+        builder
+            .encryption(Encryption::Aes)
+            .cipher_mode(CipherMode::CTR);
+        builder
+    });
+}
 
-bench_write_archive!(
-    write_aes_cbc_archive,
-    WriteOptionBuilder::default()
-        .encryption(Encryption::Aes)
-        .cipher_mode(CipherMode::CBC)
-);
+#[bench]
+fn write_aes_cbc_archive(b: &mut Bencher) {
+    bench_write_archive(b, {
+        let mut builder = WriteOptionBuilder::default();
+        builder
+            .encryption(Encryption::Aes)
+            .cipher_mode(CipherMode::CBC);
+        builder
+    });
+}
 
-bench_read_archive!(
-    read_aes_cbc_archive,
-    WriteOptionBuilder::default()
-        .encryption(Encryption::Aes)
-        .cipher_mode(CipherMode::CBC)
-);
+#[bench]
+fn read_aes_cbc_archive(b: &mut Bencher) {
+    bench_read_archive(b, {
+        let mut builder = WriteOptionBuilder::default();
+        builder
+            .encryption(Encryption::Aes)
+            .cipher_mode(CipherMode::CBC);
+        builder
+    });
+}
 
-bench_write_archive!(
-    write_camellia_ctr_archive,
-    WriteOptionBuilder::default()
-        .encryption(Encryption::Camellia)
-        .cipher_mode(CipherMode::CTR)
-);
+#[bench]
+fn write_camellia_ctr_archive(b: &mut Bencher) {
+    bench_write_archive(b, {
+        let mut builder = WriteOptionBuilder::default();
+        builder
+            .encryption(Encryption::Camellia)
+            .cipher_mode(CipherMode::CTR);
+        builder
+    });
+}
 
-bench_read_archive!(
-    read_camellia_ctr_archive,
-    WriteOptionBuilder::default()
-        .encryption(Encryption::Camellia)
-        .cipher_mode(CipherMode::CTR)
-);
+#[bench]
+fn read_camellia_ctr_archive(b: &mut Bencher) {
+    bench_read_archive(b, {
+        let mut builder = WriteOptionBuilder::default();
+        builder
+            .encryption(Encryption::Camellia)
+            .cipher_mode(CipherMode::CTR);
+        builder
+    });
+}
 
-bench_write_archive!(
-    write_camellia_cbc_archive,
-    WriteOptionBuilder::default()
-        .encryption(Encryption::Camellia)
-        .cipher_mode(CipherMode::CBC)
-);
+#[bench]
+fn write_camellia_cbc_archive(b: &mut Bencher) {
+    bench_write_archive(b, {
+        let mut builder = WriteOptionBuilder::default();
+        builder
+            .encryption(Encryption::Camellia)
+            .cipher_mode(CipherMode::CBC);
+        builder
+    });
+}
 
-bench_read_archive!(
-    read_camellia_cbc_archive,
-    WriteOptionBuilder::default()
-        .encryption(Encryption::Camellia)
-        .cipher_mode(CipherMode::CBC)
-);
+#[bench]
+fn read_camellia_cbc_archive(b: &mut Bencher) {
+    bench_read_archive(b, {
+        let mut builder = WriteOptionBuilder::default();
+        builder
+            .encryption(Encryption::Camellia)
+            .cipher_mode(CipherMode::CBC);
+        builder
+    });
+}
