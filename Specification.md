@@ -46,12 +46,12 @@ The `AHED` chunk is stores basic information about the archive.
 
 Chunk Data  
 
-|significance|size|description|
-|--|--|--|
-|Major version|1-byte|Major version of PNA|
-|Minor version|1-byte|Minor version of PNA|
-|General purpose bit flag|2-byte|Bit flags|
-|Archive number|4-byte|Archive number|
+| significance             |  size   | description          |
+|:-------------------------|:-------:|:---------------------|
+| Major version            | 1-byte  | Major version of PNA |
+| Minor version            | 1-byte  | Minor version of PNA |
+| General purpose bit flag | 2-byte  | Bit flags            |
+| Archive number           | 4-byte  | Archive number       |
 
 ##### Major version
 
@@ -177,15 +177,19 @@ When this chunk appears after the `FHAD` chunk and before the `FEND` chunk, it i
 File permissions are recorded.
 This chunk appeared after `FHAD` chunk and before `FEND` chunk.
 
-|significance|size|description|
-|--|--|--|
-|uid|8-byte|user ID|
-|gid|8-byte|group ID|
-|permissions|10-byte|file permission characters|
+| significance |  size  | description           |
+|:-------------|:------:|:----------------------|
+| uid          | 8-byte | user ID               |
+| uname length | 1-byte | length of uname       |
+| uname        | n-byte | unix user name        |
+| gid          | 8-byte | group ID              |
+| gname length | 1-byte | length of gname       |
+| gname        | n-byte | unix group name       |
+| permissions  | 2-byte | file permission bytes |
 
 ##### permissions
 
-Unix file permission characters like `-rwxr-xr-x`.
+Permissions are like `755` as use in `chmod`.
 
 #### aNXT
 
