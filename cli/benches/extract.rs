@@ -12,7 +12,7 @@ fn store(b: &mut Bencher) {
             "pna",
             "--quiet",
             "x",
-            "../resources/test/empty.pna",
+            "../resources/test/store.pna",
             "--overwrite",
             "--out-dir",
             "../out/",
