@@ -72,3 +72,20 @@ fn xz(b: &mut Bencher) {
         .unwrap()
     })
 }
+
+#[bench]
+fn zstd_keep_timestamp(b: &mut Bencher) {
+    b.iter(|| {
+        command::entry(cli::Cli::parse_from([
+            "pna",
+            "--quiet",
+            "c",
+            "../out/zstd_keep_timestamp.pna",
+            "--zstd",
+            "--overwrite",
+            "-r",
+            "../resources/test/raw/",
+        ]))
+        .unwrap()
+    })
+}
