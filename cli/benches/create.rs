@@ -10,6 +10,7 @@ fn store(b: &mut Bencher) {
     b.iter(|| {
         command::entry(cli::Cli::parse_from([
             "pna",
+            "--quiet",
             "c",
             "../out/store.pna",
             "--store",
@@ -26,6 +27,7 @@ fn zstd(b: &mut Bencher) {
     b.iter(|| {
         command::entry(cli::Cli::parse_from([
             "pna",
+            "--quiet",
             "c",
             "../out/zstd.pna",
             "--zstd",
@@ -42,6 +44,7 @@ fn deflate(b: &mut Bencher) {
     b.iter(|| {
         command::entry(cli::Cli::parse_from([
             "pna",
+            "--quiet",
             "c",
             "../out/deflate.pna",
             "--deflate",
@@ -58,6 +61,7 @@ fn xz(b: &mut Bencher) {
     b.iter(|| {
         command::entry(cli::Cli::parse_from([
             "pna",
+            "--quiet",
             "c",
             "../out/lzma.pna",
             "--xz",

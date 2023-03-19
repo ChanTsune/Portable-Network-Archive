@@ -1,7 +1,7 @@
 use crate::cli::{
     CipherAlgorithmArgs, CipherMode, CompressionAlgorithmArgs, CreateArgs, Verbosity,
 };
-use crate::command::{ask_password, check_password};
+use crate::command::{ask_password, check_password, Let};
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use libpna::{Encoder, Entry, EntryBuilder};
 use rayon::ThreadPoolBuilder;
@@ -35,8 +35,14 @@ pub(crate) fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Resu
         collect_items(&mut target_items, p.as_ref(), args.recursive)?;
     }
 
-    let progress_bar = ProgressBar::new(target_items.len() as u64)
-        .with_style(ProgressStyle::default_bar().progress_chars("=> "));
+    let progress_bar = if verbosity != Verbosity::Quite {
+        Some(
+            ProgressBar::new(target_items.len() as u64)
+                .with_style(ProgressStyle::default_bar().progress_chars("=> ")),
+        )
+    } else {
+        None
+    };
 
     if let Some(parent) = archive.parent() {
         fs::create_dir_all(parent)?;
@@ -69,12 +75,12 @@ pub(crate) fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Resu
     drop(tx);
     for item in rx {
         writer.add_entry(item?)?;
-        progress_bar.inc(1);
+        progress_bar.let_ref(|pb| pb.inc(1));
     }
 
     writer.finalize()?;
 
-    progress_bar.finish_and_clear();
+    progress_bar.let_ref(|pb| pb.finish_and_clear());
 
     if verbosity != Verbosity::Quite {
         println!(

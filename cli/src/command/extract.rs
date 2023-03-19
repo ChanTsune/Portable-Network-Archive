@@ -1,5 +1,5 @@
 use crate::cli::{ExtractArgs, Verbosity};
-use crate::command::ask_password;
+use crate::command::{ask_password, Let};
 use glob::Pattern;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use libpna::{ArchiveReader, ReadEntry, ReadOptionBuilder};
@@ -31,8 +31,11 @@ pub(crate) fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Re
     let (tx, rx) = std::sync::mpsc::channel();
     let mut reader = ArchiveReader::read_header(file)?;
 
-    let progress_bar =
-        ProgressBar::new(0).with_style(ProgressStyle::default_bar().progress_chars("=> "));
+    let progress_bar = if verbosity != Verbosity::Quite {
+        Some(ProgressBar::new(0).with_style(ProgressStyle::default_bar().progress_chars("=> ")))
+    } else {
+        None
+    };
 
     for entry in reader.entries() {
         let item = entry?;
@@ -43,7 +46,7 @@ pub(crate) fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Re
             }
             continue;
         }
-        progress_bar.inc_length(1);
+        progress_bar.let_ref(|pb| pb.inc_length(1));
         let tx = tx.clone();
         let password = password.clone();
         let out_dir = args.out_dir.clone();
@@ -62,9 +65,9 @@ pub(crate) fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Re
     drop(tx);
     for result in rx {
         result?;
-        progress_bar.inc(1);
+        progress_bar.let_ref(|pb| pb.inc(1));
     }
-    progress_bar.finish_and_clear();
+    progress_bar.let_ref(|pb| pb.finish_and_clear());
 
     if verbosity != Verbosity::Quite {
         println!(
