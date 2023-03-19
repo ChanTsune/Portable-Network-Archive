@@ -1,5 +1,5 @@
 use crate::{
-    archive::{entry::EntryWriter, EntryName, WriteOption, WriteOptionBuilder, PNA_HEADER},
+    archive::PNA_HEADER,
     chunk::{ChunkType, ChunkWriter},
     create_chunk_data_ahed, Entry,
 };
@@ -20,9 +20,6 @@ impl Encoder {
 
 pub struct ArchiveWriter<W: Write> {
     w: W,
-    // temporary use fields
-    inner: Option<EntryWriter<Vec<u8>>>,
-    // end temporary
     finalized: bool,
 }
 
@@ -33,36 +30,8 @@ impl<W: Write> ArchiveWriter<W> {
         chunk_writer.write_chunk(ChunkType::AHED, &create_chunk_data_ahed(0, 0, 0))?;
         Ok(Self {
             w: chunk_writer.into_inner(),
-            inner: None,
             finalized: false,
         })
-    }
-
-    pub fn start_file(&mut self, name: EntryName) -> io::Result<()> {
-        self.start_file_with_options(name, WriteOptionBuilder::default().build())
-    }
-
-    pub fn start_file_with_options(
-        &mut self,
-        name: EntryName,
-        options: WriteOption,
-    ) -> io::Result<()> {
-        self.end_file()?;
-        self.inner = Some(EntryWriter::new_file_with(Vec::new(), name, options)?);
-        Ok(())
-    }
-
-    pub fn write_all(&mut self, data: &[u8]) -> io::Result<()> {
-        self.inner.as_mut().unwrap().write_all(data)?;
-        Ok(())
-    }
-
-    pub fn end_file(&mut self) -> io::Result<()> {
-        if let Some(item_writer) = self.inner.take() {
-            let w = item_writer.finish()?;
-            self.w.write_all(&w)?;
-        }
-        Ok(())
     }
 
     pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<()> {
@@ -70,7 +39,6 @@ impl<W: Write> ArchiveWriter<W> {
     }
 
     pub fn finalize(&mut self) -> io::Result<()> {
-        self.end_file()?;
         if !self.finalized {
             let mut chunk_writer = ChunkWriter::from(&mut self.w);
             chunk_writer.write_chunk(ChunkType::AEND, &[])?;
