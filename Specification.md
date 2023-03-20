@@ -43,6 +43,7 @@ Byte order is big endian.
 #### AHED  
 
 The `AHED` chunk is stores basic information about the archive.
+All valid chunks must appear between this chunk and the `AEND` chunk described below.
 
 Chunk Data  
 
@@ -73,6 +74,19 @@ __Bit1__ ~ __Bit15__ currently dose not used. reserve for future.
 
 Contains the number of the archive when the archive is split.  
 Archive number is start with 0.
+
+#### AEND
+
+The `AEND` chunk must appear last.  
+This signals the end of the PNA data stream.  
+No more than this chunk should be loaded.  
+The chunk data area is empty.
+
+#### ANXT
+
+Indicates that the archive is split and the following file exists.
+The Archive number field of the `AHED` chunk of the next file will be the value of the Archive number field of the `AHED` chunk of the current file incremented by 1.
+The chunk data area is empty.
 
 #### FHED
 
@@ -144,12 +158,6 @@ The actual data of the file is recorded.
 This signals the end of the file data stream.  
 The chunk data area is empty.  
 
-#### AEND
-
-The `AEND` chunk must appear last.  
-This signals the end of the PNA data stream.  
-The chunk data area is empty.  
-
 ### Auxiliary Chunks  
 
 All Auxiliary Chunks must appear before the `AEND` Chunk
@@ -186,13 +194,6 @@ This chunk appeared after `FHAD` chunk and before `FEND` chunk.
 ##### permissions
 
 Unix file permission characters like `-rwxr-xr-x`.
-
-#### aNXT
-
-Indicates that the archive is split and the following file exists.
-The Archive number field of the `AHED` chunk of the next file will be the value of the Archive number field of the `AHED` chunk of the current file incremented by 1.
-Immediately after this chunk must be an `AEND` chunk.  
-The chunk data area is empty.  
 
 #### aSLD
 
