@@ -158,17 +158,14 @@ mod tests {
     }
 
     fn archive(src: &[u8], options: WriteOption) -> io::Result<()> {
-        let mut archived_temp = Vec::new();
-        {
-            let encoder = Encoder::new();
-            let mut archive_writer = encoder.write_header(&mut archived_temp)?;
-            archive_writer.add_entry({
-                let mut builder = EntryBuilder::new_file("test/text".into(), options.clone())?;
-                builder.write_all(src)?;
-                builder.build()?
-            })?;
-            archive_writer.finalize()?;
-        }
+        let encoder = Encoder::new();
+        let mut archive_writer = encoder.write_header(Vec::new())?;
+        archive_writer.add_entry({
+            let mut builder = EntryBuilder::new_file("test/text".into(), options.clone())?;
+            builder.write_all(src)?;
+            builder.build()?
+        })?;
+        let archived_temp = archive_writer.finalize()?;
         let mut dist = Vec::new();
         let decoder = Decoder::new();
         let mut archive_reader = decoder.read_header(io::Cursor::new(archived_temp))?;
