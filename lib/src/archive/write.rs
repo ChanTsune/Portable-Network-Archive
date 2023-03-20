@@ -34,8 +34,10 @@ impl<W: Write> ArchiveWriter<W> {
         })
     }
 
-    pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<()> {
-        self.w.write_all(&entry.into_bytes())
+    pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<usize> {
+        let bytes = entry.into_bytes();
+        self.w.write_all(&bytes)?;
+        Ok(bytes.len())
     }
 
     pub fn finalize(&mut self) -> io::Result<()> {
