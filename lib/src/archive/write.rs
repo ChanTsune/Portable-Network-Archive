@@ -20,7 +20,6 @@ impl Encoder {
 
 pub struct ArchiveWriter<W: Write> {
     w: W,
-    finalized: bool,
 }
 
 impl<W: Write> ArchiveWriter<W> {
@@ -30,7 +29,6 @@ impl<W: Write> ArchiveWriter<W> {
         chunk_writer.write_chunk(ChunkType::AHED, &create_chunk_data_ahed(0, 0, 0))?;
         Ok(Self {
             w: chunk_writer.into_inner(),
-            finalized: false,
         })
     }
 
@@ -40,13 +38,10 @@ impl<W: Write> ArchiveWriter<W> {
         Ok(bytes.len())
     }
 
-    pub fn finalize(&mut self) -> io::Result<()> {
-        if !self.finalized {
-            let mut chunk_writer = ChunkWriter::from(&mut self.w);
-            chunk_writer.write_chunk(ChunkType::AEND, &[])?;
-            self.finalized = true;
-        }
-        Ok(())
+    pub fn finalize(mut self) -> io::Result<W> {
+        let mut chunk_writer = ChunkWriter::from(&mut self.w);
+        chunk_writer.write_chunk(ChunkType::AEND, &[])?;
+        Ok(self.w)
     }
 }
 
@@ -56,12 +51,9 @@ mod tests {
 
     #[test]
     fn encode() {
-        let mut file = Vec::new();
-        {
-            let encoder = Encoder::new();
-            let mut writer = encoder.write_header(&mut file).unwrap();
-            writer.finalize().unwrap();
-        }
+        let encoder = Encoder::new();
+        let mut writer = encoder.write_header(Vec::new()).unwrap();
+        let file = writer.finalize().unwrap();
         let expected = include_bytes!("../../../resources/test/empty.pna");
         assert_eq!(file.as_slice(), expected.as_slice());
     }

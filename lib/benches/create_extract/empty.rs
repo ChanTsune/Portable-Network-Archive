@@ -16,12 +16,9 @@ fn write_empty_archive(b: &mut Bencher) {
 
 #[bench]
 fn read_empty_archive(b: &mut Bencher) {
-    let mut vec = Vec::with_capacity(1000);
-    {
-        let encoder = Encoder::default();
-        let mut writer = encoder.write_header(&mut vec).unwrap();
-        writer.finalize().unwrap();
-    }
+    let encoder = Encoder::default();
+    let mut writer = encoder.write_header(Vec::with_capacity(1000)).unwrap();
+    let mut vec = writer.finalize().unwrap();
 
     b.iter(|| {
         let mut reader = ArchiveReader::read_header(Cursor::new(vec.as_slice())).unwrap();
