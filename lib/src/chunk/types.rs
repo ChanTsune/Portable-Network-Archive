@@ -8,6 +8,8 @@ impl ChunkType {
     pub const AHED: ChunkType = ChunkType(*b"AHED");
     /// Archive end
     pub const AEND: ChunkType = ChunkType(*b"AEND");
+    /// Archive next part marker
+    pub const ANXT: ChunkType = ChunkType(*b"ANXT");
     /// File header
     pub const FHED: ChunkType = ChunkType(*b"FHED");
     /// Password hash string format
