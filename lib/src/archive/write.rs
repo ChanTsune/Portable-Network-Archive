@@ -48,12 +48,6 @@ impl<W: Write> ArchiveWriter<W> {
     }
 }
 
-impl<W: Write> Drop for ArchiveWriter<W> {
-    fn drop(&mut self) {
-        self.finalize().expect("archive finalize failed.");
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::Encoder;
