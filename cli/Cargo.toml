@@ -19,6 +19,9 @@ libpna = { version = "0.0.0-alpha.1", path = "../lib" }
 rayon = "1.7.0"
 rpassword = "7.2.0"
 
+[target.'cfg(unix)'.dependencies]
+nix = "0.26.2"
+
 [[bin]]
 name = "pna"
 path = "src/main.rs"
