@@ -2,9 +2,13 @@ use crate::cli::{ExtractArgs, Verbosity};
 use crate::command::{ask_password, Let};
 use glob::Pattern;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
-use libpna::{ArchiveReader, ReadEntry, ReadOptionBuilder};
+use libpna::{ArchiveReader, Permission, ReadEntry, ReadOptionBuilder};
+#[cfg(unix)]
+use nix::unistd::{chown, Group, User};
 use rayon::ThreadPoolBuilder;
-use std::fs::File;
+use std::fs::{File, Permissions};
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::time::Instant;
 use std::{fs, io};
@@ -50,6 +54,7 @@ pub(crate) fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Re
         let tx = tx.clone();
         let password = password.clone();
         let out_dir = args.out_dir.clone();
+        let keep_permission = args.keep_permission;
         pool.spawn_fifo(move || {
             tx.send(extract_entry(
                 item_path.clone(),
@@ -57,6 +62,7 @@ pub(crate) fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Re
                 password,
                 args.overwrite,
                 out_dir,
+                keep_permission,
                 verbosity,
             ))
             .unwrap_or_else(|e| panic!("{e}: {}", item_path.display()));
@@ -84,8 +90,12 @@ fn extract_entry(
     password: Option<String>,
     overwrite: bool,
     out_dir: Option<PathBuf>,
+    keep_permission: bool,
     verbosity: Verbosity,
 ) -> io::Result<()> {
+    if verbosity == Verbosity::Verbose {
+        println!("Extract: {}", item_path.display());
+    }
     let path = if let Some(out_dir) = &out_dir {
         out_dir.join(&item_path)
     } else {
@@ -98,15 +108,22 @@ fn extract_entry(
         ));
     }
     if verbosity == Verbosity::Verbose {
-        println!("Extract: {}", item_path.display());
+        println!("start: {}", path.display())
     }
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
+    let permissions = if keep_permission {
+        if let Some(p) = item.metadata().permission() {
+            permissions(p)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
     let mut file = File::create(&path)?;
-    if verbosity == Verbosity::Verbose {
-        println!("start: {}", path.display())
-    }
     let mut reader = item.into_reader({
         let mut builder = ReadOptionBuilder::new();
         if let Some(password) = password {
@@ -115,8 +132,44 @@ fn extract_entry(
         builder.build()
     })?;
     io::copy(&mut reader, &mut file)?;
+    #[cfg(unix)]
+    permissions.map(|(p, u, g)| {
+        chown(&path, u.map(|i| i.uid), g.map(|g| g.gid)).map_err(io::Error::from)?;
+        fs::set_permissions(&path, p)
+    });
     if verbosity == Verbosity::Verbose {
         println!("end: {}", path.display())
     }
     Ok(())
+}
+
+#[cfg(not(unix))]
+fn permissions(permission: &Permission) -> Option<((), (), ())> {
+    None
+}
+#[cfg(unix)]
+fn permissions(permission: &Permission) -> Option<(Permissions, Option<User>, Option<Group>)> {
+    Some((
+        Permissions::from_mode(permission.permissions().into()),
+        search_owner(permission.uname(), permission.uid()),
+        search_group(permission.gname(), permission.gid()),
+    ))
+}
+
+#[cfg(unix)]
+fn search_owner(name: &str, id: u64) -> Option<User> {
+    let user = User::from_name(name).ok().flatten();
+    if user.is_some() {
+        return user;
+    }
+    User::from_uid((id as u32).into()).ok().flatten()
+}
+
+#[cfg(unix)]
+fn search_group(name: &str, id: u64) -> Option<Group> {
+    let group = Group::from_name(name).ok().flatten();
+    if group.is_some() {
+        return group;
+    }
+    Group::from_gid((id as u32).into()).ok().flatten()
 }
