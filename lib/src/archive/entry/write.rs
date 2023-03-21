@@ -1,7 +1,7 @@
 use crate::{
     archive::{
         CipherMode, Compression, CompressionLevel, DataKind, Encryption, EntryHeader, EntryName,
-        HashAlgorithm, WriteOption,
+        HashAlgorithm, Permission, WriteOption,
     },
     chunk::{ChunkType, ChunkWriter},
     cipher::{CipherWriter, Ctr128BEWriter, EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
@@ -62,6 +62,12 @@ impl<W: Write> EntryWriter<W> {
     fn add_timestamp(&mut self, chunk: ChunkType, since_unix_epoch: Duration) -> io::Result<()> {
         let mut chunk_writer = ChunkWriter::from(&mut self.w);
         chunk_writer.write_chunk(chunk, &since_unix_epoch.as_secs().to_be_bytes())
+    }
+
+    /// Add a owner, group, and permissions for this entry.
+    pub(crate) fn add_permission(&mut self, permission: Permission) -> io::Result<()> {
+        let mut chunk_writer = ChunkWriter::from(&mut self.w);
+        chunk_writer.write_chunk(ChunkType::fPRM, &permission.to_bytes())
     }
 
     pub(crate) fn finish(mut self) -> io::Result<W> {
