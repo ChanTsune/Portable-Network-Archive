@@ -3,8 +3,12 @@ use crate::cli::{
 };
 use crate::command::{ask_password, check_password, Let};
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
-use libpna::{Encoder, Entry, EntryBuilder};
+use libpna::{Encoder, Entry, EntryBuilder, Permission};
+#[cfg(unix)]
+use nix::unistd::{Group, User};
 use rayon::ThreadPoolBuilder;
+#[cfg(unix)]
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::{
     fs::{self, metadata, File},
     io::{self, Write},
@@ -58,6 +62,7 @@ pub(crate) fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Resu
         let cipher = args.cipher.clone();
         let password = password.clone();
         let keep_timestamp = args.keep_timestamp;
+        let keep_permission = args.keep_permission;
         let tx = tx.clone();
         pool.spawn_fifo(move || {
             tx.send(write_internal(
@@ -66,6 +71,7 @@ pub(crate) fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Resu
                 cipher,
                 password,
                 keep_timestamp,
+                keep_permission,
                 verbosity,
             ))
             .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
@@ -110,6 +116,7 @@ fn write_internal(
     cipher: CipherAlgorithmArgs,
     password: Option<String>,
     keep_timestamp: bool,
+    keep_permission: bool,
     verbosity: Verbosity,
 ) -> io::Result<impl Entry> {
     if verbosity == Verbosity::Verbose {
@@ -160,17 +167,34 @@ fn write_internal(
             )
             .password(password);
         let mut entry = EntryBuilder::new_file(path.into(), option_builder.build())?;
-        if keep_timestamp {
+        if keep_timestamp || keep_permission {
             let meta = metadata(path)?;
-            if let Ok(c) = meta.created() {
-                if let Ok(created_since_unix_epoch) = c.duration_since(UNIX_EPOCH) {
-                    entry.created(created_since_unix_epoch);
+            if keep_timestamp {
+                if let Ok(c) = meta.created() {
+                    if let Ok(created_since_unix_epoch) = c.duration_since(UNIX_EPOCH) {
+                        entry.created(created_since_unix_epoch);
+                    }
+                }
+                if let Ok(m) = meta.modified() {
+                    if let Ok(modified_since_unix_epoch) = m.duration_since(UNIX_EPOCH) {
+                        entry.modified(modified_since_unix_epoch);
+                    }
                 }
             }
-            if let Ok(m) = meta.modified() {
-                if let Ok(modified_since_unix_epoch) = m.duration_since(UNIX_EPOCH) {
-                    entry.modified(modified_since_unix_epoch);
-                }
+            #[cfg(unix)]
+            if keep_permission {
+                let mode = meta.permissions().mode() as u16;
+                let uid = meta.uid();
+                let gid = meta.gid();
+                let user = User::from_uid(uid.into())?.unwrap();
+                let group = Group::from_gid(gid.into())?.unwrap();
+                entry.permission(Permission::new(
+                    uid.into(),
+                    user.name,
+                    gid.into(),
+                    group.name,
+                    mode,
+                ));
             }
         }
         entry.write_all(&fs::read(path)?)?;

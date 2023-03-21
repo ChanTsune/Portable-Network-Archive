@@ -62,6 +62,8 @@ pub(crate) struct CreateArgs {
     pub(crate) overwrite: bool,
     #[arg(long, help = "Archiving the timestamp of the files")]
     pub(crate) keep_timestamp: bool,
+    #[arg(long, help = "Archiving the permissions of the files")]
+    pub(crate) keep_permission: bool,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
