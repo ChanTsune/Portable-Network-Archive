@@ -1,4 +1,4 @@
-use ansi_term::Style;
+use ansi_term::{ANSIString, ANSIStrings, Style};
 use std::vec::IntoIter;
 
 pub(crate) struct Table<const N: usize> {
@@ -24,7 +24,7 @@ impl<const N: usize> Table<N> {
         let mut max_widths = [0; N];
         for row in &self.rows {
             for (i, col) in row.columns.iter().enumerate() {
-                max_widths[i] = max_widths[i].max(col.text.len());
+                max_widths[i] = max_widths[i].max(col.text.iter().map(|i| i.len()).sum());
             }
         }
         TableIter {
@@ -44,7 +44,13 @@ impl<const N: usize> Iterator for TableIter<N> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let row = self.iter.next()?;
-        Some(row.render(&self.max_widths))
+        Some(
+            row.render(&self.max_widths)
+                .into_iter()
+                .map(|i| ANSIStrings(&i).to_string())
+                .collect::<Vec<_>>()
+                .join(" "),
+        )
     }
 }
 
@@ -52,11 +58,14 @@ pub(crate) struct TableRow<const N: usize> {
     columns: [Cell; N],
 }
 
-pub(crate) fn header(style: Style) -> TableRow<6> {
+pub(crate) fn header(style: Style) -> TableRow<9> {
     TableRow::new([
         Cell::new(style, "Encryption"),
         Cell::new(style, "Compression"),
+        Cell::new(style, "Permissions"),
         Cell::new(style, "Compressed Size"),
+        Cell::new(style, "User"),
+        Cell::new(style, "Group"),
         Cell::new(style, "Created"),
         Cell::new(style, "Modified"),
         Cell::new(style, "Name"),
@@ -68,13 +77,12 @@ impl<const N: usize> TableRow<N> {
         Self { columns }
     }
 
-    pub(crate) fn render(&self, max_widths: &[usize; N]) -> String {
+    pub(crate) fn render(&self, max_widths: &[usize; N]) -> Vec<Vec<ANSIString>> {
         self.columns
             .iter()
             .zip(max_widths)
             .map(|(c, m)| c.render(*m))
             .collect::<Vec<_>>()
-            .join(" ")
     }
 }
 
@@ -85,7 +93,7 @@ pub(crate) enum Padding {
 
 pub(crate) struct Cell {
     style: Style,
-    text: String,
+    text: Vec<ANSIString<'static>>,
     pad_direction: Padding,
 }
 
@@ -102,16 +110,35 @@ impl Cell {
         Self {
             style,
             pad_direction,
-            text: text.to_string(),
+            text: vec![style.paint(text.to_string())],
+        }
+    }
+    pub(crate) fn new_text(
+        style: Style,
+        pad_direction: Padding,
+        text: Vec<ANSIString<'static>>,
+    ) -> Self {
+        Self {
+            style,
+            text,
+            pad_direction,
         }
     }
 
-    pub(crate) fn render(&self, max_width: usize) -> String {
-        self.style
-            .paint(match self.pad_direction {
-                Padding::Left => format!("{:>width$}", self.text, width = max_width),
-                Padding::Right => format!("{:<width$}", self.text, width = max_width),
-            })
-            .to_string()
+    pub(crate) fn render(&self, max_width: usize) -> Vec<ANSIString> {
+        let len: usize = self.text.iter().map(|i| i.len()).sum();
+        let p = " ".repeat(max_width - len);
+        let mut result = vec![];
+        match self.pad_direction {
+            Padding::Left => {
+                result.push(self.style.paint(p));
+                result.extend(self.text.clone());
+            }
+            Padding::Right => {
+                result.extend(self.text.clone());
+                result.push(self.style.paint(p));
+            }
+        }
+        result
     }
 }

@@ -2,7 +2,7 @@ mod table;
 
 use crate::cli::{ListArgs, Verbosity};
 use crate::command::list::table::{Cell, Padding, Table, TableRow};
-use ansi_term::{Colour, Style};
+use ansi_term::{ANSIString, Colour, Style};
 use chrono::{DateTime, Local};
 use glob::Pattern;
 use libpna::{ArchiveReader, Encryption, EntryHeader, Metadata, ReadEntry};
@@ -80,10 +80,26 @@ fn detail_list_entries(entries: &[(EntryHeader, Metadata)], header: bool) {
                 style_compression_column,
                 format!("{:?}", entry.compression()).to_ascii_lowercase(),
             ),
+            Cell::new_text(
+                style_date,
+                Padding::Right,
+                metadata
+                    .permission()
+                    .map(|p| paint_permission(false, p.permissions()))
+                    .unwrap_or(vec![Style::new().paint("-")]),
+            ),
             Cell::new_with_pad_direction(
                 style_compressed_size_column,
                 Padding::Left,
                 metadata.compressed_size(),
+            ),
+            Cell::new(
+                style_date,
+                metadata.permission().map(|p| p.uname()).unwrap_or("-"),
+            ),
+            Cell::new(
+                style_date,
+                metadata.permission().map(|p| p.gname()).unwrap_or("-"),
             ),
             Cell::new(style_date, datetime(now, metadata.created())),
             Cell::new(style_date, datetime(now, metadata.modified())),
@@ -115,4 +131,35 @@ fn datetime(now: SystemTime, d: Option<Duration>) -> String {
             }
         }
     }
+}
+
+fn paint_permission(is_dir: bool, permission: u16) -> Vec<ANSIString<'static>> {
+    let style_read = Style::new().fg(Colour::Yellow);
+    let style_write = Style::new().fg(Colour::Red);
+    let style_exec = Style::new().fg(Colour::Blue);
+    let style_dir = Style::new().fg(Colour::Purple);
+    let style_hyphen = Style::new();
+
+    let style_paint = |style: Style, c: &'static str, h: &'static str, bool: bool| {
+        if bool {
+            style.paint(c)
+        } else {
+            style_hyphen.paint(h)
+        }
+    };
+    let paint =
+        |style: Style, c: &'static str, bit: u16| style_paint(style, c, "-", permission & bit != 0);
+
+    vec![
+        style_paint(style_dir, "d", ".", is_dir),
+        paint(style_read, "r", 0b100000000),  // owner_read
+        paint(style_write, "w", 0b010000000), // owner_write
+        paint(style_exec, "x", 0b001000000),  // owner_exec
+        paint(style_read, "r", 0b000100000),  // group_read
+        paint(style_write, "w", 0b000010000), // group_write
+        paint(style_exec, "x", 0b000001000),  // group_exec
+        paint(style_read, "r", 0b000000100),  // other_read
+        paint(style_write, "w", 0b000000010), // other_write
+        paint(style_exec, "x", 0b000000001),  // other_exec
+    ]
 }
