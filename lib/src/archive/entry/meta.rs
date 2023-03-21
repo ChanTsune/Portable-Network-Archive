@@ -1,3 +1,4 @@
+use std::io::{self, Read};
 use std::time::Duration;
 
 /// MetaData information about a entry
@@ -6,6 +7,7 @@ pub struct Metadata {
     pub(crate) compressed_size: usize,
     pub(crate) created: Option<Duration>,
     pub(crate) modified: Option<Duration>,
+    pub(crate) permission: Option<Permission>,
 }
 
 impl Metadata {
@@ -23,6 +25,11 @@ impl Metadata {
     #[inline]
     pub fn modified(&self) -> Option<Duration> {
         self.modified
+    }
+    /// A owner, group, and permissions for a entry
+    #[inline]
+    pub fn permission(&self) -> Option<&Permission> {
+        self.permission.as_ref()
     }
 }
 
@@ -148,5 +155,69 @@ impl Permission {
         bytes.extend_from_slice(self.gname.as_bytes());
         bytes.extend_from_slice(&self.permission.to_be_bytes());
         bytes
+    }
+
+    pub(crate) fn try_from_bytes(mut bytes: &[u8]) -> io::Result<Self> {
+        let uid = u64::from_be_bytes({
+            let mut buf = [0; 8];
+            bytes.read_exact(&mut buf)?;
+            buf
+        });
+        let uname_len = {
+            let mut buf = [0; 1];
+            bytes.read_exact(&mut buf)?;
+            buf[0] as usize
+        };
+        let uname = String::from_utf8({
+            let mut buf = vec![0; uname_len];
+            bytes.read_exact(&mut buf)?;
+            buf
+        })
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let gid = u64::from_be_bytes({
+            let mut buf = [0; 8];
+            bytes.read_exact(&mut buf)?;
+            buf
+        });
+        let gname_len = {
+            let mut buf = [0; 1];
+            bytes.read_exact(&mut buf)?;
+            buf[0] as usize
+        };
+        let gname = String::from_utf8({
+            let mut buf = vec![0; gname_len];
+            bytes.read_exact(&mut buf)?;
+            buf
+        })
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let permission = u16::from_be_bytes({
+            let mut buf = [0; 2];
+            bytes.read_exact(&mut buf)?;
+            buf
+        });
+        Ok(Self {
+            uid,
+            uname,
+            gid,
+            gname,
+            permission,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn permission() {
+        let perm = Permission::new(
+            1000,
+            String::from("user1"),
+            100,
+            String::from("group1"),
+            0o644,
+        );
+        assert_eq!(perm, Permission::try_from_bytes(&perm.to_bytes()).unwrap());
     }
 }
