@@ -82,6 +82,7 @@ fn zstd_keep_timestamp(b: &mut Bencher) {
             "c",
             "../out/zstd_keep_timestamp.pna",
             "--zstd",
+            "--keep-timestamp",
             "--overwrite",
             "-r",
             "../resources/test/raw/",
