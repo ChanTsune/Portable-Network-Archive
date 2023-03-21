@@ -90,3 +90,21 @@ fn zstd_keep_timestamp(b: &mut Bencher) {
         .unwrap()
     })
 }
+
+#[bench]
+fn zstd_keep_permission(b: &mut Bencher) {
+    b.iter(|| {
+        command::entry(cli::Cli::parse_from([
+            "pna",
+            "--quiet",
+            "c",
+            "../out/zstd_keep_permission.pna",
+            "--zstd",
+            "--keep-permission",
+            "--overwrite",
+            "-r",
+            "../resources/test/raw/",
+        ]))
+        .unwrap()
+    })
+}
