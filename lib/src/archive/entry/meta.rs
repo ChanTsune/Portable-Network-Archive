@@ -137,4 +137,16 @@ impl Permission {
     pub fn permissions(&self) -> u16 {
         self.permission
     }
+
+    pub(crate) fn to_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(20 + self.uname.len() + self.gname.len());
+        bytes.extend_from_slice(&self.uid.to_be_bytes());
+        bytes.extend_from_slice(&(self.uname.len() as u8).to_be_bytes());
+        bytes.extend_from_slice(self.uname.as_bytes());
+        bytes.extend_from_slice(&self.gid.to_be_bytes());
+        bytes.extend_from_slice(&(self.gname.len() as u8).to_be_bytes());
+        bytes.extend_from_slice(self.gname.as_bytes());
+        bytes.extend_from_slice(&self.permission.to_be_bytes());
+        bytes
+    }
 }
