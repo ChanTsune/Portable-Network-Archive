@@ -29,9 +29,9 @@ pub(crate) struct EntryWriter<W: Write> {
 impl<W: Write> EntryWriter<W> {
     pub(crate) fn new_file_with(w: W, name: EntryName, options: WriteOption) -> io::Result<Self> {
         let mut chunk_writer = ChunkWriter::from(w);
-        chunk_writer.write_chunk(
+        chunk_writer.write_chunk((
             ChunkType::FHED,
-            &EntryHeader::new(
+            EntryHeader::new(
                 DataKind::File,
                 options.compression,
                 options.encryption,
@@ -39,7 +39,7 @@ impl<W: Write> EntryWriter<W> {
                 name,
             )
             .to_bytes(),
-        )?;
+        ))?;
         Ok(Self {
             w: chunk_writer.into_inner(),
             options,
@@ -61,13 +61,13 @@ impl<W: Write> EntryWriter<W> {
 
     fn add_timestamp(&mut self, chunk: ChunkType, since_unix_epoch: Duration) -> io::Result<()> {
         let mut chunk_writer = ChunkWriter::from(&mut self.w);
-        chunk_writer.write_chunk(chunk, &since_unix_epoch.as_secs().to_be_bytes())
+        chunk_writer.write_chunk((chunk, since_unix_epoch.as_secs().to_be_bytes().as_slice()))
     }
 
     /// Add a owner, group, and permissions for this entry.
     pub(crate) fn add_permission(&mut self, permission: Permission) -> io::Result<()> {
         let mut chunk_writer = ChunkWriter::from(&mut self.w);
-        chunk_writer.write_chunk(ChunkType::fPRM, &permission.to_bytes())
+        chunk_writer.write_chunk((ChunkType::fPRM, permission.to_bytes()))
     }
 
     pub(crate) fn finish(mut self) -> io::Result<W> {
@@ -80,11 +80,11 @@ impl<W: Write> EntryWriter<W> {
         let mut chunk_writer = ChunkWriter::from(&mut self.w);
 
         if let Some(phsf) = phsf {
-            chunk_writer.write_chunk(ChunkType::PHSF, phsf.as_bytes())?;
+            chunk_writer.write_chunk((ChunkType::PHSF, phsf.as_bytes()))?;
         }
-        chunk_writer.write_chunk(ChunkType::FDAT, &data)?;
+        chunk_writer.write_chunk((ChunkType::FDAT, data))?;
 
-        chunk_writer.write_chunk(ChunkType::FEND, &[])?;
+        chunk_writer.write_chunk((ChunkType::FEND, [].as_slice()))?;
         Ok(self.w)
     }
 }
