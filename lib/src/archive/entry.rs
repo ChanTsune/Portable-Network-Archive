@@ -59,6 +59,7 @@ impl ChunkEntry {
         let mut phsf = None;
         let mut ctime = None;
         let mut mtime = None;
+        let mut permission = None;
         for (chunk_type, mut raw_data) in self.chunks {
             match chunk_type {
                 ChunkType::FEND => break,
@@ -74,6 +75,7 @@ impl ChunkEntry {
                 ChunkType::FDAT => data.append(&mut raw_data),
                 ChunkType::cTIM => ctime = Some(timestamp(&raw_data)?),
                 ChunkType::mTIM => mtime = Some(timestamp(&raw_data)?),
+                ChunkType::fPRM => permission = Some(Permission::try_from_bytes(&raw_data)?),
                 _ => extra.push((chunk_type, raw_data)),
             }
         }
@@ -100,6 +102,7 @@ impl ChunkEntry {
                 compressed_size: data.len(),
                 created: ctime,
                 modified: mtime,
+                permission,
             },
             data,
         })
@@ -212,6 +215,7 @@ pub struct EntryBuilder {
     writer: EntryWriter<Vec<u8>>,
     created: Option<Duration>,
     last_modified: Option<Duration>,
+    permission: Option<Permission>,
 }
 
 impl EntryBuilder {
@@ -224,12 +228,13 @@ impl EntryBuilder {
     ///
     /// # Returns
     ///
-    /// A Result containing the new EntryBuilder, or an I/O error if creation fails.
+    /// A Result containing the new [EntryBuilder], or an I/O error if creation fails.
     pub fn new_file(name: EntryName, option: WriteOption) -> io::Result<Self> {
         Ok(Self {
             writer: EntryWriter::new_file_with(Vec::new(), name, option)?,
             created: None,
             last_modified: None,
+            permission: None,
         })
     }
 
@@ -241,7 +246,7 @@ impl EntryBuilder {
     ///
     /// # Returns
     ///
-    /// A mutable reference to the EntryBuilder with the creation timestamp set.
+    /// A mutable reference to the [EntryBuilder] with the creation timestamp set.
     pub fn created(&mut self, since_unix_epoch: Duration) -> &mut Self {
         self.created = Some(since_unix_epoch);
         self
@@ -255,9 +260,24 @@ impl EntryBuilder {
     ///
     /// # Returns
     ///
-    /// A mutable reference to the EntryBuilder with the last modified timestamp set.
+    /// A mutable reference to the [EntryBuilder] with the last modified timestamp set.
     pub fn modified(&mut self, since_unix_epoch: Duration) -> &mut Self {
         self.last_modified = Some(since_unix_epoch);
+        self
+    }
+
+    /// Sets the permission of the entry to the given owner, group, and permissions.
+    ///
+    /// # Arguments
+    ///
+    /// * `permission` - A [Permission] struct containing the owner, group, and
+    ///   permissions to set for the entry.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the [EntryBuilder] with the permission set.
+    pub fn permission(&mut self, permission: Permission) -> &mut Self {
+        self.permission = Some(permission);
         self
     }
 
@@ -265,13 +285,16 @@ impl EntryBuilder {
     ///
     /// # Returns
     ///
-    /// A Result containing the new Entry, or an I/O error if the build fails.
+    /// A Result containing the new [Entry], or an I/O error if the build fails.
     pub fn build(mut self) -> io::Result<impl Entry> {
         if let Some(c) = self.created {
             self.writer.add_creation_timestamp(c)?;
         }
         if let Some(m) = self.last_modified {
             self.writer.add_modified_timestamp(m)?;
+        }
+        if let Some(p) = self.permission {
+            self.writer.add_permission(p)?;
         }
         Ok(BytesEntry(self.writer.finish()?))
     }
