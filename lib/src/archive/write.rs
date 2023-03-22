@@ -24,7 +24,7 @@ pub struct ArchiveWriter<W: Write> {
 }
 
 impl<W: Write> ArchiveWriter<W> {
-    pub fn write_header(mut write: W) -> io::Result<Self> {
+    pub fn write_header(write: W) -> io::Result<Self> {
         Self::write_header_with_archive_number(write, 0)
     }
 
@@ -68,12 +68,11 @@ impl<W: Write> ArchiveWriter<W> {
 
 #[cfg(test)]
 mod tests {
-    use super::Encoder;
+    use super::*;
 
     #[test]
     fn encode() {
-        let encoder = Encoder::new();
-        let mut writer = encoder.write_header(Vec::new()).unwrap();
+        let writer = ArchiveWriter::write_header(Vec::new()).unwrap();
         let file = writer.finalize().unwrap();
         let expected = include_bytes!("../../../resources/test/empty.pna");
         assert_eq!(file.as_slice(), expected.as_slice());
