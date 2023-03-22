@@ -23,7 +23,7 @@ pub struct ArchiveWriter<W: Write> {
 }
 
 impl<W: Write> ArchiveWriter<W> {
-    fn write_header(mut write: W) -> io::Result<Self> {
+    pub fn write_header(mut write: W) -> io::Result<Self> {
         write.write_all(PNA_HEADER)?;
         let mut chunk_writer = ChunkWriter::from(write);
         chunk_writer.write_chunk(ChunkType::AHED, &create_chunk_data_ahed(0, 0, 0))?;
