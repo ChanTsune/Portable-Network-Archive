@@ -1,6 +1,8 @@
+use std::fmt::{self, Display, Formatter};
+
 /// A 4-byte chunk type code.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct ChunkType(pub [u8; 4]);
+pub struct ChunkType(pub(crate) [u8; 4]);
 
 impl ChunkType {
     // -- Critical chunks --
@@ -29,4 +31,20 @@ impl ChunkType {
     /// File permissions
     #[allow(non_upper_case_globals)]
     pub const fPRM: ChunkType = ChunkType(*b"pPRM");
+}
+
+impl Display for ChunkType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str(unsafe { std::str::from_utf8_unchecked(&self.0) })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn to_string() {
+        assert_eq!("AHED", ChunkType::AHED.to_string());
+    }
 }
