@@ -1,7 +1,10 @@
 mod table;
 
-use crate::cli::{ListArgs, Verbosity};
-use crate::command::list::table::{Cell, Padding, Table, TableRow};
+use crate::{
+    cli::{ListArgs, Verbosity},
+    command::list::table::{Cell, Padding, Table, TableRow},
+    utils::part_name,
+};
 use ansi_term::{ANSIString, Colour, Style};
 use chrono::{DateTime, Local};
 use glob::Pattern;
@@ -18,13 +21,27 @@ pub(crate) fn list_archive(args: ListArgs, _: Verbosity) -> io::Result<()> {
         .map(|p| Pattern::new(&p.to_string_lossy()))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-    let file = File::open(args.file.archive)?;
+    let file = File::open(&args.file.archive)?;
 
     let mut entries = vec![];
     let mut reader = ArchiveReader::read_header(file)?;
-    for entry in reader.entries() {
-        let item = entry?;
-        entries.push((item.header().clone(), item.metadata().clone()));
+    let mut num_archive = 1;
+    loop {
+        for entry in reader.entries() {
+            let item = entry?;
+            entries.push((item.header().clone(), item.metadata().clone()));
+        }
+        if reader.next_archive() {
+            num_archive += 1;
+            if let Ok(file) = File::open(part_name(&args.file.archive, num_archive).unwrap()) {
+                reader = reader.read_next_archive(file)?;
+            } else {
+                eprintln!("Detected that the file has been split, but the following file could not be found.");
+                break;
+            }
+        } else {
+            break;
+        }
     }
 
     if entries.is_empty() {
