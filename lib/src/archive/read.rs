@@ -88,7 +88,7 @@ impl<R: Read> ArchiveReader<R> {
     /// Returns an error if an I/O error occurs while reading from the archive.
     fn next_raw_item(&mut self) -> io::Result<Option<ChunkEntry>> {
         let mut chunks = Vec::with_capacity(3);
-        chunks.extend(self.buf.drain(..));
+        chunks.append(&mut self.buf);
         loop {
             let (chunk_type, raw_data) = self.r.read_chunk()?;
             match chunk_type {

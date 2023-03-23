@@ -39,9 +39,10 @@ impl ArchiveHeader {
             bytes.read_exact(&mut buf)?;
             buf[0]
         };
-        let _ = {
-            bytes.read_exact(&mut [0; 2])?;
-        };
+
+        // NOTE: ignore 2bytes currently unused.
+        bytes.read_exact(&mut [0; 2])?;
+
         let archive_number = {
             let mut buf = [0; 4];
             bytes.read_exact(&mut buf)?;
