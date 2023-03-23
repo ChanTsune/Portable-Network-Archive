@@ -32,22 +32,48 @@ impl Decoder {
     }
 }
 
+/// A reader for PNA archives.
 pub struct ArchiveReader<R> {
     r: ChunkReader<R>,
+    next_archive: bool,
 }
 
 impl<R: Read> ArchiveReader<R> {
+    /// Reads the archive header from the provided reader and returns a new `ArchiveReader`.
+    ///
+    /// # Arguments
+    ///
+    /// * `reader` - The reader to read from.
+    ///
+    /// # Returns
+    ///
+    /// A new `ArchiveReader`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while reading from the reader.
     pub fn read_header(mut reader: R) -> io::Result<Self> {
         read_pna_header(&mut reader)?;
         let mut chunk_reader = ChunkReader::from(reader);
         // Read `AHED` chunk
         let _ = chunk_reader.read_chunk()?;
-        Ok(Self { r: chunk_reader })
+        Ok(Self {
+            r: chunk_reader,
+            next_archive: false,
+        })
     }
 
-    /// Read the next chunks from `FHED` to `FEND`
+    /// Reads the next raw entry (from FHED` to `FEND` chunk) from the archive.
+    ///
+    /// # Returns
+    ///
+    /// An `io::Result` containing an `Option<ChunkEntry>`. Returns `Ok(None)` if there are no more items to read.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while reading from the archive.
     fn next_raw_item(&mut self) -> io::Result<Option<ChunkEntry>> {
-        let mut chunks = Vec::new();
+        let mut chunks = Vec::with_capacity(3);
         loop {
             let (chunk_type, raw_data) = self.r.read_chunk()?;
             match chunk_type {
@@ -55,6 +81,7 @@ impl<R: Read> ArchiveReader<R> {
                     chunks.push((chunk_type, raw_data));
                     break;
                 }
+                ChunkType::ANXT => self.next_archive = true,
                 ChunkType::AEND => return Ok(None),
                 _ => chunks.push((chunk_type, raw_data)),
             }
@@ -77,6 +104,16 @@ impl<R: Read> ArchiveReader<R> {
 
     pub fn entries(&mut self) -> impl Iterator<Item = io::Result<impl ReadEntry>> + '_ {
         Entries { reader: self }
+    }
+
+    /// Returns `true` if `ANXT` chunk is appeared before call this method calling.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the next archive in the series is available, otherwise `false`.
+    #[inline]
+    pub fn next_archive(&self) -> bool {
+        self.next_archive
     }
 }
 
