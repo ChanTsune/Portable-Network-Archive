@@ -1,7 +1,7 @@
 use crate::{
     archive::{
         entry::{ChunkEntry, ReadEntry, ReadEntryImpl},
-        PNA_HEADER,
+        ArchiveHeader, PNA_HEADER,
     },
     chunk::{ChunkReader, ChunkType},
 };
@@ -36,6 +36,7 @@ impl Decoder {
 pub struct ArchiveReader<R> {
     r: ChunkReader<R>,
     next_archive: bool,
+    header: ArchiveHeader,
 }
 
 impl<R: Read> ArchiveReader<R> {
@@ -55,11 +56,18 @@ impl<R: Read> ArchiveReader<R> {
     pub fn read_header(mut reader: R) -> io::Result<Self> {
         read_pna_header(&mut reader)?;
         let mut chunk_reader = ChunkReader::from(reader);
-        // Read `AHED` chunk
-        let _ = chunk_reader.read_chunk()?;
+        let (ty, raw_header) = chunk_reader.read_chunk()?;
+        if ty != ChunkType::AHED {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Unexpected Chunk `{}`", ty),
+            ));
+        }
+        let header = ArchiveHeader::try_from_bytes(&raw_header)?;
         Ok(Self {
             r: chunk_reader,
             next_archive: false,
+            header,
         })
     }
 
@@ -94,6 +102,15 @@ impl<R: Read> ArchiveReader<R> {
         self.read_entry()
     }
 
+    /// Reads the next entry from the archive.
+    ///
+    /// # Returns
+    ///
+    /// An `io::Result` containing an `Option<ReadEntryImpl>`. Returns `Ok(None)` if there are no more entries to read.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while reading from the archive.
     pub(crate) fn read_entry(&mut self) -> io::Result<Option<ReadEntryImpl>> {
         let entry = self.next_raw_item()?;
         match entry {
