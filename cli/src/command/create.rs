@@ -1,9 +1,10 @@
-use crate::cli::{
-    CipherAlgorithmArgs, CipherMode, CompressionAlgorithmArgs, CreateArgs, Verbosity,
+use crate::{
+    cli::{CipherAlgorithmArgs, CipherMode, CompressionAlgorithmArgs, CreateArgs, Verbosity},
+    command::{ask_password, check_password, Let},
+    utils::part_name,
 };
-use crate::command::{ask_password, check_password, Let};
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
-use libpna::{Encoder, Entry, EntryBuilder, Permission};
+use libpna::{ArchiveWriter, Entry, EntryBuilder, Permission};
 #[cfg(unix)]
 use nix::unistd::{Group, User};
 use rayon::ThreadPoolBuilder;
@@ -48,15 +49,9 @@ pub(crate) fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Resu
         None
     };
 
-    if let Some(parent) = archive.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    let file = File::create(archive)?;
+    let item_count = target_items.len();
 
     let (tx, rx) = std::sync::mpsc::channel();
-    let encoder = Encoder::new();
-    let mut writer = encoder.write_header(file)?;
-
     for file in target_items {
         let compression = args.compression.clone();
         let cipher = args.cipher.clone();
@@ -79,8 +74,31 @@ pub(crate) fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Resu
     }
 
     drop(tx);
-    for item in rx {
-        writer.add_entry(item?)?;
+
+    if let Some(parent) = archive.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let file = File::create(&archive)?;
+    let mut writer = ArchiveWriter::write_header(file)?;
+
+    let max_file_size = args.split.map(|it| it.unwrap_or(1 * 1024 * 1024 * 1024));
+    let mut part_num = 0;
+    let mut written_entry_size = 0;
+    for (idx, item) in rx.into_iter().enumerate() {
+        let is_last = idx + 1 == item_count;
+
+        written_entry_size += writer.add_entry(item?)?;
+        // if split is enabled
+        if let Some(max_file_size) = max_file_size {
+            if written_entry_size >= max_file_size {
+                part_num += 1;
+                fs::rename(&archive, part_name(&archive, part_num).unwrap())?;
+                if !is_last {
+                    let file = File::create(&archive)?;
+                    writer = writer.split_to_next_archive(file)?;
+                }
+            }
+        }
         progress_bar.let_ref(|pb| pb.inc(1));
     }
 
