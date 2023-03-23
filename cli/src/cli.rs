@@ -64,6 +64,8 @@ pub(crate) struct CreateArgs {
     pub(crate) keep_timestamp: bool,
     #[arg(long, help = "Archiving the permissions of the files")]
     pub(crate) keep_permission: bool,
+    #[arg(long, help = "Split archive by total entry size")]
+    pub(crate) split: Option<Option<usize>>,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
