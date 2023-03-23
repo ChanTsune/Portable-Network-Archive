@@ -4,7 +4,7 @@ mod read;
 mod write;
 
 pub use entry::*;
-pub use header::PNA_HEADER;
+pub use header::*;
 pub use read::{ArchiveReader, Decoder};
 pub use write::{ArchiveWriter, Encoder};
 

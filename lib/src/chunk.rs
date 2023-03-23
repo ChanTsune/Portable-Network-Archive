@@ -36,15 +36,6 @@ impl<T: Deref<Target = [u8]>> Chunk for (ChunkType, T) {
     }
 }
 
-pub(crate) fn create_chunk_data_ahed(major: u8, minor: u8, archive_number: u32) -> [u8; 8] {
-    let mut data = [0; 8];
-    data[0] = major;
-    data[1] = minor;
-    data[2..4].copy_from_slice(&[0, 0]);
-    data[4..8].copy_from_slice(&archive_number.to_be_bytes());
-    data
-}
-
 pub(crate) fn chunk_to_bytes(chunk: impl Chunk) -> Vec<u8> {
     let mut vec = Vec::with_capacity(12usize + chunk.length() as usize);
     vec.extend_from_slice(&chunk.length().to_be_bytes());
@@ -57,13 +48,6 @@ pub(crate) fn chunk_to_bytes(chunk: impl Chunk) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::create_chunk_data_ahed;
-
-    #[test]
-    fn ahed() {
-        assert_eq!([0u8, 0, 0, 0, 0, 0, 0, 0], create_chunk_data_ahed(0, 0, 0));
-        assert_eq!([1u8, 2, 0, 0, 0, 0, 0, 3], create_chunk_data_ahed(1, 2, 3));
-    }
 
     #[test]
     fn to_bytes() {

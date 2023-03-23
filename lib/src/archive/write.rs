@@ -1,7 +1,6 @@
 use crate::{
-    archive::PNA_HEADER,
+    archive::{ArchiveHeader, Entry, PNA_HEADER},
     chunk::{ChunkType, ChunkWriter},
-    create_chunk_data_ahed, Entry,
 };
 use std::io::{self, Write};
 
@@ -33,7 +32,7 @@ impl<W: Write> ArchiveWriter<W> {
         let mut chunk_writer = ChunkWriter::from(write);
         chunk_writer.write_chunk(
             ChunkType::AHED,
-            &create_chunk_data_ahed(0, 0, archive_number),
+            &ArchiveHeader::new(0, 0, archive_number).to_bytes(),
         )?;
         Ok(Self {
             w: chunk_writer.into_inner(),
