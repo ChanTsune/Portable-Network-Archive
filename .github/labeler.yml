@@ -1,0 +1,8 @@
+cli:
+  - any: ["cli/**/*"]
+lib:
+  - any: ["lib/**/*"]
+dependencies:
+  - any: ["Cargo.toml", "Cargo.lock", "**/Cargo.toml"]
+CI:
+  - any: [".github/**/*.yml"]
