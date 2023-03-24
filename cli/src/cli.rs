@@ -1,3 +1,4 @@
+use bytesize::ByteSize;
 use clap::ValueEnum;
 use clap::{value_parser, ArgGroup, Parser, Subcommand};
 use std::path::PathBuf;
@@ -69,7 +70,7 @@ pub(crate) struct CreateArgs {
     #[arg(long, help = "Archiving the permissions of the files")]
     pub(crate) keep_permission: bool,
     #[arg(long, help = "Split archive by total entry size")]
-    pub(crate) split: Option<Option<usize>>,
+    pub(crate) split: Option<Option<ByteSize>>,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]

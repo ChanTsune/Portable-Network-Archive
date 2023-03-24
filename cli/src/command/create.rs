@@ -3,6 +3,7 @@ use crate::{
     command::{ask_password, check_password, Let},
     utils::part_name,
 };
+use bytesize::ByteSize;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use libpna::{ArchiveWriter, Entry, EntryBuilder, Permission};
 #[cfg(unix)]
@@ -81,7 +82,9 @@ pub(crate) fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Resu
     let file = File::create(&archive)?;
     let mut writer = ArchiveWriter::write_header(file)?;
 
-    let max_file_size = args.split.map(|it| it.unwrap_or(1 * 1024 * 1024 * 1024));
+    let max_file_size = args
+        .split
+        .map(|it| it.unwrap_or(ByteSize::gb(1)).0 as usize);
     let mut part_num = 0;
     let mut written_entry_size = 0;
     for (idx, item) in rx.into_iter().enumerate() {
