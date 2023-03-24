@@ -128,7 +128,41 @@ pub(crate) struct ReadEntryImpl {
 
 impl Entry for ReadEntryImpl {
     fn into_bytes(self) -> Vec<u8> {
-        todo!()
+        let mut vec = Vec::new();
+        vec.append(&mut chunk_to_bytes((
+            ChunkType::FHED,
+            self.header.to_bytes(),
+        )));
+        if let Some(p) = self.phsf {
+            vec.append(&mut chunk_to_bytes((ChunkType::fPRM, p.into_bytes())));
+        }
+        for ex in self.extra {
+            vec.append(&mut chunk_to_bytes(ex));
+        }
+        vec.append(&mut chunk_to_bytes((ChunkType::FDAT, self.data)));
+        let Metadata {
+            compressed_size: _,
+            created,
+            modified,
+            permission,
+        } = self.metadata;
+        if let Some(c) = created {
+            vec.append(&mut chunk_to_bytes((
+                ChunkType::cTIM,
+                c.as_secs().to_be_bytes().as_slice(),
+            )));
+        }
+        if let Some(d) = modified {
+            vec.append(&mut chunk_to_bytes((
+                ChunkType::mTIM,
+                d.as_secs().to_be_bytes().as_slice(),
+            )));
+        }
+        if let Some(p) = permission {
+            vec.append(&mut chunk_to_bytes((ChunkType::fPRM, p.to_bytes())));
+        }
+        vec.append(&mut chunk_to_bytes((ChunkType::FEND, [].as_slice())));
+        vec
     }
 }
 
