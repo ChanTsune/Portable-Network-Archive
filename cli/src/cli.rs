@@ -188,3 +188,60 @@ impl Default for CipherMode {
         Self::Ctr
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn store_archive() {
+        let args = CreateArgs::parse_from(["create", "c.pna"]);
+        assert!(!args.compression.store);
+
+        let args = CreateArgs::parse_from(["create", "c.pna", "--store"]);
+        assert!(args.compression.store);
+    }
+
+    #[test]
+    fn deflate_level() {
+        let args = CreateArgs::parse_from(["create", "c.pna"]);
+        assert_eq!(args.compression.deflate, None);
+
+        let args = CreateArgs::parse_from(["create", "c.pna", "--deflate"]);
+        assert_eq!(args.compression.deflate, Some(None));
+
+        let args = CreateArgs::parse_from(["create", "c.pna", "--deflate", "5"]);
+        assert_eq!(args.compression.deflate, Some(Some(5u8)));
+    }
+
+    #[test]
+    fn zstd_level() {
+        let args = CreateArgs::parse_from(["create", "c.pna"]);
+        assert_eq!(args.compression.zstd, None);
+
+        let args = CreateArgs::parse_from(["create", "c.pna", "--zstd"]);
+        assert_eq!(args.compression.zstd, Some(None));
+
+        let args = CreateArgs::parse_from(["create", "c.pna", "--zstd", "5"]);
+        assert_eq!(args.compression.zstd, Some(Some(5u8)));
+    }
+
+    #[test]
+    fn lzma_level() {
+        let args = CreateArgs::parse_from(["create", "c.pna"]);
+        assert_eq!(args.compression.xz, None);
+
+        let args = CreateArgs::parse_from(["create", "c.pna", "--xz"]);
+        assert_eq!(args.compression.xz, Some(None));
+
+        let args = CreateArgs::parse_from(["create", "c.pna", "--xz", "5"]);
+        assert_eq!(args.compression.xz, Some(Some(5u8)));
+    }
+
+    #[test]
+    fn human_readable_byte_size() {
+        let args = CreateArgs::parse_from(["create", "c.pna", "--split", "10KiB"]);
+        assert_eq!(args.split, Some(Some(ByteSize::kib(10))))
+    }
+}
