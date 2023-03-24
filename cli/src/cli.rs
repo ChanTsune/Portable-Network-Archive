@@ -20,6 +20,7 @@ pub struct Cli {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[command(group(ArgGroup::new("verbosity").args(["quiet", "verbose"])))]
 pub(crate) struct VerbosityArgs {
     #[arg(long, help = "Make some output more quiet")]
     quiet: bool,
@@ -139,6 +140,7 @@ pub(crate) struct PasswordArgs {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[command(group(ArgGroup::new("compression_method").args(["store", "deflate", "zstd", "xz"])))]
 pub(crate) struct CompressionAlgorithmArgs {
     #[arg(long, help = "No compression")]
     pub(crate) store: bool,
@@ -166,6 +168,7 @@ pub(crate) struct CompressionAlgorithmArgs {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[command(group(ArgGroup::new("cipher_algorithm").args(["aes", "camellia"])))]
 pub(crate) struct CipherAlgorithmArgs {
     #[arg(long, value_name = "cipher mode", help = "Use aes for encryption")]
     pub(crate) aes: Option<Option<CipherMode>>,
