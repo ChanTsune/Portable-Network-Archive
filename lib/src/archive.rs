@@ -187,4 +187,25 @@ mod tests {
         assert_eq!(src, dist.as_slice());
         Ok(())
     }
+
+    #[test]
+    fn copy_entry() {
+        let archive = create_archive(b"archive text", WriteOptionBuilder::new().build())
+            .expect("failed to create archive");
+        let mut reader = ArchiveReader::read_header(io::Cursor::new(&archive))
+            .expect("failed to read archive header");
+
+        let mut writer =
+            ArchiveWriter::write_header(Vec::new()).expect("failed to write archive header");
+
+        for entry in reader.entries() {
+            writer
+                .add_entry(entry.expect("failed to read entry"))
+                .expect("failed to add entry");
+        }
+        assert_eq!(
+            archive,
+            writer.finalize().expect("failed to finish archive")
+        )
+    }
 }
