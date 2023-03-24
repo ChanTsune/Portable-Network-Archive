@@ -1,5 +1,5 @@
 use clap::ValueEnum;
-use clap::{value_parser, Parser, Subcommand};
+use clap::{value_parser, ArgGroup, Parser, Subcommand};
 use std::path::PathBuf;
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -15,6 +15,8 @@ pub struct Cli {
     pub(crate) commands: Commands,
     #[command(flatten)]
     pub(crate) verbosity: VerbosityArgs,
+    #[arg(long, global = true, help = "Declare to use unstable features")]
+    pub(crate) unstable: bool,
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -55,6 +57,7 @@ pub(crate) enum Commands {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[command(group(ArgGroup::new("unstable-split").args(["split"]).requires("unstable")))]
 pub(crate) struct CreateArgs {
     #[arg(short, long, help = "Add the directory to the archive recursively")]
     pub(crate) recursive: bool,
