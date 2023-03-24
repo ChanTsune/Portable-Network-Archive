@@ -22,9 +22,9 @@ pub struct Cli {
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(group(ArgGroup::new("verbosity").args(["quiet", "verbose"])))]
 pub(crate) struct VerbosityArgs {
-    #[arg(long, help = "Make some output more quiet")]
+    #[arg(long, global = true, help = "Make some output more quiet")]
     quiet: bool,
-    #[arg(long, help = "Make some output more verbose")]
+    #[arg(long, global = true, help = "Make some output more verbose")]
     verbose: bool,
 }
 
