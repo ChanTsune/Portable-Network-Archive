@@ -238,10 +238,6 @@ impl ReadEntryImpl {
         };
         Ok(EntryDataReader(reader))
     }
-
-    pub fn extra(&self) -> &Chunks {
-        &self.extra
-    }
 }
 
 /// A builder for creating a new entry.
