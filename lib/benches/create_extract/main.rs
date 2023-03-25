@@ -42,7 +42,7 @@ fn bench_read_archive(b: &mut Bencher, mut options: WriteOptionBuilder) {
             builder.build().unwrap()
         })
         .unwrap();
-    let mut vec = writer.finalize().unwrap();
+    let vec = writer.finalize().unwrap();
 
     b.iter(|| {
         let mut reader = ArchiveReader::read_header(Cursor::new(vec.as_slice())).unwrap();

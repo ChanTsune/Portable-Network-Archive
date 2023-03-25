@@ -3,7 +3,7 @@ use crate::{
         entry::{ChunkEntry, ReadEntry, ReadEntryImpl},
         ArchiveHeader, PNA_HEADER,
     },
-    chunk::{ChunkReader, ChunkType, Chunks},
+    chunk::{Chunk, ChunkReader, ChunkType, RawChunk},
 };
 use std::io::{self, Read, Seek};
 
@@ -37,7 +37,7 @@ pub struct ArchiveReader<R> {
     r: ChunkReader<R>,
     next_archive: bool,
     header: ArchiveHeader,
-    buf: Chunks,
+    buf: Vec<RawChunk>,
 }
 
 impl<R: Read> ArchiveReader<R> {
@@ -58,17 +58,17 @@ impl<R: Read> ArchiveReader<R> {
         Self::read_header_with_buffer(reader, Default::default())
     }
 
-    fn read_header_with_buffer(mut reader: R, buf: Chunks) -> io::Result<Self> {
+    fn read_header_with_buffer(mut reader: R, buf: Vec<RawChunk>) -> io::Result<Self> {
         read_pna_header(&mut reader)?;
         let mut chunk_reader = ChunkReader::from(reader);
-        let (ty, raw_header) = chunk_reader.read_chunk()?;
-        if ty != ChunkType::AHED {
+        let chunk = chunk_reader.read_chunk()?;
+        if chunk.ty != ChunkType::AHED {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("Unexpected Chunk `{}`", ty),
+                format!("Unexpected Chunk `{}`", chunk.ty),
             ));
         }
-        let header = ArchiveHeader::try_from_bytes(&raw_header)?;
+        let header = ArchiveHeader::try_from_bytes(chunk.data())?;
         Ok(Self {
             r: chunk_reader,
             next_archive: false,
@@ -90,10 +90,10 @@ impl<R: Read> ArchiveReader<R> {
         let mut chunks = Vec::with_capacity(3);
         chunks.append(&mut self.buf);
         loop {
-            let (chunk_type, raw_data) = self.r.read_chunk()?;
-            match chunk_type {
+            let chunk = self.r.read_chunk()?;
+            match chunk.ty {
                 ChunkType::FEND => {
-                    chunks.push((chunk_type, raw_data));
+                    chunks.push(chunk);
                     break;
                 }
                 ChunkType::ANXT => self.next_archive = true,
@@ -101,7 +101,7 @@ impl<R: Read> ArchiveReader<R> {
                     self.buf = chunks;
                     return Ok(None);
                 }
-                _ => chunks.push((chunk_type, raw_data)),
+                _ => chunks.push(chunk),
             }
         }
         Ok(Some(ChunkEntry { chunks }))

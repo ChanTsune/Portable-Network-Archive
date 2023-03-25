@@ -1,31 +1,33 @@
 extern crate test;
 
-use libpna::{ArchiveReader, Encoder, ReadEntry, ReadOptionBuilder};
-use std::io::{self, Cursor};
+use libpna::{ArchiveReader, ArchiveWriter, ReadEntry, ReadOptionBuilder};
+use std::io;
 use test::Bencher;
 
 #[bench]
 fn write_empty_archive(b: &mut Bencher) {
     b.iter(|| {
         let mut vec = Vec::with_capacity(1000);
-        let encoder = Encoder::default();
-        let mut writer = encoder.write_header(&mut vec).unwrap();
-        writer.finalize().unwrap();
+        let writer = ArchiveWriter::write_header(&mut vec).expect("failed to write header");
+        writer.finalize().expect("failed to finalize");
     })
 }
 
 #[bench]
 fn read_empty_archive(b: &mut Bencher) {
-    let encoder = Encoder::default();
-    let mut writer = encoder.write_header(Vec::with_capacity(1000)).unwrap();
-    let mut vec = writer.finalize().unwrap();
+    let writer =
+        ArchiveWriter::write_header(Vec::with_capacity(1000)).expect("failed to write header");
+    let vec = writer.finalize().expect("failed to finalize");
 
     b.iter(|| {
-        let mut reader = ArchiveReader::read_header(Cursor::new(vec.as_slice())).unwrap();
+        let mut reader = ArchiveReader::read_header(vec.as_slice()).expect("failed to read header");
         for entry in reader.entries() {
-            let item = entry.unwrap();
-            io::read_to_string(item.into_reader(ReadOptionBuilder::new().build()).unwrap())
-                .unwrap();
+            let item = entry.expect("failed to read entry");
+            io::read_to_string(
+                item.into_reader(ReadOptionBuilder::new().build())
+                    .expect("failed to read entry"),
+            )
+            .expect("failed to make string");
         }
     })
 }

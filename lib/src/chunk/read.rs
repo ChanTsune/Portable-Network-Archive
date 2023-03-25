@@ -1,4 +1,4 @@
-use crate::chunk::{crc::Crc32, ChunkImpl, ChunkType};
+use crate::chunk::{crc::Crc32, ChunkType, RawChunk};
 use std::io::{self, Read};
 
 pub(crate) struct ChunkReader<R> {
@@ -6,7 +6,7 @@ pub(crate) struct ChunkReader<R> {
 }
 
 impl<R: Read> ChunkReader<R> {
-    pub(crate) fn read_chunk(&mut self) -> io::Result<ChunkImpl> {
+    pub(crate) fn read_chunk(&mut self) -> io::Result<RawChunk> {
         let mut crc_hasher = Crc32::new();
 
         // read chunk length
@@ -37,8 +37,12 @@ impl<R: Read> ChunkReader<R> {
                 String::from("crc check failed. broken chunk"),
             ));
         }
-
-        Ok((ChunkType(type_), data))
+        Ok(RawChunk {
+            length,
+            ty: ChunkType(type_),
+            data,
+            crc,
+        })
     }
 }
 

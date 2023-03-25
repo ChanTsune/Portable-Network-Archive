@@ -6,7 +6,7 @@ mod read;
 mod write;
 
 use crate::{
-    chunk::{chunk_to_bytes, ChunkType, Chunks},
+    chunk::{chunk_to_bytes, ChunkType, RawChunk},
     cipher::{DecryptCbcAes256Reader, DecryptCbcCamellia256Reader},
     hash::verify_password,
 };
@@ -42,7 +42,7 @@ pub trait ReadEntry: Entry {
 /// Chunks from `FHED` to `FEND`, containing `FHED` and `FEND`
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ChunkEntry {
-    pub(crate) chunks: Chunks,
+    pub(crate) chunks: Vec<RawChunk>,
 }
 
 impl Entry for ChunkEntry {
@@ -60,23 +60,23 @@ impl ChunkEntry {
         let mut ctime = None;
         let mut mtime = None;
         let mut permission = None;
-        for (chunk_type, mut raw_data) in self.chunks {
-            match chunk_type {
+        for mut chunk in self.chunks {
+            match chunk.ty {
                 ChunkType::FEND => break,
                 ChunkType::FHED => {
-                    info = Some(EntryHeader::try_from(raw_data.as_slice())?);
+                    info = Some(EntryHeader::try_from(chunk.data.as_slice())?);
                 }
                 ChunkType::PHSF => {
                     phsf = Some(
-                        String::from_utf8(raw_data)
+                        String::from_utf8(chunk.data)
                             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
                     );
                 }
-                ChunkType::FDAT => data.append(&mut raw_data),
-                ChunkType::cTIM => ctime = Some(timestamp(&raw_data)?),
-                ChunkType::mTIM => mtime = Some(timestamp(&raw_data)?),
-                ChunkType::fPRM => permission = Some(Permission::try_from_bytes(&raw_data)?),
-                _ => extra.push((chunk_type, raw_data)),
+                ChunkType::FDAT => data.append(&mut chunk.data),
+                ChunkType::cTIM => ctime = Some(timestamp(&chunk.data)?),
+                ChunkType::mTIM => mtime = Some(timestamp(&chunk.data)?),
+                ChunkType::fPRM => permission = Some(Permission::try_from_bytes(&chunk.data)?),
+                _ => extra.push(chunk),
             }
         }
         let header = info.ok_or_else(|| {
@@ -121,7 +121,7 @@ impl Read for EntryDataReader {
 pub(crate) struct ReadEntryImpl {
     pub(crate) header: EntryHeader,
     pub(crate) phsf: Option<String>,
-    pub(crate) extra: Chunks,
+    pub(crate) extra: Vec<RawChunk>,
     pub(crate) data: Vec<u8>,
     pub(crate) metadata: Metadata,
 }
