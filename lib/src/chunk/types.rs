@@ -1,7 +1,7 @@
 use std::fmt::{self, Display, Formatter};
 
 /// A 4-byte chunk type code.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct ChunkType(pub(crate) [u8; 4]);
 
 impl ChunkType {
