@@ -5,7 +5,7 @@ use crate::{
     },
     chunk::{Chunk, ChunkReader, ChunkType, RawChunk},
 };
-use std::io::{self, Read, Seek};
+use std::io::{self, Read};
 
 fn read_pna_header<R: Read>(mut reader: R) -> io::Result<()> {
     let mut header = [0u8; PNA_HEADER.len()];
@@ -17,19 +17,6 @@ fn read_pna_header<R: Read>(mut reader: R) -> io::Result<()> {
         ));
     }
     Ok(())
-}
-
-#[derive(Default)]
-pub struct Decoder;
-
-impl Decoder {
-    pub fn new() -> Self {
-        Self
-    }
-
-    pub fn read_header<R: Read + Seek>(&self, reader: R) -> io::Result<ArchiveReader<R>> {
-        ArchiveReader::read_header(reader)
-    }
 }
 
 /// A reader for PNA archives.
