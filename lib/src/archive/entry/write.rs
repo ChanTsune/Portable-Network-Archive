@@ -72,7 +72,7 @@ impl<W: Write> EntryWriter<W> {
 
     pub(crate) fn finish(mut self) -> io::Result<W> {
         let (phsf, data) = {
-            let (mut writer, phsf) = writer_and_hash(Vec::new(), &self.options)?;
+            let (mut writer, phsf) = writer_and_hash(Vec::new(), self.options)?;
             writer.write_all(&self.buf)?;
             (phsf, writer.try_into_inner()?.try_into_inner()?)
         };
@@ -168,10 +168,10 @@ fn compression_writer<'w, W: Write + 'w>(
     })
 }
 
-fn writer_and_hash<'a, W: Write + 'a>(
+pub(super) fn writer_and_hash<'w, W: Write + 'w>(
     writer: W,
-    options: &'a WriteOption,
-) -> io::Result<(CompressionWriter<CipherWriter<W>>, Option<String>)> {
+    options: WriteOption,
+) -> io::Result<(CompressionWriter<'w, CipherWriter<W>>, Option<String>)> {
     let (writer, phsf) = match options.encryption {
         algorithm @ Encryption::No => (
             encryption_writer(writer, algorithm, options.cipher_mode, &[], &[])?,
