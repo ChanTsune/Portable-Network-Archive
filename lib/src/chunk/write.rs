@@ -1,5 +1,8 @@
 use crate::chunk::{Chunk, ChunkType};
-use std::io::{self, Write};
+use std::{
+    io::{self, Write},
+    mem,
+};
 
 pub(crate) struct ChunkWriter<W> {
     w: W,
@@ -21,7 +24,7 @@ where
 }
 
 impl<W: Write> ChunkWriter<W> {
-    pub(crate) fn write_chunk(&mut self, type_: ChunkType, data: &[u8]) -> io::Result<()> {
+    pub(crate) fn write_chunk(&mut self, type_: ChunkType, data: &[u8]) -> io::Result<usize> {
         let chunk = (type_, data);
 
         // write length
@@ -36,7 +39,7 @@ impl<W: Write> ChunkWriter<W> {
 
         // write crc32
         self.w.write_all(&chunk.crc().to_be_bytes())?;
-        Ok(())
+        Ok(mem::align_of::<u32>() + chunk.data().len() + chunk.ty().len() + mem::align_of::<u32>())
     }
 }
 
@@ -48,25 +51,29 @@ mod tests {
     #[test]
     fn write_aend_chunk() {
         let mut chunk_writer = ChunkWriter::from(Vec::new());
-        chunk_writer.write_chunk(ChunkType::AEND, &[]).unwrap();
+        assert_eq!(chunk_writer.write_chunk(ChunkType::AEND, &[]).unwrap(), 12);
         assert_eq!(
             chunk_writer.into_inner(),
             [0, 0, 0, 0, 65, 69, 78, 68, 107, 246, 72, 109]
-        )
+        );
     }
 
     #[test]
     fn write_fdat_chunk() {
         let mut chunk_writer = ChunkWriter::from(Vec::new());
-        chunk_writer
-            .write_chunk(ChunkType::FDAT, "text data".as_bytes())
-            .unwrap();
+        assert_eq!(
+            chunk_writer
+                .write_chunk(ChunkType::FDAT, "text data".as_bytes())
+                .unwrap(),
+            21,
+        );
+
         assert_eq!(
             chunk_writer.into_inner(),
             [
                 0, 0, 0, 9, 70, 68, 65, 84, 116, 101, 120, 116, 32, 100, 97, 116, 97, 177, 70, 138,
                 128
             ]
-        )
+        );
     }
 }
