@@ -33,7 +33,7 @@ impl<W: Write> ArchiveWriter<W> {
         Ok(bytes.len())
     }
 
-    fn add_next_archive_marker(&mut self) -> io::Result<()> {
+    fn add_next_archive_marker(&mut self) -> io::Result<usize> {
         let mut chunk_writer = ChunkWriter::from(&mut self.w);
         chunk_writer.write_chunk(ChunkType::ANXT, &[])
     }
