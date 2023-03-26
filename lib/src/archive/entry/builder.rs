@@ -1,15 +1,23 @@
 use crate::{
-    archive::{BytesEntry, EntryWriter},
-    {Entry, EntryName, Permission, WriteOption},
+    archive::entry::{
+        write::writer_and_hash, BytesEntry, DataKind, Entry, EntryHeader, EntryName, EntryWriter,
+        Permission, WriteOption,
+    },
+    chunk::{ChunkType, ChunkWriter},
+    cipher::CipherWriter,
+    compress::CompressionWriter,
+    io::TryIntoInner,
 };
 use std::{
     io::{self, Write},
     time::Duration,
 };
 
-/// A builder for creating a new entry.
+/// A builder for creating a new [Entry].
 pub struct EntryBuilder {
-    writer: EntryWriter<Vec<u8>>,
+    header: EntryHeader,
+    phsf: Option<String>,
+    data: CompressionWriter<'static, CipherWriter<Vec<u8>>>,
     created: Option<Duration>,
     last_modified: Option<Duration>,
     permission: Option<Permission>,
@@ -27,8 +35,17 @@ impl EntryBuilder {
     ///
     /// A Result containing the new [EntryBuilder], or an I/O error if creation fails.
     pub fn new_file(name: EntryName, option: WriteOption) -> io::Result<Self> {
+        let (writer, phsf) = writer_and_hash(Vec::new(), option.clone())?;
         Ok(Self {
-            writer: EntryWriter::new_file_with(Vec::new(), name, option)?,
+            header: EntryHeader::new(
+                DataKind::File,
+                option.compression,
+                option.encryption,
+                option.cipher_mode,
+                name,
+            ),
+            data: writer,
+            phsf,
             created: None,
             last_modified: None,
             permission: None,
@@ -84,25 +101,36 @@ impl EntryBuilder {
     ///
     /// A Result containing the new [Entry], or an I/O error if the build fails.
     pub fn build(mut self) -> io::Result<impl Entry> {
-        if let Some(c) = self.created {
-            self.writer.add_creation_timestamp(c)?;
+        let data = self.data.try_into_inner()?.try_into_inner()?;
+
+        let mut chunk_writer = ChunkWriter::from(Vec::with_capacity(data.len() + 128));
+        chunk_writer.write_chunk(ChunkType::FHED, &self.header.to_bytes())?;
+        if let Some(since_unix_epoch) = self.created {
+            chunk_writer.write_chunk(ChunkType::cTIM, &since_unix_epoch.as_secs().to_be_bytes())?;
         }
-        if let Some(m) = self.last_modified {
-            self.writer.add_modified_timestamp(m)?;
+        if let Some(since_unix_epoch) = self.last_modified {
+            chunk_writer.write_chunk(ChunkType::mTIM, &since_unix_epoch.as_secs().to_be_bytes())?;
         }
-        if let Some(p) = self.permission {
-            self.writer.add_permission(p)?;
+        if let Some(permission) = self.permission {
+            chunk_writer.write_chunk(ChunkType::fPRM, &permission.to_bytes())?;
         }
-        Ok(BytesEntry(self.writer.finish()?))
+        if let Some(phsf) = self.phsf {
+            chunk_writer.write_chunk(ChunkType::PHSF, phsf.as_bytes())?;
+        }
+        chunk_writer.write_chunk(ChunkType::FDAT, &data)?;
+
+        chunk_writer.write_chunk(ChunkType::FEND, &[])?;
+
+        Ok(BytesEntry(chunk_writer.into_inner()))
     }
 }
 
 impl Write for EntryBuilder {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.writer.write(buf)
+        self.data.write(buf)
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        self.writer.flush()
+        self.data.flush()
     }
 }
