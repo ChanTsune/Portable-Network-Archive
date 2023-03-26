@@ -31,6 +31,25 @@ impl ChunkType {
     /// File permissions
     #[allow(non_upper_case_globals)]
     pub const fPRM: ChunkType = ChunkType(*b"pPRM");
+
+    /// Returns the length of the chunk type code.
+    ///
+    /// # Returns
+    ///
+    /// An integer value representing the length of the chunk type code.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use libpna::ChunkType;
+    ///
+    /// let chunk_type = ChunkType::AHED;
+    ///
+    /// assert_eq!(chunk_type.len(), 4);
+    /// ```
+    pub const fn len(&self) -> usize {
+        self.0.len()
+    }
 }
 
 impl Display for ChunkType {
