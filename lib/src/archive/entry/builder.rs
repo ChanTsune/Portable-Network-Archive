@@ -1,7 +1,7 @@
 use crate::{
     archive::entry::{
-        write::writer_and_hash, BytesEntry, DataKind, Entry, EntryHeader, EntryName, EntryWriter,
-        Permission, WriteOption,
+        write::writer_and_hash, BytesEntry, DataKind, Entry, EntryHeader, EntryName, Permission,
+        WriteOption,
     },
     chunk::{ChunkType, ChunkWriter},
     cipher::CipherWriter,
@@ -100,7 +100,7 @@ impl EntryBuilder {
     /// # Returns
     ///
     /// A Result containing the new [Entry], or an I/O error if the build fails.
-    pub fn build(mut self) -> io::Result<impl Entry> {
+    pub fn build(self) -> io::Result<impl Entry> {
         let data = self.data.try_into_inner()?.try_into_inner()?;
 
         let mut chunk_writer = ChunkWriter::from(Vec::with_capacity(data.len() + 128));
