@@ -19,7 +19,6 @@ pub use options::*;
 use read::*;
 use std::io::{self, Read};
 use std::time::Duration;
-pub(crate) use write::*;
 
 mod private {
     use super::*;

@@ -1,14 +1,8 @@
 use crate::{
-    archive::{
-        CipherMode, Compression, CompressionLevel, DataKind, Encryption, EntryHeader, EntryName,
-        HashAlgorithm, Permission, WriteOption,
-    },
-    chunk::{ChunkType, ChunkWriter},
+    archive::{CipherMode, Compression, CompressionLevel, Encryption, HashAlgorithm, WriteOption},
     cipher::{CipherWriter, Ctr128BEWriter, EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
     compress::CompressionWriter,
-    hash,
-    io::TryIntoInner,
-    random,
+    hash, random,
 };
 use aes::Aes256;
 use camellia::Camellia256;
@@ -16,88 +10,9 @@ use crypto_common::{BlockSizeUser, KeySizeUser};
 use flate2::write::DeflateEncoder;
 use password_hash::{Output, SaltString};
 use std::io::{self, Write};
-use std::time::Duration;
+
 use xz2::write::XzEncoder;
 use zstd::stream::write::Encoder as ZstdEncoder;
-
-pub(crate) struct EntryWriter<W: Write> {
-    w: W,
-    options: WriteOption,
-    buf: Vec<u8>,
-}
-
-impl<W: Write> EntryWriter<W> {
-    pub(crate) fn new_file_with(w: W, name: EntryName, options: WriteOption) -> io::Result<Self> {
-        let mut chunk_writer = ChunkWriter::from(w);
-        chunk_writer.write_chunk(
-            ChunkType::FHED,
-            &EntryHeader::new(
-                DataKind::File,
-                options.compression,
-                options.encryption,
-                options.cipher_mode,
-                name,
-            )
-            .to_bytes(),
-        )?;
-        Ok(Self {
-            w: chunk_writer.into_inner(),
-            options,
-            buf: Vec::new(),
-        })
-    }
-
-    /// Add creation timestamp for this entry.
-    #[inline]
-    pub(crate) fn add_creation_timestamp(&mut self, since_unix_epoch: Duration) -> io::Result<()> {
-        self.add_timestamp(ChunkType::cTIM, since_unix_epoch)
-    }
-
-    /// Add last modified timestamp for this entry.
-    #[inline]
-    pub(crate) fn add_modified_timestamp(&mut self, since_unix_epoch: Duration) -> io::Result<()> {
-        self.add_timestamp(ChunkType::mTIM, since_unix_epoch)
-    }
-
-    fn add_timestamp(&mut self, chunk: ChunkType, since_unix_epoch: Duration) -> io::Result<()> {
-        let mut chunk_writer = ChunkWriter::from(&mut self.w);
-        chunk_writer.write_chunk(chunk, &since_unix_epoch.as_secs().to_be_bytes())
-    }
-
-    /// Add a owner, group, and permissions for this entry.
-    pub(crate) fn add_permission(&mut self, permission: Permission) -> io::Result<()> {
-        let mut chunk_writer = ChunkWriter::from(&mut self.w);
-        chunk_writer.write_chunk(ChunkType::fPRM, &permission.to_bytes())
-    }
-
-    pub(crate) fn finish(mut self) -> io::Result<W> {
-        let (phsf, data) = {
-            let (mut writer, phsf) = writer_and_hash(Vec::new(), self.options)?;
-            writer.write_all(&self.buf)?;
-            (phsf, writer.try_into_inner()?.try_into_inner()?)
-        };
-
-        let mut chunk_writer = ChunkWriter::from(&mut self.w);
-
-        if let Some(phsf) = phsf {
-            chunk_writer.write_chunk(ChunkType::PHSF, phsf.as_bytes())?;
-        }
-        chunk_writer.write_chunk(ChunkType::FDAT, &data)?;
-
-        chunk_writer.write_chunk(ChunkType::FEND, &[])?;
-        Ok(self.w)
-    }
-}
-
-impl<W: Write> Write for EntryWriter<W> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.buf.write(buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
 
 fn hash<'s, 'p: 's>(
     encryption_algorithm: Encryption,
