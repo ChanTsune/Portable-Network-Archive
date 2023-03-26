@@ -6,7 +6,7 @@ mod write;
 pub use entry::*;
 pub use header::*;
 pub use read::{ArchiveReader, Decoder};
-pub use write::{ArchiveWriter, Encoder};
+pub use write::*;
 
 #[cfg(test)]
 mod tests {
