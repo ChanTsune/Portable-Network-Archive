@@ -4,19 +4,6 @@ use crate::{
 };
 use std::io::{self, Write};
 
-#[derive(Default)]
-pub struct Encoder;
-
-impl Encoder {
-    pub fn new() -> Self {
-        Self
-    }
-
-    pub fn write_header<W: Write>(&self, write: W) -> io::Result<ArchiveWriter<W>> {
-        ArchiveWriter::write_header(write)
-    }
-}
-
 pub struct ArchiveWriter<W: Write> {
     w: W,
     archive_number: u32,
@@ -71,8 +58,8 @@ mod tests {
 
     #[test]
     fn encode() {
-        let writer = ArchiveWriter::write_header(Vec::new()).unwrap();
-        let file = writer.finalize().unwrap();
+        let writer = ArchiveWriter::write_header(Vec::new()).expect("failed to write header");
+        let file = writer.finalize().expect("failed to finalize");
         let expected = include_bytes!("../../../resources/test/empty.pna");
         assert_eq!(file.as_slice(), expected.as_slice());
     }

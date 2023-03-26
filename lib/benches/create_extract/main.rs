@@ -2,7 +2,7 @@
 extern crate test;
 
 use libpna::{
-    ArchiveReader, Encoder, EntryBuilder, ReadEntry, ReadOptionBuilder, WriteOptionBuilder,
+    ArchiveReader, ArchiveWriter, EntryBuilder, ReadEntry, ReadOptionBuilder, WriteOptionBuilder,
 };
 use std::io::{Cursor, Read, Write};
 use test::Bencher;
@@ -13,8 +13,7 @@ mod empty;
 fn bench_write_archive(b: &mut Bencher, mut options: WriteOptionBuilder) {
     b.iter(|| {
         let mut vec = Vec::with_capacity(10000);
-        let encoder = Encoder::default();
-        let mut writer = encoder.write_header(&mut vec).unwrap();
+        let mut writer = ArchiveWriter::write_header(&mut vec).unwrap();
         writer
             .add_entry({
                 let mut builder = EntryBuilder::new_file(
@@ -31,8 +30,7 @@ fn bench_write_archive(b: &mut Bencher, mut options: WriteOptionBuilder) {
 }
 
 fn bench_read_archive(b: &mut Bencher, mut options: WriteOptionBuilder) {
-    let encoder = Encoder::default();
-    let mut writer = encoder.write_header(Vec::with_capacity(10000)).unwrap();
+    let mut writer = ArchiveWriter::write_header(Vec::with_capacity(10000)).unwrap();
     writer
         .add_entry({
             let mut builder =
