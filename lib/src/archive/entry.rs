@@ -206,7 +206,7 @@ impl ReadEntryImpl {
                             String::from("Item is encrypted, but password was not provided"),
                         )
                     })?,
-                );
+                )?;
                 let hash = phsf.hash.ok_or_else(|| {
                     io::Error::new(
                         io::ErrorKind::Unsupported,

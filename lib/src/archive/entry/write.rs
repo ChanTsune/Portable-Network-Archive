@@ -33,7 +33,7 @@ fn hash<'s, 'p: 's>(
                 String::from("Invalid combination"),
             ))
         }
-    };
+    }?;
     let hash = password_hash.hash.take().ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::Unsupported,
