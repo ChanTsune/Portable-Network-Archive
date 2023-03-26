@@ -160,7 +160,7 @@ mod tests {
     fn create_archive(src: &[u8], options: WriteOption) -> io::Result<Vec<u8>> {
         let mut writer = ArchiveWriter::write_header(Vec::with_capacity(src.len()))?;
         writer.add_entry({
-            let mut builder = EntryBuilder::new_file("test/text".into(), options.clone())?;
+            let mut builder = EntryBuilder::new_file("test/text".into(), options)?;
             builder.write_all(src)?;
             builder.build()?
         })?;
