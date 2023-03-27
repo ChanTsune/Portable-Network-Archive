@@ -16,7 +16,7 @@ pub(crate) trait Chunk {
         self.data().len() as u32
     }
     /// Type of chunk
-    fn ty(&self) -> &ChunkType;
+    fn ty(&self) -> ChunkType;
     /// Data of chunk
     fn data(&self) -> &[u8];
     /// CRC32 of chunk type and data
@@ -54,8 +54,8 @@ impl Chunk for RawChunk {
         self.length
     }
 
-    fn ty(&self) -> &ChunkType {
-        &self.ty
+    fn ty(&self) -> ChunkType {
+        self.ty
     }
 
     fn data(&self) -> &[u8] {
@@ -68,8 +68,8 @@ impl Chunk for RawChunk {
 }
 
 impl<T: Deref<Target = [u8]>> Chunk for (ChunkType, T) {
-    fn ty(&self) -> &ChunkType {
-        &self.0
+    fn ty(&self) -> ChunkType {
+        self.0
     }
 
     fn data(&self) -> &[u8] {
