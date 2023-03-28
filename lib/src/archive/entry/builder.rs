@@ -123,7 +123,10 @@ impl EntryBuilder {
         if let Some(phsf) = self.phsf {
             chunk_writer.write_chunk((ChunkType::PHSF, phsf.as_bytes()))?;
         }
-        chunk_writer.write_chunk((ChunkType::FDAT, data))?;
+
+        for data_chunk in data.chunks(u32::MAX as usize) {
+            chunk_writer.write_chunk((ChunkType::FDAT, data_chunk))?;
+        }
 
         chunk_writer.write_chunk((ChunkType::FEND, [].as_slice()))?;
 
