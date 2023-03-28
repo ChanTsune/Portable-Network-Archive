@@ -19,7 +19,9 @@ impl<W: Write> ArchiveWriter<W> {
         let mut chunk_writer = ChunkWriter::from(write);
         chunk_writer.write_chunk((
             ChunkType::AHED,
-            &ArchiveHeader::new(0, 0, archive_number).to_bytes(),
+            ArchiveHeader::new(0, 0, archive_number)
+                .to_bytes()
+                .as_slice(),
         ))?;
         Ok(Self {
             w: chunk_writer.into_inner(),
