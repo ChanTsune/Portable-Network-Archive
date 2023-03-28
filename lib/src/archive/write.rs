@@ -17,10 +17,12 @@ impl<W: Write> ArchiveWriter<W> {
     fn write_header_with_archive_number(mut write: W, archive_number: u32) -> io::Result<Self> {
         write.write_all(PNA_HEADER)?;
         let mut chunk_writer = ChunkWriter::from(write);
-        chunk_writer.write_chunk(
+        chunk_writer.write_chunk((
             ChunkType::AHED,
-            &ArchiveHeader::new(0, 0, archive_number).to_bytes(),
-        )?;
+            ArchiveHeader::new(0, 0, archive_number)
+                .to_bytes()
+                .as_slice(),
+        ))?;
         Ok(Self {
             w: chunk_writer.into_inner(),
             archive_number,
@@ -35,7 +37,7 @@ impl<W: Write> ArchiveWriter<W> {
 
     fn add_next_archive_marker(&mut self) -> io::Result<usize> {
         let mut chunk_writer = ChunkWriter::from(&mut self.w);
-        chunk_writer.write_chunk(ChunkType::ANXT, &[])
+        chunk_writer.write_chunk((ChunkType::ANXT, [].as_slice()))
     }
 
     pub fn split_to_next_archive<OW: Write>(mut self, writer: OW) -> io::Result<ArchiveWriter<OW>> {
@@ -47,7 +49,7 @@ impl<W: Write> ArchiveWriter<W> {
 
     pub fn finalize(mut self) -> io::Result<W> {
         let mut chunk_writer = ChunkWriter::from(&mut self.w);
-        chunk_writer.write_chunk(ChunkType::AEND, &[])?;
+        chunk_writer.write_chunk((ChunkType::AEND, [].as_slice()))?;
         Ok(self.w)
     }
 }

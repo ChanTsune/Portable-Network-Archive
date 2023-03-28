@@ -104,22 +104,28 @@ impl EntryBuilder {
         let data = self.data.try_into_inner()?.try_into_inner()?;
 
         let mut chunk_writer = ChunkWriter::from(Vec::with_capacity(data.len() + 128));
-        chunk_writer.write_chunk(ChunkType::FHED, &self.header.to_bytes())?;
+        chunk_writer.write_chunk((ChunkType::FHED, self.header.to_bytes()))?;
         if let Some(since_unix_epoch) = self.created {
-            chunk_writer.write_chunk(ChunkType::cTIM, &since_unix_epoch.as_secs().to_be_bytes())?;
+            chunk_writer.write_chunk((
+                ChunkType::cTIM,
+                since_unix_epoch.as_secs().to_be_bytes().as_slice(),
+            ))?;
         }
         if let Some(since_unix_epoch) = self.last_modified {
-            chunk_writer.write_chunk(ChunkType::mTIM, &since_unix_epoch.as_secs().to_be_bytes())?;
+            chunk_writer.write_chunk((
+                ChunkType::mTIM,
+                since_unix_epoch.as_secs().to_be_bytes().as_slice(),
+            ))?;
         }
         if let Some(permission) = self.permission {
-            chunk_writer.write_chunk(ChunkType::fPRM, &permission.to_bytes())?;
+            chunk_writer.write_chunk((ChunkType::fPRM, permission.to_bytes()))?;
         }
         if let Some(phsf) = self.phsf {
-            chunk_writer.write_chunk(ChunkType::PHSF, phsf.as_bytes())?;
+            chunk_writer.write_chunk((ChunkType::PHSF, phsf.as_bytes()))?;
         }
-        chunk_writer.write_chunk(ChunkType::FDAT, &data)?;
+        chunk_writer.write_chunk((ChunkType::FDAT, data))?;
 
-        chunk_writer.write_chunk(ChunkType::FEND, &[])?;
+        chunk_writer.write_chunk((ChunkType::FEND, [].as_slice()))?;
 
         Ok(BytesEntry(chunk_writer.into_inner()))
     }
