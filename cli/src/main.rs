@@ -1,5 +1,6 @@
 mod cli;
 mod command;
+mod utils;
 
 use clap::Parser;
 use std::io;

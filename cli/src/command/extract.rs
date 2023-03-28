@@ -1,17 +1,22 @@
-use crate::cli::{ExtractArgs, Verbosity};
-use crate::command::{ask_password, Let};
+use crate::{
+    cli::{ExtractArgs, Verbosity},
+    command::{ask_password, Let},
+    utils::part_name,
+};
 use glob::Pattern;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use libpna::{ArchiveReader, Permission, ReadEntry, ReadOptionBuilder};
 #[cfg(unix)]
 use nix::unistd::{chown, Group, User};
 use rayon::ThreadPoolBuilder;
-use std::fs::{File, Permissions};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
-use std::path::PathBuf;
-use std::time::Instant;
-use std::{fs, io};
+use std::{
+    fs::{self, File, Permissions},
+    io,
+    path::PathBuf,
+    time::Instant,
+};
 
 pub(crate) fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
@@ -27,13 +32,9 @@ pub(crate) fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Re
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-    let file = File::open(args.file.archive)?;
-
     let pool = ThreadPoolBuilder::default()
         .build()
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-    let (tx, rx) = std::sync::mpsc::channel();
-    let mut reader = ArchiveReader::read_header(file)?;
 
     let progress_bar = if verbosity != Verbosity::Quite {
         Some(ProgressBar::new(0).with_style(ProgressStyle::default_bar().progress_chars("=> ")))
@@ -41,32 +42,46 @@ pub(crate) fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Re
         None
     };
 
-    for entry in reader.entries() {
-        let item = entry?;
-        let item_path = PathBuf::from(item.header().path().as_str());
-        if !globs.is_empty() && !globs.iter().any(|glob| glob.matches_path(&item_path)) {
-            if verbosity == Verbosity::Verbose {
-                println!("Skip: {}", item.header().path())
+    let file = File::open(&args.file.archive)?;
+    let mut reader = ArchiveReader::read_header(file)?;
+    let mut num_archive = 1;
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    loop {
+        for entry in reader.entries() {
+            let item = entry?;
+            let item_path = PathBuf::from(item.header().path().as_str());
+            if !globs.is_empty() && !globs.iter().any(|glob| glob.matches_path(&item_path)) {
+                if verbosity == Verbosity::Verbose {
+                    println!("Skip: {}", item.header().path())
+                }
+                continue;
             }
-            continue;
+            progress_bar.let_ref(|pb| pb.inc_length(1));
+            let tx = tx.clone();
+            let password = password.clone();
+            let out_dir = args.out_dir.clone();
+            let keep_permission = args.keep_permission;
+            pool.spawn_fifo(move || {
+                tx.send(extract_entry(
+                    item_path.clone(),
+                    item,
+                    password,
+                    args.overwrite,
+                    out_dir,
+                    keep_permission,
+                    verbosity,
+                ))
+                .unwrap_or_else(|e| panic!("{e}: {}", item_path.display()));
+            });
         }
-        progress_bar.let_ref(|pb| pb.inc_length(1));
-        let tx = tx.clone();
-        let password = password.clone();
-        let out_dir = args.out_dir.clone();
-        let keep_permission = args.keep_permission;
-        pool.spawn_fifo(move || {
-            tx.send(extract_entry(
-                item_path.clone(),
-                item,
-                password,
-                args.overwrite,
-                out_dir,
-                keep_permission,
-                verbosity,
-            ))
-            .unwrap_or_else(|e| panic!("{e}: {}", item_path.display()));
-        });
+        if reader.next_archive() {
+            num_archive += 1;
+            let file = File::open(part_name(&args.file.archive, num_archive).unwrap())?;
+            reader = reader.read_next_archive(file)?;
+        } else {
+            break;
+        }
     }
     drop(tx);
     for result in rx {

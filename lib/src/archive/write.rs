@@ -1,22 +1,8 @@
 use crate::{
-    archive::PNA_HEADER,
+    archive::{ArchiveHeader, Entry, PNA_HEADER},
     chunk::{ChunkType, ChunkWriter},
-    create_chunk_data_ahed, Entry,
 };
 use std::io::{self, Write};
-
-#[derive(Default)]
-pub struct Encoder;
-
-impl Encoder {
-    pub fn new() -> Self {
-        Self
-    }
-
-    pub fn write_header<W: Write>(&self, write: W) -> io::Result<ArchiveWriter<W>> {
-        ArchiveWriter::write_header(write)
-    }
-}
 
 pub struct ArchiveWriter<W: Write> {
     w: W,
@@ -33,7 +19,7 @@ impl<W: Write> ArchiveWriter<W> {
         let mut chunk_writer = ChunkWriter::from(write);
         chunk_writer.write_chunk((
             ChunkType::AHED,
-            create_chunk_data_ahed(0, 0, archive_number).as_slice(),
+            &ArchiveHeader::new(0, 0, archive_number).to_bytes(),
         ))?;
         Ok(Self {
             w: chunk_writer.into_inner(),
@@ -47,7 +33,7 @@ impl<W: Write> ArchiveWriter<W> {
         Ok(bytes.len())
     }
 
-    fn add_next_archive_marker(&mut self) -> io::Result<()> {
+    fn add_next_archive_marker(&mut self) -> io::Result<usize> {
         let mut chunk_writer = ChunkWriter::from(&mut self.w);
         chunk_writer.write_chunk((ChunkType::ANXT, [].as_slice()))
     }
@@ -72,8 +58,8 @@ mod tests {
 
     #[test]
     fn encode() {
-        let writer = ArchiveWriter::write_header(Vec::new()).unwrap();
-        let file = writer.finalize().unwrap();
+        let writer = ArchiveWriter::write_header(Vec::new()).expect("failed to write header");
+        let file = writer.finalize().expect("failed to finalize");
         let expected = include_bytes!("../../../resources/test/empty.pna");
         assert_eq!(file.as_slice(), expected.as_slice());
     }

@@ -9,12 +9,17 @@ use std::ops::Deref;
 pub use types::*;
 pub(crate) use write::ChunkWriter;
 
+/// PNA's smallest data unit.
 pub(crate) trait Chunk {
+    /// Byte size of data
     fn length(&self) -> u32 {
         self.data().len() as u32
     }
-    fn ty(&self) -> &ChunkType;
+    /// Type of chunk
+    fn ty(&self) -> ChunkType;
+    /// Data of chunk
     fn data(&self) -> &[u8];
+    /// CRC32 of chunk type and data
     fn crc(&self) -> u32 {
         let mut crc = Crc32::new();
         crc.update(&self.ty().0);
@@ -23,12 +28,48 @@ pub(crate) trait Chunk {
     }
 }
 
-pub(crate) type ChunkImpl = (ChunkType, Vec<u8>);
-pub(crate) type Chunks = Vec<ChunkImpl>;
+/// Represents a raw chunk
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) struct RawChunk {
+    pub(crate) length: u32,
+    pub(crate) ty: ChunkType,
+    pub(crate) data: Vec<u8>,
+    pub(crate) crc: u32,
+}
+
+impl RawChunk {
+    pub fn from_data(ty: ChunkType, data: Vec<u8>) -> Self {
+        let chunk = (ty, data);
+        Self {
+            length: chunk.length(),
+            crc: chunk.crc(),
+            ty: chunk.0,
+            data: chunk.1,
+        }
+    }
+}
+
+impl Chunk for RawChunk {
+    fn length(&self) -> u32 {
+        self.length
+    }
+
+    fn ty(&self) -> ChunkType {
+        self.ty
+    }
+
+    fn data(&self) -> &[u8] {
+        &self.data
+    }
+
+    fn crc(&self) -> u32 {
+        self.crc
+    }
+}
 
 impl<T: Deref<Target = [u8]>> Chunk for (ChunkType, T) {
-    fn ty(&self) -> &ChunkType {
-        &self.0
+    fn ty(&self) -> ChunkType {
+        self.0
     }
 
     fn data(&self) -> &[u8] {
@@ -36,15 +77,16 @@ impl<T: Deref<Target = [u8]>> Chunk for (ChunkType, T) {
     }
 }
 
-pub(crate) fn create_chunk_data_ahed(major: u8, minor: u8, archive_number: u32) -> [u8; 8] {
-    let mut data = [0; 8];
-    data[0] = major;
-    data[1] = minor;
-    data[2..4].copy_from_slice(&[0, 0]);
-    data[4..8].copy_from_slice(&archive_number.to_be_bytes());
-    data
-}
-
+/// Convert the provided `Chunk` instance into a `Vec<u8>`.
+///
+/// # Arguments
+///
+/// * `chunk` - A `Chunk` instance to be converted into a byte vector.
+///
+/// # Returns
+///
+/// A `Vec<u8>` containing the converted `Chunk` data.
+///
 pub(crate) fn chunk_to_bytes(chunk: impl Chunk) -> Vec<u8> {
     let mut vec = Vec::with_capacity(12usize + chunk.length() as usize);
     vec.extend_from_slice(&chunk.length().to_be_bytes());
@@ -57,22 +99,22 @@ pub(crate) fn chunk_to_bytes(chunk: impl Chunk) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::create_chunk_data_ahed;
-
-    #[test]
-    fn ahed() {
-        assert_eq!([0u8, 0, 0, 0, 0, 0, 0, 0], create_chunk_data_ahed(0, 0, 0));
-        assert_eq!([1u8, 2, 0, 0, 0, 0, 0, 3], create_chunk_data_ahed(1, 2, 3));
-    }
 
     #[test]
     fn to_bytes() {
+        let data = vec![0xAA, 0xBB, 0xCC, 0xDD];
+        let chunk = RawChunk::from_data(ChunkType::FDAT, data);
+
+        let bytes = chunk_to_bytes(chunk);
+
         assert_eq!(
-            chunk_to_bytes((ChunkType::FDAT, "text data".as_bytes())),
-            [
-                0, 0, 0, 9, 70, 68, 65, 84, 116, 101, 120, 116, 32, 100, 97, 116, 97, 177, 70, 138,
-                128
+            bytes,
+            vec![
+                0x00, 0x00, 0x00, 0x04, // chunk length (4)
+                0x46, 0x44, 0x41, 0x54, // chunk type ("FDAT")
+                0xAA, 0xBB, 0xCC, 0xDD, // data bytes
+                0x47, 0xf3, 0x2b, 0x10, // CRC32 (calculated from chunk type and data)
             ]
-        )
+        );
     }
 }

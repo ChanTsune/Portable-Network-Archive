@@ -1,5 +1,6 @@
+use bytesize::ByteSize;
 use clap::ValueEnum;
-use clap::{value_parser, Parser, Subcommand};
+use clap::{value_parser, ArgGroup, Parser, Subcommand};
 use std::path::PathBuf;
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -15,13 +16,16 @@ pub struct Cli {
     pub(crate) commands: Commands,
     #[command(flatten)]
     pub(crate) verbosity: VerbosityArgs,
+    #[arg(long, global = true, help = "Declare to use unstable features")]
+    pub(crate) unstable: bool,
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[command(group(ArgGroup::new("verbosity").args(["quiet", "verbose"])))]
 pub(crate) struct VerbosityArgs {
-    #[arg(long, help = "Make some output more quiet")]
+    #[arg(long, global = true, help = "Make some output more quiet")]
     quiet: bool,
-    #[arg(long, help = "Make some output more verbose")]
+    #[arg(long, global = true, help = "Make some output more verbose")]
     verbose: bool,
 }
 
@@ -55,6 +59,7 @@ pub(crate) enum Commands {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[command(group(ArgGroup::new("unstable-split").args(["split"]).requires("unstable")))]
 pub(crate) struct CreateArgs {
     #[arg(short, long, help = "Add the directory to the archive recursively")]
     pub(crate) recursive: bool,
@@ -64,6 +69,8 @@ pub(crate) struct CreateArgs {
     pub(crate) keep_timestamp: bool,
     #[arg(long, help = "Archiving the permissions of the files")]
     pub(crate) keep_permission: bool,
+    #[arg(long, help = "Split archive by total entry size")]
+    pub(crate) split: Option<Option<ByteSize>>,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -134,6 +141,7 @@ pub(crate) struct PasswordArgs {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[command(group(ArgGroup::new("compression_method").args(["store", "deflate", "zstd", "xz"])))]
 pub(crate) struct CompressionAlgorithmArgs {
     #[arg(long, help = "No compression")]
     pub(crate) store: bool,
@@ -161,6 +169,7 @@ pub(crate) struct CompressionAlgorithmArgs {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[command(group(ArgGroup::new("cipher_algorithm").args(["aes", "camellia"])))]
 pub(crate) struct CipherAlgorithmArgs {
     #[arg(long, value_name = "cipher mode", help = "Use aes for encryption")]
     pub(crate) aes: Option<Option<CipherMode>>,
@@ -177,5 +186,62 @@ pub(crate) enum CipherMode {
 impl Default for CipherMode {
     fn default() -> Self {
         Self::Ctr
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn store_archive() {
+        let args = CreateArgs::parse_from(["create", "c.pna"]);
+        assert!(!args.compression.store);
+
+        let args = CreateArgs::parse_from(["create", "c.pna", "--store"]);
+        assert!(args.compression.store);
+    }
+
+    #[test]
+    fn deflate_level() {
+        let args = CreateArgs::parse_from(["create", "c.pna"]);
+        assert_eq!(args.compression.deflate, None);
+
+        let args = CreateArgs::parse_from(["create", "c.pna", "--deflate"]);
+        assert_eq!(args.compression.deflate, Some(None));
+
+        let args = CreateArgs::parse_from(["create", "c.pna", "--deflate", "5"]);
+        assert_eq!(args.compression.deflate, Some(Some(5u8)));
+    }
+
+    #[test]
+    fn zstd_level() {
+        let args = CreateArgs::parse_from(["create", "c.pna"]);
+        assert_eq!(args.compression.zstd, None);
+
+        let args = CreateArgs::parse_from(["create", "c.pna", "--zstd"]);
+        assert_eq!(args.compression.zstd, Some(None));
+
+        let args = CreateArgs::parse_from(["create", "c.pna", "--zstd", "5"]);
+        assert_eq!(args.compression.zstd, Some(Some(5u8)));
+    }
+
+    #[test]
+    fn lzma_level() {
+        let args = CreateArgs::parse_from(["create", "c.pna"]);
+        assert_eq!(args.compression.xz, None);
+
+        let args = CreateArgs::parse_from(["create", "c.pna", "--xz"]);
+        assert_eq!(args.compression.xz, Some(None));
+
+        let args = CreateArgs::parse_from(["create", "c.pna", "--xz", "5"]);
+        assert_eq!(args.compression.xz, Some(Some(5u8)));
+    }
+
+    #[test]
+    fn human_readable_byte_size() {
+        let args = CreateArgs::parse_from(["create", "c.pna", "--split", "10KiB"]);
+        assert_eq!(args.split, Some(Some(ByteSize::kib(10))))
     }
 }

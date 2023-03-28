@@ -143,9 +143,9 @@ The information about the key derivation function when encrypting a file.
 This chunk appeared after `FHAD` chunk and before `FDAT` chunk.  
 If the value of encryption method field of `FHAD` chunk is not 0, this chunk is required.  
 
-|size|description|
-|--|--|
-|n-byte|PHC string format|
+|  size   | description       |
+|:-------:|:------------------|
+| n-byte  | PHC string format |
 
 About [PHC string format](https://github.com/P-H-C/phc-string-format/blob/master/phc-sf-spec.md)
 
