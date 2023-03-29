@@ -140,7 +140,9 @@ impl Entry for ReadEntryImpl {
         for ex in self.extra {
             vec.append(&mut chunk_to_bytes(ex));
         }
-        vec.append(&mut chunk_to_bytes((ChunkType::FDAT, self.data)));
+        for data_chunk in self.data.chunks(u32::MAX as usize) {
+            vec.append(&mut chunk_to_bytes((ChunkType::FDAT, data_chunk)));
+        }
         let Metadata {
             compressed_size: _,
             created,
