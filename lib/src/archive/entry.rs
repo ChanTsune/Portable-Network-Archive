@@ -25,7 +25,6 @@ mod private {
     pub trait SealedEntry {}
     impl SealedEntry for ReadEntryImpl {}
     impl SealedEntry for ChunkEntry {}
-    impl SealedEntry for BytesEntry {}
 }
 
 /// PNA archive entry
@@ -238,14 +237,6 @@ impl ReadEntryImpl {
             Compression::XZ => Box::new(xz2::read::XzDecoder::new(decrypt_reader)),
         };
         Ok(EntryDataReader(reader))
-    }
-}
-
-pub(crate) struct BytesEntry(pub(crate) Vec<u8>);
-
-impl Entry for BytesEntry {
-    fn into_bytes(self) -> Vec<u8> {
-        self.0
     }
 }
 
