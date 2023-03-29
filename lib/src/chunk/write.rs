@@ -1,8 +1,5 @@
-use crate::chunk::Chunk;
-use std::{
-    io::{self, Write},
-    mem,
-};
+use crate::chunk::{Chunk, ChunkExt};
+use std::io::{self, Write};
 
 pub(crate) struct ChunkWriter<W> {
     w: W,
@@ -37,7 +34,7 @@ impl<W: Write> ChunkWriter<W> {
 
         // write crc32
         self.w.write_all(&chunk.crc().to_be_bytes())?;
-        Ok(mem::align_of::<u32>() + chunk.data().len() + chunk.ty().len() + mem::align_of::<u32>())
+        Ok(chunk.bytes_len())
     }
 }
 

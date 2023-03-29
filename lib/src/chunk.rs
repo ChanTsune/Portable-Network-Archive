@@ -5,7 +5,7 @@ mod write;
 
 use crc::Crc32;
 pub(crate) use read::ChunkReader;
-use std::ops::Deref;
+use std::{mem, ops::Deref};
 pub use types::*;
 pub(crate) use write::ChunkWriter;
 
@@ -27,6 +27,15 @@ pub(crate) trait Chunk {
         crc.finalize()
     }
 }
+
+trait ChunkExt: Chunk {
+    /// byte size of chunk
+    fn bytes_len(&self) -> usize {
+        mem::align_of::<u32>() + self.ty().len() + self.data().len() + mem::align_of::<u32>()
+    }
+}
+
+impl<T> ChunkExt for T where T: Chunk {}
 
 /// Represents a raw chunk
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -88,7 +97,7 @@ impl<T: Deref<Target = [u8]>> Chunk for (ChunkType, T) {
 /// A `Vec<u8>` containing the converted `Chunk` data.
 ///
 pub(crate) fn chunk_to_bytes(chunk: impl Chunk) -> Vec<u8> {
-    let mut vec = Vec::with_capacity(12usize + chunk.length() as usize);
+    let mut vec = Vec::with_capacity(chunk.bytes_len());
     vec.extend_from_slice(&chunk.length().to_be_bytes());
     vec.extend_from_slice(&chunk.ty().0);
     vec.extend_from_slice(chunk.data());
