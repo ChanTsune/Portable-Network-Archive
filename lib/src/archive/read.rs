@@ -91,7 +91,7 @@ impl<R: Read> ArchiveReader<R> {
                 _ => chunks.push(chunk),
             }
         }
-        Ok(Some(ChunkEntry { chunks }))
+        Ok(Some(ChunkEntry(chunks)))
     }
 
     /// Reads the next entry from the archive.

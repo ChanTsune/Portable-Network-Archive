@@ -42,13 +42,11 @@ pub trait ReadEntry: Entry {
 
 /// Chunks from `FHED` to `FEND`, containing `FHED` and `FEND`
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct ChunkEntry {
-    pub(crate) chunks: Vec<RawChunk>,
-}
+pub(crate) struct ChunkEntry(pub(crate) Vec<RawChunk>);
 
 impl Entry for ChunkEntry {
     fn into_bytes(self) -> Vec<u8> {
-        self.chunks.into_iter().flat_map(chunk_to_bytes).collect()
+        self.0.into_iter().flat_map(chunk_to_bytes).collect()
     }
 }
 
@@ -61,7 +59,7 @@ impl ChunkEntry {
         let mut ctime = None;
         let mut mtime = None;
         let mut permission = None;
-        for mut chunk in self.chunks {
+        for mut chunk in self.0 {
             match chunk.ty {
                 ChunkType::FEND => break,
                 ChunkType::FHED => {
