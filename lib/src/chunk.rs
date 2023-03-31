@@ -1,32 +1,13 @@
 mod crc;
 mod read;
+mod traits;
 mod types;
 mod write;
 
-use crc::Crc32;
-pub(crate) use read::ChunkReader;
+use self::crc::Crc32;
+pub(crate) use self::{read::ChunkReader, write::ChunkWriter};
+pub use self::{traits::*, types::*};
 use std::{mem, ops::Deref};
-pub use types::*;
-pub(crate) use write::ChunkWriter;
-
-/// PNA's smallest data unit.
-pub(crate) trait Chunk {
-    /// Byte size of data
-    fn length(&self) -> u32 {
-        self.data().len() as u32
-    }
-    /// Type of chunk
-    fn ty(&self) -> ChunkType;
-    /// Data of chunk
-    fn data(&self) -> &[u8];
-    /// CRC32 of chunk type and data
-    fn crc(&self) -> u32 {
-        let mut crc = Crc32::new();
-        crc.update(&self.ty().0);
-        crc.update(self.data());
-        crc.finalize()
-    }
-}
 
 trait ChunkExt: Chunk {
     /// byte size of chunk
