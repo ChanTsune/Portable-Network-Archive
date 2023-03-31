@@ -1,6 +1,6 @@
 use crate::{
     archive::entry::{
-        write::writer_and_hash, ChunkEntry, DataKind, Entry, EntryHeader, EntryName, Permission,
+        writer_and_hash, ChunkEntry, DataKind, Entry, EntryHeader, EntryName, Permission,
         WriteOption,
     },
     chunk::{ChunkType, RawChunk},
