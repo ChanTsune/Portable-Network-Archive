@@ -236,6 +236,10 @@ impl ReadEntryImpl {
     }
 }
 
+/// A structure representing the [Entry] split for archive splitting.
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct EntryPart(pub(crate) Vec<RawChunk>);
+
 fn timestamp(bytes: &[u8]) -> io::Result<Duration> {
     Ok(Duration::from_secs(u64::from_be_bytes(
         bytes
