@@ -6,17 +6,13 @@ mod options;
 mod read;
 mod write;
 
+pub use self::{builder::*, header::*, meta::*, name::*, options::*};
+use self::{read::*, write::*};
 use crate::{
     chunk::{chunk_to_bytes, ChunkType, RawChunk},
     cipher::{DecryptCbcAes256Reader, DecryptCbcCamellia256Reader},
     hash::verify_password,
 };
-pub use builder::*;
-pub use header::*;
-pub use meta::*;
-pub use name::*;
-pub use options::*;
-use read::*;
 use std::io::{self, Read};
 use std::time::Duration;
 
