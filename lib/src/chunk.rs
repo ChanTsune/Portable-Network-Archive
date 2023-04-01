@@ -20,7 +20,7 @@ impl<T> ChunkExt for T where T: Chunk {}
 
 /// Represents a raw chunk
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct RawChunk {
+pub struct RawChunk {
     pub(crate) length: u32,
     pub(crate) ty: ChunkType,
     pub(crate) data: Vec<u8>,
