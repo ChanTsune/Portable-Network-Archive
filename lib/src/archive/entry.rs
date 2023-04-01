@@ -26,6 +26,7 @@ mod private {
 /// PNA archive entry
 pub trait Entry: private::SealedEntry {
     fn into_bytes(self) -> Vec<u8>;
+    fn into_chunks(self) -> Vec<RawChunk>;
 }
 
 pub trait ReadEntry: Entry {
@@ -42,6 +43,11 @@ pub(crate) struct ChunkEntry(pub(crate) Vec<RawChunk>);
 impl Entry for ChunkEntry {
     fn into_bytes(self) -> Vec<u8> {
         self.0.into_iter().flat_map(chunk_to_bytes).collect()
+    }
+
+    #[inline]
+    fn into_chunks(self) -> Vec<RawChunk> {
+        self.0
     }
 }
 
@@ -122,19 +128,23 @@ pub(crate) struct ReadEntryImpl {
 
 impl Entry for ReadEntryImpl {
     fn into_bytes(self) -> Vec<u8> {
+        self.into_chunks()
+            .into_iter()
+            .flat_map(chunk_to_bytes)
+            .collect()
+    }
+
+    fn into_chunks(self) -> Vec<RawChunk> {
         let mut vec = Vec::new();
-        vec.append(&mut chunk_to_bytes((
-            ChunkType::FHED,
-            self.header.to_bytes(),
-        )));
+        vec.push(RawChunk::from_data(ChunkType::FHED, self.header.to_bytes()));
         if let Some(p) = self.phsf {
-            vec.append(&mut chunk_to_bytes((ChunkType::fPRM, p.into_bytes())));
+            vec.push(RawChunk::from_data(ChunkType::fPRM, p.into_bytes()));
         }
         for ex in self.extra {
-            vec.append(&mut chunk_to_bytes(ex));
+            vec.push(ex);
         }
         for data_chunk in self.data.chunks(u32::MAX as usize) {
-            vec.append(&mut chunk_to_bytes((ChunkType::FDAT, data_chunk)));
+            vec.push(RawChunk::from_data(ChunkType::FDAT, data_chunk.to_vec()));
         }
         let Metadata {
             compressed_size: _,
@@ -143,21 +153,21 @@ impl Entry for ReadEntryImpl {
             permission,
         } = self.metadata;
         if let Some(c) = created {
-            vec.append(&mut chunk_to_bytes((
+            vec.push(RawChunk::from_data(
                 ChunkType::cTIM,
-                c.as_secs().to_be_bytes().as_slice(),
-            )));
+                c.as_secs().to_be_bytes().to_vec(),
+            ));
         }
         if let Some(d) = modified {
-            vec.append(&mut chunk_to_bytes((
+            vec.push(RawChunk::from_data(
                 ChunkType::mTIM,
-                d.as_secs().to_be_bytes().as_slice(),
-            )));
+                d.as_secs().to_be_bytes().to_vec(),
+            ));
         }
         if let Some(p) = permission {
-            vec.append(&mut chunk_to_bytes((ChunkType::fPRM, p.to_bytes())));
+            vec.push(RawChunk::from_data(ChunkType::fPRM, p.to_bytes()));
         }
-        vec.append(&mut chunk_to_bytes((ChunkType::FEND, [].as_slice())));
+        vec.push(RawChunk::from_data(ChunkType::FEND, Vec::new()));
         vec
     }
 }
