@@ -1,5 +1,5 @@
 use crate::{
-    archive::{ArchiveHeader, Entry, PNA_HEADER},
+    archive::{ArchiveHeader, Entry, EntryPart, PNA_HEADER},
     chunk::{ChunkType, ChunkWriter},
 };
 use std::io::{self, Write};
@@ -10,6 +10,22 @@ pub struct ArchiveWriter<W: Write> {
 }
 
 impl<W: Write> ArchiveWriter<W> {
+    /// Writes the PNA archive header to the given `Write` object.
+    ///
+    /// # Arguments
+    ///
+    /// * `write` - The `Write` object to write the header to.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::fs::File;
+    /// use libpna::ArchiveWriter;
+    ///
+    /// let file = File::create("example.pna").unwrap();
+    /// let mut archive_writer = ArchiveWriter::write_header(file).unwrap();
+    /// archive_writer.finalize().unwrap();
+    /// ```
     pub fn write_header(write: W) -> io::Result<Self> {
         Self::write_header_with_archive_number(write, 0)
     }
@@ -29,10 +45,57 @@ impl<W: Write> ArchiveWriter<W> {
         })
     }
 
+    /// Adds a new entry to the archive.
+    ///
+    /// # Arguments
+    ///
+    /// * `entry` - The entry to add to the archive.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::fs::File;
+    /// use libpna::{ArchiveWriter, EntryBuilder, WriteOptionBuilder};
+    ///
+    /// let file = File::create("example.pna").unwrap();
+    /// let mut archive_writer = ArchiveWriter::write_header(file).unwrap();
+    /// archive_writer.add_entry(EntryBuilder::new_file("example.txt".into(), WriteOptionBuilder::new().build()).unwrap().build().unwrap()).unwrap();
+    /// archive_writer.finalize().unwrap();
+    /// ```
     pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<usize> {
         let bytes = entry.into_bytes();
         self.w.write_all(&bytes)?;
         Ok(bytes.len())
+    }
+
+    /// Adds a part of an entry to the archive.
+    ///
+    /// # Arguments
+    ///
+    /// * `entry_part` - The part of an entry to add to the archive.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::fs::File;
+    /// use libpna::{ArchiveWriter, EntryPart, EntryBuilder, WriteOptionBuilder};
+    ///
+    /// let part1_file = File::create("example.part1.pna").unwrap();
+    /// let mut part1_writer = ArchiveWriter::write_header(part1_file).unwrap();
+    /// let entry = EntryBuilder::new_file("example.txt".into(), WriteOptionBuilder::new().build()).unwrap().build().unwrap();
+    /// part1_writer.add_entry_part(EntryPart::from(entry)).unwrap();
+    ///
+    /// let part2_file = File::create("example.part2.pna").unwrap();
+    /// let part2_writer = part1_writer.split_to_next_archive(part2_file).unwrap();
+    /// part2_writer.finalize().unwrap();
+    /// ```
+    pub fn add_entry_part(&mut self, entry_part: EntryPart) -> io::Result<usize> {
+        let mut chunk_writer = ChunkWriter::from(&mut self.w);
+        let mut written_len = 0;
+        for chunk in entry_part.0 {
+            written_len += chunk_writer.write_chunk(chunk)?;
+        }
+        Ok(written_len)
     }
 
     fn add_next_archive_marker(&mut self) -> io::Result<usize> {
