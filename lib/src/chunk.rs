@@ -9,7 +9,7 @@ pub(crate) use self::{read::ChunkReader, write::ChunkWriter};
 pub use self::{traits::*, types::*};
 use std::{mem, ops::Deref};
 
-trait ChunkExt: Chunk {
+pub(crate) trait ChunkExt: Chunk {
     /// byte size of chunk
     fn bytes_len(&self) -> usize {
         mem::align_of::<u32>() + self.ty().len() + self.data().len() + mem::align_of::<u32>()
