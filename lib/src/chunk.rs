@@ -86,6 +86,14 @@ pub(crate) fn chunk_to_bytes(chunk: impl Chunk) -> Vec<u8> {
     vec
 }
 
+pub(crate) fn chunk_data_split(chunk: impl Chunk, mid: usize) -> (RawChunk, RawChunk) {
+    let (first, last) = chunk.data().split_at(mid);
+    (
+        RawChunk::from_data(chunk.ty(), first.to_vec()),
+        RawChunk::from_data(chunk.ty(), last.to_vec()),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -106,5 +114,31 @@ mod tests {
                 0x47, 0xf3, 0x2b, 0x10, // CRC32 (calculated from chunk type and data)
             ]
         );
+    }
+
+    #[test]
+    fn data_split_at_zero() {
+        let data = vec![0xAA, 0xBB, 0xCC, 0xDD];
+        let chunk = RawChunk::from_data(ChunkType::FDAT, data);
+        assert_eq!(
+            chunk_data_split(chunk, 0),
+            (
+                RawChunk::from_data(ChunkType::FDAT, vec![]),
+                RawChunk::from_data(ChunkType::FDAT, vec![0xAA, 0xBB, 0xCC, 0xDD]),
+            )
+        )
+    }
+
+    #[test]
+    fn data_split_at_middle() {
+        let data = vec![0xAA, 0xBB, 0xCC, 0xDD];
+        let chunk = RawChunk::from_data(ChunkType::FDAT, data);
+        assert_eq!(
+            chunk_data_split(chunk, 2),
+            (
+                RawChunk::from_data(ChunkType::FDAT, vec![0xAA, 0xBB]),
+                RawChunk::from_data(ChunkType::FDAT, vec![0xCC, 0xDD]),
+            )
+        )
     }
 }
