@@ -9,12 +9,17 @@ mod write;
 pub use self::{builder::*, header::*, meta::*, name::*, options::*};
 use self::{read::*, write::*};
 use crate::{
-    chunk::{chunk_to_bytes, ChunkType, RawChunk},
+    chunk::{
+        chunk_data_split, chunk_to_bytes, ChunkExt, ChunkType, RawChunk, MIN_CHUNK_BYTES_SIZE,
+    },
     cipher::{DecryptCbcAes256Reader, DecryptCbcCamellia256Reader},
     hash::verify_password,
 };
-use std::io::{self, Read};
-use std::time::Duration;
+use std::{
+    collections::VecDeque,
+    io::{self, Read},
+    time::Duration,
+};
 
 mod private {
     use super::*;
@@ -250,6 +255,40 @@ impl ReadEntryImpl {
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct EntryPart(pub(crate) Vec<RawChunk>);
 
+impl EntryPart {
+    fn bytes_len(&self) -> usize {
+        self.0.iter().map(|chunk| chunk.bytes_len()).sum()
+    }
+
+    pub fn split(self, max_bytes_len: usize) -> (EntryPart, Option<EntryPart>) {
+        if self.bytes_len() <= max_bytes_len {
+            return (self, None);
+        }
+        let mut remaining = VecDeque::from(self.0);
+        let mut first = vec![];
+        let mut total_size = 0;
+        while let Some(chunk) = remaining.pop_front() {
+            // NOTE: If over max size, restore to remaining chunk
+            if max_bytes_len < total_size + chunk.bytes_len() {
+                if chunk.ty == ChunkType::FDAT && total_size + MIN_CHUNK_BYTES_SIZE < max_bytes_len
+                {
+                    let available_bytes_len = max_bytes_len - total_size;
+                    let chunk_split_index = available_bytes_len - MIN_CHUNK_BYTES_SIZE;
+                    let (x, y) = chunk_data_split(chunk, chunk_split_index);
+                    first.push(x);
+                    remaining.push_front(y);
+                } else {
+                    remaining.push_front(chunk);
+                }
+                break;
+            }
+            total_size += chunk.bytes_len();
+            first.push(chunk);
+        }
+        (Self(first), Some(Self(Vec::from(remaining))))
+    }
+}
+
 impl<T: Entry> From<T> for EntryPart {
     fn from(entry: T) -> Self {
         Self(entry.into_chunks())
@@ -262,4 +301,129 @@ fn timestamp(bytes: &[u8]) -> io::Result<Duration> {
             .try_into()
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
     )))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod entry_part_split {
+        use super::*;
+        use once_cell::sync::Lazy;
+
+        static TEST_ENTRY: Lazy<ChunkEntry> = Lazy::new(|| {
+            ChunkEntry(vec![
+                RawChunk::from_data(
+                    ChunkType::FHED,
+                    vec![0, 0, 0, 0, 0, 1, 116, 101, 115, 116, 46, 116, 120, 116],
+                ),
+                RawChunk::from_data(ChunkType::FDAT, vec![116, 101, 120, 116]),
+                RawChunk::from_data(ChunkType::FEND, vec![]),
+            ])
+        });
+
+        #[test]
+        fn split_zero() {
+            let entry = TEST_ENTRY.clone();
+            let part = EntryPart::from(entry.clone());
+            assert_eq!(
+                part.split(0),
+                (EntryPart(vec![]), Some(EntryPart::from(entry)))
+            )
+        }
+
+        #[test]
+        fn bounds_check_spans_unsplittable_chunks() {
+            assert_eq!(26, TEST_ENTRY.0.first().unwrap().bytes_len());
+            let entry = TEST_ENTRY.clone();
+            let part = EntryPart::from(entry.clone());
+            let (part1, part2) = part.split(25);
+
+            assert_eq!(0, part1.bytes_len());
+            assert_eq!(part2, Some(EntryPart::from(entry)))
+        }
+
+        #[test]
+        fn bounds_check_just_end_unsplittable_chunks() {
+            assert_eq!(26, TEST_ENTRY.0.first().unwrap().bytes_len());
+            let entry = TEST_ENTRY.clone();
+            let part = EntryPart::from(entry.clone());
+            let (part1, part2) = part.split(26);
+
+            assert_eq!(26, part1.bytes_len());
+            assert_eq!(
+                part2,
+                Some(EntryPart(vec![
+                    RawChunk::from_data(ChunkType::FDAT, vec![116, 101, 120, 116]),
+                    RawChunk::from_data(ChunkType::FEND, vec![]),
+                ]))
+            )
+        }
+
+        #[test]
+        fn spans_splittable_chunks() {
+            let entry = TEST_ENTRY.clone();
+            let part = EntryPart::from(entry.clone());
+            let (part1, part2) = part.split(39);
+
+            assert_eq!(
+                part1,
+                EntryPart(vec![
+                    RawChunk::from_data(
+                        ChunkType::FHED,
+                        vec![0, 0, 0, 0, 0, 1, 116, 101, 115, 116, 46, 116, 120, 116],
+                    ),
+                    RawChunk::from_data(ChunkType::FDAT, vec![116]),
+                ])
+            );
+            assert_eq!(
+                part2,
+                Some(EntryPart(vec![
+                    RawChunk::from_data(ChunkType::FDAT, vec![101, 120, 116]),
+                    RawChunk::from_data(ChunkType::FEND, vec![]),
+                ]))
+            )
+        }
+
+        #[test]
+        fn spans_just_end_of_splittable_chunks() {
+            let entry = TEST_ENTRY.clone();
+            let part = EntryPart::from(entry.clone());
+            let (part1, part2) = part.split(42);
+
+            assert_eq!(
+                part1,
+                EntryPart(vec![
+                    RawChunk::from_data(
+                        ChunkType::FHED,
+                        vec![0, 0, 0, 0, 0, 1, 116, 101, 115, 116, 46, 116, 120, 116],
+                    ),
+                    RawChunk::from_data(ChunkType::FDAT, vec![116, 101, 120, 116]),
+                ])
+            );
+            assert_eq!(
+                part2,
+                Some(EntryPart(vec![RawChunk::from_data(
+                    ChunkType::FEND,
+                    vec![]
+                ),]))
+            )
+        }
+
+        #[test]
+        fn spans_splittable_chunks_below_minimum_chunk_size() {
+            let entry = TEST_ENTRY.clone();
+            let part = EntryPart::from(entry.clone());
+            let (part1, part2) = part.split(27);
+
+            assert_eq!(26, part1.bytes_len());
+            assert_eq!(
+                part2,
+                Some(EntryPart(vec![
+                    RawChunk::from_data(ChunkType::FDAT, vec![116, 101, 120, 116]),
+                    RawChunk::from_data(ChunkType::FEND, vec![]),
+                ]))
+            )
+        }
+    }
 }
