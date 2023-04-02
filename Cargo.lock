@@ -589,6 +589,7 @@ dependencies = [
  "crypto-common",
  "ctr",
  "flate2",
+ "once_cell",
  "password-hash",
  "pbkdf2",
  "rand",
