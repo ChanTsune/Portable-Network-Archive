@@ -24,3 +24,6 @@ pbkdf2 = { version = "0.12.1", features = ["simple", "parallel"] }
 rand = "0.8.5"
 xz2 = "0.1.7"
 zstd = "0.12.3"
+
+[dev-dependencies]
+once_cell = "1.17.1"
