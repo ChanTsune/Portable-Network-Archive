@@ -65,6 +65,11 @@ fn empty() {
 }
 
 #[test]
+fn store() {
+    extract_all(include_bytes!("../../resources/test/store.pna"), None);
+}
+
+#[test]
 fn deflate() {
     extract_all(include_bytes!("../../resources/test/deflate.pna"), None);
 }
@@ -108,5 +113,21 @@ fn zstd_camellia_ctr() {
     extract_all(
         include_bytes!("../../resources/test/zstd_camellia_ctr.pna"),
         Some("password"),
+    );
+}
+
+#[test]
+fn keep_permission() {
+    extract_all(
+        include_bytes!("../../resources/test/zstd_keep_permission.pna"),
+        None,
+    );
+}
+
+#[test]
+fn keep_timestamp() {
+    extract_all(
+        include_bytes!("../../resources/test/zstd_keep_timestamp.pna"),
+        None,
     );
 }
