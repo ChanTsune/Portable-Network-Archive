@@ -1,5 +1,5 @@
 use crate::{
-    cli::{CipherAlgorithmArgs, CipherMode, CompressionAlgorithmArgs, CreateArgs, Verbosity},
+    cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, CreateArgs, Verbosity},
     command::{ask_password, check_password, Let},
     utils::part_name,
 };
@@ -167,25 +167,11 @@ fn write_internal(
         }
         option_builder
             .encryption(if password.is_some() {
-                if cipher.aes.is_some() {
-                    libpna::Encryption::Aes
-                } else if cipher.camellia.is_some() {
-                    libpna::Encryption::Camellia
-                } else {
-                    libpna::Encryption::Aes
-                }
+                cipher.algorithm()
             } else {
                 libpna::Encryption::No
             })
-            .cipher_mode(
-                match match (cipher.aes, cipher.camellia) {
-                    (Some(mode), _) | (_, Some(mode)) => mode.unwrap_or_default(),
-                    (None, None) => CipherMode::default(),
-                } {
-                    CipherMode::Cbc => libpna::CipherMode::CBC,
-                    CipherMode::Ctr => libpna::CipherMode::CTR,
-                },
-            )
+            .cipher_mode(cipher.mode())
             .password(password);
         let mut entry = EntryBuilder::new_file(path.into(), option_builder.build())?;
         if keep_timestamp || keep_permission {
