@@ -168,6 +168,31 @@ pub(crate) struct CompressionAlgorithmArgs {
     pub(crate) xz: Option<Option<u8>>,
 }
 
+impl CompressionAlgorithmArgs {
+    pub(crate) fn algorithm(&self) -> (libpna::Compression, Option<libpna::CompressionLevel>) {
+        if self.store {
+            (libpna::Compression::No, None)
+        } else if let Some(level) = self.xz {
+            (
+                libpna::Compression::XZ,
+                level.map(libpna::CompressionLevel::from),
+            )
+        } else if let Some(level) = self.zstd {
+            (
+                libpna::Compression::ZStandard,
+                level.map(libpna::CompressionLevel::from),
+            )
+        } else if let Some(level) = self.deflate {
+            (
+                libpna::Compression::Deflate,
+                level.map(libpna::CompressionLevel::from),
+            )
+        } else {
+            (libpna::Compression::ZStandard, None)
+        }
+    }
+}
+
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(group(ArgGroup::new("cipher_algorithm").args(["aes", "camellia"])))]
 pub(crate) struct CipherAlgorithmArgs {
