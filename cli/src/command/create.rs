@@ -145,25 +145,10 @@ fn write_internal(
     }
     if path.is_file() {
         let mut option_builder = libpna::WriteOptionBuilder::default();
-        if compression.store {
-            option_builder.compression(libpna::Compression::No);
-        } else if let Some(xz_level) = compression.xz {
-            option_builder.compression(libpna::Compression::XZ);
-            if let Some(level) = xz_level {
-                option_builder.compression_level(libpna::CompressionLevel::from(level));
-            }
-        } else if let Some(zstd_level) = compression.zstd {
-            option_builder.compression(libpna::Compression::ZStandard);
-            if let Some(level) = zstd_level {
-                option_builder.compression_level(libpna::CompressionLevel::from(level));
-            }
-        } else if let Some(deflate_level) = compression.deflate {
-            option_builder.compression(libpna::Compression::Deflate);
-            if let Some(level) = deflate_level {
-                option_builder.compression_level(libpna::CompressionLevel::from(level));
-            }
-        } else {
-            option_builder.compression(libpna::Compression::ZStandard);
+        let (algorithm, level) = compression.algorithm();
+        option_builder.compression(algorithm);
+        if let Some(level) = level {
+            option_builder.compression_level(level);
         }
         option_builder
             .encryption(if password.is_some() {
