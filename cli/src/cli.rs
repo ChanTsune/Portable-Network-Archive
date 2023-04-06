@@ -177,6 +177,28 @@ pub(crate) struct CipherAlgorithmArgs {
     pub(crate) camellia: Option<Option<CipherMode>>,
 }
 
+impl CipherAlgorithmArgs {
+    pub(crate) fn algorithm(&self) -> libpna::Encryption {
+        if self.aes.is_some() {
+            libpna::Encryption::Aes
+        } else if self.camellia.is_some() {
+            libpna::Encryption::Camellia
+        } else {
+            libpna::Encryption::Aes
+        }
+    }
+
+    pub(crate) fn mode(&self) -> libpna::CipherMode {
+        match match (self.aes, self.camellia) {
+            (Some(mode), _) | (_, Some(mode)) => mode.unwrap_or_default(),
+            (None, None) => CipherMode::default(),
+        } {
+            CipherMode::Cbc => libpna::CipherMode::CBC,
+            CipherMode::Ctr => libpna::CipherMode::CTR,
+        }
+    }
+}
+
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, ValueEnum)]
 pub(crate) enum CipherMode {
     Cbc,
