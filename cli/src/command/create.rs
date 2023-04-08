@@ -5,7 +5,9 @@ use crate::{
 };
 use bytesize::ByteSize;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
-use libpna::{ArchiveWriter, Entry, EntryBuilder, EntryPart, Permission};
+use libpna::{
+    ArchiveWriter, Entry, EntryBuilder, EntryPart, Permission, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
+};
 #[cfg(unix)]
 use nix::unistd::{Group, User};
 use rayon::ThreadPoolBuilder;
@@ -87,6 +89,8 @@ pub(crate) fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Resu
         .map(|it| it.unwrap_or(ByteSize::gb(1)).0 as usize);
     // if splitting is enabled
     if let Some(max_file_size) = max_file_size {
+        // NOTE: max_file_size - (PNA_HEADER + AHED + ANXT + AEND)
+        let max_file_size = max_file_size - (PNA_HEADER.len() + MIN_CHUNK_BYTES_SIZE * 3 + 8);
         let mut part_num = 0;
         let mut written_entry_size = 0;
         for (idx, item) in rx.into_iter().enumerate() {
