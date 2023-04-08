@@ -123,6 +123,7 @@ impl Read for EntryDataReader {
 }
 
 /// [Entry] that read from PNA archive.
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ReadEntryImpl {
     pub(crate) header: EntryHeader,
     pub(crate) phsf: Option<String>,
