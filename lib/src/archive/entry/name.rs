@@ -7,14 +7,17 @@ use std::path::{Component, Path, PathBuf};
 pub struct EntryName(String);
 
 impl EntryName {
+    #[inline]
     pub fn as_str(&self) -> &str {
         self.as_ref()
     }
 
+    #[inline]
     pub fn as_os_str(&self) -> &OsStr {
         self.as_ref()
     }
 
+    #[inline]
     pub fn as_path(&self) -> &Path {
         self.as_ref()
     }
@@ -33,6 +36,7 @@ impl<T: ?Sized + AsRef<OsStr>> From<&T> for EntryName {
     ///
     /// assert_eq!(EntryName::from("../test.txt"), EntryName::from("test.txt"));
     /// ```
+    #[inline]
     fn from(value: &T) -> Self {
         Self::from(PathBuf::from(value))
     }
@@ -56,24 +60,28 @@ impl From<PathBuf> for EntryName {
 }
 
 impl Display for EntryName {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str(&self.0)
     }
 }
 
 impl AsRef<str> for EntryName {
+    #[inline]
     fn as_ref(&self) -> &str {
         &self.0
     }
 }
 
 impl AsRef<OsStr> for EntryName {
+    #[inline]
     fn as_ref(&self) -> &OsStr {
         self.0.as_ref()
     }
 }
 
 impl AsRef<Path> for EntryName {
+    #[inline]
     fn as_ref(&self) -> &Path {
         self.0.as_ref()
     }
