@@ -5,7 +5,7 @@ use crate::{
 };
 use bytesize::ByteSize;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
-use libpna::{ArchiveWriter, Entry, EntryBuilder, Permission};
+use libpna::{ArchiveWriter, Entry, EntryBuilder, EntryPart, Permission};
 #[cfg(unix)]
 use nix::unistd::{Group, User};
 use rayon::ThreadPoolBuilder;
@@ -85,26 +85,58 @@ pub(crate) fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Resu
     let max_file_size = args
         .split
         .map(|it| it.unwrap_or(ByteSize::gb(1)).0 as usize);
-    let mut part_num = 0;
-    let mut written_entry_size = 0;
-    for (idx, item) in rx.into_iter().enumerate() {
-        let is_last = idx + 1 == item_count;
-
-        written_entry_size += writer.add_entry(item?)?;
-        // if split is enabled
-        if let Some(max_file_size) = max_file_size {
-            if written_entry_size >= max_file_size {
-                part_num += 1;
-                fs::rename(&archive, part_name(&archive, part_num).unwrap())?;
-                if !is_last {
-                    let file = File::create(&archive)?;
-                    writer = writer.split_to_next_archive(file)?;
+    // if splitting is enabled
+    if let Some(max_file_size) = max_file_size {
+        let mut part_num = 0;
+        let mut written_entry_size = 0;
+        for (idx, item) in rx.into_iter().enumerate() {
+            let entry = item?;
+            let is_last = idx + 1 == item_count;
+            if written_entry_size + entry.bytes_len() >= max_file_size {
+                let mut parts = vec![];
+                let mut entry_part = EntryPart::from(entry);
+                loop {
+                    match entry_part.split(max_file_size - written_entry_size) {
+                        (write_part, Some(remaining_part)) => {
+                            parts.push(write_part);
+                            entry_part = remaining_part;
+                        }
+                        (write_part, None) => {
+                            parts.push(write_part);
+                            break;
+                        }
+                    }
                 }
+                let part_len = parts.len();
+                for (is_last_part, part) in parts
+                    .into_iter()
+                    .enumerate()
+                    .map(|(idx, p)| (idx + 1 == part_len, p))
+                {
+                    written_entry_size += writer.add_entry_part(part)?;
+                    part_num += 1;
+                    let part_n_name = part_name(&archive, part_num).unwrap();
+                    if verbosity == Verbosity::Verbose {
+                        println!("Split: {} to {}", archive.display(), part_n_name.display());
+                    }
+                    fs::rename(&archive, part_n_name)?;
+                    if !(is_last && is_last_part) {
+                        let file = File::create(&archive)?;
+                        writer = writer.split_to_next_archive(file)?;
+                        written_entry_size = 0;
+                    }
+                }
+            } else {
+                written_entry_size += writer.add_entry(entry)?;
             }
+            progress_bar.let_ref(|pb| pb.inc(1));
         }
-        progress_bar.let_ref(|pb| pb.inc(1));
+    } else {
+        for entry in rx.into_iter() {
+            writer.add_entry(entry?)?;
+            progress_bar.let_ref(|pb| pb.inc(1));
+        }
     }
-
     writer.finalize()?;
 
     progress_bar.let_ref(|pb| pb.finish_and_clear());
