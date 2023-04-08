@@ -30,6 +30,7 @@ mod private {
 
 /// PNA archive entry
 pub trait Entry: private::SealedEntry {
+    fn bytes_len(&self) -> usize;
     fn into_bytes(self) -> Vec<u8>;
     fn into_chunks(self) -> Vec<RawChunk>;
 }
@@ -46,6 +47,10 @@ pub trait ReadEntry: Entry {
 pub(crate) struct ChunkEntry(pub(crate) Vec<RawChunk>);
 
 impl Entry for ChunkEntry {
+    fn bytes_len(&self) -> usize {
+        self.0.iter().map(|chunk| chunk.bytes_len()).sum()
+    }
+
     fn into_bytes(self) -> Vec<u8> {
         self.0.into_iter().flat_map(chunk_to_bytes).collect()
     }
@@ -133,6 +138,10 @@ pub(crate) struct ReadEntryImpl {
 }
 
 impl Entry for ReadEntryImpl {
+    fn bytes_len(&self) -> usize {
+        self.clone().into_bytes().len()
+    }
+
     fn into_bytes(self) -> Vec<u8> {
         self.into_chunks()
             .into_iter()
