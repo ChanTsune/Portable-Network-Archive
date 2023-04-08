@@ -77,7 +77,11 @@ pub(crate) fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Re
         }
         if reader.next_archive() {
             num_archive += 1;
-            let file = File::open(part_name(&args.file.archive, num_archive).unwrap())?;
+            let part_n_name = part_name(&args.file.archive, num_archive).unwrap();
+            if verbosity == Verbosity::Verbose {
+                println!("Detect split: search {}", part_n_name.display());
+            }
+            let file = File::open(part_n_name)?;
             reader = reader.read_next_archive(file)?;
         } else {
             break;
