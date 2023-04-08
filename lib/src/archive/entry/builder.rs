@@ -1,7 +1,6 @@
 use crate::{
     archive::entry::{
-        writer_and_hash, ChunkEntry, DataKind, Entry, EntryHeader, EntryName, Permission,
-        WriteOption,
+        writer_and_hash, ChunkEntry, Entry, EntryHeader, EntryName, Permission, WriteOption,
     },
     chunk::{ChunkType, RawChunk},
     cipher::CipherWriter,
@@ -17,13 +16,33 @@ use std::{
 pub struct EntryBuilder {
     header: EntryHeader,
     phsf: Option<String>,
-    data: CompressionWriter<'static, CipherWriter<Vec<u8>>>,
+    data: Option<CompressionWriter<'static, CipherWriter<Vec<u8>>>>,
     created: Option<Duration>,
     last_modified: Option<Duration>,
     permission: Option<Permission>,
 }
 
 impl EntryBuilder {
+    /// Creates a new directory with the given name.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name of the entry to create.
+    ///
+    /// # Returns
+    ///
+    /// A new [EntryBuilder].
+    pub fn new_dir(name: EntryName) -> Self {
+        Self {
+            header: EntryHeader::for_dir(name),
+            phsf: None,
+            data: None,
+            created: None,
+            last_modified: None,
+            permission: None,
+        }
+    }
+
     /// Creates a new file with the given name and write options.
     ///
     /// # Arguments
@@ -37,14 +56,13 @@ impl EntryBuilder {
     pub fn new_file(name: EntryName, option: WriteOption) -> io::Result<Self> {
         let (writer, phsf) = writer_and_hash(Vec::new(), option.clone())?;
         Ok(Self {
-            header: EntryHeader::new(
-                DataKind::File,
+            header: EntryHeader::for_file(
                 option.compression,
                 option.encryption,
                 option.cipher_mode,
                 name,
             ),
-            data: writer,
+            data: Some(writer),
             phsf,
             created: None,
             last_modified: None,
@@ -105,8 +123,6 @@ impl EntryBuilder {
     }
 
     fn build_as_chunks(self) -> io::Result<Vec<RawChunk>> {
-        let data = self.data.try_into_inner()?.try_into_inner()?;
-
         let mut chunks = vec![];
         chunks.push(RawChunk::from_data(ChunkType::FHED, self.header.to_bytes()));
 
@@ -128,8 +144,11 @@ impl EntryBuilder {
         if let Some(phsf) = self.phsf {
             chunks.push(RawChunk::from_data(ChunkType::PHSF, phsf.into_bytes()));
         }
-        for data_chunk in data.chunks(u32::MAX as usize) {
-            chunks.push(RawChunk::from_data(ChunkType::FDAT, data_chunk.to_vec()));
+        if let Some(data) = self.data {
+            let data = data.try_into_inner()?.try_into_inner()?;
+            for data_chunk in data.chunks(u32::MAX as usize) {
+                chunks.push(RawChunk::from_data(ChunkType::FDAT, data_chunk.to_vec()));
+            }
         }
         chunks.push(RawChunk::from_data(ChunkType::FEND, Vec::new()));
         Ok(chunks)
@@ -138,10 +157,16 @@ impl EntryBuilder {
 
 impl Write for EntryBuilder {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.data.write(buf)
+        if let Some(w) = &mut self.data {
+            return w.write(buf);
+        }
+        Ok(buf.len())
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        self.data.flush()
+        if let Some(w) = &mut self.data {
+            return w.flush();
+        }
+        Ok(())
     }
 }
