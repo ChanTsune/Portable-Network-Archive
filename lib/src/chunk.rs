@@ -9,7 +9,7 @@ pub(crate) use self::{read::ChunkReader, write::ChunkWriter};
 pub use self::{traits::*, types::*};
 use std::{mem, ops::Deref};
 
-pub(crate) const MIN_CHUNK_BYTES_SIZE: usize = 12;
+pub const MIN_CHUNK_BYTES_SIZE: usize = 12;
 
 pub(crate) trait ChunkExt: Chunk {
     /// byte size of chunk
