@@ -40,7 +40,7 @@ pub(crate) fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Resu
     }
     let mut target_items = vec![];
     for p in args.file.files {
-        collect_items(&mut target_items, p.as_ref(), args.recursive)?;
+        collect_items(&mut target_items, p.as_ref(), args.recursive, args.keep_dir)?;
     }
 
     let progress_bar = if verbosity != Verbosity::Quite {
@@ -149,11 +149,19 @@ pub(crate) fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Resu
     Ok(())
 }
 
-fn collect_items(result: &mut Vec<PathBuf>, path: &Path, recursive: bool) -> io::Result<()> {
+fn collect_items(
+    result: &mut Vec<PathBuf>,
+    path: &Path,
+    recursive: bool,
+    keep_dir: bool,
+) -> io::Result<()> {
     if path.is_dir() {
+        if keep_dir {
+            result.push(path.to_path_buf());
+        }
         if recursive {
             for p in fs::read_dir(path)? {
-                collect_items(result, &p?.path(), recursive)?;
+                collect_items(result, &p?.path(), recursive, keep_dir)?;
             }
         }
     } else if path.is_file() {
@@ -190,41 +198,53 @@ fn write_internal(
             .cipher_mode(cipher.mode())
             .password(password);
         let mut entry = EntryBuilder::new_file(path.into(), option_builder.build())?;
-        if keep_timestamp || keep_permission {
-            let meta = metadata(path)?;
-            if keep_timestamp {
-                if let Ok(c) = meta.created() {
-                    if let Ok(created_since_unix_epoch) = c.duration_since(UNIX_EPOCH) {
-                        entry.created(created_since_unix_epoch);
-                    }
-                }
-                if let Ok(m) = meta.modified() {
-                    if let Ok(modified_since_unix_epoch) = m.duration_since(UNIX_EPOCH) {
-                        entry.modified(modified_since_unix_epoch);
-                    }
-                }
-            }
-            #[cfg(unix)]
-            if keep_permission {
-                let mode = meta.permissions().mode() as u16;
-                let uid = meta.uid();
-                let gid = meta.gid();
-                let user = User::from_uid(uid.into())?.unwrap();
-                let group = Group::from_gid(gid.into())?.unwrap();
-                entry.permission(Permission::new(
-                    uid.into(),
-                    user.name,
-                    gid.into(),
-                    group.name,
-                    mode,
-                ));
-            }
-        }
         entry.write_all(&fs::read(path)?)?;
-        return entry.build();
+        return apply_metadata(entry, path, keep_timestamp, keep_permission)?.build();
+    } else if path.is_dir() {
+        let entry = EntryBuilder::new_dir(path.into());
+        return apply_metadata(entry, path, keep_timestamp, keep_permission)?.build();
     }
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
         "Currently not a regular file is not supported.",
     ))
+}
+
+fn apply_metadata(
+    mut entry: EntryBuilder,
+    path: &Path,
+    keep_timestamp: bool,
+    keep_permission: bool,
+) -> io::Result<EntryBuilder> {
+    if keep_timestamp || keep_permission {
+        let meta = metadata(path)?;
+        if keep_timestamp {
+            if let Ok(c) = meta.created() {
+                if let Ok(created_since_unix_epoch) = c.duration_since(UNIX_EPOCH) {
+                    entry.created(created_since_unix_epoch);
+                }
+            }
+            if let Ok(m) = meta.modified() {
+                if let Ok(modified_since_unix_epoch) = m.duration_since(UNIX_EPOCH) {
+                    entry.modified(modified_since_unix_epoch);
+                }
+            }
+        }
+        #[cfg(unix)]
+        if keep_permission {
+            let mode = meta.permissions().mode() as u16;
+            let uid = meta.uid();
+            let gid = meta.gid();
+            let user = User::from_uid(uid.into())?.unwrap();
+            let group = Group::from_gid(gid.into())?.unwrap();
+            entry.permission(Permission::new(
+                uid.into(),
+                user.name,
+                gid.into(),
+                group.name,
+                mode,
+            ));
+        }
+    }
+    Ok(entry)
 }

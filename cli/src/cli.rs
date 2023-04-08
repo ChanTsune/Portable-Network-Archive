@@ -65,6 +65,8 @@ pub(crate) struct CreateArgs {
     pub(crate) recursive: bool,
     #[arg(long, help = "Overwrite file")]
     pub(crate) overwrite: bool,
+    #[arg(long, help = "Archiving the directories")]
+    pub(crate) keep_dir: bool,
     #[arg(long, help = "Archiving the timestamp of the files")]
     pub(crate) keep_timestamp: bool,
     #[arg(long, help = "Archiving the permissions of the files")]
