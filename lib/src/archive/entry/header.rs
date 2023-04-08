@@ -34,6 +34,27 @@ impl EntryHeader {
         }
     }
 
+    #[inline]
+    pub(crate) fn for_file(
+        compression: Compression,
+        encryption: Encryption,
+        cipher_mode: CipherMode,
+        path: EntryName,
+    ) -> Self {
+        Self::new(DataKind::File, compression, encryption, cipher_mode, path)
+    }
+
+    #[inline]
+    pub(crate) fn for_dir(path: EntryName) -> Self {
+        Self::new(
+            DataKind::Directory,
+            Compression::No,
+            Encryption::No,
+            CipherMode::CBC,
+            path,
+        )
+    }
+
     pub fn path(&self) -> &EntryName {
         &self.path
     }
