@@ -52,8 +52,6 @@ pub(crate) fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Resu
         None
     };
 
-    let item_count = target_items.len();
-
     let (tx, rx) = std::sync::mpsc::channel();
     for file in target_items {
         let compression = args.compression.clone();
@@ -81,67 +79,64 @@ pub(crate) fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Resu
     if let Some(parent) = archive.parent() {
         fs::create_dir_all(parent)?;
     }
-    let file = File::create(&archive)?;
-    let mut writer = ArchiveWriter::write_header(file)?;
-
     let max_file_size = args
         .split
         .map(|it| it.unwrap_or(ByteSize::gb(1)).0 as usize);
     // if splitting is enabled
     if let Some(max_file_size) = max_file_size {
+        let mut part_num = 1;
+        let file = File::create(part_name(&archive, part_num).unwrap())?;
+        let mut writer = ArchiveWriter::write_header(file)?;
+
         // NOTE: max_file_size - (PNA_HEADER + AHED + ANXT + AEND)
         let max_file_size = max_file_size - (PNA_HEADER.len() + MIN_CHUNK_BYTES_SIZE * 3 + 8);
-        let mut part_num = 0;
         let mut written_entry_size = 0;
-        for (idx, item) in rx.into_iter().enumerate() {
+        for item in rx.into_iter() {
             let entry = item?;
-            let is_last = idx + 1 == item_count;
-            if written_entry_size + entry.bytes_len() >= max_file_size {
-                let mut parts = vec![];
-                let mut entry_part = EntryPart::from(entry);
-                loop {
-                    match entry_part.split(max_file_size - written_entry_size) {
-                        (write_part, Some(remaining_part)) => {
-                            parts.push(write_part);
-                            entry_part = remaining_part;
-                        }
-                        (write_part, None) => {
-                            parts.push(write_part);
-                            break;
-                        }
+            let mut parts = vec![];
+            let mut entry_part = EntryPart::from(entry);
+            let mut split_size = max_file_size - written_entry_size;
+            loop {
+                match entry_part.split(split_size) {
+                    (write_part, Some(remaining_part)) => {
+                        parts.push(write_part);
+                        entry_part = remaining_part;
+                        split_size = max_file_size;
+                    }
+                    (write_part, None) => {
+                        parts.push(write_part);
+                        break;
                     }
                 }
-                let part_len = parts.len();
-                for (is_last_part, part) in parts
-                    .into_iter()
-                    .enumerate()
-                    .map(|(idx, p)| (idx + 1 == part_len, p))
-                {
-                    written_entry_size += writer.add_entry_part(part)?;
+            }
+            for part in parts {
+                if written_entry_size + part.bytes_len() > max_file_size {
                     part_num += 1;
                     let part_n_name = part_name(&archive, part_num).unwrap();
                     if verbosity == Verbosity::Verbose {
                         println!("Split: {} to {}", archive.display(), part_n_name.display());
                     }
-                    fs::rename(&archive, part_n_name)?;
-                    if !(is_last && is_last_part) {
-                        let file = File::create(&archive)?;
-                        writer = writer.split_to_next_archive(file)?;
-                        written_entry_size = 0;
-                    }
+                    let file = File::create(&part_n_name)?;
+                    writer = writer.split_to_next_archive(file)?;
+                    written_entry_size = 0;
                 }
-            } else {
-                written_entry_size += writer.add_entry(entry)?;
+                written_entry_size += writer.add_entry_part(part)?;
             }
             progress_bar.let_ref(|pb| pb.inc(1));
         }
+        writer.finalize()?;
+        if part_num == 1 {
+            fs::rename(part_name(&archive, 1).unwrap(), &archive)?;
+        }
     } else {
+        let file = File::create(&archive)?;
+        let mut writer = ArchiveWriter::write_header(file)?;
         for entry in rx.into_iter() {
             writer.add_entry(entry?)?;
             progress_bar.let_ref(|pb| pb.inc(1));
         }
+        writer.finalize()?;
     }
-    writer.finalize()?;
 
     progress_bar.let_ref(|pb| pb.finish_and_clear());
 
