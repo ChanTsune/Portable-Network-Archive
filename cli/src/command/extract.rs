@@ -118,7 +118,7 @@ fn extract_entry(
     let path = if let Some(out_dir) = &out_dir {
         out_dir.join(&item_path)
     } else {
-        item_path.clone()
+        item_path
     };
     if path.exists() && !overwrite {
         return Err(io::Error::new(
@@ -133,7 +133,7 @@ fn extract_entry(
         fs::create_dir_all(parent)?;
     }
     let permissions = if keep_permission {
-        item.metadata().permission().and_then(|p| permissions(p))
+        item.metadata().permission().and_then(permissions)
     } else {
         None
     };
