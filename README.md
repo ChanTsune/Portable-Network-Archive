@@ -10,11 +10,18 @@ Highly scalable archive format based on the PNG data structure with file compres
 ## Installation
 
 ```sh
+cargo install portable-network-archive
+```
+
+or
+
+```sh
 git clone https://github.com/ChanTsune/Portable-Network-Archive.git
 ```
 ```sh
 cargo install --path cli
 ```
+
 
 ## Usage
 
