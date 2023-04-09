@@ -133,11 +133,7 @@ fn extract_entry(
         fs::create_dir_all(parent)?;
     }
     let permissions = if keep_permission {
-        if let Some(p) = item.metadata().permission() {
-            permissions(p)
-        } else {
-            None
-        }
+        item.metadata().permission().and_then(|p| permissions(p))
     } else {
         None
     };
