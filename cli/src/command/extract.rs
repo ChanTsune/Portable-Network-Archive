@@ -5,7 +5,7 @@ use crate::{
 };
 use glob::Pattern;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
-use libpna::{ArchiveReader, Permission, ReadEntry, ReadOptionBuilder};
+use libpna::{ArchiveReader, DataKind, Permission, ReadEntry, ReadOptionBuilder};
 #[cfg(unix)]
 use nix::unistd::{chown, Group, User};
 use rayon::ThreadPoolBuilder;
@@ -137,16 +137,24 @@ fn extract_entry(
     } else {
         None
     };
-
-    let mut file = File::create(&path)?;
-    let mut reader = item.into_reader({
-        let mut builder = ReadOptionBuilder::new();
-        if let Some(password) = password {
-            builder.password(password);
+    match item.header().data_kind() {
+        DataKind::File => {
+            let mut file = File::create(&path)?;
+            let mut reader = item.into_reader({
+                let mut builder = ReadOptionBuilder::new();
+                if let Some(password) = password {
+                    builder.password(password);
+                }
+                builder.build()
+            })?;
+            io::copy(&mut reader, &mut file)?;
         }
-        builder.build()
-    })?;
-    io::copy(&mut reader, &mut file)?;
+        DataKind::Directory => {
+            fs::create_dir_all(&path)?;
+        }
+        DataKind::SymbolicLink => {}
+        DataKind::HardLink => {}
+    }
     #[cfg(unix)]
     permissions.map(|(p, u, g)| {
         chown(&path, u.map(|i| i.uid), g.map(|g| g.gid)).map_err(io::Error::from)?;
