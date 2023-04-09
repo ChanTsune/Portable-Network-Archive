@@ -266,7 +266,7 @@ impl ReadEntryImpl {
 pub struct EntryPart(pub(crate) Vec<RawChunk>);
 
 impl EntryPart {
-    fn bytes_len(&self) -> usize {
+    pub fn bytes_len(&self) -> usize {
         self.0.iter().map(|chunk| chunk.bytes_len()).sum()
     }
 
