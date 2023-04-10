@@ -92,15 +92,15 @@ The chunk data area is empty.
 
 Basic information of each file and directory is stored.  
 
-|significance|size|description|
-|--|--|--|
-|Major version|1-byte|Major version|
-|Minor version|1-byte|Minor version|
-|File type|1-byte|file type|
-|Compression method|1-byte|Compression method|
-|Encryption method|1-byte|Encryption method|
-|Cipher mode|1-byte|Cipher mode|
-|Path|n-byte|file path|
+| significance       |  size   | description        |
+|:-------------------|:-------:|:-------------------|
+| Major version      | 1-byte  | Major version      |
+| Minor version      | 1-byte  | Minor version      |
+| File type          | 1-byte  | file type          |
+| Compression method | 1-byte  | Compression method |
+| Encryption method  | 1-byte  | Encryption method  |
+| Cipher mode        | 1-byte  | Cipher mode        |
+| Path               | n-byte  | file path          |
 
 ##### File type
 
@@ -158,6 +158,28 @@ The actual data of the file is recorded.
 This signals the end of the file data stream.  
 The chunk data area is empty.  
 
+#### SHED
+
+Basic information of Solid mode archive is stored.
+
+| significance       |  size   | description        |
+|:-------------------|:-------:|:-------------------|
+| Major version      | 1-byte  | Major version      |
+| Minor version      | 1-byte  | Minor version      |
+| Compression method | 1-byte  | Compression method |
+| Encryption method  | 1-byte  | Encryption method  |
+| Cipher mode        | 1-byte  | Cipher mode        |
+
+#### SDAT
+
+Solid mode archive data.
+Contains chunks representing entries.
+
+#### SEND
+
+This signals the end of the solid data stream.  
+The chunk data area is empty.
+
 ### Auxiliary Chunks  
 
 All Auxiliary Chunks must appear before the `AEND` Chunk
@@ -198,18 +220,3 @@ This chunk appeared after `FHAD` chunk and before `FEND` chunk.
 ##### permissions
 
 Permissions are like `755` as use in `chmod`.
-
-#### aSLD
-
-Basic information of Solid mode archive is stored.  
-
-|significance|size|description|
-|--|--|--|
-|Major version|1-byte|Major version|
-|Minor version|1-byte|Minor version|
-|Compression method|1-byte|Compression method|
-|Encryption method|1-byte|Encryption method|
-
-#### aDAT
-
-Solid mode archive data.
