@@ -19,7 +19,7 @@ fn read_pna_header<R: Read>(mut reader: R) -> io::Result<()> {
     Ok(())
 }
 
-/// A reader for PNA archives.
+/// A reader for Portable-Network-Archive.
 pub struct ArchiveReader<R> {
     r: ChunkReader<R>,
     next_archive: bool,
