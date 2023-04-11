@@ -8,17 +8,17 @@ impl ChunkType {
     // -- Critical chunks --
     /// Archive header
     pub const AHED: ChunkType = ChunkType(*b"AHED");
-    /// Archive end
+    /// Archive end marker
     pub const AEND: ChunkType = ChunkType(*b"AEND");
     /// Archive next part marker
     pub const ANXT: ChunkType = ChunkType(*b"ANXT");
-    /// File header
+    /// Entry header
     pub const FHED: ChunkType = ChunkType(*b"FHED");
     /// Password hash string format
     pub const PHSF: ChunkType = ChunkType(*b"PHSF");
-    /// File data
+    /// Entry data stream
     pub const FDAT: ChunkType = ChunkType(*b"FDAT");
-    /// File end
+    /// Entry data stream end marker
     pub const FEND: ChunkType = ChunkType(*b"FEND");
 
     // -- Auxiliary chunks --
@@ -28,7 +28,7 @@ impl ChunkType {
     /// Last modified datetime
     #[allow(non_upper_case_globals)]
     pub const mTIM: ChunkType = ChunkType(*b"mTIM");
-    /// File permissions
+    /// Entry permissions
     #[allow(non_upper_case_globals)]
     pub const fPRM: ChunkType = ChunkType(*b"fPRM");
 
