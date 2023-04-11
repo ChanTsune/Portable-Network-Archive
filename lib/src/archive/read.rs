@@ -36,7 +36,7 @@ impl<R: Read> ArchiveReader<R> {
     ///
     /// # Returns
     ///
-    /// A new `ArchiveReader`.
+    /// A new [ArchiveReader].
     ///
     /// # Errors
     ///
@@ -64,7 +64,7 @@ impl<R: Read> ArchiveReader<R> {
         })
     }
 
-    /// Reads the next raw entry (from FHED` to `FEND` chunk) from the archive.
+    /// Reads the next raw entry (from `FHED` to `FEND` chunk) from the archive.
     ///
     /// # Returns
     ///
@@ -134,11 +134,13 @@ impl<R: Read> ArchiveReader<R> {
         Entries { reader: self }
     }
 
-    /// Returns `true` if `ANXT` chunk is appeared before call this method calling.
+    /// Returns `true` if [ANXT] chunk is appeared before call this method calling.
     ///
     /// # Returns
     ///
     /// `true` if the next archive in the series is available, otherwise `false`.
+    ///
+    /// [ANXT]: ChunkType::ANXT
     #[inline]
     pub fn next_archive(&self) -> bool {
         self.next_archive
