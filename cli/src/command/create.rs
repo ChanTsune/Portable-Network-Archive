@@ -32,7 +32,7 @@ pub(crate) fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Resu
     if !args.overwrite && archive.exists() {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
-            format!("{} is alrady exists", archive.display()),
+            format!("{} is already exists", archive.display()),
         ));
     }
     if verbosity != Verbosity::Quite {
