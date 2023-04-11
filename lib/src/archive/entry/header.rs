@@ -3,7 +3,7 @@ use std::io;
 
 /// Represents the entry information header that is expressed in the [FHED] chunk.
 ///
-/// [FHED]: crate::FHED
+/// [FHED]: crate::ChunkType::FHED
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct EntryHeader {
     pub(crate) major: u8,
