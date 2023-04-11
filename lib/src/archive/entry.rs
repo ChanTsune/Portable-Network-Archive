@@ -153,7 +153,7 @@ impl Entry for ReadEntryImpl {
         let mut vec = Vec::new();
         vec.push(RawChunk::from_data(ChunkType::FHED, self.header.to_bytes()));
         if let Some(p) = self.phsf {
-            vec.push(RawChunk::from_data(ChunkType::fPRM, p.into_bytes()));
+            vec.push(RawChunk::from_data(ChunkType::PHSF, p.into_bytes()));
         }
         for ex in self.extra {
             vec.push(ex);
