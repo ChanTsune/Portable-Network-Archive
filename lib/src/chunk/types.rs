@@ -20,6 +20,12 @@ impl ChunkType {
     pub const FDAT: ChunkType = ChunkType(*b"FDAT");
     /// Entry data stream end marker
     pub const FEND: ChunkType = ChunkType(*b"FEND");
+    /// Solid mode data header
+    pub const SHED: ChunkType = ChunkType(*b"SHED");
+    /// Solid mode data stream
+    pub const SDAT: ChunkType = ChunkType(*b"SDAT");
+    /// Solid mode data stream end marker
+    pub const SEND: ChunkType = ChunkType(*b"SEND");
 
     // -- Auxiliary chunks --
     /// Creation datetime
