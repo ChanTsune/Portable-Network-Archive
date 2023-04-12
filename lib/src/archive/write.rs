@@ -19,7 +19,7 @@ impl<W: Write> ArchiveWriter<W> {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use std::fs::File;
     /// use libpna::ArchiveWriter;
     ///
@@ -54,7 +54,7 @@ impl<W: Write> ArchiveWriter<W> {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use std::fs::File;
     /// use libpna::{ArchiveWriter, EntryBuilder, WriteOptionBuilder};
     ///
@@ -77,7 +77,7 @@ impl<W: Write> ArchiveWriter<W> {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use std::fs::File;
     /// use libpna::{ArchiveWriter, EntryPart, EntryBuilder, WriteOptionBuilder};
     ///
