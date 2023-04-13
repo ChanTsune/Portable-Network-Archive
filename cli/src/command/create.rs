@@ -6,7 +6,8 @@ use crate::{
 use bytesize::ByteSize;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use libpna::{
-    ArchiveWriter, Entry, EntryBuilder, EntryPart, Permission, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
+    ArchiveWriter, Entry, EntryBuilder, EntryPart, Permission, WriteOption, WriteOptionBuilder,
+    MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
 };
 #[cfg(unix)]
 use nix::unistd::{Group, User};
@@ -53,10 +54,9 @@ pub(crate) fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Resu
     };
 
     let (tx, rx) = std::sync::mpsc::channel();
+    let option = entry_option(args.compression, args.cipher, password);
     for file in target_items {
-        let compression = args.compression.clone();
-        let cipher = args.cipher.clone();
-        let password = password.clone();
+        let option = option.clone();
         let keep_timestamp = args.keep_timestamp;
         let keep_permission = args.keep_permission;
         let tx = tx.clone();
@@ -64,15 +64,8 @@ pub(crate) fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Resu
             if verbosity == Verbosity::Verbose {
                 println!("Adding: {}", file.display());
             }
-            tx.send(create_entry(
-                &file,
-                compression,
-                cipher,
-                password,
-                keep_timestamp,
-                keep_permission,
-            ))
-            .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
+            tx.send(create_entry(&file, option, keep_timestamp, keep_permission))
+                .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
         });
     }
 
@@ -174,28 +167,12 @@ fn collect_items(
 
 fn create_entry(
     path: &Path,
-    compression: CompressionAlgorithmArgs,
-    cipher: CipherAlgorithmArgs,
-    password: Option<String>,
+    option: WriteOption,
     keep_timestamp: bool,
     keep_permission: bool,
 ) -> io::Result<impl Entry> {
     if path.is_file() {
-        let mut option_builder = libpna::WriteOptionBuilder::default();
-        let (algorithm, level) = compression.algorithm();
-        option_builder.compression(algorithm);
-        if let Some(level) = level {
-            option_builder.compression_level(level);
-        }
-        option_builder
-            .encryption(if password.is_some() {
-                cipher.algorithm()
-            } else {
-                libpna::Encryption::No
-            })
-            .cipher_mode(cipher.mode())
-            .password(password);
-        let mut entry = EntryBuilder::new_file(path.into(), option_builder.build())?;
+        let mut entry = EntryBuilder::new_file(path.into(), option)?;
         entry.write_all(&fs::read(path)?)?;
         return apply_metadata(entry, path, keep_timestamp, keep_permission)?.build();
     } else if path.is_dir() {
@@ -206,6 +183,28 @@ fn create_entry(
         io::ErrorKind::Unsupported,
         "Currently not a regular file is not supported.",
     ))
+}
+
+fn entry_option(
+    compression: CompressionAlgorithmArgs,
+    cipher: CipherAlgorithmArgs,
+    password: Option<String>,
+) -> WriteOption {
+    let mut option_builder = WriteOptionBuilder::default();
+    let (algorithm, level) = compression.algorithm();
+    option_builder.compression(algorithm);
+    if let Some(level) = level {
+        option_builder.compression_level(level);
+    }
+    option_builder
+        .encryption(if password.is_some() {
+            cipher.algorithm()
+        } else {
+            libpna::Encryption::No
+        })
+        .cipher_mode(cipher.mode())
+        .password(password);
+    option_builder.build()
 }
 
 fn apply_metadata(
