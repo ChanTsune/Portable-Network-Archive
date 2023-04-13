@@ -61,14 +61,16 @@ pub(crate) fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Resu
         let keep_permission = args.keep_permission;
         let tx = tx.clone();
         pool.spawn_fifo(move || {
-            tx.send(write_internal(
+            if verbosity == Verbosity::Verbose {
+                println!("Adding: {}", file.display());
+            }
+            tx.send(create_entry(
                 &file,
                 compression,
                 cipher,
                 password,
                 keep_timestamp,
                 keep_permission,
-                verbosity,
             ))
             .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
         });
@@ -170,18 +172,14 @@ fn collect_items(
     Ok(())
 }
 
-fn write_internal(
+fn create_entry(
     path: &Path,
     compression: CompressionAlgorithmArgs,
     cipher: CipherAlgorithmArgs,
     password: Option<String>,
     keep_timestamp: bool,
     keep_permission: bool,
-    verbosity: Verbosity,
 ) -> io::Result<impl Entry> {
-    if verbosity == Verbosity::Verbose {
-        println!("Adding: {}", path.display());
-    }
     if path.is_file() {
         let mut option_builder = libpna::WriteOptionBuilder::default();
         let (algorithm, level) = compression.algorithm();
