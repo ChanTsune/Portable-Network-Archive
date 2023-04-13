@@ -7,7 +7,7 @@ mod read;
 mod write;
 
 pub use self::{builder::*, header::*, meta::*, name::*, options::*};
-use self::{read::*, write::*};
+use self::{private::*, read::*, write::*};
 use crate::{
     chunk::{
         chunk_data_split, chunk_to_bytes, ChunkExt, ChunkType, RawChunk, MIN_CHUNK_BYTES_SIZE,
@@ -23,18 +23,18 @@ use std::{
 
 mod private {
     use super::*;
-    pub trait SealedEntry {}
-    impl SealedEntry for ReadEntryImpl {}
-    impl SealedEntry for ChunkEntry {}
+    pub trait SealedIntoChunks {
+        fn into_chunks(self) -> Vec<RawChunk>;
+    }
 }
 
-/// PNA archive entry
-pub trait Entry: private::SealedEntry {
+/// Archive entry.
+pub trait Entry: SealedIntoChunks {
     fn bytes_len(&self) -> usize;
     fn into_bytes(self) -> Vec<u8>;
-    fn into_chunks(self) -> Vec<RawChunk>;
 }
 
+/// Readable archive entry.
 pub trait ReadEntry: Entry {
     type Reader: Read + Sync + Send;
     fn header(&self) -> &EntryHeader;
@@ -46,6 +46,13 @@ pub trait ReadEntry: Entry {
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ChunkEntry(pub(crate) Vec<RawChunk>);
 
+impl SealedIntoChunks for ChunkEntry {
+    #[inline]
+    fn into_chunks(self) -> Vec<RawChunk> {
+        self.0
+    }
+}
+
 impl Entry for ChunkEntry {
     fn bytes_len(&self) -> usize {
         self.0.iter().map(|chunk| chunk.bytes_len()).sum()
@@ -53,11 +60,6 @@ impl Entry for ChunkEntry {
 
     fn into_bytes(self) -> Vec<u8> {
         self.0.into_iter().flat_map(chunk_to_bytes).collect()
-    }
-
-    #[inline]
-    fn into_chunks(self) -> Vec<RawChunk> {
-        self.0
     }
 }
 
@@ -137,18 +139,7 @@ pub(crate) struct ReadEntryImpl {
     pub(crate) metadata: Metadata,
 }
 
-impl Entry for ReadEntryImpl {
-    fn bytes_len(&self) -> usize {
-        self.clone().into_bytes().len()
-    }
-
-    fn into_bytes(self) -> Vec<u8> {
-        self.into_chunks()
-            .into_iter()
-            .flat_map(chunk_to_bytes)
-            .collect()
-    }
-
+impl SealedIntoChunks for ReadEntryImpl {
     fn into_chunks(self) -> Vec<RawChunk> {
         let mut vec = Vec::new();
         vec.push(RawChunk::from_data(ChunkType::FHED, self.header.to_bytes()));
@@ -184,6 +175,19 @@ impl Entry for ReadEntryImpl {
         }
         vec.push(RawChunk::from_data(ChunkType::FEND, Vec::new()));
         vec
+    }
+}
+
+impl Entry for ReadEntryImpl {
+    fn bytes_len(&self) -> usize {
+        self.clone().into_bytes().len()
+    }
+
+    fn into_bytes(self) -> Vec<u8> {
+        self.into_chunks()
+            .into_iter()
+            .flat_map(chunk_to_bytes)
+            .collect()
     }
 }
 
@@ -299,9 +303,9 @@ impl EntryPart {
     }
 }
 
-impl<T: Entry> From<T> for EntryPart {
-    fn from(entry: T) -> Self {
-        Self(entry.into_chunks())
+impl<T: SealedIntoChunks> From<T> for EntryPart {
+    fn from(value: T) -> Self {
+        Self(value.into_chunks())
     }
 }
 
