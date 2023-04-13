@@ -86,24 +86,12 @@ pub(crate) fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Resu
         // NOTE: max_file_size - (PNA_HEADER + AHED + ANXT + AEND)
         let max_file_size = max_file_size - (PNA_HEADER.len() + MIN_CHUNK_BYTES_SIZE * 3 + 8);
         let mut written_entry_size = 0;
-        for item in rx.into_iter() {
-            let entry = item?;
-            let mut parts = vec![];
-            let mut entry_part = EntryPart::from(entry);
-            let mut split_size = max_file_size - written_entry_size;
-            loop {
-                match entry_part.split(split_size) {
-                    (write_part, Some(remaining_part)) => {
-                        parts.push(write_part);
-                        entry_part = remaining_part;
-                        split_size = max_file_size;
-                    }
-                    (write_part, None) => {
-                        parts.push(write_part);
-                        break;
-                    }
-                }
-            }
+        for entry in rx.into_iter() {
+            let parts = split_to_parts(
+                EntryPart::from(entry?),
+                max_file_size - written_entry_size,
+                max_file_size,
+            );
             for part in parts {
                 if written_entry_size + part.bytes_len() > max_file_size {
                     part_num += 1;
@@ -163,6 +151,25 @@ fn collect_items(
         result.push(path.to_path_buf());
     }
     Ok(())
+}
+
+fn split_to_parts(mut entry_part: EntryPart, first: usize, max: usize) -> Vec<EntryPart> {
+    let mut parts = vec![];
+    let mut split_size = first;
+    loop {
+        match entry_part.split(split_size) {
+            (write_part, Some(remaining_part)) => {
+                parts.push(write_part);
+                entry_part = remaining_part;
+                split_size = max;
+            }
+            (write_part, None) => {
+                parts.push(write_part);
+                break;
+            }
+        }
+    }
+    parts
 }
 
 fn create_entry(
