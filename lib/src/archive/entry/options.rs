@@ -117,6 +117,30 @@ pub struct WriteOption {
     pub(crate) password: Option<String>,
 }
 
+impl WriteOption {
+    /// A new [WriteOption] to simply store.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use libpna::{EntryBuilder, WriteOption};
+    ///
+    /// EntryBuilder::new_file("example.txt".into(), WriteOption::store()).unwrap();
+    /// ```
+    ///
+    /// [Entry]: crate::Entry
+    pub fn store() -> Self {
+        Self {
+            compression: Compression::No,
+            compression_level: Default::default(),
+            encryption: Encryption::No,
+            cipher_mode: CipherMode::CBC,
+            hash_algorithm: HashAlgorithm::Argon2Id,
+            password: None,
+        }
+    }
+}
+
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct WriteOptionBuilder {
     compression: Compression,
