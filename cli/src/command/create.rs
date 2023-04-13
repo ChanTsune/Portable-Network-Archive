@@ -39,10 +39,7 @@ pub(crate) fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Resu
     if verbosity != Verbosity::Quite {
         println!("Create an archive: {}", archive.display());
     }
-    let mut target_items = vec![];
-    for p in args.file.files {
-        collect_items(&mut target_items, p.as_ref(), args.recursive, args.keep_dir)?;
-    }
+    let target_items = collect_items(args.file.files, args.recursive, args.keep_dir)?;
 
     let progress_bar = if verbosity != Verbosity::Quite {
         Some(
@@ -132,25 +129,32 @@ pub(crate) fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Resu
     Ok(())
 }
 
-fn collect_items(
-    result: &mut Vec<PathBuf>,
-    path: &Path,
-    recursive: bool,
-    keep_dir: bool,
-) -> io::Result<()> {
-    if path.is_dir() {
-        if keep_dir {
+fn collect_items(files: Vec<PathBuf>, recursive: bool, keep_dir: bool) -> io::Result<Vec<PathBuf>> {
+    fn collect_items(
+        result: &mut Vec<PathBuf>,
+        path: &Path,
+        recursive: bool,
+        keep_dir: bool,
+    ) -> io::Result<()> {
+        if path.is_dir() {
+            if keep_dir {
+                result.push(path.to_path_buf());
+            }
+            if recursive {
+                for p in fs::read_dir(path)? {
+                    collect_items(result, &p?.path(), recursive, keep_dir)?;
+                }
+            }
+        } else if path.is_file() {
             result.push(path.to_path_buf());
         }
-        if recursive {
-            for p in fs::read_dir(path)? {
-                collect_items(result, &p?.path(), recursive, keep_dir)?;
-            }
-        }
-    } else if path.is_file() {
-        result.push(path.to_path_buf());
+        Ok(())
     }
-    Ok(())
+    let mut target_items = vec![];
+    for p in files {
+        collect_items(&mut target_items, p.as_ref(), recursive, keep_dir)?;
+    }
+    Ok(target_items)
 }
 
 fn split_to_parts(mut entry_part: EntryPart, first: usize, max: usize) -> Vec<EntryPart> {
