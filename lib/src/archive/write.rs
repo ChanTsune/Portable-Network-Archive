@@ -1,5 +1,5 @@
 use crate::{
-    archive::{ArchiveHeader, Entry, EntryPart, PNA_HEADER},
+    archive::{ArchiveHeader, Entry, EntryPart, SolidEntries, PNA_HEADER},
     chunk::{ChunkType, ChunkWriter},
 };
 use std::io::{self, Write};
@@ -44,6 +44,43 @@ impl<W: Write> ArchiveWriter<W> {
             w: chunk_writer.into_inner(),
             archive_number,
         })
+    }
+
+    /// Adds solid entries to the current writer.
+    ///
+    /// This function takes an `entries` that implement the `SolidEntries` trait.
+    /// The `entries` are converted to bytes and written to the writer.
+    /// The function returns the number of bytes written.
+    ///
+    /// # Arguments
+    ///
+    /// * `entries`: An `entries` that implement the `SolidEntries` trait.
+    ///
+    /// # Returns
+    ///
+    /// The number of bytes written to the writer.
+    ///
+    /// # Errors
+    ///
+    /// This function may return an `io::Error` if the writing operation fails.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use std::fs::File;
+    /// use libpna::{ArchiveWriter, SolidEntriesBuilder, WriteOptionBuilder};
+    ///
+    /// let file = File::create("example.pna").unwrap();
+    /// let mut archive_writer = ArchiveWriter::write_header(file).unwrap();
+    /// let solid_builder = SolidEntriesBuilder::new(WriteOptionBuilder::new().build()).unwrap();
+    /// let entries = solid_builder.build().unwrap();
+    /// archive_writer.add_solid_entries(entries).unwrap();
+    /// archive_writer.finalize().unwrap();
+    /// ```
+    pub fn add_solid_entries(&mut self, entries: impl SolidEntries) -> io::Result<usize> {
+        let bytes = entries.into_bytes();
+        self.w.write_all(&bytes)?;
+        Ok(bytes.len())
     }
 
     /// Adds a new entry to the archive.

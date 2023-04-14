@@ -1,6 +1,7 @@
 use crate::{
     archive::entry::{
-        writer_and_hash, ChunkEntry, Entry, EntryHeader, EntryName, Permission, WriteOption,
+        writer_and_hash, ChunkEntry, ChunkSolidEntries, Entry, EntryHeader, EntryName, Permission,
+        SolidEntries, SolidHeader, WriteOption,
     },
     chunk::{ChunkType, RawChunk},
     cipher::CipherWriter,
@@ -168,5 +169,88 @@ impl Write for EntryBuilder {
             return w.flush();
         }
         Ok(())
+    }
+}
+
+/// A builder for creating a new [SolidEntries].
+pub struct SolidEntriesBuilder {
+    header: SolidHeader,
+    phsf: Option<String>,
+    data: CompressionWriter<'static, CipherWriter<Vec<u8>>>,
+}
+
+impl SolidEntriesBuilder {
+    /// Creates a new [SolidEntriesBuilder] with the given option.
+    ///
+    /// # Arguments
+    ///
+    /// * `option` - The write option specifying the compression and encryption settings.
+    ///
+    /// # Returns
+    ///
+    /// A new [SolidEntriesBuilder].
+    pub fn new(option: WriteOption) -> io::Result<Self> {
+        let (writer, phsf) = writer_and_hash(Vec::new(), option.clone())?;
+        Ok(Self {
+            header: SolidHeader::new(option.compression, option.encryption, option.cipher_mode),
+            phsf,
+            data: writer,
+        })
+    }
+
+    /// Adds an entry to the solid archive.
+    ///
+    /// # Arguments
+    ///
+    /// * `entry` - The entry to add to the archive.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use std::io;
+    /// use libpna::{EntryBuilder, SolidEntriesBuilder, WriteOption, WriteOptionBuilder};
+    ///
+    /// let mut builder = SolidEntriesBuilder::new(WriteOptionBuilder::new().build()).unwrap();
+    /// let dir_entry = EntryBuilder::new_dir("example".into()).build().unwrap();
+    /// builder.add_entry(dir_entry).unwrap();
+    /// let file_entry = EntryBuilder::new_file("example/empty.txt".into(), WriteOption::store()).unwrap().build().unwrap();
+    /// builder.add_entry(file_entry).unwrap();
+    /// builder.build().unwrap();
+    /// ```
+    pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<()> {
+        self.data.write_all(&entry.into_bytes())
+    }
+
+    fn build_as_chunks(self) -> io::Result<Vec<RawChunk>> {
+        let mut chunks = vec![];
+        chunks.push(RawChunk::from_data(
+            ChunkType::SHED,
+            self.header.to_bytes().to_vec(),
+        ));
+
+        if let Some(phsf) = self.phsf {
+            chunks.push(RawChunk::from_data(ChunkType::PHSF, phsf.into_bytes()));
+        }
+        let data = self.data.try_into_inner()?.try_into_inner()?;
+        for data_chunk in data.chunks(u32::MAX as usize) {
+            chunks.push(RawChunk::from_data(ChunkType::SDAT, data_chunk.to_vec()));
+        }
+        chunks.push(RawChunk::from_data(ChunkType::SEND, Vec::new()));
+        Ok(chunks)
+    }
+
+    /// Builds the solid archive as a [SolidEntries].
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use std::io;
+    /// use libpna::{SolidEntriesBuilder, WriteOptionBuilder};
+    ///
+    /// let builder = SolidEntriesBuilder::new(WriteOptionBuilder::new().build()).unwrap();
+    /// let entries = builder.build().unwrap();
+    /// ```
+    pub fn build(self) -> io::Result<impl SolidEntries> {
+        Ok(ChunkSolidEntries(self.build_as_chunks()?))
     }
 }
