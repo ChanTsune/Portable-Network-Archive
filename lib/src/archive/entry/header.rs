@@ -55,22 +55,27 @@ impl EntryHeader {
         )
     }
 
+    #[inline]
     pub fn path(&self) -> &EntryName {
         &self.path
     }
 
+    #[inline]
     pub fn data_kind(&self) -> DataKind {
         self.data_kind
     }
 
+    #[inline]
     pub fn compression(&self) -> Compression {
         self.compression
     }
 
+    #[inline]
     pub fn encryption(&self) -> Encryption {
         self.encryption
     }
 
+    #[inline]
     pub fn cipher_mode(&self) -> CipherMode {
         self.cipher_mode
     }
