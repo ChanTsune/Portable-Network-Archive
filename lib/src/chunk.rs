@@ -16,6 +16,11 @@ pub(crate) trait ChunkExt: Chunk {
     fn bytes_len(&self) -> usize {
         mem::align_of::<u32>() + self.ty().len() + self.data().len() + mem::align_of::<u32>()
     }
+
+    /// check the chunk type is stream chunk
+    fn is_stream_chunk(&self) -> bool {
+        self.ty() == ChunkType::FDAT || self.ty() == ChunkType::SDAT
+    }
 }
 
 impl<T> ChunkExt for T where T: Chunk {}
