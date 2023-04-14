@@ -115,3 +115,74 @@ impl TryFrom<&[u8]> for EntryHeader {
         })
     }
 }
+
+/// Represents the entry information header that is expressed in the [FHED] chunk.
+///
+/// [FHED]: crate::ChunkType::FHED
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct SolidHeader {
+    pub(crate) major: u8,
+    pub(crate) minor: u8,
+    pub(crate) compression: Compression,
+    pub(crate) encryption: Encryption,
+    pub(crate) cipher_mode: CipherMode,
+}
+
+impl SolidHeader {
+    pub(crate) fn new(
+        compression: Compression,
+        encryption: Encryption,
+        cipher_mode: CipherMode,
+    ) -> Self {
+        Self {
+            major: 0,
+            minor: 0,
+            compression,
+            encryption,
+            cipher_mode,
+        }
+    }
+
+    #[inline]
+    pub fn compression(&self) -> Compression {
+        self.compression
+    }
+
+    #[inline]
+    pub fn encryption(&self) -> Encryption {
+        self.encryption
+    }
+
+    #[inline]
+    pub fn cipher_mode(&self) -> CipherMode {
+        self.cipher_mode
+    }
+
+    #[inline]
+    pub fn to_bytes(&self) -> [u8; 5] {
+        [
+            self.major,
+            self.minor,
+            self.compression as u8,
+            self.encryption as u8,
+            self.cipher_mode as u8,
+        ]
+    }
+}
+
+impl TryFrom<&[u8]> for SolidHeader {
+    type Error = io::Error;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        Ok(Self {
+            major: bytes[0],
+            minor: bytes[1],
+            compression: Compression::try_from(bytes[2])
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+            encryption: Encryption::try_from(bytes[3])
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+            cipher_mode: CipherMode::try_from(bytes[4])
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+        })
+    }
+}

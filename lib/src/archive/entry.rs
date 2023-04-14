@@ -42,6 +42,12 @@ pub trait ReadEntry: Entry {
     fn into_reader(self, option: ReadOption) -> io::Result<Self::Reader>;
 }
 
+/// Solid mode entries block.
+pub trait SolidEntries: SealedIntoChunks {
+    fn bytes_len(&self) -> usize;
+    fn into_bytes(self) -> Vec<u8>;
+}
+
 /// Chunks from `FHED` to `FEND`, containing `FHED` and `FEND`
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ChunkEntry(pub(crate) Vec<RawChunk>);
@@ -265,7 +271,7 @@ impl ReadEntryImpl {
     }
 }
 
-/// A structure representing the [Entry] split for archive splitting.
+/// A structure representing the [Entry] or the [SolidEntries] split for archive splitting.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct EntryPart(pub(crate) Vec<RawChunk>);
 
@@ -305,6 +311,25 @@ impl EntryPart {
 impl<T: SealedIntoChunks> From<T> for EntryPart {
     fn from(value: T) -> Self {
         Self(value.into_chunks())
+    }
+}
+
+pub(crate) struct ChunkSolidEntries(pub(crate) Vec<RawChunk>);
+
+impl SealedIntoChunks for ChunkSolidEntries {
+    #[inline]
+    fn into_chunks(self) -> Vec<RawChunk> {
+        self.0
+    }
+}
+
+impl SolidEntries for ChunkSolidEntries {
+    fn bytes_len(&self) -> usize {
+        self.0.iter().map(|chunk| chunk.bytes_len()).sum()
+    }
+
+    fn into_bytes(self) -> Vec<u8> {
+        self.0.into_iter().flat_map(chunk_to_bytes).collect()
     }
 }
 
