@@ -10,7 +10,8 @@ pub use self::{builder::*, header::*, meta::*, name::*, options::*};
 use self::{private::*, read::*, write::*};
 use crate::{
     chunk::{
-        chunk_data_split, chunk_to_bytes, ChunkExt, ChunkType, RawChunk, MIN_CHUNK_BYTES_SIZE,
+        chunk_data_split, chunk_to_bytes, ChunkExt, ChunkReader, ChunkType, RawChunk,
+        MIN_CHUNK_BYTES_SIZE,
     },
     cipher::{DecryptCbcAes256Reader, DecryptCbcCamellia256Reader},
     hash::verify_password,
@@ -69,8 +70,169 @@ impl Entry for ChunkEntry {
     }
 }
 
-impl ChunkEntry {
-    pub(crate) fn into_entry(self) -> io::Result<ReadEntryImpl> {
+/// [`Read`]
+pub struct EntryDataReader(Box<dyn Read + Sync + Send>);
+
+impl Read for EntryDataReader {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.read(buf)
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) enum ReadEntryContainer {
+    Solid(SolidReadEntry),
+    NonSolid(NonSolidReadEntry),
+}
+
+impl TryFrom<ChunkEntry> for ReadEntryContainer {
+    type Error = io::Error;
+    fn try_from(entry: ChunkEntry) -> Result<Self, Self::Error> {
+        if let Some(first_chunk) = entry.0.first() {
+            match first_chunk.ty {
+                ChunkType::SHED => Ok(Self::Solid(SolidReadEntry::try_from(entry)?)),
+                ChunkType::FHED => Ok(Self::NonSolid(NonSolidReadEntry::try_from(entry)?)),
+                _ => Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid entry")),
+            }
+        } else {
+            Err(io::Error::new(io::ErrorKind::InvalidData, "Empty entry"))
+        }
+    }
+}
+
+struct EntryIterator<'a> {
+    entry: Box<dyn Read + Sync + Send + 'a>,
+}
+
+impl<'a> Iterator for EntryIterator<'a> {
+    type Item = io::Result<NonSolidReadEntry>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut chunk_reader = ChunkReader::from(&mut self.entry);
+        let mut chunks = Vec::with_capacity(3);
+        loop {
+            let chunk = chunk_reader.read_chunk();
+            match chunk {
+                Ok(chunk) => match chunk.ty {
+                    ChunkType::FEND => {
+                        chunks.push(chunk);
+                        break;
+                    }
+                    _ => chunks.push(chunk),
+                },
+                Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => return None,
+                Err(e) => return Some(Err(e)),
+            }
+        }
+        Some(ChunkEntry(chunks).try_into())
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) struct SolidReadEntry {
+    header: SolidHeader,
+    phsf: Option<String>,
+    data: Vec<u8>,
+    extra: Vec<RawChunk>,
+}
+
+impl SolidReadEntry {
+    pub(crate) fn entries(
+        &self,
+        password: Option<&str>,
+    ) -> io::Result<impl Iterator<Item = io::Result<NonSolidReadEntry>> + '_> {
+        let reader = decrypt_reader(
+            self.data.as_slice(),
+            self.header.encryption,
+            self.header.cipher_mode,
+            self.phsf.as_deref(),
+            password,
+        )?;
+        let reader = decompress_reader(reader, self.header.compression)?;
+
+        Ok(EntryIterator { entry: reader })
+    }
+}
+
+impl TryFrom<ChunkEntry> for SolidReadEntry {
+    type Error = io::Error;
+
+    fn try_from(entry: ChunkEntry) -> Result<Self, Self::Error> {
+        if let Some(first_chunk) = entry.0.first() {
+            if first_chunk.ty != ChunkType::SHED {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!(
+                        "Excepted {} chunk, but {} chunk was found",
+                        ChunkType::SHED,
+                        first_chunk.ty
+                    ),
+                ));
+            }
+        }
+        let mut extra = vec![];
+        let mut data = vec![];
+        let mut info = None;
+        let mut phsf = None;
+        for chunk in entry.0 {
+            match chunk.ty {
+                ChunkType::SHED => {
+                    info = Some(SolidHeader::try_from(chunk.data.as_slice())?);
+                }
+                ChunkType::SDAT => {
+                    data.extend(chunk.data);
+                }
+                ChunkType::PHSF => {
+                    phsf = Some(
+                        String::from_utf8(chunk.data)
+                            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+                    );
+                }
+                _ => {
+                    extra.push(chunk);
+                }
+            }
+        }
+        let header = info.ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("{} chunk not found", ChunkType::SHED),
+            )
+        })?;
+        Ok(Self {
+            header,
+            phsf,
+            data,
+            extra,
+        })
+    }
+}
+
+/// [Entry] that read from PNA archive.
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) struct NonSolidReadEntry {
+    pub(crate) header: EntryHeader,
+    pub(crate) phsf: Option<String>,
+    pub(crate) extra: Vec<RawChunk>,
+    pub(crate) data: Vec<u8>,
+    pub(crate) metadata: Metadata,
+}
+
+impl TryFrom<ChunkEntry> for NonSolidReadEntry {
+    type Error = io::Error;
+    fn try_from(entry: ChunkEntry) -> Result<Self, Self::Error> {
+        if let Some(first_chunk) = entry.0.first() {
+            if first_chunk.ty != ChunkType::FHED {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!(
+                        "Excepted {} chunk, but {} chunk was found",
+                        ChunkType::FHED,
+                        first_chunk.ty
+                    ),
+                ));
+            }
+        }
         let mut extra = vec![];
         let mut data = vec![];
         let mut info = None;
@@ -78,7 +240,7 @@ impl ChunkEntry {
         let mut ctime = None;
         let mut mtime = None;
         let mut permission = None;
-        for mut chunk in self.0 {
+        for mut chunk in entry.0 {
             match chunk.ty {
                 ChunkType::FEND => break,
                 ChunkType::FHED => {
@@ -100,7 +262,7 @@ impl ChunkEntry {
         let header = info.ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
-                String::from("FHED chunk not found"),
+                format!("{} chunk not found", ChunkType::FHED),
             )
         })?;
         if header.major != 0 || header.minor != 0 {
@@ -112,7 +274,7 @@ impl ChunkEntry {
                 ),
             ));
         }
-        Ok(ReadEntryImpl {
+        Ok(Self {
             header,
             phsf,
             extra,
@@ -126,26 +288,8 @@ impl ChunkEntry {
         })
     }
 }
-/// [`Read`]
-pub struct EntryDataReader(Box<dyn Read + Sync + Send>);
 
-impl Read for EntryDataReader {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.0.read(buf)
-    }
-}
-
-/// [Entry] that read from PNA archive.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct ReadEntryImpl {
-    pub(crate) header: EntryHeader,
-    pub(crate) phsf: Option<String>,
-    pub(crate) extra: Vec<RawChunk>,
-    pub(crate) data: Vec<u8>,
-    pub(crate) metadata: Metadata,
-}
-
-impl SealedIntoChunks for ReadEntryImpl {
+impl SealedIntoChunks for NonSolidReadEntry {
     fn into_chunks(self) -> Vec<RawChunk> {
         let mut vec = Vec::new();
         vec.push(RawChunk::from_data(ChunkType::FHED, self.header.to_bytes()));
@@ -184,7 +328,7 @@ impl SealedIntoChunks for ReadEntryImpl {
     }
 }
 
-impl Entry for ReadEntryImpl {
+impl Entry for NonSolidReadEntry {
     fn bytes_len(&self) -> usize {
         self.clone().into_bytes().len()
     }
@@ -197,7 +341,7 @@ impl Entry for ReadEntryImpl {
     }
 }
 
-impl ReadEntry for ReadEntryImpl {
+impl ReadEntry for NonSolidReadEntry {
     type Reader = EntryDataReader;
 
     #[inline]
@@ -216,14 +360,14 @@ impl ReadEntry for ReadEntryImpl {
     }
 }
 
-impl ReadEntryImpl {
+impl NonSolidReadEntry {
     fn reader(self, password: Option<&str>) -> io::Result<EntryDataReader> {
         let raw_data_reader = io::Cursor::new(self.data);
         let decrypt_reader = decrypt_reader(
             raw_data_reader,
             self.header.encryption,
             self.header.cipher_mode,
-            self.phsf,
+            self.phsf.as_deref(),
             password,
         )?;
         let reader = decompress_reader(decrypt_reader, self.header.compression)?;
@@ -236,7 +380,7 @@ fn decrypt_reader<'r, R: Read + Sync + Send + 'r>(
     reader: R,
     encryption: Encryption,
     cipher_mode: CipherMode,
-    phsf: Option<String>,
+    phsf: Option<&str>,
     password: Option<&str>,
 ) -> io::Result<Box<dyn Read + Sync + Send + 'r>> {
     Ok(match encryption {
@@ -249,7 +393,7 @@ fn decrypt_reader<'r, R: Read + Sync + Send + 'r>(
                 )
             })?;
             let phsf = verify_password(
-                &s,
+                s,
                 password.ok_or_else(|| {
                     io::Error::new(
                         io::ErrorKind::InvalidInput,

@@ -1,11 +1,13 @@
 use crate::{
     archive::{
-        entry::{ChunkEntry, ReadEntry, ReadEntryImpl},
-        ArchiveHeader, PNA_HEADER,
+        ArchiveHeader, ChunkEntry, NonSolidReadEntry, ReadEntry, ReadEntryContainer, PNA_HEADER,
     },
     chunk::{Chunk, ChunkReader, ChunkType, RawChunk},
 };
-use std::io::{self, Read};
+use std::{
+    collections::VecDeque,
+    io::{self, Read},
+};
 
 fn read_pna_header<R: Read>(mut reader: R) -> io::Result<()> {
     let mut header = [0u8; PNA_HEADER.len()];
@@ -79,7 +81,7 @@ impl<R: Read> ArchiveReader<R> {
         loop {
             let chunk = self.r.read_chunk()?;
             match chunk.ty {
-                ChunkType::FEND => {
+                ChunkType::FEND | ChunkType::SEND => {
                     chunks.push(chunk);
                     break;
                 }
@@ -103,9 +105,17 @@ impl<R: Read> ArchiveReader<R> {
     /// # Errors
     ///
     /// Returns an error if an I/O error occurs while reading from the archive.
+    #[deprecated]
     #[inline]
     pub fn read(&mut self) -> io::Result<Option<impl ReadEntry>> {
-        self.read_entry()
+        loop {
+            let entry = self.read_entry()?;
+            return match entry {
+                Some(ReadEntryContainer::NonSolid(entry)) => Ok(Some(entry)),
+                Some(ReadEntryContainer::Solid(_)) => continue,
+                None => Ok(None),
+            };
+        }
     }
 
     /// Reads the next entry from the archive.
@@ -117,21 +127,41 @@ impl<R: Read> ArchiveReader<R> {
     /// # Errors
     ///
     /// Returns an error if an I/O error occurs while reading from the archive.
-    pub(crate) fn read_entry(&mut self) -> io::Result<Option<ReadEntryImpl>> {
+    pub(crate) fn read_entry(&mut self) -> io::Result<Option<ReadEntryContainer>> {
         let entry = self.next_raw_item()?;
         match entry {
-            Some(entry) => Ok(Some(entry.into_entry()?)),
+            Some(entry) => Ok(Some(entry.try_into()?)),
             None => Ok(None),
         }
     }
 
-    /// Returns an iterator over the entries in the archive.
+    /// Returns an iterator over the entries in the archive, excluding entries in solid mode.
     ///
     /// # Returns
     ///
     /// An iterator over the entries in the archive.
     pub fn entries(&mut self) -> impl Iterator<Item = io::Result<impl ReadEntry>> + '_ {
-        Entries { reader: self }
+        Entries {
+            reader: self,
+            password: None,
+            buf: Default::default(),
+        }
+    }
+
+    /// Returns an iterator over the entries in the archive, including entries in solid mode.
+    ///
+    /// # Returns
+    ///
+    /// An iterator over the entries in the archive.
+    pub fn entries_with_password(
+        &mut self,
+        password: Option<String>,
+    ) -> impl Iterator<Item = io::Result<impl ReadEntry>> + '_ {
+        Entries {
+            reader: self,
+            password,
+            buf: Default::default(),
+        }
     }
 
     /// Returns `true` if [ANXT] chunk is appeared before call this method calling.
@@ -177,15 +207,31 @@ impl<R: Read> ArchiveReader<R> {
 
 pub(crate) struct Entries<'r, R: Read> {
     reader: &'r mut ArchiveReader<R>,
+    password: Option<String>,
+    buf: VecDeque<io::Result<NonSolidReadEntry>>,
 }
 
 impl<'r, R: Read> Iterator for Entries<'r, R> {
-    type Item = io::Result<ReadEntryImpl>;
+    type Item = io::Result<NonSolidReadEntry>;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if let Some(entry) = self.buf.pop_front() {
+            return Some(entry);
+        }
         let entry = self.reader.read_entry();
         match entry {
-            Ok(entry) => entry.map(Ok),
+            Ok(Some(ReadEntryContainer::NonSolid(entry))) => Some(Ok(entry)),
+            Ok(Some(ReadEntryContainer::Solid(entry))) => {
+                let entries = entry.entries(self.password.as_deref());
+                match entries {
+                    Ok(entries) => {
+                        self.buf = VecDeque::from(entries.collect::<Vec<_>>());
+                        self.next()
+                    }
+                    Err(e) => Some(Err(e)),
+                }
+            }
+            Ok(None) => None,
             Err(e) => Some(Err(e)),
         }
     }
