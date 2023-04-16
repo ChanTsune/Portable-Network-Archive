@@ -171,7 +171,8 @@ mod tests {
         let archive = create_archive(src, options.clone())?;
         let mut archive_reader = ArchiveReader::read_header(io::Cursor::new(archive))?;
         let mut item = archive_reader
-            .read()
+            .entries()
+            .next()
             .unwrap()
             .unwrap()
             .into_reader({
