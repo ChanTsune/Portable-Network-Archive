@@ -48,7 +48,7 @@ pub(crate) fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Re
 
     let (tx, rx) = std::sync::mpsc::channel();
     loop {
-        for entry in reader.entries() {
+        for entry in reader.entries_with_password(password.clone()) {
             let item = entry?;
             let item_path = PathBuf::from(item.header().path().as_str());
             if !globs.is_empty() && !globs.iter().any(|glob| glob.matches_path(&item_path)) {
