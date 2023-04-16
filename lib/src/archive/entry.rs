@@ -231,13 +231,14 @@ impl ReadEntryImpl {
     }
 }
 
-fn decrypt_reader<R: Read + Sync + Send + 'static>(
+/// Decrypt reader according to encryption type.
+fn decrypt_reader<'r, R: Read + Sync + Send + 'r>(
     reader: R,
     encryption: Encryption,
     cipher_mode: CipherMode,
     phsf: Option<String>,
     password: Option<&str>,
-) -> io::Result<Box<dyn Read + Sync + Send>> {
+) -> io::Result<Box<dyn Read + Sync + Send + 'r>> {
     Ok(match encryption {
         Encryption::No => Box::new(reader),
         encryption @ Encryption::Aes | encryption @ Encryption::Camellia => {
@@ -278,10 +279,11 @@ fn decrypt_reader<R: Read + Sync + Send + 'static>(
     })
 }
 
-fn decompress_reader<R: Read + Sync + Send + 'static>(
+/// Decompress reader according to compression type.
+fn decompress_reader<'r, R: Read + Sync + Send + 'r>(
     reader: R,
     compression: Compression,
-) -> io::Result<Box<dyn Read + Sync + Send>> {
+) -> io::Result<Box<dyn Read + Sync + Send + 'r>> {
     Ok(match compression {
         Compression::No => Box::new(reader),
         Compression::Deflate => Box::new(flate2::read::DeflateDecoder::new(reader)),
