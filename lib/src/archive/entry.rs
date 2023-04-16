@@ -261,14 +261,21 @@ impl ReadEntryImpl {
                 }
             }
         };
-        let reader: Box<dyn Read + Sync + Send> = match self.header.compression {
-            Compression::No => decrypt_reader,
-            Compression::Deflate => Box::new(flate2::read::DeflateDecoder::new(decrypt_reader)),
-            Compression::ZStandard => Box::new(MutexRead::new(zstd::Decoder::new(decrypt_reader)?)),
-            Compression::XZ => Box::new(xz2::read::XzDecoder::new(decrypt_reader)),
-        };
+        let reader = decompress_reader(decrypt_reader, self.header.compression)?;
         Ok(EntryDataReader(reader))
     }
+}
+
+fn decompress_reader<R: Read + Sync + Send + 'static>(
+    reader: R,
+    compression: Compression,
+) -> io::Result<Box<dyn Read + Sync + Send>> {
+    Ok(match compression {
+        Compression::No => Box::new(reader),
+        Compression::Deflate => Box::new(flate2::read::DeflateDecoder::new(reader)),
+        Compression::ZStandard => Box::new(MutexRead::new(zstd::Decoder::new(reader)?)),
+        Compression::XZ => Box::new(xz2::read::XzDecoder::new(reader)),
+    })
 }
 
 /// A structure representing the [Entry] or the [SolidEntries] split for archive splitting.
