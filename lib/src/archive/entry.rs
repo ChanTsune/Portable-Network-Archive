@@ -219,51 +219,63 @@ impl ReadEntry for ReadEntryImpl {
 impl ReadEntryImpl {
     fn reader(self, password: Option<&str>) -> io::Result<EntryDataReader> {
         let raw_data_reader = io::Cursor::new(self.data);
-        let decrypt_reader: Box<dyn Read + Sync + Send> = match self.header.encryption {
-            Encryption::No => Box::new(raw_data_reader),
-            encryption @ Encryption::Aes | encryption @ Encryption::Camellia => {
-                let s = self.phsf.ok_or_else(|| {
-                    io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        String::from("Item is encrypted, but `PHSF` chunk not found"),
-                    )
-                })?;
-                let phsf = verify_password(
-                    &s,
-                    password.ok_or_else(|| {
-                        io::Error::new(
-                            io::ErrorKind::InvalidInput,
-                            String::from("Item is encrypted, but password was not provided"),
-                        )
-                    })?,
-                )?;
-                let hash = phsf.hash.ok_or_else(|| {
-                    io::Error::new(
-                        io::ErrorKind::Unsupported,
-                        String::from("Failed to get hash"),
-                    )
-                })?;
-                match (encryption, self.header.cipher_mode) {
-                    (Encryption::Aes, CipherMode::CBC) => Box::new(DecryptCbcAes256Reader::new(
-                        raw_data_reader,
-                        hash.as_bytes(),
-                    )?),
-                    (Encryption::Aes, CipherMode::CTR) => {
-                        Box::new(aes_ctr_cipher_reader(raw_data_reader, hash.as_bytes())?)
-                    }
-                    (Encryption::Camellia, CipherMode::CBC) => Box::new(
-                        DecryptCbcCamellia256Reader::new(raw_data_reader, hash.as_bytes())?,
-                    ),
-                    _ => Box::new(camellia_ctr_cipher_reader(
-                        raw_data_reader,
-                        hash.as_bytes(),
-                    )?),
-                }
-            }
-        };
+        let decrypt_reader = decrypt_reader(
+            raw_data_reader,
+            self.header.encryption,
+            self.header.cipher_mode,
+            self.phsf,
+            password,
+        )?;
         let reader = decompress_reader(decrypt_reader, self.header.compression)?;
         Ok(EntryDataReader(reader))
     }
+}
+
+fn decrypt_reader<R: Read + Sync + Send + 'static>(
+    reader: R,
+    encryption: Encryption,
+    cipher_mode: CipherMode,
+    phsf: Option<String>,
+    password: Option<&str>,
+) -> io::Result<Box<dyn Read + Sync + Send>> {
+    Ok(match encryption {
+        Encryption::No => Box::new(reader),
+        encryption @ Encryption::Aes | encryption @ Encryption::Camellia => {
+            let s = phsf.ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    String::from("Item is encrypted, but `PHSF` chunk not found"),
+                )
+            })?;
+            let phsf = verify_password(
+                &s,
+                password.ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        String::from("Item is encrypted, but password was not provided"),
+                    )
+                })?,
+            )?;
+            let hash = phsf.hash.ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::Unsupported,
+                    String::from("Failed to get hash"),
+                )
+            })?;
+            match (encryption, cipher_mode) {
+                (Encryption::Aes, CipherMode::CBC) => {
+                    Box::new(DecryptCbcAes256Reader::new(reader, hash.as_bytes())?)
+                }
+                (Encryption::Aes, CipherMode::CTR) => {
+                    Box::new(aes_ctr_cipher_reader(reader, hash.as_bytes())?)
+                }
+                (Encryption::Camellia, CipherMode::CBC) => {
+                    Box::new(DecryptCbcCamellia256Reader::new(reader, hash.as_bytes())?)
+                }
+                _ => Box::new(camellia_ctr_cipher_reader(reader, hash.as_bytes())?),
+            }
+        }
+    })
 }
 
 fn decompress_reader<R: Read + Sync + Send + 'static>(
