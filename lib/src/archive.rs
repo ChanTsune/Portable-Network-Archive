@@ -190,6 +190,38 @@ mod tests {
     }
 
     #[test]
+    fn solid_entry() -> Result<(), Box<dyn std::error::Error>> {
+        let archive = {
+            let mut writer = ArchiveWriter::write_header(Vec::new())?;
+            let dir_entry = {
+                let builder = EntryBuilder::new_dir("test".into());
+                builder.build().unwrap()
+            };
+            let file_entry = {
+                let options = WriteOptionBuilder::new().build();
+                let mut builder = EntryBuilder::new_file("test/text".into(), options)?;
+                builder.write_all("text".as_bytes())?;
+                builder.build()?
+            };
+            writer.add_solid_entries({
+                let mut builder =
+                    SolidEntriesBuilder::new(WriteOptionBuilder::new().build()).unwrap();
+                builder.add_entry(dir_entry).unwrap();
+                builder.add_entry(file_entry).unwrap();
+                builder.build().unwrap()
+            })?;
+            writer.finalize().unwrap()
+        };
+
+        let mut archive_reader = ArchiveReader::read_header(io::Cursor::new(archive)).unwrap();
+        let mut entries = archive_reader.entries_with_password(Some("password".to_string()));
+        entries.next().unwrap().expect("failed to read entry");
+        entries.next().unwrap().expect("failed to read entry");
+        assert!(entries.next().is_none());
+        Ok(())
+    }
+
+    #[test]
     fn copy_entry() {
         let archive = create_archive(b"archive text", WriteOptionBuilder::new().build())
             .expect("failed to create archive");
