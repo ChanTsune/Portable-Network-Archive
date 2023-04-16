@@ -73,6 +73,8 @@ pub(crate) struct CreateArgs {
     pub(crate) keep_permission: bool,
     #[arg(long, help = "Split archive by total entry size")]
     pub(crate) split: Option<Option<ByteSize>>,
+    #[arg(long, help = "Solid mode archive")]
+    pub(crate) solid: bool,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
