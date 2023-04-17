@@ -141,11 +141,7 @@ impl<R: Read> ArchiveReader<R> {
     ///
     /// An iterator over the entries in the archive.
     pub fn entries(&mut self) -> impl Iterator<Item = io::Result<impl ReadEntry>> + '_ {
-        Entries {
-            reader: self,
-            password: None,
-            buf: Default::default(),
-        }
+        Entries::new(self)
     }
 
     /// Returns an iterator over the entries in the archive, including entries in solid mode.
@@ -157,11 +153,7 @@ impl<R: Read> ArchiveReader<R> {
         &mut self,
         password: Option<String>,
     ) -> impl Iterator<Item = io::Result<impl ReadEntry>> + '_ {
-        Entries {
-            reader: self,
-            password,
-            buf: Default::default(),
-        }
+        Entries::new_with_password(self, password)
     }
 
     /// Returns `true` if [ANXT] chunk is appeared before call this method calling.
@@ -207,8 +199,26 @@ impl<R: Read> ArchiveReader<R> {
 
 pub(crate) struct Entries<'r, R: Read> {
     reader: &'r mut ArchiveReader<R>,
-    password: Option<String>,
+    password: Option<Option<String>>,
     buf: VecDeque<io::Result<NonSolidReadEntry>>,
+}
+
+impl<'r, R: Read> Entries<'r, R> {
+    fn new(reader: &'r mut ArchiveReader<R>) -> Self {
+        Self {
+            reader,
+            password: None,
+            buf: Default::default(),
+        }
+    }
+
+    fn new_with_password(reader: &'r mut ArchiveReader<R>, password: Option<String>) -> Self {
+        Self {
+            reader,
+            password: Some(password),
+            buf: Default::default(),
+        }
+    }
 }
 
 impl<'r, R: Read> Iterator for Entries<'r, R> {
@@ -221,16 +231,19 @@ impl<'r, R: Read> Iterator for Entries<'r, R> {
         let entry = self.reader.read_entry();
         match entry {
             Ok(Some(ReadEntryContainer::NonSolid(entry))) => Some(Ok(entry)),
-            Ok(Some(ReadEntryContainer::Solid(entry))) => {
-                let entries = entry.entries(self.password.as_deref());
-                match entries {
-                    Ok(entries) => {
-                        self.buf = VecDeque::from(entries.collect::<Vec<_>>());
-                        self.next()
+            Ok(Some(ReadEntryContainer::Solid(entry))) => match &self.password {
+                Some(password) => {
+                    let entries = entry.entries(password.as_deref());
+                    match entries {
+                        Ok(entries) => {
+                            self.buf = VecDeque::from(entries.collect::<Vec<_>>());
+                            self.next()
+                        }
+                        Err(e) => Some(Err(e)),
                     }
-                    Err(e) => Some(Err(e)),
                 }
-            }
+                None => self.next(),
+            },
             Ok(None) => None,
             Err(e) => Some(Err(e)),
         }
