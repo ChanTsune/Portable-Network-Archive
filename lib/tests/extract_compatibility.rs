@@ -1,10 +1,13 @@
-use libpna::{ArchiveReader, ReadEntry, ReadOptionBuilder};
+use libpna::{ArchiveReader, DataKind, ReadEntry, ReadOptionBuilder};
 use std::io;
 
 fn extract_all(bytes: &[u8], password: Option<&str>) {
     let mut archive_reader = ArchiveReader::read_header(io::Cursor::new(bytes)).unwrap();
     for entry in archive_reader.entries() {
         let item = entry.unwrap();
+        if item.header().data_kind() == DataKind::Directory {
+            continue;
+        }
         let path = item.header().path().to_string();
         let mut dist = Vec::new();
         let mut reader = item
@@ -128,6 +131,14 @@ fn keep_permission() {
 fn keep_timestamp() {
     extract_all(
         include_bytes!("../../resources/test/zstd_keep_timestamp.pna"),
+        None,
+    );
+}
+
+#[test]
+fn keep_dir() {
+    extract_all(
+        include_bytes!("../../resources/test/zstd_keep_dir.pna"),
         None,
     );
 }
