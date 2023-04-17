@@ -2,18 +2,24 @@ mod table;
 
 use crate::{
     cli::{ListArgs, Verbosity},
-    command::list::table::{Cell, Padding, Table, TableRow},
+    command::{
+        ask_password,
+        list::table::{Cell, Padding, Table, TableRow},
+    },
     utils::part_name,
 };
 use ansi_term::{ANSIString, Colour, Style};
 use chrono::{DateTime, Local};
 use glob::Pattern;
 use libpna::{ArchiveReader, Encryption, EntryHeader, Metadata, ReadEntry};
-use std::fs::File;
-use std::io;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::{
+    fs::File,
+    io,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 pub(crate) fn list_archive(args: ListArgs, _: Verbosity) -> io::Result<()> {
+    let password = ask_password(args.password)?;
     let globs = args
         .file
         .files
@@ -27,10 +33,17 @@ pub(crate) fn list_archive(args: ListArgs, _: Verbosity) -> io::Result<()> {
     let mut reader = ArchiveReader::read_header(file)?;
     let mut num_archive = 1;
     loop {
-        for entry in reader.entries() {
-            let item = entry?;
-            entries.push((item.header().clone(), item.metadata().clone()));
-        }
+        if args.solid {
+            for entry in reader.entries_with_password(password.clone()) {
+                let item = entry?;
+                entries.push((item.header().clone(), item.metadata().clone()));
+            }
+        } else {
+            for entry in reader.entries() {
+                let item = entry?;
+                entries.push((item.header().clone(), item.metadata().clone()));
+            }
+        };
         if reader.next_archive() {
             num_archive += 1;
             if let Ok(file) = File::open(part_name(&args.file.archive, num_archive).unwrap()) {
