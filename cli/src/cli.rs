@@ -121,6 +121,8 @@ pub(crate) struct ListArgs {
     pub(crate) long: bool,
     #[arg(short, long, help = "Add a header row to each column")]
     pub(crate) header: bool,
+    #[arg(long, help = "Display solid mode archive entries")]
+    pub(crate) solid: bool,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
