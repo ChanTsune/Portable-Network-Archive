@@ -9,13 +9,7 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
-    commit-message:
-      prefix: ":construction_worker:"
-      include: "scope"
   - package-ecosystem: "cargo"
     directory: "/"
     schedule:
       interval: "daily"
-    commit-message:
-      prefix: ":arrow_up:"
-      include: "scope"
