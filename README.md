@@ -4,7 +4,8 @@
   <img src="./icon.svg" alt="PNA" width="100"/>
 </div>
 
-Portable Network Archive (PNA) is a highly scalable archive format based on the PNG data structure with compression, splitting, and encryption.
+PNA (Portable Network Archive) is a highly scalable archive format that can be compressed, encrypted, and split.
+Also, its data structure is based on the PNG data structure.
 
 ## Installation
 
