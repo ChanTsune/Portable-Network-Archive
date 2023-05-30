@@ -15,7 +15,7 @@ bytesize = "1.2.0"
 chrono = "0.4.25"
 clap = { version = "4.1.11", features = ["derive"] }
 glob = "0.3.1"
-indicatif = { version = "0.17.3", features = ["improved_unicode"] }
+indicatif = { version = "0.17.4", features = ["improved_unicode"] }
 libpna = { version = "=0.0.1", path = "../lib" }
 rayon = "1.7.0"
 rpassword = "7.2.0"
