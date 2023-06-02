@@ -1,5 +1,5 @@
 use crate::io::{TryIntoInner, TryIntoInnerWrite};
-use flate2::write::DeflateEncoder;
+use flate2::write::ZlibEncoder;
 use std::io::{Result, Write};
 use xz2::write::XzEncoder;
 use zstd::stream::write::Encoder as ZstdEncoder;
@@ -10,7 +10,7 @@ mod zstandard;
 
 pub(crate) enum CompressionWriter<'w, W: Write> {
     No(W),
-    Deflate(DeflateEncoder<W>),
+    Deflate(ZlibEncoder<W>),
     Zstd(ZstdEncoder<'w, W>),
     Xz(XzEncoder<W>),
 }

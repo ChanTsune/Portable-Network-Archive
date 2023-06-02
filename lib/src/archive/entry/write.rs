@@ -7,7 +7,7 @@ use crate::{
 use aes::Aes256;
 use camellia::Camellia256;
 use crypto_common::{BlockSizeUser, KeySizeUser};
-use flate2::write::DeflateEncoder;
+use flate2::write::ZlibEncoder;
 use password_hash::{Output, SaltString};
 use std::io::{self, Write};
 use xz2::write::XzEncoder;
@@ -74,9 +74,7 @@ fn compression_writer<'w, W: Write + 'w>(
 ) -> io::Result<CompressionWriter<'w, W>> {
     Ok(match algorithm {
         Compression::No => CompressionWriter::No(writer),
-        Compression::Deflate => {
-            CompressionWriter::Deflate(DeflateEncoder::new(writer, level.into()))
-        }
+        Compression::Deflate => CompressionWriter::Deflate(ZlibEncoder::new(writer, level.into())),
         Compression::ZStandard => CompressionWriter::Zstd(ZstdEncoder::new(writer, level.into())?),
         Compression::XZ => CompressionWriter::Xz(XzEncoder::new(writer, level.into())),
     })
