@@ -594,7 +594,7 @@ checksum = "2b00cc1c228a6782d0f076e7b232802e0c5689d41bb5df366f2a6b6621cfdfe1"
 
 [[package]]
 name = "libpna"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "aes",
  "argon2",
@@ -746,7 +746,7 @@ checksum = "26072860ba924cbfa98ea39c8c19b4dd6a4a25423dbdf219c1eca91aa0cf6964"
 
 [[package]]
 name = "pna"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "libpna",
  "portable-network-archive",
@@ -760,7 +760,7 @@ checksum = "767eb9f07d4a5ebcb39bbf2d452058a93c011373abf6832e24194a1c3f004794"
 
 [[package]]
 name = "portable-network-archive"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "ansi_term",
  "bytesize",

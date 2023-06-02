@@ -1,6 +1,6 @@
 [package]
 name = "libpna"
-version = "0.0.1"
+version = "0.1.0"
 edition = "2021"
 license = "MIT"
 description = "PNA(Portable-Network-Archive) decoding and encoding library"
