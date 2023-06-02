@@ -430,7 +430,7 @@ fn decompress_reader<'r, R: Read + Sync + Send + 'r>(
 ) -> io::Result<Box<dyn Read + Sync + Send + 'r>> {
     Ok(match compression {
         Compression::No => Box::new(reader),
-        Compression::Deflate => Box::new(flate2::read::DeflateDecoder::new(reader)),
+        Compression::Deflate => Box::new(flate2::read::ZlibDecoder::new(reader)),
         Compression::ZStandard => Box::new(MutexRead::new(zstd::Decoder::new(reader)?)),
         Compression::XZ => Box::new(xz2::read::XzDecoder::new(reader)),
     })
