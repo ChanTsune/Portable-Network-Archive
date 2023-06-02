@@ -59,7 +59,6 @@ pub(crate) enum Commands {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-#[command(group(ArgGroup::new("unstable-split").args(["split"]).requires("unstable")))]
 pub(crate) struct CreateArgs {
     #[arg(short, long, help = "Add the directory to the archive recursively")]
     pub(crate) recursive: bool,
