@@ -26,4 +26,4 @@ xz2 = "0.1.7"
 zstd = "0.12.3"
 
 [dev-dependencies]
-once_cell = "1.17.2"
+once_cell = "1.18.0"
