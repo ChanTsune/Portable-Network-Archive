@@ -139,6 +139,11 @@ impl WriteOption {
             password: None,
         }
     }
+
+    #[inline]
+    pub fn builder() -> WriteOptionBuilder {
+        WriteOptionBuilder::new()
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
