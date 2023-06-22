@@ -142,6 +142,7 @@ impl WriteOption {
 
     #[inline]
     pub fn builder() -> WriteOptionBuilder {
+        #[allow(deprecated)]
         WriteOptionBuilder::new()
     }
 }
@@ -158,11 +159,13 @@ pub struct WriteOptionBuilder {
 
 impl Default for WriteOptionBuilder {
     fn default() -> Self {
+        #[allow(deprecated)]
         Self::new()
     }
 }
 
 impl WriteOptionBuilder {
+    #[deprecated(since = "0.2.0", note = "Use WriteOption::builder instead.")]
     pub fn new() -> Self {
         Self {
             compression: Compression::No,
@@ -173,6 +176,7 @@ impl WriteOptionBuilder {
             password: None,
         }
     }
+
     pub fn compression(&mut self, compression: Compression) -> &mut Self {
         self.compression = compression;
         self
