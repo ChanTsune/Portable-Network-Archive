@@ -226,6 +226,7 @@ pub struct ReadOption {
 
 impl ReadOption {
     pub fn builder() -> ReadOptionBuilder {
+        #[allow(deprecated)]
         ReadOptionBuilder::new()
     }
 }
@@ -236,6 +237,7 @@ pub struct ReadOptionBuilder {
 }
 
 impl ReadOptionBuilder {
+    #[deprecated(since = "0.2.0", note = "Use ReadOption::builder instead.")]
     pub fn new() -> Self {
         Self { password: None }
     }
