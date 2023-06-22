@@ -176,7 +176,7 @@ mod tests {
             .unwrap()
             .unwrap()
             .into_reader({
-                let mut builder = ReadOptionBuilder::new();
+                let mut builder = ReadOption::builder();
                 if let Some(password) = options.password {
                     builder.password(password);
                 }
@@ -198,14 +198,13 @@ mod tests {
                 builder.build().unwrap()
             };
             let file_entry = {
-                let options = WriteOptionBuilder::new().build();
+                let options = WriteOption::builder().build();
                 let mut builder = EntryBuilder::new_file("test/text".into(), options)?;
                 builder.write_all("text".as_bytes())?;
                 builder.build()?
             };
             writer.add_solid_entries({
-                let mut builder =
-                    SolidEntriesBuilder::new(WriteOptionBuilder::new().build()).unwrap();
+                let mut builder = SolidEntriesBuilder::new(WriteOption::builder().build()).unwrap();
                 builder.add_entry(dir_entry).unwrap();
                 builder.add_entry(file_entry).unwrap();
                 builder.build().unwrap()
@@ -223,7 +222,7 @@ mod tests {
 
     #[test]
     fn copy_entry() {
-        let archive = create_archive(b"archive text", WriteOptionBuilder::new().build())
+        let archive = create_archive(b"archive text", WriteOption::builder().build())
             .expect("failed to create archive");
         let mut reader = ArchiveReader::read_header(io::Cursor::new(&archive))
             .expect("failed to read archive header");
