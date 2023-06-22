@@ -158,6 +158,24 @@ impl WriteOption {
         #[allow(deprecated)]
         WriteOptionBuilder::new()
     }
+
+    /// Converts [WriteOption] into a [WriteOptionBuilder].
+    ///
+    /// # Returns
+    ///
+    /// [WriteOptionBuilder]: Builder object for [WriteOption].
+    ///
+    /// # Examples
+    /// ```
+    /// use libpna::WriteOption;
+    ///
+    /// let write_option = WriteOption::builder().build();
+    /// let builder = write_option.into_builder();
+    /// ```
+    #[inline]
+    pub fn into_builder(self) -> WriteOptionBuilder {
+        self.into()
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -174,6 +192,20 @@ impl Default for WriteOptionBuilder {
     fn default() -> Self {
         #[allow(deprecated)]
         Self::new()
+    }
+}
+
+impl From<WriteOption> for WriteOptionBuilder {
+    #[inline]
+    fn from(value: WriteOption) -> Self {
+        Self {
+            compression: value.compression,
+            compression_level: value.compression_level,
+            encryption: value.encryption,
+            cipher_mode: value.cipher_mode,
+            hash_algorithm: value.hash_algorithm,
+            password: value.password,
+        }
     }
 }
 
