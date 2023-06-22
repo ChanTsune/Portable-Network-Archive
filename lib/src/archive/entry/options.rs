@@ -140,6 +140,19 @@ impl WriteOption {
         }
     }
 
+    /// Returns a builder for [WriteOption].
+    ///
+    /// # Returns
+    ///
+    /// [WriteOptionBuilder] Builder object for [WriteOption].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use libpna::WriteOption;
+    ///
+    /// let builder = WriteOption::builder();
+    /// ```
     #[inline]
     pub fn builder() -> WriteOptionBuilder {
         #[allow(deprecated)]
@@ -225,6 +238,19 @@ pub struct ReadOption {
 }
 
 impl ReadOption {
+    /// Returns a builder for [ReadOption].
+    ///
+    /// # Returns
+    ///
+    /// [ReadOptionBuilder]: Builder object for [ReadOption].
+    ///
+    /// # Examples
+    /// ```
+    /// use libpna::ReadOption;
+    ///
+    /// let builder = ReadOption::builder();
+    /// ```
+    #[inline]
     pub fn builder() -> ReadOptionBuilder {
         #[allow(deprecated)]
         ReadOptionBuilder::new()
