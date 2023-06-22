@@ -5,7 +5,7 @@ use crate::{
 };
 use glob::Pattern;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
-use libpna::{ArchiveReader, DataKind, Permission, ReadEntry, ReadOptionBuilder};
+use libpna::{ArchiveReader, DataKind, Permission, ReadEntry, ReadOption};
 #[cfg(unix)]
 use nix::unistd::{chown, Group, User};
 use rayon::ThreadPoolBuilder;
@@ -141,7 +141,7 @@ fn extract_entry(
         DataKind::File => {
             let mut file = File::create(&path)?;
             let mut reader = item.into_reader({
-                let mut builder = ReadOptionBuilder::new();
+                let mut builder = ReadOption::builder();
                 if let Some(password) = password {
                     builder.password(password);
                 }

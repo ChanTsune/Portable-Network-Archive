@@ -7,7 +7,7 @@ use bytesize::ByteSize;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use libpna::{
     ArchiveWriter, Entry, EntryBuilder, EntryPart, Permission, SolidEntriesBuilder, WriteOption,
-    WriteOptionBuilder, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
+    MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
 };
 #[cfg(unix)]
 use nix::unistd::{Group, User};
@@ -252,7 +252,7 @@ fn entry_option(
     cipher: CipherAlgorithmArgs,
     password: Option<String>,
 ) -> WriteOption {
-    let mut option_builder = WriteOptionBuilder::default();
+    let mut option_builder = WriteOption::builder();
     let (algorithm, level) = compression.algorithm();
     option_builder.compression(algorithm);
     if let Some(level) = level {
