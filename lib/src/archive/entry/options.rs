@@ -287,11 +287,37 @@ impl ReadOption {
         #[allow(deprecated)]
         ReadOptionBuilder::new()
     }
+
+    /// Converts [ReadOption] into a [ReadOptionBuilder].
+    ///
+    /// # Returns
+    ///
+    /// [ReadOptionBuilder]: Builder object for [ReadOption].
+    ///
+    /// # Examples
+    /// ```
+    /// use libpna::ReadOption;
+    ///
+    /// let read_option = ReadOption::builder().build();
+    /// let builder = read_option.into_builder();
+    /// ```
+    #[inline]
+    pub fn into_builder(self) -> ReadOptionBuilder {
+        self.into()
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct ReadOptionBuilder {
     password: Option<String>,
+}
+
+impl From<ReadOption> for ReadOptionBuilder {
+    fn from(value: ReadOption) -> Self {
+        Self {
+            password: value.password,
+        }
+    }
 }
 
 impl ReadOptionBuilder {
