@@ -1,4 +1,4 @@
-use libpna::{ArchiveReader, DataKind, ReadEntry, ReadOptionBuilder};
+use libpna::{ArchiveReader, DataKind, ReadEntry, ReadOption};
 use std::io;
 
 fn extract_all(follows: &[&[u8]], password: Option<&str>) {
@@ -15,7 +15,7 @@ fn extract_all(follows: &[&[u8]], password: Option<&str>) {
             let mut dist = Vec::new();
             let mut reader = item
                 .into_reader({
-                    let mut builder = ReadOptionBuilder::new();
+                    let mut builder = ReadOption::builder();
                     if let Some(password) = password {
                         builder.password(password);
                     }
