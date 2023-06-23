@@ -23,7 +23,7 @@ impl EntryName {
     }
 }
 
-impl<T: ?Sized + AsRef<OsStr>> From<&T> for EntryName {
+impl<T: Into<PathBuf>> From<T> for EntryName {
     /// # Examples
     /// ```
     /// use libpna::EntryName;
@@ -37,13 +37,8 @@ impl<T: ?Sized + AsRef<OsStr>> From<&T> for EntryName {
     /// assert_eq!(EntryName::from("../test.txt"), EntryName::from("test.txt"));
     /// ```
     #[inline]
-    fn from(value: &T) -> Self {
-        Self::from(PathBuf::from(value))
-    }
-}
-
-impl From<PathBuf> for EntryName {
-    fn from(value: PathBuf) -> Self {
+    fn from(value: T) -> Self {
+        let value = value.into();
         let buf = value
             .components()
             .filter_map(|c| match c {
