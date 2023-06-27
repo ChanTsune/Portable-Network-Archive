@@ -6,6 +6,15 @@ use std::path::{Component, Path, PathBuf};
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct EntryName(String);
 
+fn filtered_components(path: &Path) -> impl Iterator<Item = &OsStr> {
+    path.components().filter_map(|c| match c {
+        Component::Prefix(_) | Component::RootDir | Component::CurDir | Component::ParentDir => {
+            None
+        }
+        Component::Normal(p) => Some(p),
+    })
+}
+
 impl EntryName {
     #[inline]
     pub fn as_str(&self) -> &str {
@@ -20,6 +29,13 @@ impl EntryName {
     #[inline]
     pub fn as_path(&self) -> &Path {
         self.as_ref()
+    }
+
+    pub fn from_path_lossy(p: &Path) -> Self {
+        let buf = filtered_components(p)
+            .map(|i| i.to_string_lossy())
+            .collect::<Vec<_>>();
+        Self(buf.join("/"))
     }
 }
 
