@@ -208,12 +208,12 @@ impl SolidEntriesBuilder {
     ///
     /// ```no_run
     /// use std::io;
-    /// use libpna::{EntryBuilder, SolidEntriesBuilder, WriteOption, WriteOptionBuilder};
+    /// use libpna::{EntryBuilder, SolidEntriesBuilder, WriteOption};
     ///
-    /// let mut builder = SolidEntriesBuilder::new(WriteOptionBuilder::new().build()).unwrap();
-    /// let dir_entry = EntryBuilder::new_dir("example".into()).build().unwrap();
+    /// let mut builder = SolidEntriesBuilder::new(WriteOption::builder().build()).unwrap();
+    /// let dir_entry = EntryBuilder::new_dir("example".try_into().unwrap()).build().unwrap();
     /// builder.add_entry(dir_entry).unwrap();
-    /// let file_entry = EntryBuilder::new_file("example/empty.txt".into(), WriteOption::store()).unwrap().build().unwrap();
+    /// let file_entry = EntryBuilder::new_file("example/empty.txt".try_into().unwrap(), WriteOption::store()).unwrap().build().unwrap();
     /// builder.add_entry(file_entry).unwrap();
     /// builder.build().unwrap();
     /// ```
@@ -245,9 +245,9 @@ impl SolidEntriesBuilder {
     ///
     /// ```no_run
     /// use std::io;
-    /// use libpna::{SolidEntriesBuilder, WriteOptionBuilder};
+    /// use libpna::{SolidEntriesBuilder, WriteOption};
     ///
-    /// let builder = SolidEntriesBuilder::new(WriteOptionBuilder::new().build()).unwrap();
+    /// let builder = SolidEntriesBuilder::new(WriteOption::builder().build()).unwrap();
     /// let entries = builder.build().unwrap();
     /// ```
     pub fn build(self) -> io::Result<impl SolidEntries> {

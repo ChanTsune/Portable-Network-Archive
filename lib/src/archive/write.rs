@@ -68,11 +68,11 @@ impl<W: Write> ArchiveWriter<W> {
     ///
     /// ```no_run
     /// use std::fs::File;
-    /// use libpna::{ArchiveWriter, SolidEntriesBuilder, WriteOptionBuilder};
+    /// use libpna::{ArchiveWriter, SolidEntriesBuilder, WriteOption};
     ///
     /// let file = File::create("example.pna").unwrap();
     /// let mut archive_writer = ArchiveWriter::write_header(file).unwrap();
-    /// let solid_builder = SolidEntriesBuilder::new(WriteOptionBuilder::new().build()).unwrap();
+    /// let solid_builder = SolidEntriesBuilder::new(WriteOption::builder().build()).unwrap();
     /// let entries = solid_builder.build().unwrap();
     /// archive_writer.add_solid_entries(entries).unwrap();
     /// archive_writer.finalize().unwrap();
@@ -93,11 +93,11 @@ impl<W: Write> ArchiveWriter<W> {
     ///
     /// ```no_run
     /// use std::fs::File;
-    /// use libpna::{ArchiveWriter, EntryBuilder, WriteOptionBuilder};
+    /// use libpna::{ArchiveWriter, EntryBuilder, WriteOption};
     ///
     /// let file = File::create("example.pna").unwrap();
     /// let mut archive_writer = ArchiveWriter::write_header(file).unwrap();
-    /// archive_writer.add_entry(EntryBuilder::new_file("example.txt".into(), WriteOptionBuilder::new().build()).unwrap().build().unwrap()).unwrap();
+    /// archive_writer.add_entry(EntryBuilder::new_file("example.txt".try_into().unwrap(), WriteOption::builder().build()).unwrap().build().unwrap()).unwrap();
     /// archive_writer.finalize().unwrap();
     /// ```
     pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<usize> {
@@ -116,11 +116,11 @@ impl<W: Write> ArchiveWriter<W> {
     ///
     /// ```no_run
     /// use std::fs::File;
-    /// use libpna::{ArchiveWriter, EntryPart, EntryBuilder, WriteOptionBuilder};
+    /// use libpna::{ArchiveWriter, EntryPart, EntryBuilder, WriteOption};
     ///
     /// let part1_file = File::create("example.part1.pna").unwrap();
     /// let mut part1_writer = ArchiveWriter::write_header(part1_file).unwrap();
-    /// let entry = EntryBuilder::new_file("example.txt".into(), WriteOptionBuilder::new().build()).unwrap().build().unwrap();
+    /// let entry = EntryBuilder::new_file("example.txt".try_into().unwrap(), WriteOption::builder().build()).unwrap().build().unwrap();
     /// part1_writer.add_entry_part(EntryPart::from(entry)).unwrap();
     ///
     /// let part2_file = File::create("example.part2.pna").unwrap();
