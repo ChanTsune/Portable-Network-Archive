@@ -62,34 +62,41 @@ impl EntryName {
     }
 }
 
-impl<T: Into<PathBuf>> From<T> for EntryName {
+impl TryFrom<&str> for EntryName {
+    type Error = EntryNameError;
     /// # Examples
     /// ```
     /// use libpna::EntryName;
     ///
-    /// assert_eq!(EntryName::from("test.txt"), EntryName::from("test.txt"));
+    /// assert_eq!(EntryName::try_from("test.txt"), EntryName::try_from("test.txt"));
     ///
-    /// assert_eq!(EntryName::from("/test.txt"), EntryName::from("test.txt"));
+    /// assert_eq!(EntryName::try_from("/test.txt"), EntryName::try_from("test.txt"));
     ///
-    /// assert_eq!(EntryName::from("./test.txt"), EntryName::from("test.txt"));
+    /// assert_eq!(EntryName::try_from("./test.txt"), EntryName::try_from("test.txt"));
     ///
-    /// assert_eq!(EntryName::from("../test.txt"), EntryName::from("test.txt"));
+    /// assert_eq!(EntryName::try_from("../test.txt"), EntryName::try_from("test.txt"));
     /// ```
     #[inline]
-    fn from(value: T) -> Self {
-        let value = value.into();
-        let buf = value
-            .components()
-            .filter_map(|c| match c {
-                Component::Prefix(_)
-                | Component::RootDir
-                | Component::CurDir
-                | Component::ParentDir => None,
-                Component::Normal(p) => Some(p),
-            })
-            .map(|i| i.to_string_lossy())
-            .collect::<Vec<_>>();
-        Self(buf.join("/"))
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::new(value.as_ref())
+    }
+}
+
+impl TryFrom<&Path> for EntryName {
+    type Error = EntryNameError;
+
+    #[inline]
+    fn try_from(value: &Path) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+impl TryFrom<&[u8]> for EntryName {
+    type Error = EntryNameError;
+
+    #[inline]
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        Self::try_from(str::from_utf8(value).map_err(|e| EntryNameError(e.to_string()))?)
     }
 }
 
@@ -127,26 +134,35 @@ mod tests {
 
     #[test]
     fn remove_root() {
-        assert_eq!(EntryName::from("/test.txt"), EntryName::from("test.txt"));
         assert_eq!(
-            EntryName::from("/test/test.txt"),
-            EntryName::from("test/test.txt")
+            EntryName::try_from("/test.txt"),
+            EntryName::try_from("test.txt")
+        );
+        assert_eq!(
+            EntryName::try_from("/test/test.txt"),
+            EntryName::try_from("test/test.txt")
         );
     }
 
     #[test]
     fn remove_last() {
-        assert_eq!(EntryName::from("test/"), EntryName::from("test"));
-        assert_eq!(EntryName::from("test/test/"), EntryName::from("test/test"));
+        assert_eq!(EntryName::try_from("test/"), EntryName::try_from("test"));
+        assert_eq!(
+            EntryName::try_from("test/test/"),
+            EntryName::try_from("test/test")
+        );
     }
 
     #[cfg(target_os = "windows")]
     #[test]
     fn remove_prefix() {
-        assert_eq!(EntryName::from("C:\\test.txt"), EntryName::from("test.txt"));
         assert_eq!(
-            EntryName::from("C:\\test\\test.txt"),
-            EntryName::from("test/test.txt")
+            EntryName::try_from("C:\\test.txt"),
+            EntryName::try_from("test.txt")
+        );
+        assert_eq!(
+            EntryName::try_from("C:\\test\\test.txt"),
+            EntryName::try_from("test/test.txt")
         );
     }
 }

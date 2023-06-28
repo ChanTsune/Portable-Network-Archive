@@ -109,8 +109,7 @@ impl TryFrom<&[u8]> for EntryHeader {
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
             cipher_mode: CipherMode::try_from(bytes[5])
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
-            path: String::from_utf8(bytes[6..].to_vec())
-                .map(|s| EntryName::from(&s))
+            path: EntryName::try_from(&bytes[6..])
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
         })
     }
