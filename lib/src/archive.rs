@@ -160,7 +160,7 @@ mod tests {
     fn create_archive(src: &[u8], options: WriteOption) -> io::Result<Vec<u8>> {
         let mut writer = ArchiveWriter::write_header(Vec::with_capacity(src.len()))?;
         writer.add_entry({
-            let mut builder = EntryBuilder::new_file("test/text".into(), options)?;
+            let mut builder = EntryBuilder::new_file("test/text".try_into().unwrap(), options)?;
             builder.write_all(src)?;
             builder.build()?
         })?;
@@ -194,12 +194,12 @@ mod tests {
         let archive = {
             let mut writer = ArchiveWriter::write_header(Vec::new())?;
             let dir_entry = {
-                let builder = EntryBuilder::new_dir("test".into());
+                let builder = EntryBuilder::new_dir("test".try_into().unwrap());
                 builder.build().unwrap()
             };
             let file_entry = {
                 let options = WriteOption::builder().build();
-                let mut builder = EntryBuilder::new_file("test/text".into(), options)?;
+                let mut builder = EntryBuilder::new_file("test/text".try_into().unwrap(), options)?;
                 builder.write_all("text".as_bytes())?;
                 builder.build()?
             };

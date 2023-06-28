@@ -125,7 +125,7 @@ impl WriteOption {
     /// ```
     /// use libpna::{EntryBuilder, WriteOption};
     ///
-    /// EntryBuilder::new_file("example.txt".into(), WriteOption::store()).unwrap();
+    /// EntryBuilder::new_file("example.txt".try_into().unwrap(), WriteOption::store()).unwrap();
     /// ```
     ///
     /// [Entry]: crate::Entry
