@@ -1,6 +1,6 @@
 extern crate test;
 
-use libpna::{ArchiveReader, ArchiveWriter, ReadEntry, ReadOptionBuilder};
+use libpna::{ArchiveReader, ArchiveWriter, ReadEntry, ReadOption};
 use std::io;
 use test::Bencher;
 
@@ -24,7 +24,7 @@ fn read_empty_archive(b: &mut Bencher) {
         for entry in reader.entries() {
             let item = entry.expect("failed to read entry");
             io::read_to_string(
-                item.into_reader(ReadOptionBuilder::new().build())
+                item.into_reader(ReadOption::builder().build())
                     .expect("failed to read entry"),
             )
             .expect("failed to make string");
