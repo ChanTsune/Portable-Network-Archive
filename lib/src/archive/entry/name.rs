@@ -1,10 +1,26 @@
+use crate::util::try_to_string;
+use std::error::Error;
 use std::ffi::OsStr;
 use std::fmt::{self, Display, Formatter};
 use std::path::{Component, Path, PathBuf};
+use std::str;
 
 /// A UTF-8 encoded entry name.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct EntryName(String);
+
+/// Error of invalid EntryName
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct EntryNameError(String);
+
+impl Error for EntryNameError {}
+
+impl Display for EntryNameError {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        Display::fmt(&self.0, f)
+    }
+}
 
 fn filtered_components(path: &Path) -> impl Iterator<Item = &OsStr> {
     path.components().filter_map(|c| match c {
@@ -16,6 +32,13 @@ fn filtered_components(path: &Path) -> impl Iterator<Item = &OsStr> {
 }
 
 impl EntryName {
+    fn new(name: &Path) -> Result<Self, EntryNameError> {
+        let buf = filtered_components(name)
+            .map(|i| try_to_string(i).map_err(|e| EntryNameError(e.to_string())))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self(buf.join("/")))
+    }
+
     #[inline]
     pub fn as_str(&self) -> &str {
         self.as_ref()
