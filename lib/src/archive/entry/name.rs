@@ -60,6 +60,10 @@ impl EntryName {
             .collect::<Vec<_>>();
         Self(buf.join("/"))
     }
+
+    pub fn from_str_lossy(s: &str) -> Self {
+        Self::from_path_lossy(&PathBuf::from(s))
+    }
 }
 
 impl TryFrom<&str> for EntryName {
