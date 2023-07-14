@@ -11,7 +11,7 @@ keywords = ["pna", "archive", "crypto", "data"]
 
 [dependencies]
 aes = "0.8.3"
-argon2 = { version = "0.5.0", features = ["std"] }
+argon2 = { version = "0.5.1", features = ["std"] }
 camellia = "0.1.0"
 cbc = { version = "0.1.2", features = ["std"] }
 cipher = "0.4.4"
