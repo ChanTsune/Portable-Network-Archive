@@ -13,7 +13,7 @@ keywords = ["pna", "archive", "cli", "crypto", "data"]
 ansi_term = "0.12.1"
 bytesize = "1.2.0"
 chrono = "0.4.26"
-clap = { version = "4.3.12", features = ["derive"] }
+clap = { version = "4.3.15", features = ["derive"] }
 glob = "0.3.1"
 indicatif = { version = "0.17.5", features = ["improved_unicode"] }
 libpna = { version = "=0.1.0", path = "../lib" }
