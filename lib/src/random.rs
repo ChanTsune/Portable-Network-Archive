@@ -3,7 +3,7 @@ use rand::{rngs::OsRng, RngCore};
 use std::io;
 
 pub(crate) fn random_bytes(dist: &mut [u8]) -> io::Result<()> {
-    let mut rand = OsRng::default();
+    let mut rand = OsRng;
     rand.try_fill_bytes(dist)
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
 }
@@ -15,5 +15,5 @@ pub(crate) fn random_vec(size: usize) -> io::Result<Vec<u8>> {
 }
 
 pub(crate) fn salt_string() -> SaltString {
-    SaltString::generate(OsRng::default())
+    SaltString::generate(OsRng)
 }
