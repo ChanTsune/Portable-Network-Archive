@@ -29,7 +29,7 @@ where
         Ok(Self {
             r,
             c: cbc::Decryptor::<C>::new_from_slices(key, iv).unwrap(),
-            padding: PhantomData::default(),
+            padding: PhantomData,
             remaining: Vec::new(),
             buf: Vec::new(),
             eof: false,

@@ -27,7 +27,7 @@ where
         Ok(Self {
             w,
             c: cbc::Encryptor::<C>::new_from_slices(key, iv).unwrap(),
-            padding: PhantomData::default(),
+            padding: PhantomData,
             buf: Vec::new(),
         })
     }
