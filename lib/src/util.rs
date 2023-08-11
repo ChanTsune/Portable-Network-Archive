@@ -9,12 +9,12 @@ use std::{
 use std::{os::windows::ffi::OsStrExt, string::FromUtf16Error};
 
 #[cfg(unix)]
-pub fn try_to_string(s: &OsStr) -> Result<Cow<str>, Utf8Error> {
+pub(crate) fn try_to_string(s: &OsStr) -> Result<Cow<str>, Utf8Error> {
     str::from_utf8(s.as_bytes()).map(Cow::from)
 }
 
 #[cfg(windows)]
-pub fn try_to_string(s: &OsStr) -> Result<Cow<str>, FromUtf16Error> {
+pub(crate) fn try_to_string(s: &OsStr) -> Result<Cow<str>, FromUtf16Error> {
     String::from_utf16(&s.encode_wide().collect::<Vec<_>>()).map(Cow::from)
 }
 
