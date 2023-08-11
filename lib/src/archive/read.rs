@@ -7,6 +7,7 @@ use crate::{
 use std::{
     collections::VecDeque,
     io::{self, Read},
+    mem::swap,
 };
 
 fn read_pna_header<R: Read>(mut reader: R) -> io::Result<()> {
@@ -76,8 +77,8 @@ impl<R: Read> ArchiveReader<R> {
     ///
     /// Returns an error if an I/O error occurs while reading from the archive.
     fn next_raw_item(&mut self) -> io::Result<Option<ChunkEntry>> {
-        let mut chunks = Vec::with_capacity(3);
-        chunks.append(&mut self.buf);
+        let mut chunks = Vec::new();
+        swap(&mut self.buf, &mut chunks);
         loop {
             let chunk = self.r.read_chunk()?;
             match chunk.ty {
