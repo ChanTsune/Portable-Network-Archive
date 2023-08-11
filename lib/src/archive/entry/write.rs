@@ -75,7 +75,7 @@ fn compression_writer<'w, W: Write + 'w>(
     Ok(match algorithm {
         Compression::No => CompressionWriter::No(writer),
         Compression::Deflate => CompressionWriter::Deflate(ZlibEncoder::new(writer, level.into())),
-        Compression::ZStandard => CompressionWriter::Zstd(ZstdEncoder::new(writer, level.into())?),
+        Compression::ZStandard => CompressionWriter::ZStd(ZstdEncoder::new(writer, level.into())?),
         Compression::XZ => CompressionWriter::Xz(XzEncoder::new(writer, level.into())),
     })
 }
