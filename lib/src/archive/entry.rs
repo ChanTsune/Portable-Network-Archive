@@ -38,10 +38,9 @@ pub trait Entry: SealedIntoChunks {
 
 /// Readable archive entry.
 pub trait ReadEntry: Entry {
-    type Reader: Read;
     fn header(&self) -> &EntryHeader;
     fn metadata(&self) -> &Metadata;
-    fn into_reader(self, option: ReadOption) -> io::Result<Self::Reader>;
+    fn into_reader(self, option: ReadOption) -> io::Result<EntryDataReader>;
 }
 
 /// Solid mode entries block.
@@ -71,8 +70,16 @@ impl Entry for ChunkEntry {
     }
 }
 
-/// [`Read`]
-pub struct EntryReader<R: Read>(DecompressReader<'static, DecryptReader<R>>);
+/// Reader for Entry data. this struct impl [`Read`] trait.
+pub struct EntryDataReader(EntryReader<io::Cursor<Vec<u8>>>);
+
+impl Read for EntryDataReader {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.read(buf)
+    }
+}
+
+pub(crate) struct EntryReader<R: Read>(DecompressReader<'static, DecryptReader<R>>);
 
 impl<R: Read> Read for EntryReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
@@ -345,8 +352,6 @@ impl Entry for NonSolidReadEntry {
 }
 
 impl ReadEntry for NonSolidReadEntry {
-    type Reader = EntryReader<io::Cursor<Vec<u8>>>;
-
     #[inline]
     fn header(&self) -> &EntryHeader {
         &self.header
@@ -358,13 +363,13 @@ impl ReadEntry for NonSolidReadEntry {
     }
 
     #[inline]
-    fn into_reader(self, option: ReadOption) -> io::Result<Self::Reader> {
+    fn into_reader(self, option: ReadOption) -> io::Result<EntryDataReader> {
         self.reader(option.password.as_deref())
     }
 }
 
 impl NonSolidReadEntry {
-    fn reader(self, password: Option<&str>) -> io::Result<EntryReader<io::Cursor<Vec<u8>>>> {
+    fn reader(self, password: Option<&str>) -> io::Result<EntryDataReader> {
         let raw_data_reader = io::Cursor::new(self.data);
         let decrypt_reader = decrypt_reader(
             raw_data_reader,
@@ -374,7 +379,7 @@ impl NonSolidReadEntry {
             password,
         )?;
         let reader = decompress_reader(decrypt_reader, self.header.compression)?;
-        Ok(EntryReader(reader))
+        Ok(EntryDataReader(EntryReader(reader)))
     }
 }
 
