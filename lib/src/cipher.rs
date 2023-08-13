@@ -6,7 +6,7 @@ use aes::Aes256;
 use camellia::Camellia256;
 use cipher::block_padding::Pkcs7;
 use ctr::{flavors::Ctr128BE, CtrCore};
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 
 type CtrReader<R, C, F> = stream::StreamCipherReader<R, CtrCore<C, F>>;
 type CtrWriter<W, C, F> = stream::StreamCipherWriter<W, CtrCore<C, F>>;
@@ -63,6 +63,26 @@ impl<W: Write> TryIntoInner<W> for CipherWriter<W> {
 }
 
 impl<W: Write> TryIntoInnerWrite<W> for CipherWriter<W> {}
+
+pub(crate) enum DecryptReader<R: Read> {
+    No(R),
+    CbcAes(DecryptCbcAes256Reader<R>),
+    CbcCamellia(DecryptCbcCamellia256Reader<R>),
+    CtrAes(Ctr128BEReader<R, Aes256>),
+    CtrCamellia(Ctr128BEReader<R, Camellia256>),
+}
+
+impl<R: Read> Read for DecryptReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self {
+            DecryptReader::No(r) => r.read(buf),
+            DecryptReader::CbcAes(r) => r.read(buf),
+            DecryptReader::CbcCamellia(r) => r.read(buf),
+            DecryptReader::CtrAes(r) => r.read(buf),
+            DecryptReader::CtrCamellia(r) => r.read(buf),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
