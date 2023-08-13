@@ -13,7 +13,8 @@ use crate::{
         chunk_data_split, chunk_to_bytes, ChunkExt, ChunkReader, ChunkType, RawChunk,
         MIN_CHUNK_BYTES_SIZE,
     },
-    cipher::{DecryptCbcAes256Reader, DecryptCbcCamellia256Reader},
+    cipher::{DecryptCbcAes256Reader, DecryptCbcCamellia256Reader, DecryptReader},
+    compress::DecompressReader,
     hash::verify_password,
 };
 use std::{
@@ -37,10 +38,9 @@ pub trait Entry: SealedIntoChunks {
 
 /// Readable archive entry.
 pub trait ReadEntry: Entry {
-    type Reader: Read + Sync + Send;
     fn header(&self) -> &EntryHeader;
     fn metadata(&self) -> &Metadata;
-    fn into_reader(self, option: ReadOption) -> io::Result<Self::Reader>;
+    fn into_reader(self, option: ReadOption) -> io::Result<EntryDataReader>;
 }
 
 /// Solid mode entries block.
@@ -70,10 +70,18 @@ impl Entry for ChunkEntry {
     }
 }
 
-/// [`Read`]
-pub struct EntryDataReader(Box<dyn Read + Sync + Send>);
+/// Reader for Entry data. this struct impl [`Read`] trait.
+pub struct EntryDataReader(EntryReader<io::Cursor<Vec<u8>>>);
 
 impl Read for EntryDataReader {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.read(buf)
+    }
+}
+
+pub(crate) struct EntryReader<R: Read>(DecompressReader<'static, DecryptReader<R>>);
+
+impl<R: Read> Read for EntryReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
     }
@@ -100,11 +108,11 @@ impl TryFrom<ChunkEntry> for ReadEntryContainer {
     }
 }
 
-struct EntryIterator<'a> {
-    entry: Box<dyn Read + Sync + Send + 'a>,
+struct EntryIterator<R: Read> {
+    entry: EntryReader<R>,
 }
 
-impl<'a> Iterator for EntryIterator<'a> {
+impl<R: Read> Iterator for EntryIterator<R> {
     type Item = io::Result<NonSolidReadEntry>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -150,7 +158,9 @@ impl SolidReadEntry {
         )?;
         let reader = decompress_reader(reader, self.header.compression)?;
 
-        Ok(EntryIterator { entry: reader })
+        Ok(EntryIterator {
+            entry: EntryReader(reader),
+        })
     }
 }
 
@@ -342,8 +352,6 @@ impl Entry for NonSolidReadEntry {
 }
 
 impl ReadEntry for NonSolidReadEntry {
-    type Reader = EntryDataReader;
-
     #[inline]
     fn header(&self) -> &EntryHeader {
         &self.header
@@ -355,7 +363,7 @@ impl ReadEntry for NonSolidReadEntry {
     }
 
     #[inline]
-    fn into_reader(self, option: ReadOption) -> io::Result<Self::Reader> {
+    fn into_reader(self, option: ReadOption) -> io::Result<EntryDataReader> {
         self.reader(option.password.as_deref())
     }
 }
@@ -371,20 +379,20 @@ impl NonSolidReadEntry {
             password,
         )?;
         let reader = decompress_reader(decrypt_reader, self.header.compression)?;
-        Ok(EntryDataReader(reader))
+        Ok(EntryDataReader(EntryReader(reader)))
     }
 }
 
 /// Decrypt reader according to encryption type.
-fn decrypt_reader<'r, R: Read + Sync + Send + 'r>(
+fn decrypt_reader<R: Read>(
     reader: R,
     encryption: Encryption,
     cipher_mode: CipherMode,
     phsf: Option<&str>,
     password: Option<&str>,
-) -> io::Result<Box<dyn Read + Sync + Send + 'r>> {
+) -> io::Result<DecryptReader<R>> {
     Ok(match encryption {
-        Encryption::No => Box::new(reader),
+        Encryption::No => DecryptReader::No(reader),
         encryption @ Encryption::Aes | encryption @ Encryption::Camellia => {
             let s = phsf.ok_or_else(|| {
                 io::Error::new(
@@ -409,30 +417,32 @@ fn decrypt_reader<'r, R: Read + Sync + Send + 'r>(
             })?;
             match (encryption, cipher_mode) {
                 (Encryption::Aes, CipherMode::CBC) => {
-                    Box::new(DecryptCbcAes256Reader::new(reader, hash.as_bytes())?)
+                    DecryptReader::CbcAes(DecryptCbcAes256Reader::new(reader, hash.as_bytes())?)
                 }
                 (Encryption::Aes, CipherMode::CTR) => {
-                    Box::new(aes_ctr_cipher_reader(reader, hash.as_bytes())?)
+                    DecryptReader::CtrAes(aes_ctr_cipher_reader(reader, hash.as_bytes())?)
                 }
-                (Encryption::Camellia, CipherMode::CBC) => {
-                    Box::new(DecryptCbcCamellia256Reader::new(reader, hash.as_bytes())?)
+                (Encryption::Camellia, CipherMode::CBC) => DecryptReader::CbcCamellia(
+                    DecryptCbcCamellia256Reader::new(reader, hash.as_bytes())?,
+                ),
+                _ => {
+                    DecryptReader::CtrCamellia(camellia_ctr_cipher_reader(reader, hash.as_bytes())?)
                 }
-                _ => Box::new(camellia_ctr_cipher_reader(reader, hash.as_bytes())?),
             }
         }
     })
 }
 
 /// Decompress reader according to compression type.
-fn decompress_reader<'r, R: Read + Sync + Send + 'r>(
+fn decompress_reader<'r, R: Read>(
     reader: R,
     compression: Compression,
-) -> io::Result<Box<dyn Read + Sync + Send + 'r>> {
+) -> io::Result<DecompressReader<'r, R>> {
     Ok(match compression {
-        Compression::No => Box::new(reader),
-        Compression::Deflate => Box::new(flate2::read::ZlibDecoder::new(reader)),
-        Compression::ZStandard => Box::new(MutexRead::new(zstd::Decoder::new(reader)?)),
-        Compression::XZ => Box::new(xz2::read::XzDecoder::new(reader)),
+        Compression::No => DecompressReader::No(reader),
+        Compression::Deflate => DecompressReader::Deflate(flate2::read::ZlibDecoder::new(reader)),
+        Compression::ZStandard => DecompressReader::ZStd(zstd::Decoder::new(reader)?),
+        Compression::XZ => DecompressReader::Xz(xz2::read::XzDecoder::new(reader)),
     })
 }
 
