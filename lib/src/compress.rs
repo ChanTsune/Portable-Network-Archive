@@ -1,8 +1,10 @@
+use crate::archive::MutexRead;
 use crate::io::{TryIntoInner, TryIntoInnerWrite};
 use flate2::{read::ZlibDecoder, write::ZlibEncoder};
 use std::io::{BufReader, Read, Result, Write};
 use xz2::{read::XzDecoder, write::XzEncoder};
 use zstd::stream::{read::Decoder as ZStdDecoder, write::Encoder as ZstdEncoder};
+
 mod deflate;
 mod xz;
 mod zstandard;
@@ -50,7 +52,7 @@ impl<'w, W: Write> TryIntoInnerWrite<W> for CompressionWriter<'w, W> {}
 pub(crate) enum DecompressReader<'r, R: Read> {
     Store(R),
     Deflate(ZlibDecoder<R>),
-    ZStd(ZStdDecoder<'r, BufReader<R>>),
+    ZStd(MutexRead<ZStdDecoder<'r, BufReader<R>>>),
     Xz(XzDecoder<R>),
 }
 

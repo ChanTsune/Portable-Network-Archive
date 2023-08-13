@@ -6,6 +6,7 @@ mod options;
 mod read;
 mod write;
 
+pub(crate) use self::read::MutexRead;
 pub use self::{builder::*, header::*, meta::*, name::*, options::*};
 use self::{private::*, read::*, write::*};
 use crate::{
@@ -14,6 +15,7 @@ use crate::{
         MIN_CHUNK_BYTES_SIZE,
     },
     cipher::{DecryptCbcAes256Reader, DecryptCbcCamellia256Reader, DecryptReader},
+    compress::DecompressReader,
     hash::verify_password,
 };
 use std::{
@@ -71,9 +73,9 @@ impl Entry for ChunkEntry {
 }
 
 /// [`Read`]
-pub struct EntryDataReader(Box<dyn Read + Sync + Send>);
+pub struct EntryDataReader<R: Read>(DecompressReader<'static, DecryptReader<R>>);
 
-impl Read for EntryDataReader {
+impl<R: Read> Read for EntryDataReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
     }
@@ -100,11 +102,11 @@ impl TryFrom<ChunkEntry> for ReadEntryContainer {
     }
 }
 
-struct EntryIterator<'a> {
-    entry: Box<dyn Read + Sync + Send + 'a>,
+struct EntryIterator<R: Read> {
+    entry: EntryDataReader<R>,
 }
 
-impl<'a> Iterator for EntryIterator<'a> {
+impl<R: Read> Iterator for EntryIterator<R> {
     type Item = io::Result<NonSolidReadEntry>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -150,7 +152,9 @@ impl SolidReadEntry {
         )?;
         let reader = decompress_reader(reader, self.header.compression)?;
 
-        Ok(EntryIterator { entry: reader })
+        Ok(EntryIterator {
+            entry: EntryDataReader(reader),
+        })
     }
 }
 
@@ -342,7 +346,7 @@ impl Entry for NonSolidReadEntry {
 }
 
 impl ReadEntry for NonSolidReadEntry {
-    type Reader = EntryDataReader;
+    type Reader = EntryDataReader<io::Cursor<Vec<u8>>>;
 
     #[inline]
     fn header(&self) -> &EntryHeader {
@@ -361,7 +365,7 @@ impl ReadEntry for NonSolidReadEntry {
 }
 
 impl NonSolidReadEntry {
-    fn reader(self, password: Option<&str>) -> io::Result<EntryDataReader> {
+    fn reader(self, password: Option<&str>) -> io::Result<EntryDataReader<io::Cursor<Vec<u8>>>> {
         let raw_data_reader = io::Cursor::new(self.data);
         let decrypt_reader = decrypt_reader(
             raw_data_reader,
@@ -426,15 +430,17 @@ fn decrypt_reader<R: Read>(
 }
 
 /// Decompress reader according to compression type.
-fn decompress_reader<'r, R: Read + Sync + Send + 'r>(
+fn decompress_reader<'r, R: Read>(
     reader: R,
     compression: Compression,
-) -> io::Result<Box<dyn Read + Sync + Send + 'r>> {
+) -> io::Result<DecompressReader<'r, R>> {
     Ok(match compression {
-        Compression::No => Box::new(reader),
-        Compression::Deflate => Box::new(flate2::read::ZlibDecoder::new(reader)),
-        Compression::ZStandard => Box::new(MutexRead::new(zstd::Decoder::new(reader)?)),
-        Compression::XZ => Box::new(xz2::read::XzDecoder::new(reader)),
+        Compression::No => DecompressReader::Store(reader),
+        Compression::Deflate => DecompressReader::Deflate(flate2::read::ZlibDecoder::new(reader)),
+        Compression::ZStandard => {
+            DecompressReader::ZStd(MutexRead::new(zstd::Decoder::new(reader)?))
+        }
+        Compression::XZ => DecompressReader::Xz(xz2::read::XzDecoder::new(reader)),
     })
 }
 

@@ -7,7 +7,7 @@ use std::io::Read;
 use std::sync::Mutex;
 
 // NOTE: zstd crate not support Sync + Send trait
-pub(super) struct MutexRead<R: Read>(Mutex<R>);
+pub(crate) struct MutexRead<R: Read>(Mutex<R>);
 
 impl<R: Read> MutexRead<R> {
     pub(super) fn new(reader: R) -> Self {
