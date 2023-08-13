@@ -1,9 +1,8 @@
 use crate::io::{TryIntoInner, TryIntoInnerWrite};
-use flate2::write::ZlibEncoder;
-use std::io::{Result, Write};
-use xz2::write::XzEncoder;
-use zstd::stream::write::Encoder as ZstdEncoder;
-
+use flate2::{read::ZlibDecoder, write::ZlibEncoder};
+use std::io::{BufReader, Read, Result, Write};
+use xz2::{read::XzDecoder, write::XzEncoder};
+use zstd::stream::{read::Decoder as ZStdDecoder, write::Encoder as ZstdEncoder};
 mod deflate;
 mod xz;
 mod zstandard;
@@ -47,3 +46,21 @@ impl<'w, W: Write> TryIntoInner<W> for CompressionWriter<'w, W> {
 }
 
 impl<'w, W: Write> TryIntoInnerWrite<W> for CompressionWriter<'w, W> {}
+
+pub(crate) enum DecompressReader<'r, R: Read> {
+    Store(R),
+    Deflate(ZlibDecoder<R>),
+    ZStd(ZStdDecoder<'r, BufReader<R>>),
+    Xz(XzDecoder<R>),
+}
+
+impl<'r, R: Read> Read for DecompressReader<'r, R> {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        match self {
+            DecompressReader::Store(r) => r.read(buf),
+            DecompressReader::Deflate(r) => r.read(buf),
+            DecompressReader::ZStd(r) => r.read(buf),
+            DecompressReader::Xz(r) => r.read(buf),
+        }
+    }
+}
