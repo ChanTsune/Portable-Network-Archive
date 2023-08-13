@@ -72,9 +72,9 @@ impl Entry for ChunkEntry {
 }
 
 /// [`Read`]
-pub struct EntryDataReader<R: Read>(DecompressReader<'static, DecryptReader<R>>);
+pub struct EntryReader<R: Read>(DecompressReader<'static, DecryptReader<R>>);
 
-impl<R: Read> Read for EntryDataReader<R> {
+impl<R: Read> Read for EntryReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
     }
@@ -102,7 +102,7 @@ impl TryFrom<ChunkEntry> for ReadEntryContainer {
 }
 
 struct EntryIterator<R: Read> {
-    entry: EntryDataReader<R>,
+    entry: EntryReader<R>,
 }
 
 impl<R: Read> Iterator for EntryIterator<R> {
@@ -152,7 +152,7 @@ impl SolidReadEntry {
         let reader = decompress_reader(reader, self.header.compression)?;
 
         Ok(EntryIterator {
-            entry: EntryDataReader(reader),
+            entry: EntryReader(reader),
         })
     }
 }
@@ -345,7 +345,7 @@ impl Entry for NonSolidReadEntry {
 }
 
 impl ReadEntry for NonSolidReadEntry {
-    type Reader = EntryDataReader<io::Cursor<Vec<u8>>>;
+    type Reader = EntryReader<io::Cursor<Vec<u8>>>;
 
     #[inline]
     fn header(&self) -> &EntryHeader {
@@ -364,7 +364,7 @@ impl ReadEntry for NonSolidReadEntry {
 }
 
 impl NonSolidReadEntry {
-    fn reader(self, password: Option<&str>) -> io::Result<EntryDataReader<io::Cursor<Vec<u8>>>> {
+    fn reader(self, password: Option<&str>) -> io::Result<EntryReader<io::Cursor<Vec<u8>>>> {
         let raw_data_reader = io::Cursor::new(self.data);
         let decrypt_reader = decrypt_reader(
             raw_data_reader,
@@ -374,7 +374,7 @@ impl NonSolidReadEntry {
             password,
         )?;
         let reader = decompress_reader(decrypt_reader, self.header.compression)?;
-        Ok(EntryDataReader(reader))
+        Ok(EntryReader(reader))
     }
 }
 
