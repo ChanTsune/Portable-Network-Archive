@@ -6,7 +6,6 @@ mod options;
 mod read;
 mod write;
 
-pub(crate) use self::read::MutexRead;
 pub use self::{builder::*, header::*, meta::*, name::*, options::*};
 use self::{private::*, read::*, write::*};
 use crate::{
@@ -39,7 +38,7 @@ pub trait Entry: SealedIntoChunks {
 
 /// Readable archive entry.
 pub trait ReadEntry: Entry {
-    type Reader: Read + Sync + Send;
+    type Reader: Read;
     fn header(&self) -> &EntryHeader;
     fn metadata(&self) -> &Metadata;
     fn into_reader(self, option: ReadOption) -> io::Result<Self::Reader>;
@@ -437,9 +436,7 @@ fn decompress_reader<'r, R: Read>(
     Ok(match compression {
         Compression::No => DecompressReader::Store(reader),
         Compression::Deflate => DecompressReader::Deflate(flate2::read::ZlibDecoder::new(reader)),
-        Compression::ZStandard => {
-            DecompressReader::ZStd(MutexRead::new(zstd::Decoder::new(reader)?))
-        }
+        Compression::ZStandard => DecompressReader::ZStd(zstd::Decoder::new(reader)?),
         Compression::XZ => DecompressReader::Xz(xz2::read::XzDecoder::new(reader)),
     })
 }
