@@ -13,7 +13,7 @@ use crate::{
         chunk_data_split, chunk_to_bytes, ChunkExt, ChunkReader, ChunkType, RawChunk,
         MIN_CHUNK_BYTES_SIZE,
     },
-    cipher::{DecryptCbcAes256Reader, DecryptCbcCamellia256Reader},
+    cipher::{DecryptCbcAes256Reader, DecryptCbcCamellia256Reader, DecryptReader},
     hash::verify_password,
 };
 use std::{
@@ -376,15 +376,15 @@ impl NonSolidReadEntry {
 }
 
 /// Decrypt reader according to encryption type.
-fn decrypt_reader<'r, R: Read + Sync + Send + 'r>(
+fn decrypt_reader<R: Read>(
     reader: R,
     encryption: Encryption,
     cipher_mode: CipherMode,
     phsf: Option<&str>,
     password: Option<&str>,
-) -> io::Result<Box<dyn Read + Sync + Send + 'r>> {
+) -> io::Result<DecryptReader<R>> {
     Ok(match encryption {
-        Encryption::No => Box::new(reader),
+        Encryption::No => DecryptReader::No(reader),
         encryption @ Encryption::Aes | encryption @ Encryption::Camellia => {
             let s = phsf.ok_or_else(|| {
                 io::Error::new(
@@ -409,15 +409,17 @@ fn decrypt_reader<'r, R: Read + Sync + Send + 'r>(
             })?;
             match (encryption, cipher_mode) {
                 (Encryption::Aes, CipherMode::CBC) => {
-                    Box::new(DecryptCbcAes256Reader::new(reader, hash.as_bytes())?)
+                    DecryptReader::CbcAes(DecryptCbcAes256Reader::new(reader, hash.as_bytes())?)
                 }
                 (Encryption::Aes, CipherMode::CTR) => {
-                    Box::new(aes_ctr_cipher_reader(reader, hash.as_bytes())?)
+                    DecryptReader::CtrAes(aes_ctr_cipher_reader(reader, hash.as_bytes())?)
                 }
-                (Encryption::Camellia, CipherMode::CBC) => {
-                    Box::new(DecryptCbcCamellia256Reader::new(reader, hash.as_bytes())?)
+                (Encryption::Camellia, CipherMode::CBC) => DecryptReader::CbcCamellia(
+                    DecryptCbcCamellia256Reader::new(reader, hash.as_bytes())?,
+                ),
+                _ => {
+                    DecryptReader::CtrCamellia(camellia_ctr_cipher_reader(reader, hash.as_bytes())?)
                 }
-                _ => Box::new(camellia_ctr_cipher_reader(reader, hash.as_bytes())?),
             }
         }
     })
