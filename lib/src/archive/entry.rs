@@ -434,7 +434,7 @@ fn decompress_reader<'r, R: Read>(
     compression: Compression,
 ) -> io::Result<DecompressReader<'r, R>> {
     Ok(match compression {
-        Compression::No => DecompressReader::Store(reader),
+        Compression::No => DecompressReader::No(reader),
         Compression::Deflate => DecompressReader::Deflate(flate2::read::ZlibDecoder::new(reader)),
         Compression::ZStandard => DecompressReader::ZStd(zstd::Decoder::new(reader)?),
         Compression::XZ => DecompressReader::Xz(xz2::read::XzDecoder::new(reader)),
