@@ -16,7 +16,7 @@ pub struct EntryHeader {
 }
 
 impl EntryHeader {
-    pub(crate) fn new(
+    pub(crate) fn new_with_options(
         data_kind: DataKind,
         compression: Compression,
         encryption: Encryption,
@@ -34,6 +34,16 @@ impl EntryHeader {
         }
     }
 
+    pub(crate) fn new(data_kind: DataKind, path: EntryName) -> Self {
+        Self::new_with_options(
+            data_kind,
+            Compression::No,
+            Encryption::No,
+            CipherMode::CBC,
+            path,
+        )
+    }
+
     #[inline]
     pub(crate) fn for_file(
         compression: Compression,
@@ -41,29 +51,22 @@ impl EntryHeader {
         cipher_mode: CipherMode,
         path: EntryName,
     ) -> Self {
-        Self::new(DataKind::File, compression, encryption, cipher_mode, path)
+        Self::new_with_options(DataKind::File, compression, encryption, cipher_mode, path)
     }
 
     #[inline]
     pub(crate) fn for_dir(path: EntryName) -> Self {
-        Self::new(
-            DataKind::Directory,
-            Compression::No,
-            Encryption::No,
-            CipherMode::CBC,
-            path,
-        )
+        Self::new(DataKind::Directory, path)
     }
 
     #[inline]
     pub(crate) fn for_symbolic_link(path: EntryName) -> Self {
-        Self::new(
-            DataKind::SymbolicLink,
-            Compression::No,
-            Encryption::No,
-            CipherMode::CBC,
-            path,
-        )
+        Self::new(DataKind::SymbolicLink, path)
+    }
+
+    #[inline]
+    pub(crate) fn for_hard_link(path: EntryName) -> Self {
+        Self::new(DataKind::HardLink, path)
     }
 
     #[inline]

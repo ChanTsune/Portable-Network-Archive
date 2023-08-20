@@ -71,12 +71,12 @@ impl EntryBuilder {
         })
     }
 
-    /// Creates a new directory with the given name.
+    /// Creates a new symbolic link with the given name and link.
     ///
     /// # Arguments
     ///
     /// * `name` - The name of the entry to create.
-    /// * `link` -
+    /// * `link` - The name of the entry reference.
     ///
     /// # Returns
     ///
@@ -99,6 +99,42 @@ impl EntryBuilder {
         writer.write_all(source.as_str().as_bytes())?;
         Ok(Self {
             header: EntryHeader::for_symbolic_link(name),
+            data: Some(writer),
+            phsf,
+            created: None,
+            last_modified: None,
+            permission: None,
+        })
+    }
+
+    /// Creates a new hard link with the given name and link.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name of the entry to create.
+    /// * `link` - The name of the entry reference.
+    ///
+    /// # Returns
+    ///
+    /// A new [EntryBuilder].
+    ///
+    /// # Examples
+    /// ```
+    /// use libpna::{EntryBuilder, EntryName, EntryReference};
+    ///
+    /// let builder = EntryBuilder::new_hard_link(
+    ///     EntryName::try_from("path/of/target").unwrap(),
+    ///     EntryReference::try_from("path/of/source").unwrap(),
+    /// )
+    /// .unwrap();
+    /// let entry = builder.build().unwrap();
+    /// ```
+    pub fn new_hard_link(name: EntryName, source: EntryReference) -> io::Result<Self> {
+        let option = WriteOption::store();
+        let (mut writer, phsf) = writer_and_hash(Vec::new(), option)?;
+        writer.write_all(source.as_str().as_bytes())?;
+        Ok(Self {
+            header: EntryHeader::for_hard_link(name),
             data: Some(writer),
             phsf,
             created: None,
