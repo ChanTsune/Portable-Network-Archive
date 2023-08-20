@@ -4,9 +4,10 @@ mod meta;
 mod name;
 mod options;
 mod read;
+mod reference;
 mod write;
 
-pub use self::{builder::*, header::*, meta::*, name::*, options::*};
+pub use self::{builder::*, header::*, meta::*, name::*, options::*, reference::*};
 use self::{private::*, read::*, write::*};
 use crate::{
     chunk::{
