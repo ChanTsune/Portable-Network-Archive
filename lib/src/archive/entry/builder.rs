@@ -1,7 +1,7 @@
 use crate::{
     archive::entry::{
-        writer_and_hash, ChunkEntry, ChunkSolidEntries, Entry, EntryHeader, EntryName, Permission,
-        SolidEntries, SolidHeader, WriteOption,
+        writer_and_hash, ChunkEntry, ChunkSolidEntries, Entry, EntryHeader, EntryName,
+        EntryReference, Permission, SolidEntries, SolidHeader, WriteOption,
     },
     chunk::{ChunkType, RawChunk},
     cipher::CipherWriter,
@@ -63,6 +63,42 @@ impl EntryBuilder {
                 option.cipher_mode,
                 name,
             ),
+            data: Some(writer),
+            phsf,
+            created: None,
+            last_modified: None,
+            permission: None,
+        })
+    }
+
+    /// Creates a new directory with the given name.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name of the entry to create.
+    /// * `link` -
+    ///
+    /// # Returns
+    ///
+    /// A new [EntryBuilder].
+    ///
+    /// # Examples
+    /// ```
+    /// use libpna::{EntryBuilder, EntryName, EntryReference};
+    ///
+    /// let builder = EntryBuilder::new_symbolic_link(
+    ///     EntryName::try_from("path/of/target").unwrap(),
+    ///     EntryReference::try_from("path/of/source").unwrap(),
+    /// )
+    /// .unwrap();
+    /// let entry = builder.build().unwrap();
+    /// ```
+    pub fn new_symbolic_link(name: EntryName, source: EntryReference) -> io::Result<Self> {
+        let option = WriteOption::store();
+        let (mut writer, phsf) = writer_and_hash(Vec::new(), option)?;
+        writer.write_all(source.as_str().as_bytes())?;
+        Ok(Self {
+            header: EntryHeader::for_symbolic_link(name),
             data: Some(writer),
             phsf,
             created: None,

@@ -56,6 +56,17 @@ impl EntryHeader {
     }
 
     #[inline]
+    pub(crate) fn for_symbolic_link(path: EntryName) -> Self {
+        Self::new(
+            DataKind::SymbolicLink,
+            Compression::No,
+            Encryption::No,
+            CipherMode::CBC,
+            path,
+        )
+    }
+
+    #[inline]
     pub fn path(&self) -> &EntryName {
         &self.path
     }
