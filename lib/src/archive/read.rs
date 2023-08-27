@@ -99,7 +99,7 @@ impl<R: Read> ArchiveReader<R> {
     ///
     /// # Returns
     ///
-    /// An `io::Result` containing an `Option<impl ReadEntry>`. Returns `Ok(None)` if there are no more entries to read.
+    /// An `io::Result` containing an `Option<ReadEntry>`. Returns `Ok(None)` if there are no more entries to read.
     ///
     /// # Errors
     ///
