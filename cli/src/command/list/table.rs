@@ -6,10 +6,6 @@ pub(crate) struct Table<const N: usize> {
 }
 
 impl<const N: usize> Table<N> {
-    pub(crate) fn new_with_header(header: TableRow<N>) -> Self {
-        Self { rows: vec![header] }
-    }
-
     pub(crate) fn new() -> Self {
         Self {
             rows: Default::default(),
