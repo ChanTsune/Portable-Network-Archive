@@ -14,7 +14,7 @@ use glob::Pattern;
 use libpna::{ArchiveReader, Compression, DataKind, Encryption, ReadEntry, ReadOption};
 use std::{
     fs::File,
-    io::{self, Read},
+    io,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -147,13 +147,7 @@ fn detail_list_entries(entries: Vec<ReadEntry>, print_header: bool) {
                     let path = header.path().to_string();
                     let original = entry
                         .into_reader(ReadOption::builder().build())
-                        .map(|mut r| {
-                            let mut s = String::new();
-                            if r.read_to_string(&mut s).is_err() {
-                                s = "-".to_string()
-                            }
-                            s
-                        })
+                        .map(|r| io::read_to_string(r).unwrap_or_else(|_| "-".to_string()))
                         .unwrap_or_default();
                     format!("{} -> {}", path, original)
                 } else {
