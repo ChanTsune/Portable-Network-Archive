@@ -90,11 +90,10 @@ fn detail_list_entries(entries: &[(EntryHeader, Metadata)], header: bool) {
     let style_compressed_size_column = Style::new().fg(Colour::Green);
     let style_date = Style::new().fg(Colour::Cyan);
     let style_entry = Style::new();
-    let mut table = if header {
+    let mut table = Table::new();
+    if header {
         let style_header_line = Style::new().underline();
-        Table::new_with_header(table::header(style_header_line))
-    } else {
-        Table::new()
+        table.push(table::header(style_header_line));
     };
     for (entry, metadata) in entries {
         table.push(TableRow::new([
