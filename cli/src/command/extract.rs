@@ -105,7 +105,7 @@ pub(crate) fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Re
 
 fn extract_entry(
     item_path: PathBuf,
-    item: impl ReadEntry,
+    item: ReadEntry,
     password: Option<String>,
     overwrite: bool,
     out_dir: Option<PathBuf>,
