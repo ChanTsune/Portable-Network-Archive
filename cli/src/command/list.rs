@@ -11,7 +11,7 @@ use crate::{
 use ansi_term::{ANSIString, Colour, Style};
 use chrono::{DateTime, Local};
 use glob::Pattern;
-use libpna::{ArchiveReader, Encryption, EntryHeader, Metadata, ReadEntry};
+use libpna::{ArchiveReader, Compression, Encryption, EntryHeader, Metadata, ReadEntry};
 use std::{
     fs::File,
     io,
@@ -108,7 +108,10 @@ fn detail_list_entries(entries: &[(EntryHeader, Metadata)], header: bool) {
             ),
             Cell::new(
                 style_compression_column,
-                format!("{:?}", entry.compression()).to_ascii_lowercase(),
+                match entry.compression() {
+                    Compression::No => "-".to_string(),
+                    method => format!("{:?}", method).to_ascii_lowercase(),
+                },
             ),
             Cell::new_text(
                 style_date,
