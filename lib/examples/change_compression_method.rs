@@ -1,6 +1,4 @@
-use libpna::{
-    ArchiveReader, ArchiveWriter, Compression, EntryBuilder, ReadEntry, ReadOption, WriteOption,
-};
+use libpna::{ArchiveReader, ArchiveWriter, Compression, EntryBuilder, ReadOption, WriteOption};
 use std::io::{self, Read, Write};
 
 /// Change the entries compression method

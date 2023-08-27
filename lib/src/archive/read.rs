@@ -1,7 +1,5 @@
 use crate::{
-    archive::{
-        ArchiveHeader, ChunkEntry, NonSolidReadEntry, ReadEntry, ReadEntryContainer, PNA_HEADER,
-    },
+    archive::{ArchiveHeader, ChunkEntry, ReadEntry, ReadEntryContainer, PNA_HEADER},
     chunk::{Chunk, ChunkReader, ChunkType, RawChunk},
 };
 use std::{
@@ -108,7 +106,7 @@ impl<R: Read> ArchiveReader<R> {
     /// Returns an error if an I/O error occurs while reading from the archive.
     #[deprecated]
     #[inline]
-    pub fn read(&mut self) -> io::Result<Option<impl ReadEntry>> {
+    pub fn read(&mut self) -> io::Result<Option<ReadEntry>> {
         loop {
             let entry = self.read_entry()?;
             return match entry {
@@ -141,7 +139,7 @@ impl<R: Read> ArchiveReader<R> {
     /// # Returns
     ///
     /// An iterator over the entries in the archive.
-    pub fn entries(&mut self) -> impl Iterator<Item = io::Result<impl ReadEntry>> + '_ {
+    pub fn entries(&mut self) -> impl Iterator<Item = io::Result<ReadEntry>> + '_ {
         Entries::new(self)
     }
 
@@ -153,7 +151,7 @@ impl<R: Read> ArchiveReader<R> {
     pub fn entries_with_password(
         &mut self,
         password: Option<String>,
-    ) -> impl Iterator<Item = io::Result<impl ReadEntry>> + '_ {
+    ) -> impl Iterator<Item = io::Result<ReadEntry>> + '_ {
         Entries::new_with_password(self, password)
     }
 
@@ -201,7 +199,7 @@ impl<R: Read> ArchiveReader<R> {
 pub(crate) struct Entries<'r, R: Read> {
     reader: &'r mut ArchiveReader<R>,
     password: Option<Option<String>>,
-    buf: VecDeque<io::Result<NonSolidReadEntry>>,
+    buf: VecDeque<io::Result<ReadEntry>>,
 }
 
 impl<'r, R: Read> Entries<'r, R> {
@@ -223,7 +221,7 @@ impl<'r, R: Read> Entries<'r, R> {
 }
 
 impl<'r, R: Read> Iterator for Entries<'r, R> {
-    type Item = io::Result<NonSolidReadEntry>;
+    type Item = io::Result<ReadEntry>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(entry) = self.buf.pop_front() {

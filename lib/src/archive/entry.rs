@@ -37,13 +37,6 @@ pub trait Entry: SealedIntoChunks {
     fn into_bytes(self) -> Vec<u8>;
 }
 
-/// Readable archive entry.
-pub trait ReadEntry: Entry {
-    fn header(&self) -> &EntryHeader;
-    fn metadata(&self) -> &Metadata;
-    fn into_reader(self, option: ReadOption) -> io::Result<EntryDataReader>;
-}
-
 /// Solid mode entries block.
 pub trait SolidEntries: SealedIntoChunks {
     fn bytes_len(&self) -> usize;
@@ -91,7 +84,7 @@ impl<R: Read> Read for EntryReader<R> {
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) enum ReadEntryContainer {
     Solid(SolidReadEntry),
-    NonSolid(NonSolidReadEntry),
+    NonSolid(ReadEntry),
 }
 
 impl TryFrom<ChunkEntry> for ReadEntryContainer {
@@ -100,7 +93,7 @@ impl TryFrom<ChunkEntry> for ReadEntryContainer {
         if let Some(first_chunk) = entry.0.first() {
             match first_chunk.ty {
                 ChunkType::SHED => Ok(Self::Solid(SolidReadEntry::try_from(entry)?)),
-                ChunkType::FHED => Ok(Self::NonSolid(NonSolidReadEntry::try_from(entry)?)),
+                ChunkType::FHED => Ok(Self::NonSolid(ReadEntry::try_from(entry)?)),
                 _ => Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid entry")),
             }
         } else {
@@ -114,7 +107,7 @@ struct EntryIterator<R: Read> {
 }
 
 impl<R: Read> Iterator for EntryIterator<R> {
-    type Item = io::Result<NonSolidReadEntry>;
+    type Item = io::Result<ReadEntry>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut chunk_reader = ChunkReader::from(&mut self.entry);
@@ -149,7 +142,7 @@ impl SolidReadEntry {
     pub(crate) fn entries(
         &self,
         password: Option<&str>,
-    ) -> io::Result<impl Iterator<Item = io::Result<NonSolidReadEntry>> + '_> {
+    ) -> io::Result<impl Iterator<Item = io::Result<ReadEntry>> + '_> {
         let reader = decrypt_reader(
             self.data.as_slice(),
             self.header.encryption,
@@ -221,7 +214,7 @@ impl TryFrom<ChunkEntry> for SolidReadEntry {
 
 /// [Entry] that read from PNA archive.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct NonSolidReadEntry {
+pub struct ReadEntry {
     pub(crate) header: EntryHeader,
     pub(crate) phsf: Option<String>,
     pub(crate) extra: Vec<RawChunk>,
@@ -229,7 +222,7 @@ pub(crate) struct NonSolidReadEntry {
     pub(crate) metadata: Metadata,
 }
 
-impl TryFrom<ChunkEntry> for NonSolidReadEntry {
+impl TryFrom<ChunkEntry> for ReadEntry {
     type Error = io::Error;
     fn try_from(entry: ChunkEntry) -> Result<Self, Self::Error> {
         if let Some(first_chunk) = entry.0.first() {
@@ -300,7 +293,7 @@ impl TryFrom<ChunkEntry> for NonSolidReadEntry {
     }
 }
 
-impl SealedIntoChunks for NonSolidReadEntry {
+impl SealedIntoChunks for ReadEntry {
     fn into_chunks(self) -> Vec<RawChunk> {
         let mut vec = Vec::new();
         vec.push(RawChunk::from_data(ChunkType::FHED, self.header.to_bytes()));
@@ -339,7 +332,7 @@ impl SealedIntoChunks for NonSolidReadEntry {
     }
 }
 
-impl Entry for NonSolidReadEntry {
+impl Entry for ReadEntry {
     fn bytes_len(&self) -> usize {
         self.clone().into_bytes().len()
     }
@@ -352,24 +345,22 @@ impl Entry for NonSolidReadEntry {
     }
 }
 
-impl ReadEntry for NonSolidReadEntry {
+impl ReadEntry {
     #[inline]
-    fn header(&self) -> &EntryHeader {
+    pub fn header(&self) -> &EntryHeader {
         &self.header
     }
 
     #[inline]
-    fn metadata(&self) -> &Metadata {
+    pub fn metadata(&self) -> &Metadata {
         &self.metadata
     }
 
     #[inline]
-    fn into_reader(self, option: ReadOption) -> io::Result<EntryDataReader> {
+    pub fn into_reader(self, option: ReadOption) -> io::Result<EntryDataReader> {
         self.reader(option.password.as_deref())
     }
-}
 
-impl NonSolidReadEntry {
     fn reader(self, password: Option<&str>) -> io::Result<EntryDataReader> {
         let raw_data_reader = io::Cursor::new(self.data);
         let decrypt_reader = decrypt_reader(
