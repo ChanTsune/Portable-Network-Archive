@@ -1,4 +1,4 @@
-use libpna::{ArchiveReader, DataKind, ReadEntry, ReadOption};
+use libpna::{ArchiveReader, DataKind, ReadOption};
 use std::io;
 
 fn extract_all(follows: &[&[u8]], password: Option<&str>) {
