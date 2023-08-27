@@ -1,7 +1,7 @@
 use crate::{
     cli::{ExtractArgs, Verbosity},
     command::{ask_password, Let},
-    utils::part_name,
+    utils::{self, part_name},
 };
 use glob::Pattern;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
@@ -152,7 +152,20 @@ fn extract_entry(
         DataKind::Directory => {
             fs::create_dir_all(&path)?;
         }
-        DataKind::SymbolicLink => {}
+        DataKind::SymbolicLink => {
+            let reader = item.into_reader({
+                let mut builder = ReadOption::builder();
+                if let Some(password) = password {
+                    builder.password(password);
+                }
+                builder.build()
+            })?;
+            let original = PathBuf::from(io::read_to_string(reader)?);
+            if overwrite && path.exists() {
+                utils::fs::remove(&path)?;
+            }
+            utils::fs::symlink(original, &path)?;
+        }
         DataKind::HardLink => {}
     }
     #[cfg(unix)]

@@ -6,8 +6,8 @@ use crate::{
 use bytesize::ByteSize;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use libpna::{
-    ArchiveWriter, Entry, EntryBuilder, EntryName, EntryPart, Permission, SolidEntriesBuilder,
-    WriteOption, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
+    ArchiveWriter, Entry, EntryBuilder, EntryName, EntryPart, EntryReference, Permission,
+    SolidEntriesBuilder, WriteOption, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
 };
 #[cfg(unix)]
 use nix::unistd::{Group, User};
@@ -233,7 +233,14 @@ fn create_entry(
     keep_timestamp: bool,
     keep_permission: bool,
 ) -> io::Result<impl Entry> {
-    if path.is_file() {
+    if path.is_symlink() {
+        let source = fs::read_link(path)?;
+        let entry = EntryBuilder::new_symbolic_link(
+            EntryName::from_path_lossy(path),
+            EntryReference::try_from(source.as_path()).unwrap(),
+        )?;
+        return apply_metadata(entry, path, keep_timestamp, keep_permission)?.build();
+    } else if path.is_file() {
         let mut entry = EntryBuilder::new_file(EntryName::from_path_lossy(path), option)?;
         entry.write_all(&fs::read(path)?)?;
         return apply_metadata(entry, path, keep_timestamp, keep_permission)?.build();

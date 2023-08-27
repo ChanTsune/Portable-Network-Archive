@@ -11,10 +11,10 @@ use crate::{
 use ansi_term::{ANSIString, Colour, Style};
 use chrono::{DateTime, Local};
 use glob::Pattern;
-use libpna::{ArchiveReader, Compression, Encryption, EntryHeader, Metadata, ReadEntry};
+use libpna::{ArchiveReader, Compression, DataKind, Encryption, ReadEntry, ReadOption};
 use std::{
     fs::File,
-    io,
+    io::{self, Read},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -36,12 +36,12 @@ pub(crate) fn list_archive(args: ListArgs, _: Verbosity) -> io::Result<()> {
         if args.solid {
             for entry in reader.entries_with_password(password.clone()) {
                 let item = entry?;
-                entries.push((item.header().clone(), item.metadata().clone()));
+                entries.push(item);
             }
         } else {
             for entry in reader.entries() {
                 let item = entry?;
-                entries.push((item.header().clone(), item.metadata().clone()));
+                entries.push(item);
             }
         };
         if reader.next_archive() {
@@ -66,24 +66,28 @@ pub(crate) fn list_archive(args: ListArgs, _: Verbosity) -> io::Result<()> {
     } else {
         entries
             .into_iter()
-            .filter(|(h, _)| globs.iter().any(|glob| glob.matches(h.path().as_ref())))
+            .filter(|e| {
+                globs
+                    .iter()
+                    .any(|glob| glob.matches(e.header().path().as_ref()))
+            })
             .collect()
     };
     if args.long {
-        detail_list_entries(&entries, args.header);
+        detail_list_entries(entries, args.header);
     } else {
         simple_list_entries(&entries);
     }
     Ok(())
 }
 
-fn simple_list_entries(entries: &[(EntryHeader, Metadata)]) {
-    for (entry, _) in entries {
-        println!("{}", entry.path())
+fn simple_list_entries(entries: &[ReadEntry]) {
+    for entry in entries {
+        println!("{}", entry.header().path())
     }
 }
 
-fn detail_list_entries(entries: &[(EntryHeader, Metadata)], header: bool) {
+fn detail_list_entries(entries: Vec<ReadEntry>, print_header: bool) {
     let now = SystemTime::now();
     let style_encryption_column = Style::new().fg(Colour::Purple);
     let style_compression_column = Style::new().fg(Colour::Blue);
@@ -91,23 +95,25 @@ fn detail_list_entries(entries: &[(EntryHeader, Metadata)], header: bool) {
     let style_date = Style::new().fg(Colour::Cyan);
     let style_entry = Style::new();
     let mut table = Table::new();
-    if header {
+    if print_header {
         let style_header_line = Style::new().underline();
         table.push(table::header(style_header_line));
     };
-    for (entry, metadata) in entries {
+    for entry in entries {
+        let header = entry.header();
+        let metadata = entry.metadata();
         table.push(TableRow::new([
             Cell::new(
                 style_encryption_column,
-                match entry.encryption() {
+                match header.encryption() {
                     Encryption::No => "-".to_string(),
-                    _ => format!("{:?}({:?})", entry.encryption(), entry.cipher_mode())
+                    _ => format!("{:?}({:?})", header.encryption(), header.cipher_mode())
                         .to_ascii_lowercase(),
                 },
             ),
             Cell::new(
                 style_compression_column,
-                match entry.compression() {
+                match header.compression() {
                     Compression::No => "-".to_string(),
                     method => format!("{:?}", method).to_ascii_lowercase(),
                 },
@@ -135,7 +141,25 @@ fn detail_list_entries(entries: &[(EntryHeader, Metadata)], header: bool) {
             ),
             Cell::new(style_date, datetime(now, metadata.created())),
             Cell::new(style_date, datetime(now, metadata.modified())),
-            Cell::new(style_entry, entry.path()),
+            Cell::new(
+                style_entry,
+                if header.data_kind() == DataKind::SymbolicLink {
+                    let path = header.path().to_string();
+                    let original = entry
+                        .into_reader(ReadOption::builder().build())
+                        .map(|mut r| {
+                            let mut s = String::new();
+                            if r.read_to_string(&mut s).is_err() {
+                                s = "-".to_string()
+                            }
+                            s
+                        })
+                        .unwrap_or_default();
+                    format!("{} -> {}", path, original)
+                } else {
+                    header.path().to_string()
+                },
+            ),
         ]));
     }
     for row in table.into_render_rows() {
