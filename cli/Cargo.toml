@@ -21,7 +21,7 @@ rayon = "1.7.0"
 rpassword = "7.2.0"
 
 [target.'cfg(unix)'.dependencies]
-nix = "0.26.2"
+nix = "0.27.0"
 
 [[bin]]
 name = "pna"
