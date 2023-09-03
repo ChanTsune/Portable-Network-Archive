@@ -166,7 +166,23 @@ fn extract_entry(
             }
             utils::fs::symlink(original, &path)?;
         }
-        DataKind::HardLink => {}
+        DataKind::HardLink => {
+            let reader = item.into_reader({
+                let mut builder = ReadOption::builder();
+                if let Some(password) = password {
+                    builder.password(password);
+                }
+                builder.build()
+            })?;
+            let mut original = PathBuf::from(io::read_to_string(reader)?);
+            if let Some(parent) = path.parent() {
+                original = parent.join(original)
+            }
+            if overwrite && path.exists() {
+                utils::fs::remove(&path)?;
+            }
+            fs::hard_link(original, &path)?;
+        }
     }
     #[cfg(unix)]
     permissions.map(|(p, u, g)| {

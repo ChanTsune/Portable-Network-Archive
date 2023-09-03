@@ -144,7 +144,10 @@ fn detail_list_entries(entries: Vec<ReadEntry>, password: Option<&str>, print_he
             Cell::new(style_date, datetime(now, metadata.modified())),
             Cell::new(
                 style_entry,
-                if header.data_kind() == DataKind::SymbolicLink {
+                if matches!(
+                    header.data_kind(),
+                    DataKind::SymbolicLink | DataKind::HardLink
+                ) {
                     let path = header.path().to_string();
                     let original = entry
                         .into_reader({
