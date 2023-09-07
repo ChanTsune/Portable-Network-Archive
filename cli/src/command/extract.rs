@@ -169,10 +169,10 @@ fn extract_entry(
         DataKind::HardLink => {}
     }
     #[cfg(unix)]
-    permissions.map(|(p, u, g)| {
+    if let Some((p, u, g)) = permissions {
         chown(&path, u.map(|i| i.uid), g.map(|g| g.gid)).map_err(io::Error::from)?;
-        fs::set_permissions(&path, p)
-    });
+        fs::set_permissions(&path, p)?;
+    }
     if verbosity == Verbosity::Verbose {
         println!("end: {}", path.display())
     }
