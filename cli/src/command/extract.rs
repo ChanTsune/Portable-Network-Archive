@@ -8,7 +8,7 @@ use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use libpna::{ArchiveReader, DataKind, Permission, ReadEntry, ReadOption};
 #[cfg(unix)]
 use nix::unistd::{chown, Group, User};
-use rayon::ThreadPoolBuilder;
+use rayon::{prelude::*, ThreadPoolBuilder};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::{
@@ -27,7 +27,7 @@ pub(crate) fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Re
     let globs = args
         .file
         .files
-        .iter()
+        .par_iter()
         .map(|p| Pattern::new(&p.to_string_lossy()))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
@@ -51,7 +51,7 @@ pub(crate) fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Re
         for entry in reader.entries_with_password(password.clone()) {
             let item = entry?;
             let item_path = PathBuf::from(item.header().path().as_str());
-            if !globs.is_empty() && !globs.iter().any(|glob| glob.matches_path(&item_path)) {
+            if !globs.is_empty() && !globs.par_iter().any(|glob| glob.matches_path(&item_path)) {
                 if verbosity == Verbosity::Verbose {
                     println!("Skip: {}", item.header().path())
                 }

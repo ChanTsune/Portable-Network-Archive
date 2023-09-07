@@ -12,6 +12,7 @@ use ansi_term::{ANSIString, Colour, Style};
 use chrono::{DateTime, Local};
 use glob::Pattern;
 use libpna::{ArchiveReader, Compression, DataKind, Encryption, ReadEntry, ReadOption};
+use rayon::prelude::*;
 use std::{
     fs::File,
     io,
@@ -23,7 +24,7 @@ pub(crate) fn list_archive(args: ListArgs, _: Verbosity) -> io::Result<()> {
     let globs = args
         .file
         .files
-        .iter()
+        .par_iter()
         .map(|p| Pattern::new(&p.to_string_lossy()))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
@@ -65,16 +66,16 @@ pub(crate) fn list_archive(args: ListArgs, _: Verbosity) -> io::Result<()> {
         entries
     } else {
         entries
-            .into_iter()
+            .into_par_iter()
             .filter(|e| {
                 globs
-                    .iter()
+                    .par_iter()
                     .any(|glob| glob.matches(e.header().path().as_ref()))
             })
             .collect()
     };
     if args.long {
-        detail_list_entries(entries, args.header);
+        detail_list_entries(entries, password.as_deref(), args.header);
     } else {
         simple_list_entries(&entries);
     }
@@ -87,7 +88,7 @@ fn simple_list_entries(entries: &[ReadEntry]) {
     }
 }
 
-fn detail_list_entries(entries: Vec<ReadEntry>, print_header: bool) {
+fn detail_list_entries(entries: Vec<ReadEntry>, password: Option<&str>, print_header: bool) {
     let now = SystemTime::now();
     let style_encryption_column = Style::new().fg(Colour::Purple);
     let style_compression_column = Style::new().fg(Colour::Blue);
@@ -149,7 +150,13 @@ fn detail_list_entries(entries: Vec<ReadEntry>, print_header: bool) {
                 ) {
                     let path = header.path().to_string();
                     let original = entry
-                        .into_reader(ReadOption::builder().build())
+                        .into_reader({
+                            let mut builder = ReadOption::builder();
+                            if let Some(password) = password {
+                                builder.password(password);
+                            }
+                            builder.build()
+                        })
                         .map(|r| io::read_to_string(r).unwrap_or_else(|_| "-".to_string()))
                         .unwrap_or_default();
                     format!("{} -> {}", path, original)
