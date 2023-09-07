@@ -1,9 +1,7 @@
 #![feature(test)]
 extern crate test;
 
-use libpna::{
-    ArchiveReader, ArchiveWriter, EntryBuilder, ReadEntry, ReadOption, WriteOptionBuilder,
-};
+use libpna::{ArchiveReader, ArchiveWriter, EntryBuilder, ReadOption, WriteOptionBuilder};
 use std::io::{Cursor, Read, Write};
 use test::Bencher;
 

@@ -1,6 +1,6 @@
 extern crate test;
 
-use libpna::{ArchiveReader, ArchiveWriter, ReadEntry, ReadOption};
+use libpna::{ArchiveReader, ArchiveWriter, ReadOption};
 use std::io;
 use test::Bencher;
 
