@@ -123,7 +123,7 @@ fn extract_entry(
     if path.exists() && !overwrite {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
-            format!("{} is alrady exists", path.display()),
+            format!("{} is already exists", path.display()),
         ));
     }
     if verbosity == Verbosity::Verbose {
