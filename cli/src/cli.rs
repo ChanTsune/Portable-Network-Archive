@@ -54,7 +54,7 @@ pub(crate) enum Commands {
     Append(AppendArgs),
     #[command(visible_alias = "x", about = "Extract files from archive")]
     Extract(ExtractArgs),
-    #[command(visible_alias = "l", about = "List files in archive")]
+    #[command(visible_aliases = &["l", "ls"], about = "List files in archive")]
     List(ListArgs),
 }
 
