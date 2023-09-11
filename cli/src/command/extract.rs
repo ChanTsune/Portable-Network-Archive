@@ -42,6 +42,8 @@ pub(crate) fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Re
         None
     };
 
+    let mut hard_kink_entries = Vec::new();
+
     let file = File::open(&args.file.archive)?;
     let mut reader = ArchiveReader::read_header(file)?;
     let mut num_archive = 1;
@@ -58,6 +60,10 @@ pub(crate) fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Re
                 continue;
             }
             progress_bar.let_ref(|pb| pb.inc_length(1));
+            if item.header().data_kind() == DataKind::HardLink {
+                hard_kink_entries.push(item);
+                continue;
+            }
             let tx = tx.clone();
             let password = password.clone();
             let out_dir = args.out_dir.clone();
@@ -92,6 +98,20 @@ pub(crate) fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Re
         result?;
         progress_bar.let_ref(|pb| pb.inc(1));
     }
+
+    for item in hard_kink_entries {
+        extract_entry(
+            item.header().path().as_path().to_path_buf(),
+            item,
+            password.clone(),
+            args.overwrite,
+            args.out_dir.clone(),
+            args.keep_permission,
+            verbosity,
+        )?;
+        progress_bar.let_ref(|pb| pb.inc(1));
+    }
+
     progress_bar.let_ref(|pb| pb.finish_and_clear());
 
     if verbosity != Verbosity::Quite {
