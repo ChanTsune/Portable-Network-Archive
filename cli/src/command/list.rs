@@ -124,8 +124,8 @@ fn detail_list_entries(entries: Vec<ReadEntry>, password: Option<&str>, print_he
                 Padding::Right,
                 metadata
                     .permission()
-                    .map(|p| paint_permission(false, p.permissions()))
-                    .unwrap_or(vec![Style::new().paint("-")]),
+                    .map(|p| paint_permission(header.data_kind(), p.permissions()))
+                    .unwrap_or_else(|| paint_data_kind(header.data_kind())),
             ),
             Cell::new_with_pad_direction(
                 style_compressed_size_column,
@@ -193,11 +193,43 @@ fn datetime(now: SystemTime, d: Option<Duration>) -> String {
     }
 }
 
-fn paint_permission(is_dir: bool, permission: u16) -> Vec<ANSIString<'static>> {
+fn paint_data_kind(kind: DataKind) -> Vec<ANSIString<'static>> {
+    let style_dir = Style::new().fg(Colour::Purple);
+    let style_link = Style::new().fg(Colour::Cyan);
+    let style_hyphen = Style::new();
+    vec![
+        kind_paint(kind, style_hyphen, style_dir, style_link),
+        style_hyphen.paint("_"),
+        style_hyphen.paint("_"),
+        style_hyphen.paint("_"),
+        style_hyphen.paint("_"),
+        style_hyphen.paint("_"),
+        style_hyphen.paint("_"),
+        style_hyphen.paint("_"),
+        style_hyphen.paint("_"),
+        style_hyphen.paint("_"),
+    ]
+}
+
+fn kind_paint(
+    kind: DataKind,
+    style_hyphen: Style,
+    style_dir: Style,
+    style_link: Style,
+) -> ANSIString<'static> {
+    match kind {
+        DataKind::File | DataKind::HardLink => style_hyphen.paint("."),
+        DataKind::Directory => style_dir.paint("d"),
+        DataKind::SymbolicLink => style_link.paint("l"),
+    }
+}
+
+fn paint_permission(kind: DataKind, permission: u16) -> Vec<ANSIString<'static>> {
     let style_read = Style::new().fg(Colour::Yellow);
     let style_write = Style::new().fg(Colour::Red);
     let style_exec = Style::new().fg(Colour::Blue);
     let style_dir = Style::new().fg(Colour::Purple);
+    let style_link = Style::new().fg(Colour::Cyan);
     let style_hyphen = Style::new();
 
     let style_paint = |style: Style, c: &'static str, h: &'static str, bool: bool| {
@@ -211,7 +243,7 @@ fn paint_permission(is_dir: bool, permission: u16) -> Vec<ANSIString<'static>> {
         |style: Style, c: &'static str, bit: u16| style_paint(style, c, "-", permission & bit != 0);
 
     vec![
-        style_paint(style_dir, "d", ".", is_dir),
+        kind_paint(kind, style_hyphen, style_dir, style_link),
         paint(style_read, "r", 0b100000000),  // owner_read
         paint(style_write, "w", 0b010000000), // owner_write
         paint(style_exec, "x", 0b001000000),  // owner_exec
