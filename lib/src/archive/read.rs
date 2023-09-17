@@ -23,8 +23,8 @@ fn read_pna_header<R: Read>(mut reader: R) -> io::Result<()> {
 /// A reader for Portable-Network-Archive.
 pub struct ArchiveReader<R> {
     r: R,
-    next_archive: bool,
     header: ArchiveHeader,
+    next_archive: bool,
     buf: Vec<RawChunk>,
 }
 
