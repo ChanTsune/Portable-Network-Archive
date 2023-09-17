@@ -5,7 +5,7 @@ use crate::{
 use std::io::{self, Write};
 
 /// A writer for Portable-Network-Archive.
-pub struct ArchiveWriter<W: Write> {
+pub struct ArchiveWriter<W> {
     w: W,
     header: ArchiveHeader,
 }
