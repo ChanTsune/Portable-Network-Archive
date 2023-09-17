@@ -34,12 +34,9 @@ impl<W: Write> ArchiveWriter<W> {
     fn write_header_with_archive_number(mut write: W, archive_number: u32) -> io::Result<Self> {
         write.write_all(PNA_HEADER)?;
         let header = ArchiveHeader::new(0, 0, archive_number);
-        let mut chunk_writer = ChunkWriter::from(write);
+        let mut chunk_writer = ChunkWriter::from(&mut write);
         chunk_writer.write_chunk((ChunkType::AHED, header.to_bytes().as_slice()))?;
-        Ok(Self {
-            w: chunk_writer.into_inner(),
-            header,
-        })
+        Ok(Self { w: write, header })
     }
 
     /// Adds solid entries to the current writer.
