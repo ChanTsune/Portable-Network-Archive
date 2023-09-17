@@ -22,7 +22,7 @@ fn read_pna_header<R: Read>(mut reader: R) -> io::Result<()> {
 
 /// A reader for Portable-Network-Archive.
 pub struct ArchiveReader<R> {
-    r: R,
+    inner: R,
     header: ArchiveHeader,
     next_archive: bool,
     buf: Vec<RawChunk>,
@@ -58,7 +58,7 @@ impl<R: Read> ArchiveReader<R> {
         }
         let header = ArchiveHeader::try_from_bytes(chunk.data())?;
         Ok(Self {
-            r: reader,
+            inner: reader,
             next_archive: false,
             header,
             buf,
@@ -77,7 +77,7 @@ impl<R: Read> ArchiveReader<R> {
     fn next_raw_item(&mut self) -> io::Result<Option<ChunkEntry>> {
         let mut chunks = Vec::new();
         swap(&mut self.buf, &mut chunks);
-        let mut reader = ChunkReader::from(&mut self.r);
+        let mut reader = ChunkReader::from(&mut self.inner);
         loop {
             let chunk = reader.read_chunk()?;
             match chunk.ty {
