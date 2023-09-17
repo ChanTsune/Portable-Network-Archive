@@ -6,7 +6,7 @@ use std::io::{self, Write};
 
 /// A writer for Portable-Network-Archive.
 pub struct ArchiveWriter<W> {
-    w: W,
+    inner: W,
     header: ArchiveHeader,
 }
 
@@ -36,7 +36,10 @@ impl<W: Write> ArchiveWriter<W> {
         write.write_all(PNA_HEADER)?;
         let mut chunk_writer = ChunkWriter::from(&mut write);
         chunk_writer.write_chunk((ChunkType::AHED, header.to_bytes().as_slice()))?;
-        Ok(Self { w: write, header })
+        Ok(Self {
+            inner: write,
+            header,
+        })
     }
 
     /// Adds solid entries to the current writer.
@@ -72,7 +75,7 @@ impl<W: Write> ArchiveWriter<W> {
     /// ```
     pub fn add_solid_entries(&mut self, entries: impl SolidEntries) -> io::Result<usize> {
         let bytes = entries.into_bytes();
-        self.w.write_all(&bytes)?;
+        self.inner.write_all(&bytes)?;
         Ok(bytes.len())
     }
 
@@ -95,7 +98,7 @@ impl<W: Write> ArchiveWriter<W> {
     /// ```
     pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<usize> {
         let bytes = entry.into_bytes();
-        self.w.write_all(&bytes)?;
+        self.inner.write_all(&bytes)?;
         Ok(bytes.len())
     }
 
@@ -121,7 +124,7 @@ impl<W: Write> ArchiveWriter<W> {
     /// part2_writer.finalize().unwrap();
     /// ```
     pub fn add_entry_part(&mut self, entry_part: EntryPart) -> io::Result<usize> {
-        let mut chunk_writer = ChunkWriter::from(&mut self.w);
+        let mut chunk_writer = ChunkWriter::from(&mut self.inner);
         let mut written_len = 0;
         for chunk in entry_part.0 {
             written_len += chunk_writer.write_chunk(chunk)?;
@@ -130,7 +133,7 @@ impl<W: Write> ArchiveWriter<W> {
     }
 
     fn add_next_archive_marker(&mut self) -> io::Result<usize> {
-        let mut chunk_writer = ChunkWriter::from(&mut self.w);
+        let mut chunk_writer = ChunkWriter::from(&mut self.inner);
         chunk_writer.write_chunk((ChunkType::ANXT, [].as_slice()))
     }
 
@@ -143,9 +146,9 @@ impl<W: Write> ArchiveWriter<W> {
     }
 
     pub fn finalize(mut self) -> io::Result<W> {
-        let mut chunk_writer = ChunkWriter::from(&mut self.w);
+        let mut chunk_writer = ChunkWriter::from(&mut self.inner);
         chunk_writer.write_chunk((ChunkType::AEND, [].as_slice()))?;
-        Ok(self.w)
+        Ok(self.inner)
     }
 }
 
