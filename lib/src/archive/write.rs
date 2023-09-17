@@ -28,12 +28,12 @@ impl<W: Write> ArchiveWriter<W> {
     /// archive_writer.finalize().unwrap();
     /// ```
     pub fn write_header(write: W) -> io::Result<Self> {
-        Self::write_header_with_archive_number(write, 0)
+        let header = ArchiveHeader::new(0, 0, 0);
+        Self::write_header_with(write, header)
     }
 
-    fn write_header_with_archive_number(mut write: W, archive_number: u32) -> io::Result<Self> {
+    fn write_header_with(mut write: W, header: ArchiveHeader) -> io::Result<Self> {
         write.write_all(PNA_HEADER)?;
-        let header = ArchiveHeader::new(0, 0, archive_number);
         let mut chunk_writer = ChunkWriter::from(&mut write);
         chunk_writer.write_chunk((ChunkType::AHED, header.to_bytes().as_slice()))?;
         Ok(Self { w: write, header })
@@ -136,9 +136,10 @@ impl<W: Write> ArchiveWriter<W> {
 
     pub fn split_to_next_archive<OW: Write>(mut self, writer: OW) -> io::Result<ArchiveWriter<OW>> {
         let next_archive_number = self.header.archive_number + 1;
+        let header = ArchiveHeader::new(0, 0, next_archive_number);
         self.add_next_archive_marker()?;
         self.finalize()?;
-        ArchiveWriter::write_header_with_archive_number(writer, next_archive_number)
+        ArchiveWriter::write_header_with(writer, header)
     }
 
     pub fn finalize(mut self) -> io::Result<W> {
