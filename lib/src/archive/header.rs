@@ -19,12 +19,17 @@ impl ArchiveHeader {
         }
     }
 
-    pub(crate) fn to_bytes(&self) -> [u8; 8] {
+    pub(crate) const fn to_bytes(&self) -> [u8; 8] {
         let mut data = [0; 8];
         data[0] = self.major;
         data[1] = self.minor;
-        data[2..4].copy_from_slice(&[0, 0]);
-        data[4..8].copy_from_slice(&self.archive_number.to_be_bytes());
+        data[2] = 0;
+        data[3] = 0;
+        let byte = self.archive_number.to_be_bytes();
+        data[4] = byte[0];
+        data[5] = byte[1];
+        data[6] = byte[2];
+        data[7] = byte[3];
         data
     }
 
