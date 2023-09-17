@@ -236,7 +236,7 @@ impl<'r, R: Read> Iterator for Entries<'r, R> {
                     let entries = entry.entries(password.as_deref());
                     match entries {
                         Ok(entries) => {
-                            self.buf = VecDeque::from(entries.collect::<Vec<_>>());
+                            self.buf = entries.collect::<VecDeque<_>>();
                             self.next()
                         }
                         Err(e) => Some(Err(e)),
