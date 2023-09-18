@@ -4,7 +4,7 @@ use crate::{
 };
 use std::{
     collections::VecDeque,
-    io::{self, Read},
+    io::{self, Read, Seek, SeekFrom},
     mem::swap,
 };
 
@@ -14,7 +14,7 @@ fn read_pna_header<R: Read>(mut reader: R) -> io::Result<()> {
     if &header != PNA_HEADER {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            String::from("not pna format"),
+            String::from("Not pna format"),
         ));
     }
     Ok(())
@@ -237,6 +237,22 @@ impl<'r, R: Read> Iterator for Entries<'r, R> {
             Ok(None) => None,
             Err(e) => Some(Err(e)),
         }
+    }
+}
+
+impl<R: Read + Seek> ArchiveReader<R> {
+    pub fn seek_to_end(&mut self) -> io::Result<()> {
+        let mut reader = ChunkReader::from(&mut self.inner);
+        let byte;
+        loop {
+            let (ty, byte_length) = reader.skip_chunk()?;
+            if ty == ChunkType::AEND {
+                byte = byte_length as i64;
+                break;
+            }
+        }
+        self.inner.seek(SeekFrom::Current(-byte))?;
+        Ok(())
     }
 }
 
