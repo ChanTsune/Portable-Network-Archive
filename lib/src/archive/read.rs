@@ -4,7 +4,7 @@ use crate::{
 };
 use std::{
     collections::VecDeque,
-    io::{self, Read},
+    io::{self, Read, Seek, SeekFrom},
     mem::swap,
 };
 
@@ -247,6 +247,18 @@ impl<'r, R: Read> Iterator for Entries<'r, R> {
             Ok(None) => None,
             Err(e) => Some(Err(e)),
         }
+    }
+}
+
+impl<R: Read + Seek> ArchiveReader<R> {
+    pub fn seek_to_end(&mut self) -> io::Result<()> {
+        let mut reader = ChunkReader::from(&mut self.inner);
+        let mut byte = 0;
+        while let (ChunkType::AEND, byte_length) = reader.skip_chunk()? {
+            byte = byte_length as i64;
+        }
+        self.inner.seek(SeekFrom::Current(-byte))?;
+        Ok(())
     }
 }
 
