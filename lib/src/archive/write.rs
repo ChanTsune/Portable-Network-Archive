@@ -1,14 +1,11 @@
 use crate::{
-    archive::{ArchiveHeader, Entry, EntryPart, SolidEntries, PNA_HEADER},
+    archive::{Archive, ArchiveHeader, Entry, EntryPart, SolidEntries, PNA_HEADER},
     chunk::{ChunkType, ChunkWriter},
 };
 use std::io::{self, Write};
 
 /// A writer for Portable-Network-Archive.
-pub struct ArchiveWriter<W> {
-    inner: W,
-    header: ArchiveHeader,
-}
+pub type ArchiveWriter<W> = Archive<W>;
 
 impl<W: Write> ArchiveWriter<W> {
     /// Writes the PNA archive header to the given `Write` object.
@@ -36,10 +33,7 @@ impl<W: Write> ArchiveWriter<W> {
         write.write_all(PNA_HEADER)?;
         let mut chunk_writer = ChunkWriter::from(&mut write);
         chunk_writer.write_chunk((ChunkType::AHED, header.to_bytes().as_slice()))?;
-        Ok(Self {
-            inner: write,
-            header,
-        })
+        Ok(Self::new(write, header))
     }
 
     /// Adds solid entries to the current writer.
