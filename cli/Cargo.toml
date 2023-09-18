@@ -17,12 +17,11 @@ clap = { version = "4.4.3", features = ["derive"] }
 glob = "0.3.1"
 indicatif = { version = "0.17.6", features = ["improved_unicode"] }
 libpna = { version = "=0.2.0", path = "../lib" }
-nix = { version = "0.27.1", features = ["user", "fs"] }
 rayon = "1.7.0"
 rpassword = "7.2.0"
 
 [target.'cfg(unix)'.dependencies]
-nix = "0.27.0"
+nix = { version = "0.27.1", features = ["user", "fs"] }
 
 [[bin]]
 name = "pna"
