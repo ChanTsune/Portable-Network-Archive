@@ -1,5 +1,5 @@
 use crate::{
-    archive::{ArchiveHeader, ChunkEntry, ReadEntry, ReadEntryContainer, PNA_HEADER},
+    archive::{Archive, ArchiveHeader, ChunkEntry, ReadEntry, ReadEntryContainer, PNA_HEADER},
     chunk::{Chunk, ChunkReader, ChunkType, RawChunk},
 };
 use std::{
@@ -21,12 +21,7 @@ fn read_pna_header<R: Read>(mut reader: R) -> io::Result<()> {
 }
 
 /// A reader for Portable-Network-Archive.
-pub struct ArchiveReader<R> {
-    inner: R,
-    header: ArchiveHeader,
-    next_archive: bool,
-    buf: Vec<RawChunk>,
-}
+pub type ArchiveReader<R> = Archive<R>;
 
 impl<R: Read> ArchiveReader<R> {
     /// Reads the archive header from the provided reader and returns a new `ArchiveReader`.
@@ -57,12 +52,7 @@ impl<R: Read> ArchiveReader<R> {
             ));
         }
         let header = ArchiveHeader::try_from_bytes(chunk.data())?;
-        Ok(Self {
-            inner: reader,
-            next_archive: false,
-            header,
-            buf,
-        })
+        Ok(Self::with_buffer(reader, header, buf))
     }
 
     /// Reads the next raw entry (from `FHED` to `FEND` chunk) from the archive.

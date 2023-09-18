@@ -3,10 +3,56 @@ mod header;
 mod read;
 mod write;
 
+use crate::chunk::RawChunk;
 pub use entry::*;
 pub use header::*;
 pub use read::*;
 pub use write::*;
+
+/// An object providing access to a PNA file.
+/// An instance of a [Archive] can be read and/or written depending on the [T].
+///
+/// # Examples
+/// Creates a new PNA file and add entry to it.
+/// ```
+/// use std::io;
+/// use std::io::Write;
+/// use std::fs::File;
+/// use libpna::{Archive, EntryBuilder, EntryName, WriteOption};
+///
+/// fn main() -> io::Result<()> {
+///     let file = File::create("example.pna")?;
+///     let mut  archive = Archive::write_header(file)?;
+///     let mut entry_builder = EntryBuilder::new_file(EntryName::from_str_lossy("about_pna.txt"), WriteOption::builder().build())?;
+///     entry_builder.write(b"")?;
+///     let entry = entry_builder.build()?;
+///     archive.add_entry(entry)?;
+///     archive.finalize()?;
+///     Ok(())
+/// }
+/// ```
+pub struct Archive<T> {
+    inner: T,
+    header: ArchiveHeader,
+    // following fields are only use in reader mode
+    next_archive: bool,
+    buf: Vec<RawChunk>,
+}
+
+impl<T> Archive<T> {
+    fn new(inner: T, header: ArchiveHeader) -> Self {
+        Self::with_buffer(inner, header, Default::default())
+    }
+
+    fn with_buffer(inner: T, header: ArchiveHeader, buf: Vec<RawChunk>) -> Self {
+        Self {
+            inner,
+            header,
+            next_archive: false,
+            buf,
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
