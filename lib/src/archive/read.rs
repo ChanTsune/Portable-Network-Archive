@@ -105,7 +105,7 @@ impl<R: Read> ArchiveReader<R> {
     /// # Errors
     ///
     /// Returns an error if an I/O error occurs while reading from the archive.
-    #[deprecated]
+    #[deprecated(since = "0.2.0")]
     #[inline]
     pub fn read(&mut self) -> io::Result<Option<ReadEntry>> {
         loop {
