@@ -1,3 +1,4 @@
+pub mod append;
 mod commons;
 pub mod create;
 pub mod extract;
@@ -11,7 +12,7 @@ pub fn entry(cli: Cli) -> io::Result<()> {
         Commands::Create(args) => {
             create::create_archive(args, cli.verbosity.verbosity())?;
         }
-        Commands::Append(args) => todo!("Append archive {}", args.file.archive.display()),
+        Commands::Append(args) => append::append_to_archive(args, cli.verbosity.verbosity())?,
         Commands::Extract(args) => {
             extract::extract_archive(args, cli.verbosity.verbosity())?;
         }
