@@ -279,15 +279,22 @@ impl SolidEntriesBuilder {
     /// # Examples
     ///
     /// ```no_run
-    /// use std::io;
     /// use libpna::{EntryBuilder, SolidEntriesBuilder, WriteOption};
+    /// use std::io;
+    /// use std::io::Write;
     ///
-    /// let mut builder = SolidEntriesBuilder::new(WriteOption::builder().build()).unwrap();
-    /// let dir_entry = EntryBuilder::new_dir("example".try_into().unwrap()).build().unwrap();
-    /// builder.add_entry(dir_entry).unwrap();
-    /// let file_entry = EntryBuilder::new_file("example/empty.txt".try_into().unwrap(), WriteOption::store()).unwrap().build().unwrap();
-    /// builder.add_entry(file_entry).unwrap();
-    /// builder.build().unwrap();
+    /// fn main() -> io::Result<()> {
+    ///     let mut builder = SolidEntriesBuilder::new(WriteOption::builder().build())?;
+    ///     let dir_entry = EntryBuilder::new_dir("example".try_into().unwrap()).build()?;
+    ///     builder.add_entry(dir_entry)?;
+    ///     let mut entry_builder =
+    ///         EntryBuilder::new_file("example/text.txt".try_into().unwrap(), WriteOption::store())?;
+    ///     entry_builder.write_all(b"content")?;
+    ///     let file_entry = entry_builder.build()?;
+    ///     builder.add_entry(file_entry)?;
+    ///     builder.build()?;
+    ///     Ok(())
+    /// }
     /// ```
     pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<()> {
         self.data.write_all(&entry.into_bytes())
@@ -316,11 +323,14 @@ impl SolidEntriesBuilder {
     /// # Examples
     ///
     /// ```no_run
-    /// use std::io;
     /// use libpna::{SolidEntriesBuilder, WriteOption};
+    /// use std::io;
     ///
-    /// let builder = SolidEntriesBuilder::new(WriteOption::builder().build()).unwrap();
-    /// let entries = builder.build().unwrap();
+    /// fn main() -> io::Result<()> {
+    ///     let builder = SolidEntriesBuilder::new(WriteOption::builder().build())?;
+    ///     let entries = builder.build()?;
+    ///     Ok(())
+    /// }
     /// ```
     pub fn build(self) -> io::Result<impl SolidEntries> {
         Ok(ChunkSolidEntries(self.build_as_chunks()?))
