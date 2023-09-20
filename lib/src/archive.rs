@@ -57,7 +57,7 @@ impl<T> Archive<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::{self, Write};
+    use std::io::{self, Cursor, Write};
 
     #[test]
     fn store_archive() {
@@ -285,5 +285,46 @@ mod tests {
             archive,
             writer.finalize().expect("failed to finish archive")
         )
+    }
+
+    #[test]
+    fn append() {
+        let buf = Vec::new();
+        let cursor = Cursor::new(buf);
+        let mut writer = Archive::write_header(cursor).unwrap();
+        writer
+            .add_entry({
+                let builder = EntryBuilder::new_file(
+                    EntryName::from_str_lossy("text1.txt"),
+                    WriteOption::builder().build(),
+                )
+                .unwrap();
+                builder.build().unwrap()
+            })
+            .unwrap();
+        let result = writer.finalize().unwrap();
+
+        let cursor = Cursor::new(result.into_inner());
+        let mut appender = Archive::read_header(cursor).unwrap();
+        appender.seek_to_end().unwrap();
+        appender
+            .add_entry({
+                let builder = EntryBuilder::new_file(
+                    EntryName::from_str_lossy("text2.txt"),
+                    WriteOption::builder().build(),
+                )
+                .unwrap();
+                builder.build().unwrap()
+            })
+            .unwrap();
+        let appended = appender.finalize().unwrap();
+
+        let cursor = Cursor::new(appended.into_inner());
+        let mut reader = Archive::read_header(cursor).unwrap();
+
+        let mut entries = reader.entries();
+        assert!(entries.next().is_some());
+        assert!(entries.next().is_some());
+        assert!(entries.next().is_none());
     }
 }
