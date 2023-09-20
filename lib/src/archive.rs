@@ -14,17 +14,20 @@ pub use write::*;
 ///
 /// # Examples
 /// Creates a new PNA file and add entry to it.
-/// ```
+/// ```no_run
+/// use libpna::{Archive, EntryBuilder, WriteOption};
+/// use std::fs::File;
 /// use std::io;
 /// use std::io::Write;
-/// use std::fs::File;
-/// use libpna::{Archive, EntryBuilder, EntryName, WriteOption};
 ///
 /// fn main() -> io::Result<()> {
 ///     let file = File::create("example.pna")?;
-///     let mut  archive = Archive::write_header(file)?;
-///     let mut entry_builder = EntryBuilder::new_file(EntryName::from_str_lossy("about_pna.txt"), WriteOption::builder().build())?;
-///     entry_builder.write(b"")?;
+///     let mut archive = Archive::write_header(file)?;
+///     let mut entry_builder = EntryBuilder::new_file(
+///         "about_pna.txt".try_into().unwrap(),
+///         WriteOption::builder().build(),
+///     )?;
+///     entry_builder.write(b"content")?;
 ///     let entry = entry_builder.build()?;
 ///     archive.add_entry(entry)?;
 ///     archive.finalize()?;
