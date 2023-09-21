@@ -17,20 +17,39 @@ pub use write::*;
 /// ```no_run
 /// use libpna::{Archive, EntryBuilder, WriteOption};
 /// use std::fs::File;
-/// use std::io;
-/// use std::io::Write;
+/// use std::io::{self, prelude::*};
 ///
 /// fn main() -> io::Result<()> {
-///     let file = File::create("example.pna")?;
+///     let file = File::create("foo.pna")?;
 ///     let mut archive = Archive::write_header(file)?;
 ///     let mut entry_builder = EntryBuilder::new_file(
-///         "about_pna.txt".try_into().unwrap(),
+///         "bar.txt".try_into().unwrap(),
 ///         WriteOption::builder().build(),
 ///     )?;
 ///     entry_builder.write(b"content")?;
 ///     let entry = entry_builder.build()?;
 ///     archive.add_entry(entry)?;
 ///     archive.finalize()?;
+///     Ok(())
+/// }
+/// ```
+///
+/// Read the entries of a pna file.
+/// ```no_run
+/// use libpna::Archive;
+/// use std::fs::File;
+/// use std::io::{self, copy, prelude::*};
+///
+/// fn main() -> io::Result<()> {
+///     use libpna::ReadOption;
+///     let file = File::open("foo.pna")?;
+///     let mut archive = Archive::read_header(file)?;
+///     for entry in archive.entries() {
+///         let entry = entry?;
+///         let mut file = File::create(entry.header().path().as_path())?;
+///         let mut reader = entry.into_reader(ReadOption::builder().build())?;
+///         copy(&mut reader, &mut file)?;
+///     }
 ///     Ok(())
 /// }
 /// ```
