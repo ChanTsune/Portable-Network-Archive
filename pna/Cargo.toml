@@ -2,7 +2,7 @@
 name = "pna"
 version = "0.2.0"
 edition = "2021"
-license = "MIT"
+license = "Apache-2.0 OR MIT"
 description = "PNA(Portable-Network-Archive) decoding and encoding library"
 repository = "https://github.com/ChanTsune/Portable-Network-Archive.git"
 readme = "README.md"
