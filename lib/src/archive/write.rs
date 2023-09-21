@@ -17,14 +17,14 @@ impl<W: Write> ArchiveWriter<W> {
     /// # Examples
     ///
     /// ```no_run
-    /// use libpna::ArchiveWriter;
+    /// use libpna::Archive;
     /// use std::fs::File;
     /// use std::io;
     ///
     /// fn main() -> io::Result<()> {
     ///     let file = File::create("example.pna")?;
-    ///     let mut archive_writer = ArchiveWriter::write_header(file)?;
-    ///     archive_writer.finalize()?;
+    ///     let mut archive = Archive::write_header(file)?;
+    ///     archive.finalize()?;
     ///     Ok(())
     /// }
     /// ```
@@ -61,15 +61,19 @@ impl<W: Write> ArchiveWriter<W> {
     /// # Examples
     ///
     /// ```no_run
+    /// use libpna::{Archive, SolidEntriesBuilder, WriteOption};
     /// use std::fs::File;
-    /// use libpna::{ArchiveWriter, SolidEntriesBuilder, WriteOption};
+    /// use std::io;
     ///
-    /// let file = File::create("example.pna").unwrap();
-    /// let mut archive_writer = ArchiveWriter::write_header(file).unwrap();
-    /// let solid_builder = SolidEntriesBuilder::new(WriteOption::builder().build()).unwrap();
-    /// let entries = solid_builder.build().unwrap();
-    /// archive_writer.add_solid_entries(entries).unwrap();
-    /// archive_writer.finalize().unwrap();
+    /// fn main() -> io::Result<()> {
+    ///     let file = File::create("example.pna")?;
+    ///     let mut archive = Archive::write_header(file)?;
+    ///     let solid_builder = SolidEntriesBuilder::new(WriteOption::builder().build())?;
+    ///     let entries = solid_builder.build()?;
+    ///     archive.add_solid_entries(entries)?;
+    ///     archive.finalize()?;
+    ///     Ok(())
+    /// }
     /// ```
     pub fn add_solid_entries(&mut self, entries: impl SolidEntries) -> io::Result<usize> {
         let bytes = entries.into_bytes();
@@ -86,13 +90,23 @@ impl<W: Write> ArchiveWriter<W> {
     /// # Examples
     ///
     /// ```no_run
+    /// use libpna::{Archive, EntryBuilder, WriteOption};
     /// use std::fs::File;
-    /// use libpna::{ArchiveWriter, EntryBuilder, WriteOption};
+    /// use std::io;
     ///
-    /// let file = File::create("example.pna").unwrap();
-    /// let mut archive_writer = ArchiveWriter::write_header(file).unwrap();
-    /// archive_writer.add_entry(EntryBuilder::new_file("example.txt".try_into().unwrap(), WriteOption::builder().build()).unwrap().build().unwrap()).unwrap();
-    /// archive_writer.finalize().unwrap();
+    /// fn main() -> io::Result<()> {
+    ///     let file = File::create("example.pna")?;
+    ///     let mut archive = Archive::write_header(file)?;
+    ///     archive.add_entry(
+    ///         EntryBuilder::new_file(
+    ///             "example.txt".try_into().unwrap(),
+    ///             WriteOption::builder().build(),
+    ///         )?
+    ///         .build()?,
+    ///     )?;
+    ///     archive.finalize()?;
+    ///     Ok(())
+    /// }
     /// ```
     pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<usize> {
         let bytes = entry.into_bytes();
@@ -109,17 +123,25 @@ impl<W: Write> ArchiveWriter<W> {
     /// # Examples
     ///
     /// ```no_run
+    /// use libpna::{Archive, EntryBuilder, EntryPart, WriteOption};
     /// use std::fs::File;
-    /// use libpna::{ArchiveWriter, EntryPart, EntryBuilder, WriteOption};
+    /// use std::io;
     ///
-    /// let part1_file = File::create("example.part1.pna").unwrap();
-    /// let mut part1_writer = ArchiveWriter::write_header(part1_file).unwrap();
-    /// let entry = EntryBuilder::new_file("example.txt".try_into().unwrap(), WriteOption::builder().build()).unwrap().build().unwrap();
-    /// part1_writer.add_entry_part(EntryPart::from(entry)).unwrap();
+    /// fn main() -> io::Result<()> {
+    ///     let part1_file = File::create("example.part1.pna")?;
+    ///     let mut archive_part1 = Archive::write_header(part1_file)?;
+    ///     let entry = EntryBuilder::new_file(
+    ///         "example.txt".try_into().unwrap(),
+    ///         WriteOption::builder().build(),
+    ///     )?
+    ///     .build()?;
+    ///     archive_part1.add_entry_part(EntryPart::from(entry))?;
     ///
-    /// let part2_file = File::create("example.part2.pna").unwrap();
-    /// let part2_writer = part1_writer.split_to_next_archive(part2_file).unwrap();
-    /// part2_writer.finalize().unwrap();
+    ///     let part2_file = File::create("example.part2.pna")?;
+    ///     let archive_part2 = archive_part1.split_to_next_archive(part2_file)?;
+    ///     archive_part2.finalize()?;
+    ///     Ok(())
+    /// }
     /// ```
     pub fn add_entry_part(&mut self, entry_part: EntryPart) -> io::Result<usize> {
         let mut chunk_writer = ChunkWriter::from(&mut self.inner);
