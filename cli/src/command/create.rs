@@ -2,7 +2,7 @@ use crate::{
     cli::{CreateArgs, Verbosity},
     command::{
         ask_password, check_password,
-        commons::{collect_items, create_entry, entry_option},
+        commons::{collect_items, create_entry, entry_option, split_to_parts},
         Command, Let,
     },
     utils::part_name,
@@ -182,23 +182,4 @@ fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Result<()> {
         );
     }
     Ok(())
-}
-
-fn split_to_parts(mut entry_part: EntryPart, first: usize, max: usize) -> Vec<EntryPart> {
-    let mut parts = vec![];
-    let mut split_size = first;
-    loop {
-        match entry_part.split(split_size) {
-            (write_part, Some(remaining_part)) => {
-                parts.push(write_part);
-                entry_part = remaining_part;
-                split_size = max;
-            }
-            (write_part, None) => {
-                parts.push(write_part);
-                break;
-            }
-        }
-    }
-    parts
 }
