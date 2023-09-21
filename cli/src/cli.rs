@@ -239,16 +239,11 @@ impl CipherAlgorithmArgs {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, ValueEnum)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, ValueEnum)]
 pub(crate) enum CipherMode {
     Cbc,
+    #[default]
     Ctr,
-}
-
-impl Default for CipherMode {
-    fn default() -> Self {
-        Self::Ctr
-    }
 }
 
 #[cfg(test)]
