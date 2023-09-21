@@ -4,20 +4,20 @@ pub mod create;
 pub mod extract;
 pub mod list;
 
-use crate::cli::{CipherAlgorithmArgs, Cli, Commands, PasswordArgs};
+use crate::cli::{CipherAlgorithmArgs, Cli, Commands, PasswordArgs, Verbosity};
 use std::io;
 
 pub fn entry(cli: Cli) -> io::Result<()> {
     match cli.commands {
         Commands::Create(args) => {
-            create::create_archive(args, cli.verbosity.verbosity())?;
+            args.execute(cli.verbosity.verbosity())?;
         }
         Commands::Append(args) => append::append_to_archive(args, cli.verbosity.verbosity())?,
         Commands::Extract(args) => {
-            extract::extract_archive(args, cli.verbosity.verbosity())?;
+            args.execute(cli.verbosity.verbosity())?;
         }
         Commands::List(args) => {
-            list::list_archive(args, cli.verbosity.verbosity())?;
+            args.execute(cli.verbosity.verbosity())?;
         }
     }
     Ok(())
@@ -43,6 +43,10 @@ fn check_password(password: &Option<String>, cipher_args: &CipherAlgorithmArgs) 
     } else if cipher_args.camellia.is_some() {
         eprintln!("warning: Using `--camellia` option but, `--password` was not provided. It will not encrypt.");
     }
+}
+
+trait Command {
+    fn execute(self, verbosity: Verbosity) -> io::Result<()>;
 }
 
 trait Let<T> {

@@ -1,6 +1,6 @@
 use crate::{
     cli::{ExtractArgs, Verbosity},
-    command::{ask_password, Let},
+    command::{ask_password, Command, Let},
     utils::{self, part_name},
 };
 use glob::Pattern;
@@ -18,7 +18,12 @@ use std::{
     time::Instant,
 };
 
-pub(crate) fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
+impl Command for ExtractArgs {
+    fn execute(self, verbosity: Verbosity) -> io::Result<()> {
+        extract_archive(self, verbosity)
+    }
+}
+fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     let start = Instant::now();
     if verbosity != Verbosity::Quite {

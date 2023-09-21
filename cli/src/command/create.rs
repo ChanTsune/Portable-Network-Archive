@@ -3,7 +3,7 @@ use crate::{
     command::{
         ask_password, check_password,
         commons::{collect_items, create_entry, entry_option},
-        Let,
+        Command, Let,
     },
     utils::part_name,
 };
@@ -19,7 +19,13 @@ use std::{
     time::Instant,
 };
 
-pub(crate) fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Result<()> {
+impl Command for CreateArgs {
+    fn execute(self, verbosity: Verbosity) -> io::Result<()> {
+        create_archive(self, verbosity)
+    }
+}
+
+fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let start = Instant::now();
