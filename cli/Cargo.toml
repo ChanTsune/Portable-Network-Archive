@@ -2,7 +2,7 @@
 name = "portable-network-archive"
 version = "0.2.0"
 edition = "2021"
-license = "MIT"
+license = "Apache-2.0 OR MIT"
 description = "Portable-Network-Archive cli"
 repository = "https://github.com/ChanTsune/Portable-Network-Archive.git"
 categories = ["data-structures", "filesystem"]
