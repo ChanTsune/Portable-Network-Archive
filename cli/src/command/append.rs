@@ -1,14 +1,23 @@
-use crate::command::commons::{create_entry, entry_option};
 use crate::{
     cli::{AppendArgs, Verbosity},
-    command::{ask_password, check_password, commons::collect_items},
+    command::{
+        ask_password, check_password,
+        commons::{collect_items, create_entry, entry_option},
+        Command,
+    },
 };
 use libpna::ArchiveReader;
 use rayon::ThreadPoolBuilder;
 use std::fs::File;
 use std::io;
 
-pub(crate) fn append_to_archive(args: AppendArgs, verbosity: Verbosity) -> io::Result<()> {
+impl Command for AppendArgs {
+    fn execute(self, verbosity: Verbosity) -> io::Result<()> {
+        append_to_archive(self, verbosity)
+    }
+}
+
+fn append_to_archive(args: AppendArgs, verbosity: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let archive = args.file.archive;

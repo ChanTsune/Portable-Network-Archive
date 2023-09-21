@@ -9,18 +9,11 @@ use std::io;
 
 pub fn entry(cli: Cli) -> io::Result<()> {
     match cli.commands {
-        Commands::Create(args) => {
-            args.execute(cli.verbosity.verbosity())?;
-        }
-        Commands::Append(args) => append::append_to_archive(args, cli.verbosity.verbosity())?,
-        Commands::Extract(args) => {
-            args.execute(cli.verbosity.verbosity())?;
-        }
-        Commands::List(args) => {
-            args.execute(cli.verbosity.verbosity())?;
-        }
+        Commands::Create(args) => args.execute(cli.verbosity.verbosity()),
+        Commands::Append(args) => args.execute(cli.verbosity.verbosity()),
+        Commands::Extract(args) => args.execute(cli.verbosity.verbosity()),
+        Commands::List(args) => args.execute(cli.verbosity.verbosity()),
     }
-    Ok(())
 }
 
 fn ask_password(args: PasswordArgs) -> io::Result<Option<String>> {
