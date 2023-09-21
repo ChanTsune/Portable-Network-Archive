@@ -1,11 +1,9 @@
 mod table;
 
+use self::table::{Cell, Padding, Table, TableRow};
 use crate::{
     cli::{ListArgs, Verbosity},
-    command::{
-        ask_password,
-        list::table::{Cell, Padding, Table, TableRow},
-    },
+    command::{ask_password, Command},
     utils::part_name,
 };
 use ansi_term::{ANSIString, Colour, Style};
@@ -19,7 +17,13 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-pub(crate) fn list_archive(args: ListArgs, _: Verbosity) -> io::Result<()> {
+impl Command for ListArgs {
+    fn execute(self, verbosity: Verbosity) -> io::Result<()> {
+        list_archive(self, verbosity)
+    }
+}
+
+fn list_archive(args: ListArgs, _: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     let globs = args
         .file
