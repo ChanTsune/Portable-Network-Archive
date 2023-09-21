@@ -6,6 +6,8 @@ pub(super) mod experimental;
 pub mod extract;
 pub mod list;
 
+#[cfg(feature = "experimental")]
+use self::experimental::ExperimentalCommands;
 use crate::cli::{CipherAlgorithmArgs, Cli, Commands, PasswordArgs, Verbosity};
 use std::io;
 
@@ -16,7 +18,9 @@ pub fn entry(cli: Cli) -> io::Result<()> {
         Commands::Extract(args) => args.execute(cli.verbosity.verbosity()),
         Commands::List(args) => args.execute(cli.verbosity.verbosity()),
         #[cfg(feature = "experimental")]
-        Commands::Experimental(cmd) => match cmd.command {},
+        Commands::Experimental(cmd) => match cmd.command {
+            ExperimentalCommands::Split(cmd) => cmd.execute(cli.verbosity.verbosity()),
+        },
     }
 }
 

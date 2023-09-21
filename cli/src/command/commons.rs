@@ -1,5 +1,5 @@
 use crate::cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs};
-use libpna::{Entry, EntryBuilder, EntryName, EntryReference, Permission, WriteOption};
+use libpna::{Entry, EntryBuilder, EntryName, EntryPart, EntryReference, Permission, WriteOption};
 #[cfg(unix)]
 use nix::unistd::{Group, User};
 use std::fs::metadata;
@@ -130,4 +130,27 @@ pub(crate) fn apply_metadata(
         }
     }
     Ok(entry)
+}
+
+pub(crate) fn split_to_parts(
+    mut entry_part: EntryPart,
+    first: usize,
+    max: usize,
+) -> Vec<EntryPart> {
+    let mut parts = vec![];
+    let mut split_size = first;
+    loop {
+        match entry_part.split(split_size) {
+            (write_part, Some(remaining_part)) => {
+                parts.push(write_part);
+                entry_part = remaining_part;
+                split_size = max;
+            }
+            (write_part, None) => {
+                parts.push(write_part);
+                break;
+            }
+        }
+    }
+    parts
 }
