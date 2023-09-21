@@ -23,6 +23,9 @@ rpassword = "7.2.0"
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.27.1", features = ["user", "fs"] }
 
+[features]
+experimental = []
+
 [[bin]]
 name = "pna"
 path = "src/main.rs"
