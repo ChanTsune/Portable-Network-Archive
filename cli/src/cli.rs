@@ -1,3 +1,5 @@
+#[cfg(feature = "experimental")]
+use crate::command::experimental::ExperimentalArgs;
 use bytesize::ByteSize;
 use clap::ValueEnum;
 use clap::{value_parser, ArgGroup, Parser, Subcommand};
@@ -56,6 +58,9 @@ pub(crate) enum Commands {
     Extract(ExtractArgs),
     #[command(visible_aliases = &["l", "ls"], about = "List files in archive")]
     List(ListArgs),
+    #[cfg(feature = "experimental")]
+    #[command(about = "Unstable experimental commands")]
+    Experimental(ExperimentalArgs),
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]

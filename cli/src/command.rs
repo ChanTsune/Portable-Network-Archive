@@ -1,6 +1,8 @@
 pub mod append;
 mod commons;
 pub mod create;
+#[cfg(feature = "experimental")]
+pub(super) mod experimental;
 pub mod extract;
 pub mod list;
 
@@ -13,6 +15,8 @@ pub fn entry(cli: Cli) -> io::Result<()> {
         Commands::Append(args) => args.execute(cli.verbosity.verbosity()),
         Commands::Extract(args) => args.execute(cli.verbosity.verbosity()),
         Commands::List(args) => args.execute(cli.verbosity.verbosity()),
+        #[cfg(feature = "experimental")]
+        Commands::Experimental(cmd) => match cmd.command {},
     }
 }
 
