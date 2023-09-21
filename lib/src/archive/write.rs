@@ -17,12 +17,16 @@ impl<W: Write> ArchiveWriter<W> {
     /// # Examples
     ///
     /// ```no_run
-    /// use std::fs::File;
     /// use libpna::ArchiveWriter;
+    /// use std::fs::File;
+    /// use std::io;
     ///
-    /// let file = File::create("example.pna").unwrap();
-    /// let mut archive_writer = ArchiveWriter::write_header(file).unwrap();
-    /// archive_writer.finalize().unwrap();
+    /// fn main() -> io::Result<()> {
+    ///     let file = File::create("example.pna")?;
+    ///     let mut archive_writer = ArchiveWriter::write_header(file)?;
+    ///     archive_writer.finalize()?;
+    ///     Ok(())
+    /// }
     /// ```
     pub fn write_header(write: W) -> io::Result<Self> {
         let header = ArchiveHeader::new(0, 0, 0);
