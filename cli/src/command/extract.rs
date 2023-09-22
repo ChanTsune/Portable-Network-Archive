@@ -221,7 +221,7 @@ fn extract_entry(
 }
 
 #[cfg(not(unix))]
-fn permissions(permission: &Permission) -> Option<((), (), ())> {
+fn permissions(_: &Permission) -> Option<((), (), ())> {
     None
 }
 #[cfg(unix)]
