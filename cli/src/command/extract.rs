@@ -214,6 +214,10 @@ fn extract_entry(
         chown(&path, u.map(|i| i.uid), g.map(|g| g.gid)).map_err(io::Error::from)?;
         fs::set_permissions(&path, p)
     });
+    #[cfg(not(unix))]
+    if let Some(_) = permissions {
+        eprintln!("Currently permission is not supported on this platform.");
+    }
     if verbosity == Verbosity::Verbose {
         println!("end: {}", path.display())
     }
