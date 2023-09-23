@@ -5,6 +5,7 @@ on:
 jobs:
   rust_doc_test:
     strategy:
+      fail-fast: false
       matrix:
         os:
           - ubuntu-latest
