@@ -125,6 +125,7 @@ pub(crate) struct ExtractArgs {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[clap(disable_help_flag = true)]
 pub(crate) struct ListArgs {
     #[arg(short, long, help = "Display extended file metadata as a table")]
     pub(crate) long: bool,
@@ -136,6 +137,8 @@ pub(crate) struct ListArgs {
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
     pub(crate) file: FileArgs,
+    #[arg(long, action = clap::ArgAction::Help)]
+    help: Option<bool>,
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
