@@ -434,7 +434,7 @@ fn decompress_reader<'r, R: Read>(
         Compression::No => DecompressReader::No(reader),
         Compression::Deflate => DecompressReader::Deflate(flate2::read::ZlibDecoder::new(reader)),
         Compression::ZStandard => DecompressReader::ZStd(zstd::Decoder::new(reader)?),
-        Compression::XZ => DecompressReader::Xz(xz2::read::XzDecoder::new(reader)),
+        Compression::XZ => DecompressReader::Xz(liblzma::read::XzDecoder::new(reader)),
     })
 }
 
