@@ -1,7 +1,7 @@
 use crate::io::{TryIntoInner, TryIntoInnerWrite};
 use flate2::{read::ZlibDecoder, write::ZlibEncoder};
+use liblzma::{read::XzDecoder, write::XzEncoder};
 use std::io::{BufReader, Read, Result, Write};
-use xz2::{read::XzDecoder, write::XzEncoder};
 use zstd::stream::{read::Decoder as ZStdDecoder, write::Encoder as ZstdEncoder};
 
 mod deflate;
