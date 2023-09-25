@@ -8,9 +8,9 @@ use aes::Aes256;
 use camellia::Camellia256;
 use crypto_common::{BlockSizeUser, KeySizeUser};
 use flate2::write::ZlibEncoder;
+use liblzma::write::XzEncoder;
 use password_hash::{Output, SaltString};
 use std::io::{self, Write};
-use xz2::write::XzEncoder;
 use zstd::stream::write::Encoder as ZstdEncoder;
 
 fn hash<'s, 'p: 's>(

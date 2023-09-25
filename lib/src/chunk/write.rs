@@ -5,12 +5,6 @@ pub(crate) struct ChunkWriter<W> {
     w: W,
 }
 
-impl<W> ChunkWriter<W> {
-    pub(crate) fn into_inner(self) -> W {
-        self.w
-    }
-}
-
 impl<W> From<W> for ChunkWriter<W>
 where
     W: Write,
@@ -53,7 +47,7 @@ mod tests {
             12
         );
         assert_eq!(
-            chunk_writer.into_inner(),
+            chunk_writer.w,
             [0, 0, 0, 0, 65, 69, 78, 68, 107, 246, 72, 109]
         );
     }
@@ -69,7 +63,7 @@ mod tests {
         );
 
         assert_eq!(
-            chunk_writer.into_inner(),
+            chunk_writer.w,
             [
                 0, 0, 0, 9, 70, 68, 65, 84, 116, 101, 120, 116, 32, 100, 97, 116, 97, 177, 70, 138,
                 128

@@ -1,6 +1,7 @@
+#[cfg(feature = "experimental")]
+use crate::command::experimental::ExperimentalArgs;
 use bytesize::ByteSize;
-use clap::ValueEnum;
-use clap::{value_parser, ArgGroup, Parser, Subcommand};
+use clap::{value_parser, ArgGroup, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -54,8 +55,11 @@ pub(crate) enum Commands {
     Append(AppendArgs),
     #[command(visible_alias = "x", about = "Extract files from archive")]
     Extract(ExtractArgs),
-    #[command(visible_alias = "l", about = "List files in archive")]
+    #[command(visible_aliases = &["l", "ls"], about = "List files in archive")]
     List(ListArgs),
+    #[cfg(feature = "experimental")]
+    #[command(about = "Unstable experimental commands")]
+    Experimental(ExperimentalArgs),
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -90,6 +94,12 @@ pub(crate) struct AppendArgs {
     pub(crate) recursive: bool,
     #[arg(long, help = "Overwrite file")]
     pub(crate) overwrite: bool,
+    #[arg(long, help = "Archiving the directories")]
+    pub(crate) keep_dir: bool,
+    #[arg(long, help = "Archiving the timestamp of the files")]
+    pub(crate) keep_timestamp: bool,
+    #[arg(long, help = "Archiving the permissions of the files")]
+    pub(crate) keep_permission: bool,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -115,6 +125,7 @@ pub(crate) struct ExtractArgs {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[clap(disable_help_flag = true)]
 pub(crate) struct ListArgs {
     #[arg(short, long, help = "Display extended file metadata as a table")]
     pub(crate) long: bool,
@@ -126,6 +137,8 @@ pub(crate) struct ListArgs {
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
     pub(crate) file: FileArgs,
+    #[arg(long, action = clap::ArgAction::Help)]
+    help: Option<bool>,
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -229,16 +242,11 @@ impl CipherAlgorithmArgs {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, ValueEnum)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, ValueEnum)]
 pub(crate) enum CipherMode {
     Cbc,
+    #[default]
     Ctr,
-}
-
-impl Default for CipherMode {
-    fn default() -> Self {
-        Self::Ctr
-    }
 }
 
 #[cfg(test)]

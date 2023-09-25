@@ -1,6 +1,6 @@
 use crate::{
     cli::{ExtractArgs, Verbosity},
-    command::{ask_password, Let},
+    command::{ask_password, Command, Let},
     utils::{self, part_name},
 };
 use glob::Pattern;
@@ -18,7 +18,12 @@ use std::{
     time::Instant,
 };
 
-pub(crate) fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
+impl Command for ExtractArgs {
+    fn execute(self, verbosity: Verbosity) -> io::Result<()> {
+        extract_archive(self, verbosity)
+    }
+}
+fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     let start = Instant::now();
     if verbosity != Verbosity::Quite {
@@ -42,6 +47,8 @@ pub(crate) fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Re
         None
     };
 
+    let mut hard_kink_entries = Vec::new();
+
     let file = File::open(&args.file.archive)?;
     let mut reader = ArchiveReader::read_header(file)?;
     let mut num_archive = 1;
@@ -58,6 +65,10 @@ pub(crate) fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Re
                 continue;
             }
             progress_bar.let_ref(|pb| pb.inc_length(1));
+            if item.header().data_kind() == DataKind::HardLink {
+                hard_kink_entries.push(item);
+                continue;
+            }
             let tx = tx.clone();
             let password = password.clone();
             let out_dir = args.out_dir.clone();
@@ -92,6 +103,20 @@ pub(crate) fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Re
         result?;
         progress_bar.let_ref(|pb| pb.inc(1));
     }
+
+    for item in hard_kink_entries {
+        extract_entry(
+            item.header().path().as_path().to_path_buf(),
+            item,
+            password.clone(),
+            args.overwrite,
+            args.out_dir.clone(),
+            args.keep_permission,
+            verbosity,
+        )?;
+        progress_bar.let_ref(|pb| pb.inc(1));
+    }
+
     progress_bar.let_ref(|pb| pb.finish_and_clear());
 
     if verbosity != Verbosity::Quite {
@@ -123,7 +148,7 @@ fn extract_entry(
     if path.exists() && !overwrite {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
-            format!("{} is alrady exists", path.display()),
+            format!("{} is already exists", path.display()),
         ));
     }
     if verbosity == Verbosity::Verbose {
@@ -166,12 +191,32 @@ fn extract_entry(
             }
             utils::fs::symlink(original, &path)?;
         }
-        DataKind::HardLink => {}
+        DataKind::HardLink => {
+            let reader = item.into_reader({
+                let mut builder = ReadOption::builder();
+                if let Some(password) = password {
+                    builder.password(password);
+                }
+                builder.build()
+            })?;
+            let mut original = PathBuf::from(io::read_to_string(reader)?);
+            if let Some(parent) = path.parent() {
+                original = parent.join(original)
+            }
+            if overwrite && path.exists() {
+                utils::fs::remove(&path)?;
+            }
+            fs::hard_link(original, &path)?;
+        }
     }
     #[cfg(unix)]
     if let Some((p, u, g)) = permissions {
         chown(&path, u.map(|i| i.uid), g.map(|g| g.gid)).map_err(io::Error::from)?;
         fs::set_permissions(&path, p)?;
+    });
+    #[cfg(not(unix))]
+    if let Some(_) = permissions {
+        eprintln!("Currently permission is not supported on this platform.");
     }
     if verbosity == Verbosity::Verbose {
         println!("end: {}", path.display())
@@ -180,7 +225,7 @@ fn extract_entry(
 }
 
 #[cfg(not(unix))]
-fn permissions(permission: &Permission) -> Option<((), (), ())> {
+fn permissions(_: &Permission) -> Option<((), (), ())> {
     None
 }
 #[cfg(unix)]

@@ -1,24 +1,27 @@
+pub mod append;
+mod commons;
 pub mod create;
+#[cfg(feature = "experimental")]
+pub(super) mod experimental;
 pub mod extract;
 pub mod list;
 
-use crate::cli::{CipherAlgorithmArgs, Cli, Commands, PasswordArgs};
+#[cfg(feature = "experimental")]
+use self::experimental::ExperimentalCommands;
+use crate::cli::{CipherAlgorithmArgs, Cli, Commands, PasswordArgs, Verbosity};
 use std::io;
 
 pub fn entry(cli: Cli) -> io::Result<()> {
     match cli.commands {
-        Commands::Create(args) => {
-            create::create_archive(args, cli.verbosity.verbosity())?;
-        }
-        Commands::Append(args) => todo!("Append archive {}", args.file.archive.display()),
-        Commands::Extract(args) => {
-            extract::extract_archive(args, cli.verbosity.verbosity())?;
-        }
-        Commands::List(args) => {
-            list::list_archive(args, cli.verbosity.verbosity())?;
-        }
+        Commands::Create(args) => args.execute(cli.verbosity.verbosity()),
+        Commands::Append(args) => args.execute(cli.verbosity.verbosity()),
+        Commands::Extract(args) => args.execute(cli.verbosity.verbosity()),
+        Commands::List(args) => args.execute(cli.verbosity.verbosity()),
+        #[cfg(feature = "experimental")]
+        Commands::Experimental(cmd) => match cmd.command {
+            ExperimentalCommands::Split(cmd) => cmd.execute(cli.verbosity.verbosity()),
+        },
     }
-    Ok(())
 }
 
 fn ask_password(args: PasswordArgs) -> io::Result<Option<String>> {
@@ -41,6 +44,10 @@ fn check_password(password: &Option<String>, cipher_args: &CipherAlgorithmArgs) 
     } else if cipher_args.camellia.is_some() {
         eprintln!("warning: Using `--camellia` option but, `--password` was not provided. It will not encrypt.");
     }
+}
+
+trait Command {
+    fn execute(self, verbosity: Verbosity) -> io::Result<()>;
 }
 
 trait Let<T> {

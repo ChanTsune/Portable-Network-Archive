@@ -5,7 +5,7 @@
 </div>
 
 PNA (Portable Network Archive) is a highly scalable archive format that can be compressed, encrypted, and split.
-Also, its data structure is based on the PNG data structure.
+Also, its data structure is inspired by the PNG data structure.
 
 ## Installation
 

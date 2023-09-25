@@ -83,7 +83,6 @@ impl<T: Deref<Target = [u8]>> Chunk for (ChunkType, T) {
 /// # Returns
 ///
 /// A `Vec<u8>` containing the converted `Chunk` data.
-///
 pub(crate) fn chunk_to_bytes(chunk: impl Chunk) -> Vec<u8> {
     let mut vec = Vec::with_capacity(chunk.bytes_len());
     vec.extend_from_slice(&chunk.length().to_be_bytes());

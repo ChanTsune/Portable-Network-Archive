@@ -3,15 +3,83 @@ mod header;
 mod read;
 mod write;
 
+use crate::chunk::RawChunk;
 pub use entry::*;
 pub use header::*;
 pub use read::*;
 pub use write::*;
 
+/// An object providing access to a PNA file.
+/// An instance of a [Archive] can be read and/or written depending on the [T].
+///
+/// # Examples
+/// Creates a new PNA file and add entry to it.
+/// ```no_run
+/// use libpna::{Archive, EntryBuilder, WriteOption};
+/// use std::fs::File;
+/// use std::io::{self, prelude::*};
+///
+/// fn main() -> io::Result<()> {
+///     let file = File::create("foo.pna")?;
+///     let mut archive = Archive::write_header(file)?;
+///     let mut entry_builder = EntryBuilder::new_file(
+///         "bar.txt".try_into().unwrap(),
+///         WriteOption::builder().build(),
+///     )?;
+///     entry_builder.write(b"content")?;
+///     let entry = entry_builder.build()?;
+///     archive.add_entry(entry)?;
+///     archive.finalize()?;
+///     Ok(())
+/// }
+/// ```
+///
+/// Read the entries of a pna file.
+/// ```no_run
+/// use libpna::Archive;
+/// use std::fs::File;
+/// use std::io::{self, copy, prelude::*};
+///
+/// fn main() -> io::Result<()> {
+///     use libpna::ReadOption;
+///     let file = File::open("foo.pna")?;
+///     let mut archive = Archive::read_header(file)?;
+///     for entry in archive.entries() {
+///         let entry = entry?;
+///         let mut file = File::create(entry.header().path().as_path())?;
+///         let mut reader = entry.into_reader(ReadOption::builder().build())?;
+///         copy(&mut reader, &mut file)?;
+///     }
+///     Ok(())
+/// }
+/// ```
+pub struct Archive<T> {
+    inner: T,
+    header: ArchiveHeader,
+    // following fields are only use in reader mode
+    next_archive: bool,
+    buf: Vec<RawChunk>,
+}
+
+impl<T> Archive<T> {
+    fn new(inner: T, header: ArchiveHeader) -> Self {
+        Self::with_buffer(inner, header, Default::default())
+    }
+
+    fn with_buffer(inner: T, header: ArchiveHeader, buf: Vec<RawChunk>) -> Self {
+        Self {
+            inner,
+            header,
+            next_archive: false,
+            buf,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::{self, Write};
+    use std::io::{self, Cursor, Write};
 
     #[test]
     fn store_archive() {
@@ -239,5 +307,46 @@ mod tests {
             archive,
             writer.finalize().expect("failed to finish archive")
         )
+    }
+
+    #[test]
+    fn append() {
+        let buf = Vec::new();
+        let cursor = Cursor::new(buf);
+        let mut writer = Archive::write_header(cursor).unwrap();
+        writer
+            .add_entry({
+                let builder = EntryBuilder::new_file(
+                    EntryName::from_str_lossy("text1.txt"),
+                    WriteOption::builder().build(),
+                )
+                .unwrap();
+                builder.build().unwrap()
+            })
+            .unwrap();
+        let result = writer.finalize().unwrap();
+
+        let cursor = Cursor::new(result.into_inner());
+        let mut appender = Archive::read_header(cursor).unwrap();
+        appender.seek_to_end().unwrap();
+        appender
+            .add_entry({
+                let builder = EntryBuilder::new_file(
+                    EntryName::from_str_lossy("text2.txt"),
+                    WriteOption::builder().build(),
+                )
+                .unwrap();
+                builder.build().unwrap()
+            })
+            .unwrap();
+        let appended = appender.finalize().unwrap();
+
+        let cursor = Cursor::new(appended.into_inner());
+        let mut reader = Archive::read_header(cursor).unwrap();
+
+        let mut entries = reader.entries();
+        assert!(entries.next().is_some());
+        assert!(entries.next().is_some());
+        assert!(entries.next().is_none());
     }
 }

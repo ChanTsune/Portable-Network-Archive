@@ -1,10 +1,10 @@
 use crate::{
-    archive::{ArchiveHeader, ChunkEntry, ReadEntry, ReadEntryContainer, PNA_HEADER},
+    archive::{Archive, ArchiveHeader, ChunkEntry, ReadEntry, ReadEntryContainer, PNA_HEADER},
     chunk::{Chunk, ChunkReader, ChunkType, RawChunk},
 };
 use std::{
     collections::VecDeque,
-    io::{self, Read},
+    io::{self, Read, Seek, SeekFrom},
     mem::swap,
 };
 
@@ -14,19 +14,14 @@ fn read_pna_header<R: Read>(mut reader: R) -> io::Result<()> {
     if &header != PNA_HEADER {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            String::from("not pna format"),
+            String::from("Not pna format"),
         ));
     }
     Ok(())
 }
 
 /// A reader for Portable-Network-Archive.
-pub struct ArchiveReader<R> {
-    r: ChunkReader<R>,
-    next_archive: bool,
-    header: ArchiveHeader,
-    buf: Vec<RawChunk>,
-}
+pub type ArchiveReader<R> = Archive<R>;
 
 impl<R: Read> ArchiveReader<R> {
     /// Reads the archive header from the provided reader and returns a new `ArchiveReader`.
@@ -48,7 +43,7 @@ impl<R: Read> ArchiveReader<R> {
 
     fn read_header_with_buffer(mut reader: R, buf: Vec<RawChunk>) -> io::Result<Self> {
         read_pna_header(&mut reader)?;
-        let mut chunk_reader = ChunkReader::from(reader);
+        let mut chunk_reader = ChunkReader::from(&mut reader);
         let chunk = chunk_reader.read_chunk()?;
         if chunk.ty != ChunkType::AHED {
             return Err(io::Error::new(
@@ -57,12 +52,7 @@ impl<R: Read> ArchiveReader<R> {
             ));
         }
         let header = ArchiveHeader::try_from_bytes(chunk.data())?;
-        Ok(Self {
-            r: chunk_reader,
-            next_archive: false,
-            header,
-            buf,
-        })
+        Ok(Self::with_buffer(reader, header, buf))
     }
 
     /// Reads the next raw entry (from `FHED` to `FEND` chunk) from the archive.
@@ -77,8 +67,9 @@ impl<R: Read> ArchiveReader<R> {
     fn next_raw_item(&mut self) -> io::Result<Option<ChunkEntry>> {
         let mut chunks = Vec::new();
         swap(&mut self.buf, &mut chunks);
+        let mut reader = ChunkReader::from(&mut self.inner);
         loop {
-            let chunk = self.r.read_chunk()?;
+            let chunk = reader.read_chunk()?;
             match chunk.ty {
                 ChunkType::FEND | ChunkType::SEND => {
                     chunks.push(chunk);
@@ -104,7 +95,7 @@ impl<R: Read> ArchiveReader<R> {
     /// # Errors
     ///
     /// Returns an error if an I/O error occurs while reading from the archive.
-    #[deprecated]
+    #[deprecated(since = "0.2.0")]
     #[inline]
     pub fn read(&mut self) -> io::Result<Option<ReadEntry>> {
         loop {
@@ -235,7 +226,7 @@ impl<'r, R: Read> Iterator for Entries<'r, R> {
                     let entries = entry.entries(password.as_deref());
                     match entries {
                         Ok(entries) => {
-                            self.buf = VecDeque::from(entries.collect::<Vec<_>>());
+                            self.buf = entries.collect::<VecDeque<_>>();
                             self.next()
                         }
                         Err(e) => Some(Err(e)),
@@ -246,6 +237,22 @@ impl<'r, R: Read> Iterator for Entries<'r, R> {
             Ok(None) => None,
             Err(e) => Some(Err(e)),
         }
+    }
+}
+
+impl<R: Read + Seek> ArchiveReader<R> {
+    pub fn seek_to_end(&mut self) -> io::Result<()> {
+        let mut reader = ChunkReader::from(&mut self.inner);
+        let byte;
+        loop {
+            let (ty, byte_length) = reader.skip_chunk()?;
+            if ty == ChunkType::AEND {
+                byte = byte_length as i64;
+                break;
+            }
+        }
+        self.inner.seek(SeekFrom::Current(-byte))?;
+        Ok(())
     }
 }
 

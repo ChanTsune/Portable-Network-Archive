@@ -5,6 +5,7 @@ on:
 jobs:
   rust_doc_test:
     strategy:
+      fail-fast: false
       matrix:
         os:
           - ubuntu-latest
@@ -38,6 +39,6 @@ jobs:
             target
           key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.toml') }}
       - name: run test
-        run: cargo test --locked --release
+        run: cargo test --locked --release --all-features
         env:
           RUST_BACKTRACE: 1
