@@ -54,6 +54,11 @@ impl EntryReference {
     pub fn as_str(&self) -> &str {
         self.0.as_str()
     }
+
+    #[inline]
+    pub(crate) fn as_bytes(&self) -> &[u8] {
+        self.as_str().as_bytes()
+    }
 }
 
 impl TryFrom<&str> for EntryReference {
