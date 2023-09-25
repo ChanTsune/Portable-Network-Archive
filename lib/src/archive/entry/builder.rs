@@ -96,7 +96,7 @@ impl EntryBuilder {
     pub fn new_symbolic_link(name: EntryName, source: EntryReference) -> io::Result<Self> {
         let option = WriteOption::store();
         let (mut writer, phsf) = writer_and_hash(Vec::new(), option)?;
-        writer.write_all(source.as_str().as_bytes())?;
+        writer.write_all(source.as_bytes())?;
         Ok(Self {
             header: EntryHeader::for_symbolic_link(name),
             data: Some(writer),
@@ -132,7 +132,7 @@ impl EntryBuilder {
     pub fn new_hard_link(name: EntryName, source: EntryReference) -> io::Result<Self> {
         let option = WriteOption::store();
         let (mut writer, phsf) = writer_and_hash(Vec::new(), option)?;
-        writer.write_all(source.as_str().as_bytes())?;
+        writer.write_all(source.as_bytes())?;
         Ok(Self {
             header: EntryHeader::for_hard_link(name),
             data: Some(writer),
