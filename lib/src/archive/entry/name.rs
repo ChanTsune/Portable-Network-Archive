@@ -40,6 +40,11 @@ impl EntryName {
     }
 
     #[inline]
+    pub(crate) fn as_bytes(&self) -> &[u8] {
+        self.as_str().as_bytes()
+    }
+
+    #[inline]
     pub fn as_str(&self) -> &str {
         self.as_ref()
     }
