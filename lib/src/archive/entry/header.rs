@@ -95,7 +95,7 @@ impl EntryHeader {
     }
 
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
-        let name = self.path.as_str().as_bytes();
+        let name = self.path.as_bytes();
         let mut data = Vec::with_capacity(6 + name.len());
         data.push(self.minor);
         data.push(self.minor);
