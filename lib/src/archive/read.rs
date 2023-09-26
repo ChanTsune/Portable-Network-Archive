@@ -24,7 +24,7 @@ fn read_pna_header<R: Read>(mut reader: R) -> io::Result<()> {
 pub type ArchiveReader<R> = Archive<R>;
 
 impl<R: Read> ArchiveReader<R> {
-    /// Reads the archive header from the provided reader and returns a new `ArchiveReader`.
+    /// Reads the archive header from the provided reader and returns a new [Archive].
     ///
     /// # Arguments
     ///
