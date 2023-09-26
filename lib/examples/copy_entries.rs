@@ -1,10 +1,10 @@
-use libpna::{ArchiveReader, ArchiveWriter};
+use libpna::Archive;
 use std::io::{self, Read, Write};
 
 /// Simply copy the entries to another archive
 fn copy_entries<R: Read, W: Write>(r: R, w: W) -> io::Result<()> {
-    let mut writer = ArchiveWriter::write_header(w)?;
-    let mut reader = ArchiveReader::read_header(r)?;
+    let mut writer = Archive::write_header(w)?;
+    let mut reader = Archive::read_header(r)?;
     for entry in reader.entries() {
         writer.add_entry(entry?)?;
     }

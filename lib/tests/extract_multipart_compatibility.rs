@@ -1,9 +1,9 @@
-use libpna::{ArchiveReader, DataKind, ReadOption};
+use libpna::{Archive, DataKind, ReadOption};
 use std::io;
 
 fn extract_all(follows: &[&[u8]], password: Option<&str>) {
     let mut idx = 0;
-    let mut archive_reader = ArchiveReader::read_header(io::Cursor::new(follows[idx])).unwrap();
+    let mut archive_reader = Archive::read_header(io::Cursor::new(follows[idx])).unwrap();
     loop {
         idx += 1;
         for entry in archive_reader.entries() {

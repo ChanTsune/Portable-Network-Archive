@@ -10,7 +10,7 @@ use crate::{
 use bytesize::ByteSize;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use libpna::{
-    ArchiveWriter, EntryPart, SolidEntriesBuilder, WriteOption, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
+    Archive, EntryPart, SolidEntriesBuilder, WriteOption, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
 };
 use rayon::ThreadPoolBuilder;
 use std::{
@@ -94,7 +94,7 @@ fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Result<()> {
         if let Some(max_file_size) = max_file_size {
             let mut part_num = 1;
             let file = File::create(part_name(&archive, part_num).unwrap())?;
-            let mut writer = ArchiveWriter::write_header(file)?;
+            let mut writer = Archive::write_header(file)?;
 
             // NOTE: max_file_size - (PNA_HEADER + AHED + ANXT + AEND)
             let max_file_size = max_file_size - (PNA_HEADER.len() + MIN_CHUNK_BYTES_SIZE * 3 + 8);
@@ -123,7 +123,7 @@ fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Result<()> {
             }
         } else {
             let file = File::create(&archive)?;
-            let mut writer = ArchiveWriter::write_header(file)?;
+            let mut writer = Archive::write_header(file)?;
             writer.add_solid_entries(entries)?;
             writer.finalize()?;
         }
@@ -132,7 +132,7 @@ fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Result<()> {
         if let Some(max_file_size) = max_file_size {
             let mut part_num = 1;
             let file = File::create(part_name(&archive, part_num).unwrap())?;
-            let mut writer = ArchiveWriter::write_header(file)?;
+            let mut writer = Archive::write_header(file)?;
 
             // NOTE: max_file_size - (PNA_HEADER + AHED + ANXT + AEND)
             let max_file_size = max_file_size - (PNA_HEADER.len() + MIN_CHUNK_BYTES_SIZE * 3 + 8);
@@ -164,7 +164,7 @@ fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Result<()> {
             }
         } else {
             let file = File::create(&archive)?;
-            let mut writer = ArchiveWriter::write_header(file)?;
+            let mut writer = Archive::write_header(file)?;
             for entry in rx.into_iter() {
                 writer.add_entry(entry?)?;
                 progress_bar.let_ref(|pb| pb.inc(1));

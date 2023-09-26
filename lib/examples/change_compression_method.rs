@@ -1,4 +1,4 @@
-use libpna::{ArchiveReader, ArchiveWriter, Compression, EntryBuilder, ReadOption, WriteOption};
+use libpna::{Archive, Compression, EntryBuilder, ReadOption, WriteOption};
 use std::io::{self, Read, Write};
 
 /// Change the entries compression method
@@ -7,8 +7,8 @@ fn change_compression_method<R: Read, W: Write>(
     w: W,
     compression: Compression,
 ) -> io::Result<()> {
-    let mut writer = ArchiveWriter::write_header(w)?;
-    let mut reader = ArchiveReader::read_header(r)?;
+    let mut writer = Archive::write_header(w)?;
+    let mut reader = Archive::read_header(r)?;
     for entry in reader.entries() {
         let entry = entry?;
         let header = entry.header();

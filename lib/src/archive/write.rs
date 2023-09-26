@@ -8,7 +8,7 @@ use std::io::{self, Write};
 #[deprecated(since = "0.4.0")]
 pub type ArchiveWriter<W> = Archive<W>;
 
-impl<W: Write> ArchiveWriter<W> {
+impl<W: Write> Archive<W> {
     /// Writes the archive header to the given `Write` object and return a new [Archive].
     ///
     /// # Arguments
@@ -166,12 +166,12 @@ impl<W: Write> ArchiveWriter<W> {
         chunk_writer.write_chunk((ChunkType::ANXT, [].as_slice()))
     }
 
-    pub fn split_to_next_archive<OW: Write>(mut self, writer: OW) -> io::Result<ArchiveWriter<OW>> {
+    pub fn split_to_next_archive<OW: Write>(mut self, writer: OW) -> io::Result<Archive<OW>> {
         let next_archive_number = self.header.archive_number + 1;
         let header = ArchiveHeader::new(0, 0, next_archive_number);
         self.add_next_archive_marker()?;
         self.finalize()?;
-        ArchiveWriter::write_header_with(writer, header)
+        Archive::write_header_with(writer, header)
     }
 
     /// Write an end marker to finalize the archive.
@@ -207,7 +207,7 @@ mod tests {
 
     #[test]
     fn encode() {
-        let writer = ArchiveWriter::write_header(Vec::new()).expect("failed to write header");
+        let writer = Archive::write_header(Vec::new()).expect("failed to write header");
         let file = writer.finalize().expect("failed to finalize");
         let expected = include_bytes!("../../../resources/test/empty.pna");
         assert_eq!(file.as_slice(), expected.as_slice());

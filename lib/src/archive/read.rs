@@ -24,7 +24,7 @@ fn read_pna_header<R: Read>(mut reader: R) -> io::Result<()> {
 #[deprecated(since = "0.4.0")]
 pub type ArchiveReader<R> = Archive<R>;
 
-impl<R: Read> ArchiveReader<R> {
+impl<R: Read> Archive<R> {
     /// Reads the archive header from the provided reader and returns a new [Archive].
     ///
     /// # Arguments
@@ -172,9 +172,9 @@ impl<R: Read> ArchiveReader<R> {
     /// # Errors
     ///
     /// Returns an error if an I/O error occurs while reading from the reader.
-    pub fn read_next_archive<OR: Read>(self, reader: OR) -> io::Result<ArchiveReader<OR>> {
+    pub fn read_next_archive<OR: Read>(self, reader: OR) -> io::Result<Archive<OR>> {
         let current_header = self.header;
-        let next = ArchiveReader::<OR>::read_header_with_buffer(reader, self.buf)?;
+        let next = Archive::<OR>::read_header_with_buffer(reader, self.buf)?;
         if current_header.archive_number + 1 != next.header.archive_number {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -189,13 +189,13 @@ impl<R: Read> ArchiveReader<R> {
 }
 
 pub(crate) struct Entries<'r, R: Read> {
-    reader: &'r mut ArchiveReader<R>,
+    reader: &'r mut Archive<R>,
     password: Option<Option<String>>,
     buf: VecDeque<io::Result<ReadEntry>>,
 }
 
 impl<'r, R: Read> Entries<'r, R> {
-    fn new(reader: &'r mut ArchiveReader<R>) -> Self {
+    fn new(reader: &'r mut Archive<R>) -> Self {
         Self {
             reader,
             password: None,
@@ -203,7 +203,7 @@ impl<'r, R: Read> Entries<'r, R> {
         }
     }
 
-    fn new_with_password(reader: &'r mut ArchiveReader<R>, password: Option<String>) -> Self {
+    fn new_with_password(reader: &'r mut Archive<R>, password: Option<String>) -> Self {
         Self {
             reader,
             password: Some(password),
@@ -241,7 +241,7 @@ impl<'r, R: Read> Iterator for Entries<'r, R> {
     }
 }
 
-impl<R: Read + Seek> ArchiveReader<R> {
+impl<R: Read + Seek> Archive<R> {
     pub fn seek_to_end(&mut self) -> io::Result<()> {
         let mut reader = ChunkReader::from(&mut self.inner);
         let byte;
@@ -266,7 +266,7 @@ mod tests {
     fn decode() {
         let file_bytes = include_bytes!("../../../resources/test/empty.pna");
         let reader = Cursor::new(file_bytes);
-        let mut reader = ArchiveReader::read_header(reader).unwrap();
+        let mut reader = Archive::read_header(reader).unwrap();
         for _entry in reader.entries() {
             unreachable!()
         }
