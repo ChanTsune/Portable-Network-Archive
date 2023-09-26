@@ -28,15 +28,15 @@ impl<R: Read> ArchiveReader<R> {
     ///
     /// # Arguments
     ///
-    /// * `reader` - The reader to read from.
+    /// * `reader` - The [Read] object to read the header from.
     ///
     /// # Returns
     ///
-    /// A new [ArchiveReader].
+    /// A new [io::Result<Archive<W>>].
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading from the reader.
+    /// Returns an error if an I/O error occurs while reading header from the reader.
     pub fn read_header(reader: R) -> io::Result<Self> {
         Self::read_header_with_buffer(reader, Default::default())
     }
