@@ -1,5 +1,5 @@
 use clap::Parser;
-use libpna::{ArchiveWriter, EntryBuilder, EntryName, EntryReference, WriteOption};
+use libpna::{Archive, EntryBuilder, EntryName, EntryReference, WriteOption};
 use portable_network_archive::{cli, command};
 use std::{fs, io::Write, path::Path};
 
@@ -9,7 +9,7 @@ fn init_resource<P: AsRef<Path>>(path: P) {
         fs::create_dir_all(parent).unwrap();
     }
     let file = fs::File::create(path).unwrap();
-    let mut writer = ArchiveWriter::write_header(file).unwrap();
+    let mut writer = Archive::write_header(file).unwrap();
 
     writer
         .add_entry({

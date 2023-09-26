@@ -5,7 +5,7 @@ use crate::{
 };
 use glob::Pattern;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
-use libpna::{ArchiveReader, DataKind, Permission, ReadEntry, ReadOption};
+use libpna::{Archive, DataKind, Permission, ReadEntry, ReadOption};
 #[cfg(unix)]
 use nix::unistd::{chown, Group, User};
 use rayon::{prelude::*, ThreadPoolBuilder};
@@ -50,7 +50,7 @@ fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
     let mut hard_kink_entries = Vec::new();
 
     let file = File::open(&args.file.archive)?;
-    let mut reader = ArchiveReader::read_header(file)?;
+    let mut reader = Archive::read_header(file)?;
     let mut num_archive = 1;
 
     let (tx, rx) = std::sync::mpsc::channel();

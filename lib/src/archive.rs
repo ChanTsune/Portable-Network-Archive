@@ -226,7 +226,7 @@ mod tests {
     }
 
     fn create_archive(src: &[u8], options: WriteOption) -> io::Result<Vec<u8>> {
-        let mut writer = ArchiveWriter::write_header(Vec::with_capacity(src.len()))?;
+        let mut writer = Archive::write_header(Vec::with_capacity(src.len()))?;
         writer.add_entry({
             let mut builder = EntryBuilder::new_file("test/text".try_into().unwrap(), options)?;
             builder.write_all(src)?;
@@ -237,7 +237,7 @@ mod tests {
 
     fn archive(src: &[u8], options: WriteOption) -> io::Result<()> {
         let archive = create_archive(src, options.clone())?;
-        let mut archive_reader = ArchiveReader::read_header(io::Cursor::new(archive))?;
+        let mut archive_reader = Archive::read_header(Cursor::new(archive))?;
         let mut item = archive_reader
             .entries()
             .next()
@@ -260,7 +260,7 @@ mod tests {
     #[test]
     fn solid_entry() -> Result<(), Box<dyn std::error::Error>> {
         let archive = {
-            let mut writer = ArchiveWriter::write_header(Vec::new())?;
+            let mut writer = Archive::write_header(Vec::new())?;
             let dir_entry = {
                 let builder = EntryBuilder::new_dir("test".try_into().unwrap());
                 builder.build().unwrap()
@@ -280,7 +280,7 @@ mod tests {
             writer.finalize().unwrap()
         };
 
-        let mut archive_reader = ArchiveReader::read_header(io::Cursor::new(archive)).unwrap();
+        let mut archive_reader = Archive::read_header(Cursor::new(archive)).unwrap();
         let mut entries = archive_reader.entries_with_password(Some("password".to_string()));
         entries.next().unwrap().expect("failed to read entry");
         entries.next().unwrap().expect("failed to read entry");
@@ -292,11 +292,10 @@ mod tests {
     fn copy_entry() {
         let archive = create_archive(b"archive text", WriteOption::builder().build())
             .expect("failed to create archive");
-        let mut reader = ArchiveReader::read_header(io::Cursor::new(&archive))
-            .expect("failed to read archive header");
+        let mut reader =
+            Archive::read_header(Cursor::new(&archive)).expect("failed to read archive header");
 
-        let mut writer =
-            ArchiveWriter::write_header(Vec::new()).expect("failed to write archive header");
+        let mut writer = Archive::write_header(Vec::new()).expect("failed to write archive header");
 
         for entry in reader.entries() {
             writer

@@ -1,8 +1,8 @@
-use libpna::{ArchiveReader, DataKind, ReadOption};
+use libpna::{Archive, DataKind, ReadOption};
 use std::io;
 
 fn extract_all(bytes: &[u8], password: Option<&str>) {
-    let mut archive_reader = ArchiveReader::read_header(io::Cursor::new(bytes)).unwrap();
+    let mut archive_reader = Archive::read_header(io::Cursor::new(bytes)).unwrap();
     for entry in archive_reader.entries_with_password(password.map(String::from)) {
         let item = entry.unwrap();
         if item.header().data_kind() == DataKind::Directory {

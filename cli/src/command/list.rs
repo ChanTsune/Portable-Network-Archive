@@ -9,7 +9,7 @@ use crate::{
 use ansi_term::{ANSIString, Colour, Style};
 use chrono::{DateTime, Local};
 use glob::Pattern;
-use libpna::{ArchiveReader, Compression, DataKind, Encryption, ReadEntry, ReadOption};
+use libpna::{Archive, Compression, DataKind, Encryption, ReadEntry, ReadOption};
 use rayon::prelude::*;
 use std::{
     fs::File,
@@ -35,7 +35,7 @@ fn list_archive(args: ListArgs, _: Verbosity) -> io::Result<()> {
     let file = File::open(&args.file.archive)?;
 
     let mut entries = vec![];
-    let mut reader = ArchiveReader::read_header(file)?;
+    let mut reader = Archive::read_header(file)?;
     let mut num_archive = 1;
     loop {
         if args.solid {

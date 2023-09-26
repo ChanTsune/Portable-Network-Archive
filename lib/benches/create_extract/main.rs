@@ -1,9 +1,7 @@
 #![feature(test)]
 extern crate test;
 
-use libpna::{
-    ArchiveReader, ArchiveWriter, EntryBuilder, ReadEntry, ReadOption, WriteOptionBuilder,
-};
+use libpna::{Archive, EntryBuilder, ReadOption, WriteOptionBuilder};
 use std::io::{Cursor, Read, Write};
 use test::Bencher;
 
@@ -13,7 +11,7 @@ mod empty;
 fn bench_write_archive(b: &mut Bencher, mut options: WriteOptionBuilder) {
     b.iter(|| {
         let mut vec = Vec::with_capacity(10000);
-        let mut writer = ArchiveWriter::write_header(&mut vec).unwrap();
+        let mut writer = Archive::write_header(&mut vec).unwrap();
         writer
             .add_entry({
                 let mut builder = EntryBuilder::new_file(
@@ -30,7 +28,7 @@ fn bench_write_archive(b: &mut Bencher, mut options: WriteOptionBuilder) {
 }
 
 fn bench_read_archive(b: &mut Bencher, mut options: WriteOptionBuilder) {
-    let mut writer = ArchiveWriter::write_header(Vec::with_capacity(10000)).unwrap();
+    let mut writer = Archive::write_header(Vec::with_capacity(10000)).unwrap();
     writer
         .add_entry({
             let mut builder = EntryBuilder::new_file(
@@ -45,7 +43,7 @@ fn bench_read_archive(b: &mut Bencher, mut options: WriteOptionBuilder) {
     let vec = writer.finalize().unwrap();
 
     b.iter(|| {
-        let mut reader = ArchiveReader::read_header(Cursor::new(vec.as_slice())).unwrap();
+        let mut reader = Archive::read_header(Cursor::new(vec.as_slice())).unwrap();
         for item in reader.entries() {
             let mut buf = Vec::with_capacity(1000);
             item.unwrap()

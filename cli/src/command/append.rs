@@ -6,10 +6,9 @@ use crate::{
         Command,
     },
 };
-use libpna::ArchiveReader;
+use libpna::Archive;
 use rayon::ThreadPoolBuilder;
-use std::fs::File;
-use std::io;
+use std::{fs::File, io};
 
 impl Command for AppendArgs {
     fn execute(self, verbosity: Verbosity) -> io::Result<()> {
@@ -32,7 +31,7 @@ fn append_to_archive(args: AppendArgs, verbosity: Verbosity) -> io::Result<()> {
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
     let file = File::options().write(true).read(true).open(&archive)?;
-    let mut archive = ArchiveReader::read_header(file)?;
+    let mut archive = Archive::read_header(file)?;
     archive.seek_to_end()?;
 
     let target_items = collect_items(args.file.files, args.recursive, args.keep_dir)?;
