@@ -165,6 +165,26 @@ impl<W: Write> ArchiveWriter<W> {
         ArchiveWriter::write_header_with(writer, header)
     }
 
+    /// Write an end marker to finalize the archive.
+    ///
+    /// Marks that the PNA archive contains no more entries.
+    /// Normally, a PNA archive reader will continue reading entries in the hope that the entry exists until it encounters this end marker.
+    /// This end marker should always be recorded at the end of the file unless there is a special reason to do so.
+    ///
+    /// # Examples
+    /// Create an empty archive.
+    /// ```no_run
+    /// # use std::io;
+    /// # use std::fs::File;
+    /// # use libpna::Archive;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let file = File::create("foo.pna")?;
+    /// let mut archive = Archive::write_header(file)?;
+    /// archive.finalize()?;
+    /// Ok(())
+    /// # }
+    /// ```
     pub fn finalize(mut self) -> io::Result<W> {
         let mut chunk_writer = ChunkWriter::from(&mut self.inner);
         chunk_writer.write_chunk((ChunkType::AEND, [].as_slice()))?;
