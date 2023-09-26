@@ -21,6 +21,7 @@ fn read_pna_header<R: Read>(mut reader: R) -> io::Result<()> {
 }
 
 /// A reader for Portable-Network-Archive.
+#[deprecated(since = "0.4.0")]
 pub type ArchiveReader<R> = Archive<R>;
 
 impl<R: Read> ArchiveReader<R> {

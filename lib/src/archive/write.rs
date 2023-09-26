@@ -5,6 +5,7 @@ use crate::{
 use std::io::{self, Write};
 
 /// A writer for Portable-Network-Archive.
+#[deprecated(since = "0.4.0")]
 pub type ArchiveWriter<W> = Archive<W>;
 
 impl<W: Write> ArchiveWriter<W> {
