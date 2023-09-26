@@ -12,7 +12,15 @@ impl<W: Write> ArchiveWriter<W> {
     ///
     /// # Arguments
     ///
-    /// * `write` - The `Write` object to write the header to.
+    /// * `write` - The [Write] object to write the header to.
+    ///
+    /// # Returns
+    ///
+    /// A new [io::Result<Archive<W>>]
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing header to the writer.
     ///
     /// # Examples
     ///
