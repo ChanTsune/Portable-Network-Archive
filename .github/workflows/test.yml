@@ -27,13 +27,6 @@ jobs:
       - uses: ./.github/actions/setup-rust
         with:
           channel: ${{ matrix.rust }}
-      - name: Cache cargo
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: run test
         run: cargo test --locked --release --all-features
         env:
