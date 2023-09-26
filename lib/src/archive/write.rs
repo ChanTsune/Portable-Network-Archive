@@ -8,7 +8,7 @@ use std::io::{self, Write};
 pub type ArchiveWriter<W> = Archive<W>;
 
 impl<W: Write> ArchiveWriter<W> {
-    /// Writes the PNA archive header to the given `Write` object.
+    /// Writes the archive header to the given `Write` object and return a new [Archive].
     ///
     /// # Arguments
     ///
