@@ -32,10 +32,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      - name: Install Rust toolchain
-        run: rustup update --no-self-update stable && rustup default stable
-      - name: echo rust version
-        run: rustc --version
+      - uses: ./.github/actions/setup-rust
       - name: Install required cargo
         run: cargo install clippy-sarif sarif-fmt
       - name: Run rust-clippy
