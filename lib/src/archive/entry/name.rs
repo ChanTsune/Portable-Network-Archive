@@ -2,7 +2,7 @@ use crate::util::try_to_string;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::fmt::{self, Display, Formatter};
-use std::path::{Component, Path, PathBuf};
+use std::path::{Component, Path};
 use std::str;
 
 /// A UTF-8 encoded entry name.
@@ -67,7 +67,7 @@ impl EntryName {
     }
 
     pub fn from_str_lossy(s: &str) -> Self {
-        Self::from_path_lossy(&PathBuf::from(s))
+        Self::from_path_lossy(s.as_ref())
     }
 }
 
