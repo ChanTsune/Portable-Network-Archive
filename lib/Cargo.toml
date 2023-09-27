@@ -16,7 +16,7 @@ argon2 = { version = "0.5.2", features = ["std"] }
 camellia = "0.1.0"
 cbc = { version = "0.1.2", features = ["std"] }
 cipher = "0.4.4"
-crc32fast = "1.2.0"
+crc32fast = "1.2.2"
 crypto-common = { version = "0.1.6", features = ["std"] }
 ctr = { version = "0.9.2", features = ["std"] }
 flate2 = "1.0.27"
