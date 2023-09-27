@@ -21,9 +21,8 @@ pub(crate) fn try_to_string(s: &OsStr) -> Result<Cow<str>, FromUtf16Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::OsString;
     #[test]
     fn safe_chars() {
-        assert_eq!(try_to_string(&OsString::from("")).unwrap(), Cow::from(""));
+        assert_eq!(try_to_string("".as_ref()).unwrap(), Cow::from(""));
     }
 }
