@@ -26,11 +26,13 @@ fn hash<'s, 'p: 's>(
         (HashAlgorithm::Argon2Id, Encryption::Camellia) => {
             hash::argon2_with_salt(password, Camellia256::key_size(), salt)
         }
-        (HashAlgorithm::Pbkdf2Sha256, _) => hash::pbkdf2_with_salt(password, salt),
-        (_, _) => {
+        (HashAlgorithm::Pbkdf2Sha256, Encryption::Aes | Encryption::Camellia) => {
+            hash::pbkdf2_with_salt(password, salt)
+        }
+        (_, Encryption::No) => {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                String::from("Invalid combination"),
+                "Invalid combination",
             ))
         }
     }?;
