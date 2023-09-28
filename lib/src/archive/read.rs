@@ -14,7 +14,7 @@ fn read_pna_header<R: Read>(mut reader: R) -> io::Result<()> {
     if &header != PNA_HEADER {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            String::from("Not pna format"),
+            "It's not a PNA format",
         ));
     }
     Ok(())
