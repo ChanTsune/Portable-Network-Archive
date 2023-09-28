@@ -387,26 +387,17 @@ fn decrypt_reader<R: Read>(
         Encryption::No => DecryptReader::No(reader),
         encryption @ Encryption::Aes | encryption @ Encryption::Camellia => {
             let s = phsf.ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    String::from("Item is encrypted, but `PHSF` chunk not found"),
-                )
+                io::Error::new(io::ErrorKind::InvalidData, "`PHSF` chunk not found")
             })?;
             let phsf = verify_password(
                 s,
                 password.ok_or_else(|| {
-                    io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        String::from("Item is encrypted, but password was not provided"),
-                    )
+                    io::Error::new(io::ErrorKind::InvalidInput, "Password was not provided")
                 })?,
             )?;
-            let hash = phsf.hash.ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::Unsupported,
-                    String::from("Failed to get hash"),
-                )
-            })?;
+            let hash = phsf
+                .hash
+                .ok_or_else(|| io::Error::new(io::ErrorKind::Unsupported, "Failed to get hash"))?;
             match (encryption, cipher_mode) {
                 (Encryption::Aes, CipherMode::CBC) => {
                     DecryptReader::CbcAes(DecryptCbcAes256Reader::new(reader, hash.as_bytes())?)

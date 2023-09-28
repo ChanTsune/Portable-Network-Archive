@@ -32,10 +32,7 @@ impl<R: Read> ChunkReader<R> {
         let crc = u32::from_be_bytes(crc);
 
         if crc != crc_hasher.finalize() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                String::from("crc check failed. broken chunk"),
-            ));
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "Broken chunk"));
         }
         Ok(RawChunk {
             length,
