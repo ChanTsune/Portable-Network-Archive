@@ -70,6 +70,7 @@ impl TryFrom<&str> for EntryReference {
     ///
     /// assert_eq!(EntryReference::try_from("/path/with/root"), EntryReference::try_from("/path/with/root"));
     /// ```
+    #[inline]
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         Self::new(value.as_ref())
     }
@@ -86,6 +87,7 @@ impl TryFrom<&Path> for EntryReference {
     /// let p = Path::new("path/to/file");
     /// assert_eq!(EntryReference::try_from(p), EntryReference::try_from("path/to/file"));
     /// ```
+    #[inline]
     fn try_from(value: &Path) -> Result<Self, Self::Error> {
         Self::new(value)
     }

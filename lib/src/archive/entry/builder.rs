@@ -152,6 +152,7 @@ impl EntryBuilder {
     /// # Returns
     ///
     /// A mutable reference to the [EntryBuilder] with the creation timestamp set.
+    #[inline]
     pub fn created(&mut self, since_unix_epoch: Duration) -> &mut Self {
         self.created = Some(since_unix_epoch);
         self
@@ -166,6 +167,7 @@ impl EntryBuilder {
     /// # Returns
     ///
     /// A mutable reference to the [EntryBuilder] with the last modified timestamp set.
+    #[inline]
     pub fn modified(&mut self, since_unix_epoch: Duration) -> &mut Self {
         self.last_modified = Some(since_unix_epoch);
         self
@@ -181,6 +183,7 @@ impl EntryBuilder {
     /// # Returns
     ///
     /// A mutable reference to the [EntryBuilder] with the permission set.
+    #[inline]
     pub fn permission(&mut self, permission: Permission) -> &mut Self {
         self.permission = Some(permission);
         self
@@ -191,6 +194,7 @@ impl EntryBuilder {
     /// # Returns
     ///
     /// A Result containing the new [Entry], or an I/O error if the build fails.
+    #[inline]
     pub fn build(self) -> io::Result<impl Entry> {
         Ok(ChunkEntry(self.build_as_chunks()?))
     }
@@ -229,6 +233,7 @@ impl EntryBuilder {
 }
 
 impl Write for EntryBuilder {
+    #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         if let Some(w) = &mut self.data {
             return w.write(buf);
@@ -236,6 +241,7 @@ impl Write for EntryBuilder {
         Ok(buf.len())
     }
 
+    #[inline]
     fn flush(&mut self) -> io::Result<()> {
         if let Some(w) = &mut self.data {
             return w.flush();
@@ -332,6 +338,7 @@ impl SolidEntriesBuilder {
     ///     Ok(())
     /// }
     /// ```
+    #[inline]
     pub fn build(self) -> io::Result<impl SolidEntries> {
         Ok(ChunkSolidEntries(self.build_as_chunks()?))
     }

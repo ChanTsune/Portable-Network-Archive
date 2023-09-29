@@ -66,6 +66,7 @@ impl EntryName {
         Self(buf.join("/"))
     }
 
+    #[inline]
     pub fn from_str_lossy(s: &str) -> Self {
         Self::from_path_lossy(s.as_ref())
     }

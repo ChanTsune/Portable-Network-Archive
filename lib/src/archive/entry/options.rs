@@ -10,6 +10,7 @@ pub enum Compression {
 impl TryFrom<u8> for Compression {
     type Error = String;
 
+    #[inline]
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             0 => Ok(Self::No),
@@ -49,6 +50,7 @@ pub enum Encryption {
 impl TryFrom<u8> for Encryption {
     type Error = String;
 
+    #[inline]
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             0 => Ok(Self::No),
@@ -69,6 +71,7 @@ pub enum CipherMode {
 impl TryFrom<u8> for CipherMode {
     type Error = String;
 
+    #[inline]
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             0 => Ok(Self::CBC),
@@ -96,6 +99,7 @@ pub enum DataKind {
 impl TryFrom<u8> for DataKind {
     type Error = String;
 
+    #[inline]
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             0 => Ok(Self::File),
@@ -129,6 +133,7 @@ impl WriteOption {
     /// ```
     ///
     /// [Entry]: crate::Entry
+    #[inline]
     pub fn store() -> Self {
         Self {
             compression: Compression::No,
@@ -222,36 +227,43 @@ impl WriteOptionBuilder {
         }
     }
 
+    #[inline]
     pub fn compression(&mut self, compression: Compression) -> &mut Self {
         self.compression = compression;
         self
     }
 
+    #[inline]
     pub fn compression_level(&mut self, compression_level: CompressionLevel) -> &mut Self {
         self.compression_level = compression_level;
         self
     }
 
+    #[inline]
     pub fn encryption(&mut self, encryption: Encryption) -> &mut Self {
         self.encryption = encryption;
         self
     }
 
+    #[inline]
     pub fn cipher_mode(&mut self, cipher_mode: CipherMode) -> &mut Self {
         self.cipher_mode = cipher_mode;
         self
     }
 
+    #[inline]
     pub fn hash_algorithm(&mut self, algorithm: HashAlgorithm) -> &mut Self {
         self.hash_algorithm = algorithm;
         self
     }
 
+    #[inline]
     pub fn password<S: AsRef<str>>(&mut self, password: Option<S>) -> &mut Self {
         self.password = password.map(|it| it.as_ref().to_string());
         self
     }
 
+    #[inline]
     pub fn build(&self) -> WriteOption {
         WriteOption {
             compression: self.compression,
@@ -313,6 +325,7 @@ pub struct ReadOptionBuilder {
 }
 
 impl From<ReadOption> for ReadOptionBuilder {
+    #[inline]
     fn from(value: ReadOption) -> Self {
         Self {
             password: value.password,
@@ -325,10 +338,14 @@ impl ReadOptionBuilder {
     pub fn new() -> Self {
         Self { password: None }
     }
+
+    #[inline]
     pub fn password<T: AsRef<str>>(&mut self, password: T) -> &mut Self {
         self.password = Some(password.as_ref().to_string());
         self
     }
+
+    #[inline]
     pub fn build(&self) -> ReadOption {
         ReadOption {
             password: self.password.clone(),
