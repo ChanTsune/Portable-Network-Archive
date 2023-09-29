@@ -35,6 +35,7 @@ pub struct RawChunk {
 }
 
 impl RawChunk {
+    #[inline]
     pub fn from_data(ty: ChunkType, data: Vec<u8>) -> Self {
         let chunk = (ty, data);
         Self {
@@ -47,28 +48,34 @@ impl RawChunk {
 }
 
 impl Chunk for RawChunk {
+    #[inline]
     fn length(&self) -> u32 {
         self.length
     }
 
+    #[inline]
     fn ty(&self) -> ChunkType {
         self.ty
     }
 
+    #[inline]
     fn data(&self) -> &[u8] {
         &self.data
     }
 
+    #[inline]
     fn crc(&self) -> u32 {
         self.crc
     }
 }
 
 impl<T: Deref<Target = [u8]>> Chunk for (ChunkType, T) {
+    #[inline]
     fn ty(&self) -> ChunkType {
         self.0
     }
 
+    #[inline]
     fn data(&self) -> &[u8] {
         self.1.deref()
     }

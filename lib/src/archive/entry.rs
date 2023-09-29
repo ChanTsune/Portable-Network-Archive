@@ -68,6 +68,7 @@ impl Entry for ChunkEntry {
 pub struct EntryDataReader(EntryReader<io::Cursor<Vec<u8>>>);
 
 impl Read for EntryDataReader {
+    #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
     }
@@ -333,10 +334,12 @@ impl SealedIntoChunks for ReadEntry {
 }
 
 impl Entry for ReadEntry {
+    #[inline]
     fn bytes_len(&self) -> usize {
         self.clone().into_bytes().len()
     }
 
+    #[inline]
     fn into_bytes(self) -> Vec<u8> {
         self.into_chunks()
             .into_iter()
@@ -434,6 +437,7 @@ fn decompress_reader<'r, R: Read>(
 pub struct EntryPart(pub(crate) Vec<RawChunk>);
 
 impl EntryPart {
+    #[inline]
     pub fn bytes_len(&self) -> usize {
         self.0.iter().map(|chunk| chunk.bytes_len()).sum()
     }

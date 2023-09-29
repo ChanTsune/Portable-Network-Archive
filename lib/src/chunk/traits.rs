@@ -12,6 +12,7 @@ pub trait Chunk {
     /// Data of chunk
     fn data(&self) -> &[u8];
     /// CRC32 of chunk type and data
+    #[inline]
     fn crc(&self) -> u32 {
         let mut crc = Crc32::new();
         crc.update(&self.ty().0);

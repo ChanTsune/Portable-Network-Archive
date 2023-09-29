@@ -61,6 +61,7 @@ impl Permission {
     ///
     /// let perm = Permission::new(1000, "user".to_string(), 100, "group".to_string(), 0o755);
     /// ```
+    #[inline]
     pub fn new(uid: u64, uname: String, gid: u64, gname: String, permission: u16) -> Self {
         Self {
             uid,

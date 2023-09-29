@@ -38,6 +38,7 @@ impl<R: Read> Archive<R> {
     /// # Errors
     ///
     /// Returns an error if an I/O error occurs while reading header from the reader.
+    #[inline]
     pub fn read_header(reader: R) -> io::Result<Self> {
         Self::read_header_with_buffer(reader, Default::default())
     }
@@ -131,6 +132,7 @@ impl<R: Read> Archive<R> {
     /// # Returns
     ///
     /// An iterator over the entries in the archive.
+    #[inline]
     pub fn entries(&mut self) -> impl Iterator<Item = io::Result<ReadEntry>> + '_ {
         Entries::new(self)
     }

@@ -54,12 +54,14 @@ impl ChunkType {
     /// assert_eq!(chunk_type.len(), 4);
     /// ```
     #[allow(clippy::len_without_is_empty)]
+    #[inline]
     pub const fn len(&self) -> usize {
         self.0.len()
     }
 }
 
 impl Display for ChunkType {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str(unsafe { std::str::from_utf8_unchecked(&self.0) })
     }
