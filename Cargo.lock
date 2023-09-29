@@ -522,18 +522,18 @@ checksum = "b4668fb0ea861c1df094127ac5f1da3409a82116a4ba74fca2e58ef927159bb3"
 
 [[package]]
 name = "liblzma"
-version = "0.1.8"
+version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3db6ac1206d0c3328c315bb814d9278648fecebcaa5b8859c3dd8645e55de74a"
+checksum = "d0fb9ae7ad062398806b996604dd3c33e94b6e88c025aa5e35a0764da6b7bf85"
 dependencies = [
  "liblzma-sys",
 ]
 
 [[package]]
 name = "liblzma-sys"
-version = "0.1.22"
+version = "0.1.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72e1b414892725aba9c84e05a91feaf3db6f2285edee0baf6e3c3abd020db46f"
+checksum = "df52362944629858c595ba2a09bd584587bc8cca295374712cbf72d16cb58d6d"
 dependencies = [
  "cc",
  "libc",
