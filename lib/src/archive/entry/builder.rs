@@ -33,7 +33,7 @@ impl EntryBuilder {
     /// # Returns
     ///
     /// A new [EntryBuilder].
-    pub fn new_dir(name: EntryName) -> Self {
+    pub const fn new_dir(name: EntryName) -> Self {
         Self {
             header: EntryHeader::for_dir(name),
             phsf: None,

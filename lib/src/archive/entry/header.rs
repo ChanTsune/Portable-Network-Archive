@@ -16,7 +16,7 @@ pub struct EntryHeader {
 }
 
 impl EntryHeader {
-    pub(crate) fn new_with_options(
+    pub(crate) const fn new_with_options(
         data_kind: DataKind,
         compression: Compression,
         encryption: Encryption,
@@ -34,7 +34,7 @@ impl EntryHeader {
         }
     }
 
-    pub(crate) fn new(data_kind: DataKind, path: EntryName) -> Self {
+    pub(crate) const fn new(data_kind: DataKind, path: EntryName) -> Self {
         Self::new_with_options(
             data_kind,
             Compression::No,
@@ -45,7 +45,7 @@ impl EntryHeader {
     }
 
     #[inline]
-    pub(crate) fn for_file(
+    pub(crate) const fn for_file(
         compression: Compression,
         encryption: Encryption,
         cipher_mode: CipherMode,
@@ -55,17 +55,17 @@ impl EntryHeader {
     }
 
     #[inline]
-    pub(crate) fn for_dir(path: EntryName) -> Self {
+    pub(crate) const fn for_dir(path: EntryName) -> Self {
         Self::new(DataKind::Directory, path)
     }
 
     #[inline]
-    pub(crate) fn for_symbolic_link(path: EntryName) -> Self {
+    pub(crate) const fn for_symbolic_link(path: EntryName) -> Self {
         Self::new(DataKind::SymbolicLink, path)
     }
 
     #[inline]
-    pub(crate) fn for_hard_link(path: EntryName) -> Self {
+    pub(crate) const fn for_hard_link(path: EntryName) -> Self {
         Self::new(DataKind::HardLink, path)
     }
 
@@ -75,22 +75,22 @@ impl EntryHeader {
     }
 
     #[inline]
-    pub fn data_kind(&self) -> DataKind {
+    pub const fn data_kind(&self) -> DataKind {
         self.data_kind
     }
 
     #[inline]
-    pub fn compression(&self) -> Compression {
+    pub const fn compression(&self) -> Compression {
         self.compression
     }
 
     #[inline]
-    pub fn encryption(&self) -> Encryption {
+    pub const fn encryption(&self) -> Encryption {
         self.encryption
     }
 
     #[inline]
-    pub fn cipher_mode(&self) -> CipherMode {
+    pub const fn cipher_mode(&self) -> CipherMode {
         self.cipher_mode
     }
 
@@ -142,7 +142,7 @@ pub struct SolidHeader {
 }
 
 impl SolidHeader {
-    pub(crate) fn new(
+    pub(crate) const fn new(
         compression: Compression,
         encryption: Encryption,
         cipher_mode: CipherMode,
@@ -157,22 +157,22 @@ impl SolidHeader {
     }
 
     #[inline]
-    pub fn compression(&self) -> Compression {
+    pub const fn compression(&self) -> Compression {
         self.compression
     }
 
     #[inline]
-    pub fn encryption(&self) -> Encryption {
+    pub const fn encryption(&self) -> Encryption {
         self.encryption
     }
 
     #[inline]
-    pub fn cipher_mode(&self) -> CipherMode {
+    pub const fn cipher_mode(&self) -> CipherMode {
         self.cipher_mode
     }
 
     #[inline]
-    pub fn to_bytes(&self) -> [u8; 5] {
+    pub const fn to_bytes(&self) -> [u8; 5] {
         [
             self.major,
             self.minor,

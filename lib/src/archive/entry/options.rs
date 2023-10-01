@@ -295,7 +295,7 @@ impl ReadOption {
     /// let builder = ReadOption::builder();
     /// ```
     #[inline]
-    pub fn builder() -> ReadOptionBuilder {
+    pub const fn builder() -> ReadOptionBuilder {
         #[allow(deprecated)]
         ReadOptionBuilder::new()
     }
@@ -335,7 +335,7 @@ impl From<ReadOption> for ReadOptionBuilder {
 
 impl ReadOptionBuilder {
     #[deprecated(since = "0.2.0", note = "Use ReadOption::builder instead.")]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { password: None }
     }
 

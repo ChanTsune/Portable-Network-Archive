@@ -13,22 +13,22 @@ pub struct Metadata {
 impl Metadata {
     /// Compressed size of entry data
     #[inline]
-    pub fn compressed_size(&self) -> usize {
+    pub const fn compressed_size(&self) -> usize {
         self.compressed_size
     }
     /// Created time since unix epoch time of entry
     #[inline]
-    pub fn created(&self) -> Option<Duration> {
+    pub const fn created(&self) -> Option<Duration> {
         self.created
     }
     /// Modified time since unix epoch time of entry
     #[inline]
-    pub fn modified(&self) -> Option<Duration> {
+    pub const fn modified(&self) -> Option<Duration> {
         self.modified
     }
     /// A owner, group, and permissions for a entry
     #[inline]
-    pub fn permission(&self) -> Option<&Permission> {
+    pub const fn permission(&self) -> Option<&Permission> {
         self.permission.as_ref()
     }
 }
@@ -62,7 +62,7 @@ impl Permission {
     /// let perm = Permission::new(1000, "user".to_string(), 100, "group".to_string(), 0o755);
     /// ```
     #[inline]
-    pub fn new(uid: u64, uname: String, gid: u64, gname: String, permission: u16) -> Self {
+    pub const fn new(uid: u64, uname: String, gid: u64, gname: String, permission: u16) -> Self {
         Self {
             uid,
             uname,
@@ -82,7 +82,7 @@ impl Permission {
     /// assert_eq!(perm.uid(), 1000);
     /// ```
     #[inline]
-    pub fn uid(&self) -> u64 {
+    pub const fn uid(&self) -> u64 {
         self.uid
     }
 
@@ -112,7 +112,7 @@ impl Permission {
     /// assert_eq!(perm.gid(), 100);
     /// ```
     #[inline]
-    pub fn gid(&self) -> u64 {
+    pub const fn gid(&self) -> u64 {
         self.gid
     }
 
@@ -142,7 +142,7 @@ impl Permission {
     /// assert_eq!(perm.permissions(), 0o644);
     /// ```
     #[inline]
-    pub fn permissions(&self) -> u16 {
+    pub const fn permissions(&self) -> u16 {
         self.permission
     }
 

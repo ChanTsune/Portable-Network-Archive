@@ -157,7 +157,7 @@ impl<R: Read> Archive<R> {
     ///
     /// [ANXT]: ChunkType::ANXT
     #[inline]
-    pub fn next_archive(&self) -> bool {
+    pub const fn next_archive(&self) -> bool {
         self.next_archive
     }
 
