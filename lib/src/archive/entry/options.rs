@@ -25,10 +25,14 @@ impl TryFrom<u8> for Compression {
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct CompressionLevel(pub(crate) u8);
 
+impl CompressionLevel {
+    pub(crate) const DEFAULT: Self = Self(u8::MAX);
+}
+
 impl Default for CompressionLevel {
     #[inline]
     fn default() -> Self {
-        Self(u8::MAX)
+        Self::DEFAULT
     }
 }
 
@@ -134,10 +138,10 @@ impl WriteOption {
     ///
     /// [Entry]: crate::Entry
     #[inline]
-    pub fn store() -> Self {
+    pub const fn store() -> Self {
         Self {
             compression: Compression::No,
-            compression_level: Default::default(),
+            compression_level: CompressionLevel::DEFAULT,
             encryption: Encryption::No,
             cipher_mode: CipherMode::CBC,
             hash_algorithm: HashAlgorithm::Argon2Id,
