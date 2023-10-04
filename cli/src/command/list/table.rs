@@ -69,7 +69,7 @@ pub(crate) fn header(style: Style) -> TableRow<9> {
 }
 
 impl<const N: usize> TableRow<N> {
-    pub(crate) fn new(columns: [Cell; N]) -> Self {
+    pub(crate) const fn new(columns: [Cell; N]) -> Self {
         Self { columns }
     }
 
