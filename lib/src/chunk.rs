@@ -77,7 +77,7 @@ impl<T: Deref<Target = [u8]>> Chunk for (ChunkType, T) {
 
     #[inline]
     fn data(&self) -> &[u8] {
-        &*self.1
+        &self.1
     }
 }
 
