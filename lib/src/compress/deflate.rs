@@ -4,9 +4,9 @@ impl From<crate::CompressionLevel> for CompressionLevel {
     #[inline]
     fn from(value: crate::CompressionLevel) -> Self {
         if value == crate::CompressionLevel::default() {
-            flate2::Compression::default()
+            Self::default()
         } else {
-            flate2::Compression::new(value.0 as u32)
+            Self::new(value.0 as u32)
         }
     }
 }

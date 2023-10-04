@@ -6,7 +6,7 @@ impl From<crate::CompressionLevel> for CompressionLevel {
         if value == crate::CompressionLevel::default() {
             6
         } else {
-            value.0 as u32
+            value.0 as Self
         }
     }
 }
