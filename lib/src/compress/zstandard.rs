@@ -6,7 +6,7 @@ impl From<crate::CompressionLevel> for CompressionLevel {
         if value == crate::CompressionLevel::default() {
             0
         } else {
-            value.0 as CompressionLevel
+            value.0 as Self
         }
     }
 }
