@@ -201,7 +201,7 @@ fn extract_entry(
             })?;
             let mut original = PathBuf::from(io::read_to_string(reader)?);
             if let Some(parent) = path.parent() {
-                original = parent.join(original)
+                original = parent.join(original);
             }
             if overwrite && path.exists() {
                 utils::fs::remove(&path)?;
@@ -219,7 +219,7 @@ fn extract_entry(
         eprintln!("Currently permission is not supported on this platform.");
     }
     if verbosity == Verbosity::Verbose {
-        println!("end: {}", path.display())
+        println!("end: {}", path.display());
     }
     Ok(())
 }
