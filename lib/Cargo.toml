@@ -28,3 +28,6 @@ zstd = "0.12.4"
 
 [dev-dependencies]
 once_cell = "1.18.0"
+
+[features]
+wasm = ["zstd/wasm", "liblzma/wasm"]
