@@ -388,7 +388,7 @@ fn decrypt_reader<R: Read>(
 ) -> io::Result<DecryptReader<R>> {
     Ok(match encryption {
         Encryption::No => DecryptReader::No(reader),
-        encryption @ Encryption::Aes | encryption @ Encryption::Camellia => {
+        encryption @ (Encryption::Aes | Encryption::Camellia) => {
             let s = phsf.ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidData, "`PHSF` chunk not found")
             })?;
