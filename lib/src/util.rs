@@ -18,6 +18,11 @@ pub(crate) fn try_to_string(s: &OsStr) -> Result<Cow<str>, FromUtf16Error> {
     String::from_utf16(&s.encode_wide().collect::<Vec<_>>()).map(Cow::from)
 }
 
+#[cfg(all(not(unix), not(windows)))]
+pub(crate) fn try_to_string(s: &OsStr) -> Result<Cow<str>, String> {
+    Ok(s.to_string_lossy())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
