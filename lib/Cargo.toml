@@ -29,5 +29,8 @@ zstd = { version = "0.12.4", default-features = false }
 [dev-dependencies]
 once_cell = "1.18.0"
 
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "*", features = ["js"] }
+
 [features]
 wasm = ["zstd/wasm", "liblzma/wasm"]
