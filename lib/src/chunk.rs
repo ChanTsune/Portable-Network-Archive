@@ -37,12 +37,12 @@ pub struct RawChunk {
 impl RawChunk {
     #[inline]
     pub fn from_data(ty: ChunkType, data: Vec<u8>) -> Self {
-        let chunk = (ty, data);
+        let chunk = (ty, &data[..]);
         Self {
             length: chunk.length(),
             crc: chunk.crc(),
-            ty: chunk.0,
-            data: chunk.1,
+            ty,
+            data,
         }
     }
 }
