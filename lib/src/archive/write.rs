@@ -132,25 +132,25 @@ impl<W: Write> Archive<W> {
     /// # Examples
     ///
     /// ```no_run
-    /// use libpna::{Archive, EntryBuilder, EntryPart, WriteOption};
-    /// use std::fs::File;
-    /// use std::io;
+    /// # use libpna::{Archive, EntryBuilder, EntryPart, WriteOption};
+    /// # use std::fs::File;
+    /// # use std::io;
     ///
-    /// fn main() -> io::Result<()> {
-    ///     let part1_file = File::create("example.part1.pna")?;
-    ///     let mut archive_part1 = Archive::write_header(part1_file)?;
-    ///     let entry = EntryBuilder::new_file(
-    ///         "example.txt".try_into().unwrap(),
-    ///         WriteOption::builder().build(),
-    ///     )?
-    ///     .build()?;
-    ///     archive_part1.add_entry_part(EntryPart::from(entry))?;
+    /// # fn main() -> io::Result<()> {
+    /// let part1_file = File::create("example.part1.pna")?;
+    /// let mut archive_part1 = Archive::write_header(part1_file)?;
+    /// let entry = EntryBuilder::new_file(
+    ///     "example.txt".try_into().unwrap(),
+    ///     WriteOption::builder().build(),
+    /// )?
+    /// .build()?;
+    /// archive_part1.add_entry_part(EntryPart::from(entry))?;
     ///
-    ///     let part2_file = File::create("example.part2.pna")?;
-    ///     let archive_part2 = archive_part1.split_to_next_archive(part2_file)?;
-    ///     archive_part2.finalize()?;
-    ///     Ok(())
-    /// }
+    /// let part2_file = File::create("example.part2.pna")?;
+    /// let archive_part2 = archive_part1.split_to_next_archive(part2_file)?;
+    /// archive_part2.finalize()?;
+    /// #    Ok(())
+    /// # }
     /// ```
     pub fn add_entry_part(&mut self, entry_part: EntryPart) -> io::Result<usize> {
         let mut chunk_writer = ChunkWriter::from(&mut self.inner);
@@ -166,6 +166,30 @@ impl<W: Write> Archive<W> {
         chunk_writer.write_chunk((ChunkType::ANXT, [].as_slice()))
     }
 
+    /// Split to the next archive.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// # use libpna::{Archive, EntryBuilder, EntryPart, WriteOption};
+    /// # use std::fs::File;
+    /// # use std::io;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let part1_file = File::create("example.part1.pna")?;
+    /// let mut archive_part1 = Archive::write_header(part1_file)?;
+    /// let entry = EntryBuilder::new_file(
+    ///     "example.txt".try_into().unwrap(),
+    ///     WriteOption::builder().build(),
+    /// )?
+    /// .build()?;
+    /// archive_part1.add_entry_part(EntryPart::from(entry))?;
+    ///
+    /// let part2_file = File::create("example.part2.pna")?;
+    /// let archive_part2 = archive_part1.split_to_next_archive(part2_file)?;
+    /// archive_part2.finalize()?;
+    /// #    Ok(())
+    /// # }
+    /// ```
     pub fn split_to_next_archive<OW: Write>(mut self, writer: OW) -> io::Result<Archive<OW>> {
         let next_archive_number = self.header.archive_number + 1;
         let header = ArchiveHeader::new(0, 0, next_archive_number);
@@ -191,7 +215,7 @@ impl<W: Write> Archive<W> {
     /// let file = File::create("foo.pna")?;
     /// let mut archive = Archive::write_header(file)?;
     /// archive.finalize()?;
-    /// Ok(())
+    /// # Ok(())
     /// # }
     /// ```
     pub fn finalize(mut self) -> io::Result<W> {
