@@ -36,6 +36,20 @@ pub struct RawChunk {
 }
 
 impl RawChunk {
+    /// Create a new [`RawChunk`] from given [`ChunkType`] and [`Vec<u8>`].
+    ///
+    /// # Examples
+    /// ```
+    /// use libpna::{Chunk, ChunkType, RawChunk};
+    ///
+    /// let data = vec![0xAA, 0xBB, 0xCC, 0xDD];
+    /// let chunk = RawChunk::from_data(ChunkType::FDAT, data);
+    ///
+    /// assert_eq!(chunk.length(), 4);
+    /// assert_eq!(chunk.ty(), ChunkType::FDAT);
+    /// assert_eq!(chunk.data(), &[0xAA, 0xBB, 0xCC, 0xDD]);
+    /// assert_eq!(chunk.crc(), 1207118608);
+    /// ```
     #[inline]
     pub fn from_data(ty: ChunkType, data: Vec<u8>) -> Self {
         let chunk = (ty, &data[..]);
