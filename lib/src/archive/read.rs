@@ -244,6 +244,27 @@ impl<'r, R: Read> Iterator for Entries<'r, R> {
 }
 
 impl<R: Read + Seek> Archive<R> {
+    /// Seek the cursor to the end of the archive marker.
+    ///
+    /// # Examples
+    /// For appending entry to the existing archive.
+    /// ```no_run
+    /// # use std::fs::File;
+    /// # use std::io;
+    /// # use libpna::*;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let file = File::open("foo.pna")?;
+    /// let mut archive = Archive::read_header(file)?;
+    /// archive.seek_to_end()?;
+    /// archive.add_entry({
+    ///     let entry = EntryBuilder::new_dir("dir_entry".try_into().unwrap());
+    ///     entry.build()?
+    /// })?;
+    /// archive.finalize()?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn seek_to_end(&mut self) -> io::Result<()> {
         let mut reader = ChunkReader::from(&mut self.inner);
         let byte;
