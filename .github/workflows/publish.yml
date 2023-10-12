@@ -1,0 +1,34 @@
+name: Publish Rust crate
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  publish:
+    name: Publish crate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: ./.github/actions/setup-rust
+      - if: startsWith(github.ref, 'refs/tags/libpna')
+        name: Publish libpna crate
+        run: cargo publish -p libpna
+        working-directory: .
+        env:
+          CARGO_REGISTRY_TOKEN: "${{ secrets.CRATES_IO_API_KEY }}"
+      - if: startsWith(github.ref, 'refs/tags/pna')
+        name: Publish pna crate
+        run: cargo publish -p pna
+        working-directory: .
+        env:
+          CARGO_REGISTRY_TOKEN: "${{ secrets.CRATES_IO_API_KEY }}"
+      - if: startsWith(github.ref, 'refs/tags/portable-network-archive')
+        name: Publish portable-network-archive crate
+        run: cargo publish -p portable-network-archive
+        working-directory: .
+        env:
+          CARGO_REGISTRY_TOKEN: "${{ secrets.CRATES_IO_API_KEY }}"
