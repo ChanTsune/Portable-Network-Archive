@@ -1,18 +1,18 @@
-use argon2::{Argon2, ParamsBuilder};
+use argon2::{Argon2, ParamsBuilder, Version};
 use password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use std::io;
 
 pub(crate) fn argon2_with_salt<'a>(
     password: &'a str,
+    algorithm: argon2::Algorithm,
     hash_length: usize,
     salt: &'a SaltString,
 ) -> io::Result<PasswordHash<'a>> {
-    let argon2 = Argon2::from({
-        ParamsBuilder::default()
-            .output_len(hash_length)
-            .build()
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?
-    });
+    let mut builder = ParamsBuilder::default();
+    let argon2 = builder
+        .output_len(hash_length)
+        .context(algorithm, Version::default())
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
     argon2
         .hash_password(password.as_bytes(), salt)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
@@ -20,10 +20,18 @@ pub(crate) fn argon2_with_salt<'a>(
 
 pub(crate) fn pbkdf2_with_salt<'a>(
     password: &'a str,
+    algorithm: pbkdf2::Algorithm,
+    params: pbkdf2::Params,
     salt: &'a SaltString,
 ) -> io::Result<PasswordHash<'a>> {
     pbkdf2::Pbkdf2
-        .hash_password(password.as_bytes(), salt)
+        .hash_password_customized(
+            password.as_bytes(),
+            Some(algorithm.ident()),
+            None,
+            params,
+            salt,
+        )
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
 }
 
@@ -83,7 +91,7 @@ mod tests {
     #[test]
     fn verify_argon2() {
         let salt = random::salt_string();
-        let mut ph = argon2_with_salt("pass", 32, &salt).unwrap();
+        let mut ph = argon2_with_salt("pass", argon2::Algorithm::Argon2id, 32, &salt).unwrap();
         ph.hash.take();
         assert_eq!(ph.hash, None);
         verify_password(&ph.to_string(), "pass").unwrap();
@@ -92,7 +100,13 @@ mod tests {
     #[test]
     fn verify_pbkdf2() {
         let salt = random::salt_string();
-        let mut ph = pbkdf2_with_salt("pass", &salt).unwrap();
+        let mut ph = pbkdf2_with_salt(
+            "pass",
+            pbkdf2::Algorithm::Pbkdf2Sha256,
+            pbkdf2::Params::default(),
+            &salt,
+        )
+        .unwrap();
         ph.hash.take();
         assert_eq!(ph.hash, None);
         verify_password(&ph.to_string(), "pass").unwrap();

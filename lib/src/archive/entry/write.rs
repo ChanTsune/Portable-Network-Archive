@@ -20,14 +20,25 @@ fn hash<'s, 'p: 's>(
     salt: &'s SaltString,
 ) -> io::Result<(Output, String)> {
     let mut password_hash = match (hash_algorithm, encryption_algorithm) {
-        (HashAlgorithm::Argon2Id, Encryption::Aes) => {
-            hash::argon2_with_salt(password, Aes256::key_size(), salt)
-        }
-        (HashAlgorithm::Argon2Id, Encryption::Camellia) => {
-            hash::argon2_with_salt(password, Camellia256::key_size(), salt)
-        }
+        (HashAlgorithm::Argon2Id, Encryption::Aes) => hash::argon2_with_salt(
+            password,
+            argon2::Algorithm::Argon2id,
+            Aes256::key_size(),
+            salt,
+        ),
+        (HashAlgorithm::Argon2Id, Encryption::Camellia) => hash::argon2_with_salt(
+            password,
+            argon2::Algorithm::Argon2id,
+            Camellia256::key_size(),
+            salt,
+        ),
         (HashAlgorithm::Pbkdf2Sha256, Encryption::Aes | Encryption::Camellia) => {
-            hash::pbkdf2_with_salt(password, salt)
+            hash::pbkdf2_with_salt(
+                password,
+                pbkdf2::Algorithm::Pbkdf2Sha256,
+                pbkdf2::Params::default(),
+                salt,
+            )
         }
         (_, Encryption::No) => {
             return Err(io::Error::new(
