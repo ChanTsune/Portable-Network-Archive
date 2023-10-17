@@ -85,9 +85,7 @@ mod tests {
     fn store_archive() {
         archive(
             b"src data bytes",
-            WriteOptionBuilder::default()
-                .compression(Compression::No)
-                .build(),
+            WriteOption::builder().compression(Compression::No).build(),
         )
         .unwrap()
     }
@@ -96,7 +94,7 @@ mod tests {
     fn deflate_archive() {
         archive(
             b"src data bytes",
-            WriteOptionBuilder::default()
+            WriteOption::builder()
                 .compression(Compression::Deflate)
                 .build(),
         )
@@ -107,7 +105,7 @@ mod tests {
     fn zstd_archive() {
         archive(
             b"src data bytes",
-            WriteOptionBuilder::default()
+            WriteOption::builder()
                 .compression(Compression::ZStandard)
                 .build(),
         )
@@ -118,9 +116,7 @@ mod tests {
     fn xz_archive() {
         archive(
             b"src data bytes",
-            WriteOptionBuilder::default()
-                .compression(Compression::XZ)
-                .build(),
+            WriteOption::builder().compression(Compression::XZ).build(),
         )
         .unwrap();
     }
@@ -129,7 +125,7 @@ mod tests {
     fn store_with_aes_cbc_archive() {
         archive(
             b"plain text",
-            WriteOptionBuilder::default()
+            WriteOption::builder()
                 .compression(Compression::No)
                 .encryption(Encryption::Aes)
                 .cipher_mode(CipherMode::CBC)
@@ -143,7 +139,7 @@ mod tests {
     fn zstd_with_aes_ctr_archive() {
         archive(
             b"plain text",
-            WriteOptionBuilder::default()
+            WriteOption::builder()
                 .compression(Compression::ZStandard)
                 .encryption(Encryption::Aes)
                 .cipher_mode(CipherMode::CTR)
@@ -157,7 +153,7 @@ mod tests {
     fn zstd_with_aes_cbc_archive() {
         archive(
             b"plain text",
-            WriteOptionBuilder::default()
+            WriteOption::builder()
                 .compression(Compression::ZStandard)
                 .encryption(Encryption::Aes)
                 .cipher_mode(CipherMode::CBC)
@@ -171,7 +167,7 @@ mod tests {
     fn zstd_with_camellia_ctr_archive() {
         archive(
             b"plain text",
-            WriteOptionBuilder::default()
+            WriteOption::builder()
                 .compression(Compression::ZStandard)
                 .encryption(Encryption::Camellia)
                 .cipher_mode(CipherMode::CTR)
@@ -185,7 +181,7 @@ mod tests {
     fn zstd_with_camellia_cbc_archive() {
         archive(
             b"plain text",
-            WriteOptionBuilder::default()
+            WriteOption::builder()
                 .compression(Compression::ZStandard)
                 .encryption(Encryption::Camellia)
                 .cipher_mode(CipherMode::CBC)
@@ -199,7 +195,7 @@ mod tests {
     fn xz_with_aes_cbc_archive() {
         archive(
             b"plain text",
-            WriteOptionBuilder::default()
+            WriteOption::builder()
                 .compression(Compression::XZ)
                 .encryption(Encryption::Aes)
                 .cipher_mode(CipherMode::CBC)
@@ -214,7 +210,7 @@ mod tests {
     fn xz_with_camellia_cbc_archive() {
         archive(
             b"plain text",
-            WriteOptionBuilder::default()
+            WriteOption::builder()
                 .compression(Compression::XZ)
                 .encryption(Encryption::Camellia)
                 .cipher_mode(CipherMode::CBC)
