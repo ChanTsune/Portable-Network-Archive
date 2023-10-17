@@ -12,3 +12,57 @@ impl TryIntoInner<Vec<u8>> for Vec<u8> {
 }
 
 impl TryIntoInnerWrite<Vec<u8>> for Vec<u8> {}
+
+pub(crate) struct FlattenReader {
+    index: usize,
+    inner: Vec<io::Cursor<Vec<u8>>>,
+}
+
+impl FlattenReader {
+    #[inline]
+    pub(crate) fn new(inner: Vec<Vec<u8>>) -> Self {
+        Self {
+            index: 0,
+            inner: inner.into_iter().map(io::Cursor::new).collect(),
+        }
+    }
+}
+
+impl io::Read for FlattenReader {
+    #[inline]
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if let Some(c) = self.inner.get_mut(self.index) {
+            let s = c.read(buf);
+            if let Ok(0) = s {
+                self.index += 1;
+                self.read(buf)
+            } else {
+                s
+            }
+        } else {
+            Ok(0)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn flat_empty() {
+        let reader = FlattenReader::new(vec![]);
+        assert_eq!("", io::read_to_string(reader).unwrap());
+    }
+    #[test]
+    fn flat_empty_in_empty() {
+        let reader = FlattenReader::new(vec![vec![]]);
+        assert_eq!("", io::read_to_string(reader).unwrap());
+    }
+
+    #[test]
+    fn flat_contain_empty() {
+        let reader = FlattenReader::new(vec![b"abc".to_vec(), b"".to_vec(), b"def".to_vec()]);
+        assert_eq!("abcdef", io::read_to_string(reader).unwrap());
+    }
+}

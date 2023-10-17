@@ -65,7 +65,7 @@ impl Entry for ChunkEntry {
 }
 
 /// Reader for Entry data. this struct impl [`Read`] trait.
-pub struct EntryDataReader(EntryReader<io::Cursor<Vec<u8>>>);
+pub struct EntryDataReader(EntryReader<crate::io::FlattenReader>);
 
 impl Read for EntryDataReader {
     #[inline]
@@ -219,7 +219,7 @@ pub struct ReadEntry {
     pub(crate) header: EntryHeader,
     pub(crate) phsf: Option<String>,
     pub(crate) extra: Vec<RawChunk>,
-    pub(crate) data: Vec<u8>,
+    pub(crate) data: Vec<Vec<u8>>,
     pub(crate) metadata: Metadata,
 }
 
@@ -245,7 +245,7 @@ impl TryFrom<ChunkEntry> for ReadEntry {
         let mut ctime = None;
         let mut mtime = None;
         let mut permission = None;
-        for mut chunk in entry.0 {
+        for chunk in entry.0 {
             match chunk.ty {
                 ChunkType::FEND => break,
                 ChunkType::FHED => {
@@ -257,7 +257,7 @@ impl TryFrom<ChunkEntry> for ReadEntry {
                             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
                     );
                 }
-                ChunkType::FDAT => data.append(&mut chunk.data),
+                ChunkType::FDAT => data.push(chunk.data),
                 ChunkType::cTIM => ctime = Some(timestamp(&chunk.data)?),
                 ChunkType::mTIM => mtime = Some(timestamp(&chunk.data)?),
                 ChunkType::fPRM => permission = Some(Permission::try_from_bytes(&chunk.data)?),
@@ -304,8 +304,10 @@ impl SealedIntoChunks for ReadEntry {
         for ex in self.extra {
             vec.push(ex);
         }
-        for data_chunk in self.data.chunks(u32::MAX as usize) {
-            vec.push(RawChunk::from_data(ChunkType::FDAT, data_chunk.to_vec()));
+        for data_chunk in self.data {
+            for data_unit in data_chunk.chunks(u32::MAX as usize) {
+                vec.push(RawChunk::from_data(ChunkType::FDAT, data_unit.to_vec()));
+            }
         }
         let Metadata {
             compressed_size: _,
@@ -365,7 +367,7 @@ impl ReadEntry {
     }
 
     fn reader(self, password: Option<&str>) -> io::Result<EntryDataReader> {
-        let raw_data_reader = io::Cursor::new(self.data);
+        let raw_data_reader = crate::io::FlattenReader::new(self.data);
         let decrypt_reader = decrypt_reader(
             raw_data_reader,
             self.header.encryption,
