@@ -5,6 +5,29 @@ use std::io;
 
 pub(crate) trait TryIntoInnerWrite<W>: TryIntoInner<W> + io::Write {}
 
+pub(crate) struct FlattenWriter<const N: usize> {
+    pub(crate) inner: Vec<Vec<u8>>,
+}
+
+impl<const N: usize> FlattenWriter<N> {
+    pub(crate) fn new() -> Self {
+        Self { inner: Vec::new() }
+    }
+}
+
+impl<const N: usize> io::Write for FlattenWriter<N> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        for b in buf.chunks(N) {
+            self.inner.push(b.to_vec());
+        }
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
 impl TryIntoInner<Vec<u8>> for Vec<u8> {
     fn try_into_inner(self) -> io::Result<Self> {
         Ok(self)
