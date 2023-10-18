@@ -13,11 +13,15 @@ use std::{
     time::Duration,
 };
 
+const MAX_CHUNK_DATA_LENGTH: usize = u32::MAX as usize;
+
 /// A builder for creating a new [Entry].
 pub struct EntryBuilder {
     header: EntryHeader,
     phsf: Option<String>,
-    data: Option<CompressionWriter<'static, CipherWriter<Vec<u8>>>>,
+    data: Option<
+        CompressionWriter<'static, CipherWriter<crate::io::FlattenWriter<MAX_CHUNK_DATA_LENGTH>>>,
+    >,
     created: Option<Duration>,
     last_modified: Option<Duration>,
     permission: Option<Permission>,
@@ -55,7 +59,7 @@ impl EntryBuilder {
     ///
     /// A Result containing the new [EntryBuilder], or an I/O error if creation fails.
     pub fn new_file(name: EntryName, option: WriteOption) -> io::Result<Self> {
-        let (writer, phsf) = writer_and_hash(Vec::new(), option.clone())?;
+        let (writer, phsf) = writer_and_hash(crate::io::FlattenWriter::new(), option.clone())?;
         Ok(Self {
             header: EntryHeader::for_file(
                 option.compression,
@@ -95,7 +99,7 @@ impl EntryBuilder {
     /// ```
     pub fn new_symbolic_link(name: EntryName, source: EntryReference) -> io::Result<Self> {
         let option = WriteOption::store();
-        let (mut writer, phsf) = writer_and_hash(Vec::new(), option)?;
+        let (mut writer, phsf) = writer_and_hash(crate::io::FlattenWriter::new(), option)?;
         writer.write_all(source.as_bytes())?;
         Ok(Self {
             header: EntryHeader::for_symbolic_link(name),
@@ -131,7 +135,7 @@ impl EntryBuilder {
     /// ```
     pub fn new_hard_link(name: EntryName, source: EntryReference) -> io::Result<Self> {
         let option = WriteOption::store();
-        let (mut writer, phsf) = writer_and_hash(Vec::new(), option)?;
+        let (mut writer, phsf) = writer_and_hash(crate::io::FlattenWriter::new(), option)?;
         writer.write_all(source.as_bytes())?;
         Ok(Self {
             header: EntryHeader::for_hard_link(name),
@@ -223,8 +227,8 @@ impl EntryBuilder {
         }
         if let Some(data) = self.data {
             let data = data.try_into_inner()?.try_into_inner()?;
-            for data_chunk in data.chunks(u32::MAX as usize) {
-                chunks.push(RawChunk::from_data(ChunkType::FDAT, data_chunk.to_vec()));
+            for data_chunk in data.inner {
+                chunks.push(RawChunk::from_data(ChunkType::FDAT, data_chunk));
             }
         }
         chunks.push(RawChunk::from_data(ChunkType::FEND, Vec::new()));
