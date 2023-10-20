@@ -63,7 +63,7 @@ impl ChunkType {
 impl Display for ChunkType {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str(unsafe { std::str::from_utf8_unchecked(&self.0) })
+        Display::fmt(unsafe { std::str::from_utf8_unchecked(&self.0) }, f)
     }
 }
 

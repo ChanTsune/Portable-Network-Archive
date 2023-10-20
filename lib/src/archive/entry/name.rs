@@ -113,7 +113,7 @@ impl TryFrom<&[u8]> for EntryName {
 impl Display for EntryName {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
+        Display::fmt(&self.0, f)
     }
 }
 
