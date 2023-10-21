@@ -338,6 +338,7 @@ impl ReadOption {
     }
 }
 
+/// Builder for [`ReadOption`].
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct ReadOptionBuilder {
     password: Option<String>,
@@ -365,6 +366,7 @@ impl ReadOptionBuilder {
         self
     }
 
+    /// Create a new [`ReadOption`]
     #[inline]
     pub fn build(&self) -> ReadOption {
         ReadOption {
