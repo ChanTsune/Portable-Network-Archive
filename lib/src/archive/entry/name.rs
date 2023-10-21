@@ -59,6 +59,7 @@ impl EntryName {
         self.as_ref()
     }
 
+    #[deprecated(since = "0.3.2", note = "Use `EntryName::from_lossy` instead.")]
     pub fn from_path_lossy(p: &Path) -> Self {
         let buf = filtered_components(p)
             .map(|i| i.to_string_lossy())
@@ -66,8 +67,10 @@ impl EntryName {
         Self(buf.join("/"))
     }
 
+    #[deprecated(since = "0.3.2", note = "Use `EntryName::from_lossy` instead.")]
     #[inline]
     pub fn from_str_lossy(s: &str) -> Self {
+        #[allow(deprecated)]
         Self::from_path_lossy(s.as_ref())
     }
 
@@ -90,6 +93,7 @@ impl EntryName {
     /// ```
     #[inline]
     pub fn from_lossy<T: Into<PathBuf>>(p: T) -> Self {
+        #[allow(deprecated)]
         Self::from_path_lossy(&p.into())
     }
 }
