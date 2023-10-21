@@ -60,6 +60,18 @@ impl EntryName {
         self.as_ref()
     }
 
+    /// Converts to an [`OsStr`] slice.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use libpna::EntryName;
+    /// use std::ffi::OsStr;
+    ///
+    /// let entry_name = EntryName::from_lossy("foo.txt");
+    /// let os_str = OsStr::new("foo.txt");
+    /// assert_eq!(entry_name.as_os_str(), os_str);
+    /// ```
     #[inline]
     pub fn as_os_str(&self) -> &OsStr {
         self.as_ref()
