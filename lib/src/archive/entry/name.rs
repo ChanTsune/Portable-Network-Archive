@@ -120,10 +120,10 @@ impl EntryName {
     /// ```
     /// use libpna::EntryName;
     ///
-    /// assert_eq!("foo.txt", EntryName::from_lossy("foo.txt").as_str());
-    /// assert_eq!("foo.txt", EntryName::from_lossy("/foo.txt").as_str());
-    /// assert_eq!("foo.txt", EntryName::from_lossy("./foo.txt").as_str());
-    /// assert_eq!("foo.txt", EntryName::from_lossy("../foo.txt").as_str());
+    /// assert_eq!("foo.txt", EntryName::from_lossy("foo.txt"));
+    /// assert_eq!("foo.txt", EntryName::from_lossy("/foo.txt"));
+    /// assert_eq!("foo.txt", EntryName::from_lossy("./foo.txt"));
+    /// assert_eq!("foo.txt", EntryName::from_lossy("../foo.txt"));
     /// ```
     #[inline]
     pub fn from_lossy<T: Into<PathBuf>>(p: T) -> Self {
