@@ -311,7 +311,7 @@ mod tests {
         writer
             .add_entry({
                 let builder = EntryBuilder::new_file(
-                    EntryName::from_str_lossy("text1.txt"),
+                    EntryName::from_lossy("text1.txt"),
                     WriteOption::builder().build(),
                 )
                 .unwrap();
@@ -326,7 +326,7 @@ mod tests {
         appender
             .add_entry({
                 let builder = EntryBuilder::new_file(
-                    EntryName::from_str_lossy("text2.txt"),
+                    EntryName::from_lossy("text2.txt"),
                     WriteOption::builder().build(),
                 )
                 .unwrap();

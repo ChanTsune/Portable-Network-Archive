@@ -53,16 +53,16 @@ pub(crate) fn create_entry(
     if path.is_symlink() {
         let source = fs::read_link(path)?;
         let entry = EntryBuilder::new_symbolic_link(
-            EntryName::from_path_lossy(path),
+            EntryName::from_lossy(path),
             EntryReference::try_from(source.as_path()).unwrap(),
         )?;
         return apply_metadata(entry, path, keep_timestamp, keep_permission)?.build();
     } else if path.is_file() {
-        let mut entry = EntryBuilder::new_file(EntryName::from_path_lossy(path), option)?;
+        let mut entry = EntryBuilder::new_file(EntryName::from_lossy(path), option)?;
         entry.write_all(&fs::read(path)?)?;
         return apply_metadata(entry, path, keep_timestamp, keep_permission)?.build();
     } else if path.is_dir() {
-        let entry = EntryBuilder::new_dir(EntryName::from_path_lossy(path));
+        let entry = EntryBuilder::new_dir(EntryName::from_lossy(path));
         return apply_metadata(entry, path, keep_timestamp, keep_permission)?.build();
     }
     Err(io::Error::new(

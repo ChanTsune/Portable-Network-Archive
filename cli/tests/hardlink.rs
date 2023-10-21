@@ -14,7 +14,7 @@ fn init_resource<P: AsRef<Path>>(path: P) {
     writer
         .add_entry({
             let mut builder = EntryBuilder::new_file(
-                EntryName::from_str_lossy("origin1.txt"),
+                EntryName::from_lossy("origin1.txt"),
                 WriteOption::builder().build(),
             )
             .unwrap();
@@ -25,7 +25,7 @@ fn init_resource<P: AsRef<Path>>(path: P) {
     writer
         .add_entry({
             let builder = EntryBuilder::new_hard_link(
-                EntryName::from_str_lossy("linked1.txt"),
+                EntryName::from_lossy("linked1.txt"),
                 EntryReference::try_from("origin1.txt").unwrap(),
             )
             .unwrap();
@@ -35,7 +35,7 @@ fn init_resource<P: AsRef<Path>>(path: P) {
     writer
         .add_entry({
             let builder = EntryBuilder::new_hard_link(
-                EntryName::from_str_lossy("dir/linked1.txt"),
+                EntryName::from_lossy("dir/linked1.txt"),
                 EntryReference::try_from("../origin1.txt").unwrap(),
             )
             .unwrap();
@@ -46,7 +46,7 @@ fn init_resource<P: AsRef<Path>>(path: P) {
     writer
         .add_entry({
             let mut builder = EntryBuilder::new_file(
-                EntryName::from_str_lossy("dir/origin2.txt"),
+                EntryName::from_lossy("dir/origin2.txt"),
                 WriteOption::builder().build(),
             )
             .unwrap();
@@ -57,7 +57,7 @@ fn init_resource<P: AsRef<Path>>(path: P) {
     writer
         .add_entry({
             let builder = EntryBuilder::new_hard_link(
-                EntryName::from_str_lossy("dir/linked2.txt"),
+                EntryName::from_lossy("dir/linked2.txt"),
                 EntryReference::try_from("origin2.txt").unwrap(),
             )
             .unwrap();
@@ -67,7 +67,7 @@ fn init_resource<P: AsRef<Path>>(path: P) {
     writer
         .add_entry({
             let builder = EntryBuilder::new_hard_link(
-                EntryName::from_str_lossy("linked2.txt"),
+                EntryName::from_lossy("linked2.txt"),
                 EntryReference::try_from("dir/origin2.txt").unwrap(),
             )
             .unwrap();
