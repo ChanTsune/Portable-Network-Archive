@@ -238,13 +238,7 @@ mod tests {
             .next()
             .unwrap()
             .unwrap()
-            .into_reader({
-                let mut builder = ReadOption::builder();
-                if let Some(password) = options.password {
-                    builder.password(password);
-                }
-                builder.build()
-            })
+            .into_reader(ReadOption::with_password(options.password))
             .unwrap();
         let mut dist = Vec::new();
         io::copy(&mut item, &mut dist)?;

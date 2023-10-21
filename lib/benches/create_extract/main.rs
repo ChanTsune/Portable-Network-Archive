@@ -47,7 +47,7 @@ fn bench_read_archive(b: &mut Bencher, mut options: WriteOptionBuilder) {
         for item in reader.entries() {
             let mut buf = Vec::with_capacity(1000);
             item.unwrap()
-                .into_reader(ReadOption::builder().password("password").build())
+                .into_reader(ReadOption::with_password(Some("password")))
                 .unwrap()
                 .read_to_end(&mut buf)
                 .unwrap();

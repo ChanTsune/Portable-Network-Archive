@@ -165,26 +165,14 @@ fn extract_entry(
     match item.header().data_kind() {
         DataKind::File => {
             let mut file = File::create(&path)?;
-            let mut reader = item.into_reader({
-                let mut builder = ReadOption::builder();
-                if let Some(password) = password {
-                    builder.password(password);
-                }
-                builder.build()
-            })?;
+            let mut reader = item.into_reader(ReadOption::with_password(password))?;
             io::copy(&mut reader, &mut file)?;
         }
         DataKind::Directory => {
             fs::create_dir_all(&path)?;
         }
         DataKind::SymbolicLink => {
-            let reader = item.into_reader({
-                let mut builder = ReadOption::builder();
-                if let Some(password) = password {
-                    builder.password(password);
-                }
-                builder.build()
-            })?;
+            let reader = item.into_reader(ReadOption::with_password(password))?;
             let original = PathBuf::from(io::read_to_string(reader)?);
             if overwrite && path.exists() {
                 utils::fs::remove(&path)?;
@@ -192,13 +180,7 @@ fn extract_entry(
             utils::fs::symlink(original, &path)?;
         }
         DataKind::HardLink => {
-            let reader = item.into_reader({
-                let mut builder = ReadOption::builder();
-                if let Some(password) = password {
-                    builder.password(password);
-                }
-                builder.build()
-            })?;
+            let reader = item.into_reader(ReadOption::with_password(password))?;
             let mut original = PathBuf::from(io::read_to_string(reader)?);
             if let Some(parent) = path.parent() {
                 original = parent.join(original);
