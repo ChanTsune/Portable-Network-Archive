@@ -163,7 +163,7 @@ impl WriteOption {
     /// let builder = WriteOption::builder();
     /// ```
     #[inline]
-    pub fn builder() -> WriteOptionBuilder {
+    pub const fn builder() -> WriteOptionBuilder {
         #[allow(deprecated)]
         WriteOptionBuilder::new()
     }
@@ -220,10 +220,10 @@ impl From<WriteOption> for WriteOptionBuilder {
 
 impl WriteOptionBuilder {
     #[deprecated(since = "0.2.0", note = "Use WriteOption::builder instead.")]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             compression: Compression::No,
-            compression_level: CompressionLevel::default(),
+            compression_level: CompressionLevel::DEFAULT,
             encryption: Encryption::No,
             cipher_mode: CipherMode::CTR,
             hash_algorithm: HashAlgorithm::Argon2Id,
