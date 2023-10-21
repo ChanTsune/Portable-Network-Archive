@@ -14,13 +14,7 @@ fn extract_all(follows: &[&[u8]], password: Option<&str>) {
             let path = item.header().path().to_string();
             let mut dist = Vec::new();
             let mut reader = item
-                .into_reader({
-                    let mut builder = ReadOption::builder();
-                    if let Some(password) = password {
-                        builder.password(password);
-                    }
-                    builder.build()
-                })
+                .into_reader(ReadOption::with_password(password))
                 .unwrap();
             io::copy(&mut reader, &mut dist).unwrap();
             match &*path {

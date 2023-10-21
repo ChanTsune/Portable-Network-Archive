@@ -154,13 +154,7 @@ fn detail_list_entries(entries: Vec<ReadEntry>, password: Option<&str>, print_he
                 ) {
                     let path = header.path().to_string();
                     let original = entry
-                        .into_reader({
-                            let mut builder = ReadOption::builder();
-                            if let Some(password) = password {
-                                builder.password(password);
-                            }
-                            builder.build()
-                        })
+                        .into_reader(ReadOption::with_password(password))
                         .map(|r| io::read_to_string(r).unwrap_or_else(|_| "-".to_string()))
                         .unwrap_or_default();
                     format!("{} -> {}", path, original)
