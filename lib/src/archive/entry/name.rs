@@ -2,7 +2,7 @@ use crate::util::try_to_string;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::fmt::{self, Display, Formatter};
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
 use std::str;
 
 /// A UTF-8 encoded entry name.
@@ -69,6 +69,28 @@ impl EntryName {
     #[inline]
     pub fn from_str_lossy(s: &str) -> Self {
         Self::from_path_lossy(s.as_ref())
+    }
+
+    /// Create an [`EntryName`] from a struct impl <code>[Into]<[PathBuf]></code>.
+    ///
+    /// Any non-Unicode sequences are replaced with
+    /// [`U+FFFD REPLACEMENT CHARACTER`][U+FFFD] and
+    /// any path components not match with [Component::Normal] are removed.
+    ///
+    /// [U+FFFD]: core::char::REPLACEMENT_CHARACTER
+    ///
+    /// # Examples
+    /// ```
+    /// use libpna::EntryName;
+    ///
+    /// assert_eq!("foo.txt", EntryName::from_lossy("foo.txt").as_str());
+    /// assert_eq!("foo.txt", EntryName::from_lossy("/foo.txt").as_str());
+    /// assert_eq!("foo.txt", EntryName::from_lossy("./foo.txt").as_str());
+    /// assert_eq!("foo.txt", EntryName::from_lossy("../foo.txt").as_str());
+    /// ```
+    #[inline]
+    pub fn from_lossy<T: Into<PathBuf>>(p: T) -> Self {
+        Self::from_path_lossy(&p.into())
     }
 }
 
