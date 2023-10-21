@@ -42,7 +42,7 @@ impl RawChunk {
     /// ```
     /// use libpna::{Chunk, ChunkType, RawChunk};
     ///
-    /// let data = vec![0xAA, 0xBB, 0xCC, 0xDD];
+    /// let data = [0xAA, 0xBB, 0xCC, 0xDD];
     /// let chunk = RawChunk::from_data(ChunkType::FDAT, data);
     ///
     /// assert_eq!(chunk.length(), 4);
@@ -51,7 +51,8 @@ impl RawChunk {
     /// assert_eq!(chunk.crc(), 1207118608);
     /// ```
     #[inline]
-    pub fn from_data(ty: ChunkType, data: Vec<u8>) -> Self {
+    pub fn from_data<T: Into<Vec<u8>>>(ty: ChunkType, data: T) -> Self {
+        let data = data.into();
         let chunk = (ty, &data[..]);
         Self {
             length: chunk.length(),
