@@ -1,6 +1,6 @@
 use crate::util::try_to_string;
 use std::borrow::Cow;
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
 
 /// A UTF-8 encoded entry reference.
 ///
@@ -46,7 +46,7 @@ impl EntryReference {
     /// Basic usage:
     /// ```
     /// use libpna::EntryReference;
-    /// let r = EntryReference::try_from("foo").unwrap();
+    /// let r = EntryReference::from_lossy("foo");
     ///
     /// assert_eq!("foo", r.as_str());
     /// ```
@@ -58,6 +58,51 @@ impl EntryReference {
     #[inline]
     pub(crate) fn as_bytes(&self) -> &[u8] {
         self.as_str().as_bytes()
+    }
+
+    /// Create an [`EntryReference`] from a struct impl <code>[Into]<[PathBuf]></code>.
+    ///
+    /// Any non-Unicode sequences are replaced with
+    /// [`U+FFFD REPLACEMENT CHARACTER`][U+FFFD].
+    ///
+    /// [U+FFFD]: core::char::REPLACEMENT_CHARACTER
+    ///
+    /// # Examples
+    /// ```
+    /// use libpna::EntryReference;
+    ///
+    /// assert_eq!("foo.txt", EntryReference::from_lossy("foo.txt").as_str());
+    /// assert_eq!("/foo.txt", EntryReference::from_lossy("/foo.txt").as_str());
+    /// assert_eq!(
+    ///     "./foo.txt",
+    ///     EntryReference::from_lossy("./foo.txt").as_str()
+    /// );
+    /// assert_eq!(
+    ///     "../foo.txt",
+    ///     EntryReference::from_lossy("../foo.txt").as_str()
+    /// );
+    /// ```
+    pub fn from_lossy<T: Into<PathBuf>>(p: T) -> Self {
+        let path = p.into();
+        let has_root = path.has_root();
+        let mut components = path.components();
+        if has_root {
+            components.next();
+        };
+        let p = components
+            .map(|it| match it {
+                Component::Prefix(p) => p.as_os_str().to_string_lossy(),
+                Component::RootDir => unreachable!(),
+                Component::CurDir => Cow::from("."),
+                Component::ParentDir => Cow::from(".."),
+                Component::Normal(n) => n.to_string_lossy(),
+            })
+            .collect::<Vec<_>>();
+        let mut s = p.join("/");
+        if has_root {
+            s.insert(0, '/');
+        };
+        Self(s)
     }
 }
 
