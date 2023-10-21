@@ -286,6 +286,21 @@ pub struct ReadOption {
 }
 
 impl ReadOption {
+    /// Create a new [`ReadOption`] with optional password.
+    ///
+    /// # Examples
+    /// ```
+    /// use libpna::ReadOption;
+    ///
+    /// let read_option = ReadOption::with_password(Some("password"));
+    /// ```
+    #[inline]
+    pub fn with_password<T: Into<String>>(password: Option<T>) -> Self {
+        Self {
+            password: password.map(Into::into),
+        }
+    }
+
     /// Returns a builder for [ReadOption].
     ///
     /// # Returns
