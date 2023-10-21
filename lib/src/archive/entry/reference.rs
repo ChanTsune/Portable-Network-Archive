@@ -8,11 +8,11 @@ use std::path::{Component, Path, PathBuf};
 /// ```
 /// use libpna::EntryReference;
 ///
-/// assert_eq!("uer/bin", EntryReference::try_from("uer/bin").unwrap().as_str());
-/// assert_eq!("/user/bin", EntryReference::try_from("/user/bin").unwrap().as_str());
-/// assert_eq!("/user/bin", EntryReference::try_from("/user/bin/").unwrap().as_str());
-/// assert_eq!("../user/bin", EntryReference::try_from("../user/bin/").unwrap().as_str());
-/// assert_eq!("/", EntryReference::try_from("/").unwrap().as_str());
+/// assert_eq!("uer/bin", EntryReference::from_lossy("uer/bin"));
+/// assert_eq!("/user/bin", EntryReference::from_lossy("/user/bin"));
+/// assert_eq!("/user/bin", EntryReference::from_lossy("/user/bin/"));
+/// assert_eq!("../user/bin", EntryReference::from_lossy("../user/bin/"));
+/// assert_eq!("/", EntryReference::from_lossy("/"));
 /// ```
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct EntryReference(String);
@@ -71,16 +71,10 @@ impl EntryReference {
     /// ```
     /// use libpna::EntryReference;
     ///
-    /// assert_eq!("foo.txt", EntryReference::from_lossy("foo.txt").as_str());
-    /// assert_eq!("/foo.txt", EntryReference::from_lossy("/foo.txt").as_str());
-    /// assert_eq!(
-    ///     "./foo.txt",
-    ///     EntryReference::from_lossy("./foo.txt").as_str()
-    /// );
-    /// assert_eq!(
-    ///     "../foo.txt",
-    ///     EntryReference::from_lossy("../foo.txt").as_str()
-    /// );
+    /// assert_eq!("foo.txt", EntryReference::from_lossy("foo.txt"));
+    /// assert_eq!("/foo.txt", EntryReference::from_lossy("/foo.txt"));
+    /// assert_eq!("./foo.txt", EntryReference::from_lossy("./foo.txt"));
+    /// assert_eq!("../foo.txt", EntryReference::from_lossy("../foo.txt"));
     /// ```
     pub fn from_lossy<T: Into<PathBuf>>(p: T) -> Self {
         let path = p.into();
@@ -113,7 +107,10 @@ impl TryFrom<&str> for EntryReference {
     /// ```
     /// use libpna::EntryReference;
     ///
-    /// assert_eq!(EntryReference::try_from("/path/with/root"), EntryReference::try_from("/path/with/root"));
+    /// assert_eq!(
+    ///     "/path/with/root",
+    ///     EntryReference::try_from("/path/with/root").unwrap()
+    /// );
     /// ```
     #[inline]
     fn try_from(value: &str) -> Result<Self, Self::Error> {
@@ -126,11 +123,11 @@ impl TryFrom<&Path> for EntryReference {
 
     /// ## Examples
     /// ```
-    /// use std::path::Path;
     /// use libpna::EntryReference;
+    /// use std::path::Path;
     ///
     /// let p = Path::new("path/to/file");
-    /// assert_eq!(EntryReference::try_from(p), EntryReference::try_from("path/to/file"));
+    /// assert_eq!("path/to/file", EntryReference::try_from(p).unwrap());
     /// ```
     #[inline]
     fn try_from(value: &Path) -> Result<Self, Self::Error> {
