@@ -164,6 +164,34 @@ impl AsRef<Path> for EntryName {
     }
 }
 
+impl PartialEq<str> for EntryName {
+    #[inline]
+    fn eq(&self, other: &str) -> bool {
+        PartialEq::eq(self.as_str(), other)
+    }
+}
+
+impl PartialEq<&str> for EntryName {
+    #[inline]
+    fn eq(&self, other: &&str) -> bool {
+        PartialEq::eq(self.as_str(), *other)
+    }
+}
+
+impl PartialEq<EntryName> for str {
+    #[inline]
+    fn eq(&self, other: &EntryName) -> bool {
+        PartialEq::eq(self, other.as_str())
+    }
+}
+
+impl PartialEq<EntryName> for &str {
+    #[inline]
+    fn eq(&self, other: &EntryName) -> bool {
+        PartialEq::eq(self, &other.as_str())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
