@@ -77,6 +77,17 @@ impl EntryName {
         self.as_ref()
     }
 
+    /// Coerces to a [`Path`] slice.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use libpna::EntryName;
+    /// use std::path::Path;
+    ///
+    /// let entry_name = EntryName::from_lossy("test/foo.txt");
+    /// assert_eq!(Path::new("test/foo.txt"), entry_name.as_path());
+    /// ```
     #[inline]
     pub fn as_path(&self) -> &Path {
         self.as_ref()
