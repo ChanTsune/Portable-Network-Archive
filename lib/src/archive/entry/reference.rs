@@ -137,3 +137,31 @@ impl TryFrom<&Path> for EntryReference {
         Self::new(value)
     }
 }
+
+impl PartialEq<str> for EntryReference {
+    #[inline]
+    fn eq(&self, other: &str) -> bool {
+        PartialEq::eq(self.as_str(), other)
+    }
+}
+
+impl PartialEq<&str> for EntryReference {
+    #[inline]
+    fn eq(&self, other: &&str) -> bool {
+        PartialEq::eq(self.as_str(), *other)
+    }
+}
+
+impl PartialEq<EntryReference> for str {
+    #[inline]
+    fn eq(&self, other: &EntryReference) -> bool {
+        PartialEq::eq(self, other.as_str())
+    }
+}
+
+impl PartialEq<EntryReference> for &str {
+    #[inline]
+    fn eq(&self, other: &EntryReference) -> bool {
+        PartialEq::eq(self, &other.as_str())
+    }
+}
