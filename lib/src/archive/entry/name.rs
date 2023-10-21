@@ -44,6 +44,17 @@ impl EntryName {
         self.as_str().as_bytes()
     }
 
+    /// Extracts a string slice containing the entire `EntryName`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use libpna::EntryName;
+    ///
+    /// let name = EntryName::from_lossy("foo");
+    ///
+    /// assert_eq!("foo", name.as_str());
+    /// ```
     #[inline]
     pub fn as_str(&self) -> &str {
         self.as_ref()
