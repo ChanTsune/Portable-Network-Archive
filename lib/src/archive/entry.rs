@@ -139,6 +139,41 @@ pub(crate) struct SolidReadEntry {
     extra: Vec<RawChunk>,
 }
 
+impl SealedIntoChunks for SolidReadEntry {
+    fn into_chunks(self) -> Vec<RawChunk> {
+        let mut chunks = vec![];
+        chunks.push(RawChunk::from_data(
+            ChunkType::SHED,
+            self.header.to_bytes().to_vec(),
+        ));
+
+        if let Some(phsf) = &self.phsf {
+            chunks.push(RawChunk::from_data(
+                ChunkType::PHSF,
+                phsf.as_bytes().to_vec(),
+            ));
+        }
+        for data_chunk in self.data.chunks(u32::MAX as usize) {
+            chunks.push(RawChunk::from_data(ChunkType::SDAT, data_chunk.to_vec()));
+        }
+        chunks.push(RawChunk::from_data(ChunkType::SEND, Vec::new()));
+        chunks
+    }
+}
+
+impl SolidEntries for SolidReadEntry {
+    fn bytes_len(&self) -> usize {
+        self.clone().into_bytes().len()
+    }
+
+    fn into_bytes(self) -> Vec<u8> {
+        self.into_chunks()
+            .into_iter()
+            .flat_map(chunk_to_bytes)
+            .collect()
+    }
+}
+
 impl SolidReadEntry {
     pub(crate) fn entries(
         &self,
