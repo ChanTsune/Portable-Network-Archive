@@ -83,18 +83,18 @@ impl<R: Read> Read for EntryReader<R> {
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) enum ReadEntryContainer {
+pub(crate) enum EntryContainer {
     Solid(SolidReadEntry),
-    NonSolid(ReadEntry),
+    Regular(ReadEntry),
 }
 
-impl TryFrom<ChunkEntry> for ReadEntryContainer {
+impl TryFrom<ChunkEntry> for EntryContainer {
     type Error = io::Error;
     fn try_from(entry: ChunkEntry) -> Result<Self, Self::Error> {
         if let Some(first_chunk) = entry.0.first() {
             match first_chunk.ty {
                 ChunkType::SHED => Ok(Self::Solid(SolidReadEntry::try_from(entry)?)),
-                ChunkType::FHED => Ok(Self::NonSolid(ReadEntry::try_from(entry)?)),
+                ChunkType::FHED => Ok(Self::Regular(ReadEntry::try_from(entry)?)),
                 _ => Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid entry")),
             }
         } else {

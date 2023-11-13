@@ -1,5 +1,5 @@
 use crate::{
-    archive::{Archive, ArchiveHeader, ChunkEntry, ReadEntry, ReadEntryContainer, PNA_HEADER},
+    archive::{Archive, ArchiveHeader, ChunkEntry, EntryContainer, ReadEntry, PNA_HEADER},
     chunk::{Chunk, ChunkReader, ChunkType, RawChunk},
 };
 use std::{
@@ -103,8 +103,8 @@ impl<R: Read> Archive<R> {
         loop {
             let entry = self.read_entry()?;
             return match entry {
-                Some(ReadEntryContainer::NonSolid(entry)) => Ok(Some(entry)),
-                Some(ReadEntryContainer::Solid(_)) => continue,
+                Some(EntryContainer::Regular(entry)) => Ok(Some(entry)),
+                Some(EntryContainer::Solid(_)) => continue,
                 None => Ok(None),
             };
         }
@@ -119,7 +119,7 @@ impl<R: Read> Archive<R> {
     /// # Errors
     ///
     /// Returns an error if an I/O error occurs while reading from the archive.
-    pub(crate) fn read_entry(&mut self) -> io::Result<Option<ReadEntryContainer>> {
+    pub(crate) fn read_entry(&mut self) -> io::Result<Option<EntryContainer>> {
         let entry = self.next_raw_item()?;
         match entry {
             Some(entry) => Ok(Some(entry.try_into()?)),
@@ -223,8 +223,8 @@ impl<'r, R: Read> Iterator for Entries<'r, R> {
         }
         let entry = self.reader.read_entry();
         match entry {
-            Ok(Some(ReadEntryContainer::NonSolid(entry))) => Some(Ok(entry)),
-            Ok(Some(ReadEntryContainer::Solid(entry))) => match &self.password {
+            Ok(Some(EntryContainer::Regular(entry))) => Some(Ok(entry)),
+            Ok(Some(EntryContainer::Solid(entry))) => match &self.password {
                 Some(password) => {
                     let entries = entry.entries(password.as_deref());
                     match entries {
