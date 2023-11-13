@@ -1,7 +1,7 @@
 use crate::{
     archive::entry::{
-        writer_and_hash, Entry, EntryHeader, EntryName, EntryReference, Metadata, Permission,
-        ReadEntry, SolidEntries, SolidHeader, SolidReadEntry, WriteOption,
+        writer_and_hash, Entry, EntryContainer, EntryHeader, EntryName, EntryReference, Metadata,
+        Permission, ReadEntry, SolidEntries, SolidHeader, SolidReadEntry, WriteOption,
     },
     cipher::CipherWriter,
     compress::CompressionWriter,
@@ -199,7 +199,7 @@ impl EntryBuilder {
     /// A Result containing the new [Entry], or an I/O error if the build fails.
     #[inline]
     pub fn build(self) -> io::Result<impl Entry> {
-        self.build_as_entry()
+        Ok(EntryContainer::Regular(self.build_as_entry()?))
     }
 
     fn build_as_entry(self) -> io::Result<ReadEntry> {
@@ -243,11 +243,7 @@ impl Write for EntryBuilder {
 }
 
 /// A builder for creating a new [SolidEntries].
-pub struct SolidEntriesBuilder {
-    header: SolidHeader,
-    phsf: Option<String>,
-    data: CompressionWriter<'static, CipherWriter<Vec<u8>>>,
-}
+pub struct SolidEntriesBuilder(SolidEntryBuilder);
 
 impl SolidEntriesBuilder {
     /// Creates a new [SolidEntriesBuilder] with the given option.
@@ -260,12 +256,7 @@ impl SolidEntriesBuilder {
     ///
     /// A new [SolidEntriesBuilder].
     pub fn new(option: WriteOption) -> io::Result<Self> {
-        let (writer, phsf) = writer_and_hash(Vec::new(), option.clone())?;
-        Ok(Self {
-            header: SolidHeader::new(option.compression, option.encryption, option.cipher_mode),
-            phsf,
-            data: writer,
-        })
+        Ok(Self(SolidEntryBuilder::new(option)?))
     }
 
     /// Adds an entry to the solid archive.
@@ -295,16 +286,7 @@ impl SolidEntriesBuilder {
     /// }
     /// ```
     pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<()> {
-        self.data.write_all(&entry.into_bytes())
-    }
-
-    fn build_as_entry(self) -> io::Result<SolidReadEntry> {
-        Ok(SolidReadEntry {
-            header: self.header,
-            phsf: self.phsf,
-            data: self.data.try_into_inner()?.try_into_inner()?,
-            extra: Vec::new(),
-        })
+        self.0.add_entry(entry)
     }
 
     /// Builds the solid archive as a [SolidEntries].
@@ -323,6 +305,91 @@ impl SolidEntriesBuilder {
     /// ```
     #[inline]
     pub fn build(self) -> io::Result<impl SolidEntries> {
-        self.build_as_entry()
+        self.0.build_as_entry()
+    }
+}
+
+/// A builder for creating a new solid [Entry].
+pub struct SolidEntryBuilder {
+    header: SolidHeader,
+    phsf: Option<String>,
+    data: CompressionWriter<'static, CipherWriter<Vec<u8>>>,
+}
+
+impl SolidEntryBuilder {
+    /// Creates a new [SolidEntryBuilder] with the given option.
+    ///
+    /// # Arguments
+    ///
+    /// * `option` - The write option specifying the compression and encryption settings.
+    ///
+    /// # Returns
+    ///
+    /// A new [SolidEntryBuilder].
+    pub fn new(option: WriteOption) -> io::Result<Self> {
+        let (writer, phsf) = writer_and_hash(Vec::new(), option.clone())?;
+        Ok(Self {
+            header: SolidHeader::new(option.compression, option.encryption, option.cipher_mode),
+            phsf,
+            data: writer,
+        })
+    }
+
+    /// Adds an entry to the solid archive.
+    ///
+    /// # Arguments
+    ///
+    /// * `entry` - The entry to add to the archive.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use libpna::{EntryBuilder, SolidEntryBuilder, WriteOption};
+    /// use std::io;
+    /// use std::io::Write;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let mut builder = SolidEntryBuilder::new(WriteOption::builder().build())?;
+    /// let dir_entry = EntryBuilder::new_dir("example".try_into().unwrap()).build()?;
+    /// builder.add_entry(dir_entry)?;
+    /// let mut entry_builder =
+    ///     EntryBuilder::new_file("example/text.txt".try_into().unwrap(), WriteOption::store())?;
+    /// entry_builder.write_all(b"content")?;
+    /// let file_entry = entry_builder.build()?;
+    /// builder.add_entry(file_entry)?;
+    /// builder.build()?;
+    /// #     Ok(())
+    /// # }
+    /// ```
+    pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<()> {
+        self.data.write_all(&entry.into_bytes())
+    }
+
+    fn build_as_entry(self) -> io::Result<SolidReadEntry> {
+        Ok(SolidReadEntry {
+            header: self.header,
+            phsf: self.phsf,
+            data: self.data.try_into_inner()?.try_into_inner()?,
+            extra: Vec::new(),
+        })
+    }
+
+    /// Builds the solid entry as a [Entry].
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use libpna::{SolidEntryBuilder, WriteOption};
+    /// use std::io;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let builder = SolidEntryBuilder::new(WriteOption::builder().build())?;
+    /// let entries = builder.build()?;
+    /// #     Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn build(self) -> io::Result<impl Entry> {
+        Ok(EntryContainer::Solid(self.build_as_entry()?))
     }
 }
