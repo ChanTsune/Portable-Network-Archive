@@ -43,6 +43,31 @@ pub trait SolidEntries: SealedIntoChunks {
     fn into_bytes(self) -> Vec<u8>;
 }
 
+impl SealedIntoChunks for EntryContainer {
+    fn into_chunks(self) -> Vec<RawChunk> {
+        match self {
+            Self::Regular(r) => r.into_chunks(),
+            Self::Solid(s) => s.into_chunks(),
+        }
+    }
+}
+
+impl Entry for EntryContainer {
+    fn bytes_len(&self) -> usize {
+        match self {
+            Self::Regular(r) => r.bytes_len(),
+            Self::Solid(s) => s.bytes_len(),
+        }
+    }
+
+    fn into_bytes(self) -> Vec<u8> {
+        match self {
+            Self::Regular(r) => r.into_bytes(),
+            Self::Solid(s) => s.into_bytes(),
+        }
+    }
+}
+
 /// Chunks from `FHED` to `FEND`, containing `FHED` and `FEND`
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ChunkEntry(pub(crate) Vec<RawChunk>);
