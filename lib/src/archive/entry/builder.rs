@@ -1,9 +1,8 @@
 use crate::{
     archive::entry::{
-        writer_and_hash, ChunkEntry, ChunkSolidEntries, Entry, EntryHeader, EntryName,
-        EntryReference, Permission, SolidEntries, SolidHeader, WriteOption,
+        writer_and_hash, Entry, EntryHeader, EntryName, EntryReference, Metadata, Permission,
+        ReadEntry, SolidEntries, SolidHeader, SolidReadEntry, WriteOption,
     },
-    chunk::{ChunkType, RawChunk},
     cipher::CipherWriter,
     compress::CompressionWriter,
     io::TryIntoInner,
@@ -200,39 +199,28 @@ impl EntryBuilder {
     /// A Result containing the new [Entry], or an I/O error if the build fails.
     #[inline]
     pub fn build(self) -> io::Result<impl Entry> {
-        Ok(ChunkEntry(self.build_as_chunks()?))
+        self.build_as_entry()
     }
 
-    fn build_as_chunks(self) -> io::Result<Vec<RawChunk>> {
-        let mut chunks = vec![];
-        chunks.push(RawChunk::from_data(ChunkType::FHED, self.header.to_bytes()));
-
-        if let Some(since_unix_epoch) = self.created {
-            chunks.push(RawChunk::from_data(
-                ChunkType::cTIM,
-                since_unix_epoch.as_secs().to_be_bytes().to_vec(),
-            ));
-        }
-        if let Some(since_unix_epoch) = self.last_modified {
-            chunks.push(RawChunk::from_data(
-                ChunkType::mTIM,
-                since_unix_epoch.as_secs().to_be_bytes().to_vec(),
-            ));
-        }
-        if let Some(permission) = self.permission {
-            chunks.push(RawChunk::from_data(ChunkType::fPRM, permission.to_bytes()));
-        }
-        if let Some(phsf) = self.phsf {
-            chunks.push(RawChunk::from_data(ChunkType::PHSF, phsf.into_bytes()));
-        }
-        if let Some(data) = self.data {
-            let data = data.try_into_inner()?.try_into_inner()?;
-            for data_chunk in data.inner {
-                chunks.push(RawChunk::from_data(ChunkType::FDAT, data_chunk));
-            }
-        }
-        chunks.push(RawChunk::from_data(ChunkType::FEND, Vec::new()));
-        Ok(chunks)
+    fn build_as_entry(self) -> io::Result<ReadEntry> {
+        let data = if let Some(data) = self.data {
+            data.try_into_inner()?.try_into_inner()?.inner
+        } else {
+            Vec::new()
+        };
+        let metadata = Metadata {
+            compressed_size: data.iter().map(|d| d.len()).sum(),
+            created: self.created,
+            modified: self.last_modified,
+            permission: self.permission,
+        };
+        Ok(ReadEntry {
+            header: self.header,
+            phsf: self.phsf,
+            extra: Vec::new(),
+            data,
+            metadata,
+        })
     }
 }
 
@@ -310,22 +298,13 @@ impl SolidEntriesBuilder {
         self.data.write_all(&entry.into_bytes())
     }
 
-    fn build_as_chunks(self) -> io::Result<Vec<RawChunk>> {
-        let mut chunks = vec![];
-        chunks.push(RawChunk::from_data(
-            ChunkType::SHED,
-            self.header.to_bytes().to_vec(),
-        ));
-
-        if let Some(phsf) = self.phsf {
-            chunks.push(RawChunk::from_data(ChunkType::PHSF, phsf.into_bytes()));
-        }
-        let data = self.data.try_into_inner()?.try_into_inner()?;
-        for data_chunk in data.chunks(u32::MAX as usize) {
-            chunks.push(RawChunk::from_data(ChunkType::SDAT, data_chunk.to_vec()));
-        }
-        chunks.push(RawChunk::from_data(ChunkType::SEND, Vec::new()));
-        Ok(chunks)
+    fn build_as_entry(self) -> io::Result<SolidReadEntry> {
+        Ok(SolidReadEntry {
+            header: self.header,
+            phsf: self.phsf,
+            data: self.data.try_into_inner()?.try_into_inner()?,
+            extra: Vec::new(),
+        })
     }
 
     /// Builds the solid archive as a [SolidEntries].
@@ -344,6 +323,6 @@ impl SolidEntriesBuilder {
     /// ```
     #[inline]
     pub fn build(self) -> io::Result<impl SolidEntries> {
-        Ok(ChunkSolidEntries(self.build_as_chunks()?))
+        self.build_as_entry()
     }
 }
