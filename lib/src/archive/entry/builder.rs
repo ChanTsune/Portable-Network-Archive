@@ -243,8 +243,10 @@ impl Write for EntryBuilder {
 }
 
 /// A builder for creating a new [SolidEntries].
+#[deprecated(since = "0.3.3", note = "Use `SolidEntryBuilder` instead.")]
 pub struct SolidEntriesBuilder(SolidEntryBuilder);
 
+#[allow(deprecated)]
 impl SolidEntriesBuilder {
     /// Creates a new [SolidEntriesBuilder] with the given option.
     ///
@@ -255,6 +257,7 @@ impl SolidEntriesBuilder {
     /// # Returns
     ///
     /// A new [SolidEntriesBuilder].
+    #[deprecated(since = "0.3.3", note = "Use `SolidEntryBuilder::new` instead.")]
     pub fn new(option: WriteOption) -> io::Result<Self> {
         Ok(Self(SolidEntryBuilder::new(option)?))
     }
@@ -285,6 +288,7 @@ impl SolidEntriesBuilder {
     ///     Ok(())
     /// }
     /// ```
+    #[deprecated(since = "0.3.3", note = "Use `SolidEntryBuilder::add_entry` instead.")]
     pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<()> {
         self.0.add_entry(entry)
     }
@@ -303,6 +307,7 @@ impl SolidEntriesBuilder {
     ///     Ok(())
     /// }
     /// ```
+    #[deprecated(since = "0.3.3", note = "Use `SolidEntryBuilder::build` instead.")]
     #[inline]
     pub fn build(self) -> io::Result<impl SolidEntries> {
         self.0.build_as_entry()

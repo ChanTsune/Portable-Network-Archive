@@ -84,6 +84,7 @@ impl<W: Write> Archive<W> {
     ///     Ok(())
     /// }
     /// ```
+    #[deprecated(since = "0.3.3", note = "Use `Archive::add_entry` instead.")]
     pub fn add_solid_entries(&mut self, entries: impl SolidEntries) -> io::Result<usize> {
         let bytes = entries.into_bytes();
         self.inner.write_all(&bytes)?;
