@@ -10,7 +10,7 @@ use crate::{
 use bytesize::ByteSize;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use libpna::{
-    Archive, EntryPart, SolidEntriesBuilder, WriteOption, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
+    Archive, EntryPart, SolidEntryBuilder, WriteOption, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
 };
 use rayon::ThreadPoolBuilder;
 use std::{
@@ -85,7 +85,7 @@ fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Result<()> {
         .map(|it| it.unwrap_or(ByteSize::gb(1)).0 as usize);
 
     if args.solid {
-        let mut entries_builder = SolidEntriesBuilder::new(cli_option)?;
+        let mut entries_builder = SolidEntryBuilder::new(cli_option)?;
         for entry in rx.into_iter() {
             entries_builder.add_entry(entry?)?;
             progress_bar.let_ref(|pb| pb.inc(1));
@@ -124,7 +124,7 @@ fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Result<()> {
         } else {
             let file = File::create(&archive)?;
             let mut writer = Archive::write_header(file)?;
-            writer.add_solid_entries(entries)?;
+            writer.add_entry(entries)?;
             writer.finalize()?;
         }
     } else {
