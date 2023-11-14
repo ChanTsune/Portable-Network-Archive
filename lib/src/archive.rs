@@ -260,8 +260,8 @@ mod tests {
                 builder.write_all("text".as_bytes())?;
                 builder.build()?
             };
-            writer.add_solid_entries({
-                let mut builder = SolidEntriesBuilder::new(WriteOption::builder().build()).unwrap();
+            writer.add_entry({
+                let mut builder = SolidEntryBuilder::new(WriteOption::builder().build()).unwrap();
                 builder.add_entry(dir_entry).unwrap();
                 builder.add_entry(file_entry).unwrap();
                 builder.build().unwrap()
