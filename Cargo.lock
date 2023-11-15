@@ -667,7 +667,7 @@ checksum = "3bccab0e7fd7cc19f820a1c8c91720af652d0c88dc9664dd72aef2614f04af3b"
 
 [[package]]
 name = "portable-network-archive"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "ansi_term",
  "bytesize",
