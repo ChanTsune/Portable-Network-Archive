@@ -112,7 +112,7 @@ impl<R: Read> Archive<R> {
     /// An iterator over the entries in the archive.
     #[inline]
     pub fn entries(&mut self) -> impl Iterator<Item = io::Result<RegularEntry>> + '_ {
-        Entries::new(self)
+        EntriesIterator::new(self)
     }
 
     /// Returns an iterator over the entries in the archive, including entries in solid mode.
@@ -124,7 +124,7 @@ impl<R: Read> Archive<R> {
         &mut self,
         password: Option<String>,
     ) -> impl Iterator<Item = io::Result<RegularEntry>> + '_ {
-        Entries::new_with_password(self, password)
+        EntriesIterator::new_with_password(self, password)
     }
 
     /// Returns `true` if [ANXT] chunk is appeared before call this method calling.
@@ -168,13 +168,13 @@ impl<R: Read> Archive<R> {
     }
 }
 
-pub(crate) struct Entries<'r, R: Read> {
+pub(crate) struct EntriesIterator<'r, R: Read> {
     reader: &'r mut Archive<R>,
     password: Option<Option<String>>,
     buf: VecDeque<io::Result<RegularEntry>>,
 }
 
-impl<'r, R: Read> Entries<'r, R> {
+impl<'r, R: Read> EntriesIterator<'r, R> {
     fn new(reader: &'r mut Archive<R>) -> Self {
         Self {
             reader,
@@ -192,7 +192,7 @@ impl<'r, R: Read> Entries<'r, R> {
     }
 }
 
-impl<'r, R: Read> Iterator for Entries<'r, R> {
+impl<'r, R: Read> Iterator for EntriesIterator<'r, R> {
     type Item = io::Result<RegularEntry>;
 
     fn next(&mut self) -> Option<Self::Item> {
