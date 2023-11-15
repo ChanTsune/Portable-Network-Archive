@@ -92,28 +92,6 @@ impl<R: Read> Archive<R> {
     ///
     /// # Returns
     ///
-    /// An `io::Result` containing an `Option<ReadEntry>`. Returns `Ok(None)` if there are no more entries to read.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if an I/O error occurs while reading from the archive.
-    #[deprecated(since = "0.2.0")]
-    #[inline]
-    pub fn read(&mut self) -> io::Result<Option<ReadEntry>> {
-        loop {
-            let entry = self.read_entry()?;
-            return match entry {
-                Some(EntryContainer::Regular(entry)) => Ok(Some(entry)),
-                Some(EntryContainer::Solid(_)) => continue,
-                None => Ok(None),
-            };
-        }
-    }
-
-    /// Reads the next entry from the archive.
-    ///
-    /// # Returns
-    ///
     /// An `io::Result` containing an `Option<ReadEntryImpl>`. Returns `Ok(None)` if there are no more entries to read.
     ///
     /// # Errors
