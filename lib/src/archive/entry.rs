@@ -128,15 +128,13 @@ impl TryFrom<ChunkEntry> for EntryContainer {
     }
 }
 
-struct EntryIterator<R: Read> {
-    entry: EntryReader<R>,
-}
+pub(crate) struct EntryIterator<'s>(EntryReader<&'s [u8]>);
 
-impl<R: Read> Iterator for EntryIterator<R> {
+impl Iterator for EntryIterator<'_> {
     type Item = io::Result<ReadEntry>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let mut chunk_reader = ChunkReader::from(&mut self.entry);
+        let mut chunk_reader = ChunkReader::from(&mut self.0);
         let mut chunks = Vec::with_capacity(3);
         loop {
             let chunk = chunk_reader.read_chunk();
@@ -200,10 +198,7 @@ impl SolidEntries for SolidReadEntry {
 }
 
 impl SolidReadEntry {
-    pub(crate) fn entries(
-        &self,
-        password: Option<&str>,
-    ) -> io::Result<impl Iterator<Item = io::Result<ReadEntry>> + '_> {
+    pub(crate) fn entries(&self, password: Option<&str>) -> io::Result<EntryIterator> {
         let reader = decrypt_reader(
             self.data.as_slice(),
             self.header.encryption,
@@ -213,9 +208,7 @@ impl SolidReadEntry {
         )?;
         let reader = decompress_reader(reader, self.header.compression)?;
 
-        Ok(EntryIterator {
-            entry: EntryReader(reader),
-        })
+        Ok(EntryIterator(EntryReader(reader)))
     }
 }
 
