@@ -110,7 +110,7 @@ impl<R: Read> Read for EntryReader<R> {
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) enum EntryContainer {
     Solid(SolidReadEntry),
-    Regular(ReadEntry),
+    Regular(RegularEntry),
 }
 
 impl TryFrom<ChunkEntry> for EntryContainer {
@@ -119,7 +119,7 @@ impl TryFrom<ChunkEntry> for EntryContainer {
         if let Some(first_chunk) = entry.0.first() {
             match first_chunk.ty {
                 ChunkType::SHED => Ok(Self::Solid(SolidReadEntry::try_from(entry)?)),
-                ChunkType::FHED => Ok(Self::Regular(ReadEntry::try_from(entry)?)),
+                ChunkType::FHED => Ok(Self::Regular(RegularEntry::try_from(entry)?)),
                 _ => Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid entry")),
             }
         } else {
@@ -131,7 +131,7 @@ impl TryFrom<ChunkEntry> for EntryContainer {
 pub(crate) struct EntryIterator<'s>(EntryReader<&'s [u8]>);
 
 impl Iterator for EntryIterator<'_> {
-    type Item = io::Result<ReadEntry>;
+    type Item = io::Result<RegularEntry>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut chunk_reader = ChunkReader::from(&mut self.0);
@@ -266,9 +266,12 @@ impl TryFrom<ChunkEntry> for SolidReadEntry {
     }
 }
 
+#[deprecated(since = "0.4.0", note = "`ReadEntry` is renamed to `RegularEntry`")]
+pub type ReadEntry = RegularEntry;
+
 /// [Entry] that read from PNA archive.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct ReadEntry {
+pub struct RegularEntry {
     pub(crate) header: EntryHeader,
     pub(crate) phsf: Option<String>,
     pub(crate) extra: Vec<RawChunk>,
@@ -276,7 +279,7 @@ pub struct ReadEntry {
     pub(crate) metadata: Metadata,
 }
 
-impl TryFrom<ChunkEntry> for ReadEntry {
+impl TryFrom<ChunkEntry> for RegularEntry {
     type Error = io::Error;
     fn try_from(entry: ChunkEntry) -> Result<Self, Self::Error> {
         if let Some(first_chunk) = entry.0.first() {
@@ -347,7 +350,7 @@ impl TryFrom<ChunkEntry> for ReadEntry {
     }
 }
 
-impl SealedIntoChunks for ReadEntry {
+impl SealedIntoChunks for RegularEntry {
     fn into_chunks(self) -> Vec<RawChunk> {
         let mut vec = Vec::new();
         vec.push(RawChunk::from_data(ChunkType::FHED, self.header.to_bytes()));
@@ -388,7 +391,7 @@ impl SealedIntoChunks for ReadEntry {
     }
 }
 
-impl Entry for ReadEntry {
+impl Entry for RegularEntry {
     #[inline]
     fn bytes_len(&self) -> usize {
         self.clone().into_bytes().len()
@@ -403,7 +406,7 @@ impl Entry for ReadEntry {
     }
 }
 
-impl ReadEntry {
+impl RegularEntry {
     #[inline]
     pub fn header(&self) -> &EntryHeader {
         &self.header
