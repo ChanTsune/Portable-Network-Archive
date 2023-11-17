@@ -112,7 +112,23 @@ impl<R: Read> Archive<R> {
     /// An iterator over the entries in the archive.
     #[inline]
     pub fn entries(&mut self) -> impl Iterator<Item = io::Result<RegularEntry>> + '_ {
-        EntriesIterator::new(self)
+        self.iter().filter_map(|it| match it {
+            Ok(e) => match e {
+                EntryContainer::Solid(_) => None,
+                EntryContainer::Regular(r) => Some(Ok(r)),
+            },
+            Err(e) => Some(Err(e)),
+        })
+    }
+
+    /// Returns an iterator over the entries in the archive.
+    ///
+    /// # Returns
+    ///
+    /// An iterator over the entries in the archive.
+    #[inline]
+    fn iter(&mut self) -> Entries<R> {
+        Entries::new(self)
     }
 
     /// Returns an iterator over the entries in the archive, including entries in solid mode.
@@ -120,6 +136,7 @@ impl<R: Read> Archive<R> {
     /// # Returns
     ///
     /// An iterator over the entries in the archive.
+    #[inline]
     pub fn entries_with_password(
         &mut self,
         password: Option<String>,
@@ -168,6 +185,26 @@ impl<R: Read> Archive<R> {
     }
 }
 
+pub(crate) struct Entries<'r, R: Read> {
+    reader: &'r mut Archive<R>,
+}
+
+impl<'r, R: Read> Entries<'r, R> {
+    #[inline]
+    pub(crate) fn new(reader: &'r mut Archive<R>) -> Self {
+        Self { reader }
+    }
+}
+
+impl<'r, R: Read> Iterator for Entries<'r, R> {
+    type Item = io::Result<EntryContainer>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.reader.read_entry().transpose()
+    }
+}
+
 pub(crate) struct EntriesIterator<'r, R: Read> {
     reader: &'r mut Archive<R>,
     password: Option<Option<String>>,
@@ -175,14 +212,6 @@ pub(crate) struct EntriesIterator<'r, R: Read> {
 }
 
 impl<'r, R: Read> EntriesIterator<'r, R> {
-    fn new(reader: &'r mut Archive<R>) -> Self {
-        Self {
-            reader,
-            password: None,
-            buf: Default::default(),
-        }
-    }
-
     fn new_with_password(reader: &'r mut Archive<R>, password: Option<String>) -> Self {
         Self {
             reader,
