@@ -1,7 +1,7 @@
 use crate::{
     archive::entry::{
         writer_and_hash, Entry, EntryContainer, EntryHeader, EntryName, EntryReference, Metadata,
-        Permission, ReadEntry, SolidEntries, SolidHeader, SolidReadEntry, WriteOption,
+        Permission, RegularEntry, SolidEntries, SolidHeader, SolidReadEntry, WriteOption,
     },
     cipher::CipherWriter,
     compress::CompressionWriter,
@@ -202,7 +202,7 @@ impl EntryBuilder {
         Ok(EntryContainer::Regular(self.build_as_entry()?))
     }
 
-    fn build_as_entry(self) -> io::Result<ReadEntry> {
+    fn build_as_entry(self) -> io::Result<RegularEntry> {
         let data = if let Some(data) = self.data {
             data.try_into_inner()?.try_into_inner()?.inner
         } else {
@@ -214,7 +214,7 @@ impl EntryBuilder {
             modified: self.last_modified,
             permission: self.permission,
         };
-        Ok(ReadEntry {
+        Ok(RegularEntry {
             header: self.header,
             phsf: self.phsf,
             extra: Vec::new(),

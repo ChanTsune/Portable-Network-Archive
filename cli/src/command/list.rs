@@ -9,7 +9,7 @@ use crate::{
 use ansi_term::{ANSIString, Colour, Style};
 use chrono::{DateTime, Local};
 use glob::Pattern;
-use libpna::{Archive, Compression, DataKind, Encryption, ReadEntry, ReadOption};
+use libpna::{Archive, Compression, DataKind, Encryption, ReadOption, RegularEntry};
 use rayon::prelude::*;
 use std::{
     fs::File,
@@ -86,13 +86,13 @@ fn list_archive(args: ListArgs, _: Verbosity) -> io::Result<()> {
     Ok(())
 }
 
-fn simple_list_entries(entries: &[ReadEntry]) {
+fn simple_list_entries(entries: &[RegularEntry]) {
     for entry in entries {
         println!("{}", entry.header().path())
     }
 }
 
-fn detail_list_entries(entries: Vec<ReadEntry>, password: Option<&str>, print_header: bool) {
+fn detail_list_entries(entries: Vec<RegularEntry>, password: Option<&str>, print_header: bool) {
     let now = SystemTime::now();
     let style_encryption_column = Style::new().fg(Colour::Purple);
     let style_compression_column = Style::new().fg(Colour::Blue);

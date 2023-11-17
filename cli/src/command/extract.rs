@@ -5,7 +5,7 @@ use crate::{
 };
 use glob::Pattern;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
-use libpna::{Archive, DataKind, Permission, ReadEntry, ReadOption};
+use libpna::{Archive, DataKind, Permission, ReadOption, RegularEntry};
 #[cfg(unix)]
 use nix::unistd::{chown, Group, User};
 use rayon::{prelude::*, ThreadPoolBuilder};
@@ -130,7 +130,7 @@ fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
 
 fn extract_entry(
     item_path: PathBuf,
-    item: ReadEntry,
+    item: RegularEntry,
     password: Option<String>,
     overwrite: bool,
     out_dir: Option<PathBuf>,
