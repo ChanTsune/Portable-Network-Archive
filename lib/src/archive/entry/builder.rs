@@ -1,12 +1,15 @@
+#[allow(deprecated)]
+use crate::archive::SolidEntries;
 use crate::{
     archive::entry::{
         writer_and_hash, Entry, EntryContainer, EntryHeader, EntryName, EntryReference, Metadata,
-        Permission, RegularEntry, SolidEntries, SolidHeader, SolidReadEntry, WriteOption,
+        Permission, RegularEntry, SolidHeader, SolidReadEntry, WriteOption,
     },
     cipher::CipherWriter,
     compress::CompressionWriter,
     io::TryIntoInner,
 };
+
 use std::{
     io::{self, Write},
     time::Duration,
@@ -303,6 +306,7 @@ impl SolidEntriesBuilder {
     /// }
     /// ```
     #[deprecated(since = "0.3.3", note = "Use `SolidEntryBuilder::build` instead.")]
+    #[allow(deprecated)]
     #[inline]
     pub fn build(self) -> io::Result<impl SolidEntries> {
         self.0.build_as_entry()
