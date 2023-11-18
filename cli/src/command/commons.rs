@@ -1,5 +1,7 @@
 use crate::cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs};
-use libpna::{Entry, EntryBuilder, EntryName, EntryPart, EntryReference, Permission, WriteOption};
+use libpna::{
+    EntryBuilder, EntryName, EntryPart, EntryReference, Permission, RegularEntry, WriteOption,
+};
 #[cfg(unix)]
 use nix::unistd::{Group, User};
 use std::fs::metadata;
@@ -49,7 +51,7 @@ pub(crate) fn create_entry(
     option: WriteOption,
     keep_timestamp: bool,
     keep_permission: bool,
-) -> io::Result<impl Entry> {
+) -> io::Result<RegularEntry> {
     if path.is_symlink() {
         let source = fs::read_link(path)?;
         let entry = EntryBuilder::new_symbolic_link(
