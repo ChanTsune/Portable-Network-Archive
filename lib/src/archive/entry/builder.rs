@@ -14,7 +14,7 @@ use std::{
 
 const MAX_CHUNK_DATA_LENGTH: usize = u32::MAX as usize;
 
-/// A builder for creating a new [Entry].
+/// A builder for creating a new [RegularEntry].
 pub struct EntryBuilder {
     header: EntryHeader,
     phsf: Option<String>,
@@ -192,17 +192,12 @@ impl EntryBuilder {
         self
     }
 
-    /// Builds the entry and returns a Result containing the new [Entry].
+    /// Builds the entry and returns a Result containing the new [RegularEntry].
     ///
     /// # Returns
     ///
-    /// A Result containing the new [Entry], or an I/O error if the build fails.
-    #[inline]
-    pub fn build(self) -> io::Result<impl Entry> {
-        Ok(EntryContainer::Regular(self.build_as_entry()?))
-    }
-
-    fn build_as_entry(self) -> io::Result<RegularEntry> {
+    /// A Result containing the new [RegularEntry], or an I/O error if the build fails.
+    pub fn build(self) -> io::Result<RegularEntry> {
         let data = if let Some(data) = self.data {
             data.try_into_inner()?.try_into_inner()?.inner
         } else {
