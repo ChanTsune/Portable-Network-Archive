@@ -1,5 +1,5 @@
 use crate::{
-    archive::{Archive, ArchiveHeader, ChunkEntry, EntryContainer, ReadEntry, PNA_HEADER},
+    archive::{Archive, ArchiveHeader, ChunkEntry, EntryContainer, RegularEntry, PNA_HEADER},
     chunk::{Chunk, ChunkReader, ChunkType, RawChunk},
 };
 use std::{
@@ -111,7 +111,7 @@ impl<R: Read> Archive<R> {
     ///
     /// An iterator over the entries in the archive.
     #[inline]
-    pub fn entries(&mut self) -> impl Iterator<Item = io::Result<ReadEntry>> + '_ {
+    pub fn entries(&mut self) -> impl Iterator<Item = io::Result<RegularEntry>> + '_ {
         Entries::new(self)
     }
 
@@ -123,7 +123,7 @@ impl<R: Read> Archive<R> {
     pub fn entries_with_password(
         &mut self,
         password: Option<String>,
-    ) -> impl Iterator<Item = io::Result<ReadEntry>> + '_ {
+    ) -> impl Iterator<Item = io::Result<RegularEntry>> + '_ {
         Entries::new_with_password(self, password)
     }
 
@@ -171,7 +171,7 @@ impl<R: Read> Archive<R> {
 pub(crate) struct Entries<'r, R: Read> {
     reader: &'r mut Archive<R>,
     password: Option<Option<String>>,
-    buf: VecDeque<io::Result<ReadEntry>>,
+    buf: VecDeque<io::Result<RegularEntry>>,
 }
 
 impl<'r, R: Read> Entries<'r, R> {
@@ -193,7 +193,7 @@ impl<'r, R: Read> Entries<'r, R> {
 }
 
 impl<'r, R: Read> Iterator for Entries<'r, R> {
-    type Item = io::Result<ReadEntry>;
+    type Item = io::Result<RegularEntry>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(entry) = self.buf.pop_front() {

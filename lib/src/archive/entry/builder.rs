@@ -1,7 +1,7 @@
 use crate::{
     archive::entry::{
         writer_and_hash, Entry, EntryContainer, EntryHeader, EntryName, EntryReference, Metadata,
-        Permission, ReadEntry, SolidEntries, SolidHeader, SolidReadEntry, WriteOption,
+        Permission, RegularEntry, SolidEntries, SolidHeader, SolidReadEntry, WriteOption,
     },
     cipher::CipherWriter,
     compress::CompressionWriter,
@@ -14,7 +14,7 @@ use std::{
 
 const MAX_CHUNK_DATA_LENGTH: usize = u32::MAX as usize;
 
-/// A builder for creating a new [Entry].
+/// A builder for creating a new [RegularEntry].
 pub struct EntryBuilder {
     header: EntryHeader,
     phsf: Option<String>,
@@ -192,17 +192,12 @@ impl EntryBuilder {
         self
     }
 
-    /// Builds the entry and returns a Result containing the new [Entry].
+    /// Builds the entry and returns a Result containing the new [RegularEntry].
     ///
     /// # Returns
     ///
-    /// A Result containing the new [Entry], or an I/O error if the build fails.
-    #[inline]
-    pub fn build(self) -> io::Result<impl Entry> {
-        Ok(EntryContainer::Regular(self.build_as_entry()?))
-    }
-
-    fn build_as_entry(self) -> io::Result<ReadEntry> {
+    /// A Result containing the new [RegularEntry], or an I/O error if the build fails.
+    pub fn build(self) -> io::Result<RegularEntry> {
         let data = if let Some(data) = self.data {
             data.try_into_inner()?.try_into_inner()?.inner
         } else {
@@ -214,7 +209,7 @@ impl EntryBuilder {
             modified: self.last_modified,
             permission: self.permission,
         };
-        Ok(ReadEntry {
+        Ok(RegularEntry {
             header: self.header,
             phsf: self.phsf,
             extra: Vec::new(),
@@ -290,7 +285,7 @@ impl SolidEntriesBuilder {
     /// ```
     #[deprecated(since = "0.3.3", note = "Use `SolidEntryBuilder::add_entry` instead.")]
     pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<()> {
-        self.0.add_entry(entry)
+        self.0.data.write_all(&entry.into_bytes())
     }
 
     /// Builds the solid archive as a [SolidEntries].
@@ -366,7 +361,7 @@ impl SolidEntryBuilder {
     /// #     Ok(())
     /// # }
     /// ```
-    pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<()> {
+    pub fn add_entry(&mut self, entry: RegularEntry) -> io::Result<()> {
         self.data.write_all(&entry.into_bytes())
     }
 
