@@ -285,7 +285,7 @@ impl SolidEntriesBuilder {
     /// ```
     #[deprecated(since = "0.3.3", note = "Use `SolidEntryBuilder::add_entry` instead.")]
     pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<()> {
-        self.0.add_entry(entry)
+        self.0.data.write_all(&entry.into_bytes())
     }
 
     /// Builds the solid archive as a [SolidEntries].
@@ -361,7 +361,7 @@ impl SolidEntryBuilder {
     /// #     Ok(())
     /// # }
     /// ```
-    pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<()> {
+    pub fn add_entry(&mut self, entry: RegularEntry) -> io::Result<()> {
         self.data.write_all(&entry.into_bytes())
     }
 
