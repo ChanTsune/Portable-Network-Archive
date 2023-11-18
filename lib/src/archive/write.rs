@@ -1,5 +1,7 @@
+#[allow(deprecated)]
+use crate::archive::SolidEntries;
 use crate::{
-    archive::{Archive, ArchiveHeader, Entry, EntryPart, SolidEntries, PNA_HEADER},
+    archive::{Archive, ArchiveHeader, Entry, EntryPart, PNA_HEADER},
     chunk::{ChunkType, ChunkWriter},
 };
 use std::io::{self, Write};
@@ -85,6 +87,7 @@ impl<W: Write> Archive<W> {
     /// }
     /// ```
     #[deprecated(since = "0.3.3", note = "Use `Archive::add_entry` instead.")]
+    #[allow(deprecated)]
     pub fn add_solid_entries(&mut self, entries: impl SolidEntries) -> io::Result<usize> {
         let bytes = entries.into_bytes();
         self.inner.write_all(&bytes)?;
