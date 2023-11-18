@@ -164,7 +164,6 @@ impl WriteOption {
     /// ```
     #[inline]
     pub const fn builder() -> WriteOptionBuilder {
-        #[allow(deprecated)]
         WriteOptionBuilder::new()
     }
 
@@ -199,7 +198,6 @@ pub struct WriteOptionBuilder {
 
 impl Default for WriteOptionBuilder {
     fn default() -> Self {
-        #[allow(deprecated)]
         Self::new()
     }
 }
@@ -219,8 +217,7 @@ impl From<WriteOption> for WriteOptionBuilder {
 }
 
 impl WriteOptionBuilder {
-    #[deprecated(since = "0.2.0", note = "Use WriteOption::builder instead.")]
-    pub const fn new() -> Self {
+    const fn new() -> Self {
         Self {
             compression: Compression::No,
             compression_level: CompressionLevel::DEFAULT,
@@ -315,7 +312,6 @@ impl ReadOption {
     /// ```
     #[inline]
     pub const fn builder() -> ReadOptionBuilder {
-        #[allow(deprecated)]
         ReadOptionBuilder::new()
     }
 
@@ -354,8 +350,7 @@ impl From<ReadOption> for ReadOptionBuilder {
 }
 
 impl ReadOptionBuilder {
-    #[deprecated(since = "0.2.0", note = "Use ReadOption::builder instead.")]
-    pub const fn new() -> Self {
+    const fn new() -> Self {
         Self { password: None }
     }
 
