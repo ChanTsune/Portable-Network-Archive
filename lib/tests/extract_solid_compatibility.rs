@@ -10,9 +10,7 @@ fn extract_all(bytes: &[u8], password: Option<&str>) {
         }
         let path = item.header().path().to_string();
         let mut dist = Vec::new();
-        let mut reader = item
-            .into_reader(ReadOption::with_password(password))
-            .unwrap();
+        let mut reader = item.reader(ReadOption::with_password(password)).unwrap();
         io::copy(&mut reader, &mut dist).unwrap();
         match &*path {
             "raw/first/second/third/pna.txt" => assert_eq!(
