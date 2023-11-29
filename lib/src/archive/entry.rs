@@ -93,18 +93,27 @@ impl Entry for ChunkEntry {
 }
 
 /// Reader for Entry data. this struct impl [`Read`] trait.
-pub struct EntryDataReader(EntryReader<crate::io::OwnedFlattenReader>);
+pub struct EntryDataReader<'r>(EntryReaderWrapper<'r>);
 
-impl Read for EntryDataReader {
+pub(crate) enum EntryReaderWrapper<'r> {
+    Own(EntryReader<'r, crate::io::OwnedFlattenReader>),
+    Ref(EntryReader<'r, crate::io::FlattenReader<'r>>),
+}
+
+impl<'r> Read for EntryDataReader<'r> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.0.read(buf)
+        match &mut self.0 {
+            EntryReaderWrapper::Own(s) => s.read(buf),
+            EntryReaderWrapper::Ref(s) => s.read(buf),
+        }
     }
 }
 
-pub(crate) struct EntryReader<R: Read>(DecompressReader<'static, DecryptReader<R>>);
+pub(crate) struct EntryReader<'r, R: Read>(DecompressReader<'r, DecryptReader<R>>);
 
-impl<R: Read> Read for EntryReader<R> {
+impl<'r, R: Read> Read for EntryReader<'r, R> {
+    #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
     }
@@ -131,7 +140,7 @@ impl TryFrom<ChunkEntry> for EntryContainer {
     }
 }
 
-pub(crate) struct EntryIterator<'s>(EntryReader<&'s [u8]>);
+pub(crate) struct EntryIterator<'s>(EntryReader<'s, &'s [u8]>);
 
 impl Iterator for EntryIterator<'_> {
     type Item = io::Result<RegularEntry>;
@@ -422,21 +431,56 @@ impl RegularEntry {
     }
 
     #[inline]
-    pub fn into_reader(self, option: ReadOption) -> io::Result<EntryDataReader> {
-        self.reader(option.password.as_deref())
-    }
-
-    fn reader(self, password: Option<&str>) -> io::Result<EntryDataReader> {
+    pub fn into_reader(self, option: ReadOption) -> io::Result<EntryDataReader<'static>> {
         let raw_data_reader = crate::io::OwnedFlattenReader::new(self.data);
         let decrypt_reader = decrypt_reader(
             raw_data_reader,
             self.header.encryption,
             self.header.cipher_mode,
             self.phsf.as_deref(),
-            password,
+            option.password.as_deref(),
         )?;
         let reader = decompress_reader(decrypt_reader, self.header.compression)?;
-        Ok(EntryDataReader(EntryReader(reader)))
+        Ok(EntryDataReader(EntryReaderWrapper::Own(EntryReader(
+            reader,
+        ))))
+    }
+
+    /// Return the reader of this [`RegularEntry`].
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use libpna::{Archive, ReadOption};
+    /// use std::{fs, io};
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let file = fs::File::open("foo.pna")?;
+    /// let mut archive = Archive::read_header(file)?;
+    /// for entry in archive.entries() {
+    ///     let entry = entry?;
+    ///     let mut reader = entry.reader(ReadOption::builder().build())?;
+    ///     let name = entry.header().path();
+    ///     let mut dist_file = fs::File::create(name)?;
+    ///     io::copy(&mut reader, &mut dist_file)?;
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn reader(&self, option: ReadOption) -> io::Result<EntryDataReader> {
+        let raw_data_reader =
+            crate::io::FlattenReader::new(self.data.iter().map(|it| it.as_slice()).collect());
+        let decrypt_reader = decrypt_reader(
+            raw_data_reader,
+            self.header.encryption,
+            self.header.cipher_mode,
+            self.phsf.as_deref(),
+            option.password.as_deref(),
+        )?;
+        let reader = decompress_reader(decrypt_reader, self.header.compression)?;
+        Ok(EntryDataReader(EntryReaderWrapper::Ref(EntryReader(
+            reader,
+        ))))
     }
 }
 
