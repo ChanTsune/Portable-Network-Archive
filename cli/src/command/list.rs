@@ -154,7 +154,7 @@ fn detail_list_entries(entries: Vec<RegularEntry>, password: Option<&str>, print
                 ) {
                     let path = header.path().to_string();
                     let original = entry
-                        .into_reader(ReadOption::with_password(password))
+                        .reader(ReadOption::with_password(password))
                         .map(|r| io::read_to_string(r).unwrap_or_else(|_| "-".to_string()))
                         .unwrap_or_default();
                     format!("{} -> {}", path, original)

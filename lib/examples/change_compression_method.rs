@@ -16,7 +16,7 @@ fn change_compression_method<R: Read, W: Write>(
             header.path().clone(),
             WriteOption::builder().compression(compression).build(),
         )?;
-        let mut reader = entry.into_reader(ReadOption::builder().build())?;
+        let mut reader = entry.reader(ReadOption::builder().build())?;
         io::copy(&mut reader, &mut builder)?;
         writer.add_entry(builder.build()?)?;
     }
