@@ -93,7 +93,7 @@ impl Entry for ChunkEntry {
 }
 
 /// Reader for Entry data. this struct impl [`Read`] trait.
-pub struct EntryDataReader(EntryReader<crate::io::FlattenReader>);
+pub struct EntryDataReader(EntryReader<crate::io::OwnedFlattenReader>);
 
 impl Read for EntryDataReader {
     #[inline]
@@ -427,7 +427,7 @@ impl RegularEntry {
     }
 
     fn reader(self, password: Option<&str>) -> io::Result<EntryDataReader> {
-        let raw_data_reader = crate::io::FlattenReader::new(self.data);
+        let raw_data_reader = crate::io::OwnedFlattenReader::new(self.data);
         let decrypt_reader = decrypt_reader(
             raw_data_reader,
             self.header.encryption,
