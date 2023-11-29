@@ -430,6 +430,7 @@ impl RegularEntry {
         &self.metadata
     }
 
+    #[deprecated(since = "0.5.0", note = "Use `RegularEntry::reader` instead.")]
     #[inline]
     pub fn into_reader(self, option: ReadOption) -> io::Result<EntryDataReader<'static>> {
         let raw_data_reader = crate::io::OwnedFlattenReader::new(self.data);
