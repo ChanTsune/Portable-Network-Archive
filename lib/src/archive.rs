@@ -46,7 +46,7 @@ pub use write::*;
 /// for entry in archive.entries() {
 ///     let entry = entry?;
 ///     let mut file = File::create(entry.header().path().as_path())?;
-///     let mut reader = entry.into_reader(ReadOption::builder().build())?;
+///     let mut reader = entry.reader(ReadOption::builder().build())?;
 ///     copy(&mut reader, &mut file)?;
 /// }
 /// #     Ok(())
