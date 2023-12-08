@@ -27,7 +27,7 @@ rand = "0.8.5"
 zstd = { version = "0.13.0", default-features = false }
 
 [dev-dependencies]
-once_cell = "1.18.0"
+once_cell = "1.19.0"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }
