@@ -286,9 +286,9 @@ dependencies = [
 
 [[package]]
 name = "core-foundation-sys"
-version = "0.8.4"
+version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e496a50fda8aacccc86d7529e2c1e0892dbd0f898a6b5645b5561b89c3210efa"
+checksum = "06ea2b9bc92be3c2baa9334a323ebca2d6f074ff852cd1d7b11064035cd3868f"
 
 [[package]]
 name = "cpufeatures"
@@ -534,9 +534,9 @@ dependencies = [
 
 [[package]]
 name = "liblzma-sys"
-version = "0.2.3"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b455bb24a3b072d3f01f33f7992c8000cde7d3e3a3c09ce69eaf9b07384bc68"
+checksum = "340bd13b7f626bad0fbcae3dacbda397e9de1114910a6743a55ae731c80c97c6"
 dependencies = [
  "cc",
  "libc",
@@ -545,7 +545,7 @@ dependencies = [
 
 [[package]]
 name = "libpna"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "aes",
  "argon2",
@@ -653,7 +653,7 @@ checksum = "26072860ba924cbfa98ea39c8c19b4dd6a4a25423dbdf219c1eca91aa0cf6964"
 
 [[package]]
 name = "pna"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "libpna",
  "portable-network-archive",
@@ -661,13 +661,13 @@ dependencies = [
 
 [[package]]
 name = "portable-atomic"
-version = "1.5.1"
+version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3bccab0e7fd7cc19f820a1c8c91720af652d0c88dc9664dd72aef2614f04af3b"
+checksum = "7170ef9988bc169ba16dd36a7fa041e5c4cbeb6a35b76d4c03daded371eae7c0"
 
 [[package]]
 name = "portable-network-archive"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "ansi_term",
  "bytesize",
@@ -689,9 +689,9 @@ checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.69"
+version = "1.0.70"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "134c189feb4956b20f6f547d2cf727d4c0fe06722b20a0eec87ed445a97f92da"
+checksum = "39278fbbf5fb4f646ce651690877f89d1c5811a3d4acb27700c1cb3cdb78fd3b"
 dependencies = [
  "unicode-ident",
 ]
