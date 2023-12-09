@@ -1,5 +1,3 @@
-#[allow(deprecated)]
-use crate::archive::SolidEntries;
 use crate::{
     archive::{Archive, ArchiveHeader, Entry, EntryPart, PNA_HEADER},
     chunk::{ChunkType, ChunkWriter},
@@ -49,49 +47,6 @@ impl<W: Write> Archive<W> {
         let mut chunk_writer = ChunkWriter::from(&mut write);
         chunk_writer.write_chunk((ChunkType::AHED, header.to_bytes().as_slice()))?;
         Ok(Self::new(write, header))
-    }
-
-    /// Adds solid entries to the current writer.
-    ///
-    /// This function takes an `entries` that implement the `SolidEntries` trait.
-    /// The `entries` are converted to bytes and written to the writer.
-    /// The function returns the number of bytes written.
-    ///
-    /// # Arguments
-    ///
-    /// * `entries`: An `entries` that implement the `SolidEntries` trait.
-    ///
-    /// # Returns
-    ///
-    /// The number of bytes written to the writer.
-    ///
-    /// # Errors
-    ///
-    /// This function may return an `io::Error` if the writing operation fails.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use libpna::{Archive, SolidEntriesBuilder, WriteOption};
-    /// use std::fs::File;
-    /// use std::io;
-    ///
-    /// fn main() -> io::Result<()> {
-    ///     let file = File::create("example.pna")?;
-    ///     let mut archive = Archive::write_header(file)?;
-    ///     let solid_builder = SolidEntriesBuilder::new(WriteOption::builder().build())?;
-    ///     let entries = solid_builder.build()?;
-    ///     archive.add_solid_entries(entries)?;
-    ///     archive.finalize()?;
-    ///     Ok(())
-    /// }
-    /// ```
-    #[deprecated(since = "0.3.3", note = "Use `Archive::add_entry` instead.")]
-    #[allow(deprecated)]
-    pub fn add_solid_entries(&mut self, entries: impl SolidEntries) -> io::Result<usize> {
-        let bytes = entries.into_bytes();
-        self.inner.write_all(&bytes)?;
-        Ok(bytes.len())
     }
 
     /// Adds a new entry to the archive.
