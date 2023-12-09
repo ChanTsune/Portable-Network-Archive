@@ -1,5 +1,3 @@
-#[allow(deprecated)]
-use crate::archive::SolidEntries;
 use crate::{
     archive::entry::{
         writer_and_hash, Entry, EntryContainer, EntryHeader, EntryName, EntryReference, Metadata,
@@ -237,79 +235,6 @@ impl Write for EntryBuilder {
             return w.flush();
         }
         Ok(())
-    }
-}
-
-/// A builder for creating a new [SolidEntries].
-#[deprecated(since = "0.3.3", note = "Use `SolidEntryBuilder` instead.")]
-pub struct SolidEntriesBuilder(SolidEntryBuilder);
-
-#[allow(deprecated)]
-impl SolidEntriesBuilder {
-    /// Creates a new [SolidEntriesBuilder] with the given option.
-    ///
-    /// # Arguments
-    ///
-    /// * `option` - The write option specifying the compression and encryption settings.
-    ///
-    /// # Returns
-    ///
-    /// A new [SolidEntriesBuilder].
-    #[deprecated(since = "0.3.3", note = "Use `SolidEntryBuilder::new` instead.")]
-    pub fn new(option: WriteOption) -> io::Result<Self> {
-        Ok(Self(SolidEntryBuilder::new(option)?))
-    }
-
-    /// Adds an entry to the solid archive.
-    ///
-    /// # Arguments
-    ///
-    /// * `entry` - The entry to add to the archive.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use libpna::{EntryBuilder, SolidEntriesBuilder, WriteOption};
-    /// use std::io;
-    /// use std::io::Write;
-    ///
-    /// fn main() -> io::Result<()> {
-    ///     let mut builder = SolidEntriesBuilder::new(WriteOption::builder().build())?;
-    ///     let dir_entry = EntryBuilder::new_dir("example".try_into().unwrap()).build()?;
-    ///     builder.add_entry(dir_entry)?;
-    ///     let mut entry_builder =
-    ///         EntryBuilder::new_file("example/text.txt".try_into().unwrap(), WriteOption::store())?;
-    ///     entry_builder.write_all(b"content")?;
-    ///     let file_entry = entry_builder.build()?;
-    ///     builder.add_entry(file_entry)?;
-    ///     builder.build()?;
-    ///     Ok(())
-    /// }
-    /// ```
-    #[deprecated(since = "0.3.3", note = "Use `SolidEntryBuilder::add_entry` instead.")]
-    pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<()> {
-        self.0.data.write_all(&entry.into_bytes())
-    }
-
-    /// Builds the solid archive as a [SolidEntries].
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use libpna::{SolidEntriesBuilder, WriteOption};
-    /// use std::io;
-    ///
-    /// fn main() -> io::Result<()> {
-    ///     let builder = SolidEntriesBuilder::new(WriteOption::builder().build())?;
-    ///     let entries = builder.build()?;
-    ///     Ok(())
-    /// }
-    /// ```
-    #[deprecated(since = "0.3.3", note = "Use `SolidEntryBuilder::build` instead.")]
-    #[allow(deprecated)]
-    #[inline]
-    pub fn build(self) -> io::Result<impl SolidEntries> {
-        self.0.build_as_entry()
     }
 }
 
