@@ -354,13 +354,6 @@ impl ReadOptionBuilder {
         Self { password: None }
     }
 
-    #[deprecated(since = "0.3.3", note = "Use `ReadOption::with_password` instead.")]
-    #[inline]
-    pub fn password<T: AsRef<str>>(&mut self, password: T) -> &mut Self {
-        self.password = Some(password.as_ref().to_string());
-        self
-    }
-
     /// Create a new [`ReadOption`]
     #[inline]
     pub fn build(&self) -> ReadOption {
