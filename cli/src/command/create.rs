@@ -9,9 +9,7 @@ use crate::{
 };
 use bytesize::ByteSize;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
-use libpna::{
-    Archive, EntryPart, SolidEntryBuilder, WriteOption, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
-};
+use pna::{Archive, EntryPart, SolidEntryBuilder, WriteOption, MIN_CHUNK_BYTES_SIZE, PNA_HEADER};
 use rayon::ThreadPoolBuilder;
 use std::{
     fs::{self, File},

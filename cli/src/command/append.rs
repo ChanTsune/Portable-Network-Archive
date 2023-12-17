@@ -6,7 +6,7 @@ use crate::{
         Command,
     },
 };
-use libpna::Archive;
+use pna::Archive;
 use rayon::ThreadPoolBuilder;
 use std::{fs::File, io};
 

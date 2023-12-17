@@ -187,26 +187,23 @@ pub(crate) struct CompressionAlgorithmArgs {
 }
 
 impl CompressionAlgorithmArgs {
-    pub(crate) fn algorithm(&self) -> (libpna::Compression, Option<libpna::CompressionLevel>) {
+    pub(crate) fn algorithm(&self) -> (pna::Compression, Option<pna::CompressionLevel>) {
         if self.store {
-            (libpna::Compression::No, None)
+            (pna::Compression::No, None)
         } else if let Some(level) = self.xz {
-            (
-                libpna::Compression::XZ,
-                level.map(libpna::CompressionLevel::from),
-            )
+            (pna::Compression::XZ, level.map(pna::CompressionLevel::from))
         } else if let Some(level) = self.zstd {
             (
-                libpna::Compression::ZStandard,
-                level.map(libpna::CompressionLevel::from),
+                pna::Compression::ZStandard,
+                level.map(pna::CompressionLevel::from),
             )
         } else if let Some(level) = self.deflate {
             (
-                libpna::Compression::Deflate,
-                level.map(libpna::CompressionLevel::from),
+                pna::Compression::Deflate,
+                level.map(pna::CompressionLevel::from),
             )
         } else {
-            (libpna::Compression::ZStandard, None)
+            (pna::Compression::ZStandard, None)
         }
     }
 }
@@ -221,23 +218,23 @@ pub(crate) struct CipherAlgorithmArgs {
 }
 
 impl CipherAlgorithmArgs {
-    pub(crate) fn algorithm(&self) -> libpna::Encryption {
+    pub(crate) fn algorithm(&self) -> pna::Encryption {
         if self.aes.is_some() {
-            libpna::Encryption::Aes
+            pna::Encryption::Aes
         } else if self.camellia.is_some() {
-            libpna::Encryption::Camellia
+            pna::Encryption::Camellia
         } else {
-            libpna::Encryption::Aes
+            pna::Encryption::Aes
         }
     }
 
-    pub(crate) fn mode(&self) -> libpna::CipherMode {
+    pub(crate) fn mode(&self) -> pna::CipherMode {
         match match (self.aes, self.camellia) {
             (Some(mode), _) | (_, Some(mode)) => mode.unwrap_or_default(),
             (None, None) => CipherMode::default(),
         } {
-            CipherMode::Cbc => libpna::CipherMode::CBC,
-            CipherMode::Ctr => libpna::CipherMode::CTR,
+            CipherMode::Cbc => pna::CipherMode::CBC,
+            CipherMode::Ctr => pna::CipherMode::CTR,
         }
     }
 }
