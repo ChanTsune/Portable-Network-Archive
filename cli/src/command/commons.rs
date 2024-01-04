@@ -4,14 +4,13 @@ use libpna::{
 };
 #[cfg(unix)]
 use nix::unistd::{Group, User};
-use std::fs::metadata;
-use std::io::Write;
 #[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
-use std::time::UNIX_EPOCH;
 use std::{
-    fs, io,
+    fs,
+    io::{self, Write},
     path::{Path, PathBuf},
+    time::UNIX_EPOCH,
 };
 
 pub(crate) fn collect_items(
@@ -102,7 +101,7 @@ pub(crate) fn apply_metadata(
     keep_permission: bool,
 ) -> io::Result<EntryBuilder> {
     if keep_timestamp || keep_permission {
-        let meta = metadata(path)?;
+        let meta = fs::metadata(path)?;
         if keep_timestamp {
             if let Ok(c) = meta.created() {
                 if let Ok(created_since_unix_epoch) = c.duration_since(UNIX_EPOCH) {
