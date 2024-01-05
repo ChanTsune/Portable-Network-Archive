@@ -118,6 +118,8 @@ pub(crate) struct ExtractArgs {
     pub(crate) out_dir: Option<PathBuf>,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
+    #[arg(long, help = "Restore the timestamp of the files")]
+    pub(crate) keep_timestamp: bool,
     #[arg(long, help = "Restore the permissions of the files")]
     pub(crate) keep_permission: bool,
     #[command(flatten)]

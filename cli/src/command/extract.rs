@@ -9,13 +9,18 @@ use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use nix::unistd::{chown, Group, User};
 use pna::{Archive, DataKind, Permission, ReadOption, RegularEntry};
 use rayon::{prelude::*, ThreadPoolBuilder};
+use std::ops::Add;
+#[cfg(target_os = "macos")]
+use std::os::macos::fs::FileTimesExt;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+#[cfg(windows)]
+use std::os::windows::fs::FileTimesExt;
 use std::{
     fs::{self, File, Permissions},
     io,
-    path::PathBuf,
-    time::Instant,
+    path::{Path, PathBuf},
+    time::{Instant, SystemTime},
 };
 
 impl Command for ExtractArgs {
@@ -72,15 +77,15 @@ fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
             let tx = tx.clone();
             let password = password.clone();
             let out_dir = args.out_dir.clone();
-            let keep_permission = args.keep_permission;
             pool.spawn_fifo(move || {
                 tx.send(extract_entry(
                     item_path.clone(),
                     item,
                     password,
                     args.overwrite,
-                    out_dir,
-                    keep_permission,
+                    out_dir.as_deref(),
+                    args.keep_timestamp,
+                    args.keep_permission,
                     verbosity,
                 ))
                 .unwrap_or_else(|e| panic!("{e}: {}", item_path.display()));
@@ -110,7 +115,8 @@ fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
             item,
             password.clone(),
             args.overwrite,
-            args.out_dir.clone(),
+            args.out_dir.as_deref(),
+            args.keep_timestamp,
             args.keep_permission,
             verbosity,
         )?;
@@ -133,7 +139,8 @@ fn extract_entry(
     item: RegularEntry,
     password: Option<String>,
     overwrite: bool,
-    out_dir: Option<PathBuf>,
+    out_dir: Option<&Path>,
+    keep_timestamp: bool,
     keep_permission: bool,
     verbosity: Verbosity,
 ) -> io::Result<()> {
@@ -165,6 +172,17 @@ fn extract_entry(
     match item.header().data_kind() {
         DataKind::File => {
             let mut file = File::create(&path)?;
+            if keep_timestamp {
+                let mut times = fs::FileTimes::new();
+                if let Some(modified) = item.metadata().modified() {
+                    times = times.set_modified(SystemTime::UNIX_EPOCH.add(modified));
+                }
+                #[cfg(any(windows, target_os = "macos"))]
+                if let Some(created) = item.metadata().created() {
+                    times = times.set_created(SystemTime::UNIX_EPOCH.add(created));
+                }
+                file.set_times(times)?;
+            }
             let mut reader = item.reader(ReadOption::with_password(password))?;
             io::copy(&mut reader, &mut file)?;
         }
