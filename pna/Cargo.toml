@@ -12,15 +12,6 @@ keywords = ["pna", "archive", "crypto", "data"]
 
 [dependencies]
 libpna = { version = "0.5.0", path = "../lib" }
-portable-network-archive = { version = "0.5.0", path = "../cli", optional = true }
 
 [lib]
 name = "pna"
-
-[features]
-cli = ["portable-network-archive"]
-
-[[bin]]
-name = "pna"
-path = "src/bin/pna.rs"
-required-features = ["cli"]

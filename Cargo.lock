@@ -656,7 +656,6 @@ name = "pna"
 version = "0.5.0"
 dependencies = [
  "libpna",
- "portable-network-archive",
 ]
 
 [[package]]
@@ -675,8 +674,8 @@ dependencies = [
  "clap",
  "glob",
  "indicatif",
- "libpna",
  "nix",
+ "pna",
  "rayon",
  "rpassword",
 ]

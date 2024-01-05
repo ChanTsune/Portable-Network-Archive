@@ -5,9 +5,9 @@ use crate::{
 };
 use glob::Pattern;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
-use libpna::{Archive, DataKind, Permission, ReadOption, RegularEntry};
 #[cfg(unix)]
 use nix::unistd::{chown, Group, User};
+use pna::{Archive, DataKind, Permission, ReadOption, RegularEntry};
 use rayon::{prelude::*, ThreadPoolBuilder};
 use std::ops::Add;
 #[cfg(target_os = "macos")]

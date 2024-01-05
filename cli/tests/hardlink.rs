@@ -1,5 +1,5 @@
 use clap::Parser;
-use libpna::{Archive, EntryBuilder, EntryName, EntryReference, WriteOption};
+use pna::{Archive, EntryBuilder, EntryName, EntryReference, WriteOption};
 use portable_network_archive::{cli, command};
 use std::{fs, io::Write, path::Path};
 

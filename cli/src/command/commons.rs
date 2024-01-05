@@ -1,9 +1,9 @@
 use crate::cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs};
-use libpna::{
-    EntryBuilder, EntryName, EntryPart, EntryReference, Permission, RegularEntry, WriteOption,
-};
 #[cfg(unix)]
 use nix::unistd::{Group, User};
+use pna::{
+    EntryBuilder, EntryName, EntryPart, EntryReference, Permission, RegularEntry, WriteOption,
+};
 #[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::{
@@ -87,7 +87,7 @@ pub(crate) fn entry_option(
         .encryption(if password.is_some() {
             cipher.algorithm()
         } else {
-            libpna::Encryption::No
+            pna::Encryption::No
         })
         .cipher_mode(cipher.mode())
         .password(password);

@@ -10,18 +10,17 @@ A pna archive reading/writing library for Rust.
 ```toml
 # Cargo.toml
 [dependencies]
-libpna = "0.3"
+libpna = "0.5"
 ```
 
 ## Reading an archive
 
 ```rust
-use libpna::Archive;
+use libpna::{Archive, ReadOption};
 use std::fs::File;
 use std::io::{self, copy, prelude::*};
 
 fn main() -> io::Result<()> {
-    use libpna::ReadOption;
     let file = File::open("foo.pna")?;
     let mut archive = Archive::read_header(file)?;
     for entry in archive.entries() {

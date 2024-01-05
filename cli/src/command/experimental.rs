@@ -5,7 +5,7 @@ use crate::{
 };
 use bytesize::ByteSize;
 use clap::{Args, Parser, Subcommand};
-use libpna::{Archive, EntryPart, MIN_CHUNK_BYTES_SIZE, PNA_HEADER};
+use pna::{Archive, EntryPart, MIN_CHUNK_BYTES_SIZE, PNA_HEADER};
 use std::{fs::File, io, path::PathBuf};
 
 #[derive(Args, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]

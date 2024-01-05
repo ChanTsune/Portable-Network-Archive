@@ -1,9 +1,5 @@
 # Portable Network Archive
 
-<div align="center">
-  <img src="./icon.svg" alt="PNA" width="100"/>
-</div>
-
 PNA (Portable Network Archive) is a highly scalable archive format that can be compressed, encrypted, and split.
 Also, its data structure is inspired by the PNG data structure.
 
@@ -51,17 +47,13 @@ Use the following command to get help.
 pna --help
 ```
 
-## Specification
-
-For more detailed information, please refer to the [Specification](./Specification.md) document.
-
 # License
 
 This project is licensed under either of
 
-* Apache License, Version 2.0, ([LICENSE-APACHE](./LICENSE-APACHE) or
+* Apache License, Version 2.0, ([LICENSE-APACHE](../LICENSE-APACHE) or
 http://www.apache.org/licenses/LICENSE-2.0)
-* MIT license ([LICENSE-MIT](./LICENSE-MIT) or
+* MIT license ([LICENSE-MIT](../LICENSE-MIT) or
 http://opensource.org/licenses/MIT)
 
 at your option.

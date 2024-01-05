@@ -1,22 +1,92 @@
-# Portable-Network-Archive
+# pna
+[![test](https://github.com/ChanTsune/Portable-Network-Archive/actions/workflows/test.yml/badge.svg)](https://github.com/ChanTsune/Portable-Network-Archive/actions/workflows/test.yml)
+[![Crates.io][crates-badge]][crates-url]
 
-Portable-Network-Archive (PNA)  
-Highly scalable archive format inspired by the PNG data structure with file compression, splitting and encryption.  
+[crates-badge]: https://img.shields.io/crates/v/pna.svg
+[crates-url]: https://crates.io/crates/pna
 
-## Installation
+A pna archive reading/writing library for Rust.
 
-```sh
-cargo install pna --features cli
+```toml
+# Cargo.toml
+[dependencies]
+pna = "0.5"
 ```
 
-## Usage
+## Reading an archive
 
-Use the following command to get help.
+```rust
+use pna::{Archive, ReadOption};
+use std::fs::File;
+use std::io::{self, copy, prelude::*};
 
-```sh
-pna --help
+fn main() -> io::Result<()> {
+    let file = File::open("foo.pna")?;
+    let mut archive = Archive::read_header(file)?;
+    for entry in archive.entries() {
+        let entry = entry?;
+        let mut file = File::create(entry.header().path().as_path())?;
+        let mut reader = entry.reader(ReadOption::builder().build())?;
+        copy(&mut reader, &mut file)?;
+    }
+    Ok(())
+}
 ```
 
-## Specification
+## Writing an archive
 
-For more detail read [Specification](../Specification.md)
+```rust
+use pna::{Archive, EntryBuilder, WriteOption};
+use std::fs::File;
+use std::io::{self, prelude::*};
+
+fn main() -> io::Result<()> {
+    let file = File::create("foo.pna")?;
+    let mut archive = Archive::write_header(file)?;
+    let mut entry_builder = EntryBuilder::new_file(
+    "bar.txt".try_into().unwrap(),
+    WriteOption::builder().build(),
+    )?;
+    entry_builder.write(b"content")?;
+    let entry = entry_builder.build()?;
+    archive.add_entry(entry)?;
+    archive.finalize()?;
+    Ok(())
+}
+```
+
+# CLI
+Command line user interface are available and you can install via cargo or build from source.
+
+### Via Cargo
+
+```sh
+cargo install portable-network-archive
+```
+
+### From Source (via Cargo)
+
+```sh
+git clone https://github.com/ChanTsune/Portable-Network-Archive.git
+```
+
+```sh
+cargo install --path cli
+```
+
+# License
+
+This project is licensed under either of
+
+* Apache License, Version 2.0, ([LICENSE-APACHE](../LICENSE-APACHE) or
+http://www.apache.org/licenses/LICENSE-2.0)
+* MIT license ([LICENSE-MIT](../LICENSE-MIT) or
+http://opensource.org/licenses/MIT)
+
+at your option.
+
+### Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in this project by you, as defined in the Apache-2.0 license,
+shall be dual licensed as above, without any additional terms or conditions.

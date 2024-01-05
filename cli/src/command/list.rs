@@ -9,7 +9,7 @@ use crate::{
 use ansi_term::{ANSIString, Colour, Style};
 use chrono::{DateTime, Local};
 use glob::Pattern;
-use libpna::{Archive, Compression, DataKind, Encryption, ReadOption, RegularEntry};
+use pna::{Archive, Compression, DataKind, Encryption, ReadOption, RegularEntry};
 use rayon::prelude::*;
 use std::{
     fs::File,
