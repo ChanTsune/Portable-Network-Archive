@@ -4,7 +4,7 @@ use bytesize::ByteSize;
 use clap::{value_parser, ArgGroup, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
-#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(
     name = env!("CARGO_PKG_NAME"),
     version,
@@ -47,7 +47,7 @@ pub(crate) enum Verbosity {
     Verbose,
 }
 
-#[derive(Subcommand, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Subcommand, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) enum Commands {
     #[command(visible_alias = "c", about = "Create archive")]
     Create(CreateArgs),
