@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
 
 #[inline]
-pub(crate) fn part_name<P: AsRef<Path>>(p: P, n: u32) -> Option<PathBuf> {
+pub(crate) fn part_name<P: AsRef<Path>>(p: P, n: usize) -> Option<PathBuf> {
     #[inline]
-    fn with_ext(p: &Path, n: u32) -> Option<PathBuf> {
+    fn with_ext(p: &Path, n: usize) -> Option<PathBuf> {
         let name = p.file_stem()?;
         if let Some(ext) = p.extension() {
             Some(PathBuf::from(name).with_extension(format!("part{n}.{}", ext.to_string_lossy())))

@@ -54,25 +54,23 @@ fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
 
     let mut hard_kink_entries = Vec::new();
 
-    let file = File::open(&args.file.archive)?;
-    let mut reader = Archive::read_header(file)?;
-    let mut num_archive = 1;
-
     let (tx, rx) = std::sync::mpsc::channel();
-    loop {
-        for entry in reader.entries_with_password(password.clone()) {
+    run_extract(
+        &args.file.archive,
+        password.clone(),
+        |entry| {
             let item = entry?;
             let item_path = PathBuf::from(item.header().path().as_str());
             if !globs.is_empty() && !globs.par_iter().any(|glob| glob.matches_path(&item_path)) {
                 if verbosity == Verbosity::Verbose {
                     println!("Skip: {}", item.header().path())
                 }
-                continue;
+                return Ok(());
             }
             progress_bar.let_ref(|pb| pb.inc_length(1));
             if item.header().data_kind() == DataKind::HardLink {
                 hard_kink_entries.push(item);
-                continue;
+                return Ok(());
             }
             let tx = tx.clone();
             let password = password.clone();
@@ -90,19 +88,16 @@ fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
                 ))
                 .unwrap_or_else(|e| panic!("{e}: {}", item_path.display()));
             });
-        }
-        if reader.next_archive() {
-            num_archive += 1;
-            let part_n_name = part_name(&args.file.archive, num_archive).unwrap();
+            Ok(())
+        },
+        |path, num| {
+            let next_file_path = part_name(path, num).unwrap();
             if verbosity == Verbosity::Verbose {
-                println!("Detect split: search {}", part_n_name.display());
+                println!("Detect split: search {}", next_file_path.display());
             }
-            let file = File::open(part_n_name)?;
-            reader = reader.read_next_archive(file)?;
-        } else {
-            break;
-        }
-    }
+            next_file_path
+        },
+    )?;
     drop(tx);
     for result in rx {
         result?;
@@ -130,6 +125,38 @@ fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
             "Successfully extracted an archive in {}",
             HumanDuration(start.elapsed())
         );
+    }
+    Ok(())
+}
+
+fn run_extract<P, F, N, NP>(
+    path: P,
+    password: Option<String>,
+    mut extractor: F,
+    mut get_next_file_path: N,
+) -> io::Result<()>
+where
+    P: AsRef<Path>,
+    F: FnMut(io::Result<RegularEntry>) -> io::Result<()>,
+    N: FnMut(&Path, usize) -> NP,
+    NP: AsRef<Path>,
+{
+    let path = path.as_ref();
+    let file = File::open(path)?;
+    let mut reader = Archive::read_header(file)?;
+    let mut num_archive = 1;
+    loop {
+        for entry in reader.entries_with_password(password.clone()) {
+            extractor(entry)?;
+        }
+        if reader.next_archive() {
+            num_archive += 1;
+            let next_file_path = get_next_file_path(path, num_archive);
+            let file = File::open(next_file_path)?;
+            reader = reader.read_next_archive(file)?;
+        } else {
+            break;
+        }
     }
     Ok(())
 }
