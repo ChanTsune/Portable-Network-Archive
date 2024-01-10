@@ -212,10 +212,11 @@ pub(crate) struct EntriesIterator<'r, R: Read> {
 }
 
 impl<'r, R: Read> EntriesIterator<'r, R> {
-    fn new_with_password(reader: &'r mut Archive<R>, password: Option<String>) -> Self {
+    #[inline]
+    fn new_with_password<S: Into<String>>(reader: &'r mut Archive<R>, password: Option<S>) -> Self {
         Self {
             reader,
-            password: Some(password),
+            password: Some(password.map(Into::into)),
             buf: Default::default(),
         }
     }
