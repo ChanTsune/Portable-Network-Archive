@@ -241,6 +241,13 @@ impl TryFrom<ChunkEntry> for SolidReadEntry {
                 ));
             }
         }
+        Self::try_from(ChunkSolidEntries(entry.0))
+    }
+}
+
+impl TryFrom<ChunkSolidEntries> for SolidReadEntry {
+    type Error = io::Error;
+    fn try_from(entry: ChunkSolidEntries) -> Result<Self, Self::Error> {
         let mut extra = vec![];
         let mut data = vec![];
         let mut info = None;
