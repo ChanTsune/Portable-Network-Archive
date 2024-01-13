@@ -199,7 +199,7 @@ impl<'r, R: Read> Entries<'r, R> {
     pub(crate) fn extract_solid(self, password: Option<&'r str>) -> EntriesIterator<'r, R> {
         EntriesIterator {
             reader: self.reader,
-            password: Some(password),
+            password,
             buf: Default::default(),
         }
     }
@@ -216,7 +216,7 @@ impl<'r, R: Read> Iterator for Entries<'r, R> {
 
 pub(crate) struct EntriesIterator<'r, R: Read> {
     reader: &'r mut Archive<R>,
-    password: Option<Option<&'r str>>,
+    password: Option<&'r str>,
     buf: VecDeque<io::Result<RegularEntry>>,
 }
 
@@ -230,19 +230,16 @@ impl<'r, R: Read> Iterator for EntriesIterator<'r, R> {
         let entry = self.reader.read_entry();
         match entry {
             Ok(Some(EntryContainer::Regular(entry))) => Some(Ok(entry)),
-            Ok(Some(EntryContainer::Solid(entry))) => match &self.password {
-                Some(password) => {
-                    let entries = entry.entries(password.as_deref());
-                    match entries {
-                        Ok(entries) => {
-                            self.buf = entries.collect::<VecDeque<_>>();
-                            self.next()
-                        }
-                        Err(e) => Some(Err(e)),
+            Ok(Some(EntryContainer::Solid(entry))) => {
+                let entries = entry.entries(self.password);
+                match entries {
+                    Ok(entries) => {
+                        self.buf = entries.collect::<VecDeque<_>>();
+                        self.next()
                     }
+                    Err(e) => Some(Err(e)),
                 }
-                None => self.next(),
-            },
+            }
             Ok(None) => None,
             Err(e) => Some(Err(e)),
         }
