@@ -196,8 +196,8 @@ impl<'r, R: Read> Entries<'r, R> {
     }
 
     #[inline]
-    pub(crate) fn extract_solid(self, password: Option<&'r str>) -> EntriesIterator<'r, R> {
-        EntriesIterator {
+    pub(crate) fn extract_solid(self, password: Option<&'r str>) -> RegularEntries<'r, R> {
+        RegularEntries {
             reader: self.reader,
             password,
             buf: Default::default(),
@@ -214,13 +214,13 @@ impl<'r, R: Read> Iterator for Entries<'r, R> {
     }
 }
 
-pub(crate) struct EntriesIterator<'r, R: Read> {
+pub(crate) struct RegularEntries<'r, R: Read> {
     reader: &'r mut Archive<R>,
     password: Option<&'r str>,
     buf: VecDeque<io::Result<RegularEntry>>,
 }
 
-impl<'r, R: Read> Iterator for EntriesIterator<'r, R> {
+impl<'r, R: Read> Iterator for RegularEntries<'r, R> {
     type Item = io::Result<RegularEntry>;
 
     fn next(&mut self) -> Option<Self::Item> {
