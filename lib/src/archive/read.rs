@@ -141,7 +141,7 @@ impl<R: Read> Archive<R> {
         &mut self,
         password: Option<String>,
     ) -> impl Iterator<Item = io::Result<RegularEntry>> + '_ {
-        EntriesIterator::new_with_password(self, password)
+        self.iter().extract_solid(password)
     }
 
     /// Returns `true` if [ANXT] chunk is appeared before call this method calling.
@@ -194,6 +194,15 @@ impl<'r, R: Read> Entries<'r, R> {
     pub(crate) fn new(reader: &'r mut Archive<R>) -> Self {
         Self { reader }
     }
+
+    #[inline]
+    pub(crate) fn extract_solid(self, password: Option<String>) -> EntriesIterator<'r, R> {
+        EntriesIterator {
+            reader: self.reader,
+            password: Some(password),
+            buf: Default::default(),
+        }
+    }
 }
 
 impl<'r, R: Read> Iterator for Entries<'r, R> {
@@ -209,17 +218,6 @@ pub(crate) struct EntriesIterator<'r, R: Read> {
     reader: &'r mut Archive<R>,
     password: Option<Option<String>>,
     buf: VecDeque<io::Result<RegularEntry>>,
-}
-
-impl<'r, R: Read> EntriesIterator<'r, R> {
-    #[inline]
-    fn new_with_password<S: Into<String>>(reader: &'r mut Archive<R>, password: Option<S>) -> Self {
-        Self {
-            reader,
-            password: Some(password.map(Into::into)),
-            buf: Default::default(),
-        }
-    }
 }
 
 impl<'r, R: Read> Iterator for EntriesIterator<'r, R> {
