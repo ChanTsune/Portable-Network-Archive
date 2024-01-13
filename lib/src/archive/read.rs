@@ -137,10 +137,10 @@ impl<R: Read> Archive<R> {
     ///
     /// An iterator over the entries in the archive.
     #[inline]
-    pub fn entries_with_password(
-        &mut self,
-        password: Option<String>,
-    ) -> impl Iterator<Item = io::Result<RegularEntry>> + '_ {
+    pub fn entries_with_password<'a>(
+        &'a mut self,
+        password: Option<&'a str>,
+    ) -> impl Iterator<Item = io::Result<RegularEntry>> + 'a {
         self.iter().extract_solid(password)
     }
 
@@ -196,7 +196,7 @@ impl<'r, R: Read> Entries<'r, R> {
     }
 
     #[inline]
-    pub(crate) fn extract_solid(self, password: Option<String>) -> EntriesIterator<'r, R> {
+    pub(crate) fn extract_solid(self, password: Option<&'r str>) -> EntriesIterator<'r, R> {
         EntriesIterator {
             reader: self.reader,
             password: Some(password),
@@ -216,7 +216,7 @@ impl<'r, R: Read> Iterator for Entries<'r, R> {
 
 pub(crate) struct EntriesIterator<'r, R: Read> {
     reader: &'r mut Archive<R>,
-    password: Option<Option<String>>,
+    password: Option<Option<&'r str>>,
     buf: VecDeque<io::Result<RegularEntry>>,
 }
 

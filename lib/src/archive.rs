@@ -267,7 +267,7 @@ mod tests {
         };
 
         let mut archive_reader = Archive::read_header(Cursor::new(archive)).unwrap();
-        let mut entries = archive_reader.entries_with_password(Some("password".to_string()));
+        let mut entries = archive_reader.entries_with_password(Some("password"));
         entries.next().unwrap().expect("failed to read entry");
         entries.next().unwrap().expect("failed to read entry");
         assert!(entries.next().is_none());
