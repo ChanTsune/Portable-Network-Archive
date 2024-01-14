@@ -44,7 +44,7 @@ fn list_archive(args: ListArgs, _: Verbosity) -> io::Result<()> {
                 entries.push(item);
             }
         } else {
-            for entry in reader.entries() {
+            for entry in reader.entries_skip_solid() {
                 let item = entry?;
                 entries.push(item);
             }

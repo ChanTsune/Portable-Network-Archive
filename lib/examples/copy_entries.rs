@@ -5,7 +5,7 @@ use std::io::{self, Read, Write};
 fn copy_entries<R: Read, W: Write>(r: R, w: W) -> io::Result<()> {
     let mut writer = Archive::write_header(w)?;
     let mut reader = Archive::read_header(r)?;
-    for entry in reader.entries() {
+    for entry in reader.entries_skip_solid() {
         writer.add_entry(entry?)?;
     }
     writer.finalize()?;

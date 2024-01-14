@@ -306,7 +306,7 @@ mod tests {
         let file_bytes = include_bytes!("../../../resources/test/empty.pna");
         let reader = Cursor::new(file_bytes);
         let mut reader = Archive::read_header(reader).unwrap();
-        for _entry in reader.entries() {
+        for _entry in reader.entries_skip_solid() {
             unreachable!()
         }
     }
