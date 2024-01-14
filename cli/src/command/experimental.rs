@@ -84,7 +84,7 @@ fn split_archive(args: SplitCommand, verbosity: Verbosity) -> io::Result<()> {
     // NOTE: max_file_size - (PNA_HEADER + AHED + ANXT + AEND)
     let max_file_size = max_file_size - (PNA_HEADER.len() + MIN_CHUNK_BYTES_SIZE * 3 + 8);
     let mut written_entry_size = 0;
-    for entry in read_archive.entries() {
+    for entry in read_archive.entries_skip_solid() {
         let parts = split_to_parts(
             EntryPart::from(entry?),
             max_file_size - written_entry_size,

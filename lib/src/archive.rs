@@ -43,7 +43,7 @@ pub use write::*;
 /// # fn main() -> io::Result<()> {
 /// let file = File::open("foo.pna")?;
 /// let mut archive = Archive::read_header(file)?;
-/// for entry in archive.entries() {
+/// for entry in archive.entries_skip_solid() {
 ///     let entry = entry?;
 ///     let mut file = File::create(entry.header().path().as_path())?;
 ///     let mut reader = entry.reader(ReadOption::builder().build())?;
@@ -233,7 +233,7 @@ mod tests {
     fn archive(src: &[u8], options: WriteOption) -> io::Result<()> {
         let archive = create_archive(src, options.clone())?;
         let mut archive_reader = Archive::read_header(Cursor::new(archive))?;
-        let item = archive_reader.entries().next().unwrap().unwrap();
+        let item = archive_reader.entries_skip_solid().next().unwrap().unwrap();
         let mut reader = item
             .reader(ReadOption::with_password(options.password))
             .unwrap();
@@ -267,7 +267,7 @@ mod tests {
         };
 
         let mut archive_reader = Archive::read_header(Cursor::new(archive)).unwrap();
-        let mut entries = archive_reader.entries_with_password(Some("password".to_string()));
+        let mut entries = archive_reader.entries_with_password(Some("password"));
         entries.next().unwrap().expect("failed to read entry");
         entries.next().unwrap().expect("failed to read entry");
         assert!(entries.next().is_none());
@@ -283,7 +283,7 @@ mod tests {
 
         let mut writer = Archive::write_header(Vec::new()).expect("failed to write archive header");
 
-        for entry in reader.entries() {
+        for entry in reader.entries_skip_solid() {
             writer
                 .add_entry(entry.expect("failed to read entry"))
                 .expect("failed to add entry");
@@ -329,7 +329,7 @@ mod tests {
         let cursor = Cursor::new(appended.into_inner());
         let mut reader = Archive::read_header(cursor).unwrap();
 
-        let mut entries = reader.entries();
+        let mut entries = reader.entries_skip_solid();
         assert!(entries.next().is_some());
         assert!(entries.next().is_some());
         assert!(entries.next().is_none());

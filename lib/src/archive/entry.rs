@@ -241,6 +241,13 @@ impl TryFrom<ChunkEntry> for SolidReadEntry {
                 ));
             }
         }
+        Self::try_from(ChunkSolidEntries(entry.0))
+    }
+}
+
+impl TryFrom<ChunkSolidEntries> for SolidReadEntry {
+    type Error = io::Error;
+    fn try_from(entry: ChunkSolidEntries) -> Result<Self, Self::Error> {
         let mut extra = vec![];
         let mut data = vec![];
         let mut info = None;
@@ -457,7 +464,7 @@ impl RegularEntry {
     /// # fn main() -> io::Result<()> {
     /// let file = fs::File::open("foo.pna")?;
     /// let mut archive = Archive::read_header(file)?;
-    /// for entry in archive.entries() {
+    /// for entry in archive.entries_skip_solid() {
     ///     let entry = entry?;
     ///     let mut reader = entry.reader(ReadOption::builder().build())?;
     ///     let name = entry.header().path();

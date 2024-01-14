@@ -111,20 +111,50 @@ impl<R: Read> Archive<R> {
     ///
     /// An iterator over the entries in the archive.
     #[inline]
+    pub fn entries_skip_solid(&mut self) -> impl Iterator<Item = io::Result<RegularEntry>> + '_ {
+        self.iter().filter_map(|it| match it {
+            Ok(e) => match e {
+                EntryContainer::Solid(_) => None,
+                EntryContainer::Regular(r) => Some(Ok(r)),
+            },
+            Err(e) => Some(Err(e)),
+        })
+    }
+
+    #[inline]
+    #[deprecated(
+        since = "0.6.0",
+        note = "Renamed to `Archive::entries_skip_solid`, Use `Archive::entries_skip_solid` or `Archive::entries_with_password` instead."
+    )]
     pub fn entries(&mut self) -> impl Iterator<Item = io::Result<RegularEntry>> + '_ {
+        self.entries_skip_solid()
+    }
+
+    /// Returns an iterator over the entries in the archive.
+    ///
+    /// # Returns
+    ///
+    /// An iterator over the entries in the archive.
+    #[inline]
+    fn iter(&mut self) -> Entries<R> {
         Entries::new(self)
     }
 
     /// Returns an iterator over the entries in the archive, including entries in solid mode.
     ///
+    /// # Arguments
+    ///
+    /// * `password` - a password for solid mode entry.
+    ///
     /// # Returns
     ///
     /// An iterator over the entries in the archive.
-    pub fn entries_with_password(
-        &mut self,
-        password: Option<String>,
-    ) -> impl Iterator<Item = io::Result<RegularEntry>> + '_ {
-        Entries::new_with_password(self, password)
+    #[inline]
+    pub fn entries_with_password<'a>(
+        &'a mut self,
+        password: Option<&'a str>,
+    ) -> impl Iterator<Item = io::Result<RegularEntry>> + 'a {
+        self.iter().extract_solid(password)
     }
 
     /// Returns `true` if [ANXT] chunk is appeared before call this method calling.
@@ -170,29 +200,40 @@ impl<R: Read> Archive<R> {
 
 pub(crate) struct Entries<'r, R: Read> {
     reader: &'r mut Archive<R>,
-    password: Option<Option<String>>,
-    buf: VecDeque<io::Result<RegularEntry>>,
 }
 
 impl<'r, R: Read> Entries<'r, R> {
-    fn new(reader: &'r mut Archive<R>) -> Self {
-        Self {
-            reader,
-            password: None,
-            buf: Default::default(),
-        }
+    #[inline]
+    pub(crate) fn new(reader: &'r mut Archive<R>) -> Self {
+        Self { reader }
     }
 
-    fn new_with_password<S: Into<String>>(reader: &'r mut Archive<R>, password: Option<S>) -> Self {
-        Self {
-            reader,
-            password: Some(password.map(Into::into)),
+    #[inline]
+    pub(crate) fn extract_solid(self, password: Option<&'r str>) -> RegularEntries<'r, R> {
+        RegularEntries {
+            reader: self.reader,
+            password,
             buf: Default::default(),
         }
     }
 }
 
 impl<'r, R: Read> Iterator for Entries<'r, R> {
+    type Item = io::Result<EntryContainer>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.reader.read_entry().transpose()
+    }
+}
+
+pub(crate) struct RegularEntries<'r, R: Read> {
+    reader: &'r mut Archive<R>,
+    password: Option<&'r str>,
+    buf: VecDeque<io::Result<RegularEntry>>,
+}
+
+impl<'r, R: Read> Iterator for RegularEntries<'r, R> {
     type Item = io::Result<RegularEntry>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -202,19 +243,16 @@ impl<'r, R: Read> Iterator for Entries<'r, R> {
         let entry = self.reader.read_entry();
         match entry {
             Ok(Some(EntryContainer::Regular(entry))) => Some(Ok(entry)),
-            Ok(Some(EntryContainer::Solid(entry))) => match &self.password {
-                Some(password) => {
-                    let entries = entry.entries(password.as_deref());
-                    match entries {
-                        Ok(entries) => {
-                            self.buf = entries.collect::<VecDeque<_>>();
-                            self.next()
-                        }
-                        Err(e) => Some(Err(e)),
+            Ok(Some(EntryContainer::Solid(entry))) => {
+                let entries = entry.entries(self.password);
+                match entries {
+                    Ok(entries) => {
+                        self.buf = entries.collect::<VecDeque<_>>();
+                        self.next()
                     }
+                    Err(e) => Some(Err(e)),
                 }
-                None => self.next(),
-            },
+            }
             Ok(None) => None,
             Err(e) => Some(Err(e)),
         }
@@ -268,7 +306,7 @@ mod tests {
         let file_bytes = include_bytes!("../../../resources/test/empty.pna");
         let reader = Cursor::new(file_bytes);
         let mut reader = Archive::read_header(reader).unwrap();
-        for _entry in reader.entries() {
+        for _entry in reader.entries_skip_solid() {
             unreachable!()
         }
     }

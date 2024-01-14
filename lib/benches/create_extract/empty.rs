@@ -20,7 +20,7 @@ fn read_empty_archive(b: &mut Bencher) {
 
     b.iter(|| {
         let mut reader = Archive::read_header(vec.as_slice()).expect("failed to read header");
-        for entry in reader.entries() {
+        for entry in reader.entries_skip_solid() {
             let item = entry.expect("failed to read entry");
             io::read_to_string(
                 item.reader(ReadOption::builder().build())

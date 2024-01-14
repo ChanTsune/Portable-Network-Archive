@@ -146,7 +146,7 @@ where
     let mut reader = Archive::read_header(file)?;
     let mut num_archive = 1;
     loop {
-        for entry in reader.entries_with_password(password.clone()) {
+        for entry in reader.entries_with_password(password.as_deref()) {
             extractor(entry)?;
         }
         if reader.next_archive() {

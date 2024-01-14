@@ -39,12 +39,12 @@ fn list_archive(args: ListArgs, _: Verbosity) -> io::Result<()> {
     let mut num_archive = 1;
     loop {
         if args.solid {
-            for entry in reader.entries_with_password(password.clone()) {
+            for entry in reader.entries_with_password(password.as_deref()) {
                 let item = entry?;
                 entries.push(item);
             }
         } else {
-            for entry in reader.entries() {
+            for entry in reader.entries_skip_solid() {
                 let item = entry?;
                 entries.push(item);
             }

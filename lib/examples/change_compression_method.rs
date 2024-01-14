@@ -9,7 +9,7 @@ fn change_compression_method<R: Read, W: Write>(
 ) -> io::Result<()> {
     let mut writer = Archive::write_header(w)?;
     let mut reader = Archive::read_header(r)?;
-    for entry in reader.entries() {
+    for entry in reader.entries_skip_solid() {
         let entry = entry?;
         let header = entry.header();
         let mut builder = EntryBuilder::new_file(
