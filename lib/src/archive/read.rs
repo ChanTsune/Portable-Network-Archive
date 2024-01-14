@@ -111,7 +111,7 @@ impl<R: Read> Archive<R> {
     ///
     /// An iterator over the entries in the archive.
     #[inline]
-    pub fn entries(&mut self) -> impl Iterator<Item = io::Result<RegularEntry>> + '_ {
+    pub fn entries_skip_solid(&mut self) -> impl Iterator<Item = io::Result<RegularEntry>> + '_ {
         self.iter().filter_map(|it| match it {
             Ok(e) => match e {
                 EntryContainer::Solid(_) => None,
@@ -119,6 +119,15 @@ impl<R: Read> Archive<R> {
             },
             Err(e) => Some(Err(e)),
         })
+    }
+
+    #[inline]
+    #[deprecated(
+        since = "0.6.0",
+        note = "Renamed to `Archive::entries_skip_solid`, Use `Archive::entries_skip_solid` or `Archive::entries_with_password` instead."
+    )]
+    pub fn entries(&mut self) -> impl Iterator<Item = io::Result<RegularEntry>> + '_ {
+        self.entries_skip_solid()
     }
 
     /// Returns an iterator over the entries in the archive.
