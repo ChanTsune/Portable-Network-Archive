@@ -142,6 +142,10 @@ impl<R: Read> Archive<R> {
 
     /// Returns an iterator over the entries in the archive, including entries in solid mode.
     ///
+    /// # Arguments
+    ///
+    /// * `password` - a password for solid mode entry.
+    ///
     /// # Returns
     ///
     /// An iterator over the entries in the archive.
