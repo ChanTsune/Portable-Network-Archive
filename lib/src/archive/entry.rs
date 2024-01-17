@@ -140,7 +140,7 @@ impl TryFrom<ChunkEntry> for EntryContainer {
     }
 }
 
-pub(crate) struct EntryIterator<'s>(EntryReader<'s, &'s [u8]>);
+pub(crate) struct EntryIterator<'s>(EntryReader<'s, crate::io::FlattenReader<'s>>);
 
 impl Iterator for EntryIterator<'_> {
     type Item = io::Result<RegularEntry>;
@@ -170,7 +170,7 @@ impl Iterator for EntryIterator<'_> {
 pub(crate) struct SolidReadEntry {
     header: SolidHeader,
     phsf: Option<String>,
-    data: Vec<u8>,
+    data: Vec<Vec<u8>>,
     extra: Vec<RawChunk>,
 }
 
@@ -188,8 +188,8 @@ impl SealedIntoChunks for SolidReadEntry {
                 phsf.as_bytes().to_vec(),
             ));
         }
-        for data_chunk in self.data.chunks(u32::MAX as usize) {
-            chunks.push(RawChunk::from_data(ChunkType::SDAT, data_chunk.to_vec()));
+        for data in self.data {
+            chunks.push(RawChunk::from_data(ChunkType::SDAT, data));
         }
         chunks.push(RawChunk::from_data(ChunkType::SEND, Vec::new()));
         chunks
@@ -213,7 +213,7 @@ impl SolidEntries for SolidReadEntry {
 impl SolidReadEntry {
     pub(crate) fn entries(&self, password: Option<&str>) -> io::Result<EntryIterator> {
         let reader = decrypt_reader(
-            self.data.as_slice(),
+            crate::io::FlattenReader::new(self.data.iter().map(|it| it.as_slice()).collect()),
             self.header.encryption,
             self.header.cipher_mode,
             self.phsf.as_deref(),
@@ -258,7 +258,7 @@ impl TryFrom<ChunkSolidEntries> for SolidReadEntry {
                     info = Some(SolidHeader::try_from(chunk.data.as_slice())?);
                 }
                 ChunkType::SDAT => {
-                    data.extend(chunk.data);
+                    data.push(chunk.data);
                 }
                 ChunkType::PHSF => {
                     phsf = Some(
