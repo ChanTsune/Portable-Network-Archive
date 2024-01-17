@@ -59,14 +59,15 @@ impl EntryBuilder {
     ///
     /// A Result containing the new [EntryBuilder], or an I/O error if creation fails.
     pub fn new_file(name: EntryName, option: WriteOption) -> io::Result<Self> {
-        let (writer, phsf) = writer_and_hash(crate::io::FlattenWriter::new(), option.clone())?;
+        let header = EntryHeader::for_file(
+            option.compression,
+            option.encryption,
+            option.cipher_mode,
+            name,
+        );
+        let (writer, phsf) = writer_and_hash(crate::io::FlattenWriter::new(), option)?;
         Ok(Self {
-            header: EntryHeader::for_file(
-                option.compression,
-                option.encryption,
-                option.cipher_mode,
-                name,
-            ),
+            header,
             data: Some(writer),
             phsf,
             created: None,
@@ -242,7 +243,7 @@ impl Write for EntryBuilder {
 pub struct SolidEntryBuilder {
     header: SolidHeader,
     phsf: Option<String>,
-    data: CompressionWriter<'static, CipherWriter<Vec<u8>>>,
+    data: CompressionWriter<'static, CipherWriter<crate::io::FlattenWriter<MAX_CHUNK_DATA_LENGTH>>>,
 }
 
 impl SolidEntryBuilder {
@@ -256,9 +257,10 @@ impl SolidEntryBuilder {
     ///
     /// A new [SolidEntryBuilder].
     pub fn new(option: WriteOption) -> io::Result<Self> {
-        let (writer, phsf) = writer_and_hash(Vec::new(), option.clone())?;
+        let header = SolidHeader::new(option.compression, option.encryption, option.cipher_mode);
+        let (writer, phsf) = writer_and_hash(crate::io::FlattenWriter::new(), option)?;
         Ok(Self {
-            header: SolidHeader::new(option.compression, option.encryption, option.cipher_mode),
+            header,
             phsf,
             data: writer,
         })
@@ -298,7 +300,7 @@ impl SolidEntryBuilder {
         Ok(SolidReadEntry {
             header: self.header,
             phsf: self.phsf,
-            data: self.data.try_into_inner()?.try_into_inner()?,
+            data: self.data.try_into_inner()?.try_into_inner()?.inner,
             extra: Vec::new(),
         })
     }
