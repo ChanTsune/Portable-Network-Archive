@@ -18,7 +18,7 @@ clap_complete = { version =  "4.4.7", optional = true }
 glob = "0.3.1"
 indicatif = { version = "0.17.7", features = ["improved_unicode"] }
 pna = { version = "0.5.0", path = "../pna" }
-rayon = "1.8.0"
+rayon = "1.8.1"
 rpassword = "7.3.1"
 
 [target.'cfg(unix)'.dependencies]
