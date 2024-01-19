@@ -20,3 +20,19 @@ jobs:
       - name: Run rust-bench
         run: |
           cargo bench --locked --all-features
+
+  bench-cli:
+    name: Run cli bench
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-rust
+      - name: Install cli
+        run: |
+          cargo install --locked --all-features --path cli
+      - name: Run rust-bench
+        run: |
+          bash ./ci/script/run.sh
