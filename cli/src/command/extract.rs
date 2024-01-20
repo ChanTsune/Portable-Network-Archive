@@ -173,7 +173,7 @@ fn extract_entry(
         println!("Extract: {}", item_path.display());
     }
     let path = if let Some(out_dir) = &out_dir {
-        out_dir.join(&item_path)
+        out_dir.join(item_path)
     } else {
         item_path.to_path_buf()
     };
