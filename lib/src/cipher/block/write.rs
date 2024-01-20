@@ -143,7 +143,7 @@ mod tests {
             )
             .unwrap();
             for p in plaintext.chunks(8) {
-                writer.write(p).unwrap();
+                writer.write_all(p).unwrap();
             }
             writer.finish().unwrap()
         };

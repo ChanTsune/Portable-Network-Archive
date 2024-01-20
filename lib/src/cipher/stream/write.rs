@@ -76,7 +76,7 @@ mod tests {
         // encrypt in-place
         let mut buf = [0u8; 34];
         let mut cipher = Aes128Ctr64LEWriter::new(buf.as_mut_slice(), &key, &iv).unwrap();
-        cipher.write(&plaintext).unwrap();
+        cipher.write_all(&plaintext).unwrap();
 
         assert_eq!(buf[..], ciphertext[..]);
 
@@ -84,7 +84,7 @@ mod tests {
         let mut out_buf = [0u8; 34];
         let mut cipher = Aes128Ctr64LEWriter::new(out_buf.as_mut_slice(), &key, &iv).unwrap();
         for chunk in buf.chunks_mut(3) {
-            cipher.write(chunk).unwrap();
+            cipher.write_all(chunk).unwrap();
         }
         assert_eq!(out_buf[..], plaintext[..]);
     }
