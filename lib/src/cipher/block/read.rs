@@ -129,7 +129,7 @@ mod tests {
         )
         .unwrap();
         for d in buf.chunks_mut(28) {
-            dec.read(d).unwrap();
+            dec.read_exact(d).unwrap();
         }
         assert_eq!(buf, plaintext);
     }

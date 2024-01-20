@@ -68,7 +68,7 @@ mod tests {
         // encrypt in-place
         let mut buf = [0u8; 34];
         let mut cipher = Aes128Ctr64LEReader::new(plaintext.as_slice(), &key, &iv).unwrap();
-        cipher.read(&mut buf).unwrap();
+        cipher.read_exact(&mut buf).unwrap();
 
         assert_eq!(buf[..], ciphertext[..]);
 
