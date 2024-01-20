@@ -77,7 +77,6 @@ fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
             let out_dir = args.out_dir.clone();
             pool.spawn_fifo(move || {
                 tx.send(extract_entry(
-                    item_path.clone(),
                     item,
                     password,
                     args.overwrite,
@@ -106,7 +105,6 @@ fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
 
     for item in hard_kink_entries {
         extract_entry(
-            item.header().path().as_path().to_path_buf(),
             item,
             password.clone(),
             args.overwrite,
@@ -162,7 +160,6 @@ where
 }
 
 fn extract_entry(
-    item_path: PathBuf,
     item: RegularEntry,
     password: Option<String>,
     overwrite: bool,
@@ -171,13 +168,14 @@ fn extract_entry(
     keep_permission: bool,
     verbosity: Verbosity,
 ) -> io::Result<()> {
+    let item_path = item.header().path().as_path();
     if verbosity == Verbosity::Verbose {
         println!("Extract: {}", item_path.display());
     }
     let path = if let Some(out_dir) = &out_dir {
         out_dir.join(&item_path)
     } else {
-        item_path
+        item_path.to_path_buf()
     };
     if path.exists() && !overwrite {
         return Err(io::Error::new(
