@@ -1,6 +1,6 @@
 [package]
 name = "portable-network-archive"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 license = "Apache-2.0 OR MIT"
 description = "Portable-Network-Archive cli"
@@ -17,7 +17,7 @@ clap = { version = "4.4.18", features = ["derive"] }
 clap_complete = { version =  "4.4.7", optional = true }
 glob = "0.3.1"
 indicatif = { version = "0.17.7", features = ["improved_unicode"] }
-pna = { version = "0.5.0", path = "../pna" }
+pna = { version = "0.6.0", path = "../pna" }
 rayon = "1.8.1"
 rpassword = "7.3.1"
 
