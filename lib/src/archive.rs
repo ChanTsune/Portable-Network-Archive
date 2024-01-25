@@ -79,6 +79,7 @@ impl<T> Archive<T> {
 mod tests {
     use super::*;
     use std::io::{self, Cursor, Write};
+    use std::time::Duration;
 
     #[test]
     fn store_archive() {
@@ -333,5 +334,48 @@ mod tests {
         assert!(entries.next().is_some());
         assert!(entries.next().is_some());
         assert!(entries.next().is_none());
+    }
+
+    #[test]
+    fn metadata() {
+        let original_entry = {
+            let mut builder = EntryBuilder::new_file(
+                EntryName::from_lossy("name"),
+                WriteOption::builder().build(),
+            )
+            .unwrap();
+            builder.created(Duration::from_secs(31));
+            builder.modified(Duration::from_secs(32));
+            builder.permission(Permission::new(1, "uname".into(), 2, "gname".into(), 0o775));
+            builder.write_all(b"entry data").unwrap();
+            builder.build().unwrap()
+        };
+
+        let mut archive = Archive::write_header(Vec::new()).unwrap();
+        archive.add_entry(original_entry.clone()).unwrap();
+
+        let buf = archive.finalize().unwrap();
+
+        let mut archive = Archive::read_header(buf.as_slice()).unwrap();
+
+        let mut entries = archive.entries_with_password(None);
+        let read_entry = entries.next().unwrap().unwrap();
+
+        assert_eq!(
+            original_entry.metadata().created(),
+            read_entry.metadata().created()
+        );
+        assert_eq!(
+            original_entry.metadata().modified(),
+            read_entry.metadata().modified()
+        );
+        assert_eq!(
+            original_entry.metadata().permission(),
+            read_entry.metadata().permission()
+        );
+        assert_eq!(
+            original_entry.metadata().compressed_size(),
+            read_entry.metadata().compressed_size()
+        );
     }
 }
