@@ -360,7 +360,7 @@ impl TryFrom<ChunkEntry> for RegularEntry {
             phsf,
             extra,
             metadata: Metadata {
-                compressed_size: data.len(),
+                compressed_size: data.iter().map(|it| it.len()).sum(),
                 created: ctime,
                 modified: mtime,
                 permission,
