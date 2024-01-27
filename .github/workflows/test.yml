@@ -11,6 +11,7 @@ jobs:
           - ubuntu-latest
           - windows-latest
           - macos-latest
+          - freebsd-latest # self-hosted
         rust:
           - stable
           - beta
