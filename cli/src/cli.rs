@@ -215,7 +215,7 @@ impl CompressionAlgorithmArgs {
 pub(crate) struct CipherAlgorithmArgs {
     #[arg(long, value_name = "cipher mode", help = "Use aes for encryption")]
     pub(crate) aes: Option<Option<CipherMode>>,
-    #[arg(long, value_name = "cipher mode", help = "use camellia for encryption")]
+    #[arg(long, value_name = "cipher mode", help = "Use camellia for encryption")]
     pub(crate) camellia: Option<Option<CipherMode>>,
 }
 
