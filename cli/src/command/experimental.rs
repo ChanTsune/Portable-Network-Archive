@@ -1,4 +1,4 @@
-#[cfg(feature = "generate")]
+#[cfg(feature = "unstable-generate")]
 use crate::cli::Cli;
 use crate::{
     cli::Verbosity,
@@ -6,13 +6,13 @@ use crate::{
     utils::part_name,
 };
 use bytesize::ByteSize;
-#[cfg(feature = "generate")]
+#[cfg(feature = "unstable-generate")]
 use clap::CommandFactory;
 use clap::{Args, Parser, Subcommand};
-#[cfg(feature = "generate")]
+#[cfg(feature = "unstable-generate")]
 use clap_complete::{generate, Generator, Shell};
 use pna::{Archive, EntryPart, MIN_CHUNK_BYTES_SIZE, PNA_HEADER};
-#[cfg(feature = "generate")]
+#[cfg(feature = "unstable-generate")]
 use std::env;
 use std::{fs::File, io, path::PathBuf};
 
@@ -21,14 +21,14 @@ use std::{fs::File, io, path::PathBuf};
 pub(crate) struct ExperimentalArgs {
     #[command(subcommand)]
     pub(crate) command: Option<ExperimentalCommands>,
-    #[cfg(feature = "generate")]
+    #[cfg(feature = "unstable-generate")]
     #[arg(long, help = "Generate shell auto complete")]
     pub(crate) generate: Option<Shell>,
 }
 
 impl Command for ExperimentalArgs {
     fn execute(self, verbosity: Verbosity) -> io::Result<()> {
-        #[cfg(feature = "generate")]
+        #[cfg(feature = "unstable-generate")]
         if let Some(shell) = self.generate {
             let cmd = &mut Cli::command();
             print_completions(shell, cmd);
@@ -118,7 +118,7 @@ fn split_archive(args: SplitCommand, verbosity: Verbosity) -> io::Result<()> {
     Ok(())
 }
 
-#[cfg(feature = "generate")]
+#[cfg(feature = "unstable-generate")]
 fn print_completions<G: Generator>(gen: G, cmd: &mut clap::Command) {
     let name = env::args().next().map(PathBuf::from).unwrap();
     generate(
