@@ -25,8 +25,8 @@ rpassword = "7.3.1"
 nix = { version = "0.27.1", features = ["user", "fs"] }
 
 [features]
-experimental = []
-generate = ["experimental", "clap_complete"]
+experimental = ["unstable-generate"]
+unstable-generate = ["clap_complete"]
 
 [[bin]]
 name = "pna"
