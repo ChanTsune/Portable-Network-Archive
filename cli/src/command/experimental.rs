@@ -1,50 +1,39 @@
 #[cfg(feature = "unstable-generate")]
-use crate::cli::Cli;
+mod generate;
+
 use crate::{
     cli::Verbosity,
     command::{commons::split_to_parts, Command},
     utils::part_name,
 };
 use bytesize::ByteSize;
-#[cfg(feature = "unstable-generate")]
-use clap::CommandFactory;
 use clap::{Args, Parser, Subcommand};
-#[cfg(feature = "unstable-generate")]
-use clap_complete::{generate, Generator, Shell};
 use pna::{Archive, EntryPart, MIN_CHUNK_BYTES_SIZE, PNA_HEADER};
-#[cfg(feature = "unstable-generate")]
-use std::env;
 use std::{fs::File, io, path::PathBuf};
 
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(args_conflicts_with_subcommands = true, arg_required_else_help = true)]
 pub(crate) struct ExperimentalArgs {
     #[command(subcommand)]
-    pub(crate) command: Option<ExperimentalCommands>,
-    #[cfg(feature = "unstable-generate")]
-    #[arg(long, help = "Generate shell auto complete")]
-    pub(crate) generate: Option<Shell>,
+    pub(crate) command: ExperimentalCommands,
 }
 
 impl Command for ExperimentalArgs {
     fn execute(self, verbosity: Verbosity) -> io::Result<()> {
-        #[cfg(feature = "unstable-generate")]
-        if let Some(shell) = self.generate {
-            let cmd = &mut Cli::command();
-            print_completions(shell, cmd);
-            return Ok(());
-        };
         match self.command {
-            Some(ExperimentalCommands::Split(cmd)) => cmd.execute(verbosity),
-            None => unreachable!(),
+            ExperimentalCommands::Split(cmd) => cmd.execute(verbosity),
+            ExperimentalCommands::Generate(cmd) => cmd.execute(verbosity),
         }
     }
 }
 
-#[derive(Subcommand, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Subcommand, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) enum ExperimentalCommands {
     #[command(about = "Split archive")]
     Split(SplitCommand),
+    #[cfg(feature = "unstable-generate")]
+    #[command(about = "Generate shell auto complete")]
+    Generate(generate::GenerateCommand),
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -116,15 +105,4 @@ fn split_archive(args: SplitCommand, verbosity: Verbosity) -> io::Result<()> {
     }
     writer.finalize()?;
     Ok(())
-}
-
-#[cfg(feature = "unstable-generate")]
-fn print_completions<G: Generator>(gen: G, cmd: &mut clap::Command) {
-    let name = env::args().next().map(PathBuf::from).unwrap();
-    generate(
-        gen,
-        cmd,
-        name.file_name().unwrap().to_string_lossy(),
-        &mut io::stdout(),
-    );
 }
