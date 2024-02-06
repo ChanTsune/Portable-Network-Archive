@@ -4,13 +4,13 @@ use crate::{
     utils::part_name,
 };
 use bytesize::ByteSize;
-use clap::Parser;
+use clap::{Parser, ValueHint};
 use pna::{Archive, EntryPart, MIN_CHUNK_BYTES_SIZE, PNA_HEADER};
 use std::{fs::File, io, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct SplitCommand {
-    #[arg()]
+    #[arg(value_hint = ValueHint::FilePath)]
     pub(crate) archive: PathBuf,
     #[arg(long, help = "Overwrite file")]
     pub(crate) overwrite: bool,
