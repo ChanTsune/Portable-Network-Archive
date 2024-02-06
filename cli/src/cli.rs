@@ -1,7 +1,7 @@
 #[cfg(feature = "experimental")]
 use crate::command::experimental::ExperimentalArgs;
 use bytesize::ByteSize;
-use clap::{value_parser, ArgGroup, Parser, Subcommand, ValueEnum};
+use clap::{value_parser, ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
 use std::path::PathBuf;
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
@@ -114,7 +114,7 @@ pub(crate) struct AppendArgs {
 pub(crate) struct ExtractArgs {
     #[arg(long, help = "Overwrite file")]
     pub(crate) overwrite: bool,
-    #[arg(long, help = "Output directory of extracted files")]
+    #[arg(long, help = "Output directory of extracted files", value_hint = ValueHint::DirPath)]
     pub(crate) out_dir: Option<PathBuf>,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
@@ -145,9 +145,9 @@ pub(crate) struct ListArgs {
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct FileArgs {
-    #[arg()]
+    #[arg(value_hint = ValueHint::FilePath)]
     pub(crate) archive: PathBuf,
-    #[arg()]
+    #[arg(value_hint = ValueHint::FilePath)]
     pub(crate) files: Vec<PathBuf>,
 }
 
