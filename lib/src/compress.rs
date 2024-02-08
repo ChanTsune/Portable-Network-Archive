@@ -1,4 +1,4 @@
-use crate::io::{TryIntoInner, TryIntoInnerWrite};
+use crate::io::TryIntoInner;
 use flate2::{read::ZlibDecoder, write::ZlibEncoder};
 use liblzma::{read::XzDecoder, write::XzEncoder};
 use std::io::{BufReader, Read, Result, Write};
@@ -45,8 +45,6 @@ impl<'w, W: Write> TryIntoInner<W> for CompressionWriter<'w, W> {
         }
     }
 }
-
-impl<'w, W: Write> TryIntoInnerWrite<W> for CompressionWriter<'w, W> {}
 
 pub(crate) enum DecompressReader<'r, R: Read> {
     No(R),
