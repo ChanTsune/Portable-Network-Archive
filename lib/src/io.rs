@@ -3,8 +3,6 @@ mod finish;
 pub(crate) use self::finish::TryIntoInner;
 use std::io;
 
-pub(crate) trait TryIntoInnerWrite<W>: TryIntoInner<W> + io::Write {}
-
 pub(crate) struct FlattenWriter<const N: usize> {
     pub(crate) inner: Vec<Vec<u8>>,
 }
@@ -33,8 +31,6 @@ impl TryIntoInner<Vec<u8>> for Vec<u8> {
         Ok(self)
     }
 }
-
-impl TryIntoInnerWrite<Vec<u8>> for Vec<u8> {}
 
 pub(crate) struct OwnedFlattenReader {
     index: usize,

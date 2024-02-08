@@ -1,7 +1,7 @@
 mod block;
 mod stream;
 
-use crate::io::{TryIntoInner, TryIntoInnerWrite};
+use crate::io::TryIntoInner;
 use aes::Aes256;
 use camellia::Camellia256;
 use cipher::block_padding::Pkcs7;
@@ -61,8 +61,6 @@ impl<W: Write> TryIntoInner<W> for CipherWriter<W> {
         }
     }
 }
-
-impl<W: Write> TryIntoInnerWrite<W> for CipherWriter<W> {}
 
 pub(crate) enum DecryptReader<R: Read> {
     No(R),
