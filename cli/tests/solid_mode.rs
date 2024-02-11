@@ -7,7 +7,7 @@ fn create_solid_archive() {
         "pna",
         "--quiet",
         "c",
-        "../out/solid.pna",
+        &format!("{}/solid.pna", env!("CARGO_TARGET_TMPDIR")),
         "--overwrite",
         "-r",
         "../resources/test/raw",
