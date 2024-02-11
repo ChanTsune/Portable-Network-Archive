@@ -1,4 +1,9 @@
 # Portable Network Archive
+[![test](https://github.com/ChanTsune/Portable-Network-Archive/actions/workflows/test.yml/badge.svg)](https://github.com/ChanTsune/Portable-Network-Archive/actions/workflows/test.yml)
+[![Crates.io][crates-badge]][crates-url]
+
+[crates-badge]: https://img.shields.io/crates/v/portable-network-archive.svg
+[crates-url]: https://crates.io/crates/portable-network-archive
 
 PNA (Portable Network Archive) is a highly scalable archive format that can be compressed, encrypted, and split.
 Also, its data structure is inspired by the PNG data structure.
