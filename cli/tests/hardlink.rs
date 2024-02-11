@@ -80,33 +80,49 @@ fn init_resource<P: AsRef<Path>>(path: P) {
 
 #[test]
 fn hardlink() {
-    init_resource("../out/hardlink.pna");
+    init_resource(format!("{}/hardlink.pna", env!("CARGO_TARGET_TMPDIR")));
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "x",
-        "../out/hardlink.pna",
+        &format!("{}/hardlink.pna", env!("CARGO_TARGET_TMPDIR")),
         "--overwrite",
         "--out-dir",
-        "../out/hardlink/dist",
+        &format!("{}/hardlink/dist", env!("CARGO_TARGET_TMPDIR")),
     ]))
     .unwrap();
 
     assert_eq!(
         "original text\n",
-        fs::read_to_string("../out/hardlink/dist/linked1.txt").unwrap()
+        fs::read_to_string(format!(
+            "{}/hardlink/dist/linked1.txt",
+            env!("CARGO_TARGET_TMPDIR")
+        ))
+        .unwrap()
     );
     assert_eq!(
         "original text\n",
-        fs::read_to_string("../out/hardlink/dist/dir/linked1.txt").unwrap()
+        fs::read_to_string(format!(
+            "{}/hardlink/dist/dir/linked1.txt",
+            env!("CARGO_TARGET_TMPDIR")
+        ))
+        .unwrap()
     );
 
     assert_eq!(
         "original text text\n",
-        fs::read_to_string("../out/hardlink/dist/dir/linked2.txt").unwrap()
+        fs::read_to_string(format!(
+            "{}/hardlink/dist/dir/linked2.txt",
+            env!("CARGO_TARGET_TMPDIR")
+        ))
+        .unwrap()
     );
     assert_eq!(
         "original text text\n",
-        fs::read_to_string("../out/hardlink/dist/linked2.txt").unwrap()
+        fs::read_to_string(format!(
+            "{}/hardlink/dist/linked2.txt",
+            env!("CARGO_TARGET_TMPDIR")
+        ))
+        .unwrap()
     );
 }

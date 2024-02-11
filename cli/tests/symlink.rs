@@ -20,25 +20,25 @@ fn init_resource<P: AsRef<Path>>(dir: P) {
 
 #[test]
 fn symlink() {
-    init_resource("../out/symlink/source");
+    init_resource(format!("{}/symlink/source", env!("CARGO_TARGET_TMPDIR")));
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        "../out/symlink.pna",
+        &format!("{}/symlink.pna", env!("CARGO_TARGET_TMPDIR")),
         "--overwrite",
         "-r",
-        "../out/symlink/source",
+        &format!("{}/symlink/source", env!("CARGO_TARGET_TMPDIR")),
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "x",
-        "../out/symlink.pna",
+        &format!("{}/symlink.pna", env!("CARGO_TARGET_TMPDIR")),
         "--overwrite",
         "--out-dir",
-        "../out/symlink/dist",
+        &format!("{}/symlink/dist", env!("CARGO_TARGET_TMPDIR")),
     ]))
     .unwrap();
 }

@@ -7,7 +7,7 @@ fn create_multipart_archive() {
         "pna",
         "--quiet",
         "c",
-        "../out/multipart.pna",
+        &format!("{}/multipart.pna", env!("CARGO_TARGET_TMPDIR")),
         "--overwrite",
         "../resources/test/multipart_test.txt",
         "--unstable",
