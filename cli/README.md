@@ -20,9 +20,7 @@ cargo install portable-network-archive
 
 ```sh
 git clone https://github.com/ChanTsune/Portable-Network-Archive.git
-```
-
-```sh
+cd Portable-Network-Archive
 cargo install --path cli
 ```
 
