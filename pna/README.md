@@ -10,7 +10,7 @@ A pna archive reading/writing library for Rust.
 ```toml
 # Cargo.toml
 [dependencies]
-pna = "0.5"
+pna = "0.6"
 ```
 
 ## Reading an archive
@@ -44,8 +44,8 @@ fn main() -> io::Result<()> {
     let file = File::create("foo.pna")?;
     let mut archive = Archive::write_header(file)?;
     let mut entry_builder = EntryBuilder::new_file(
-    "bar.txt".try_into().unwrap(),
-    WriteOption::builder().build(),
+        "bar.txt".try_into().unwrap(),
+        WriteOption::builder().build(),
     )?;
     entry_builder.write(b"content")?;
     let entry = entry_builder.build()?;
