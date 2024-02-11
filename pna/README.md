@@ -56,7 +56,7 @@ fn main() -> io::Result<()> {
 ```
 
 # CLI
-Command line user interface are available and you can install via cargo or build from source.
+Command line user interface are [available](https://crates.io/crates/portable-network-archive) and you can install via cargo or build from source.
 
 ### Via Cargo
 
@@ -68,9 +68,7 @@ cargo install portable-network-archive
 
 ```sh
 git clone https://github.com/ChanTsune/Portable-Network-Archive.git
-```
-
-```sh
+cd Portable-Network-Archive
 cargo install --path cli
 ```
 
