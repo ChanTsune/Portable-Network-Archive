@@ -197,7 +197,7 @@ mod tests {
                 .compression(Compression::XZ)
                 .encryption(Encryption::Aes)
                 .cipher_mode(CipherMode::CBC)
-                .hash_algorithm(HashAlgorithm::Pbkdf2Sha256)
+                .hash_algorithm(HashAlgorithm::Pbkdf2Sha256 { rounds: None })
                 .password(Some("password"))
                 .build(),
         )
@@ -212,7 +212,7 @@ mod tests {
                 .compression(Compression::XZ)
                 .encryption(Encryption::Camellia)
                 .cipher_mode(CipherMode::CBC)
-                .hash_algorithm(HashAlgorithm::Pbkdf2Sha256)
+                .hash_algorithm(HashAlgorithm::Pbkdf2Sha256 { rounds: None })
                 .password(Some("password"))
                 .build(),
         )

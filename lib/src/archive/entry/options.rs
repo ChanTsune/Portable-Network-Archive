@@ -87,8 +87,14 @@ impl TryFrom<u8> for CipherMode {
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum HashAlgorithm {
-    Pbkdf2Sha256,
-    Argon2Id,
+    Pbkdf2Sha256 {
+        rounds: Option<u32>,
+    },
+    Argon2Id {
+        time_cost: Option<u32>,
+        memory_cost: Option<u32>,
+        parallelism_cost: Option<u32>,
+    },
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -145,7 +151,11 @@ impl WriteOption {
             compression_level: CompressionLevel::DEFAULT,
             encryption: Encryption::No,
             cipher_mode: CipherMode::CBC,
-            hash_algorithm: HashAlgorithm::Argon2Id,
+            hash_algorithm: HashAlgorithm::Argon2Id {
+                time_cost: None,
+                memory_cost: None,
+                parallelism_cost: None,
+            },
             password: None,
         }
     }
@@ -225,7 +235,11 @@ impl WriteOptionBuilder {
             compression_level: CompressionLevel::DEFAULT,
             encryption: Encryption::No,
             cipher_mode: CipherMode::CTR,
-            hash_algorithm: HashAlgorithm::Argon2Id,
+            hash_algorithm: HashAlgorithm::Argon2Id {
+                time_cost: None,
+                memory_cost: None,
+                parallelism_cost: None,
+            },
             password: None,
         }
     }
