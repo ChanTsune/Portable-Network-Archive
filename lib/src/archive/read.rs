@@ -299,13 +299,11 @@ impl<R: Read + Seek> Archive<R> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Cursor;
 
     #[test]
     fn decode() {
         let file_bytes = include_bytes!("../../../resources/test/empty.pna");
-        let reader = Cursor::new(file_bytes);
-        let mut reader = Archive::read_header(reader).unwrap();
+        let mut reader = Archive::read_header(&file_bytes[..]).unwrap();
         let mut entries = reader.entries_skip_solid();
         assert!(entries.next().is_none());
     }
