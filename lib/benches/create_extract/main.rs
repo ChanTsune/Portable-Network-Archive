@@ -2,7 +2,7 @@
 extern crate test;
 
 use libpna::{Archive, EntryBuilder, ReadOption, WriteOptionBuilder};
-use std::io::{Cursor, Read, Write};
+use std::io::{Read, Write};
 use test::Bencher;
 
 mod archive;
@@ -45,7 +45,7 @@ fn bench_read_archive(b: &mut Bencher, mut options: WriteOptionBuilder) {
     let vec = writer.finalize().unwrap();
 
     b.iter(|| {
-        let mut reader = Archive::read_header(Cursor::new(vec.as_slice())).unwrap();
+        let mut reader = Archive::read_header(vec.as_slice()).unwrap();
         for item in reader.entries_skip_solid() {
             let mut buf = Vec::with_capacity(1000);
             item.unwrap()

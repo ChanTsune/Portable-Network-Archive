@@ -3,7 +3,7 @@ use std::io;
 
 fn extract_all(follows: &[&[u8]], password: Option<&str>) {
     let mut idx = 0;
-    let mut archive_reader = Archive::read_header(io::Cursor::new(follows[idx])).unwrap();
+    let mut archive_reader = Archive::read_header(follows[idx]).unwrap();
     loop {
         idx += 1;
         for entry in archive_reader.entries_skip_solid() {
@@ -24,9 +24,7 @@ fn extract_all(follows: &[&[u8]], password: Option<&str>) {
             }
         }
         if archive_reader.next_archive() {
-            archive_reader = archive_reader
-                .read_next_archive(io::Cursor::new(follows[idx]))
-                .unwrap();
+            archive_reader = archive_reader.read_next_archive(follows[idx]).unwrap();
         } else {
             break;
         }

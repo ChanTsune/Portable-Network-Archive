@@ -233,7 +233,7 @@ mod tests {
 
     fn archive(src: &[u8], options: WriteOption) -> io::Result<()> {
         let archive = create_archive(src, options.clone())?;
-        let mut archive_reader = Archive::read_header(Cursor::new(archive))?;
+        let mut archive_reader = Archive::read_header(archive.as_slice())?;
         let item = archive_reader.entries_skip_solid().next().unwrap().unwrap();
         let mut reader = item
             .reader(ReadOption::with_password(options.password))
@@ -267,7 +267,7 @@ mod tests {
             writer.finalize().unwrap()
         };
 
-        let mut archive_reader = Archive::read_header(Cursor::new(archive)).unwrap();
+        let mut archive_reader = Archive::read_header(archive.as_slice()).unwrap();
         let mut entries = archive_reader.entries_with_password(Some("password"));
         entries.next().unwrap().expect("failed to read entry");
         entries.next().unwrap().expect("failed to read entry");
@@ -280,7 +280,7 @@ mod tests {
         let archive = create_archive(b"archive text", WriteOption::builder().build())
             .expect("failed to create archive");
         let mut reader =
-            Archive::read_header(Cursor::new(&archive)).expect("failed to read archive header");
+            Archive::read_header(archive.as_slice()).expect("failed to read archive header");
 
         let mut writer = Archive::write_header(Vec::new()).expect("failed to write archive header");
 
@@ -297,9 +297,7 @@ mod tests {
 
     #[test]
     fn append() {
-        let buf = Vec::new();
-        let cursor = Cursor::new(buf);
-        let mut writer = Archive::write_header(cursor).unwrap();
+        let mut writer = Archive::write_header(Vec::new()).unwrap();
         writer
             .add_entry({
                 let builder = EntryBuilder::new_file(
@@ -312,8 +310,7 @@ mod tests {
             .unwrap();
         let result = writer.finalize().unwrap();
 
-        let cursor = Cursor::new(result.into_inner());
-        let mut appender = Archive::read_header(cursor).unwrap();
+        let mut appender = Archive::read_header(Cursor::new(result)).unwrap();
         appender.seek_to_end().unwrap();
         appender
             .add_entry({
@@ -325,10 +322,9 @@ mod tests {
                 builder.build().unwrap()
             })
             .unwrap();
-        let appended = appender.finalize().unwrap();
+        let appended = appender.finalize().unwrap().into_inner();
 
-        let cursor = Cursor::new(appended.into_inner());
-        let mut reader = Archive::read_header(cursor).unwrap();
+        let mut reader = Archive::read_header(appended.as_slice()).unwrap();
 
         let mut entries = reader.entries_skip_solid();
         assert!(entries.next().is_some());
