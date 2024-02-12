@@ -16,7 +16,7 @@ chrono = "0.4.33"
 clap = { version = "4.5.0", features = ["derive"] }
 clap_complete = { version =  "4.5.0", optional = true }
 glob = "0.3.1"
-indicatif = { version = "0.17.7", features = ["improved_unicode"] }
+indicatif = { version = "0.17.8", features = ["improved_unicode"] }
 pna = { version = "0.6.0", path = "../pna" }
 rayon = "1.8.1"
 rpassword = "7.3.1"
