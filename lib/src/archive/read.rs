@@ -198,7 +198,7 @@ impl<R: Read> Archive<R> {
     }
 }
 
-pub(crate) struct Entries<'r, R: Read> {
+pub(crate) struct Entries<'r, R> {
     reader: &'r mut Archive<R>,
 }
 
@@ -227,7 +227,7 @@ impl<'r, R: Read> Iterator for Entries<'r, R> {
     }
 }
 
-pub(crate) struct RegularEntries<'r, R: Read> {
+pub(crate) struct RegularEntries<'r, R> {
     reader: &'r mut Archive<R>,
     password: Option<&'r str>,
     buf: VecDeque<io::Result<RegularEntry>>,

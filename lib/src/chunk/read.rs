@@ -64,10 +64,7 @@ impl<R: Read + Seek> ChunkReader<R> {
     }
 }
 
-impl<R> From<R> for ChunkReader<R>
-where
-    R: Read,
-{
+impl<R> From<R> for ChunkReader<R> {
     fn from(reader: R) -> Self {
         Self { r: reader }
     }
