@@ -5,10 +5,7 @@ pub(crate) struct ChunkWriter<W> {
     w: W,
 }
 
-impl<W> From<W> for ChunkWriter<W>
-where
-    W: Write,
-{
+impl<W> From<W> for ChunkWriter<W> {
     fn from(writer: W) -> Self {
         Self { w: writer }
     }
