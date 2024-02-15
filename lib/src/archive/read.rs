@@ -2,6 +2,8 @@ use crate::{
     archive::{Archive, ArchiveHeader, ChunkEntry, EntryContainer, RegularEntry, PNA_HEADER},
     chunk::{Chunk, ChunkReader, ChunkType, RawChunk},
 };
+#[cfg(feature = "unstable-async")]
+use futures::{AsyncRead, AsyncReadExt};
 use std::{
     collections::VecDeque,
     io::{self, Read, Seek, SeekFrom},
@@ -11,6 +13,19 @@ use std::{
 fn read_pna_header<R: Read>(mut reader: R) -> io::Result<()> {
     let mut header = [0u8; PNA_HEADER.len()];
     reader.read_exact(&mut header)?;
+    if &header != PNA_HEADER {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "It's not a PNA format",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(feature = "unstable-async")]
+async fn read_pna_header_async<R: AsyncRead + Unpin>(mut reader: R) -> io::Result<()> {
+    let mut header = [0u8; PNA_HEADER.len()];
+    reader.read_exact(&mut header).await?;
     if &header != PNA_HEADER {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
@@ -198,6 +213,66 @@ impl<R: Read> Archive<R> {
     }
 }
 
+#[cfg(feature = "unstable-async")]
+impl<R: AsyncRead + Unpin> Archive<R> {
+    #[inline]
+    pub async fn read_header_async(reader: R) -> io::Result<Self> {
+        Self::read_header_with_buffer_async(reader, Default::default()).await
+    }
+
+    async fn read_header_with_buffer_async(mut reader: R, buf: Vec<RawChunk>) -> io::Result<Self> {
+        read_pna_header_async(&mut reader).await?;
+        let mut chunk_reader = ChunkReader::from(&mut reader);
+        let chunk = chunk_reader.read_chunk_async().await?;
+        if chunk.ty != ChunkType::AHED {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Unexpected Chunk `{}`", chunk.ty),
+            ));
+        }
+        let header = ArchiveHeader::try_from_bytes(chunk.data())?;
+        Ok(Self::with_buffer(reader, header, buf))
+    }
+
+    async fn next_raw_item_async(&mut self) -> io::Result<Option<ChunkEntry>> {
+        let mut chunks = Vec::new();
+        swap(&mut self.buf, &mut chunks);
+        let mut reader = ChunkReader::from(&mut self.inner);
+        loop {
+            let chunk = reader.read_chunk_async().await?;
+            match chunk.ty {
+                ChunkType::FEND | ChunkType::SEND => {
+                    chunks.push(chunk);
+                    break;
+                }
+                ChunkType::ANXT => self.next_archive = true,
+                ChunkType::AEND => {
+                    self.buf = chunks;
+                    return Ok(None);
+                }
+                _ => chunks.push(chunk),
+            }
+        }
+        Ok(Some(ChunkEntry(chunks)))
+    }
+
+    pub async fn read_entry_async(&mut self) -> io::Result<Option<RegularEntry>> {
+        loop {
+            let entry = self.next_raw_item_async().await?;
+            match entry {
+                Some(entry) => {
+                    let e: EntryContainer = entry.try_into()?;
+                    match e {
+                        EntryContainer::Solid(_) => continue,
+                        EntryContainer::Regular(entry) => return Ok(Some(entry)),
+                    }
+                }
+                None => return Ok(None),
+            };
+        }
+    }
+}
+
 pub(crate) struct Entries<'r, R> {
     reader: &'r mut Archive<R>,
 }
@@ -306,5 +381,43 @@ mod tests {
         let mut reader = Archive::read_header(&file_bytes[..]).unwrap();
         let mut entries = reader.entries_skip_solid();
         assert!(entries.next().is_none());
+    }
+
+    #[cfg(feature = "unstable-async")]
+    #[tokio::test]
+    async fn decode_async() {
+        let file = async_std::fs::File::open("../resources/test/zstd.pna")
+            .await
+            .unwrap();
+        let mut reader = Archive::read_header_async(file).await.unwrap();
+        assert!(reader.read_entry_async().await.unwrap().is_some());
+        assert!(reader.read_entry_async().await.unwrap().is_some());
+        assert!(reader.read_entry_async().await.unwrap().is_some());
+        assert!(reader.read_entry_async().await.unwrap().is_some());
+        assert!(reader.read_entry_async().await.unwrap().is_some());
+        assert!(reader.read_entry_async().await.unwrap().is_some());
+        assert!(reader.read_entry_async().await.unwrap().is_some());
+        assert!(reader.read_entry_async().await.unwrap().is_some());
+        assert!(reader.read_entry_async().await.unwrap().is_some());
+        assert!(reader.read_entry_async().await.unwrap().is_none());
+    }
+
+    #[cfg(feature = "unstable-async")]
+    #[tokio::test]
+    async fn extract_async() -> io::Result<()> {
+        use crate::ReadOption;
+        let file = async_std::fs::File::open("../resources/test/zstd.pna").await?;
+        let mut archive = Archive::read_header_async(file).await?;
+        let dist_dir = std::path::PathBuf::from("../target/tmp/");
+        while let Some(entry) = archive.read_entry_async().await? {
+            let path = dist_dir.join(entry.header().path());
+            if let Some(parents) = path.parent() {
+                async_std::fs::create_dir_all(parents).await.unwrap();
+            }
+            let mut file = async_std::fs::File::create(path).await?;
+            let mut reader = entry.reader(ReadOption::builder().build())?;
+            async_std::io::copy(&mut reader, &mut file).await?;
+        }
+        Ok(())
     }
 }

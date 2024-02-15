@@ -1,4 +1,6 @@
 use crate::chunk::{Chunk, ChunkExt};
+#[cfg(feature = "unstable-async")]
+use futures::{AsyncWrite, AsyncWriteExt};
 use std::io::{self, Write};
 
 pub(crate) struct ChunkWriter<W> {
@@ -25,6 +27,25 @@ impl<W: Write> ChunkWriter<W> {
 
         // write crc32
         self.w.write_all(&chunk.crc().to_be_bytes())?;
+        Ok(chunk.bytes_len())
+    }
+}
+
+#[cfg(feature = "unstable-async")]
+impl<W: AsyncWrite + Unpin> ChunkWriter<W> {
+    pub(crate) async fn write_chunk_async(&mut self, chunk: impl Chunk) -> io::Result<usize> {
+        // write length
+        let length = chunk.length();
+        self.w.write_all(&length.to_be_bytes()).await?;
+
+        // write chunk type
+        self.w.write_all(&chunk.ty().0).await?;
+
+        // write data
+        self.w.write_all(chunk.data()).await?;
+
+        // write crc32
+        self.w.write_all(&chunk.crc().to_be_bytes()).await?;
         Ok(chunk.bytes_len())
     }
 }

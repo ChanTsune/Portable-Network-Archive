@@ -8,9 +8,16 @@ use crate::{
     io::TryIntoInner,
 };
 
+#[cfg(feature = "unstable-async")]
+use futures::AsyncWrite;
 use std::{
     io::{self, Write},
     time::Duration,
+};
+#[cfg(feature = "unstable-async")]
+use std::{
+    pin::Pin,
+    task::{Context, Poll},
 };
 
 const MAX_CHUNK_DATA_LENGTH: usize = u32::MAX as usize;
@@ -236,6 +243,25 @@ impl Write for EntryBuilder {
             return w.flush();
         }
         Ok(())
+    }
+}
+
+#[cfg(feature = "unstable-async")]
+impl AsyncWrite for EntryBuilder {
+    fn poll_write(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        Poll::Ready(self.get_mut().write(buf))
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(self.get_mut().flush())
+    }
+
+    fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
     }
 }
 
