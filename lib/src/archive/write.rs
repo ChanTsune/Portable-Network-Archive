@@ -2,6 +2,8 @@ use crate::{
     archive::{Archive, ArchiveHeader, Entry, EntryPart, PNA_HEADER},
     chunk::{ChunkType, ChunkWriter},
 };
+#[cfg(feature = "unstable-async")]
+use futures::{AsyncWrite, AsyncWriteExt};
 use std::io::{self, Write};
 
 /// A writer for Portable-Network-Archive.
@@ -184,6 +186,37 @@ impl<W: Write> Archive<W> {
     }
 }
 
+#[cfg(feature = "unstable-async")]
+impl<W: AsyncWrite + Unpin> Archive<W> {
+    pub async fn write_header_async(write: W) -> io::Result<Self> {
+        let header = ArchiveHeader::new(0, 0, 0);
+        Self::write_header_with_async(write, header).await
+    }
+
+    async fn write_header_with_async(mut write: W, header: ArchiveHeader) -> io::Result<Self> {
+        write.write_all(PNA_HEADER).await?;
+        let mut chunk_writer = ChunkWriter::from(&mut write);
+        chunk_writer
+            .write_chunk_async((ChunkType::AHED, header.to_bytes().as_slice()))
+            .await?;
+        Ok(Self::new(write, header))
+    }
+
+    pub async fn add_entry_async(&mut self, entry: impl Entry) -> io::Result<usize> {
+        let bytes = entry.into_bytes();
+        self.inner.write_all(&bytes).await?;
+        Ok(bytes.len())
+    }
+
+    pub async fn finalize_async(mut self) -> io::Result<W> {
+        let mut chunk_writer = ChunkWriter::from(&mut self.inner);
+        chunk_writer
+            .write_chunk_async((ChunkType::AEND, [].as_slice()))
+            .await?;
+        Ok(self.inner)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -194,5 +227,25 @@ mod tests {
         let file = writer.finalize().expect("failed to finalize");
         let expected = include_bytes!("../../../resources/test/empty.pna");
         assert_eq!(file.as_slice(), expected.as_slice());
+    }
+
+    #[cfg(feature = "unstable-async")]
+    #[tokio::test]
+    async fn encode_async() {
+        use async_std::io::prelude::*;
+        {
+            let file = async_std::fs::File::create("../target/tmp/async.pna")
+                .await
+                .unwrap();
+            let writer = Archive::write_header_async(file).await.unwrap();
+            writer.finalize_async().await.unwrap();
+        }
+        let mut file = async_std::fs::File::open("../target/tmp/async.pna")
+            .await
+            .unwrap();
+        let mut buf = Vec::new();
+        file.read_to_end(&mut buf).await.unwrap();
+        let expected = include_bytes!("../../../resources/test/empty.pna");
+        assert_eq!(buf.as_slice(), expected.as_slice());
     }
 }

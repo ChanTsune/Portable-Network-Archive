@@ -110,6 +110,17 @@ impl<'r> Read for EntryDataReader<'r> {
     }
 }
 
+#[cfg(feature = "unstable-async")]
+impl<'r> futures::AsyncRead for EntryDataReader<'r> {
+    fn poll_read(
+        self: std::pin::Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+        buf: &mut [u8],
+    ) -> std::task::Poll<io::Result<usize>> {
+        std::task::Poll::Ready(self.get_mut().read(buf))
+    }
+}
+
 pub(crate) struct EntryReader<'r, R: Read>(DecompressReader<'r, DecryptReader<R>>);
 
 impl<'r, R: Read> Read for EntryReader<'r, R> {
