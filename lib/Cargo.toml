@@ -38,3 +38,13 @@ getrandom = { version = "0.2", features = ["js"] }
 [features]
 wasm = ["zstd/wasm", "liblzma/wasm"]
 unstable-async = ["futures"]
+
+[[example]]
+name = "async_io"
+required-features = ["unstable-async"]
+
+[[example]]
+name = "change_compression_method"
+
+[[example]]
+name = "copy_entries"
