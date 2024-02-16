@@ -125,6 +125,7 @@ pub struct WriteOption {
     pub(crate) password: Option<String>,
 }
 
+/// Options for writing an entry.
 impl WriteOption {
     /// A new [WriteOption] to simply store.
     ///
@@ -186,6 +187,7 @@ impl WriteOption {
     }
 }
 
+/// Builder for [`WriteOption`].
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct WriteOptionBuilder {
     compression: Compression,
@@ -277,6 +279,7 @@ impl WriteOptionBuilder {
     }
 }
 
+/// Options for reading an entry.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct ReadOption {
     pub(crate) password: Option<String>,
