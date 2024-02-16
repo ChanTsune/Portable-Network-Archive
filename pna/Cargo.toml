@@ -15,6 +15,3 @@ libpna = { version = "0.6.0", path = "../lib" }
 
 [lib]
 name = "pna"
-
-[features]
-wasm = ["libpna/wasm"]
