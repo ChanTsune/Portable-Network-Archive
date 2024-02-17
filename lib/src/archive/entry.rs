@@ -33,6 +33,7 @@ mod private {
 
 /// Archive entry.
 pub trait Entry: SealedIntoChunks {
+    #[deprecated(since = "0.7.0")]
     fn bytes_len(&self) -> usize;
     fn into_bytes(self) -> Vec<u8>;
 }
