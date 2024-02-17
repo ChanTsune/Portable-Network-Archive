@@ -331,6 +331,7 @@ impl TryFrom<ChunkEntry> for RegularEntry {
         let mut phsf = None;
         let mut ctime = None;
         let mut mtime = None;
+        let mut atime = None;
         let mut permission = None;
         for chunk in entry.0 {
             match chunk.ty {
@@ -347,6 +348,7 @@ impl TryFrom<ChunkEntry> for RegularEntry {
                 ChunkType::FDAT => data.push(chunk.data),
                 ChunkType::cTIM => ctime = Some(timestamp(&chunk.data)?),
                 ChunkType::mTIM => mtime = Some(timestamp(&chunk.data)?),
+                ChunkType::aTIM => atime = Some(timestamp(&chunk.data)?),
                 ChunkType::fPRM => permission = Some(Permission::try_from_bytes(&chunk.data)?),
                 _ => extra.push(chunk),
             }
@@ -374,6 +376,7 @@ impl TryFrom<ChunkEntry> for RegularEntry {
                 compressed_size: data.iter().map(|it| it.len()).sum(),
                 created: ctime,
                 modified: mtime,
+                accessed: atime,
                 permission,
             },
             data,
@@ -400,6 +403,7 @@ impl SealedIntoChunks for RegularEntry {
             compressed_size: _,
             created,
             modified,
+            accessed,
             permission,
         } = self.metadata;
         if let Some(c) = created {
@@ -413,6 +417,12 @@ impl SealedIntoChunks for RegularEntry {
                 ChunkType::mTIM,
                 d.as_secs().to_be_bytes().to_vec(),
             ));
+        }
+        if let Some(a) = accessed {
+            vec.push(RawChunk::from_data(
+                ChunkType::aTIM,
+                a.as_secs().to_be_bytes(),
+            ))
         }
         if let Some(p) = permission {
             vec.push(RawChunk::from_data(ChunkType::fPRM, p.to_bytes()));

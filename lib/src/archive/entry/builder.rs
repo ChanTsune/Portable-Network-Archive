@@ -31,6 +31,7 @@ pub struct EntryBuilder {
     >,
     created: Option<Duration>,
     last_modified: Option<Duration>,
+    accessed: Option<Duration>,
     permission: Option<Permission>,
 }
 
@@ -51,6 +52,7 @@ impl EntryBuilder {
             data: None,
             created: None,
             last_modified: None,
+            accessed: None,
             permission: None,
         }
     }
@@ -79,6 +81,7 @@ impl EntryBuilder {
             phsf,
             created: None,
             last_modified: None,
+            accessed: None,
             permission: None,
         })
     }
@@ -115,6 +118,7 @@ impl EntryBuilder {
             phsf,
             created: None,
             last_modified: None,
+            accessed: None,
             permission: None,
         })
     }
@@ -151,6 +155,7 @@ impl EntryBuilder {
             phsf,
             created: None,
             last_modified: None,
+            accessed: None,
             permission: None,
         })
     }
@@ -185,6 +190,21 @@ impl EntryBuilder {
         self
     }
 
+    /// Sets the last accessed timestamp of the entry.
+    ///
+    /// # Arguments
+    ///
+    /// * `since_unix_epoch` - The duration since the Unix epoch to set the last accessed timestamp to.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the [EntryBuilder] with the last modified timestamp set.
+    #[inline]
+    pub fn accessed(&mut self, since_unix_epoch: Duration) -> &mut Self {
+        self.accessed = Some(since_unix_epoch);
+        self
+    }
+
     /// Sets the permission of the entry to the given owner, group, and permissions.
     ///
     /// # Arguments
@@ -216,6 +236,7 @@ impl EntryBuilder {
             compressed_size: data.iter().map(|d| d.len()).sum(),
             created: self.created,
             modified: self.last_modified,
+            accessed: self.accessed,
             permission: self.permission,
         };
         Ok(RegularEntry {
