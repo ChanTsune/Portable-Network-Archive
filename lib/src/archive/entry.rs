@@ -37,13 +37,6 @@ pub trait Entry: SealedIntoChunks {
     fn into_bytes(self) -> Vec<u8>;
 }
 
-/// Solid mode entries block.
-#[deprecated(since = "0.4.0")]
-pub trait SolidEntries: SealedIntoChunks {
-    fn bytes_len(&self) -> usize;
-    fn into_bytes(self) -> Vec<u8>;
-}
-
 impl SealedIntoChunks for EntryContainer {
     fn into_chunks(self) -> Vec<RawChunk> {
         match self {
@@ -208,7 +201,7 @@ impl SealedIntoChunks for SolidReadEntry {
 }
 
 #[allow(deprecated)]
-impl SolidEntries for SolidReadEntry {
+impl SolidReadEntry {
     fn bytes_len(&self) -> usize {
         self.clone().into_bytes().len()
     }
@@ -607,17 +600,6 @@ impl SealedIntoChunks for ChunkSolidEntries {
     #[inline]
     fn into_chunks(self) -> Vec<RawChunk> {
         self.0
-    }
-}
-
-#[allow(deprecated)]
-impl SolidEntries for ChunkSolidEntries {
-    fn bytes_len(&self) -> usize {
-        self.0.iter().map(|chunk| chunk.bytes_len()).sum()
-    }
-
-    fn into_bytes(self) -> Vec<u8> {
-        self.0.into_iter().flat_map(chunk_to_bytes).collect()
     }
 }
 
