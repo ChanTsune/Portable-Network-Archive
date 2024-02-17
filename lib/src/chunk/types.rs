@@ -34,6 +34,9 @@ impl ChunkType {
     /// Last modified datetime
     #[allow(non_upper_case_globals)]
     pub const mTIM: ChunkType = ChunkType(*b"mTIM");
+    /// Last accessed datetime
+    #[allow(non_upper_case_globals)]
+    pub const aTIM: ChunkType = ChunkType(*b"aTIM");
     /// Entry permissions
     #[allow(non_upper_case_globals)]
     pub const fPRM: ChunkType = ChunkType(*b"fPRM");

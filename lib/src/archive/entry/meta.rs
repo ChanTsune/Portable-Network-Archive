@@ -7,6 +7,7 @@ pub struct Metadata {
     pub(crate) compressed_size: usize,
     pub(crate) created: Option<Duration>,
     pub(crate) modified: Option<Duration>,
+    pub(crate) accessed: Option<Duration>,
     pub(crate) permission: Option<Permission>,
 }
 
@@ -25,6 +26,11 @@ impl Metadata {
     #[inline]
     pub const fn modified(&self) -> Option<Duration> {
         self.modified
+    }
+    /// Accessed time since unix epoch time of entry
+    #[inline]
+    pub const fn accessed(&self) -> Option<Duration> {
+        self.accessed
     }
     /// A owner, group, and permissions for a entry
     #[inline]
