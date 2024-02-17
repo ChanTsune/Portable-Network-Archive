@@ -113,6 +113,11 @@ pub(crate) fn apply_metadata(
                     entry.modified(modified_since_unix_epoch);
                 }
             }
+            if let Ok(a) = meta.accessed() {
+                if let Ok(accessed_since_unix_epoch) = a.duration_since(UNIX_EPOCH) {
+                    entry.accessed(accessed_since_unix_epoch);
+                }
+            }
         }
         #[cfg(unix)]
         if keep_permission {
