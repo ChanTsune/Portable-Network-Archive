@@ -6,10 +6,6 @@ use crate::{
 use futures::{AsyncWrite, AsyncWriteExt};
 use std::io::{self, Write};
 
-/// A writer for Portable-Network-Archive.
-#[deprecated(since = "0.4.0")]
-pub type ArchiveWriter<W> = Archive<W>;
-
 impl<W: Write> Archive<W> {
     /// Writes the archive header to the given `Write` object and return a new [Archive].
     ///
