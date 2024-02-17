@@ -35,10 +35,6 @@ async fn read_pna_header_async<R: AsyncRead + Unpin>(mut reader: R) -> io::Resul
     Ok(())
 }
 
-/// A reader for Portable-Network-Archive.
-#[deprecated(since = "0.4.0")]
-pub type ArchiveReader<R> = Archive<R>;
-
 impl<R: Read> Archive<R> {
     /// Reads the archive header from the provided reader and returns a new [Archive].
     ///
