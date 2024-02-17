@@ -342,6 +342,7 @@ mod tests {
             .unwrap();
             builder.created(Duration::from_secs(31));
             builder.modified(Duration::from_secs(32));
+            builder.accessed(Duration::from_secs(33));
             builder.permission(Permission::new(1, "uname".into(), 2, "gname".into(), 0o775));
             builder.write_all(b"entry data").unwrap();
             builder.build().unwrap()
@@ -364,6 +365,10 @@ mod tests {
         assert_eq!(
             original_entry.metadata().modified(),
             read_entry.metadata().modified()
+        );
+        assert_eq!(
+            original_entry.metadata().accessed(),
+            read_entry.metadata().accessed()
         );
         assert_eq!(
             original_entry.metadata().permission(),
