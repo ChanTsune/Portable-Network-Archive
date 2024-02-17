@@ -199,6 +199,9 @@ fn extract_entry(
             let mut file = File::create(&path)?;
             if keep_timestamp {
                 let mut times = fs::FileTimes::new();
+                if let Some(accessed) = item.metadata().accessed() {
+                    times = times.set_accessed(SystemTime::UNIX_EPOCH.add(accessed));
+                }
                 if let Some(modified) = item.metadata().modified() {
                     times = times.set_modified(SystemTime::UNIX_EPOCH.add(modified));
                 }
