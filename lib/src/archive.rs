@@ -376,5 +376,9 @@ mod tests {
             original_entry.metadata().compressed_size(),
             read_entry.metadata().compressed_size()
         );
+        assert_eq!(
+            original_entry.metadata().raw_file_size(),
+            read_entry.metadata().raw_file_size()
+        );
     }
 }

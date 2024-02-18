@@ -4,6 +4,7 @@ use std::time::Duration;
 /// MetaData information about a entry
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Metadata {
+    pub(crate) raw_file_size: Option<u128>,
     pub(crate) compressed_size: usize,
     pub(crate) created: Option<Duration>,
     pub(crate) modified: Option<Duration>,
@@ -12,6 +13,11 @@ pub struct Metadata {
 }
 
 impl Metadata {
+    /// Raw file size of entry data
+    #[inline]
+    pub const fn raw_file_size(&self) -> Option<u128> {
+        self.raw_file_size
+    }
     /// Compressed size of entry data
     #[inline]
     pub const fn compressed_size(&self) -> usize {
