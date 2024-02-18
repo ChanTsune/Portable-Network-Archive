@@ -54,11 +54,12 @@ pub(crate) struct TableRow<const N: usize> {
     columns: [Cell; N],
 }
 
-pub(crate) fn header(style: Style) -> TableRow<9> {
+pub(crate) fn header(style: Style) -> TableRow<10> {
     TableRow::new([
         Cell::new(style, "Encryption"),
         Cell::new(style, "Compression"),
         Cell::new(style, "Permissions"),
+        Cell::new(style, "Raw Size"),
         Cell::new(style, "Compressed Size"),
         Cell::new(style, "User"),
         Cell::new(style, "Group"),
