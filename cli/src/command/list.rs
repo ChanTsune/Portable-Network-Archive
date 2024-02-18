@@ -96,7 +96,7 @@ fn detail_list_entries(entries: Vec<RegularEntry>, password: Option<&str>, print
     let now = SystemTime::now();
     let style_encryption_column = Style::new().fg(Colour::Purple);
     let style_compression_column = Style::new().fg(Colour::Blue);
-    let style_compressed_size_column = Style::new().fg(Colour::Green);
+    let style_file_size_column = Style::new().fg(Colour::Green);
     let style_date = Style::new().fg(Colour::Cyan);
     let style_entry = Style::new();
     let mut table = Table::new();
@@ -132,7 +132,14 @@ fn detail_list_entries(entries: Vec<RegularEntry>, password: Option<&str>, print
                     .unwrap_or_else(|| paint_data_kind(header.data_kind())),
             ),
             Cell::new_with_pad_direction(
-                style_compressed_size_column,
+                style_file_size_column,
+                Padding::Left,
+                metadata
+                    .raw_file_size()
+                    .map_or("-".into(), |size| size.to_string()),
+            ),
+            Cell::new_with_pad_direction(
+                style_file_size_column,
                 Padding::Left,
                 metadata.compressed_size(),
             ),
