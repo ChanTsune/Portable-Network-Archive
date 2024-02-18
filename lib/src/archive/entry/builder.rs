@@ -1,7 +1,7 @@
 use crate::{
     archive::entry::{
-        writer_and_hash, Entry, EntryContainer, EntryHeader, EntryName, EntryReference, Metadata,
-        Permission, RegularEntry, SolidHeader, SolidReadEntry, WriteOption,
+        writer_and_hash, DataKind, Entry, EntryContainer, EntryHeader, EntryName, EntryReference,
+        Metadata, Permission, RegularEntry, SolidHeader, SolidReadEntry, WriteOption,
     },
     cipher::CipherWriter,
     compress::CompressionWriter,
@@ -33,6 +33,7 @@ pub struct EntryBuilder {
     last_modified: Option<Duration>,
     accessed: Option<Duration>,
     permission: Option<Permission>,
+    file_size: u128,
 }
 
 impl EntryBuilder {
@@ -54,6 +55,7 @@ impl EntryBuilder {
             last_modified: None,
             accessed: None,
             permission: None,
+            file_size: 0,
         }
     }
 
@@ -83,6 +85,7 @@ impl EntryBuilder {
             last_modified: None,
             accessed: None,
             permission: None,
+            file_size: 0,
         })
     }
 
@@ -120,6 +123,7 @@ impl EntryBuilder {
             last_modified: None,
             accessed: None,
             permission: None,
+            file_size: 0,
         })
     }
 
@@ -157,6 +161,7 @@ impl EntryBuilder {
             last_modified: None,
             accessed: None,
             permission: None,
+            file_size: 0,
         })
     }
 
@@ -233,6 +238,10 @@ impl EntryBuilder {
             Vec::new()
         };
         let metadata = Metadata {
+            raw_file_size: match self.header.data_kind {
+                DataKind::File => Some(self.file_size),
+                DataKind::Directory | DataKind::SymbolicLink | DataKind::HardLink => None,
+            },
             compressed_size: data.iter().map(|d| d.len()).sum(),
             created: self.created,
             modified: self.last_modified,
@@ -253,7 +262,7 @@ impl Write for EntryBuilder {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         if let Some(w) = &mut self.data {
-            return w.write(buf);
+            return w.write(buf).inspect(|len| self.file_size += *len as u128);
         }
         Ok(buf.len())
     }

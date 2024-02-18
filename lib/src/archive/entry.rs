@@ -322,6 +322,7 @@ impl TryFrom<ChunkEntry> for RegularEntry {
         let mut extra = vec![];
         let mut data = vec![];
         let mut info = None;
+        let mut size = None;
         let mut phsf = None;
         let mut ctime = None;
         let mut mtime = None;
@@ -340,6 +341,7 @@ impl TryFrom<ChunkEntry> for RegularEntry {
                     );
                 }
                 ChunkType::FDAT => data.push(chunk.data),
+                ChunkType::fSIZ => size = Some(u128_from_be_bytes_last(&chunk.data)),
                 ChunkType::cTIM => ctime = Some(timestamp(&chunk.data)?),
                 ChunkType::mTIM => mtime = Some(timestamp(&chunk.data)?),
                 ChunkType::aTIM => atime = Some(timestamp(&chunk.data)?),
@@ -367,6 +369,7 @@ impl TryFrom<ChunkEntry> for RegularEntry {
             phsf,
             extra,
             metadata: Metadata {
+                raw_file_size: size,
                 compressed_size: data.iter().map(|it| it.len()).sum(),
                 created: ctime,
                 modified: mtime,
@@ -380,8 +383,27 @@ impl TryFrom<ChunkEntry> for RegularEntry {
 
 impl SealedIntoChunks for RegularEntry {
     fn into_chunks(self) -> Vec<RawChunk> {
+        let Metadata {
+            raw_file_size,
+            compressed_size: _,
+            created,
+            modified,
+            accessed,
+            permission,
+        } = self.metadata;
         let mut vec = Vec::new();
         vec.push(RawChunk::from_data(ChunkType::FHED, self.header.to_bytes()));
+        if let Some(raw_file_size) = raw_file_size {
+            vec.push(RawChunk::from_data(
+                ChunkType::fSIZ,
+                raw_file_size
+                    .to_be_bytes()
+                    .into_iter()
+                    .skip_while(|i| *i == 0)
+                    .collect::<Vec<_>>(),
+            ));
+        }
+
         if let Some(p) = self.phsf {
             vec.push(RawChunk::from_data(ChunkType::PHSF, p.into_bytes()));
         }
@@ -393,13 +415,6 @@ impl SealedIntoChunks for RegularEntry {
                 vec.push(RawChunk::from_data(ChunkType::FDAT, data_unit.to_vec()));
             }
         }
-        let Metadata {
-            compressed_size: _,
-            created,
-            modified,
-            accessed,
-            permission,
-        } = self.metadata;
         if let Some(c) = created {
             vec.push(RawChunk::from_data(
                 ChunkType::cTIM,
@@ -622,9 +637,27 @@ fn timestamp(bytes: &[u8]) -> io::Result<Duration> {
     )))
 }
 
+fn u128_from_be_bytes_last(bytes: &[u8]) -> u128 {
+    let mut buf = [0u8; 16];
+    for i in 1..=buf.len().min(bytes.len()) {
+        buf[buf.len() - i] = bytes[bytes.len() - i];
+    }
+    u128::from_be_bytes(buf)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn u128_from_be_bytes() {
+        assert_eq!(0, u128_from_be_bytes_last(&[]));
+        assert_eq!(1, u128_from_be_bytes_last(&[1]));
+        assert_eq!(
+            u32::MAX as u128,
+            u128_from_be_bytes_last(&u32::MAX.to_be_bytes())
+        );
+    }
 
     mod entry_part_split {
         use super::*;
