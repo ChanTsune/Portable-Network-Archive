@@ -13,43 +13,70 @@ fn extract_all(bytes: &[u8], password: Option<&str>) {
         let mut reader = item.reader(ReadOption::with_password(password)).unwrap();
         io::copy(&mut reader, &mut dist).unwrap();
         match &*path {
-            "raw/first/second/third/pna.txt" => assert_eq!(
-                dist.as_slice(),
-                include_bytes!("../../resources/test/raw/first/second/third/pna.txt")
-            ),
-            "raw/images/icon.bmp" => assert_eq!(
-                dist.as_slice(),
-                include_bytes!("../../resources/test/raw/images/icon.bmp")
-            ),
-            "raw/images/icon.png" => assert_eq!(
-                dist.as_slice(),
-                include_bytes!("../../resources/test/raw/images/icon.png")
-            ),
-            "raw/images/icon.svg" => assert_eq!(
-                dist.as_slice(),
-                include_bytes!("../../resources/test/raw/images/icon.svg")
-            ),
-            "raw/parent/child.txt" => assert_eq!(
-                dist.as_slice(),
-                include_bytes!("../../resources/test/raw/parent/child.txt")
-            ),
-            "raw/pna/empty.pna" => assert_eq!(
-                dist.as_slice(),
-                include_bytes!("../../resources/test/raw/pna/empty.pna")
-            ),
-            "raw/pna/nest.pna" => assert_eq!(
-                dist.as_slice(),
-                include_bytes!("../../resources/test/raw/pna/nest.pna")
-            ),
-            "raw/empty.txt" => assert_eq!(
-                dist.as_slice(),
-                include_bytes!("../../resources/test/raw/empty.txt")
-            ),
-            "raw/text.txt" => assert_eq!(
-                dist.as_slice(),
-                include_bytes!("../../resources/test/raw/text.txt")
-            ),
-            a => panic!("Unexpected entry name {a}"),
+            "raw/first/second/third/pna.txt" => {
+                let bytes = include_bytes!("../../resources/test/raw/first/second/third/pna.txt");
+                assert_eq!(dist.as_slice(), bytes);
+                if let Some(size) = item.metadata().raw_file_size() {
+                    assert_eq!(size, bytes.len() as u128);
+                }
+            }
+            "raw/images/icon.bmp" => {
+                let bytes = include_bytes!("../../resources/test/raw/images/icon.bmp");
+                assert_eq!(dist.as_slice(), bytes);
+                if let Some(size) = item.metadata().raw_file_size() {
+                    assert_eq!(size, bytes.len() as u128);
+                }
+            }
+            "raw/images/icon.png" => {
+                let bytes = include_bytes!("../../resources/test/raw/images/icon.png");
+                assert_eq!(dist.as_slice(), bytes);
+                if let Some(size) = item.metadata().raw_file_size() {
+                    assert_eq!(size, bytes.len() as u128);
+                }
+            }
+            "raw/images/icon.svg" => {
+                let bytes = include_bytes!("../../resources/test/raw/images/icon.svg");
+                assert_eq!(dist.as_slice(), bytes);
+                if let Some(size) = item.metadata().raw_file_size() {
+                    assert_eq!(size, bytes.len() as u128);
+                }
+            }
+            "raw/parent/child.txt" => {
+                let bytes = include_bytes!("../../resources/test/raw/parent/child.txt");
+                assert_eq!(dist.as_slice(), bytes);
+                if let Some(size) = item.metadata().raw_file_size() {
+                    assert_eq!(size, bytes.len() as u128);
+                }
+            }
+            "raw/pna/empty.pna" => {
+                let bytes = include_bytes!("../../resources/test/raw/pna/empty.pna");
+                assert_eq!(dist.as_slice(), bytes);
+                if let Some(size) = item.metadata().raw_file_size() {
+                    assert_eq!(size, bytes.len() as u128);
+                }
+            }
+            "raw/pna/nest.pna" => {
+                let bytes = include_bytes!("../../resources/test/raw/pna/nest.pna");
+                assert_eq!(dist.as_slice(), bytes);
+                if let Some(size) = item.metadata().raw_file_size() {
+                    assert_eq!(size, bytes.len() as u128);
+                }
+            }
+            "raw/empty.txt" => {
+                let bytes = include_bytes!("../../resources/test/raw/empty.txt");
+                assert_eq!(dist.as_slice(), bytes);
+                if let Some(size) = item.metadata().raw_file_size() {
+                    assert_eq!(size, bytes.len() as u128);
+                }
+            }
+            "raw/text.txt" => {
+                let bytes = include_bytes!("../../resources/test/raw/text.txt");
+                assert_eq!(dist.as_slice(), bytes);
+                if let Some(size) = item.metadata().raw_file_size() {
+                    assert_eq!(size, bytes.len() as u128);
+                }
+            }
+            a => panic!("Unexpected entry name {}", a),
         }
     }
 }
@@ -131,6 +158,14 @@ fn keep_timestamp() {
 fn keep_dir() {
     extract_all(
         include_bytes!("../../resources/test/zstd_keep_dir.pna"),
+        None,
+    );
+}
+
+#[test]
+fn zstd_with_raw_file_size() {
+    extract_all(
+        include_bytes!("../../resources/test/zstd_with_raw_file_size.pna"),
         None,
     );
 }
