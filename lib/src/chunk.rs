@@ -7,7 +7,11 @@ mod write;
 use self::crc::Crc32;
 pub(crate) use self::{read::ChunkReader, write::ChunkWriter};
 pub use self::{traits::*, types::*};
-use std::{mem, ops::Deref};
+use std::{
+    io::{self, Write},
+    mem,
+    ops::Deref,
+};
 
 /// Minimum required size of bytes to represent [`Chunk`].
 pub const MIN_CHUNK_BYTES_SIZE: usize = 12;
@@ -21,6 +25,14 @@ pub(crate) trait ChunkExt: Chunk {
     /// check the chunk type is stream chunk
     fn is_stream_chunk(&self) -> bool {
         self.ty() == ChunkType::FDAT || self.ty() == ChunkType::SDAT
+    }
+
+    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
+        writer.write_all(&self.length().to_be_bytes())?;
+        writer.write_all(&self.ty().0)?;
+        writer.write_all(self.data())?;
+        writer.write_all(&self.crc().to_be_bytes())?;
+        Ok(self.bytes_len())
     }
 }
 

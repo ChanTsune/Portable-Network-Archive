@@ -20,7 +20,7 @@ use crate::{
 };
 use std::{
     collections::VecDeque,
-    io::{self, Read},
+    io::{self, Read, Write},
     time::Duration,
 };
 
@@ -28,6 +28,7 @@ mod private {
     use super::*;
     pub trait SealedEntryExt {
         fn into_chunks(self) -> Vec<RawChunk>;
+        fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize>;
     }
 }
 
@@ -43,6 +44,13 @@ impl SealedEntryExt for EntryContainer {
         match self {
             Self::Regular(r) => r.into_chunks(),
             Self::Solid(s) => s.into_chunks(),
+        }
+    }
+
+    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
+        match self {
+            EntryContainer::Regular(r) => r.write_in(writer),
+            EntryContainer::Solid(s) => s.write_in(writer),
         }
     }
 }
@@ -73,6 +81,14 @@ impl SealedEntryExt for ChunkEntry {
     #[inline]
     fn into_chunks(self) -> Vec<RawChunk> {
         self.0
+    }
+
+    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
+        let mut total = 0;
+        for chunk in self.0.iter() {
+            total += chunk.write_in(writer)?;
+        }
+        Ok(total)
     }
 }
 
@@ -198,6 +214,20 @@ impl SealedEntryExt for SolidReadEntry {
         }
         chunks.push(RawChunk::from_data(ChunkType::SEND, Vec::new()));
         chunks
+    }
+
+    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
+        let mut total = 0;
+        total += (ChunkType::SHED, self.header.to_bytes().as_slice()).write_in(writer)?;
+
+        if let Some(phsf) = &self.phsf {
+            total += (ChunkType::PHSF, phsf.as_bytes()).write_in(writer)?;
+        }
+        for data in &self.data {
+            total += (ChunkType::SDAT, data.as_slice()).write_in(writer)?;
+        }
+        total += (ChunkType::SEND, [].as_slice()).write_in(writer)?;
+        Ok(total)
     }
 }
 
@@ -431,13 +461,66 @@ impl SealedEntryExt for RegularEntry {
             vec.push(RawChunk::from_data(
                 ChunkType::aTIM,
                 a.as_secs().to_be_bytes(),
-            ))
+            ));
         }
         if let Some(p) = permission {
             vec.push(RawChunk::from_data(ChunkType::fPRM, p.to_bytes()));
         }
         vec.push(RawChunk::from_data(ChunkType::FEND, Vec::new()));
         vec
+    }
+
+    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
+        let mut total = 0;
+
+        let Metadata {
+            raw_file_size,
+            compressed_size: _,
+            created,
+            modified,
+            accessed,
+            permission,
+        } = &self.metadata;
+
+        total += (ChunkType::FHED, self.header.to_bytes()).write_in(writer)?;
+
+        if let Some(raw_file_size) = raw_file_size {
+            total += (
+                ChunkType::fSIZ,
+                raw_file_size
+                    .to_be_bytes()
+                    .into_iter()
+                    .skip_while(|i| *i == 0)
+                    .collect::<Vec<_>>(),
+            )
+                .write_in(writer)?;
+        }
+
+        if let Some(p) = &self.phsf {
+            total += (ChunkType::PHSF, p.as_bytes()).write_in(writer)?;
+        }
+        for ex in &self.extra {
+            total += ex.write_in(writer)?;
+        }
+        for data_chunk in &self.data {
+            for data_unit in data_chunk.chunks(u32::MAX as usize) {
+                total += (ChunkType::FDAT, data_unit).write_in(writer)?;
+            }
+        }
+        if let Some(c) = created {
+            total += (ChunkType::cTIM, c.as_secs().to_be_bytes().as_slice()).write_in(writer)?;
+        }
+        if let Some(d) = modified {
+            total += (ChunkType::mTIM, d.as_secs().to_be_bytes().as_slice()).write_in(writer)?;
+        }
+        if let Some(a) = accessed {
+            total += (ChunkType::aTIM, a.as_secs().to_be_bytes().as_slice()).write_in(writer)?;
+        }
+        if let Some(p) = permission {
+            total += (ChunkType::fPRM, p.to_bytes()).write_in(writer)?;
+        }
+        total += (ChunkType::FEND, [].as_slice()).write_in(writer)?;
+        Ok(total)
     }
 }
 
@@ -626,6 +709,14 @@ impl SealedEntryExt for ChunkSolidEntries {
     #[inline]
     fn into_chunks(self) -> Vec<RawChunk> {
         self.0
+    }
+
+    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
+        let mut total = 0;
+        for chunk in self.0.iter() {
+            total += chunk.write_in(writer)?;
+        }
+        Ok(total)
     }
 }
 
