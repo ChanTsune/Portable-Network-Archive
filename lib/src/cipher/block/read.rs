@@ -76,13 +76,12 @@ where
                 ));
             }
         }
+        let mut out_block = Block::<cbc::Decryptor<C>>::default();
         loop {
-            let mut next = vec![0u8; block_size];
-            let next_len = self.r.read(&mut next)?;
-            self.eof = next_len == 0;
             let in_block = Block::<cbc::Decryptor<C>>::from_slice(&self.buf);
-            let mut out_block = Block::<cbc::Decryptor<C>>::default();
             self.c.decrypt_block_b2b_mut(in_block, &mut out_block);
+            let next_len = self.r.read(&mut self.buf)?;
+            self.eof = next_len == 0;
             let blk = if self.eof {
                 P::unpad(&out_block)
                     .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
@@ -94,7 +93,6 @@ where
             let end_of_slice_index = total_written + should_write_len;
             buf[total_written..end_of_slice_index].copy_from_slice(&blk[..should_write_len]);
             total_written += should_write_len;
-            self.buf = next;
             if self.eof || buf_len <= total_written {
                 self.remaining.extend_from_slice(&blk[should_write_len..]);
                 break;
