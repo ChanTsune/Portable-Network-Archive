@@ -291,9 +291,6 @@ impl TryFrom<ChunkSolidEntries> for SolidReadEntry {
     }
 }
 
-#[deprecated(since = "0.4.0", note = "`ReadEntry` is renamed to `RegularEntry`")]
-pub type ReadEntry = RegularEntry;
-
 /// [Entry] that read from PNA archive.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct RegularEntry {
