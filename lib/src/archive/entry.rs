@@ -106,8 +106,8 @@ impl Entry for ChunkEntry {
 pub struct EntryDataReader<'r>(EntryReaderWrapper<'r>);
 
 pub(crate) enum EntryReaderWrapper<'r> {
-    Own(EntryReader<'r, crate::io::OwnedFlattenReader>),
-    Ref(EntryReader<'r, crate::io::FlattenReader<'r>>),
+    Own(EntryReader<crate::io::OwnedFlattenReader>),
+    Ref(EntryReader<crate::io::FlattenReader<'r>>),
 }
 
 impl<'r> Read for EntryDataReader<'r> {
@@ -131,9 +131,9 @@ impl<'r> futures::AsyncRead for EntryDataReader<'r> {
     }
 }
 
-pub(crate) struct EntryReader<'r, R: Read>(DecompressReader<'r, DecryptReader<R>>);
+pub(crate) struct EntryReader<R: Read>(DecompressReader<DecryptReader<R>>);
 
-impl<'r, R: Read> Read for EntryReader<'r, R> {
+impl<R: Read> Read for EntryReader<R> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
@@ -161,7 +161,7 @@ impl TryFrom<ChunkEntry> for EntryContainer {
     }
 }
 
-pub(crate) struct EntryIterator<'s>(EntryReader<'s, crate::io::FlattenReader<'s>>);
+pub(crate) struct EntryIterator<'s>(EntryReader<crate::io::FlattenReader<'s>>);
 
 impl Iterator for EntryIterator<'_> {
     type Item = io::Result<RegularEntry>;
@@ -644,10 +644,10 @@ fn decrypt_reader<R: Read>(
 }
 
 /// Decompress reader according to compression type.
-fn decompress_reader<'r, R: Read>(
+fn decompress_reader<R: Read>(
     reader: R,
     compression: Compression,
-) -> io::Result<DecompressReader<'r, R>> {
+) -> io::Result<DecompressReader<R>> {
     Ok(match compression {
         Compression::No => DecompressReader::No(reader),
         Compression::Deflate => DecompressReader::Deflate(flate2::read::ZlibDecoder::new(reader)),
