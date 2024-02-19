@@ -8,14 +8,14 @@ mod deflate;
 mod xz;
 mod zstandard;
 
-pub(crate) enum CompressionWriter<'w, W: Write> {
+pub(crate) enum CompressionWriter<W: Write> {
     No(W),
     Deflate(ZlibEncoder<W>),
-    ZStd(ZstdEncoder<'w, W>),
+    ZStd(ZstdEncoder<'static, W>),
     Xz(XzEncoder<W>),
 }
 
-impl<'w, W: Write> Write for CompressionWriter<'w, W> {
+impl<W: Write> Write for CompressionWriter<W> {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
         match self {
             Self::No(w) => w.write(buf),
@@ -35,7 +35,7 @@ impl<'w, W: Write> Write for CompressionWriter<'w, W> {
     }
 }
 
-impl<'w, W: Write> TryIntoInner<W> for CompressionWriter<'w, W> {
+impl<W: Write> TryIntoInner<W> for CompressionWriter<W> {
     fn try_into_inner(self) -> Result<W> {
         match self {
             Self::No(w) => Ok(w),

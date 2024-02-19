@@ -26,9 +26,7 @@ const MAX_CHUNK_DATA_LENGTH: usize = u32::MAX as usize;
 pub struct EntryBuilder {
     header: EntryHeader,
     phsf: Option<String>,
-    data: Option<
-        CompressionWriter<'static, CipherWriter<crate::io::FlattenWriter<MAX_CHUNK_DATA_LENGTH>>>,
-    >,
+    data: Option<CompressionWriter<CipherWriter<crate::io::FlattenWriter<MAX_CHUNK_DATA_LENGTH>>>>,
     created: Option<Duration>,
     last_modified: Option<Duration>,
     accessed: Option<Duration>,
@@ -299,7 +297,7 @@ impl AsyncWrite for EntryBuilder {
 pub struct SolidEntryBuilder {
     header: SolidHeader,
     phsf: Option<String>,
-    data: CompressionWriter<'static, CipherWriter<crate::io::FlattenWriter<MAX_CHUNK_DATA_LENGTH>>>,
+    data: CompressionWriter<CipherWriter<crate::io::FlattenWriter<MAX_CHUNK_DATA_LENGTH>>>,
 }
 
 impl SolidEntryBuilder {
