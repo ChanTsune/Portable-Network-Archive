@@ -26,19 +26,19 @@ use std::{
 
 mod private {
     use super::*;
-    pub trait SealedIntoChunks {
+    pub trait SealedEntryExt {
         fn into_chunks(self) -> Vec<RawChunk>;
     }
 }
 
 /// Archive entry.
-pub trait Entry: SealedIntoChunks {
+pub trait Entry: SealedEntryExt {
     #[deprecated(since = "0.7.0")]
     fn bytes_len(&self) -> usize;
     fn into_bytes(self) -> Vec<u8>;
 }
 
-impl SealedIntoChunks for EntryContainer {
+impl SealedEntryExt for EntryContainer {
     fn into_chunks(self) -> Vec<RawChunk> {
         match self {
             Self::Regular(r) => r.into_chunks(),
@@ -69,7 +69,7 @@ impl Entry for EntryContainer {
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ChunkEntry(pub(crate) Vec<RawChunk>);
 
-impl SealedIntoChunks for ChunkEntry {
+impl SealedEntryExt for ChunkEntry {
     #[inline]
     fn into_chunks(self) -> Vec<RawChunk> {
         self.0
@@ -179,7 +179,7 @@ pub(crate) struct SolidReadEntry {
     extra: Vec<RawChunk>,
 }
 
-impl SealedIntoChunks for SolidReadEntry {
+impl SealedEntryExt for SolidReadEntry {
     fn into_chunks(self) -> Vec<RawChunk> {
         let mut chunks = vec![];
         chunks.push(RawChunk::from_data(
@@ -381,7 +381,7 @@ impl TryFrom<ChunkEntry> for RegularEntry {
     }
 }
 
-impl SealedIntoChunks for RegularEntry {
+impl SealedEntryExt for RegularEntry {
     fn into_chunks(self) -> Vec<RawChunk> {
         let Metadata {
             raw_file_size,
@@ -614,7 +614,7 @@ impl EntryPart {
     }
 }
 
-impl<T: SealedIntoChunks> From<T> for EntryPart {
+impl<T: SealedEntryExt> From<T> for EntryPart {
     fn from(value: T) -> Self {
         Self(value.into_chunks())
     }
@@ -622,7 +622,7 @@ impl<T: SealedIntoChunks> From<T> for EntryPart {
 
 pub(crate) struct ChunkSolidEntries(pub(crate) Vec<RawChunk>);
 
-impl SealedIntoChunks for ChunkSolidEntries {
+impl SealedEntryExt for ChunkSolidEntries {
     #[inline]
     fn into_chunks(self) -> Vec<RawChunk> {
         self.0
