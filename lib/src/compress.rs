@@ -46,14 +46,14 @@ impl<'w, W: Write> TryIntoInner<W> for CompressionWriter<'w, W> {
     }
 }
 
-pub(crate) enum DecompressReader<'r, R: Read> {
+pub(crate) enum DecompressReader<R: Read> {
     No(R),
     Deflate(ZlibDecoder<R>),
-    ZStd(ZStdDecoder<'r, BufReader<R>>),
+    ZStd(ZStdDecoder<'static, BufReader<R>>),
     Xz(XzDecoder<R>),
 }
 
-impl<'r, R: Read> Read for DecompressReader<'r, R> {
+impl<R: Read> Read for DecompressReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         match self {
             DecompressReader::No(r) => r.read(buf),
