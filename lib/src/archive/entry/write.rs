@@ -78,11 +78,11 @@ fn encryption_writer<W: Write>(
     })
 }
 
-fn compression_writer<'w, W: Write + 'w>(
+fn compression_writer<W: Write>(
     writer: W,
     algorithm: Compression,
     level: CompressionLevel,
-) -> io::Result<CompressionWriter<'w, W>> {
+) -> io::Result<CompressionWriter<W>> {
     Ok(match algorithm {
         Compression::No => CompressionWriter::No(writer),
         Compression::Deflate => CompressionWriter::Deflate(ZlibEncoder::new(writer, level.into())),
@@ -91,10 +91,10 @@ fn compression_writer<'w, W: Write + 'w>(
     })
 }
 
-pub(super) fn writer_and_hash<'w, W: Write + 'w>(
+pub(super) fn writer_and_hash<W: Write>(
     writer: W,
     options: WriteOption,
-) -> io::Result<(CompressionWriter<'w, CipherWriter<W>>, Option<String>)> {
+) -> io::Result<(CompressionWriter<CipherWriter<W>>, Option<String>)> {
     let (writer, phsf) = match options.encryption {
         algorithm @ Encryption::No => (
             encryption_writer(writer, algorithm, options.cipher_mode, &[], &[])?,
