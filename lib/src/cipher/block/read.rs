@@ -77,7 +77,7 @@ where
             }
         }
         let mut out_block = Block::<cbc::Decryptor<C>>::default();
-        loop {
+        for chunk in buf[total_written..].chunks_mut(block_size) {
             let in_block = Block::<cbc::Decryptor<C>>::from_slice(&self.buf);
             self.c.decrypt_block_b2b_mut(in_block, &mut out_block);
             let next_len = self.r.read(&mut self.buf)?;
@@ -89,9 +89,8 @@ where
             } else {
                 out_block.as_slice()
             };
-            let should_write_len = std::cmp::min(buf_len - total_written, blk.len());
-            let end_of_slice_index = total_written + should_write_len;
-            buf[total_written..end_of_slice_index].copy_from_slice(&blk[..should_write_len]);
+            let should_write_len = std::cmp::min(chunk.len(), blk.len());
+            chunk[..should_write_len].copy_from_slice(&blk[..should_write_len]);
             total_written += should_write_len;
             if self.eof || buf_len <= total_written {
                 self.remaining.extend_from_slice(&blk[should_write_len..]);
