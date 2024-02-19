@@ -75,9 +75,7 @@ impl<W: Write> Archive<W> {
     /// }
     /// ```
     pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<usize> {
-        let bytes = entry.into_bytes();
-        self.inner.write_all(&bytes)?;
-        Ok(bytes.len())
+        entry.write_in(&mut self.inner)
     }
 
     /// Adds a part of an entry to the archive.
