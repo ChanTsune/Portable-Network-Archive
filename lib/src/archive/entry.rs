@@ -36,6 +36,7 @@ mod private {
 pub trait Entry: SealedEntryExt {
     #[deprecated(since = "0.7.0")]
     fn bytes_len(&self) -> usize;
+    #[deprecated(since = "0.7.0")]
     fn into_bytes(self) -> Vec<u8>;
 }
 
@@ -524,6 +525,7 @@ impl SealedEntryExt for RegularEntry {
 impl Entry for RegularEntry {
     #[inline]
     fn bytes_len(&self) -> usize {
+        #[allow(deprecated)]
         self.clone().into_bytes().len()
     }
 
