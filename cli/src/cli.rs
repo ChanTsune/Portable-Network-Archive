@@ -251,7 +251,6 @@ pub(crate) enum CipherMode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use clap::Parser;
 
     #[test]
     fn store_archive() {
