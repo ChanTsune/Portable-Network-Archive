@@ -105,10 +105,7 @@ mod tests {
         Ok(e)
     }
 
-    fn decrypt_cbc<Cipher: BlockDecryptMut + BlockCipher>(
-        key: &[u8],
-        data: &[u8],
-    ) -> io::Result<Vec<u8>>
+    fn decrypt_cbc<Cipher>(key: &[u8], data: &[u8]) -> io::Result<Vec<u8>>
     where
         Cipher: BlockDecryptMut + BlockCipher,
         cbc::Decryptor<Cipher>: KeyIvInit,
