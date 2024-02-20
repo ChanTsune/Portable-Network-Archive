@@ -17,6 +17,7 @@ use crate::{
     cipher::{DecryptCbcAes256Reader, DecryptCbcCamellia256Reader, DecryptReader},
     compress::DecompressReader,
     hash::verify_password,
+    util::slice::skip_while,
 };
 use std::{
     collections::VecDeque,
@@ -479,11 +480,7 @@ impl SealedEntryExt for RegularEntry {
         if let Some(raw_file_size) = raw_file_size {
             total += (
                 ChunkType::fSIZ,
-                raw_file_size
-                    .to_be_bytes()
-                    .into_iter()
-                    .skip_while(|i| *i == 0)
-                    .collect::<Vec<_>>(),
+                skip_while(&raw_file_size.to_be_bytes(), |i| *i == 0),
             )
                 .write_in(writer)?;
         }
