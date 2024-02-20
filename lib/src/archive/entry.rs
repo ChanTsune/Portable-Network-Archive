@@ -168,7 +168,7 @@ impl Iterator for EntryIterator<'_> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut chunk_reader = ChunkReader::from(&mut self.0);
-        let mut chunks = Vec::with_capacity(3);
+        let mut chunks = Vec::new();
         loop {
             let chunk = chunk_reader.read_chunk();
             match chunk {
@@ -198,16 +198,10 @@ pub(crate) struct SolidReadEntry {
 impl SealedEntryExt for SolidReadEntry {
     fn into_chunks(self) -> Vec<RawChunk> {
         let mut chunks = vec![];
-        chunks.push(RawChunk::from_data(
-            ChunkType::SHED,
-            self.header.to_bytes().to_vec(),
-        ));
+        chunks.push(RawChunk::from_data(ChunkType::SHED, self.header.to_bytes()));
 
         if let Some(phsf) = &self.phsf {
-            chunks.push(RawChunk::from_data(
-                ChunkType::PHSF,
-                phsf.as_bytes().to_vec(),
-            ));
+            chunks.push(RawChunk::from_data(ChunkType::PHSF, phsf.as_bytes()));
         }
         for data in self.data {
             chunks.push(RawChunk::from_data(ChunkType::SDAT, data));
@@ -439,19 +433,19 @@ impl SealedEntryExt for RegularEntry {
         }
         for data_chunk in self.data {
             for data_unit in data_chunk.chunks(u32::MAX as usize) {
-                vec.push(RawChunk::from_data(ChunkType::FDAT, data_unit.to_vec()));
+                vec.push(RawChunk::from_data(ChunkType::FDAT, data_unit));
             }
         }
         if let Some(c) = created {
             vec.push(RawChunk::from_data(
                 ChunkType::cTIM,
-                c.as_secs().to_be_bytes().to_vec(),
+                c.as_secs().to_be_bytes(),
             ));
         }
         if let Some(d) = modified {
             vec.push(RawChunk::from_data(
                 ChunkType::mTIM,
-                d.as_secs().to_be_bytes().to_vec(),
+                d.as_secs().to_be_bytes(),
             ));
         }
         if let Some(a) = accessed {
