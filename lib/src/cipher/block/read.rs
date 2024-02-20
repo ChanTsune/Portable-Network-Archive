@@ -25,13 +25,22 @@ where
     P: Padding<<C as BlockSizeUser>::BlockSize>,
     cbc::Decryptor<C>: KeyIvInit,
 {
-    pub(crate) fn new_with_iv(r: R, key: &[u8], iv: &[u8]) -> io::Result<Self> {
+    pub(crate) fn new_with_iv(mut r: R, key: &[u8], iv: &[u8]) -> io::Result<Self> {
+        let block_size = cbc::Decryptor::<C>::block_size();
+        let mut buf = vec![0u8; block_size];
+        let prev_len = r.read(&mut buf)?;
+        if prev_len != block_size {
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                format!("Expected buffer size {block_size} but {prev_len}"),
+            ));
+        }
         Ok(Self {
             r,
             c: cbc::Decryptor::<C>::new_from_slices(key, iv).unwrap(),
             padding: PhantomData,
             remaining: Vec::new(),
-            buf: Vec::new(),
+            buf,
             eof: false,
         })
     }
@@ -65,17 +74,6 @@ where
             }
         }
         let block_size = cbc::Decryptor::<C>::block_size();
-        if self.buf.is_empty() {
-            let mut prev = vec![0u8; block_size];
-            let prev_len = self.r.read(&mut prev)?;
-            self.buf = prev;
-            if prev_len != block_size {
-                return Err(io::Error::new(
-                    io::ErrorKind::UnexpectedEof,
-                    format!("Expected buffer size {block_size} but {prev_len}"),
-                ));
-            }
-        }
         let mut out_block = Block::<cbc::Decryptor<C>>::default();
         for chunk in buf[total_written..].chunks_mut(block_size) {
             let in_block = Block::<cbc::Decryptor<C>>::from_slice(&self.buf);
