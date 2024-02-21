@@ -3,7 +3,12 @@ mod slice;
 use crate::{
     archive::{Archive, ArchiveHeader, PNA_HEADER},
     chunk::{read_chunk, Chunk, ChunkReader, ChunkType, RawChunk},
-    entry::{Entry, NormalEntry, RawEntry, ReadEntry},
+    cipher::DecryptReader,
+    compress::DecompressReader,
+    entry::{
+        decompress_reader, decrypt_reader, Entry, EntryHeader, EntryReader, NormalEntry, RawEntry,
+        ReadEntry, SolidHeader,
+    },
 };
 #[cfg(feature = "unstable-async")]
 use futures_util::AsyncReadExt;
@@ -11,7 +16,7 @@ pub(crate) use slice::read_header_from_slice;
 use std::{
     collections::VecDeque,
     io::{self, Read, Seek, SeekFrom},
-    mem::swap,
+    mem::{self, swap},
 };
 
 pub(crate) fn read_pna_header<R: Read>(mut reader: R) -> io::Result<()> {
@@ -64,6 +69,37 @@ impl<R: Read> Archive<R> {
         }
         let header = ArchiveHeader::try_from_bytes(chunk.data())?;
         Ok(Self::with_buffer(reader, header, buf))
+    }
+
+    fn next_lazy_item(&mut self) -> io::Result<Option<LazyEntry<R>>> {
+        let mut chunks = Vec::new();
+        swap(&mut self.buf, &mut chunks);
+        let mut reader = ChunkReader::from(&mut self.inner);
+        loop {
+            let chunk = reader.read_chunk()?;
+            match chunk.ty {
+                ChunkType::FHED => {
+                    let header = EntryHeader::try_from(chunk.data())?;
+                    return Ok(Some(LazyEntry::Regular(LazyRegularEntry {
+                        header,
+                        reader: &mut self.inner,
+                    })));
+                }
+                ChunkType::SHED => {
+                    let header = SolidHeader::try_from(chunk.data())?;
+                    return Ok(Some(LazyEntry::Solid(LazySolidEntry {
+                        header,
+                        reader: &mut self.inner,
+                    })));
+                }
+                ChunkType::ANXT => self.next_archive = true,
+                ChunkType::AEND => {
+                    self.buf = chunks;
+                    return Ok(None);
+                }
+                _ => chunks.push(chunk),
+            }
+        }
     }
 
     /// Reads the next raw entry (from `FHED` to `FEND` chunk) from the archive.
@@ -171,6 +207,10 @@ impl<R: Read> Archive<R> {
         password: Option<&'a str>,
     ) -> impl Iterator<Item = io::Result<NormalEntry>> + 'a {
         self.entries().extract_solid_entries(password)
+    }
+
+    pub(crate) fn lazy_entries(&mut self) -> LazyEntries<R> {
+        LazyEntries::new(self)
     }
 
     /// Reads the next archive from the provided reader and returns a new [`Archive`].
@@ -307,6 +347,195 @@ impl<R: Read> Iterator for RawEntries<'_, R> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next_raw_item().transpose()
+    }
+}
+pub(crate) struct LazyEntries<'r, R> {
+    reader: &'r mut Archive<R>,
+}
+
+impl<'r, R: Read> LazyEntries<'r, R> {
+    #[inline]
+    pub(crate) fn new(reader: &'r mut Archive<R>) -> Self {
+        Self { reader }
+    }
+}
+
+impl<'r, R: Read> LazyEntries<'r, R>
+where
+    Self: 'r,
+{
+    fn next(&'r mut self) -> Option<io::Result<LazyEntry<'r, R>>> {
+        self.reader.next_lazy_item().transpose()
+    }
+}
+
+pub(crate) enum LazyEntry<'r, R> {
+    Regular(LazyRegularEntry<'r, R>),
+    Solid(LazySolidEntry<'r, R>),
+}
+
+pub(crate) struct LazyRegularEntry<'r, R> {
+    header: EntryHeader,
+    reader: &'r mut R,
+}
+
+impl<'r, R: Read> LazyRegularEntry<'r, R> {
+    fn reader(&'r mut self) -> io::Result<impl Read + 'r> {
+        let reader = ChunkStreamReader::new(&mut self.reader, ChunkType::FDAT, ChunkType::FEND);
+        let decrypt_reader = decrypt_reader(
+            reader,
+            self.header.encryption,
+            self.header.cipher_mode,
+            None,
+            None,
+        )?;
+        let compress_reader = decompress_reader(decrypt_reader, self.header.compression)?;
+        Ok(EntryReader(compress_reader))
+    }
+}
+
+pub(crate) struct LazySolidEntry<'r, R> {
+    header: SolidHeader,
+    reader: &'r mut R,
+}
+
+impl<'r, R: Read> LazySolidEntry<'r, R> {
+    pub(crate) fn entries(&'r mut self) -> io::Result<LazyRegularEntries<&mut &mut R>> {
+        let chunk_reader =
+            ChunkStreamReader::new(&mut self.reader, ChunkType::SDAT, ChunkType::SEND);
+        let decrypt_reader = decrypt_reader(
+            chunk_reader,
+            self.header.encryption,
+            self.header.cipher_mode,
+            None,
+            None,
+        )?;
+        let decompress_reader = decompress_reader(decrypt_reader, self.header.compression)?;
+        Ok(LazyRegularEntries {
+            reader: decompress_reader,
+        })
+    }
+}
+
+pub(crate) struct LazyRegularEntries<R: Read> {
+    reader: DecompressReader<DecryptReader<ChunkStreamReader<R>>>,
+}
+
+impl<R: Read> LazyRegularEntries<R> {
+    pub fn next(&mut self) -> Option<io::Result<LazyRegularEntry<impl Read>>> {
+        let mut reader = ChunkReader::from(&mut self.reader);
+
+        loop {
+            let chunk = match reader.read_chunk() {
+                Ok(chunk) => chunk,
+                Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => return None,
+                Err(e) => return Some(Err(e)),
+            };
+            match chunk.ty {
+                ChunkType::FHED => {
+                    let header = match EntryHeader::try_from(chunk.data()) {
+                        Ok(header) => header,
+                        Err(e) => return Some(Err(e)),
+                    };
+                    return Some(Ok(LazyRegularEntry {
+                        header,
+                        reader: &mut self.reader,
+                    }));
+                }
+                _ => {
+                    return Some(Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("unexpected chunk {}", chunk.ty),
+                    )))
+                }
+            }
+        }
+    }
+}
+
+pub(crate) struct ChunkStreamReader<R> {
+    inner: R,
+    data_chunk: ChunkType,
+    end_chunk: ChunkType,
+    eof: bool,
+    remaining_length: usize,
+}
+
+impl<R> ChunkStreamReader<R> {
+    fn new(inner: R, data_chunk: ChunkType, end_chunk: ChunkType) -> Self {
+        Self {
+            inner,
+            end_chunk,
+            data_chunk,
+            eof: false,
+            remaining_length: 0,
+        }
+    }
+}
+
+impl<R: Read> ChunkStreamReader<R> {
+    fn read_length(&mut self) -> io::Result<u32> {
+        let mut buf = [0u8; mem::align_of::<u32>()];
+        self.inner.read_exact(&mut buf)?;
+        Ok(u32::from_be_bytes(buf))
+    }
+
+    fn read_chunk_type(&mut self) -> io::Result<ChunkType> {
+        let mut buf = [0u8; mem::size_of::<ChunkType>()];
+        self.inner.read_exact(&mut buf)?;
+        Ok(ChunkType(buf))
+    }
+
+    fn read_crc(&mut self) -> io::Result<u32> {
+        let mut buf = [0u8; mem::align_of::<u32>()];
+        self.inner.read_exact(&mut buf)?;
+        Ok(u32::from_be_bytes(buf))
+    }
+}
+
+impl<R: Read> Read for ChunkStreamReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if buf.is_empty() || self.eof {
+            return Ok(0);
+        }
+        let buf_len = buf.len();
+        if self.remaining_length != 0 {
+            let read_len = self
+                .inner
+                .read(&mut buf[..self.remaining_length.min(buf_len)])?;
+            self.remaining_length -= read_len;
+
+            if self.remaining_length == 0 {
+                self.read_crc()?;
+            }
+            return Ok(read_len);
+        }
+        loop {
+            let mut length = self.read_length()? as usize;
+            let ty = self.read_chunk_type()?;
+            if ty == self.data_chunk {
+                let size = self.inner.read(&mut buf[..length.min(buf_len)])?;
+                length -= size;
+                self.remaining_length = length;
+                if length == 0 {
+                    self.read_crc()?;
+                }
+                return Ok(size);
+            } else if ty == self.end_chunk {
+                self.read_crc()?;
+                self.eof = true;
+                return Ok(0);
+            } else {
+                if length != 0 {
+                    let mut buf = vec![0; length];
+                    self.inner.read_exact(&mut buf)?;
+                    length = 0;
+                }
+                if length == 0 {
+                    self.read_crc()?;
+                }
+            }
+        }
     }
 }
 
@@ -484,6 +713,33 @@ mod tests {
         let mut reader = Archive::read_header(&file_bytes[..]).unwrap();
         let mut entries = reader.entries_skip_solid();
         assert!(entries.next().is_none());
+    }
+
+    #[test]
+    fn lazy_decode() {
+        use crate::Archive;
+        use std::io::prelude::*;
+
+        let file = include_bytes!("../../../resources/test/solid_zstd.pna");
+        let mut archive = Archive::read_header(file.as_slice()).unwrap();
+        while let Some(entry) = archive.lazy_entries().next() {
+            match entry.unwrap() {
+                LazyEntry::Regular(mut r) => {
+                    let mut buf = Vec::new();
+                    let mut reader = r.reader().unwrap();
+                    reader.read_to_end(&mut buf).unwrap();
+                }
+                LazyEntry::Solid(mut s) => {
+                    let mut entries = s.entries().unwrap();
+                    while let Some(entry) = entries.next() {
+                        let mut entry = entry.unwrap();
+                        let mut buf = Vec::new();
+                        let mut reader = entry.reader().unwrap();
+                        reader.read_to_end(&mut buf).unwrap();
+                    }
+                }
+            }
+        }
     }
 
     #[cfg(feature = "unstable-async")]
