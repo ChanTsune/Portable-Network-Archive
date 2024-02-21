@@ -34,6 +34,20 @@ pub(crate) trait ChunkExt: Chunk {
         writer.write_all(&self.crc().to_be_bytes())?;
         Ok(self.bytes_len())
     }
+
+    /// Convert the provided `Chunk` instance into a `Vec<u8>`.
+    ///
+    /// # Returns
+    ///
+    /// A `Vec<u8>` containing the converted `Chunk` data.
+    fn to_bytes(&self) -> Vec<u8> {
+        let mut vec = Vec::with_capacity(self.bytes_len());
+        vec.extend_from_slice(&self.length().to_be_bytes());
+        vec.extend_from_slice(&self.ty().0);
+        vec.extend_from_slice(self.data());
+        vec.extend_from_slice(&self.crc().to_be_bytes());
+        vec
+    }
 }
 
 impl<T> ChunkExt for T where T: Chunk {}
@@ -109,24 +123,6 @@ impl<T: Deref<Target = [u8]>> Chunk for (ChunkType, T) {
     }
 }
 
-/// Convert the provided `Chunk` instance into a `Vec<u8>`.
-///
-/// # Arguments
-///
-/// * `chunk` - A `Chunk` instance to be converted into a byte vector.
-///
-/// # Returns
-///
-/// A `Vec<u8>` containing the converted `Chunk` data.
-pub(crate) fn chunk_to_bytes(chunk: impl Chunk) -> Vec<u8> {
-    let mut vec = Vec::with_capacity(chunk.bytes_len());
-    vec.extend_from_slice(&chunk.length().to_be_bytes());
-    vec.extend_from_slice(&chunk.ty().0);
-    vec.extend_from_slice(chunk.data());
-    vec.extend_from_slice(&chunk.crc().to_be_bytes());
-    vec
-}
-
 pub(crate) fn chunk_data_split(chunk: impl Chunk, mid: usize) -> (RawChunk, RawChunk) {
     let (first, last) = chunk.data().split_at(mid);
     (
@@ -144,7 +140,7 @@ mod tests {
         let data = vec![0xAA, 0xBB, 0xCC, 0xDD];
         let chunk = RawChunk::from_data(ChunkType::FDAT, data);
 
-        let bytes = chunk_to_bytes(chunk);
+        let bytes = chunk.to_bytes();
 
         assert_eq!(
             bytes,
