@@ -49,9 +49,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::StreamCipherReader;
+    use super::*;
     use ctr::CtrCore;
-    use std::io::Read;
 
     type CtrReader<W, C, F> = StreamCipherReader<W, CtrCore<C, F>>;
     type Aes128Ctr64LEReader<R> = CtrReader<R, aes::Aes128, ctr::flavors::Ctr64LE>;
