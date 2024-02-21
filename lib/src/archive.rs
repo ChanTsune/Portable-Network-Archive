@@ -1,4 +1,4 @@
-mod entry;
+pub(crate) mod entry;
 mod header;
 mod read;
 mod write;
