@@ -57,9 +57,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::StreamCipherWriter;
+    use super::*;
     use ctr::CtrCore;
-    use std::io::Write;
 
     type CtrWriter<W, C, F> = StreamCipherWriter<W, CtrCore<C, F>>;
     type Aes128Ctr64LEWriter<W> = CtrWriter<W, aes::Aes128, ctr::flavors::Ctr64LE>;

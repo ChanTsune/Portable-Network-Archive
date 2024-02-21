@@ -98,9 +98,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::CbcBlockCipherDecryptReader;
+    use super::*;
     use cipher::block_padding::Pkcs7;
-    use std::io::Read;
 
     #[test]
     fn read_decrypt() {
