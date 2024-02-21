@@ -4,7 +4,7 @@ mod header;
 mod meta;
 mod name;
 mod options;
-mod read;
+pub(crate) mod read;
 mod reference;
 mod write;
 
