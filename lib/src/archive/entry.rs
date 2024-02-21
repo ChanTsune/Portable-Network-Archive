@@ -10,10 +10,7 @@ mod write;
 pub use self::{builder::*, header::*, meta::*, name::*, options::*, reference::*};
 use self::{private::*, read::*, write::*};
 use crate::{
-    chunk::{
-        chunk_data_split, chunk_to_bytes, ChunkExt, ChunkReader, ChunkType, RawChunk,
-        MIN_CHUNK_BYTES_SIZE,
-    },
+    chunk::{chunk_data_split, ChunkExt, ChunkReader, ChunkType, RawChunk, MIN_CHUNK_BYTES_SIZE},
     cipher::{DecryptCbcAes256Reader, DecryptCbcCamellia256Reader, DecryptReader},
     compress::DecompressReader,
     hash::verify_password,
@@ -98,7 +95,7 @@ impl Entry for ChunkEntry {
     }
 
     fn into_bytes(self) -> Vec<u8> {
-        self.0.into_iter().flat_map(chunk_to_bytes).collect()
+        self.0.iter().flat_map(ChunkExt::to_bytes).collect()
     }
 }
 
@@ -239,8 +236,8 @@ impl SolidReadEntry {
 
     fn into_bytes(self) -> Vec<u8> {
         self.into_chunks()
-            .into_iter()
-            .flat_map(chunk_to_bytes)
+            .iter()
+            .flat_map(ChunkExt::to_bytes)
             .collect()
     }
 }
@@ -530,8 +527,8 @@ impl Entry for RegularEntry {
     #[inline]
     fn into_bytes(self) -> Vec<u8> {
         self.into_chunks()
-            .into_iter()
-            .flat_map(chunk_to_bytes)
+            .iter()
+            .flat_map(ChunkExt::to_bytes)
             .collect()
     }
 }
