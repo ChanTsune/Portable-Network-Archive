@@ -2,7 +2,6 @@ use cipher::block_padding::Padding;
 use cipher::{Block, BlockCipher, BlockDecryptMut, BlockSizeUser, KeyIvInit};
 use std::io::{self, Read};
 use std::marker::PhantomData;
-use zstd::zstd_safe::WriteBuf;
 
 pub(crate) struct CbcBlockCipherDecryptReader<R, C, P>
 where
@@ -81,9 +80,7 @@ where
             let next_len = self.r.read(&mut self.buf)?;
             self.eof = next_len == 0;
             let blk = if self.eof {
-                P::unpad(&out_block)
-                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
-                    .as_slice()
+                P::unpad(&out_block).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
             } else {
                 out_block.as_slice()
             };
