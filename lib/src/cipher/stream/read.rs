@@ -6,7 +6,6 @@ use std::io::{self, Read};
 
 pub(crate) struct StreamCipherReader<R, T>
 where
-    R: Read,
     T: BlockSizeUser,
     T::BlockSize: IsLess<U256>,
     Le<T::BlockSize, U256>: NonZero,
