@@ -14,12 +14,14 @@ use std::{
 };
 
 /// Minimum required size of bytes to represent [`Chunk`].
-pub const MIN_CHUNK_BYTES_SIZE: usize = 12;
+/// length:4 + chunk type:4 + data:0 + crc:4
+pub const MIN_CHUNK_BYTES_SIZE: usize =
+    mem::size_of::<u32>() + mem::size_of::<ChunkType>() + mem::size_of::<u32>();
 
 pub(crate) trait ChunkExt: Chunk {
     /// byte size of chunk
     fn bytes_len(&self) -> usize {
-        mem::align_of::<u32>() + self.ty().len() + self.data().len() + mem::align_of::<u32>()
+        MIN_CHUNK_BYTES_SIZE + self.data().len()
     }
 
     /// check the chunk type is stream chunk
