@@ -318,7 +318,7 @@ impl<'r, R: Read> Iterator for RegularEntries<'r, R> {
                 let entries = entry.entries(self.password);
                 match entries {
                     Ok(entries) => {
-                        self.buf = entries.collect::<VecDeque<_>>();
+                        self.buf.extend(entries);
                         self.next()
                     }
                     Err(e) => Some(Err(e)),
