@@ -52,7 +52,7 @@ fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
         None
     };
 
-    let mut hard_kink_entries = Vec::new();
+    let mut hard_link_entries = Vec::new();
 
     let (tx, rx) = std::sync::mpsc::channel();
     run_extract(
@@ -69,7 +69,7 @@ fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
             }
             progress_bar.let_ref(|pb| pb.inc_length(1));
             if item.header().data_kind() == DataKind::HardLink {
-                hard_kink_entries.push(item);
+                hard_link_entries.push(item);
                 return Ok(());
             }
             let tx = tx.clone();
@@ -103,7 +103,7 @@ fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
         progress_bar.let_ref(|pb| pb.inc(1));
     }
 
-    for item in hard_kink_entries {
+    for item in hard_link_entries {
         extract_entry(
             item,
             password.clone(),
