@@ -39,7 +39,7 @@ fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Result<()> {
         ));
     }
     if verbosity != Verbosity::Quite {
-        println!("Create an archive: {}", archive.display());
+        eprintln!("Create an archive: {}", archive.display());
     }
     let target_items = collect_items(args.file.files, args.recursive, args.keep_dir)?;
 
@@ -66,7 +66,7 @@ fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Result<()> {
         let tx = tx.clone();
         pool.spawn_fifo(move || {
             if verbosity == Verbosity::Verbose {
-                println!("Adding: {}", file.display());
+                eprintln!("Adding: {}", file.display());
             }
             tx.send(create_entry(&file, option, keep_timestamp, keep_permission))
                 .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
@@ -107,7 +107,7 @@ fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Result<()> {
                     part_num += 1;
                     let part_n_name = part_name(&archive, part_num).unwrap();
                     if verbosity == Verbosity::Verbose {
-                        println!("Split: {} to {}", archive.display(), part_n_name.display());
+                        eprintln!("Split: {} to {}", archive.display(), part_n_name.display());
                     }
                     let file = File::create(&part_n_name)?;
                     writer = writer.split_to_next_archive(file)?;
@@ -146,7 +146,7 @@ fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Result<()> {
                         part_num += 1;
                         let part_n_name = part_name(&archive, part_num).unwrap();
                         if verbosity == Verbosity::Verbose {
-                            println!("Split: {} to {}", archive.display(), part_n_name.display());
+                            eprintln!("Split: {} to {}", archive.display(), part_n_name.display());
                         }
                         let file = File::create(&part_n_name)?;
                         writer = writer.split_to_next_archive(file)?;
@@ -174,7 +174,7 @@ fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Result<()> {
     progress_bar.let_ref(|pb| pb.finish_and_clear());
 
     if verbosity != Verbosity::Quite {
-        println!(
+        eprintln!(
             "Successfully created an archive in {}",
             HumanDuration(start.elapsed())
         );

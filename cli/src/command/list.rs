@@ -88,7 +88,7 @@ fn list_archive(args: ListArgs, _: Verbosity) -> io::Result<()> {
 
 fn simple_list_entries(entries: &[RegularEntry]) {
     for entry in entries {
-        println!("{}", entry.header().path())
+        eprintln!("{}", entry.header().path())
     }
 }
 
@@ -172,7 +172,7 @@ fn detail_list_entries(entries: Vec<RegularEntry>, password: Option<&str>, print
         ]));
     }
     for row in table.into_render_rows() {
-        println!("{}", row)
+        eprintln!("{}", row)
     }
 }
 

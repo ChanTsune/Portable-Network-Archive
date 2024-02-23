@@ -56,7 +56,7 @@ fn split_archive(args: SplitCommand, verbosity: Verbosity) -> io::Result<()> {
                 n += 1;
                 let part_n_name = part_name(&args.archive, n).unwrap();
                 if verbosity == Verbosity::Verbose {
-                    println!(
+                    eprintln!(
                         "Split: {} to {}",
                         args.archive.display(),
                         part_n_name.display()
