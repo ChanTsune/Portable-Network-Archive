@@ -1,7 +1,10 @@
-use crate::chunk::{crc::Crc32, ChunkType, RawChunk};
+use crate::chunk::{crc::Crc32, ChunkType, RawChunk, MIN_CHUNK_BYTES_SIZE};
 #[cfg(feature = "unstable-async")]
 use futures::{AsyncRead, AsyncReadExt};
-use std::io::{self, Read, Seek, SeekFrom};
+use std::{
+    io::{self, Read, Seek, SeekFrom},
+    mem,
+};
 
 pub(crate) struct ChunkReader<R> {
     r: R,
@@ -87,21 +90,22 @@ impl<R: AsyncRead + Unpin> ChunkReader<R> {
 impl<R: Read + Seek> ChunkReader<R> {
     pub(crate) fn skip_chunk(&mut self) -> io::Result<(ChunkType, usize)> {
         // read chunk length
-        let mut length = [0u8; 4];
+        let mut length = [0u8; mem::size_of::<u32>()];
         self.r.read_exact(&mut length)?;
         let length = u32::from_be_bytes(length);
 
         // read chunk type
-        let mut ty = [0u8; 4];
+        let mut ty = [0u8; mem::size_of::<ChunkType>()];
         self.r.read_exact(&mut ty)?;
 
         // skip chunk data
         self.r.seek(SeekFrom::Current(length as i64))?;
 
         // skip crc sum
-        self.r.seek(SeekFrom::Current(4))?;
+        self.r
+            .seek(SeekFrom::Current(mem::size_of::<u32>() as i64))?;
 
-        Ok((ChunkType(ty), 4usize + length as usize + 4 + 4))
+        Ok((ChunkType(ty), MIN_CHUNK_BYTES_SIZE + length as usize))
     }
 }
 
