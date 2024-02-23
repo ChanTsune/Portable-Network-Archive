@@ -15,12 +15,12 @@ impl<R: Read> ChunkReader<R> {
         let mut crc_hasher = Crc32::new();
 
         // read chunk length
-        let mut length = [0u8; 4];
+        let mut length = [0u8; mem::size_of::<u32>()];
         self.r.read_exact(&mut length)?;
         let length = u32::from_be_bytes(length);
 
         // read chunk type
-        let mut ty = [0u8; 4];
+        let mut ty = [0u8; mem::size_of::<ChunkType>()];
         self.r.read_exact(&mut ty)?;
 
         crc_hasher.update(&ty);
@@ -32,7 +32,7 @@ impl<R: Read> ChunkReader<R> {
         crc_hasher.update(&data);
 
         // read crc sum
-        let mut crc = [0u8; 4];
+        let mut crc = [0u8; mem::size_of::<u32>()];
         self.r.read_exact(&mut crc)?;
         let crc = u32::from_be_bytes(crc);
 
@@ -54,12 +54,12 @@ impl<R: AsyncRead + Unpin> ChunkReader<R> {
         let mut crc_hasher = Crc32::new();
 
         // read chunk length
-        let mut length = [0u8; 4];
+        let mut length = [0u8; mem::size_of::<u32>()];
         self.r.read_exact(&mut length).await?;
         let length = u32::from_be_bytes(length);
 
         // read chunk type
-        let mut ty = [0u8; 4];
+        let mut ty = [0u8; mem::size_of::<ChunkType>()];
         self.r.read_exact(&mut ty).await?;
 
         crc_hasher.update(&ty);
@@ -71,7 +71,7 @@ impl<R: AsyncRead + Unpin> ChunkReader<R> {
         crc_hasher.update(&data);
 
         // read crc sum
-        let mut crc = [0u8; 4];
+        let mut crc = [0u8; mem::size_of::<u32>()];
         self.r.read_exact(&mut crc).await?;
         let crc = u32::from_be_bytes(crc);
 
