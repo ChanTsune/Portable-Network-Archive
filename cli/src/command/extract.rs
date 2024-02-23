@@ -32,7 +32,7 @@ fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     let start = Instant::now();
     if verbosity != Verbosity::Quite {
-        println!("Extract archive {}", args.file.archive.display());
+        eprintln!("Extract archive {}", args.file.archive.display());
     }
     let globs = args
         .file
@@ -63,7 +63,7 @@ fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
             let item_path = PathBuf::from(item.header().path().as_str());
             if !globs.is_empty() && !globs.par_iter().any(|glob| glob.matches_path(&item_path)) {
                 if verbosity == Verbosity::Verbose {
-                    println!("Skip: {}", item.header().path())
+                    eprintln!("Skip: {}", item.header().path())
                 }
                 return Ok(());
             }
@@ -92,7 +92,7 @@ fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
         |path, num| {
             let next_file_path = part_name(path, num).unwrap();
             if verbosity == Verbosity::Verbose {
-                println!("Detect split: search {}", next_file_path.display());
+                eprintln!("Detect split: search {}", next_file_path.display());
             }
             next_file_path
         },
@@ -119,7 +119,7 @@ fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
     progress_bar.let_ref(|pb| pb.finish_and_clear());
 
     if verbosity != Verbosity::Quite {
-        println!(
+        eprintln!(
             "Successfully extracted an archive in {}",
             HumanDuration(start.elapsed())
         );
@@ -170,7 +170,7 @@ fn extract_entry(
 ) -> io::Result<()> {
     let item_path = item.header().path().as_path();
     if verbosity == Verbosity::Verbose {
-        println!("Extract: {}", item_path.display());
+        eprintln!("Extract: {}", item_path.display());
     }
     let path = if let Some(out_dir) = &out_dir {
         out_dir.join(item_path)
@@ -184,7 +184,7 @@ fn extract_entry(
         ));
     }
     if verbosity == Verbosity::Verbose {
-        println!("start: {}", path.display())
+        eprintln!("start: {}", path.display())
     }
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
@@ -247,7 +247,7 @@ fn extract_entry(
         eprintln!("Currently permission is not supported on this platform.");
     }
     if verbosity == Verbosity::Verbose {
-        println!("end: {}", path.display());
+        eprintln!("end: {}", path.display());
     }
     Ok(())
 }

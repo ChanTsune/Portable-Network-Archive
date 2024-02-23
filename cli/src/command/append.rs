@@ -44,7 +44,7 @@ fn append_to_archive(args: AppendArgs, verbosity: Verbosity) -> io::Result<()> {
         let tx = tx.clone();
         pool.spawn_fifo(move || {
             if verbosity == Verbosity::Verbose {
-                println!("Adding: {}", file.display());
+                eprintln!("Adding: {}", file.display());
             }
             tx.send(create_entry(&file, option, keep_timestamp, keep_permission))
                 .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
