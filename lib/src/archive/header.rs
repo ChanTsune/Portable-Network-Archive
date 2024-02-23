@@ -1,4 +1,7 @@
-use std::io::{self, Read};
+use std::{
+    io::{self, Read},
+    mem,
+};
 
 /// The magic number of Portable-Network-Archive
 pub const PNA_HEADER: &[u8; 8] = b"\x89PNA\r\n\x1A\n";
@@ -49,7 +52,7 @@ impl ArchiveHeader {
         bytes.read_exact(&mut [0; 2])?;
 
         let archive_number = {
-            let mut buf = [0; 4];
+            let mut buf = [0; mem::size_of::<u32>()];
             bytes.read_exact(&mut buf)?;
             u32::from_be_bytes(buf)
         };
