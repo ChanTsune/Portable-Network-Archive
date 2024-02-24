@@ -32,6 +32,7 @@ pub struct EntryBuilder {
     last_modified: Option<Duration>,
     accessed: Option<Duration>,
     permission: Option<Permission>,
+    store_file_size: bool,
     file_size: u128,
 }
 
@@ -54,6 +55,7 @@ impl EntryBuilder {
             last_modified: None,
             accessed: None,
             permission: None,
+            store_file_size: true,
             file_size: 0,
         }
     }
@@ -84,6 +86,7 @@ impl EntryBuilder {
             last_modified: None,
             accessed: None,
             permission: None,
+            store_file_size: true,
             file_size: 0,
         })
     }
@@ -122,6 +125,7 @@ impl EntryBuilder {
             last_modified: None,
             accessed: None,
             permission: None,
+            store_file_size: true,
             file_size: 0,
         })
     }
@@ -160,6 +164,7 @@ impl EntryBuilder {
             last_modified: None,
             accessed: None,
             permission: None,
+            store_file_size: true,
             file_size: 0,
         })
     }
@@ -225,6 +230,21 @@ impl EntryBuilder {
         self
     }
 
+    /// Sets retention of raw file size data for entry.
+    ///
+    /// # Arguments
+    ///
+    /// * `store` - if true retention data of raw file size for entry, otherwise not.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the [EntryBuilder] with the store set.
+    #[inline]
+    pub fn file_size(&mut self, store: bool) -> &mut Self {
+        self.store_file_size = store;
+        self
+    }
+
     /// Builds the entry and returns a Result containing the new [RegularEntry].
     ///
     /// # Returns
@@ -237,9 +257,9 @@ impl EntryBuilder {
             Vec::new()
         };
         let metadata = Metadata {
-            raw_file_size: match self.header.data_kind {
-                DataKind::File => Some(self.file_size),
-                DataKind::Directory | DataKind::SymbolicLink | DataKind::HardLink => None,
+            raw_file_size: match (self.store_file_size, self.header.data_kind) {
+                (true, DataKind::File) => Some(self.file_size),
+                _ => None,
             },
             compressed_size: data.iter().map(|d| d.len()).sum(),
             created: self.created,
