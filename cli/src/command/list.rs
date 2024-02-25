@@ -1,6 +1,3 @@
-mod table;
-
-use self::table::{Cell, Padding, Table, TableRow};
 use crate::{
     cli::{ListArgs, Verbosity},
     command::{ask_password, Command},
@@ -15,6 +12,14 @@ use std::{
     fs::File,
     io,
     time::{Duration, SystemTime, UNIX_EPOCH},
+};
+use tabled::{
+    builder::Builder as TableBuilder,
+    settings::{
+        object::{Rows, Segment},
+        themes::Colorization,
+        Alignment, Color, Modify, Padding, Style as TableStyle,
+    },
 };
 
 impl Command for ListArgs {
@@ -88,92 +93,108 @@ fn list_archive(args: ListArgs, _: Verbosity) -> io::Result<()> {
 
 fn simple_list_entries(entries: &[RegularEntry]) {
     for entry in entries {
-        eprintln!("{}", entry.header().path())
+        println!("{}", entry.header().path())
     }
 }
 
 fn detail_list_entries(entries: Vec<RegularEntry>, password: Option<&str>, print_header: bool) {
     let now = SystemTime::now();
-    let style_encryption_column = Style::new().fg(Colour::Purple);
-    let style_compression_column = Style::new().fg(Colour::Blue);
-    let style_file_size_column = Style::new().fg(Colour::Green);
-    let style_date = Style::new().fg(Colour::Cyan);
-    let style_entry = Style::new();
-    let mut table = Table::new();
+    let underline = Color::new("\x1B[4m", "\x1B[0m");
+    let reset = Color::new("\x1B[8m", "\x1B[0m");
+    let header = [
+        "Encryption",
+        "Compression",
+        "Permissions",
+        "Raw Size",
+        "Compressed Size",
+        "User",
+        "Group",
+        "Created",
+        "Modified",
+        "Name",
+    ];
+
+    let mut builder = TableBuilder::new();
     if print_header {
-        let style_header_line = Style::new().underline();
-        table.push(table::header(style_header_line));
-    };
-    for entry in entries {
+        builder.push_record(header);
+    }
+    for entry in entries.iter() {
         let header = entry.header();
         let metadata = entry.metadata();
-        table.push(TableRow::new([
-            Cell::new(
-                style_encryption_column,
-                match header.encryption() {
-                    Encryption::No => "-".to_string(),
-                    _ => format!("{:?}({:?})", header.encryption(), header.cipher_mode())
-                        .to_ascii_lowercase(),
-                },
-            ),
-            Cell::new(
-                style_compression_column,
-                match header.compression() {
-                    Compression::No => "-".to_string(),
-                    method => format!("{:?}", method).to_ascii_lowercase(),
-                },
-            ),
-            Cell::new_text(
-                style_date,
-                Padding::Right,
-                metadata
-                    .permission()
-                    .map(|p| paint_permission(header.data_kind(), p.permissions()))
-                    .unwrap_or_else(|| paint_data_kind(header.data_kind())),
-            ),
-            Cell::new_with_pad_direction(
-                style_file_size_column,
-                Padding::Left,
-                metadata
-                    .raw_file_size()
-                    .map_or("-".into(), |size| size.to_string()),
-            ),
-            Cell::new_with_pad_direction(
-                style_file_size_column,
-                Padding::Left,
-                metadata.compressed_size(),
-            ),
-            Cell::new(
-                style_date,
-                metadata.permission().map(|p| p.uname()).unwrap_or("-"),
-            ),
-            Cell::new(
-                style_date,
-                metadata.permission().map(|p| p.gname()).unwrap_or("-"),
-            ),
-            Cell::new(style_date, datetime(now, metadata.created())),
-            Cell::new(style_date, datetime(now, metadata.modified())),
-            Cell::new(
-                style_entry,
-                if matches!(
-                    header.data_kind(),
-                    DataKind::SymbolicLink | DataKind::HardLink
-                ) {
-                    let path = header.path().to_string();
-                    let original = entry
-                        .reader(ReadOption::with_password(password))
-                        .map(|r| io::read_to_string(r).unwrap_or_else(|_| "-".to_string()))
-                        .unwrap_or_default();
-                    format!("{} -> {}", path, original)
-                } else {
-                    header.path().to_string()
-                },
-            ),
-        ]));
+        builder.push_record([
+            match header.encryption() {
+                Encryption::No => "-".to_string(),
+                _ => format!("{:?}({:?})", header.encryption(), header.cipher_mode())
+                    .to_ascii_lowercase(),
+            },
+            match header.compression() {
+                Compression::No => "-".to_string(),
+                method => format!("{:?}", method).to_ascii_lowercase(),
+            },
+            metadata
+                .permission()
+                .map(|p| paint_permission(header.data_kind(), p.permissions()))
+                .unwrap_or_else(|| paint_data_kind(header.data_kind()))
+                .iter()
+                .map(|it| it.to_string())
+                .collect::<String>(),
+            metadata
+                .raw_file_size()
+                .map_or("-".into(), |size| size.to_string()),
+            metadata.compressed_size().to_string(),
+            metadata
+                .permission()
+                .map(|p| p.uname())
+                .unwrap_or("-")
+                .to_string(),
+            metadata
+                .permission()
+                .map(|p| p.gname())
+                .unwrap_or("-")
+                .to_string(),
+            datetime(now, metadata.created()),
+            datetime(now, metadata.modified()),
+            if matches!(
+                header.data_kind(),
+                DataKind::SymbolicLink | DataKind::HardLink
+            ) {
+                let path = header.path().to_string();
+                let original = entry
+                    .reader(ReadOption::with_password(password))
+                    .map(|r| io::read_to_string(r).unwrap_or_else(|_| "-".to_string()))
+                    .unwrap_or_default();
+                format!("{} -> {}", path, original)
+            } else {
+                header.path().to_string()
+            },
+        ]);
     }
-    for row in table.into_render_rows() {
-        eprintln!("{}", row)
+    let mut table = builder.build();
+    table
+        .with(TableStyle::empty())
+        .with(Colorization::columns([
+            Color::FG_MAGENTA,
+            Color::FG_BLUE,
+            Color::empty(),
+            Color::FG_GREEN,
+            Color::FG_GREEN,
+            Color::FG_CYAN,
+            Color::FG_CYAN,
+            Color::FG_CYAN,
+            Color::FG_CYAN,
+            Color::empty(),
+        ]))
+        .with(Modify::new(Segment::new(.., 3..=4)).with(Alignment::right()));
+    if print_header {
+        table.with(Colorization::exact([underline], Rows::first()));
     }
+    table.with(Padding::new(0, 1, 0, 0).colorize(
+        Color::empty(),
+        reset,
+        Color::empty(),
+        Color::empty(),
+    ));
+    println!("{}", table);
 }
 
 const DURATION_SIX_MONTH: Duration = Duration::from_secs(60 * 60 * 24 * 30 * 6);
