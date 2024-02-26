@@ -22,7 +22,7 @@ rayon = "1.8.1"
 rpassword = "7.3.1"
 
 [target.'cfg(unix)'.dependencies]
-nix = { version = "0.27.1", features = ["user", "fs"] }
+nix = { version = "0.28.0", features = ["user", "fs"] }
 
 [features]
 experimental = []
