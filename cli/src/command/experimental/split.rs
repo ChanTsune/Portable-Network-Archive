@@ -6,12 +6,14 @@ use crate::{
 use bytesize::ByteSize;
 use clap::{Parser, ValueHint};
 use pna::{Archive, EntryPart, MIN_CHUNK_BYTES_SIZE, PNA_HEADER};
-use std::{fs::File, io, path::PathBuf};
+use std::{fs, fs::File, io, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct SplitCommand {
     #[arg(value_hint = ValueHint::FilePath)]
     pub(crate) archive: PathBuf,
+    #[arg(long, value_hint = ValueHint::DirPath)]
+    pub(crate) out_dir: Option<PathBuf>,
     #[arg(long, help = "Overwrite file")]
     pub(crate) overwrite: bool,
     #[arg(long, help = "Maximum size of split archive")]
@@ -26,10 +28,16 @@ impl Command for SplitCommand {
 
 fn split_archive(args: SplitCommand, verbosity: Verbosity) -> io::Result<()> {
     let read_file = File::open(&args.archive)?;
+    let base_out_file_name = if let Some(out_dir) = args.out_dir {
+        fs::create_dir_all(&out_dir)?;
+        out_dir.join(args.archive.file_name().unwrap_or_default())
+    } else {
+        args.archive.clone()
+    };
     let mut read_archive = Archive::read_header(read_file)?;
 
     let mut n = 1;
-    let name = part_name(&args.archive, n).unwrap();
+    let name = part_name(&base_out_file_name, n).unwrap();
     if !args.overwrite && name.exists() {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
@@ -54,7 +62,7 @@ fn split_archive(args: SplitCommand, verbosity: Verbosity) -> io::Result<()> {
         for part in parts {
             if written_entry_size + part.bytes_len() > max_file_size {
                 n += 1;
-                let part_n_name = part_name(&args.archive, n).unwrap();
+                let part_n_name = part_name(&base_out_file_name, n).unwrap();
                 if verbosity == Verbosity::Verbose {
                     eprintln!(
                         "Split: {} to {}",
