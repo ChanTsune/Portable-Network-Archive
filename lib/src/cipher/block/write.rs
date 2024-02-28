@@ -21,8 +21,7 @@ where
     P: Padding<<C as BlockSizeUser>::BlockSize>,
     cbc::Encryptor<C>: KeyIvInit,
 {
-    pub(crate) fn new_with_iv(mut w: W, key: &[u8], iv: &[u8]) -> io::Result<Self> {
-        w.write_all(iv)?;
+    pub(crate) fn new(w: W, key: &[u8], iv: &[u8]) -> io::Result<Self> {
         Ok(Self {
             w,
             c: cbc::Encryptor::<C>::new_from_slices(key, iv).unwrap(),
@@ -135,18 +134,15 @@ mod tests {
         ];
 
         let ct = {
-            let mut writer = CbcBlockCipherEncryptWriter::<_, aes::Aes128, Pkcs7>::new_with_iv(
-                Vec::new(),
-                &key,
-                &iv,
-            )
-            .unwrap();
+            let mut writer =
+                CbcBlockCipherEncryptWriter::<_, aes::Aes128, Pkcs7>::new(Vec::new(), &key, &iv)
+                    .unwrap();
             for p in plaintext.chunks(8) {
                 writer.write_all(p).unwrap();
             }
             writer.finish().unwrap()
         };
-        assert_eq!(&ct[iv.len()..], &ciphertext[..]);
+        assert_eq!(&ct[..], &ciphertext[..]);
     }
 
     #[test]
@@ -156,10 +152,9 @@ mod tests {
         let plaintext = *b"hello world! this is my plaintext.";
         let mut ct = Vec::new();
         {
-            let mut writer = CbcBlockCipherEncryptWriter::<_, aes::Aes128, Pkcs7>::new_with_iv(
-                &mut ct, &key, &iv,
-            )
-            .unwrap();
+            let mut writer =
+                CbcBlockCipherEncryptWriter::<_, aes::Aes128, Pkcs7>::new(&mut ct, &key, &iv)
+                    .unwrap();
             for p in plaintext.chunks(7) {
                 assert_eq!(writer.write(p).unwrap(), p.len())
             }
