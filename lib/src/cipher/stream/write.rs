@@ -6,7 +6,6 @@ use std::io::{self, Write};
 
 pub(crate) struct StreamCipherWriter<W, T>
 where
-    W: Write,
     T: BlockSizeUser,
     T::BlockSize: IsLess<U256>,
     Le<T::BlockSize, U256>: NonZero,

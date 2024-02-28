@@ -5,7 +5,6 @@ use std::marker::PhantomData;
 
 pub(crate) struct CbcBlockCipherEncryptWriter<W, C, P>
 where
-    W: Write,
     C: BlockEncryptMut + BlockCipher,
     P: Padding<<C as BlockSizeUser>::BlockSize>,
 {
