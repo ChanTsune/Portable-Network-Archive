@@ -64,14 +64,16 @@ fn encryption_writer<W: Write>(
     Ok(match (algorithm, mode) {
         (Encryption::No, _) => CipherWriter::No(writer),
         (Encryption::Aes, CipherMode::CBC) => {
-            CipherWriter::CbcAes(EncryptCbcAes256Writer::new_with_iv(writer, key, iv)?)
+            writer.write_all(iv)?;
+            CipherWriter::CbcAes(EncryptCbcAes256Writer::new(writer, key, iv)?)
         }
         (Encryption::Aes, CipherMode::CTR) => {
             writer.write_all(iv)?;
             CipherWriter::CtrAes(Ctr128BEWriter::new(writer, key, iv)?)
         }
         (Encryption::Camellia, CipherMode::CBC) => {
-            CipherWriter::CbcCamellia(EncryptCbcCamellia256Writer::new_with_iv(writer, key, iv)?)
+            writer.write_all(iv)?;
+            CipherWriter::CbcCamellia(EncryptCbcCamellia256Writer::new(writer, key, iv)?)
         }
         (Encryption::Camellia, CipherMode::CTR) => {
             writer.write_all(iv)?;
