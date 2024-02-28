@@ -55,7 +55,7 @@ fn hash<'s, 'p: 's>(
 }
 
 fn encryption_writer<W: Write>(
-    writer: W,
+    mut writer: W,
     algorithm: Encryption,
     mode: CipherMode,
     key: &[u8],
@@ -67,13 +67,15 @@ fn encryption_writer<W: Write>(
             CipherWriter::CbcAes(EncryptCbcAes256Writer::new_with_iv(writer, key, iv)?)
         }
         (Encryption::Aes, CipherMode::CTR) => {
-            CipherWriter::CtrAes(aes_ctr_cipher_writer(writer, key, iv)?)
+            writer.write_all(iv)?;
+            CipherWriter::CtrAes(Ctr128BEWriter::new(writer, key, iv)?)
         }
         (Encryption::Camellia, CipherMode::CBC) => {
             CipherWriter::CbcCamellia(EncryptCbcCamellia256Writer::new_with_iv(writer, key, iv)?)
         }
         (Encryption::Camellia, CipherMode::CTR) => {
-            CipherWriter::CtrCamellia(camellia_ctr_cipher_writer(writer, key, iv)?)
+            writer.write_all(iv)?;
+            CipherWriter::CtrCamellia(Ctr128BEWriter::new(writer, key, iv)?)
         }
     })
 }
@@ -131,22 +133,4 @@ pub(super) fn writer_and_hash<W: Write>(
     };
     let writer = compression_writer(writer, options.compression, options.compression_level)?;
     Ok((writer, phsf))
-}
-
-fn aes_ctr_cipher_writer<W: Write>(
-    mut writer: W,
-    key: &[u8],
-    iv: &[u8],
-) -> io::Result<Ctr128BEWriter<W, Aes256>> {
-    writer.write_all(iv)?;
-    Ctr128BEWriter::new(writer, key, iv)
-}
-
-fn camellia_ctr_cipher_writer<W: Write>(
-    mut writer: W,
-    key: &[u8],
-    iv: &[u8],
-) -> io::Result<Ctr128BEWriter<W, Camellia256>> {
-    writer.write_all(iv)?;
-    Ctr128BEWriter::new(writer, key, iv)
 }
