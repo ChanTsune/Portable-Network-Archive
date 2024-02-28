@@ -141,7 +141,7 @@ impl<R: Read> Read for EntryReader<R> {
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) enum EntryContainer {
-    Solid(SolidReadEntry),
+    Solid(SolidEntry),
     Regular(RegularEntry),
 }
 
@@ -150,7 +150,7 @@ impl TryFrom<ChunkEntry> for EntryContainer {
     fn try_from(entry: ChunkEntry) -> Result<Self, Self::Error> {
         if let Some(first_chunk) = entry.0.first() {
             match first_chunk.ty {
-                ChunkType::SHED => Ok(Self::Solid(SolidReadEntry::try_from(entry)?)),
+                ChunkType::SHED => Ok(Self::Solid(SolidEntry::try_from(entry)?)),
                 ChunkType::FHED => Ok(Self::Regular(RegularEntry::try_from(entry)?)),
                 _ => Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid entry")),
             }
@@ -187,14 +187,14 @@ impl Iterator for EntryIterator<'_> {
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct SolidReadEntry {
+pub(crate) struct SolidEntry {
     header: SolidHeader,
     phsf: Option<String>,
     data: Vec<Vec<u8>>,
     extra: Vec<RawChunk>,
 }
 
-impl SealedEntryExt for SolidReadEntry {
+impl SealedEntryExt for SolidEntry {
     fn into_chunks(self) -> Vec<RawChunk> {
         let mut chunks = vec![];
         chunks.push(RawChunk::from_data(ChunkType::SHED, self.header.to_bytes()));
@@ -225,7 +225,7 @@ impl SealedEntryExt for SolidReadEntry {
 }
 
 #[allow(deprecated)]
-impl SolidReadEntry {
+impl SolidEntry {
     fn bytes_len(&self) -> usize {
         self.clone().into_bytes().len()
     }
@@ -238,7 +238,7 @@ impl SolidReadEntry {
     }
 }
 
-impl SolidReadEntry {
+impl SolidEntry {
     pub(crate) fn entries(&self, password: Option<&str>) -> io::Result<EntryIterator> {
         let reader = decrypt_reader(
             crate::io::FlattenReader::new(self.data.iter().map(|it| it.as_slice()).collect()),
@@ -253,7 +253,7 @@ impl SolidReadEntry {
     }
 }
 
-impl TryFrom<ChunkEntry> for SolidReadEntry {
+impl TryFrom<ChunkEntry> for SolidEntry {
     type Error = io::Error;
 
     fn try_from(entry: ChunkEntry) -> Result<Self, Self::Error> {
@@ -273,7 +273,7 @@ impl TryFrom<ChunkEntry> for SolidReadEntry {
     }
 }
 
-impl TryFrom<ChunkSolidEntries> for SolidReadEntry {
+impl TryFrom<ChunkSolidEntries> for SolidEntry {
     type Error = io::Error;
     fn try_from(entry: ChunkSolidEntries) -> Result<Self, Self::Error> {
         let mut extra = vec![];
