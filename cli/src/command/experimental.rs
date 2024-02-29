@@ -1,5 +1,5 @@
 #[cfg(feature = "unstable-generate")]
-mod generate;
+mod complete;
 #[cfg(feature = "unstable-split")]
 mod split;
 
@@ -20,7 +20,7 @@ impl Command for ExperimentalArgs {
             #[cfg(feature = "unstable-split")]
             ExperimentalCommands::Split(cmd) => cmd.execute(verbosity),
             #[cfg(feature = "unstable-generate")]
-            ExperimentalCommands::Generate(cmd) => cmd.execute(verbosity),
+            ExperimentalCommands::Complete(cmd) => cmd.execute(verbosity),
         }
     }
 }
@@ -32,5 +32,5 @@ pub(crate) enum ExperimentalCommands {
     Split(split::SplitCommand),
     #[cfg(feature = "unstable-generate")]
     #[command(about = "Generate shell auto complete")]
-    Generate(generate::GenerateCommand),
+    Complete(complete::CompleteCommand),
 }

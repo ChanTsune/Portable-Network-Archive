@@ -7,12 +7,12 @@ use clap_complete::{generate, Generator, Shell};
 use std::{env, io, path::PathBuf};
 
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
-pub(crate) struct GenerateCommand {
+pub(crate) struct CompleteCommand {
     #[arg(help = "shell")]
     shell: Shell,
 }
 
-impl Command for GenerateCommand {
+impl Command for CompleteCommand {
     fn execute(self, _: Verbosity) -> io::Result<()> {
         let cmd = &mut Cli::command();
         print_completions(self.shell, cmd);
