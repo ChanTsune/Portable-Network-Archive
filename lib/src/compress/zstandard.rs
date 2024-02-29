@@ -1,9 +1,10 @@
-pub(crate) type CompressionLevel = i32;
+use crate::CompressionLevel;
+use zstd::zstd_safe;
 
-impl From<crate::CompressionLevel> for CompressionLevel {
+impl From<CompressionLevel> for zstd_safe::CompressionLevel {
     #[inline]
-    fn from(value: crate::CompressionLevel) -> Self {
-        if value == crate::CompressionLevel::default() {
+    fn from(value: CompressionLevel) -> Self {
+        if value == CompressionLevel::DEFAULT {
             0
         } else {
             value.0 as Self
