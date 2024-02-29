@@ -1,9 +1,10 @@
-pub(crate) type CompressionLevel = flate2::Compression;
+use crate::CompressionLevel;
+use flate2::Compression;
 
-impl From<crate::CompressionLevel> for CompressionLevel {
+impl From<CompressionLevel> for Compression {
     #[inline]
-    fn from(value: crate::CompressionLevel) -> Self {
-        if value == crate::CompressionLevel::default() {
+    fn from(value: CompressionLevel) -> Self {
+        if value == CompressionLevel::DEFAULT {
             Self::default()
         } else {
             Self::new(value.0 as u32)
