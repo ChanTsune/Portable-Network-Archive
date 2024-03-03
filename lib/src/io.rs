@@ -32,38 +32,6 @@ impl TryIntoInner<Vec<u8>> for Vec<u8> {
     }
 }
 
-pub(crate) struct OwnedFlattenReader {
-    index: usize,
-    inner: Vec<io::Cursor<Vec<u8>>>,
-}
-
-impl OwnedFlattenReader {
-    #[inline]
-    pub(crate) fn new(inner: Vec<Vec<u8>>) -> Self {
-        Self {
-            index: 0,
-            inner: inner.into_iter().map(io::Cursor::new).collect(),
-        }
-    }
-}
-
-impl io::Read for OwnedFlattenReader {
-    #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        if let Some(c) = self.inner.get_mut(self.index) {
-            let s = c.read(buf);
-            if let Ok(0) = s {
-                self.index += 1;
-                self.read(buf)
-            } else {
-                s
-            }
-        } else {
-            Ok(0)
-        }
-    }
-}
-
 pub(crate) struct FlattenReader<'r> {
     index: usize,
     inner: Vec<&'r [u8]>,
@@ -99,18 +67,18 @@ mod tests {
 
     #[test]
     fn flat_empty() {
-        let reader = OwnedFlattenReader::new(vec![]);
+        let reader = FlattenReader::new(vec![]);
         assert_eq!("", io::read_to_string(reader).unwrap());
     }
     #[test]
     fn flat_empty_in_empty() {
-        let reader = OwnedFlattenReader::new(vec![vec![]]);
+        let reader = FlattenReader::new(vec![b""]);
         assert_eq!("", io::read_to_string(reader).unwrap());
     }
 
     #[test]
     fn flat_contain_empty() {
-        let reader = OwnedFlattenReader::new(vec![b"abc".to_vec(), b"".to_vec(), b"def".to_vec()]);
+        let reader = FlattenReader::new(vec![b"abc", b"", b"def"]);
         assert_eq!("abcdef", io::read_to_string(reader).unwrap());
     }
 }
