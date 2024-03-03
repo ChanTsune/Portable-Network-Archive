@@ -1,8 +1,7 @@
 use crate::{
     archive::entry::{
-        private::SealedEntryExt, writer_and_hash, DataKind, Entry, EntryContainer, EntryHeader,
-        EntryName, EntryReference, Metadata, Permission, RegularEntry, SolidEntry, SolidHeader,
-        WriteOption,
+        private::SealedEntryExt, writer_and_hash, DataKind, Entry, EntryHeader, EntryName,
+        EntryReference, Metadata, Permission, RegularEntry, SolidEntry, SolidHeader, WriteOption,
     },
     cipher::CipherWriter,
     compress::CompressionWriter,
@@ -397,6 +396,6 @@ impl SolidEntryBuilder {
     /// ```
     #[inline]
     pub fn build(self) -> io::Result<impl Entry> {
-        Ok(EntryContainer::Solid(self.build_as_entry()?))
+        self.build_as_entry()
     }
 }
