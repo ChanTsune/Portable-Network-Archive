@@ -537,23 +537,6 @@ impl RegularEntry {
         &self.metadata
     }
 
-    #[deprecated(since = "0.5.0", note = "Use `RegularEntry::reader` instead.")]
-    #[inline]
-    pub fn into_reader(self, option: ReadOption) -> io::Result<EntryDataReader<'static>> {
-        let raw_data_reader = crate::io::OwnedFlattenReader::new(self.data);
-        let decrypt_reader = decrypt_reader(
-            raw_data_reader,
-            self.header.encryption,
-            self.header.cipher_mode,
-            self.phsf.as_deref(),
-            option.password.as_deref(),
-        )?;
-        let reader = decompress_reader(decrypt_reader, self.header.compression)?;
-        Ok(EntryDataReader(EntryReaderWrapper::Own(EntryReader(
-            reader,
-        ))))
-    }
-
     /// Return the reader of this [`RegularEntry`].
     ///
     /// # Examples
