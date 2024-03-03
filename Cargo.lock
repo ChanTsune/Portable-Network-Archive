@@ -1034,7 +1034,7 @@ dependencies = [
 
 [[package]]
 name = "libpna"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "aes",
  "argon2",
@@ -1279,7 +1279,7 @@ checksum = "26072860ba924cbfa98ea39c8c19b4dd6a4a25423dbdf219c1eca91aa0cf6964"
 
 [[package]]
 name = "pna"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "libpna",
 ]
@@ -1322,7 +1322,7 @@ checksum = "7170ef9988bc169ba16dd36a7fa041e5c4cbeb6a35b76d4c03daded371eae7c0"
 
 [[package]]
 name = "portable-network-archive"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "ansi_term",
  "bytesize",
