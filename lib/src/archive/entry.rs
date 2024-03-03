@@ -217,7 +217,7 @@ impl SealedEntryExt for SolidEntry {
 }
 
 #[allow(deprecated)]
-impl SolidEntry {
+impl Entry for SolidEntry {
     fn bytes_len(&self) -> usize {
         self.clone().into_bytes().len()
     }
