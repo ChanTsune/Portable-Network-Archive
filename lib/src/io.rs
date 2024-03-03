@@ -8,7 +8,7 @@ pub(crate) struct FlattenWriter<const N: usize> {
 }
 
 impl<const N: usize> FlattenWriter<N> {
-    pub(crate) fn new() -> Self {
+    pub(crate) const fn new() -> Self {
         Self { inner: Vec::new() }
     }
 }
