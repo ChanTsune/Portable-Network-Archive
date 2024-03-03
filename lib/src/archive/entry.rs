@@ -102,20 +102,12 @@ impl Entry for ChunkEntry {
 }
 
 /// Reader for Entry data. this struct impl [`Read`] trait.
-pub struct EntryDataReader<'r>(EntryReaderWrapper<'r>);
-
-pub(crate) enum EntryReaderWrapper<'r> {
-    Own(EntryReader<crate::io::OwnedFlattenReader>),
-    Ref(EntryReader<crate::io::FlattenReader<'r>>),
-}
+pub struct EntryDataReader<'r>(EntryReader<crate::io::FlattenReader<'r>>);
 
 impl<'r> Read for EntryDataReader<'r> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        match &mut self.0 {
-            EntryReaderWrapper::Own(s) => s.read(buf),
-            EntryReaderWrapper::Ref(s) => s.read(buf),
-        }
+        self.0.read(buf)
     }
 }
 
@@ -569,9 +561,7 @@ impl RegularEntry {
             option.password.as_deref(),
         )?;
         let reader = decompress_reader(decrypt_reader, self.header.compression)?;
-        Ok(EntryDataReader(EntryReaderWrapper::Ref(EntryReader(
-            reader,
-        ))))
+        Ok(EntryDataReader(EntryReader(reader)))
     }
 }
 
