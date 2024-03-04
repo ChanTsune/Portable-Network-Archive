@@ -77,13 +77,11 @@ pub(crate) fn entry_option(
     cipher: CipherAlgorithmArgs,
     password: Option<String>,
 ) -> WriteOption {
-    let mut option_builder = WriteOption::builder();
     let (algorithm, level) = compression.algorithm();
-    option_builder.compression(algorithm);
-    if let Some(level) = level {
-        option_builder.compression_level(level);
-    }
+    let mut option_builder = WriteOption::builder();
     option_builder
+        .compression(algorithm)
+        .compression_level(level.unwrap_or_default())
         .encryption(if password.is_some() {
             cipher.algorithm()
         } else {
