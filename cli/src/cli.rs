@@ -193,17 +193,11 @@ impl CompressionAlgorithmArgs {
         if self.store {
             (pna::Compression::No, None)
         } else if let Some(level) = self.xz {
-            (pna::Compression::XZ, level.map(pna::CompressionLevel::from))
+            (pna::Compression::XZ, level.map(Into::into))
         } else if let Some(level) = self.zstd {
-            (
-                pna::Compression::ZStandard,
-                level.map(pna::CompressionLevel::from),
-            )
+            (pna::Compression::ZStandard, level.map(Into::into))
         } else if let Some(level) = self.deflate {
-            (
-                pna::Compression::Deflate,
-                level.map(pna::CompressionLevel::from),
-            )
+            (pna::Compression::Deflate, level.map(Into::into))
         } else {
             (pna::Compression::ZStandard, None)
         }
