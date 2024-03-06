@@ -1,5 +1,5 @@
 use crate::{
-    archive::{Archive, ArchiveHeader, ChunkEntry, EntryContainer, RegularEntry, PNA_HEADER},
+    archive::{Archive, ArchiveHeader, ChunkEntry, ReadEntry, RegularEntry, PNA_HEADER},
     chunk::{Chunk, ChunkReader, ChunkType, RawChunk},
 };
 #[cfg(feature = "unstable-async")]
@@ -108,7 +108,7 @@ impl<R: Read> Archive<R> {
     /// # Errors
     ///
     /// Returns an error if an I/O error occurs while reading from the archive.
-    pub(crate) fn read_entry(&mut self) -> io::Result<Option<EntryContainer>> {
+    pub(crate) fn read_entry(&mut self) -> io::Result<Option<ReadEntry>> {
         let entry = self.next_raw_item()?;
         match entry {
             Some(entry) => Ok(Some(entry.try_into()?)),
@@ -125,8 +125,8 @@ impl<R: Read> Archive<R> {
     pub fn entries_skip_solid(&mut self) -> impl Iterator<Item = io::Result<RegularEntry>> + '_ {
         self.iter().filter_map(|it| match it {
             Ok(e) => match e {
-                EntryContainer::Solid(_) => None,
-                EntryContainer::Regular(r) => Some(Ok(r)),
+                ReadEntry::Solid(_) => None,
+                ReadEntry::Regular(r) => Some(Ok(r)),
             },
             Err(e) => Some(Err(e)),
         })
@@ -256,13 +256,10 @@ impl<R: AsyncRead + Unpin> Archive<R> {
         loop {
             let entry = self.next_raw_item_async().await?;
             match entry {
-                Some(entry) => {
-                    let e: EntryContainer = entry.try_into()?;
-                    match e {
-                        EntryContainer::Solid(_) => continue,
-                        EntryContainer::Regular(entry) => return Ok(Some(entry)),
-                    }
-                }
+                Some(entry) => match entry.try_into()? {
+                    ReadEntry::Solid(_) => continue,
+                    ReadEntry::Regular(entry) => return Ok(Some(entry)),
+                },
                 None => return Ok(None),
             };
         }
@@ -290,7 +287,7 @@ impl<'r, R: Read> Entries<'r, R> {
 }
 
 impl<'r, R: Read> Iterator for Entries<'r, R> {
-    type Item = io::Result<EntryContainer>;
+    type Item = io::Result<ReadEntry>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -313,8 +310,8 @@ impl<'r, R: Read> Iterator for RegularEntries<'r, R> {
         }
         let entry = self.reader.read_entry();
         match entry {
-            Ok(Some(EntryContainer::Regular(entry))) => Some(Ok(entry)),
-            Ok(Some(EntryContainer::Solid(entry))) => {
+            Ok(Some(ReadEntry::Regular(entry))) => Some(Ok(entry)),
+            Ok(Some(ReadEntry::Solid(entry))) => {
                 let entries = entry.entries(self.password);
                 match entries {
                     Ok(entries) => {
