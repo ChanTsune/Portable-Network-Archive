@@ -38,7 +38,7 @@ pub trait Entry: SealedEntryExt {
     fn into_bytes(self) -> Vec<u8>;
 }
 
-impl SealedEntryExt for EntryContainer {
+impl SealedEntryExt for ReadEntry {
     fn into_chunks(self) -> Vec<RawChunk> {
         match self {
             Self::Regular(r) => r.into_chunks(),
@@ -48,13 +48,13 @@ impl SealedEntryExt for EntryContainer {
 
     fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         match self {
-            EntryContainer::Regular(r) => r.write_in(writer),
-            EntryContainer::Solid(s) => s.write_in(writer),
+            ReadEntry::Regular(r) => r.write_in(writer),
+            ReadEntry::Solid(s) => s.write_in(writer),
         }
     }
 }
 
-impl Entry for EntryContainer {
+impl Entry for ReadEntry {
     fn bytes_len(&self) -> usize {
         #[allow(deprecated)]
         match self {
@@ -132,12 +132,12 @@ impl<R: Read> Read for EntryReader<R> {
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) enum EntryContainer {
+pub(crate) enum ReadEntry {
     Solid(SolidEntry),
     Regular(RegularEntry),
 }
 
-impl TryFrom<ChunkEntry> for EntryContainer {
+impl TryFrom<ChunkEntry> for ReadEntry {
     type Error = io::Error;
     fn try_from(entry: ChunkEntry) -> Result<Self, Self::Error> {
         if let Some(first_chunk) = entry.0.first() {
