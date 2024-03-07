@@ -165,7 +165,7 @@ impl<R: Read> Archive<R> {
         &'a mut self,
         password: Option<&'a str>,
     ) -> impl Iterator<Item = io::Result<RegularEntry>> + 'a {
-        self.iter().extract_solid(password)
+        self.iter().extract_solid_entries(password)
     }
 
     /// Returns `true` if [ANXT] chunk is appeared before call this method calling.
@@ -280,7 +280,7 @@ impl<'r, R: Read> Entries<'r, R> {
     }
 
     #[inline]
-    pub(crate) fn extract_solid(self, password: Option<&'r str>) -> RegularEntries<'r, R> {
+    pub(crate) fn extract_solid_entries(self, password: Option<&'r str>) -> RegularEntries<'r, R> {
         RegularEntries {
             reader: self.reader,
             password,
