@@ -1,3 +1,4 @@
+use crate::command::complete;
 #[cfg(feature = "experimental")]
 use crate::command::experimental::ExperimentalArgs;
 use bytesize::ByteSize;
@@ -57,6 +58,8 @@ pub(crate) enum Commands {
     Extract(ExtractArgs),
     #[command(visible_aliases = &["l", "ls"], about = "List files in archive")]
     List(ListArgs),
+    #[command(about = "Generate shell auto complete")]
+    Complete(complete::CompleteCommand),
     #[cfg(feature = "experimental")]
     #[command(about = "Unstable experimental commands")]
     Experimental(ExperimentalArgs),
