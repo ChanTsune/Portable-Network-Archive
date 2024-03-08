@@ -23,7 +23,7 @@ where
     P: Padding<<C as BlockSizeUser>::BlockSize>,
     cbc::Decryptor<C>: KeyIvInit,
 {
-    pub(crate) fn new_with_iv(mut r: R, key: &[u8], iv: &[u8]) -> io::Result<Self> {
+    pub(crate) fn new(mut r: R, key: &[u8], iv: &[u8]) -> io::Result<Self> {
         let block_size = cbc::Decryptor::<C>::block_size();
         let mut buf = vec![0u8; block_size];
         let prev_len = r.read(&mut buf)?;
@@ -41,12 +41,6 @@ where
             buf,
             eof: false,
         })
-    }
-
-    pub(crate) fn new(mut r: R, key: &[u8]) -> io::Result<Self> {
-        let mut iv = vec![0; cbc::Decryptor::<C>::block_size()];
-        r.read_exact(&mut iv)?;
-        Self::new_with_iv(r, key, &iv)
     }
 }
 
@@ -112,7 +106,7 @@ mod tests {
         ];
 
         let mut buf = [0u8; 34];
-        let mut dec = CbcBlockCipherDecryptReader::<_, aes::Aes128, Pkcs7>::new_with_iv(
+        let mut dec = CbcBlockCipherDecryptReader::<_, aes::Aes128, Pkcs7>::new(
             ciphertext.as_slice(),
             &key,
             &iv,

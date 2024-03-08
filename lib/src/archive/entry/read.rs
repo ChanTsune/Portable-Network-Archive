@@ -32,21 +32,24 @@ pub(crate) fn decrypt_reader<R: Read>(
             let hash = phsf
                 .hash
                 .ok_or_else(|| io::Error::new(io::ErrorKind::Unsupported, "Failed to get hash"))?;
+            let key = hash.as_bytes();
             match (encryption, cipher_mode) {
                 (Encryption::Aes, CipherMode::CBC) => {
-                    DecryptReader::CbcAes(DecryptCbcAes256Reader::new(reader, hash.as_bytes())?)
+                    let mut iv = vec![0; Aes256::block_size()];
+                    reader.read_exact(&mut iv)?;
+                    DecryptReader::CbcAes(DecryptCbcAes256Reader::new(reader, key, &iv)?)
                 }
                 (Encryption::Aes, CipherMode::CTR) => {
-                    let key = hash.as_bytes();
                     let mut iv = vec![0u8; Aes256::block_size()];
                     reader.read_exact(&mut iv)?;
                     DecryptReader::CtrAes(Ctr128BEReader::new(reader, key, &iv)?)
                 }
-                (Encryption::Camellia, CipherMode::CBC) => DecryptReader::CbcCamellia(
-                    DecryptCbcCamellia256Reader::new(reader, hash.as_bytes())?,
-                ),
+                (Encryption::Camellia, CipherMode::CBC) => {
+                    let mut iv = vec![0; Camellia256::block_size()];
+                    reader.read_exact(&mut iv)?;
+                    DecryptReader::CbcCamellia(DecryptCbcCamellia256Reader::new(reader, key, &iv)?)
+                }
                 _ => {
-                    let key = hash.as_bytes();
                     let mut iv = vec![0u8; Camellia256::block_size()];
                     reader.read_exact(&mut iv)?;
                     DecryptReader::CtrCamellia(Ctr128BEReader::new(reader, key, &iv)?)
