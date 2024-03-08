@@ -279,6 +279,7 @@ impl<'r, R: Read> Entries<'r, R> {
         Self { reader }
     }
 
+    /// Returns an iterator that extract solid entries in the archive and returns a regular entry.
     #[inline]
     pub(crate) fn extract_solid_entries(self, password: Option<&'r str>) -> RegularEntries<'r, R> {
         RegularEntries {
