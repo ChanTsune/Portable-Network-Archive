@@ -1,9 +1,13 @@
-use crate::cipher::Ctr128BEReader;
+use crate::{
+    cipher::{Ctr128BEReader, DecryptCbcAes256Reader, DecryptCbcCamellia256Reader, DecryptReader},
+    compress::DecompressReader,
+    hash::verify_password,
+    CipherMode, Compression, Encryption,
+};
 use aes::Aes256;
 use camellia::Camellia256;
 use crypto_common::BlockSizeUser;
-use std::io;
-use std::io::Read;
+use std::io::{self, Read};
 
 pub(super) fn aes_ctr_cipher_reader<R: Read>(
     mut reader: R,
@@ -21,4 +25,67 @@ pub(super) fn camellia_ctr_cipher_reader<R: Read>(
     let mut iv = vec![0u8; Camellia256::block_size()];
     reader.read_exact(&mut iv)?;
     Ctr128BEReader::new(reader, key, &iv)
+}
+
+/// Decrypt reader according to encryption type.
+pub(crate) fn decrypt_reader<R: Read>(
+    reader: R,
+    encryption: Encryption,
+    cipher_mode: CipherMode,
+    phsf: Option<&str>,
+    password: Option<&str>,
+) -> io::Result<DecryptReader<R>> {
+    Ok(match encryption {
+        Encryption::No => DecryptReader::No(reader),
+        encryption @ (Encryption::Aes | Encryption::Camellia) => {
+            let s = phsf.ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidData, "`PHSF` chunk not found")
+            })?;
+            let phsf = verify_password(
+                s,
+                password.ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidInput, "Password was not provided")
+                })?,
+            )?;
+            let hash = phsf
+                .hash
+                .ok_or_else(|| io::Error::new(io::ErrorKind::Unsupported, "Failed to get hash"))?;
+            match (encryption, cipher_mode) {
+                (Encryption::Aes, CipherMode::CBC) => {
+                    DecryptReader::CbcAes(DecryptCbcAes256Reader::new(reader, hash.as_bytes())?)
+                }
+                (Encryption::Aes, CipherMode::CTR) => {
+                    DecryptReader::CtrAes(aes_ctr_cipher_reader(reader, hash.as_bytes())?)
+                }
+                (Encryption::Camellia, CipherMode::CBC) => DecryptReader::CbcCamellia(
+                    DecryptCbcCamellia256Reader::new(reader, hash.as_bytes())?,
+                ),
+                _ => {
+                    DecryptReader::CtrCamellia(camellia_ctr_cipher_reader(reader, hash.as_bytes())?)
+                }
+            }
+        }
+    })
+}
+
+/// Decompress reader according to compression type.
+pub(crate) fn decompress_reader<R: Read>(
+    reader: R,
+    compression: Compression,
+) -> io::Result<DecompressReader<R>> {
+    Ok(match compression {
+        Compression::No => DecompressReader::No(reader),
+        Compression::Deflate => DecompressReader::Deflate(flate2::read::ZlibDecoder::new(reader)),
+        Compression::ZStandard => DecompressReader::ZStd(zstd::Decoder::new(reader)?),
+        Compression::XZ => DecompressReader::Xz(liblzma::read::XzDecoder::new(reader)),
+    })
+}
+
+pub(crate) struct EntryReader<R: Read>(pub(crate) DecompressReader<DecryptReader<R>>);
+
+impl<R: Read> Read for EntryReader<R> {
+    #[inline]
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.read(buf)
+    }
 }

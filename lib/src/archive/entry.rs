@@ -11,9 +11,6 @@ pub use self::{builder::*, header::*, meta::*, name::*, options::*, reference::*
 use self::{private::*, read::*, write::*};
 use crate::{
     chunk::{chunk_data_split, ChunkExt, ChunkReader, ChunkType, RawChunk, MIN_CHUNK_BYTES_SIZE},
-    cipher::{DecryptCbcAes256Reader, DecryptCbcCamellia256Reader, DecryptReader},
-    compress::DecompressReader,
-    hash::verify_password,
     util::slice::skip_while,
 };
 use std::{
@@ -119,15 +116,6 @@ impl<'r> futures::AsyncRead for EntryDataReader<'r> {
         buf: &mut [u8],
     ) -> std::task::Poll<io::Result<usize>> {
         std::task::Poll::Ready(self.get_mut().read(buf))
-    }
-}
-
-pub(crate) struct EntryReader<R: Read>(DecompressReader<DecryptReader<R>>);
-
-impl<R: Read> Read for EntryReader<R> {
-    #[inline]
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.0.read(buf)
     }
 }
 
@@ -563,60 +551,6 @@ impl RegularEntry {
         let reader = decompress_reader(decrypt_reader, self.header.compression)?;
         Ok(EntryDataReader(EntryReader(reader)))
     }
-}
-
-/// Decrypt reader according to encryption type.
-fn decrypt_reader<R: Read>(
-    reader: R,
-    encryption: Encryption,
-    cipher_mode: CipherMode,
-    phsf: Option<&str>,
-    password: Option<&str>,
-) -> io::Result<DecryptReader<R>> {
-    Ok(match encryption {
-        Encryption::No => DecryptReader::No(reader),
-        encryption @ (Encryption::Aes | Encryption::Camellia) => {
-            let s = phsf.ok_or_else(|| {
-                io::Error::new(io::ErrorKind::InvalidData, "`PHSF` chunk not found")
-            })?;
-            let phsf = verify_password(
-                s,
-                password.ok_or_else(|| {
-                    io::Error::new(io::ErrorKind::InvalidInput, "Password was not provided")
-                })?,
-            )?;
-            let hash = phsf
-                .hash
-                .ok_or_else(|| io::Error::new(io::ErrorKind::Unsupported, "Failed to get hash"))?;
-            match (encryption, cipher_mode) {
-                (Encryption::Aes, CipherMode::CBC) => {
-                    DecryptReader::CbcAes(DecryptCbcAes256Reader::new(reader, hash.as_bytes())?)
-                }
-                (Encryption::Aes, CipherMode::CTR) => {
-                    DecryptReader::CtrAes(aes_ctr_cipher_reader(reader, hash.as_bytes())?)
-                }
-                (Encryption::Camellia, CipherMode::CBC) => DecryptReader::CbcCamellia(
-                    DecryptCbcCamellia256Reader::new(reader, hash.as_bytes())?,
-                ),
-                _ => {
-                    DecryptReader::CtrCamellia(camellia_ctr_cipher_reader(reader, hash.as_bytes())?)
-                }
-            }
-        }
-    })
-}
-
-/// Decompress reader according to compression type.
-fn decompress_reader<R: Read>(
-    reader: R,
-    compression: Compression,
-) -> io::Result<DecompressReader<R>> {
-    Ok(match compression {
-        Compression::No => DecompressReader::No(reader),
-        Compression::Deflate => DecompressReader::Deflate(flate2::read::ZlibDecoder::new(reader)),
-        Compression::ZStandard => DecompressReader::ZStd(zstd::Decoder::new(reader)?),
-        Compression::XZ => DecompressReader::Xz(liblzma::read::XzDecoder::new(reader)),
-    })
 }
 
 /// A structure representing the [Entry] or the [SolidEntries] split for archive splitting.
