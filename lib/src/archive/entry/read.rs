@@ -9,27 +9,9 @@ use camellia::Camellia256;
 use crypto_common::BlockSizeUser;
 use std::io::{self, Read};
 
-pub(super) fn aes_ctr_cipher_reader<R: Read>(
-    mut reader: R,
-    key: &[u8],
-) -> io::Result<Ctr128BEReader<R, Aes256>> {
-    let mut iv = vec![0u8; Aes256::block_size()];
-    reader.read_exact(&mut iv)?;
-    Ctr128BEReader::new(reader, key, &iv)
-}
-
-pub(super) fn camellia_ctr_cipher_reader<R: Read>(
-    mut reader: R,
-    key: &[u8],
-) -> io::Result<Ctr128BEReader<R, Camellia256>> {
-    let mut iv = vec![0u8; Camellia256::block_size()];
-    reader.read_exact(&mut iv)?;
-    Ctr128BEReader::new(reader, key, &iv)
-}
-
 /// Decrypt reader according to encryption type.
 pub(crate) fn decrypt_reader<R: Read>(
-    reader: R,
+    mut reader: R,
     encryption: Encryption,
     cipher_mode: CipherMode,
     phsf: Option<&str>,
@@ -55,13 +37,19 @@ pub(crate) fn decrypt_reader<R: Read>(
                     DecryptReader::CbcAes(DecryptCbcAes256Reader::new(reader, hash.as_bytes())?)
                 }
                 (Encryption::Aes, CipherMode::CTR) => {
-                    DecryptReader::CtrAes(aes_ctr_cipher_reader(reader, hash.as_bytes())?)
+                    let key = hash.as_bytes();
+                    let mut iv = vec![0u8; Aes256::block_size()];
+                    reader.read_exact(&mut iv)?;
+                    DecryptReader::CtrAes(Ctr128BEReader::new(reader, key, &iv)?)
                 }
                 (Encryption::Camellia, CipherMode::CBC) => DecryptReader::CbcCamellia(
                     DecryptCbcCamellia256Reader::new(reader, hash.as_bytes())?,
                 ),
                 _ => {
-                    DecryptReader::CtrCamellia(camellia_ctr_cipher_reader(reader, hash.as_bytes())?)
+                    let key = hash.as_bytes();
+                    let mut iv = vec![0u8; Camellia256::block_size()];
+                    reader.read_exact(&mut iv)?;
+                    DecryptReader::CtrCamellia(Ctr128BEReader::new(reader, key, &iv)?)
                 }
             }
         }
