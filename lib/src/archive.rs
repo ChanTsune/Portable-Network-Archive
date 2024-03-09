@@ -8,7 +8,7 @@ pub use entry::*;
 pub use header::*;
 
 /// An object providing access to a PNA file.
-/// An instance of a [Archive] can be read and/or written depending on the [T].
+/// An instance of an [Archive] can be read and/or written.
 ///
 /// # Examples
 /// Creates a new PNA file and add entry to it.
