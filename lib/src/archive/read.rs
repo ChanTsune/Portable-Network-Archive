@@ -44,7 +44,7 @@ impl<R: Read> Archive<R> {
     ///
     /// # Returns
     ///
-    /// A new [io::Result<Archive<W>>].
+    /// A new [`io::Result<Archive<W>>`].
     ///
     /// # Errors
     ///

@@ -15,7 +15,7 @@ impl<W: Write> Archive<W> {
     ///
     /// # Returns
     ///
-    /// A new [io::Result<Archive<W>>]
+    /// A new [`io::Result<Archive<W>>`]
     ///
     /// # Errors
     ///
