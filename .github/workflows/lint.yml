@@ -1,0 +1,24 @@
+name: lint
+on:
+  pull_request:
+  push:
+jobs:
+  rust_check_format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-rust
+      - name: run check format
+        run: cargo fmt --check
+        env:
+          RUST_BACKTRACE: 1
+  rust_check_doc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-rust
+      - name: run check doc
+        run: cargo doc --no-deps
+        env:
+          RUST_BACKTRACE: 1
+          RUSTFLAGS: -Dwarnings
