@@ -1,7 +1,7 @@
 use std::io::{self, Read};
 use std::time::Duration;
 
-/// MetaData information about a entry
+/// MetaData information about an entry
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Metadata {
     pub(crate) raw_file_size: Option<u128>,
@@ -38,14 +38,14 @@ impl Metadata {
     pub const fn accessed(&self) -> Option<Duration> {
         self.accessed
     }
-    /// A owner, group, and permissions for a entry
+    /// An owner, group, and permissions for an entry
     #[inline]
     pub const fn permission(&self) -> Option<&Permission> {
         self.permission.as_ref()
     }
 }
 
-/// Permission struct represents a owner, group, and permissions for a entry.
+/// Permission struct represents an owner, group, and permissions for an entry.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Permission {
     uid: u64,

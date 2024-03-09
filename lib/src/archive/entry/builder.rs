@@ -380,7 +380,7 @@ impl SolidEntryBuilder {
         })
     }
 
-    /// Builds the solid entry as a [Entry].
+    /// Builds the solid entry as an [Entry].
     ///
     /// # Examples
     ///
