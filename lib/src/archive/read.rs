@@ -108,7 +108,7 @@ impl<R: Read> Archive<R> {
     /// # Errors
     ///
     /// Returns an error if an I/O error occurs while reading from the archive.
-    pub(crate) fn read_entry(&mut self) -> io::Result<Option<ReadEntry>> {
+    fn read_entry(&mut self) -> io::Result<Option<ReadEntry>> {
         let entry = self.next_raw_item()?;
         match entry {
             Some(entry) => Ok(Some(entry.try_into()?)),
