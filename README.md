@@ -53,7 +53,7 @@ pna --help
 
 ## Specification
 
-For more detailed information, please refer to the [Specification](./Specification.md) document.
+For more detailed information, please refer to the [Specification](https://portable-network-archive.github.io/Portable-Network-Archive-Specification/) document.
 
 # License
 
