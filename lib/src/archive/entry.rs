@@ -71,9 +71,9 @@ impl Entry for ReadEntry {
 
 /// Chunks from `FHED` to `FEND`, containing `FHED` and `FEND`
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct ChunkEntry(pub(crate) Vec<RawChunk>);
+pub(crate) struct RawEntry(pub(crate) Vec<RawChunk>);
 
-impl SealedEntryExt for ChunkEntry {
+impl SealedEntryExt for RawEntry {
     #[inline]
     fn into_chunks(self) -> Vec<RawChunk> {
         self.0
@@ -88,7 +88,7 @@ impl SealedEntryExt for ChunkEntry {
     }
 }
 
-impl Entry for ChunkEntry {
+impl Entry for RawEntry {
     fn bytes_len(&self) -> usize {
         self.0.iter().map(|chunk| chunk.bytes_len()).sum()
     }
@@ -125,9 +125,9 @@ pub(crate) enum ReadEntry {
     Regular(RegularEntry),
 }
 
-impl TryFrom<ChunkEntry> for ReadEntry {
+impl TryFrom<RawEntry> for ReadEntry {
     type Error = io::Error;
-    fn try_from(entry: ChunkEntry) -> Result<Self, Self::Error> {
+    fn try_from(entry: RawEntry) -> Result<Self, Self::Error> {
         if let Some(first_chunk) = entry.0.first() {
             match first_chunk.ty {
                 ChunkType::SHED => Ok(Self::Solid(SolidEntry::try_from(entry)?)),
@@ -162,7 +162,7 @@ impl Iterator for EntryIterator<'_> {
                 Err(e) => return Some(Err(e)),
             }
         }
-        Some(ChunkEntry(chunks).try_into())
+        Some(RawEntry(chunks).try_into())
     }
 }
 
@@ -233,10 +233,10 @@ impl SolidEntry {
     }
 }
 
-impl TryFrom<ChunkEntry> for SolidEntry {
+impl TryFrom<RawEntry> for SolidEntry {
     type Error = io::Error;
 
-    fn try_from(entry: ChunkEntry) -> Result<Self, Self::Error> {
+    fn try_from(entry: RawEntry) -> Result<Self, Self::Error> {
         if let Some(first_chunk) = entry.0.first() {
             if first_chunk.ty != ChunkType::SHED {
                 return Err(io::Error::new(
@@ -304,9 +304,9 @@ pub struct RegularEntry {
     pub(crate) metadata: Metadata,
 }
 
-impl TryFrom<ChunkEntry> for RegularEntry {
+impl TryFrom<RawEntry> for RegularEntry {
     type Error = io::Error;
-    fn try_from(entry: ChunkEntry) -> Result<Self, Self::Error> {
+    fn try_from(entry: RawEntry) -> Result<Self, Self::Error> {
         if let Some(first_chunk) = entry.0.first() {
             if first_chunk.ty != ChunkType::FHED {
                 return Err(io::Error::new(
@@ -648,8 +648,8 @@ mod tests {
         use super::*;
         use once_cell::sync::Lazy;
 
-        static TEST_ENTRY: Lazy<ChunkEntry> = Lazy::new(|| {
-            ChunkEntry(vec![
+        static TEST_ENTRY: Lazy<RawEntry> = Lazy::new(|| {
+            RawEntry(vec![
                 RawChunk::from_data(
                     ChunkType::FHED,
                     vec![0, 0, 0, 0, 0, 1, 116, 101, 115, 116, 46, 116, 120, 116],

@@ -1,5 +1,5 @@
 use crate::{
-    archive::{Archive, ArchiveHeader, ChunkEntry, ReadEntry, RegularEntry, PNA_HEADER},
+    archive::{Archive, ArchiveHeader, RawEntry, ReadEntry, RegularEntry, PNA_HEADER},
     chunk::{Chunk, ChunkReader, ChunkType, RawChunk},
 };
 #[cfg(feature = "unstable-async")]
@@ -77,7 +77,7 @@ impl<R: Read> Archive<R> {
     /// # Errors
     ///
     /// Returns an error if an I/O error occurs while reading from the archive.
-    fn next_raw_item(&mut self) -> io::Result<Option<ChunkEntry>> {
+    fn next_raw_item(&mut self) -> io::Result<Option<RawEntry>> {
         let mut chunks = Vec::new();
         swap(&mut self.buf, &mut chunks);
         let mut reader = ChunkReader::from(&mut self.inner);
@@ -96,7 +96,7 @@ impl<R: Read> Archive<R> {
                 _ => chunks.push(chunk),
             }
         }
-        Ok(Some(ChunkEntry(chunks)))
+        Ok(Some(RawEntry(chunks)))
     }
 
     /// Reads the next entry from the archive.
@@ -230,7 +230,7 @@ impl<R: AsyncRead + Unpin> Archive<R> {
         Ok(Self::with_buffer(reader, header, buf))
     }
 
-    async fn next_raw_item_async(&mut self) -> io::Result<Option<ChunkEntry>> {
+    async fn next_raw_item_async(&mut self) -> io::Result<Option<RawEntry>> {
         let mut chunks = Vec::new();
         swap(&mut self.buf, &mut chunks);
         let mut reader = ChunkReader::from(&mut self.inner);
@@ -249,7 +249,7 @@ impl<R: AsyncRead + Unpin> Archive<R> {
                 _ => chunks.push(chunk),
             }
         }
-        Ok(Some(ChunkEntry(chunks)))
+        Ok(Some(RawEntry(chunks)))
     }
 
     pub async fn read_entry_async(&mut self) -> io::Result<Option<RegularEntry>> {
