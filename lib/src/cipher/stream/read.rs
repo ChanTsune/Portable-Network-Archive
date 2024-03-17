@@ -41,7 +41,7 @@ where
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let n = self.r.read(buf)?;
-        self.cipher.apply_keystream(buf);
+        self.cipher.apply_keystream(&mut buf[..n]);
         Ok(n)
     }
 }
