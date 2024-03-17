@@ -1,7 +1,4 @@
-use std::{
-    io::{self, Read},
-    mem,
-};
+use std::io;
 
 /// The magic number of Portable-Network-Archive
 pub const PNA_HEADER: &[u8; 8] = b"\x89PNA\r\n\x1A\n";
@@ -36,27 +33,18 @@ impl ArchiveHeader {
         data
     }
 
-    pub(crate) fn try_from_bytes(mut bytes: &[u8]) -> io::Result<Self> {
-        let major = {
-            let mut buf = [0; 1];
-            bytes.read_exact(&mut buf)?;
-            buf[0]
-        };
-        let minor = {
-            let mut buf = [0; 1];
-            bytes.read_exact(&mut buf)?;
-            buf[0]
-        };
-
+    pub(crate) const fn from_bytes(bytes: [u8; 8]) -> Self {
+        let major = bytes[0];
+        let minor = bytes[1];
         // NOTE: ignore 2bytes currently unused.
-        bytes.read_exact(&mut [0; 2])?;
+        let archive_number = u32::from_be_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
+        Self::new(major, minor, archive_number)
+    }
 
-        let archive_number = {
-            let mut buf = [0; mem::size_of::<u32>()];
-            bytes.read_exact(&mut buf)?;
-            u32::from_be_bytes(buf)
-        };
-        Ok(Self::new(major, minor, archive_number))
+    pub(crate) fn try_from_bytes(bytes: &[u8]) -> io::Result<Self> {
+        Ok(Self::from_bytes(bytes.try_into().map_err(|e| {
+            io::Error::new(io::ErrorKind::InvalidInput, e)
+        })?))
     }
 }
 
@@ -78,12 +66,28 @@ mod tests {
     #[test]
     fn header_from_bytes() {
         assert_eq!(
-            ArchiveHeader::try_from_bytes(&[0u8, 0, 0, 0, 0, 0, 0, 0]).unwrap(),
+            ArchiveHeader::from_bytes([0u8, 0, 0, 0, 0, 0, 0, 0]),
             ArchiveHeader::new(0, 0, 0)
         );
         assert_eq!(
-            ArchiveHeader::try_from_bytes(&[1u8, 2, 0, 0, 0, 0, 0, 3]).unwrap(),
+            ArchiveHeader::from_bytes([1u8, 2, 0, 0, 0, 0, 0, 3]),
             ArchiveHeader::new(1, 2, 3)
+        );
+    }
+
+    #[test]
+    fn header_try_from_bytes() {
+        assert!(ArchiveHeader::try_from_bytes(&[0u8; 7]).is_err());
+        assert!(ArchiveHeader::try_from_bytes(&[0u8; 8]).is_ok());
+        assert!(ArchiveHeader::try_from_bytes(&[0u8; 9]).is_err());
+    }
+
+    #[test]
+    fn header_to_from_bytes() {
+        let bytes = [1u8, 2, 0, 0, 0, 0, 0, 3];
+        assert_eq!(
+            ArchiveHeader::from_bytes(bytes),
+            ArchiveHeader::from_bytes(ArchiveHeader::from_bytes(bytes).to_bytes()),
         );
     }
 }
