@@ -2,7 +2,7 @@ use clap::Parser;
 use portable_network_archive::{cli, command};
 
 #[test]
-fn create_multipart_archive() {
+fn multipart_archive() {
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -14,5 +14,15 @@ fn create_multipart_archive() {
         "--split",
         "110",
     ]))
-    .unwrap()
+    .unwrap();
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        &format!("{}/multipart.part1.pna", env!("CARGO_TARGET_TMPDIR")),
+        "--overwrite",
+        "--out-dir",
+        &env!("CARGO_TARGET_TMPDIR"),
+    ]))
+    .unwrap();
 }
