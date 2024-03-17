@@ -11,6 +11,7 @@ pub(crate) struct ArchiveHeader {
 }
 
 impl ArchiveHeader {
+    #[inline]
     pub(crate) const fn new(major: u8, minor: u8, archive_number: u32) -> Self {
         Self {
             major,
@@ -33,6 +34,7 @@ impl ArchiveHeader {
         data
     }
 
+    #[inline]
     pub(crate) const fn from_bytes(bytes: [u8; 8]) -> Self {
         let major = bytes[0];
         let minor = bytes[1];
@@ -41,6 +43,7 @@ impl ArchiveHeader {
         Self::new(major, minor, archive_number)
     }
 
+    #[inline]
     pub(crate) fn try_from_bytes(bytes: &[u8]) -> io::Result<Self> {
         Ok(Self::from_bytes(bytes.try_into().map_err(|e| {
             io::Error::new(io::ErrorKind::InvalidInput, e)
