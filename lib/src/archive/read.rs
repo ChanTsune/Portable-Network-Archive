@@ -75,6 +75,37 @@ impl<R: Read> Archive<R> {
         Ok(Self::with_buffer(reader, header, buf))
     }
 
+    fn next_lazy_item(&mut self) -> io::Result<Option<LazyEntry<R>>> {
+        let mut chunks = Vec::new();
+        swap(&mut self.buf, &mut chunks);
+        let mut reader = ChunkReader::from(&mut self.inner);
+        loop {
+            let chunk = reader.read_chunk()?;
+            match chunk.ty {
+                ChunkType::FHED => {
+                    let header = EntryHeader::try_from(chunk.data())?;
+                    return Ok(Some(LazyEntry::Regular(LazyRegularEntry {
+                        header,
+                        reader: &mut self.inner,
+                    })));
+                }
+                ChunkType::SHED => {
+                    let header = SolidHeader::try_from(chunk.data())?;
+                    return Ok(Some(LazyEntry::Solid(LazySolidEntry {
+                        header,
+                        reader: &mut self.inner,
+                    })));
+                }
+                ChunkType::ANXT => self.next_archive = true,
+                ChunkType::AEND => {
+                    self.buf = chunks;
+                    return Ok(None);
+                }
+                _ => chunks.push(chunk),
+            }
+        }
+    }
+
     /// Reads the next raw entry (from `FHED` to `FEND` chunk) from the archive.
     ///
     /// # Returns
@@ -293,43 +324,7 @@ where
     Self: 'r,
 {
     fn next(&'r mut self) -> Option<io::Result<LazyEntry<'r, R>>> {
-        let mut chunks = Vec::new();
-        swap(&mut self.reader.buf, &mut chunks);
-        let mut reader = ChunkReader::from(&mut self.reader.inner);
-        loop {
-            let chunk = match reader.read_chunk() {
-                Ok(chunk) => chunk,
-                Err(e) => return Some(Err(e)),
-            };
-            match chunk.ty {
-                ChunkType::FHED => {
-                    let header = match EntryHeader::try_from(chunk.data()) {
-                        Ok(header) => header,
-                        Err(e) => return Some(Err(e)),
-                    };
-                    return Some(Ok(LazyEntry::Regular(LazyRegularEntry {
-                        header,
-                        reader: &mut self.reader.inner,
-                    })));
-                }
-                ChunkType::SHED => {
-                    let header = match SolidHeader::try_from(chunk.data()) {
-                        Ok(header) => header,
-                        Err(e) => return Some(Err(e)),
-                    };
-                    return Some(Ok(LazyEntry::Solid(LazySolidEntry {
-                        header,
-                        reader: &mut self.reader.inner,
-                    })));
-                }
-                ChunkType::ANXT => self.reader.next_archive = true,
-                ChunkType::AEND => {
-                    self.reader.buf = chunks;
-                    return None;
-                }
-                _ => chunks.push(chunk),
-            }
-        }
+        self.reader.next_lazy_item().transpose()
     }
 }
 
