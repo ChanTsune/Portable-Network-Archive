@@ -187,6 +187,9 @@ impl TryFrom<&[u8]> for SolidHeader {
     type Error = io::Error;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        let bytes: [_; 5] = bytes
+            .try_into()
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
         Ok(Self {
             major: bytes[0],
             minor: bytes[1],
