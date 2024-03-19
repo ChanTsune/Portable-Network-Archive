@@ -11,6 +11,7 @@ jobs:
           - ubuntu-latest
           - windows-latest
           - macos-latest
+          - macos-14 # aarch64 runner
           - freebsd-latest # self-hosted
         rust:
           - stable
