@@ -14,10 +14,7 @@ fn read_pna_header<R: Read>(mut reader: R) -> io::Result<()> {
     let mut header = [0u8; PNA_HEADER.len()];
     reader.read_exact(&mut header)?;
     if &header != PNA_HEADER {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "It's not a PNA format",
-        ));
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "It's not PNA"));
     }
     Ok(())
 }
@@ -27,10 +24,7 @@ async fn read_pna_header_async<R: AsyncRead + Unpin>(mut reader: R) -> io::Resul
     let mut header = [0u8; PNA_HEADER.len()];
     reader.read_exact(&mut header).await?;
     if &header != PNA_HEADER {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "It's not a PNA format",
-        ));
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "It's not PNA"));
     }
     Ok(())
 }
