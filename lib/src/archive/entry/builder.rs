@@ -414,9 +414,8 @@ impl SolidEntryBuilder {
     /// #     Ok(())
     /// # }
     /// ```
-    pub fn add_entry(&mut self, entry: RegularEntry) -> io::Result<()> {
-        entry.write_in(&mut self.data)?;
-        Ok(())
+    pub fn add_entry(&mut self, entry: RegularEntry) -> io::Result<usize> {
+        entry.write_in(&mut self.data)
     }
 
     fn build_as_entry(self) -> io::Result<SolidEntry> {
