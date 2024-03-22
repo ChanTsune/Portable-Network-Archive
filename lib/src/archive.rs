@@ -282,7 +282,7 @@ mod tests {
 
         let mut writer = Archive::write_header(Vec::new()).expect("failed to write archive header");
 
-        for entry in reader.entries_skip_solid() {
+        for entry in reader.raw_entries() {
             writer
                 .add_entry(entry.expect("failed to read entry"))
                 .expect("failed to add entry");

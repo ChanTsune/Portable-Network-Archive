@@ -1,5 +1,5 @@
 use crate::{
-    archive::{Archive, ArchiveHeader, RawEntry, ReadEntry, RegularEntry, PNA_HEADER},
+    archive::{Archive, ArchiveHeader, Entry, RawEntry, ReadEntry, RegularEntry, PNA_HEADER},
     chunk::{Chunk, ChunkReader, ChunkType, RawChunk},
 };
 #[cfg(feature = "unstable-async")]
@@ -114,6 +114,33 @@ impl<R: Read> Archive<R> {
             Some(entry) => Ok(Some(entry.try_into()?)),
             None => Ok(None),
         }
+    }
+
+    /// Returns an iterator over raw entries in the archive.
+    ///
+    /// # Returns
+    ///
+    /// An iterator over raw entries in the archive.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// # use std::io;
+    /// use libpna::Archive;
+    /// use std::fs::File;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let mut src = Archive::read_header(File::open("foo.pna")?)?;
+    /// let mut dist = Archive::write_header(File::create("bar.pna")?)?;
+    /// for entry in src.raw_entries() {
+    ///     dist.add_entry(entry?)?;
+    /// }
+    /// dist.finalize()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn raw_entries(&mut self) -> impl Iterator<Item = io::Result<impl Entry>> + '_ {
+        RawEntries(self)
     }
 
     /// Returns an iterator over the entries in the archive, excluding entries in solid mode.
@@ -263,6 +290,16 @@ impl<R: AsyncRead + Unpin> Archive<R> {
                 None => return Ok(None),
             };
         }
+    }
+}
+
+pub(crate) struct RawEntries<'r, R>(&'r mut Archive<R>);
+
+impl<'r, R: Read> Iterator for RawEntries<'r, R> {
+    type Item = io::Result<RawEntry>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next_raw_item().transpose()
     }
 }
 
