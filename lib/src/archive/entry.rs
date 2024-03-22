@@ -98,7 +98,7 @@ impl Entry for RawEntry {
     }
 }
 
-/// Reader for Entry data. this struct impl [`Read`] trait.
+/// Reader for Entry data.
 pub struct EntryDataReader<'r>(EntryReader<crate::io::FlattenReader<'r>>);
 
 impl<'r> Read for EntryDataReader<'r> {
