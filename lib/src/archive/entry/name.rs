@@ -129,13 +129,25 @@ impl TryFrom<&str> for EntryName {
     /// ```
     /// use libpna::EntryName;
     ///
-    /// assert_eq!(EntryName::try_from("test.txt"), EntryName::try_from("test.txt"));
+    /// assert_eq!(
+    ///     EntryName::try_from("test.txt"),
+    ///     EntryName::try_from("test.txt")
+    /// );
     ///
-    /// assert_eq!(EntryName::try_from("/test.txt"), EntryName::try_from("test.txt"));
+    /// assert_eq!(
+    ///     EntryName::try_from("/test.txt"),
+    ///     EntryName::try_from("test.txt")
+    /// );
     ///
-    /// assert_eq!(EntryName::try_from("./test.txt"), EntryName::try_from("test.txt"));
+    /// assert_eq!(
+    ///     EntryName::try_from("./test.txt"),
+    ///     EntryName::try_from("test.txt")
+    /// );
     ///
-    /// assert_eq!(EntryName::try_from("../test.txt"), EntryName::try_from("test.txt"));
+    /// assert_eq!(
+    ///     EntryName::try_from("../test.txt"),
+    ///     EntryName::try_from("test.txt")
+    /// );
     /// ```
     #[inline]
     fn try_from(value: &str) -> Result<Self, Self::Error> {
