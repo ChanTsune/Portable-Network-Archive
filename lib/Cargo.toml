@@ -30,7 +30,7 @@ zstd = { version = "0.13.0", default-features = false }
 [dev-dependencies]
 async-std = "1.12.0"
 once_cell = "1.19.0"
-tokio = { version = "1.36.0", features = ["full"] }
+tokio = { version = "1.37.0", features = ["full"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }
