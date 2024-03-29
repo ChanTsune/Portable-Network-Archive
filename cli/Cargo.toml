@@ -26,8 +26,8 @@ tabled = { version = "0.15.0", default-features = false, features = ["std", "ans
 nix = { version = "0.28.0", features = ["user", "fs"] }
 
 [features]
-experimental = []
-unstable-split = ["experimental"]
+experimental = [] # deprecated
+unstable-split = ["experimental"] # deprecated
 
 [[bin]]
 name = "pna"

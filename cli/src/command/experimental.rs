@@ -1,4 +1,3 @@
-#[cfg(feature = "unstable-split")]
 mod split;
 
 use crate::{cli::Verbosity, command::Command};
@@ -15,7 +14,6 @@ pub(crate) struct ExperimentalArgs {
 impl Command for ExperimentalArgs {
     fn execute(self, verbosity: Verbosity) -> io::Result<()> {
         match self.command {
-            #[cfg(feature = "unstable-split")]
             ExperimentalCommands::Split(cmd) => cmd.execute(verbosity),
         }
     }
@@ -23,7 +21,6 @@ impl Command for ExperimentalArgs {
 
 #[derive(Subcommand, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) enum ExperimentalCommands {
-    #[cfg(feature = "unstable-split")]
     #[command(about = "Split archive")]
     Split(split::SplitCommand),
 }
