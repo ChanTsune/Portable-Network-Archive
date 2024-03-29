@@ -1,5 +1,4 @@
 use crate::command::complete;
-#[cfg(feature = "experimental")]
 use crate::command::experimental::ExperimentalArgs;
 use bytesize::ByteSize;
 use clap::{value_parser, ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
@@ -60,7 +59,6 @@ pub(crate) enum Commands {
     List(ListArgs),
     #[command(about = "Generate shell auto complete")]
     Complete(complete::CompleteCommand),
-    #[cfg(feature = "experimental")]
     #[command(about = "Unstable experimental commands")]
     Experimental(ExperimentalArgs),
 }
