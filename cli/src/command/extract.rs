@@ -1,14 +1,13 @@
 use crate::{
     cli::{ExtractArgs, Verbosity},
     command::{ask_password, Command, Let},
-    utils::{self, part_name},
+    utils::{self, part_name, GlobPatterns},
 };
-use glob::Pattern;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 #[cfg(unix)]
 use nix::unistd::{Group, User};
 use pna::{Archive, DataKind, Permission, ReadOption, RegularEntry};
-use rayon::{prelude::*, ThreadPoolBuilder};
+use rayon::ThreadPoolBuilder;
 use std::ops::Add;
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::FileTimesExt;
@@ -34,12 +33,7 @@ fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
     if verbosity != Verbosity::Quite {
         eprintln!("Extract archive {}", args.file.archive.display());
     }
-    let globs = args
-        .file
-        .files
-        .par_iter()
-        .map(|p| Pattern::new(&p.to_string_lossy()))
-        .collect::<Result<Vec<_>, _>>()
+    let globs = GlobPatterns::new(args.file.files.iter().map(|p| p.to_string_lossy()))
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
     let pool = ThreadPoolBuilder::default()
@@ -61,7 +55,7 @@ fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
         |entry| {
             let item = entry?;
             let item_path = PathBuf::from(item.header().path().as_str());
-            if !globs.is_empty() && !globs.par_iter().any(|glob| glob.matches_path(&item_path)) {
+            if !globs.is_empty() && !globs.matches_any_path(&item_path) {
                 if verbosity == Verbosity::Verbose {
                     eprintln!("Skip: {}", item.header().path())
                 }
