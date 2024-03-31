@@ -57,7 +57,7 @@ fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
     let (tx, rx) = std::sync::mpsc::channel();
     run_extract(
         &args.file.archive,
-        password.as_deref(),
+        || password.as_deref(),
         |entry| {
             let item = entry?;
             let item_path = PathBuf::from(item.header().path().as_str());
@@ -127,14 +127,15 @@ fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
     Ok(())
 }
 
-fn run_extract<P, F, N, NP>(
+fn run_extract<'p, P, Provider, F, N, NP>(
     path: P,
-    password: Option<&str>,
+    mut password_provider: Provider,
     mut extractor: F,
     mut get_next_file_path: N,
 ) -> io::Result<()>
 where
     P: AsRef<Path>,
+    Provider: FnMut() -> Option<&'p str>,
     F: FnMut(io::Result<RegularEntry>) -> io::Result<()>,
     N: FnMut(&Path, usize) -> NP,
     NP: AsRef<Path>,
@@ -144,7 +145,7 @@ where
     let mut reader = Archive::read_header(file)?;
     let mut num_archive = 1;
     loop {
-        for entry in reader.entries_with_password(password) {
+        for entry in reader.entries_with_password(password_provider()) {
             extractor(entry)?;
         }
         if reader.next_archive() {
