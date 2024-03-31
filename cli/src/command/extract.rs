@@ -6,14 +6,14 @@ use crate::{
 use glob::Pattern;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 #[cfg(unix)]
-use nix::unistd::{chown, Group, User};
+use nix::unistd::{Group, User};
 use pna::{Archive, DataKind, Permission, ReadOption, RegularEntry};
 use rayon::{prelude::*, ThreadPoolBuilder};
 use std::ops::Add;
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::FileTimesExt;
 #[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::{chown, PermissionsExt};
 #[cfg(windows)]
 use std::os::windows::fs::FileTimesExt;
 use std::{
@@ -239,7 +239,7 @@ fn extract_entry(
     }
     #[cfg(unix)]
     permissions.map(|(p, u, g)| {
-        chown(&path, u.map(|i| i.uid), g.map(|g| g.gid)).map_err(io::Error::from)?;
+        chown(&path, u.map(|i| i.uid.as_raw()), g.map(|g| g.gid.as_raw()))?;
         fs::set_permissions(&path, p)
     });
     #[cfg(not(unix))]
