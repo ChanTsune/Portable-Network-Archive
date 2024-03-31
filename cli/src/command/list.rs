@@ -1,11 +1,10 @@
 use crate::{
     cli::{ListArgs, Verbosity},
     command::{ask_password, Command},
-    utils::part_name,
+    utils::{part_name, GlobPatterns},
 };
 use ansi_term::{ANSIString, Colour, Style};
 use chrono::{DateTime, Local};
-use glob::Pattern;
 use pna::{Archive, Compression, DataKind, Encryption, ReadOption, RegularEntry};
 use rayon::prelude::*;
 use std::{
@@ -30,12 +29,7 @@ impl Command for ListArgs {
 
 fn list_archive(args: ListArgs, _: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
-    let globs = args
-        .file
-        .files
-        .par_iter()
-        .map(|p| Pattern::new(&p.to_string_lossy()))
-        .collect::<Result<Vec<_>, _>>()
+    let globs = GlobPatterns::new(args.file.files.iter().map(|p| p.to_string_lossy()))
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
     let file = File::open(&args.file.archive)?;
 
@@ -76,11 +70,7 @@ fn list_archive(args: ListArgs, _: Verbosity) -> io::Result<()> {
     } else {
         entries
             .into_par_iter()
-            .filter(|e| {
-                globs
-                    .par_iter()
-                    .any(|glob| glob.matches(e.header().path().as_ref()))
-            })
+            .filter(|e| globs.matches_any_path(e.header().path().as_ref()))
             .collect()
     };
     if args.long {
