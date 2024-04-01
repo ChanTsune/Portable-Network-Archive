@@ -1,6 +1,6 @@
 mod split;
 
-use crate::{cli::Verbosity, command::Command};
+use crate::{cli::Verbosity, command, command::Command};
 use clap::{Args, Subcommand};
 use std::io;
 
@@ -15,6 +15,7 @@ impl Command for ExperimentalArgs {
     fn execute(self, verbosity: Verbosity) -> io::Result<()> {
         match self.command {
             ExperimentalCommands::Split(cmd) => cmd.execute(verbosity),
+            ExperimentalCommands::Stdio(cmd) => cmd.execute(verbosity),
         }
     }
 }
@@ -23,4 +24,6 @@ impl Command for ExperimentalArgs {
 pub(crate) enum ExperimentalCommands {
     #[command(about = "Split archive")]
     Split(split::SplitCommand),
+    #[command(about = "Archive manipulation via stdio")]
+    Stdio(command::stdio::StdioCommand),
 }
