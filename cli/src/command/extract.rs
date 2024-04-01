@@ -154,7 +154,7 @@ where
     Ok(())
 }
 
-fn extract_entry(
+pub(crate) fn extract_entry(
     item: RegularEntry,
     password: Option<String>,
     overwrite: bool,
