@@ -1,6 +1,8 @@
 use crate::chunk::{Chunk, ChunkExt};
 #[cfg(feature = "unstable-async")]
-use futures::{AsyncWrite, AsyncWriteExt};
+use futures_io::AsyncWrite;
+#[cfg(feature = "unstable-async")]
+use futures_util::AsyncWriteExt;
 use std::io::{self, Write};
 
 pub(crate) struct ChunkWriter<W> {
