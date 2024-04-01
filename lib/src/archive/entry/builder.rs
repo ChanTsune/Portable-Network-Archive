@@ -9,7 +9,7 @@ use crate::{
 };
 
 #[cfg(feature = "unstable-async")]
-use futures::AsyncWrite;
+use futures_io::AsyncWrite;
 use std::{
     io::{self, Write},
     time::Duration,

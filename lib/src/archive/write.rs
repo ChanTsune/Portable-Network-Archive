@@ -3,7 +3,9 @@ use crate::{
     chunk::{ChunkType, ChunkWriter},
 };
 #[cfg(feature = "unstable-async")]
-use futures::{AsyncWrite, AsyncWriteExt};
+use futures_io::AsyncWrite;
+#[cfg(feature = "unstable-async")]
+use futures_util::AsyncWriteExt;
 use std::io::{self, Write};
 
 impl<W: Write> Archive<W> {

@@ -1,6 +1,8 @@
 use crate::chunk::{crc::Crc32, ChunkType, RawChunk, MIN_CHUNK_BYTES_SIZE};
 #[cfg(feature = "unstable-async")]
-use futures::{AsyncRead, AsyncReadExt};
+use futures_io::AsyncRead;
+#[cfg(feature = "unstable-async")]
+use futures_util::AsyncReadExt;
 use std::{
     io::{self, Read, Seek, SeekFrom},
     mem,

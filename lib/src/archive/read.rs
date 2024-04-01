@@ -3,7 +3,9 @@ use crate::{
     chunk::{Chunk, ChunkReader, ChunkType, RawChunk},
 };
 #[cfg(feature = "unstable-async")]
-use futures::{AsyncRead, AsyncReadExt};
+use futures_io::AsyncRead;
+#[cfg(feature = "unstable-async")]
+use futures_util::AsyncReadExt;
 use std::{
     collections::VecDeque,
     io::{self, Read, Seek, SeekFrom},
