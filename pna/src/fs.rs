@@ -17,3 +17,9 @@ pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Resu
         os::windows::fs::symlink_file(original, link)
     }
 }
+
+#[cfg(target_os = "wasi")]
+#[inline]
+pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Result<()> {
+    os::wasi::fs::symlink_path(original, link)
+}
