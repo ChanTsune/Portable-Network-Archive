@@ -25,6 +25,7 @@ pub(crate) enum Cipher {
     Camellia(CipherContext),
 }
 
+#[inline]
 fn get_cipher(
     password: Option<&str>,
     hash_algorithm: HashAlgorithm,
@@ -62,6 +63,7 @@ fn get_cipher(
     })
 }
 
+#[inline]
 fn hash<'s, 'p: 's>(
     encryption_algorithm: Encryption,
     hash_algorithm: HashAlgorithm,
@@ -103,6 +105,7 @@ fn hash<'s, 'p: 's>(
     Ok((hash, password_hash.to_string()))
 }
 
+#[inline]
 fn encryption_writer<W: Write>(writer: W, cipher: &Cipher) -> io::Result<CipherWriter<W>> {
     Ok(match cipher {
         Cipher::None => CipherWriter::No(writer),
@@ -129,6 +132,7 @@ fn encryption_writer<W: Write>(writer: W, cipher: &Cipher) -> io::Result<CipherW
     })
 }
 
+#[inline]
 fn compression_writer<W: Write>(
     writer: W,
     algorithm: Compression,
@@ -142,6 +146,7 @@ fn compression_writer<W: Write>(
     })
 }
 
+#[inline]
 pub(super) fn writer_and_hash<W: Write>(
     writer: W,
     options: WriteOption,
