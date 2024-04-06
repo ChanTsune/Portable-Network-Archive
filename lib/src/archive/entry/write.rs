@@ -13,6 +13,55 @@ use password_hash::{Output, SaltString};
 use std::io::{self, Write};
 use zstd::stream::write::Encoder as ZstdEncoder;
 
+pub(crate) struct CipherContext {
+    iv: Vec<u8>,
+    key: Vec<u8>,
+    mode: CipherMode,
+}
+
+pub(crate) enum Cipher {
+    None,
+    Aes(CipherContext),
+    Camellia(CipherContext),
+}
+
+fn get_cipher(
+    password: Option<&str>,
+    hash_algorithm: HashAlgorithm,
+    algorithm: Encryption,
+    mode: CipherMode,
+) -> io::Result<(Cipher, Option<String>)> {
+    Ok(match algorithm {
+        Encryption::No => (Cipher::None, None),
+        Encryption::Aes => {
+            let salt = random::salt_string();
+            let (hash, phsf) = hash(algorithm, hash_algorithm, password.unwrap(), &salt)?;
+            let iv = random::random_vec(Aes256::block_size())?;
+            (
+                Cipher::Aes(CipherContext {
+                    iv,
+                    key: hash.as_bytes().to_vec(),
+                    mode,
+                }),
+                Some(phsf),
+            )
+        }
+        Encryption::Camellia => {
+            let salt = random::salt_string();
+            let (hash, phsf) = hash(algorithm, hash_algorithm, password.unwrap(), &salt)?;
+            let iv = random::random_vec(Camellia256::block_size())?;
+            (
+                Cipher::Camellia(CipherContext {
+                    iv,
+                    key: hash.as_bytes().to_vec(),
+                    mode,
+                }),
+                Some(phsf),
+            )
+        }
+    })
+}
+
 fn hash<'s, 'p: 's>(
     encryption_algorithm: Encryption,
     hash_algorithm: HashAlgorithm,
@@ -54,31 +103,29 @@ fn hash<'s, 'p: 's>(
     Ok((hash, password_hash.to_string()))
 }
 
-fn encryption_writer<W: Write>(
-    mut writer: W,
-    algorithm: Encryption,
-    mode: CipherMode,
-    key: &[u8],
-    iv: &[u8],
-) -> io::Result<CipherWriter<W>> {
-    Ok(match (algorithm, mode) {
-        (Encryption::No, _) => CipherWriter::No(writer),
-        (Encryption::Aes, CipherMode::CBC) => {
-            writer.write_all(iv)?;
-            CipherWriter::CbcAes(EncryptCbcAes256Writer::new(writer, key, iv)?)
-        }
-        (Encryption::Aes, CipherMode::CTR) => {
-            writer.write_all(iv)?;
-            CipherWriter::CtrAes(Ctr128BEWriter::new(writer, key, iv)?)
-        }
-        (Encryption::Camellia, CipherMode::CBC) => {
-            writer.write_all(iv)?;
-            CipherWriter::CbcCamellia(EncryptCbcCamellia256Writer::new(writer, key, iv)?)
-        }
-        (Encryption::Camellia, CipherMode::CTR) => {
-            writer.write_all(iv)?;
-            CipherWriter::CtrCamellia(Ctr128BEWriter::new(writer, key, iv)?)
-        }
+fn encryption_writer<W: Write>(writer: W, cipher: &Cipher) -> io::Result<CipherWriter<W>> {
+    Ok(match cipher {
+        Cipher::None => CipherWriter::No(writer),
+        Cipher::Aes(CipherContext {
+            iv,
+            key,
+            mode: CipherMode::CBC,
+        }) => CipherWriter::CbcAes(EncryptCbcAes256Writer::new(writer, key, iv)?),
+        Cipher::Aes(CipherContext {
+            iv,
+            key,
+            mode: CipherMode::CTR,
+        }) => CipherWriter::CtrAes(Ctr128BEWriter::new(writer, key, iv)?),
+        Cipher::Camellia(CipherContext {
+            iv,
+            key,
+            mode: CipherMode::CBC,
+        }) => CipherWriter::CbcCamellia(EncryptCbcCamellia256Writer::new(writer, key, iv)?),
+        Cipher::Camellia(CipherContext {
+            iv,
+            key,
+            mode: CipherMode::CTR,
+        }) => CipherWriter::CtrCamellia(Ctr128BEWriter::new(writer, key, iv)?),
     })
 }
 
@@ -98,41 +145,25 @@ fn compression_writer<W: Write>(
 pub(super) fn writer_and_hash<W: Write>(
     writer: W,
     options: WriteOption,
-) -> io::Result<(CompressionWriter<CipherWriter<W>>, Option<String>)> {
-    let (writer, phsf) = match options.encryption {
-        algorithm @ Encryption::No => (
-            encryption_writer(writer, algorithm, options.cipher_mode, &[], &[])?,
-            None,
-        ),
-        algorithm @ Encryption::Aes => {
-            let salt = random::salt_string();
-            let (hash, phsf) = hash(
-                algorithm,
-                options.hash_algorithm,
-                options.password.as_ref().unwrap(),
-                &salt,
-            )?;
-            let iv = random::random_vec(Aes256::block_size())?;
-            (
-                encryption_writer(writer, algorithm, options.cipher_mode, hash.as_bytes(), &iv)?,
-                Some(phsf),
-            )
-        }
-        algorithm @ Encryption::Camellia => {
-            let salt = random::salt_string();
-            let (hash, phsf) = hash(
-                algorithm,
-                options.hash_algorithm,
-                options.password.as_ref().unwrap(),
-                &salt,
-            )?;
-            let iv = random::random_vec(Camellia256::block_size())?;
-            (
-                encryption_writer(writer, algorithm, options.cipher_mode, hash.as_bytes(), &iv)?,
-                Some(phsf),
-            )
-        }
-    };
+) -> io::Result<(
+    CompressionWriter<CipherWriter<W>>,
+    Option<Vec<u8>>,
+    Option<String>,
+)> {
+    let (cipher, phsf) = get_cipher(
+        options.password.as_deref(),
+        options.hash_algorithm,
+        options.encryption,
+        options.cipher_mode,
+    )?;
+    let writer = encryption_writer(writer, &cipher)?;
     let writer = compression_writer(writer, options.compression, options.compression_level)?;
-    Ok((writer, phsf))
+    Ok((
+        writer,
+        match cipher {
+            Cipher::None => None,
+            Cipher::Aes(c) | Cipher::Camellia(c) => Some(c.iv),
+        },
+        phsf,
+    ))
 }

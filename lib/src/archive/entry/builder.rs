@@ -26,6 +26,7 @@ const MAX_CHUNK_DATA_LENGTH: usize = u32::MAX as usize;
 pub struct EntryBuilder {
     header: EntryHeader,
     phsf: Option<String>,
+    iv: Option<Vec<u8>>,
     data: Option<CompressionWriter<CipherWriter<crate::io::FlattenWriter<MAX_CHUNK_DATA_LENGTH>>>>,
     created: Option<Duration>,
     last_modified: Option<Duration>,
@@ -49,6 +50,7 @@ impl EntryBuilder {
         Self {
             header: EntryHeader::for_dir(name),
             phsf: None,
+            iv: None,
             data: None,
             created: None,
             last_modified: None,
@@ -76,10 +78,11 @@ impl EntryBuilder {
             option.cipher_mode,
             name,
         );
-        let (writer, phsf) = writer_and_hash(crate::io::FlattenWriter::new(), option)?;
+        let (writer, iv, phsf) = writer_and_hash(crate::io::FlattenWriter::new(), option)?;
         Ok(Self {
             header,
             data: Some(writer),
+            iv,
             phsf,
             created: None,
             last_modified: None,
@@ -114,12 +117,13 @@ impl EntryBuilder {
     /// ```
     pub fn new_symbolic_link(name: EntryName, source: EntryReference) -> io::Result<Self> {
         let option = WriteOption::store();
-        let (mut writer, phsf) = writer_and_hash(crate::io::FlattenWriter::new(), option)?;
+        let (mut writer, iv, phsf) = writer_and_hash(crate::io::FlattenWriter::new(), option)?;
         writer.write_all(source.as_bytes())?;
         Ok(Self {
             header: EntryHeader::for_symbolic_link(name),
             data: Some(writer),
             phsf,
+            iv,
             created: None,
             last_modified: None,
             accessed: None,
@@ -153,12 +157,13 @@ impl EntryBuilder {
     /// ```
     pub fn new_hard_link(name: EntryName, source: EntryReference) -> io::Result<Self> {
         let option = WriteOption::store();
-        let (mut writer, phsf) = writer_and_hash(crate::io::FlattenWriter::new(), option)?;
+        let (mut writer, iv, phsf) = writer_and_hash(crate::io::FlattenWriter::new(), option)?;
         writer.write_all(source.as_bytes())?;
         Ok(Self {
             header: EntryHeader::for_hard_link(name),
             data: Some(writer),
             phsf,
+            iv,
             created: None,
             last_modified: None,
             accessed: None,
@@ -250,11 +255,14 @@ impl EntryBuilder {
     ///
     /// A Result containing the new [RegularEntry], or an I/O error if the build fails.
     pub fn build(self) -> io::Result<RegularEntry> {
-        let data = if let Some(data) = self.data {
+        let mut data = if let Some(data) = self.data {
             data.try_into_inner()?.try_into_inner()?.inner
         } else {
             Vec::new()
         };
+        if let Some(iv) = self.iv {
+            data.insert(0, iv);
+        }
         let metadata = Metadata {
             raw_file_size: match (self.store_file_size, self.header.data_kind) {
                 (true, DataKind::File) => Some(self.file_size),
@@ -317,6 +325,7 @@ impl AsyncWrite for EntryBuilder {
 pub struct SolidEntryBuilder {
     header: SolidHeader,
     phsf: Option<String>,
+    iv: Option<Vec<u8>>,
     data: CompressionWriter<CipherWriter<crate::io::FlattenWriter<MAX_CHUNK_DATA_LENGTH>>>,
 }
 
@@ -332,10 +341,11 @@ impl SolidEntryBuilder {
     /// A new [SolidEntryBuilder].
     pub fn new(option: WriteOption) -> io::Result<Self> {
         let header = SolidHeader::new(option.compression, option.encryption, option.cipher_mode);
-        let (writer, phsf) = writer_and_hash(crate::io::FlattenWriter::new(), option)?;
+        let (writer, iv, phsf) = writer_and_hash(crate::io::FlattenWriter::new(), option)?;
         Ok(Self {
             header,
             phsf,
+            iv,
             data: writer,
         })
     }
@@ -375,7 +385,13 @@ impl SolidEntryBuilder {
         Ok(SolidEntry {
             header: self.header,
             phsf: self.phsf,
-            data: self.data.try_into_inner()?.try_into_inner()?.inner,
+            data: {
+                let mut data = self.data.try_into_inner()?.try_into_inner()?.inner;
+                if let Some(iv) = self.iv {
+                    data.insert(0, iv);
+                }
+                data
+            },
             extra: Vec::new(),
         })
     }
