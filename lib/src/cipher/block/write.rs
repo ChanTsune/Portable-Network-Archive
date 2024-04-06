@@ -118,9 +118,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::cipher::block::write::CbcBlockCipherEncryptWriter;
+    use super::*;
     use cipher::block_padding::Pkcs7;
-    use std::io::Write;
 
     #[test]
     fn read_decrypt() {

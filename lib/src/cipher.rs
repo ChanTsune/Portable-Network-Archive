@@ -84,13 +84,10 @@ impl<R: Read> Read for DecryptReader<R> {
 
 #[cfg(test)]
 mod tests {
-    use aes::Aes256;
-    use camellia::Camellia256;
+    use super::*;
     use cipher::{
-        block_padding::Pkcs7, BlockCipher, BlockDecryptMut, BlockEncryptMut, BlockSizeUser,
-        KeyIvInit, KeySizeUser,
+        BlockCipher, BlockDecryptMut, BlockEncryptMut, BlockSizeUser, KeyIvInit, KeySizeUser,
     };
-    use std::io;
 
     fn encrypt_cbc<Cipher>(key: &[u8], iv: &[u8], data: &[u8]) -> io::Result<Vec<u8>>
     where
