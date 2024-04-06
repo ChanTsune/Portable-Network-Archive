@@ -982,9 +982,9 @@ dependencies = [
 
 [[package]]
 name = "liblzma-sys"
-version = "0.3.0"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac1124ae12ab2748227b1302133d48a752c5f92340d85a28a53cee3d71b2c86b"
+checksum = "480f1c082cb750fec42154161f91a1cdaa86a51e47a01d2aa7514a6bf6f7fb26"
 dependencies = [
  "cc",
  "libc",
