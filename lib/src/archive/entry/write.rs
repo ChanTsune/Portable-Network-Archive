@@ -14,18 +14,24 @@ use std::io::{self, Write};
 use zstd::stream::write::Encoder as ZstdEncoder;
 
 pub type EntryDataWriter<W> = CompressionWriter<CipherWriter<W>>;
-type InitialVector = Vec<u8>;
 
 pub(crate) struct CipherContext {
-    iv: Vec<u8>,
-    key: Vec<u8>,
-    mode: CipherMode,
+    pub(crate) iv: Vec<u8>,
+    pub(crate) key: Vec<u8>,
+    pub(crate) mode: CipherMode,
 }
 
 pub(crate) enum Cipher {
     None,
     Aes(CipherContext),
     Camellia(CipherContext),
+}
+
+pub(crate) struct EntryWriterContext {
+    pub(crate) compression_level: CompressionLevel,
+    pub(crate) compression: Compression,
+    pub(crate) cipher: Cipher,
+    pub(crate) phsf: Option<String>,
 }
 
 #[inline]
@@ -63,6 +69,22 @@ fn get_cipher(
                 Some(phsf),
             )
         }
+    })
+}
+
+#[inline]
+pub(crate) fn get_writer_context(option: WriteOption) -> io::Result<EntryWriterContext> {
+    let (cipher, phsf) = get_cipher(
+        option.password.as_deref(),
+        option.hash_algorithm,
+        option.encryption,
+        option.cipher_mode,
+    )?;
+    Ok(EntryWriterContext {
+        compression_level: option.compression_level,
+        compression: option.compression,
+        cipher,
+        phsf,
     })
 }
 
@@ -150,24 +172,10 @@ fn compression_writer<W: Write>(
 }
 
 #[inline]
-pub(crate) fn writer_and_hash<W: Write>(
+pub(crate) fn get_writer<W: Write>(
     writer: W,
-    options: WriteOption,
-) -> io::Result<(EntryDataWriter<W>, Option<InitialVector>, Option<String>)> {
-    let (cipher, phsf) = get_cipher(
-        options.password.as_deref(),
-        options.hash_algorithm,
-        options.encryption,
-        options.cipher_mode,
-    )?;
-    let writer = encryption_writer(writer, &cipher)?;
-    let writer = compression_writer(writer, options.compression, options.compression_level)?;
-    Ok((
-        writer,
-        match cipher {
-            Cipher::None => None,
-            Cipher::Aes(c) | Cipher::Camellia(c) => Some(c.iv),
-        },
-        phsf,
-    ))
+    context: &EntryWriterContext,
+) -> io::Result<EntryDataWriter<W>> {
+    let writer = encryption_writer(writer, &context.cipher)?;
+    compression_writer(writer, context.compression, context.compression_level)
 }
