@@ -13,8 +13,6 @@ use password_hash::{Output, SaltString};
 use std::io::{self, Write};
 use zstd::stream::write::Encoder as ZstdEncoder;
 
-pub type EntryDataWriter<W> = CompressionWriter<CipherWriter<W>>;
-
 pub(crate) struct CipherContext {
     pub(crate) iv: Vec<u8>,
     pub(crate) key: Vec<u8>,
@@ -175,7 +173,7 @@ fn compression_writer<W: Write>(
 pub(crate) fn get_writer<W: Write>(
     writer: W,
     context: &EntryWriterContext,
-) -> io::Result<EntryDataWriter<W>> {
+) -> io::Result<CompressionWriter<CipherWriter<W>>> {
     let writer = encryption_writer(writer, &context.cipher)?;
     compression_writer(writer, context.compression, context.compression_level)
 }
