@@ -11,7 +11,7 @@ pub use header::*;
 /// An instance of an [Archive] can be read and/or written.
 ///
 /// # Examples
-/// Creates a new PNA file and add entry to it.
+/// Creates a new PNA file and adds entry to it.
 /// ```no_run
 /// # use libpna::{Archive, EntryBuilder, WriteOption};
 /// # use std::fs::File;
