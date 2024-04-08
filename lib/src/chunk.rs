@@ -20,15 +20,18 @@ pub const MIN_CHUNK_BYTES_SIZE: usize =
 
 pub(crate) trait ChunkExt: Chunk {
     /// byte size of chunk
+    #[inline]
     fn bytes_len(&self) -> usize {
         MIN_CHUNK_BYTES_SIZE + self.data().len()
     }
 
     /// check the chunk type is stream chunk
+    #[inline]
     fn is_stream_chunk(&self) -> bool {
         self.ty() == ChunkType::FDAT || self.ty() == ChunkType::SDAT
     }
 
+    #[inline]
     fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         writer.write_all(&self.length().to_be_bytes())?;
         writer.write_all(&self.ty().0)?;
@@ -42,6 +45,7 @@ pub(crate) trait ChunkExt: Chunk {
     /// # Returns
     ///
     /// A `Vec<u8>` containing the converted `Chunk` data.
+    #[inline]
     fn to_bytes(&self) -> Vec<u8> {
         let mut vec = Vec::with_capacity(self.bytes_len());
         vec.extend_from_slice(&self.length().to_be_bytes());
@@ -125,6 +129,7 @@ impl<T: Deref<Target = [u8]>> Chunk for (ChunkType, T) {
     }
 }
 
+#[inline]
 pub(crate) fn chunk_data_split(chunk: impl Chunk, mid: usize) -> (RawChunk, RawChunk) {
     let (first, last) = chunk.data().split_at(mid);
     (
