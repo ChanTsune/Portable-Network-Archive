@@ -1,7 +1,22 @@
 use std::io::{self, Read};
 use std::time::Duration;
 
-/// MetaData information about an entry
+/// Metadata information about an entry.
+/// # Examples
+/// ```
+/// # use std::time::SystemTimeError;
+/// # fn main() -> Result<(), SystemTimeError> {
+/// use libpna::Metadata;
+/// use std::time::SystemTime;
+///
+/// let since_unix_epoch = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?;
+/// let metadata = Metadata::new()
+///     .with_accessed(Some(since_unix_epoch))
+///     .with_created(Some(since_unix_epoch))
+///     .with_modified(Some(since_unix_epoch));
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Metadata {
     pub(crate) raw_file_size: Option<u128>,
@@ -13,6 +28,86 @@ pub struct Metadata {
 }
 
 impl Metadata {
+    /// Create a new [Metadata].
+    #[inline]
+    pub const fn new() -> Self {
+        Self {
+            raw_file_size: Some(0),
+            compressed_size: 0,
+            created: None,
+            modified: None,
+            accessed: None,
+            permission: None,
+        }
+    }
+
+    /// Set created time that as duration since unix epoch time.
+    ///
+    /// # Examples
+    /// ```
+    /// # use std::time::SystemTimeError;
+    /// # fn main() -> Result<(), SystemTimeError> {
+    /// use libpna::Metadata;
+    /// use std::time::SystemTime;
+    ///
+    /// let since_unix_epoch = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?;
+    /// let metadata = Metadata::new().with_created(Some(since_unix_epoch));
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn with_created(mut self, created: Option<Duration>) -> Self {
+        self.created = created;
+        self
+    }
+
+    /// Set modified time that as duration since unix epoch time.
+    ///
+    /// # Examples
+    /// ```
+    /// # use std::time::SystemTimeError;
+    /// # fn main() -> Result<(), SystemTimeError> {
+    /// use libpna::Metadata;
+    /// use std::time::SystemTime;
+    ///
+    /// let since_unix_epoch = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?;
+    /// let metadata = Metadata::new().with_modified(Some(since_unix_epoch));
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn with_modified(mut self, modified: Option<Duration>) -> Self {
+        self.modified = modified;
+        self
+    }
+
+    /// Set accessed time that as duration since unix epoch time.
+    ///
+    /// # Examples
+    /// ```
+    /// # use std::time::SystemTimeError;
+    /// # fn main() -> Result<(), SystemTimeError> {
+    /// use libpna::Metadata;
+    /// use std::time::SystemTime;
+    ///
+    /// let since_unix_epoch = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?;
+    /// let metadata = Metadata::new().with_accessed(Some(since_unix_epoch));
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn with_accessed(mut self, accessed: Option<Duration>) -> Self {
+        self.accessed = accessed;
+        self
+    }
+
+    /// Set permission of entry.
+    #[inline]
+    pub fn with_permission(mut self, permission: Option<Permission>) -> Self {
+        self.permission = permission;
+        self
+    }
+
     /// Raw file size of entry data
     #[inline]
     pub const fn raw_file_size(&self) -> Option<u128> {
