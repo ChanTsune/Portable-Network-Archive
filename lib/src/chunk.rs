@@ -5,7 +5,10 @@ mod types;
 mod write;
 
 use self::crc::Crc32;
-pub(crate) use self::{read::ChunkReader, write::ChunkWriter};
+pub(crate) use self::{
+    read::ChunkReader,
+    write::{ChunkStreamWriter, ChunkWriter},
+};
 pub use self::{traits::*, types::*};
 use std::{
     io::{self, Write},

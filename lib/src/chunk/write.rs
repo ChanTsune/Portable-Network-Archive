@@ -1,4 +1,4 @@
-use crate::chunk::{Chunk, ChunkExt};
+use crate::chunk::{Chunk, ChunkExt, ChunkType};
 #[cfg(feature = "unstable-async")]
 use futures_io::AsyncWrite;
 #[cfg(feature = "unstable-async")]
@@ -39,6 +39,34 @@ impl<W: AsyncWrite + Unpin> ChunkWriter<W> {
         // write crc32
         self.w.write_all(&chunk.crc().to_be_bytes()).await?;
         Ok(chunk.bytes_len())
+    }
+}
+
+pub(crate) struct ChunkStreamWriter<W> {
+    ty: ChunkType,
+    w: ChunkWriter<W>,
+}
+
+impl<W> ChunkStreamWriter<W> {
+    #[inline]
+    pub(crate) fn new(ty: ChunkType, inner: W) -> Self {
+        Self {
+            ty,
+            w: ChunkWriter::from(inner),
+        }
+    }
+}
+
+impl<W: Write> Write for ChunkStreamWriter<W> {
+    #[inline]
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.w.write_chunk((self.ty, buf))?;
+        Ok(buf.len())
+    }
+
+    #[inline]
+    fn flush(&mut self) -> io::Result<()> {
+        self.w.w.flush()
     }
 }
 
