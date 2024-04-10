@@ -19,19 +19,7 @@ impl<W> From<W> for ChunkWriter<W> {
 impl<W: Write> ChunkWriter<W> {
     #[inline]
     pub(crate) fn write_chunk(&mut self, chunk: impl Chunk) -> io::Result<usize> {
-        // write length
-        let length = chunk.length();
-        self.w.write_all(&length.to_be_bytes())?;
-
-        // write chunk type
-        self.w.write_all(&chunk.ty().0)?;
-
-        // write data
-        self.w.write_all(chunk.data())?;
-
-        // write crc32
-        self.w.write_all(&chunk.crc().to_be_bytes())?;
-        Ok(chunk.bytes_len())
+        chunk.write_in(&mut self.w)
     }
 }
 
