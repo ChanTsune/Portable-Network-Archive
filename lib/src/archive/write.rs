@@ -1,6 +1,6 @@
 use crate::{
     archive::{Archive, ArchiveHeader, Entry, EntryPart, PNA_HEADER},
-    chunk::{ChunkType, ChunkWriter},
+    chunk::{ChunkExt, ChunkType, ChunkWriter},
 };
 #[cfg(feature = "unstable-async")]
 use futures_io::AsyncWrite;
@@ -44,8 +44,7 @@ impl<W: Write> Archive<W> {
 
     fn write_header_with(mut write: W, header: ArchiveHeader) -> io::Result<Self> {
         write.write_all(PNA_HEADER)?;
-        let mut chunk_writer = ChunkWriter::from(&mut write);
-        chunk_writer.write_chunk((ChunkType::AHED, header.to_bytes().as_slice()))?;
+        (ChunkType::AHED, header.to_bytes().as_slice()).write_in(&mut write)?;
         Ok(Self::new(write, header))
     }
 
