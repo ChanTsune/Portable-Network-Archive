@@ -376,7 +376,7 @@ impl<R: Read + Seek> Archive<R> {
     /// let mut archive = Archive::read_header(file)?;
     /// archive.seek_to_end()?;
     /// archive.add_entry({
-    ///     let entry = EntryBuilder::new_dir("dir_entry".try_into().unwrap());
+    ///     let entry = EntryBuilder::new_dir("dir_entry".into());
     ///     entry.build()?
     /// })?;
     /// archive.finalize()?;

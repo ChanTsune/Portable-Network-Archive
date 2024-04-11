@@ -66,11 +66,8 @@ impl<W: Write> Archive<W> {
     ///     let file = File::create("example.pna")?;
     ///     let mut archive = Archive::write_header(file)?;
     ///     archive.add_entry(
-    ///         EntryBuilder::new_file(
-    ///             "example.txt".try_into().unwrap(),
-    ///             WriteOption::builder().build(),
-    ///         )?
-    ///         .build()?,
+    ///         EntryBuilder::new_file("example.txt".into(), WriteOption::builder().build())?
+    ///             .build()?,
     ///     )?;
     ///     archive.finalize()?;
     ///     Ok(())
@@ -96,11 +93,8 @@ impl<W: Write> Archive<W> {
     /// # fn main() -> io::Result<()> {
     /// let part1_file = File::create("example.part1.pna")?;
     /// let mut archive_part1 = Archive::write_header(part1_file)?;
-    /// let entry = EntryBuilder::new_file(
-    ///     "example.txt".try_into().unwrap(),
-    ///     WriteOption::builder().build(),
-    /// )?
-    /// .build()?;
+    /// let entry =
+    ///     EntryBuilder::new_file("example.txt".into(), WriteOption::builder().build())?.build()?;
     /// archive_part1.add_entry_part(EntryPart::from(entry))?;
     ///
     /// let part2_file = File::create("example.part2.pna")?;
@@ -134,11 +128,8 @@ impl<W: Write> Archive<W> {
     /// # fn main() -> io::Result<()> {
     /// let part1_file = File::create("example.part1.pna")?;
     /// let mut archive_part1 = Archive::write_header(part1_file)?;
-    /// let entry = EntryBuilder::new_file(
-    ///     "example.txt".try_into().unwrap(),
-    ///     WriteOption::builder().build(),
-    /// )?
-    /// .build()?;
+    /// let entry =
+    ///     EntryBuilder::new_file("example.txt".into(), WriteOption::builder().build())?.build()?;
     /// archive_part1.add_entry_part(EntryPart::from(entry))?;
     ///
     /// let part2_file = File::create("example.part2.pna")?;

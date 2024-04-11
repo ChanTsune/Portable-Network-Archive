@@ -9,11 +9,11 @@ use std::path::{Component, Path, PathBuf};
 /// ```
 /// use libpna::EntryReference;
 ///
-/// assert_eq!("uer/bin", EntryReference::from_lossy("uer/bin"));
-/// assert_eq!("/user/bin", EntryReference::from_lossy("/user/bin"));
-/// assert_eq!("/user/bin", EntryReference::from_lossy("/user/bin/"));
-/// assert_eq!("../user/bin", EntryReference::from_lossy("../user/bin/"));
-/// assert_eq!("/", EntryReference::from_lossy("/"));
+/// assert_eq!("uer/bin", EntryReference::from("uer/bin"));
+/// assert_eq!("/user/bin", EntryReference::from("/user/bin"));
+/// assert_eq!("/user/bin", EntryReference::from("/user/bin/"));
+/// assert_eq!("../user/bin", EntryReference::from("../user/bin/"));
+/// assert_eq!("/", EntryReference::from("/"));
 /// ```
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct EntryReference(String);
@@ -71,7 +71,7 @@ impl EntryReference {
     /// ```
     /// use libpna::EntryReference;
     ///
-    /// let r = EntryReference::from_lossy("foo");
+    /// let r = EntryReference::from("foo");
     /// assert_eq!("foo", r.as_str());
     /// ```
     #[inline]
