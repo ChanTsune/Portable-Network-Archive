@@ -32,7 +32,7 @@ fn filtered_components(path: &Path) -> impl Iterator<Item = &OsStr> {
 }
 
 impl EntryName {
-    fn new(name: &Path) -> Result<Self, EntryNameError> {
+    fn new_from_path(name: &Path) -> Result<Self, EntryNameError> {
         let buf = filtered_components(name)
             .map(|i| try_to_string(i).map_err(|e| EntryNameError(e.to_string())))
             .collect::<Result<Vec<_>, _>>()?;
@@ -151,7 +151,7 @@ impl TryFrom<&str> for EntryName {
     /// ```
     #[inline]
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        Self::new(value.as_ref())
+        Self::new_from_path(value.as_ref())
     }
 }
 
@@ -160,7 +160,7 @@ impl TryFrom<&Path> for EntryName {
 
     #[inline]
     fn try_from(value: &Path) -> Result<Self, Self::Error> {
-        Self::new(value)
+        Self::new_from_path(value)
     }
 }
 
