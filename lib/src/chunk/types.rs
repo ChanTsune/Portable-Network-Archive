@@ -43,6 +43,9 @@ impl ChunkType {
     /// Entry permissions
     #[allow(non_upper_case_globals)]
     pub const fPRM: ChunkType = ChunkType(*b"fPRM");
+    /// Extended attribute
+    #[allow(non_upper_case_globals)]
+    pub const xATR: ChunkType = ChunkType(*b"xATR");
 
     /// Returns the length of the chunk type code.
     ///
