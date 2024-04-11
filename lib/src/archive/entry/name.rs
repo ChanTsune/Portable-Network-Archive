@@ -1,4 +1,5 @@
 use crate::util::try_to_string;
+use camino::{Utf8Component, Utf8PathBuf};
 use std::error::Error;
 use std::ffi::OsStr;
 use std::fmt::{self, Display, Formatter};
@@ -32,6 +33,21 @@ fn filtered_components(path: &Path) -> impl Iterator<Item = &OsStr> {
 }
 
 impl EntryName {
+    fn new_from_utf8(name: &str) -> Self {
+        let path = Utf8PathBuf::from(name);
+        let buf = path
+            .components()
+            .filter_map(|c| match c {
+                Utf8Component::Prefix(_)
+                | Utf8Component::RootDir
+                | Utf8Component::CurDir
+                | Utf8Component::ParentDir => None,
+                Utf8Component::Normal(p) => Some(p),
+            })
+            .collect::<Vec<_>>();
+        Self(buf.join("/"))
+    }
+
     fn new_from_path(name: &Path) -> Result<Self, EntryNameError> {
         let buf = filtered_components(name)
             .map(|i| try_to_string(i).map_err(|e| EntryNameError(e.to_string())))
@@ -123,35 +139,19 @@ impl EntryName {
     }
 }
 
-impl TryFrom<&str> for EntryName {
-    type Error = EntryNameError;
+impl From<&str> for EntryName {
     /// # Examples
     /// ```
     /// use libpna::EntryName;
     ///
-    /// assert_eq!(
-    ///     EntryName::try_from("test.txt"),
-    ///     EntryName::try_from("test.txt")
-    /// );
-    ///
-    /// assert_eq!(
-    ///     EntryName::try_from("/test.txt"),
-    ///     EntryName::try_from("test.txt")
-    /// );
-    ///
-    /// assert_eq!(
-    ///     EntryName::try_from("./test.txt"),
-    ///     EntryName::try_from("test.txt")
-    /// );
-    ///
-    /// assert_eq!(
-    ///     EntryName::try_from("../test.txt"),
-    ///     EntryName::try_from("test.txt")
-    /// );
+    /// assert_eq!(EntryName::from("test.txt"), EntryName::from("test.txt"));
+    /// assert_eq!(EntryName::from("/test.txt"), EntryName::from("test.txt"));
+    /// assert_eq!(EntryName::from("./test.txt"), EntryName::from("test.txt"));
+    /// assert_eq!(EntryName::from("../test.txt"), EntryName::from("test.txt"));
     /// ```
     #[inline]
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        Self::new_from_path(value.as_ref())
+    fn from(value: &str) -> Self {
+        Self::new_from_utf8(value.as_ref())
     }
 }
 
@@ -169,7 +169,9 @@ impl TryFrom<&[u8]> for EntryName {
 
     #[inline]
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        Self::try_from(str::from_utf8(value).map_err(|e| EntryNameError(e.to_string()))?)
+        Ok(Self::from(
+            str::from_utf8(value).map_err(|e| EntryNameError(e.to_string()))?,
+        ))
     }
 }
 
