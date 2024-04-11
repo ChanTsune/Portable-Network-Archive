@@ -18,7 +18,7 @@ use std::path::{Component, Path, PathBuf};
 pub struct EntryReference(String);
 
 impl EntryReference {
-    fn new(path: &Path) -> Result<Self, ()> {
+    fn new_from_path(path: &Path) -> Result<Self, ()> {
         let has_root = path.has_root();
         let mut components = path.components();
         if has_root {
@@ -114,7 +114,7 @@ impl TryFrom<&str> for EntryReference {
     /// ```
     #[inline]
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        Self::new(value.as_ref())
+        Self::new_from_path(value.as_ref())
     }
 }
 
@@ -131,7 +131,7 @@ impl TryFrom<&Path> for EntryReference {
     /// ```
     #[inline]
     fn try_from(value: &Path) -> Result<Self, Self::Error> {
-        Self::new(value)
+        Self::new_from_path(value)
     }
 }
 
