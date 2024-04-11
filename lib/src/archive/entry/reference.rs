@@ -119,7 +119,7 @@ impl From<&str> for EntryReference {
     /// ```
     #[inline]
     fn from(value: &str) -> Self {
-        Self::new_from_utf8(value.as_ref())
+        Self::new_from_utf8(value)
     }
 }
 
