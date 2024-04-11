@@ -1,5 +1,4 @@
-use crate::util::try_to_string;
-use camino::{Utf8Component, Utf8PathBuf};
+use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
 use std::error::Error;
 use std::ffi::OsStr;
 use std::fmt::{self, Display, Formatter};
@@ -23,18 +22,8 @@ impl Display for EntryNameError {
     }
 }
 
-fn filtered_components(path: &Path) -> impl Iterator<Item = &OsStr> {
-    path.components().filter_map(|c| match c {
-        Component::Prefix(_) | Component::RootDir | Component::CurDir | Component::ParentDir => {
-            None
-        }
-        Component::Normal(p) => Some(p),
-    })
-}
-
 impl EntryName {
-    fn new_from_utf8(name: &str) -> Self {
-        let path = Utf8PathBuf::from(name);
+    fn new_from_utf8path(path: &Utf8Path) -> Self {
         let buf = path
             .components()
             .filter_map(|c| match c {
@@ -48,11 +37,15 @@ impl EntryName {
         Self(buf.join("/"))
     }
 
+    #[inline]
+    fn new_from_utf8(name: &str) -> Self {
+        Self::new_from_utf8path(&Utf8PathBuf::from(name))
+    }
+
+    #[inline]
     fn new_from_path(name: &Path) -> Result<Self, EntryNameError> {
-        let buf = filtered_components(name)
-            .map(|i| try_to_string(i).map_err(|e| EntryNameError(e.to_string())))
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(Self(buf.join("/")))
+        let path = Utf8Path::from_path(name).ok_or(EntryNameError("Not valid as utf8".into()))?;
+        Ok(Self::new_from_utf8path(path))
     }
 
     #[inline]
@@ -109,8 +102,15 @@ impl EntryName {
     }
 
     fn from_path_lossy(p: &Path) -> Self {
-        let buf = filtered_components(p)
-            .map(|i| i.to_string_lossy())
+        let buf = p
+            .components()
+            .filter_map(|c| match c {
+                Component::Prefix(_)
+                | Component::RootDir
+                | Component::CurDir
+                | Component::ParentDir => None,
+                Component::Normal(p) => Some(p.to_string_lossy()),
+            })
             .collect::<Vec<_>>();
         Self(buf.join("/"))
     }
