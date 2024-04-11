@@ -26,7 +26,7 @@ fn solid(b: &mut Bencher) {
             "--quiet",
             "ls",
             "--solid",
-            "../resources/test/solid.pna",
+            "../resources/test/solid_zstd.pna",
         ]))
         .unwrap()
     })
