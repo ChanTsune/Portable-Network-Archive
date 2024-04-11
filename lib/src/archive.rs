@@ -25,10 +25,8 @@ use std::io::prelude::*;
 /// # fn main() -> io::Result<()> {
 /// let file = File::create("foo.pna")?;
 /// let mut archive = Archive::write_header(file)?;
-/// let mut entry_builder = EntryBuilder::new_file(
-///     "bar.txt".try_into().unwrap(),
-///     WriteOption::builder().build(),
-/// )?;
+/// let mut entry_builder =
+///     EntryBuilder::new_file("bar.txt".into(), WriteOption::builder().build())?;
 /// entry_builder.write_all(b"content")?;
 /// let entry = entry_builder.build()?;
 /// archive.add_entry(entry)?;
@@ -254,7 +252,7 @@ mod tests {
     fn create_archive(src: &[u8], options: WriteOption) -> io::Result<Vec<u8>> {
         let mut writer = Archive::write_header(Vec::with_capacity(src.len()))?;
         writer.add_entry({
-            let mut builder = EntryBuilder::new_file("test/text".try_into().unwrap(), options)?;
+            let mut builder = EntryBuilder::new_file("test/text".into(), options)?;
             builder.write_all(src)?;
             builder.build()?
         })?;
@@ -302,12 +300,12 @@ mod tests {
         let archive = {
             let mut writer = Archive::write_header(Vec::new())?;
             let dir_entry = {
-                let builder = EntryBuilder::new_dir("test".try_into().unwrap());
+                let builder = EntryBuilder::new_dir("test".into());
                 builder.build().unwrap()
             };
             let file_entry = {
                 let options = WriteOption::builder().build();
-                let mut builder = EntryBuilder::new_file("test/text".try_into().unwrap(), options)?;
+                let mut builder = EntryBuilder::new_file("test/text".into(), options)?;
                 builder.write_all("text".as_bytes())?;
                 builder.build()?
             };
@@ -353,11 +351,9 @@ mod tests {
         let mut writer = Archive::write_header(Vec::new()).unwrap();
         writer
             .add_entry({
-                let builder = EntryBuilder::new_file(
-                    EntryName::from_lossy("text1.txt"),
-                    WriteOption::builder().build(),
-                )
-                .unwrap();
+                let builder =
+                    EntryBuilder::new_file("text1.txt".into(), WriteOption::builder().build())
+                        .unwrap();
                 builder.build().unwrap()
             })
             .unwrap();
@@ -367,11 +363,9 @@ mod tests {
         appender.seek_to_end().unwrap();
         appender
             .add_entry({
-                let builder = EntryBuilder::new_file(
-                    EntryName::from_lossy("text2.txt"),
-                    WriteOption::builder().build(),
-                )
-                .unwrap();
+                let builder =
+                    EntryBuilder::new_file("text2.txt".into(), WriteOption::builder().build())
+                        .unwrap();
                 builder.build().unwrap()
             })
             .unwrap();
@@ -388,11 +382,8 @@ mod tests {
     #[test]
     fn metadata() {
         let original_entry = {
-            let mut builder = EntryBuilder::new_file(
-                EntryName::from_lossy("name"),
-                WriteOption::builder().build(),
-            )
-            .unwrap();
+            let mut builder =
+                EntryBuilder::new_file("name".into(), WriteOption::builder().build()).unwrap();
             builder.created(Duration::from_secs(31));
             builder.modified(Duration::from_secs(32));
             builder.accessed(Duration::from_secs(33));

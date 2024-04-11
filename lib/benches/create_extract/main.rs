@@ -16,7 +16,7 @@ fn bench_write_archive(b: &mut Bencher, mut options: WriteOptionBuilder) {
         writer
             .add_entry({
                 let mut builder = EntryBuilder::new_file(
-                    "bench".try_into().unwrap(),
+                    "bench".into(),
                     options.password(Some("password")).build(),
                 )
                 .unwrap();
@@ -33,11 +33,9 @@ fn bench_read_archive(b: &mut Bencher, mut options: WriteOptionBuilder) {
     let mut writer = Archive::write_header(Vec::with_capacity(10000)).unwrap();
     writer
         .add_entry({
-            let mut builder = EntryBuilder::new_file(
-                "bench".try_into().unwrap(),
-                options.password(Some("password")).build(),
-            )
-            .unwrap();
+            let mut builder =
+                EntryBuilder::new_file("bench".into(), options.password(Some("password")).build())
+                    .unwrap();
             builder.write_all(&buf).unwrap();
             builder.build().unwrap()
         })

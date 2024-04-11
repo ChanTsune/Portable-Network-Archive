@@ -403,10 +403,10 @@ impl SolidEntryBuilder {
     ///
     /// # fn main() -> io::Result<()> {
     /// let mut builder = SolidEntryBuilder::new(WriteOption::builder().build())?;
-    /// let dir_entry = EntryBuilder::new_dir("example".try_into().unwrap()).build()?;
+    /// let dir_entry = EntryBuilder::new_dir("example".into()).build()?;
     /// builder.add_entry(dir_entry)?;
     /// let mut entry_builder =
-    ///     EntryBuilder::new_file("example/text.txt".try_into().unwrap(), WriteOption::store())?;
+    ///     EntryBuilder::new_file("example/text.txt".into(), WriteOption::store())?;
     /// entry_builder.write_all(b"content")?;
     /// let file_entry = entry_builder.build()?;
     /// builder.add_entry(file_entry)?;

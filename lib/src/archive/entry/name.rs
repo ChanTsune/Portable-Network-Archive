@@ -67,8 +67,7 @@ impl EntryName {
     /// ```
     /// use libpna::EntryName;
     ///
-    /// let name = EntryName::from_lossy("foo");
-    ///
+    /// let name = EntryName::from("foo");
     /// assert_eq!("foo", name.as_str());
     /// ```
     #[inline]
@@ -84,7 +83,7 @@ impl EntryName {
     /// use libpna::EntryName;
     /// use std::ffi::OsStr;
     ///
-    /// let entry_name = EntryName::from_lossy("foo.txt");
+    /// let entry_name = EntryName::from("foo.txt");
     /// let os_str = OsStr::new("foo.txt");
     /// assert_eq!(entry_name.as_os_str(), os_str);
     /// ```
@@ -101,7 +100,7 @@ impl EntryName {
     /// use libpna::EntryName;
     /// use std::path::Path;
     ///
-    /// let entry_name = EntryName::from_lossy("test/foo.txt");
+    /// let entry_name = EntryName::from("test/foo.txt");
     /// assert_eq!(Path::new("test/foo.txt"), entry_name.as_path());
     /// ```
     #[inline]
