@@ -55,6 +55,19 @@ fn extract_all(bytes: &[u8], password: Option<&str>) {
 }
 
 #[test]
-fn solid() {
-    extract_all(include_bytes!("../../resources/test/solid.pna"), None);
+fn solid_zstd() {
+    extract_all(include_bytes!("../../resources/test/solid_zstd.pna"), None);
+}
+
+#[test]
+fn solid_xz() {
+    extract_all(include_bytes!("../../resources/test/solid_xz.pna"), None);
+}
+
+#[test]
+fn solid_deflate() {
+    extract_all(
+        include_bytes!("../../resources/test/solid_deflate.pna"),
+        None,
+    );
 }
