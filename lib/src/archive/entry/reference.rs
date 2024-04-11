@@ -1,4 +1,5 @@
 use crate::util::try_to_string;
+use camino::{Utf8Component, Utf8PathBuf};
 use std::borrow::Cow;
 use std::ffi::OsStr;
 use std::path::{Component, Path, PathBuf};
@@ -19,6 +20,29 @@ use std::path::{Component, Path, PathBuf};
 pub struct EntryReference(String);
 
 impl EntryReference {
+    fn new_from_utf8(name: &str) -> Self {
+        let path = Utf8PathBuf::from(name);
+        let has_root = path.has_root();
+        let mut components = path.components();
+        if has_root {
+            components.next();
+        };
+        let p = components
+            .map(|it| match it {
+                Utf8Component::Prefix(p) => p.as_str(),
+                Utf8Component::RootDir => unreachable!(),
+                Utf8Component::CurDir => ".",
+                Utf8Component::ParentDir => "..",
+                Utf8Component::Normal(n) => n,
+            })
+            .collect::<Vec<_>>();
+        let mut s = p.join("/");
+        if has_root {
+            s.insert(0, '/');
+        };
+        Self(s)
+    }
+
     fn new_from_path(path: &Path) -> Result<Self, ()> {
         let has_root = path.has_root();
         let mut components = path.components();
@@ -47,8 +71,8 @@ impl EntryReference {
     /// Basic usage:
     /// ```
     /// use libpna::EntryReference;
-    /// let r = EntryReference::from_lossy("foo");
     ///
+    /// let r = EntryReference::from_lossy("foo");
     /// assert_eq!("foo", r.as_str());
     /// ```
     #[inline]
@@ -134,21 +158,16 @@ impl EntryReference {
     }
 }
 
-impl TryFrom<&str> for EntryReference {
-    type Error = ();
-
+impl From<&str> for EntryReference {
     /// ## Examples
     /// ```
     /// use libpna::EntryReference;
     ///
-    /// assert_eq!(
-    ///     "/path/with/root",
-    ///     EntryReference::try_from("/path/with/root").unwrap()
-    /// );
+    /// assert_eq!("/path/with/root", EntryReference::from("/path/with/root"));
     /// ```
     #[inline]
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        Self::new_from_path(value.as_ref())
+    fn from(value: &str) -> Self {
+        Self::new_from_utf8(value.as_ref())
     }
 }
 
