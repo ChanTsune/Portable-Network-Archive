@@ -1,5 +1,4 @@
-use crate::util::try_to_string;
-use camino::{Utf8Component, Utf8PathBuf};
+use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
 use std::borrow::Cow;
 use std::ffi::OsStr;
 use std::path::{Component, Path, PathBuf};
@@ -20,8 +19,7 @@ use std::path::{Component, Path, PathBuf};
 pub struct EntryReference(String);
 
 impl EntryReference {
-    fn new_from_utf8(name: &str) -> Self {
-        let path = Utf8PathBuf::from(name);
+    fn new_from_utf8path(path: &Utf8Path) -> Self {
         let has_root = path.has_root();
         let mut components = path.components();
         if has_root {
@@ -43,27 +41,15 @@ impl EntryReference {
         Self(s)
     }
 
+    #[inline]
+    fn new_from_utf8(name: &str) -> Self {
+        Self::new_from_utf8path(&Utf8PathBuf::from(name))
+    }
+
+    #[inline]
     fn new_from_path(path: &Path) -> Result<Self, ()> {
-        let has_root = path.has_root();
-        let mut components = path.components();
-        if has_root {
-            components.next();
-        };
-        let p = components
-            .map(|it| match it {
-                Component::Prefix(p) => try_to_string(p.as_os_str()),
-                Component::RootDir => unreachable!(),
-                Component::CurDir => Ok(Cow::from(".")),
-                Component::ParentDir => Ok(Cow::from("..")),
-                Component::Normal(n) => try_to_string(n),
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| ())?;
-        let mut s = p.join("/");
-        if has_root {
-            s.insert(0, '/');
-        };
-        Ok(Self(s))
+        let path = Utf8Path::from_path(path).ok_or(())?;
+        Ok(Self::new_from_utf8path(path))
     }
 
     /// Extracts a string slice containing the entire [EntryReference].

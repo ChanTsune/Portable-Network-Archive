@@ -1,28 +1,3 @@
-use std::borrow::Cow;
-use std::ffi::OsStr;
-#[cfg(unix)]
-use std::{
-    os::unix::ffi::OsStrExt,
-    str::{self, Utf8Error},
-};
-#[cfg(windows)]
-use std::{os::windows::ffi::OsStrExt, string::FromUtf16Error};
-
-#[cfg(unix)]
-pub(crate) fn try_to_string(s: &OsStr) -> Result<Cow<str>, Utf8Error> {
-    str::from_utf8(s.as_bytes()).map(Cow::from)
-}
-
-#[cfg(windows)]
-pub(crate) fn try_to_string(s: &OsStr) -> Result<Cow<str>, FromUtf16Error> {
-    String::from_utf16(&s.encode_wide().collect::<Vec<_>>()).map(Cow::from)
-}
-
-#[cfg(all(not(unix), not(windows)))]
-pub(crate) fn try_to_string(s: &OsStr) -> Result<Cow<str>, String> {
-    Ok(s.to_string_lossy())
-}
-
 pub(crate) mod slice {
     pub(crate) fn skip_while<E, P>(s: &[E], mut predicate: P) -> &[E]
     where
@@ -33,14 +8,5 @@ pub(crate) mod slice {
             s = &s[1..];
         }
         s
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn safe_chars() {
-        assert_eq!(try_to_string("".as_ref()).unwrap(), Cow::from(""));
     }
 }
