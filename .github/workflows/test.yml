@@ -29,6 +29,11 @@ jobs:
       - uses: ./.github/actions/setup-rust
         with:
           channel: ${{ matrix.rust }}
+      - name: Cache rust build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ matrix.os }}-rust-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
       - name: run test
         run: cargo test --locked --release --all-features
         env:
