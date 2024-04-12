@@ -24,6 +24,7 @@ tabled = { version = "0.15.0", default-features = false, features = ["std", "ans
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.28.0", features = ["user", "fs"] }
+xattr = "1.3.1"
 
 [features]
 experimental = [] # deprecated
