@@ -63,13 +63,20 @@ fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Result<()> {
         let option = option.clone();
         let keep_timestamp = args.keep_timestamp;
         let keep_permission = args.keep_permission;
+        let keep_xattrs = args.keep_xattr;
         let tx = tx.clone();
         pool.spawn_fifo(move || {
             if verbosity == Verbosity::Verbose {
                 eprintln!("Adding: {}", file.display());
             }
-            tx.send(create_entry(&file, option, keep_timestamp, keep_permission))
-                .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
+            tx.send(create_entry(
+                &file,
+                option,
+                keep_timestamp,
+                keep_permission,
+                keep_xattrs,
+            ))
+            .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
         });
     }
 
