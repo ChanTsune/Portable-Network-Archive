@@ -1,7 +1,7 @@
 use crate::{
     cli::{ExtractArgs, Verbosity},
-    command::{ask_password, Command, Let},
-    utils::{self, part_name, GlobPatterns},
+    command::{ask_password, Command},
+    utils::{self, part_name, GlobPatterns, Let},
 };
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 #[cfg(unix)]

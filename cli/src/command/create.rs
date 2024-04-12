@@ -3,9 +3,9 @@ use crate::{
     command::{
         ask_password, check_password,
         commons::{collect_items, create_entry, entry_option, split_to_parts},
-        Command, Let,
+        Command,
     },
-    utils::part_name,
+    utils::{part_name, Let},
 };
 use bytesize::ByteSize;
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};

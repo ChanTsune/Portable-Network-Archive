@@ -46,16 +46,3 @@ fn check_password(password: &Option<String>, cipher_args: &CipherAlgorithmArgs) 
 trait Command {
     fn execute(self, verbosity: Verbosity) -> io::Result<()>;
 }
-
-trait Let<T> {
-    fn let_ref<U, F: FnOnce(&T) -> U>(&self, f: F);
-}
-
-impl<T> Let<T> for Option<T> {
-    #[inline]
-    fn let_ref<U, F: FnOnce(&T) -> U>(&self, f: F) {
-        if let Some(t) = self.as_ref() {
-            f(t);
-        }
-    }
-}

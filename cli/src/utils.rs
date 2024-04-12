@@ -30,3 +30,16 @@ impl GlobPatterns {
         self.0.iter().any(|glob| glob.matches_path(path))
     }
 }
+
+pub trait Let<T> {
+    fn let_ref<U, F: FnOnce(&T) -> U>(&self, f: F);
+}
+
+impl<T> Let<T> for Option<T> {
+    #[inline]
+    fn let_ref<U, F: FnOnce(&T) -> U>(&self, f: F) {
+        if let Some(t) = self.as_ref() {
+            f(t);
+        }
+    }
+}
