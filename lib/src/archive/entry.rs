@@ -1,3 +1,4 @@
+mod attr;
 mod builder;
 mod header;
 mod meta;
@@ -7,7 +8,7 @@ mod read;
 mod reference;
 mod write;
 
-pub use self::{builder::*, header::*, meta::*, name::*, options::*, reference::*};
+pub use self::{attr::*, builder::*, header::*, meta::*, name::*, options::*, reference::*};
 use self::{private::*, read::*, write::*};
 use crate::{
     chunk::{chunk_data_split, ChunkExt, ChunkReader, ChunkType, RawChunk, MIN_CHUNK_BYTES_SIZE},
