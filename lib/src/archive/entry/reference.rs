@@ -1,5 +1,6 @@
 use crate::util::try_to_string;
 use std::borrow::Cow;
+use std::ffi::OsStr;
 use std::path::{Component, Path, PathBuf};
 
 /// A UTF-8 encoded entry reference.
@@ -53,6 +54,39 @@ impl EntryReference {
     #[inline]
     pub fn as_str(&self) -> &str {
         self.0.as_str()
+    }
+
+    /// Converts to an [`OsStr`] slice.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use libpna::EntryReference;
+    /// use std::ffi::OsStr;
+    ///
+    /// let entry_name = EntryReference::from_lossy("foo.txt");
+    /// let os_str = OsStr::new("foo.txt");
+    /// assert_eq!(entry_name.as_os_str(), os_str);
+    /// ```
+    #[inline]
+    pub fn as_os_str(&self) -> &OsStr {
+        self.0.as_ref()
+    }
+
+    /// Coerces to a [`Path`] slice.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use libpna::EntryReference;
+    /// use std::path::Path;
+    ///
+    /// let entry_name = EntryReference::from_lossy("test/foo.txt");
+    /// assert_eq!(Path::new("test/foo.txt"), entry_name.as_path());
+    /// ```
+    #[inline]
+    pub fn as_path(&self) -> &Path {
+        self.0.as_ref()
     }
 
     #[inline]
