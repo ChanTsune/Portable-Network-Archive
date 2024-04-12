@@ -6,7 +6,7 @@ use crate::{
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 #[cfg(unix)]
 use nix::unistd::{Group, User};
-use pna::{Archive, DataKind, Permission, ReadOption, RegularEntry};
+use pna::{Archive, DataKind, EntryReference, Permission, ReadOption, RegularEntry};
 use rayon::ThreadPoolBuilder;
 use std::ops::Add;
 #[cfg(target_os = "macos")]
@@ -214,15 +214,16 @@ pub(crate) fn extract_entry(
         }
         DataKind::SymbolicLink => {
             let reader = item.reader(ReadOption::with_password(password))?;
-            let original = PathBuf::from(io::read_to_string(reader)?);
+            let original = EntryReference::from_lossy(io::read_to_string(reader)?);
             if overwrite && path.exists() {
                 utils::fs::remove(&path)?;
             }
-            utils::fs::symlink(original, &path)?;
+            utils::fs::symlink(original.as_str(), &path)?;
         }
         DataKind::HardLink => {
             let reader = item.reader(ReadOption::with_password(password))?;
-            let mut original = PathBuf::from(io::read_to_string(reader)?);
+            let original = EntryReference::from_lossy(io::read_to_string(reader)?);
+            let mut original = PathBuf::from(original.as_str());
             if let Some(parent) = path.parent() {
                 original = parent.join(original);
             }
