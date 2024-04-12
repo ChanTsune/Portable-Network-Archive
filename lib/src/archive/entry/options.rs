@@ -1,3 +1,4 @@
+/// Compression method.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
 pub enum Compression {
@@ -22,6 +23,7 @@ impl TryFrom<u8> for Compression {
     }
 }
 
+/// Compression level of each algorithm.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct CompressionLevel(pub(crate) u8);
 
@@ -43,6 +45,7 @@ impl From<u8> for CompressionLevel {
     }
 }
 
+/// Encryption algorithm.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
 pub enum Encryption {
@@ -65,6 +68,7 @@ impl TryFrom<u8> for Encryption {
     }
 }
 
+/// Cipher mode of encryption algorithm.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
 pub enum CipherMode {
@@ -85,12 +89,14 @@ impl TryFrom<u8> for CipherMode {
     }
 }
 
+/// Password hash algorithm.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum HashAlgorithm {
     Pbkdf2Sha256,
     Argon2Id,
 }
 
+/// Type of entry.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
 pub enum DataKind {
@@ -115,6 +121,7 @@ impl TryFrom<u8> for DataKind {
     }
 }
 
+/// Options for writing an entry.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct WriteOption {
     pub(crate) compression: Compression,
@@ -125,7 +132,6 @@ pub struct WriteOption {
     pub(crate) password: Option<String>,
 }
 
-/// Options for writing an entry.
 impl WriteOption {
     /// A new [WriteOption] to simply store.
     ///
