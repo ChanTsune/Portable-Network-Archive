@@ -303,6 +303,7 @@ pub struct RegularEntry {
     pub(crate) extra: Vec<RawChunk>,
     pub(crate) data: Vec<Vec<u8>>,
     pub(crate) metadata: Metadata,
+    pub(crate) xattrs: Vec<ExtendedAttribute>,
 }
 
 impl TryFrom<RawEntry> for RegularEntry {
@@ -322,6 +323,7 @@ impl TryFrom<RawEntry> for RegularEntry {
         }
         let mut extra = vec![];
         let mut data = vec![];
+        let mut xattrs = vec![];
         let mut info = None;
         let mut size = None;
         let mut phsf = None;
@@ -347,6 +349,7 @@ impl TryFrom<RawEntry> for RegularEntry {
                 ChunkType::mTIM => mtime = Some(timestamp(&chunk.data)?),
                 ChunkType::aTIM => atime = Some(timestamp(&chunk.data)?),
                 ChunkType::fPRM => permission = Some(Permission::try_from_bytes(&chunk.data)?),
+                ChunkType::xATR => xattrs.push(ExtendedAttribute::try_from_bytes(&chunk.data)?),
                 _ => extra.push(chunk),
             }
         }
@@ -378,6 +381,7 @@ impl TryFrom<RawEntry> for RegularEntry {
                 permission,
             },
             data,
+            xattrs,
         })
     }
 }
@@ -437,6 +441,9 @@ impl SealedEntryExt for RegularEntry {
         if let Some(p) = permission {
             vec.push(RawChunk::from_data(ChunkType::fPRM, p.to_bytes()));
         }
+        for xattr in self.xattrs {
+            vec.push(RawChunk::from_data(ChunkType::xATR, xattr.to_bytes()));
+        }
         vec.push(RawChunk::from_data(ChunkType::FEND, Vec::new()));
         vec
     }
@@ -486,6 +493,9 @@ impl SealedEntryExt for RegularEntry {
         if let Some(p) = permission {
             total += (ChunkType::fPRM, p.to_bytes()).write_in(writer)?;
         }
+        for xattr in &self.xattrs {
+            total += (ChunkType::xATR, xattr.to_bytes()).write_in(writer)?;
+        }
         total += (ChunkType::FEND, [].as_slice()).write_in(writer)?;
         Ok(total)
     }
@@ -516,6 +526,12 @@ impl RegularEntry {
     #[inline]
     pub fn metadata(&self) -> &Metadata {
         &self.metadata
+    }
+
+    /// Extended attributes of the entry.
+    #[inline]
+    pub fn xattrs(&self) -> &[ExtendedAttribute] {
+        &self.xattrs
     }
 
     /// Return the reader of this [`RegularEntry`].
