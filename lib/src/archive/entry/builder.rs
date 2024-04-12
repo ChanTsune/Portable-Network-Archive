@@ -1,8 +1,8 @@
 use crate::{
     archive::entry::{
         get_writer, get_writer_context, private::SealedEntryExt, Cipher, DataKind, Entry,
-        EntryHeader, EntryName, EntryReference, Metadata, Permission, RegularEntry, SolidEntry,
-        SolidHeader, WriteOption,
+        EntryHeader, EntryName, EntryReference, ExtendedAttribute, Metadata, Permission,
+        RegularEntry, SolidEntry, SolidHeader, WriteOption,
     },
     cipher::CipherWriter,
     compress::CompressionWriter,
@@ -35,6 +35,7 @@ pub struct EntryBuilder {
     permission: Option<Permission>,
     store_file_size: bool,
     file_size: u128,
+    xattrs: Vec<ExtendedAttribute>,
 }
 
 impl EntryBuilder {
@@ -59,6 +60,7 @@ impl EntryBuilder {
             permission: None,
             store_file_size: true,
             file_size: 0,
+            xattrs: Vec::new(),
         }
     }
 
@@ -95,6 +97,7 @@ impl EntryBuilder {
             permission: None,
             store_file_size: true,
             file_size: 0,
+            xattrs: Vec::new(),
         })
     }
 
@@ -139,6 +142,7 @@ impl EntryBuilder {
             permission: None,
             store_file_size: true,
             file_size: 0,
+            xattrs: Vec::new(),
         })
     }
 
@@ -183,6 +187,7 @@ impl EntryBuilder {
             permission: None,
             store_file_size: true,
             file_size: 0,
+            xattrs: Vec::new(),
         })
     }
 
@@ -262,6 +267,21 @@ impl EntryBuilder {
         self
     }
 
+    /// Adds [ExtendedAttribute] to the entry.
+    ///
+    /// # Arguments
+    ///
+    /// * `xattr` - The extended attribute.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the [EntryBuilder] with the creation timestamp set.
+    #[inline]
+    pub fn add_xattr(&mut self, xattr: ExtendedAttribute) -> &mut Self {
+        self.xattrs.push(xattr);
+        self
+    }
+
     /// Builds the entry and returns a Result containing the new [RegularEntry].
     ///
     /// # Returns
@@ -293,6 +313,7 @@ impl EntryBuilder {
             extra: Vec::new(),
             data,
             metadata,
+            xattrs: self.xattrs,
         })
     }
 }
