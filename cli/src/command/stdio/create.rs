@@ -22,6 +22,8 @@ pub(crate) struct CreateCommand {
     pub(crate) keep_timestamp: bool,
     #[arg(long, help = "Archiving the permissions of the files")]
     pub(crate) keep_permission: bool,
+    #[arg(long, help = "Archiving the extended attributes of the files")]
+    pub(crate) keep_xattr: bool,
     #[arg(long, help = "Solid mode archive")]
     pub(crate) solid: bool,
     #[command(flatten)]

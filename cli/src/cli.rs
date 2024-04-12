@@ -75,6 +75,8 @@ pub(crate) struct CreateArgs {
     pub(crate) keep_timestamp: bool,
     #[arg(long, help = "Archiving the permissions of the files")]
     pub(crate) keep_permission: bool,
+    #[arg(long, help = "Archiving the extended attributes of the files")]
+    pub(crate) keep_xattr: bool,
     #[arg(long, help = "Split archive by total entry size")]
     pub(crate) split: Option<Option<ByteSize>>,
     #[arg(long, help = "Solid mode archive")]
@@ -101,6 +103,8 @@ pub(crate) struct AppendArgs {
     pub(crate) keep_timestamp: bool,
     #[arg(long, help = "Archiving the permissions of the files")]
     pub(crate) keep_permission: bool,
+    #[arg(long, help = "Archiving the extended attributes of the files")]
+    pub(crate) keep_xattr: bool,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -123,6 +127,8 @@ pub(crate) struct ExtractArgs {
     pub(crate) keep_timestamp: bool,
     #[arg(long, help = "Restore the permissions of the files")]
     pub(crate) keep_permission: bool,
+    #[arg(long, help = "Restore the extended attributes of the files")]
+    pub(crate) keep_xattr: bool,
     #[command(flatten)]
     pub(crate) file: FileArgs,
 }

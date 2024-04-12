@@ -23,6 +23,8 @@ pub(crate) struct ExtractCommand {
     pub(crate) keep_timestamp: bool,
     #[arg(long, help = "Restore the permissions of the files")]
     pub(crate) keep_permission: bool,
+    #[arg(long, help = "Restore the extended attributes of the files")]
+    pub(crate) keep_xattr: bool,
     #[command(flatten)]
     pub(crate) file: FileArgs,
 }
