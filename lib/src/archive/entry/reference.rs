@@ -1,6 +1,7 @@
 use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
 use std::borrow::Cow;
 use std::ffi::OsStr;
+use std::fmt::{self, Display, Formatter};
 use std::path::{Component, Path, PathBuf};
 
 /// A UTF-8 encoded entry reference.
@@ -171,6 +172,12 @@ impl TryFrom<&Path> for EntryReference {
     #[inline]
     fn try_from(value: &Path) -> Result<Self, Self::Error> {
         Self::new_from_path(value)
+    }
+}
+
+impl Display for EntryReference {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        Display::fmt(&self.0, f)
     }
 }
 
