@@ -2,7 +2,8 @@ use crate::cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs};
 #[cfg(unix)]
 use nix::unistd::{Group, User};
 use pna::{
-    EntryBuilder, EntryName, EntryPart, EntryReference, Permission, RegularEntry, WriteOption,
+    EntryBuilder, EntryName, EntryPart, EntryReference, ExtendedAttribute, Permission,
+    RegularEntry, WriteOption,
 };
 #[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
@@ -50,6 +51,7 @@ pub(crate) fn create_entry(
     option: WriteOption,
     keep_timestamp: bool,
     keep_permission: bool,
+    keep_xattrs: bool,
 ) -> io::Result<RegularEntry> {
     if path.is_symlink() {
         let source = fs::read_link(path)?;
@@ -57,14 +59,14 @@ pub(crate) fn create_entry(
             EntryName::from_lossy(path),
             EntryReference::from_lossy(source.as_path()),
         )?;
-        return apply_metadata(entry, path, keep_timestamp, keep_permission)?.build();
+        return apply_metadata(entry, path, keep_timestamp, keep_permission, keep_xattrs)?.build();
     } else if path.is_file() {
         let mut entry = EntryBuilder::new_file(EntryName::from_lossy(path), option)?;
         entry.write_all(&fs::read(path)?)?;
-        return apply_metadata(entry, path, keep_timestamp, keep_permission)?.build();
+        return apply_metadata(entry, path, keep_timestamp, keep_permission, keep_xattrs)?.build();
     } else if path.is_dir() {
         let entry = EntryBuilder::new_dir(EntryName::from_lossy(path));
-        return apply_metadata(entry, path, keep_timestamp, keep_permission)?.build();
+        return apply_metadata(entry, path, keep_timestamp, keep_permission, keep_xattrs)?.build();
     }
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
@@ -97,6 +99,7 @@ pub(crate) fn apply_metadata(
     path: &Path,
     keep_timestamp: bool,
     keep_permission: bool,
+    keep_xattrs: bool,
 ) -> io::Result<EntryBuilder> {
     if keep_timestamp || keep_permission {
         let meta = fs::metadata(path)?;
@@ -132,6 +135,22 @@ pub(crate) fn apply_metadata(
                 mode,
             ));
         }
+    }
+    #[cfg(unix)]
+    if keep_xattrs {
+        if xattr::SUPPORTED_PLATFORM {
+            let xattrs = xattr::list(path)?;
+            for name in xattrs {
+                let value = xattr::get(path, &name)?.unwrap_or_default();
+                entry.add_xattr(ExtendedAttribute::new(name.to_string_lossy().into(), value));
+            }
+        } else {
+            eprintln!("Currently extended attribute is not supported on this platform.");
+        }
+    }
+    #[cfg(not(unix))]
+    if keep_xattrs {
+        eprintln!("Currently extended attribute is not supported on this platform.");
     }
     Ok(entry)
 }
