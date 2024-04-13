@@ -1,5 +1,5 @@
 #![cfg_attr(target_os = "wasi", feature(wasi_ext))]
-#![doc(html_root_url = "https://docs.rs/pna/0.8.0")]
+#![doc(html_root_url = "https://docs.rs/pna/0.9.0")]
 mod ext;
 pub mod fs;
 pub mod prelude;
