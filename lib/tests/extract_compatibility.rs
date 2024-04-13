@@ -155,6 +155,14 @@ fn keep_timestamp() {
 }
 
 #[test]
+fn keep_xattr() {
+    extract_all(
+        include_bytes!("../../resources/test/zstd_keep_xattr.pna"),
+        None,
+    );
+}
+
+#[test]
 fn keep_dir() {
     extract_all(
         include_bytes!("../../resources/test/zstd_keep_dir.pna"),
