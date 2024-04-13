@@ -55,6 +55,11 @@ impl<W> ChunkStreamWriter<W> {
             w: ChunkWriter::from(inner),
         }
     }
+
+    #[inline]
+    pub(crate) fn into_inner(self) -> W {
+        self.w.w
+    }
 }
 
 impl<W: Write> Write for ChunkStreamWriter<W> {
