@@ -1,6 +1,11 @@
 use crate::{
-    archive::{Archive, ArchiveHeader, Entry, EntryPart, PNA_HEADER},
-    chunk::{ChunkExt, ChunkType, ChunkWriter},
+    archive::{
+        entry::{get_writer, get_writer_context, Cipher, Entry, EntryPart, SealedEntryExt},
+        Archive, ArchiveHeader, PNA_HEADER,
+    },
+    chunk::{ChunkExt, ChunkStreamWriter, ChunkType, ChunkWriter},
+    io::TryIntoInner,
+    RegularEntry, SolidArchive, SolidHeader, WriteOption,
 };
 #[cfg(feature = "unstable-async")]
 use futures_io::AsyncWrite;
@@ -210,6 +215,118 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
             .write_chunk_async((ChunkType::AEND, [].as_slice()))
             .await?;
         Ok(self.inner)
+    }
+}
+
+impl<W: Write> Archive<W> {
+    /// Writes the archive header to the given `Write` object and return a new [SolidArchive].
+    ///
+    /// # Arguments
+    ///
+    /// * `write` - The [Write] object to write the header to.
+    /// * `option` - The [WriteOption] object of a solid mode option.
+    ///
+    /// # Returns
+    ///
+    /// A new [`io::Result<SolidArchive<W>>`]
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing header to the writer.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use libpna::{Archive, WriteOption};
+    /// use std::fs::File;
+    /// # use std::io;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let option = WriteOption::builder().build();
+    /// let file = File::create("example.pna")?;
+    /// let mut archive = Archive::write_solid_header(file, option)?;
+    /// archive.finalize()?;
+    /// #    Ok(())
+    /// # }
+    /// ```
+    pub fn write_solid_header(write: W, option: WriteOption) -> io::Result<SolidArchive<W>> {
+        let header = SolidHeader::new(option.compression, option.encryption, option.cipher_mode);
+        let context = get_writer_context(option)?;
+
+        let mut archive = Self::write_header(write)?;
+        (ChunkType::SHED, header.to_bytes().as_slice()).write_in(&mut archive.inner)?;
+        if let Some(phsf) = &context.phsf {
+            (ChunkType::PHSF, phsf.as_bytes()).write_in(&mut archive.inner)?;
+        }
+        if let Cipher::Aes(c) | Cipher::Camellia(c) = &context.cipher {
+            (ChunkType::SDAT, c.iv.as_slice()).write_in(&mut archive.inner)?;
+        }
+        archive.inner.flush()?;
+        let writer = get_writer(
+            ChunkStreamWriter::new(ChunkType::SDAT, archive.inner),
+            &context,
+        )?;
+
+        Ok(SolidArchive { inner: writer })
+    }
+}
+
+impl<W: Write> SolidArchive<W> {
+    /// Adds a new entry to the archive.
+    ///
+    /// # Arguments
+    ///
+    /// * `entry` - The entry to add to the archive.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use libpna::{Archive, EntryBuilder, WriteOption};
+    /// use std::fs::File;
+    /// # use std::io;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let option = WriteOption::builder().build();
+    /// let file = File::create("example.pna")?;
+    /// let mut archive = Archive::write_solid_header(file, option)?;
+    /// archive.add_entry(
+    ///     EntryBuilder::new_file("example.txt".try_into().unwrap(), WriteOption::store())?.build()?,
+    /// )?;
+    /// archive.finalize()?;
+    /// #     Ok(())
+    /// # }
+    /// ```
+    pub fn add_entry(&mut self, entry: RegularEntry) -> io::Result<usize> {
+        entry.write_in(&mut self.inner)
+    }
+
+    /// Write an end marker to finalize the archive.
+    ///
+    /// Marks that the PNA archive contains no more entries.
+    /// Normally, a PNA archive reader will continue reading entries in the hope that the entry exists until it encounters this end marker.
+    /// This end marker should always be recorded at the end of the file unless there is a special reason to do so.
+    ///
+    /// # Examples
+    /// Create an empty archive.
+    /// ```no_run
+    /// use libpna::{Archive, WriteOption};
+    /// use std::fs::File;
+    /// # use std::io;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let option = WriteOption::builder().build();
+    /// let file = File::create("example.pna")?;
+    /// let mut archive = Archive::write_solid_header(file, option)?;
+    /// archive.finalize()?;
+    /// #    Ok(())
+    /// # }
+    /// ```
+    pub fn finalize(mut self) -> io::Result<W> {
+        self.inner.flush()?;
+        let mut inner = self.inner.try_into_inner()?.try_into_inner()?.into_inner();
+        (ChunkType::SEND, [].as_slice()).write_in(&mut inner)?;
+        (ChunkType::AEND, [].as_slice()).write_in(&mut inner)?;
+        Ok(inner)
     }
 }
 

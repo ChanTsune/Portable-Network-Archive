@@ -3,9 +3,14 @@ mod header;
 mod read;
 mod write;
 
-use crate::chunk::RawChunk;
+use crate::{
+    chunk::{ChunkStreamWriter, RawChunk},
+    cipher::CipherWriter,
+    compress::CompressionWriter,
+};
 pub use entry::*;
 pub use header::*;
+use std::io::prelude::*;
 
 /// An object providing access to a PNA file.
 /// An instance of an [Archive] can be read and/or written.
@@ -71,6 +76,33 @@ impl<T> Archive<T> {
             buf,
         }
     }
+}
+
+/// An object providing writing to a solid mode PNA file.
+/// An instance of an [SolidArchive] can be written.
+///
+/// # Examples
+/// Creates a new solid mode PNA file and adds entry to it.
+/// ```no_run
+/// use libpna::{Archive, EntryBuilder, WriteOption};
+/// use std::fs::File;
+/// # use std::io::{self, prelude::*};
+///
+/// # fn main() -> io::Result<()> {
+/// let option = WriteOption::builder().build();
+/// let file = File::create("foo.pna")?;
+/// let mut archive = Archive::write_solid_header(file, option)?;
+/// let mut entry_builder =
+///     EntryBuilder::new_file("bar.txt".try_into().unwrap(), WriteOption::store())?;
+/// entry_builder.write_all(b"content")?;
+/// let entry = entry_builder.build()?;
+/// archive.add_entry(entry)?;
+/// archive.finalize()?;
+/// #     Ok(())
+/// # }
+/// ```
+pub struct SolidArchive<T: Write> {
+    inner: CompressionWriter<CipherWriter<ChunkStreamWriter<T>>>,
 }
 
 #[cfg(test)]
@@ -240,6 +272,29 @@ mod tests {
         io::copy(&mut reader, &mut dist)?;
         assert_eq!(src, dist.as_slice());
         Ok(())
+    }
+
+    #[test]
+    fn solid_archive() {
+        let write_option = WriteOption::builder().password(Some("PASSWORD")).build();
+        let mut archive = Archive::write_solid_header(Vec::new(), write_option).unwrap();
+        archive
+            .add_entry({
+                let mut builder =
+                    EntryBuilder::new_file("test/text".try_into().unwrap(), WriteOption::store())
+                        .unwrap();
+                builder.write_all(b"text").unwrap();
+                builder.build().unwrap()
+            })
+            .unwrap();
+        let buf = archive.finalize().unwrap();
+        let mut archive = Archive::read_header(&buf[..]).unwrap();
+        let mut entries = archive.entries_with_password(Some("PASSWORD"));
+        let entry = entries.next().unwrap().unwrap();
+        let mut reader = entry.reader(ReadOption::builder().build()).unwrap();
+        let mut body = Vec::new();
+        reader.read_to_end(&mut body).unwrap();
+        assert_eq!(b"text", &body[..]);
     }
 
     #[test]
