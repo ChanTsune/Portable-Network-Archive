@@ -1,17 +1,35 @@
 use crate::{
     archive::{
-        entry::{get_writer, get_writer_context, Cipher, Entry, EntryPart, SealedEntryExt},
+        entry::{
+            get_writer, get_writer_context, Cipher, Entry, EntryHeader, EntryName, EntryPart,
+            Metadata, SealedEntryExt, WriteOption,
+        },
         Archive, ArchiveHeader, PNA_HEADER,
     },
     chunk::{ChunkExt, ChunkStreamWriter, ChunkType, ChunkWriter},
+    cipher::CipherWriter,
+    compress::CompressionWriter,
     io::TryIntoInner,
-    RegularEntry, SolidArchive, SolidHeader, WriteOption,
+    RegularEntry, SolidArchive, SolidHeader,
 };
 #[cfg(feature = "unstable-async")]
 use futures_io::AsyncWrite;
 #[cfg(feature = "unstable-async")]
 use futures_util::AsyncWriteExt;
 use std::io::{self, Write};
+
+/// Writer that compresses and encrypts according to the given options.
+pub struct EntryDataWriter<W: Write>(CompressionWriter<CipherWriter<ChunkStreamWriter<W>>>);
+
+impl<W: Write> Write for EntryDataWriter<W> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.0.flush()
+    }
+}
 
 impl<W: Write> Archive<W> {
     /// Writes the archive header to the given `Write` object and return a new [Archive].
@@ -51,6 +69,73 @@ impl<W: Write> Archive<W> {
         write.write_all(PNA_HEADER)?;
         (ChunkType::AHED, header.to_bytes().as_slice()).write_in(&mut write)?;
         Ok(Self::new(write, header))
+    }
+
+    /// Write regular file entry
+    ///
+    /// # Example
+    /// ```no_run
+    /// use libpna::{Archive, Metadata, WriteOption};
+    /// # use std::error::Error;
+    /// use std::fs;
+    /// use std::io::{self, prelude::*};
+    ///
+    /// # fn main() -> Result<(), Box<dyn Error>> {
+    /// let file = fs::File::create("foo.pna")?;
+    /// let mut archive = Archive::write_header(file)?;
+    /// archive.write_file(
+    ///     "bar.txt".try_into()?,
+    ///     Metadata::new(),
+    ///     WriteOption::builder().build(),
+    ///     |writer| writer.write_all(b"text"),
+    /// )?;
+    /// archive.finalize()?;
+    /// #    Ok(())
+    /// # }
+    /// ```
+    pub fn write_file<F>(
+        &mut self,
+        name: EntryName,
+        metadata: Metadata,
+        option: WriteOption,
+        mut f: F,
+    ) -> io::Result<()>
+    where
+        F: FnMut(&mut EntryDataWriter<&mut W>) -> io::Result<()>,
+    {
+        let header = EntryHeader::for_file(
+            option.compression,
+            option.encryption,
+            option.cipher_mode,
+            name,
+        );
+        (ChunkType::FHED, header.to_bytes()).write_in(&mut self.inner)?;
+        if let Some(c) = metadata.created {
+            (ChunkType::cTIM, c.as_secs().to_be_bytes().as_slice()).write_in(&mut self.inner)?;
+        }
+        if let Some(m) = metadata.modified {
+            (ChunkType::mTIM, m.as_secs().to_be_bytes().as_slice()).write_in(&mut self.inner)?;
+        }
+        if let Some(a) = metadata.accessed {
+            (ChunkType::aTIM, a.as_secs().to_be_bytes().as_slice()).write_in(&mut self.inner)?;
+        }
+        if let Some(p) = metadata.permission {
+            (ChunkType::fPRM, p.to_bytes()).write_in(&mut self.inner)?;
+        }
+        let context = get_writer_context(option)?;
+        if let Some(phsf) = &context.phsf {
+            (ChunkType::PHSF, phsf.as_bytes()).write_in(&mut self.inner)?;
+        }
+        if let Cipher::Aes(c) | Cipher::Camellia(c) = &context.cipher {
+            (ChunkType::FDAT, &c.iv[..]).write_in(&mut self.inner)?;
+        }
+        {
+            let writer = ChunkStreamWriter::new(ChunkType::FDAT, &mut self.inner);
+            let writer = get_writer(writer, &context)?;
+            f(&mut EntryDataWriter(writer))?;
+        }
+        (ChunkType::FEND, Vec::<u8>::new()).write_in(&mut self.inner)?;
+        Ok(())
     }
 
     /// Adds a new entry to the archive.
@@ -323,6 +408,8 @@ impl<W: Write> SolidArchive<W> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ReadOption;
+    use std::io::Read;
 
     #[test]
     fn encode() {
@@ -330,6 +417,34 @@ mod tests {
         let file = writer.finalize().expect("failed to finalize");
         let expected = include_bytes!("../../../resources/test/empty.pna");
         assert_eq!(file.as_slice(), expected.as_slice());
+    }
+
+    #[test]
+    fn write_file_entry() {
+        let mut writer = Archive::write_header(Vec::new()).expect("failed to write header");
+        writer
+            .write_file(
+                EntryName::from_lossy("text.txt"),
+                Metadata::new(),
+                WriteOption::store(),
+                |writer| writer.write_all(b"text"),
+            )
+            .expect("failed to write");
+        let file = writer.finalize().expect("failed to finalize");
+        let mut reader = Archive::read_header(&file[..]).expect("failed to read archive");
+        let mut entries = reader.entries_skip_solid();
+        let entry = entries
+            .next()
+            .expect("failed to get entry")
+            .expect("failed to read entry");
+        let mut data_reader = entry
+            .reader(ReadOption::builder().build())
+            .expect("failed to read entry data");
+        let mut data = Vec::new();
+        data_reader
+            .read_to_end(&mut data)
+            .expect("failed to read data");
+        assert_eq!(&data[..], b"text");
     }
 
     #[cfg(feature = "unstable-async")]
