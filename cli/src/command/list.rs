@@ -5,7 +5,9 @@ use crate::{
 };
 use ansi_term::{ANSIString, Colour, Style};
 use chrono::{DateTime, Local};
-use pna::{Archive, Compression, DataKind, Encryption, ReadOption, RegularEntry};
+use pna::{
+    Archive, Compression, DataKind, Encryption, ExtendedAttribute, ReadOption, RegularEntry,
+};
 use rayon::prelude::*;
 use std::{
     fs::File,
@@ -123,8 +125,8 @@ fn detail_list_entries(entries: Vec<RegularEntry>, password: Option<&str>, print
             },
             metadata
                 .permission()
-                .map(|p| paint_permission(header.data_kind(), p.permissions()))
-                .unwrap_or_else(|| paint_data_kind(header.data_kind()))
+                .map(|p| paint_permission(header.data_kind(), p.permissions(), entry.xattrs()))
+                .unwrap_or_else(|| paint_data_kind(header.data_kind(), entry.xattrs()))
                 .iter()
                 .map(|it| it.to_string())
                 .collect::<String>(),
@@ -209,7 +211,7 @@ fn datetime(now: SystemTime, d: Option<Duration>) -> String {
     }
 }
 
-fn paint_data_kind(kind: DataKind) -> Vec<ANSIString<'static>> {
+fn paint_data_kind(kind: DataKind, xattrs: &[ExtendedAttribute]) -> Vec<ANSIString<'static>> {
     let style_dir = Style::new().fg(Colour::Purple);
     let style_link = Style::new().fg(Colour::Cyan);
     let style_hyphen = Style::new();
@@ -224,6 +226,7 @@ fn paint_data_kind(kind: DataKind) -> Vec<ANSIString<'static>> {
         style_hyphen.paint("_"),
         style_hyphen.paint("_"),
         style_hyphen.paint("_"),
+        style_hyphen.paint(if xattrs.is_empty() { " " } else { "@" }),
     ]
 }
 
@@ -240,7 +243,11 @@ fn kind_paint(
     }
 }
 
-fn paint_permission(kind: DataKind, permission: u16) -> Vec<ANSIString<'static>> {
+fn paint_permission(
+    kind: DataKind,
+    permission: u16,
+    xattrs: &[ExtendedAttribute],
+) -> Vec<ANSIString<'static>> {
     let style_read = Style::new().fg(Colour::Yellow);
     let style_write = Style::new().fg(Colour::Red);
     let style_exec = Style::new().fg(Colour::Blue);
@@ -269,5 +276,6 @@ fn paint_permission(kind: DataKind, permission: u16) -> Vec<ANSIString<'static>>
         paint(style_read, "r", 0b000000100),  // other_read
         paint(style_write, "w", 0b000000010), // other_write
         paint(style_exec, "x", 0b000000001),  // other_exec
+        style_hyphen.paint(if xattrs.is_empty() { " " } else { "@" }),
     ]
 }
