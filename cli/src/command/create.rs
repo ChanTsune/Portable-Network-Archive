@@ -90,13 +90,13 @@ fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Result<()> {
         .map(|it| it.unwrap_or(ByteSize::gb(1)).0 as usize);
 
     if args.solid {
-        let mut entries_builder = SolidEntryBuilder::new(cli_option)?;
-        for entry in rx.into_iter() {
-            entries_builder.add_entry(entry?)?;
-            progress_bar.let_ref(|pb| pb.inc(1));
-        }
-        let entries = entries_builder.build()?;
         if let Some(max_file_size) = max_file_size {
+            let mut entries_builder = SolidEntryBuilder::new(cli_option)?;
+            for entry in rx.into_iter() {
+                entries_builder.add_entry(entry?)?;
+                progress_bar.let_ref(|pb| pb.inc(1));
+            }
+            let entries = entries_builder.build()?;
             let mut part_num = 1;
             let file = File::create(part_name(&archive, part_num).unwrap())?;
             let mut writer = Archive::write_header(file)?;
@@ -128,8 +128,11 @@ fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Result<()> {
             }
         } else {
             let file = File::create(&archive)?;
-            let mut writer = Archive::write_header(file)?;
-            writer.add_entry(entries)?;
+            let mut writer = Archive::write_solid_header(file, cli_option)?;
+            for entry in rx.into_iter() {
+                writer.add_entry(entry?)?;
+                progress_bar.let_ref(|pb| pb.inc(1));
+            }
             writer.finalize()?;
         }
     } else {

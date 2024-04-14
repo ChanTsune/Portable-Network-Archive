@@ -8,7 +8,7 @@ use crate::{
     },
 };
 use clap::Args;
-use pna::{Archive, SolidEntryBuilder, WriteOption};
+use pna::{Archive, WriteOption};
 use rayon::ThreadPoolBuilder;
 use std::io::{self, stdout};
 
@@ -83,13 +83,10 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
 
     let file = stdout();
     if args.solid {
-        let mut entries_builder = SolidEntryBuilder::new(cli_option)?;
+        let mut writer = Archive::write_solid_header(file, cli_option)?;
         for entry in rx.into_iter() {
-            entries_builder.add_entry(entry?)?;
+            writer.add_entry(entry?)?;
         }
-        let entries = entries_builder.build()?;
-        let mut writer = Archive::write_header(file)?;
-        writer.add_entry(entries)?;
         writer.finalize()?;
     } else {
         let mut writer = Archive::write_header(file)?;
