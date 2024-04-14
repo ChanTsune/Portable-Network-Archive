@@ -280,9 +280,8 @@ impl<W: Write> SolidArchive<W> {
     /// let option = WriteOption::builder().build();
     /// let file = File::create("example.pna")?;
     /// let mut archive = Archive::write_solid_header(file, option)?;
-    /// archive.add_entry(
-    ///     EntryBuilder::new_file("example.txt".try_into().unwrap(), WriteOption::store())?.build()?,
-    /// )?;
+    /// archive
+    ///     .add_entry(EntryBuilder::new_file("example.txt".into(), WriteOption::store())?.build()?)?;
     /// archive.finalize()?;
     /// #     Ok(())
     /// # }

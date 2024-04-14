@@ -44,7 +44,7 @@ fn main() -> io::Result<()> {
     let file = File::create("foo.pna")?;
     let mut archive = Archive::write_header(file)?;
     let mut entry_builder = EntryBuilder::new_file(
-        "bar.txt".try_into().unwrap(),
+        "bar.txt".into(),
         WriteOption::builder().build(),
     )?;
     entry_builder.write(b"content")?;
