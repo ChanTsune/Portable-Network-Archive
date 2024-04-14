@@ -90,8 +90,7 @@ impl<T> Archive<T> {
 /// let option = WriteOption::builder().build();
 /// let file = File::create("foo.pna")?;
 /// let mut archive = Archive::write_solid_header(file, option)?;
-/// let mut entry_builder =
-///     EntryBuilder::new_file("bar.txt".try_into().unwrap(), WriteOption::store())?;
+/// let mut entry_builder = EntryBuilder::new_file("bar.txt".into(), WriteOption::store())?;
 /// entry_builder.write_all(b"content")?;
 /// let entry = entry_builder.build()?;
 /// archive.add_entry(entry)?;
@@ -279,8 +278,7 @@ mod tests {
         archive
             .add_entry({
                 let mut builder =
-                    EntryBuilder::new_file("test/text".try_into().unwrap(), WriteOption::store())
-                        .unwrap();
+                    EntryBuilder::new_file("test/text".into(), WriteOption::store()).unwrap();
                 builder.write_all(b"text").unwrap();
                 builder.build().unwrap()
             })
