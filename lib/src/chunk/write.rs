@@ -77,7 +77,6 @@ impl<W: Write> Write for ChunkStreamWriter<W> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::ChunkType;
     use super::*;
 
     #[test]
