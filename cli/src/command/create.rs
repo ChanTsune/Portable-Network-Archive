@@ -26,11 +26,6 @@ impl Command for CreateArgs {
 fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
-    let start = Instant::now();
-    let pool = ThreadPoolBuilder::default()
-        .build()
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-
     let archive = args.file.archive;
     if !args.overwrite && archive.exists() {
         return Err(io::Error::new(
@@ -38,6 +33,11 @@ fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Result<()> {
             format!("{} is already exists", archive.display()),
         ));
     }
+    let start = Instant::now();
+    let pool = ThreadPoolBuilder::default()
+        .build()
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+
     if verbosity != Verbosity::Quite {
         eprintln!("Create an archive: {}", archive.display());
     }
