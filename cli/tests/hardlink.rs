@@ -13,64 +13,51 @@ fn init_resource<P: AsRef<Path>>(path: P) {
 
     writer
         .add_entry({
-            let mut builder = EntryBuilder::new_file(
-                EntryName::from_lossy("origin1.txt"),
-                WriteOption::builder().build(),
-            )
-            .unwrap();
+            let mut builder =
+                EntryBuilder::new_file("origin1.txt".into(), WriteOption::builder().build())
+                    .unwrap();
             builder.write_all(b"original text\n").unwrap();
             builder.build().unwrap()
         })
         .unwrap();
     writer
         .add_entry({
-            let builder = EntryBuilder::new_hard_link(
-                EntryName::from_lossy("linked1.txt"),
-                EntryReference::try_from("origin1.txt").unwrap(),
-            )
-            .unwrap();
+            let builder =
+                EntryBuilder::new_hard_link("linked1.txt".into(), "origin1.txt".into()).unwrap();
             builder.build().unwrap()
         })
         .unwrap();
     writer
         .add_entry({
-            let builder = EntryBuilder::new_hard_link(
-                EntryName::from_lossy("dir/linked1.txt"),
-                EntryReference::try_from("../origin1.txt").unwrap(),
-            )
-            .unwrap();
+            let builder =
+                EntryBuilder::new_hard_link("dir/linked1.txt".into(), "../origin1.txt".into())
+                    .unwrap();
             builder.build().unwrap()
         })
         .unwrap();
 
     writer
         .add_entry({
-            let mut builder = EntryBuilder::new_file(
-                EntryName::from_lossy("dir/origin2.txt"),
-                WriteOption::builder().build(),
-            )
-            .unwrap();
+            let mut builder =
+                EntryBuilder::new_file("dir/origin2.txt".into(), WriteOption::builder().build())
+                    .unwrap();
             builder.write_all(b"original text text\n").unwrap();
             builder.build().unwrap()
         })
         .unwrap();
     writer
         .add_entry({
-            let builder = EntryBuilder::new_hard_link(
-                EntryName::from_lossy("dir/linked2.txt"),
-                EntryReference::try_from("origin2.txt").unwrap(),
-            )
-            .unwrap();
+            let builder =
+                EntryBuilder::new_hard_link("dir/linked2.txt".into(), "origin2.txt".into())
+                    .unwrap();
             builder.build().unwrap()
         })
         .unwrap();
     writer
         .add_entry({
-            let builder = EntryBuilder::new_hard_link(
-                EntryName::from_lossy("linked2.txt"),
-                EntryReference::try_from("dir/origin2.txt").unwrap(),
-            )
-            .unwrap();
+            let builder =
+                EntryBuilder::new_hard_link("linked2.txt".into(), "dir/origin2.txt".into())
+                    .unwrap();
             builder.build().unwrap()
         })
         .unwrap();
