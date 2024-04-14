@@ -75,7 +75,7 @@ impl EntryReference {
     /// use libpna::EntryReference;
     /// use std::ffi::OsStr;
     ///
-    /// let entry_name = EntryReference::from_lossy("foo.txt");
+    /// let entry_name = EntryReference::from("foo.txt");
     /// let os_str = OsStr::new("foo.txt");
     /// assert_eq!(entry_name.as_os_str(), os_str);
     /// ```
@@ -92,7 +92,7 @@ impl EntryReference {
     /// use libpna::EntryReference;
     /// use std::path::Path;
     ///
-    /// let entry_name = EntryReference::from_lossy("test/foo.txt");
+    /// let entry_name = EntryReference::from("test/foo.txt");
     /// assert_eq!(Path::new("test/foo.txt"), entry_name.as_path());
     /// ```
     #[inline]
