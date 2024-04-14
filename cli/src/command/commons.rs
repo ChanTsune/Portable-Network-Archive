@@ -30,7 +30,7 @@ pub(crate) fn collect_items(
                 result.push(path.to_path_buf());
             }
             if recursive {
-                for p in std::fs::read_dir(path)? {
+                for p in fs::read_dir(path)? {
                     collect_items(result, &p?.path(), recursive, keep_dir)?;
                 }
             }
