@@ -47,7 +47,7 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
     let mut hard_link_entries = Vec::new();
 
     let (tx, rx) = std::sync::mpsc::channel();
-    let mut archive = Archive::read_header(stdin())?;
+    let mut archive = Archive::read_header(stdin().lock())?;
     for entry in archive.entries_with_password(password.as_deref()) {
         let item = entry?;
         let item_path = PathBuf::from(item.header().path().as_str());
