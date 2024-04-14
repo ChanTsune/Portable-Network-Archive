@@ -87,13 +87,13 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
         for entry in rx.into_iter() {
             writer.add_entry(entry?)?;
         }
-        writer.finalize()?;
+        let _ = writer.finalize()?;
     } else {
         let mut writer = Archive::write_header(file)?;
         for entry in rx.into_iter() {
             writer.add_entry(entry?)?;
         }
-        writer.finalize()?;
+        let _ = writer.finalize()?;
     }
     Ok(())
 }
