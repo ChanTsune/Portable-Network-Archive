@@ -106,7 +106,7 @@ pub struct SolidArchive<T: Write> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::{self, Cursor, Write};
+    use std::io::{self, Cursor};
     use std::time::Duration;
 
     #[test]
