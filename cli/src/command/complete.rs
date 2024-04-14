@@ -26,6 +26,6 @@ fn print_completions<G: Generator>(gen: G, cmd: &mut clap::Command) {
         gen,
         cmd,
         name.file_name().unwrap().to_string_lossy(),
-        &mut io::stdout(),
+        &mut io::stdout().lock(),
     );
 }

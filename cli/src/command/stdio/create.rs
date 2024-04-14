@@ -81,7 +81,7 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
 
     drop(tx);
 
-    let file = stdout();
+    let file = stdout().lock();
     if args.solid {
         let mut writer = Archive::write_solid_header(file, cli_option)?;
         for entry in rx.into_iter() {
