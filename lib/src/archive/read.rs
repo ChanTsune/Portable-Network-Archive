@@ -430,7 +430,7 @@ mod tests {
         while let Some(entry) = archive.read_entry_async().await? {
             let path = dist_dir.join(entry.header().path());
             if let Some(parents) = path.parent() {
-                async_std::fs::create_dir_all(parents).await.unwrap();
+                async_std::fs::create_dir_all(parents).await?;
             }
             let mut file = async_std::fs::File::create(path).await?;
             let mut reader = entry.reader(ReadOption::builder().build())?;
