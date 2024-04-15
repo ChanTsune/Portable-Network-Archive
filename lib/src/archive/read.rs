@@ -146,7 +146,7 @@ impl<R: Read> Archive<R> {
     /// An iterator over the entries in the archive.
     #[inline]
     pub fn entries_skip_solid(&mut self) -> impl Iterator<Item = io::Result<RegularEntry>> + '_ {
-        self.iter().filter_map(|it| match it {
+        self.entries().filter_map(|it| match it {
             Ok(e) => match e {
                 ReadEntry::Solid(_) => None,
                 ReadEntry::Regular(r) => Some(Ok(r)),
@@ -161,7 +161,7 @@ impl<R: Read> Archive<R> {
     ///
     /// An iterator over the entries in the archive.
     #[inline]
-    fn iter(&mut self) -> Entries<R> {
+    fn entries(&mut self) -> Entries<R> {
         Entries::new(self)
     }
 
@@ -179,7 +179,7 @@ impl<R: Read> Archive<R> {
         &'a mut self,
         password: Option<&'a str>,
     ) -> impl Iterator<Item = io::Result<RegularEntry>> + 'a {
-        self.iter().extract_solid_entries(password)
+        self.entries().extract_solid_entries(password)
     }
 
     /// Returns `true` if [ANXT] chunk is appeared before call this method calling.
