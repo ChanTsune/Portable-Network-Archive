@@ -572,7 +572,7 @@ impl RegularEntry {
         Ok(EntryDataReader(EntryReader(reader)))
     }
 
-    /// Apply metadata to entry.
+    /// Apply metadata to the entry.
     ///
     /// # Example
     /// ```
