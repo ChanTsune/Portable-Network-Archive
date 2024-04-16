@@ -1,5 +1,4 @@
-use crate::command::complete;
-use crate::command::experimental::ExperimentalArgs;
+use crate::command::{complete, create::CreateArgs, experimental::ExperimentalArgs};
 use bytesize::ByteSize;
 use clap::{value_parser, ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
 use std::path::PathBuf;
@@ -61,34 +60,6 @@ pub(crate) enum Commands {
     Complete(complete::CompleteCommand),
     #[command(about = "Unstable experimental commands")]
     Experimental(ExperimentalArgs),
-}
-
-#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct CreateArgs {
-    #[arg(short, long, help = "Add the directory to the archive recursively")]
-    pub(crate) recursive: bool,
-    #[arg(long, help = "Overwrite file")]
-    pub(crate) overwrite: bool,
-    #[arg(long, help = "Archiving the directories")]
-    pub(crate) keep_dir: bool,
-    #[arg(long, help = "Archiving the timestamp of the files")]
-    pub(crate) keep_timestamp: bool,
-    #[arg(long, help = "Archiving the permissions of the files")]
-    pub(crate) keep_permission: bool,
-    #[arg(long, help = "Archiving the extended attributes of the files")]
-    pub(crate) keep_xattr: bool,
-    #[arg(long, help = "Split archive by total entry size")]
-    pub(crate) split: Option<Option<ByteSize>>,
-    #[arg(long, help = "Solid mode archive")]
-    pub(crate) solid: bool,
-    #[command(flatten)]
-    pub(crate) compression: CompressionAlgorithmArgs,
-    #[command(flatten)]
-    pub(crate) cipher: CipherAlgorithmArgs,
-    #[command(flatten)]
-    pub(crate) password: PasswordArgs,
-    #[command(flatten)]
-    pub(crate) file: FileArgs,
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
