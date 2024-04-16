@@ -1,0 +1,23 @@
+name: cli test
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["*"]
+
+jobs:
+  stdio_combination:
+    name: Run cli stdio test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-rust
+      - name: Install command
+        run: |
+          cargo install --path cli
+      - name: Run stdio command test
+        run: |
+          bash ./ci/script/combination.sh
