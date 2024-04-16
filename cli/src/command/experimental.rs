@@ -1,5 +1,3 @@
-mod split;
-
 use crate::{cli::Verbosity, command, command::Command};
 use clap::{Args, Subcommand};
 use std::io;
@@ -23,7 +21,7 @@ impl Command for ExperimentalArgs {
 #[derive(Subcommand, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) enum ExperimentalCommands {
     #[command(about = "Split archive")]
-    Split(split::SplitCommand),
+    Split(command::split::SplitCommand),
     #[command(about = "Archive manipulation via stdio")]
     Stdio(command::stdio::StdioCommand),
 }

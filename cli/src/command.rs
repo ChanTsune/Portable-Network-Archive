@@ -5,6 +5,7 @@ pub mod create;
 pub(super) mod experimental;
 pub mod extract;
 pub mod list;
+mod split;
 pub(crate) mod stdio;
 
 use crate::cli::{CipherAlgorithmArgs, Cli, Commands, PasswordArgs, Verbosity};
