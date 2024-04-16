@@ -2,7 +2,7 @@ use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, FileArgs, PasswordArgs, Verbosity},
     command::{
         ask_password, check_password,
-        commons::{collect_items, create_entry, entry_option},
+        commons::{collect_items, create_entry, entry_option, KeepOptions},
         Command,
     },
 };
@@ -64,22 +64,18 @@ fn append_to_archive(args: AppendCommand, verbosity: Verbosity) -> io::Result<()
     let option = entry_option(args.compression, args.cipher, password);
     for file in target_items {
         let option = option.clone();
-        let keep_timestamp = args.keep_timestamp;
-        let keep_permission = args.keep_permission;
-        let keep_xattrs = args.keep_xattr;
+        let keep_options = KeepOptions {
+            keep_timestamp: args.keep_timestamp,
+            keep_permission: args.keep_permission,
+            keep_xattr: args.keep_xattr,
+        };
         let tx = tx.clone();
         pool.spawn_fifo(move || {
             if verbosity == Verbosity::Verbose {
                 eprintln!("Adding: {}", file.display());
             }
-            tx.send(create_entry(
-                &file,
-                option,
-                keep_timestamp,
-                keep_permission,
-                keep_xattrs,
-            ))
-            .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
+            tx.send(create_entry(&file, option, keep_options))
+                .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
         });
     }
 

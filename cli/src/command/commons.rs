@@ -14,6 +14,13 @@ use std::{
     time::UNIX_EPOCH,
 };
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub(crate) struct KeepOptions {
+    pub(crate) keep_timestamp: bool,
+    pub(crate) keep_permission: bool,
+    pub(crate) keep_xattr: bool,
+}
+
 pub(crate) fn collect_items(
     files: Vec<PathBuf>,
     recursive: bool,
@@ -49,9 +56,7 @@ pub(crate) fn collect_items(
 pub(crate) fn create_entry(
     path: &Path,
     option: WriteOption,
-    keep_timestamp: bool,
-    keep_permission: bool,
-    keep_xattrs: bool,
+    keep_options: KeepOptions,
 ) -> io::Result<RegularEntry> {
     if path.is_symlink() {
         let source = fs::read_link(path)?;
@@ -59,14 +64,14 @@ pub(crate) fn create_entry(
             EntryName::from_lossy(path),
             EntryReference::from_lossy(source.as_path()),
         )?;
-        return apply_metadata(entry, path, keep_timestamp, keep_permission, keep_xattrs)?.build();
+        return apply_metadata(entry, path, keep_options)?.build();
     } else if path.is_file() {
         let mut entry = EntryBuilder::new_file(EntryName::from_lossy(path), option)?;
         entry.write_all(&fs::read(path)?)?;
-        return apply_metadata(entry, path, keep_timestamp, keep_permission, keep_xattrs)?.build();
+        return apply_metadata(entry, path, keep_options)?.build();
     } else if path.is_dir() {
         let entry = EntryBuilder::new_dir(EntryName::from_lossy(path));
-        return apply_metadata(entry, path, keep_timestamp, keep_permission, keep_xattrs)?.build();
+        return apply_metadata(entry, path, keep_options)?.build();
     }
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
@@ -97,13 +102,11 @@ pub(crate) fn entry_option(
 pub(crate) fn apply_metadata(
     mut entry: EntryBuilder,
     path: &Path,
-    keep_timestamp: bool,
-    keep_permission: bool,
-    keep_xattrs: bool,
+    keep_options: KeepOptions,
 ) -> io::Result<EntryBuilder> {
-    if keep_timestamp || keep_permission {
+    if keep_options.keep_timestamp || keep_options.keep_permission {
         let meta = fs::metadata(path)?;
-        if keep_timestamp {
+        if keep_options.keep_timestamp {
             if let Ok(c) = meta.created() {
                 if let Ok(created_since_unix_epoch) = c.duration_since(UNIX_EPOCH) {
                     entry.created(created_since_unix_epoch);
@@ -121,7 +124,7 @@ pub(crate) fn apply_metadata(
             }
         }
         #[cfg(unix)]
-        if keep_permission {
+        if keep_options.keep_permission {
             let mode = meta.permissions().mode() as u16;
             let uid = meta.uid();
             let gid = meta.gid();
@@ -137,7 +140,7 @@ pub(crate) fn apply_metadata(
         }
     }
     #[cfg(unix)]
-    if keep_xattrs {
+    if keep_options.keep_xattr {
         if xattr::SUPPORTED_PLATFORM {
             let xattrs = xattr::list(path)?;
             for name in xattrs {
