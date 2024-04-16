@@ -152,7 +152,7 @@ pub(crate) fn apply_metadata(
         }
     }
     #[cfg(not(unix))]
-    if keep_xattrs {
+    if keep_options.keep_xattr {
         eprintln!("Currently extended attribute is not supported on this platform.");
     }
     Ok(entry)
