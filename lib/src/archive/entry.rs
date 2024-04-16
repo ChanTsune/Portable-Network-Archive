@@ -571,6 +571,26 @@ impl RegularEntry {
         let reader = decompress_reader(decrypt_reader, self.header.compression)?;
         Ok(EntryDataReader(EntryReader(reader)))
     }
+
+    /// Apply metadata to entry.
+    ///
+    /// # Example
+    /// ```
+    /// # use std::io;
+    /// use libpna::{EntryBuilder, Metadata};
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let mut entry = EntryBuilder::new_dir("direntry".into()).build()?;
+    /// entry.with_metadata(Metadata::new());
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_metadata(mut self, mut metadata: Metadata) -> Self {
+        metadata.compressed_size = self.metadata.compressed_size;
+        metadata.raw_file_size = self.metadata.raw_file_size;
+        self.metadata = metadata;
+        self
+    }
 }
 
 /// A structure representing the splitted [Entry] for archive splitting.
