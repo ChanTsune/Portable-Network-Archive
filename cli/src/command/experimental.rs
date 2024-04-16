@@ -15,6 +15,7 @@ impl Command for ExperimentalCommand {
             ExperimentalCommands::Split(cmd) => cmd.execute(verbosity),
             ExperimentalCommands::Stdio(cmd) => cmd.execute(verbosity),
             ExperimentalCommands::Delete(cmd) => cmd.execute(verbosity),
+            ExperimentalCommands::Strip(cmd) => cmd.execute(verbosity),
         }
     }
 }
@@ -27,4 +28,6 @@ pub(crate) enum ExperimentalCommands {
     Stdio(command::stdio::StdioCommand),
     #[command(about = "Delete entry from archive")]
     Delete(command::delete::DeleteCommand),
+    #[command(about = "Strip entries metadata")]
+    Strip(command::strip::StripCommand),
 }

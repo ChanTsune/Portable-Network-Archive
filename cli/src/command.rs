@@ -8,6 +8,7 @@ pub mod extract;
 pub mod list;
 mod split;
 pub(crate) mod stdio;
+mod strip;
 
 use crate::cli::{CipherAlgorithmArgs, Cli, Commands, PasswordArgs, Verbosity};
 use std::{fs, io};
