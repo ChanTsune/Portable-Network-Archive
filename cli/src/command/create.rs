@@ -18,13 +18,41 @@ use std::{
     time::Instant,
 };
 
-impl Command for CreateArgs {
+#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) struct CreateCommand {
+    #[arg(short, long, help = "Add the directory to the archive recursively")]
+    pub(crate) recursive: bool,
+    #[arg(long, help = "Overwrite file")]
+    pub(crate) overwrite: bool,
+    #[arg(long, help = "Archiving the directories")]
+    pub(crate) keep_dir: bool,
+    #[arg(long, help = "Archiving the timestamp of the files")]
+    pub(crate) keep_timestamp: bool,
+    #[arg(long, help = "Archiving the permissions of the files")]
+    pub(crate) keep_permission: bool,
+    #[arg(long, help = "Archiving the extended attributes of the files")]
+    pub(crate) keep_xattr: bool,
+    #[arg(long, help = "Split archive by total entry size")]
+    pub(crate) split: Option<Option<ByteSize>>,
+    #[arg(long, help = "Solid mode archive")]
+    pub(crate) solid: bool,
+    #[command(flatten)]
+    pub(crate) compression: CompressionAlgorithmArgs,
+    #[command(flatten)]
+    pub(crate) cipher: CipherAlgorithmArgs,
+    #[command(flatten)]
+    pub(crate) password: PasswordArgs,
+    #[command(flatten)]
+    pub(crate) file: FileArgs,
+}
+
+impl Command for CreateCommand {
     fn execute(self, verbosity: Verbosity) -> io::Result<()> {
         create_archive(self, verbosity)
     }
 }
 
-fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Result<()> {
+fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let archive = args.file.archive;
@@ -191,32 +219,4 @@ fn create_archive(args: CreateArgs, verbosity: Verbosity) -> io::Result<()> {
         );
     }
     Ok(())
-}
-
-#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct CreateArgs {
-    #[arg(short, long, help = "Add the directory to the archive recursively")]
-    pub(crate) recursive: bool,
-    #[arg(long, help = "Overwrite file")]
-    pub(crate) overwrite: bool,
-    #[arg(long, help = "Archiving the directories")]
-    pub(crate) keep_dir: bool,
-    #[arg(long, help = "Archiving the timestamp of the files")]
-    pub(crate) keep_timestamp: bool,
-    #[arg(long, help = "Archiving the permissions of the files")]
-    pub(crate) keep_permission: bool,
-    #[arg(long, help = "Archiving the extended attributes of the files")]
-    pub(crate) keep_xattr: bool,
-    #[arg(long, help = "Split archive by total entry size")]
-    pub(crate) split: Option<Option<ByteSize>>,
-    #[arg(long, help = "Solid mode archive")]
-    pub(crate) solid: bool,
-    #[command(flatten)]
-    pub(crate) compression: CompressionAlgorithmArgs,
-    #[command(flatten)]
-    pub(crate) cipher: CipherAlgorithmArgs,
-    #[command(flatten)]
-    pub(crate) password: PasswordArgs,
-    #[command(flatten)]
-    pub(crate) file: FileArgs,
 }
