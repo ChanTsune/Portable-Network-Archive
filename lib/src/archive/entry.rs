@@ -588,6 +588,24 @@ impl RegularEntry {
         self.metadata = metadata;
         self
     }
+
+    /// Apply extended attributes to the entry.
+    ///
+    /// # Example
+    /// ```
+    /// # use std::io;
+    /// use libpna::{EntryBuilder, ExtendedAttribute};
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let mut entry = EntryBuilder::new_dir("direntry".into()).build()?;
+    /// entry.with_xattrs(&[ExtendedAttribute::new("key".into(), b"value".into())]);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_xattrs(mut self, xattrs: &[ExtendedAttribute]) -> Self {
+        self.xattrs = xattrs.into();
+        self
+    }
 }
 
 /// A structure representing the splitted [Entry] for archive splitting.
