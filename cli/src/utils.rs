@@ -1,7 +1,6 @@
 pub(crate) mod fs;
 mod path;
 
-use glob::PatternError;
 pub(crate) use path::*;
 use std::path::Path;
 
@@ -11,7 +10,7 @@ impl GlobPatterns {
     #[inline]
     pub(crate) fn new<I: IntoIterator<Item = S>, S: AsRef<str>>(
         patterns: I,
-    ) -> Result<Self, PatternError> {
+    ) -> Result<Self, glob::PatternError> {
         Ok(Self(
             patterns
                 .into_iter()
@@ -28,6 +27,13 @@ impl GlobPatterns {
     #[inline]
     pub(crate) fn matches_any_path(&self, path: &Path) -> bool {
         self.0.iter().any(|glob| glob.matches_path(path))
+    }
+}
+
+impl From<Vec<glob::Pattern>> for GlobPatterns {
+    #[inline]
+    fn from(value: Vec<glob::Pattern>) -> Self {
+        Self(value)
     }
 }
 
