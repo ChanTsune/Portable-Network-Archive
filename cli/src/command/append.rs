@@ -1,14 +1,39 @@
 use crate::{
-    cli::{AppendArgs, Verbosity},
+    cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, FileArgs, PasswordArgs, Verbosity},
     command::{
         ask_password, check_password,
         commons::{collect_items, create_entry, entry_option},
         Command,
     },
 };
+use clap::Parser;
 use pna::Archive;
 use rayon::ThreadPoolBuilder;
 use std::{fs::File, io};
+
+#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) struct AppendArgs {
+    #[arg(short, long, help = "Add the directory to the archive recursively")]
+    pub(crate) recursive: bool,
+    #[arg(long, help = "Overwrite file")]
+    pub(crate) overwrite: bool,
+    #[arg(long, help = "Archiving the directories")]
+    pub(crate) keep_dir: bool,
+    #[arg(long, help = "Archiving the timestamp of the files")]
+    pub(crate) keep_timestamp: bool,
+    #[arg(long, help = "Archiving the permissions of the files")]
+    pub(crate) keep_permission: bool,
+    #[arg(long, help = "Archiving the extended attributes of the files")]
+    pub(crate) keep_xattr: bool,
+    #[command(flatten)]
+    pub(crate) compression: CompressionAlgorithmArgs,
+    #[command(flatten)]
+    pub(crate) password: PasswordArgs,
+    #[command(flatten)]
+    pub(crate) cipher: CipherAlgorithmArgs,
+    #[command(flatten)]
+    pub(crate) file: FileArgs,
+}
 
 impl Command for AppendArgs {
     fn execute(self, verbosity: Verbosity) -> io::Result<()> {
