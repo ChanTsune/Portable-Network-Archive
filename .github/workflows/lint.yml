@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-rust
       - name: run check doc
-        run: cargo doc --no-deps
+        run: cargo doc --no-deps -p libpna -p pna
         env:
           RUST_BACKTRACE: 1
           RUSTFLAGS: -Dwarnings
