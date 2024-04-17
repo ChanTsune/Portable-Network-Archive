@@ -24,7 +24,7 @@ use std::{
 };
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct ExtractArgs {
+pub(crate) struct ExtractCommand {
     #[arg(long, help = "Overwrite file")]
     pub(crate) overwrite: bool,
     #[arg(long, help = "Output directory of extracted files", value_hint = ValueHint::DirPath)]
@@ -41,12 +41,12 @@ pub(crate) struct ExtractArgs {
     pub(crate) file: FileArgs,
 }
 
-impl Command for ExtractArgs {
+impl Command for ExtractCommand {
     fn execute(self, verbosity: Verbosity) -> io::Result<()> {
         extract_archive(self, verbosity)
     }
 }
-fn extract_archive(args: ExtractArgs, verbosity: Verbosity) -> io::Result<()> {
+fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     let start = Instant::now();
     if verbosity != Verbosity::Quite {

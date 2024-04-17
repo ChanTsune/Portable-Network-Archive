@@ -1,6 +1,6 @@
 use crate::command::{
     append::AppendCommand, complete, create::CreateCommand, experimental::ExperimentalArgs,
-    extract::ExtractArgs,
+    extract::ExtractCommand,
 };
 use clap::{value_parser, ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
 use std::path::PathBuf;
@@ -55,7 +55,7 @@ pub(crate) enum Commands {
     #[command(visible_alias = "a", about = "Append files to archive")]
     Append(AppendCommand),
     #[command(visible_alias = "x", about = "Extract files from archive")]
-    Extract(ExtractArgs),
+    Extract(ExtractCommand),
     #[command(visible_aliases = &["l", "ls"], about = "List files in archive")]
     List(ListArgs),
     #[command(about = "Generate shell auto complete")]
