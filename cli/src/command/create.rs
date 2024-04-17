@@ -5,10 +5,10 @@ use crate::{
         commons::{collect_items, create_entry, entry_option, split_to_parts},
         Command,
     },
-    utils::{part_name, Let},
+    utils::{part_name, GlobPatterns, Let},
 };
 use bytesize::ByteSize;
-use clap::Parser;
+use clap::{ArgGroup, Parser};
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use pna::{Archive, EntryPart, SolidEntryBuilder, WriteOption, MIN_CHUNK_BYTES_SIZE, PNA_HEADER};
 use rayon::ThreadPoolBuilder;
@@ -19,6 +19,7 @@ use std::{
 };
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[command(group(ArgGroup::new("unstable-create-exclude").args(["exclude"]).requires("unstable")))]
 pub(crate) struct CreateCommand {
     #[arg(short, long, help = "Add the directory to the archive recursively")]
     pub(crate) recursive: bool,
@@ -44,6 +45,8 @@ pub(crate) struct CreateCommand {
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
     pub(crate) file: FileArgs,
+    #[arg(long, help = "Exclude path glob (unstable)")]
+    pub(crate) exclude: Option<Vec<glob::Pattern>>,
 }
 
 impl Command for CreateCommand {
@@ -70,7 +73,12 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
     if verbosity != Verbosity::Quite {
         eprintln!("Create an archive: {}", archive.display());
     }
-    let target_items = collect_items(args.file.files, args.recursive, args.keep_dir)?;
+    let target_items = collect_items(
+        args.file.files,
+        args.recursive,
+        args.keep_dir,
+        args.exclude.map(GlobPatterns::from),
+    )?;
 
     let progress_bar = if verbosity != Verbosity::Quite {
         Some(

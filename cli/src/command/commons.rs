@@ -1,4 +1,7 @@
-use crate::cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs};
+use crate::{
+    cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs},
+    utils::GlobPatterns,
+};
 #[cfg(unix)]
 use nix::unistd::{Group, User};
 use pna::{
@@ -18,9 +21,19 @@ pub(crate) fn collect_items(
     files: Vec<PathBuf>,
     recursive: bool,
     keep_dir: bool,
+    exclude_globs: Option<GlobPatterns>,
 ) -> io::Result<Vec<PathBuf>> {
-    fn collect_items(
-        result: &mut Vec<PathBuf>,
+    struct InnerVec(Vec<PathBuf>, Option<GlobPatterns>);
+    impl InnerVec {
+        fn push(&mut self, value: PathBuf) {
+            if self.1.as_ref().is_some_and(|p| p.matches_any_path(&value)) {
+                return;
+            }
+            self.0.push(value)
+        }
+    }
+    fn inner(
+        result: &mut InnerVec,
         path: &Path,
         recursive: bool,
         keep_dir: bool,
@@ -31,7 +44,7 @@ pub(crate) fn collect_items(
             }
             if recursive {
                 for p in fs::read_dir(path)? {
-                    collect_items(result, &p?.path(), recursive, keep_dir)?;
+                    inner(result, &p?.path(), recursive, keep_dir)?;
                 }
             }
         } else if path.is_file() {
@@ -39,11 +52,11 @@ pub(crate) fn collect_items(
         }
         Ok(())
     }
-    let mut target_items = vec![];
+    let mut target_items = InnerVec(vec![], exclude_globs);
     for p in files {
-        collect_items(&mut target_items, p.as_ref(), recursive, keep_dir)?;
+        inner(&mut target_items, p.as_ref(), recursive, keep_dir)?;
     }
-    Ok(target_items)
+    Ok(target_items.0)
 }
 
 pub(crate) fn create_entry(

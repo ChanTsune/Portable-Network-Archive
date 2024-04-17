@@ -6,13 +6,15 @@ use crate::{
         stdio::FileArgs,
         Command,
     },
+    utils::GlobPatterns,
 };
-use clap::Args;
+use clap::{ArgGroup, Parser};
 use pna::{Archive, WriteOption};
 use rayon::ThreadPoolBuilder;
 use std::io::{self, stdout};
 
-#[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
+#[command(group(ArgGroup::new("unstable-stdio-create-exclude").args(["exclude"]).requires("unstable")))]
 pub(crate) struct CreateCommand {
     #[arg(short, long, help = "Add the directory to the archive recursively")]
     pub(crate) recursive: bool,
@@ -34,6 +36,8 @@ pub(crate) struct CreateCommand {
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
     pub(crate) file: FileArgs,
+    #[arg(long, help = "Exclude path glob (unstable)")]
+    pub(crate) exclude: Option<Vec<glob::Pattern>>,
 }
 
 impl Command for CreateCommand {
@@ -49,7 +53,12 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
         .build()
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
-    let target_items = collect_items(args.file.files, args.recursive, args.keep_dir)?;
+    let target_items = collect_items(
+        args.file.files,
+        args.recursive,
+        args.keep_dir,
+        args.exclude.map(GlobPatterns::from),
+    )?;
 
     let (tx, rx) = std::sync::mpsc::channel();
     let cli_option = entry_option(args.compression, args.cipher, password);
