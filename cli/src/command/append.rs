@@ -12,7 +12,7 @@ use rayon::ThreadPoolBuilder;
 use std::{fs::File, io};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct AppendArgs {
+pub(crate) struct AppendCommand {
     #[arg(short, long, help = "Add the directory to the archive recursively")]
     pub(crate) recursive: bool,
     #[arg(long, help = "Overwrite file")]
@@ -35,13 +35,13 @@ pub(crate) struct AppendArgs {
     pub(crate) file: FileArgs,
 }
 
-impl Command for AppendArgs {
+impl Command for AppendCommand {
     fn execute(self, verbosity: Verbosity) -> io::Result<()> {
         append_to_archive(self, verbosity)
     }
 }
 
-fn append_to_archive(args: AppendArgs, verbosity: Verbosity) -> io::Result<()> {
+fn append_to_archive(args: AppendCommand, verbosity: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let archive = args.file.archive;
