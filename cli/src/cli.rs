@@ -1,5 +1,6 @@
 use crate::command::{
     append::AppendCommand, complete, create::CreateCommand, experimental::ExperimentalArgs,
+    extract::ExtractArgs,
 };
 use clap::{value_parser, ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
 use std::path::PathBuf;
@@ -61,24 +62,6 @@ pub(crate) enum Commands {
     Complete(complete::CompleteCommand),
     #[command(about = "Unstable experimental commands")]
     Experimental(ExperimentalArgs),
-}
-
-#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct ExtractArgs {
-    #[arg(long, help = "Overwrite file")]
-    pub(crate) overwrite: bool,
-    #[arg(long, help = "Output directory of extracted files", value_hint = ValueHint::DirPath)]
-    pub(crate) out_dir: Option<PathBuf>,
-    #[command(flatten)]
-    pub(crate) password: PasswordArgs,
-    #[arg(long, help = "Restore the timestamp of the files")]
-    pub(crate) keep_timestamp: bool,
-    #[arg(long, help = "Restore the permissions of the files")]
-    pub(crate) keep_permission: bool,
-    #[arg(long, help = "Restore the extended attributes of the files")]
-    pub(crate) keep_xattr: bool,
-    #[command(flatten)]
-    pub(crate) file: FileArgs,
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
