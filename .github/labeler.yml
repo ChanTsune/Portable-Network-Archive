@@ -1,8 +1,16 @@
 cli:
-  - any: ["cli/**/*"]
+  - any:
+      - changed-files:
+          - any-glob-to-any-file: [ "cli/**/*" ]
 lib:
-  - any: ["lib/**/*"]
+  - any:
+      - changed-files:
+          - any-glob-to-any-file: [ "lib/**/*" ]
 dependencies:
-  - any: ["Cargo.toml", "Cargo.lock", "**/Cargo.toml"]
+  - any:
+      - changed-files:
+          - any-glob-to-any-file: [ "Cargo.toml", "Cargo.lock", "**/Cargo.toml" ]
 CI:
-  - any: [".github/**/*.yml"]
+  - any:
+      - changed-files:
+          - any-glob-to-any-file: [ ".github/**/*.yml" ]
