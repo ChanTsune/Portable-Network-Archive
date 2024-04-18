@@ -1,15 +1,15 @@
 use crate::{cli::Verbosity, command, command::Command};
-use clap::{Args, Subcommand};
+use clap::{Parser, Subcommand};
 use std::io;
 
-#[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(args_conflicts_with_subcommands = true, arg_required_else_help = true)]
-pub(crate) struct ExperimentalArgs {
+pub(crate) struct ExperimentalCommand {
     #[command(subcommand)]
     pub(crate) command: ExperimentalCommands,
 }
 
-impl Command for ExperimentalArgs {
+impl Command for ExperimentalCommand {
     fn execute(self, verbosity: Verbosity) -> io::Result<()> {
         match self.command {
             ExperimentalCommands::Split(cmd) => cmd.execute(verbosity),
