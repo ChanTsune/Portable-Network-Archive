@@ -30,6 +30,7 @@ impl<W: Write> Write for EntryDataWriter<W> {
     }
 }
 
+#[allow(clippy::type_complexity)]
 pub struct SolidArchiveEntryDataWriter<'w, W: Write>(
     CompressionWriter<
         CipherWriter<
