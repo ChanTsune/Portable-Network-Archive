@@ -2,15 +2,14 @@ use crate::{
     archive::{
         entry::{
             get_writer, get_writer_context, Cipher, Entry, EntryHeader, EntryName, EntryPart,
-            Metadata, SealedEntryExt, WriteOption,
+            Metadata, RegularEntry, SealedEntryExt, WriteOption,
         },
-        Archive, ArchiveHeader, PNA_HEADER,
+        Archive, ArchiveHeader, SolidArchive, SolidHeader, PNA_HEADER,
     },
     chunk::{ChunkExt, ChunkStreamWriter, ChunkType, ChunkWriter},
     cipher::CipherWriter,
     compress::CompressionWriter,
     io::TryIntoInner,
-    RegularEntry, SolidArchive, SolidHeader,
 };
 #[cfg(feature = "unstable-async")]
 use futures_io::AsyncWrite;
@@ -71,7 +70,7 @@ impl<W: Write> Archive<W> {
         Ok(Self::new(write, header))
     }
 
-    /// Write regular file entry
+    /// Write regular file entry into archive.
     ///
     /// # Example
     /// ```no_run
@@ -132,7 +131,9 @@ impl<W: Write> Archive<W> {
         {
             let writer = ChunkStreamWriter::new(ChunkType::FDAT, &mut self.inner);
             let writer = get_writer(writer, &context)?;
-            f(&mut EntryDataWriter(writer))?;
+            let mut writer = EntryDataWriter(writer);
+            f(&mut writer)?;
+            writer.flush()?;
         }
         (ChunkType::FEND, Vec::<u8>::new()).write_in(&mut self.inner)?;
         Ok(())
