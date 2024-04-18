@@ -26,7 +26,7 @@ use tabled::{
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[clap(disable_help_flag = true)]
-pub(crate) struct ListArgs {
+pub(crate) struct ListCommand {
     #[arg(short, long, help = "Display extended file metadata as a table")]
     pub(crate) long: bool,
     #[arg(short, long, help = "Add a header row to each column")]
@@ -41,13 +41,13 @@ pub(crate) struct ListArgs {
     help: Option<bool>,
 }
 
-impl Command for ListArgs {
+impl Command for ListCommand {
     fn execute(self, verbosity: Verbosity) -> io::Result<()> {
         list_archive(self, verbosity)
     }
 }
 
-fn list_archive(args: ListArgs, _: Verbosity) -> io::Result<()> {
+fn list_archive(args: ListCommand, _: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     let globs = GlobPatterns::new(args.file.files.iter().map(|p| p.to_string_lossy()))
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
