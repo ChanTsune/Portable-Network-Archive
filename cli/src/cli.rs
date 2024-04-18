@@ -1,5 +1,5 @@
 use crate::command::{
-    append::AppendCommand, complete, create::CreateCommand, experimental::ExperimentalArgs,
+    append::AppendCommand, complete, create::CreateCommand, experimental::ExperimentalCommand,
     extract::ExtractCommand, list::ListCommand,
 };
 use clap::{value_parser, ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
@@ -61,7 +61,7 @@ pub(crate) enum Commands {
     #[command(about = "Generate shell auto complete")]
     Complete(complete::CompleteCommand),
     #[command(about = "Unstable experimental commands")]
-    Experimental(ExperimentalArgs),
+    Experimental(ExperimentalCommand),
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
