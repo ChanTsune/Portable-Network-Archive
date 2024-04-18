@@ -13,10 +13,10 @@ use std::io;
 
 pub fn entry(cli: Cli) -> io::Result<()> {
     match cli.commands {
-        Commands::Create(args) => args.execute(cli.verbosity.verbosity()),
-        Commands::Append(args) => args.execute(cli.verbosity.verbosity()),
-        Commands::Extract(args) => args.execute(cli.verbosity.verbosity()),
-        Commands::List(args) => args.execute(cli.verbosity.verbosity()),
+        Commands::Create(cmd) => cmd.execute(cli.verbosity.verbosity()),
+        Commands::Append(cmd) => cmd.execute(cli.verbosity.verbosity()),
+        Commands::Extract(cmd) => cmd.execute(cli.verbosity.verbosity()),
+        Commands::List(cmd) => cmd.execute(cli.verbosity.verbosity()),
         Commands::Complete(cmd) => cmd.execute(cli.verbosity.verbosity()),
         Commands::Experimental(cmd) => cmd.execute(cli.verbosity.verbosity()),
     }
