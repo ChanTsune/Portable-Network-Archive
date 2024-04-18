@@ -1,10 +1,11 @@
 use crate::{
-    cli::{ListArgs, Verbosity},
+    cli::{FileArgs, PasswordArgs, Verbosity},
     command::{ask_password, Command},
     utils::{part_name, GlobPatterns},
 };
 use ansi_term::{ANSIString, Colour, Style};
 use chrono::{DateTime, Local};
+use clap::Parser;
 use pna::{
     Archive, Compression, DataKind, Encryption, ExtendedAttribute, ReadOption, RegularEntry,
 };
@@ -22,6 +23,23 @@ use tabled::{
         Alignment, Color, Modify, Padding, Style as TableStyle,
     },
 };
+
+#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[clap(disable_help_flag = true)]
+pub(crate) struct ListArgs {
+    #[arg(short, long, help = "Display extended file metadata as a table")]
+    pub(crate) long: bool,
+    #[arg(short, long, help = "Add a header row to each column")]
+    pub(crate) header: bool,
+    #[arg(long, help = "Display solid mode archive entries")]
+    pub(crate) solid: bool,
+    #[command(flatten)]
+    pub(crate) password: PasswordArgs,
+    #[command(flatten)]
+    pub(crate) file: FileArgs,
+    #[arg(long, action = clap::ArgAction::Help)]
+    help: Option<bool>,
+}
 
 impl Command for ListArgs {
     fn execute(self, verbosity: Verbosity) -> io::Result<()> {

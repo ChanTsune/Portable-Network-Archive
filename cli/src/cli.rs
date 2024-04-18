@@ -1,6 +1,6 @@
 use crate::command::{
     append::AppendCommand, complete, create::CreateCommand, experimental::ExperimentalArgs,
-    extract::ExtractCommand,
+    extract::ExtractCommand, list::ListArgs,
 };
 use clap::{value_parser, ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
 use std::path::PathBuf;
@@ -62,23 +62,6 @@ pub(crate) enum Commands {
     Complete(complete::CompleteCommand),
     #[command(about = "Unstable experimental commands")]
     Experimental(ExperimentalArgs),
-}
-
-#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-#[clap(disable_help_flag = true)]
-pub(crate) struct ListArgs {
-    #[arg(short, long, help = "Display extended file metadata as a table")]
-    pub(crate) long: bool,
-    #[arg(short, long, help = "Add a header row to each column")]
-    pub(crate) header: bool,
-    #[arg(long, help = "Display solid mode archive entries")]
-    pub(crate) solid: bool,
-    #[command(flatten)]
-    pub(crate) password: PasswordArgs,
-    #[command(flatten)]
-    pub(crate) file: FileArgs,
-    #[arg(long, action = clap::ArgAction::Help)]
-    help: Option<bool>,
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
