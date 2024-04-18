@@ -30,6 +30,24 @@ impl<W: Write> Write for EntryDataWriter<W> {
     }
 }
 
+pub struct SolidArchiveEntryDataWriter<'w, W: Write>(
+    CompressionWriter<
+        CipherWriter<
+            ChunkStreamWriter<&'w mut CompressionWriter<CipherWriter<ChunkStreamWriter<W>>>>,
+        >,
+    >,
+);
+
+impl<'w, W: Write> Write for SolidArchiveEntryDataWriter<'w, W> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.0.flush()
+    }
+}
+
 impl<W: Write> Archive<W> {
     /// Writes the archive header to the given `Write` object and return a new [Archive].
     ///
@@ -376,6 +394,70 @@ impl<W: Write> SolidArchive<W> {
         entry.write_in(&mut self.inner)
     }
 
+    /// Write regular file entry into archive.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use libpna::{Archive, Metadata, WriteOption};
+    /// # use std::error::Error;
+    /// use std::fs;
+    /// use std::io::{self, prelude::*};
+    ///
+    /// # fn main() -> Result<(), Box<dyn Error>> {
+    /// let file = fs::File::create("foo.pna")?;
+    /// let option = WriteOption::builder().build();
+    /// let mut archive = Archive::write_solid_header(file, option)?;
+    /// archive.write_file(
+    ///     "bar.txt".try_into()?,
+    ///     Metadata::new(),
+    ///     |writer| writer.write_all(b"text"),
+    /// )?;
+    /// archive.finalize()?;
+    /// #    Ok(())
+    /// # }
+    /// ```
+    pub fn write_file<F>(&mut self, name: EntryName, metadata: Metadata, mut f: F) -> io::Result<()>
+    where
+        F: FnMut(&mut SolidArchiveEntryDataWriter<W>) -> io::Result<()>,
+    {
+        let option = WriteOption::store();
+        let header = EntryHeader::for_file(
+            option.compression,
+            option.encryption,
+            option.cipher_mode,
+            name,
+        );
+        (ChunkType::FHED, header.to_bytes()).write_in(&mut self.inner)?;
+        if let Some(c) = metadata.created {
+            (ChunkType::cTIM, c.as_secs().to_be_bytes().as_slice()).write_in(&mut self.inner)?;
+        }
+        if let Some(m) = metadata.modified {
+            (ChunkType::mTIM, m.as_secs().to_be_bytes().as_slice()).write_in(&mut self.inner)?;
+        }
+        if let Some(a) = metadata.accessed {
+            (ChunkType::aTIM, a.as_secs().to_be_bytes().as_slice()).write_in(&mut self.inner)?;
+        }
+        if let Some(p) = metadata.permission {
+            (ChunkType::fPRM, p.to_bytes()).write_in(&mut self.inner)?;
+        }
+        let context = get_writer_context(option)?;
+        if let Some(phsf) = &context.phsf {
+            (ChunkType::PHSF, phsf.as_bytes()).write_in(&mut self.inner)?;
+        }
+        if let Cipher::Aes(c) | Cipher::Camellia(c) = &context.cipher {
+            (ChunkType::FDAT, &c.iv[..]).write_in(&mut self.inner)?;
+        }
+        {
+            let writer = ChunkStreamWriter::new(ChunkType::FDAT, &mut self.inner);
+            let writer = get_writer(writer, &context)?;
+            let mut writer = SolidArchiveEntryDataWriter(writer);
+            f(&mut writer)?;
+            writer.flush()?;
+        }
+        (ChunkType::FEND, Vec::<u8>::new()).write_in(&mut self.inner)?;
+        Ok(())
+    }
+
     /// Write an end marker to finalize the archive.
     ///
     /// Marks that the PNA archive contains no more entries.
@@ -421,19 +503,49 @@ mod tests {
     }
 
     #[test]
-    fn write_file_entry() {
+    fn archive_write_file_entry() {
+        let option = WriteOption::builder().build();
         let mut writer = Archive::write_header(Vec::new()).expect("failed to write header");
         writer
             .write_file(
                 EntryName::from_lossy("text.txt"),
                 Metadata::new(),
-                WriteOption::store(),
+                option,
                 |writer| writer.write_all(b"text"),
             )
             .expect("failed to write");
         let file = writer.finalize().expect("failed to finalize");
         let mut reader = Archive::read_header(&file[..]).expect("failed to read archive");
-        let mut entries = reader.entries_skip_solid();
+        let mut entries = reader.entries_with_password(None);
+        let entry = entries
+            .next()
+            .expect("failed to get entry")
+            .expect("failed to read entry");
+        let mut data_reader = entry
+            .reader(ReadOption::builder().build())
+            .expect("failed to read entry data");
+        let mut data = Vec::new();
+        data_reader
+            .read_to_end(&mut data)
+            .expect("failed to read data");
+        assert_eq!(&data[..], b"text");
+    }
+
+    #[test]
+    fn solid_write_file_entry() {
+        let option = WriteOption::builder().build();
+        let mut writer =
+            Archive::write_solid_header(Vec::new(), option).expect("failed to write header");
+        writer
+            .write_file(
+                EntryName::from_lossy("text.txt"),
+                Metadata::new(),
+                |writer| writer.write_all(b"text"),
+            )
+            .expect("failed to write");
+        let file = writer.finalize().expect("failed to finalize");
+        let mut reader = Archive::read_header(&file[..]).expect("failed to read archive");
+        let mut entries = reader.entries_with_password(None);
         let entry = entries
             .next()
             .expect("failed to get entry")
