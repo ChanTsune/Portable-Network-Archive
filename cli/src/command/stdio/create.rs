@@ -6,12 +6,14 @@ use crate::{
         stdio::FileArgs,
         Command,
     },
-    utils::GlobPatterns,
 };
 use clap::{ArgGroup, Parser};
 use pna::{Archive, WriteOption};
 use rayon::ThreadPoolBuilder;
-use std::io::{self, stdout};
+use std::{
+    io::{self, stdout},
+    path::PathBuf,
+};
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(group(ArgGroup::new("unstable-stdio-create-exclude").args(["exclude"]).requires("unstable")))]
@@ -37,7 +39,7 @@ pub(crate) struct CreateCommand {
     #[command(flatten)]
     pub(crate) file: FileArgs,
     #[arg(long, help = "Exclude path glob (unstable)")]
-    pub(crate) exclude: Option<Vec<glob::Pattern>>,
+    pub(crate) exclude: Option<Vec<PathBuf>>,
 }
 
 impl Command for CreateCommand {
@@ -53,12 +55,7 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
         .build()
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
-    let target_items = collect_items(
-        args.file.files,
-        args.recursive,
-        args.keep_dir,
-        args.exclude.map(GlobPatterns::from),
-    )?;
+    let target_items = collect_items(args.file.files, args.recursive, args.keep_dir, args.exclude)?;
 
     let (tx, rx) = std::sync::mpsc::channel();
     let cli_option = entry_option(args.compression, args.cipher, password);

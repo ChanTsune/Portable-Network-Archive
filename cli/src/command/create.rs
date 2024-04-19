@@ -5,7 +5,7 @@ use crate::{
         commons::{collect_items, create_entry, entry_option, split_to_parts, KeepOptions},
         Command,
     },
-    utils::{part_name, GlobPatterns, Let},
+    utils::{part_name, Let},
 };
 use bytesize::ByteSize;
 use clap::{ArgGroup, Parser};
@@ -15,6 +15,7 @@ use rayon::ThreadPoolBuilder;
 use std::{
     fs::{self, File},
     io,
+    path::PathBuf,
     time::Instant,
 };
 
@@ -46,7 +47,7 @@ pub(crate) struct CreateCommand {
     #[command(flatten)]
     pub(crate) file: FileArgs,
     #[arg(long, help = "Exclude path glob (unstable)")]
-    pub(crate) exclude: Option<Vec<glob::Pattern>>,
+    pub(crate) exclude: Option<Vec<PathBuf>>,
 }
 
 impl Command for CreateCommand {
@@ -73,12 +74,7 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
     if verbosity != Verbosity::Quite {
         eprintln!("Create an archive: {}", archive.display());
     }
-    let target_items = collect_items(
-        args.file.files,
-        args.recursive,
-        args.keep_dir,
-        args.exclude.map(GlobPatterns::from),
-    )?;
+    let target_items = collect_items(args.file.files, args.recursive, args.keep_dir, args.exclude)?;
 
     let progress_bar = if verbosity != Verbosity::Quite {
         Some(
