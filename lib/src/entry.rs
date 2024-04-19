@@ -29,10 +29,7 @@ mod private {
 }
 
 /// Archive entry.
-pub trait Entry: SealedEntryExt {
-    #[deprecated(since = "0.7.0")]
-    fn into_bytes(self) -> Vec<u8>;
-}
+pub trait Entry: SealedEntryExt {}
 
 impl SealedEntryExt for ReadEntry {
     fn into_chunks(self) -> Vec<RawChunk> {
@@ -50,15 +47,7 @@ impl SealedEntryExt for ReadEntry {
     }
 }
 
-impl Entry for ReadEntry {
-    fn into_bytes(self) -> Vec<u8> {
-        #[allow(deprecated)]
-        match self {
-            Self::Regular(r) => r.into_bytes(),
-            Self::Solid(s) => s.into_bytes(),
-        }
-    }
-}
+impl Entry for ReadEntry {}
 
 /// Chunks from `FHED` to `FEND`, containing `FHED` and `FEND`
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -79,11 +68,7 @@ impl SealedEntryExt for RawEntry {
     }
 }
 
-impl Entry for RawEntry {
-    fn into_bytes(self) -> Vec<u8> {
-        self.0.iter().flat_map(ChunkExt::to_bytes).collect()
-    }
-}
+impl Entry for RawEntry {}
 
 /// Reader for Entry data.
 pub struct EntryDataReader<'r>(EntryReader<crate::io::FlattenReader<'r>>);
@@ -193,15 +178,7 @@ impl SealedEntryExt for SolidEntry {
     }
 }
 
-#[allow(deprecated)]
-impl Entry for SolidEntry {
-    fn into_bytes(self) -> Vec<u8> {
-        self.into_chunks()
-            .iter()
-            .flat_map(ChunkExt::to_bytes)
-            .collect()
-    }
-}
+impl Entry for SolidEntry {}
 
 impl SolidEntry {
     /// Returns solid mode information header reference.
@@ -523,15 +500,7 @@ impl SealedEntryExt for RegularEntry {
     }
 }
 
-impl Entry for RegularEntry {
-    #[inline]
-    fn into_bytes(self) -> Vec<u8> {
-        self.into_chunks()
-            .iter()
-            .flat_map(ChunkExt::to_bytes)
-            .collect()
-    }
-}
+impl Entry for RegularEntry {}
 
 impl RegularEntry {
     #[inline]

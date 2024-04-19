@@ -297,8 +297,8 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
     }
 
     pub async fn add_entry_async(&mut self, entry: impl Entry) -> io::Result<usize> {
-        #[allow(deprecated)]
-        let bytes = entry.into_bytes();
+        let mut bytes = Vec::new();
+        entry.write_in(&mut bytes)?;
         self.inner.write_all(&bytes).await?;
         Ok(bytes.len())
     }
