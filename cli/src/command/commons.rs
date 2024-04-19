@@ -1,7 +1,4 @@
-use crate::{
-    cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs},
-    utils::GlobPatterns,
-};
+use crate::cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs};
 #[cfg(unix)]
 use nix::unistd::{Group, User};
 use pna::{
@@ -28,30 +25,33 @@ pub(crate) fn collect_items(
     files: Vec<PathBuf>,
     recursive: bool,
     keep_dir: bool,
-    exclude_globs: Option<GlobPatterns>,
+    exclude: Option<Vec<PathBuf>>,
 ) -> io::Result<Vec<PathBuf>> {
-    struct InnerVec(Vec<PathBuf>, Option<GlobPatterns>);
-    impl InnerVec {
-        fn push(&mut self, value: PathBuf) {
-            if self.1.as_ref().is_some_and(|p| p.matches_any_path(&value)) {
-                return;
-            }
-            self.0.push(value)
-        }
-    }
+    let exclude = exclude.map(|it| {
+        it.into_iter()
+            .filter_map(|path| path.canonicalize().ok())
+            .collect::<Vec<_>>()
+    });
     fn inner(
-        result: &mut InnerVec,
+        result: &mut Vec<PathBuf>,
         path: &Path,
         recursive: bool,
         keep_dir: bool,
+        exclude: Option<&Vec<PathBuf>>,
     ) -> io::Result<()> {
+        let cpath = path.canonicalize()?;
+        if let Some(exclude) = exclude {
+            if exclude.iter().any(|it| it.eq(&cpath)) {
+                return Ok(());
+            }
+        }
         if path.is_dir() {
             if keep_dir {
                 result.push(path.to_path_buf());
             }
             if recursive {
                 for p in fs::read_dir(path)? {
-                    inner(result, &p?.path(), recursive, keep_dir)?;
+                    inner(result, &p?.path(), recursive, keep_dir, exclude)?;
                 }
             }
         } else if path.is_file() {
@@ -59,11 +59,17 @@ pub(crate) fn collect_items(
         }
         Ok(())
     }
-    let mut target_items = InnerVec(vec![], exclude_globs);
+    let mut target_items = vec![];
     for p in files {
-        inner(&mut target_items, p.as_ref(), recursive, keep_dir)?;
+        inner(
+            &mut target_items,
+            p.as_ref(),
+            recursive,
+            keep_dir,
+            exclude.as_ref(),
+        )?;
     }
-    Ok(target_items.0)
+    Ok(target_items)
 }
 
 pub(crate) fn create_entry(

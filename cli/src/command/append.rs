@@ -5,12 +5,11 @@ use crate::{
         commons::{collect_items, create_entry, entry_option, KeepOptions},
         Command,
     },
-    utils::GlobPatterns,
 };
 use clap::{ArgGroup, Parser};
 use pna::Archive;
 use rayon::ThreadPoolBuilder;
-use std::{fs::File, io};
+use std::{fs::File, io, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(group(ArgGroup::new("unstable-append-exclude").args(["exclude"]).requires("unstable")))]
@@ -36,7 +35,7 @@ pub(crate) struct AppendCommand {
     #[command(flatten)]
     pub(crate) file: FileArgs,
     #[arg(long, help = "Exclude path glob (unstable)")]
-    pub(crate) exclude: Option<Vec<glob::Pattern>>,
+    pub(crate) exclude: Option<Vec<PathBuf>>,
 }
 
 impl Command for AppendCommand {
@@ -63,12 +62,7 @@ fn append_to_archive(args: AppendCommand, verbosity: Verbosity) -> io::Result<()
     let mut archive = Archive::read_header(file)?;
     archive.seek_to_end()?;
 
-    let target_items = collect_items(
-        args.file.files,
-        args.recursive,
-        args.keep_dir,
-        args.exclude.map(GlobPatterns::from),
-    )?;
+    let target_items = collect_items(args.file.files, args.recursive, args.keep_dir, args.exclude)?;
     let (tx, rx) = std::sync::mpsc::channel();
     let option = entry_option(args.compression, args.cipher, password);
     for file in target_items {
