@@ -1,10 +1,10 @@
 use crate::{
     cli::{FileArgs, PasswordArgs, Verbosity},
     command::{ask_password, Command},
-    utils::{self, part_name, GlobPatterns, Let},
+    utils::{self, part_name, GlobPatterns},
 };
 use clap::{Parser, ValueHint};
-use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
+use indicatif::HumanDuration;
 #[cfg(unix)]
 use nix::unistd::{Group, User};
 use pna::{Archive, DataKind, EntryReference, Permission, ReadOption, RegularEntry};
@@ -59,12 +59,6 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
         .build()
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
-    let progress_bar = if verbosity != Verbosity::Quite {
-        Some(ProgressBar::new(0).with_style(ProgressStyle::default_bar().progress_chars("=> ")))
-    } else {
-        None
-    };
-
     let mut hard_link_entries = Vec::new();
 
     let (tx, rx) = std::sync::mpsc::channel();
@@ -80,7 +74,6 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
                 }
                 return Ok(());
             }
-            progress_bar.let_ref(|pb| pb.inc_length(1));
             if item.header().data_kind() == DataKind::HardLink {
                 hard_link_entries.push(item);
                 return Ok(());
@@ -113,7 +106,6 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
     drop(tx);
     for result in rx {
         result?;
-        progress_bar.let_ref(|pb| pb.inc(1));
     }
 
     for item in hard_link_entries {
@@ -126,10 +118,7 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
             args.keep_permission,
             verbosity,
         )?;
-        progress_bar.let_ref(|pb| pb.inc(1));
     }
-
-    progress_bar.let_ref(|pb| pb.finish_and_clear());
 
     if verbosity != Verbosity::Quite {
         eprintln!(
