@@ -5,11 +5,11 @@ use crate::{
         commons::{collect_items, create_entry, entry_option, split_to_parts, KeepOptions},
         Command,
     },
-    utils::{part_name, Let},
+    utils::part_name,
 };
 use bytesize::ByteSize;
 use clap::{ArgGroup, Parser, ValueHint};
-use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
+use indicatif::HumanDuration;
 use pna::{Archive, EntryPart, SolidEntryBuilder, WriteOption, MIN_CHUNK_BYTES_SIZE, PNA_HEADER};
 use rayon::ThreadPoolBuilder;
 use std::{
@@ -76,15 +76,6 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
     }
     let target_items = collect_items(args.file.files, args.recursive, args.keep_dir, args.exclude)?;
 
-    let progress_bar = if verbosity != Verbosity::Quite {
-        Some(
-            ProgressBar::new(target_items.len() as u64)
-                .with_style(ProgressStyle::default_bar().progress_chars("=> ")),
-        )
-    } else {
-        None
-    };
-
     let (tx, rx) = std::sync::mpsc::channel();
     let cli_option = entry_option(args.compression, args.cipher, password);
     let option = if args.solid {
@@ -123,7 +114,6 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
             let mut entries_builder = SolidEntryBuilder::new(cli_option)?;
             for entry in rx.into_iter() {
                 entries_builder.add_entry(entry?)?;
-                progress_bar.let_ref(|pb| pb.inc(1));
             }
             let entries = entries_builder.build()?;
             let mut part_num = 1;
@@ -160,7 +150,6 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
             let mut writer = Archive::write_solid_header(file, cli_option)?;
             for entry in rx.into_iter() {
                 writer.add_entry(entry?)?;
-                progress_bar.let_ref(|pb| pb.inc(1));
             }
             writer.finalize()?;
         }
@@ -193,7 +182,6 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
                     }
                     written_entry_size += writer.add_entry_part(part)?;
                 }
-                progress_bar.let_ref(|pb| pb.inc(1));
             }
             writer.finalize()?;
             if part_num == 1 {
@@ -204,13 +192,10 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
             let mut writer = Archive::write_header(file)?;
             for entry in rx.into_iter() {
                 writer.add_entry(entry?)?;
-                progress_bar.let_ref(|pb| pb.inc(1));
             }
             writer.finalize()?;
         }
     }
-
-    progress_bar.let_ref(|pb| pb.finish_and_clear());
 
     if verbosity != Verbosity::Quite {
         eprintln!(
