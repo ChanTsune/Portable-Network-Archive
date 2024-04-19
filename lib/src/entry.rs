@@ -31,8 +31,6 @@ mod private {
 /// Archive entry.
 pub trait Entry: SealedEntryExt {
     #[deprecated(since = "0.7.0")]
-    fn bytes_len(&self) -> usize;
-    #[deprecated(since = "0.7.0")]
     fn into_bytes(self) -> Vec<u8>;
 }
 
@@ -53,14 +51,6 @@ impl SealedEntryExt for ReadEntry {
 }
 
 impl Entry for ReadEntry {
-    fn bytes_len(&self) -> usize {
-        #[allow(deprecated)]
-        match self {
-            Self::Regular(r) => r.bytes_len(),
-            Self::Solid(s) => s.bytes_len(),
-        }
-    }
-
     fn into_bytes(self) -> Vec<u8> {
         #[allow(deprecated)]
         match self {
@@ -90,10 +80,6 @@ impl SealedEntryExt for RawEntry {
 }
 
 impl Entry for RawEntry {
-    fn bytes_len(&self) -> usize {
-        self.0.iter().map(|chunk| chunk.bytes_len()).sum()
-    }
-
     fn into_bytes(self) -> Vec<u8> {
         self.0.iter().flat_map(ChunkExt::to_bytes).collect()
     }
@@ -209,10 +195,6 @@ impl SealedEntryExt for SolidEntry {
 
 #[allow(deprecated)]
 impl Entry for SolidEntry {
-    fn bytes_len(&self) -> usize {
-        self.clone().into_bytes().len()
-    }
-
     fn into_bytes(self) -> Vec<u8> {
         self.into_chunks()
             .iter()
@@ -542,12 +524,6 @@ impl SealedEntryExt for RegularEntry {
 }
 
 impl Entry for RegularEntry {
-    #[inline]
-    fn bytes_len(&self) -> usize {
-        #[allow(deprecated)]
-        self.clone().into_bytes().len()
-    }
-
     #[inline]
     fn into_bytes(self) -> Vec<u8> {
         self.into_chunks()
