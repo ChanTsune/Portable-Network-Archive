@@ -48,6 +48,7 @@ pub(crate) trait ChunkExt: Chunk {
     /// # Returns
     ///
     /// A `Vec<u8>` containing the converted `Chunk` data.
+    #[allow(dead_code)]
     #[inline]
     fn to_bytes(&self) -> Vec<u8> {
         let mut vec = Vec::with_capacity(self.bytes_len());
