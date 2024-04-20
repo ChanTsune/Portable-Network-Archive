@@ -6,7 +6,7 @@ use crate::{
         Command,
     },
 };
-use clap::{ArgGroup, Parser};
+use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
 use rayon::ThreadPoolBuilder;
 use std::{fs::File, io, path::PathBuf};
@@ -34,7 +34,7 @@ pub(crate) struct AppendCommand {
     pub(crate) cipher: CipherAlgorithmArgs,
     #[command(flatten)]
     pub(crate) file: FileArgs,
-    #[arg(long, help = "Exclude path glob (unstable)")]
+    #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
     pub(crate) exclude: Option<Vec<PathBuf>>,
 }
 
