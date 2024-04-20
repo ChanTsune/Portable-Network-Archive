@@ -160,6 +160,29 @@ impl<R: Read> Archive<R> {
     /// # Returns
     ///
     /// An iterator over the entries in the archive.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use libpna::{Archive, ReadEntry};
+    /// use std::fs;
+    /// # use std::io;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let file = fs::File::open("foo.pna")?;
+    /// let mut archive = Archive::read_header(file)?;
+    /// for entry in archive.entries() {
+    ///     match entry? {
+    ///         ReadEntry::Solid(solid_entry) => {
+    ///             // fill your code
+    ///         }
+    ///         ReadEntry::Regular(entry) => {
+    ///             // fill your code
+    ///         }
+    ///     }
+    /// }
+    /// #    Ok(())
+    /// # }
+    /// ```
     #[inline]
     pub fn entries(&mut self) -> Entries<R> {
         Entries::new(self)
