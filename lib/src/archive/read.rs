@@ -325,6 +325,23 @@ impl<'r, R: Read> Entries<'r, R> {
     }
 
     /// Returns an iterator that extract solid entries in the archive and returns a regular entry.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use libpna::{Archive, ReadEntry, ReadOption};
+    /// use std::fs;
+    /// # use std::io;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let file = fs::File::open("foo.pna")?;
+    /// let mut archive = Archive::read_header(file)?;
+    /// for entry in archive.entries().extract_solid_entries(Some("password")) {
+    ///     let mut reader = entry?.reader(ReadOption::builder().build());
+    ///     // fill your code
+    /// }
+    /// #    Ok(())
+    /// # }
+    /// ```
     #[inline]
     pub fn extract_solid_entries(self, password: Option<&'r str>) -> RegularEntries<'r, R> {
         RegularEntries {
