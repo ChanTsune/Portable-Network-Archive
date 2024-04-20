@@ -120,8 +120,9 @@ impl<'r> futures_io::AsyncRead for EntryDataReader<'r> {
     }
 }
 
+/// A [RegularEntry] or [SolidEntry] read from an archive.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) enum ReadEntry {
+pub enum ReadEntry {
     Solid(SolidEntry),
     Regular(RegularEntry),
 }
@@ -167,8 +168,9 @@ impl Iterator for EntryIterator<'_> {
     }
 }
 
+/// A solid mode entry.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct SolidEntry {
+pub struct SolidEntry {
     header: SolidHeader,
     phsf: Option<String>,
     data: Vec<Vec<u8>>,
@@ -220,7 +222,7 @@ impl Entry for SolidEntry {
 }
 
 impl SolidEntry {
-    pub(crate) fn entries(
+    pub fn entries(
         &self,
         password: Option<&str>,
     ) -> io::Result<impl Iterator<Item = io::Result<RegularEntry>> + '_> {
