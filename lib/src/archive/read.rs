@@ -161,7 +161,7 @@ impl<R: Read> Archive<R> {
     ///
     /// An iterator over the entries in the archive.
     #[inline]
-    fn entries(&mut self) -> Entries<R> {
+    pub fn entries(&mut self) -> Entries<R> {
         Entries::new(self)
     }
 
@@ -290,7 +290,8 @@ impl<'r, R: Read> Iterator for RawEntries<'r, R> {
     }
 }
 
-pub(crate) struct Entries<'r, R> {
+/// An iterator over the entries in the archive.
+pub struct Entries<'r, R> {
     reader: &'r mut Archive<R>,
 }
 
