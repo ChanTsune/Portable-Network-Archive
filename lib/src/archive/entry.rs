@@ -222,6 +222,36 @@ impl Entry for SolidEntry {
 }
 
 impl SolidEntry {
+    /// Returns an iterator over the entries in the [SolidEntry].
+    ///
+    /// # Example
+    ///
+    /// # Example
+    /// ```no_run
+    /// use libpna::{Archive, ReadEntry, ReadOption};
+    /// use std::fs;
+    /// # use std::io;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let file = fs::File::open("foo.pna")?;
+    /// let mut archive = Archive::read_header(file)?;
+    /// for entry in archive.entries() {
+    ///     match entry? {
+    ///         ReadEntry::Solid(solid_entry) => {
+    ///             for entry in solid_entry.entries(Some("password"))? {
+    ///                 let entry = entry?;
+    ///                 let mut reader = entry.reader(ReadOption::builder().build());
+    ///                 // fill your code
+    ///             }
+    ///         }
+    ///         ReadEntry::Regular(entry) => {
+    ///             // fill your code
+    ///         }
+    ///     }
+    /// }
+    /// #    Ok(())
+    /// # }
+    /// ```
     pub fn entries(
         &self,
         password: Option<&str>,
