@@ -8,7 +8,7 @@ use crate::{
     utils::{part_name, Let},
 };
 use bytesize::ByteSize;
-use clap::{ArgGroup, Parser};
+use clap::{ArgGroup, Parser, ValueHint};
 use indicatif::{HumanDuration, ProgressBar, ProgressStyle};
 use pna::{Archive, EntryPart, SolidEntryBuilder, WriteOption, MIN_CHUNK_BYTES_SIZE, PNA_HEADER};
 use rayon::ThreadPoolBuilder;
@@ -46,7 +46,7 @@ pub(crate) struct CreateCommand {
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
     pub(crate) file: FileArgs,
-    #[arg(long, help = "Exclude path glob (unstable)")]
+    #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
     pub(crate) exclude: Option<Vec<PathBuf>>,
 }
 
