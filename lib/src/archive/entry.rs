@@ -220,7 +220,10 @@ impl Entry for SolidEntry {
 }
 
 impl SolidEntry {
-    pub(crate) fn entries(&self, password: Option<&str>) -> io::Result<EntryIterator> {
+    pub(crate) fn entries(
+        &self,
+        password: Option<&str>,
+    ) -> io::Result<impl Iterator<Item = io::Result<RegularEntry>> + '_> {
         let reader = decrypt_reader(
             crate::io::FlattenReader::new(self.data.iter().map(|it| it.as_slice()).collect()),
             self.header.encryption,
