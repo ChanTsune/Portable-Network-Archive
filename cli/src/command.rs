@@ -9,7 +9,7 @@ mod split;
 pub(crate) mod stdio;
 
 use crate::cli::{CipherAlgorithmArgs, Cli, Commands, PasswordArgs, Verbosity};
-use std::io;
+use std::{fs, io};
 
 pub fn entry(cli: Cli) -> io::Result<()> {
     match cli.commands {
@@ -23,6 +23,9 @@ pub fn entry(cli: Cli) -> io::Result<()> {
 }
 
 fn ask_password(args: PasswordArgs) -> io::Result<Option<String>> {
+    if let Some(path) = args.password_file {
+        return Ok(Some(fs::read_to_string(path)?));
+    };
     Ok(match args.password {
         Some(password @ Some(_)) => {
             eprintln!("warning: Using a password on the command line interface can be insecure.");

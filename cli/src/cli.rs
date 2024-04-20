@@ -73,12 +73,15 @@ pub(crate) struct FileArgs {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[command(group(ArgGroup::new("password_provider").args(["password", "password_file"])))]
 pub(crate) struct PasswordArgs {
     #[arg(
         long,
         help = "Password of archive. If password is not given it's asked from the tty"
     )]
     pub(crate) password: Option<Option<String>>,
+    #[arg(long, help = "Read password from specified file")]
+    pub(crate) password_file: Option<PathBuf>,
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
