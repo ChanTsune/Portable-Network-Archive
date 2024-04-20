@@ -2,6 +2,7 @@ pub mod append;
 mod commons;
 pub mod complete;
 pub mod create;
+mod delete;
 pub(super) mod experimental;
 pub mod extract;
 pub mod list;

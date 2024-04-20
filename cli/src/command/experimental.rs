@@ -14,6 +14,7 @@ impl Command for ExperimentalCommand {
         match self.command {
             ExperimentalCommands::Split(cmd) => cmd.execute(verbosity),
             ExperimentalCommands::Stdio(cmd) => cmd.execute(verbosity),
+            ExperimentalCommands::Delete(cmd) => cmd.execute(verbosity),
         }
     }
 }
@@ -24,4 +25,6 @@ pub(crate) enum ExperimentalCommands {
     Split(command::split::SplitCommand),
     #[command(about = "Archive manipulation via stdio")]
     Stdio(command::stdio::StdioCommand),
+    #[command(about = "Delete entry from archive")]
+    Delete(command::delete::DeleteCommand),
 }
