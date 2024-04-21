@@ -2,14 +2,14 @@ use crate::cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs};
 #[cfg(unix)]
 use nix::unistd::{Group, User};
 use pna::{
-    EntryBuilder, EntryName, EntryPart, EntryReference, ExtendedAttribute, Permission,
+    Archive, EntryBuilder, EntryName, EntryPart, EntryReference, ExtendedAttribute, Permission,
     RegularEntry, WriteOption,
 };
 #[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::{
     fs,
-    io::{self, Write},
+    io::{self, prelude::*},
     path::{Path, PathBuf},
     time::UNIX_EPOCH,
 };
@@ -192,4 +192,54 @@ pub(crate) fn split_to_parts(
         }
     }
     parts
+}
+
+pub(crate) fn run_process_archive<'p, R, Provider, F, N>(
+    reader: R,
+    mut password_provider: Provider,
+    mut processor: F,
+    mut get_next_reader: N,
+) -> io::Result<()>
+where
+    R: Read,
+    Provider: FnMut() -> Option<&'p str>,
+    F: FnMut(io::Result<RegularEntry>) -> io::Result<()>,
+    N: FnMut(usize) -> io::Result<R>,
+{
+    let mut archive = Archive::read_header(reader)?;
+    let mut num_archive = 1;
+    loop {
+        for entry in archive.entries_with_password(password_provider()) {
+            processor(entry)?;
+        }
+        if archive.next_archive() {
+            num_archive += 1;
+            let next_reader = get_next_reader(num_archive)?;
+            archive = archive.read_next_archive(next_reader)?;
+        } else {
+            break;
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn run_process_archive_file<'p, P, Provider, F, N, NP>(
+    path: P,
+    password_provider: Provider,
+    processor: F,
+    mut get_next_file_path: N,
+) -> io::Result<()>
+where
+    P: AsRef<Path>,
+    Provider: FnMut() -> Option<&'p str>,
+    F: FnMut(io::Result<RegularEntry>) -> io::Result<()>,
+    N: FnMut(&Path, usize) -> NP,
+    NP: AsRef<Path>,
+{
+    let path = path.as_ref();
+    let file = fs::File::open(path)?;
+    run_process_archive(file, password_provider, processor, |num_archive| {
+        let next_file_path = get_next_file_path(path, num_archive);
+        fs::File::open(next_file_path)
+    })
 }
