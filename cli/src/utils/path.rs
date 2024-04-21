@@ -23,6 +23,37 @@ pub(crate) fn part_name<P: AsRef<Path>>(p: P, n: usize) -> Option<PathBuf> {
     }
 }
 
+pub(crate) fn remove_part_name<P: AsRef<Path>>(path: P) -> Option<PathBuf> {
+    fn inner(path: &Path) -> Option<PathBuf> {
+        let parent = path.parent();
+        let file_name = PathBuf::from(path.file_name()?);
+        let removed = if let Some(extension) = file_name.extension() {
+            if extension.to_str().unwrap().starts_with("part") {
+                PathBuf::from(file_name.file_stem().unwrap())
+            } else {
+                let stem = PathBuf::from(file_name.file_stem().unwrap());
+                if let Some(may) = stem.extension() {
+                    if may.to_str().unwrap().starts_with("part") {
+                        stem.with_extension(extension)
+                    } else {
+                        file_name
+                    }
+                } else {
+                    file_name
+                }
+            }
+        } else {
+            file_name
+        };
+        Some(if let Some(parent) = parent {
+            parent.join(removed)
+        } else {
+            removed
+        })
+    }
+    inner(path.as_ref())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -62,6 +93,42 @@ mod tests {
         assert_eq!(
             part_name("parent/a.part1", 2),
             Some(PathBuf::from("parent/a.part2"))
+        );
+    }
+
+    #[test]
+    fn remove_part_name_with_extension() {
+        assert_eq!(
+            remove_part_name("foo.pna").unwrap(),
+            PathBuf::from("foo.pna")
+        );
+        assert_eq!(
+            remove_part_name("dir/foo.pna").unwrap(),
+            PathBuf::from("dir/foo.pna")
+        );
+
+        assert_eq!(
+            remove_part_name("foo.part1.pna").unwrap(),
+            PathBuf::from("foo.pna")
+        );
+        assert_eq!(
+            remove_part_name("dir/foo.part1.pna").unwrap(),
+            PathBuf::from("dir/foo.pna")
+        );
+    }
+
+    #[test]
+    fn remove_part_name_without_extension() {
+        assert_eq!(remove_part_name("foo").unwrap(), PathBuf::from("foo"));
+        assert_eq!(
+            remove_part_name("dir/foo").unwrap(),
+            PathBuf::from("dir/foo")
+        );
+
+        assert_eq!(remove_part_name("foo.part1").unwrap(), PathBuf::from("foo"));
+        assert_eq!(
+            remove_part_name("dir/foo.part1").unwrap(),
+            PathBuf::from("dir/foo")
         );
     }
 }

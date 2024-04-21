@@ -1,7 +1,7 @@
 use crate::{
     cli::{FileArgs, PasswordArgs, Verbosity},
     command::{ask_password, Command},
-    utils,
+    utils::{self, part_name, remove_part_name},
 };
 use clap::{Parser, ValueHint};
 use pna::Archive;
@@ -38,6 +38,22 @@ fn delete_file_from_archive(args: DeleteCommand, _verbosity: Verbosity) -> io::R
     let mut archive = Archive::read_header(file)?;
     let outfile = fs::File::create(&outfile_path)?;
     let mut out_archive = Archive::write_header(outfile)?;
+
+    let mut num_archive = 1;
+    loop {
+        if archive.next_archive() {
+            num_archive += 1;
+            if let Ok(file) = fs::File::open(part_name(&args.file.archive, num_archive).unwrap()) {
+                archive = archive.read_next_archive(file)?;
+            } else {
+                eprintln!("Detected that the file has been split, but the following file could not be found.");
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+
     for entry in archive.entries_with_password(password.as_deref()) {
         let entry = entry?;
         if args
@@ -53,7 +69,7 @@ fn delete_file_from_archive(args: DeleteCommand, _verbosity: Verbosity) -> io::R
     out_archive.finalize()?;
 
     if args.output.is_none() {
-        utils::fs::mv(outfile_path, args.file.archive)?;
+        utils::fs::mv(outfile_path, remove_part_name(args.file.archive).unwrap())?;
     }
     Ok(())
 }
