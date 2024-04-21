@@ -55,7 +55,12 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
         .build()
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
-    let target_items = collect_items(args.file.files, args.recursive, args.keep_dir, args.exclude)?;
+    let target_items = collect_items(
+        &args.file.files,
+        args.recursive,
+        args.keep_dir,
+        &args.exclude,
+    )?;
 
     let (tx, rx) = std::sync::mpsc::channel();
     let cli_option = entry_option(args.compression, args.cipher, password);

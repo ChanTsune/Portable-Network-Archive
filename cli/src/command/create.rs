@@ -70,6 +70,14 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
     if verbosity != Verbosity::Quite {
         eprintln!("Create an archive: {}", archive.display());
     }
+
+    let target_items = collect_items(
+        &args.file.files,
+        args.recursive,
+        args.keep_dir,
+        &args.exclude,
+    )?;
+
     if let Some(parent) = archive.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -78,9 +86,9 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
         .map(|it| it.unwrap_or(ByteSize::gb(1)).0 as usize);
 
     if let Some(size) = max_file_size {
-        create_arvhive_with_split(args, password, size, verbosity)?;
+        create_arvhive_with_split(args, password, target_items, size, verbosity)?;
     } else {
-        create_archive_file(args, password, verbosity)?;
+        create_archive_file(args, password, target_items, verbosity)?;
     }
     if verbosity != Verbosity::Quite {
         eprintln!(
@@ -94,14 +102,13 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
 fn create_archive_file(
     args: CreateCommand,
     password: Option<String>,
+    target_items: Vec<PathBuf>,
     verbosity: Verbosity,
 ) -> io::Result<()> {
     let archive = args.file.archive;
     let pool = ThreadPoolBuilder::default()
         .build()
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-
-    let target_items = collect_items(args.file.files, args.recursive, args.keep_dir, args.exclude)?;
 
     let (tx, rx) = std::sync::mpsc::channel();
     let cli_option = entry_option(args.compression, args.cipher, password);
@@ -149,6 +156,7 @@ fn create_archive_file(
 fn create_arvhive_with_split(
     args: CreateCommand,
     password: Option<String>,
+    target_items: Vec<PathBuf>,
     max_file_size: usize,
     verbosity: Verbosity,
 ) -> io::Result<()> {
@@ -156,8 +164,6 @@ fn create_arvhive_with_split(
     let pool = ThreadPoolBuilder::default()
         .build()
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-
-    let target_items = collect_items(args.file.files, args.recursive, args.keep_dir, args.exclude)?;
 
     let (tx, rx) = std::sync::mpsc::channel();
     let cli_option = entry_option(args.compression, args.cipher, password);
