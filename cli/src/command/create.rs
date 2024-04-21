@@ -57,23 +57,50 @@ impl Command for CreateCommand {
 }
 
 fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
-    let password = ask_password(args.password)?;
+    let password = ask_password(args.password.clone())?;
     check_password(&password, &args.cipher);
-    let archive = args.file.archive;
+    let start = Instant::now();
+    let archive = &args.file.archive;
     if !args.overwrite && archive.exists() {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
             format!("{} is already exists", archive.display()),
         ));
     }
-    let start = Instant::now();
+    if verbosity != Verbosity::Quite {
+        eprintln!("Create an archive: {}", archive.display());
+    }
+    if let Some(parent) = archive.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let max_file_size = args
+        .split
+        .map(|it| it.unwrap_or(ByteSize::gb(1)).0 as usize);
+
+    if let Some(size) = max_file_size {
+        create_arvhive_with_split(args, password, size, verbosity)?;
+    } else {
+        create_archive_file(args, password, verbosity)?;
+    }
+    if verbosity != Verbosity::Quite {
+        eprintln!(
+            "Successfully created an archive in {}",
+            HumanDuration(start.elapsed())
+        );
+    }
+    Ok(())
+}
+
+fn create_archive_file(
+    args: CreateCommand,
+    password: Option<String>,
+    verbosity: Verbosity,
+) -> io::Result<()> {
+    let archive = args.file.archive;
     let pool = ThreadPoolBuilder::default()
         .build()
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
-    if verbosity != Verbosity::Quite {
-        eprintln!("Create an archive: {}", archive.display());
-    }
     let target_items = collect_items(args.file.files, args.recursive, args.keep_dir, args.exclude)?;
 
     let (tx, rx) = std::sync::mpsc::channel();
@@ -102,29 +129,108 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
 
     drop(tx);
 
-    if let Some(parent) = archive.parent() {
-        fs::create_dir_all(parent)?;
+    let file = File::create(&archive)?;
+    if args.solid {
+        let mut writer = Archive::write_solid_header(file, cli_option)?;
+        for entry in rx.into_iter() {
+            writer.add_entry(entry?)?;
+        }
+        writer.finalize()?;
+    } else {
+        let mut writer = Archive::write_header(file)?;
+        for entry in rx.into_iter() {
+            writer.add_entry(entry?)?;
+        }
+        writer.finalize()?;
     }
-    let max_file_size = args
-        .split
-        .map(|it| it.unwrap_or(ByteSize::gb(1)).0 as usize);
+    Ok(())
+}
+
+fn create_arvhive_with_split(
+    args: CreateCommand,
+    password: Option<String>,
+    max_file_size: usize,
+    verbosity: Verbosity,
+) -> io::Result<()> {
+    let archive = args.file.archive;
+    let pool = ThreadPoolBuilder::default()
+        .build()
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+
+    let target_items = collect_items(args.file.files, args.recursive, args.keep_dir, args.exclude)?;
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    let cli_option = entry_option(args.compression, args.cipher, password);
+    let option = if args.solid {
+        WriteOption::store()
+    } else {
+        cli_option.clone()
+    };
+    for file in target_items {
+        let option = option.clone();
+        let keep_options = KeepOptions {
+            keep_timestamp: args.keep_timestamp,
+            keep_permission: args.keep_permission,
+            keep_xattr: args.keep_xattr,
+        };
+        let tx = tx.clone();
+        pool.spawn_fifo(move || {
+            if verbosity == Verbosity::Verbose {
+                eprintln!("Adding: {}", file.display());
+            }
+            tx.send(create_entry(&file, option, keep_options))
+                .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
+        });
+    }
+
+    drop(tx);
 
     if args.solid {
-        if let Some(max_file_size) = max_file_size {
-            let mut entries_builder = SolidEntryBuilder::new(cli_option)?;
-            for entry in rx.into_iter() {
-                entries_builder.add_entry(entry?)?;
-            }
-            let entries = entries_builder.build()?;
-            let mut part_num = 1;
-            let file = File::create(part_name(&archive, part_num).unwrap())?;
-            let mut writer = Archive::write_header(file)?;
+        let mut entries_builder = SolidEntryBuilder::new(cli_option)?;
+        for entry in rx.into_iter() {
+            entries_builder.add_entry(entry?)?;
+        }
+        let entries = entries_builder.build()?;
+        let mut part_num = 1;
+        let file = File::create(part_name(&archive, part_num).unwrap())?;
+        let mut writer = Archive::write_header(file)?;
 
-            // NOTE: max_file_size - (PNA_HEADER + AHED + ANXT + AEND)
-            let max_file_size = max_file_size - (PNA_HEADER.len() + MIN_CHUNK_BYTES_SIZE * 3 + 8);
-            let mut written_entry_size = 0;
+        // NOTE: max_file_size - (PNA_HEADER + AHED + ANXT + AEND)
+        let max_file_size = max_file_size - (PNA_HEADER.len() + MIN_CHUNK_BYTES_SIZE * 3 + 8);
+        let mut written_entry_size = 0;
+        let parts = split_to_parts(
+            EntryPart::from(entries),
+            max_file_size - written_entry_size,
+            max_file_size,
+        );
+        for part in parts {
+            if written_entry_size + part.bytes_len() > max_file_size {
+                part_num += 1;
+                let part_n_name = part_name(&archive, part_num).unwrap();
+                if verbosity == Verbosity::Verbose {
+                    eprintln!("Split: {} to {}", archive.display(), part_n_name.display());
+                }
+                let file = File::create(&part_n_name)?;
+                writer = writer.split_to_next_archive(file)?;
+                written_entry_size = 0;
+            }
+            written_entry_size += writer.add_entry_part(part)?;
+        }
+        writer.finalize()?;
+        if part_num == 1 {
+            fs::rename(part_name(&archive, 1).unwrap(), &archive)?;
+        }
+    } else {
+        let mut part_num = 1;
+        let file = File::create(part_name(&archive, part_num).unwrap())?;
+        let mut writer = Archive::write_header(file)?;
+
+        // NOTE: max_file_size - (PNA_HEADER + AHED + ANXT + AEND)
+        let max_file_size = max_file_size - (PNA_HEADER.len() + MIN_CHUNK_BYTES_SIZE * 3 + 8);
+        let mut written_entry_size = 0;
+        for entry in rx.into_iter() {
             let parts = split_to_parts(
-                EntryPart::from(entries),
+                EntryPart::from(entry?),
                 max_file_size - written_entry_size,
                 max_file_size,
             );
@@ -141,67 +247,11 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
                 }
                 written_entry_size += writer.add_entry_part(part)?;
             }
-            writer.finalize()?;
-            if part_num == 1 {
-                fs::rename(part_name(&archive, 1).unwrap(), &archive)?;
-            }
-        } else {
-            let file = File::create(&archive)?;
-            let mut writer = Archive::write_solid_header(file, cli_option)?;
-            for entry in rx.into_iter() {
-                writer.add_entry(entry?)?;
-            }
-            writer.finalize()?;
         }
-    } else {
-        // if splitting is enabled
-        if let Some(max_file_size) = max_file_size {
-            let mut part_num = 1;
-            let file = File::create(part_name(&archive, part_num).unwrap())?;
-            let mut writer = Archive::write_header(file)?;
-
-            // NOTE: max_file_size - (PNA_HEADER + AHED + ANXT + AEND)
-            let max_file_size = max_file_size - (PNA_HEADER.len() + MIN_CHUNK_BYTES_SIZE * 3 + 8);
-            let mut written_entry_size = 0;
-            for entry in rx.into_iter() {
-                let parts = split_to_parts(
-                    EntryPart::from(entry?),
-                    max_file_size - written_entry_size,
-                    max_file_size,
-                );
-                for part in parts {
-                    if written_entry_size + part.bytes_len() > max_file_size {
-                        part_num += 1;
-                        let part_n_name = part_name(&archive, part_num).unwrap();
-                        if verbosity == Verbosity::Verbose {
-                            eprintln!("Split: {} to {}", archive.display(), part_n_name.display());
-                        }
-                        let file = File::create(&part_n_name)?;
-                        writer = writer.split_to_next_archive(file)?;
-                        written_entry_size = 0;
-                    }
-                    written_entry_size += writer.add_entry_part(part)?;
-                }
-            }
-            writer.finalize()?;
-            if part_num == 1 {
-                fs::rename(part_name(&archive, 1).unwrap(), &archive)?;
-            }
-        } else {
-            let file = File::create(&archive)?;
-            let mut writer = Archive::write_header(file)?;
-            for entry in rx.into_iter() {
-                writer.add_entry(entry?)?;
-            }
-            writer.finalize()?;
+        writer.finalize()?;
+        if part_num == 1 {
+            fs::rename(part_name(&archive, 1).unwrap(), &archive)?;
         }
-    }
-
-    if verbosity != Verbosity::Quite {
-        eprintln!(
-            "Successfully created an archive in {}",
-            HumanDuration(start.elapsed())
-        );
     }
     Ok(())
 }
