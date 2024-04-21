@@ -1,7 +1,7 @@
 use crate::{
-    archive::{CipherMode, Compression, CompressionLevel, Encryption, HashAlgorithm, WriteOption},
     cipher::{CipherWriter, Ctr128BEWriter, EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
     compress::CompressionWriter,
+    entry::{CipherMode, Compression, CompressionLevel, Encryption, HashAlgorithm, WriteOption},
     hash, random,
 };
 use aes::Aes256;
