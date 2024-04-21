@@ -28,18 +28,31 @@ pub(crate) fn mv<Src: AsRef<Path>, Dist: AsRef<Path>>(src: Src, dist: Dist) -> i
     }
     #[cfg(windows)]
     fn inner(src: &Path, dist: &Path) -> io::Result<()> {
-        use std::os::windows::prelude::*;
         use windows::core::PCWSTR;
         use windows::Win32::Storage::FileSystem::*;
 
         unsafe {
             MoveFileExW(
-                PCWSTR::from_raw(src.as_os_str().encode_wide().collect::<Vec<_>>().as_ptr()),
-                PCWSTR::from_raw(dist.as_os_str().encode_wide().collect::<Vec<_>>().as_ptr()),
+                PCWSTR::from_raw(encode_wide(src.as_os_str())?.as_ptr()),
+                PCWSTR::from_raw(encode_wide(dist.as_os_str())?.as_ptr()),
                 MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED,
             )
         }
         .map_err(|e| io::Error::other(e))
     }
     inner(src.as_ref(), dist.as_ref())
+}
+
+#[cfg(windows)]
+fn encode_wide(s: &std::ffi::OsStr) -> io::Result<Vec<u16>> {
+    use std::os::windows::prelude::*;
+    let mut buf = Vec::with_capacity(s.len() + 1);
+    buf.extend(s.encode_wide());
+    if buf.contains(&0) {
+        return Err(io::Error::other(
+            "Value cannot pass to platform, because contains null character",
+        ));
+    }
+    buf.push(0);
+    Ok(buf)
 }
