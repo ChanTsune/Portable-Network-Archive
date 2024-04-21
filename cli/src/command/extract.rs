@@ -1,15 +1,14 @@
 use crate::{
     cli::{FileArgs, PasswordArgs, Verbosity},
-    command::{ask_password, Command},
+    command::{ask_password, commons::run_process_archive_file, Command},
     utils::{self, part_name, GlobPatterns},
 };
 use clap::{Parser, ValueHint};
 use indicatif::HumanDuration;
 #[cfg(unix)]
 use nix::unistd::{Group, User};
-use pna::{Archive, DataKind, EntryReference, Permission, ReadOption, RegularEntry};
+use pna::{DataKind, EntryReference, Permission, ReadOption, RegularEntry};
 use rayon::ThreadPoolBuilder;
-use std::io::Read;
 use std::ops::Add;
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::FileTimesExt;
@@ -128,56 +127,6 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
         );
     }
     Ok(())
-}
-
-fn run_process_archive<'p, R, Provider, F, N>(
-    reader: R,
-    mut password_provider: Provider,
-    mut processor: F,
-    mut get_next_reader: N,
-) -> io::Result<()>
-where
-    R: Read,
-    Provider: FnMut() -> Option<&'p str>,
-    F: FnMut(io::Result<RegularEntry>) -> io::Result<()>,
-    N: FnMut(usize) -> io::Result<R>,
-{
-    let mut archive = Archive::read_header(reader)?;
-    let mut num_archive = 1;
-    loop {
-        for entry in archive.entries_with_password(password_provider()) {
-            processor(entry)?;
-        }
-        if archive.next_archive() {
-            num_archive += 1;
-            let next_reader = get_next_reader(num_archive)?;
-            archive = archive.read_next_archive(next_reader)?;
-        } else {
-            break;
-        }
-    }
-    Ok(())
-}
-
-fn run_process_archive_file<'p, P, Provider, F, N, NP>(
-    path: P,
-    password_provider: Provider,
-    processor: F,
-    mut get_next_file_path: N,
-) -> io::Result<()>
-where
-    P: AsRef<Path>,
-    Provider: FnMut() -> Option<&'p str>,
-    F: FnMut(io::Result<RegularEntry>) -> io::Result<()>,
-    N: FnMut(&Path, usize) -> NP,
-    NP: AsRef<Path>,
-{
-    let path = path.as_ref();
-    let file = File::open(path)?;
-    run_process_archive(file, password_provider, processor, |num_archive| {
-        let next_file_path = get_next_file_path(path, num_archive);
-        File::open(next_file_path)
-    })
 }
 
 pub(crate) fn extract_entry(
