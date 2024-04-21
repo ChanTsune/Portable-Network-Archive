@@ -28,7 +28,7 @@ pub(crate) fn collect_items(
     exclude: &Option<Vec<PathBuf>>,
 ) -> io::Result<Vec<PathBuf>> {
     let exclude = exclude.as_ref().map(|it| {
-        it.into_iter()
+        it.iter()
             .filter_map(|path| path.canonicalize().ok())
             .collect::<Vec<_>>()
     });
