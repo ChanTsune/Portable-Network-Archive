@@ -1,14 +1,12 @@
 use crate::{
-    archive::{
-        entry::{
-            get_writer, get_writer_context, Cipher, Entry, EntryHeader, EntryName, EntryPart,
-            Metadata, RegularEntry, SealedEntryExt, WriteOption,
-        },
-        Archive, ArchiveHeader, SolidArchive, SolidHeader, PNA_HEADER,
-    },
+    archive::{Archive, ArchiveHeader, SolidArchive, PNA_HEADER},
     chunk::{ChunkExt, ChunkStreamWriter, ChunkType, ChunkWriter},
     cipher::CipherWriter,
     compress::CompressionWriter,
+    entry::{
+        get_writer, get_writer_context, Cipher, Entry, EntryHeader, EntryName, EntryPart, Metadata,
+        RegularEntry, SealedEntryExt, SolidHeader, WriteOption,
+    },
     io::TryIntoInner,
 };
 #[cfg(feature = "unstable-async")]

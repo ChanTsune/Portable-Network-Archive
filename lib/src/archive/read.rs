@@ -1,6 +1,7 @@
 use crate::{
-    archive::{Archive, ArchiveHeader, Entry, RawEntry, ReadEntry, RegularEntry, PNA_HEADER},
+    archive::{Archive, ArchiveHeader, PNA_HEADER},
     chunk::{Chunk, ChunkReader, ChunkType, RawChunk},
+    entry::{Entry, RawEntry, ReadEntry, RegularEntry},
 };
 #[cfg(feature = "unstable-async")]
 use futures_io::AsyncRead;

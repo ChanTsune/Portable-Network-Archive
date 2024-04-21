@@ -1,11 +1,11 @@
 use crate::{
-    archive::entry::{
+    cipher::CipherWriter,
+    compress::CompressionWriter,
+    entry::{
         get_writer, get_writer_context, private::SealedEntryExt, Cipher, DataKind, Entry,
         EntryHeader, EntryName, EntryReference, ExtendedAttribute, Metadata, Permission,
         RegularEntry, SolidEntry, SolidHeader, WriteOption,
     },
-    cipher::CipherWriter,
-    compress::CompressionWriter,
     io::TryIntoInner,
 };
 

@@ -1,4 +1,3 @@
-mod entry;
 mod header;
 mod read;
 mod write;
@@ -8,7 +7,6 @@ use crate::{
     cipher::CipherWriter,
     compress::CompressionWriter,
 };
-pub use entry::*;
 pub use header::*;
 use std::io::prelude::*;
 
@@ -105,6 +103,7 @@ pub struct SolidArchive<T: Write> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::entry::*;
     use std::io::{self, Cursor};
     use std::time::Duration;
 
