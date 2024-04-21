@@ -36,16 +36,3 @@ impl From<Vec<glob::Pattern>> for GlobPatterns {
         Self(value)
     }
 }
-
-pub trait Let<T> {
-    fn let_ref<U, F: FnOnce(&T) -> U>(&self, f: F);
-}
-
-impl<T> Let<T> for Option<T> {
-    #[inline]
-    fn let_ref<U, F: FnOnce(&T) -> U>(&self, f: F) {
-        if let Some(t) = self.as_ref() {
-            f(t);
-        }
-    }
-}
