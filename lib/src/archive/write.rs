@@ -100,7 +100,7 @@ impl<W: Write> Archive<W> {
     /// let file = fs::File::create("foo.pna")?;
     /// let mut archive = Archive::write_header(file)?;
     /// archive.write_file(
-    ///     "bar.txt".try_into()?,
+    ///     "bar.txt".into(),
     ///     Metadata::new(),
     ///     WriteOption::builder().build(),
     ///     |writer| writer.write_all(b"text"),
@@ -406,11 +406,9 @@ impl<W: Write> SolidArchive<W> {
     /// let file = fs::File::create("foo.pna")?;
     /// let option = WriteOption::builder().build();
     /// let mut archive = Archive::write_solid_header(file, option)?;
-    /// archive.write_file(
-    ///     "bar.txt".try_into()?,
-    ///     Metadata::new(),
-    ///     |writer| writer.write_all(b"text"),
-    /// )?;
+    /// archive.write_file("bar.txt".into(), Metadata::new(), |writer| {
+    ///     writer.write_all(b"text")
+    /// })?;
     /// archive.finalize()?;
     /// #    Ok(())
     /// # }
