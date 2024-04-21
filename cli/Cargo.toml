@@ -27,6 +27,9 @@ rand = "0.8.5"
 nix = { version = "0.28.0", features = ["user", "fs"] }
 xattr = "1.3.1"
 
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.56.0", features = ["Win32_Storage_FileSystem"] }
+
 [features]
 experimental = [] # deprecated
 unstable-split = ["experimental"] # deprecated
