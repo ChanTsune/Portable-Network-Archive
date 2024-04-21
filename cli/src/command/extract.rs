@@ -9,6 +9,7 @@ use indicatif::HumanDuration;
 use nix::unistd::{Group, User};
 use pna::{Archive, DataKind, EntryReference, Permission, ReadOption, RegularEntry};
 use rayon::ThreadPoolBuilder;
+use std::io::Read;
 use std::ops::Add;
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::FileTimesExt;
@@ -62,7 +63,7 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
     let mut hard_link_entries = Vec::new();
 
     let (tx, rx) = std::sync::mpsc::channel();
-    run_extract(
+    run_process_archive_file(
         &args.file.archive,
         || password.as_deref(),
         |entry| {
@@ -129,10 +130,39 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
     Ok(())
 }
 
-fn run_extract<'p, P, Provider, F, N, NP>(
-    path: P,
+fn run_process_archive<'p, R, Provider, F, N>(
+    reader: R,
     mut password_provider: Provider,
-    mut extractor: F,
+    mut processor: F,
+    mut get_next_reader: N,
+) -> io::Result<()>
+where
+    R: Read,
+    Provider: FnMut() -> Option<&'p str>,
+    F: FnMut(io::Result<RegularEntry>) -> io::Result<()>,
+    N: FnMut(usize) -> io::Result<R>,
+{
+    let mut archive = Archive::read_header(reader)?;
+    let mut num_archive = 1;
+    loop {
+        for entry in archive.entries_with_password(password_provider()) {
+            processor(entry)?;
+        }
+        if archive.next_archive() {
+            num_archive += 1;
+            let next_reader = get_next_reader(num_archive)?;
+            archive = archive.read_next_archive(next_reader)?;
+        } else {
+            break;
+        }
+    }
+    Ok(())
+}
+
+fn run_process_archive_file<'p, P, Provider, F, N, NP>(
+    path: P,
+    password_provider: Provider,
+    processor: F,
     mut get_next_file_path: N,
 ) -> io::Result<()>
 where
@@ -144,22 +174,10 @@ where
 {
     let path = path.as_ref();
     let file = File::open(path)?;
-    let mut reader = Archive::read_header(file)?;
-    let mut num_archive = 1;
-    loop {
-        for entry in reader.entries_with_password(password_provider()) {
-            extractor(entry)?;
-        }
-        if reader.next_archive() {
-            num_archive += 1;
-            let next_file_path = get_next_file_path(path, num_archive);
-            let file = File::open(next_file_path)?;
-            reader = reader.read_next_archive(file)?;
-        } else {
-            break;
-        }
-    }
-    Ok(())
+    run_process_archive(file, password_provider, processor, |num_archive| {
+        let next_file_path = get_next_file_path(path, num_archive);
+        File::open(next_file_path)
+    })
 }
 
 pub(crate) fn extract_entry(
