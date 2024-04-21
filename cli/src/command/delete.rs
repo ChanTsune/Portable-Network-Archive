@@ -1,6 +1,7 @@
 use crate::{
     cli::{FileArgs, PasswordArgs, Verbosity},
     command::{ask_password, Command},
+    utils,
 };
 use clap::{Parser, ValueHint};
 use pna::Archive;
@@ -52,7 +53,7 @@ fn delete_file_from_archive(args: DeleteCommand, _verbosity: Verbosity) -> io::R
     out_archive.finalize()?;
 
     if args.output.is_none() {
-        fs::rename(outfile_path, args.file.archive)?;
+        utils::fs::mv(outfile_path, args.file.archive)?;
     }
     Ok(())
 }
