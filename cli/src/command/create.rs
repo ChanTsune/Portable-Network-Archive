@@ -105,7 +105,6 @@ fn create_archive_file(
     target_items: Vec<PathBuf>,
     verbosity: Verbosity,
 ) -> io::Result<()> {
-    let archive = args.file.archive;
     let pool = ThreadPoolBuilder::default()
         .build()
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
@@ -136,7 +135,7 @@ fn create_archive_file(
 
     drop(tx);
 
-    let file = File::create(&archive)?;
+    let file = File::create(args.file.archive)?;
     if args.solid {
         let mut writer = Archive::write_solid_header(file, cli_option)?;
         for entry in rx.into_iter() {
