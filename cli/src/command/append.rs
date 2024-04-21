@@ -62,7 +62,12 @@ fn append_to_archive(args: AppendCommand, verbosity: Verbosity) -> io::Result<()
     let mut archive = Archive::read_header(file)?;
     archive.seek_to_end()?;
 
-    let target_items = collect_items(args.file.files, args.recursive, args.keep_dir, args.exclude)?;
+    let target_items = collect_items(
+        &args.file.files,
+        args.recursive,
+        args.keep_dir,
+        &args.exclude,
+    )?;
     let (tx, rx) = std::sync::mpsc::channel();
     let option = entry_option(args.compression, args.cipher, password);
     for file in target_items {

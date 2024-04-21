@@ -22,12 +22,12 @@ pub(crate) struct KeepOptions {
 }
 
 pub(crate) fn collect_items(
-    files: Vec<PathBuf>,
+    files: &[PathBuf],
     recursive: bool,
     keep_dir: bool,
-    exclude: Option<Vec<PathBuf>>,
+    exclude: &Option<Vec<PathBuf>>,
 ) -> io::Result<Vec<PathBuf>> {
-    let exclude = exclude.map(|it| {
+    let exclude = exclude.as_ref().map(|it| {
         it.into_iter()
             .filter_map(|path| path.canonicalize().ok())
             .collect::<Vec<_>>()
@@ -61,13 +61,7 @@ pub(crate) fn collect_items(
     }
     let mut target_items = vec![];
     for p in files {
-        inner(
-            &mut target_items,
-            p.as_ref(),
-            recursive,
-            keep_dir,
-            exclude.as_ref(),
-        )?;
+        inner(&mut target_items, p, recursive, keep_dir, exclude.as_ref())?;
     }
     Ok(target_items)
 }
