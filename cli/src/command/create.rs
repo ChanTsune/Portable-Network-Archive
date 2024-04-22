@@ -86,7 +86,7 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
         .map(|it| it.unwrap_or(ByteSize::gb(1)).0 as usize);
 
     if let Some(size) = max_file_size {
-        create_arvhive_with_split(args, password, target_items, size, verbosity)?;
+        create_archive_with_split(args, password, target_items, size, verbosity)?;
     } else {
         create_archive_file(args, password, target_items, verbosity)?;
     }
@@ -152,7 +152,7 @@ fn create_archive_file(
     Ok(())
 }
 
-fn create_arvhive_with_split(
+fn create_archive_with_split(
     args: CreateCommand,
     password: Option<String>,
     target_items: Vec<PathBuf>,
