@@ -1,4 +1,7 @@
-use crate::cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs};
+use crate::{
+    cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs},
+    utils::part_name,
+};
 #[cfg(unix)]
 use nix::unistd::{Group, User};
 use pna::{
@@ -194,7 +197,7 @@ pub(crate) fn split_to_parts(
     parts
 }
 
-pub(crate) fn run_process_archive<'p, R, Provider, F, N>(
+pub(crate) fn run_process_archive_reader<'p, R, Provider, F, N>(
     reader: R,
     mut password_provider: Provider,
     mut processor: F,
@@ -223,7 +226,7 @@ where
     Ok(())
 }
 
-pub(crate) fn run_process_archive_file<'p, P, Provider, F, N, NP>(
+pub(crate) fn run_process_archive_path<'p, P, Provider, F, N, NP>(
     path: P,
     password_provider: Provider,
     processor: F,
@@ -238,8 +241,23 @@ where
 {
     let path = path.as_ref();
     let file = fs::File::open(path)?;
-    run_process_archive(file, password_provider, processor, |num_archive| {
+    run_process_archive_reader(file, password_provider, processor, |num_archive| {
         let next_file_path = get_next_file_path(path, num_archive);
         fs::File::open(next_file_path)
+    })
+}
+
+pub(crate) fn run_process_archive<'p, P, Provider, F>(
+    path: P,
+    password_provider: Provider,
+    processor: F,
+) -> io::Result<()>
+where
+    P: AsRef<Path>,
+    Provider: FnMut() -> Option<&'p str>,
+    F: FnMut(io::Result<RegularEntry>) -> io::Result<()>,
+{
+    run_process_archive_path(path, password_provider, processor, |path, n| {
+        part_name(path, n).unwrap()
     })
 }
