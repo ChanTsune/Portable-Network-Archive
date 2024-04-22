@@ -2,15 +2,14 @@ use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, FileArgs, PasswordArgs, Verbosity},
     command::{
         ask_password, check_password,
-        commons::{collect_items, create_entry, entry_option, split_to_parts, KeepOptions},
+        commons::{collect_items, create_entry, entry_option, write_split_archive, KeepOptions},
         Command,
     },
-    utils::part_name,
 };
 use bytesize::ByteSize;
 use clap::{ArgGroup, Parser, ValueHint};
 use indicatif::HumanDuration;
-use pna::{Archive, EntryPart, SolidEntryBuilder, WriteOption, MIN_CHUNK_BYTES_SIZE, PNA_HEADER};
+use pna::{Archive, SolidEntryBuilder, WriteOption};
 use rayon::ThreadPoolBuilder;
 use std::{
     fs::{self, File},
@@ -195,68 +194,10 @@ fn create_archive_with_split(
         for entry in rx.into_iter() {
             entries_builder.add_entry(entry?)?;
         }
-        let entries = entries_builder.build()?;
-        let mut part_num = 1;
-        let file = File::create(part_name(&archive, part_num).unwrap())?;
-        let mut writer = Archive::write_header(file)?;
-
-        // NOTE: max_file_size - (PNA_HEADER + AHED + ANXT + AEND)
-        let max_file_size = max_file_size - (PNA_HEADER.len() + MIN_CHUNK_BYTES_SIZE * 3 + 8);
-        let mut written_entry_size = 0;
-        let parts = split_to_parts(
-            EntryPart::from(entries),
-            max_file_size - written_entry_size,
-            max_file_size,
-        );
-        for part in parts {
-            if written_entry_size + part.bytes_len() > max_file_size {
-                part_num += 1;
-                let part_n_name = part_name(&archive, part_num).unwrap();
-                if verbosity == Verbosity::Verbose {
-                    eprintln!("Split: {} to {}", archive.display(), part_n_name.display());
-                }
-                let file = File::create(&part_n_name)?;
-                writer = writer.split_to_next_archive(file)?;
-                written_entry_size = 0;
-            }
-            written_entry_size += writer.add_entry_part(part)?;
-        }
-        writer.finalize()?;
-        if part_num == 1 {
-            fs::rename(part_name(&archive, 1).unwrap(), &archive)?;
-        }
+        let entries = entries_builder.build();
+        write_split_archive(archive, [entries].into_iter(), max_file_size)?;
     } else {
-        let mut part_num = 1;
-        let file = File::create(part_name(&archive, part_num).unwrap())?;
-        let mut writer = Archive::write_header(file)?;
-
-        // NOTE: max_file_size - (PNA_HEADER + AHED + ANXT + AEND)
-        let max_file_size = max_file_size - (PNA_HEADER.len() + MIN_CHUNK_BYTES_SIZE * 3 + 8);
-        let mut written_entry_size = 0;
-        for entry in rx.into_iter() {
-            let parts = split_to_parts(
-                EntryPart::from(entry?),
-                max_file_size - written_entry_size,
-                max_file_size,
-            );
-            for part in parts {
-                if written_entry_size + part.bytes_len() > max_file_size {
-                    part_num += 1;
-                    let part_n_name = part_name(&archive, part_num).unwrap();
-                    if verbosity == Verbosity::Verbose {
-                        eprintln!("Split: {} to {}", archive.display(), part_n_name.display());
-                    }
-                    let file = File::create(&part_n_name)?;
-                    writer = writer.split_to_next_archive(file)?;
-                    written_entry_size = 0;
-                }
-                written_entry_size += writer.add_entry_part(part)?;
-            }
-        }
-        writer.finalize()?;
-        if part_num == 1 {
-            fs::rename(part_name(&archive, 1).unwrap(), &archive)?;
-        }
+        write_split_archive(archive, rx.into_iter(), max_file_size)?;
     }
     Ok(())
 }

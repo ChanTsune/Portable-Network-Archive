@@ -5,8 +5,8 @@ use crate::{
 #[cfg(unix)]
 use nix::unistd::{Group, User};
 use pna::{
-    Archive, EntryBuilder, EntryName, EntryPart, EntryReference, ExtendedAttribute, Permission,
-    RegularEntry, WriteOption,
+    Archive, Entry, EntryBuilder, EntryName, EntryPart, EntryReference, ExtendedAttribute,
+    Permission, RegularEntry, WriteOption, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
 };
 #[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
@@ -260,4 +260,40 @@ where
     run_process_archive_path(path, password_provider, processor, |path, n| {
         part_name(path, n).unwrap()
     })
+}
+
+pub(crate) fn write_split_archive(
+    archive: impl AsRef<Path>,
+    entries: impl Iterator<Item = io::Result<impl Entry + Sized>>,
+    max_file_size: usize,
+) -> io::Result<()> {
+    let mut part_num = 1;
+    let file = fs::File::create(part_name(&archive, part_num).unwrap())?;
+    let mut writer = Archive::write_header(file)?;
+
+    // NOTE: max_file_size - (PNA_HEADER + AHED + ANXT + AEND)
+    let max_file_size = max_file_size - (PNA_HEADER.len() + MIN_CHUNK_BYTES_SIZE * 3 + 8);
+    let mut written_entry_size = 0;
+    for entry in entries {
+        let parts = split_to_parts(
+            EntryPart::from(entry?),
+            max_file_size - written_entry_size,
+            max_file_size,
+        );
+        for part in parts {
+            if written_entry_size + part.bytes_len() > max_file_size {
+                part_num += 1;
+                let part_n_name = part_name(&archive, part_num).unwrap();
+                let file = fs::File::create(&part_n_name)?;
+                writer = writer.split_to_next_archive(file)?;
+                written_entry_size = 0;
+            }
+            written_entry_size += writer.add_entry_part(part)?;
+        }
+    }
+    writer.finalize()?;
+    if part_num == 1 {
+        fs::rename(part_name(&archive, 1).unwrap(), &archive)?;
+    }
+    Ok(())
 }
