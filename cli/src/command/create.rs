@@ -116,13 +116,13 @@ fn create_archive_file(
     } else {
         cli_option.clone()
     };
+    let keep_options = KeepOptions {
+        keep_timestamp: args.keep_timestamp,
+        keep_permission: args.keep_permission,
+        keep_xattr: args.keep_xattr,
+    };
     for file in target_items {
         let option = option.clone();
-        let keep_options = KeepOptions {
-            keep_timestamp: args.keep_timestamp,
-            keep_permission: args.keep_permission,
-            keep_xattr: args.keep_xattr,
-        };
         let tx = tx.clone();
         pool.spawn_fifo(move || {
             if verbosity == Verbosity::Verbose {
@@ -171,13 +171,13 @@ fn create_arvhive_with_split(
     } else {
         cli_option.clone()
     };
+    let keep_options = KeepOptions {
+        keep_timestamp: args.keep_timestamp,
+        keep_permission: args.keep_permission,
+        keep_xattr: args.keep_xattr,
+    };
     for file in target_items {
         let option = option.clone();
-        let keep_options = KeepOptions {
-            keep_timestamp: args.keep_timestamp,
-            keep_permission: args.keep_permission,
-            keep_xattr: args.keep_xattr,
-        };
         let tx = tx.clone();
         pool.spawn_fifo(move || {
             if verbosity == Verbosity::Verbose {
