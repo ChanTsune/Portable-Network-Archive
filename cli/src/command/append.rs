@@ -70,13 +70,13 @@ fn append_to_archive(args: AppendCommand, verbosity: Verbosity) -> io::Result<()
     )?;
     let (tx, rx) = std::sync::mpsc::channel();
     let option = entry_option(args.compression, args.cipher, password);
+    let keep_options = KeepOptions {
+        keep_timestamp: args.keep_timestamp,
+        keep_permission: args.keep_permission,
+        keep_xattr: args.keep_xattr,
+    };
     for file in target_items {
         let option = option.clone();
-        let keep_options = KeepOptions {
-            keep_timestamp: args.keep_timestamp,
-            keep_permission: args.keep_permission,
-            keep_xattr: args.keep_xattr,
-        };
         let tx = tx.clone();
         pool.spawn_fifo(move || {
             if verbosity == Verbosity::Verbose {
