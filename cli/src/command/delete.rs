@@ -1,6 +1,6 @@
 use crate::{
     cli::{FileArgs, PasswordArgs, Verbosity},
-    command::{ask_password, Command},
+    command::{ask_password, commons::run_process_archive_file, Command},
     utils::{self, part_name, remove_part_name},
 };
 use clap::{Parser, ValueHint};
@@ -24,6 +24,7 @@ impl Command for DeleteCommand {
 }
 
 fn delete_file_from_archive(args: DeleteCommand, _verbosity: Verbosity) -> io::Result<()> {
+    let password = ask_password(args.password)?;
     let outfile_path = if let Some(output) = &args.output {
         if let Some(parent) = output.parent() {
             fs::create_dir_all(parent)?;
@@ -33,39 +34,27 @@ fn delete_file_from_archive(args: DeleteCommand, _verbosity: Verbosity) -> io::R
         let random = rand::random::<usize>();
         temp_dir().join(format!("{}.pna.tmp", random))
     };
-    let password = ask_password(args.password)?;
-    let file = fs::File::open(&args.file.archive)?;
-    let mut archive = Archive::read_header(file)?;
     let outfile = fs::File::create(&outfile_path)?;
     let mut out_archive = Archive::write_header(outfile)?;
 
-    let mut num_archive = 1;
-    loop {
-        if archive.next_archive() {
-            num_archive += 1;
-            if let Ok(file) = fs::File::open(part_name(&args.file.archive, num_archive).unwrap()) {
-                archive = archive.read_next_archive(file)?;
-            } else {
-                eprintln!("Detected that the file has been split, but the following file could not be found.");
-                break;
+    run_process_archive_file(
+        &args.file.archive,
+        || password.as_deref(),
+        |entry| {
+            let entry = entry?;
+            if args
+                .file
+                .files
+                .iter()
+                .any(|d| entry.header().path().as_path().eq(d))
+            {
+                return Ok(());
             }
-        } else {
-            break;
-        }
-    }
-
-    for entry in archive.entries_with_password(password.as_deref()) {
-        let entry = entry?;
-        if args
-            .file
-            .files
-            .iter()
-            .any(|d| entry.header().path().as_path().eq(d))
-        {
-            continue;
-        }
-        out_archive.add_entry(entry)?;
-    }
+            out_archive.add_entry(entry)?;
+            Ok(())
+        },
+        |path, num_archive| part_name(path, num_archive).unwrap(),
+    )?;
     out_archive.finalize()?;
 
     if args.output.is_none() {
