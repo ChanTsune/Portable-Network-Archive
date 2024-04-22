@@ -1,7 +1,7 @@
 use crate::{
     cli::{FileArgs, PasswordArgs, Verbosity},
-    command::{ask_password, commons::run_process_archive_file, Command},
-    utils::{self, part_name, GlobPatterns},
+    command::{ask_password, commons::run_process_archive, Command},
+    utils::{self, GlobPatterns},
 };
 use clap::{Parser, ValueHint};
 use indicatif::HumanDuration;
@@ -62,7 +62,7 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
     let mut hard_link_entries = Vec::new();
 
     let (tx, rx) = std::sync::mpsc::channel();
-    run_process_archive_file(
+    run_process_archive(
         &args.file.archive,
         || password.as_deref(),
         |entry| {
@@ -94,13 +94,6 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
                 .unwrap_or_else(|e| panic!("{e}: {}", item_path.display()));
             });
             Ok(())
-        },
-        |path, num| {
-            let next_file_path = part_name(path, num).unwrap();
-            if verbosity == Verbosity::Verbose {
-                eprintln!("Detect split: search {}", next_file_path.display());
-            }
-            next_file_path
         },
     )?;
     drop(tx);
