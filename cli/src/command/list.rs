@@ -7,7 +7,8 @@ use ansi_term::{ANSIString, Colour, Style};
 use chrono::{DateTime, Local};
 use clap::Parser;
 use pna::{
-    Archive, Compression, DataKind, Encryption, ExtendedAttribute, ReadOption, RegularEntry,
+    Archive, Compression, DataKind, Encryption, ExtendedAttribute, ReadEntry, ReadOption,
+    RegularEntry,
 };
 use rayon::prelude::*;
 use std::{
@@ -57,17 +58,20 @@ fn list_archive(args: ListCommand, _: Verbosity) -> io::Result<()> {
     let mut reader = Archive::read_header(file)?;
     let mut num_archive = 1;
     loop {
-        if args.solid {
-            for entry in reader.entries_with_password(password.as_deref()) {
-                let item = entry?;
-                entries.push(item);
+        for entry in reader.entries() {
+            match entry? {
+                ReadEntry::Solid(solid) => {
+                    if args.solid {
+                        for entry in solid.entries(password.as_deref())? {
+                            entries.push((entry?, true));
+                        }
+                    };
+                }
+                ReadEntry::Regular(item) => {
+                    entries.push((item, false));
+                }
             }
-        } else {
-            for entry in reader.entries_skip_solid() {
-                let item = entry?;
-                entries.push(item);
-            }
-        };
+        }
         if reader.next_archive() {
             num_archive += 1;
             if let Ok(file) = File::open(part_name(&args.file.archive, num_archive).unwrap()) {
@@ -90,7 +94,7 @@ fn list_archive(args: ListCommand, _: Verbosity) -> io::Result<()> {
     } else {
         entries
             .into_par_iter()
-            .filter(|e| globs.matches_any_path(e.header().path().as_ref()))
+            .filter(|(e, _)| globs.matches_any_path(e.header().path().as_ref()))
             .collect()
     };
     if args.long {
@@ -101,13 +105,17 @@ fn list_archive(args: ListCommand, _: Verbosity) -> io::Result<()> {
     Ok(())
 }
 
-fn simple_list_entries(entries: &[RegularEntry]) {
-    for entry in entries {
+fn simple_list_entries(entries: &[(RegularEntry, bool)]) {
+    for (entry, _) in entries {
         println!("{}", entry.header().path())
     }
 }
 
-fn detail_list_entries(entries: Vec<RegularEntry>, password: Option<&str>, print_header: bool) {
+fn detail_list_entries(
+    entries: Vec<(RegularEntry, bool)>,
+    password: Option<&str>,
+    print_header: bool,
+) {
     let now = SystemTime::now();
     let underline = Color::new("\x1B[4m", "\x1B[0m");
     let reset = Color::new("\x1B[8m", "\x1B[0m");
@@ -128,7 +136,7 @@ fn detail_list_entries(entries: Vec<RegularEntry>, password: Option<&str>, print
     if print_header {
         builder.push_record(header);
     }
-    for entry in entries.iter() {
+    for (entry, is_in_solid) in entries.iter() {
         let header = entry.header();
         let metadata = entry.metadata();
         builder.push_record([
@@ -137,9 +145,11 @@ fn detail_list_entries(entries: Vec<RegularEntry>, password: Option<&str>, print
                 _ => format!("{:?}({:?})", header.encryption(), header.cipher_mode())
                     .to_ascii_lowercase(),
             },
-            match header.compression() {
-                Compression::No => "-".to_string(),
-                method => format!("{:?}", method).to_ascii_lowercase(),
+            match (header.compression(), is_in_solid) {
+                (Compression::No, false) => "-".to_string(),
+                (Compression::No, true) => "-(solid)".to_string(),
+                (method, false) => format!("{:?}", method).to_ascii_lowercase(),
+                (method, true) => format!("{:?}(solid)", method).to_ascii_lowercase(),
             },
             metadata
                 .permission()
