@@ -222,6 +222,11 @@ impl Entry for SolidEntry {
 }
 
 impl SolidEntry {
+    /// Returns solid mode information header reference.
+    #[inline]
+    pub fn header(&self) -> &SolidHeader {
+        &self.header
+    }
     /// Returns an iterator over the entries in the [SolidEntry].
     ///
     /// # Example
