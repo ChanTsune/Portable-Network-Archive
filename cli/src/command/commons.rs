@@ -286,9 +286,40 @@ where
     P: AsRef<Path>,
 {
     let archive = archive.as_ref();
+    let first_item_path = get_part_path(archive, 1);
+    let first_item_path = first_item_path.as_ref();
+    let file = fs::File::create(first_item_path)?;
+    write_split_archive_writer(
+        file,
+        entries,
+        |n| {
+            let part_n_name = get_part_path(archive, n);
+            fs::File::create(&part_n_name)
+        },
+        max_file_size,
+        |n| {
+            if n == 1 {
+                fs::rename(first_item_path, archive)?;
+            };
+            Ok(())
+        },
+    )
+}
+
+pub(crate) fn write_split_archive_writer<W, F, C>(
+    initial_writer: W,
+    entries: impl Iterator<Item = io::Result<impl Entry + Sized>>,
+    mut get_next_writer: F,
+    max_file_size: usize,
+    mut on_complete: C,
+) -> io::Result<()>
+where
+    W: Write,
+    F: FnMut(usize) -> io::Result<W>,
+    C: FnMut(usize) -> io::Result<()>,
+{
     let mut part_num = 1;
-    let file = fs::File::create(get_part_path(archive, part_num))?;
-    let mut writer = Archive::write_header(file)?;
+    let mut writer = Archive::write_header(initial_writer)?;
 
     // NOTE: max_file_size - (PNA_HEADER + AHED + ANXT + AEND)
     let max_file_size = max_file_size - (PNA_HEADER.len() + MIN_CHUNK_BYTES_SIZE * 3 + 8);
@@ -302,8 +333,7 @@ where
         for part in parts {
             if written_entry_size + part.bytes_len() > max_file_size {
                 part_num += 1;
-                let part_n_name = get_part_path(archive, part_num);
-                let file = fs::File::create(&part_n_name)?;
+                let file = get_next_writer(part_num)?;
                 writer = writer.split_to_next_archive(file)?;
                 written_entry_size = 0;
             }
@@ -311,8 +341,6 @@ where
         }
     }
     writer.finalize()?;
-    if part_num == 1 {
-        fs::rename(get_part_path(archive, 1), archive)?;
-    }
+    on_complete(part_num)?;
     Ok(())
 }
