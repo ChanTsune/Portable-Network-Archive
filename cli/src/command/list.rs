@@ -100,14 +100,14 @@ fn list_archive(args: ListCommand, _: Verbosity) -> io::Result<()> {
     if args.long {
         detail_list_entries(entries, password.as_deref(), args.header);
     } else {
-        simple_list_entries(&entries);
+        simple_list_entries(entries.iter().map(|(e, _)| e.header().path().as_str()));
     }
     Ok(())
 }
 
-fn simple_list_entries(entries: &[(RegularEntry, bool)]) {
-    for (entry, _) in entries {
-        println!("{}", entry.header().path())
+fn simple_list_entries<'s>(entries: impl Iterator<Item = &'s str>) {
+    for path in entries {
+        println!("{}", path)
     }
 }
 
