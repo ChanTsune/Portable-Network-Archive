@@ -1,7 +1,7 @@
 use crate::{
     cli::{FileArgs, PasswordArgs, Verbosity},
     command::{ask_password, commons::run_process_archive, Command},
-    utils::{self, remove_part_name},
+    utils::{self, remove_part_name, GlobPatterns},
 };
 use clap::{Parser, ValueHint};
 use pna::Archive;
@@ -25,6 +25,8 @@ impl Command for DeleteCommand {
 
 fn delete_file_from_archive(args: DeleteCommand, _verbosity: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
+    let globs = GlobPatterns::new(args.file.files.iter().map(|p| p.to_string_lossy()))
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
     let outfile_path = if let Some(output) = &args.output {
         if let Some(parent) = output.parent() {
             fs::create_dir_all(parent)?;
@@ -42,12 +44,7 @@ fn delete_file_from_archive(args: DeleteCommand, _verbosity: Verbosity) -> io::R
         || password.as_deref(),
         |entry| {
             let entry = entry?;
-            if args
-                .file
-                .files
-                .iter()
-                .any(|d| entry.header().path().as_path().eq(d))
-            {
+            if globs.matches_any_path(entry.header().path().as_ref()) {
                 return Ok(());
             }
             out_archive.add_entry(entry)?;
