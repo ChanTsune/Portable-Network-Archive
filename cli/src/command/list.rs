@@ -6,10 +6,7 @@ use crate::{
 use ansi_term::{ANSIString, Colour, Style};
 use chrono::{DateTime, Local};
 use clap::Parser;
-use pna::{
-    Archive, Compression, DataKind, Encryption, ExtendedAttribute, ReadEntry, ReadOption,
-    RegularEntry,
-};
+use pna::{Archive, Compression, DataKind, Encryption, ExtendedAttribute, ReadEntry, ReadOption};
 use rayon::prelude::*;
 use std::{
     fs::File,
@@ -46,6 +43,19 @@ impl Command for ListCommand {
     fn execute(self, verbosity: Verbosity) -> io::Result<()> {
         list_archive(self, verbosity)
     }
+}
+
+struct TableRow {
+    encryption: String,
+    compression: String,
+    permissions: String,
+    raw_size: String,
+    compressed_size: String,
+    user: String,
+    group: String,
+    created: String,
+    modified: String,
+    name: String,
 }
 
 fn list_archive(args: ListCommand, _: Verbosity) -> io::Result<()> {
@@ -98,7 +108,65 @@ fn list_archive(args: ListCommand, _: Verbosity) -> io::Result<()> {
             .collect()
     };
     if args.long {
-        detail_list_entries(entries, password.as_deref(), args.header);
+        let now = SystemTime::now();
+        detail_list_entries(
+            entries.iter().map(|(entry, is_in_solid)| {
+                let header = entry.header();
+                let metadata = entry.metadata();
+                TableRow {
+                    encryption: match header.encryption() {
+                        Encryption::No => "-".to_string(),
+                        _ => format!("{:?}({:?})", header.encryption(), header.cipher_mode())
+                            .to_ascii_lowercase(),
+                    },
+                    compression: match (header.compression(), is_in_solid) {
+                        (Compression::No, false) => "-".to_string(),
+                        (Compression::No, true) => "-(solid)".to_string(),
+                        (method, false) => format!("{:?}", method).to_ascii_lowercase(),
+                        (method, true) => format!("{:?}(solid)", method).to_ascii_lowercase(),
+                    },
+                    permissions: metadata
+                        .permission()
+                        .map(|p| {
+                            paint_permission(header.data_kind(), p.permissions(), entry.xattrs())
+                        })
+                        .unwrap_or_else(|| paint_data_kind(header.data_kind(), entry.xattrs()))
+                        .iter()
+                        .map(|it| it.to_string())
+                        .collect::<String>(),
+                    raw_size: metadata
+                        .raw_file_size()
+                        .map_or("-".into(), |size| size.to_string()),
+                    compressed_size: metadata.compressed_size().to_string(),
+                    user: metadata
+                        .permission()
+                        .map(|p| p.uname())
+                        .unwrap_or("-")
+                        .to_string(),
+                    group: metadata
+                        .permission()
+                        .map(|p| p.gname())
+                        .unwrap_or("-")
+                        .to_string(),
+                    created: datetime(now, metadata.created()),
+                    modified: datetime(now, metadata.modified()),
+                    name: if matches!(
+                        header.data_kind(),
+                        DataKind::SymbolicLink | DataKind::HardLink
+                    ) {
+                        let path = header.path().to_string();
+                        let original = entry
+                            .reader(ReadOption::with_password(password.as_deref()))
+                            .map(|r| io::read_to_string(r).unwrap_or_else(|_| "-".to_string()))
+                            .unwrap_or_default();
+                        format!("{} -> {}", path, original)
+                    } else {
+                        header.path().to_string()
+                    },
+                }
+            }),
+            args.header,
+        );
     } else {
         simple_list_entries(entries.iter().map(|(e, _)| e.header().path().as_str()));
     }
@@ -111,12 +179,7 @@ fn simple_list_entries<'s>(entries: impl Iterator<Item = &'s str>) {
     }
 }
 
-fn detail_list_entries(
-    entries: Vec<(RegularEntry, bool)>,
-    password: Option<&str>,
-    print_header: bool,
-) {
-    let now = SystemTime::now();
+fn detail_list_entries(entries: impl Iterator<Item = TableRow>, print_header: bool) {
     let underline = Color::new("\x1B[4m", "\x1B[0m");
     let reset = Color::new("\x1B[8m", "\x1B[0m");
     let header = [
@@ -136,57 +199,18 @@ fn detail_list_entries(
     if print_header {
         builder.push_record(header);
     }
-    for (entry, is_in_solid) in entries.iter() {
-        let header = entry.header();
-        let metadata = entry.metadata();
+    for content in entries {
         builder.push_record([
-            match header.encryption() {
-                Encryption::No => "-".to_string(),
-                _ => format!("{:?}({:?})", header.encryption(), header.cipher_mode())
-                    .to_ascii_lowercase(),
-            },
-            match (header.compression(), is_in_solid) {
-                (Compression::No, false) => "-".to_string(),
-                (Compression::No, true) => "-(solid)".to_string(),
-                (method, false) => format!("{:?}", method).to_ascii_lowercase(),
-                (method, true) => format!("{:?}(solid)", method).to_ascii_lowercase(),
-            },
-            metadata
-                .permission()
-                .map(|p| paint_permission(header.data_kind(), p.permissions(), entry.xattrs()))
-                .unwrap_or_else(|| paint_data_kind(header.data_kind(), entry.xattrs()))
-                .iter()
-                .map(|it| it.to_string())
-                .collect::<String>(),
-            metadata
-                .raw_file_size()
-                .map_or("-".into(), |size| size.to_string()),
-            metadata.compressed_size().to_string(),
-            metadata
-                .permission()
-                .map(|p| p.uname())
-                .unwrap_or("-")
-                .to_string(),
-            metadata
-                .permission()
-                .map(|p| p.gname())
-                .unwrap_or("-")
-                .to_string(),
-            datetime(now, metadata.created()),
-            datetime(now, metadata.modified()),
-            if matches!(
-                header.data_kind(),
-                DataKind::SymbolicLink | DataKind::HardLink
-            ) {
-                let path = header.path().to_string();
-                let original = entry
-                    .reader(ReadOption::with_password(password))
-                    .map(|r| io::read_to_string(r).unwrap_or_else(|_| "-".to_string()))
-                    .unwrap_or_default();
-                format!("{} -> {}", path, original)
-            } else {
-                header.path().to_string()
-            },
+            content.encryption,
+            content.compression,
+            content.permissions,
+            content.raw_size,
+            content.compressed_size,
+            content.user,
+            content.group,
+            content.created,
+            content.modified,
+            content.name,
         ]);
     }
     let mut table = builder.build();
