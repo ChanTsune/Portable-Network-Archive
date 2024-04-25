@@ -6,7 +6,10 @@ use crate::{
 use ansi_term::{ANSIString, Colour, Style};
 use chrono::{DateTime, Local};
 use clap::Parser;
-use pna::{Archive, Compression, DataKind, Encryption, ExtendedAttribute, ReadEntry, ReadOption};
+use pna::{
+    Archive, Compression, DataKind, Encryption, ExtendedAttribute, ReadEntry, ReadOption,
+    RegularEntry, SolidHeader,
+};
 use rayon::prelude::*;
 use std::{
     fs::File,
@@ -58,13 +61,82 @@ struct TableRow {
     name: String,
 }
 
+impl From<(RegularEntry, Option<&str>, SystemTime, Option<&SolidHeader>)> for TableRow {
+    fn from(
+        (entry, password, now, solid): (
+            RegularEntry,
+            Option<&str>,
+            SystemTime,
+            Option<&SolidHeader>,
+        ),
+    ) -> Self {
+        let header = entry.header();
+        let metadata = entry.metadata();
+        TableRow {
+            encryption: match solid.map(|s| s.encryption()).unwrap_or(header.encryption()) {
+                Encryption::No => "-".to_string(),
+                _ => format!("{:?}({:?})", header.encryption(), header.cipher_mode())
+                    .to_ascii_lowercase(),
+            },
+            compression: match (
+                solid
+                    .map(|s| s.compression())
+                    .unwrap_or(header.compression()),
+                solid,
+            ) {
+                (Compression::No, None) => "-".to_string(),
+                (Compression::No, Some(_)) => "-(solid)".to_string(),
+                (method, None) => format!("{:?}", method).to_ascii_lowercase(),
+                (method, Some(_)) => format!("{:?}(solid)", method).to_ascii_lowercase(),
+            },
+            permissions: metadata
+                .permission()
+                .map(|p| paint_permission(header.data_kind(), p.permissions(), entry.xattrs()))
+                .unwrap_or_else(|| paint_data_kind(header.data_kind(), entry.xattrs()))
+                .iter()
+                .map(|it| it.to_string())
+                .collect::<String>(),
+            raw_size: metadata
+                .raw_file_size()
+                .map_or("-".into(), |size| size.to_string()),
+            compressed_size: metadata.compressed_size().to_string(),
+            user: metadata
+                .permission()
+                .map(|p| p.uname())
+                .unwrap_or("-")
+                .to_string(),
+            group: metadata
+                .permission()
+                .map(|p| p.gname())
+                .unwrap_or("-")
+                .to_string(),
+            created: datetime(now, metadata.created()),
+            modified: datetime(now, metadata.modified()),
+            name: if matches!(
+                header.data_kind(),
+                DataKind::SymbolicLink | DataKind::HardLink
+            ) {
+                let path = header.path().to_string();
+                let original = entry
+                    .reader(ReadOption::with_password(password.as_deref()))
+                    .map(|r| io::read_to_string(r).unwrap_or_else(|_| "-".to_string()))
+                    .unwrap_or_default();
+                format!("{} -> {}", path, original)
+            } else {
+                header.path().to_string()
+            },
+        }
+    }
+}
+
 fn list_archive(args: ListCommand, _: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     let globs = GlobPatterns::new(args.file.files.iter().map(|p| p.to_string_lossy()))
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
     let file = File::open(&args.file.archive)?;
 
-    let mut entries = vec![];
+    let now = SystemTime::now();
+    let mut entries = Vec::<TableRow>::new();
     let mut reader = Archive::read_header(file)?;
     let mut num_archive = 1;
     loop {
@@ -73,12 +145,16 @@ fn list_archive(args: ListCommand, _: Verbosity) -> io::Result<()> {
                 ReadEntry::Solid(solid) => {
                     if args.solid {
                         for entry in solid.entries(password.as_deref())? {
-                            entries.push((entry?, true));
+                            entries.push(
+                                (entry?, password.as_deref(), now, Some(solid.header())).into(),
+                            );
                         }
-                    };
+                    } else {
+                        eprintln!("warning: this archive contain solid mode entry. if you need to show it use --solid option.");
+                    }
                 }
                 ReadEntry::Regular(item) => {
-                    entries.push((item, false));
+                    entries.push((item, password.as_deref(), now, None).into());
                 }
             }
         }
@@ -104,78 +180,20 @@ fn list_archive(args: ListCommand, _: Verbosity) -> io::Result<()> {
     } else {
         entries
             .into_par_iter()
-            .filter(|(e, _)| globs.matches_any_path(e.header().path().as_ref()))
+            .filter(|r| globs.matches_any_path(r.name.as_ref()))
             .collect()
     };
     if args.long {
-        let now = SystemTime::now();
-        detail_list_entries(
-            entries.iter().map(|(entry, is_in_solid)| {
-                let header = entry.header();
-                let metadata = entry.metadata();
-                TableRow {
-                    encryption: match header.encryption() {
-                        Encryption::No => "-".to_string(),
-                        _ => format!("{:?}({:?})", header.encryption(), header.cipher_mode())
-                            .to_ascii_lowercase(),
-                    },
-                    compression: match (header.compression(), is_in_solid) {
-                        (Compression::No, false) => "-".to_string(),
-                        (Compression::No, true) => "-(solid)".to_string(),
-                        (method, false) => format!("{:?}", method).to_ascii_lowercase(),
-                        (method, true) => format!("{:?}(solid)", method).to_ascii_lowercase(),
-                    },
-                    permissions: metadata
-                        .permission()
-                        .map(|p| {
-                            paint_permission(header.data_kind(), p.permissions(), entry.xattrs())
-                        })
-                        .unwrap_or_else(|| paint_data_kind(header.data_kind(), entry.xattrs()))
-                        .iter()
-                        .map(|it| it.to_string())
-                        .collect::<String>(),
-                    raw_size: metadata
-                        .raw_file_size()
-                        .map_or("-".into(), |size| size.to_string()),
-                    compressed_size: metadata.compressed_size().to_string(),
-                    user: metadata
-                        .permission()
-                        .map(|p| p.uname())
-                        .unwrap_or("-")
-                        .to_string(),
-                    group: metadata
-                        .permission()
-                        .map(|p| p.gname())
-                        .unwrap_or("-")
-                        .to_string(),
-                    created: datetime(now, metadata.created()),
-                    modified: datetime(now, metadata.modified()),
-                    name: if matches!(
-                        header.data_kind(),
-                        DataKind::SymbolicLink | DataKind::HardLink
-                    ) {
-                        let path = header.path().to_string();
-                        let original = entry
-                            .reader(ReadOption::with_password(password.as_deref()))
-                            .map(|r| io::read_to_string(r).unwrap_or_else(|_| "-".to_string()))
-                            .unwrap_or_default();
-                        format!("{} -> {}", path, original)
-                    } else {
-                        header.path().to_string()
-                    },
-                }
-            }),
-            args.header,
-        );
+        detail_list_entries(entries.into_iter(), args.header);
     } else {
-        simple_list_entries(entries.iter().map(|(e, _)| e.header().path().as_str()));
+        simple_list_entries(entries.into_iter());
     }
     Ok(())
 }
 
-fn simple_list_entries<'s>(entries: impl Iterator<Item = &'s str>) {
+fn simple_list_entries(entries: impl Iterator<Item = TableRow>) {
     for path in entries {
-        println!("{}", path)
+        println!("{}", path.name)
     }
 }
 
