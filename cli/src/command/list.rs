@@ -118,7 +118,7 @@ impl From<(RegularEntry, Option<&str>, SystemTime, Option<&SolidHeader>)> for Ta
             ) {
                 let path = header.path().to_string();
                 let original = entry
-                    .reader(ReadOption::with_password(password.as_deref()))
+                    .reader(ReadOption::with_password(password))
                     .map(|r| io::read_to_string(r).unwrap_or_else(|_| "-".to_string()))
                     .unwrap_or_default();
                 format!("{} -> {}", path, original)
