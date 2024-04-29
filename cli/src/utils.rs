@@ -36,3 +36,19 @@ impl From<Vec<glob::Pattern>> for GlobPatterns {
         Self(value)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn glob_any_empty() {
+        let globs = GlobPatterns::from(Vec::new());
+        assert!(!globs.matches_any_path("some".as_ref()));
+    }
+
+    #[test]
+    fn glob_any() {
+        let globs = GlobPatterns::new(vec!["path/**"]).unwrap();
+        assert!(globs.matches_any_path("path/foo.pna".as_ref()));
+    }
+}
