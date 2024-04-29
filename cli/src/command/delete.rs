@@ -3,14 +3,17 @@ use crate::{
     command::{ask_password, commons::run_process_archive, Command},
     utils::{self, remove_part_name, GlobPatterns},
 };
-use clap::{Parser, ValueHint};
+use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
 use std::{env::temp_dir, fs, io, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[command(group(ArgGroup::new("unstable-delete-exclude").args(["exclude"]).requires("unstable")))]
 pub(crate) struct DeleteCommand {
     #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
     output: Option<PathBuf>,
+    #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
+    pub(crate) exclude: Option<Vec<glob::Pattern>>,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
@@ -27,6 +30,7 @@ fn delete_file_from_archive(args: DeleteCommand, _verbosity: Verbosity) -> io::R
     let password = ask_password(args.password)?;
     let globs = GlobPatterns::new(args.file.files.iter().map(|p| p.to_string_lossy()))
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let exclude_globs = GlobPatterns::from(args.exclude.unwrap_or_default());
     let outfile_path = if let Some(output) = &args.output {
         if let Some(parent) = output.parent() {
             fs::create_dir_all(parent)?;
@@ -44,7 +48,8 @@ fn delete_file_from_archive(args: DeleteCommand, _verbosity: Verbosity) -> io::R
         || password.as_deref(),
         |entry| {
             let entry = entry?;
-            if globs.matches_any_path(entry.header().path().as_ref()) {
+            let entry_path = entry.header().path().as_ref();
+            if globs.matches_any_path(entry_path) && !exclude_globs.matches_any_path(entry_path) {
                 return Ok(());
             }
             out_archive.add_entry(entry)?;
