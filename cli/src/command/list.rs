@@ -34,6 +34,8 @@ pub(crate) struct ListCommand {
     pub(crate) header: bool,
     #[arg(long, help = "Display solid mode archive entries")]
     pub(crate) solid: bool,
+    #[arg(short = '@', help = "Display extended file attributes in a table")]
+    pub(crate) show_xattr: bool,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
@@ -59,6 +61,23 @@ struct TableRow {
     created: String,
     modified: String,
     name: String,
+}
+
+impl TableRow {
+    fn from_xattr(name: &str, value: &[u8]) -> Self {
+        Self {
+            encryption: String::new(),
+            compression: String::new(),
+            permissions: name.to_owned(),
+            raw_size: value.len().to_string(),
+            compressed_size: String::new(),
+            user: String::new(),
+            group: String::new(),
+            created: String::new(),
+            modified: String::new(),
+            name: String::new(),
+        }
+    }
 }
 
 impl From<(RegularEntry, Option<&str>, SystemTime, Option<&SolidHeader>)> for TableRow {
@@ -145,16 +164,36 @@ fn list_archive(args: ListCommand, _: Verbosity) -> io::Result<()> {
                 ReadEntry::Solid(solid) => {
                     if args.solid {
                         for entry in solid.entries(password.as_deref())? {
+                            let entry = entry?;
+                            let xattrs = if args.show_xattr {
+                                entry
+                                    .xattrs()
+                                    .iter()
+                                    .map(|xattr| TableRow::from_xattr(xattr.name(), xattr.value()))
+                                    .collect::<Vec<_>>()
+                            } else {
+                                Vec::new()
+                            };
                             entries.push(
-                                (entry?, password.as_deref(), now, Some(solid.header())).into(),
+                                (entry, password.as_deref(), now, Some(solid.header())).into(),
                             );
+                            entries.extend(xattrs);
                         }
                     } else {
                         eprintln!("warning: this archive contain solid mode entry. if you need to show it use --solid option.");
                     }
                 }
                 ReadEntry::Regular(item) => {
+                    let xattrs = if args.show_xattr {
+                        item.xattrs()
+                            .iter()
+                            .map(|xattr| TableRow::from_xattr(xattr.name(), xattr.value()))
+                            .collect::<Vec<_>>()
+                    } else {
+                        Vec::new()
+                    };
                     entries.push((item, password.as_deref(), now, None).into());
+                    entries.extend(xattrs);
                 }
             }
         }
