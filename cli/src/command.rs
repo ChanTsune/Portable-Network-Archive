@@ -6,7 +6,7 @@ mod delete;
 pub(super) mod experimental;
 pub mod extract;
 pub mod list;
-mod split;
+pub mod split;
 pub(crate) mod stdio;
 mod strip;
 
@@ -19,6 +19,7 @@ pub fn entry(cli: Cli) -> io::Result<()> {
         Commands::Append(cmd) => cmd.execute(cli.verbosity.verbosity()),
         Commands::Extract(cmd) => cmd.execute(cli.verbosity.verbosity()),
         Commands::List(cmd) => cmd.execute(cli.verbosity.verbosity()),
+        Commands::Split(cmd) => cmd.execute(cli.verbosity.verbosity()),
         Commands::Complete(cmd) => cmd.execute(cli.verbosity.verbosity()),
         Commands::Experimental(cmd) => cmd.execute(cli.verbosity.verbosity()),
     }

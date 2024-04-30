@@ -12,7 +12,6 @@ pub(crate) struct ExperimentalCommand {
 impl Command for ExperimentalCommand {
     fn execute(self, verbosity: Verbosity) -> io::Result<()> {
         match self.command {
-            ExperimentalCommands::Split(cmd) => cmd.execute(verbosity),
             ExperimentalCommands::Stdio(cmd) => cmd.execute(verbosity),
             ExperimentalCommands::Delete(cmd) => cmd.execute(verbosity),
             ExperimentalCommands::Strip(cmd) => cmd.execute(verbosity),
@@ -22,8 +21,6 @@ impl Command for ExperimentalCommand {
 
 #[derive(Subcommand, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) enum ExperimentalCommands {
-    #[command(about = "Split archive")]
-    Split(command::split::SplitCommand),
     #[command(about = "Archive manipulation via stdio")]
     Stdio(command::stdio::StdioCommand),
     #[command(about = "Delete entry from archive")]

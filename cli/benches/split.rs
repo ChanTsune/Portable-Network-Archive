@@ -30,7 +30,6 @@ fn split(b: &mut Bencher) {
         command::entry(cli::Cli::parse_from([
             "pna",
             "--quiet",
-            "experimental",
             "split",
             "../resources/test/store.pna",
             "--overwrite",

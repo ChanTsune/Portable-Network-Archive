@@ -16,7 +16,6 @@ fn split_archive() {
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "split",
         &format!("{}/split.pna", env!("CARGO_TARGET_TMPDIR")),
         "--max-size",
