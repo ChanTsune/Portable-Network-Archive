@@ -13,8 +13,8 @@ use pna::{Archive, SolidEntryBuilder, WriteOption};
 use rayon::ThreadPoolBuilder;
 use std::{
     fs::{self, File},
-    io,
-    path::PathBuf,
+    io::{self, prelude::*},
+    path::{Path, PathBuf},
     time::Instant,
 };
 
@@ -84,10 +84,31 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
         .split
         .map(|it| it.unwrap_or(ByteSize::gb(1)).0 as usize);
 
+    let keep_options = KeepOptions {
+        keep_timestamp: args.keep_timestamp,
+        keep_permission: args.keep_permission,
+        keep_xattr: args.keep_xattr,
+    };
+    let write_option = entry_option(args.compression, args.cipher, password);
     if let Some(size) = max_file_size {
-        create_archive_with_split(args, password, target_items, size, verbosity)?;
+        create_archive_with_split(
+            &args.file.archive,
+            write_option,
+            keep_options,
+            args.solid,
+            target_items,
+            size,
+            verbosity,
+        )?;
     } else {
-        create_archive_file(args, password, target_items, verbosity)?;
+        create_archive_file(
+            || File::create(&args.file.archive),
+            write_option,
+            keep_options,
+            args.solid,
+            target_items,
+            verbosity,
+        )?;
     }
     if verbosity != Verbosity::Quite {
         eprintln!(
@@ -98,27 +119,27 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
     Ok(())
 }
 
-fn create_archive_file(
-    args: CreateCommand,
-    password: Option<String>,
+fn create_archive_file<W, F>(
+    mut get_writer: F,
+    write_option: WriteOption,
+    keep_options: KeepOptions,
+    solid: bool,
     target_items: Vec<PathBuf>,
     verbosity: Verbosity,
-) -> io::Result<()> {
+) -> io::Result<()>
+where
+    W: Write,
+    F: FnMut() -> io::Result<W>,
+{
     let pool = ThreadPoolBuilder::default()
         .build()
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
     let (tx, rx) = std::sync::mpsc::channel();
-    let cli_option = entry_option(args.compression, args.cipher, password);
-    let option = if args.solid {
+    let option = if solid {
         WriteOption::store()
     } else {
-        cli_option.clone()
-    };
-    let keep_options = KeepOptions {
-        keep_timestamp: args.keep_timestamp,
-        keep_permission: args.keep_permission,
-        keep_xattr: args.keep_xattr,
+        write_option.clone()
     };
     for file in target_items {
         let option = option.clone();
@@ -134,9 +155,9 @@ fn create_archive_file(
 
     drop(tx);
 
-    let file = File::create(args.file.archive)?;
-    if args.solid {
-        let mut writer = Archive::write_solid_header(file, cli_option)?;
+    let file = get_writer()?;
+    if solid {
+        let mut writer = Archive::write_solid_header(file, write_option)?;
         for entry in rx.into_iter() {
             writer.add_entry(entry?)?;
         }
@@ -152,28 +173,23 @@ fn create_archive_file(
 }
 
 fn create_archive_with_split(
-    args: CreateCommand,
-    password: Option<String>,
+    archive: &Path,
+    write_option: WriteOption,
+    keep_options: KeepOptions,
+    solid: bool,
     target_items: Vec<PathBuf>,
     max_file_size: usize,
     verbosity: Verbosity,
 ) -> io::Result<()> {
-    let archive = args.file.archive;
     let pool = ThreadPoolBuilder::default()
         .build()
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
     let (tx, rx) = std::sync::mpsc::channel();
-    let cli_option = entry_option(args.compression, args.cipher, password);
-    let option = if args.solid {
+    let option = if solid {
         WriteOption::store()
     } else {
-        cli_option.clone()
-    };
-    let keep_options = KeepOptions {
-        keep_timestamp: args.keep_timestamp,
-        keep_permission: args.keep_permission,
-        keep_xattr: args.keep_xattr,
+        write_option.clone()
     };
     for file in target_items {
         let option = option.clone();
@@ -189,8 +205,8 @@ fn create_archive_with_split(
 
     drop(tx);
 
-    if args.solid {
-        let mut entries_builder = SolidEntryBuilder::new(cli_option)?;
+    if solid {
+        let mut entries_builder = SolidEntryBuilder::new(write_option)?;
         for entry in rx.into_iter() {
             entries_builder.add_entry(entry?)?;
         }
