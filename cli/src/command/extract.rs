@@ -1,6 +1,10 @@
 use crate::{
     cli::{FileArgs, PasswordArgs, Verbosity},
-    command::{ask_password, commons::run_process_archive, Command},
+    command::{
+        ask_password,
+        commons::{run_process_archive, KeepOptions},
+        Command,
+    },
     utils::{self, GlobPatterns},
 };
 use clap::{Parser, ValueHint};
@@ -52,6 +56,11 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
     if verbosity != Verbosity::Quite {
         eprintln!("Extract archive {}", args.file.archive.display());
     }
+    let keep_options = KeepOptions {
+        keep_timestamp: args.keep_timestamp,
+        keep_permission: args.keep_permission,
+        keep_xattr: args.keep_xattr,
+    };
     let globs = GlobPatterns::new(args.file.files.iter().map(|p| p.to_string_lossy()))
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
@@ -87,8 +96,7 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
                     password,
                     args.overwrite,
                     out_dir.as_deref(),
-                    args.keep_timestamp,
-                    args.keep_permission,
+                    keep_options,
                     verbosity,
                 ))
                 .unwrap_or_else(|e| panic!("{e}: {}", item_path.display()));
@@ -107,8 +115,7 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
             password.clone(),
             args.overwrite,
             args.out_dir.as_deref(),
-            args.keep_timestamp,
-            args.keep_permission,
+            keep_options,
             verbosity,
         )?;
     }
@@ -127,8 +134,7 @@ pub(crate) fn extract_entry(
     password: Option<String>,
     overwrite: bool,
     out_dir: Option<&Path>,
-    keep_timestamp: bool,
-    keep_permission: bool,
+    keep_options: KeepOptions,
     verbosity: Verbosity,
 ) -> io::Result<()> {
     let item_path = item.header().path().as_path();
@@ -152,7 +158,7 @@ pub(crate) fn extract_entry(
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let permissions = if keep_permission {
+    let permissions = if keep_options.keep_permission {
         item.metadata().permission().and_then(permissions)
     } else {
         None
@@ -160,7 +166,7 @@ pub(crate) fn extract_entry(
     match item.header().data_kind() {
         DataKind::File => {
             let mut file = File::create(&path)?;
-            if keep_timestamp {
+            if keep_options.keep_timestamp {
                 let mut times = fs::FileTimes::new();
                 if let Some(accessed) = item.metadata().accessed() {
                     times = times.set_accessed(SystemTime::UNIX_EPOCH.add(accessed));
@@ -209,6 +215,20 @@ pub(crate) fn extract_entry(
     #[cfg(not(unix))]
     if let Some(_) = permissions {
         eprintln!("Currently permission is not supported on this platform.");
+    }
+    #[cfg(unix)]
+    if keep_options.keep_xattr {
+        if xattr::SUPPORTED_PLATFORM {
+            for x in item.xattrs() {
+                xattr::set(&path, x.name(), x.value())?;
+            }
+        } else {
+            eprintln!("Currently extended attribute is not supported on this platform.");
+        }
+    }
+    #[cfg(not(unix))]
+    if keep_options.keep_xattr {
+        eprintln!("Currently extended attribute is not supported on this platform.");
     }
     if verbosity == Verbosity::Verbose {
         eprintln!("end: {}", path.display());
