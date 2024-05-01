@@ -2,10 +2,10 @@ use crate::{
     cli::{FileArgs, PasswordArgs, Verbosity},
     command::{
         ask_password,
-        commons::{run_process_archive, KeepOptions},
+        commons::{run_process_archive_reader, KeepOptions},
         Command,
     },
-    utils::{self, GlobPatterns},
+    utils::{self, part_name, GlobPatterns},
 };
 use clap::{Parser, ValueHint};
 use indicatif::HumanDuration;
@@ -22,7 +22,7 @@ use std::os::unix::fs::{chown, PermissionsExt};
 use std::os::windows::fs::FileTimesExt;
 use std::{
     fs::{self, File, Permissions},
-    io,
+    io::{self, prelude::*},
     path::{Path, PathBuf},
     time::{Instant, SystemTime},
 };
@@ -61,7 +61,49 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
         keep_permission: args.keep_permission,
         keep_xattr: args.keep_xattr,
     };
-    let globs = GlobPatterns::new(args.file.files.iter().map(|p| p.to_string_lossy()))
+    let file = File::open(&args.file.archive)?;
+    run_extract_archive_reader(
+        file,
+        args.file.files,
+        || password.as_deref(),
+        |i| File::open(part_name(&args.file.archive, i).unwrap()),
+        OutputOption {
+            overwrite: args.overwrite,
+            out_dir: args.out_dir,
+            keep_options,
+        },
+        verbosity,
+    )?;
+    if verbosity != Verbosity::Quite {
+        eprintln!(
+            "Successfully extracted an archive in {}",
+            HumanDuration(start.elapsed())
+        );
+    }
+    Ok(())
+}
+
+pub(crate) struct OutputOption {
+    pub(crate) overwrite: bool,
+    pub(crate) out_dir: Option<PathBuf>,
+    pub(crate) keep_options: KeepOptions,
+}
+
+pub(crate) fn run_extract_archive_reader<'p, R, Provider, N>(
+    reader: R,
+    files: Vec<PathBuf>,
+    mut password_provider: Provider,
+    get_next_reader: N,
+    args: OutputOption,
+    verbosity: Verbosity,
+) -> io::Result<()>
+where
+    R: Read,
+    Provider: FnMut() -> Option<&'p str>,
+    N: FnMut(usize) -> io::Result<R>,
+{
+    let password = password_provider().map(ToOwned::to_owned);
+    let globs = GlobPatterns::new(files.iter().map(|p| p.to_string_lossy()))
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
     let pool = ThreadPoolBuilder::default()
@@ -71,9 +113,9 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
     let mut hard_link_entries = Vec::new();
 
     let (tx, rx) = std::sync::mpsc::channel();
-    run_process_archive(
-        &args.file.archive,
-        || password.as_deref(),
+    run_process_archive_reader(
+        reader,
+        password_provider,
         |entry| {
             let item = entry?;
             let item_path = PathBuf::from(item.header().path().as_str());
@@ -96,13 +138,14 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
                     password,
                     args.overwrite,
                     out_dir.as_deref(),
-                    keep_options,
+                    args.keep_options,
                     verbosity,
                 ))
                 .unwrap_or_else(|e| panic!("{e}: {}", item_path.display()));
             });
             Ok(())
         },
+        get_next_reader,
     )?;
     drop(tx);
     for result in rx {
@@ -115,16 +158,9 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
             password.clone(),
             args.overwrite,
             args.out_dir.as_deref(),
-            keep_options,
+            args.keep_options,
             verbosity,
         )?;
-    }
-
-    if verbosity != Verbosity::Quite {
-        eprintln!(
-            "Successfully extracted an archive in {}",
-            HumanDuration(start.elapsed())
-        );
     }
     Ok(())
 }
