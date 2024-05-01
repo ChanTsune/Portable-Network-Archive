@@ -2,14 +2,13 @@ use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, PasswordArgs, Verbosity},
     command::{
         ask_password, check_password,
-        commons::{collect_items, create_entry, entry_option, KeepOptions},
+        commons::{collect_items, entry_option, KeepOptions},
+        create::create_archive_file,
         stdio::FileArgs,
         Command,
     },
 };
 use clap::{ArgGroup, Parser, ValueHint};
-use pna::{Archive, WriteOption};
-use rayon::ThreadPoolBuilder;
 use std::{
     io::{self, stdout},
     path::PathBuf,
@@ -51,9 +50,6 @@ impl Command for CreateCommand {
 fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
-    let pool = ThreadPoolBuilder::default()
-        .build()
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
     let target_items = collect_items(
         &args.file.files,
@@ -61,46 +57,18 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
         args.keep_dir,
         &args.exclude,
     )?;
-
-    let (tx, rx) = std::sync::mpsc::channel();
     let cli_option = entry_option(args.compression, args.cipher, password);
-    let option = if args.solid {
-        WriteOption::store()
-    } else {
-        cli_option.clone()
-    };
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
         keep_permission: args.keep_permission,
         keep_xattr: args.keep_xattr,
     };
-    for file in target_items {
-        let option = option.clone();
-        let tx = tx.clone();
-        pool.spawn_fifo(move || {
-            if verbosity == Verbosity::Verbose {
-                eprintln!("Adding: {}", file.display());
-            }
-            tx.send(create_entry(&file, option, keep_options))
-                .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
-        });
-    }
-
-    drop(tx);
-
-    let file = stdout().lock();
-    if args.solid {
-        let mut writer = Archive::write_solid_header(file, cli_option)?;
-        for entry in rx.into_iter() {
-            writer.add_entry(entry?)?;
-        }
-        let _ = writer.finalize()?;
-    } else {
-        let mut writer = Archive::write_header(file)?;
-        for entry in rx.into_iter() {
-            writer.add_entry(entry?)?;
-        }
-        let _ = writer.finalize()?;
-    }
-    Ok(())
+    create_archive_file(
+        || Ok(stdout().lock()),
+        cli_option,
+        keep_options,
+        args.solid,
+        target_items,
+        verbosity,
+    )
 }
