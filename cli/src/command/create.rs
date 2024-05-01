@@ -119,7 +119,7 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
     Ok(())
 }
 
-fn create_archive_file<W, F>(
+pub(crate) fn create_archive_file<W, F>(
     mut get_writer: F,
     write_option: WriteOption,
     keep_options: KeepOptions,
