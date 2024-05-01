@@ -1,6 +1,8 @@
 use crate::{
     cli::{PasswordArgs, Verbosity},
-    command::{ask_password, extract::extract_entry, stdio::FileArgs, Command},
+    command::{
+        ask_password, commons::KeepOptions, extract::extract_entry, stdio::FileArgs, Command,
+    },
     utils::GlobPatterns,
 };
 use clap::{Args, ValueHint};
@@ -37,6 +39,11 @@ impl Command for ExtractCommand {
 
 fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
+    let keep_options = KeepOptions {
+        keep_timestamp: args.keep_timestamp,
+        keep_permission: args.keep_permission,
+        keep_xattr: args.keep_xattr,
+    };
     let globs = GlobPatterns::new(args.file.files.iter().map(|p| p.to_string_lossy()))
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
@@ -70,8 +77,7 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
                 password,
                 args.overwrite,
                 out_dir.as_deref(),
-                args.keep_timestamp,
-                args.keep_permission,
+                keep_options,
                 verbosity,
             ))
             .unwrap_or_else(|e| panic!("{e}: {}", item_path.display()));
@@ -88,8 +94,7 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
             password.clone(),
             args.overwrite,
             args.out_dir.as_deref(),
-            args.keep_timestamp,
-            args.keep_permission,
+            keep_options,
             verbosity,
         )?;
     }
