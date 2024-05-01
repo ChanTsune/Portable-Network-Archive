@@ -18,6 +18,7 @@ fn split_archive() {
         "--quiet",
         "split",
         &format!("{}/split.pna", env!("CARGO_TARGET_TMPDIR")),
+        "--overwrite",
         "--max-size",
         "100kb",
     ]))
