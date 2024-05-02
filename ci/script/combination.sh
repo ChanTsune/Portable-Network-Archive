@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -eu
 
 keepOptions=( "--keep-dir" "--keep-timestamp" "--keep-permission" "--keep-xattr" )
 compressionOptions=( "--store" "--deflate" "--zstd" "--xz" )
