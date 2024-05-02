@@ -10,11 +10,11 @@ for keep in "${keepOptions[@]}"; do
     for encrypt in "${encryptionOptions[@]}"; do
       for solid in "${solidOption[@]}"; do
         if [[ "$encrypt" == "--aes cbc" || "$encrypt" == "--aes ctr" || "$encrypt" == "--camellia cbc" || "$encrypt" == "--camellia ctr" ]]; then
-          echo "pna experimental stdio create $keep $compress $encrypt --password password $solid -r . --unstable --exclude ./target/ | pna experimental stdio extract --password password --out-dir '/tmp/$keep$compress$encrypt$solid.pna'"
-          pna experimental stdio create $keep $compress $encrypt --password password $solid -r . --unstable --exclude ./target/ | pna experimental stdio extract --password password --overwrite --out-dir "/tmp/$keep$compress$encrypt$solid.pna"
+          echo "pna experimental stdio -c $keep $compress $encrypt --password password $solid -r . --unstable --exclude ./target/ | pna experimental stdio -x --password password --out-dir '/tmp/$keep$compress$encrypt$solid.pna'"
+          pna experimental stdio -c $keep $compress $encrypt --password password $solid -r . --unstable --exclude ./target/ | pna experimental stdio -x --password password --overwrite --out-dir "/tmp/$keep$compress$encrypt$solid.pna"
         else
-          echo "pna experimental stdio create $keep $compress $encrypt $solid -r . --unstable --exclude ./target/ | pna experimental stdio extract --out-dir '/tmp/$keep$compress$encrypt$solid.pna'"
-          pna experimental stdio create $keep $compress $encrypt $solid -r . --unstable --exclude ./target/ | pna experimental stdio extract --overwrite --out-dir "/tmp/$keep$compress$encrypt$solid.pna"
+          echo "pna experimental stdio -c $keep $compress $encrypt $solid -r . --unstable --exclude ./target/ | pna experimental stdio -x --out-dir '/tmp/$keep$compress$encrypt$solid.pna'"
+          pna experimental stdio -c $keep $compress $encrypt $solid -r . --unstable --exclude ./target/ | pna experimental stdio -x --overwrite --out-dir "/tmp/$keep$compress$encrypt$solid.pna"
         fi
       done
     done
