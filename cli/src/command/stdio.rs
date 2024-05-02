@@ -1,6 +1,3 @@
-mod create;
-mod extract;
-
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, PasswordArgs, Verbosity},
     command::{
@@ -12,7 +9,7 @@ use crate::{
     },
     utils::PathPartExt,
 };
-use clap::{ArgGroup, Args, Parser, Subcommand, ValueHint};
+use clap::{ArgGroup, Args, Parser, ValueHint};
 use std::{
     fs,
     io::{self, stdin, stdout},
@@ -24,8 +21,6 @@ use std::{
   group(ArgGroup::new("bundled-flags").args(["create", "extract"])),
 )]
 pub(crate) struct StdioCommand {
-    #[command(subcommand)]
-    command: Option<StdioCommands>,
     #[arg(short, long, help = "Create archive")]
     create: bool,
     #[arg(short = 'x', long, help = "Extract archive")]
@@ -62,20 +57,8 @@ pub(crate) struct StdioCommand {
 
 impl Command for StdioCommand {
     fn execute(self, verbosity: Verbosity) -> io::Result<()> {
-        match self.command {
-            Some(StdioCommands::Create(cmd)) => cmd.execute(verbosity),
-            Some(StdioCommands::Extract(cmd)) => cmd.execute(verbosity),
-            None => run_stdio(self, verbosity),
-        }
+        run_stdio(self, verbosity)
     }
-}
-
-#[derive(Subcommand, Clone, Eq, PartialEq, Hash, Debug)]
-pub(crate) enum StdioCommands {
-    #[command(about = "Create archive")]
-    Create(create::CreateCommand),
-    #[command(about = "Extract archive")]
-    Extract(extract::ExtractCommand),
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
