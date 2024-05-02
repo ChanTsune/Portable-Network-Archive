@@ -5,6 +5,7 @@ use crate::{
         commons::{collect_items, create_entry, entry_option, KeepOptions},
         Command,
     },
+    utils::part_name,
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
@@ -47,20 +48,31 @@ impl Command for AppendCommand {
 fn append_to_archive(args: AppendCommand, verbosity: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
-    let archive = args.file.archive;
-    if !archive.exists() {
+    let archive_path = args.file.archive;
+    if !archive_path.exists() {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
-            format!("{} is not exists", archive.display()),
+            format!("{} is not exists", archive_path.display()),
         ));
     }
+    let mut num = 1;
+    let file = File::options().write(true).read(true).open(&archive_path)?;
+    let mut archive = Archive::read_header(file)?;
+    let mut archive = loop {
+        archive.seek_to_end()?;
+        if !archive.next_archive() {
+            break archive;
+        }
+        num += 1;
+        let file = File::options()
+            .write(true)
+            .read(true)
+            .open(part_name(&archive_path, num).unwrap())?;
+        archive = archive.read_next_archive(file)?;
+    };
     let pool = ThreadPoolBuilder::default()
         .build()
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-
-    let file = File::options().write(true).read(true).open(&archive)?;
-    let mut archive = Archive::read_header(file)?;
-    archive.seek_to_end()?;
 
     let target_items = collect_items(
         &args.file.files,
