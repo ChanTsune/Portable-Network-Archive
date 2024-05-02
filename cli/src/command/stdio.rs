@@ -1,16 +1,16 @@
 mod create;
 mod extract;
 
-use crate::command::extract::{run_extract_archive_reader, OutputOption};
-use crate::utils::part_name;
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, PasswordArgs, Verbosity},
     command::{
         ask_password, check_password,
         commons::{collect_items, entry_option, KeepOptions},
         create::create_archive_file,
+        extract::{run_extract_archive_reader, OutputOption},
         Command,
     },
+    utils::part_name,
 };
 use clap::{ArgGroup, Args, Parser, Subcommand, ValueHint};
 use std::{
