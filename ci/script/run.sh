@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 set -eu
 
 RESOURCE_DIR="/tmp/"
