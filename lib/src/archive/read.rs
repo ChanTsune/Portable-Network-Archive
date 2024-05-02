@@ -425,6 +425,8 @@ impl<R: Read + Seek> Archive<R> {
             if ty == ChunkType::AEND {
                 byte = byte_length as i64;
                 break;
+            } else if ty == ChunkType::ANXT {
+                self.next_archive = true;
             }
         }
         self.inner.seek(SeekFrom::Current(-byte))?;
