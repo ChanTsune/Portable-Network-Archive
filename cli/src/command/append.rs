@@ -17,8 +17,6 @@ use std::{fs::File, io, path::PathBuf};
 pub(crate) struct AppendCommand {
     #[arg(short, long, help = "Add the directory to the archive recursively")]
     pub(crate) recursive: bool,
-    #[arg(long, help = "Overwrite file")]
-    pub(crate) overwrite: bool,
     #[arg(long, help = "Archiving the directories")]
     pub(crate) keep_dir: bool,
     #[arg(long, help = "Archiving the timestamp of the files")]
