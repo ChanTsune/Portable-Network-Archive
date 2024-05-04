@@ -1,5 +1,22 @@
 use std::path::{Path, PathBuf};
 
+pub(crate) trait PathPartExt {
+    fn with_part(&self, n: usize) -> Option<PathBuf>;
+    fn remove_part(&self) -> Option<PathBuf>;
+}
+
+impl PathPartExt for Path {
+    #[inline]
+    fn with_part(&self, n: usize) -> Option<PathBuf> {
+        with_part_n(self, n)
+    }
+
+    #[inline]
+    fn remove_part(&self) -> Option<PathBuf> {
+        remove_part_n(self)
+    }
+}
+
 #[inline]
 pub(crate) fn with_part_n<P: AsRef<Path>>(p: P, n: usize) -> Option<PathBuf> {
     #[inline]
