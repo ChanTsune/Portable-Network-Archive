@@ -133,6 +133,18 @@ impl<T: Deref<Target = [u8]>> Chunk for (ChunkType, T) {
     }
 }
 
+impl<T: Chunk> Chunk for &T {
+    #[inline]
+    fn ty(&self) -> ChunkType {
+        (*self).ty()
+    }
+
+    #[inline]
+    fn data(&self) -> &[u8] {
+        (*self).data()
+    }
+}
+
 #[inline]
 pub(crate) fn chunk_data_split(chunk: impl Chunk, mid: usize) -> (RawChunk, RawChunk) {
     let (first, last) = chunk.data().split_at(mid);
