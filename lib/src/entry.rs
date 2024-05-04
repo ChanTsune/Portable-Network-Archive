@@ -593,7 +593,7 @@ impl RegularEntry {
     }
 }
 
-/// A structure representing the splitted [Entry] for archive splitting.
+/// A structure representing the split [Entry] for archive splitting.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct EntryPart(pub(crate) Vec<RawChunk>);
 
