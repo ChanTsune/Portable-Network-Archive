@@ -18,7 +18,7 @@ impl PathPartExt for Path {
 }
 
 #[inline]
-pub(crate) fn with_part_n<P: AsRef<Path>>(p: P, n: usize) -> Option<PathBuf> {
+fn with_part_n<P: AsRef<Path>>(p: P, n: usize) -> Option<PathBuf> {
     #[inline]
     fn with_ext(p: &Path, n: usize) -> Option<PathBuf> {
         let name = PathBuf::from(p.file_stem()?);

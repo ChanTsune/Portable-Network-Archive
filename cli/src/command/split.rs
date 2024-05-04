@@ -1,7 +1,7 @@
 use crate::{
     cli::Verbosity,
     command::{commons::write_split_archive, Command},
-    utils::with_part_n,
+    utils::PathPartExt,
 };
 use bytesize::ByteSize;
 use clap::{Parser, ValueHint};
@@ -36,7 +36,7 @@ fn split_archive(args: SplitCommand, _verbosity: Verbosity) -> io::Result<()> {
     };
     let mut read_archive = Archive::read_header(read_file)?;
 
-    let name = with_part_n(&base_out_file_name, 1).unwrap();
+    let name = base_out_file_name.with_part(1).unwrap();
     if !args.overwrite && name.exists() {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
