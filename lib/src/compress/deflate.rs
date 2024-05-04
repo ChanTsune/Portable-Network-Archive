@@ -1,13 +1,17 @@
+use crate::entry::CompressionLevelImpl;
 use crate::CompressionLevel;
 use flate2::Compression;
 
 impl From<CompressionLevel> for Compression {
     #[inline]
     fn from(value: CompressionLevel) -> Self {
-        if value == CompressionLevel::DEFAULT {
-            Self::default()
-        } else {
-            Self::new((value.0 as u32).clamp(Self::none().level(), Self::best().level()))
+        match value.0 {
+            CompressionLevelImpl::Min => Self::none(),
+            CompressionLevelImpl::Max => Self::best(),
+            CompressionLevelImpl::Default => Self::default(),
+            CompressionLevelImpl::Custom(value) => {
+                Self::new((value as u32).clamp(Self::none().level(), Self::best().level()))
+            }
         }
     }
 }

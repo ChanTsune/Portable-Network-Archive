@@ -1,12 +1,15 @@
+use crate::entry::CompressionLevelImpl;
+
 pub(crate) type CompressionLevel = u32;
 
 impl From<crate::CompressionLevel> for CompressionLevel {
     #[inline]
     fn from(value: crate::CompressionLevel) -> Self {
-        if value == crate::CompressionLevel::DEFAULT {
-            6
-        } else {
-            (value.0 as Self).clamp(0, 9)
+        match value.0 {
+            CompressionLevelImpl::Min => 0,
+            CompressionLevelImpl::Max => 9,
+            CompressionLevelImpl::Default => 6,
+            CompressionLevelImpl::Custom(value) => (value as Self).clamp(0, 9),
         }
     }
 }
