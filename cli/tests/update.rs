@@ -17,8 +17,7 @@ fn archive_update_newer_mtime() {
     ]))
     .unwrap();
 
-    let file = std::fs::File::open("../resources/test/raw/empty.txt").unwrap();
-    file.set_modified(std::time::SystemTime::now()).unwrap();
+    std::fs::write("../resources/test/raw/empty.txt", b"").unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
