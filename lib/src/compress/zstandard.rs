@@ -1,13 +1,17 @@
+use crate::entry::CompressionLevelImpl;
 use crate::CompressionLevel;
 use zstd::zstd_safe;
 
 impl From<CompressionLevel> for zstd_safe::CompressionLevel {
     #[inline]
     fn from(value: CompressionLevel) -> Self {
-        if value == CompressionLevel::DEFAULT {
-            zstd::DEFAULT_COMPRESSION_LEVEL
-        } else {
-            (value.0 as Self).clamp(zstd_safe::min_c_level(), zstd_safe::max_c_level())
+        match value.0 {
+            CompressionLevelImpl::Min => zstd_safe::min_c_level(),
+            CompressionLevelImpl::Max => zstd_safe::max_c_level(),
+            CompressionLevelImpl::Default => zstd::DEFAULT_COMPRESSION_LEVEL,
+            CompressionLevelImpl::Custom(value) => {
+                (value as Self).clamp(zstd_safe::min_c_level(), zstd_safe::max_c_level())
+            }
         }
     }
 }

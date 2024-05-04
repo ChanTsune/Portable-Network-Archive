@@ -23,12 +23,36 @@ impl TryFrom<u8> for Compression {
     }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) enum CompressionLevelImpl {
+    /// Minimum compression level.
+    Min,
+    /// Maximum compression level.
+    Max,
+    /// Default compression level.
+    Default,
+    /// Custom compression level.
+    Custom(i64),
+}
+
 /// Compression level of each algorithm.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct CompressionLevel(pub(crate) u8);
+pub struct CompressionLevel(pub(crate) CompressionLevelImpl);
 
 impl CompressionLevel {
-    pub(crate) const DEFAULT: Self = Self(u8::MAX);
+    pub(crate) const DEFAULT: Self = Self(CompressionLevelImpl::Default);
+
+    /// Minimum compression level.
+    /// This value will be replaced with the minimum level for each algorithm.
+    pub fn min() -> Self {
+        Self(CompressionLevelImpl::Min)
+    }
+
+    /// Maximum compression level.
+    /// This value will be replaced with the maximum level for each algorithm.
+    pub fn max() -> Self {
+        Self(CompressionLevelImpl::Max)
+    }
 }
 
 impl Default for CompressionLevel {
@@ -41,7 +65,7 @@ impl Default for CompressionLevel {
 impl From<u8> for CompressionLevel {
     #[inline]
     fn from(value: u8) -> Self {
-        Self(value)
+        Self(CompressionLevelImpl::Custom(i64::from(value)))
     }
 }
 
