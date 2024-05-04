@@ -12,7 +12,10 @@ fn create_with_split(b: &mut Bencher) {
             "pna",
             "--quiet",
             "c",
-            &format!("{}/store.pna", env!("CARGO_TARGET_TMPDIR")),
+            &format!(
+                "{}/bench/create_with_split/store.pna",
+                env!("CARGO_TARGET_TMPDIR")
+            ),
             "--store",
             "--split",
             "3MB",
@@ -36,7 +39,7 @@ fn split(b: &mut Bencher) {
             "--max-size",
             "3MB",
             "--out-dir",
-            &format!("{}/split/", env!("CARGO_TARGET_TMPDIR")),
+            &format!("{}/bench/split/", env!("CARGO_TARGET_TMPDIR")),
         ]))
         .unwrap()
     })
@@ -52,7 +55,7 @@ fn extract_multipart(b: &mut Bencher) {
             "../resources/test/multipart.part1.pna",
             "--overwrite",
             "--out-dir",
-            &format!("{}/multipart/", env!("CARGO_TARGET_TMPDIR")),
+            &format!("{}/bench/multipart/", env!("CARGO_TARGET_TMPDIR")),
         ]))
         .unwrap()
     })
