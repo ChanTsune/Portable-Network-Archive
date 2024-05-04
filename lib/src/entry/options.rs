@@ -88,6 +88,41 @@ impl From<u8> for CompressionLevel {
     }
 }
 
+impl From<u16> for CompressionLevel {
+    #[inline]
+    fn from(value: u16) -> Self {
+        Self(CompressionLevelImpl::Custom(i64::from(value)))
+    }
+}
+
+impl From<u32> for CompressionLevel {
+    #[inline]
+    fn from(value: u32) -> Self {
+        Self(CompressionLevelImpl::Custom(i64::from(value)))
+    }
+}
+
+impl From<i8> for CompressionLevel {
+    #[inline]
+    fn from(value: i8) -> Self {
+        Self(CompressionLevelImpl::Custom(i64::from(value)))
+    }
+}
+
+impl From<i16> for CompressionLevel {
+    #[inline]
+    fn from(value: i16) -> Self {
+        Self(CompressionLevelImpl::Custom(i64::from(value)))
+    }
+}
+
+impl From<i32> for CompressionLevel {
+    #[inline]
+    fn from(value: i32) -> Self {
+        Self(CompressionLevelImpl::Custom(i64::from(value)))
+    }
+}
+
 impl FromStr for CompressionLevel {
     type Err = core::num::ParseIntError;
 
