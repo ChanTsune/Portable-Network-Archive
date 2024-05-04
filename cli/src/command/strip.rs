@@ -1,7 +1,7 @@
 use crate::{
     cli::{FileArgs, PasswordArgs, Verbosity},
     command::{ask_password, commons::run_process_archive, Command},
-    utils::{self, remove_part_name},
+    utils::{self, remove_part_n},
 };
 use clap::{Parser, ValueHint};
 use pna::{Archive, Metadata};
@@ -69,7 +69,7 @@ fn strip_metadata(args: StripCommand, _verbosity: Verbosity) -> io::Result<()> {
     out_archive.finalize()?;
 
     if args.output.is_none() {
-        utils::fs::mv(outfile_path, remove_part_name(args.file.archive).unwrap())?;
+        utils::fs::mv(outfile_path, remove_part_n(args.file.archive).unwrap())?;
     }
     Ok(())
 }

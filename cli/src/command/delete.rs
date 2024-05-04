@@ -1,7 +1,7 @@
 use crate::{
     cli::{FileArgs, PasswordArgs, Verbosity},
     command::{ask_password, commons::run_process_archive, Command},
-    utils::{self, remove_part_name, GlobPatterns},
+    utils::{self, remove_part_n, GlobPatterns},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
@@ -59,7 +59,7 @@ fn delete_file_from_archive(args: DeleteCommand, _verbosity: Verbosity) -> io::R
     out_archive.finalize()?;
 
     if args.output.is_none() {
-        utils::fs::mv(outfile_path, remove_part_name(args.file.archive).unwrap())?;
+        utils::fs::mv(outfile_path, remove_part_n(args.file.archive).unwrap())?;
     }
     Ok(())
 }

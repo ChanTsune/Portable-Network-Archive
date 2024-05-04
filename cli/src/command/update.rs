@@ -6,7 +6,7 @@ use crate::{
         Command,
     },
     utils,
-    utils::remove_part_name,
+    utils::remove_part_n,
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use normalize_path::*;
@@ -160,7 +160,7 @@ fn update_archive(args: UpdateCommand, verbosity: Verbosity) -> io::Result<()> {
     }
     out_archive.finalize()?;
 
-    utils::fs::mv(outfile_path, remove_part_name(&archive_path).unwrap())?;
+    utils::fs::mv(outfile_path, remove_part_n(&archive_path).unwrap())?;
 
     Ok(())
 }
