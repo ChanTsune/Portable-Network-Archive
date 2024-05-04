@@ -5,7 +5,7 @@ use crate::{
         commons::{run_process_archive_reader, KeepOptions},
         Command,
     },
-    utils::{self, part_name, GlobPatterns},
+    utils::{self, with_part_n, GlobPatterns},
 };
 use clap::{Parser, ValueHint};
 use indicatif::HumanDuration;
@@ -66,7 +66,7 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
         file,
         args.file.files,
         || password.as_deref(),
-        |i| File::open(part_name(&args.file.archive, i).unwrap()),
+        |i| File::open(with_part_n(&args.file.archive, i).unwrap()),
         OutputOption {
             overwrite: args.overwrite,
             out_dir: args.out_dir,
