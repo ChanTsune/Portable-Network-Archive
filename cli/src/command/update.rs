@@ -33,6 +33,16 @@ pub(crate) struct UpdateCommand {
     pub(crate) keep_xattr: bool,
     #[arg(
         long,
+        help = "Only include files and directories older than the specified date. This compares ctime entries."
+    )]
+    pub(crate) older_ctime: bool,
+    #[arg(
+        long,
+        help = "Only include files and directories older than the specified date. This compares mtime entries."
+    )]
+    pub(crate) older_mtime: bool,
+    #[arg(
+        long,
         help = "Only include files and directories newer than the specified date. This compares ctime entries."
     )]
     pub(crate) newer_ctime: bool,
@@ -107,6 +117,20 @@ fn update_archive(args: UpdateCommand, verbosity: Verbosity) -> io::Result<()> {
             let mtime = meta.modified()?;
             let d = entry.metadata().modified().ok_or(io::ErrorKind::Other)?;
             Ok(SystemTime::UNIX_EPOCH + d < mtime)
+        }
+    } else if args.older_ctime {
+        |path: &Path, entry: &RegularEntry| -> io::Result<bool> {
+            let meta = fs::metadata(path)?;
+            let ctime = meta.created()?;
+            let d = entry.metadata().created().ok_or(io::ErrorKind::Other)?;
+            Ok(SystemTime::UNIX_EPOCH + d > ctime)
+        }
+    } else if args.older_mtime {
+        |path: &Path, entry: &RegularEntry| -> io::Result<bool> {
+            let meta = fs::metadata(path)?;
+            let mtime = meta.modified()?;
+            let d = entry.metadata().modified().ok_or(io::ErrorKind::Other)?;
+            Ok(SystemTime::UNIX_EPOCH + d > mtime)
         }
     } else {
         |_: &Path, _: &RegularEntry| -> io::Result<bool> { Ok(true) }
