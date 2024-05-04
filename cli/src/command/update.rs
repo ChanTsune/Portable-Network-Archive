@@ -97,14 +97,14 @@ fn update_archive(args: UpdateCommand, verbosity: Verbosity) -> io::Result<()> {
 
     let need_update_condition = if args.newer_ctime {
         |path: &Path, entry: &RegularEntry| -> io::Result<bool> {
-            let meta = fs::metadata(&path)?;
+            let meta = fs::metadata(path)?;
             let ctime = meta.created()?;
             let d = entry.metadata().created().ok_or(io::ErrorKind::Other)?;
             Ok(SystemTime::UNIX_EPOCH + d < ctime)
         }
     } else if args.newer_mtime {
         |path: &Path, entry: &RegularEntry| -> io::Result<bool> {
-            let meta = fs::metadata(&path)?;
+            let meta = fs::metadata(path)?;
             let mtime = meta.modified()?;
             let d = entry.metadata().modified().ok_or(io::ErrorKind::Other)?;
             Ok(SystemTime::UNIX_EPOCH + d < mtime)
