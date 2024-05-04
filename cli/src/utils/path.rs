@@ -41,7 +41,7 @@ pub(crate) fn with_part_n<P: AsRef<Path>>(p: P, n: usize) -> Option<PathBuf> {
 }
 
 #[inline]
-pub(crate) fn remove_part_n<P: AsRef<Path>>(path: P) -> Option<PathBuf> {
+fn remove_part_n<P: AsRef<Path>>(path: P) -> Option<PathBuf> {
     #[inline]
     fn inner(path: &Path) -> Option<PathBuf> {
         let parent = path.parent();
