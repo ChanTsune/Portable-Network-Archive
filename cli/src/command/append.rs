@@ -5,7 +5,7 @@ use crate::{
         commons::{collect_items, create_entry, entry_option, KeepOptions},
         Command,
     },
-    utils::part_name,
+    utils::with_part_n,
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
@@ -67,7 +67,7 @@ fn append_to_archive(args: AppendCommand, verbosity: Verbosity) -> io::Result<()
         let file = File::options()
             .write(true)
             .read(true)
-            .open(part_name(&archive_path, num).unwrap())?;
+            .open(with_part_n(&archive_path, num).unwrap())?;
         archive = archive.read_next_archive(file)?;
     };
     let pool = ThreadPoolBuilder::default()
