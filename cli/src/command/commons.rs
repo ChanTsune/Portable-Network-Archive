@@ -1,6 +1,6 @@
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs},
-    utils::with_part_n,
+    utils::PathPartExt,
 };
 #[cfg(unix)]
 use nix::unistd::{Group, User};
@@ -258,7 +258,7 @@ where
     F: FnMut(io::Result<RegularEntry>) -> io::Result<()>,
 {
     run_process_archive_path(path, password_provider, processor, |path, n| {
-        with_part_n(path, n).unwrap()
+        path.with_part(n).unwrap()
     })
 }
 
@@ -270,7 +270,7 @@ pub(crate) fn write_split_archive(
     write_split_archive_path(
         archive,
         entries,
-        |base, num| with_part_n(base, num).unwrap(),
+        |base, n| base.with_part(n).unwrap(),
         max_file_size,
     )
 }

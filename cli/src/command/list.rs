@@ -1,7 +1,7 @@
 use crate::{
     cli::{FileArgs, PasswordArgs, Verbosity},
     command::{ask_password, Command},
-    utils::{with_part_n, GlobPatterns},
+    utils::{GlobPatterns, PathPartExt},
 };
 use ansi_term::{ANSIString, Colour, Style};
 use chrono::{DateTime, Local};
@@ -199,7 +199,7 @@ fn list_archive(args: ListCommand, _: Verbosity) -> io::Result<()> {
         }
         if reader.next_archive() {
             num_archive += 1;
-            if let Ok(file) = File::open(with_part_n(&args.file.archive, num_archive).unwrap()) {
+            if let Ok(file) = File::open(args.file.archive.with_part(num_archive).unwrap()) {
                 reader = reader.read_next_archive(file)?;
             } else {
                 eprintln!("Detected that the file has been split, but the following file could not be found.");

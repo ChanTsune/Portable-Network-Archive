@@ -10,7 +10,7 @@ use crate::{
         extract::{run_extract_archive_reader, OutputOption},
         Command,
     },
-    utils::with_part_n,
+    utils::PathPartExt,
 };
 use clap::{ArgGroup, Args, Parser, Subcommand, ValueHint};
 use std::{
@@ -154,7 +154,7 @@ fn run_extract_archive(args: StdioCommand, verbosity: Verbosity) -> io::Result<(
                 .map(PathBuf::from)
                 .collect::<Vec<_>>(),
             || password.as_deref(),
-            |i| fs::File::open(with_part_n(&file, i).unwrap()),
+            |i| fs::File::open(file.with_part(i).unwrap()),
             out_option,
             verbosity,
         )
