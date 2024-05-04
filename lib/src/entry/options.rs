@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 /// Compression method.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
@@ -35,6 +37,23 @@ pub(crate) enum CompressionLevelImpl {
     Custom(i64),
 }
 
+impl FromStr for CompressionLevelImpl {
+    type Err = core::num::ParseIntError;
+
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.eq_ignore_ascii_case("min") {
+            Ok(Self::Min)
+        } else if s.eq_ignore_ascii_case("max") {
+            Ok(Self::Max)
+        } else if s.eq_ignore_ascii_case("default") {
+            Ok(Self::Default)
+        } else {
+            Ok(Self::Custom(i64::from_str(s)?))
+        }
+    }
+}
+
 /// Compression level of each algorithm.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct CompressionLevel(pub(crate) CompressionLevelImpl);
@@ -66,6 +85,15 @@ impl From<u8> for CompressionLevel {
     #[inline]
     fn from(value: u8) -> Self {
         Self(CompressionLevelImpl::Custom(i64::from(value)))
+    }
+}
+
+impl FromStr for CompressionLevel {
+    type Err = core::num::ParseIntError;
+
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(CompressionLevelImpl::from_str(s)?))
     }
 }
 
