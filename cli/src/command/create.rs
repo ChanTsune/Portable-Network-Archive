@@ -2,7 +2,10 @@ use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, FileArgs, PasswordArgs, Verbosity},
     command::{
         ask_password, check_password,
-        commons::{collect_items, create_entry, entry_option, write_split_archive, KeepOptions},
+        commons::{
+            collect_items, create_entry, entry_option, write_split_archive, KeepOptions,
+            OwnerOptions,
+        },
         Command,
     },
 };
@@ -19,7 +22,14 @@ use std::{
 };
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-#[command(group(ArgGroup::new("unstable-create-exclude").args(["exclude"]).requires("unstable")))]
+#[command(
+    group(ArgGroup::new("unstable-create-exclude").args(["exclude"]).requires("unstable")),
+    group(ArgGroup::new("store-uname").args(["uname"]).requires("keep_permission")),
+    group(ArgGroup::new("store-gname").args(["gname"]).requires("keep_permission")),
+    group(ArgGroup::new("store-numeric-owner").args(["numeric_owner"]).requires("keep_permission")),
+    group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
+    group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
+)]
 pub(crate) struct CreateCommand {
     #[arg(short, long, help = "Add the directory to the archive recursively")]
     pub(crate) recursive: bool,
@@ -37,6 +47,15 @@ pub(crate) struct CreateCommand {
     pub(crate) split: Option<Option<ByteSize>>,
     #[arg(long, help = "Solid mode archive")]
     pub(crate) solid: bool,
+    #[arg(long, help = "Archiving user to the entries from given name")]
+    pub(crate) uname: Option<String>,
+    #[arg(long, help = "Archiving group to the entries from given name")]
+    pub(crate) gname: Option<String>,
+    #[arg(
+        long,
+        help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names to not be stored in the archive"
+    )]
+    pub(crate) numeric_owner: bool,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -89,12 +108,25 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
         keep_permission: args.keep_permission,
         keep_xattr: args.keep_xattr,
     };
+    let owner_options = OwnerOptions {
+        uname: if args.numeric_owner {
+            Some("".to_string())
+        } else {
+            args.uname
+        },
+        gname: if args.numeric_owner {
+            Some("".to_string())
+        } else {
+            args.gname
+        },
+    };
     let write_option = entry_option(args.compression, args.cipher, password);
     if let Some(size) = max_file_size {
         create_archive_with_split(
             &args.file.archive,
             write_option,
             keep_options,
+            owner_options,
             args.solid,
             target_items,
             size,
@@ -105,6 +137,7 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
             || File::create(&args.file.archive),
             write_option,
             keep_options,
+            owner_options,
             args.solid,
             target_items,
             verbosity,
@@ -123,6 +156,7 @@ pub(crate) fn create_archive_file<W, F>(
     mut get_writer: F,
     write_option: WriteOption,
     keep_options: KeepOptions,
+    owner_options: OwnerOptions,
     solid: bool,
     target_items: Vec<PathBuf>,
     verbosity: Verbosity,
@@ -143,12 +177,13 @@ where
     };
     for file in target_items {
         let option = option.clone();
+        let owner_options = owner_options.clone();
         let tx = tx.clone();
         pool.spawn_fifo(move || {
             if verbosity == Verbosity::Verbose {
                 eprintln!("Adding: {}", file.display());
             }
-            tx.send(create_entry(&file, option, keep_options))
+            tx.send(create_entry(&file, option, keep_options, owner_options))
                 .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
         });
     }
@@ -176,6 +211,7 @@ fn create_archive_with_split(
     archive: &Path,
     write_option: WriteOption,
     keep_options: KeepOptions,
+    owner_options: OwnerOptions,
     solid: bool,
     target_items: Vec<PathBuf>,
     max_file_size: usize,
@@ -193,12 +229,13 @@ fn create_archive_with_split(
     };
     for file in target_items {
         let option = option.clone();
+        let owner_options = owner_options.clone();
         let tx = tx.clone();
         pool.spawn_fifo(move || {
             if verbosity == Verbosity::Verbose {
                 eprintln!("Adding: {}", file.display());
             }
-            tx.send(create_entry(&file, option, keep_options))
+            tx.send(create_entry(&file, option, keep_options, owner_options))
                 .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
         });
     }

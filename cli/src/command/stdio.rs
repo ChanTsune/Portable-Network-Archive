@@ -108,11 +108,24 @@ fn run_create_archive(args: StdioCommand, verbosity: Verbosity) -> io::Result<()
         keep_permission: args.keep_permission,
         keep_xattr: args.keep_xattr,
     };
+    let owner_options = OwnerOptions {
+        uname: if args.numeric_owner {
+            Some("".to_string())
+        } else {
+            args.uname
+        },
+        gname: if args.numeric_owner {
+            Some("".to_string())
+        } else {
+            args.gname
+        },
+    };
     if let Some(file) = args.file {
         create_archive_file(
             || fs::File::open(&file),
             cli_option,
             keep_options,
+            owner_options,
             args.solid,
             target_items,
             verbosity,
@@ -122,6 +135,7 @@ fn run_create_archive(args: StdioCommand, verbosity: Verbosity) -> io::Result<()
             || Ok(stdout().lock()),
             cli_option,
             keep_options,
+            owner_options,
             args.solid,
             target_items,
             verbosity,
