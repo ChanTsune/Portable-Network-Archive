@@ -17,14 +17,14 @@ use std::{
     time::UNIX_EPOCH,
 };
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) struct KeepOptions {
     pub(crate) keep_timestamp: bool,
     pub(crate) keep_permission: bool,
     pub(crate) keep_xattr: bool,
 }
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) struct OwnerOptions {
     pub(crate) uname: Option<String>,
     pub(crate) gname: Option<String>,
