@@ -24,6 +24,7 @@ use std::{
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(
     group(ArgGroup::new("unstable-update-exclude").args(["exclude"]).requires("unstable")),
+    group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
     group(ArgGroup::new("store-uname").args(["uname"]).requires("keep_permission")),
     group(ArgGroup::new("store-gname").args(["gname"]).requires("keep_permission")),
     group(ArgGroup::new("store-numeric-owner").args(["numeric_owner"]).requires("keep_permission")),
@@ -70,6 +71,8 @@ pub(crate) struct UpdateCommand {
         help = "Only include files and directories newer than the specified date. This compares mtime entries."
     )]
     pub(crate) newer_mtime: bool,
+    #[arg(long, help = "Read archiving files from given path", value_hint = ValueHint::FilePath)]
+    pub(crate) files_from: Option<String>,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -122,12 +125,15 @@ fn update_archive(args: UpdateCommand, verbosity: Verbosity) -> io::Result<()> {
         owner_options,
     };
 
-    let mut target_items = collect_items(
-        &args.file.files,
-        args.recursive,
-        args.keep_dir,
-        &args.exclude,
-    )?;
+    let mut files = args.file.files;
+    if let Some(path) = args.files_from {
+        files.extend(
+            utils::fs::read_to_lines(path)?
+                .into_iter()
+                .map(PathBuf::from),
+        );
+    }
+    let mut target_items = collect_items(&files, args.recursive, args.keep_dir, &args.exclude)?;
 
     let pool = ThreadPoolBuilder::default()
         .build()
