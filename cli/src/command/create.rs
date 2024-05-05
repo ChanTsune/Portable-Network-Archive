@@ -57,6 +57,16 @@ pub(crate) struct CreateCommand {
     pub(crate) gname: Option<String>,
     #[arg(
         long,
+        help = "Overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id"
+    )]
+    pub(crate) uid: Option<u32>,
+    #[arg(
+        long,
+        help = "Overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id"
+    )]
+    pub(crate) gid: Option<u32>,
+    #[arg(
+        long,
         help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names to not be stored in the archive"
     )]
     pub(crate) numeric_owner: bool,
@@ -136,6 +146,8 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
         } else {
             args.gname
         },
+        uid: args.uid,
+        gid: args.gid,
     };
     let write_option = entry_option(args.compression, args.cipher, password);
     if let Some(size) = max_file_size {

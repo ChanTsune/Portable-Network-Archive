@@ -50,6 +50,16 @@ pub(crate) struct UpdateCommand {
     pub(crate) gname: Option<String>,
     #[arg(
         long,
+        help = "Overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id"
+    )]
+    pub(crate) uid: Option<u32>,
+    #[arg(
+        long,
+        help = "Overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id"
+    )]
+    pub(crate) gid: Option<u32>,
+    #[arg(
+        long,
         help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names to not be stored in the archive"
     )]
     pub(crate) numeric_owner: bool,
@@ -122,6 +132,8 @@ fn update_archive(args: UpdateCommand, verbosity: Verbosity) -> io::Result<()> {
         } else {
             args.gname
         },
+        uid: args.uid,
+        gid: args.gid,
     };
     let create_options = CreateOptions {
         option,
