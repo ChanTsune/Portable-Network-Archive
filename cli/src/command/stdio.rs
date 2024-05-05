@@ -2,7 +2,7 @@ use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, PasswordArgs, Verbosity},
     command::{
         ask_password, check_password,
-        commons::{collect_items, entry_option, KeepOptions},
+        commons::{collect_items, entry_option, KeepOptions, OwnerOptions},
         create::create_archive_file,
         extract::{run_extract_archive_reader, OutputOption},
         Command,
@@ -19,6 +19,8 @@ use std::{
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(
   group(ArgGroup::new("bundled-flags").args(["create", "extract"])),
+  group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
+  group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
 )]
 pub(crate) struct StdioCommand {
     #[arg(short, long, help = "Create archive")]
@@ -49,6 +51,15 @@ pub(crate) struct StdioCommand {
     pub(crate) exclude: Option<Vec<PathBuf>>,
     #[arg(long, help = "Output directory of extracted files", value_hint = ValueHint::DirPath)]
     pub(crate) out_dir: Option<PathBuf>,
+    #[arg(long, help = "Restore user from given name")]
+    pub(crate) uname: Option<String>,
+    #[arg(long, help = "Restore group from given name")]
+    pub(crate) gname: Option<String>,
+    #[arg(
+        long,
+        help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names in the archive to be ignored in favor of the numeric user and group ids."
+    )]
+    pub(crate) numeric_owner: bool,
     #[arg(short, long, help = "Input archive file path")]
     file: Option<PathBuf>,
     #[arg(help = "Files or patterns")]
@@ -127,6 +138,18 @@ fn run_extract_archive(args: StdioCommand, verbosity: Verbosity) -> io::Result<(
             keep_timestamp: args.keep_timestamp,
             keep_permission: args.keep_permission,
             keep_xattr: args.keep_xattr,
+        },
+        owner_options: OwnerOptions {
+            uname: if args.numeric_owner {
+                Some("".to_string())
+            } else {
+                args.uname
+            },
+            gname: if args.numeric_owner {
+                Some("".to_string())
+            } else {
+                args.gname
+            },
         },
     };
     if let Some(file) = args.file {

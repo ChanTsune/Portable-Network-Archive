@@ -2,12 +2,12 @@ use crate::{
     cli::{FileArgs, PasswordArgs, Verbosity},
     command::{
         ask_password,
-        commons::{run_process_archive_reader, KeepOptions},
+        commons::{run_process_archive_reader, KeepOptions, OwnerOptions},
         Command,
     },
     utils::{self, GlobPatterns, PathPartExt},
 };
-use clap::{Parser, ValueHint};
+use clap::{ArgGroup, Parser, ValueHint};
 use indicatif::HumanDuration;
 #[cfg(unix)]
 use nix::unistd::{Group, User};
@@ -28,6 +28,10 @@ use std::{
 };
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[command(
+    group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
+    group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
+)]
 pub(crate) struct ExtractCommand {
     #[arg(long, help = "Overwrite file")]
     pub(crate) overwrite: bool,
@@ -41,6 +45,15 @@ pub(crate) struct ExtractCommand {
     pub(crate) keep_permission: bool,
     #[arg(long, help = "Restore the extended attributes of the files")]
     pub(crate) keep_xattr: bool,
+    #[arg(long, help = "Restore user from given name")]
+    pub(crate) uname: Option<String>,
+    #[arg(long, help = "Restore group from given name")]
+    pub(crate) gname: Option<String>,
+    #[arg(
+        long,
+        help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names in the archive to be ignored in favor of the numeric user and group ids."
+    )]
+    pub(crate) numeric_owner: bool,
     #[command(flatten)]
     pub(crate) file: FileArgs,
 }
@@ -61,6 +74,18 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
         keep_permission: args.keep_permission,
         keep_xattr: args.keep_xattr,
     };
+    let owner_options = OwnerOptions {
+        uname: if args.numeric_owner {
+            Some("".to_string())
+        } else {
+            args.uname
+        },
+        gname: if args.numeric_owner {
+            Some("".to_string())
+        } else {
+            args.gname
+        },
+    };
     let file = File::open(&args.file.archive)?;
     run_extract_archive_reader(
         file,
@@ -71,6 +96,7 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
             overwrite: args.overwrite,
             out_dir: args.out_dir,
             keep_options,
+            owner_options,
         },
         verbosity,
     )?;
@@ -87,6 +113,7 @@ pub(crate) struct OutputOption {
     pub(crate) overwrite: bool,
     pub(crate) out_dir: Option<PathBuf>,
     pub(crate) keep_options: KeepOptions,
+    pub(crate) owner_options: OwnerOptions,
 }
 
 pub(crate) fn run_extract_archive_reader<'p, R, Provider, N>(
@@ -132,6 +159,7 @@ where
             let tx = tx.clone();
             let password = password.clone();
             let out_dir = args.out_dir.clone();
+            let owner_options = args.owner_options.clone();
             pool.spawn_fifo(move || {
                 tx.send(extract_entry(
                     item,
@@ -139,6 +167,7 @@ where
                     args.overwrite,
                     out_dir.as_deref(),
                     args.keep_options,
+                    owner_options,
                     verbosity,
                 ))
                 .unwrap_or_else(|e| panic!("{e}: {}", item_path.display()));
@@ -159,6 +188,7 @@ where
             args.overwrite,
             args.out_dir.as_deref(),
             args.keep_options,
+            args.owner_options.clone(),
             verbosity,
         )?;
     }
@@ -171,6 +201,7 @@ pub(crate) fn extract_entry(
     overwrite: bool,
     out_dir: Option<&Path>,
     keep_options: KeepOptions,
+    owner_options: OwnerOptions,
     verbosity: Verbosity,
 ) -> io::Result<()> {
     let item_path = item.header().path().as_path();
@@ -195,7 +226,9 @@ pub(crate) fn extract_entry(
         fs::create_dir_all(parent)?;
     }
     let permissions = if keep_options.keep_permission {
-        item.metadata().permission().and_then(permissions)
+        item.metadata()
+            .permission()
+            .and_then(|p| permissions(p, &owner_options))
     } else {
         None
     };
@@ -273,15 +306,24 @@ pub(crate) fn extract_entry(
 }
 
 #[cfg(not(unix))]
-fn permissions(_: &Permission) -> Option<((), (), ())> {
+fn permissions(_: &Permission, _: &OwnerOptions) -> Option<((), (), ())> {
     None
 }
 #[cfg(unix)]
-fn permissions(permission: &Permission) -> Option<(Permissions, Option<User>, Option<Group>)> {
+fn permissions(
+    permission: &Permission,
+    owner_options: &OwnerOptions,
+) -> Option<(Permissions, Option<User>, Option<Group>)> {
     Some((
         Permissions::from_mode(permission.permissions().into()),
-        search_owner(permission.uname(), permission.uid()),
-        search_group(permission.gname(), permission.gid()),
+        search_owner(
+            owner_options.uname.as_deref().unwrap_or(permission.uname()),
+            permission.uid(),
+        ),
+        search_group(
+            owner_options.gname.as_deref().unwrap_or(permission.gname()),
+            permission.gid(),
+        ),
     ))
 }
 
