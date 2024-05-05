@@ -28,6 +28,8 @@ pub(crate) struct KeepOptions {
 pub(crate) struct OwnerOptions {
     pub(crate) uname: Option<String>,
     pub(crate) gname: Option<String>,
+    pub(crate) uid: Option<u32>,
+    pub(crate) gid: Option<u32>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -159,8 +161,8 @@ pub(crate) fn apply_metadata(
         #[cfg(unix)]
         if keep_options.keep_permission {
             let mode = meta.permissions().mode() as u16;
-            let uid = meta.uid();
-            let gid = meta.gid();
+            let uid = owner_options.uid.unwrap_or(meta.uid());
+            let gid = owner_options.gid.unwrap_or(meta.gid());
             let user = User::from_uid(uid.into())?.unwrap();
             let group = Group::from_gid(gid.into())?.unwrap();
             entry.permission(Permission::new(

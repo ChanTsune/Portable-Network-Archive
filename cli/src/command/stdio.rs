@@ -64,6 +64,16 @@ pub(crate) struct StdioCommand {
     pub(crate) gname: Option<String>,
     #[arg(
         long,
+        help = "On create, this overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id. On extract, this overrides the user id in the archive; the user name in the archive will be ignored"
+    )]
+    pub(crate) uid: Option<u32>,
+    #[arg(
+        long,
+        help = "On create, this overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id. On extract, this overrides the group id in the archive; the group name in the archive will be ignored"
+    )]
+    pub(crate) gid: Option<u32>,
+    #[arg(
+        long,
         help = "This is equivalent to --uname \"\" --gname \"\". On create, it causes user and group names to not be stored in the archive. On extract, it causes user and group names in the archive to be ignored in favor of the numeric user and group ids."
     )]
     pub(crate) numeric_owner: bool,
@@ -131,6 +141,8 @@ fn run_create_archive(args: StdioCommand, verbosity: Verbosity) -> io::Result<()
         } else {
             args.gname
         },
+        uid: args.uid,
+        gid: args.gid,
     };
     if let Some(file) = args.file {
         create_archive_file(
@@ -176,6 +188,8 @@ fn run_extract_archive(args: StdioCommand, verbosity: Verbosity) -> io::Result<(
             } else {
                 args.gname
             },
+            uid: args.uid,
+            gid: args.gid,
         },
     };
     if let Some(file) = args.file {

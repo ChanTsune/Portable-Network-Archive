@@ -51,6 +51,16 @@ pub(crate) struct ExtractCommand {
     pub(crate) gname: Option<String>,
     #[arg(
         long,
+        help = "Overrides the user id in the archive; the user name in the archive will be ignored"
+    )]
+    pub(crate) uid: Option<u32>,
+    #[arg(
+        long,
+        help = "Overrides the group id in the archive; the group name in the archive will be ignored"
+    )]
+    pub(crate) gid: Option<u32>,
+    #[arg(
+        long,
         help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names in the archive to be ignored in favor of the numeric user and group ids."
     )]
     pub(crate) numeric_owner: bool,
@@ -85,6 +95,8 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
         } else {
             args.gname
         },
+        uid: args.uid,
+        gid: args.gid,
     };
     let file = File::open(&args.file.archive)?;
     run_extract_archive_reader(
@@ -314,17 +326,24 @@ fn permissions(
     permission: &Permission,
     owner_options: &OwnerOptions,
 ) -> Option<(Permissions, Option<User>, Option<Group>)> {
-    Some((
-        Permissions::from_mode(permission.permissions().into()),
+    let p = Permissions::from_mode(permission.permissions().into());
+    let user = if let Some(uid) = owner_options.uid {
+        User::from_uid(uid.into()).ok().flatten()
+    } else {
         search_owner(
             owner_options.uname.as_deref().unwrap_or(permission.uname()),
             permission.uid(),
-        ),
+        )
+    };
+    let group = if let Some(gid) = owner_options.gid {
+        Group::from_gid(gid.into()).ok().flatten()
+    } else {
         search_group(
             owner_options.gname.as_deref().unwrap_or(permission.gname()),
             permission.gid(),
-        ),
-    ))
+        )
+    };
+    Some((p, user, group))
 }
 
 #[cfg(unix)]
