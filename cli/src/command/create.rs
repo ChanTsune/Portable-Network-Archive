@@ -3,8 +3,8 @@ use crate::{
     command::{
         ask_password, check_password,
         commons::{
-            collect_items, create_entry, entry_option, write_split_archive, KeepOptions,
-            OwnerOptions,
+            collect_items, create_entry, entry_option, write_split_archive, CreateOptions,
+            KeepOptions, OwnerOptions,
         },
         Command,
     },
@@ -175,15 +175,19 @@ where
     } else {
         write_option.clone()
     };
+    let create_options = CreateOptions {
+        option,
+        keep_options,
+        owner_options,
+    };
     for file in target_items {
-        let option = option.clone();
-        let owner_options = owner_options.clone();
+        let create_options = create_options.clone();
         let tx = tx.clone();
         pool.spawn_fifo(move || {
             if verbosity == Verbosity::Verbose {
                 eprintln!("Adding: {}", file.display());
             }
-            tx.send(create_entry(&file, option, keep_options, owner_options))
+            tx.send(create_entry(&file, create_options))
                 .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
         });
     }
@@ -227,15 +231,19 @@ fn create_archive_with_split(
     } else {
         write_option.clone()
     };
+    let create_options = CreateOptions {
+        option,
+        keep_options,
+        owner_options,
+    };
     for file in target_items {
-        let option = option.clone();
-        let owner_options = owner_options.clone();
+        let create_options = create_options.clone();
         let tx = tx.clone();
         pool.spawn_fifo(move || {
             if verbosity == Verbosity::Verbose {
                 eprintln!("Adding: {}", file.display());
             }
-            tx.send(create_entry(&file, option, keep_options, owner_options))
+            tx.send(create_entry(&file, create_options))
                 .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
         });
     }

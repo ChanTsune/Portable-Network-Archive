@@ -3,8 +3,8 @@ use crate::{
     command::{
         ask_password, check_password,
         commons::{
-            collect_items, create_entry, entry_option, run_process_archive, KeepOptions,
-            OwnerOptions,
+            collect_items, create_entry, entry_option, run_process_archive, CreateOptions,
+            KeepOptions, OwnerOptions,
         },
         Command,
     },
@@ -116,6 +116,12 @@ fn update_archive(args: UpdateCommand, verbosity: Verbosity) -> io::Result<()> {
             args.gname
         },
     };
+    let create_options = CreateOptions {
+        option,
+        keep_options,
+        owner_options,
+    };
+
     let mut target_items = collect_items(
         &args.file.files,
         args.recursive,
@@ -176,14 +182,13 @@ fn update_archive(args: UpdateCommand, verbosity: Verbosity) -> io::Result<()> {
             let normalized_path = file.normalize();
             if target_items.contains(&normalized_path) {
                 if need_update_condition(&normalized_path, &entry).unwrap_or(true) {
-                    let option = option.clone();
-                    let owner_options = owner_options.clone();
+                    let create_options = create_options.clone();
                     let tx = tx.clone();
                     pool.spawn_fifo(move || {
                         if verbosity == Verbosity::Verbose {
                             eprintln!("Updating: {}", file.display());
                         }
-                        tx.send(create_entry(&file, option, keep_options, owner_options))
+                        tx.send(create_entry(&file, create_options))
                             .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
                     });
                 } else {
@@ -198,14 +203,13 @@ fn update_archive(args: UpdateCommand, verbosity: Verbosity) -> io::Result<()> {
 
     // NOTE: Add new entries
     for file in target_items {
-        let option = option.clone();
-        let owner_options = owner_options.clone();
+        let create_options = create_options.clone();
         let tx = tx.clone();
         pool.spawn_fifo(move || {
             if verbosity == Verbosity::Verbose {
                 eprintln!("Adding: {}", file.display());
             }
-            tx.send(create_entry(&file, option, keep_options, owner_options))
+            tx.send(create_entry(&file, create_options))
                 .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
         });
     }

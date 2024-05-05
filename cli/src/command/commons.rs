@@ -30,6 +30,13 @@ pub(crate) struct OwnerOptions {
     pub(crate) gname: Option<String>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub(crate) struct CreateOptions {
+    pub(crate) option: WriteOption,
+    pub(crate) keep_options: KeepOptions,
+    pub(crate) owner_options: OwnerOptions,
+}
+
 pub(crate) fn collect_items(
     files: &[PathBuf],
     recursive: bool,
@@ -77,9 +84,11 @@ pub(crate) fn collect_items(
 
 pub(crate) fn create_entry(
     path: &Path,
-    option: WriteOption,
-    keep_options: KeepOptions,
-    owner_options: OwnerOptions,
+    CreateOptions {
+        option,
+        keep_options,
+        owner_options,
+    }: CreateOptions,
 ) -> io::Result<RegularEntry> {
     if path.is_symlink() {
         let source = fs::read_link(path)?;

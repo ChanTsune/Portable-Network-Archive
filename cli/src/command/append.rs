@@ -2,7 +2,9 @@ use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, FileArgs, PasswordArgs, Verbosity},
     command::{
         ask_password, check_password,
-        commons::{collect_items, create_entry, entry_option, KeepOptions, OwnerOptions},
+        commons::{
+            collect_items, create_entry, entry_option, CreateOptions, KeepOptions, OwnerOptions,
+        },
         Command,
     },
     utils::PathPartExt,
@@ -121,7 +123,12 @@ fn append_to_archive(args: AppendCommand, verbosity: Verbosity) -> io::Result<()
             if verbosity == Verbosity::Verbose {
                 eprintln!("Adding: {}", file.display());
             }
-            tx.send(create_entry(&file, option, keep_options, owner_options))
+            let create_options = CreateOptions {
+                option,
+                keep_options,
+                owner_options,
+            };
+            tx.send(create_entry(&file, create_options))
                 .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
         });
     }
