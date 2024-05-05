@@ -79,6 +79,7 @@ pub(crate) fn create_entry(
     path: &Path,
     option: WriteOption,
     keep_options: KeepOptions,
+    owner_options: OwnerOptions,
 ) -> io::Result<RegularEntry> {
     if path.is_symlink() {
         let source = fs::read_link(path)?;
@@ -86,14 +87,14 @@ pub(crate) fn create_entry(
             EntryName::from_lossy(path),
             EntryReference::from_lossy(source.as_path()),
         )?;
-        return apply_metadata(entry, path, keep_options)?.build();
+        return apply_metadata(entry, path, keep_options, owner_options)?.build();
     } else if path.is_file() {
         let mut entry = EntryBuilder::new_file(EntryName::from_lossy(path), option)?;
         entry.write_all(&fs::read(path)?)?;
-        return apply_metadata(entry, path, keep_options)?.build();
+        return apply_metadata(entry, path, keep_options, owner_options)?.build();
     } else if path.is_dir() {
         let entry = EntryBuilder::new_dir(EntryName::from_lossy(path));
-        return apply_metadata(entry, path, keep_options)?.build();
+        return apply_metadata(entry, path, keep_options, owner_options)?.build();
     }
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
@@ -125,6 +126,7 @@ pub(crate) fn apply_metadata(
     mut entry: EntryBuilder,
     path: &Path,
     keep_options: KeepOptions,
+    owner_options: OwnerOptions,
 ) -> io::Result<EntryBuilder> {
     if keep_options.keep_timestamp || keep_options.keep_permission {
         let meta = fs::metadata(path)?;
@@ -154,9 +156,9 @@ pub(crate) fn apply_metadata(
             let group = Group::from_gid(gid.into())?.unwrap();
             entry.permission(Permission::new(
                 uid.into(),
-                user.name,
+                owner_options.uname.unwrap_or(user.name),
                 gid.into(),
-                group.name,
+                owner_options.gname.unwrap_or(group.name),
                 mode,
             ));
         }

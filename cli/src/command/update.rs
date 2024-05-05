@@ -2,7 +2,10 @@ use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, FileArgs, PasswordArgs, Verbosity},
     command::{
         ask_password, check_password,
-        commons::{collect_items, create_entry, entry_option, run_process_archive, KeepOptions},
+        commons::{
+            collect_items, create_entry, entry_option, run_process_archive, KeepOptions,
+            OwnerOptions,
+        },
         Command,
     },
     utils::{self, PathPartExt},
@@ -19,7 +22,14 @@ use std::{
 };
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-#[command(group(ArgGroup::new("unstable-append-exclude").args(["exclude"]).requires("unstable")))]
+#[command(
+    group(ArgGroup::new("unstable-update-exclude").args(["exclude"]).requires("unstable")),
+    group(ArgGroup::new("store-uname").args(["uname"]).requires("keep_permission")),
+    group(ArgGroup::new("store-gname").args(["gname"]).requires("keep_permission")),
+    group(ArgGroup::new("store-numeric-owner").args(["numeric_owner"]).requires("keep_permission")),
+    group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
+    group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
+)]
 pub(crate) struct UpdateCommand {
     #[arg(short, long, help = "Add the directory to the archive recursively")]
     pub(crate) recursive: bool,
@@ -31,6 +41,15 @@ pub(crate) struct UpdateCommand {
     pub(crate) keep_permission: bool,
     #[arg(long, help = "Archiving the extended attributes of the files")]
     pub(crate) keep_xattr: bool,
+    #[arg(long, help = "Archiving user to the entries from given name")]
+    pub(crate) uname: Option<String>,
+    #[arg(long, help = "Archiving group to the entries from given name")]
+    pub(crate) gname: Option<String>,
+    #[arg(
+        long,
+        help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names to not be stored in the archive"
+    )]
+    pub(crate) numeric_owner: bool,
     #[arg(
         long,
         help = "Only include files and directories older than the specified date. This compares ctime entries."
@@ -84,6 +103,18 @@ fn update_archive(args: UpdateCommand, verbosity: Verbosity) -> io::Result<()> {
         keep_timestamp: args.keep_timestamp,
         keep_permission: args.keep_permission,
         keep_xattr: args.keep_xattr,
+    };
+    let owner_options = OwnerOptions {
+        uname: if args.numeric_owner {
+            Some("".to_string())
+        } else {
+            args.uname
+        },
+        gname: if args.numeric_owner {
+            Some("".to_string())
+        } else {
+            args.gname
+        },
     };
     let mut target_items = collect_items(
         &args.file.files,
@@ -146,12 +177,13 @@ fn update_archive(args: UpdateCommand, verbosity: Verbosity) -> io::Result<()> {
             if target_items.contains(&normalized_path) {
                 if need_update_condition(&normalized_path, &entry).unwrap_or(true) {
                     let option = option.clone();
+                    let owner_options = owner_options.clone();
                     let tx = tx.clone();
                     pool.spawn_fifo(move || {
                         if verbosity == Verbosity::Verbose {
                             eprintln!("Updating: {}", file.display());
                         }
-                        tx.send(create_entry(&file, option, keep_options))
+                        tx.send(create_entry(&file, option, keep_options, owner_options))
                             .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
                     });
                 } else {
@@ -167,12 +199,13 @@ fn update_archive(args: UpdateCommand, verbosity: Verbosity) -> io::Result<()> {
     // NOTE: Add new entries
     for file in target_items {
         let option = option.clone();
+        let owner_options = owner_options.clone();
         let tx = tx.clone();
         pool.spawn_fifo(move || {
             if verbosity == Verbosity::Verbose {
                 eprintln!("Adding: {}", file.display());
             }
-            tx.send(create_entry(&file, option, keep_options))
+            tx.send(create_entry(&file, option, keep_options, owner_options))
                 .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
         });
     }
