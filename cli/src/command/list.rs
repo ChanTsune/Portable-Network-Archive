@@ -36,6 +36,11 @@ pub(crate) struct ListCommand {
     pub(crate) solid: bool,
     #[arg(short = '@', help = "Display extended file attributes in a table")]
     pub(crate) show_xattr: bool,
+    #[arg(
+        long,
+        help = "Display user id and group id instead of user name and group name"
+    )]
+    pub(crate) numeric_owner: bool,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
@@ -80,13 +85,22 @@ impl TableRow {
     }
 }
 
-impl From<(RegularEntry, Option<&str>, SystemTime, Option<&SolidHeader>)> for TableRow {
+impl
+    From<(
+        RegularEntry,
+        Option<&str>,
+        SystemTime,
+        Option<&SolidHeader>,
+        bool,
+    )> for TableRow
+{
     fn from(
-        (entry, password, now, solid): (
+        (entry, password, now, solid, numeric_owner): (
             RegularEntry,
             Option<&str>,
             SystemTime,
             Option<&SolidHeader>,
+            bool,
         ),
     ) -> Self {
         let header = entry.header();
@@ -121,14 +135,24 @@ impl From<(RegularEntry, Option<&str>, SystemTime, Option<&SolidHeader>)> for Ta
             compressed_size: metadata.compressed_size().to_string(),
             user: metadata
                 .permission()
-                .map(|p| p.uname())
-                .unwrap_or("-")
-                .to_string(),
+                .map(|p| {
+                    if numeric_owner {
+                        p.uid().to_string()
+                    } else {
+                        p.uname().to_string()
+                    }
+                })
+                .unwrap_or_else(|| "-".to_string()),
             group: metadata
                 .permission()
-                .map(|p| p.gname())
-                .unwrap_or("-")
-                .to_string(),
+                .map(|p| {
+                    if numeric_owner {
+                        p.gid().to_string()
+                    } else {
+                        p.gname().to_string()
+                    }
+                })
+                .unwrap_or_else(|| "-".to_string()),
             created: datetime(now, metadata.created()),
             modified: datetime(now, metadata.modified()),
             name: if matches!(
@@ -175,7 +199,14 @@ fn list_archive(args: ListCommand, _: Verbosity) -> io::Result<()> {
                                 Vec::new()
                             };
                             entries.push(
-                                (entry, password.as_deref(), now, Some(solid.header())).into(),
+                                (
+                                    entry,
+                                    password.as_deref(),
+                                    now,
+                                    Some(solid.header()),
+                                    args.numeric_owner,
+                                )
+                                    .into(),
                             );
                             entries.extend(xattrs);
                         }
@@ -192,7 +223,7 @@ fn list_archive(args: ListCommand, _: Verbosity) -> io::Result<()> {
                     } else {
                         Vec::new()
                     };
-                    entries.push((item, password.as_deref(), now, None).into());
+                    entries.push((item, password.as_deref(), now, None, args.numeric_owner).into());
                     entries.extend(xattrs);
                 }
             }
