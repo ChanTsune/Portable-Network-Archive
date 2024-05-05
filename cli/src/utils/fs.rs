@@ -1,6 +1,9 @@
 pub(crate) use pna::fs::*;
-use std::path::Path;
-use std::{fs, io};
+use std::{
+    fs,
+    io::{self, prelude::*},
+    path::Path,
+};
 
 #[inline]
 pub(crate) fn remove<P: AsRef<Path>>(path: P) -> io::Result<()> {
@@ -55,4 +58,13 @@ fn encode_wide(s: &std::ffi::OsStr) -> io::Result<Vec<u16>> {
     }
     buf.push(0);
     Ok(buf)
+}
+
+pub(crate) fn read_to_lines<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> {
+    fn inner(path: &Path) -> io::Result<Vec<String>> {
+        let file = fs::File::open(path)?;
+        let reader = io::BufReader::new(file);
+        reader.lines().collect::<io::Result<Vec<_>>>()
+    }
+    inner(path.as_ref())
 }
