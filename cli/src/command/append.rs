@@ -7,7 +7,7 @@ use crate::{
         },
         Command,
     },
-    utils::PathPartExt,
+    utils::{self, PathPartExt},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
@@ -17,6 +17,7 @@ use std::{fs::File, io, path::PathBuf};
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(
     group(ArgGroup::new("unstable-append-exclude").args(["exclude"]).requires("unstable")),
+    group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
     group(ArgGroup::new("store-uname").args(["uname"]).requires("keep_permission")),
     group(ArgGroup::new("store-gname").args(["gname"]).requires("keep_permission")),
     group(ArgGroup::new("store-numeric-owner").args(["numeric_owner"]).requires("keep_permission")),
@@ -43,6 +44,8 @@ pub(crate) struct AppendCommand {
         help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names to not be stored in the archive"
     )]
     pub(crate) numeric_owner: bool,
+    #[arg(long, help = "Read archiving files from given path", value_hint = ValueHint::FilePath)]
+    pub(crate) files_from: Option<String>,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -90,12 +93,16 @@ fn append_to_archive(args: AppendCommand, verbosity: Verbosity) -> io::Result<()
         .build()
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
-    let target_items = collect_items(
-        &args.file.files,
-        args.recursive,
-        args.keep_dir,
-        &args.exclude,
-    )?;
+    let mut files = args.file.files;
+    if let Some(path) = args.files_from {
+        files.extend(
+            utils::fs::read_to_lines(path)?
+                .into_iter()
+                .map(PathBuf::from),
+        );
+    }
+    let target_items = collect_items(&files, args.recursive, args.keep_dir, &args.exclude)?;
+
     let (tx, rx) = std::sync::mpsc::channel();
     let option = entry_option(args.compression, args.cipher, password);
     let keep_options = KeepOptions {

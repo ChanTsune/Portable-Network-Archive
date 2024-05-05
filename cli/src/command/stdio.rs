@@ -7,7 +7,7 @@ use crate::{
         extract::{run_extract_archive_reader, OutputOption},
         Command,
     },
-    utils::PathPartExt,
+    utils::{self, PathPartExt},
 };
 use clap::{ArgGroup, Args, Parser, ValueHint};
 use std::{
@@ -19,6 +19,7 @@ use std::{
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(
   group(ArgGroup::new("bundled-flags").args(["create", "extract"])),
+  group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
   group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
   group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
 )]
@@ -60,6 +61,8 @@ pub(crate) struct StdioCommand {
         help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names in the archive to be ignored in favor of the numeric user and group ids."
     )]
     pub(crate) numeric_owner: bool,
+    #[arg(long, help = "Read archiving files from given path", value_hint = ValueHint::FilePath)]
+    pub(crate) files_from: Option<String>,
     #[arg(short, long, help = "Input archive file path")]
     file: Option<PathBuf>,
     #[arg(help = "Files or patterns")]
@@ -91,17 +94,20 @@ fn run_stdio(args: StdioCommand, verbosity: Verbosity) -> io::Result<()> {
 fn run_create_archive(args: StdioCommand, verbosity: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
+    let mut files = args
+        .files
+        .into_iter()
+        .map(PathBuf::from)
+        .collect::<Vec<_>>();
+    if let Some(path) = args.files_from {
+        files.extend(
+            utils::fs::read_to_lines(path)?
+                .into_iter()
+                .map(PathBuf::from),
+        );
+    }
+    let target_items = collect_items(&files, args.recursive, args.keep_dir, &args.exclude)?;
 
-    let target_items = collect_items(
-        &args
-            .files
-            .into_iter()
-            .map(PathBuf::from)
-            .collect::<Vec<_>>(),
-        args.recursive,
-        args.keep_dir,
-        &args.exclude,
-    )?;
     let cli_option = entry_option(args.compression, args.cipher, password);
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
