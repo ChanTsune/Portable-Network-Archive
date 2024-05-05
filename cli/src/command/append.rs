@@ -18,6 +18,8 @@ use std::{fs::File, io, path::PathBuf};
 #[command(
     group(ArgGroup::new("unstable-append-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
+    group(ArgGroup::new("unstable-files-from-stdin").args(["files_from_stdin"]).requires("unstable")),
+    group(ArgGroup::new("read-files-from").args(["files_from", "files_from_stdin"])),
     group(ArgGroup::new("store-uname").args(["uname"]).requires("keep_permission")),
     group(ArgGroup::new("store-gname").args(["gname"]).requires("keep_permission")),
     group(ArgGroup::new("store-numeric-owner").args(["numeric_owner"]).requires("keep_permission")),
@@ -46,6 +48,8 @@ pub(crate) struct AppendCommand {
     pub(crate) numeric_owner: bool,
     #[arg(long, help = "Read archiving files from given path", value_hint = ValueHint::FilePath)]
     pub(crate) files_from: Option<String>,
+    #[arg(long, help = "Read archiving files from stdin")]
+    pub(crate) files_from_stdin: bool,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -94,7 +98,14 @@ fn append_to_archive(args: AppendCommand, verbosity: Verbosity) -> io::Result<()
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
     let mut files = args.file.files;
-    if let Some(path) = args.files_from {
+    if args.files_from_stdin {
+        files.extend(
+            io::stdin()
+                .lines()
+                .map(|l| l.map(PathBuf::from))
+                .collect::<io::Result<Vec<_>>>()?,
+        );
+    } else if let Some(path) = args.files_from {
         files.extend(
             utils::fs::read_to_lines(path)?
                 .into_iter()

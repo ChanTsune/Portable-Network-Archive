@@ -25,6 +25,8 @@ use std::{
 #[command(
     group(ArgGroup::new("unstable-update-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
+    group(ArgGroup::new("unstable-files-from-stdin").args(["files_from_stdin"]).requires("unstable")),
+    group(ArgGroup::new("read-files-from").args(["files_from", "files_from_stdin"])),
     group(ArgGroup::new("store-uname").args(["uname"]).requires("keep_permission")),
     group(ArgGroup::new("store-gname").args(["gname"]).requires("keep_permission")),
     group(ArgGroup::new("store-numeric-owner").args(["numeric_owner"]).requires("keep_permission")),
@@ -73,6 +75,8 @@ pub(crate) struct UpdateCommand {
     pub(crate) newer_mtime: bool,
     #[arg(long, help = "Read archiving files from given path", value_hint = ValueHint::FilePath)]
     pub(crate) files_from: Option<String>,
+    #[arg(long, help = "Read archiving files from stdin")]
+    pub(crate) files_from_stdin: bool,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -126,7 +130,14 @@ fn update_archive(args: UpdateCommand, verbosity: Verbosity) -> io::Result<()> {
     };
 
     let mut files = args.file.files;
-    if let Some(path) = args.files_from {
+    if args.files_from_stdin {
+        files.extend(
+            io::stdin()
+                .lines()
+                .map(|l| l.map(PathBuf::from))
+                .collect::<io::Result<Vec<_>>>()?,
+        );
+    } else if let Some(path) = args.files_from {
         files.extend(
             utils::fs::read_to_lines(path)?
                 .into_iter()
