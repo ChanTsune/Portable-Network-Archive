@@ -24,6 +24,12 @@ pub(crate) struct KeepOptions {
     pub(crate) keep_xattr: bool,
 }
 
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub(crate) struct OwnerOptions {
+    pub(crate) uname: Option<String>,
+    pub(crate) gname: Option<String>,
+}
+
 pub(crate) fn collect_items(
     files: &[PathBuf],
     recursive: bool,
