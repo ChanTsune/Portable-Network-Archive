@@ -52,13 +52,19 @@ pub(crate) struct StdioCommand {
     pub(crate) exclude: Option<Vec<PathBuf>>,
     #[arg(long, help = "Output directory of extracted files", value_hint = ValueHint::DirPath)]
     pub(crate) out_dir: Option<PathBuf>,
-    #[arg(long, help = "Restore user from given name")]
+    #[arg(
+        long,
+        help = "On create, archiving user to the entries from given name. On extract, restore user from given name"
+    )]
     pub(crate) uname: Option<String>,
-    #[arg(long, help = "Restore group from given name")]
+    #[arg(
+        long,
+        help = "On create, archiving group to the entries from given name. On extract, restore group from given name"
+    )]
     pub(crate) gname: Option<String>,
     #[arg(
         long,
-        help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names in the archive to be ignored in favor of the numeric user and group ids."
+        help = "This is equivalent to --uname \"\" --gname \"\". On create, it causes user and group names to not be stored in the archive. On extract, it causes user and group names in the archive to be ignored in favor of the numeric user and group ids."
     )]
     pub(crate) numeric_owner: bool,
     #[arg(long, help = "Read archiving files from given path", value_hint = ValueHint::FilePath)]
