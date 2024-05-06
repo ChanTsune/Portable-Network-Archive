@@ -602,11 +602,13 @@ impl RegularEntry {
 pub struct EntryPart(pub(crate) Vec<RawChunk>);
 
 impl EntryPart {
+    /// Length in bytes
     #[inline]
     pub fn bytes_len(&self) -> usize {
         self.0.iter().map(|chunk| chunk.bytes_len()).sum()
     }
 
+    /// Split [EntryPart] into two parts if this entry is shorter in max_bytes_len.
     pub fn split(self, max_bytes_len: usize) -> (EntryPart, Option<EntryPart>) {
         if self.bytes_len() <= max_bytes_len {
             return (self, None);
