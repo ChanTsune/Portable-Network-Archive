@@ -122,7 +122,7 @@ fn append_to_archive(args: AppendCommand, verbosity: Verbosity) -> io::Result<()
                 .map(PathBuf::from),
         );
     }
-    let target_items = collect_items(&files, args.recursive, args.keep_dir, &args.exclude)?;
+    let target_items = collect_items(&files, args.recursive, args.keep_dir, args.exclude)?;
 
     let (tx, rx) = std::sync::mpsc::channel();
     let option = entry_option(args.compression, args.cipher, password);

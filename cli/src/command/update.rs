@@ -156,7 +156,7 @@ fn update_archive(args: UpdateCommand, verbosity: Verbosity) -> io::Result<()> {
                 .map(PathBuf::from),
         );
     }
-    let mut target_items = collect_items(&files, args.recursive, args.keep_dir, &args.exclude)?;
+    let mut target_items = collect_items(&files, args.recursive, args.keep_dir, args.exclude)?;
 
     let pool = ThreadPoolBuilder::default()
         .build()

@@ -121,7 +121,7 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
                 .map(PathBuf::from),
         );
     }
-    let target_items = collect_items(&files, args.recursive, args.keep_dir, &args.exclude)?;
+    let target_items = collect_items(&files, args.recursive, args.keep_dir, args.exclude)?;
 
     if let Some(parent) = archive.parent() {
         fs::create_dir_all(parent)?;
