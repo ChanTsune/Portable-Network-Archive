@@ -18,10 +18,11 @@ use std::{
 
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(
-  group(ArgGroup::new("bundled-flags").args(["create", "extract"])),
-  group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
-  group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
-  group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
+    group(ArgGroup::new("bundled-flags").args(["create", "extract"])),
+    group(ArgGroup::new("unstable-exclude-from").args(["files_from"]).requires("unstable")),
+    group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
+    group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
+    group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
 )]
 pub(crate) struct StdioCommand {
     #[arg(short, long, help = "Create archive")]
@@ -79,6 +80,8 @@ pub(crate) struct StdioCommand {
     pub(crate) numeric_owner: bool,
     #[arg(long, help = "Read archiving files from given path", value_hint = ValueHint::FilePath)]
     pub(crate) files_from: Option<String>,
+    #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
+    pub(crate) exclude_from: Option<String>,
     #[arg(short, long, help = "Input archive file path")]
     file: Option<PathBuf>,
     #[arg(help = "Files or patterns")]
@@ -122,7 +125,19 @@ fn run_create_archive(args: StdioCommand, verbosity: Verbosity) -> io::Result<()
                 .map(PathBuf::from),
         );
     }
-    let target_items = collect_items(&files, args.recursive, args.keep_dir, args.exclude)?;
+    let exclude = if args.exclude.is_some() || args.exclude_from.is_some() {
+        let mut exclude = Vec::new();
+        if let Some(e) = args.exclude {
+            exclude.extend(e);
+        }
+        if let Some(p) = args.exclude_from {
+            exclude.extend(utils::fs::read_to_lines(p)?.into_iter().map(PathBuf::from));
+        }
+        Some(exclude)
+    } else {
+        None
+    };
+    let target_items = collect_items(&files, args.recursive, args.keep_dir, exclude)?;
 
     let cli_option = entry_option(args.compression, args.cipher, password);
     let keep_options = KeepOptions {
