@@ -161,16 +161,19 @@ impl SolidHeader {
         }
     }
 
+    /// Compression method of the solid entry.
     #[inline]
     pub const fn compression(&self) -> Compression {
         self.compression
     }
 
+    /// Encryption method of the solid entry.
     #[inline]
     pub const fn encryption(&self) -> Encryption {
         self.encryption
     }
 
+    /// Cipher mode of the solid entry's encryption method.
     #[inline]
     pub const fn cipher_mode(&self) -> CipherMode {
         self.cipher_mode
