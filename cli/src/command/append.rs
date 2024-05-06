@@ -19,6 +19,7 @@ use std::{fs::File, io, path::PathBuf};
     group(ArgGroup::new("unstable-append-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from-stdin").args(["files_from_stdin"]).requires("unstable")),
+    group(ArgGroup::new("unstable-exclude-from").args(["files_from"]).requires("unstable")),
     group(ArgGroup::new("read-files-from").args(["files_from", "files_from_stdin"])),
     group(ArgGroup::new("store-uname").args(["uname"]).requires("keep_permission")),
     group(ArgGroup::new("store-gname").args(["gname"]).requires("keep_permission")),
@@ -60,6 +61,8 @@ pub(crate) struct AppendCommand {
     pub(crate) files_from: Option<String>,
     #[arg(long, help = "Read archiving files from stdin (unstable)")]
     pub(crate) files_from_stdin: bool,
+    #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
+    pub(crate) exclude_from: Option<String>,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -122,7 +125,19 @@ fn append_to_archive(args: AppendCommand, verbosity: Verbosity) -> io::Result<()
                 .map(PathBuf::from),
         );
     }
-    let target_items = collect_items(&files, args.recursive, args.keep_dir, args.exclude)?;
+    let exclude = if args.exclude.is_some() || args.exclude_from.is_some() {
+        let mut exclude = Vec::new();
+        if let Some(e) = args.exclude {
+            exclude.extend(e);
+        }
+        if let Some(p) = args.exclude_from {
+            exclude.extend(utils::fs::read_to_lines(p)?.into_iter().map(PathBuf::from));
+        }
+        Some(exclude)
+    } else {
+        None
+    };
+    let target_items = collect_items(&files, args.recursive, args.keep_dir, exclude)?;
 
     let (tx, rx) = std::sync::mpsc::channel();
     let option = entry_option(args.compression, args.cipher, password);
