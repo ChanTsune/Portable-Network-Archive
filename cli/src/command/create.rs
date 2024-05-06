@@ -70,9 +70,9 @@ pub(crate) struct CreateCommand {
         help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names to not be stored in the archive"
     )]
     pub(crate) numeric_owner: bool,
-    #[arg(long, help = "Read archiving files from given path", value_hint = ValueHint::FilePath)]
+    #[arg(long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
     pub(crate) files_from: Option<String>,
-    #[arg(long, help = "Read archiving files from stdin")]
+    #[arg(long, help = "Read archiving files from stdin (unstable)")]
     pub(crate) files_from_stdin: bool,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
