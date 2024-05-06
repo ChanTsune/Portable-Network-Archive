@@ -323,42 +323,49 @@ impl WriteOptionBuilder {
         }
     }
 
+    /// Set [Compression] to this builder.
     #[inline]
     pub fn compression(&mut self, compression: Compression) -> &mut Self {
         self.compression = compression;
         self
     }
 
+    /// Set [CompressionLevel] to this builder.
     #[inline]
     pub fn compression_level(&mut self, compression_level: CompressionLevel) -> &mut Self {
         self.compression_level = compression_level;
         self
     }
 
+    /// Set [Encryption] to this builder.
     #[inline]
     pub fn encryption(&mut self, encryption: Encryption) -> &mut Self {
         self.encryption = encryption;
         self
     }
 
+    /// Set [CipherMode] to this builder.
     #[inline]
     pub fn cipher_mode(&mut self, cipher_mode: CipherMode) -> &mut Self {
         self.cipher_mode = cipher_mode;
         self
     }
 
+    /// Set [HashAlgorithm] to this builder.
     #[inline]
     pub fn hash_algorithm(&mut self, algorithm: HashAlgorithm) -> &mut Self {
         self.hash_algorithm = algorithm;
         self
     }
 
+    /// Set the password to this builder.
     #[inline]
     pub fn password<S: AsRef<str>>(&mut self, password: Option<S>) -> &mut Self {
         self.password = password.map(|it| it.as_ref().to_string());
         self
     }
 
+    /// Create new [WriteOption] parameters set from this builder.
     #[inline]
     pub fn build(&self) -> WriteOption {
         WriteOption {
