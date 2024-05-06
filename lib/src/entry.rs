@@ -505,11 +505,13 @@ impl SealedEntryExt for RegularEntry {
 impl Entry for RegularEntry {}
 
 impl RegularEntry {
+    /// Information in the header of the entry.
     #[inline]
     pub fn header(&self) -> &EntryHeader {
         &self.header
     }
 
+    /// Metadata of the entry.
     #[inline]
     pub fn metadata(&self) -> &Metadata {
         &self.metadata
