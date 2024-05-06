@@ -188,7 +188,9 @@ impl TryFrom<u8> for CipherMode {
 /// Password hash algorithm.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum HashAlgorithm {
+    /// Pbkdf2 with sha256
     Pbkdf2Sha256,
+    /// Argon2Id
     Argon2Id,
 }
 
