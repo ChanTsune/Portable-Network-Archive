@@ -174,7 +174,7 @@ impl
 
 fn list_archive(args: ListCommand, _: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
-    let globs = GlobPatterns::new(args.file.files.iter().map(|p| p.to_string_lossy()))
+    let globs = GlobPatterns::new(args.file.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
     let file = File::open(&args.file.archive)?;
 

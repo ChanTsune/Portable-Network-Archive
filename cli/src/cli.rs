@@ -72,7 +72,7 @@ pub(crate) struct FileArgs {
     #[arg(value_hint = ValueHint::FilePath)]
     pub(crate) archive: PathBuf,
     #[arg(value_hint = ValueHint::FilePath)]
-    pub(crate) files: Vec<PathBuf>,
+    pub(crate) files: Vec<String>,
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]

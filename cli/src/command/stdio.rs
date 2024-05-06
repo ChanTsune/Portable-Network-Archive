@@ -210,10 +210,7 @@ fn run_extract_archive(args: StdioCommand, verbosity: Verbosity) -> io::Result<(
     if let Some(file) = args.file {
         run_extract_archive_reader(
             fs::File::open(&file)?,
-            args.files
-                .into_iter()
-                .map(PathBuf::from)
-                .collect::<Vec<_>>(),
+            args.files,
             || password.as_deref(),
             |i| fs::File::open(file.with_part(i).unwrap()),
             out_option,
@@ -222,10 +219,7 @@ fn run_extract_archive(args: StdioCommand, verbosity: Verbosity) -> io::Result<(
     } else {
         run_extract_archive_reader(
             stdin().lock(),
-            args.files
-                .into_iter()
-                .map(PathBuf::from)
-                .collect::<Vec<_>>(),
+            args.files,
             || password.as_deref(),
             |_i| Ok(stdin().lock()),
             out_option,
