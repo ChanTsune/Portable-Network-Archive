@@ -112,18 +112,9 @@ fn append_to_archive(args: AppendCommand, verbosity: Verbosity) -> io::Result<()
 
     let mut files = args.file.files;
     if args.files_from_stdin {
-        files.extend(
-            io::stdin()
-                .lines()
-                .map(|l| l.map(PathBuf::from))
-                .collect::<io::Result<Vec<_>>>()?,
-        );
+        files.extend(io::stdin().lines().collect::<io::Result<Vec<_>>>()?);
     } else if let Some(path) = args.files_from {
-        files.extend(
-            utils::fs::read_to_lines(path)?
-                .into_iter()
-                .map(PathBuf::from),
-        );
+        files.extend(utils::fs::read_to_lines(path)?);
     }
     let exclude = if args.exclude.is_some() || args.exclude_from.is_some() {
         let mut exclude = Vec::new();

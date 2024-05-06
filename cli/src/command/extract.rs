@@ -130,7 +130,7 @@ pub(crate) struct OutputOption {
 
 pub(crate) fn run_extract_archive_reader<'p, R, Provider, N>(
     reader: R,
-    files: Vec<PathBuf>,
+    files: Vec<String>,
     mut password_provider: Provider,
     get_next_reader: N,
     args: OutputOption,
@@ -142,8 +142,8 @@ where
     N: FnMut(usize) -> io::Result<R>,
 {
     let password = password_provider().map(ToOwned::to_owned);
-    let globs = GlobPatterns::new(files.iter().map(|p| p.to_string_lossy()))
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let globs =
+        GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
     let pool = ThreadPoolBuilder::default()
         .build()
