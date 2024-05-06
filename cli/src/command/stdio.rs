@@ -77,7 +77,7 @@ pub(crate) struct StdioCommand {
         help = "This is equivalent to --uname \"\" --gname \"\". On create, it causes user and group names to not be stored in the archive. On extract, it causes user and group names in the archive to be ignored in favor of the numeric user and group ids."
     )]
     pub(crate) numeric_owner: bool,
-    #[arg(long, help = "Read archiving files from given path", value_hint = ValueHint::FilePath)]
+    #[arg(long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
     pub(crate) files_from: Option<String>,
     #[arg(short, long, help = "Input archive file path")]
     file: Option<PathBuf>,

@@ -83,9 +83,9 @@ pub(crate) struct UpdateCommand {
         help = "Only include files and directories newer than the specified date. This compares mtime entries."
     )]
     pub(crate) newer_mtime: bool,
-    #[arg(long, help = "Read archiving files from given path", value_hint = ValueHint::FilePath)]
+    #[arg(long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
     pub(crate) files_from: Option<String>,
-    #[arg(long, help = "Read archiving files from stdin")]
+    #[arg(long, help = "Read archiving files from stdin (unstable)")]
     pub(crate) files_from_stdin: bool,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
