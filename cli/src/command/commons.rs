@@ -4,6 +4,7 @@ use crate::{
 };
 #[cfg(unix)]
 use nix::unistd::{Group, User};
+use normalize_path::*;
 use pna::{
     Archive, Entry, EntryBuilder, EntryName, EntryPart, EntryReference, ExtendedAttribute,
     Permission, RegularEntry, WriteOption, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
@@ -45,11 +46,9 @@ pub(crate) fn collect_items(
     keep_dir: bool,
     exclude: &Option<Vec<PathBuf>>,
 ) -> io::Result<Vec<PathBuf>> {
-    let exclude = exclude.as_ref().map(|it| {
-        it.iter()
-            .filter_map(|path| path.canonicalize().ok())
-            .collect::<Vec<_>>()
-    });
+    let exclude = exclude
+        .as_ref()
+        .map(|it| it.iter().map(|path| path.normalize()).collect::<Vec<_>>());
     fn inner(
         result: &mut Vec<PathBuf>,
         path: &Path,
@@ -57,7 +56,7 @@ pub(crate) fn collect_items(
         keep_dir: bool,
         exclude: Option<&Vec<PathBuf>>,
     ) -> io::Result<()> {
-        let cpath = path.canonicalize()?;
+        let cpath = path.normalize();
         if let Some(exclude) = exclude {
             if exclude.iter().any(|it| it.eq(&cpath)) {
                 return Ok(());
