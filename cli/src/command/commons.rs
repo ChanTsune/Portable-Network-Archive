@@ -43,7 +43,7 @@ pub(crate) fn collect_items(
     files: &[PathBuf],
     recursive: bool,
     keep_dir: bool,
-    exclude: &Option<Vec<PathBuf>>,
+    exclude: Option<Vec<PathBuf>>,
 ) -> io::Result<Vec<PathBuf>> {
     let exclude = exclude.as_ref().map(|it| {
         it.iter()
