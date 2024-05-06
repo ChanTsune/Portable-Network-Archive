@@ -166,7 +166,9 @@ impl TryFrom<u8> for Encryption {
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
 pub enum CipherMode {
+    /// Cipher Block Chaining Mode
     CBC = 0,
+    /// Counter Mode
     CTR = 1,
 }
 
