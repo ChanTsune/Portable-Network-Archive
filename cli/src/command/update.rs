@@ -156,7 +156,13 @@ fn update_archive(args: UpdateCommand, verbosity: Verbosity) -> io::Result<()> {
                 .map(PathBuf::from),
         );
     }
-    let mut target_items = collect_items(&files, args.recursive, args.keep_dir, args.exclude)?;
+    let exclude = args
+        .exclude
+        .unwrap_or_default()
+        .into_iter()
+        .map(|p| p.normalize())
+        .collect::<Vec<_>>();
+    let mut target_items = collect_items(&files, args.recursive, args.keep_dir, None)?;
 
     let pool = ThreadPoolBuilder::default()
         .build()
@@ -210,7 +216,9 @@ fn update_archive(args: UpdateCommand, verbosity: Verbosity) -> io::Result<()> {
             let file = entry.header().path().as_path().to_path_buf();
             let normalized_path = file.normalize();
             if target_items.contains(&normalized_path) {
-                if need_update_condition(&normalized_path, &entry).unwrap_or(true) {
+                if !exclude.contains(&normalized_path)
+                    && need_update_condition(&normalized_path, &entry).unwrap_or(true)
+                {
                     let create_options = create_options.clone();
                     let tx = tx.clone();
                     pool.spawn_fifo(move || {
