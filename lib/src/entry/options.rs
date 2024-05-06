@@ -198,9 +198,13 @@ pub enum HashAlgorithm {
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
 pub enum DataKind {
+    /// Regular file
     File = 0,
+    /// Directory
     Directory = 1,
+    /// Symbolic link
     SymbolicLink = 2,
+    /// Hard link
     HardLink = 3,
 }
 
