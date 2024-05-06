@@ -69,26 +69,31 @@ impl EntryHeader {
         Self::new(DataKind::HardLink, path)
     }
 
+    /// Path of the entry.
     #[inline]
     pub fn path(&self) -> &EntryName {
         &self.path
     }
 
+    /// Type of the entry.
     #[inline]
     pub const fn data_kind(&self) -> DataKind {
         self.data_kind
     }
 
+    /// Compression method of the entry.
     #[inline]
     pub const fn compression(&self) -> Compression {
         self.compression
     }
 
+    /// Encryption method of the entry.
     #[inline]
     pub const fn encryption(&self) -> Encryption {
         self.encryption
     }
 
+    /// Cipher mode of the entry's encryption method.
     #[inline]
     pub const fn cipher_mode(&self) -> CipherMode {
         self.cipher_mode
