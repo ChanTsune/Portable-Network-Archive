@@ -140,8 +140,11 @@ impl FromStr for CompressionLevel {
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
 pub enum Encryption {
+    /// Do not apply any encryption.
     No = 0,
+    /// Aes algorithm.
     Aes = 1,
+    /// Camellia algorithm.
     Camellia = 2,
 }
 
