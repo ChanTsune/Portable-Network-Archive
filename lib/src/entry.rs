@@ -94,7 +94,9 @@ impl<'r> futures_io::AsyncRead for EntryDataReader<'r> {
 /// A [RegularEntry] or [SolidEntry] read from an archive.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum ReadEntry {
+    /// Solid mode entry
     Solid(SolidEntry),
+    /// Regular entry
     Regular(RegularEntry),
 }
 
