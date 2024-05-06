@@ -40,8 +40,8 @@ pub(crate) struct CreateOptions {
     pub(crate) owner_options: OwnerOptions,
 }
 
-pub(crate) fn collect_items(
-    files: &[PathBuf],
+pub(crate) fn collect_items<I: IntoIterator<Item = P>, P: Into<PathBuf>>(
+    files: I,
     recursive: bool,
     keep_dir: bool,
     exclude: &Option<Vec<PathBuf>>,
@@ -78,7 +78,13 @@ pub(crate) fn collect_items(
     }
     let mut target_items = vec![];
     for p in files {
-        inner(&mut target_items, p, recursive, keep_dir, exclude.as_ref())?;
+        inner(
+            &mut target_items,
+            &p.into(),
+            recursive,
+            keep_dir,
+            exclude.as_ref(),
+        )?;
     }
     Ok(target_items)
 }
