@@ -4,9 +4,13 @@ use std::str::FromStr;
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
 pub enum Compression {
+    /// Do not apply any compression.
     No = 0,
+    /// Zlib format.
     Deflate = 1,
+    /// Zstandard format.
     ZStandard = 2,
+    /// Xz format.
     XZ = 4,
 }
 
