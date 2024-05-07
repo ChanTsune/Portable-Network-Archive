@@ -26,6 +26,7 @@ use std::{
     group(ArgGroup::new("unstable-update-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from-stdin").args(["files_from_stdin"]).requires("unstable")),
+    group(ArgGroup::new("unstable-exclude-from").args(["files_from"]).requires("unstable")),
     group(ArgGroup::new("read-files-from").args(["files_from", "files_from_stdin"])),
     group(ArgGroup::new("store-uname").args(["uname"]).requires("keep_permission")),
     group(ArgGroup::new("store-gname").args(["gname"]).requires("keep_permission")),
@@ -87,6 +88,8 @@ pub(crate) struct UpdateCommand {
     pub(crate) files_from: Option<String>,
     #[arg(long, help = "Read archiving files from stdin (unstable)")]
     pub(crate) files_from_stdin: bool,
+    #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
+    pub(crate) exclude_from: Option<String>,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -147,12 +150,19 @@ fn update_archive(args: UpdateCommand, verbosity: Verbosity) -> io::Result<()> {
     } else if let Some(path) = args.files_from {
         files.extend(utils::fs::read_to_lines(path)?);
     }
-    let exclude = args
+    let mut exclude = args
         .exclude
         .unwrap_or_default()
         .into_iter()
         .map(|p| p.normalize())
         .collect::<Vec<_>>();
+    if let Some(p) = args.exclude_from {
+        exclude.extend(
+            utils::fs::read_to_lines(p)?
+                .into_iter()
+                .map(|it| PathBuf::from(it).normalize()),
+        );
+    }
     let mut target_items = collect_items(&files, args.recursive, args.keep_dir, None)?;
 
     let pool = ThreadPoolBuilder::default()
