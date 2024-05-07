@@ -11,6 +11,11 @@ inputs:
     default: ''
     required: false
 
+outputs:
+  version:
+    description: "`rustc --version` result"
+    value: ${{ steps.set_output.outputs.version }}
+
 runs:
   using: 'composite'
   steps:
@@ -28,3 +33,9 @@ runs:
       shell: bash
       run: |
         rustup target add ${{ inputs.target }}
+    - id: set_output
+      name: Set output
+      shell: bash
+      run: |
+        RUST_VERSION=$(rustc -V)
+        echo "version=${RUST_VERSION}" >> $GITHUB_OUTPUT
