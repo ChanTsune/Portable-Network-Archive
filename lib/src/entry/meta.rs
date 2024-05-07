@@ -140,6 +140,12 @@ impl Metadata {
     }
 }
 
+impl Default for Metadata {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Permission struct represents an owner, group, and permissions for an entry.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Permission {
