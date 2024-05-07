@@ -179,6 +179,7 @@ impl SolidHeader {
         self.cipher_mode
     }
 
+    /// Convert to [ChunkType::SHED](crate::ChunkType::SHED) body bytes.
     #[inline]
     pub const fn to_bytes(&self) -> [u8; 5] {
         [
