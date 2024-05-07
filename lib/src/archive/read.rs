@@ -249,6 +249,8 @@ impl<R: Read> Archive<R> {
 
 #[cfg(feature = "unstable-async")]
 impl<R: AsyncRead + Unpin> Archive<R> {
+    /// Reads the archive header from the provided reader and returns a new [Archive].
+    /// This API is unstable.
     #[inline]
     pub async fn read_header_async(reader: R) -> io::Result<Self> {
         Self::read_header_with_buffer_async(reader, Default::default()).await
@@ -290,6 +292,8 @@ impl<R: AsyncRead + Unpin> Archive<R> {
         Ok(Some(RawEntry(chunks)))
     }
 
+    /// Read a [RegularEntry] from the archive.
+    /// This API is unstable.
     pub async fn read_entry_async(&mut self) -> io::Result<Option<RegularEntry>> {
         loop {
             let entry = self.next_raw_item_async().await?;

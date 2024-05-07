@@ -282,6 +282,8 @@ impl<W: Write> Archive<W> {
 
 #[cfg(feature = "unstable-async")]
 impl<W: AsyncWrite + Unpin> Archive<W> {
+    /// Writes the archive header to the given object and return a new [Archive].
+    /// This API is unstable.
     pub async fn write_header_async(write: W) -> io::Result<Self> {
         let header = ArchiveHeader::new(0, 0, 0);
         Self::write_header_with_async(write, header).await
@@ -296,6 +298,8 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
         Ok(Self::new(write, header))
     }
 
+    /// Adds a new entry to the archive.
+    /// This API is unstable.
     pub async fn add_entry_async(&mut self, entry: impl Entry) -> io::Result<usize> {
         let mut bytes = Vec::new();
         entry.write_in(&mut bytes)?;
@@ -303,6 +307,8 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
         Ok(bytes.len())
     }
 
+    /// Write an end marker to finalize the archive.
+    /// This API is unstable.
     pub async fn finalize_async(mut self) -> io::Result<W> {
         let mut chunk_writer = ChunkWriter::from(&mut self.inner);
         chunk_writer
