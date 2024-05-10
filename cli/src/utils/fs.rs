@@ -5,6 +5,11 @@ use std::{
     path::Path,
 };
 
+pub(crate) fn is_pna<P: AsRef<Path>>(path: P) -> io::Result<bool> {
+    let file = fs::File::open(path)?;
+    super::io::is_pna(file)
+}
+
 #[inline]
 pub(crate) fn remove<P: AsRef<Path>>(path: P) -> io::Result<()> {
     let path = path.as_ref();

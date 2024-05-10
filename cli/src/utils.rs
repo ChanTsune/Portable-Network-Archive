@@ -1,4 +1,5 @@
 pub(crate) mod fs;
+mod io;
 mod path;
 
 pub(crate) use path::*;
