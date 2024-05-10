@@ -1,6 +1,7 @@
 pub mod append;
 mod commons;
 pub mod complete;
+mod concat;
 pub mod create;
 mod delete;
 pub(super) mod experimental;
