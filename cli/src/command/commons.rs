@@ -221,6 +221,57 @@ pub(crate) fn split_to_parts(
     parts
 }
 
+pub(crate) fn run_across_archive_reader<'p, R, F, N>(
+    reader: R,
+    mut processor: F,
+    mut get_next_reader: N,
+) -> io::Result<()>
+where
+    R: Read,
+    F: FnMut(&mut Archive<R>) -> io::Result<()>,
+    N: FnMut(usize) -> io::Result<R>,
+{
+    let mut archive = Archive::read_header(reader)?;
+    let mut num_archive = 1;
+    loop {
+        processor(&mut archive)?;
+        if archive.next_archive() {
+            num_archive += 1;
+            let next_reader = get_next_reader(num_archive)?;
+            archive = archive.read_next_archive(next_reader)?;
+        } else {
+            break;
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn run_across_archive_path<'p, R, F, N>(
+    path: R,
+    processor: F,
+    mut get_next_file_path: N,
+) -> io::Result<()>
+where
+    R: AsRef<Path>,
+    F: FnMut(&mut Archive<fs::File>) -> io::Result<()>,
+    N: FnMut(&Path, usize) -> PathBuf,
+{
+    let path = path.as_ref();
+    let file = fs::File::open(path)?;
+    run_across_archive_reader(file, processor, |num_archive| {
+        fs::File::open(get_next_file_path(path, num_archive))
+    })
+}
+
+pub(crate) fn run_across_archive<R, F>(path: R, processor: F) -> io::Result<()>
+where
+    R: AsRef<Path>,
+    F: FnMut(&mut Archive<fs::File>) -> io::Result<()>,
+{
+    let path = path.as_ref();
+    run_across_archive_path(path, processor, |path, n| path.with_part(n).unwrap())
+}
+
 pub(crate) fn run_process_archive_reader<'p, R, Provider, F, N>(
     reader: R,
     mut password_provider: Provider,
