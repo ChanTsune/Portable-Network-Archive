@@ -221,7 +221,7 @@ pub(crate) fn split_to_parts(
     parts
 }
 
-pub(crate) fn run_across_archive_reader<'p, R, F, N>(
+pub(crate) fn run_across_archive_reader<R, F, N>(
     reader: R,
     mut processor: F,
     mut get_next_reader: N,
@@ -246,7 +246,7 @@ where
     Ok(())
 }
 
-pub(crate) fn run_across_archive_path<'p, R, F, N>(
+pub(crate) fn run_across_archive_path<R, F, N>(
     path: R,
     processor: F,
     mut get_next_file_path: N,
