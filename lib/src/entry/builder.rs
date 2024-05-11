@@ -382,6 +382,7 @@ pub struct SolidEntryBuilder {
     phsf: Option<String>,
     iv: Option<Vec<u8>>,
     data: CompressionWriter<CipherWriter<crate::io::FlattenWriter<MAX_CHUNK_DATA_LENGTH>>>,
+    extra: Vec<RawChunk>,
 }
 
 impl SolidEntryBuilder {
@@ -406,6 +407,7 @@ impl SolidEntryBuilder {
             },
             phsf: context.phsf,
             data: writer,
+            extra: Vec::new(),
         })
     }
 
@@ -439,6 +441,12 @@ impl SolidEntryBuilder {
         entry.write_in(&mut self.data)
     }
 
+    /// Adds extra chunk to the solid entry.
+    #[inline]
+    pub fn add_extra_chunk<T: Into<RawChunk>>(&mut self, chunk: T) {
+        self.extra.push(chunk.into());
+    }
+
     fn build_as_entry(self) -> io::Result<SolidEntry> {
         Ok(SolidEntry {
             header: self.header,
@@ -450,7 +458,7 @@ impl SolidEntryBuilder {
                 }
                 data
             },
-            extra: Vec::new(),
+            extra: self.extra,
         })
     }
 
