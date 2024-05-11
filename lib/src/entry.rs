@@ -530,6 +530,12 @@ impl RegularEntry {
         &self.xattrs
     }
 
+    /// Extra chunks.
+    #[inline]
+    pub fn extra_chunks(&self) -> &[RawChunk] {
+        &self.extra
+    }
+
     /// Return the reader of this [`RegularEntry`].
     ///
     /// # Examples
