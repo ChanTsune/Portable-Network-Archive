@@ -67,6 +67,30 @@ impl ChunkType {
     pub const fn len(&self) -> usize {
         self.0.len()
     }
+
+    /// Creates custom [ChunkType] without any check.
+    ///
+    /// # Panic
+    /// Printing ChunkType that contains non-utf8 characters will be panicked.
+    /// ```no_run
+    /// # use libpna::ChunkType;
+    ///
+    /// let custom_chunk_type = unsafe { ChunkType::from_unchecked([0xe3, 0x81, 0x82, 0xe3]) };
+    /// format!("{}", custom_chunk_type);
+    /// ```
+    ///
+    /// # Safety
+    /// Safe when value consists only of ascii alphabetic characters ('a'...'z' and 'A'...'Z').
+    /// ```
+    /// # use libpna::ChunkType;
+    ///
+    /// let custom_chunk_type = unsafe { ChunkType::from_unchecked(*b"myTy") };
+    /// format!("{}", custom_chunk_type);
+    /// ```
+    #[inline]
+    pub const unsafe fn from_unchecked(ty: [u8; 4]) -> Self {
+        Self(ty)
+    }
 }
 
 impl Display for ChunkType {
