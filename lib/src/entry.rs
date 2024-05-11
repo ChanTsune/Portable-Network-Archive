@@ -154,6 +154,7 @@ impl SealedEntryExt for SolidEntry {
     fn into_chunks(self) -> Vec<RawChunk> {
         let mut chunks = vec![];
         chunks.push(RawChunk::from_data(ChunkType::SHED, self.header.to_bytes()));
+        chunks.extend(self.extra);
 
         if let Some(phsf) = &self.phsf {
             chunks.push(RawChunk::from_data(ChunkType::PHSF, phsf.as_bytes()));
