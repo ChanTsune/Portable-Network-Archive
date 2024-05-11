@@ -1,4 +1,33 @@
-use std::fmt::{self, Display, Formatter};
+use std::{
+    error::Error,
+    fmt::{self, Display, Formatter},
+};
+
+/// [ChunkType] validation error.
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub enum ChunkTypeError {
+    /// Contains non-ascii alphabet error.
+    NonAsciiAlphabetic,
+    /// The second character is not lowercase error.
+    NonPrivateChunkType,
+    /// The third character is not uppercase error.
+    Reserved,
+}
+
+impl Display for ChunkTypeError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        Display::fmt(
+            match self {
+                Self::NonAsciiAlphabetic => "All characters are must be ASCII alphabet",
+                Self::NonPrivateChunkType => "The second character is must be lowercase",
+                Self::Reserved => "The third character is must be uppercase",
+            },
+            f,
+        )
+    }
+}
+
+impl Error for ChunkTypeError {}
 
 /// A 4-byte chunk type code.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -66,6 +95,46 @@ impl ChunkType {
     #[inline]
     pub const fn len(&self) -> usize {
         self.0.len()
+    }
+
+    /// Creates private [ChunkType].
+    ///
+    /// - All characters must be ASCII alphabet
+    /// - The second character must be lowercase
+    /// - The third character must be uppercase
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use libpna::{ChunkType, ChunkTypeError};
+    /// assert!(ChunkType::private(*b"myTy").is_ok());
+    /// assert_eq!(
+    ///     ChunkType::private(*b"zeR\0").unwrap_err(),
+    ///     ChunkTypeError::NonAsciiAlphabetic
+    /// );
+    /// assert_eq!(
+    ///     ChunkType::private(*b"pRIv").unwrap_err(),
+    ///     ChunkTypeError::NonPrivateChunkType
+    /// );
+    /// assert_eq!(
+    ///     ChunkType::private(*b"rese").unwrap_err(),
+    ///     ChunkTypeError::Reserved
+    /// );
+    /// ```
+    #[inline]
+    pub fn private(ty: [u8; 4]) -> Result<Self, ChunkTypeError> {
+        for c in ty {
+            if !c.is_ascii_alphabetic() {
+                return Err(ChunkTypeError::NonAsciiAlphabetic);
+            }
+        }
+        if !ty[1].is_ascii_lowercase() {
+            return Err(ChunkTypeError::NonPrivateChunkType);
+        }
+        if !ty[2].is_ascii_uppercase() {
+            return Err(ChunkTypeError::Reserved);
+        }
+        Ok(Self(ty))
     }
 
     /// Creates custom [ChunkType] without any check.
