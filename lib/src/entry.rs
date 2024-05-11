@@ -191,6 +191,13 @@ impl SolidEntry {
     pub fn header(&self) -> &SolidHeader {
         &self.header
     }
+
+    /// Extra chunks.
+    #[inline]
+    pub fn extra_chunks(&self) -> &[RawChunk] {
+        &self.extra
+    }
+
     /// Returns an iterator over the entries in the [SolidEntry].
     ///
     /// # Example
