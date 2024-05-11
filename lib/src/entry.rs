@@ -169,7 +169,9 @@ impl SealedEntryExt for SolidEntry {
     fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         let mut total = 0;
         total += (ChunkType::SHED, self.header.to_bytes().as_slice()).write_in(writer)?;
-
+        for extra_chunk in &self.extra {
+            total += extra_chunk.write_in(writer)?;
+        }
         if let Some(phsf) = &self.phsf {
             total += (ChunkType::PHSF, phsf.as_bytes()).write_in(writer)?;
         }
