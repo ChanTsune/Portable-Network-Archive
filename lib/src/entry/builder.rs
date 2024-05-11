@@ -1,4 +1,5 @@
 use crate::{
+    chunk::RawChunk,
     cipher::CipherWriter,
     compress::CompressionWriter,
     entry::{
@@ -36,6 +37,7 @@ pub struct EntryBuilder {
     store_file_size: bool,
     file_size: u128,
     xattrs: Vec<ExtendedAttribute>,
+    extra_chunks: Vec<RawChunk>,
 }
 
 impl EntryBuilder {
@@ -61,6 +63,7 @@ impl EntryBuilder {
             store_file_size: true,
             file_size: 0,
             xattrs: Vec::new(),
+            extra_chunks: Vec::new(),
         }
     }
 
@@ -98,6 +101,7 @@ impl EntryBuilder {
             store_file_size: true,
             file_size: 0,
             xattrs: Vec::new(),
+            extra_chunks: Vec::new(),
         })
     }
 
@@ -143,6 +147,7 @@ impl EntryBuilder {
             store_file_size: true,
             file_size: 0,
             xattrs: Vec::new(),
+            extra_chunks: Vec::new(),
         })
     }
 
@@ -188,6 +193,7 @@ impl EntryBuilder {
             store_file_size: true,
             file_size: 0,
             xattrs: Vec::new(),
+            extra_chunks: Vec::new(),
         })
     }
 
@@ -282,6 +288,21 @@ impl EntryBuilder {
         self
     }
 
+    /// Adds extra chunk to the entry.
+    ///
+    /// # Arguments
+    ///
+    /// * `chunk` - The extra chunk.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the [EntryBuilder] with the creation timestamp set.
+    #[inline]
+    pub fn add_extra_chunk<T: Into<RawChunk>>(&mut self, chunk: T) -> &mut Self {
+        self.extra_chunks.push(chunk.into());
+        self
+    }
+
     /// Builds the entry and returns a Result containing the new [RegularEntry].
     ///
     /// # Returns
@@ -310,7 +331,7 @@ impl EntryBuilder {
         Ok(RegularEntry {
             header: self.header,
             phsf: self.phsf,
-            extra: Vec::new(),
+            extra: self.extra_chunks,
             data,
             metadata,
             xattrs: self.xattrs,
