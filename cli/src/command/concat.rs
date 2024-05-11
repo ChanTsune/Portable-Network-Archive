@@ -9,6 +9,8 @@ use std::{fs, io};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ConcatCommand {
+    #[arg(long, help = "Overwrite file")]
+    overwrite: bool,
     #[command(flatten)]
     files: FileArgs,
 }
@@ -20,6 +22,12 @@ impl Command for ConcatCommand {
 }
 
 fn concat_entry(args: ConcatCommand, _verbosity: Verbosity) -> io::Result<()> {
+    if !args.overwrite && args.files.archive.exists() {
+        return Err(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            format!("{} is already exists", args.files.archive.display()),
+        ));
+    }
     for item in &args.files.files {
         if !utils::fs::is_pna(item)? {
             return Err(io::Error::new(
