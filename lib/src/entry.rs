@@ -409,6 +409,7 @@ impl SealedEntryExt for RegularEntry {
         } = self.metadata;
         let mut vec = Vec::new();
         vec.push(RawChunk::from_data(ChunkType::FHED, self.header.to_bytes()));
+        vec.extend(self.extra);
         if let Some(raw_file_size) = raw_file_size {
             vec.push(RawChunk::from_data(
                 ChunkType::fSIZ,
@@ -422,9 +423,6 @@ impl SealedEntryExt for RegularEntry {
 
         if let Some(p) = self.phsf {
             vec.push(RawChunk::from_data(ChunkType::PHSF, p.into_bytes()));
-        }
-        for ex in self.extra {
-            vec.push(ex);
         }
         for data_chunk in self.data {
             for data_unit in data_chunk.chunks(u32::MAX as usize) {
@@ -472,7 +470,9 @@ impl SealedEntryExt for RegularEntry {
         } = &self.metadata;
 
         total += (ChunkType::FHED, self.header.to_bytes()).write_in(writer)?;
-
+        for ex in &self.extra {
+            total += ex.write_in(writer)?;
+        }
         if let Some(raw_file_size) = raw_file_size {
             total += (
                 ChunkType::fSIZ,
@@ -483,9 +483,6 @@ impl SealedEntryExt for RegularEntry {
 
         if let Some(p) = &self.phsf {
             total += (ChunkType::PHSF, p.as_bytes()).write_in(writer)?;
-        }
-        for ex in &self.extra {
-            total += ex.write_in(writer)?;
         }
         for data_chunk in &self.data {
             for data_unit in data_chunk.chunks(u32::MAX as usize) {
