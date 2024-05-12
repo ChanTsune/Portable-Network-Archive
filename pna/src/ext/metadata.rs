@@ -2,12 +2,19 @@ use super::private;
 use libpna::Metadata;
 use std::time::SystemTime;
 
+/// [Metadata] extension method trait.
 pub trait MetadataTimeExt: private::Sealed {
+    /// Created time.
     fn created_time(&self) -> Option<SystemTime>;
+    /// Modified time.
     fn modified_time(&self) -> Option<SystemTime>;
+    /// Accessed time.
     fn accessed_time(&self) -> Option<SystemTime>;
+    /// Set created time.
     fn with_created_time(self, created_time: Option<SystemTime>) -> Self;
+    /// Set modified time.
     fn with_modified_time(self, modified_time: Option<SystemTime>) -> Self;
+    /// Set accessed time.
     fn with_accessed_time(self, accessed_time: Option<SystemTime>) -> Self;
 }
 
