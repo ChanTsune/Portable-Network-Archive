@@ -3,10 +3,13 @@ use libpna::Archive;
 use std::path::Path;
 use std::{fs, io};
 
+/// [Archive] fs extension trait.
 pub trait ArchiveFsExt: private::Sealed {
+    /// Create PNA file.
     fn create<P: AsRef<Path>>(path: P) -> io::Result<Self>
     where
         Self: Sized;
+    /// Open existing PNA file.
     fn open<P: AsRef<Path>>(path: P) -> io::Result<Self>
     where
         Self: Sized;
