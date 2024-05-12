@@ -7,5 +7,5 @@
 //! # #![allow(unused_imports)]
 //! use pna::prelude::*;
 //! ```
-pub use crate::ext::ArchiveFsExt;
+pub use crate::ext::{ArchiveFsExt, MetadataTimeExt};
 pub use libpna::Entry;
