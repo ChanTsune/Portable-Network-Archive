@@ -1,5 +1,7 @@
-use std::path::Path;
-use std::{io, os};
+//! PNA file system utilities
+//!
+//! The purpose of this module is to provide file system utilities for PNA
+use std::{io, os, path::Path};
 
 #[cfg(unix)]
 #[inline]
