@@ -3,12 +3,40 @@
 //! The purpose of this module is to provide file system utilities for PNA
 use std::{io, os, path::Path};
 
+/// Creates a new symbolic link on the filesystem.
+///
+/// The `link` path will be a symbolic link pointing to the `original` path.
+///
+/// # Examples
+///
+/// ```no_run
+/// use pna::fs;
+///
+/// # fn main() -> std::io::Result<()> {
+/// fs::symlink("a.txt", "b.txt")?;
+/// #     Ok(())
+/// # }
+/// ```
 #[cfg(unix)]
 #[inline]
 pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Result<()> {
     os::unix::fs::symlink(original, link)
 }
 
+/// Creates a new symbolic link on the filesystem.
+///
+/// The `link` path will be a symbolic link pointing to the `original` path.
+///
+/// # Examples
+///
+/// ```no_run
+/// use pna::fs;
+///
+/// # fn main() -> std::io::Result<()> {
+/// fs::symlink("a.txt", "b.txt")?;
+/// #     Ok(())
+/// # }
+/// ```
 #[cfg(windows)]
 #[inline]
 pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Result<()> {
@@ -20,6 +48,20 @@ pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Resu
     }
 }
 
+/// Creates a new symbolic link on the filesystem.
+///
+/// The `link` path will be a symbolic link pointing to the `original` path.
+///
+/// # Examples
+///
+/// ```no_run
+/// use pna::fs;
+///
+/// # fn main() -> std::io::Result<()> {
+/// fs::symlink("a.txt", "b.txt")?;
+/// #     Ok(())
+/// # }
+/// ```
 #[cfg(target_os = "wasi")]
 #[inline]
 pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Result<()> {
