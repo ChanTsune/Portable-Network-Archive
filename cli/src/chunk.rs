@@ -10,10 +10,6 @@ use std::{
 #[allow(non_upper_case_globals)]
 pub const faCe: ChunkType = unsafe { ChunkType::from_unchecked(*b"faCe") };
 
-/// [ChunkType] Platform specialized File Access Control Entry
-#[allow(non_upper_case_globals)]
-pub const paCe: ChunkType = unsafe { ChunkType::from_unchecked(*b"paCe") };
-
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum Identifier {
     Name(String),
@@ -186,6 +182,49 @@ impl FromStr for Ace {
             allow,
             permission,
         })
+    }
+}
+
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "macos"))]
+impl Into<Ace> for exacl::AclEntry {
+    fn into(self) -> Ace {
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        let default = self.flags.contains(exacl::Flag::DEFAULT);
+        #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+        let default = false;
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        let inherit = self.flags.contains(exacl::Flag::DIRECTORY_INHERIT);
+        #[cfg(not(any(target_os = "macos", target_os = "freebsd")))]
+        let inherit = false;
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        let inherited = self.flags.contains(exacl::Flag::INHERITED);
+        #[cfg(not(any(target_os = "macos", target_os = "freebsd")))]
+        let inherited = false;
+        let mut permission = Permission::NONE;
+        if self.perms.contains(exacl::Perm::READ) {
+            permission &= Permission::READ;
+        }
+        if self.perms.contains(exacl::Perm::WRITE) {
+            permission &= Permission::WRITE;
+        }
+        if self.perms.contains(exacl::Perm::EXECUTE) {
+            permission &= Permission::EXEC;
+        }
+        Ace {
+            inherit,
+            inherited,
+            default,
+            owner_type: match self.kind {
+                exacl::AclEntryKind::User => OwnerType::Owner,
+                exacl::AclEntryKind::Group => OwnerType::OwnerGroup,
+                exacl::AclEntryKind::Mask => OwnerType::Mask,
+                exacl::AclEntryKind::Other => OwnerType::Other,
+                exacl::AclEntryKind::Everyone => OwnerType::Other,
+                exacl::AclEntryKind::Unknown => panic!("Unknown acl owner"),
+            },
+            allow: self.allow,
+            permission,
+        }
     }
 }
 
