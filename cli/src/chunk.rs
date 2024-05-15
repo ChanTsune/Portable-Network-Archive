@@ -217,8 +217,11 @@ impl Into<Ace> for exacl::AclEntry {
             owner_type: match self.kind {
                 exacl::AclEntryKind::User => OwnerType::Owner,
                 exacl::AclEntryKind::Group => OwnerType::OwnerGroup,
+                #[cfg(any(target_os = "linux", target_os = "freebsd"))]
                 exacl::AclEntryKind::Mask => OwnerType::Mask,
+                #[cfg(any(target_os = "linux", target_os = "freebsd"))]
                 exacl::AclEntryKind::Other => OwnerType::Other,
+                #[cfg(target_os = "freebsd")]
                 exacl::AclEntryKind::Everyone => OwnerType::Other,
                 exacl::AclEntryKind::Unknown => panic!("Unknown acl owner"),
             },
