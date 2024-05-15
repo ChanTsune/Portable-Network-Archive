@@ -1,18 +1,17 @@
 use crate::{
     cli::{FileArgs, PasswordArgs, Verbosity},
-    command::{ask_password, Command},
-    utils::{GlobPatterns, PathPartExt},
+    command::{ask_password, commons::run_across_archive, Command},
+    utils::GlobPatterns,
 };
 use ansi_term::{ANSIString, Colour, Style};
 use chrono::{DateTime, Local};
 use clap::Parser;
 use pna::{
-    Archive, Compression, DataKind, Encryption, ExtendedAttribute, ReadEntry, ReadOption,
-    RegularEntry, SolidHeader,
+    Compression, DataKind, Encryption, ExtendedAttribute, ReadEntry, ReadOption, RegularEntry,
+    SolidHeader,
 };
 use rayon::prelude::*;
 use std::{
-    fs::File,
     io,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -176,13 +175,11 @@ fn list_archive(args: ListCommand, _: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     let globs = GlobPatterns::new(args.file.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-    let file = File::open(&args.file.archive)?;
 
     let now = SystemTime::now();
     let mut entries = Vec::<TableRow>::new();
-    let mut reader = Archive::read_header(file)?;
-    let mut num_archive = 1;
-    loop {
+
+    run_across_archive(&args.file.archive, |reader| {
         for entry in reader.entries() {
             match entry? {
                 ReadEntry::Solid(solid) => {
@@ -228,18 +225,8 @@ fn list_archive(args: ListCommand, _: Verbosity) -> io::Result<()> {
                 }
             }
         }
-        if reader.next_archive() {
-            num_archive += 1;
-            if let Ok(file) = File::open(args.file.archive.with_part(num_archive).unwrap()) {
-                reader = reader.read_next_archive(file)?;
-            } else {
-                eprintln!("Detected that the file has been split, but the following file could not be found.");
-                break;
-            }
-        } else {
-            break;
-        }
-    }
+        Ok(())
+    })?;
 
     if entries.is_empty() {
         return Ok(());
