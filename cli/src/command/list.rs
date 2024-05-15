@@ -1,6 +1,6 @@
 use crate::{
     cli::{FileArgs, PasswordArgs, Verbosity},
-    command::{ask_password, commons::run_across_archive, Command},
+    command::{ask_password, commons::run_across_archive_path, Command},
     utils::GlobPatterns,
 };
 use ansi_term::{ANSIString, Colour, Style};
@@ -179,7 +179,7 @@ fn list_archive(args: ListCommand, _: Verbosity) -> io::Result<()> {
     let now = SystemTime::now();
     let mut entries = Vec::<TableRow>::new();
 
-    run_across_archive(&args.file.archive, |reader| {
+    run_across_archive_path(&args.file.archive, |reader| {
         for entry in reader.entries() {
             match entry? {
                 ReadEntry::Solid(solid) => {
