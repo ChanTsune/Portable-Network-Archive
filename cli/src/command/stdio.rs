@@ -18,7 +18,7 @@ use std::{
 
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(
-    group(ArgGroup::new("bundled-flags").args(["create", "extract"])),
+    group(ArgGroup::new("bundled-flags").args(["create", "extract"]).required(true)),
     group(ArgGroup::new("unstable-exclude-from").args(["files_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
