@@ -1,6 +1,10 @@
 use crate::{
     cli::{FileArgs, PasswordArgs, Verbosity},
-    command::{ask_password, commons::run_across_archive_path, Command},
+    command::{
+        ask_password,
+        commons::{run_across_archive, ArchiveProvider, PathArchiveProvider},
+        Command,
+    },
     utils::GlobPatterns,
 };
 use ansi_term::{ANSIString, Colour, Style};
@@ -173,13 +177,41 @@ impl
 
 fn list_archive(args: ListCommand, _: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
-    let globs = GlobPatterns::new(args.file.files)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    run_list_archive(
+        PathArchiveProvider::new(&args.file.archive),
+        password.as_deref(),
+        &args.file.files,
+        ListOptions {
+            long: args.long,
+            header: args.header,
+            solid: args.solid,
+            show_xattr: args.show_xattr,
+            numeric_owner: args.numeric_owner,
+        },
+    )
+}
+
+pub(crate) struct ListOptions {
+    long: bool,
+    header: bool,
+    solid: bool,
+    show_xattr: bool,
+    numeric_owner: bool,
+}
+
+pub(crate) fn run_list_archive(
+    archive_provider: impl ArchiveProvider,
+    password: Option<&str>,
+    files: &[String],
+    args: ListOptions,
+) -> io::Result<()> {
+    let globs =
+        GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
     let now = SystemTime::now();
     let mut entries = Vec::<TableRow>::new();
 
-    run_across_archive_path(&args.file.archive, |reader| {
+    run_across_archive(archive_provider, |reader| {
         for entry in reader.entries() {
             match entry? {
                 ReadEntry::Solid(solid) => {
