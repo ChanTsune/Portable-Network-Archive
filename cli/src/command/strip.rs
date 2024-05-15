@@ -1,6 +1,6 @@
 use crate::{
     cli::{FileArgs, PasswordArgs, Verbosity},
-    command::{ask_password, commons::run_process_archive, Command},
+    command::{ask_password, commons::run_process_archive_path, Command},
     utils::{self, PathPartExt},
 };
 use clap::{Parser, ValueHint};
@@ -43,7 +43,7 @@ fn strip_metadata(args: StripCommand, _verbosity: Verbosity) -> io::Result<()> {
     let outfile = fs::File::create(&outfile_path)?;
     let mut out_archive = Archive::write_header(outfile)?;
 
-    run_process_archive(
+    run_process_archive_path(
         &args.file.archive,
         || password.as_deref(),
         |entry| {

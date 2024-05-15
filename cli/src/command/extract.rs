@@ -2,10 +2,12 @@ use crate::{
     cli::{FileArgs, PasswordArgs, Verbosity},
     command::{
         ask_password,
-        commons::{run_process_archive_reader, KeepOptions, OwnerOptions},
+        commons::{
+            run_process_archive, ArchiveProvider, KeepOptions, OwnerOptions, PathArchiveProvider,
+        },
         Command,
     },
-    utils::{self, GlobPatterns, PathPartExt},
+    utils::{self, GlobPatterns},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use indicatif::HumanDuration;
@@ -22,7 +24,7 @@ use std::os::unix::fs::{chown, PermissionsExt};
 use std::os::windows::fs::FileTimesExt;
 use std::{
     fs::{self, File, Permissions},
-    io::{self, prelude::*},
+    io,
     path::{Path, PathBuf},
     time::{Instant, SystemTime},
 };
@@ -98,12 +100,10 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
         uid: args.uid,
         gid: args.gid,
     };
-    let file = File::open(&args.file.archive)?;
     run_extract_archive_reader(
-        file,
+        PathArchiveProvider::new(&args.file.archive),
         args.file.files,
         || password.as_deref(),
-        |i| File::open(args.file.archive.with_part(i).unwrap()),
         OutputOption {
             overwrite: args.overwrite,
             out_dir: args.out_dir,
@@ -128,18 +128,15 @@ pub(crate) struct OutputOption {
     pub(crate) owner_options: OwnerOptions,
 }
 
-pub(crate) fn run_extract_archive_reader<'p, R, Provider, N>(
-    reader: R,
+pub(crate) fn run_extract_archive_reader<'p, Provider>(
+    reader: impl ArchiveProvider,
     files: Vec<String>,
     mut password_provider: Provider,
-    get_next_reader: N,
     args: OutputOption,
     verbosity: Verbosity,
 ) -> io::Result<()>
 where
-    R: Read,
     Provider: FnMut() -> Option<&'p str>,
-    N: FnMut(usize) -> io::Result<R>,
 {
     let password = password_provider().map(ToOwned::to_owned);
     let globs =
@@ -152,42 +149,37 @@ where
     let mut hard_link_entries = Vec::new();
 
     let (tx, rx) = std::sync::mpsc::channel();
-    run_process_archive_reader(
-        reader,
-        password_provider,
-        |entry| {
-            let item = entry?;
-            let item_path = PathBuf::from(item.header().path().as_str());
-            if !globs.is_empty() && !globs.matches_any_path(&item_path) {
-                if verbosity == Verbosity::Verbose {
-                    eprintln!("Skip: {}", item.header().path())
-                }
-                return Ok(());
+    run_process_archive(reader, password_provider, |entry| {
+        let item = entry?;
+        let item_path = PathBuf::from(item.header().path().as_str());
+        if !globs.is_empty() && !globs.matches_any_path(&item_path) {
+            if verbosity == Verbosity::Verbose {
+                eprintln!("Skip: {}", item.header().path())
             }
-            if item.header().data_kind() == DataKind::HardLink {
-                hard_link_entries.push(item);
-                return Ok(());
-            }
-            let tx = tx.clone();
-            let password = password.clone();
-            let out_dir = args.out_dir.clone();
-            let owner_options = args.owner_options.clone();
-            pool.spawn_fifo(move || {
-                tx.send(extract_entry(
-                    item,
-                    password,
-                    args.overwrite,
-                    out_dir.as_deref(),
-                    args.keep_options,
-                    owner_options,
-                    verbosity,
-                ))
-                .unwrap_or_else(|e| panic!("{e}: {}", item_path.display()));
-            });
-            Ok(())
-        },
-        get_next_reader,
-    )?;
+            return Ok(());
+        }
+        if item.header().data_kind() == DataKind::HardLink {
+            hard_link_entries.push(item);
+            return Ok(());
+        }
+        let tx = tx.clone();
+        let password = password.clone();
+        let out_dir = args.out_dir.clone();
+        let owner_options = args.owner_options.clone();
+        pool.spawn_fifo(move || {
+            tx.send(extract_entry(
+                item,
+                password,
+                args.overwrite,
+                out_dir.as_deref(),
+                args.keep_options,
+                owner_options,
+                verbosity,
+            ))
+            .unwrap_or_else(|e| panic!("{e}: {}", item_path.display()));
+        });
+        Ok(())
+    })?;
     drop(tx);
     for result in rx {
         result?;

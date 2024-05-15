@@ -2,17 +2,20 @@ use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, PasswordArgs, Verbosity},
     command::{
         ask_password, check_password,
-        commons::{collect_items, entry_option, KeepOptions, OwnerOptions},
+        commons::{
+            collect_items, entry_option, KeepOptions, OwnerOptions, PathArchiveProvider,
+            StdinArchiveProvider,
+        },
         create::create_archive_file,
         extract::{run_extract_archive_reader, OutputOption},
         Command,
     },
-    utils::{self, PathPartExt},
+    utils,
 };
 use clap::{ArgGroup, Args, Parser, ValueHint};
 use std::{
     fs,
-    io::{self, stdin, stdout},
+    io::{self, stdout},
     path::PathBuf,
 };
 
@@ -209,19 +212,17 @@ fn run_extract_archive(args: StdioCommand, verbosity: Verbosity) -> io::Result<(
     };
     if let Some(file) = args.file {
         run_extract_archive_reader(
-            fs::File::open(&file)?,
+            PathArchiveProvider::new(&file),
             args.files,
             || password.as_deref(),
-            |i| fs::File::open(file.with_part(i).unwrap()),
             out_option,
             verbosity,
         )
     } else {
         run_extract_archive_reader(
-            stdin().lock(),
+            StdinArchiveProvider::new(),
             args.files,
             || password.as_deref(),
-            |_i| Ok(stdin().lock()),
             out_option,
             verbosity,
         )

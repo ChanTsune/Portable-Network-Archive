@@ -1,6 +1,6 @@
 use crate::{
     cli::{FileArgs, PasswordArgs, Verbosity},
-    command::{ask_password, commons::run_process_archive, Command},
+    command::{ask_password, commons::run_process_archive_path, Command},
     utils::{self, GlobPatterns, PathPartExt},
 };
 use clap::{ArgGroup, Parser, ValueHint};
@@ -43,7 +43,7 @@ fn delete_file_from_archive(args: DeleteCommand, _verbosity: Verbosity) -> io::R
     let outfile = fs::File::create(&outfile_path)?;
     let mut out_archive = Archive::write_header(outfile)?;
 
-    run_process_archive(
+    run_process_archive_path(
         &args.file.archive,
         || password.as_deref(),
         |entry| {

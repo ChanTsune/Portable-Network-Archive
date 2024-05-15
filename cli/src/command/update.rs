@@ -3,7 +3,7 @@ use crate::{
     command::{
         ask_password, check_password,
         commons::{
-            collect_items, create_entry, entry_option, run_process_archive, CreateOptions,
+            collect_items, create_entry, entry_option, run_process_archive_path, CreateOptions,
             KeepOptions, OwnerOptions,
         },
         Command,
@@ -209,7 +209,7 @@ fn update_archive(args: UpdateCommand, verbosity: Verbosity) -> io::Result<()> {
         |_: &Path, _: &RegularEntry| -> io::Result<bool> { Ok(true) }
     };
 
-    run_process_archive(
+    run_process_archive_path(
         &archive_path,
         || password.as_deref(),
         |entry| {
