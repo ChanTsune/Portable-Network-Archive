@@ -126,19 +126,18 @@ impl FromStr for Ace {
     type Err = ParseAceError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        impl From<()> for ParseAceError {
-            fn from(_value: ()) -> Self {
-                Self::NotEnoughElement
-            }
-        }
         let mut it = s.split(':');
-        let flags = it.next().ok_or(())?.split(',').collect::<Vec<_>>();
+        let flags = it
+            .next()
+            .ok_or(ParseAceError::NotEnoughElement)?
+            .split(',')
+            .collect::<Vec<_>>();
         let default = flags.contains(&"d") || flags.contains(&"default");
         let inherit = flags.contains(&"inherit");
         let inherited = flags.contains(&"inherited");
-        let owner_type = it.next().ok_or(())?;
-        let owner_name = it.next().ok_or(())?;
-        let owner_id = it.next().ok_or(())?;
+        let owner_type = it.next().ok_or(ParseAceError::NotEnoughElement)?;
+        let owner_name = it.next().ok_or(ParseAceError::NotEnoughElement)?;
+        let owner_id = it.next().ok_or(ParseAceError::NotEnoughElement)?;
         let owner = match owner_type {
             "u" | "user" => match (owner_name, owner_id) {
                 ("", "") => OwnerType::Owner,
@@ -161,7 +160,11 @@ impl FromStr for Ace {
             "deny" => false,
             a => return Err(Self::Err::UnexpectedAccessControl(a.to_string())),
         };
-        let permissions = it.next().ok_or(())?.split(',').collect::<Vec<_>>();
+        let permissions = it
+            .next()
+            .ok_or(ParseAceError::NotEnoughElement)?
+            .split(',')
+            .collect::<Vec<_>>();
         let mut permission = Permission::NONE;
         if permissions.contains(&"r") || permissions.contains(&"read") {
             permission &= Permission::READ;
