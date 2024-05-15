@@ -216,7 +216,7 @@ pub(crate) fn run_list_archive(
             match entry? {
                 ReadEntry::Solid(solid) => {
                     if args.solid {
-                        for entry in solid.entries(password.as_deref())? {
+                        for entry in solid.entries(password)? {
                             let entry = entry?;
                             let xattrs = if args.show_xattr {
                                 entry
@@ -230,7 +230,7 @@ pub(crate) fn run_list_archive(
                             entries.push(
                                 (
                                     entry,
-                                    password.as_deref(),
+                                    password,
                                     now,
                                     Some(solid.header()),
                                     args.numeric_owner,
@@ -252,7 +252,7 @@ pub(crate) fn run_list_archive(
                     } else {
                         Vec::new()
                     };
-                    entries.push((item, password.as_deref(), now, None, args.numeric_owner).into());
+                    entries.push((item, password, now, None, args.numeric_owner).into());
                     entries.extend(xattrs);
                 }
             }
