@@ -1,4 +1,5 @@
 use pna::ChunkType;
+use std::error::Error;
 use std::num::ParseIntError;
 use std::str::FromStr;
 use std::{
@@ -59,6 +60,14 @@ pub enum ParseAceError {
     UnexpectedAccessControl(String),
     UnexpectedOwnerType(String),
 }
+
+impl Display for ParseAceError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl Error for ParseAceError {}
 
 impl From<ParseIntError> for ParseAceError {
     fn from(value: ParseIntError) -> Self {
