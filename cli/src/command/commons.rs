@@ -23,6 +23,7 @@ pub(crate) struct KeepOptions {
     pub(crate) keep_timestamp: bool,
     pub(crate) keep_permission: bool,
     pub(crate) keep_xattr: bool,
+    pub(crate) keep_acl: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]

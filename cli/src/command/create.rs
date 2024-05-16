@@ -24,6 +24,7 @@ use std::{
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(
+    group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
     group(ArgGroup::new("unstable-create-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from-stdin").args(["files_from_stdin"]).requires("unstable")),
@@ -48,6 +49,8 @@ pub(crate) struct CreateCommand {
     pub(crate) keep_permission: bool,
     #[arg(long, help = "Archiving the extended attributes of the files")]
     pub(crate) keep_xattr: bool,
+    #[arg(long, help = "Archiving the acl of the files")]
+    pub(crate) keep_acl: bool,
     #[arg(long, help = "Split archive by total entry size")]
     pub(crate) split: Option<Option<ByteSize>>,
     #[arg(long, help = "Solid mode archive")]
@@ -140,6 +143,7 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
         keep_timestamp: args.keep_timestamp,
         keep_permission: args.keep_permission,
         keep_xattr: args.keep_xattr,
+        keep_acl: args.keep_acl,
     };
     let owner_options = OwnerOptions {
         uname: if args.numeric_owner {

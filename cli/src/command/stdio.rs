@@ -21,6 +21,7 @@ use std::{
 
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(
+    group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
     group(ArgGroup::new("bundled-flags").args(["create", "extract"]).required(true)),
     group(ArgGroup::new("unstable-exclude-from").args(["files_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
@@ -44,6 +45,8 @@ pub(crate) struct StdioCommand {
     keep_permission: bool,
     #[arg(long, help = "Archiving the extended attributes of the files")]
     keep_xattr: bool,
+    #[arg(long, help = "Archiving the acl of the files")]
+    pub(crate) keep_acl: bool,
     #[arg(long, help = "Solid mode archive")]
     pub(crate) solid: bool,
     #[command(flatten)]
@@ -147,6 +150,7 @@ fn run_create_archive(args: StdioCommand, verbosity: Verbosity) -> io::Result<()
         keep_timestamp: args.keep_timestamp,
         keep_permission: args.keep_permission,
         keep_xattr: args.keep_xattr,
+        keep_acl: args.keep_acl,
     };
     let owner_options = OwnerOptions {
         uname: if args.numeric_owner {
@@ -194,6 +198,7 @@ fn run_extract_archive(args: StdioCommand, verbosity: Verbosity) -> io::Result<(
             keep_timestamp: args.keep_timestamp,
             keep_permission: args.keep_permission,
             keep_xattr: args.keep_xattr,
+            keep_acl: args.keep_acl,
         },
         owner_options: OwnerOptions {
             uname: if args.numeric_owner {
