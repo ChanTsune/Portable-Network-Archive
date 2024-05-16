@@ -192,11 +192,11 @@ fn list_archive(args: ListCommand, _: Verbosity) -> io::Result<()> {
 }
 
 pub(crate) struct ListOptions {
-    long: bool,
-    header: bool,
-    solid: bool,
-    show_xattr: bool,
-    numeric_owner: bool,
+    pub(crate) long: bool,
+    pub(crate) header: bool,
+    pub(crate) solid: bool,
+    pub(crate) show_xattr: bool,
+    pub(crate) numeric_owner: bool,
 }
 
 pub(crate) fn run_list_archive(
