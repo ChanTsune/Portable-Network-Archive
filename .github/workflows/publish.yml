@@ -18,6 +18,9 @@ jobs:
         with:
           submodules: true
       - uses: ./.github/actions/setup-rust
+      - name: install dependencies
+        run: |
+          sudo apt install -y libacl1-dev
       - if: startsWith(github.ref, 'refs/tags/libpna')
         name: Publish libpna crate
         run: cargo publish -p libpna
