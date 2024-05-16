@@ -1263,6 +1263,7 @@ name = "portable-network-archive"
 version = "0.11.1"
 dependencies = [
  "ansi_term",
+ "bitflags 2.5.0",
  "bytesize",
  "chrono",
  "clap",

@@ -1,10 +1,10 @@
+use bitflags::bitflags;
 use pna::ChunkType;
-use std::error::Error;
-use std::num::ParseIntError;
-use std::str::FromStr;
 use std::{
+    error::Error,
     fmt::{self, Display, Formatter},
-    ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign},
+    num::ParseIntError,
+    str::FromStr,
 };
 
 /// [ChunkType] File Access Control Entry
@@ -106,13 +106,13 @@ impl Display for Ace {
         }
 
         let mut permission_list = Vec::new();
-        if self.permission.is_readable() {
+        if self.permission.contains(Permission::READ) {
             permission_list.push("r");
         }
-        if self.permission.is_writeable() {
+        if self.permission.contains(Permission::WRITE) {
             permission_list.push("w");
         }
-        if self.permission.is_executable() {
+        if self.permission.contains(Permission::EXEC) {
             permission_list.push("x");
         }
 
@@ -170,7 +170,7 @@ impl FromStr for Ace {
             .ok_or(ParseAceError::NotEnoughElement)?
             .split(',')
             .collect::<Vec<_>>();
-        let mut permission = Permission::NONE;
+        let mut permission = Permission::empty();
         if permissions.contains(&"r") || permissions.contains(&"read") {
             permission &= Permission::READ;
         }
@@ -209,7 +209,7 @@ impl Into<Ace> for exacl::AclEntry {
         let inherited = self.flags.contains(exacl::Flag::INHERITED);
         #[cfg(not(any(target_os = "macos", target_os = "freebsd")))]
         let inherited = false;
-        let mut permission = Permission::NONE;
+        let mut permission = Permission::empty();
         if self.perms.contains(exacl::Perm::READ) {
             permission &= Permission::READ;
         }
@@ -272,13 +272,13 @@ impl Into<exacl::AclEntry> for Ace {
             OwnerType::Other => (exacl::AclEntryKind::Other, String::new()),
         };
         let mut perms = exacl::Perm::empty();
-        if self.permission.is_readable() {
+        if self.permission.contains(Permission::READ) {
             perms.insert(exacl::Perm::READ);
         }
-        if self.permission.is_writeable() {
+        if self.permission.contains(Permission::WRITE) {
             perms.insert(exacl::Perm::WRITE);
         }
-        if self.permission.is_executable() {
+        if self.permission.contains(Permission::EXEC) {
             perms.insert(exacl::Perm::EXECUTE);
         }
 
@@ -305,52 +305,12 @@ impl Into<exacl::AclEntry> for Ace {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct Permission(u8);
-
-impl Permission {
-    const NONE: Self = Self(0);
-    pub const READ: Self = Self(0b001);
-    pub const WRITE: Self = Self(0b010);
-    pub const EXEC: Self = Self(0b100);
-
-    pub fn is_readable(&self) -> bool {
-        (*self & Self::READ) == Self::READ
-    }
-
-    pub fn is_writeable(&self) -> bool {
-        (*self & Self::WRITE) == Self::WRITE
-    }
-
-    pub fn is_executable(&self) -> bool {
-        (*self & Self::EXEC) == Self::EXEC
-    }
-}
-
-impl BitAnd<Self> for Permission {
-    type Output = Self;
-
-    fn bitand(self, rhs: Self) -> Self::Output {
-        Self(self.0 & rhs.0)
-    }
-}
-
-impl BitAndAssign<Self> for Permission {
-    fn bitand_assign(&mut self, rhs: Self) {
-        self.0 &= rhs.0
-    }
-}
-
-impl BitOr<Self> for Permission {
-    type Output = Self;
-    fn bitor(self, rhs: Self) -> Self::Output {
-        Self(self.0 | rhs.0)
-    }
-}
-
-impl BitOrAssign<Self> for Permission {
-    fn bitor_assign(&mut self, rhs: Self) {
-        self.0 |= rhs.0
+bitflags! {
+    #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+    pub struct Permission: u8 {
+        const READ = 0b001;
+        const WRITE = 0b010;
+        const EXEC = 0b100;
     }
 }
 
