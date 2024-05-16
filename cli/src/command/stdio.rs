@@ -8,6 +8,7 @@ use crate::{
         },
         create::create_archive_file,
         extract::{run_extract_archive_reader, OutputOption},
+        list::ListOptions,
         Command,
     },
     utils,
@@ -21,7 +22,7 @@ use std::{
 
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(
-    group(ArgGroup::new("bundled-flags").args(["create", "extract"]).required(true)),
+    group(ArgGroup::new("bundled-flags").args(["create", "extract", "list"]).required(true)),
     group(ArgGroup::new("unstable-exclude-from").args(["files_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
@@ -32,6 +33,8 @@ pub(crate) struct StdioCommand {
     create: bool,
     #[arg(short = 'x', long, help = "Extract archive")]
     extract: bool,
+    #[arg(short = 't', long, help = "List files in archive")]
+    list: bool,
     #[arg(short, long, help = "Add the directory to the archive recursively")]
     recursive: bool,
     #[arg(long, help = "Overwrite file")]
@@ -108,6 +111,8 @@ fn run_stdio(args: StdioCommand, verbosity: Verbosity) -> io::Result<()> {
         run_create_archive(args, verbosity)
     } else if args.extract {
         run_extract_archive(args, verbosity)
+    } else if args.list {
+        run_list_archive(args, verbosity)
     } else {
         unreachable!()
     }
@@ -225,6 +230,32 @@ fn run_extract_archive(args: StdioCommand, verbosity: Verbosity) -> io::Result<(
             || password.as_deref(),
             out_option,
             verbosity,
+        )
+    }
+}
+
+fn run_list_archive(args: StdioCommand, _verbosity: Verbosity) -> io::Result<()> {
+    let password = ask_password(args.password)?;
+    let list_options = ListOptions {
+        long: false,
+        header: false,
+        solid: true,
+        show_xattr: false,
+        numeric_owner: args.numeric_owner,
+    };
+    if let Some(path) = args.file {
+        crate::command::list::run_list_archive(
+            PathArchiveProvider::new(&path),
+            password.as_deref(),
+            &args.files,
+            list_options,
+        )
+    } else {
+        crate::command::list::run_list_archive(
+            StdinArchiveProvider::new(),
+            password.as_deref(),
+            &args.files,
+            list_options,
         )
     }
 }
