@@ -78,9 +78,7 @@ impl From<ParseIntError> for ParseAceError {
 /// Access Control Entry
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Ace {
-    inherit: bool,
-    inherited: bool,
-    default: bool,
+    flags: Flag,
     owner_type: OwnerType,
     allow: bool,
     permission: Permission,
@@ -95,13 +93,13 @@ impl Ace {
 impl Display for Ace {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut flags = Vec::new();
-        if self.default {
+        if self.flags.contains(Flag::DEFAULT) {
             flags.push("d");
         }
-        if self.inherit {
+        if self.flags.contains(Flag::INHERIT) {
             flags.push("inherit");
         }
-        if self.inherited {
+        if self.flags.contains(Flag::INHERITED) {
             flags.push("inherited");
         }
 
@@ -132,14 +130,21 @@ impl FromStr for Ace {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut it = s.split(':');
-        let flags = it
+        let flag_list = it
             .next()
             .ok_or(ParseAceError::NotEnoughElement)?
             .split(',')
             .collect::<Vec<_>>();
-        let default = flags.contains(&"d") || flags.contains(&"default");
-        let inherit = flags.contains(&"inherit");
-        let inherited = flags.contains(&"inherited");
+        let mut flags = Flag::empty();
+        if flag_list.contains(&"d") || flag_list.contains(&"default") {
+            flags.insert(Flag::DEFAULT);
+        }
+        if flag_list.contains(&"inherit") {
+            flags.insert(Flag::INHERIT);
+        }
+        if flag_list.contains(&"inherited") {
+            flags.insert(Flag::INHERITED);
+        }
         let owner_type = it.next().ok_or(ParseAceError::NotEnoughElement)?;
         let owner_name = it.next().ok_or(ParseAceError::NotEnoughElement)?;
         let owner_id = it.next().ok_or(ParseAceError::NotEnoughElement)?;
@@ -172,21 +177,19 @@ impl FromStr for Ace {
             .collect::<Vec<_>>();
         let mut permission = Permission::empty();
         if permissions.contains(&"r") || permissions.contains(&"read") {
-            permission &= Permission::READ;
+            permission.insert(Permission::READ);
         }
         if permissions.contains(&"w") || permissions.contains(&"write") {
-            permission &= Permission::WRITE;
+            permission.insert(Permission::WRITE);
         }
         if permissions.contains(&"x") || permissions.contains(&"execute") {
-            permission &= Permission::EXEC;
+            permission.insert(Permission::EXEC);
         }
         if it.next().is_some() {
             return Err(Self::Err::TooManyElement);
         }
         Ok(Self {
-            inherit,
-            inherited,
-            default,
+            flags,
             owner_type: owner,
             allow,
             permission,
@@ -197,32 +200,31 @@ impl FromStr for Ace {
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "macos"))]
 impl Into<Ace> for exacl::AclEntry {
     fn into(self) -> Ace {
+        let mut flags = Flag::empty();
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-        let default = self.flags.contains(exacl::Flag::DEFAULT);
-        #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
-        let default = false;
+        if self.flags.contains(exacl::Flag::DEFAULT) {
+            flags.insert(Flag::DEFAULT);
+        }
         #[cfg(any(target_os = "macos", target_os = "freebsd"))]
-        let inherit = self.flags.contains(exacl::Flag::DIRECTORY_INHERIT);
-        #[cfg(not(any(target_os = "macos", target_os = "freebsd")))]
-        let inherit = false;
+        if self.flags.contains(exacl::Flag::DIRECTORY_INHERIT) {
+            flags.insert(Flag::INHERITED);
+        }
         #[cfg(any(target_os = "macos", target_os = "freebsd"))]
-        let inherited = self.flags.contains(exacl::Flag::INHERITED);
-        #[cfg(not(any(target_os = "macos", target_os = "freebsd")))]
-        let inherited = false;
+        if self.flags.contains(exacl::Flag::INHERITED) {
+            flags.insert(Flag::INHERITED);
+        }
         let mut permission = Permission::empty();
         if self.perms.contains(exacl::Perm::READ) {
-            permission &= Permission::READ;
+            permission.insert(Permission::READ);
         }
         if self.perms.contains(exacl::Perm::WRITE) {
-            permission &= Permission::WRITE;
+            permission.insert(Permission::WRITE);
         }
         if self.perms.contains(exacl::Perm::EXECUTE) {
-            permission &= Permission::EXEC;
+            permission.insert(Permission::EXEC);
         }
         Ace {
-            inherit,
-            inherited,
-            default,
+            flags,
             owner_type: match self.kind {
                 exacl::AclEntryKind::User => OwnerType::Owner,
                 exacl::AclEntryKind::Group => OwnerType::OwnerGroup,
@@ -284,15 +286,15 @@ impl Into<exacl::AclEntry> for Ace {
 
         let mut flags = exacl::Flag::empty();
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-        if self.default {
+        if self.flags.contains(Flag::DEFAULT) {
             flags.insert(exacl::Flag::DEFAULT);
         }
         #[cfg(any(target_os = "macos", target_os = "freebsd"))]
-        if self.inherit {
+        if self.flags.contains(Flag::INHERIT) {
             flags.insert(exacl::Flag::DIRECTORY_INHERIT);
         }
         #[cfg(any(target_os = "macos", target_os = "freebsd"))]
-        if self.inherited {
+        if self.flags.contains(Flag::INHERITED) {
             flags.insert(exacl::Flag::INHERITED);
         }
         exacl::AclEntry {
@@ -314,15 +316,22 @@ bitflags! {
     }
 }
 
+bitflags! {
+    #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+    pub struct Flag: u8 {
+        const DEFAULT = 0b001;
+        const INHERIT = 0b010;
+        const INHERITED = 0b100;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
     fn ace_to_string_from_str() {
         let ace = Ace {
-            inherit: true,
-            inherited: true,
-            default: true,
+            flags: Flag::all(),
             owner_type: OwnerType::Owner,
             allow: true,
             permission: Permission::READ & Permission::WRITE & Permission::EXEC,
