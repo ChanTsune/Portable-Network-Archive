@@ -240,6 +240,71 @@ impl Into<Ace> for exacl::AclEntry {
     }
 }
 
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "macos"))]
+impl Into<exacl::AclEntry> for Ace {
+    fn into(self) -> exacl::AclEntry {
+        let (kind, name) = match self.owner_type {
+            OwnerType::Owner => (exacl::AclEntryKind::User, String::new()),
+            OwnerType::User(u) => (
+                exacl::AclEntryKind::User,
+                match u {
+                    Identifier::Name(u) => u,
+                    Identifier::Id(n) => n.to_string(),
+                    Identifier::Both(u, _) => u,
+                },
+            ),
+            OwnerType::OwnerGroup => (exacl::AclEntryKind::Group, String::new()),
+            OwnerType::Group(u) => (
+                exacl::AclEntryKind::Group,
+                match u {
+                    Identifier::Name(u) => u,
+                    Identifier::Id(n) => n.to_string(),
+                    Identifier::Both(u, _) => u,
+                },
+            ),
+            #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+            OwnerType::Mask => (exacl::AclEntryKind::Unknown, String::new()),
+            #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+            OwnerType::Mask => (exacl::AclEntryKind::Mask, String::new()),
+            #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+            OwnerType::Other => (exacl::AclEntryKind::Unknown, String::new()),
+            #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+            OwnerType::Other => (exacl::AclEntryKind::Other, String::new()),
+        };
+        let mut perms = exacl::Perm::empty();
+        if self.permission.is_readable() {
+            perms.insert(exacl::Perm::READ);
+        }
+        if self.permission.is_writeable() {
+            perms.insert(exacl::Perm::WRITE);
+        }
+        if self.permission.is_executable() {
+            perms.insert(exacl::Perm::EXECUTE);
+        }
+
+        let mut flags = exacl::Flag::empty();
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        if self.default {
+            flags.insert(exacl::Flag::DEFAULT);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if self.inherit {
+            flags.insert(exacl::Flag::DIRECTORY_INHERIT);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if self.inherited {
+            flags.insert(exacl::Flag::INHERITED);
+        }
+        exacl::AclEntry {
+            kind,
+            name,
+            perms,
+            flags,
+            allow: self.allow,
+        }
+    }
+}
+
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Permission(u8);
 
