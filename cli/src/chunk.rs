@@ -367,7 +367,7 @@ mod tests {
             flags: Flag::all(),
             owner_type: OwnerType::Owner,
             allow: true,
-            permission: Permission::READ & Permission::WRITE & Permission::EXEC,
+            permission: Permission::READ | Permission::WRITE | Permission::EXEC,
         };
         assert_eq!(Ace::from_str(&ace.to_string()), Ok(ace));
     }
