@@ -14,13 +14,22 @@ pub const faCe: ChunkType = unsafe { ChunkType::from_unchecked(*b"faCe") };
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum AcePlatform {
     General,
+    MacOs,
     Unknown(String),
+}
+
+impl AcePlatform {
+    #[cfg(target_os = "macos")]
+    pub const CURRENT: Self = Self::MacOs;
+    #[cfg(not(any(target_os = "macos")))]
+    pub const CURRENT: Self = Self::General;
 }
 
 impl Display for AcePlatform {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::General => f.write_str(""),
+            Self::MacOs => f.write_str("macos"),
             Self::Unknown(s) => f.write_str(s),
         }
     }
@@ -32,6 +41,7 @@ impl FromStr for AcePlatform {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "" => Ok(Self::General),
+            "macos" => Ok(Self::MacOs),
             s => Ok(Self::Unknown(s.to_string())),
         }
     }
@@ -123,8 +133,17 @@ impl Display for Ace {
         if self.flags.contains(Flag::DEFAULT) {
             flags.push("d");
         }
-        if self.flags.contains(Flag::INHERIT) {
-            flags.push("inherit");
+        if self.flags.contains(Flag::FILE_INHERIT) {
+            flags.push("file_inherit");
+        }
+        if self.flags.contains(Flag::DIRECTORY_INHERIT) {
+            flags.push("directory_inherit");
+        }
+        if self.flags.contains(Flag::LIMIT_INHERIT) {
+            flags.push("limit_inherit");
+        }
+        if self.flags.contains(Flag::ONLY_INHERIT) {
+            flags.push("only_inherit");
         }
         if self.flags.contains(Flag::INHERITED) {
             flags.push("inherited");
@@ -169,8 +188,17 @@ impl FromStr for Ace {
         if flag_list.contains(&"d") || flag_list.contains(&"default") {
             flags.insert(Flag::DEFAULT);
         }
-        if flag_list.contains(&"inherit") {
-            flags.insert(Flag::INHERIT);
+        if flag_list.contains(&"file_inherit") {
+            flags.insert(Flag::FILE_INHERIT);
+        }
+        if flag_list.contains(&"directory_inherit") {
+            flags.insert(Flag::DIRECTORY_INHERIT);
+        }
+        if flag_list.contains(&"limit_inherit") {
+            flags.insert(Flag::LIMIT_INHERIT);
+        }
+        if flag_list.contains(&"only_inherit") {
+            flags.insert(Flag::ONLY_INHERIT);
         }
         if flag_list.contains(&"inherited") {
             flags.insert(Flag::INHERITED);
@@ -322,8 +350,20 @@ impl Into<exacl::AclEntry> for Ace {
             flags.insert(exacl::Flag::DEFAULT);
         }
         #[cfg(any(target_os = "macos", target_os = "freebsd"))]
-        if self.flags.contains(Flag::INHERIT) {
+        if self.flags.contains(Flag::FILE_INHERIT) {
+            flags.insert(exacl::Flag::FILE_INHERIT);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if self.flags.contains(Flag::DIRECTORY_INHERIT) {
             flags.insert(exacl::Flag::DIRECTORY_INHERIT);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if self.flags.contains(Flag::LIMIT_INHERIT) {
+            flags.insert(exacl::Flag::LIMIT_INHERIT);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if self.flags.contains(Flag::ONLY_INHERIT) {
+            flags.insert(exacl::Flag::ONLY_INHERIT);
         }
         #[cfg(any(target_os = "macos", target_os = "freebsd"))]
         if self.flags.contains(Flag::INHERITED) {
@@ -339,6 +379,29 @@ impl Into<exacl::AclEntry> for Ace {
     }
 }
 
+pub fn ace_convert_platform(src: Ace, to: AcePlatform) -> Ace {
+    match &to {
+        AcePlatform::General | AcePlatform::Unknown(_) => ace_to_generic(src),
+        AcePlatform::MacOs => ace_to_macos(src),
+    }
+}
+
+fn ace_to_generic(src: Ace) -> Ace {
+    if src.platform == AcePlatform::General {
+        return src;
+    }
+    todo!()
+}
+
+fn ace_to_macos(src: Ace) -> Ace {
+    if src.platform == AcePlatform::MacOs {
+        return src;
+    } else {
+        let middle = ace_to_generic(src);
+        todo!()
+    }
+}
+
 bitflags! {
     #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
     pub struct Permission: u8 {
@@ -351,9 +414,12 @@ bitflags! {
 bitflags! {
     #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
     pub struct Flag: u8 {
-        const DEFAULT = 0b001;
-        const INHERIT = 0b010;
-        const INHERITED = 0b100;
+        const DEFAULT = 0b1;
+        const INHERITED = 0b10;
+        const FILE_INHERIT = 0b100;
+        const DIRECTORY_INHERIT = 0b1000;
+        const LIMIT_INHERIT = 0b10000;
+        const ONLY_INHERIT = 0b100000;
     }
 }
 
