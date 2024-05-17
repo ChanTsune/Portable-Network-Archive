@@ -283,7 +283,7 @@ impl Into<Ace> for exacl::AclEntry {
             permission.insert(Permission::EXEC);
         }
         Ace {
-            platform: AcePlatform::General,
+            platform: AcePlatform::CURRENT,
             flags,
             owner_type: match self.kind {
                 exacl::AclEntryKind::User => OwnerType::Owner,
@@ -305,7 +305,8 @@ impl Into<Ace> for exacl::AclEntry {
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "macos"))]
 impl Into<exacl::AclEntry> for Ace {
     fn into(self) -> exacl::AclEntry {
-        let (kind, name) = match self.owner_type {
+        let slf = ace_convert_platform(self, AcePlatform::CURRENT);
+        let (kind, name) = match slf.owner_type {
             OwnerType::Owner => (exacl::AclEntryKind::User, String::new()),
             OwnerType::User(u) => (
                 exacl::AclEntryKind::User,
@@ -334,39 +335,39 @@ impl Into<exacl::AclEntry> for Ace {
             OwnerType::Other => (exacl::AclEntryKind::Other, String::new()),
         };
         let mut perms = exacl::Perm::empty();
-        if self.permission.contains(Permission::READ) {
+        if slf.permission.contains(Permission::READ) {
             perms.insert(exacl::Perm::READ);
         }
-        if self.permission.contains(Permission::WRITE) {
+        if slf.permission.contains(Permission::WRITE) {
             perms.insert(exacl::Perm::WRITE);
         }
-        if self.permission.contains(Permission::EXEC) {
+        if slf.permission.contains(Permission::EXEC) {
             perms.insert(exacl::Perm::EXECUTE);
         }
 
         let mut flags = exacl::Flag::empty();
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-        if self.flags.contains(Flag::DEFAULT) {
+        if slf.flags.contains(Flag::DEFAULT) {
             flags.insert(exacl::Flag::DEFAULT);
         }
         #[cfg(any(target_os = "macos", target_os = "freebsd"))]
-        if self.flags.contains(Flag::FILE_INHERIT) {
+        if slf.flags.contains(Flag::FILE_INHERIT) {
             flags.insert(exacl::Flag::FILE_INHERIT);
         }
         #[cfg(any(target_os = "macos", target_os = "freebsd"))]
-        if self.flags.contains(Flag::DIRECTORY_INHERIT) {
+        if slf.flags.contains(Flag::DIRECTORY_INHERIT) {
             flags.insert(exacl::Flag::DIRECTORY_INHERIT);
         }
         #[cfg(any(target_os = "macos", target_os = "freebsd"))]
-        if self.flags.contains(Flag::LIMIT_INHERIT) {
+        if slf.flags.contains(Flag::LIMIT_INHERIT) {
             flags.insert(exacl::Flag::LIMIT_INHERIT);
         }
         #[cfg(any(target_os = "macos", target_os = "freebsd"))]
-        if self.flags.contains(Flag::ONLY_INHERIT) {
+        if slf.flags.contains(Flag::ONLY_INHERIT) {
             flags.insert(exacl::Flag::ONLY_INHERIT);
         }
         #[cfg(any(target_os = "macos", target_os = "freebsd"))]
-        if self.flags.contains(Flag::INHERITED) {
+        if slf.flags.contains(Flag::INHERITED) {
             flags.insert(exacl::Flag::INHERITED);
         }
         exacl::AclEntry {
@@ -374,7 +375,7 @@ impl Into<exacl::AclEntry> for Ace {
             name,
             perms,
             flags,
-            allow: self.allow,
+            allow: slf.allow,
         }
     }
 }
