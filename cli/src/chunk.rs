@@ -265,8 +265,20 @@ impl Into<Ace> for exacl::AclEntry {
             flags.insert(Flag::DEFAULT);
         }
         #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if self.flags.contains(exacl::Flag::FILE_INHERIT) {
+            flags.insert(Flag::FILE_INHERIT);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
         if self.flags.contains(exacl::Flag::DIRECTORY_INHERIT) {
-            flags.insert(Flag::INHERITED);
+            flags.insert(Flag::DIRECTORY_INHERIT);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if self.flags.contains(exacl::Flag::ONLY_INHERIT) {
+            flags.insert(Flag::ONLY_INHERIT);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if self.flags.contains(exacl::Flag::LIMIT_INHERIT) {
+            flags.insert(Flag::LIMIT_INHERIT);
         }
         #[cfg(any(target_os = "macos", target_os = "freebsd"))]
         if self.flags.contains(exacl::Flag::INHERITED) {
