@@ -156,8 +156,47 @@ impl Display for Ace {
         if self.permission.contains(Permission::WRITE) {
             permission_list.push("w");
         }
-        if self.permission.contains(Permission::EXEC) {
+        if self.permission.contains(Permission::EXECUTE) {
             permission_list.push("x");
+        }
+        if self.permission.contains(Permission::DELETE) {
+            permission_list.push("delete");
+        }
+        if self.permission.contains(Permission::APPEND) {
+            permission_list.push("append");
+        }
+        if self.permission.contains(Permission::DELETE_CHILD) {
+            permission_list.push("delete_child");
+        }
+        if self.permission.contains(Permission::READATTR) {
+            permission_list.push("readattr");
+        }
+        if self.permission.contains(Permission::WRITEATTR) {
+            permission_list.push("writeattr");
+        }
+        if self.permission.contains(Permission::READEXTATTR) {
+            permission_list.push("readextattr");
+        }
+        if self.permission.contains(Permission::WRITEEXTATTR) {
+            permission_list.push("writeextattr");
+        }
+        if self.permission.contains(Permission::READSECURITY) {
+            permission_list.push("readsecurity");
+        }
+        if self.permission.contains(Permission::WRITESECURITY) {
+            permission_list.push("writesecurity");
+        }
+        if self.permission.contains(Permission::CHOWN) {
+            permission_list.push("chown");
+        }
+        if self.permission.contains(Permission::SYNC) {
+            permission_list.push("sync");
+        }
+        if self.permission.contains(Permission::READ_DATA) {
+            permission_list.push("read_data");
+        }
+        if self.permission.contains(Permission::WRITE_DATA) {
+            permission_list.push("write_data");
         }
 
         write!(
@@ -241,8 +280,48 @@ impl FromStr for Ace {
             permission.insert(Permission::WRITE);
         }
         if permissions.contains(&"x") || permissions.contains(&"execute") {
-            permission.insert(Permission::EXEC);
+            permission.insert(Permission::EXECUTE);
         }
+        if permissions.contains(&"delete") {
+            permission.insert(Permission::DELETE);
+        }
+        if permissions.contains(&"append") {
+            permission.insert(Permission::APPEND);
+        }
+        if permissions.contains(&"delete_child") {
+            permission.insert(Permission::DELETE_CHILD);
+        }
+        if permissions.contains(&"readattr") {
+            permission.insert(Permission::READATTR);
+        }
+        if permissions.contains(&"writeattr") {
+            permission.insert(Permission::WRITEATTR);
+        }
+        if permissions.contains(&"readextattr") {
+            permission.insert(Permission::READEXTATTR);
+        }
+        if permissions.contains(&"writeextattr") {
+            permission.insert(Permission::WRITEEXTATTR);
+        }
+        if permissions.contains(&"readsecurity") {
+            permission.insert(Permission::READSECURITY);
+        }
+        if permissions.contains(&"writesecurity") {
+            permission.insert(Permission::WRITESECURITY);
+        }
+        if permissions.contains(&"chown") {
+            permission.insert(Permission::CHOWN);
+        }
+        if permissions.contains(&"sync") {
+            permission.insert(Permission::SYNC);
+        }
+        if permissions.contains(&"read_data") {
+            permission.insert(Permission::READ_DATA);
+        }
+        if permissions.contains(&"write_data") {
+            permission.insert(Permission::WRITE_DATA);
+        }
+
         if it.next().is_some() {
             return Err(Self::Err::TooManyElement);
         }
@@ -292,8 +371,61 @@ impl Into<Ace> for exacl::AclEntry {
             permission.insert(Permission::WRITE);
         }
         if self.perms.contains(exacl::Perm::EXECUTE) {
-            permission.insert(Permission::EXEC);
+            permission.insert(Permission::EXECUTE);
         }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if self.perms.contains(exacl::Perm::DELETE) {
+            permission.insert(Permission::DELETE);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if self.perms.contains(exacl::Perm::APPEND) {
+            permission.insert(Permission::APPEND);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if self.perms.contains(exacl::Perm::DELETE_CHILD) {
+            permission.insert(Permission::DELETE_CHILD);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if self.perms.contains(exacl::Perm::READATTR) {
+            permission.insert(Permission::READATTR);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if self.perms.contains(exacl::Perm::WRITEATTR) {
+            permission.insert(Permission::WRITEATTR);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if self.perms.contains(exacl::Perm::READEXTATTR) {
+            permission.insert(Permission::READEXTATTR);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if self.perms.contains(exacl::Perm::WRITEEXTATTR) {
+            permission.insert(Permission::WRITEEXTATTR);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if self.perms.contains(exacl::Perm::READSECURITY) {
+            permission.insert(Permission::READSECURITY);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if self.perms.contains(exacl::Perm::WRITESECURITY) {
+            permission.insert(Permission::WRITESECURITY);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if self.perms.contains(exacl::Perm::CHOWN) {
+            permission.insert(Permission::CHOWN);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if self.perms.contains(exacl::Perm::SYNC) {
+            permission.insert(Permission::SYNC);
+        }
+        #[cfg(any(target_os = "freebsd"))]
+        if self.perms.contains(exacl::Perm::READ_DATA) {
+            permission.insert(Permission::READ_DATA);
+        }
+        #[cfg(any(target_os = "freebsd"))]
+        if self.perms.contains(exacl::Perm::WRITE_DATA) {
+            permission.insert(Permission::WRITE_DATA);
+        }
+
         Ace {
             platform: AcePlatform::CURRENT,
             flags,
@@ -353,8 +485,60 @@ impl Into<exacl::AclEntry> for Ace {
         if slf.permission.contains(Permission::WRITE) {
             perms.insert(exacl::Perm::WRITE);
         }
-        if slf.permission.contains(Permission::EXEC) {
+        if slf.permission.contains(Permission::EXECUTE) {
             perms.insert(exacl::Perm::EXECUTE);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if slf.permission.contains(Permission::DELETE) {
+            perms.insert(exacl::Perm::DELETE);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if slf.permission.contains(Permission::APPEND) {
+            perms.insert(exacl::Perm::APPEND);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if slf.permission.contains(Permission::DELETE_CHILD) {
+            perms.insert(exacl::Perm::DELETE_CHILD);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if slf.permission.contains(Permission::READATTR) {
+            perms.insert(exacl::Perm::READATTR);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if slf.permission.contains(Permission::WRITEATTR) {
+            perms.insert(exacl::Perm::WRITEATTR);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if slf.permission.contains(Permission::READEXTATTR) {
+            perms.insert(exacl::Perm::READEXTATTR);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if slf.permission.contains(Permission::WRITEEXTATTR) {
+            perms.insert(exacl::Perm::WRITEEXTATTR);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if slf.permission.contains(Permission::READSECURITY) {
+            perms.insert(exacl::Perm::READSECURITY);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if slf.permission.contains(Permission::WRITESECURITY) {
+            perms.insert(exacl::Perm::WRITESECURITY);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if slf.permission.contains(Permission::CHOWN) {
+            perms.insert(exacl::Perm::CHOWN);
+        }
+        #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+        if slf.permission.contains(Permission::SYNC) {
+            perms.insert(exacl::Perm::SYNC);
+        }
+        #[cfg(any(target_os = "freebsd"))]
+        if slf.permission.contains(Permission::READ_DATA) {
+            perms.insert(exacl::Perm::READ_DATA);
+        }
+        #[cfg(any(target_os = "freebsd"))]
+        if slf.permission.contains(Permission::WRITE_DATA) {
+            perms.insert(exacl::Perm::WRITE_DATA);
         }
 
         let mut flags = exacl::Flag::empty();
@@ -417,10 +601,58 @@ fn ace_to_macos(src: Ace) -> Ace {
 
 bitflags! {
     #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-    pub struct Permission: u8 {
+    pub struct Permission: u16 {
+        /// READ_DATA permission for a file.
+        /// Same as LIST_DIRECTORY permission for a directory.
         const READ = 0b001;
+
+        /// WRITE_DATA permission for a file.
+        /// Same as ADD_FILE permission for a directory.
         const WRITE = 0b010;
-        const EXEC = 0b100;
+
+        /// EXECUTE permission for a file.
+        /// Same as SEARCH permission for a directory.
+        const EXECUTE = 0b100;
+
+        /// DELETE permission for a file.
+        const DELETE = 0b1000;
+
+        /// APPEND_DATA permission for a file.
+        /// Same as ADD_SUBDIRECTORY permission for a directory.
+        const APPEND = 0b10000;
+
+        /// DELETE_CHILD permission for a directory.
+        const DELETE_CHILD = 0b100000;
+
+        /// READ_ATTRIBUTES permission for file or directory.
+        const READATTR = 0b1000000;
+
+        /// WRITE_ATTRIBUTES permission for a file or directory.
+        const WRITEATTR = 0b10000000;
+
+        /// READ_EXTATTRIBUTES permission for a file or directory.
+        const READEXTATTR = 0b100000000;
+
+        /// WRITE_EXTATTRIBUTES permission for a file or directory.
+        const WRITEEXTATTR = 0b1000000000;
+
+        /// READ_SECURITY permission for a file or directory.
+        const READSECURITY = 0b10000000000;
+
+        /// WRITE_SECURITY permission for a file or directory.
+        const WRITESECURITY = 0b100000000000;
+
+        /// CHANGE_OWNER permission for a file or directory.
+        const CHOWN = 0b1000000000000;
+
+        /// SYNCHRONIZE permission (unsupported).
+        const SYNC = 0b10000000000000;
+
+        /// NFSv4 READ_DATA permission.
+        const READ_DATA = 0b100000000000000;
+
+        /// NFSv4 WRITE_DATA permission.
+        const WRITE_DATA = 0b1000000000000000;
     }
 }
 
@@ -442,11 +674,11 @@ mod tests {
     #[test]
     fn ace_to_string_from_str() {
         let ace = Ace {
-            platform: AcePlatform::General,
+            platform: AcePlatform::CURRENT,
             flags: Flag::all(),
             owner_type: OwnerType::Owner,
             allow: true,
-            permission: Permission::READ | Permission::WRITE | Permission::EXEC,
+            permission: Permission::all(),
         };
         assert_eq!(Ace::from_str(&ace.to_string()), Ok(ace));
     }
