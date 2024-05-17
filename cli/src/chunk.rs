@@ -12,6 +12,32 @@ use std::{
 pub const faCe: ChunkType = unsafe { ChunkType::from_unchecked(*b"faCe") };
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub enum AcePlatform {
+    General,
+    Unknown(String),
+}
+
+impl Display for AcePlatform {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::General => f.write_str(""),
+            Self::Unknown(s) => f.write_str(s),
+        }
+    }
+}
+
+impl FromStr for AcePlatform {
+    type Err = core::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "" => Ok(Self::General),
+            s => Ok(Self::Unknown(s.to_string())),
+        }
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum Identifier {
     Name(String),
     Id(u64),
@@ -78,6 +104,7 @@ impl From<ParseIntError> for ParseAceError {
 /// Access Control Entry
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Ace {
+    platform: AcePlatform,
     flags: Flag,
     owner_type: OwnerType,
     allow: bool,
@@ -116,7 +143,8 @@ impl Display for Ace {
 
         write!(
             f,
-            "{}:{}:{}:{}",
+            "{}:{}:{}:{}:{}",
+            self.platform,
             flags.join(","),
             self.owner_type,
             if self.allow { "allow" } else { "deny" },
@@ -130,6 +158,8 @@ impl FromStr for Ace {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut it = s.split(':');
+        let platform = AcePlatform::from_str(it.next().ok_or(ParseAceError::NotEnoughElement)?)
+            .expect("Infallible error occurred");
         let flag_list = it
             .next()
             .ok_or(ParseAceError::NotEnoughElement)?
@@ -189,6 +219,7 @@ impl FromStr for Ace {
             return Err(Self::Err::TooManyElement);
         }
         Ok(Self {
+            platform,
             flags,
             owner_type: owner,
             allow,
@@ -224,6 +255,7 @@ impl Into<Ace> for exacl::AclEntry {
             permission.insert(Permission::EXEC);
         }
         Ace {
+            platform: AcePlatform::General,
             flags,
             owner_type: match self.kind {
                 exacl::AclEntryKind::User => OwnerType::Owner,
@@ -331,6 +363,7 @@ mod tests {
     #[test]
     fn ace_to_string_from_str() {
         let ace = Ace {
+            platform: AcePlatform::General,
             flags: Flag::all(),
             owner_type: OwnerType::Owner,
             allow: true,
