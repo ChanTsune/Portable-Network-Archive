@@ -685,6 +685,7 @@ mod tests {
         assert_eq!(Ace::from_str(&ace.to_string()), Ok(ace));
     }
 
+    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "macos"))]
     #[test]
     fn ace_mutual_convert() {
         let acl_entry = exacl::AclEntry {
