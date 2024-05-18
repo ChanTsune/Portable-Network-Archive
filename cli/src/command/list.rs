@@ -1,4 +1,5 @@
 use crate::{
+    chunk,
     cli::{FileArgs, PasswordArgs, Verbosity},
     command::{
         ask_password,
@@ -11,12 +12,13 @@ use ansi_term::{ANSIString, Colour, Style};
 use chrono::{DateTime, Local};
 use clap::Parser;
 use pna::{
-    Compression, DataKind, Encryption, ExtendedAttribute, ReadEntry, ReadOption, RegularEntry,
-    SolidHeader,
+    Chunk, Compression, DataKind, Encryption, ExtendedAttribute, ReadEntry, ReadOption,
+    RegularEntry, SolidHeader,
 };
 use rayon::prelude::*;
 use std::{
     io,
+    str::FromStr,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tabled::{
@@ -39,6 +41,8 @@ pub(crate) struct ListCommand {
     pub(crate) solid: bool,
     #[arg(short = '@', help = "Display extended file attributes in a table")]
     pub(crate) show_xattr: bool,
+    #[arg(short = 'e', help = "Display acl in a table")]
+    pub(crate) show_acl: bool,
     #[arg(
         long,
         help = "Display user id and group id instead of user name and group name"
@@ -78,6 +82,21 @@ impl TableRow {
             compression: String::new(),
             permissions: name.to_owned(),
             raw_size: value.len().to_string(),
+            compressed_size: String::new(),
+            user: String::new(),
+            group: String::new(),
+            created: String::new(),
+            modified: String::new(),
+            name: String::new(),
+        }
+    }
+
+    fn from_acl(acl: chunk::Ace) -> Self {
+        Self {
+            encryption: String::new(),
+            compression: String::new(),
+            permissions: acl.to_string(),
+            raw_size: String::new(),
             compressed_size: String::new(),
             user: String::new(),
             group: String::new(),
@@ -186,6 +205,7 @@ fn list_archive(args: ListCommand, _: Verbosity) -> io::Result<()> {
             header: args.header,
             solid: args.solid,
             show_xattr: args.show_xattr,
+            show_acl: args.show_acl,
             numeric_owner: args.numeric_owner,
         },
     )
@@ -196,6 +216,7 @@ pub(crate) struct ListOptions {
     pub(crate) header: bool,
     pub(crate) solid: bool,
     pub(crate) show_xattr: bool,
+    pub(crate) show_acl: bool,
     pub(crate) numeric_owner: bool,
 }
 
@@ -227,6 +248,21 @@ pub(crate) fn run_list_archive(
                             } else {
                                 Vec::new()
                             };
+                            let acl = if args.show_acl {
+                                let mut acl = Vec::new();
+                                for c in entry.extra_chunks() {
+                                    if c.ty() == chunk::faCe {
+                                        let body = std::str::from_utf8(c.data())
+                                            .map_err(io::Error::other)?;
+                                        let ace =
+                                            chunk::Ace::from_str(body).map_err(io::Error::other)?;
+                                        acl.push(ace);
+                                    }
+                                }
+                                acl
+                            } else {
+                                Vec::new()
+                            };
                             entries.push(
                                 (
                                     entry,
@@ -237,6 +273,9 @@ pub(crate) fn run_list_archive(
                                 )
                                     .into(),
                             );
+                            for ace in acl {
+                                entries.push(TableRow::from_acl(ace));
+                            }
                             entries.extend(xattrs);
                         }
                     } else {
@@ -252,7 +291,24 @@ pub(crate) fn run_list_archive(
                     } else {
                         Vec::new()
                     };
+                    let acl = if args.show_acl {
+                        let mut acl = Vec::new();
+                        for c in item.extra_chunks() {
+                            if c.ty() == chunk::faCe {
+                                let body =
+                                    std::str::from_utf8(c.data()).map_err(io::Error::other)?;
+                                let ace = chunk::Ace::from_str(body).map_err(io::Error::other)?;
+                                acl.push(ace);
+                            }
+                        }
+                        acl
+                    } else {
+                        Vec::new()
+                    };
                     entries.push((item, password, now, None, args.numeric_owner).into());
+                    for ace in acl {
+                        entries.push(TableRow::from_acl(ace));
+                    }
                     entries.extend(xattrs);
                 }
             }

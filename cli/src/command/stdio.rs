@@ -246,6 +246,7 @@ fn run_list_archive(args: StdioCommand, _verbosity: Verbosity) -> io::Result<()>
         header: false,
         solid: true,
         show_xattr: false,
+        show_acl: false,
         numeric_owner: args.numeric_owner,
     };
     if let Some(path) = args.file {
