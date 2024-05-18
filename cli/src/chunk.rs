@@ -430,8 +430,10 @@ impl Into<Ace> for exacl::AclEntry {
             platform: AcePlatform::CURRENT,
             flags,
             owner_type: match self.kind {
-                exacl::AclEntryKind::User => OwnerType::Owner,
-                exacl::AclEntryKind::Group => OwnerType::OwnerGroup,
+                exacl::AclEntryKind::User if self.name.is_empty() => OwnerType::Owner,
+                exacl::AclEntryKind::User => OwnerType::User(Identifier::Name(self.name)),
+                exacl::AclEntryKind::Group if self.name.is_empty() => OwnerType::OwnerGroup,
+                exacl::AclEntryKind::Group => OwnerType::Group(Identifier::Name(self.name)),
                 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
                 exacl::AclEntryKind::Mask => OwnerType::Mask,
                 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
