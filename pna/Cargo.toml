@@ -13,5 +13,8 @@ keywords = ["pna", "archive", "crypto", "data"]
 [dependencies]
 libpna = { version = "0.11.0", path = "../lib" }
 
+[dev-dependencies]
+version-sync = "0.9.5"
+
 [lib]
 name = "pna"
