@@ -10,7 +10,7 @@ use crate::{
 };
 use ansi_term::{ANSIString, Colour, Style};
 use chrono::{DateTime, Local};
-use clap::Parser;
+use clap::{ArgGroup, Parser};
 use pna::{
     Chunk, Compression, DataKind, Encryption, ExtendedAttribute, ReadEntry, ReadOption,
     RegularEntry, SolidHeader,
@@ -32,6 +32,9 @@ use tabled::{
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[clap(disable_help_flag = true)]
+#[command(
+    group(ArgGroup::new("unstable-acl").args(["show_acl"]).requires("unstable")),
+)]
 pub(crate) struct ListCommand {
     #[arg(short, long, help = "Display extended file metadata as a table")]
     pub(crate) long: bool,
@@ -41,7 +44,7 @@ pub(crate) struct ListCommand {
     pub(crate) solid: bool,
     #[arg(short = '@', help = "Display extended file attributes in a table")]
     pub(crate) show_xattr: bool,
-    #[arg(short = 'e', help = "Display acl in a table")]
+    #[arg(short = 'e', help = "Display acl in a table (unstable)")]
     pub(crate) show_acl: bool,
     #[arg(
         long,
