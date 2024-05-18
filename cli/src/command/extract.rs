@@ -1,4 +1,5 @@
 use crate::{
+    chunk,
     cli::{FileArgs, PasswordArgs, Verbosity},
     command::{
         ask_password,
@@ -13,7 +14,7 @@ use clap::{ArgGroup, Parser, ValueHint};
 use indicatif::HumanDuration;
 #[cfg(unix)]
 use nix::unistd::{Group, User};
-use pna::{DataKind, EntryReference, Permission, ReadOption, RegularEntry};
+use pna::{Chunk, DataKind, EntryReference, Permission, ReadOption, RegularEntry};
 use rayon::ThreadPoolBuilder;
 use std::ops::Add;
 #[cfg(target_os = "macos")]
@@ -26,6 +27,7 @@ use std::{
     fs::{self, File, Permissions},
     io,
     path::{Path, PathBuf},
+    str::FromStr,
     time::{Instant, SystemTime},
 };
 
@@ -306,6 +308,24 @@ pub(crate) fn extract_entry(
     #[cfg(not(unix))]
     if keep_options.keep_xattr {
         eprintln!("Currently extended attribute is not supported on this platform.");
+    }
+    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "macos"))]
+    if keep_options.keep_acl {
+        let mut acl = Vec::new();
+        for c in item.extra_chunks() {
+            if c.ty() == chunk::faCe {
+                let body = std::str::from_utf8(c.data()).map_err(io::Error::other)?;
+                let ace = chunk::Ace::from_str(body).map_err(io::Error::other)?;
+                acl.push(ace.into());
+            }
+        }
+        if !acl.is_empty() {
+            exacl::setfacl(&[&path], &acl, None)?;
+        }
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "freebsd", target_os = "macos")))]
+    if keep_options.keep_acl {
+        eprintln!("Currently acl is not supported on this platform.");
     }
     if verbosity == Verbosity::Verbose {
         eprintln!("end: {}", path.display());

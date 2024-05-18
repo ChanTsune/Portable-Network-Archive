@@ -1,4 +1,5 @@
 use crate::{
+    chunk,
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs},
     utils::PathPartExt,
 };
@@ -7,7 +8,7 @@ use nix::unistd::{Group, User};
 use normalize_path::*;
 use pna::{
     Archive, Entry, EntryBuilder, EntryName, EntryPart, EntryReference, ExtendedAttribute,
-    Permission, RegularEntry, WriteOption, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
+    Permission, RawChunk, RegularEntry, WriteOption, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
 };
 #[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
@@ -179,6 +180,18 @@ pub(crate) fn apply_metadata(
                 mode,
             ));
         }
+    }
+    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "macos"))]
+    if keep_options.keep_acl {
+        let acl = exacl::getfacl(path, None)?;
+        for ace in acl {
+            let ace: chunk::Ace = ace.into();
+            entry.add_extra_chunk(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
+        }
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "freebsd", target_os = "macos")))]
+    if keep_options.keep_acl {
+        eprintln!("Currently acl is not supported on this platform.");
     }
     #[cfg(unix)]
     if keep_options.keep_xattr {
