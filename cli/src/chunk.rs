@@ -586,10 +586,59 @@ pub fn ace_convert_platform(src: Ace, to: AcePlatform) -> Ace {
 }
 
 fn ace_to_generic(src: Ace) -> Ace {
-    if src.platform == AcePlatform::General {
-        return src;
+    match src.platform {
+        AcePlatform::General => src,
+        AcePlatform::MacOs => Ace {
+            platform: AcePlatform::General,
+            flags: src.flags & {
+                let mut macos_flags = Flag::all();
+                macos_flags.remove(Flag::DEFAULT);
+                macos_flags
+            },
+            owner_type: src.owner_type,
+            allow: src.allow,
+            permission: {
+                let mut permission = Permission::empty();
+                const MACOS_READ_PERMISSIONS: [Permission; 5] = [
+                    Permission::READ,
+                    Permission::READ_DATA,
+                    Permission::READATTR,
+                    Permission::READEXTATTR,
+                    Permission::READSECURITY,
+                ];
+                if MACOS_READ_PERMISSIONS
+                    .into_iter()
+                    .any(|it| src.permission.contains(it))
+                {
+                    permission.insert(Permission::READ);
+                }
+                const MACOS_WRITE_PERMISSIONS: [Permission; 7] = [
+                    Permission::WRITE,
+                    Permission::WRITE_DATA,
+                    Permission::WRITEATTR,
+                    Permission::WRITEEXTATTR,
+                    Permission::WRITESECURITY,
+                    Permission::APPEND,
+                    Permission::DELETE,
+                ];
+                if MACOS_WRITE_PERMISSIONS
+                    .into_iter()
+                    .any(|it| src.permission.contains(it))
+                {
+                    permission.insert(Permission::WRITE);
+                }
+                const MACOS_EXECUTE_PERMISSIONS: [Permission; 1] = [Permission::EXECUTE];
+                if MACOS_EXECUTE_PERMISSIONS
+                    .into_iter()
+                    .any(|it| src.permission.contains(it))
+                {
+                    permission.insert(Permission::EXECUTE);
+                }
+                permission
+            },
+        },
+        AcePlatform::Unknown(_) => todo!(),
     }
-    todo!()
 }
 
 fn ace_to_macos(src: Ace) -> Ace {
