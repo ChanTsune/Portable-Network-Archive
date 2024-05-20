@@ -642,11 +642,43 @@ fn ace_to_generic(src: Ace) -> Ace {
 }
 
 fn ace_to_macos(src: Ace) -> Ace {
-    if src.platform == AcePlatform::MacOs {
-        return src;
-    } else {
-        let middle = ace_to_generic(src);
-        todo!()
+    match src.platform {
+        AcePlatform::MacOs => src,
+        AcePlatform::General | AcePlatform::Unknown(_) => {
+            let src = ace_to_generic(src);
+            Ace {
+                platform: AcePlatform::MacOs,
+                flags: src.flags,
+                owner_type: src.owner_type,
+                allow: src.allow,
+                permission: {
+                    let permission = Permission::empty();
+                    if src.permission.contains(Permission::READ) {
+                        let read_permissions = Permission::READ
+                            | Permission::READ_DATA
+                            | Permission::READATTR
+                            | Permission::READEXTATTR
+                            | Permission::READSECURITY;
+                        permission.insert(read_permissions);
+                    }
+                    if src.permission.contains(Permission::WRITE) {
+                        let write_permissions = Permission::WRITE
+                            | Permission::WRITE_DATA
+                            | Permission::WRITEATTR
+                            | Permission::WRITEEXTATTR
+                            | Permission::WRITESECURITY
+                            | Permission::APPEND
+                            | Permission::DELETE;
+                        permission.insert(write_permissions);
+                    }
+                    if src.permission.contains(Permission::EXECUTE) {
+                        let execute_permissions = Permission::EXECUTE;
+                        permission.insert(execute_permissions);
+                    }
+                    permission
+                },
+            }
+        }
     }
 }
 
