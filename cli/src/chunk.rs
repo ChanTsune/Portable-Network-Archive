@@ -15,13 +15,16 @@ pub const faCe: ChunkType = unsafe { ChunkType::from_unchecked(*b"faCe") };
 pub enum AcePlatform {
     General,
     MacOs,
+    FreeBSD,
     Unknown(String),
 }
 
 impl AcePlatform {
     #[cfg(target_os = "macos")]
     pub const CURRENT: Self = Self::MacOs;
-    #[cfg(not(any(target_os = "macos")))]
+    #[cfg(target_os = "freebsd")]
+    pub const CURRENT: Self = Self::FreeBSD;
+    #[cfg(not(any(target_os = "macos", target_os = "freebsd")))]
     pub const CURRENT: Self = Self::General;
 }
 
@@ -30,6 +33,7 @@ impl Display for AcePlatform {
         match self {
             Self::General => f.write_str(""),
             Self::MacOs => f.write_str("macos"),
+            Self::FreeBSD => f.write_str("freebsd"),
             Self::Unknown(s) => f.write_str(s),
         }
     }
@@ -42,6 +46,7 @@ impl FromStr for AcePlatform {
         match s {
             "" => Ok(Self::General),
             "macos" => Ok(Self::MacOs),
+            "freebsd" => Ok(Self::FreeBSD),
             s => Ok(Self::Unknown(s.to_string())),
         }
     }
@@ -582,6 +587,7 @@ pub fn ace_convert_platform(src: Ace, to: AcePlatform) -> Ace {
     match &to {
         AcePlatform::General | AcePlatform::Unknown(_) => ace_to_generic(src),
         AcePlatform::MacOs => ace_to_macos(src),
+        AcePlatform::FreeBSD => todo!(),
     }
 }
 
@@ -637,6 +643,7 @@ fn ace_to_generic(src: Ace) -> Ace {
                 permission
             },
         },
+        AcePlatform::FreeBSD => todo!(),
         AcePlatform::Unknown(_) => todo!(),
     }
 }
@@ -644,7 +651,7 @@ fn ace_to_generic(src: Ace) -> Ace {
 fn ace_to_macos(src: Ace) -> Ace {
     match src.platform {
         AcePlatform::MacOs => src,
-        AcePlatform::General | AcePlatform::Unknown(_) => {
+        AcePlatform::General | AcePlatform::FreeBSD | AcePlatform::Unknown(_) => {
             let src = ace_to_generic(src);
             Ace {
                 platform: AcePlatform::MacOs,
