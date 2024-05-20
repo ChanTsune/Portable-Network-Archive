@@ -652,7 +652,7 @@ fn ace_to_macos(src: Ace) -> Ace {
                 owner_type: src.owner_type,
                 allow: src.allow,
                 permission: {
-                    let permission = Permission::empty();
+                    let mut permission = Permission::empty();
                     if src.permission.contains(Permission::READ) {
                         let read_permissions = Permission::READ
                             | Permission::READ_DATA
