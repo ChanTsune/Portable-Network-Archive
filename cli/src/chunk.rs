@@ -587,7 +587,7 @@ pub fn ace_convert_platform(src: Ace, to: AcePlatform) -> Ace {
     match &to {
         AcePlatform::General | AcePlatform::Unknown(_) => ace_to_generic(src),
         AcePlatform::MacOs => ace_to_macos(src),
-        AcePlatform::FreeBSD => todo!(),
+        AcePlatform::FreeBSD => ace_to_freebsd(src),
     }
 }
 
@@ -643,8 +643,97 @@ fn ace_to_generic(src: Ace) -> Ace {
                 permission
             },
         },
-        AcePlatform::FreeBSD => todo!(),
+        AcePlatform::FreeBSD => Ace {
+            platform: AcePlatform::General,
+            flags: src.flags & {
+                let mut macos_flags = Flag::all();
+                macos_flags.remove(Flag::DEFAULT);
+                macos_flags
+            },
+            owner_type: src.owner_type,
+            allow: src.allow,
+            permission: {
+                let mut permission = Permission::empty();
+                const READ_PERMISSIONS: [Permission; 5] = [
+                    Permission::READ,
+                    Permission::READ_DATA,
+                    Permission::READATTR,
+                    Permission::READEXTATTR,
+                    Permission::READSECURITY,
+                ];
+                if READ_PERMISSIONS
+                    .into_iter()
+                    .any(|it| src.permission.contains(it))
+                {
+                    permission.insert(Permission::READ);
+                }
+                const WRITE_PERMISSIONS: [Permission; 7] = [
+                    Permission::WRITE,
+                    Permission::WRITE_DATA,
+                    Permission::WRITEATTR,
+                    Permission::WRITEEXTATTR,
+                    Permission::WRITESECURITY,
+                    Permission::APPEND,
+                    Permission::DELETE,
+                ];
+                if WRITE_PERMISSIONS
+                    .into_iter()
+                    .any(|it| src.permission.contains(it))
+                {
+                    permission.insert(Permission::WRITE);
+                }
+                const EXECUTE_PERMISSIONS: [Permission; 1] = [Permission::EXECUTE];
+                if EXECUTE_PERMISSIONS
+                    .into_iter()
+                    .any(|it| src.permission.contains(it))
+                {
+                    permission.insert(Permission::EXECUTE);
+                }
+                permission
+            },
+        },
         AcePlatform::Unknown(_) => todo!(),
+    }
+}
+
+fn ace_to_freebsd(src: Ace) -> Ace {
+    match src.platform {
+        AcePlatform::FreeBSD => src,
+        AcePlatform::General | AcePlatform::MacOs | AcePlatform::Unknown(_) => {
+            let src = ace_to_generic(src);
+            Ace {
+                platform: AcePlatform::FreeBSD,
+                flags: src.flags,
+                owner_type: src.owner_type,
+                allow: src.allow,
+                permission: {
+                    let mut permission = Permission::empty();
+                    if src.permission.contains(Permission::READ) {
+                        let read_permissions = Permission::READ
+                            | Permission::READ_DATA
+                            | Permission::READATTR
+                            | Permission::READEXTATTR
+                            | Permission::READSECURITY;
+                        permission.insert(read_permissions);
+                    }
+                    if src.permission.contains(Permission::WRITE) {
+                        let write_permissions = Permission::WRITE
+                            | Permission::WRITE_DATA
+                            | Permission::WRITEATTR
+                            | Permission::WRITEEXTATTR
+                            | Permission::WRITESECURITY
+                            | Permission::APPEND
+                            | Permission::DELETE;
+                        permission.insert(write_permissions);
+                    }
+                    if src.permission.contains(Permission::EXECUTE) {
+                        let execute_permissions = Permission::EXECUTE;
+                        permission.insert(execute_permissions);
+                    }
+                    permission
+                },
+            }
+        }
     }
 }
 
