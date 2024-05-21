@@ -1355,6 +1355,7 @@ dependencies = [
  "rayon",
  "rpassword",
  "tabled",
+ "winapi",
  "windows",
  "windows-acl",
  "xattr",

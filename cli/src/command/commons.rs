@@ -189,7 +189,21 @@ pub(crate) fn apply_metadata(
             entry.add_extra_chunk(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
         }
     }
-    #[cfg(not(any(target_os = "linux", target_os = "freebsd", target_os = "macos")))]
+    #[cfg(windows)]
+    if keep_options.keep_acl {
+        let acl = windows_acl::acl::ACL::from_file_path(path.to_str().unwrap(), true).unwrap();
+        let ace_list = acl.all().unwrap();
+        for ace in ace_list {
+            let ace: chunk::Ace = ace.into();
+            entry.add_extra_chunk(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
+        }
+    }
+    #[cfg(not(any(
+        target_os = "linux",
+        target_os = "freebsd",
+        target_os = "macos",
+        windows
+    )))]
     if keep_options.keep_acl {
         eprintln!("Currently acl is not supported on this platform.");
     }
