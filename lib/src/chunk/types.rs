@@ -99,9 +99,12 @@ impl ChunkType {
 
     /// Creates private [ChunkType].
     ///
-    /// - All characters must be ASCII alphabet
-    /// - The second character must be lowercase
-    /// - The third character must be uppercase
+    /// # Errors
+    ///
+    /// This function will return an error in the following cases:
+    /// - Value contains non-ASCII alphabet characters
+    /// - The second character is not lowercase
+    /// - The third character is not uppercase
     ///
     /// # Examples
     ///
