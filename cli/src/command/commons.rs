@@ -191,10 +191,8 @@ pub(crate) fn apply_metadata(
     }
     #[cfg(windows)]
     if keep_options.keep_acl {
-        let acl = windows_acl::acl::ACL::from_file_path(path.to_str().unwrap(), true).unwrap();
-        let ace_list = acl.all().unwrap();
+        let ace_list = crate::utils::acl::get_acl(path)?;
         for ace in ace_list {
-            let ace: chunk::Ace = ace.into();
             entry.add_extra_chunk(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
         }
     }
