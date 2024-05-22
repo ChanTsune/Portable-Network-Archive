@@ -1,6 +1,7 @@
 pub(crate) mod fs;
 mod io;
 mod path;
+pub(crate) mod acl;
 
 pub(crate) use path::*;
 use std::path::Path;
