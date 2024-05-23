@@ -609,7 +609,7 @@ impl Into<windows_acl::acl::ACLEntry> for Ace {
             size: 0,
             flags: 0,
             mask: 0,
-            string_sid: windows_acl::helper::sid_to_string(sid.as_ptr() as winapi::um::winnt::PSID)
+            string_sid: windows_acl::helper::sid_to_string(sid.as_ptr() as _)
                 .unwrap(),
             sid: Some(sid),
         };
