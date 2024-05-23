@@ -10,25 +10,21 @@ use windows::core::PCWSTR;
 use windows::Win32::Foundation::{SetLastError, ERROR_SUCCESS, PSID};
 use windows::Win32::Security::Authorization::{GetNamedSecurityInfoW, SE_FILE_OBJECT};
 use windows::Win32::Security::{
-    CopySid, GetAce, GetLengthSid, IsValidSid, ACCESS_ALLOWED_ACE, ACCESS_DENIED_ACE, ACE_HEADER,
-    ACL as Win32ACL, DACL_SECURITY_INFORMATION, GROUP_SECURITY_INFORMATION,
-    OWNER_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, SID,
+    CopySid, GetAce, GetLengthSid, InitializeAcl, IsValidSid, ACCESS_ALLOWED_ACE,
+    ACCESS_DENIED_ACE, ACE_HEADER, ACL as Win32ACL, ACL_REVISION_DS, DACL_SECURITY_INFORMATION,
+    GROUP_SECURITY_INFORMATION, OWNER_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR,
 };
 use windows::Win32::System::SystemServices::{ACCESS_ALLOWED_ACE_TYPE, ACCESS_DENIED_ACE_TYPE};
 
 pub fn set_acl(path: &Path, acl: Vec<chunk::Ace>) -> io::Result<()> {
-    let acl: Vec<windows_acl::acl::ACLEntry> = acl.into_iter().map(Into::into).collect();
-    let mut current_acl = windows_acl::acl::ACL::from_file_path(&path.to_string_lossy(), false)
-        .map_err(io::Error::other)?;
-    for e in current_acl.all().map_err(io::Error::other)? {
-        e.mask;
-    }
-    todo!()
+    let acl_entries: Vec<ACLEntry> = acl.into_iter().map(Into::into).collect();
+    let mut acl = ACL::try_from(path.to_path_buf())?;
+    acl.set_d_acl(&acl_entries)
 }
 
 pub fn get_facl(path: &Path) -> io::Result<Vec<chunk::Ace>> {
     let acl = ACL::try_from(path.to_path_buf())?;
-    let ace_list = acl.d_acl()?;
+    let ace_list = acl.get_d_acl()?;
     Ok(ace_list.into_iter().map(Into::into).collect())
 }
 
@@ -90,7 +86,7 @@ impl ACL {
         })
     }
 
-    pub fn d_acl(&self) -> io::Result<Vec<ACLEntry>> {
+    pub fn get_d_acl(&self) -> io::Result<Vec<ACLEntry>> {
         let mut result = Vec::new();
         let p_acl = self.security_descriptor.p_dacl;
         let count = unsafe { *p_acl }.AceCount as u32;
@@ -113,7 +109,7 @@ impl ACL {
                         ace_type: AceType::AccessAllow,
                         sid,
                         size: unsafe { *header }.AceSize,
-                        flag: unsafe { *header }.AceFlags,
+                        flags: unsafe { *header }.AceFlags,
                         mask: unsafe { *entry_ptr }.Mask,
                     }
                 }
@@ -132,7 +128,7 @@ impl ACL {
                         ace_type: AceType::AccessDeny,
                         sid,
                         size: unsafe { *header }.AceSize,
-                        flag: unsafe { *header }.AceFlags,
+                        flags: unsafe { *header }.AceFlags,
                         mask: unsafe { *entry_ptr }.Mask,
                     }
                 }
@@ -140,7 +136,7 @@ impl ACL {
                     ace_type: AceType::Unknown(t),
                     size: 0,
                     mask: 0,
-                    flag: 0,
+                    flags: 0,
                     sid: Vec::new(),
                 },
             };
@@ -148,25 +144,43 @@ impl ACL {
         }
         Ok(result)
     }
+
+    pub fn set_d_acl(&self, acl_entries: &[ACLEntry]) -> io::Result<()> {
+        let acl_size = acl_entries.iter().map(|it| it.size as u32).sum();
+        let mut new_acl = Win32ACL::default();
+        unsafe { InitializeAcl(&mut new_acl as _, acl_size, ACL_REVISION_DS) }
+            .map_err(io::Error::other)?;
+        Ok(())
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum AceType {
-    Unknown(u8),
     AccessAllow,
     AccessDeny,
+    Unknown(u8),
+}
+
+impl AceType {
+    pub fn entry_size(&self) -> usize {
+        match self {
+            AceType::AccessAllow => mem::size_of::<ACCESS_ALLOWED_ACE>(),
+            AceType::AccessDeny => mem::size_of::<ACCESS_DENIED_ACE>(),
+            AceType::Unknown(_) => 0,
+        }
+    }
 }
 
 pub struct ACLEntry {
     pub ace_type: AceType,
     pub sid: Vec<u16>,
     pub size: u16,
-    pub flag: u8,
+    pub flags: u8,
     pub mask: u32,
 }
 
-impl Into<windows_acl::acl::ACLEntry> for chunk::Ace {
-    fn into(self) -> windows_acl::acl::ACLEntry {
+impl Into<ACLEntry> for chunk::Ace {
+    fn into(self) -> ACLEntry {
         let name = match self.owner_type {
             OwnerType::Owner => todo!(),
             OwnerType::User(i) => match i {
@@ -183,20 +197,16 @@ impl Into<windows_acl::acl::ACLEntry> for chunk::Ace {
             OwnerType::Mask => todo!(),
             OwnerType::Other => todo!(),
         };
-        let sid = windows_acl::helper::name_to_sid(&name, None).unwrap();
-        let mut ace = windows_acl::acl::ACLEntry {
-            index: 0,
-            entry_type: if self.allow {
-                windows_acl::acl::AceType::AccessAllow
+        let mut ace = ACLEntry {
+            ace_type: if self.allow {
+                AceType::AccessAllow
             } else {
-                windows_acl::acl::AceType::AccessDeny
+                AceType::AccessDeny
             },
-            entry_size: 0,
             size: 0,
             flags: 0,
             mask: 0,
-            string_sid: windows_acl::helper::sid_to_string(sid.as_ptr() as _).unwrap(),
-            sid: Some(todo!()),
+            sid: todo!(),
         };
         ace.flags;
         todo!()
@@ -210,7 +220,7 @@ impl Into<chunk::Ace> for ACLEntry {
             AceType::AccessDeny => false,
             t => panic!("Unsupported ace type {:?}", t),
         };
-        self.flag;
+        self.flags;
         todo!()
     }
 }
