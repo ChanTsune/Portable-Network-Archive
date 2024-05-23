@@ -2,7 +2,6 @@ use crate::chunk;
 use crate::chunk::{Identifier, OwnerType};
 use crate::utils::fs::encode_wide;
 use field_offset::offset_of;
-use std::os::windows::prelude::*;
 use std::path::{Path, PathBuf};
 use std::ptr::null_mut;
 use std::{io, mem};
@@ -116,7 +115,7 @@ impl ACL {
         for i in 0..count {
             let mut header: PACE_HEADER = null_mut();
             unsafe { GetAce(p_acl, i, mem::transmute(&mut header)) }.map_err(io::Error::other)?;
-            let ace = match unsafe { *header }.AceType {
+            let ace = match unsafe { *header }.AceType as u32 {
                 ACCESS_ALLOWED_ACE_TYPE => {
                     let entry_ptr: *mut ACCESS_ALLOWED_ACE = header as *mut ACCESS_ALLOWED_ACE;
                     let sid_offset = offset_of!(ACCESS_ALLOWED_ACE => SidStart);
@@ -156,7 +155,7 @@ impl ACL {
                     }
                 }
                 t => ACLEntry {
-                    ace_type: AceType::Unknown(t),
+                    ace_type: AceType::Unknown(t as u8),
                     size: 0,
                     mask: 0,
                     flags: 0,
