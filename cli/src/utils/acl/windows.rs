@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::ptr::null_mut;
 use std::{io, mem};
 use windows::core::PCWSTR;
-use windows::Win32::Foundation::{SetLastError, ERROR_SUCCESS, PSID};
+use windows::Win32::Foundation::{LocalFree, SetLastError, ERROR_SUCCESS, HLOCAL, PSID};
 use windows::Win32::Security::Authorization::{
     GetNamedSecurityInfoW, SetNamedSecurityInfoW, SE_FILE_OBJECT,
 };
@@ -92,6 +92,16 @@ impl SecurityDescriptor {
             return Err(io::Error::last_os_error());
         }
         Ok(())
+    }
+}
+
+impl Drop for SecurityDescriptor {
+    fn drop(&mut self) {
+        if !self.p_security_descriptor.is_invalid() {
+            unsafe {
+                LocalFree(HLOCAL(self.p_security_descriptor.0));
+            }
+        }
     }
 }
 
