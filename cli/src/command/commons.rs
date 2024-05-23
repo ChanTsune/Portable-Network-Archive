@@ -191,7 +191,7 @@ pub(crate) fn apply_metadata(
     }
     #[cfg(windows)]
     if keep_options.keep_acl {
-        let ace_list = crate::utils::acl::get_acl(path)?;
+        let ace_list = crate::utils::acl::get_facl(path)?;
         for ace in ace_list {
             entry.add_extra_chunk(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
         }
