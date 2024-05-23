@@ -8,11 +8,14 @@ use std::ptr::null_mut;
 use std::{io, mem};
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{SetLastError, ERROR_SUCCESS, PSID};
-use windows::Win32::Security::Authorization::{GetNamedSecurityInfoW, SE_FILE_OBJECT};
+use windows::Win32::Security::Authorization::{
+    GetNamedSecurityInfoW, SetNamedSecurityInfoW, SE_FILE_OBJECT,
+};
 use windows::Win32::Security::{
-    CopySid, GetAce, GetLengthSid, InitializeAcl, IsValidSid, ACCESS_ALLOWED_ACE,
-    ACCESS_DENIED_ACE, ACE_HEADER, ACL as Win32ACL, ACL_REVISION_DS, DACL_SECURITY_INFORMATION,
-    GROUP_SECURITY_INFORMATION, OWNER_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR,
+    AddAccessAllowedAceEx, AddAccessDeniedAceEx, CopySid, GetAce, GetLengthSid, InitializeAcl,
+    IsValidSid, ACCESS_ALLOWED_ACE, ACCESS_DENIED_ACE, ACE_FLAGS, ACE_HEADER, ACL as Win32ACL,
+    ACL_REVISION_DS, DACL_SECURITY_INFORMATION, GROUP_SECURITY_INFORMATION,
+    OWNER_SECURITY_INFORMATION, PROTECTED_DACL_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR,
 };
 use windows::Win32::System::SystemServices::{ACCESS_ALLOWED_ACE_TYPE, ACCESS_DENIED_ACE_TYPE};
 
@@ -70,6 +73,26 @@ impl SecurityDescriptor {
             p_sacl,
             p_dacl,
         })
+    }
+
+    pub fn apply(&self, path: &Path, pacl: PACL) -> io::Result<()> {
+        let c_str = encode_wide(path.as_os_str())?;
+        let status = unsafe {
+            SetNamedSecurityInfoW(
+                PCWSTR::from_raw(c_str.as_ptr()),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+                None,
+                None,
+                Some(pacl),
+                None,
+            )
+        };
+        if status != ERROR_SUCCESS {
+            unsafe { SetLastError(status) };
+            return Err(io::Error::last_os_error());
+        }
+        Ok(())
     }
 }
 
@@ -150,6 +173,34 @@ impl ACL {
         let mut new_acl = Win32ACL::default();
         unsafe { InitializeAcl(&mut new_acl as _, acl_size, ACL_REVISION_DS) }
             .map_err(io::Error::other)?;
+        for ace in acl_entries {
+            match ace.ace_type {
+                AceType::AccessAllow => {
+                    unsafe {
+                        AddAccessAllowedAceEx(
+                            &mut new_acl as _,
+                            ACL_REVISION_DS,
+                            ACE_FLAGS(ace.flags as u32),
+                            ace.mask,
+                            PSID(ace.sid.as_ptr() as _),
+                        )
+                        .map_err(io::Error::other)?
+                    };
+                }
+                AceType::AccessDeny => unsafe {
+                    AddAccessDeniedAceEx(
+                        &mut new_acl as _,
+                        ACL_REVISION_DS,
+                        ACE_FLAGS(ace.flags as u32),
+                        ace.mask,
+                        PSID(ace.sid.as_ptr() as _),
+                    )
+                    .map_err(io::Error::other)?
+                },
+                AceType::Unknown(n) => return Err(io::Error::other(format!("{}", n))),
+            }
+        }
+        self.security_descriptor.apply(&self.path, &mut new_acl)?;
         Ok(())
     }
 }
