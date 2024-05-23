@@ -1,6 +1,19 @@
 use crate::chunk;
-use std::io;
-use std::path::Path;
+use crate::utils::fs::encode_wide;
+use field_offset::offset_of;
+use std::os::windows::prelude::*;
+use std::path::{Path, PathBuf};
+use std::ptr::null_mut;
+use std::{io, mem};
+use windows::core::PCWSTR;
+use windows::Win32::Foundation::{SetLastError, ERROR_SUCCESS, PSID};
+use windows::Win32::Security::Authorization::{GetNamedSecurityInfoW, SE_FILE_OBJECT};
+use windows::Win32::Security::{
+    CopySid, GetAce, GetLengthSid, IsValidSid, ACCESS_ALLOWED_ACE, ACCESS_DENIED_ACE, ACE_HEADER,
+    ACL as Win32ACL, DACL_SECURITY_INFORMATION, GROUP_SECURITY_INFORMATION,
+    OWNER_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, SID,
+};
+use windows::Win32::System::SystemServices::{ACCESS_ALLOWED_ACE_TYPE, ACCESS_DENIED_ACE_TYPE};
 
 pub fn set_acl(path: &Path, acl: Vec<chunk::Ace>) -> io::Result<()> {
     let acl: Vec<windows_acl::acl::ACLEntry> = acl.into_iter().map(Into::into).collect();
@@ -17,4 +30,137 @@ pub fn get_acl(path: &Path) -> io::Result<Vec<chunk::Ace>> {
         .map_err(io::Error::other)?;
     let ace_list = acl.all().map_err(io::Error::other)?;
     Ok(ace_list.into_iter().map(Into::into).collect())
+}
+
+type PACL = *mut Win32ACL;
+type PACE_HEADER = *mut ACE_HEADER;
+
+pub struct SecurityDescriptor {
+    p_security_descriptor: PSECURITY_DESCRIPTOR,
+    p_dacl: PACL,
+    p_sacl: PACL,
+    p_sid_owner: PSID,
+    p_sid_group: PSID,
+}
+
+impl SecurityDescriptor {
+    pub fn try_from(path: &Path) -> io::Result<Self> {
+        let os_str = encode_wide(path.as_os_str())?;
+        let mut p_security_descriptor = PSECURITY_DESCRIPTOR::default();
+        let mut p_dacl: PACL = null_mut();
+        let mut p_sacl: PACL = null_mut();
+        let mut p_sid_owner: PSID = PSID::default();
+        let mut p_sid_group: PSID = PSID::default();
+        let error = unsafe {
+            GetNamedSecurityInfoW(
+                PCWSTR::from_raw(os_str.as_ptr()),
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | OWNER_SECURITY_INFORMATION,
+                Some(&mut p_sid_owner as _),
+                Some(&mut p_sid_group as _),
+                Some(&mut p_dacl as _),
+                Some(&mut p_sacl as _),
+                &mut p_security_descriptor as _,
+            )
+        };
+        if error != ERROR_SUCCESS {
+            unsafe { SetLastError(error) };
+            return Err(io::Error::last_os_error());
+        }
+        Ok(Self {
+            p_security_descriptor,
+            p_sid_owner,
+            p_sid_group,
+            p_sacl,
+            p_dacl,
+        })
+    }
+}
+
+pub struct ACL {
+    path: PathBuf,
+    security_descriptor: SecurityDescriptor,
+}
+
+impl ACL {
+    pub fn try_from(path: PathBuf) -> io::Result<Self> {
+        Ok(Self {
+            security_descriptor: SecurityDescriptor::try_from(&path)?,
+            path,
+        })
+    }
+
+    pub fn all(&self) -> io::Result<Vec<ACLEntry>> {
+        let mut result = Vec::new();
+        let p_acl = self.security_descriptor.p_dacl;
+        let count = unsafe { *p_acl }.AceCount as u32;
+        for i in 0..count {
+            let mut header: PACE_HEADER = null_mut();
+            unsafe { GetAce(p_acl, i, mem::transmute(&mut header)) }.map_err(io::Error::other)?;
+            let ace = match unsafe { *header }.AceType {
+                ACCESS_ALLOWED_ACE_TYPE => {
+                    let entry_ptr: *mut ACCESS_ALLOWED_ACE = header as *mut ACCESS_ALLOWED_ACE;
+                    let sid_offset = offset_of!(ACCESS_ALLOWED_ACE => SidStart);
+                    let p_sid = PSID(sid_offset.apply_ptr_mut(entry_ptr) as _);
+                    if !unsafe { IsValidSid(p_sid) }.as_bool() {
+                        panic!("Invalid sid")
+                    }
+                    let sid_len = unsafe { GetLengthSid(p_sid) };
+                    let mut sid = Vec::<u16>::with_capacity(sid_len as usize);
+                    unsafe { CopySid(sid_len, PSID(sid.as_ptr() as _), p_sid) }
+                        .map_err(io::Error::other)?;
+                    ACLEntry {
+                        ace_type: AceType::AccessAllow,
+                        sid,
+                        size: unsafe { *header }.AceSize,
+                        flag: unsafe { *header }.AceFlags,
+                        mask: unsafe { *entry_ptr }.Mask,
+                    }
+                }
+                ACCESS_DENIED_ACE_TYPE => {
+                    let entry_ptr: *mut ACCESS_DENIED_ACE = header as *mut ACCESS_DENIED_ACE;
+                    let sid_offset = offset_of!(ACCESS_DENIED_ACE => SidStart);
+                    let p_sid = PSID(sid_offset.apply_ptr_mut(entry_ptr) as _);
+                    if !unsafe { IsValidSid(p_sid) }.as_bool() {
+                        panic!("Invalid sid")
+                    }
+                    let sid_len = unsafe { GetLengthSid(p_sid) };
+                    let mut sid = Vec::<u16>::with_capacity(sid_len as usize);
+                    unsafe { CopySid(sid_len, PSID(sid.as_ptr() as _), p_sid) }
+                        .map_err(io::Error::other)?;
+                    ACLEntry {
+                        ace_type: AceType::AccessDeny,
+                        sid,
+                        size: unsafe { *header }.AceSize,
+                        flag: unsafe { *header }.AceFlags,
+                        mask: unsafe { *entry_ptr }.Mask,
+                    }
+                }
+                t => ACLEntry {
+                    ace_type: AceType::Unknown(t),
+                    size: 0,
+                    mask: 0,
+                    flag: 0,
+                    sid: Vec::new(),
+                },
+            };
+            result.push(ace)
+        }
+        Ok(result)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum AceType {
+    Unknown(u8),
+    AccessAllow,
+    AccessDeny,
+}
+
+pub struct ACLEntry {
+    pub ace_type: AceType,
+    pub sid: Vec<u16>,
+    pub size: u16,
+    pub flag: u8,
+    pub mask: u32,
 }
