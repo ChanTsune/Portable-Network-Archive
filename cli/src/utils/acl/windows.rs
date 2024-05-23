@@ -247,30 +247,42 @@ impl Into<ACLEntry> for chunk::Ace {
             OwnerType::Mask => todo!(),
             OwnerType::Other => todo!(),
         };
-        let mut ace = ACLEntry {
+        ACLEntry {
             ace_type: if self.allow {
                 AceType::AccessAllow
             } else {
                 AceType::AccessDeny
             },
-            size: 0,
-            flags: 0,
-            mask: 0,
+            size: todo!(),
+            flags: todo!(),
+            mask: todo!(),
             sid: todo!(),
-        };
-        ace.flags;
-        todo!()
+        }
     }
 }
 
 impl Into<chunk::Ace> for ACLEntry {
     fn into(self) -> chunk::Ace {
-        let arrow = match self.ace_type {
+        let allow = match self.ace_type {
             AceType::AccessAllow => true,
             AceType::AccessDeny => false,
             t => panic!("Unsupported ace type {:?}", t),
         };
-        self.flags;
-        todo!()
+        self.sid;
+        chunk::Ace {
+            platform: chunk::AcePlatform::General,
+            flags: {
+                let flags = chunk::Flag::empty();
+                self.flags;
+                flags
+            },
+            owner_type: OwnerType::Owner,
+            allow,
+            permission: {
+                let permission = chunk::Permission::empty();
+                self.mask;
+                permission
+            },
+        }
     }
 }
