@@ -114,11 +114,11 @@ impl From<ParseIntError> for ParseAceError {
 /// Access Control Entry
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Ace {
-    platform: AcePlatform,
-    flags: Flag,
-    owner_type: OwnerType,
-    allow: bool,
-    permission: Permission,
+    pub(crate) platform: AcePlatform,
+    pub(crate) flags: Flag,
+    pub(crate) owner_type: OwnerType,
+    pub(crate) allow: bool,
+    pub(crate) permission: Permission,
 }
 
 impl Ace {
@@ -575,59 +575,6 @@ impl Into<exacl::AclEntry> for Ace {
             flags,
             allow: slf.allow,
         }
-    }
-}
-
-#[cfg(windows)]
-impl Into<windows_acl::acl::ACLEntry> for Ace {
-    fn into(self) -> windows_acl::acl::ACLEntry {
-        let name = match self.owner_type {
-            OwnerType::Owner => todo!(),
-            OwnerType::User(i) => match i {
-                Identifier::Name(s) => s,
-                Identifier::Id(n) => n.to_string(),
-                Identifier::Both(s, _) => s,
-            },
-            OwnerType::OwnerGroup => todo!(),
-            OwnerType::Group(i) => match i {
-                Identifier::Name(s) => s,
-                Identifier::Id(n) => n.to_string(),
-                Identifier::Both(s, _) => s,
-            },
-            OwnerType::Mask => todo!(),
-            OwnerType::Other => todo!(),
-        };
-        let sid = windows_acl::helper::name_to_sid(&name, None).unwrap();
-        let mut ace = windows_acl::acl::ACLEntry {
-            index: 0,
-            entry_type: if self.allow {
-                windows_acl::acl::AceType::AccessAllow
-            } else {
-                windows_acl::acl::AceType::AccessDeny
-            },
-            entry_size: 0,
-            size: 0,
-            flags: 0,
-            mask: 0,
-            string_sid: windows_acl::helper::sid_to_string(sid.as_ptr() as _)
-                .unwrap(),
-            sid: Some(sid),
-        };
-        ace.flags;
-        todo!()
-    }
-}
-
-#[cfg(windows)]
-impl Into<Ace> for windows_acl::acl::ACLEntry {
-    fn into(self) -> Ace {
-        let arrow = match self.entry_type {
-            windows_acl::acl::AceType::AccessAllow => true,
-            windows_acl::acl::AceType::AccessDeny => false,
-            t => panic!("Unsupported ace type {:?}", t),
-        };
-        self.flags;
-        todo!()
     }
 }
 
