@@ -26,10 +26,9 @@ pub fn set_acl(path: &Path, acl: Vec<chunk::Ace>) -> io::Result<()> {
     todo!()
 }
 
-pub fn get_acl(path: &Path) -> io::Result<Vec<chunk::Ace>> {
-    let acl = windows_acl::acl::ACL::from_file_path(&path.to_string_lossy(), false)
-        .map_err(io::Error::other)?;
-    let ace_list = acl.all().map_err(io::Error::other)?;
+pub fn get_facl(path: &Path) -> io::Result<Vec<chunk::Ace>> {
+    let acl = ACL::try_from(path.to_path_buf())?;
+    let ace_list = acl.d_acl()?;
     Ok(ace_list.into_iter().map(Into::into).collect())
 }
 
@@ -91,7 +90,7 @@ impl ACL {
         })
     }
 
-    pub fn all(&self) -> io::Result<Vec<ACLEntry>> {
+    pub fn d_acl(&self) -> io::Result<Vec<ACLEntry>> {
         let mut result = Vec::new();
         let p_acl = self.security_descriptor.p_dacl;
         let count = unsafe { *p_acl }.AceCount as u32;
@@ -204,14 +203,14 @@ impl Into<windows_acl::acl::ACLEntry> for chunk::Ace {
     }
 }
 
-impl Into<chunk::Ace> for windows_acl::acl::ACLEntry {
+impl Into<chunk::Ace> for ACLEntry {
     fn into(self) -> chunk::Ace {
-        let arrow = match self.entry_type {
-            windows_acl::acl::AceType::AccessAllow => true,
-            windows_acl::acl::AceType::AccessDeny => false,
+        let arrow = match self.ace_type {
+            AceType::AccessAllow => true,
+            AceType::AccessDeny => false,
             t => panic!("Unsupported ace type {:?}", t),
         };
-        self.flags;
+        self.flag;
         todo!()
     }
 }
