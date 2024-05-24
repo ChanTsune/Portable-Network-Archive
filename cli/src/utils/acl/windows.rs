@@ -306,7 +306,7 @@ impl Display for Sid {
                 .map_err(|_| std::fmt::Error::default())?;
         }
         let r = write!(f, "{}", unsafe { raw_str.display() });
-        unsafe { LocalFree(HLOCAL(raw_str.as_ptr() as _)) }
+        unsafe { LocalFree(HLOCAL(raw_str.as_ptr() as _)) };
         r
     }
 }
