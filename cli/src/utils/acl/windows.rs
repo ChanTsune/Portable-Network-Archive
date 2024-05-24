@@ -18,14 +18,14 @@ use windows::Win32::Security::{
 };
 use windows::Win32::System::SystemServices::{ACCESS_ALLOWED_ACE_TYPE, ACCESS_DENIED_ACE_TYPE};
 
-pub fn set_acl(path: &Path, acl: Vec<chunk::Ace>) -> io::Result<()> {
-    let acl_entries: Vec<ACLEntry> = acl.into_iter().map(Into::into).collect();
-    let mut acl = ACL::try_from(path.to_path_buf())?;
+pub fn set_facl<P: AsRef<Path>>(path: P, acl: Vec<chunk::Ace>) -> io::Result<()> {
+    let acl_entries = acl.into_iter().map(Into::into).collect::<Vec<_>>();
+    let mut acl = ACL::try_from(path.as_ref().to_path_buf())?;
     acl.set_d_acl(&acl_entries)
 }
 
-pub fn get_facl(path: &Path) -> io::Result<Vec<chunk::Ace>> {
-    let acl = ACL::try_from(path.to_path_buf())?;
+pub fn get_facl<P: AsRef<Path>>(path: P) -> io::Result<Vec<chunk::Ace>> {
+    let acl = ACL::try_from(path.as_ref().to_path_buf())?;
     let ace_list = acl.get_d_acl()?;
     Ok(ace_list.into_iter().map(Into::into).collect())
 }
