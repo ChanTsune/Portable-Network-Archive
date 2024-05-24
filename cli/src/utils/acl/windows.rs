@@ -130,13 +130,7 @@ impl ACL {
                     let entry_ptr: *mut ACCESS_ALLOWED_ACE = header as *mut ACCESS_ALLOWED_ACE;
                     let sid_offset = offset_of!(ACCESS_ALLOWED_ACE => SidStart);
                     let p_sid = PSID(sid_offset.apply_ptr_mut(entry_ptr) as _);
-                    if !unsafe { IsValidSid(p_sid) }.as_bool() {
-                        panic!("Invalid sid")
-                    }
-                    let sid_len = unsafe { GetLengthSid(p_sid) };
-                    let mut sid = Vec::<u16>::with_capacity(sid_len as usize);
-                    unsafe { CopySid(sid_len, PSID(sid.as_ptr() as _), p_sid) }
-                        .map_err(io::Error::other)?;
+                    let sid = Sid::try_from(p_sid)?;
                     ACLEntry {
                         ace_type: AceType::AccessAllow,
                         sid,
@@ -149,13 +143,7 @@ impl ACL {
                     let entry_ptr: *mut ACCESS_DENIED_ACE = header as *mut ACCESS_DENIED_ACE;
                     let sid_offset = offset_of!(ACCESS_DENIED_ACE => SidStart);
                     let p_sid = PSID(sid_offset.apply_ptr_mut(entry_ptr) as _);
-                    if !unsafe { IsValidSid(p_sid) }.as_bool() {
-                        panic!("Invalid sid")
-                    }
-                    let sid_len = unsafe { GetLengthSid(p_sid) };
-                    let mut sid = Vec::<u16>::with_capacity(sid_len as usize);
-                    unsafe { CopySid(sid_len, PSID(sid.as_ptr() as _), p_sid) }
-                        .map_err(io::Error::other)?;
+                    let sid = Sid::try_from(p_sid)?;
                     ACLEntry {
                         ace_type: AceType::AccessDeny,
                         sid,
@@ -169,7 +157,7 @@ impl ACL {
                     size: 0,
                     mask: 0,
                     flags: 0,
-                    sid: Vec::new(),
+                    sid: Sid::new(),
                 },
             };
             result.push(ace)
@@ -231,9 +219,30 @@ impl AceType {
     }
 }
 
+pub struct Sid(Vec<u16>);
+
+impl Sid {
+    fn new() -> Self {
+        Self(Vec::new())
+    }
+}
+
+impl TryFrom<PSID> for Sid {
+    type Error = io::Error;
+    fn try_from(value: PSID) -> Result<Self, Self::Error> {
+        if !unsafe { IsValidSid(value) }.as_bool() {
+            return Err(io::Error::other("invalid sid"));
+        }
+        let sid_len = unsafe { GetLengthSid(value) };
+        let mut sid = Vec::<u16>::with_capacity(sid_len as usize);
+        unsafe { CopySid(sid_len, PSID(sid.as_ptr() as _), value) }.map_err(io::Error::other)?;
+        Ok(Self(sid))
+    }
+}
+
 pub struct ACLEntry {
     pub ace_type: AceType,
-    pub sid: Vec<u16>,
+    pub sid: Sid,
     pub size: u16,
     pub flags: u8,
     pub mask: u32,
