@@ -15,11 +15,13 @@ use windows::Win32::Security::Authorization::{
 };
 use windows::Win32::Security::{
     AddAccessAllowedAceEx, AddAccessDeniedAceEx, CopySid, GetAce, GetLengthSid, InitializeAcl,
-    IsValidSid, ACCESS_ALLOWED_ACE, ACCESS_DENIED_ACE, ACE_FLAGS, ACE_HEADER, ACL as Win32ACL,
-    ACL_REVISION_DS, DACL_SECURITY_INFORMATION, GROUP_SECURITY_INFORMATION,
+    IsValidSid, LookupAccountNameW, ACCESS_ALLOWED_ACE, ACCESS_DENIED_ACE, ACE_FLAGS, ACE_HEADER,
+    ACL as Win32ACL, ACL_REVISION_DS, DACL_SECURITY_INFORMATION, GROUP_SECURITY_INFORMATION,
     OWNER_SECURITY_INFORMATION, PROTECTED_DACL_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR,
+    SID_NAME_USE,
 };
 use windows::Win32::System::SystemServices::{ACCESS_ALLOWED_ACE_TYPE, ACCESS_DENIED_ACE_TYPE};
+use windows::Win32::System::WindowsProgramming::GetUserNameW;
 
 pub fn set_facl<P: AsRef<Path>>(path: P, acl: Vec<chunk::Ace>) -> io::Result<()> {
     let acl_entries = acl.into_iter().map(Into::into).collect::<Vec<_>>();
@@ -31,6 +33,19 @@ pub fn get_facl<P: AsRef<Path>>(path: P) -> io::Result<Vec<chunk::Ace>> {
     let acl = ACL::try_from(path.as_ref().to_path_buf())?;
     let ace_list = acl.get_d_acl()?;
     Ok(ace_list.into_iter().map(Into::into).collect())
+}
+
+pub fn get_current_username() -> io::Result<String> {
+    let mut username_len = 0u32;
+    unsafe {
+        GetUserNameW(PWSTR::null(), &mut username_len as _).map_err(io::Error::other)?;
+    }
+    let mut username = Vec::<u16>::with_capacity(username_len as usize);
+    let str = PWSTR::from_raw(username.as_mut_ptr());
+    unsafe {
+        GetUserNameW(str, &mut username_len as _).map_err(io::Error::other)?;
+    }
+    unsafe { str.to_string().map_err(io::Error::other) }
 }
 
 type PACL = *mut Win32ACL;
@@ -222,11 +237,54 @@ impl AceType {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Sid(Vec<u8>);
 
 impl Sid {
     fn new() -> Self {
         Self(Vec::new())
+    }
+
+    fn try_from_name(name: &str, system: Option<&str>) -> io::Result<Self> {
+        let mut name = encode_wide(name.as_ref())?;
+        let mut system = system.map(|it| encode_wide(it.as_ref())).transpose()?;
+        let mut sid_len = 0u32;
+        let mut n_len = 0u32;
+        let mut sid_type = SID_NAME_USE::default();
+        unsafe {
+            LookupAccountNameW(
+                system
+                    .as_mut()
+                    .map_or(PCWSTR::null(), |mut it| PCWSTR::from_raw(it.as_mut_ptr())),
+                PCWSTR::from_raw(name.as_mut_ptr()),
+                PSID::default(),
+                &mut sid_len as _,
+                PWSTR::null(),
+                &mut n_len as _,
+                &mut sid_type as _,
+            )
+            .map_err(io::Error::other)?;
+        }
+        if sid_len == 0 {
+            return Err(io::Error::other("lookup error"));
+        }
+        let mut sid = Vec::with_capacity(sid_len as usize);
+        let mut name = Vec::<u16>::with_capacity(n_len as usize);
+        unsafe {
+            LookupAccountNameW(
+                system
+                    .as_mut()
+                    .map_or(PCWSTR::null(), |mut it| PCWSTR::from_raw(it.as_mut_ptr())),
+                PCWSTR::from_raw(name.as_mut_ptr()),
+                PSID(sid.as_mut_ptr() as _),
+                &mut sid_len as _,
+                PWSTR::from_raw(name.as_mut_ptr() as _),
+                &mut n_len as _,
+                &mut sid_type as _,
+            )
+            .map_err(io::Error::other)?;
+        }
+        Ok(Self(sid))
     }
 }
 
@@ -333,5 +391,18 @@ impl Into<chunk::Ace> for ACLEntry {
                 permission
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn current_user() {
+        let username = get_current_username().unwrap();
+        let sid = Sid::try_from_name(&username, None).unwrap();
+        let s = Sid::from_str(&sid.to_string()).unwrap();
+        assert_eq!(sid, s);
     }
 }
