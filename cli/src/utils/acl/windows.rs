@@ -197,7 +197,7 @@ impl ACL {
                             ACL_REVISION_DS,
                             ACE_FLAGS(ace.flags as u32),
                             ace.mask,
-                            PSID(ace.sid.as_ptr() as _),
+                            ace.sid.as_psid(),
                         )
                         .map_err(io::Error::other)?
                     };
@@ -208,7 +208,7 @@ impl ACL {
                         ACL_REVISION_DS,
                         ACE_FLAGS(ace.flags as u32),
                         ace.mask,
-                        PSID(ace.sid.as_ptr() as _),
+                        ace.sid.as_psid(),
                     )
                     .map_err(io::Error::other)?
                 },
@@ -285,6 +285,16 @@ impl Sid {
             .map_err(io::Error::other)?;
         }
         Ok(Self(sid))
+    }
+
+    #[inline]
+    fn as_ptr(&self) -> *const u8 {
+        self.0.as_ptr()
+    }
+
+    #[inline]
+    fn as_psid(&self) -> PSID {
+        PSID(self.as_ptr() as _)
     }
 }
 
