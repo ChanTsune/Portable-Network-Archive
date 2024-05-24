@@ -2,13 +2,16 @@ use crate::chunk;
 use crate::chunk::{Identifier, OwnerType};
 use crate::utils::fs::encode_wide;
 use field_offset::offset_of;
+use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
 use std::ptr::null_mut;
+use std::str::FromStr;
 use std::{io, mem};
-use windows::core::PCWSTR;
+use windows::core::{PCWSTR, PWSTR};
 use windows::Win32::Foundation::{LocalFree, SetLastError, ERROR_SUCCESS, HLOCAL, PSID};
 use windows::Win32::Security::Authorization::{
-    GetNamedSecurityInfoW, SetNamedSecurityInfoW, SE_FILE_OBJECT,
+    ConvertSidToStringSidW, ConvertStringSidToSidW, GetNamedSecurityInfoW, SetNamedSecurityInfoW,
+    SE_FILE_OBJECT,
 };
 use windows::Win32::Security::{
     AddAccessAllowedAceEx, AddAccessDeniedAceEx, CopySid, GetAce, GetLengthSid, InitializeAcl,
@@ -219,11 +222,37 @@ impl AceType {
     }
 }
 
-pub struct Sid(Vec<u16>);
+pub struct Sid(Vec<u8>);
 
 impl Sid {
     fn new() -> Self {
         Self(Vec::new())
+    }
+}
+
+impl Display for Sid {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let mut raw_str = PWSTR::null();
+        unsafe {
+            ConvertSidToStringSidW(PSID(self.0.as_ptr() as _), &mut raw_str)
+                .map_err(|_| std::fmt::Error::default())?;
+        }
+        let r = write!(f, "{}", unsafe { raw_str.display() });
+        unsafe { LocalFree(HLOCAL(raw_str.as_ptr() as _)) }
+        r
+    }
+}
+
+impl FromStr for Sid {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut psid = PSID::default();
+        let mut s = encode_wide(s.as_ref()).map_err(|_| ())?;
+        unsafe {
+            ConvertStringSidToSidW(PWSTR::from_raw(s.as_mut_ptr()), &mut psid as _)
+                .map_err(|_| ())?;
+        }
+        Self::try_from(psid).map_err(|e| ())
     }
 }
 
@@ -234,8 +263,9 @@ impl TryFrom<PSID> for Sid {
             return Err(io::Error::other("invalid sid"));
         }
         let sid_len = unsafe { GetLengthSid(value) };
-        let mut sid = Vec::<u16>::with_capacity(sid_len as usize);
+        let mut sid = Vec::with_capacity(sid_len as usize);
         unsafe { CopySid(sid_len, PSID(sid.as_ptr() as _), value) }.map_err(io::Error::other)?;
+        unsafe { sid.set_len(sid_len as usize) }
         Ok(Self(sid))
     }
 }
