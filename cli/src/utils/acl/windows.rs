@@ -269,8 +269,7 @@ impl Sid {
             Ok(_) => Err(io::Error::other("failed to resolve sid from name")),
             Err(e) if e.code() == ERROR_INSUFFICIENT_BUFFER.to_hresult() => Ok(()),
             Err(e) => Err(io::Error::other(e)),
-        }
-        .unwrap();
+        }?;
         if sid_len == 0 {
             return Err(io::Error::other("lookup error"));
         }
@@ -288,8 +287,7 @@ impl Sid {
                 &mut sys_name_len as _,
                 &mut sid_type as _,
             )
-            .map_err(io::Error::other)
-            .unwrap();
+            .map_err(io::Error::other)?;
         }
         let sid_length = unsafe { GetLengthSid(PSID(sid.as_mut_ptr() as _)) };
         debug_assert_eq!(sid_len, sid_length);
