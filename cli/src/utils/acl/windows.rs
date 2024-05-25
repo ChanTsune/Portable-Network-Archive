@@ -251,43 +251,45 @@ impl Sid {
         let mut name = encode_wide(name.as_ref())?;
         let mut system = system.map(|it| encode_wide(it.as_ref())).transpose()?;
         let mut sid_len = 0u32;
-        let mut n_len = 0u32;
+        let mut sys_name_len = 0u32;
         let mut sid_type = SID_NAME_USE::default();
         match unsafe {
             LookupAccountNameW(
                 system
-                    .as_mut()
-                    .map_or(PCWSTR::null(), |mut it| PCWSTR::from_raw(it.as_mut_ptr())),
-                PCWSTR::from_raw(name.as_mut_ptr()),
+                    .as_ref()
+                    .map_or(PCWSTR::null(), |it| PCWSTR::from_raw(it.as_ptr())),
+                PCWSTR::from_raw(name.as_ptr()),
                 PSID::default(),
                 &mut sid_len as _,
                 PWSTR::null(),
-                &mut n_len as _,
+                &mut sys_name_len as _,
                 &mut sid_type as _,
             )
         } {
             Ok(_) => Err(io::Error::other("failed to resolve sid from name")),
             Err(e) if e.code() == ERROR_INSUFFICIENT_BUFFER.to_hresult() => Ok(()),
             Err(e) => Err(io::Error::other(e)),
-        }.unwrap();
+        }
+        .unwrap();
         if sid_len == 0 {
             return Err(io::Error::other("lookup error"));
         }
         let mut sid = Vec::with_capacity(sid_len as usize);
-        let mut name = Vec::<u16>::with_capacity(n_len as usize);
+        let mut sys_name = Vec::<u16>::with_capacity(sys_name_len as usize);
         unsafe {
             LookupAccountNameW(
                 system
-                    .as_mut()
-                    .map_or(PCWSTR::null(), |mut it| PCWSTR::from_raw(it.as_mut_ptr())),
-                PCWSTR::from_raw(name.as_mut_ptr()),
+                    .as_ref()
+                    .map_or(PCWSTR::null(), |it| PCWSTR::from_raw(it.as_ptr())),
+                PCWSTR::from_raw(name.as_ptr()),
                 PSID(sid.as_mut_ptr() as _),
                 &mut sid_len as _,
-                PWSTR::from_raw(name.as_mut_ptr() as _),
-                &mut n_len as _,
+                PWSTR::from_raw(sys_name.as_mut_ptr() as _),
+                &mut sys_name_len as _,
                 &mut sid_type as _,
             )
-            .map_err(io::Error::other).unwrap();
+            .map_err(io::Error::other)
+            .unwrap();
         }
         let sid_length = unsafe { GetLengthSid(PSID(sid.as_mut_ptr() as _)) };
         debug_assert_eq!(sid_len, sid_length);
