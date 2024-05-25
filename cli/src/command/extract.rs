@@ -323,7 +323,27 @@ pub(crate) fn extract_entry(
             exacl::setfacl(&[&path], &acl, None)?;
         }
     }
-    #[cfg(not(any(target_os = "linux", target_os = "freebsd", target_os = "macos")))]
+    #[cfg(windows)]
+    if keep_options.keep_acl {
+        use utils::acl::set_facl;
+        let mut acl = Vec::new();
+        for c in item.extra_chunks() {
+            if c.ty() == chunk::faCe {
+                let body = std::str::from_utf8(c.data()).map_err(io::Error::other)?;
+                let ace = chunk::Ace::from_str(body).map_err(io::Error::other)?;
+                acl.push(ace.into());
+            }
+        }
+        if !acl.is_empty() {
+            set_facl(&path, acl)?;
+        }
+    }
+    #[cfg(not(any(
+        target_os = "linux",
+        target_os = "freebsd",
+        target_os = "macos",
+        windows
+    )))]
     if keep_options.keep_acl {
         eprintln!("Currently acl is not supported on this platform.");
     }
