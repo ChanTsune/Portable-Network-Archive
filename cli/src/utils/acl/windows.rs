@@ -22,6 +22,7 @@ use windows::Win32::Security::{
     GROUP_SECURITY_INFORMATION, OWNER_SECURITY_INFORMATION, PROTECTED_DACL_SECURITY_INFORMATION,
     PSECURITY_DESCRIPTOR, SID_NAME_USE,
 };
+use windows::Win32::Storage::FileSystem::{FILE_ACCESS_RIGHTS, FILE_GENERIC_EXECUTE};
 use windows::Win32::System::SystemServices::{ACCESS_ALLOWED_ACE_TYPE, ACCESS_DENIED_ACE_TYPE};
 use windows::Win32::System::WindowsProgramming::GetUserNameW;
 
@@ -385,6 +386,8 @@ pub struct ACLEntry {
     pub mask: u32,
 }
 
+const PERMISSION_MAPPING_TABLE: [(chunk::Permission, FILE_ACCESS_RIGHTS); 0] = [];
+
 impl Into<ACLEntry> for chunk::Ace {
     fn into(self) -> ACLEntry {
         let name = match self.owner_type {
@@ -401,7 +404,7 @@ impl Into<ACLEntry> for chunk::Ace {
                 Identifier::Both(s, _) => s,
             },
             OwnerType::Mask => todo!(),
-            OwnerType::Other => todo!(),
+            OwnerType::Other => "Guest".to_string(),
         };
         ACLEntry {
             ace_type: if self.allow {
@@ -409,9 +412,17 @@ impl Into<ACLEntry> for chunk::Ace {
             } else {
                 AceType::AccessDeny
             },
-            size: todo!(),
-            flags: todo!(),
-            mask: todo!(),
+            size: 0,
+            flags: 0,
+            mask: {
+                let mut mask = 0;
+                for (permission, rights) in PERMISSION_MAPPING_TABLE {
+                    if self.permission.contains(permission) {
+                        mask |= rights;
+                    }
+                }
+                mask
+            },
             sid: Sid::try_from_name(&name, None).unwrap(),
         }
     }
