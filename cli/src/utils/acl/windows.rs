@@ -15,10 +15,10 @@ use windows::Win32::Security::Authorization::{
 };
 use windows::Win32::Security::{
     AddAccessAllowedAceEx, AddAccessDeniedAceEx, CopySid, GetAce, GetLengthSid, InitializeAcl,
-    IsValidSid, LookupAccountNameW, ACCESS_ALLOWED_ACE, ACCESS_DENIED_ACE, ACE_FLAGS, ACE_HEADER,
-    ACL as Win32ACL, ACL_REVISION_DS, DACL_SECURITY_INFORMATION, GROUP_SECURITY_INFORMATION,
-    OWNER_SECURITY_INFORMATION, PROTECTED_DACL_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR,
-    SID_NAME_USE,
+    IsValidSid, LookupAccountNameW, LookupAccountSidW, ACCESS_ALLOWED_ACE, ACCESS_DENIED_ACE,
+    ACE_FLAGS, ACE_HEADER, ACL as Win32ACL, ACL_REVISION_DS, DACL_SECURITY_INFORMATION,
+    GROUP_SECURITY_INFORMATION, OWNER_SECURITY_INFORMATION, PROTECTED_DACL_SECURITY_INFORMATION,
+    PSECURITY_DESCRIPTOR, SID_NAME_USE,
 };
 use windows::Win32::System::SystemServices::{ACCESS_ALLOWED_ACE_TYPE, ACCESS_DENIED_ACE_TYPE};
 use windows::Win32::System::WindowsProgramming::GetUserNameW;
@@ -288,6 +288,39 @@ impl Sid {
         Ok(Self(sid))
     }
 
+    pub fn to_name(&self) -> io::Result<String> {
+        let mut name_len = 0u32;
+        let mut sysname_len = 0u32;
+        let mut sid_type = SID_NAME_USE::default();
+        unsafe {
+            LookupAccountSidW(
+                PCWSTR::null(),
+                self.as_psid(),
+                PWSTR::null(),
+                &mut name_len as _,
+                PWSTR::null(),
+                &mut sysname_len as _,
+                &mut sid_type as _,
+            )
+        };
+        let mut name = Vec::<u16>::with_capacity(name_len as usize);
+        let mut sysname = Vec::<u16>::with_capacity(sysname_len as usize);
+        let name_ptr = PWSTR::from_raw(name.as_mut_ptr() as _);
+        unsafe {
+            LookupAccountSidW(
+                PCWSTR::null(),
+                self.as_psid(),
+                name_ptr,
+                &mut name_len as _,
+                PWSTR::from_raw(sysname.as_mut_ptr() as _),
+                &mut sysname_len as _,
+                &mut sid_type as _,
+            )
+        }
+        .map_err(io::Error::other)?;
+        unsafe { name_ptr.to_string() }.map_err(io::Error::other)
+    }
+
     #[inline]
     fn as_ptr(&self) -> *const u8 {
         self.0.as_ptr()
@@ -375,7 +408,7 @@ impl Into<ACLEntry> for chunk::Ace {
             size: todo!(),
             flags: todo!(),
             mask: todo!(),
-            sid: todo!(),
+            sid: Sid::try_from_name(&name, None).unwrap(),
         }
     }
 }
@@ -387,7 +420,6 @@ impl Into<chunk::Ace> for ACLEntry {
             AceType::AccessDeny => false,
             t => panic!("Unsupported ace type {:?}", t),
         };
-        self.sid;
         chunk::Ace {
             platform: chunk::AcePlatform::General,
             flags: {
@@ -395,7 +427,7 @@ impl Into<chunk::Ace> for ACLEntry {
                 self.flags;
                 flags
             },
-            owner_type: OwnerType::Owner,
+            owner_type: OwnerType::User(Identifier::Name(self.sid.to_name().unwrap())),
             allow,
             permission: {
                 let permission = chunk::Permission::empty();
@@ -417,5 +449,7 @@ mod tests {
         let string_sid = sid.to_string();
         let s = Sid::from_str(&string_sid).unwrap();
         assert_eq!(sid, s);
+        let name = s.to_name().unwrap();
+        assert_eq!(username, name);
     }
 }
