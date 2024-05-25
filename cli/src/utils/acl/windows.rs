@@ -289,8 +289,9 @@ impl Sid {
             )
             .map_err(io::Error::other)?;
         }
-        let sid_len = unsafe { GetLengthSid(PSID(sid.as_mut_ptr() as _)) };
-        unsafe { sid.set_len(sid_len as usize) }
+        let sid_length = unsafe { GetLengthSid(PSID(sid.as_mut_ptr() as _)) };
+        debug_assert_eq!(sid_len, sid_length);
+        unsafe { sid.set_len(sid_length as usize) }
         Ok(Self(sid))
     }
 
