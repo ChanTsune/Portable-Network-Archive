@@ -8,7 +8,9 @@ use std::ptr::null_mut;
 use std::str::FromStr;
 use std::{io, mem};
 use windows::core::{PCWSTR, PWSTR};
-use windows::Win32::Foundation::{LocalFree, SetLastError, ERROR_SUCCESS, HLOCAL, PSID};
+use windows::Win32::Foundation::{
+    LocalFree, SetLastError, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, HLOCAL, PSID,
+};
 use windows::Win32::Security::Authorization::{
     ConvertSidToStringSidW, ConvertStringSidToSidW, GetNamedSecurityInfoW, SetNamedSecurityInfoW,
     SE_FILE_OBJECT,
@@ -37,14 +39,14 @@ pub fn get_facl<P: AsRef<Path>>(path: P) -> io::Result<Vec<chunk::Ace>> {
 
 pub fn get_current_username() -> io::Result<String> {
     let mut username_len = 0u32;
-    unsafe {
-        GetUserNameW(PWSTR::null(), &mut username_len as _);
-    }
+    match unsafe { GetUserNameW(PWSTR::null(), &mut username_len as _) } {
+        Ok(_) => Err(io::Error::other("failed to get current username")),
+        Err(e) if e.code() == ERROR_INSUFFICIENT_BUFFER.to_hresult() => Ok(()),
+        Err(e) => Err(io::Error::other(e)),
+    }?;
     let mut username = Vec::<u16>::with_capacity(username_len as usize);
     let str = PWSTR::from_raw(username.as_mut_ptr());
-    unsafe {
-        GetUserNameW(str, &mut username_len as _).map_err(io::Error::other)?;
-    }
+    unsafe { GetUserNameW(str, &mut username_len as _) }.map_err(io::Error::other)?;
     unsafe { str.to_string().map_err(io::Error::other) }
 }
 
@@ -251,7 +253,7 @@ impl Sid {
         let mut sid_len = 0u32;
         let mut n_len = 0u32;
         let mut sid_type = SID_NAME_USE::default();
-        unsafe {
+        match unsafe {
             LookupAccountNameW(
                 system
                     .as_mut()
@@ -262,8 +264,12 @@ impl Sid {
                 PWSTR::null(),
                 &mut n_len as _,
                 &mut sid_type as _,
-            );
-        }
+            )
+        } {
+            Ok(_) => Err(io::Error::other("failed to resolve sid from name")),
+            Err(e) if e.code() == ERROR_INSUFFICIENT_BUFFER.to_hresult() => Ok(()),
+            Err(e) => Err(io::Error::other(e)),
+        }?;
         if sid_len == 0 {
             return Err(io::Error::other("lookup error"));
         }
@@ -292,7 +298,7 @@ impl Sid {
         let mut name_len = 0u32;
         let mut sysname_len = 0u32;
         let mut sid_type = SID_NAME_USE::default();
-        unsafe {
+        match unsafe {
             LookupAccountSidW(
                 PCWSTR::null(),
                 self.as_psid(),
@@ -302,7 +308,11 @@ impl Sid {
                 &mut sysname_len as _,
                 &mut sid_type as _,
             )
-        };
+        } {
+            Ok(_) => Err(io::Error::other("failed to convert sid to name")),
+            Err(e) if e.code() == ERROR_INSUFFICIENT_BUFFER.to_hresult() => Ok(()),
+            Err(e) => Err(io::Error::other(e)),
+        }?;
         let mut name = Vec::<u16>::with_capacity(name_len as usize);
         let mut sysname = Vec::<u16>::with_capacity(sysname_len as usize);
         let name_ptr = PWSTR::from_raw(name.as_mut_ptr() as _);
@@ -451,5 +461,12 @@ mod tests {
         assert_eq!(sid, s);
         let name = s.to_name().unwrap();
         assert_eq!(username, name);
+    }
+
+    #[test]
+    fn username() {
+        let username = get_current_username().unwrap();
+        let sid = Sid::try_from_name(&username, None).unwrap();
+        assert_eq!(username, sid.to_name().unwrap());
     }
 }
