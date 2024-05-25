@@ -38,7 +38,7 @@ pub fn get_facl<P: AsRef<Path>>(path: P) -> io::Result<Vec<chunk::Ace>> {
 pub fn get_current_username() -> io::Result<String> {
     let mut username_len = 0u32;
     unsafe {
-        GetUserNameW(PWSTR::null(), &mut username_len as _).map_err(io::Error::other)?;
+        GetUserNameW(PWSTR::null(), &mut username_len as _);
     }
     let mut username = Vec::<u16>::with_capacity(username_len as usize);
     let str = PWSTR::from_raw(username.as_mut_ptr());
@@ -262,8 +262,7 @@ impl Sid {
                 PWSTR::null(),
                 &mut n_len as _,
                 &mut sid_type as _,
-            )
-            .map_err(io::Error::other)?;
+            );
         }
         if sid_len == 0 {
             return Err(io::Error::other("lookup error"));
@@ -284,6 +283,8 @@ impl Sid {
             )
             .map_err(io::Error::other)?;
         }
+        let sid_len = unsafe { GetLengthSid(PSID(sid.as_mut_ptr() as _)) };
+        unsafe { sid.set_len(sid_len as usize) }
         Ok(Self(sid))
     }
 
@@ -332,7 +333,8 @@ impl TryFrom<PSID> for Sid {
         }
         let sid_len = unsafe { GetLengthSid(value) };
         let mut sid = Vec::with_capacity(sid_len as usize);
-        unsafe { CopySid(sid_len, PSID(sid.as_ptr() as _), value) }.map_err(io::Error::other)?;
+        unsafe { CopySid(sid_len, PSID(sid.as_mut_ptr() as _), value) }
+            .map_err(io::Error::other)?;
         unsafe { sid.set_len(sid_len as usize) }
         Ok(Self(sid))
     }
@@ -412,7 +414,8 @@ mod tests {
     fn current_user() {
         let username = get_current_username().unwrap();
         let sid = Sid::try_from_name(&username, None).unwrap();
-        let s = Sid::from_str(&sid.to_string()).unwrap();
+        let string_sid = sid.to_string();
+        let s = Sid::from_str(&string_sid).unwrap();
         assert_eq!(sid, s);
     }
 }
