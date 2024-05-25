@@ -344,10 +344,8 @@ impl Sid {
 impl Display for Sid {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut raw_str = PWSTR::null();
-        unsafe {
-            ConvertSidToStringSidW(PSID(self.0.as_ptr() as _), &mut raw_str)
-                .map_err(|_| std::fmt::Error::default())?;
-        }
+        unsafe { ConvertSidToStringSidW(self.as_psid(), &mut raw_str) }
+            .map_err(|_| std::fmt::Error::default())?;
         let r = write!(f, "{}", unsafe { raw_str.display() });
         unsafe { LocalFree(HLOCAL(raw_str.as_ptr() as _)) };
         r
