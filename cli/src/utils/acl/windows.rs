@@ -1,5 +1,5 @@
 use crate::chunk;
-use crate::chunk::{Identifier, OwnerType};
+use crate::chunk::{AcePlatform, Identifier, OwnerType};
 use crate::utils::fs::encode_wide;
 use field_offset::offset_of;
 use std::fmt::{Display, Formatter};
@@ -425,7 +425,7 @@ impl Into<chunk::Ace> for ACLEntry {
             t => panic!("Unsupported ace type {:?}", t),
         };
         chunk::Ace {
-            platform: chunk::AcePlatform::General,
+            platform: AcePlatform::General,
             flags: {
                 let flags = chunk::Flag::empty();
                 self.flags;
@@ -445,6 +445,7 @@ impl Into<chunk::Ace> for ACLEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::chunk::Ace;
 
     #[test]
     fn current_user() {
@@ -462,5 +463,26 @@ mod tests {
         let username = get_current_username().unwrap();
         let sid = Sid::try_from_name(&username, None).unwrap();
         assert_eq!(username, sid.to_name().unwrap());
+    }
+
+    #[test]
+    fn acl_for_guest() {
+        std::fs::write("guest.txt", "guest").unwrap();
+        let sid = Sid::try_from_name("Guest", None).unwrap();
+
+        set_facl(
+            "guest.txt",
+            vec![Ace {
+                platform: AcePlatform::General,
+                flags: chunk::Flag::empty(),
+                owner_type: OwnerType::User(Identifier::Name(sid.to_name().unwrap())),
+                allow: true,
+                permission: chunk::Permission::READ
+                    | chunk::Permission::WRITE
+                    | chunk::Permission::EXECUTE,
+            }],
+        )
+        .unwrap();
+        get_facl("guest.txt").unwrap();
     }
 }
