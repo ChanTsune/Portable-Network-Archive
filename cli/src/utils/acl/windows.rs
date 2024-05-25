@@ -192,18 +192,15 @@ impl ACL {
             .map_err(io::Error::other)?;
         for ace in acl_entries {
             match ace.ace_type {
-                AceType::AccessAllow => {
-                    unsafe {
-                        AddAccessAllowedAceEx(
-                            &mut new_acl as _,
-                            ACL_REVISION_DS,
-                            ACE_FLAGS(ace.flags as u32),
-                            ace.mask,
-                            ace.sid.as_psid(),
-                        )
-                        .map_err(io::Error::other)?
-                    };
-                }
+                AceType::AccessAllow => unsafe {
+                    AddAccessAllowedAceEx(
+                        &mut new_acl as _,
+                        ACL_REVISION_DS,
+                        ACE_FLAGS(ace.flags as u32),
+                        ace.mask,
+                        ace.sid.as_psid(),
+                    )
+                },
                 AceType::AccessDeny => unsafe {
                     AddAccessDeniedAceEx(
                         &mut new_acl as _,
@@ -212,10 +209,10 @@ impl ACL {
                         ace.mask,
                         ace.sid.as_psid(),
                     )
-                    .map_err(io::Error::other)?
                 },
                 AceType::Unknown(n) => return Err(io::Error::other(format!("{}", n))),
             }
+            .map_err(io::Error::other)?;
         }
         self.security_descriptor.apply(&self.path, &mut new_acl)?;
         Ok(())
