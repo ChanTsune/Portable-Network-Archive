@@ -14,17 +14,20 @@ pub const faCe: ChunkType = unsafe { ChunkType::from_unchecked(*b"faCe") };
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum AcePlatform {
     General,
+    Windows,
     MacOs,
     FreeBSD,
     Unknown(String),
 }
 
 impl AcePlatform {
+    #[cfg(windows)]
+    pub const CURRENT: Self = Self::Windows;
     #[cfg(target_os = "macos")]
     pub const CURRENT: Self = Self::MacOs;
     #[cfg(target_os = "freebsd")]
     pub const CURRENT: Self = Self::FreeBSD;
-    #[cfg(not(any(target_os = "macos", target_os = "freebsd")))]
+    #[cfg(not(any(target_os = "macos", target_os = "freebsd", windows)))]
     pub const CURRENT: Self = Self::General;
 }
 
@@ -32,6 +35,7 @@ impl Display for AcePlatform {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::General => f.write_str(""),
+            Self::Windows => f.write_str("windows"),
             Self::MacOs => f.write_str("macos"),
             Self::FreeBSD => f.write_str("freebsd"),
             Self::Unknown(s) => f.write_str(s),
@@ -45,6 +49,7 @@ impl FromStr for AcePlatform {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "" => Ok(Self::General),
+            "windows" => Ok(Self::Windows),
             "macos" => Ok(Self::MacOs),
             "freebsd" => Ok(Self::FreeBSD),
             s => Ok(Self::Unknown(s.to_string())),
@@ -119,11 +124,11 @@ impl From<ParseIntError> for ParseAceError {
 /// Access Control Entry
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Ace {
-    platform: AcePlatform,
-    flags: Flag,
-    owner_type: OwnerType,
-    allow: bool,
-    permission: Permission,
+    pub(crate) platform: AcePlatform,
+    pub(crate) flags: Flag,
+    pub(crate) owner_type: OwnerType,
+    pub(crate) allow: bool,
+    pub(crate) permission: Permission,
 }
 
 impl Ace {
@@ -586,6 +591,7 @@ impl Into<exacl::AclEntry> for Ace {
 pub fn ace_convert_platform(src: Ace, to: AcePlatform) -> Ace {
     match &to {
         AcePlatform::General | AcePlatform::Unknown(_) => ace_to_generic(src),
+        AcePlatform::Windows => ace_to_windows(src),
         AcePlatform::MacOs => ace_to_macos(src),
         AcePlatform::FreeBSD => ace_to_freebsd(src),
     }
@@ -594,6 +600,51 @@ pub fn ace_convert_platform(src: Ace, to: AcePlatform) -> Ace {
 fn ace_to_generic(src: Ace) -> Ace {
     match src.platform {
         AcePlatform::General => src,
+        AcePlatform::Windows => Ace {
+            platform: AcePlatform::General,
+            flags: Flag::all(),
+            owner_type: src.owner_type,
+            allow: src.allow,
+            permission: {
+                let mut permission = Permission::empty();
+                const READ_PERMISSIONS: [Permission; 5] = [
+                    Permission::READ,
+                    Permission::READ_DATA,
+                    Permission::READATTR,
+                    Permission::READEXTATTR,
+                    Permission::READSECURITY,
+                ];
+                if READ_PERMISSIONS
+                    .into_iter()
+                    .any(|it| src.permission.contains(it))
+                {
+                    permission.insert(Permission::READ);
+                }
+                const WRITE_PERMISSIONS: [Permission; 7] = [
+                    Permission::WRITE,
+                    Permission::WRITE_DATA,
+                    Permission::WRITEATTR,
+                    Permission::WRITEEXTATTR,
+                    Permission::WRITESECURITY,
+                    Permission::APPEND,
+                    Permission::DELETE,
+                ];
+                if WRITE_PERMISSIONS
+                    .into_iter()
+                    .any(|it| src.permission.contains(it))
+                {
+                    permission.insert(Permission::WRITE);
+                }
+                const EXECUTE_PERMISSIONS: [Permission; 1] = [Permission::EXECUTE];
+                if EXECUTE_PERMISSIONS
+                    .into_iter()
+                    .any(|it| src.permission.contains(it))
+                {
+                    permission.insert(Permission::EXECUTE);
+                }
+                permission
+            },
+        },
         AcePlatform::MacOs => Ace {
             platform: AcePlatform::General,
             flags: src.flags & {
@@ -696,13 +747,16 @@ fn ace_to_generic(src: Ace) -> Ace {
     }
 }
 
-fn ace_to_freebsd(src: Ace) -> Ace {
+fn ace_to_windows(src: Ace) -> Ace {
     match src.platform {
-        AcePlatform::FreeBSD => src,
-        AcePlatform::General | AcePlatform::MacOs | AcePlatform::Unknown(_) => {
+        AcePlatform::Windows => src,
+        AcePlatform::General
+        | AcePlatform::MacOs
+        | AcePlatform::FreeBSD
+        | AcePlatform::Unknown(_) => {
             let src = ace_to_generic(src);
             Ace {
-                platform: AcePlatform::FreeBSD,
+                platform: AcePlatform::Windows,
                 flags: src.flags,
                 owner_type: src.owner_type,
                 allow: src.allow,
@@ -740,10 +794,57 @@ fn ace_to_freebsd(src: Ace) -> Ace {
 fn ace_to_macos(src: Ace) -> Ace {
     match src.platform {
         AcePlatform::MacOs => src,
-        AcePlatform::General | AcePlatform::FreeBSD | AcePlatform::Unknown(_) => {
+        AcePlatform::General
+        | AcePlatform::Windows
+        | AcePlatform::FreeBSD
+        | AcePlatform::Unknown(_) => {
             let src = ace_to_generic(src);
             Ace {
                 platform: AcePlatform::MacOs,
+                flags: src.flags,
+                owner_type: src.owner_type,
+                allow: src.allow,
+                permission: {
+                    let mut permission = Permission::empty();
+                    if src.permission.contains(Permission::READ) {
+                        let read_permissions = Permission::READ
+                            | Permission::READ_DATA
+                            | Permission::READATTR
+                            | Permission::READEXTATTR
+                            | Permission::READSECURITY;
+                        permission.insert(read_permissions);
+                    }
+                    if src.permission.contains(Permission::WRITE) {
+                        let write_permissions = Permission::WRITE
+                            | Permission::WRITE_DATA
+                            | Permission::WRITEATTR
+                            | Permission::WRITEEXTATTR
+                            | Permission::WRITESECURITY
+                            | Permission::APPEND
+                            | Permission::DELETE;
+                        permission.insert(write_permissions);
+                    }
+                    if src.permission.contains(Permission::EXECUTE) {
+                        let execute_permissions = Permission::EXECUTE;
+                        permission.insert(execute_permissions);
+                    }
+                    permission
+                },
+            }
+        }
+    }
+}
+
+fn ace_to_freebsd(src: Ace) -> Ace {
+    match src.platform {
+        AcePlatform::FreeBSD => src,
+        AcePlatform::General
+        | AcePlatform::Windows
+        | AcePlatform::MacOs
+        | AcePlatform::Unknown(_) => {
+            let src = ace_to_generic(src);
+            Ace {
+                platform: AcePlatform::FreeBSD,
                 flags: src.flags,
                 owner_type: src.owner_type,
                 allow: src.allow,
