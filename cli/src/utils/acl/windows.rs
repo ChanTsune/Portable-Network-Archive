@@ -517,10 +517,7 @@ mod tests {
 
     #[test]
     fn acl_for_everyone() {
-        let path = format!(
-            "{}/guest.txt",
-            std::env::var("CARGO_TARGET_TMPDIR").unwrap()
-        );
+        let path = "everyone.txt";
         std::fs::write(&path, "everyone").unwrap();
         let sid = Sid::try_from_name("Everyone", None).unwrap();
 
