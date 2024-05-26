@@ -16,6 +16,7 @@ pub enum AcePlatform {
     General,
     Windows,
     MacOs,
+    FreeBSD,
     Unknown(String),
 }
 
@@ -24,7 +25,9 @@ impl AcePlatform {
     pub const CURRENT: Self = Self::Windows;
     #[cfg(target_os = "macos")]
     pub const CURRENT: Self = Self::MacOs;
-    #[cfg(not(any(target_os = "macos", windows)))]
+    #[cfg(target_os = "freebsd")]
+    pub const CURRENT: Self = Self::FreeBSD;
+    #[cfg(not(any(target_os = "macos", target_os = "freebsd", windows)))]
     pub const CURRENT: Self = Self::General;
 }
 
@@ -34,6 +37,7 @@ impl Display for AcePlatform {
             Self::General => f.write_str(""),
             Self::Windows => f.write_str("windows"),
             Self::MacOs => f.write_str("macos"),
+            Self::FreeBSD => f.write_str("freebsd"),
             Self::Unknown(s) => f.write_str(s),
         }
     }
@@ -47,6 +51,7 @@ impl FromStr for AcePlatform {
             "" => Ok(Self::General),
             "windows" => Ok(Self::Windows),
             "macos" => Ok(Self::MacOs),
+            "freebsd" => Ok(Self::FreeBSD),
             s => Ok(Self::Unknown(s.to_string())),
         }
     }
@@ -588,6 +593,7 @@ pub fn ace_convert_platform(src: Ace, to: AcePlatform) -> Ace {
         AcePlatform::General | AcePlatform::Unknown(_) => ace_to_generic(src),
         AcePlatform::Windows => ace_to_windows(src),
         AcePlatform::MacOs => ace_to_macos(src),
+        AcePlatform::FreeBSD => ace_to_freebsd(src),
     }
 }
 
@@ -688,6 +694,55 @@ fn ace_to_generic(src: Ace) -> Ace {
                 permission
             },
         },
+        AcePlatform::FreeBSD => Ace {
+            platform: AcePlatform::General,
+            flags: src.flags & {
+                let mut macos_flags = Flag::all();
+                macos_flags.remove(Flag::DEFAULT);
+                macos_flags
+            },
+            owner_type: src.owner_type,
+            allow: src.allow,
+            permission: {
+                let mut permission = Permission::empty();
+                const READ_PERMISSIONS: [Permission; 5] = [
+                    Permission::READ,
+                    Permission::READ_DATA,
+                    Permission::READATTR,
+                    Permission::READEXTATTR,
+                    Permission::READSECURITY,
+                ];
+                if READ_PERMISSIONS
+                    .into_iter()
+                    .any(|it| src.permission.contains(it))
+                {
+                    permission.insert(Permission::READ);
+                }
+                const WRITE_PERMISSIONS: [Permission; 7] = [
+                    Permission::WRITE,
+                    Permission::WRITE_DATA,
+                    Permission::WRITEATTR,
+                    Permission::WRITEEXTATTR,
+                    Permission::WRITESECURITY,
+                    Permission::APPEND,
+                    Permission::DELETE,
+                ];
+                if WRITE_PERMISSIONS
+                    .into_iter()
+                    .any(|it| src.permission.contains(it))
+                {
+                    permission.insert(Permission::WRITE);
+                }
+                const EXECUTE_PERMISSIONS: [Permission; 1] = [Permission::EXECUTE];
+                if EXECUTE_PERMISSIONS
+                    .into_iter()
+                    .any(|it| src.permission.contains(it))
+                {
+                    permission.insert(Permission::EXECUTE);
+                }
+                permission
+            },
+        },
         AcePlatform::Unknown(_) => todo!(),
     }
 }
@@ -695,7 +750,7 @@ fn ace_to_generic(src: Ace) -> Ace {
 fn ace_to_windows(src: Ace) -> Ace {
     match src.platform {
         AcePlatform::Windows => src,
-        AcePlatform::General | AcePlatform::MacOs | AcePlatform::Unknown(_) => {
+        AcePlatform::General | AcePlatform::MacOs | AcePlatform::FreeBSD | AcePlatform::Unknown(_) => {
             let src = ace_to_generic(src);
             Ace {
                 platform: AcePlatform::Windows,
@@ -736,10 +791,51 @@ fn ace_to_windows(src: Ace) -> Ace {
 fn ace_to_macos(src: Ace) -> Ace {
     match src.platform {
         AcePlatform::MacOs => src,
-        AcePlatform::General | AcePlatform::Windows | AcePlatform::Unknown(_) => {
+        AcePlatform::General | AcePlatform::Windows | AcePlatform::FreeBSD | AcePlatform::Unknown(_) => {
             let src = ace_to_generic(src);
             Ace {
                 platform: AcePlatform::MacOs,
+                flags: src.flags,
+                owner_type: src.owner_type,
+                allow: src.allow,
+                permission: {
+                    let mut permission = Permission::empty();
+                    if src.permission.contains(Permission::READ) {
+                        let read_permissions = Permission::READ
+                            | Permission::READ_DATA
+                            | Permission::READATTR
+                            | Permission::READEXTATTR
+                            | Permission::READSECURITY;
+                        permission.insert(read_permissions);
+                    }
+                    if src.permission.contains(Permission::WRITE) {
+                        let write_permissions = Permission::WRITE
+                            | Permission::WRITE_DATA
+                            | Permission::WRITEATTR
+                            | Permission::WRITEEXTATTR
+                            | Permission::WRITESECURITY
+                            | Permission::APPEND
+                            | Permission::DELETE;
+                        permission.insert(write_permissions);
+                    }
+                    if src.permission.contains(Permission::EXECUTE) {
+                        let execute_permissions = Permission::EXECUTE;
+                        permission.insert(execute_permissions);
+                    }
+                    permission
+                },
+            }
+        }
+    }
+}
+
+fn ace_to_freebsd(src: Ace) -> Ace {
+    match src.platform {
+        AcePlatform::FreeBSD => src,
+        AcePlatform::General | AcePlatform::Windows | AcePlatform::MacOs | AcePlatform::Unknown(_) => {
+            let src = ace_to_generic(src);
+            Ace {
+                platform: AcePlatform::FreeBSD,
                 flags: src.flags,
                 owner_type: src.owner_type,
                 allow: src.allow,
