@@ -418,7 +418,7 @@ impl Into<ACLEntry> for chunk::Ace {
                 let mut mask = 0;
                 for (permission, rights) in PERMISSION_MAPPING_TABLE {
                     if self.permission.contains(permission) {
-                        mask |= rights;
+                        mask |= rights.0;
                     }
                 }
                 mask
