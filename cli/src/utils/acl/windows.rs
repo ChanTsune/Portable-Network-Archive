@@ -446,7 +446,11 @@ impl Into<chunk::Ace> for ACLEntry {
             allow,
             permission: {
                 let permission = chunk::Permission::empty();
-                self.mask;
+                for (p, rights) in PERMISSION_MAPPING_TABLE {
+                    if self.mask & rights.0 != 0 {
+                        permission.insert(p);
+                    }
+                }
                 permission
             },
         }
