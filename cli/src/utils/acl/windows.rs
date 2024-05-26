@@ -191,15 +191,20 @@ impl ACL {
     }
 
     pub fn set_d_acl(&self, acl_entries: &[ACLEntry]) -> io::Result<()> {
-        let acl_size = acl_entries.iter().map(|it| it.size as u32).sum();
-        let mut new_acl = Win32ACL::default();
-        unsafe { InitializeAcl(&mut new_acl as _, acl_size, ACL_REVISION_DS) }
+        let acl_size = acl_entries
+            .iter()
+            .map(|it| it.ace_type.entry_size() - mem::size_of::<u32>() + it.sid.0.len())
+            .sum::<usize>()
+            + mem::size_of::<Win32ACL>();
+        let mut new_acl_buffer = Vec::<u8>::with_capacity(acl_size);
+        let mut new_acl = new_acl_buffer.as_mut_ptr();
+        unsafe { InitializeAcl(new_acl as _, acl_size as u32, ACL_REVISION_DS) }
             .map_err(io::Error::other)?;
         for ace in acl_entries {
             match ace.ace_type {
                 AceType::AccessAllow => unsafe {
                     AddAccessAllowedAceEx(
-                        &mut new_acl as _,
+                        new_acl as _,
                         ACL_REVISION_DS,
                         ACE_FLAGS(ace.flags as u32),
                         ace.mask,
@@ -208,7 +213,7 @@ impl ACL {
                 },
                 AceType::AccessDeny => unsafe {
                     AddAccessDeniedAceEx(
-                        &mut new_acl as _,
+                        new_acl as _,
                         ACL_REVISION_DS,
                         ACE_FLAGS(ace.flags as u32),
                         ace.mask,
@@ -219,7 +224,7 @@ impl ACL {
             }
             .map_err(io::Error::other)?;
         }
-        self.security_descriptor.apply(&self.path, &mut new_acl)?;
+        self.security_descriptor.apply(&self.path, new_acl as _)?;
         Ok(())
     }
 }
