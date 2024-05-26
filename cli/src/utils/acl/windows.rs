@@ -182,7 +182,7 @@ impl ACL {
                     size: 0,
                     mask: 0,
                     flags: 0,
-                    sid: Sid::new(),
+                    sid: Sid::null_sid(),
                 },
             };
             result.push(ace)
@@ -250,8 +250,8 @@ impl AceType {
 pub struct Sid(Vec<u8>);
 
 impl Sid {
-    fn new() -> Self {
-        Self(Vec::new())
+    fn null_sid() -> Self {
+        Self::from_str("S-1-0-0").expect("null group sid creation failed")
     }
 
     fn try_from_name(name: &str, system: Option<&str>) -> io::Result<Self> {
@@ -497,6 +497,11 @@ impl Into<chunk::Ace> for ACLEntry {
 mod tests {
     use super::*;
     use crate::chunk::Ace;
+
+    #[test]
+    fn null_sid() {
+        Sid::null_sid();
+    }
 
     #[test]
     fn current_user() {
