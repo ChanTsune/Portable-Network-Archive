@@ -32,7 +32,7 @@ use windows::Win32::System::WindowsProgramming::GetUserNameW;
 
 pub fn set_facl<P: AsRef<Path>>(path: P, acl: Vec<chunk::Ace>) -> io::Result<()> {
     let acl_entries = acl.into_iter().map(Into::into).collect::<Vec<_>>();
-    let mut acl = ACL::try_from(path.as_ref().to_path_buf())?;
+    let acl = ACL::try_from(path.as_ref().to_path_buf())?;
     acl.set_d_acl(&acl_entries)
 }
 
@@ -250,8 +250,8 @@ impl Sid {
     }
 
     fn try_from_name(name: &str, system: Option<&str>) -> io::Result<Self> {
-        let mut name = encode_wide(name.as_ref())?;
-        let mut system = system.map(|it| encode_wide(it.as_ref())).transpose()?;
+        let name = encode_wide(name.as_ref())?;
+        let system = system.map(|it| encode_wide(it.as_ref())).transpose()?;
         let mut sid_len = 0u32;
         let mut sys_name_len = 0u32;
         let mut sid_type = SID_NAME_USE::default();
@@ -475,7 +475,7 @@ impl Into<chunk::Ace> for ACLEntry {
             owner_type: OwnerType::User(Identifier::Name(self.sid.to_name().unwrap())),
             allow,
             permission: {
-                let permission = chunk::Permission::empty();
+                let mut permission = chunk::Permission::empty();
                 for (p, rights) in PERMISSION_MAPPING_TABLE {
                     if self.mask & rights.0 != 0 {
                         permission.insert(p);
