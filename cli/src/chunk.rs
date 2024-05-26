@@ -750,7 +750,10 @@ fn ace_to_generic(src: Ace) -> Ace {
 fn ace_to_windows(src: Ace) -> Ace {
     match src.platform {
         AcePlatform::Windows => src,
-        AcePlatform::General | AcePlatform::MacOs | AcePlatform::FreeBSD | AcePlatform::Unknown(_) => {
+        AcePlatform::General
+        | AcePlatform::MacOs
+        | AcePlatform::FreeBSD
+        | AcePlatform::Unknown(_) => {
             let src = ace_to_generic(src);
             Ace {
                 platform: AcePlatform::Windows,
@@ -791,7 +794,10 @@ fn ace_to_windows(src: Ace) -> Ace {
 fn ace_to_macos(src: Ace) -> Ace {
     match src.platform {
         AcePlatform::MacOs => src,
-        AcePlatform::General | AcePlatform::Windows | AcePlatform::FreeBSD | AcePlatform::Unknown(_) => {
+        AcePlatform::General
+        | AcePlatform::Windows
+        | AcePlatform::FreeBSD
+        | AcePlatform::Unknown(_) => {
             let src = ace_to_generic(src);
             Ace {
                 platform: AcePlatform::MacOs,
@@ -832,7 +838,10 @@ fn ace_to_macos(src: Ace) -> Ace {
 fn ace_to_freebsd(src: Ace) -> Ace {
     match src.platform {
         AcePlatform::FreeBSD => src,
-        AcePlatform::General | AcePlatform::Windows | AcePlatform::MacOs | AcePlatform::Unknown(_) => {
+        AcePlatform::General
+        | AcePlatform::Windows
+        | AcePlatform::MacOs
+        | AcePlatform::Unknown(_) => {
             let src = ace_to_generic(src);
             Ace {
                 platform: AcePlatform::FreeBSD,
