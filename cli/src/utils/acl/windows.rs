@@ -22,7 +22,7 @@ use windows::Win32::Security::{
     GROUP_SECURITY_INFORMATION, OWNER_SECURITY_INFORMATION, PROTECTED_DACL_SECURITY_INFORMATION,
     PSECURITY_DESCRIPTOR, SID_NAME_USE,
 };
-use windows::Win32::Storage::FileSystem::{FILE_ACCESS_RIGHTS, FILE_GENERIC_EXECUTE};
+use windows::Win32::Storage::FileSystem::{DELETE, FILE_ACCESS_RIGHTS, FILE_APPEND_DATA, FILE_DELETE_CHILD, FILE_EXECUTE, FILE_GENERIC_EXECUTE, FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_READ_ATTRIBUTES, FILE_READ_DATA, FILE_READ_EA, FILE_WRITE_ATTRIBUTES, FILE_WRITE_DATA, FILE_WRITE_EA, SYNCHRONIZE, WRITE_DAC, WRITE_OWNER};
 use windows::Win32::System::SystemServices::{ACCESS_ALLOWED_ACE_TYPE, ACCESS_DENIED_ACE_TYPE};
 use windows::Win32::System::WindowsProgramming::GetUserNameW;
 
@@ -386,7 +386,30 @@ pub struct ACLEntry {
     pub mask: u32,
 }
 
-const PERMISSION_MAPPING_TABLE: [(chunk::Permission, FILE_ACCESS_RIGHTS); 0] = [];
+const PERMISSION_MAPPING_TABLE: [(chunk::Permission, FILE_ACCESS_RIGHTS); 16] = [
+    (chunk::Permission::READ, FILE_GENERIC_READ),
+    (chunk::Permission::WRITE, FILE_GENERIC_WRITE),
+    (chunk::Permission::EXECUTE, FILE_EXECUTE),
+    (chunk::Permission::DELETE, DELETE),
+    (chunk::Permission::APPEND, FILE_APPEND_DATA),
+    (chunk::Permission::DELETE_CHILD, FILE_DELETE_CHILD),
+    (chunk::Permission::READATTR, FILE_READ_ATTRIBUTES),
+    (chunk::Permission::WRITEATTR, FILE_WRITE_ATTRIBUTES),
+    (chunk::Permission::READEXTATTR, FILE_READ_EA),
+    (chunk::Permission::WRITEEXTATTR, FILE_WRITE_EA),
+    (
+        chunk::Permission::READSECURITY,
+        FILE_READ_ATTRIBUTES | FILE_READ_EA,
+    ),
+    (
+        chunk::Permission::WRITESECURITY,
+        FILE_WRITE_ATTRIBUTES | FILE_WRITE_EA,
+    ),
+    (chunk::Permission::CHOWN, WRITE_DAC | WRITE_OWNER),
+    (chunk::Permission::SYNC, SYNCHRONIZE),
+    (chunk::Permission::READ_DATA, FILE_READ_DATA),
+    (chunk::Permission::WRITE_DATA, FILE_WRITE_DATA),
+];
 
 impl Into<ACLEntry> for chunk::Ace {
     fn into(self) -> ACLEntry {
