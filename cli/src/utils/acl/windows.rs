@@ -1,5 +1,5 @@
 use crate::chunk;
-use crate::chunk::{AcePlatform, Identifier, OwnerType};
+use crate::chunk::{ace_convert_platform, AcePlatform, Identifier, OwnerType};
 use crate::utils::fs::encode_wide;
 use field_offset::offset_of;
 use std::fmt::{Display, Formatter};
@@ -425,7 +425,8 @@ const PERMISSION_MAPPING_TABLE: [(chunk::Permission, FILE_ACCESS_RIGHTS); 16] = 
 
 impl Into<ACLEntry> for chunk::Ace {
     fn into(self) -> ACLEntry {
-        let name = match self.owner_type {
+        let slf = ace_convert_platform(self, AcePlatform::Windows);
+        let name = match slf.owner_type {
             OwnerType::Owner => todo!(),
             OwnerType::User(i) => match i {
                 Identifier::Name(s) => s,
@@ -442,7 +443,7 @@ impl Into<ACLEntry> for chunk::Ace {
             OwnerType::Other => "Guest".to_string(),
         };
         ACLEntry {
-            ace_type: if self.allow {
+            ace_type: if slf.allow {
                 AceType::AccessAllow
             } else {
                 AceType::AccessDeny
@@ -452,7 +453,7 @@ impl Into<ACLEntry> for chunk::Ace {
             mask: {
                 let mut mask = 0;
                 for (permission, rights) in PERMISSION_MAPPING_TABLE {
-                    if self.permission.contains(permission) {
+                    if slf.permission.contains(permission) {
                         mask |= rights.0;
                     }
                 }
@@ -471,7 +472,7 @@ impl Into<chunk::Ace> for ACLEntry {
             t => panic!("Unsupported ace type {:?}", t),
         };
         chunk::Ace {
-            platform: AcePlatform::General,
+            platform: AcePlatform::Windows,
             flags: {
                 let flags = chunk::Flag::empty();
                 self.flags;
