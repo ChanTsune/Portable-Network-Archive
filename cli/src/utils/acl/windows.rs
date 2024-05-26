@@ -517,11 +517,12 @@ mod tests {
 
     #[test]
     fn acl_for_guest() {
-        std::fs::write("guest.txt", "guest").unwrap();
+        let path = format!("{}/guest.txt", env!("CARGO_TARGET_TMPDIR"));
+        std::fs::write(&path, "guest").unwrap();
         let sid = Sid::try_from_name("Guest", None).unwrap();
 
         set_facl(
-            "guest.txt",
+            &path,
             vec![Ace {
                 platform: AcePlatform::General,
                 flags: chunk::Flag::empty(),
@@ -533,6 +534,6 @@ mod tests {
             }],
         )
         .unwrap();
-        get_facl("guest.txt").unwrap();
+        get_facl(&path).unwrap();
     }
 }
