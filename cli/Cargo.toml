@@ -25,7 +25,7 @@ rand = "0.8.5"
 normalize-path = "0.2.1"
 
 [target.'cfg(unix)'.dependencies]
-nix = { version = "0.28.0", features = ["user", "fs"] }
+nix = { version = "0.29.0", features = ["user", "fs"] }
 xattr = "1.3.1"
 
 [target.'cfg(windows)'.dependencies]
