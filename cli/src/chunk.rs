@@ -666,6 +666,22 @@ fn ace_to_generic(src: Ace) -> Ace {
     }
 }
 
+#[inline]
+fn mapping_permission(
+    src_permission: Permission,
+    table: &[(&[Permission], Permission)],
+) -> Permission {
+    let mut permission = Permission::empty();
+    for (to, from_) in table {
+        if src_permission.contains(from_) {
+            for p in to {
+                permission.insert(**p);
+            }
+        }
+    }
+    permission
+}
+
 const GENERIC_TO_WINDOWS_PERMISSION_TABLE: [(&[Permission], Permission); 3] = [
     (
         &[
@@ -713,19 +729,10 @@ fn ace_to_windows(src: Ace) -> Ace {
                 flags: src.flags,
                 owner_type: src.owner_type,
                 allow: src.allow,
-                permission: {
-                    let mut permission = Permission::empty();
-                    for (platform_permission, generic_permission) in
-                        GENERIC_TO_WINDOWS_PERMISSION_TABLE
-                    {
-                        if src.permission.contains(generic_permission) {
-                            for p in platform_permission {
-                                permission.insert(*p);
-                            }
-                        }
-                    }
-                    permission
-                },
+                permission: mapping_permission(
+                    src.permission,
+                    &GENERIC_TO_WINDOWS_PERMISSION_TABLE,
+                ),
             }
         }
     }
@@ -746,6 +753,32 @@ fn ace_to_linux(src: Ace) -> Ace {
     }
 }
 
+const GENERIC_TO_MACOS_PERMISSION_TABLE: [(&[Permission], Permission); 3] = [
+    (
+        &[
+            Permission::READ,
+            Permission::READ_DATA,
+            Permission::READATTR,
+            Permission::READEXTATTR,
+            Permission::READSECURITY,
+        ],
+        Permission::READ,
+    ),
+    (
+        &[
+            Permission::WRITE,
+            Permission::WRITE_DATA,
+            Permission::WRITEATTR,
+            Permission::WRITEEXTATTR,
+            Permission::WRITESECURITY,
+            Permission::APPEND,
+            Permission::DELETE,
+        ],
+        Permission::WRITE,
+    ),
+    (&[Permission::EXECUTE], Permission::EXECUTE),
+];
+
 fn ace_to_macos(src: Ace) -> Ace {
     match src.platform {
         AcePlatform::MacOs => src,
@@ -760,36 +793,44 @@ fn ace_to_macos(src: Ace) -> Ace {
                 flags: src.flags,
                 owner_type: src.owner_type,
                 allow: src.allow,
-                permission: {
-                    let mut permission = Permission::empty();
-                    if src.permission.contains(Permission::READ) {
-                        let read_permissions = Permission::READ
-                            | Permission::READ_DATA
-                            | Permission::READATTR
-                            | Permission::READEXTATTR
-                            | Permission::READSECURITY;
-                        permission.insert(read_permissions);
-                    }
-                    if src.permission.contains(Permission::WRITE) {
-                        let write_permissions = Permission::WRITE
-                            | Permission::WRITE_DATA
-                            | Permission::WRITEATTR
-                            | Permission::WRITEEXTATTR
-                            | Permission::WRITESECURITY
-                            | Permission::APPEND
-                            | Permission::DELETE;
-                        permission.insert(write_permissions);
-                    }
-                    if src.permission.contains(Permission::EXECUTE) {
-                        let execute_permissions = Permission::EXECUTE;
-                        permission.insert(execute_permissions);
-                    }
-                    permission
-                },
+                permission: mapping_permission(src.permission, &GENERIC_TO_MACOS_PERMISSION_TABLE),
             }
         }
     }
 }
+
+const GENERIC_TO_FREEBSD_PERMISSION_TABLE: [(&[Permission], Permission); 3] = [
+    (
+        &[
+            Permission::READ,
+            Permission::READ_DATA,
+            Permission::READATTR,
+            Permission::READEXTATTR,
+            Permission::READSECURITY,
+            Permission::READATTR,
+            Permission::SYNC,
+        ],
+        Permission::READ,
+    ),
+    (
+        &[
+            Permission::WRITE,
+            Permission::WRITE_DATA,
+            Permission::WRITEATTR,
+            Permission::WRITEEXTATTR,
+            Permission::WRITESECURITY,
+            Permission::APPEND,
+            Permission::DELETE,
+            Permission::READATTR,
+            Permission::SYNC,
+        ],
+        Permission::WRITE,
+    ),
+    (
+        &[Permission::EXECUTE, Permission::READATTR, Permission::SYNC],
+        Permission::EXECUTE,
+    ),
+];
 
 fn ace_to_freebsd(src: Ace) -> Ace {
     match src.platform {
@@ -805,32 +846,10 @@ fn ace_to_freebsd(src: Ace) -> Ace {
                 flags: src.flags,
                 owner_type: src.owner_type,
                 allow: src.allow,
-                permission: {
-                    let mut permission = Permission::empty();
-                    if src.permission.contains(Permission::READ) {
-                        let read_permissions = Permission::READ
-                            | Permission::READ_DATA
-                            | Permission::READATTR
-                            | Permission::READEXTATTR
-                            | Permission::READSECURITY;
-                        permission.insert(read_permissions);
-                    }
-                    if src.permission.contains(Permission::WRITE) {
-                        let write_permissions = Permission::WRITE
-                            | Permission::WRITE_DATA
-                            | Permission::WRITEATTR
-                            | Permission::WRITEEXTATTR
-                            | Permission::WRITESECURITY
-                            | Permission::APPEND
-                            | Permission::DELETE;
-                        permission.insert(write_permissions);
-                    }
-                    if src.permission.contains(Permission::EXECUTE) {
-                        let execute_permissions = Permission::EXECUTE;
-                        permission.insert(execute_permissions);
-                    }
-                    permission
-                },
+                permission: mapping_permission(
+                    src.permission,
+                    &GENERIC_TO_WINDOWS_PERMISSION_TABLE,
+                ),
             }
         }
     }
