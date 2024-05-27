@@ -673,9 +673,9 @@ fn mapping_permission(
 ) -> Permission {
     let mut permission = Permission::empty();
     for (to, from_) in table {
-        if src_permission.contains(from_) {
-            for p in to {
-                permission.insert(**p);
+        if src_permission.contains(*from_) {
+            for p in *to {
+                permission.insert(*p);
             }
         }
     }
@@ -848,7 +848,7 @@ fn ace_to_freebsd(src: Ace) -> Ace {
                 allow: src.allow,
                 permission: mapping_permission(
                     src.permission,
-                    &GENERIC_TO_WINDOWS_PERMISSION_TABLE,
+                    &GENERIC_TO_FREEBSD_PERMISSION_TABLE,
                 ),
             }
         }
