@@ -666,6 +666,39 @@ fn ace_to_generic(src: Ace) -> Ace {
     }
 }
 
+const GENERIC_TO_WINDOWS_PERMISSION_TABLE: [(&[Permission], Permission); 3] = [
+    (
+        &[
+            Permission::READ,
+            Permission::READ_DATA,
+            Permission::READATTR,
+            Permission::READEXTATTR,
+            Permission::READSECURITY,
+            Permission::READATTR,
+            Permission::SYNC,
+        ],
+        Permission::READ,
+    ),
+    (
+        &[
+            Permission::WRITE,
+            Permission::WRITE_DATA,
+            Permission::WRITEATTR,
+            Permission::WRITEEXTATTR,
+            Permission::WRITESECURITY,
+            Permission::APPEND,
+            Permission::DELETE,
+            Permission::READATTR,
+            Permission::SYNC,
+        ],
+        Permission::WRITE,
+    ),
+    (
+        &[Permission::EXECUTE, Permission::READATTR, Permission::SYNC],
+        Permission::EXECUTE,
+    ),
+];
+
 fn ace_to_windows(src: Ace) -> Ace {
     match src.platform {
         AcePlatform::Windows => src,
@@ -682,27 +715,14 @@ fn ace_to_windows(src: Ace) -> Ace {
                 allow: src.allow,
                 permission: {
                     let mut permission = Permission::empty();
-                    if src.permission.contains(Permission::READ) {
-                        let read_permissions = Permission::READ
-                            | Permission::READ_DATA
-                            | Permission::READATTR
-                            | Permission::READEXTATTR
-                            | Permission::READSECURITY;
-                        permission.insert(read_permissions);
-                    }
-                    if src.permission.contains(Permission::WRITE) {
-                        let write_permissions = Permission::WRITE
-                            | Permission::WRITE_DATA
-                            | Permission::WRITEATTR
-                            | Permission::WRITEEXTATTR
-                            | Permission::WRITESECURITY
-                            | Permission::APPEND
-                            | Permission::DELETE;
-                        permission.insert(write_permissions);
-                    }
-                    if src.permission.contains(Permission::EXECUTE) {
-                        let execute_permissions = Permission::EXECUTE;
-                        permission.insert(execute_permissions);
+                    for (platform_permission, generic_permission) in
+                        GENERIC_TO_WINDOWS_PERMISSION_TABLE
+                    {
+                        if src.permission.contains(generic_permission) {
+                            for p in platform_permission {
+                                permission.insert(*p);
+                            }
+                        }
                     }
                     permission
                 },
