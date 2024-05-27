@@ -56,6 +56,8 @@ pub fn get_current_username() -> io::Result<String> {
 }
 
 type PACL = *mut Win32ACL;
+
+#[allow(non_camel_case_types)]
 type PACE_HEADER = *mut ACE_HEADER;
 
 pub struct SecurityDescriptor {
