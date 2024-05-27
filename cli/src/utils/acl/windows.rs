@@ -427,18 +427,10 @@ impl Into<ACLEntry> for chunk::Ace {
     fn into(self) -> ACLEntry {
         let slf = ace_convert_platform(self, AcePlatform::Windows);
         let name = match slf.owner_type {
-            OwnerType::Owner => todo!(),
-            OwnerType::User(i) => match i {
-                Identifier::Name(s) => s,
-                Identifier::Id(n) => n.to_string(),
-                Identifier::Both(s, _) => s,
-            },
+            OwnerType::Owner => get_current_username().unwrap(),
+            OwnerType::User(i) => i.0,
             OwnerType::OwnerGroup => todo!(),
-            OwnerType::Group(i) => match i {
-                Identifier::Name(s) => s,
-                Identifier::Id(n) => n.to_string(),
-                Identifier::Both(s, _) => s,
-            },
+            OwnerType::Group(i) => i.0,
             OwnerType::Mask => todo!(),
             OwnerType::Other => "Guest".to_string(),
         };
@@ -478,7 +470,7 @@ impl Into<chunk::Ace> for ACLEntry {
                 self.flags;
                 flags
             },
-            owner_type: OwnerType::User(Identifier::Name(self.sid.to_name().unwrap())),
+            owner_type: OwnerType::User(Identifier(self.sid.to_name().unwrap())),
             allow,
             permission: {
                 let mut permission = chunk::Permission::empty();
@@ -532,7 +524,7 @@ mod tests {
             vec![Ace {
                 platform: AcePlatform::General,
                 flags: chunk::Flag::empty(),
-                owner_type: OwnerType::User(Identifier::Name(sid.to_name().unwrap())),
+                owner_type: OwnerType::User(Identifier(sid.to_name().unwrap())),
                 allow: true,
                 permission: chunk::Permission::READ
                     | chunk::Permission::WRITE

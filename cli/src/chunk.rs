@@ -68,19 +68,11 @@ impl FromStr for AcePlatform {
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum Identifier {
-    Name(String),
-    Id(u64),
-    Both(String, u64),
-}
+pub struct Identifier(pub(crate) String);
 
 impl Display for Identifier {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Identifier::Name(n) => write!(f, "{}:", n),
-            Identifier::Id(i) => write!(f, ":{}", i),
-            Identifier::Both(n, i) => write!(f, "{}:{}", n, i),
-        }
+        f.write_str(&self.0)
     }
 }
 
@@ -97,12 +89,12 @@ pub enum OwnerType {
 impl Display for OwnerType {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match &self {
-            OwnerType::Owner => f.write_str("u::"),
+            OwnerType::Owner => f.write_str("u:"),
             OwnerType::User(i) => write!(f, "u:{}", i),
-            OwnerType::OwnerGroup => f.write_str("g::"),
+            OwnerType::OwnerGroup => f.write_str("g:"),
             OwnerType::Group(i) => write!(f, "g:{}", i),
-            OwnerType::Mask => f.write_str("m::"),
-            OwnerType::Other => f.write_str("o::"),
+            OwnerType::Mask => f.write_str("m:"),
+            OwnerType::Other => f.write_str("o:"),
         }
     }
 }
@@ -264,19 +256,14 @@ impl FromStr for Ace {
         }
         let owner_type = it.next().ok_or(ParseAceError::NotEnoughElement)?;
         let owner_name = it.next().ok_or(ParseAceError::NotEnoughElement)?;
-        let owner_id = it.next().ok_or(ParseAceError::NotEnoughElement)?;
         let owner = match owner_type {
-            "u" | "user" => match (owner_name, owner_id) {
-                ("", "") => OwnerType::Owner,
-                ("", id) => OwnerType::User(Identifier::Id(id.parse()?)),
-                (name, "") => OwnerType::User(Identifier::Name(name.to_string())),
-                (name, id) => OwnerType::User(Identifier::Both(name.to_string(), id.parse()?)),
+            "u" | "user" => match owner_name {
+                "" => OwnerType::Owner,
+                name => OwnerType::User(Identifier(name.to_string())),
             },
-            "g" | "group" => match (owner_name, owner_id) {
-                ("", "") => OwnerType::OwnerGroup,
-                ("", id) => OwnerType::Group(Identifier::Id(id.parse()?)),
-                (name, "") => OwnerType::Group(Identifier::Name(name.to_string())),
-                (name, id) => OwnerType::Group(Identifier::Both(name.to_string(), id.parse()?)),
+            "g" | "group" => match owner_name {
+                "" => OwnerType::OwnerGroup,
+                name => OwnerType::Group(Identifier(name.to_string())),
             },
             "m" | "mask" => OwnerType::Mask,
             "o" | "other" => OwnerType::Other,
@@ -451,9 +438,9 @@ impl Into<Ace> for exacl::AclEntry {
             flags,
             owner_type: match self.kind {
                 exacl::AclEntryKind::User if self.name.is_empty() => OwnerType::Owner,
-                exacl::AclEntryKind::User => OwnerType::User(Identifier::Name(self.name)),
+                exacl::AclEntryKind::User => OwnerType::User(Identifier(self.name)),
                 exacl::AclEntryKind::Group if self.name.is_empty() => OwnerType::OwnerGroup,
-                exacl::AclEntryKind::Group => OwnerType::Group(Identifier::Name(self.name)),
+                exacl::AclEntryKind::Group => OwnerType::Group(Identifier(self.name)),
                 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
                 exacl::AclEntryKind::Mask => OwnerType::Mask,
                 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
@@ -474,23 +461,9 @@ impl Into<exacl::AclEntry> for Ace {
         let slf = ace_convert_platform(self, AcePlatform::CURRENT);
         let (kind, name) = match slf.owner_type {
             OwnerType::Owner => (exacl::AclEntryKind::User, String::new()),
-            OwnerType::User(u) => (
-                exacl::AclEntryKind::User,
-                match u {
-                    Identifier::Name(u) => u,
-                    Identifier::Id(n) => n.to_string(),
-                    Identifier::Both(u, _) => u,
-                },
-            ),
+            OwnerType::User(u) => (exacl::AclEntryKind::User, u.0),
             OwnerType::OwnerGroup => (exacl::AclEntryKind::Group, String::new()),
-            OwnerType::Group(u) => (
-                exacl::AclEntryKind::Group,
-                match u {
-                    Identifier::Name(u) => u,
-                    Identifier::Id(n) => n.to_string(),
-                    Identifier::Both(u, _) => u,
-                },
-            ),
+            OwnerType::Group(u) => (exacl::AclEntryKind::Group, u.0),
             #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
             OwnerType::Mask => (exacl::AclEntryKind::Unknown, String::new()),
             #[cfg(any(target_os = "linux", target_os = "freebsd"))]
