@@ -365,11 +365,9 @@ impl FromStr for Sid {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut psid = PSID::default();
-        let mut s = encode_wide(s.as_ref()).map_err(|_| ())?;
-        unsafe {
-            ConvertStringSidToSidW(PWSTR::from_raw(s.as_mut_ptr()), &mut psid as _)
-                .map_err(|_| ())?;
-        }
+        let s = encode_wide(s.as_ref()).map_err(|_| ())?;
+        unsafe { ConvertStringSidToSidW(PCWSTR::from_raw(s.as_ptr()), &mut psid as _) }
+            .map_err(|_| ())?;
         Self::try_from(psid).map_err(|e| ())
     }
 }
