@@ -552,7 +552,18 @@ mod tests {
                 allow: true,
                 permission: chunk::Permission::READ
                     | chunk::Permission::WRITE
-                    | chunk::Permission::EXECUTE,
+                    | chunk::Permission::EXECUTE
+                    | chunk::Permission::DELETE
+                    | chunk::Permission::APPEND
+                    | chunk::Permission::READATTR
+                    | chunk::Permission::WRITEATTR
+                    | chunk::Permission::READEXTATTR
+                    | chunk::Permission::WRITEEXTATTR
+                    | chunk::Permission::READSECURITY
+                    | chunk::Permission::WRITESECURITY
+                    | chunk::Permission::SYNC
+                    | chunk::Permission::READ_DATA
+                    | chunk::Permission::WRITE_DATA,
             }
         );
 
