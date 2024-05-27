@@ -197,10 +197,7 @@ impl ACL {
     }
 
     pub fn set_d_acl(&self, acl_entries: &[ACLEntry]) -> io::Result<()> {
-        let acl_size = acl_entries
-            .iter()
-            .map(|it| it.ace_type.entry_size() - mem::size_of::<u32>() + it.sid.0.len())
-            .sum::<usize>()
+        let acl_size = acl_entries.iter().map(|it| it.size as usize).sum::<usize>()
             + mem::size_of::<Win32ACL>();
         let mut new_acl_buffer = Vec::<u8>::with_capacity(acl_size);
         let mut new_acl = new_acl_buffer.as_mut_ptr();
@@ -394,7 +391,7 @@ impl TryFrom<PSID> for Sid {
 pub struct ACLEntry {
     pub ace_type: AceType,
     pub sid: Sid,
-    pub size: u16,
+    size: u16,
     pub flags: u8,
     pub mask: u32,
 }
@@ -446,13 +443,15 @@ impl Into<ACLEntry> for chunk::Ace {
             OwnerType::Mask => todo!(),
             OwnerType::Other => "Guest".to_string(),
         };
+        let sid = Sid::try_from_name(&name, None).unwrap();
+        let ace_type = if slf.allow {
+            AceType::AccessAllow
+        } else {
+            AceType::AccessDeny
+        };
         ACLEntry {
-            ace_type: if slf.allow {
-                AceType::AccessAllow
-            } else {
-                AceType::AccessDeny
-            },
-            size: 0,
+            ace_type,
+            size: (ace_type.entry_size() - mem::size_of::<u32>() + sid.0.len()) as u16,
             flags: 0,
             mask: {
                 let mut mask = 0;
@@ -463,7 +462,7 @@ impl Into<ACLEntry> for chunk::Ace {
                 }
                 mask
             },
-            sid: Sid::try_from_name(&name, None).unwrap(),
+            sid,
         }
     }
 }
