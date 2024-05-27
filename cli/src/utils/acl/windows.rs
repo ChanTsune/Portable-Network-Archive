@@ -158,10 +158,6 @@ impl ACL {
                     let sid_offset = offset_of!(ACCESS_ALLOWED_ACE => SidStart);
                     let p_sid = PSID(sid_offset.apply_ptr_mut(entry_ptr) as _);
                     let sid = Sid::try_from(p_sid)?;
-                    assert_eq!(
-                        unsafe { *header }.AceSize as usize,
-                        AceType::AccessAllow.entry_size() - mem::size_of::<u32>() + sid.0.len()
-                    );
                     ACLEntry {
                         ace_type: AceType::AccessAllow,
                         sid,
