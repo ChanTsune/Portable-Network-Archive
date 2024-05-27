@@ -540,6 +540,28 @@ mod tests {
             }],
         )
         .unwrap();
-        get_facl(&path).unwrap();
+        let acl = get_facl(&path).unwrap();
+        assert_eq!(acl.len(), 1);
+
+        assert_eq!(
+            &acl[0],
+            &Ace {
+                platform: AcePlatform::Windows,
+                flags: chunk::Flag::empty(),
+                owner_type: OwnerType::User(Identifier::Name(sid.to_name().unwrap())),
+                allow: true,
+                permission: chunk::Permission::READ
+                    | chunk::Permission::WRITE
+                    | chunk::Permission::EXECUTE,
+            }
+        );
+
+        #[test]
+        fn get_acl() {
+            let path = "default.txt";
+            std::fs::write(&path, "default").unwrap();
+            let acl = get_facl(&path).unwrap();
+            assert_eq!(acl, vec![]);
+        }
     }
 }
