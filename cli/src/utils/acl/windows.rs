@@ -25,7 +25,8 @@ use windows::Win32::Security::{
 use windows::Win32::Storage::FileSystem::{
     DELETE, FILE_ACCESS_RIGHTS, FILE_APPEND_DATA, FILE_DELETE_CHILD, FILE_EXECUTE,
     FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_READ_ATTRIBUTES, FILE_READ_DATA, FILE_READ_EA,
-    FILE_WRITE_ATTRIBUTES, FILE_WRITE_DATA, FILE_WRITE_EA, SYNCHRONIZE, WRITE_DAC, WRITE_OWNER,
+    FILE_WRITE_ATTRIBUTES, FILE_WRITE_DATA, FILE_WRITE_EA, READ_CONTROL, SYNCHRONIZE, WRITE_DAC,
+    WRITE_OWNER,
 };
 use windows::Win32::System::SystemServices::{ACCESS_ALLOWED_ACE_TYPE, ACCESS_DENIED_ACE_TYPE};
 use windows::Win32::System::WindowsProgramming::GetUserNameW;
@@ -403,18 +404,9 @@ const PERMISSION_MAPPING_TABLE: [(chunk::Permission, FILE_ACCESS_RIGHTS); 16] = 
     (chunk::Permission::WRITEATTR, FILE_WRITE_ATTRIBUTES),
     (chunk::Permission::READEXTATTR, FILE_READ_EA),
     (chunk::Permission::WRITEEXTATTR, FILE_WRITE_EA),
-    (
-        chunk::Permission::READSECURITY,
-        FILE_ACCESS_RIGHTS(FILE_READ_ATTRIBUTES.0 | FILE_READ_EA.0),
-    ),
-    (
-        chunk::Permission::WRITESECURITY,
-        FILE_ACCESS_RIGHTS(FILE_WRITE_ATTRIBUTES.0 | FILE_WRITE_EA.0),
-    ),
-    (
-        chunk::Permission::CHOWN,
-        FILE_ACCESS_RIGHTS(WRITE_DAC.0 | WRITE_OWNER.0),
-    ),
+    (chunk::Permission::READSECURITY, READ_CONTROL),
+    (chunk::Permission::WRITESECURITY, WRITE_DAC),
+    (chunk::Permission::CHOWN, WRITE_OWNER),
     (chunk::Permission::SYNC, SYNCHRONIZE),
     (chunk::Permission::READ_DATA, FILE_READ_DATA),
     (chunk::Permission::WRITE_DATA, FILE_WRITE_DATA),
