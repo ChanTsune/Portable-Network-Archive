@@ -531,7 +531,7 @@ mod tests {
             &Ace {
                 platform: AcePlatform::Windows,
                 flags: chunk::Flag::empty(),
-                owner_type: OwnerType::User(Identifier::Name(sid.to_name().unwrap())),
+                owner_type: OwnerType::User(Identifier(sid.to_name().unwrap())),
                 allow: true,
                 permission: chunk::Permission::READ
                     | chunk::Permission::WRITE

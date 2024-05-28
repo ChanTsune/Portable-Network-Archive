@@ -309,21 +309,12 @@ pub(crate) fn extract_entry(
     if keep_options.keep_xattr {
         eprintln!("Currently extended attribute is not supported on this platform.");
     }
-    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "macos"))]
-    if keep_options.keep_acl {
-        let mut acl = Vec::new();
-        for c in item.extra_chunks() {
-            if c.ty() == chunk::faCe {
-                let body = std::str::from_utf8(c.data()).map_err(io::Error::other)?;
-                let ace = chunk::Ace::from_str(body).map_err(io::Error::other)?;
-                acl.push(ace.into());
-            }
-        }
-        if !acl.is_empty() {
-            exacl::setfacl(&[&path], &acl, None)?;
-        }
-    }
-    #[cfg(windows)]
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "freebsd",
+        target_os = "macos",
+        windows
+    ))]
     if keep_options.keep_acl {
         use utils::acl::set_facl;
         let mut acl = Vec::new();
@@ -331,7 +322,7 @@ pub(crate) fn extract_entry(
             if c.ty() == chunk::faCe {
                 let body = std::str::from_utf8(c.data()).map_err(io::Error::other)?;
                 let ace = chunk::Ace::from_str(body).map_err(io::Error::other)?;
-                acl.push(ace.into());
+                acl.push(ace);
             }
         }
         if !acl.is_empty() {

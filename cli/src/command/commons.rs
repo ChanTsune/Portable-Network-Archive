@@ -181,15 +181,12 @@ pub(crate) fn apply_metadata(
             ));
         }
     }
-    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "macos"))]
-    if keep_options.keep_acl {
-        let acl = exacl::getfacl(path, None)?;
-        for ace in acl {
-            let ace: chunk::Ace = ace.into();
-            entry.add_extra_chunk(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
-        }
-    }
-    #[cfg(windows)]
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "freebsd",
+        target_os = "macos",
+        windows
+    ))]
     if keep_options.keep_acl {
         let ace_list = crate::utils::acl::get_facl(path)?;
         for ace in ace_list {
