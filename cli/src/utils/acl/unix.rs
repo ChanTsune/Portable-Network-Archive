@@ -109,9 +109,9 @@ impl Into<Ace> for exacl::AclEntry {
             flags,
             owner_type: match self.kind {
                 exacl::AclEntryKind::User if self.name.is_empty() => OwnerType::Owner,
-                exacl::AclEntryKind::User => OwnerType::User(Identifier::Name(self.name)),
+                exacl::AclEntryKind::User => OwnerType::User(Identifier(self.name)),
                 exacl::AclEntryKind::Group if self.name.is_empty() => OwnerType::OwnerGroup,
-                exacl::AclEntryKind::Group => OwnerType::Group(Identifier::Name(self.name)),
+                exacl::AclEntryKind::Group => OwnerType::Group(Identifier(self.name)),
                 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
                 exacl::AclEntryKind::Mask => OwnerType::Mask,
                 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
@@ -131,23 +131,9 @@ impl Into<exacl::AclEntry> for Ace {
         let slf = ace_convert_platform(self, AcePlatform::CURRENT);
         let (kind, name) = match slf.owner_type {
             OwnerType::Owner => (exacl::AclEntryKind::User, String::new()),
-            OwnerType::User(u) => (
-                exacl::AclEntryKind::User,
-                match u {
-                    Identifier::Name(u) => u,
-                    Identifier::Id(n) => n.to_string(),
-                    Identifier::Both(u, _) => u,
-                },
-            ),
+            OwnerType::User(u) => (exacl::AclEntryKind::User, u.0),
             OwnerType::OwnerGroup => (exacl::AclEntryKind::Group, String::new()),
-            OwnerType::Group(u) => (
-                exacl::AclEntryKind::Group,
-                match u {
-                    Identifier::Name(u) => u,
-                    Identifier::Id(n) => n.to_string(),
-                    Identifier::Both(u, _) => u,
-                },
-            ),
+            OwnerType::Group(u) => (exacl::AclEntryKind::Group, u.0),
             #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
             OwnerType::Mask => (exacl::AclEntryKind::Unknown, String::new()),
             #[cfg(any(target_os = "linux", target_os = "freebsd"))]
