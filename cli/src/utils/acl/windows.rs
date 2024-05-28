@@ -56,6 +56,8 @@ pub fn get_current_username() -> io::Result<String> {
 }
 
 type PACL = *mut Win32ACL;
+
+#[allow(non_camel_case_types)]
 type PACE_HEADER = *mut ACE_HEADER;
 
 pub struct SecurityDescriptor {
@@ -191,10 +193,7 @@ impl ACL {
     }
 
     pub fn set_d_acl(&self, acl_entries: &[ACLEntry]) -> io::Result<()> {
-        let acl_size = acl_entries
-            .iter()
-            .map(|it| it.ace_type.entry_size() - mem::size_of::<u32>() + it.sid.0.len())
-            .sum::<usize>()
+        let acl_size = acl_entries.iter().map(|it| it.size as usize).sum::<usize>()
             + mem::size_of::<Win32ACL>();
         let mut new_acl_buffer = Vec::<u8>::with_capacity(acl_size);
         let mut new_acl = new_acl_buffer.as_mut_ptr();
@@ -363,11 +362,9 @@ impl FromStr for Sid {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut psid = PSID::default();
-        let mut s = encode_wide(s.as_ref()).map_err(|_| ())?;
-        unsafe {
-            ConvertStringSidToSidW(PWSTR::from_raw(s.as_mut_ptr()), &mut psid as _)
-                .map_err(|_| ())?;
-        }
+        let s = encode_wide(s.as_ref()).map_err(|_| ())?;
+        unsafe { ConvertStringSidToSidW(PCWSTR::from_raw(s.as_ptr()), &mut psid as _) }
+            .map_err(|_| ())?;
         Self::try_from(psid).map_err(|e| ())
     }
 }
@@ -390,7 +387,7 @@ impl TryFrom<PSID> for Sid {
 pub struct ACLEntry {
     pub ace_type: AceType,
     pub sid: Sid,
-    pub size: u16,
+    size: u16,
     pub flags: u8,
     pub mask: u32,
 }
@@ -427,28 +424,22 @@ impl Into<ACLEntry> for chunk::Ace {
     fn into(self) -> ACLEntry {
         let slf = ace_convert_platform(self, AcePlatform::Windows);
         let name = match slf.owner_type {
-            OwnerType::Owner => todo!(),
-            OwnerType::User(i) => match i {
-                Identifier::Name(s) => s,
-                Identifier::Id(n) => n.to_string(),
-                Identifier::Both(s, _) => s,
-            },
+            OwnerType::Owner => get_current_username().unwrap(),
+            OwnerType::User(i) => i.0,
             OwnerType::OwnerGroup => todo!(),
-            OwnerType::Group(i) => match i {
-                Identifier::Name(s) => s,
-                Identifier::Id(n) => n.to_string(),
-                Identifier::Both(s, _) => s,
-            },
+            OwnerType::Group(i) => i.0,
             OwnerType::Mask => todo!(),
             OwnerType::Other => "Guest".to_string(),
         };
+        let sid = Sid::try_from_name(&name, None).unwrap();
+        let ace_type = if slf.allow {
+            AceType::AccessAllow
+        } else {
+            AceType::AccessDeny
+        };
         ACLEntry {
-            ace_type: if slf.allow {
-                AceType::AccessAllow
-            } else {
-                AceType::AccessDeny
-            },
-            size: 0,
+            ace_type,
+            size: (ace_type.entry_size() - mem::size_of::<u32>() + sid.0.len()) as u16,
             flags: 0,
             mask: {
                 let mut mask = 0;
@@ -459,7 +450,7 @@ impl Into<ACLEntry> for chunk::Ace {
                 }
                 mask
             },
-            sid: Sid::try_from_name(&name, None).unwrap(),
+            sid,
         }
     }
 }
@@ -478,7 +469,7 @@ impl Into<chunk::Ace> for ACLEntry {
                 self.flags;
                 flags
             },
-            owner_type: OwnerType::User(Identifier::Name(self.sid.to_name().unwrap())),
+            owner_type: OwnerType::User(Identifier(self.sid.to_name().unwrap())),
             allow,
             permission: {
                 let mut permission = chunk::Permission::empty();
@@ -532,7 +523,7 @@ mod tests {
             vec![Ace {
                 platform: AcePlatform::General,
                 flags: chunk::Flag::empty(),
-                owner_type: OwnerType::User(Identifier::Name(sid.to_name().unwrap())),
+                owner_type: OwnerType::User(Identifier(sid.to_name().unwrap())),
                 allow: true,
                 permission: chunk::Permission::READ
                     | chunk::Permission::WRITE
@@ -540,6 +531,39 @@ mod tests {
             }],
         )
         .unwrap();
-        get_facl(&path).unwrap();
+        let acl = get_facl(&path).unwrap();
+        assert_eq!(acl.len(), 1);
+
+        assert_eq!(
+            &acl[0],
+            &Ace {
+                platform: AcePlatform::Windows,
+                flags: chunk::Flag::empty(),
+                owner_type: OwnerType::User(Identifier::Name(sid.to_name().unwrap())),
+                allow: true,
+                permission: chunk::Permission::READ
+                    | chunk::Permission::WRITE
+                    | chunk::Permission::EXECUTE
+                    | chunk::Permission::DELETE
+                    | chunk::Permission::APPEND
+                    | chunk::Permission::READATTR
+                    | chunk::Permission::WRITEATTR
+                    | chunk::Permission::READEXTATTR
+                    | chunk::Permission::WRITEEXTATTR
+                    | chunk::Permission::READSECURITY
+                    | chunk::Permission::WRITESECURITY
+                    | chunk::Permission::SYNC
+                    | chunk::Permission::READ_DATA
+                    | chunk::Permission::WRITE_DATA,
+            }
+        );
+    }
+
+    #[test]
+    fn get_acl() {
+        let path = "default.txt";
+        std::fs::write(&path, "default").unwrap();
+        let acl = get_facl(&path).unwrap();
+        assert_ne!(acl.len(), 0);
     }
 }

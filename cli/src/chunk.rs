@@ -68,19 +68,11 @@ impl FromStr for AcePlatform {
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum Identifier {
-    Name(String),
-    Id(u64),
-    Both(String, u64),
-}
+pub struct Identifier(pub(crate) String);
 
 impl Display for Identifier {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Identifier::Name(n) => write!(f, "{}:", n),
-            Identifier::Id(i) => write!(f, ":{}", i),
-            Identifier::Both(n, i) => write!(f, "{}:{}", n, i),
-        }
+        f.write_str(&self.0)
     }
 }
 
@@ -97,12 +89,12 @@ pub enum OwnerType {
 impl Display for OwnerType {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match &self {
-            OwnerType::Owner => f.write_str("u::"),
+            OwnerType::Owner => f.write_str("u:"),
             OwnerType::User(i) => write!(f, "u:{}", i),
-            OwnerType::OwnerGroup => f.write_str("g::"),
+            OwnerType::OwnerGroup => f.write_str("g:"),
             OwnerType::Group(i) => write!(f, "g:{}", i),
-            OwnerType::Mask => f.write_str("m::"),
-            OwnerType::Other => f.write_str("o::"),
+            OwnerType::Mask => f.write_str("m:"),
+            OwnerType::Other => f.write_str("o:"),
         }
     }
 }
@@ -264,19 +256,14 @@ impl FromStr for Ace {
         }
         let owner_type = it.next().ok_or(ParseAceError::NotEnoughElement)?;
         let owner_name = it.next().ok_or(ParseAceError::NotEnoughElement)?;
-        let owner_id = it.next().ok_or(ParseAceError::NotEnoughElement)?;
         let owner = match owner_type {
-            "u" | "user" => match (owner_name, owner_id) {
-                ("", "") => OwnerType::Owner,
-                ("", id) => OwnerType::User(Identifier::Id(id.parse()?)),
-                (name, "") => OwnerType::User(Identifier::Name(name.to_string())),
-                (name, id) => OwnerType::User(Identifier::Both(name.to_string(), id.parse()?)),
+            "u" | "user" => match owner_name {
+                "" => OwnerType::Owner,
+                name => OwnerType::User(Identifier(name.to_string())),
             },
-            "g" | "group" => match (owner_name, owner_id) {
-                ("", "") => OwnerType::OwnerGroup,
-                ("", id) => OwnerType::Group(Identifier::Id(id.parse()?)),
-                (name, "") => OwnerType::Group(Identifier::Name(name.to_string())),
-                (name, id) => OwnerType::Group(Identifier::Both(name.to_string(), id.parse()?)),
+            "g" | "group" => match owner_name {
+                "" => OwnerType::OwnerGroup,
+                name => OwnerType::Group(Identifier(name.to_string())),
             },
             "m" | "mask" => OwnerType::Mask,
             "o" | "other" => OwnerType::Other,
@@ -365,6 +352,46 @@ pub fn ace_convert_platform(src: Ace, to: AcePlatform) -> Ace {
     }
 }
 
+const TO_GENERAL_PERMISSION_TABLE: [(&[Permission], Permission); 3] = [
+    (
+        &[
+            Permission::READ,
+            Permission::READ_DATA,
+            Permission::READATTR,
+            Permission::READEXTATTR,
+            Permission::READSECURITY,
+        ],
+        Permission::READ,
+    ),
+    (
+        &[
+            Permission::WRITE,
+            Permission::WRITE_DATA,
+            Permission::WRITEATTR,
+            Permission::WRITEEXTATTR,
+            Permission::WRITESECURITY,
+            Permission::APPEND,
+            Permission::DELETE,
+        ],
+        Permission::WRITE,
+    ),
+    (&[Permission::EXECUTE], Permission::EXECUTE),
+];
+
+#[inline]
+fn to_general_permission(src_permission: Permission) -> Permission {
+    let mut permission = Permission::empty();
+    for (platform_permissions, generic_permission) in TO_GENERAL_PERMISSION_TABLE {
+        if platform_permissions
+            .iter()
+            .any(|it| src_permission.contains(*it))
+        {
+            permission.insert(generic_permission);
+        }
+    }
+    permission
+}
+
 fn ace_to_generic(src: Ace) -> Ace {
     match src.platform {
         AcePlatform::General => src,
@@ -373,45 +400,7 @@ fn ace_to_generic(src: Ace) -> Ace {
             flags: Flag::empty(),
             owner_type: src.owner_type,
             allow: src.allow,
-            permission: {
-                let mut permission = Permission::empty();
-                const READ_PERMISSIONS: [Permission; 5] = [
-                    Permission::READ,
-                    Permission::READ_DATA,
-                    Permission::READATTR,
-                    Permission::READEXTATTR,
-                    Permission::READSECURITY,
-                ];
-                if READ_PERMISSIONS
-                    .into_iter()
-                    .any(|it| src.permission.contains(it))
-                {
-                    permission.insert(Permission::READ);
-                }
-                const WRITE_PERMISSIONS: [Permission; 7] = [
-                    Permission::WRITE,
-                    Permission::WRITE_DATA,
-                    Permission::WRITEATTR,
-                    Permission::WRITEEXTATTR,
-                    Permission::WRITESECURITY,
-                    Permission::APPEND,
-                    Permission::DELETE,
-                ];
-                if WRITE_PERMISSIONS
-                    .into_iter()
-                    .any(|it| src.permission.contains(it))
-                {
-                    permission.insert(Permission::WRITE);
-                }
-                const EXECUTE_PERMISSIONS: [Permission; 1] = [Permission::EXECUTE];
-                if EXECUTE_PERMISSIONS
-                    .into_iter()
-                    .any(|it| src.permission.contains(it))
-                {
-                    permission.insert(Permission::EXECUTE);
-                }
-                permission
-            },
+            permission: to_general_permission(src.permission),
         },
         AcePlatform::MacOs => Ace {
             platform: AcePlatform::General,
@@ -422,137 +411,29 @@ fn ace_to_generic(src: Ace) -> Ace {
             },
             owner_type: src.owner_type,
             allow: src.allow,
-            permission: {
-                let mut permission = Permission::empty();
-                const MACOS_READ_PERMISSIONS: [Permission; 5] = [
-                    Permission::READ,
-                    Permission::READ_DATA,
-                    Permission::READATTR,
-                    Permission::READEXTATTR,
-                    Permission::READSECURITY,
-                ];
-                if MACOS_READ_PERMISSIONS
-                    .into_iter()
-                    .any(|it| src.permission.contains(it))
-                {
-                    permission.insert(Permission::READ);
-                }
-                const MACOS_WRITE_PERMISSIONS: [Permission; 7] = [
-                    Permission::WRITE,
-                    Permission::WRITE_DATA,
-                    Permission::WRITEATTR,
-                    Permission::WRITEEXTATTR,
-                    Permission::WRITESECURITY,
-                    Permission::APPEND,
-                    Permission::DELETE,
-                ];
-                if MACOS_WRITE_PERMISSIONS
-                    .into_iter()
-                    .any(|it| src.permission.contains(it))
-                {
-                    permission.insert(Permission::WRITE);
-                }
-                const MACOS_EXECUTE_PERMISSIONS: [Permission; 1] = [Permission::EXECUTE];
-                if MACOS_EXECUTE_PERMISSIONS
-                    .into_iter()
-                    .any(|it| src.permission.contains(it))
-                {
-                    permission.insert(Permission::EXECUTE);
-                }
-                permission
-            },
+            permission: to_general_permission(src.permission),
         },
         AcePlatform::Linux => Ace {
             platform: AcePlatform::Linux,
             flags: src.flags & Flag::DEFAULT,
             owner_type: src.owner_type,
             allow: src.allow,
-            permission: {
-                let mut permission = Permission::empty();
-                const READ_PERMISSIONS: [Permission; 5] = [
-                    Permission::READ,
-                    Permission::READ_DATA,
-                    Permission::READATTR,
-                    Permission::READEXTATTR,
-                    Permission::READSECURITY,
-                ];
-                if READ_PERMISSIONS
-                    .into_iter()
-                    .any(|it| src.permission.contains(it))
-                {
-                    permission.insert(Permission::READ);
-                }
-                const WRITE_PERMISSIONS: [Permission; 7] = [
-                    Permission::WRITE,
-                    Permission::WRITE_DATA,
-                    Permission::WRITEATTR,
-                    Permission::WRITEEXTATTR,
-                    Permission::WRITESECURITY,
-                    Permission::APPEND,
-                    Permission::DELETE,
-                ];
-                if WRITE_PERMISSIONS
-                    .into_iter()
-                    .any(|it| src.permission.contains(it))
-                {
-                    permission.insert(Permission::WRITE);
-                }
-                const EXECUTE_PERMISSIONS: [Permission; 1] = [Permission::EXECUTE];
-                if EXECUTE_PERMISSIONS
-                    .into_iter()
-                    .any(|it| src.permission.contains(it))
-                {
-                    permission.insert(Permission::EXECUTE);
-                }
-                permission
-            },
+            permission: to_general_permission(src.permission),
         },
         AcePlatform::FreeBSD => Ace {
             platform: AcePlatform::General,
             flags: src.flags,
             owner_type: src.owner_type,
             allow: src.allow,
-            permission: {
-                let mut permission = Permission::empty();
-                const READ_PERMISSIONS: [Permission; 5] = [
-                    Permission::READ,
-                    Permission::READ_DATA,
-                    Permission::READATTR,
-                    Permission::READEXTATTR,
-                    Permission::READSECURITY,
-                ];
-                if READ_PERMISSIONS
-                    .into_iter()
-                    .any(|it| src.permission.contains(it))
-                {
-                    permission.insert(Permission::READ);
-                }
-                const WRITE_PERMISSIONS: [Permission; 7] = [
-                    Permission::WRITE,
-                    Permission::WRITE_DATA,
-                    Permission::WRITEATTR,
-                    Permission::WRITEEXTATTR,
-                    Permission::WRITESECURITY,
-                    Permission::APPEND,
-                    Permission::DELETE,
-                ];
-                if WRITE_PERMISSIONS
-                    .into_iter()
-                    .any(|it| src.permission.contains(it))
-                {
-                    permission.insert(Permission::WRITE);
-                }
-                const EXECUTE_PERMISSIONS: [Permission; 1] = [Permission::EXECUTE];
-                if EXECUTE_PERMISSIONS
-                    .into_iter()
-                    .any(|it| src.permission.contains(it))
-                {
-                    permission.insert(Permission::EXECUTE);
-                }
-                permission
-            },
+            permission: to_general_permission(src.permission),
         },
-        AcePlatform::Unknown(_) => todo!(),
+        AcePlatform::Unknown(_) => Ace {
+            platform: AcePlatform::General,
+            flags: Flag::empty(),
+            owner_type: src.owner_type,
+            allow: src.allow,
+            permission: to_general_permission(src.permission),
+        },
     }
 }
 
