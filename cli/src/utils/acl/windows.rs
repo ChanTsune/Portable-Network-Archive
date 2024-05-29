@@ -18,9 +18,10 @@ use windows::Win32::Security::Authorization::{
 use windows::Win32::Security::{
     AddAccessAllowedAceEx, AddAccessDeniedAceEx, CopySid, GetAce, GetLengthSid, InitializeAcl,
     IsValidSid, LookupAccountNameW, LookupAccountSidW, ACCESS_ALLOWED_ACE, ACCESS_DENIED_ACE,
-    ACE_FLAGS, ACE_HEADER, ACL as Win32ACL, ACL_REVISION_DS, DACL_SECURITY_INFORMATION,
-    GROUP_SECURITY_INFORMATION, OWNER_SECURITY_INFORMATION, PROTECTED_DACL_SECURITY_INFORMATION,
-    PSECURITY_DESCRIPTOR, SID_NAME_USE,
+    ACE_FLAGS, ACE_HEADER, ACL as Win32ACL, ACL_REVISION_DS, CONTAINER_INHERIT_ACE,
+    DACL_SECURITY_INFORMATION, GROUP_SECURITY_INFORMATION, INHERITED_ACE, INHERIT_ONLY_ACE,
+    NO_PROPAGATE_INHERIT_ACE, OBJECT_INHERIT_ACE, OWNER_SECURITY_INFORMATION,
+    PROTECTED_DACL_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, SID_NAME_USE,
 };
 use windows::Win32::Storage::FileSystem::{
     DELETE, FILE_ACCESS_RIGHTS, FILE_APPEND_DATA, FILE_DELETE_CHILD, FILE_EXECUTE,
@@ -412,6 +413,15 @@ const PERMISSION_MAPPING_TABLE: [(chunk::Permission, FILE_ACCESS_RIGHTS); 16] = 
     (chunk::Permission::WRITE_DATA, FILE_WRITE_DATA),
 ];
 
+const FLAGS_MAPPING_TABLE: [(chunk::Flag, ACE_FLAGS); 6] = [
+    (chunk::Flag::DEFAULT, INHERIT_ONLY_ACE),
+    (chunk::Flag::INHERITED, INHERITED_ACE),
+    (chunk::Flag::FILE_INHERIT, OBJECT_INHERIT_ACE),
+    (chunk::Flag::DIRECTORY_INHERIT, CONTAINER_INHERIT_ACE),
+    (chunk::Flag::LIMIT_INHERIT, NO_PROPAGATE_INHERIT_ACE),
+    (chunk::Flag::ONLY_INHERIT, INHERIT_ONLY_ACE),
+];
+
 impl Into<ACLEntry> for chunk::Ace {
     fn into(self) -> ACLEntry {
         let slf = ace_convert_platform(self, AcePlatform::Windows);
@@ -432,7 +442,15 @@ impl Into<ACLEntry> for chunk::Ace {
         ACLEntry {
             ace_type,
             size: (ace_type.entry_size() - mem::size_of::<u32>() + sid.0.len()) as u16,
-            flags: 0,
+            flags: {
+                let mut flags = 0;
+                for (f, g) in FLAGS_MAPPING_TABLE {
+                    if slf.flags.contains(f) {
+                        flags |= g.0 as u8;
+                    }
+                }
+                flags
+            },
             mask: {
                 let mut mask = 0;
                 for (permission, rights) in PERMISSION_MAPPING_TABLE {
@@ -457,8 +475,12 @@ impl Into<chunk::Ace> for ACLEntry {
         chunk::Ace {
             platform: AcePlatform::Windows,
             flags: {
-                let flags = chunk::Flag::empty();
-                self.flags;
+                let mut flags = chunk::Flag::empty();
+                for (f, g) in FLAGS_MAPPING_TABLE {
+                    if self.flags & (g.0 as u8) != 0 {
+                        flags.insert(f);
+                    }
+                }
                 flags
             },
             owner_type: OwnerType::User(Identifier(self.sid.to_name().unwrap())),
