@@ -366,7 +366,7 @@ impl FromStr for Sid {
         let s = encode_wide(s.as_ref()).map_err(|_| ())?;
         unsafe { ConvertStringSidToSidW(PCWSTR::from_raw(s.as_ptr()), &mut psid as _) }
             .map_err(|_| ())?;
-        Self::try_from(psid).map_err(|e| ())
+        Self::try_from(psid).map_err(|_e| ())
     }
 }
 
