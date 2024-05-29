@@ -17,10 +17,10 @@ use windows::Win32::Security::Authorization::{
 };
 use windows::Win32::Security::{
     AddAccessAllowedAceEx, AddAccessDeniedAceEx, CopySid, GetAce, GetLengthSid, InitializeAcl,
-    IsValidSid, LookupAccountNameW, LookupAccountSidW, ACCESS_ALLOWED_ACE, ACCESS_DENIED_ACE,
-    ACE_FLAGS, ACE_HEADER, ACL as Win32ACL, ACL_REVISION_DS, CONTAINER_INHERIT_ACE,
-    DACL_SECURITY_INFORMATION, GROUP_SECURITY_INFORMATION, INHERITED_ACE, INHERIT_ONLY_ACE,
-    NO_PROPAGATE_INHERIT_ACE, OBJECT_INHERIT_ACE, OWNER_SECURITY_INFORMATION,
+    IsValidSid, LookupAccountNameW, LookupAccountSidW, SidTypeGroup, SidTypeUser,
+    ACCESS_ALLOWED_ACE, ACCESS_DENIED_ACE, ACE_FLAGS, ACE_HEADER, ACL as Win32ACL, ACL_REVISION_DS,
+    CONTAINER_INHERIT_ACE, DACL_SECURITY_INFORMATION, GROUP_SECURITY_INFORMATION, INHERITED_ACE,
+    INHERIT_ONLY_ACE, NO_PROPAGATE_INHERIT_ACE, OBJECT_INHERIT_ACE, OWNER_SECURITY_INFORMATION,
     PROTECTED_DACL_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, SID_NAME_USE,
 };
 use windows::Win32::Storage::FileSystem::{
@@ -247,6 +247,23 @@ impl AceType {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SidType {
+    User,
+    Group,
+    Unknown,
+}
+
+impl From<SID_NAME_USE> for SidType {
+    fn from(value: SID_NAME_USE) -> Self {
+        match value {
+            SidTypeUser => Self::User,
+            SidTypeGroup => Self::Group,
+            _ => Self::Unknown,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Sid(Vec<u8>);
 
@@ -297,6 +314,7 @@ impl Sid {
             )
             .map_err(io::Error::other)?;
         }
+        let _ = SidType::from(sid_type);
         unsafe { sid.set_len(sid_len as usize) }
         Ok(Self(sid))
     }
