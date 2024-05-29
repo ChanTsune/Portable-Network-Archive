@@ -197,7 +197,7 @@ impl ACL {
         let acl_size = acl_entries.iter().map(|it| it.size as usize).sum::<usize>()
             + mem::size_of::<Win32ACL>();
         let mut new_acl_buffer = Vec::<u8>::with_capacity(acl_size);
-        let mut new_acl = new_acl_buffer.as_mut_ptr();
+        let new_acl = new_acl_buffer.as_mut_ptr();
         unsafe { InitializeAcl(new_acl as _, acl_size as u32, ACL_REVISION_DS) }
             .map_err(io::Error::other)?;
         for ace in acl_entries {
