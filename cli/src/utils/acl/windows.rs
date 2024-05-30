@@ -444,11 +444,11 @@ impl Into<ACLEntry> for chunk::Ace {
     fn into(self) -> ACLEntry {
         let slf = ace_convert_platform(self, AcePlatform::Windows);
         let name = match slf.owner_type {
-            OwnerType::Owner => get_current_username().unwrap(),
+            OwnerType::Owner => String::new(),
             OwnerType::User(i) => i.0,
-            OwnerType::OwnerGroup => todo!(),
+            OwnerType::OwnerGroup => String::new(),
             OwnerType::Group(i) => i.0,
-            OwnerType::Mask => todo!(),
+            OwnerType::Mask => String::new(),
             OwnerType::Other => "Guest".to_string(),
         };
         let sid = Sid::try_from_name(&name, None).unwrap();
