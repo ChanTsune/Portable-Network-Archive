@@ -17,7 +17,7 @@ jobs:
       - uses: ./.github/actions/setup-rust
       - name: Install command
         run: |
-          cargo install --path cli
+          cargo install --path cli --all-features
       - name: Run stdio command test
         run: |
           bash ./ci/script/combination.sh
