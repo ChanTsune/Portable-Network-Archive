@@ -1,5 +1,4 @@
 use crate::{
-    chunk,
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs},
     utils::PathPartExt,
 };
@@ -8,7 +7,7 @@ use nix::unistd::{Group, User};
 use normalize_path::*;
 use pna::{
     Archive, Entry, EntryBuilder, EntryName, EntryPart, EntryReference, ExtendedAttribute,
-    Permission, RawChunk, RegularEntry, WriteOption, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
+    Permission, RegularEntry, WriteOption, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
 };
 #[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
@@ -190,6 +189,8 @@ pub(crate) fn apply_metadata(
             windows
         ))]
         if keep_options.keep_acl {
+            use crate::chunk;
+            use pna::RawChunk;
             let ace_list = crate::utils::acl::get_facl(path)?;
             for ace in ace_list {
                 entry.add_extra_chunk(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
