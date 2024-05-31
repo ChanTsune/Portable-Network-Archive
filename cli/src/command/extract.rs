@@ -1,5 +1,4 @@
 use crate::{
-    chunk,
     cli::{FileArgs, PasswordArgs, Verbosity},
     command::{
         ask_password,
@@ -14,7 +13,7 @@ use clap::{ArgGroup, Parser, ValueHint};
 use indicatif::HumanDuration;
 #[cfg(unix)]
 use nix::unistd::{Group, User};
-use pna::{Chunk, DataKind, EntryReference, Permission, ReadOption, RegularEntry};
+use pna::{DataKind, EntryReference, Permission, ReadOption, RegularEntry};
 use rayon::ThreadPoolBuilder;
 use std::ops::Add;
 #[cfg(target_os = "macos")]
@@ -27,7 +26,6 @@ use std::{
     fs::{self, File, Permissions},
     io,
     path::{Path, PathBuf},
-    str::FromStr,
     time::{Instant, SystemTime},
 };
 
@@ -318,6 +316,10 @@ pub(crate) fn extract_entry(
             windows
         ))]
         if keep_options.keep_acl {
+            use crate::chunk;
+            use pna::Chunk;
+            use std::str::FromStr;
+
             let mut acl = Vec::new();
             for c in item.extra_chunks() {
                 if c.ty() == chunk::faCe {
