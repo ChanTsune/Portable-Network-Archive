@@ -181,26 +181,33 @@ pub(crate) fn apply_metadata(
             ));
         }
     }
-    #[cfg(any(
-        target_os = "linux",
-        target_os = "freebsd",
-        target_os = "macos",
-        windows
-    ))]
-    if keep_options.keep_acl {
-        let ace_list = crate::utils::acl::get_facl(path)?;
-        for ace in ace_list {
-            entry.add_extra_chunk(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
+    #[cfg(feature = "acl")]
+    {
+        #[cfg(any(
+            target_os = "linux",
+            target_os = "freebsd",
+            target_os = "macos",
+            windows
+        ))]
+        if keep_options.keep_acl {
+            let ace_list = crate::utils::acl::get_facl(path)?;
+            for ace in ace_list {
+                entry.add_extra_chunk(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
+            }
+        }
+        #[cfg(not(any(
+            target_os = "linux",
+            target_os = "freebsd",
+            target_os = "macos",
+            windows
+        )))]
+        if keep_options.keep_acl {
+            eprintln!("Currently acl is not supported on this platform.");
         }
     }
-    #[cfg(not(any(
-        target_os = "linux",
-        target_os = "freebsd",
-        target_os = "macos",
-        windows
-    )))]
+    #[cfg(not(feature = "acl"))]
     if keep_options.keep_acl {
-        eprintln!("Currently acl is not supported on this platform.");
+        eprintln!("Please enable `acl` feature and rebuild and install pna.");
     }
     #[cfg(unix)]
     if keep_options.keep_xattr {
