@@ -126,12 +126,12 @@ fn update_archive(args: UpdateCommand, verbosity: Verbosity) -> io::Result<()> {
     };
     let owner_options = OwnerOptions {
         uname: if args.numeric_owner {
-            Some("".to_string())
+            Some(String::new())
         } else {
             args.uname
         },
         gname: if args.numeric_owner {
-            Some("".to_string())
+            Some(String::new())
         } else {
             args.gname
         },
