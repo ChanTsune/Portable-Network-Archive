@@ -365,10 +365,6 @@ impl Sid {
         })
     }
 
-    pub fn to_name(&self) -> io::Result<String> {
-        Ok(self.name.clone())
-    }
-
     #[inline]
     fn as_ptr(&self) -> *const u8 {
         self.raw.as_ptr()
@@ -550,15 +546,14 @@ mod tests {
         let string_sid = sid.to_string();
         let s = Sid::from_str(&string_sid).unwrap();
         assert_eq!(sid, s);
-        let name = s.to_name().unwrap();
-        assert_eq!(username, name);
+        assert_eq!(username, s.name);
     }
 
     #[test]
     fn username() {
         let username = get_current_username().unwrap();
         let sid = Sid::try_from_name(&username, None).unwrap();
-        assert_eq!(username, sid.to_name().unwrap());
+        assert_eq!(username, sid.name);
     }
 
     #[test]
@@ -572,7 +567,7 @@ mod tests {
             vec![Ace {
                 platform: AcePlatform::General,
                 flags: chunk::Flag::empty(),
-                owner_type: OwnerType::User(Identifier(sid.to_name().unwrap())),
+                owner_type: OwnerType::User(Identifier(sid.name)),
                 allow: true,
                 permission: chunk::Permission::READ
                     | chunk::Permission::WRITE
@@ -588,7 +583,7 @@ mod tests {
             &Ace {
                 platform: AcePlatform::Windows,
                 flags: chunk::Flag::empty(),
-                owner_type: OwnerType::User(Identifier(sid.to_name().unwrap())),
+                owner_type: OwnerType::User(Identifier(sid.name)),
                 allow: true,
                 permission: chunk::Permission::READ
                     | chunk::Permission::WRITE
