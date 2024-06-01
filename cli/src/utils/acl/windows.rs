@@ -515,7 +515,10 @@ impl Into<chunk::Ace> for ACLEntry {
                 }
                 flags
             },
-            owner_type: OwnerType::User(Identifier(self.sid.to_name().unwrap())),
+            owner_type: match self.sid.ty {
+                SidType::User | SidType::Unknown => OwnerType::User(Identifier(self.sid.name)),
+                SidType::Group => OwnerType::Group(Identifier(self.sid.name)),
+            },
             allow,
             permission: {
                 let mut permission = chunk::Permission::empty();
