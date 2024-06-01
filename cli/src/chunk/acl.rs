@@ -3,7 +3,6 @@ use pna::ChunkType;
 use std::{
     error::Error,
     fmt::{self, Display, Formatter},
-    num::ParseIntError,
     str::FromStr,
 };
 
@@ -104,7 +103,6 @@ impl Display for OwnerType {
 pub enum ParseAceError {
     NotEnoughElement,
     TooManyElement,
-    ParseIntError(ParseIntError),
     UnexpectedAccessControl(String),
     UnexpectedOwnerType(String),
 }
@@ -116,12 +114,6 @@ impl Display for ParseAceError {
 }
 
 impl Error for ParseAceError {}
-
-impl From<ParseIntError> for ParseAceError {
-    fn from(value: ParseIntError) -> Self {
-        Self::ParseIntError(value)
-    }
-}
 
 /// Access Control Entry
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
