@@ -240,3 +240,23 @@ impl Into<exacl::AclEntry> for Ace {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ace_mutual_convert() {
+        let acl_entry = exacl::AclEntry {
+            kind: exacl::AclEntryKind::User,
+            name: "name".to_string(),
+            perms: exacl::Perm::all(),
+            flags: exacl::Flag::all(),
+            allow: false,
+        };
+        assert_eq!(
+            acl_entry.clone(),
+            <exacl::AclEntry as Into<Ace>>::into(acl_entry).into()
+        );
+    }
+}

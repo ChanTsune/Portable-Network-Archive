@@ -701,21 +701,4 @@ mod tests {
         };
         assert_eq!(Ace::from_str(&ace.to_string()), Ok(ace));
     }
-
-    #[cfg(feature = "acl")]
-    #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "macos"))]
-    #[test]
-    fn ace_mutual_convert() {
-        let acl_entry = exacl::AclEntry {
-            kind: exacl::AclEntryKind::User,
-            name: "name".to_string(),
-            perms: exacl::Perm::all(),
-            flags: exacl::Flag::all(),
-            allow: false,
-        };
-        assert_eq!(
-            acl_entry.clone(),
-            <exacl::AclEntry as Into<Ace>>::into(acl_entry).into()
-        );
-    }
 }
