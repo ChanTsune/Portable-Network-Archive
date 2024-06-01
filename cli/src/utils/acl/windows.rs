@@ -547,6 +547,7 @@ mod tests {
         let s = Sid::from_str(&string_sid).unwrap();
         assert_eq!(sid, s);
         assert_eq!(username, s.name);
+        assert_eq!(SidType::User, s.ty);
     }
 
     #[test]
