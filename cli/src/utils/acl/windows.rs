@@ -568,7 +568,7 @@ mod tests {
             vec![Ace {
                 platform: AcePlatform::General,
                 flags: chunk::Flag::empty(),
-                owner_type: OwnerType::User(Identifier(sid.name)),
+                owner_type: OwnerType::User(Identifier(sid.name.clone())),
                 allow: true,
                 permission: chunk::Permission::READ
                     | chunk::Permission::WRITE
