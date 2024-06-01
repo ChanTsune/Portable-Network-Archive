@@ -34,12 +34,12 @@ use windows::Win32::System::WindowsProgramming::GetUserNameW;
 
 pub fn set_facl<P: AsRef<Path>>(path: P, acl: Vec<chunk::Ace>) -> io::Result<()> {
     let acl_entries = acl.into_iter().map(Into::into).collect::<Vec<_>>();
-    let acl = ACL::try_from(path.as_ref().to_path_buf())?;
+    let acl = ACL::try_from(path.as_ref())?;
     acl.set_d_acl(&acl_entries)
 }
 
 pub fn get_facl<P: AsRef<Path>>(path: P) -> io::Result<Vec<chunk::Ace>> {
-    let acl = ACL::try_from(path.as_ref().to_path_buf())?;
+    let acl = ACL::try_from(path.as_ref())?;
     let ace_list = acl.get_d_acl()?;
     Ok(ace_list.into_iter().map(Into::into).collect())
 }
@@ -140,10 +140,10 @@ pub struct ACL {
 }
 
 impl ACL {
-    pub fn try_from(path: PathBuf) -> io::Result<Self> {
+    pub fn try_from(path: &Path) -> io::Result<Self> {
         Ok(Self {
-            security_descriptor: SecurityDescriptor::try_from(&path)?,
-            path,
+            security_descriptor: SecurityDescriptor::try_from(path)?,
+            path: path.to_path_buf(),
         })
     }
 
