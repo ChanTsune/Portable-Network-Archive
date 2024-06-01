@@ -264,8 +264,50 @@ impl From<SID_NAME_USE> for SidType {
     }
 }
 
+fn lookup_account_sid(psid: PSID) -> io::Result<(String, SidType)> {
+    let mut name_len = 0u32;
+    let mut sysname_len = 0u32;
+    let mut sid_type = SID_NAME_USE::default();
+    match unsafe {
+        LookupAccountSidW(
+            PCWSTR::null(),
+            psid,
+            PWSTR::null(),
+            &mut name_len as _,
+            PWSTR::null(),
+            &mut sysname_len as _,
+            &mut sid_type as _,
+        )
+    } {
+        Ok(_) => Err(io::Error::other("failed to convert sid to name")),
+        Err(e) if e.code() == ERROR_INSUFFICIENT_BUFFER.to_hresult() => Ok(()),
+        Err(e) => Err(io::Error::other(e)),
+    }?;
+    let mut name = Vec::<u16>::with_capacity(name_len as usize);
+    let mut sysname = Vec::<u16>::with_capacity(sysname_len as usize);
+    let name_ptr = PWSTR::from_raw(name.as_mut_ptr() as _);
+    unsafe {
+        LookupAccountSidW(
+            PCWSTR::null(),
+            psid,
+            name_ptr,
+            &mut name_len as _,
+            PWSTR::from_raw(sysname.as_mut_ptr() as _),
+            &mut sysname_len as _,
+            &mut sid_type as _,
+        )
+    }
+    .map_err(io::Error::other)?;
+    let name = unsafe { name_ptr.to_string() }.map_err(io::Error::other)?;
+    Ok((name, SidType::from(sid_type)))
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Sid(Vec<u8>);
+pub struct Sid {
+    ty: SidType,
+    name: String,
+    raw: Vec<u8>,
+}
 
 impl Sid {
     fn null_sid() -> Self {
@@ -273,7 +315,7 @@ impl Sid {
     }
 
     fn try_from_name(name: &str, system: Option<&str>) -> io::Result<Self> {
-        let name = encode_wide(name.as_ref())?;
+        let encoded_name = encode_wide(name.as_ref())?;
         let system = system.map(|it| encode_wide(it.as_ref())).transpose()?;
         let mut sid_len = 0u32;
         let mut sys_name_len = 0u32;
@@ -283,7 +325,7 @@ impl Sid {
                 system
                     .as_ref()
                     .map_or(PCWSTR::null(), |it| PCWSTR::from_raw(it.as_ptr())),
-                PCWSTR::from_raw(name.as_ptr()),
+                PCWSTR::from_raw(encoded_name.as_ptr()),
                 PSID::default(),
                 &mut sid_len as _,
                 PWSTR::null(),
@@ -305,7 +347,7 @@ impl Sid {
                 system
                     .as_ref()
                     .map_or(PCWSTR::null(), |it| PCWSTR::from_raw(it.as_ptr())),
-                PCWSTR::from_raw(name.as_ptr()),
+                PCWSTR::from_raw(encoded_name.as_ptr()),
                 PSID(sid.as_mut_ptr() as _),
                 &mut sid_len as _,
                 PWSTR::from_raw(sys_name.as_mut_ptr() as _),
@@ -314,51 +356,22 @@ impl Sid {
             )
             .map_err(io::Error::other)?;
         }
-        let _ = SidType::from(sid_type);
+        let ty = SidType::from(sid_type);
         unsafe { sid.set_len(sid_len as usize) }
-        Ok(Self(sid))
+        Ok(Self {
+            ty,
+            name: name.to_string(),
+            raw: sid,
+        })
     }
 
     pub fn to_name(&self) -> io::Result<String> {
-        let mut name_len = 0u32;
-        let mut sysname_len = 0u32;
-        let mut sid_type = SID_NAME_USE::default();
-        match unsafe {
-            LookupAccountSidW(
-                PCWSTR::null(),
-                self.as_psid(),
-                PWSTR::null(),
-                &mut name_len as _,
-                PWSTR::null(),
-                &mut sysname_len as _,
-                &mut sid_type as _,
-            )
-        } {
-            Ok(_) => Err(io::Error::other("failed to convert sid to name")),
-            Err(e) if e.code() == ERROR_INSUFFICIENT_BUFFER.to_hresult() => Ok(()),
-            Err(e) => Err(io::Error::other(e)),
-        }?;
-        let mut name = Vec::<u16>::with_capacity(name_len as usize);
-        let mut sysname = Vec::<u16>::with_capacity(sysname_len as usize);
-        let name_ptr = PWSTR::from_raw(name.as_mut_ptr() as _);
-        unsafe {
-            LookupAccountSidW(
-                PCWSTR::null(),
-                self.as_psid(),
-                name_ptr,
-                &mut name_len as _,
-                PWSTR::from_raw(sysname.as_mut_ptr() as _),
-                &mut sysname_len as _,
-                &mut sid_type as _,
-            )
-        }
-        .map_err(io::Error::other)?;
-        unsafe { name_ptr.to_string() }.map_err(io::Error::other)
+        Ok(self.name.clone())
     }
 
     #[inline]
     fn as_ptr(&self) -> *const u8 {
-        self.0.as_ptr()
+        self.raw.as_ptr()
     }
 
     #[inline]
@@ -400,7 +413,8 @@ impl TryFrom<PSID> for Sid {
         unsafe { CopySid(sid_len, PSID(sid.as_mut_ptr() as _), value) }
             .map_err(io::Error::other)?;
         unsafe { sid.set_len(sid_len as usize) }
-        Ok(Self(sid))
+        let (name, ty) = lookup_account_sid(PSID(sid.as_ptr() as _))?;
+        Ok(Self { ty, name, raw: sid })
     }
 }
 
@@ -459,7 +473,7 @@ impl Into<ACLEntry> for chunk::Ace {
         };
         ACLEntry {
             ace_type,
-            size: (ace_type.entry_size() - mem::size_of::<u32>() + sid.0.len()) as u16,
+            size: (ace_type.entry_size() - mem::size_of::<u32>() + sid.raw.len()) as u16,
             flags: {
                 let mut flags = 0;
                 for (f, g) in FLAGS_MAPPING_TABLE {
