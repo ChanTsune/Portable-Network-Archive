@@ -36,7 +36,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: target
-          key: "${{ matrix.os }}-rust-${{ steps.install_rust.outputs.version }}-${{ hashFiles('**/Cargo.lock') }}"
+          key: "${{ matrix.os }}-rust-${{ steps.install_rust.outputs.version }}-${{ hashFiles(format('{0}/Cargo.lock', env.WORKING_DIRECTORY)) }}"
       - name: run test
         run: cargo test --locked --release --all-features
         env:
