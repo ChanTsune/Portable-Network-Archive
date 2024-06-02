@@ -133,7 +133,16 @@ impl Into<exacl::AclEntry> for Ace {
             OwnerType::Owner => (exacl::AclEntryKind::User, String::new()),
             OwnerType::User(u) => (exacl::AclEntryKind::User, u.0),
             OwnerType::OwnerGroup => (exacl::AclEntryKind::Group, String::new()),
-            OwnerType::Group(u) => (exacl::AclEntryKind::Group, u.0),
+            OwnerType::Group(u) => {
+                #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+                if u.0 == "everyone" {
+                    (exacl::AclEntryKind::Other, String::new())
+                } else {
+                    (exacl::AclEntryKind::Group, u.0)
+                }
+                #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+                (exacl::AclEntryKind::Group, u.0)
+            },
             #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
             OwnerType::Mask => (exacl::AclEntryKind::Unknown, String::new()),
             #[cfg(any(target_os = "linux", target_os = "freebsd"))]
