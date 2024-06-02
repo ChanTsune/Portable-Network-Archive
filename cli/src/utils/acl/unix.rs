@@ -7,6 +7,26 @@ use std::path::Path;
 pub fn set_facl<P: AsRef<Path>>(path: P, acl: Vec<Ace>) -> io::Result<()> {
     let path = path.as_ref();
     let mut acl_entries: Vec<exacl::AclEntry> = acl.into_iter().map(Into::into).collect::<Vec<_>>();
+    #[cfg(target_os = "macos")]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let meta = std::fs::metadata(path)?;
+
+        acl_entries = acl_entries
+            .into_iter()
+            .map(|mut it| {
+                if it.kind == exacl::AclEntryKind::User && it.name.is_empty() {
+                    it.name = meta.uid().to_string();
+                    it
+                } else if it.kind == exacl::AclEntryKind::Group && it.name.is_empty() {
+                    it.name = meta.gid().to_string();
+                    it
+                } else {
+                    it
+                }
+            })
+            .collect();
+    }
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     {
         let mut exist_user = false;
@@ -205,7 +225,7 @@ impl Into<exacl::AclEntry> for Ace {
             #[cfg(any(target_os = "linux", target_os = "freebsd"))]
             OwnerType::Mask => (exacl::AclEntryKind::Mask, String::new()),
             #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
-            OwnerType::Other => (exacl::AclEntryKind::Unknown, String::new()),
+            OwnerType::Other => (exacl::AclEntryKind::Group, "everyone".to_string()),
             #[cfg(any(target_os = "linux", target_os = "freebsd"))]
             OwnerType::Other => (exacl::AclEntryKind::Other, String::new()),
         };
