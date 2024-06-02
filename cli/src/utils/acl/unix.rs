@@ -5,8 +5,65 @@ use std::io;
 use std::path::Path;
 
 pub fn set_facl<P: AsRef<Path>>(path: P, acl: Vec<Ace>) -> io::Result<()> {
-    let acl_entries = acl.into_iter().map(Into::into).collect::<Vec<_>>();
-    exacl::setfacl(&[path.as_ref()], &acl_entries, None)
+    let path = path.as_ref();
+    let mut acl_entries: Vec<exacl::AclEntry> = acl.into_iter().map(Into::into).collect::<Vec<_>>();
+    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+    {
+        let mut exist_user = false;
+        let mut exist_group = false;
+        let mut exist_other = false;
+        for entry in acl_entries.iter() {
+            match entry.kind {
+                exacl::AclEntryKind::User if entry.name.is_empty() => exist_user = true,
+                exacl::AclEntryKind::Group if entry.name.is_empty() => exist_group = true,
+                exacl::AclEntryKind::Other => exist_other = true,
+                _ => (),
+            }
+        }
+        if !exist_user || !exist_group || !exist_other {
+            let facl = exacl::getfacl(path, None)?;
+            if !exist_user {
+                acl_entries.push(
+                    facl.iter()
+                        .find(|it| {
+                            it.allow
+                                && it.flags.is_empty()
+                                && it.name.is_empty()
+                                && it.kind == exacl::AclEntryKind::User
+                        })
+                        .expect("failed to find owner ace")
+                        .clone(),
+                );
+            }
+            if !exist_group {
+                acl_entries.push(
+                    facl.iter()
+                        .find(|it| {
+                            it.allow
+                                && it.flags.is_empty()
+                                && it.name.is_empty()
+                                && it.kind == exacl::AclEntryKind::Group
+                        })
+                        .expect("failed to find owner group ace")
+                        .clone(),
+                );
+            }
+            if !exist_other {
+                acl_entries.push(
+                    facl.iter()
+                        .find(|it| {
+                            it.allow
+                                && it.flags.is_empty()
+                                && it.name.is_empty()
+                                && it.kind == exacl::AclEntryKind::Other
+                        })
+                        .expect("failed to find other ace")
+                        .clone(),
+                );
+            }
+        }
+    }
+    exacl::setfacl(&[path], &acl_entries, None)
 }
 
 pub fn get_facl<P: AsRef<Path>>(path: P) -> io::Result<Vec<Ace>> {
@@ -142,7 +199,7 @@ impl Into<exacl::AclEntry> for Ace {
                 }
                 #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
                 (exacl::AclEntryKind::Group, u.0)
-            },
+            }
             #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
             OwnerType::Mask => (exacl::AclEntryKind::Unknown, String::new()),
             #[cfg(any(target_os = "linux", target_os = "freebsd"))]
