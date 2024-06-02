@@ -562,39 +562,6 @@ fn ace_to_macos(src: Ace) -> Ace {
     }
 }
 
-const GENERIC_TO_FREEBSD_PERMISSION_TABLE: [(&[Permission], Permission); 3] = [
-    (
-        &[
-            Permission::READ,
-            Permission::READ_DATA,
-            Permission::READATTR,
-            Permission::READEXTATTR,
-            Permission::READSECURITY,
-            Permission::READATTR,
-            Permission::SYNC,
-        ],
-        Permission::READ,
-    ),
-    (
-        &[
-            Permission::WRITE,
-            Permission::WRITE_DATA,
-            Permission::WRITEATTR,
-            Permission::WRITEEXTATTR,
-            Permission::WRITESECURITY,
-            Permission::APPEND,
-            Permission::DELETE,
-            Permission::READATTR,
-            Permission::SYNC,
-        ],
-        Permission::WRITE,
-    ),
-    (
-        &[Permission::EXECUTE, Permission::READATTR, Permission::SYNC],
-        Permission::EXECUTE,
-    ),
-];
-
 fn ace_to_freebsd(src: Ace) -> Ace {
     match src.platform {
         AcePlatform::FreeBSD => src,
@@ -603,17 +570,9 @@ fn ace_to_freebsd(src: Ace) -> Ace {
         | AcePlatform::MacOs
         | AcePlatform::Linux
         | AcePlatform::Unknown(_) => {
-            let src = ace_to_generic(src);
-            Ace {
-                platform: AcePlatform::FreeBSD,
-                flags: src.flags,
-                owner_type: src.owner_type,
-                allow: src.allow,
-                permission: mapping_permission(
-                    src.permission,
-                    &GENERIC_TO_FREEBSD_PERMISSION_TABLE,
-                ),
-            }
+            let mut src = ace_to_generic(src);
+            src.platform = AcePlatform::FreeBSD;
+            src
         }
     }
 }
