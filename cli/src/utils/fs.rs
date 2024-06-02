@@ -48,6 +48,11 @@ pub(crate) fn mv<Src: AsRef<Path>, Dist: AsRef<Path>>(src: Src, dist: Dist) -> i
         }
         .map_err(|e| io::Error::other(e))
     }
+    #[cfg(target_os = "wasi")]
+    fn inner(src: &Path, dist: &Path) -> io::Result<()> {
+        fs::copy(src, dist)?;
+        fs::remove_file(src)
+    }
     inner(src.as_ref(), dist.as_ref())
 }
 

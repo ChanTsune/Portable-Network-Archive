@@ -92,12 +92,12 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
     };
     let owner_options = OwnerOptions {
         uname: if args.numeric_owner {
-            Some("".to_string())
+            Some(String::new())
         } else {
             args.uname
         },
         gname: if args.numeric_owner {
-            Some("".to_string())
+            Some(String::new())
         } else {
             args.gname
         },

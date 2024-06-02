@@ -7,6 +7,23 @@
 PNA (Portable Network Archive) is a highly scalable archive format that can be compressed, encrypted, and split.
 Also, its data structure is inspired by the PNG data structure.
 
+## Features
+
+- **File Compression and Decompression**
+  - [x] Supports zlib, zstd, and xz algorithms.
+
+- **File Encryption and Decryption**
+  - [x] Supports 256-bit AES and 256-bit Camellia encryption.
+
+- **Solid Mode**
+  - [x] Compresses and encrypts entire archives.
+
+- **File Attribute Preservation**
+  - [x] Maintains and restores file permissions.
+  - [x] Maintains and restores file timestamps.
+  - [x] Maintains and restores extended attributes.
+  - [ ] Maintains and restores Access Control Lists (ACLs).
+
 ## Installation
 
 ### Via Cargo
@@ -18,11 +35,7 @@ cargo install portable-network-archive
 ### From Source (via Cargo)
 
 ```sh
-git clone https://github.com/ChanTsune/Portable-Network-Archive.git
-```
-
-```sh
-cargo install --path cli
+cargo install --git https://github.com/ChanTsune/Portable-Network-Archive.git portable-network-archive
 ```
 
 ## Usage

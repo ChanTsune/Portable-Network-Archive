@@ -17,53 +17,23 @@ use std::{io, os, path::Path};
 /// #     Ok(())
 /// # }
 /// ```
-#[cfg(unix)]
 #[inline]
 pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Result<()> {
-    os::unix::fs::symlink(original, link)
-}
-
-/// Creates a new symbolic link on the filesystem.
-///
-/// The `link` path will be a symbolic link pointing to the `original` path.
-///
-/// # Examples
-///
-/// ```no_run
-/// use pna::fs;
-///
-/// # fn main() -> std::io::Result<()> {
-/// fs::symlink("a.txt", "b.txt")?;
-/// #     Ok(())
-/// # }
-/// ```
-#[cfg(windows)]
-#[inline]
-pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Result<()> {
-    let original = original.as_ref();
-    if original.is_dir() {
-        os::windows::fs::symlink_dir(original, link)
-    } else {
-        os::windows::fs::symlink_file(original, link)
+    #[cfg(unix)]
+    fn inner(original: &Path, link: &Path) -> io::Result<()> {
+        os::unix::fs::symlink(original, link)
     }
-}
-
-/// Creates a new symbolic link on the filesystem.
-///
-/// The `link` path will be a symbolic link pointing to the `original` path.
-///
-/// # Examples
-///
-/// ```no_run
-/// use pna::fs;
-///
-/// # fn main() -> std::io::Result<()> {
-/// fs::symlink("a.txt", "b.txt")?;
-/// #     Ok(())
-/// # }
-/// ```
-#[cfg(target_os = "wasi")]
-#[inline]
-pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Result<()> {
-    os::wasi::fs::symlink_path(original, link)
+    #[cfg(windows)]
+    fn inner(original: &Path, link: &Path) -> io::Result<()> {
+        if original.is_dir() {
+            os::windows::fs::symlink_dir(original, link)
+        } else {
+            os::windows::fs::symlink_file(original, link)
+        }
+    }
+    #[cfg(target_os = "wasi")]
+    fn inner(original: &Path, link: &Path) -> io::Result<()> {
+        os::wasi::fs::symlink_path(original, link)
+    }
+    inner(original.as_ref(), link.as_ref())
 }
