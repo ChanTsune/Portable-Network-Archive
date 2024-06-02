@@ -33,3 +33,19 @@ fn extract_macos_acl() {
     ]))
     .unwrap();
 }
+
+#[test]
+fn extract_freebsd_acl() {
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "../resources/test/freebsd_acl.pna",
+        "--overwrite",
+        "--out-dir",
+        &format!("{}/freebsd_acl/", env!("CARGO_TARGET_TMPDIR")),
+        "--keep-acl",
+        "--unstable",
+    ]))
+    .unwrap();
+}
