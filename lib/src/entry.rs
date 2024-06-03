@@ -608,6 +608,27 @@ impl RegularEntry {
         self.xattrs = xattrs.into();
         self
     }
+
+    /// Apply extra chunks to the entry.
+    ///
+    /// # Example
+    /// ```
+    /// # use std::io;
+    /// use libpna::{ChunkType, EntryBuilder, RawChunk};
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let mut entry = EntryBuilder::new_dir("direntry".into()).build()?;
+    /// entry.with_extra_chunks(&[RawChunk::from_data(
+    ///     ChunkType::private(*b"myTy").unwrap(),
+    ///     b"some data",
+    /// )]);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_extra_chunks(mut self, chunks: &[RawChunk]) -> Self {
+        self.extra = chunks.into();
+        self
+    }
 }
 
 /// A structure representing the split [Entry] for archive splitting.
