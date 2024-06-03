@@ -1,5 +1,5 @@
 use crate::chunk::{
-    ace_convert_platform, Ace, AcePlatform, Flag, Identifier, OwnerType, Permission,
+    ace_convert_current_platform, Ace, AcePlatform, Flag, Identifier, OwnerType, Permission,
 };
 use std::io;
 use std::path::Path;
@@ -205,7 +205,7 @@ impl Into<Ace> for exacl::AclEntry {
 
 impl Into<exacl::AclEntry> for Ace {
     fn into(self) -> exacl::AclEntry {
-        let slf = ace_convert_platform(self, AcePlatform::CURRENT);
+        let slf = ace_convert_current_platform(self);
         let (kind, name) = match slf.owner_type {
             OwnerType::Owner => (exacl::AclEntryKind::User, String::new()),
             OwnerType::User(u) => (exacl::AclEntryKind::User, u.0),

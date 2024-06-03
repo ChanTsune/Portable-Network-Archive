@@ -1,5 +1,5 @@
 use crate::chunk;
-use crate::chunk::{ace_convert_platform, AcePlatform, Identifier, OwnerType};
+use crate::chunk::{ace_convert_current_platform, AcePlatform, Identifier, OwnerType};
 use crate::utils::fs::encode_wide;
 use field_offset::offset_of;
 use std::fmt::{Display, Formatter};
@@ -452,7 +452,7 @@ const FLAGS_MAPPING_TABLE: [(chunk::Flag, ACE_FLAGS); 6] = [
 
 impl Into<ACLEntry> for chunk::Ace {
     fn into(self) -> ACLEntry {
-        let slf = ace_convert_platform(self, AcePlatform::Windows);
+        let slf = ace_convert_current_platform(self);
         let name = match slf.owner_type {
             OwnerType::Owner => String::new(),
             OwnerType::User(i) => i.0,
