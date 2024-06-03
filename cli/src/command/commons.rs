@@ -6,8 +6,8 @@ use crate::{
 use nix::unistd::{Group, User};
 use normalize_path::*;
 use pna::{
-    Archive, Entry, EntryBuilder, EntryName, EntryPart, EntryReference, ExtendedAttribute,
-    Permission, RegularEntry, WriteOption, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
+    Archive, Entry, EntryBuilder, EntryName, EntryPart, EntryReference, RegularEntry, WriteOption,
+    MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
 };
 #[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
@@ -170,7 +170,7 @@ pub(crate) fn apply_metadata(
             let gid = owner_options.gid.unwrap_or(meta.gid());
             let user = User::from_uid(uid.into())?.unwrap();
             let group = Group::from_gid(gid.into())?.unwrap();
-            entry.permission(Permission::new(
+            entry.permission(pna::Permission::new(
                 uid.into(),
                 owner_options.uname.unwrap_or(user.name),
                 gid.into(),
@@ -185,7 +185,10 @@ pub(crate) fn apply_metadata(
             let xattrs = xattr::list(path)?;
             for name in xattrs {
                 let value = xattr::get(path, &name)?.unwrap_or_default();
-                entry.add_xattr(ExtendedAttribute::new(name.to_string_lossy().into(), value));
+                entry.add_xattr(pna::ExtendedAttribute::new(
+                    name.to_string_lossy().into(),
+                    value,
+                ));
             }
         } else {
             eprintln!("Currently extended attribute is not supported on this platform.");
