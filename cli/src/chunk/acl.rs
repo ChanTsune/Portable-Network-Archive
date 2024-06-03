@@ -126,6 +126,7 @@ pub struct Ace {
 }
 
 impl Ace {
+    #[cfg(feature = "acl")]
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
         self.to_string().into_bytes()
     }
@@ -332,6 +333,11 @@ impl FromStr for Ace {
             permission,
         })
     }
+}
+
+#[allow(dead_code)]
+pub fn ace_convert_current_platform(src: Ace) -> Ace {
+    ace_convert_platform(src, AcePlatform::CURRENT)
 }
 
 pub fn ace_convert_platform(src: Ace, to: AcePlatform) -> Ace {
