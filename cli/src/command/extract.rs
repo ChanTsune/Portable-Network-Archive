@@ -353,7 +353,7 @@ pub(crate) fn extract_entry(
 }
 
 #[cfg(not(unix))]
-fn permissions(_: &Permission, _: &OwnerOptions) -> Option<((), (), ())> {
+fn permissions(_: &Permission, _: &OwnerOptions) -> Option<(Permissions, (), ())> {
     None
 }
 #[cfg(unix)]
