@@ -46,19 +46,6 @@ pub fn get_facl<P: AsRef<Path>>(path: P) -> io::Result<Vec<chunk::Ace>> {
     Ok(ace_list.into_iter().map(Into::into).collect())
 }
 
-pub fn get_current_username() -> io::Result<String> {
-    let mut username_len = 0u32;
-    match unsafe { GetUserNameW(PWSTR::null(), &mut username_len as _) } {
-        Ok(_) => Err(io::Error::other("failed to get current username")),
-        Err(e) if e.code() == ERROR_INSUFFICIENT_BUFFER.to_hresult() => Ok(()),
-        Err(e) => Err(io::Error::other(e)),
-    }?;
-    let mut username = Vec::<u16>::with_capacity(username_len as usize);
-    let str = PWSTR::from_raw(username.as_mut_ptr());
-    unsafe { GetUserNameW(str, &mut username_len as _) }.map_err(io::Error::other)?;
-    unsafe { str.to_string().map_err(io::Error::other) }
-}
-
 type PACL = *mut Win32ACL;
 
 #[allow(non_camel_case_types)]
@@ -563,6 +550,19 @@ impl Into<chunk::Ace> for ACLEntry {
 mod tests {
     use super::*;
     use crate::chunk::Ace;
+
+    pub fn get_current_username() -> io::Result<String> {
+        let mut username_len = 0u32;
+        match unsafe { GetUserNameW(PWSTR::null(), &mut username_len as _) } {
+            Ok(_) => Err(io::Error::other("failed to get current username")),
+            Err(e) if e.code() == ERROR_INSUFFICIENT_BUFFER.to_hresult() => Ok(()),
+            Err(e) => Err(io::Error::other(e)),
+        }?;
+        let mut username = Vec::<u16>::with_capacity(username_len as usize);
+        let str = PWSTR::from_raw(username.as_mut_ptr());
+        unsafe { GetUserNameW(str, &mut username_len as _) }.map_err(io::Error::other)?;
+        unsafe { str.to_string().map_err(io::Error::other) }
+    }
 
     #[test]
     fn null_sid() {
