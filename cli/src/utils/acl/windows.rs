@@ -265,6 +265,7 @@ pub enum SidType {
 }
 
 impl From<SID_NAME_USE> for SidType {
+    #[allow(non_upper_case_globals)]
     fn from(value: SID_NAME_USE) -> Self {
         match value {
             SidTypeUser => Self::User,
