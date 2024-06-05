@@ -277,7 +277,7 @@ impl From<SID_NAME_USE> for SidType {
             SidTypeUnknown => Self::Unknown(value),
             SidTypeComputer => Self::Computer,
             SidTypeLabel => Self::Label,
-            SidTypeLogonSession => Self::Logon,
+            SidTypeLogonSession => Self::LogonSession,
             v => Self::Unknown(v),
         }
     }
