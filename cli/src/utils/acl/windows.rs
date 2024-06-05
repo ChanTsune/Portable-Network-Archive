@@ -17,12 +17,13 @@ use windows::Win32::Security::Authorization::{
 };
 use windows::Win32::Security::{
     AddAccessAllowedAceEx, AddAccessDeniedAceEx, CopySid, GetAce, GetLengthSid, InitializeAcl,
-    IsValidSid, LookupAccountNameW, LookupAccountSidW, SidTypeAlias, SidTypeGroup, SidTypeUser,
-    SidTypeWellKnownGroup, ACCESS_ALLOWED_ACE, ACCESS_DENIED_ACE, ACE_FLAGS, ACE_HEADER,
-    ACL as Win32ACL, ACL_REVISION_DS, CONTAINER_INHERIT_ACE, DACL_SECURITY_INFORMATION,
-    GROUP_SECURITY_INFORMATION, INHERITED_ACE, INHERIT_ONLY_ACE, NO_PROPAGATE_INHERIT_ACE,
-    OBJECT_INHERIT_ACE, OWNER_SECURITY_INFORMATION, PROTECTED_DACL_SECURITY_INFORMATION,
-    PSECURITY_DESCRIPTOR, SID_NAME_USE,
+    IsValidSid, LookupAccountNameW, LookupAccountSidW, SidTypeAlias, SidTypeComputer,
+    SidTypeDeletedAccount, SidTypeDomain, SidTypeGroup, SidTypeInvalid, SidTypeLabel,
+    SidTypeLogonSession, SidTypeUnknown, SidTypeUser, SidTypeWellKnownGroup, ACCESS_ALLOWED_ACE,
+    ACCESS_DENIED_ACE, ACE_FLAGS, ACE_HEADER, ACL as Win32ACL, ACL_REVISION_DS,
+    CONTAINER_INHERIT_ACE, DACL_SECURITY_INFORMATION, GROUP_SECURITY_INFORMATION, INHERITED_ACE,
+    INHERIT_ONLY_ACE, NO_PROPAGATE_INHERIT_ACE, OBJECT_INHERIT_ACE, OWNER_SECURITY_INFORMATION,
+    PROTECTED_DACL_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, SID_NAME_USE,
 };
 use windows::Win32::Storage::FileSystem::{
     DELETE, FILE_ACCESS_RIGHTS, FILE_APPEND_DATA, FILE_DELETE_CHILD, FILE_EXECUTE,
@@ -252,9 +253,15 @@ impl AceType {
 pub enum SidType {
     User,
     Group,
+    Domain,
     Alias,
     WellKnownGroup,
+    DeletedAccount,
+    Invalid,
     Unknown(SID_NAME_USE),
+    Computer,
+    Label,
+    LogonSession,
 }
 
 impl From<SID_NAME_USE> for SidType {
@@ -262,8 +269,15 @@ impl From<SID_NAME_USE> for SidType {
         match value {
             SidTypeUser => Self::User,
             SidTypeGroup => Self::Group,
+            SidTypeDomain => Self::Domain,
             SidTypeAlias => Self::Alias,
             SidTypeWellKnownGroup => Self::WellKnownGroup,
+            SidTypeDeletedAccount => Self::DeletedAccount,
+            SidTypeInvalid => Self::Invalid,
+            SidTypeUnknown => Self::Unknown(value),
+            SidTypeComputer => Self::Computer,
+            SidTypeLabel => Self::Label,
+            SidTypeLogonSession => Self::Logon,
             v => Self::Unknown(v),
         }
     }
@@ -517,11 +531,18 @@ impl Into<chunk::Ace> for ACLEntry {
                 flags
             },
             owner_type: match self.sid.ty {
-                SidType::User | SidType::Alias => OwnerType::User(Identifier(self.sid.name)),
+                SidType::User
+                | SidType::Alias
+                | SidType::Domain
+                | SidType::DeletedAccount
+                | SidType::Invalid
+                | SidType::Computer
+                | SidType::Label
+                | SidType::LogonSession
+                | SidType::Unknown(_) => OwnerType::User(Identifier(self.sid.name)),
                 SidType::Group | SidType::WellKnownGroup => {
                     OwnerType::Group(Identifier(self.sid.name))
                 }
-                SidType::Unknown(v) => panic!("{:?} : {}", v, self.sid.name),
             },
             allow,
             permission: {
