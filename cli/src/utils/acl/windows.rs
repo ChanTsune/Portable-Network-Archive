@@ -54,9 +54,9 @@ type PACE_HEADER = *mut ACE_HEADER;
 pub struct SecurityDescriptor {
     p_security_descriptor: PSECURITY_DESCRIPTOR,
     p_dacl: PACL,
-    p_sacl: PACL,
-    p_sid_owner: PSID,
-    p_sid_group: PSID,
+    _p_sacl: PACL,
+    _p_sid_owner: PSID,
+    _p_sid_group: PSID,
 }
 
 impl SecurityDescriptor {
