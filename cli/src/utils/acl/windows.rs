@@ -251,7 +251,7 @@ impl AceType {
 pub enum SidType {
     User,
     Group,
-    Unknown,
+    Unknown(SID_NAME_USE),
 }
 
 impl From<SID_NAME_USE> for SidType {
@@ -259,7 +259,7 @@ impl From<SID_NAME_USE> for SidType {
         match value {
             SidTypeUser => Self::User,
             SidTypeGroup => Self::Group,
-            _ => Self::Unknown,
+            v => Self::Unknown(v),
         }
     }
 }
@@ -512,8 +512,9 @@ impl Into<chunk::Ace> for ACLEntry {
                 flags
             },
             owner_type: match self.sid.ty {
-                SidType::User | SidType::Unknown => OwnerType::User(Identifier(self.sid.name)),
+                SidType::User => OwnerType::User(Identifier(self.sid.name)),
                 SidType::Group => OwnerType::Group(Identifier(self.sid.name)),
+                SidType::Unknown(v) => panic!("{:?}", v),
             },
             allow,
             permission: {
