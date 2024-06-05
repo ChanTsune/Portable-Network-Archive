@@ -18,10 +18,11 @@ use windows::Win32::Security::Authorization::{
 use windows::Win32::Security::{
     AddAccessAllowedAceEx, AddAccessDeniedAceEx, CopySid, GetAce, GetLengthSid, InitializeAcl,
     IsValidSid, LookupAccountNameW, LookupAccountSidW, SidTypeGroup, SidTypeUser,
-    ACCESS_ALLOWED_ACE, ACCESS_DENIED_ACE, ACE_FLAGS, ACE_HEADER, ACL as Win32ACL, ACL_REVISION_DS,
-    CONTAINER_INHERIT_ACE, DACL_SECURITY_INFORMATION, GROUP_SECURITY_INFORMATION, INHERITED_ACE,
-    INHERIT_ONLY_ACE, NO_PROPAGATE_INHERIT_ACE, OBJECT_INHERIT_ACE, OWNER_SECURITY_INFORMATION,
-    PROTECTED_DACL_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, SID_NAME_USE,
+    SidTypeWellKnownGroup, ACCESS_ALLOWED_ACE, ACCESS_DENIED_ACE, ACE_FLAGS, ACE_HEADER,
+    ACL as Win32ACL, ACL_REVISION_DS, CONTAINER_INHERIT_ACE, DACL_SECURITY_INFORMATION,
+    GROUP_SECURITY_INFORMATION, INHERITED_ACE, INHERIT_ONLY_ACE, NO_PROPAGATE_INHERIT_ACE,
+    OBJECT_INHERIT_ACE, OWNER_SECURITY_INFORMATION, PROTECTED_DACL_SECURITY_INFORMATION,
+    PSECURITY_DESCRIPTOR, SID_NAME_USE,
 };
 use windows::Win32::Storage::FileSystem::{
     DELETE, FILE_ACCESS_RIGHTS, FILE_APPEND_DATA, FILE_DELETE_CHILD, FILE_EXECUTE,
@@ -251,6 +252,7 @@ impl AceType {
 pub enum SidType {
     User,
     Group,
+    WellKnownGroup,
     Unknown(SID_NAME_USE),
 }
 
@@ -259,6 +261,7 @@ impl From<SID_NAME_USE> for SidType {
         match value {
             SidTypeUser => Self::User,
             SidTypeGroup => Self::Group,
+            SidTypeWellKnownGroup => Self::WellKnownGroup,
             v => Self::Unknown(v),
         }
     }
@@ -513,7 +516,9 @@ impl Into<chunk::Ace> for ACLEntry {
             },
             owner_type: match self.sid.ty {
                 SidType::User => OwnerType::User(Identifier(self.sid.name)),
-                SidType::Group => OwnerType::Group(Identifier(self.sid.name)),
+                SidType::Group | SidType::WellKnownGroup => {
+                    OwnerType::Group(Identifier(self.sid.name))
+                }
                 SidType::Unknown(v) => panic!("{:?}", v),
             },
             allow,
