@@ -519,7 +519,7 @@ impl Into<chunk::Ace> for ACLEntry {
                 SidType::Group | SidType::WellKnownGroup => {
                     OwnerType::Group(Identifier(self.sid.name))
                 }
-                SidType::Unknown(v) => panic!("{:?}", v),
+                SidType::Unknown(v) => panic!("{:?} : {}", v, self.sid.name),
             },
             allow,
             permission: {
