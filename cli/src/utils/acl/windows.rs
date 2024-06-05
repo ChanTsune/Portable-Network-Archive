@@ -32,7 +32,6 @@ use windows::Win32::Storage::FileSystem::{
     WRITE_OWNER,
 };
 use windows::Win32::System::SystemServices::{ACCESS_ALLOWED_ACE_TYPE, ACCESS_DENIED_ACE_TYPE};
-use windows::Win32::System::WindowsProgramming::GetUserNameW;
 
 pub fn set_facl<P: AsRef<Path>>(path: P, acl: Vec<chunk::Ace>) -> io::Result<()> {
     let acl_entries = acl.into_iter().map(Into::into).collect::<Vec<_>>();
@@ -54,9 +53,12 @@ type PACE_HEADER = *mut ACE_HEADER;
 pub struct SecurityDescriptor {
     p_security_descriptor: PSECURITY_DESCRIPTOR,
     p_dacl: PACL,
-    _p_sacl: PACL,
-    _p_sid_owner: PSID,
-    _p_sid_group: PSID,
+    #[allow(unused)]
+    p_sacl: PACL,
+    #[allow(unused)]
+    p_sid_owner: PSID,
+    #[allow(unused)]
+    p_sid_group: PSID,
 }
 
 impl SecurityDescriptor {
@@ -550,6 +552,7 @@ impl Into<chunk::Ace> for ACLEntry {
 mod tests {
     use super::*;
     use crate::chunk::Ace;
+    use windows::Win32::System::WindowsProgramming::GetUserNameW;
 
     pub fn get_current_username() -> io::Result<String> {
         let mut username_len = 0u32;
