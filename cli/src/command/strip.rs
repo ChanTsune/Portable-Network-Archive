@@ -9,7 +9,7 @@ use std::{env::temp_dir, fs, io, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) struct StripCommand {
-    #[arg(long, help = "Keep the directories")]
+    #[arg(long, help = "Keep the timestamp of the files")]
     pub(crate) keep_timestamp: bool,
     #[arg(long, help = "Keep the permissions of the files")]
     pub(crate) keep_permission: bool,
