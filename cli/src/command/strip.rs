@@ -67,8 +67,8 @@ fn strip_metadata(args: StripCommand, _verbosity: Verbosity) -> io::Result<()> {
                 let filtered = entry
                     .extra_chunks()
                     .iter()
-                    .cloned()
                     .filter(|it| it.ty() != crate::chunk::faCe)
+                    .cloned()
                     .collect::<Vec<_>>();
                 entry = entry.with_extra_chunks(&filtered);
             }
