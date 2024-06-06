@@ -91,6 +91,7 @@ pub fn get_facl<P: AsRef<Path>>(path: P) -> io::Result<Vec<Ace>> {
     Ok(ace_list.into_iter().map(Into::into).collect())
 }
 
+#[allow(clippy::from_over_into)]
 impl Into<Ace> for exacl::AclEntry {
     fn into(self) -> Ace {
         let mut flags = Flag::empty();
@@ -203,6 +204,7 @@ impl Into<Ace> for exacl::AclEntry {
     }
 }
 
+#[allow(clippy::from_over_into)]
 impl Into<exacl::AclEntry> for Ace {
     fn into(self) -> exacl::AclEntry {
         let slf = ace_convert_current_platform(self);

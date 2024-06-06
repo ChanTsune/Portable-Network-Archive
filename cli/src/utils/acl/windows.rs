@@ -459,6 +459,7 @@ const FLAGS_MAPPING_TABLE: [(chunk::Flag, ACE_FLAGS); 6] = [
     (chunk::Flag::ONLY_INHERIT, INHERIT_ONLY_ACE),
 ];
 
+#[allow(clippy::from_over_into)]
 impl Into<ACLEntry> for chunk::Ace {
     fn into(self) -> ACLEntry {
         let slf = ace_convert_current_platform(self);
@@ -502,6 +503,7 @@ impl Into<ACLEntry> for chunk::Ace {
     }
 }
 
+#[allow(clippy::from_over_into)]
 impl Into<chunk::Ace> for ACLEntry {
     fn into(self) -> chunk::Ace {
         let allow = match self.ace_type {
