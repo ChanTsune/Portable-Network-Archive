@@ -4,7 +4,7 @@ use crate::{
     utils::{self, PathPartExt},
 };
 use clap::{Parser, ValueHint};
-use pna::{Archive, Metadata};
+use pna::{Archive, Chunk, Metadata};
 use std::{env::temp_dir, fs, io, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
@@ -15,6 +15,8 @@ pub(crate) struct StripCommand {
     pub(crate) keep_permission: bool,
     #[arg(long, help = "Keep the extended attributes of the files")]
     pub(crate) keep_xattr: bool,
+    #[arg(long, help = "Keep the acl of the files")]
+    pub(crate) keep_acl: bool,
     #[arg(long, help = "Output file path", value_hint = ValueHint::AnyPath)]
     pub(crate) output: Option<PathBuf>,
     #[command(flatten)]
@@ -60,6 +62,15 @@ fn strip_metadata(args: StripCommand, _verbosity: Verbosity) -> io::Result<()> {
             entry = entry.with_metadata(metadata);
             if !args.keep_xattr {
                 entry = entry.with_xattrs(&[]);
+            }
+            if !args.keep_acl {
+                let filtered = entry
+                    .extra_chunks()
+                    .iter()
+                    .cloned()
+                    .filter(|it| it.ty() != crate::chunk::faCe)
+                    .collect::<Vec<_>>();
+                entry = entry.with_extra_chunks(&filtered);
             }
             out_archive.add_entry(entry)?;
             Ok(())

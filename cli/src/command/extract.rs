@@ -31,6 +31,7 @@ use std::{
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(
+    group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
 )]
@@ -47,6 +48,8 @@ pub(crate) struct ExtractCommand {
     pub(crate) keep_permission: bool,
     #[arg(long, help = "Restore the extended attributes of the files")]
     pub(crate) keep_xattr: bool,
+    #[arg(long, help = "Restore the acl of the files")]
+    pub(crate) keep_acl: bool,
     #[arg(long, help = "Restore user from given name")]
     pub(crate) uname: Option<String>,
     #[arg(long, help = "Restore group from given name")]
@@ -85,6 +88,7 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
         keep_timestamp: args.keep_timestamp,
         keep_permission: args.keep_permission,
         keep_xattr: args.keep_xattr,
+        keep_acl: args.keep_acl,
     };
     let owner_options = OwnerOptions {
         uname: if args.numeric_owner {
@@ -302,6 +306,45 @@ pub(crate) fn extract_entry(
     #[cfg(not(unix))]
     if keep_options.keep_xattr {
         eprintln!("Currently extended attribute is not supported on this platform.");
+    }
+    #[cfg(feature = "acl")]
+    {
+        #[cfg(any(
+            target_os = "linux",
+            target_os = "freebsd",
+            target_os = "macos",
+            windows
+        ))]
+        if keep_options.keep_acl {
+            use crate::chunk;
+            use pna::Chunk;
+            use std::str::FromStr;
+
+            let mut acl = Vec::new();
+            for c in item.extra_chunks() {
+                if c.ty() == chunk::faCe {
+                    let body = std::str::from_utf8(c.data()).map_err(io::Error::other)?;
+                    let ace = chunk::Ace::from_str(body).map_err(io::Error::other)?;
+                    acl.push(ace);
+                }
+            }
+            if !acl.is_empty() {
+                utils::acl::set_facl(&path, acl)?;
+            }
+        }
+        #[cfg(not(any(
+            target_os = "linux",
+            target_os = "freebsd",
+            target_os = "macos",
+            windows
+        )))]
+        if keep_options.keep_acl {
+            eprintln!("Currently acl is not supported on this platform.");
+        }
+    }
+    #[cfg(not(feature = "acl"))]
+    if keep_options.keep_acl {
+        eprintln!("Please enable `acl` feature and rebuild and install pna.");
     }
     if verbosity == Verbosity::Verbose {
         eprintln!("end: {}", path.display());

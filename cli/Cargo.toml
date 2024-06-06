@@ -11,6 +11,7 @@ keywords = ["pna", "archive", "cli", "crypto", "data"]
 
 [dependencies]
 ansi_term = "0.12.1"
+bitflags = "2.5.0"
 bytesize = "1.3.0"
 chrono = "0.4.38"
 clap = { version = "4.5.4", features = ["derive"] }
@@ -28,12 +29,23 @@ normalize-path = "0.2.1"
 nix = { version = "0.29.0", features = ["user", "fs"] }
 xattr = "1.3.1"
 
+[target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "macos"))'.dependencies]
+exacl = { version = "0.12.0", optional = true }
+
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.56.0", features = ["Win32_Storage_FileSystem"] }
+field-offset = { version = "0.3.6", optional = true }
 
 [features]
 experimental = [] # deprecated
 unstable-split = ["experimental"] # deprecated
+acl = [
+    "exacl",
+    "field-offset",
+    "windows/Win32_Security_Authorization",
+    "windows/Win32_System_SystemServices",
+    "windows/Win32_System_WindowsProgramming",
+]
 
 [[bin]]
 name = "pna"

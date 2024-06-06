@@ -1,3 +1,5 @@
+#[cfg(feature = "acl")]
+pub(crate) mod acl;
 pub(crate) mod fs;
 mod io;
 mod path;
