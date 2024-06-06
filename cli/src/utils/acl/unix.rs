@@ -172,11 +172,11 @@ impl Into<Ace> for exacl::AclEntry {
         if self.perms.contains(exacl::Perm::SYNC) {
             permission.insert(Permission::SYNC);
         }
-        #[cfg(any(target_os = "freebsd"))]
+        #[cfg(target_os = "freebsd")]
         if self.perms.contains(exacl::Perm::READ_DATA) {
             permission.insert(Permission::READ_DATA);
         }
-        #[cfg(any(target_os = "freebsd"))]
+        #[cfg(target_os = "freebsd")]
         if self.perms.contains(exacl::Perm::WRITE_DATA) {
             permission.insert(Permission::WRITE_DATA);
         }
@@ -283,11 +283,11 @@ impl Into<exacl::AclEntry> for Ace {
         if slf.permission.contains(Permission::SYNC) {
             perms.insert(exacl::Perm::SYNC);
         }
-        #[cfg(any(target_os = "freebsd"))]
+        #[cfg(target_os = "freebsd")]
         if slf.permission.contains(Permission::READ_DATA) {
             perms.insert(exacl::Perm::READ_DATA);
         }
-        #[cfg(any(target_os = "freebsd"))]
+        #[cfg(target_os = "freebsd")]
         if slf.permission.contains(Permission::WRITE_DATA) {
             perms.insert(exacl::Perm::WRITE_DATA);
         }
