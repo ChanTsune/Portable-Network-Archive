@@ -5,7 +5,7 @@
 //! an archive is never required to be fully resident in memory, and all objects
 //! provide largely a streaming interface to read bytes from.
 
-#![doc(html_root_url = "https://docs.rs/libpna/0.11.1")]
+#![doc(html_root_url = "https://docs.rs/libpna/0.12.0")]
 #![deny(missing_docs)]
 pub(crate) mod archive;
 pub(crate) mod chunk;
