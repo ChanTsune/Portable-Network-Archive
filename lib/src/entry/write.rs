@@ -82,25 +82,47 @@ fn hash<'s, 'p: 's>(
 ) -> io::Result<(Output, String)> {
     #[allow(deprecated)]
     let mut password_hash = match (hash_algorithm, cipher_algorithm) {
-        (HashAlgorithm::Argon2Id, CipherAlgorithm::Aes) => hash::argon2_with_salt(
+        (
+            HashAlgorithm::Argon2Id {
+                time_cost,
+                memory_cost,
+                parallelism_cost,
+            },
+            CipherAlgorithm::Aes,
+        ) => hash::argon2_with_salt(
             password,
             argon2::Algorithm::Argon2id,
+            time_cost,
+            memory_cost,
+            parallelism_cost,
             Aes256::key_size(),
             salt,
         ),
-        (HashAlgorithm::Argon2Id, CipherAlgorithm::Camellia) => hash::argon2_with_salt(
+        (
+            HashAlgorithm::Argon2Id {
+                time_cost,
+                memory_cost,
+                parallelism_cost,
+            },
+            CipherAlgorithm::Camellia,
+        ) => hash::argon2_with_salt(
             password,
             argon2::Algorithm::Argon2id,
+            time_cost,
+            memory_cost,
+            parallelism_cost,
             Camellia256::key_size(),
             salt,
         ),
-        (HashAlgorithm::Pbkdf2Sha256, CipherAlgorithm::Aes | CipherAlgorithm::Camellia) => {
-            hash::pbkdf2_with_salt(
-                password,
-                pbkdf2::Algorithm::Pbkdf2Sha256,
-                pbkdf2::Params::default(),
-                salt,
-            )
+        (
+            HashAlgorithm::Pbkdf2Sha256 { rounds },
+            CipherAlgorithm::Aes | CipherAlgorithm::Camellia,
+        ) => {
+            let mut params = pbkdf2::Params::default();
+            if let Some(rounds) = rounds {
+                params.rounds = rounds;
+            }
+            hash::pbkdf2_with_salt(password, pbkdf2::Algorithm::Pbkdf2Sha256, params, salt)
         }
     }?;
     let hash = password_hash
