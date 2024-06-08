@@ -72,7 +72,7 @@ impl EntryBuilder {
     /// # Arguments
     ///
     /// * `name` - The name of the entry to create.
-    /// * `option` - The write options for the entry.
+    /// * `option` - The options for writing the entry.
     ///
     /// # Returns
     ///
@@ -390,7 +390,7 @@ impl SolidEntryBuilder {
     ///
     /// # Arguments
     ///
-    /// * `option` - The write option specifying the compression and encryption settings.
+    /// * `option` - The option for specifying solid entry's the compression and encryption settings.
     ///
     /// # Returns
     ///
