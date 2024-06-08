@@ -41,18 +41,9 @@ pub struct EntryBuilder {
 }
 
 impl EntryBuilder {
-    /// Creates a new directory with the given name.
-    ///
-    /// # Arguments
-    ///
-    /// * `name` - The name of the entry to create.
-    ///
-    /// # Returns
-    ///
-    /// A new [EntryBuilder].
-    pub const fn new_dir(name: EntryName) -> Self {
+    const fn new(header: EntryHeader) -> Self {
         Self {
-            header: EntryHeader::for_dir(name),
+            header,
             phsf: None,
             iv: None,
             data: None,
@@ -65,6 +56,19 @@ impl EntryBuilder {
             xattrs: Vec::new(),
             extra_chunks: Vec::new(),
         }
+    }
+
+    /// Creates a new directory with the given name.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name of the entry to create.
+    ///
+    /// # Returns
+    ///
+    /// A new [EntryBuilder].
+    pub const fn new_dir(name: EntryName) -> Self {
+        Self::new(EntryHeader::for_dir(name))
     }
 
     /// Creates a new file with the given name and write options.
@@ -87,21 +91,13 @@ impl EntryBuilder {
         let context = get_writer_context(option)?;
         let writer = get_writer(crate::io::FlattenWriter::new(), &context)?;
         Ok(Self {
-            header,
             data: Some(writer),
             iv: match context.cipher {
                 Cipher::None => None,
                 Cipher::Aes(c) | Cipher::Camellia(c) => Some(c.iv),
             },
             phsf: context.phsf,
-            created: None,
-            last_modified: None,
-            accessed: None,
-            permission: None,
-            store_file_size: true,
-            file_size: 0,
-            xattrs: Vec::new(),
-            extra_chunks: Vec::new(),
+            ..Self::new(header)
         })
     }
 
@@ -133,21 +129,13 @@ impl EntryBuilder {
         let mut writer = get_writer(crate::io::FlattenWriter::new(), &context)?;
         writer.write_all(source.as_bytes())?;
         Ok(Self {
-            header: EntryHeader::for_symbolic_link(name),
             data: Some(writer),
             iv: match context.cipher {
                 Cipher::None => None,
                 Cipher::Aes(c) | Cipher::Camellia(c) => Some(c.iv),
             },
             phsf: context.phsf,
-            created: None,
-            last_modified: None,
-            accessed: None,
-            permission: None,
-            store_file_size: true,
-            file_size: 0,
-            xattrs: Vec::new(),
-            extra_chunks: Vec::new(),
+            ..Self::new(EntryHeader::for_symbolic_link(name))
         })
     }
 
@@ -179,21 +167,13 @@ impl EntryBuilder {
         let mut writer = get_writer(crate::io::FlattenWriter::new(), &context)?;
         writer.write_all(source.as_bytes())?;
         Ok(Self {
-            header: EntryHeader::for_hard_link(name),
             data: Some(writer),
             iv: match context.cipher {
                 Cipher::None => None,
                 Cipher::Aes(c) | Cipher::Camellia(c) => Some(c.iv),
             },
             phsf: context.phsf,
-            created: None,
-            last_modified: None,
-            accessed: None,
-            permission: None,
-            store_file_size: true,
-            file_size: 0,
-            xattrs: Vec::new(),
-            extra_chunks: Vec::new(),
+            ..Self::new(EntryHeader::for_hard_link(name))
         })
     }
 
