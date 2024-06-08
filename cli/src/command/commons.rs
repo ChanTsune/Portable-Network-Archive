@@ -393,10 +393,7 @@ where
     write_split_archive_writer(
         file,
         entries,
-        |n| {
-            let part_n_name = get_part_path(archive, n);
-            fs::File::create(&part_n_name)
-        },
+        |n| fs::File::create(get_part_path(archive, n)),
         max_file_size,
         |n| {
             if n == 1 {
