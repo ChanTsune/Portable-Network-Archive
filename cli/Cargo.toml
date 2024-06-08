@@ -43,8 +43,6 @@ field-offset = { version = "0.3.6", optional = true }
 libc = "0.2.155"
 
 [features]
-experimental = [] # deprecated
-unstable-split = ["experimental"] # deprecated
 acl = [
     "exacl",
     "field-offset",
