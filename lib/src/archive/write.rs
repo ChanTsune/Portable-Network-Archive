@@ -66,15 +66,15 @@ impl<W: Write> Archive<W> {
     ///
     /// ```no_run
     /// use libpna::Archive;
-    /// use std::fs::File;
-    /// use std::io;
+    /// use std::fs;
+    /// # use std::io;
     ///
-    /// fn main() -> io::Result<()> {
-    ///     let file = File::create("example.pna")?;
-    ///     let mut archive = Archive::write_header(file)?;
-    ///     archive.finalize()?;
-    ///     Ok(())
-    /// }
+    /// # fn main() -> io::Result<()> {
+    /// let file = fs::File::create("example.pna")?;
+    /// let mut archive = Archive::write_header(file)?;
+    /// archive.finalize()?;
+    /// #    Ok(())
+    /// # }
     /// ```
     pub fn write_header(write: W) -> io::Result<Self> {
         let header = ArchiveHeader::new(0, 0, 0);
@@ -166,19 +166,18 @@ impl<W: Write> Archive<W> {
     ///
     /// ```no_run
     /// use libpna::{Archive, EntryBuilder, WriteOption};
-    /// use std::fs::File;
-    /// use std::io;
+    /// use std::fs;
+    /// # use std::io;
     ///
-    /// fn main() -> io::Result<()> {
-    ///     let file = File::create("example.pna")?;
-    ///     let mut archive = Archive::write_header(file)?;
-    ///     archive.add_entry(
-    ///         EntryBuilder::new_file("example.txt".into(), WriteOption::builder().build())?
-    ///             .build()?,
-    ///     )?;
-    ///     archive.finalize()?;
-    ///     Ok(())
-    /// }
+    /// # fn main() -> io::Result<()> {
+    /// let file = fs::File::create("example.pna")?;
+    /// let mut archive = Archive::write_header(file)?;
+    /// archive.add_entry(
+    ///     EntryBuilder::new_file("example.txt".into(), WriteOption::builder().build())?.build()?,
+    /// )?;
+    /// archive.finalize()?;
+    /// #     Ok(())
+    /// # }
     /// ```
     pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<usize> {
         entry.write_in(&mut self.inner)
