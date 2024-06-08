@@ -26,6 +26,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       - uses: ./.github/actions/setup-rust
+      - name: install dependencies
+        run: |
+          sudo apt install -y libacl1-dev
       - name: Install required cargo
         run: cargo install clippy-sarif sarif-fmt
       - name: Run rust-clippy

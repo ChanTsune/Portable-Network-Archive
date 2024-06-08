@@ -57,7 +57,7 @@ pub(crate) fn mv<Src: AsRef<Path>, Dist: AsRef<Path>>(src: Src, dist: Dist) -> i
 }
 
 #[cfg(windows)]
-fn encode_wide(s: &std::ffi::OsStr) -> io::Result<Vec<u16>> {
+pub(crate) fn encode_wide(s: &std::ffi::OsStr) -> io::Result<Vec<u16>> {
     use std::os::windows::prelude::*;
     let mut buf = Vec::with_capacity(s.len() + 1);
     buf.extend(s.encode_wide());
