@@ -218,10 +218,20 @@ impl TryFrom<u8> for CipherMode {
 pub enum HashAlgorithm {
     /// Pbkdf2 with sha256
     #[deprecated(since = "0.14.1", note = "Use `HashAlgorithm::pbkdf2_sha256` instead.")]
-    Pbkdf2Sha256,
+    Pbkdf2Sha256 {
+        /// Pbkdf2 rounds, if `None` use default rounds.
+        rounds: Option<u32>,
+    },
     /// Argon2Id
     #[deprecated(since = "0.14.1", note = "Use `HashAlgorithm::argon2id`")]
-    Argon2Id,
+    Argon2Id {
+        /// Argon2Id time_cost, if `None` use default time_cost.
+        time_cost: Option<u32>,
+        /// Argon2Id memory_cost, if `None` use default memory_cost.
+        memory_cost: Option<u32>,
+        /// Argon2Id parallelism_cost, if `None` use default parallelism_cost.
+        parallelism_cost: Option<u32>,
+    },
 }
 
 impl HashAlgorithm {
@@ -229,14 +239,18 @@ impl HashAlgorithm {
     #[inline]
     pub const fn pbkdf2_sha256() -> Self {
         #[allow(deprecated)]
-        Self::Pbkdf2Sha256
+        Self::Pbkdf2Sha256 { rounds: None }
     }
 
     /// Argon2Id
     #[inline]
     pub const fn argon2id() -> Self {
         #[allow(deprecated)]
-        Self::Argon2Id
+        Self::Argon2Id {
+            time_cost: None,
+            memory_cost: None,
+            parallelism_cost: None,
+        }
     }
 }
 

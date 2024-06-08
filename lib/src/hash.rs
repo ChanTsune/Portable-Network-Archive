@@ -5,10 +5,22 @@ use std::io;
 pub(crate) fn argon2_with_salt<'a>(
     password: &'a [u8],
     algorithm: argon2::Algorithm,
+    time_cost: Option<u32>,
+    memory_cost: Option<u32>,
+    parallelism_cost: Option<u32>,
     hash_length: usize,
     salt: &'a SaltString,
 ) -> io::Result<PasswordHash<'a>> {
     let mut builder = ParamsBuilder::default();
+    if let Some(time_cost) = time_cost {
+        builder.t_cost(time_cost);
+    };
+    if let Some(memory_cost) = memory_cost {
+        builder.m_cost(memory_cost);
+    };
+    if let Some(parallelism_cost) = parallelism_cost {
+        builder.p_cost(parallelism_cost);
+    };
     let argon2 = builder
         .output_len(hash_length)
         .context(algorithm, Version::default())
@@ -76,7 +88,16 @@ mod tests {
     #[test]
     fn verify_argon2() {
         let salt = random::salt_string();
-        let mut ph = argon2_with_salt(b"pass", argon2::Algorithm::Argon2id, 32, &salt).unwrap();
+        let mut ph = argon2_with_salt(
+            b"pass",
+            argon2::Algorithm::Argon2id,
+            None,
+            None,
+            None,
+            32,
+            &salt,
+        )
+        .unwrap();
         ph.hash.take();
         assert_eq!(ph.hash, None);
         let ps = ph.to_string();
