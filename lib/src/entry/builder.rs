@@ -242,7 +242,7 @@ impl EntryBuilder {
     ///
     /// # Arguments
     ///
-    /// * `store` - if true retention data of raw file size for entry, otherwise not.
+    /// * `store` - If true retention data of raw file size for entry, otherwise not.
     ///
     /// # Returns
     ///
