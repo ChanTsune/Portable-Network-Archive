@@ -36,13 +36,14 @@ pub(crate) fn mv<Src: AsRef<Path>, Dist: AsRef<Path>>(src: Src, dist: Dist) -> i
     }
     #[cfg(windows)]
     fn inner(src: &Path, dist: &Path) -> io::Result<()> {
+        use crate::utils::str;
         use windows::core::PCWSTR;
         use windows::Win32::Storage::FileSystem::*;
 
         unsafe {
             MoveFileExW(
-                PCWSTR::from_raw(encode_wide(src.as_os_str())?.as_ptr()),
-                PCWSTR::from_raw(encode_wide(dist.as_os_str())?.as_ptr()),
+                PCWSTR::from_raw(str::encode_wide(src.as_os_str())?.as_ptr()),
+                PCWSTR::from_raw(str::encode_wide(dist.as_os_str())?.as_ptr()),
                 MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED,
             )
         }
@@ -54,20 +55,6 @@ pub(crate) fn mv<Src: AsRef<Path>, Dist: AsRef<Path>>(src: Src, dist: Dist) -> i
         fs::remove_file(src)
     }
     inner(src.as_ref(), dist.as_ref())
-}
-
-#[cfg(windows)]
-pub(crate) fn encode_wide(s: &std::ffi::OsStr) -> io::Result<Vec<u16>> {
-    use std::os::windows::prelude::*;
-    let mut buf = Vec::with_capacity(s.len() + 1);
-    buf.extend(s.encode_wide());
-    if buf.contains(&0) {
-        return Err(io::Error::other(
-            "Value cannot pass to platform, because contains null character",
-        ));
-    }
-    buf.push(0);
-    Ok(buf)
 }
 
 pub(crate) fn read_to_lines<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> {

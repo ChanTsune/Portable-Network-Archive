@@ -1,6 +1,6 @@
 use crate::chunk;
 use crate::chunk::{ace_convert_current_platform, AcePlatform, Identifier, OwnerType};
-use crate::utils::fs::encode_wide;
+use crate::utils::str::encode_wide;
 use field_offset::offset_of;
 use std::fmt::{Display, Formatter};
 use std::path::{Path, PathBuf};
