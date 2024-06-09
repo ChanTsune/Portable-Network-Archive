@@ -104,3 +104,20 @@ fn zstd_keep_permission(b: &mut Bencher) {
         .unwrap()
     })
 }
+
+#[bench]
+fn zstd_keep_xattr(b: &mut Bencher) {
+    b.iter(|| {
+        command::entry(cli::Cli::parse_from([
+            "pna",
+            "--quiet",
+            "x",
+            "../resources/test/zstd_keep_xattr.pna",
+            "--overwrite",
+            "--keep-xattr",
+            "--out-dir",
+            &format!("{}/bench/zstd_keep_xattr/", env!("CARGO_TARGET_TMPDIR")),
+        ]))
+        .unwrap()
+    })
+}
