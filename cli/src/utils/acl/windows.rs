@@ -1,29 +1,16 @@
 use crate::chunk;
 use crate::chunk::{ace_convert_current_platform, AcePlatform, Identifier, OwnerType};
-use crate::utils::str::encode_wide;
+use crate::utils::fs::windows::{SecurityDescriptor, Sid, SidType};
 use field_offset::offset_of;
-use std::fmt::{Display, Formatter};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::ptr::null_mut;
-use std::str::FromStr;
 use std::{io, mem};
-use windows::core::{PCWSTR, PWSTR};
-use windows::Win32::Foundation::{
-    LocalFree, SetLastError, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, HLOCAL, PSID,
-};
-use windows::Win32::Security::Authorization::{
-    ConvertSidToStringSidW, ConvertStringSidToSidW, GetNamedSecurityInfoW, SetNamedSecurityInfoW,
-    SE_FILE_OBJECT,
-};
+use windows::Win32::Foundation::PSID;
 use windows::Win32::Security::{
-    AddAccessAllowedAceEx, AddAccessDeniedAceEx, CopySid, GetAce, GetLengthSid, InitializeAcl,
-    IsValidSid, LookupAccountNameW, LookupAccountSidW, SidTypeAlias, SidTypeComputer,
-    SidTypeDeletedAccount, SidTypeDomain, SidTypeGroup, SidTypeInvalid, SidTypeLabel,
-    SidTypeLogonSession, SidTypeUnknown, SidTypeUser, SidTypeWellKnownGroup, ACCESS_ALLOWED_ACE,
+    AddAccessAllowedAceEx, AddAccessDeniedAceEx, GetAce, InitializeAcl, ACCESS_ALLOWED_ACE,
     ACCESS_DENIED_ACE, ACE_FLAGS, ACE_HEADER, ACL as Win32ACL, ACL_REVISION_DS,
-    CONTAINER_INHERIT_ACE, DACL_SECURITY_INFORMATION, GROUP_SECURITY_INFORMATION, INHERITED_ACE,
-    INHERIT_ONLY_ACE, NO_PROPAGATE_INHERIT_ACE, OBJECT_INHERIT_ACE, OWNER_SECURITY_INFORMATION,
-    PROTECTED_DACL_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, SID_NAME_USE,
+    CONTAINER_INHERIT_ACE, INHERITED_ACE, INHERIT_ONLY_ACE, NO_PROPAGATE_INHERIT_ACE,
+    OBJECT_INHERIT_ACE,
 };
 use windows::Win32::Storage::FileSystem::{
     DELETE, FILE_ACCESS_RIGHTS, FILE_APPEND_DATA, FILE_DELETE_CHILD, FILE_EXECUTE,
@@ -45,88 +32,10 @@ pub fn get_facl<P: AsRef<Path>>(path: P) -> io::Result<Vec<chunk::Ace>> {
     Ok(ace_list.into_iter().map(Into::into).collect())
 }
 
-type PACL = *mut Win32ACL;
-
 #[allow(non_camel_case_types)]
 type PACE_HEADER = *mut ACE_HEADER;
 
-pub struct SecurityDescriptor {
-    p_security_descriptor: PSECURITY_DESCRIPTOR,
-    p_dacl: PACL,
-    #[allow(unused)]
-    p_sacl: PACL,
-    #[allow(unused)]
-    p_sid_owner: PSID,
-    #[allow(unused)]
-    p_sid_group: PSID,
-}
-
-impl SecurityDescriptor {
-    pub fn try_from(path: &Path) -> io::Result<Self> {
-        let os_str = encode_wide(path.as_os_str())?;
-        let mut p_security_descriptor = PSECURITY_DESCRIPTOR::default();
-        let mut p_dacl: PACL = null_mut();
-        let mut p_sacl: PACL = null_mut();
-        let mut p_sid_owner: PSID = PSID::default();
-        let mut p_sid_group: PSID = PSID::default();
-        let error = unsafe {
-            GetNamedSecurityInfoW(
-                PCWSTR::from_raw(os_str.as_ptr()),
-                SE_FILE_OBJECT,
-                DACL_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | OWNER_SECURITY_INFORMATION,
-                Some(&mut p_sid_owner as _),
-                Some(&mut p_sid_group as _),
-                Some(&mut p_dacl as _),
-                Some(&mut p_sacl as _),
-                &mut p_security_descriptor as _,
-            )
-        };
-        if error != ERROR_SUCCESS {
-            unsafe { SetLastError(error) };
-            return Err(io::Error::last_os_error());
-        }
-        Ok(Self {
-            p_security_descriptor,
-            p_sid_owner,
-            p_sid_group,
-            p_sacl,
-            p_dacl,
-        })
-    }
-
-    pub fn apply(&self, path: &Path, pacl: PACL) -> io::Result<()> {
-        let c_str = encode_wide(path.as_os_str())?;
-        let status = unsafe {
-            SetNamedSecurityInfoW(
-                PCWSTR::from_raw(c_str.as_ptr()),
-                SE_FILE_OBJECT,
-                DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
-                None,
-                None,
-                Some(pacl),
-                None,
-            )
-        };
-        if status != ERROR_SUCCESS {
-            unsafe { SetLastError(status) };
-            return Err(io::Error::last_os_error());
-        }
-        Ok(())
-    }
-}
-
-impl Drop for SecurityDescriptor {
-    fn drop(&mut self) {
-        if !self.p_security_descriptor.is_invalid() {
-            unsafe {
-                LocalFree(HLOCAL(self.p_security_descriptor.0));
-            }
-        }
-    }
-}
-
 pub struct ACL {
-    path: PathBuf,
     security_descriptor: SecurityDescriptor,
 }
 
@@ -134,7 +43,6 @@ impl ACL {
     pub fn try_from(path: &Path) -> io::Result<Self> {
         Ok(Self {
             security_descriptor: SecurityDescriptor::try_from(path)?,
-            path: path.to_path_buf(),
         })
     }
 
@@ -216,7 +124,8 @@ impl ACL {
             }
             .map_err(io::Error::other)?;
         }
-        self.security_descriptor.apply(&self.path, new_acl as _)?;
+        self.security_descriptor
+            .apply(None, None, Some(new_acl as _))?;
         Ok(())
     }
 }
@@ -235,191 +144,6 @@ impl AceType {
             AceType::AccessDeny => mem::size_of::<ACCESS_DENIED_ACE>(),
             AceType::Unknown(_) => 0,
         }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum SidType {
-    User,
-    Group,
-    Domain,
-    Alias,
-    WellKnownGroup,
-    DeletedAccount,
-    Invalid,
-    Unknown(SID_NAME_USE),
-    Computer,
-    Label,
-    LogonSession,
-}
-
-impl From<SID_NAME_USE> for SidType {
-    #[allow(non_upper_case_globals)]
-    fn from(value: SID_NAME_USE) -> Self {
-        match value {
-            SidTypeUser => Self::User,
-            SidTypeGroup => Self::Group,
-            SidTypeDomain => Self::Domain,
-            SidTypeAlias => Self::Alias,
-            SidTypeWellKnownGroup => Self::WellKnownGroup,
-            SidTypeDeletedAccount => Self::DeletedAccount,
-            SidTypeInvalid => Self::Invalid,
-            SidTypeUnknown => Self::Unknown(value),
-            SidTypeComputer => Self::Computer,
-            SidTypeLabel => Self::Label,
-            SidTypeLogonSession => Self::LogonSession,
-            v => Self::Unknown(v),
-        }
-    }
-}
-
-fn lookup_account_sid(psid: PSID) -> io::Result<(String, SidType)> {
-    let mut name_len = 0u32;
-    let mut sysname_len = 0u32;
-    let mut sid_type = SID_NAME_USE::default();
-    match unsafe {
-        LookupAccountSidW(
-            PCWSTR::null(),
-            psid,
-            PWSTR::null(),
-            &mut name_len as _,
-            PWSTR::null(),
-            &mut sysname_len as _,
-            &mut sid_type as _,
-        )
-    } {
-        Ok(_) => Err(io::Error::other("failed to convert sid to name")),
-        Err(e) if e.code() == ERROR_INSUFFICIENT_BUFFER.to_hresult() => Ok(()),
-        Err(e) => Err(io::Error::other(e)),
-    }?;
-    let mut name = Vec::<u16>::with_capacity(name_len as usize);
-    let mut sysname = Vec::<u16>::with_capacity(sysname_len as usize);
-    let name_ptr = PWSTR::from_raw(name.as_mut_ptr() as _);
-    unsafe {
-        LookupAccountSidW(
-            PCWSTR::null(),
-            psid,
-            name_ptr,
-            &mut name_len as _,
-            PWSTR::from_raw(sysname.as_mut_ptr() as _),
-            &mut sysname_len as _,
-            &mut sid_type as _,
-        )
-    }
-    .map_err(io::Error::other)?;
-    let name = unsafe { name_ptr.to_string() }.map_err(io::Error::other)?;
-    Ok((name, SidType::from(sid_type)))
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Sid {
-    ty: SidType,
-    name: String,
-    raw: Vec<u8>,
-}
-
-impl Sid {
-    fn null_sid() -> Self {
-        Self::from_str("S-1-0-0").expect("null group sid creation failed")
-    }
-
-    fn try_from_name(name: &str, system: Option<&str>) -> io::Result<Self> {
-        let encoded_name = encode_wide(name.as_ref())?;
-        let system = system.map(|it| encode_wide(it.as_ref())).transpose()?;
-        let mut sid_len = 0u32;
-        let mut sys_name_len = 0u32;
-        let mut sid_type = SID_NAME_USE::default();
-        match unsafe {
-            LookupAccountNameW(
-                system
-                    .as_ref()
-                    .map_or(PCWSTR::null(), |it| PCWSTR::from_raw(it.as_ptr())),
-                PCWSTR::from_raw(encoded_name.as_ptr()),
-                PSID::default(),
-                &mut sid_len as _,
-                PWSTR::null(),
-                &mut sys_name_len as _,
-                &mut sid_type as _,
-            )
-        } {
-            Ok(_) => Err(io::Error::other("failed to resolve sid from name")),
-            Err(e) if e.code() == ERROR_INSUFFICIENT_BUFFER.to_hresult() => Ok(()),
-            Err(e) => Err(io::Error::other(e)),
-        }?;
-        if sid_len == 0 {
-            return Err(io::Error::other("lookup error"));
-        }
-        let mut sid = Vec::with_capacity(sid_len as usize);
-        let mut sys_name = Vec::<u16>::with_capacity(sys_name_len as usize);
-        unsafe {
-            LookupAccountNameW(
-                system
-                    .as_ref()
-                    .map_or(PCWSTR::null(), |it| PCWSTR::from_raw(it.as_ptr())),
-                PCWSTR::from_raw(encoded_name.as_ptr()),
-                PSID(sid.as_mut_ptr() as _),
-                &mut sid_len as _,
-                PWSTR::from_raw(sys_name.as_mut_ptr() as _),
-                &mut sys_name_len as _,
-                &mut sid_type as _,
-            )
-            .map_err(io::Error::other)?;
-        }
-        let ty = SidType::from(sid_type);
-        unsafe { sid.set_len(sid_len as usize) }
-        Ok(Self {
-            ty,
-            name: name.to_string(),
-            raw: sid,
-        })
-    }
-
-    #[inline]
-    fn as_ptr(&self) -> *const u8 {
-        self.raw.as_ptr()
-    }
-
-    #[inline]
-    fn as_psid(&self) -> PSID {
-        PSID(self.as_ptr() as _)
-    }
-}
-
-impl Display for Sid {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut raw_str = PWSTR::null();
-        unsafe { ConvertSidToStringSidW(self.as_psid(), &mut raw_str) }
-            .map_err(|_| std::fmt::Error::default())?;
-        let r = write!(f, "{}", unsafe { raw_str.display() });
-        unsafe { LocalFree(HLOCAL(raw_str.as_ptr() as _)) };
-        r
-    }
-}
-
-impl FromStr for Sid {
-    type Err = ();
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut psid = PSID::default();
-        let s = encode_wide(s.as_ref()).map_err(|_| ())?;
-        unsafe { ConvertStringSidToSidW(PCWSTR::from_raw(s.as_ptr()), &mut psid as _) }
-            .map_err(|_| ())?;
-        Self::try_from(psid).map_err(|_e| ())
-    }
-}
-
-impl TryFrom<PSID> for Sid {
-    type Error = io::Error;
-    fn try_from(value: PSID) -> Result<Self, Self::Error> {
-        if !unsafe { IsValidSid(value) }.as_bool() {
-            return Err(io::Error::other("invalid sid"));
-        }
-        let sid_len = unsafe { GetLengthSid(value) };
-        let mut sid = Vec::with_capacity(sid_len as usize);
-        unsafe { CopySid(sid_len, PSID(sid.as_mut_ptr() as _), value) }
-            .map_err(io::Error::other)?;
-        unsafe { sid.set_len(sid_len as usize) }
-        let (name, ty) = lookup_account_sid(PSID(sid.as_ptr() as _))?;
-        Ok(Self { ty, name, raw: sid })
     }
 }
 
@@ -554,44 +278,6 @@ impl Into<chunk::Ace> for ACLEntry {
 mod tests {
     use super::*;
     use crate::chunk::Ace;
-    use windows::Win32::System::WindowsProgramming::GetUserNameW;
-
-    pub fn get_current_username() -> io::Result<String> {
-        let mut username_len = 0u32;
-        match unsafe { GetUserNameW(PWSTR::null(), &mut username_len as _) } {
-            Ok(_) => Err(io::Error::other("failed to get current username")),
-            Err(e) if e.code() == ERROR_INSUFFICIENT_BUFFER.to_hresult() => Ok(()),
-            Err(e) => Err(io::Error::other(e)),
-        }?;
-        let mut username = Vec::<u16>::with_capacity(username_len as usize);
-        let str = PWSTR::from_raw(username.as_mut_ptr());
-        unsafe { GetUserNameW(str, &mut username_len as _) }.map_err(io::Error::other)?;
-        unsafe { str.to_string().map_err(io::Error::other) }
-    }
-
-    #[test]
-    fn null_sid() {
-        Sid::null_sid();
-    }
-
-    #[test]
-    fn current_user() {
-        let username = get_current_username().unwrap();
-        let sid = Sid::try_from_name(&username, None).unwrap();
-        let string_sid = sid.to_string();
-        let s = Sid::from_str(&string_sid).unwrap();
-        assert_eq!(sid, s);
-        assert_eq!(username, s.name);
-        assert_eq!(SidType::User, s.ty);
-    }
-
-    #[test]
-    fn username() {
-        let username = get_current_username().unwrap();
-        let sid = Sid::try_from_name(&username, None).unwrap();
-        assert_eq!(username, sid.name);
-    }
-
     #[test]
     fn acl_for_everyone() {
         let path = "everyone.txt";

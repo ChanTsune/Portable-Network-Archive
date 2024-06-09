@@ -33,7 +33,11 @@ xattr = "1.3.1"
 exacl = { version = "0.12.0", optional = true }
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.56.0", features = ["Win32_Storage_FileSystem"] }
+windows = { version = "0.56.0", features = [
+  "Win32_Storage_FileSystem",
+  "Win32_Security_Authorization",
+  "Win32_System_WindowsProgramming",
+] }
 field-offset = { version = "0.3.6", optional = true }
 
 [features]
@@ -42,9 +46,7 @@ unstable-split = ["experimental"] # deprecated
 acl = [
     "exacl",
     "field-offset",
-    "windows/Win32_Security_Authorization",
     "windows/Win32_System_SystemServices",
-    "windows/Win32_System_WindowsProgramming",
 ]
 
 [[bin]]
