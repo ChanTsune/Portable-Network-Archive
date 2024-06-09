@@ -1,3 +1,7 @@
+#[cfg(windows)]
+pub(crate) mod windows;
+
+pub(crate) use owner::*;
 pub(crate) use pna::fs::*;
 use std::{
     fs,
@@ -38,18 +42,7 @@ pub(crate) fn mv<Src: AsRef<Path>, Dist: AsRef<Path>>(src: Src, dist: Dist) -> i
     }
     #[cfg(windows)]
     fn inner(src: &Path, dist: &Path) -> io::Result<()> {
-        use crate::utils::str;
-        use windows::core::PCWSTR;
-        use windows::Win32::Storage::FileSystem::*;
-
-        unsafe {
-            MoveFileExW(
-                PCWSTR::from_raw(str::encode_wide(src.as_os_str())?.as_ptr()),
-                PCWSTR::from_raw(str::encode_wide(dist.as_os_str())?.as_ptr()),
-                MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED,
-            )
-        }
-        .map_err(|e| io::Error::other(e))
+        windows::move_file(src.as_os_str(), dist.as_os_str()).map_err(io::Error::other)
     }
     #[cfg(target_os = "wasi")]
     fn inner(src: &Path, dist: &Path) -> io::Result<()> {
@@ -66,4 +59,38 @@ pub(crate) fn read_to_lines<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> 
         reader.lines().collect::<io::Result<Vec<_>>>()
     }
     inner(path.as_ref())
+}
+
+#[cfg(windows)]
+mod owner {
+    use super::*;
+    pub(crate) struct User(pub(crate) windows::Sid);
+    pub(crate) struct Group(pub(crate) windows::Sid);
+}
+#[cfg(unix)]
+mod owner {
+    use nix::unistd;
+    pub(crate) struct User(pub(crate) unistd::User);
+    pub(crate) struct Group(pub(crate) unistd::Group);
+}
+
+#[cfg(any(windows, unix))]
+pub(crate) fn chown<P: AsRef<Path>>(
+    path: P,
+    owner: Option<User>,
+    group: Option<Group>,
+) -> io::Result<()> {
+    #[cfg(windows)]
+    fn inner(path: &Path, owner: Option<User>, group: Option<Group>) -> io::Result<()> {
+        windows::change_owner(path.as_ref(), owner.map(|it| it.0), group.map(|it| it.0))
+    }
+    #[cfg(unix)]
+    fn inner(path: &Path, owner: Option<User>, group: Option<Group>) -> io::Result<()> {
+        std::os::unix::fs::chown(
+            path,
+            owner.map(|it| it.0.uid.as_raw()),
+            group.map(|it| it.0.gid.as_raw()),
+        )
+    }
+    inner(path.as_ref(), owner, group)
 }
