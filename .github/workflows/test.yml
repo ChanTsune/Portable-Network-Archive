@@ -38,6 +38,8 @@ jobs:
           path: target
           key: "${{ matrix.os }}-rust-${{ steps.install_rust.outputs.version }}-${{ hashFiles(format('{0}/Cargo.lock', env.WORKING_DIRECTORY)) }}"
       - name: run test
-        run: cargo test --locked --release --all-features
+        run: |
+          cargo test --locked --release
+          cargo test --locked --release --all-features
         env:
           RUST_BACKTRACE: 1
