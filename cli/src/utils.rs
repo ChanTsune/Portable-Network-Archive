@@ -3,6 +3,7 @@ pub(crate) mod acl;
 pub(crate) mod fs;
 mod io;
 mod path;
+mod str;
 
 pub(crate) use path::*;
 use std::path::Path;
