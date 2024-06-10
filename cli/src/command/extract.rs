@@ -19,7 +19,7 @@ use std::ops::Add;
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::FileTimesExt;
 #[cfg(unix)]
-use std::os::unix::fs::{chown, PermissionsExt};
+use std::os::unix::fs::PermissionsExt;
 #[cfg(windows)]
 use std::os::windows::fs::FileTimesExt;
 use std::{
@@ -286,7 +286,7 @@ pub(crate) fn extract_entry(
     }
     #[cfg(unix)]
     permissions.map(|(p, u, g)| {
-        chown(&path, u.map(|i| i.uid.as_raw()), g.map(|g| g.gid.as_raw()))?;
+        utils::fs::chown(&path, u.map(utils::fs::User), g.map(utils::fs::Group))?;
         fs::set_permissions(&path, p)
     });
     #[cfg(not(unix))]
