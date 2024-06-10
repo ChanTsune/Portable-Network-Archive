@@ -179,6 +179,21 @@ pub(crate) fn apply_metadata(
                 mode,
             ));
         }
+        #[cfg(windows)]
+        if keep_options.keep_permission {
+            use crate::utils::fs::windows::SecurityDescriptor;
+            let sd = SecurityDescriptor::try_from(path)?;
+            let mode = 0o777;
+            let user = sd.owner_sid()?;
+            let group = sd.group_sid()?;
+            entry.permission(pna::Permission::new(
+                u64::MAX,
+                owner_options.uname.unwrap_or(user.name),
+                u64::MAX,
+                owner_options.gname.unwrap_or(group.name),
+                mode,
+            ));
+        }
     }
     #[cfg(feature = "acl")]
     {
