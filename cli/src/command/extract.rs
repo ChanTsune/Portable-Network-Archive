@@ -289,7 +289,11 @@ pub(crate) fn extract_entry(
         utils::fs::chown(&path, u.map(utils::fs::User), g.map(utils::fs::Group))?;
         fs::set_permissions(&path, p)
     });
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    if let Some((_, u, g)) = permissions {
+        utils::fs::chown(&path, u, g)?;
+    }
+    #[cfg(not(any(unix, windows)))]
     if let Some(_) = permissions {
         eprintln!("Currently permission is not supported on this platform.");
     }
@@ -353,8 +357,19 @@ pub(crate) fn extract_entry(
 }
 
 #[cfg(not(unix))]
-fn permissions(_: &Permission, _: &OwnerOptions) -> Option<(Permissions, (), ())> {
-    None
+fn permissions(
+    p: &Permission,
+    _: &OwnerOptions,
+) -> Option<(
+    Option<Permissions>,
+    Option<utils::fs::User>,
+    Option<utils::fs::Group>,
+)> {
+    Some((
+        None,
+        utils::fs::User::from_name(p.uname(), None),
+        utils::fs::Group::from_name(p.gname(), None),
+    ))
 }
 #[cfg(unix)]
 fn permissions(
