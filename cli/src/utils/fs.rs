@@ -65,7 +65,21 @@ pub(crate) fn read_to_lines<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> 
 mod owner {
     use super::*;
     pub(crate) struct User(pub(crate) windows::Sid);
+    impl User {
+        pub(crate) fn from_name(name: &str, system: Option<&str>) -> Option<Self> {
+            let sid = windows::Sid::try_from_name(name, system).ok()?;
+            Some(Self(sid))
+        }
+    }
+
     pub(crate) struct Group(pub(crate) windows::Sid);
+
+    impl Group {
+        pub(crate) fn from_name(name: &str, system: Option<&str>) -> Option<Self> {
+            let sid = windows::Sid::try_from_name(name, system).ok()?;
+            Some(Self(sid))
+        }
+    }
 }
 #[cfg(unix)]
 mod owner {
