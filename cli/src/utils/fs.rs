@@ -66,6 +66,7 @@ mod owner {
     use super::*;
     pub(crate) struct User(pub(crate) windows::Sid);
     impl User {
+        #[inline]
         pub(crate) fn from_name(name: &str, system: Option<&str>) -> Option<Self> {
             let sid = windows::Sid::try_from_name(name, system).ok()?;
             Some(Self(sid))
@@ -75,6 +76,7 @@ mod owner {
     pub(crate) struct Group(pub(crate) windows::Sid);
 
     impl Group {
+        #[inline]
         pub(crate) fn from_name(name: &str, system: Option<&str>) -> Option<Self> {
             let sid = windows::Sid::try_from_name(name, system).ok()?;
             Some(Self(sid))
@@ -84,8 +86,31 @@ mod owner {
 #[cfg(unix)]
 mod owner {
     use nix::unistd;
+    use nix::unistd::{Gid, Uid};
+
     pub(crate) struct User(pub(crate) unistd::User);
+    impl User {
+        #[inline]
+        pub(crate) fn from_uid(uid: Uid) -> Option<Self> {
+            unistd::User::from_uid(uid).ok().flatten().map(Self)
+        }
+        #[inline]
+        pub(crate) fn from_name(name: &str) -> Option<Self> {
+            unistd::User::from_name(name).ok().flatten().map(Self)
+        }
+    }
     pub(crate) struct Group(pub(crate) unistd::Group);
+
+    impl Group {
+        #[inline]
+        pub(crate) fn from_gid(gid: Gid) -> Option<Self> {
+            unistd::Group::from_gid(gid).ok().flatten().map(Self)
+        }
+        #[inline]
+        pub(crate) fn from_name(name: &str) -> Option<Self> {
+            unistd::Group::from_name(name).ok().flatten().map(Self)
+        }
+    }
 }
 
 #[cfg(any(windows, unix))]
