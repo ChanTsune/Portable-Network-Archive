@@ -1,3 +1,4 @@
+#![cfg(unix)]
 use clap::Parser;
 use portable_network_archive::{cli, command};
 
