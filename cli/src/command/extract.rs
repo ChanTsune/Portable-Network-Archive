@@ -7,12 +7,14 @@ use crate::{
         },
         Command,
     },
-    utils::{self, GlobPatterns},
+    utils::{
+        self,
+        fs::{chown, Group, User},
+        GlobPatterns,
+    },
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use indicatif::HumanDuration;
-#[cfg(unix)]
-use nix::unistd::{Group, User};
 use pna::{DataKind, EntryReference, Permission, ReadOption, RegularEntry};
 use rayon::ThreadPoolBuilder;
 use std::ops::Add;
@@ -286,12 +288,12 @@ pub(crate) fn extract_entry(
     }
     #[cfg(unix)]
     permissions.map(|(p, u, g)| {
-        utils::fs::chown(&path, u.map(utils::fs::User), g.map(utils::fs::Group))?;
+        chown(&path, u, g)?;
         fs::set_permissions(&path, p)
     });
     #[cfg(windows)]
     if let Some((_, u, g)) = permissions {
-        utils::fs::chown(&path, u, g)?;
+        chown(&path, u, g)?;
     }
     #[cfg(not(any(unix, windows)))]
     if let Some(_) = permissions {
@@ -360,15 +362,11 @@ pub(crate) fn extract_entry(
 fn permissions(
     p: &Permission,
     _: &OwnerOptions,
-) -> Option<(
-    Option<Permissions>,
-    Option<utils::fs::User>,
-    Option<utils::fs::Group>,
-)> {
+) -> Option<(Option<Permissions>, Option<User>, Option<Group>)> {
     Some((
         None,
-        utils::fs::User::from_name(p.uname(), None),
-        utils::fs::Group::from_name(p.gname(), None),
+        User::from_name(p.uname(), None),
+        Group::from_name(p.gname(), None),
     ))
 }
 #[cfg(unix)]
@@ -378,7 +376,7 @@ fn permissions(
 ) -> Option<(Permissions, Option<User>, Option<Group>)> {
     let p = Permissions::from_mode(permission.permissions().into());
     let user = if let Some(uid) = owner_options.uid {
-        User::from_uid(uid.into()).ok().flatten()
+        User::from_uid(uid.into())
     } else {
         search_owner(
             owner_options.uname.as_deref().unwrap_or(permission.uname()),
@@ -386,7 +384,7 @@ fn permissions(
         )
     };
     let group = if let Some(gid) = owner_options.gid {
-        Group::from_gid(gid.into()).ok().flatten()
+        Group::from_gid(gid.into())
     } else {
         search_group(
             owner_options.gname.as_deref().unwrap_or(permission.gname()),
@@ -398,18 +396,18 @@ fn permissions(
 
 #[cfg(unix)]
 fn search_owner(name: &str, id: u64) -> Option<User> {
-    let user = User::from_name(name).ok().flatten();
+    let user = User::from_name(name);
     if user.is_some() {
         return user;
     }
-    User::from_uid((id as u32).into()).ok().flatten()
+    User::from_uid((id as u32).into())
 }
 
 #[cfg(unix)]
 fn search_group(name: &str, id: u64) -> Option<Group> {
-    let group = Group::from_name(name).ok().flatten();
+    let group = Group::from_name(name);
     if group.is_some() {
         return group;
     }
-    Group::from_gid((id as u32).into()).ok().flatten()
+    Group::from_gid((id as u32).into())
 }
