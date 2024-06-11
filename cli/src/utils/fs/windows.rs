@@ -1,26 +1,30 @@
 use crate::utils::str::encode_wide;
 use std::fmt::{Display, Formatter};
-use std::io;
 use std::path::Path;
 use std::ptr::null_mut;
 use std::str::FromStr;
+use std::{io, mem};
 use windows::core::{PCWSTR, PWSTR};
 use windows::Win32::Foundation::{
-    LocalFree, SetLastError, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, HLOCAL, PSID,
+    CloseHandle, LocalFree, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, HLOCAL, INVALID_HANDLE_VALUE,
+    PSID,
 };
 use windows::Win32::Security::Authorization::{
     ConvertSidToStringSidW, ConvertStringSidToSidW, GetNamedSecurityInfoW, SetNamedSecurityInfoW,
     SE_FILE_OBJECT,
 };
 use windows::Win32::Security::{
-    CopySid, GetLengthSid, IsValidSid, LookupAccountNameW, LookupAccountSidW, SidTypeAlias,
-    SidTypeComputer, SidTypeDeletedAccount, SidTypeDomain, SidTypeGroup, SidTypeInvalid,
-    SidTypeLabel, SidTypeLogonSession, SidTypeUnknown, SidTypeUser, SidTypeWellKnownGroup,
-    ACL as Win32ACL, DACL_SECURITY_INFORMATION, GROUP_SECURITY_INFORMATION,
-    OBJECT_SECURITY_INFORMATION, OWNER_SECURITY_INFORMATION, PROTECTED_DACL_SECURITY_INFORMATION,
-    PSECURITY_DESCRIPTOR, SID_NAME_USE,
+    AdjustTokenPrivileges, CopySid, GetLengthSid, IsValidSid, LookupAccountNameW,
+    LookupAccountSidW, LookupPrivilegeValueW, SidTypeAlias, SidTypeComputer, SidTypeDeletedAccount,
+    SidTypeDomain, SidTypeGroup, SidTypeInvalid, SidTypeLabel, SidTypeLogonSession, SidTypeUnknown,
+    SidTypeUser, SidTypeWellKnownGroup, ACL as Win32ACL, DACL_SECURITY_INFORMATION,
+    GROUP_SECURITY_INFORMATION, OBJECT_SECURITY_INFORMATION, OWNER_SECURITY_INFORMATION,
+    PROTECTED_DACL_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, SE_BACKUP_NAME,
+    SE_PRIVILEGE_ENABLED, SE_RESTORE_NAME, SE_SECURITY_NAME, SE_TAKE_OWNERSHIP_NAME, SID_NAME_USE,
+    TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES, TOKEN_QUERY,
 };
 use windows::Win32::Storage::FileSystem::*;
+use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
 pub(crate) fn move_file(
     src: &std::ffi::OsStr,
@@ -38,11 +42,10 @@ pub(crate) fn move_file(
 pub(crate) fn change_owner(path: &Path, owner: Option<Sid>, group: Option<Sid>) -> io::Result<()> {
     let sd = SecurityDescriptor::try_from(path)?;
     sd.apply(
-        owner.map(|it| it.as_psid()),
-        group.map(|it| it.as_psid()),
+        owner.and_then(|it| it.to_psid().ok()),
+        group.and_then(|it| it.to_psid().ok()),
         None,
-    )?;
-    Ok(())
+    )
 }
 
 pub(crate) type PACL = *mut Win32ACL;
@@ -50,6 +53,7 @@ pub(crate) type PACL = *mut Win32ACL;
 pub struct SecurityDescriptor {
     path: Vec<u16>,
     p_security_descriptor: PSECURITY_DESCRIPTOR,
+    #[allow(unused)]
     pub(crate) p_dacl: PACL,
     #[allow(unused)]
     pub(crate) p_sacl: PACL,
@@ -78,8 +82,7 @@ impl SecurityDescriptor {
             )
         };
         if error != ERROR_SUCCESS {
-            unsafe { SetLastError(error) };
-            return Err(io::Error::last_os_error());
+            return Err(windows::core::Error::from_hresult(error.to_hresult()).into());
         }
         Ok(Self {
             path: os_str,
@@ -97,6 +100,12 @@ impl SecurityDescriptor {
         group: Option<PSID>,
         pacl: Option<*const Win32ACL>,
     ) -> io::Result<()> {
+        if owner.is_some() || group.is_some() {
+            set_privilege(SE_TAKE_OWNERSHIP_NAME)?;
+            set_privilege(SE_SECURITY_NAME)?;
+            set_privilege(SE_BACKUP_NAME)?;
+            set_privilege(SE_RESTORE_NAME)?;
+        }
         let mut securityinfo = OBJECT_SECURITY_INFORMATION::default();
         if owner.is_some() {
             securityinfo |= OWNER_SECURITY_INFORMATION;
@@ -119,8 +128,7 @@ impl SecurityDescriptor {
             )
         };
         if status != ERROR_SUCCESS {
-            unsafe { SetLastError(status) };
-            return Err(io::Error::last_os_error());
+            return Err(windows::core::Error::from_hresult(status.to_hresult()).into());
         }
         Ok(())
     }
@@ -227,6 +235,7 @@ pub struct Sid {
 }
 
 impl Sid {
+    #[allow(unused)]
     #[inline]
     pub(crate) fn null_sid() -> Self {
         Self::from_str("S-1-0-0").expect("null group sid creation failed")
@@ -292,6 +301,13 @@ impl Sid {
     pub(crate) fn as_psid(&self) -> PSID {
         PSID(self.as_ptr() as _)
     }
+
+    pub(crate) fn to_psid(&self) -> windows::core::Result<PSID> {
+        let mut psid = PSID::default();
+        let s = encode_wide(self.to_string().as_ref()).unwrap();
+        unsafe { ConvertStringSidToSidW(PCWSTR::from_raw(s.as_ptr()), &mut psid as _) }?;
+        Ok(psid)
+    }
 }
 
 impl Display for Sid {
@@ -328,8 +344,32 @@ impl TryFrom<PSID> for Sid {
             .map_err(io::Error::other)?;
         unsafe { sid.set_len(sid_len as usize) }
         let (name, ty) = lookup_account_sid(PSID(sid.as_ptr() as _))?;
-        Ok(Self { ty, name, raw: sid })
+        let value = Self { ty, name, raw: sid };
+        if !unsafe { IsValidSid(value.as_psid()) }.as_bool() {
+            return Err(io::Error::other("invalid sid"));
+        }
+        Ok(value)
     }
+}
+
+fn set_privilege(privilege_name: PCWSTR) -> windows::core::Result<()> {
+    let mut tkp = unsafe { mem::zeroed::<TOKEN_PRIVILEGES>() };
+    unsafe { LookupPrivilegeValueW(PCWSTR::null(), privilege_name, &mut tkp.Privileges[0].Luid) }?;
+
+    tkp.PrivilegeCount = 1;
+    tkp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+    let mut h_token = INVALID_HANDLE_VALUE;
+    unsafe {
+        OpenProcessToken(
+            GetCurrentProcess(),
+            TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
+            &mut h_token,
+        )
+    }?;
+    let status = unsafe { AdjustTokenPrivileges(h_token, false, Some(&mut tkp), 0, None, None) };
+    unsafe { CloseHandle(h_token) }?;
+    status
 }
 
 #[cfg(test)]
@@ -371,5 +411,28 @@ mod tests {
         let username = get_current_username().unwrap();
         let sid = Sid::try_from_name(&username, None).unwrap();
         assert_eq!(username, sid.name);
+    }
+
+    #[test]
+    fn as_psid() {
+        let username = get_current_username().unwrap();
+        let sid = Sid::try_from_name(&username, None).unwrap();
+        let sid = Sid::try_from(sid.as_psid()).unwrap();
+        assert_eq!(username, sid.name);
+    }
+
+    #[test]
+    fn chown() {
+        let path = "chown.txt";
+        std::fs::write(&path, "chown").unwrap();
+        let sd = SecurityDescriptor::try_from(path.as_ref()).unwrap();
+        change_owner(path.as_ref(), Some(sd.owner_sid().unwrap()), None).unwrap();
+        change_owner(path.as_ref(), None, Some(sd.group_sid().unwrap())).unwrap();
+        change_owner(
+            path.as_ref(),
+            Some(sd.owner_sid().unwrap()),
+            Some(sd.group_sid().unwrap()),
+        )
+        .unwrap();
     }
 }
