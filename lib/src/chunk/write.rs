@@ -30,7 +30,7 @@ impl<W: AsyncWrite + Unpin> ChunkWriter<W> {
         let length = chunk.length();
         self.w.write_all(&length.to_be_bytes()).await?;
 
-        // write chunk type
+        // write a chunk type
         self.w.write_all(&chunk.ty().0).await?;
 
         // write data
