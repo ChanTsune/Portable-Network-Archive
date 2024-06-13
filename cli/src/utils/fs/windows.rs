@@ -303,9 +303,11 @@ impl Sid {
     }
 
     pub(crate) fn to_psid(&self) -> windows::core::Result<PSID> {
+        let mut raw_str = PWSTR::null();
+        unsafe { ConvertSidToStringSidW(self.as_psid(), &mut raw_str) }?;
         let mut psid = PSID::default();
-        let s = encode_wide(self.to_string().as_ref()).unwrap();
-        unsafe { ConvertStringSidToSidW(PCWSTR::from_raw(s.as_ptr()), &mut psid as _) }?;
+        unsafe { ConvertStringSidToSidW(raw_str, &mut psid as _) }?;
+        unsafe { LocalFree(HLOCAL(raw_str.as_ptr() as _)) };
         Ok(psid)
     }
 }
