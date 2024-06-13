@@ -2,7 +2,7 @@ use super::{ChunkType, Crc32};
 
 /// The smallest data unit in PNA
 pub trait Chunk {
-    /// Byte size of data
+    /// Length of data in bytes
     #[inline]
     fn length(&self) -> u32 {
         self.data().len() as u32
