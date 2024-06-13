@@ -9,7 +9,7 @@ use camellia::Camellia256;
 use crypto_common::BlockSizeUser;
 use std::io::{self, Read};
 
-/// Decrypt reader according to encryption type.
+/// Decrypt reader according to an encryption type.
 pub(crate) fn decrypt_reader<R: Read>(
     mut reader: R,
     encryption: Encryption,
@@ -59,7 +59,7 @@ pub(crate) fn decrypt_reader<R: Read>(
     })
 }
 
-/// Decompress reader according to compression type.
+/// Decompress reader according to an compression type.
 pub(crate) fn decompress_reader<R: Read>(
     reader: R,
     compression: Compression,
