@@ -12,12 +12,14 @@ pub(crate) fn is_pna<P: AsRef<Path>>(path: P) -> io::Result<bool> {
 
 #[inline]
 pub(crate) fn remove<P: AsRef<Path>>(path: P) -> io::Result<()> {
-    let path = path.as_ref();
-    if path.is_dir() {
-        fs::remove_dir_all(path)
-    } else {
-        fs::remove_file(path)
+    fn inner(path: &Path) -> io::Result<()> {
+        if path.is_dir() {
+            fs::remove_dir_all(path)
+        } else {
+            fs::remove_file(path)
+        }
     }
+    inner(path.as_ref())
 }
 
 #[inline]
