@@ -8,7 +8,7 @@ pub struct ExtendedAttribute {
 }
 
 impl ExtendedAttribute {
-    /// Create new ExtendedAttribute
+    /// Create new [ExtendedAttribute].
     ///
     /// # Example
     /// ```
