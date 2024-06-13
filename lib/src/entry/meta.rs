@@ -172,7 +172,7 @@ impl Permission {
     /// ```
     /// use libpna::Permission;
     ///
-    /// let perm = Permission::new(1000, "user".to_owned(), 100, "group".to_owned(), 0o755);
+    /// let perm = Permission::new(1000, "user".into(), 100, "group".into(), 0o755);
     /// ```
     #[inline]
     pub const fn new(uid: u64, uname: String, gid: u64, gname: String, permission: u16) -> Self {
@@ -191,7 +191,7 @@ impl Permission {
     /// ```
     /// use libpna::Permission;
     ///
-    /// let perm = Permission::new(1000, "user1".to_owned(), 100, "group1".to_owned(), 0o644);
+    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
     /// assert_eq!(perm.uid(), 1000);
     /// ```
     #[inline]
@@ -206,7 +206,7 @@ impl Permission {
     /// ```
     /// use libpna::Permission;
     ///
-    /// let perm = Permission::new(1000, "user1".to_owned(), 100, "group1".to_owned(), 0o644);
+    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
     /// assert_eq!(perm.uname(), "user1");
     /// ```
     #[inline]
@@ -221,7 +221,7 @@ impl Permission {
     /// ```
     /// use libpna::Permission;
     ///
-    /// let perm = Permission::new(1000, "user1".to_owned(), 100, "group1".to_owned(), 0o644);
+    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
     /// assert_eq!(perm.gid(), 100);
     /// ```
     #[inline]
@@ -236,7 +236,7 @@ impl Permission {
     /// ```
     /// use libpna::Permission;
     ///
-    /// let perm = Permission::new(1000, "user1".to_owned(), 100, "group1".to_owned(), 0o644);
+    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
     /// assert_eq!(perm.gname(), "group1");
     /// ```
     #[inline]
@@ -251,7 +251,7 @@ impl Permission {
     /// ```
     /// use libpna::Permission;
     ///
-    /// let perm = Permission::new(1000, "user1".to_owned(), 100, "group1".to_owned(), 0o644);
+    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
     /// assert_eq!(perm.permissions(), 0o644);
     /// ```
     #[inline]
@@ -325,7 +325,7 @@ mod tests {
 
     #[test]
     fn permission() {
-        let perm = Permission::new(1000, "user1".to_owned(), 100, "group1".to_owned(), 0o644);
+        let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
         assert_eq!(perm, Permission::try_from_bytes(&perm.to_bytes()).unwrap());
     }
 }
