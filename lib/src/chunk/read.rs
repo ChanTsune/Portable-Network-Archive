@@ -21,7 +21,7 @@ impl<R: Read> ChunkReader<R> {
         self.r.read_exact(&mut length)?;
         let length = u32::from_be_bytes(length);
 
-        // read chunk type
+        // read a chunk type
         let mut ty = [0u8; mem::size_of::<ChunkType>()];
         self.r.read_exact(&mut ty)?;
 
@@ -60,7 +60,7 @@ impl<R: AsyncRead + Unpin> ChunkReader<R> {
         self.r.read_exact(&mut length).await?;
         let length = u32::from_be_bytes(length);
 
-        // read chunk type
+        // read a chunk type
         let mut ty = [0u8; mem::size_of::<ChunkType>()];
         self.r.read_exact(&mut ty).await?;
 
@@ -96,7 +96,7 @@ impl<R: Read + Seek> ChunkReader<R> {
         self.r.read_exact(&mut length)?;
         let length = u32::from_be_bytes(length);
 
-        // read chunk type
+        // read a chunk type
         let mut ty = [0u8; mem::size_of::<ChunkType>()];
         self.r.read_exact(&mut ty)?;
 
