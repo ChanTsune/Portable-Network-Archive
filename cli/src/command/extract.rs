@@ -17,6 +17,8 @@ use clap::{ArgGroup, Parser, ValueHint};
 use indicatif::HumanDuration;
 use pna::{DataKind, EntryReference, Permission, ReadOptions, RegularEntry};
 use rayon::ThreadPoolBuilder;
+#[cfg(unix)]
+use std::fs::Permissions;
 use std::ops::Add;
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::FileTimesExt;
@@ -25,7 +27,7 @@ use std::os::unix::fs::PermissionsExt;
 #[cfg(windows)]
 use std::os::windows::fs::FileTimesExt;
 use std::{
-    fs::{self, File, Permissions},
+    fs::{self, File},
     io,
     path::{Path, PathBuf},
     time::{Instant, SystemTime},
@@ -292,8 +294,10 @@ pub(crate) fn extract_entry(
         fs::set_permissions(&path, p)
     });
     #[cfg(windows)]
-    if let Some((_, u, g)) = permissions {
+    if let Some((p, u, g)) = permissions {
         chown(&path, u, g)?;
+        let s = utils::str::encode_wide(path.as_os_str())?;
+        unsafe { libc::wchmod(s.as_ptr() as _, p.permissions() as _) };
     }
     #[cfg(not(any(unix, windows)))]
     if let Some(_) = permissions {
@@ -359,12 +363,12 @@ pub(crate) fn extract_entry(
 }
 
 #[cfg(not(unix))]
-fn permissions(
-    p: &Permission,
-    _: &OwnerOptions,
-) -> Option<(Option<Permissions>, Option<User>, Option<Group>)> {
+fn permissions<'p>(
+    p: &'p Permission,
+    _: &'_ OwnerOptions,
+) -> Option<(&'p Permission, Option<User>, Option<Group>)> {
     Some((
-        None,
+        p,
         User::from_name(p.uname(), None),
         Group::from_name(p.gname(), None),
     ))
