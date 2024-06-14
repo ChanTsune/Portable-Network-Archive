@@ -18,6 +18,10 @@ fn delete_overwrite() {
         "password",
         "--aes",
         "ctr",
+        #[cfg(windows)]
+        {
+            "--unstable"
+        },
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -50,6 +54,10 @@ fn delete_output() {
         "password",
         "--aes",
         "ctr",
+        #[cfg(windows)]
+        {
+            "--unstable"
+        },
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -84,6 +92,10 @@ fn delete_output_exclude() {
         "password",
         "--aes",
         "ctr",
+        #[cfg(windows)]
+        {
+            "--unstable"
+        },
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([

@@ -18,6 +18,10 @@ fn archive_list() {
         "password",
         "--aes",
         "ctr",
+        #[cfg(windows)]
+        {
+            "--unstable"
+        },
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -49,6 +53,10 @@ fn archive_list_solid() {
         "password",
         "--aes",
         "ctr",
+        #[cfg(windows)]
+        {
+            "--unstable"
+        },
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([

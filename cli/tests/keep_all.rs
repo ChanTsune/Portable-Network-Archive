@@ -18,6 +18,10 @@ fn archive_keep_all() {
         "password",
         "--aes",
         "ctr",
+        #[cfg(windows)]
+        {
+            "--unstable"
+        },
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -33,6 +37,10 @@ fn archive_keep_all() {
         "--keep-permission",
         "--password",
         "password",
+        #[cfg(windows)]
+        {
+            "--unstable"
+        },
     ]))
     .unwrap();
 }

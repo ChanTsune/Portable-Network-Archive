@@ -18,6 +18,10 @@ fn archive_strip_metadata() {
         "password",
         "--aes",
         "ctr",
+        #[cfg(windows)]
+        {
+            "--unstable"
+        },
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -29,6 +33,10 @@ fn archive_strip_metadata() {
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
+        #[cfg(windows)]
+        {
+            "--unstable"
+        },
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -44,6 +52,10 @@ fn archive_strip_metadata() {
         "--keep-permission",
         "--password",
         "password",
+        #[cfg(windows)]
+        {
+            "--unstable"
+        },
     ]))
     .unwrap();
 }

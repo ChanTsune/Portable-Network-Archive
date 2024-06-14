@@ -22,6 +22,10 @@ fn archive_password_from_file() {
         password_file_path.to_str().unwrap(),
         "--aes",
         "ctr",
+        #[cfg(windows)]
+        {
+            "--unstable"
+        },
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -37,6 +41,10 @@ fn archive_password_from_file() {
         "--keep-permission",
         "--password",
         "archive_password_from_file",
+        #[cfg(windows)]
+        {
+            "--unstable"
+        },
     ]))
     .unwrap();
 }
