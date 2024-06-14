@@ -88,14 +88,17 @@ impl RawChunk {
     /// ```
     #[inline]
     pub fn from_data<T: Into<Vec<u8>>>(ty: ChunkType, data: T) -> Self {
-        let data = data.into();
-        let chunk = (ty, &data[..]);
-        Self {
-            length: chunk.length(),
-            crc: chunk.crc(),
-            ty,
-            data,
+        #[inline]
+        fn inner(ty: ChunkType, data: Vec<u8>) -> RawChunk {
+            let chunk = (ty, &data[..]);
+            RawChunk {
+                length: chunk.length(),
+                crc: chunk.crc(),
+                ty,
+                data,
+            }
         }
+        inner(ty, data.into())
     }
 }
 
