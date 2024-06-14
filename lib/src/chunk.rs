@@ -152,8 +152,8 @@ impl<T: Chunk> Chunk for &T {
 pub(crate) fn chunk_data_split(chunk: impl Chunk, mid: usize) -> (RawChunk, RawChunk) {
     let (first, last) = chunk.data().split_at(mid);
     (
-        RawChunk::from_data(chunk.ty(), first.to_vec()),
-        RawChunk::from_data(chunk.ty(), last.to_vec()),
+        RawChunk::from_data(chunk.ty(), first),
+        RawChunk::from_data(chunk.ty(), last),
     )
 }
 
