@@ -183,7 +183,9 @@ pub(crate) fn apply_metadata(
         if keep_options.keep_permission {
             use crate::utils::fs::windows::SecurityDescriptor;
             let sd = SecurityDescriptor::try_from(path)?;
-            let mode = 0o777;
+            let mut stat = unsafe { std::mem::zeroed::<libc::stat>() };
+            unsafe { libc::wstat(sd.path.as_ptr() as _, &mut stat) };
+            let mode = stat.st_mode;
             let user = sd.owner_sid()?;
             let group = sd.group_sid()?;
             entry.permission(pna::Permission::new(

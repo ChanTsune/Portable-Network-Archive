@@ -51,7 +51,7 @@ pub(crate) fn change_owner(path: &Path, owner: Option<Sid>, group: Option<Sid>) 
 pub(crate) type PACL = *mut Win32ACL;
 
 pub struct SecurityDescriptor {
-    path: Vec<u16>,
+    pub(crate) path: Vec<u16>,
     p_security_descriptor: PSECURITY_DESCRIPTOR,
     #[allow(unused)]
     pub(crate) p_dacl: PACL,
