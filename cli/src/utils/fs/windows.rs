@@ -421,9 +421,11 @@ mod tests {
     #[test]
     fn as_psid() {
         let username = get_current_username().unwrap();
-        let sid = Sid::try_from_name(&username, None).unwrap();
-        let sid = Sid::try_from(sid.as_psid()).unwrap();
+        let sid_origin = Sid::try_from_name(&username, None).unwrap();
+        let sid = Sid::try_from(sid_origin.as_psid()).unwrap();
         assert_eq!(username, sid.name);
+        assert_eq!(sid_origin.name, sid.name);
+        assert_eq!(sid_origin.raw, sid.raw);
     }
 
     #[test]
