@@ -336,9 +336,7 @@ impl FromStr for Sid {
 impl TryFrom<PSID> for Sid {
     type Error = io::Error;
     fn try_from(value: PSID) -> Result<Self, Self::Error> {
-        if !unsafe { IsValidSid(value) }.as_bool() {
-            return Err(io::Error::other("invalid sid"));
-        }
+        validate_sid(value)?;
         let sid_len = unsafe { GetLengthSid(value) };
         let mut sid = Vec::with_capacity(sid_len as usize);
         unsafe { CopySid(sid_len, PSID(sid.as_mut_ptr() as _), value) }
@@ -346,11 +344,17 @@ impl TryFrom<PSID> for Sid {
         unsafe { sid.set_len(sid_len as usize) }
         let (name, ty) = lookup_account_sid(PSID(sid.as_ptr() as _))?;
         let value = Self { ty, name, raw: sid };
-        if !unsafe { IsValidSid(value.as_psid()) }.as_bool() {
-            return Err(io::Error::other("invalid sid"));
-        }
+        validate_sid(value.as_psid())?;
         Ok(value)
     }
+}
+
+#[inline]
+fn validate_sid(value: PSID) -> io::Result<()> {
+    if !unsafe { IsValidSid(value) }.as_bool() {
+        return Err(io::Error::other("invalid sid"));
+    }
+    Ok(())
 }
 
 fn set_privilege(privilege_name: PCWSTR) -> windows::core::Result<()> {
