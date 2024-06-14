@@ -28,6 +28,9 @@ use std::{fs::File, io, path::PathBuf};
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
 )]
+#[cfg_attr(windows, command(
+    group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
+))]
 pub(crate) struct AppendCommand {
     #[arg(short, long, help = "Add the directory to the archive recursively")]
     pub(crate) recursive: bool,

@@ -39,6 +39,9 @@ use std::{
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
 )]
+#[cfg_attr(windows, command(
+    group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
+))]
 pub(crate) struct ExtractCommand {
     #[arg(long, help = "Overwrite file")]
     pub(crate) overwrite: bool,
