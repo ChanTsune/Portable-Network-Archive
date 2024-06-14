@@ -14,6 +14,10 @@ fn archive_update_newer_mtime() {
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
+        #[cfg(windows)]
+        {
+            "--unstable"
+        },
     ]))
     .unwrap();
 
@@ -30,6 +34,10 @@ fn archive_update_newer_mtime() {
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
+        #[cfg(windows)]
+        {
+            "--unstable"
+        },
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -43,6 +51,10 @@ fn archive_update_newer_mtime() {
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
+        #[cfg(windows)]
+        {
+            "--unstable"
+        },
     ]))
     .unwrap();
 }

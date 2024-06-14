@@ -14,6 +14,10 @@ fn archive_append() {
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
+        #[cfg(windows)]
+        {
+            "--unstable"
+        },
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -26,6 +30,10 @@ fn archive_append() {
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
+        #[cfg(windows)]
+        {
+            "--unstable"
+        },
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -39,6 +47,10 @@ fn archive_append() {
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
+        #[cfg(windows)]
+        {
+            "--unstable"
+        },
     ]))
     .unwrap();
 }
@@ -58,6 +70,10 @@ fn archive_append_split() {
         "--keep-permission",
         "--split",
         "100kib",
+        #[cfg(windows)]
+        {
+            "--unstable"
+        },
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -70,6 +86,10 @@ fn archive_append_split() {
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
+        #[cfg(windows)]
+        {
+            "--unstable"
+        },
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -83,6 +103,10 @@ fn archive_append_split() {
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
+        #[cfg(windows)]
+        {
+            "--unstable"
+        },
     ]))
     .unwrap();
 }
