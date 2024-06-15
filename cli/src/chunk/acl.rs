@@ -3,7 +3,7 @@ use pna::ChunkType;
 use std::{
     error::Error,
     fmt::{self, Display, Formatter},
-    str::FromStr,
+    str::{from_utf8, FromStr, Utf8Error},
 };
 
 /// [ChunkType] File Access Control Entry
@@ -101,6 +101,7 @@ impl Display for OwnerType {
 /// An error which can be returned when parsing an integer.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum ParseAceError {
+    Encode(Utf8Error),
     NotEnoughElement,
     TooManyElement,
     UnexpectedAccessControl(String),
@@ -114,6 +115,13 @@ impl Display for ParseAceError {
 }
 
 impl Error for ParseAceError {}
+
+impl From<Utf8Error> for ParseAceError {
+    #[inline]
+    fn from(value: Utf8Error) -> Self {
+        Self::Encode(value)
+    }
+}
 
 /// Access Control Entry
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -332,6 +340,16 @@ impl FromStr for Ace {
             allow,
             permission,
         })
+    }
+}
+
+impl TryFrom<&[u8]> for Ace {
+    type Error = ParseAceError;
+
+    #[inline]
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        let body = from_utf8(value)?;
+        Self::from_str(body)
     }
 }
 
