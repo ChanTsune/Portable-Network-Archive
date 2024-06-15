@@ -1,7 +1,7 @@
 use crate::{
     cipher::{CipherWriter, Ctr128BEWriter, EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
     compress::CompressionWriter,
-    entry::{CipherMode, Compression, CompressionLevel, Encryption, HashAlgorithm, WriteOption},
+    entry::{CipherMode, Compression, CompressionLevel, Encryption, HashAlgorithm, WriteOptions},
     hash, random,
 };
 use aes::Aes256;
@@ -71,7 +71,7 @@ fn get_cipher(
 }
 
 #[inline]
-pub(crate) fn get_writer_context(option: WriteOption) -> io::Result<EntryWriterContext> {
+pub(crate) fn get_writer_context(option: WriteOptions) -> io::Result<EntryWriterContext> {
     let (cipher, phsf) = get_cipher(
         option.password.as_deref(),
         option.hash_algorithm,

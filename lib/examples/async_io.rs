@@ -1,4 +1,4 @@
-use libpna::{Archive, EntryBuilder, ReadOption, WriteOption};
+use libpna::{Archive, EntryBuilder, ReadOption, WriteOptions};
 use std::io;
 
 #[tokio::main]
@@ -18,7 +18,7 @@ async fn create(path: String, file_names: &[String]) -> io::Result<()> {
     for file_name in file_names {
         let mut file = async_std::fs::File::open(file_name).await?;
         let mut entry_builder =
-            EntryBuilder::new_file(file_name.as_str().into(), WriteOption::builder().build())?;
+            EntryBuilder::new_file(file_name.as_str().into(), WriteOptions::builder().build())?;
         async_std::io::copy(&mut file, &mut entry_builder).await?;
         let entry = entry_builder.build()?;
         archive.add_entry_async(entry).await?;

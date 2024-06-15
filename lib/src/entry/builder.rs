@@ -5,7 +5,7 @@ use crate::{
     entry::{
         get_writer, get_writer_context, private::SealedEntryExt, Cipher, DataKind, Entry,
         EntryHeader, EntryName, EntryReference, ExtendedAttribute, Metadata, Permission,
-        RegularEntry, SolidEntry, SolidHeader, WriteOption,
+        RegularEntry, SolidEntry, SolidHeader, WriteOptions,
     },
     io::TryIntoInner,
 };
@@ -81,7 +81,7 @@ impl EntryBuilder {
     /// # Returns
     ///
     /// A Result containing the new [EntryBuilder], or an I/O error if creation fails.
-    pub fn new_file(name: EntryName, option: WriteOption) -> io::Result<Self> {
+    pub fn new_file(name: EntryName, option: WriteOptions) -> io::Result<Self> {
         let header = EntryHeader::for_file(
             option.compression,
             option.encryption,
@@ -124,7 +124,7 @@ impl EntryBuilder {
     /// let entry = builder.build().unwrap();
     /// ```
     pub fn new_symbolic_link(name: EntryName, source: EntryReference) -> io::Result<Self> {
-        let option = WriteOption::store();
+        let option = WriteOptions::store();
         let context = get_writer_context(option)?;
         let mut writer = get_writer(crate::io::FlattenWriter::new(), &context)?;
         writer.write_all(source.as_bytes())?;
@@ -162,7 +162,7 @@ impl EntryBuilder {
     /// let entry = builder.build().unwrap();
     /// ```
     pub fn new_hard_link(name: EntryName, source: EntryReference) -> io::Result<Self> {
-        let option = WriteOption::store();
+        let option = WriteOptions::store();
         let context = get_writer_context(option)?;
         let mut writer = get_writer(crate::io::FlattenWriter::new(), &context)?;
         writer.write_all(source.as_bytes())?;
@@ -375,7 +375,7 @@ impl SolidEntryBuilder {
     /// # Returns
     ///
     /// A new [SolidEntryBuilder].
-    pub fn new(option: WriteOption) -> io::Result<Self> {
+    pub fn new(option: WriteOptions) -> io::Result<Self> {
         let header = SolidHeader::new(option.compression, option.encryption, option.cipher_mode);
         let context = get_writer_context(option)?;
         let writer = get_writer(crate::io::FlattenWriter::new(), &context)?;
@@ -400,16 +400,16 @@ impl SolidEntryBuilder {
     /// # Examples
     ///
     /// ```no_run
-    /// use libpna::{EntryBuilder, SolidEntryBuilder, WriteOption};
+    /// use libpna::{EntryBuilder, SolidEntryBuilder, WriteOptions};
     /// use std::io;
     /// use std::io::Write;
     ///
     /// # fn main() -> io::Result<()> {
-    /// let mut builder = SolidEntryBuilder::new(WriteOption::builder().build())?;
+    /// let mut builder = SolidEntryBuilder::new(WriteOptions::builder().build())?;
     /// let dir_entry = EntryBuilder::new_dir("example".into()).build()?;
     /// builder.add_entry(dir_entry)?;
     /// let mut entry_builder =
-    ///     EntryBuilder::new_file("example/text.txt".into(), WriteOption::store())?;
+    ///     EntryBuilder::new_file("example/text.txt".into(), WriteOptions::store())?;
     /// entry_builder.write_all(b"content")?;
     /// let file_entry = entry_builder.build()?;
     /// builder.add_entry(file_entry)?;
@@ -447,11 +447,11 @@ impl SolidEntryBuilder {
     /// # Examples
     ///
     /// ```no_run
-    /// use libpna::{SolidEntryBuilder, WriteOption};
+    /// use libpna::{SolidEntryBuilder, WriteOptions};
     /// use std::io;
     ///
     /// # fn main() -> io::Result<()> {
-    /// let builder = SolidEntryBuilder::new(WriteOption::builder().build())?;
+    /// let builder = SolidEntryBuilder::new(WriteOptions::builder().build())?;
     /// let entries = builder.build()?;
     /// #     Ok(())
     /// # }
@@ -484,7 +484,7 @@ mod tests {
 
     #[test]
     fn solid_entry_extra_chunk() {
-        let mut builder = SolidEntryBuilder::new(WriteOption::store()).unwrap();
+        let mut builder = SolidEntryBuilder::new(WriteOptions::store()).unwrap();
         builder.add_extra_chunk(RawChunk::from_data(
             unsafe { ChunkType::from_unchecked(*b"abCd") },
             [],
