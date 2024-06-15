@@ -23,21 +23,7 @@ use windows::Win32::Security::{
     SE_PRIVILEGE_ENABLED, SE_RESTORE_NAME, SE_SECURITY_NAME, SE_TAKE_OWNERSHIP_NAME, SID_NAME_USE,
     TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES, TOKEN_QUERY,
 };
-use windows::Win32::Storage::FileSystem::*;
 use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
-
-pub(crate) fn move_file(
-    src: &std::ffi::OsStr,
-    dist: &std::ffi::OsStr,
-) -> windows::core::Result<()> {
-    unsafe {
-        MoveFileExW(
-            PCWSTR::from_raw(encode_wide(src).expect("failed to encode").as_ptr()),
-            PCWSTR::from_raw(encode_wide(dist).expect("failed to encode").as_ptr()),
-            MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED,
-        )
-    }
-}
 
 pub(crate) fn change_owner(path: &Path, owner: Option<Sid>, group: Option<Sid>) -> io::Result<()> {
     let sd = SecurityDescriptor::try_from(path)?;

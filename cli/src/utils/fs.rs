@@ -1,6 +1,8 @@
 #[cfg(windows)]
 pub(crate) mod windows;
 
+#[cfg(windows)]
+use crate::utils::os::windows::fs::*;
 pub(crate) use owner::*;
 pub(crate) use pna::fs::*;
 use std::{
@@ -41,8 +43,9 @@ pub(crate) fn mv<Src: AsRef<Path>, Dist: AsRef<Path>>(src: Src, dist: Dist) -> i
         }
     }
     #[cfg(windows)]
+    #[inline]
     fn inner(src: &Path, dist: &Path) -> io::Result<()> {
-        windows::move_file(src.as_os_str(), dist.as_os_str()).map_err(io::Error::other)
+        move_file(src.as_os_str(), dist.as_os_str())
     }
     #[cfg(target_os = "wasi")]
     fn inner(src: &Path, dist: &Path) -> io::Result<()> {

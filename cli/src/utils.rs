@@ -2,6 +2,7 @@
 pub(crate) mod acl;
 pub(crate) mod fs;
 mod io;
+mod os;
 mod path;
 pub(crate) mod str;
 
