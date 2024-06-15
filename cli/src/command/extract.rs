@@ -370,11 +370,7 @@ fn permissions<'p>(
     p: &'p Permission,
     _: &'_ OwnerOptions,
 ) -> Option<(&'p Permission, Option<User>, Option<Group>)> {
-    Some((
-        p,
-        User::from_name(p.uname(), None),
-        Group::from_name(p.gname(), None),
-    ))
+    Some((p, User::from_name(p.uname()), Group::from_name(p.gname())))
 }
 #[cfg(unix)]
 fn permissions(
