@@ -450,7 +450,7 @@ impl ReadOptions {
     ///
     /// # Returns
     ///
-    /// [ReadOptionBuilder]: Builder object for [ReadOptions].
+    /// [ReadOptionsBuilder]: Builder object for [ReadOptions].
     ///
     /// # Examples
     /// ```
@@ -459,15 +459,15 @@ impl ReadOptions {
     /// let builder = ReadOptions::builder();
     /// ```
     #[inline]
-    pub const fn builder() -> ReadOptionBuilder {
-        ReadOptionBuilder::new()
+    pub const fn builder() -> ReadOptionsBuilder {
+        ReadOptionsBuilder::new()
     }
 
-    /// Converts [ReadOptions] into a [ReadOptionBuilder].
+    /// Converts [ReadOptions] into a [ReadOptionsBuilder].
     ///
     /// # Returns
     ///
-    /// [ReadOptionBuilder]: Builder object for [ReadOptions].
+    /// [ReadOptionsBuilder]: Builder object for [ReadOptions].
     ///
     /// # Examples
     /// ```
@@ -477,18 +477,28 @@ impl ReadOptions {
     /// let builder = read_option.into_builder();
     /// ```
     #[inline]
-    pub fn into_builder(self) -> ReadOptionBuilder {
+    pub fn into_builder(self) -> ReadOptionsBuilder {
         self.into()
     }
 }
 
+/// Type alias of [`ReadOptionsBuilder`].
+///
+/// This type alias will be removed in the future version.
+/// Use [`ReadOptionsBuilder`] instead.
+#[deprecated(
+    note = "`ReadOptionBuilder` was renamed to `ReadOptionsBuilder`. This type alias will be removed in the future version.",
+    since = "0.12.1"
+)]
+pub type ReadOptionBuilder = ReadOptionsBuilder;
+
 /// Builder for [`ReadOptions`].
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
-pub struct ReadOptionBuilder {
+pub struct ReadOptionsBuilder {
     password: Option<String>,
 }
 
-impl From<ReadOptions> for ReadOptionBuilder {
+impl From<ReadOptions> for ReadOptionsBuilder {
     #[inline]
     fn from(value: ReadOptions) -> Self {
         Self {
@@ -497,7 +507,7 @@ impl From<ReadOptions> for ReadOptionBuilder {
     }
 }
 
-impl ReadOptionBuilder {
+impl ReadOptionsBuilder {
     const fn new() -> Self {
         Self { password: None }
     }
