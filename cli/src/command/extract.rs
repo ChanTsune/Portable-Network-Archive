@@ -13,7 +13,7 @@ use clap::{ArgGroup, Parser, ValueHint};
 use indicatif::HumanDuration;
 #[cfg(unix)]
 use nix::unistd::{Group, User};
-use pna::{DataKind, EntryReference, Permission, ReadOption, RegularEntry};
+use pna::{DataKind, EntryReference, Permission, ReadOptions, RegularEntry};
 use rayon::ThreadPoolBuilder;
 use std::ops::Add;
 #[cfg(target_os = "macos")]
@@ -257,14 +257,14 @@ pub(crate) fn extract_entry(
                 }
                 file.set_times(times)?;
             }
-            let mut reader = item.reader(ReadOption::with_password(password))?;
+            let mut reader = item.reader(ReadOptions::with_password(password))?;
             io::copy(&mut reader, &mut file)?;
         }
         DataKind::Directory => {
             fs::create_dir_all(&path)?;
         }
         DataKind::SymbolicLink => {
-            let reader = item.reader(ReadOption::with_password(password))?;
+            let reader = item.reader(ReadOptions::with_password(password))?;
             let original = EntryReference::from_lossy(io::read_to_string(reader)?);
             if overwrite && path.exists() {
                 utils::fs::remove(&path)?;
@@ -272,7 +272,7 @@ pub(crate) fn extract_entry(
             utils::fs::symlink(original.as_str(), &path)?;
         }
         DataKind::HardLink => {
-            let reader = item.reader(ReadOption::with_password(password))?;
+            let reader = item.reader(ReadOptions::with_password(password))?;
             let original = EntryReference::from_lossy(io::read_to_string(reader)?);
             let mut original = PathBuf::from(original.as_str());
             if let Some(parent) = path.parent() {

@@ -333,7 +333,7 @@ impl<'r, R: Read> Entries<'r, R> {
     ///
     /// # Example
     /// ```no_run
-    /// use libpna::{Archive, ReadEntry, ReadOption};
+    /// use libpna::{Archive, ReadEntry, ReadOptions};
     /// use std::fs;
     /// # use std::io;
     ///
@@ -341,7 +341,7 @@ impl<'r, R: Read> Entries<'r, R> {
     /// let file = fs::File::open("foo.pna")?;
     /// let mut archive = Archive::read_header(file)?;
     /// for entry in archive.entries().extract_solid_entries(Some("password")) {
-    ///     let mut reader = entry?.reader(ReadOption::builder().build());
+    ///     let mut reader = entry?.reader(ReadOptions::builder().build());
     ///     // fill your code
     /// }
     /// #    Ok(())
@@ -472,7 +472,7 @@ mod tests {
     #[cfg(feature = "unstable-async")]
     #[tokio::test]
     async fn extract_async() -> io::Result<()> {
-        use crate::ReadOption;
+        use crate::ReadOptions;
         let file = async_std::fs::File::open("../resources/test/zstd.pna").await?;
         let mut archive = Archive::read_header_async(file).await?;
         let dist_dir = std::path::PathBuf::from("../target/tmp/");
@@ -482,7 +482,7 @@ mod tests {
                 async_std::fs::create_dir_all(parents).await?;
             }
             let mut file = async_std::fs::File::create(path).await?;
-            let mut reader = entry.reader(ReadOption::builder().build())?;
+            let mut reader = entry.reader(ReadOptions::builder().build())?;
             async_std::io::copy(&mut reader, &mut file).await?;
         }
         Ok(())

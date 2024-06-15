@@ -16,7 +16,7 @@ libpna = "0.12"
 ## Reading an archive
 
 ```rust
-use libpna::{Archive, ReadOption};
+use libpna::{Archive, ReadOptions};
 use std::fs::File;
 use std::io::{self, copy, prelude::*};
 
@@ -26,7 +26,7 @@ fn main() -> io::Result<()> {
     for entry in archive.entries_skip_solid() {
         let entry = entry?;
         let mut file = File::create(entry.header().path().as_path())?;
-        let mut reader = entry.reader(ReadOption::builder().build())?;
+        let mut reader = entry.reader(ReadOptions::builder().build())?;
         copy(&mut reader, &mut file)?;
     }
     Ok(())

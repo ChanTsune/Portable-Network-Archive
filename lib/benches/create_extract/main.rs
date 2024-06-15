@@ -1,7 +1,7 @@
 #![feature(test)]
 extern crate test;
 
-use libpna::{Archive, EntryBuilder, ReadOption, WriteOptionsBuilder};
+use libpna::{Archive, EntryBuilder, ReadOptions, WriteOptionsBuilder};
 use std::io::{Read, Write};
 use test::Bencher;
 
@@ -47,7 +47,7 @@ fn bench_read_archive(b: &mut Bencher, mut options: WriteOptionsBuilder) {
         for item in reader.entries_skip_solid() {
             let mut buf = Vec::with_capacity(1000);
             item.unwrap()
-                .reader(ReadOption::with_password(Some("password")))
+                .reader(ReadOptions::with_password(Some("password")))
                 .unwrap()
                 .read_to_end(&mut buf)
                 .unwrap();

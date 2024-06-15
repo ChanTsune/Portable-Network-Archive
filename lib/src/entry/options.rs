@@ -414,20 +414,30 @@ impl WriteOptionsBuilder {
     }
 }
 
+/// Type alias of [`ReadOptions`].
+///
+/// This type alias will be removed in the future version.
+/// Use [`ReadOptions`] instead.
+#[deprecated(
+    note = "`ReadOption` was renamed to `ReadOptions`. This type alias will be removed in the future version.",
+    since = "0.12.1"
+)]
+pub type ReadOption = ReadOptions;
+
 /// Options for reading an entry.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct ReadOption {
+pub struct ReadOptions {
     pub(crate) password: Option<String>,
 }
 
-impl ReadOption {
-    /// Create a new [`ReadOption`] with optional password.
+impl ReadOptions {
+    /// Create a new [`ReadOptions`] with optional password.
     ///
     /// # Examples
     /// ```
-    /// use libpna::ReadOption;
+    /// use libpna::ReadOptions;
     ///
-    /// let read_option = ReadOption::with_password(Some("password"));
+    /// let read_option = ReadOptions::with_password(Some("password"));
     /// ```
     #[inline]
     pub fn with_password<T: Into<String>>(password: Option<T>) -> Self {
@@ -436,34 +446,34 @@ impl ReadOption {
         }
     }
 
-    /// Returns a builder for [ReadOption].
+    /// Returns a builder for [ReadOptions].
     ///
     /// # Returns
     ///
-    /// [ReadOptionBuilder]: Builder object for [ReadOption].
+    /// [ReadOptionBuilder]: Builder object for [ReadOptions].
     ///
     /// # Examples
     /// ```
-    /// use libpna::ReadOption;
+    /// use libpna::ReadOptions;
     ///
-    /// let builder = ReadOption::builder();
+    /// let builder = ReadOptions::builder();
     /// ```
     #[inline]
     pub const fn builder() -> ReadOptionBuilder {
         ReadOptionBuilder::new()
     }
 
-    /// Converts [ReadOption] into a [ReadOptionBuilder].
+    /// Converts [ReadOptions] into a [ReadOptionBuilder].
     ///
     /// # Returns
     ///
-    /// [ReadOptionBuilder]: Builder object for [ReadOption].
+    /// [ReadOptionBuilder]: Builder object for [ReadOptions].
     ///
     /// # Examples
     /// ```
-    /// use libpna::ReadOption;
+    /// use libpna::ReadOptions;
     ///
-    /// let read_option = ReadOption::builder().build();
+    /// let read_option = ReadOptions::builder().build();
     /// let builder = read_option.into_builder();
     /// ```
     #[inline]
@@ -472,15 +482,15 @@ impl ReadOption {
     }
 }
 
-/// Builder for [`ReadOption`].
+/// Builder for [`ReadOptions`].
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct ReadOptionBuilder {
     password: Option<String>,
 }
 
-impl From<ReadOption> for ReadOptionBuilder {
+impl From<ReadOptions> for ReadOptionBuilder {
     #[inline]
-    fn from(value: ReadOption) -> Self {
+    fn from(value: ReadOptions) -> Self {
         Self {
             password: value.password,
         }
@@ -492,10 +502,10 @@ impl ReadOptionBuilder {
         Self { password: None }
     }
 
-    /// Create a new [`ReadOption`]
+    /// Create a new [`ReadOptions`]
     #[inline]
-    pub fn build(&self) -> ReadOption {
-        ReadOption {
+    pub fn build(&self) -> ReadOptions {
+        ReadOptions {
             password: self.password.clone(),
         }
     }
