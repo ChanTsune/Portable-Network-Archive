@@ -1,4 +1,4 @@
-use libpna::{Archive, Compression, EntryBuilder, ReadOption, WriteOption};
+use libpna::{Archive, Compression, EntryBuilder, ReadOption, WriteOptions};
 use std::io::{self, Read, Write};
 
 /// Change the entries compression method
@@ -14,7 +14,7 @@ fn change_compression_method<R: Read, W: Write>(
         let header = entry.header();
         let mut builder = EntryBuilder::new_file(
             header.path().clone(),
-            WriteOption::builder().compression(compression).build(),
+            WriteOptions::builder().compression(compression).build(),
         )?;
         let mut reader = entry.reader(ReadOption::builder().build())?;
         io::copy(&mut reader, &mut builder)?;

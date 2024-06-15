@@ -6,7 +6,7 @@ use crate::{
 use nix::unistd::{Group, User};
 use normalize_path::*;
 use pna::{
-    Archive, Entry, EntryBuilder, EntryName, EntryPart, EntryReference, RegularEntry, WriteOption,
+    Archive, Entry, EntryBuilder, EntryName, EntryPart, EntryReference, RegularEntry, WriteOptions,
     MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
 };
 #[cfg(unix)]
@@ -36,7 +36,7 @@ pub(crate) struct OwnerOptions {
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) struct CreateOptions {
-    pub(crate) option: WriteOption,
+    pub(crate) option: WriteOptions,
     pub(crate) keep_options: KeepOptions,
     pub(crate) owner_options: OwnerOptions,
 }
@@ -123,9 +123,9 @@ pub(crate) fn entry_option(
     compression: CompressionAlgorithmArgs,
     cipher: CipherAlgorithmArgs,
     password: Option<String>,
-) -> WriteOption {
+) -> WriteOptions {
     let (algorithm, level) = compression.algorithm();
-    let mut option_builder = WriteOption::builder();
+    let mut option_builder = WriteOptions::builder();
     option_builder
         .compression(algorithm)
         .compression_level(level.unwrap_or_default())

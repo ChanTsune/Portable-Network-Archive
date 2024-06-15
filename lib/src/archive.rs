@@ -16,7 +16,7 @@ use std::io::prelude::*;
 /// # Examples
 /// Creates a new PNA file and adds entry to it.
 /// ```no_run
-/// # use libpna::{Archive, EntryBuilder, WriteOption};
+/// # use libpna::{Archive, EntryBuilder, WriteOptions};
 /// # use std::fs::File;
 /// # use std::io::{self, prelude::*};
 ///
@@ -24,7 +24,7 @@ use std::io::prelude::*;
 /// let file = File::create("foo.pna")?;
 /// let mut archive = Archive::write_header(file)?;
 /// let mut entry_builder =
-///     EntryBuilder::new_file("bar.txt".into(), WriteOption::builder().build())?;
+///     EntryBuilder::new_file("bar.txt".into(), WriteOptions::builder().build())?;
 /// entry_builder.write_all(b"content")?;
 /// let entry = entry_builder.build()?;
 /// archive.add_entry(entry)?;
@@ -80,15 +80,15 @@ impl<T> Archive<T> {
 /// # Examples
 /// Creates a new solid mode PNA file and adds entry to it.
 /// ```no_run
-/// use libpna::{Archive, EntryBuilder, WriteOption};
+/// use libpna::{Archive, EntryBuilder, WriteOptions};
 /// use std::fs::File;
 /// # use std::io::{self, prelude::*};
 ///
 /// # fn main() -> io::Result<()> {
-/// let option = WriteOption::builder().build();
+/// let option = WriteOptions::builder().build();
 /// let file = File::create("foo.pna")?;
 /// let mut archive = Archive::write_solid_header(file, option)?;
-/// let mut entry_builder = EntryBuilder::new_file("bar.txt".into(), WriteOption::store())?;
+/// let mut entry_builder = EntryBuilder::new_file("bar.txt".into(), WriteOptions::store())?;
 /// entry_builder.write_all(b"content")?;
 /// let entry = entry_builder.build()?;
 /// archive.add_entry(entry)?;
@@ -111,7 +111,7 @@ mod tests {
     fn store_archive() {
         archive(
             b"src data bytes",
-            WriteOption::builder().compression(Compression::No).build(),
+            WriteOptions::builder().compression(Compression::No).build(),
         )
         .unwrap()
     }
@@ -120,7 +120,7 @@ mod tests {
     fn deflate_archive() {
         archive(
             b"src data bytes",
-            WriteOption::builder()
+            WriteOptions::builder()
                 .compression(Compression::Deflate)
                 .build(),
         )
@@ -131,7 +131,7 @@ mod tests {
     fn zstd_archive() {
         archive(
             b"src data bytes",
-            WriteOption::builder()
+            WriteOptions::builder()
                 .compression(Compression::ZStandard)
                 .build(),
         )
@@ -142,7 +142,7 @@ mod tests {
     fn xz_archive() {
         archive(
             b"src data bytes",
-            WriteOption::builder().compression(Compression::XZ).build(),
+            WriteOptions::builder().compression(Compression::XZ).build(),
         )
         .unwrap();
     }
@@ -151,7 +151,7 @@ mod tests {
     fn store_with_aes_cbc_archive() {
         archive(
             b"plain text",
-            WriteOption::builder()
+            WriteOptions::builder()
                 .compression(Compression::No)
                 .encryption(Encryption::Aes)
                 .cipher_mode(CipherMode::CBC)
@@ -165,7 +165,7 @@ mod tests {
     fn zstd_with_aes_ctr_archive() {
         archive(
             b"plain text",
-            WriteOption::builder()
+            WriteOptions::builder()
                 .compression(Compression::ZStandard)
                 .encryption(Encryption::Aes)
                 .cipher_mode(CipherMode::CTR)
@@ -179,7 +179,7 @@ mod tests {
     fn zstd_with_aes_cbc_archive() {
         archive(
             b"plain text",
-            WriteOption::builder()
+            WriteOptions::builder()
                 .compression(Compression::ZStandard)
                 .encryption(Encryption::Aes)
                 .cipher_mode(CipherMode::CBC)
@@ -193,7 +193,7 @@ mod tests {
     fn zstd_with_camellia_ctr_archive() {
         archive(
             b"plain text",
-            WriteOption::builder()
+            WriteOptions::builder()
                 .compression(Compression::ZStandard)
                 .encryption(Encryption::Camellia)
                 .cipher_mode(CipherMode::CTR)
@@ -207,7 +207,7 @@ mod tests {
     fn zstd_with_camellia_cbc_archive() {
         archive(
             b"plain text",
-            WriteOption::builder()
+            WriteOptions::builder()
                 .compression(Compression::ZStandard)
                 .encryption(Encryption::Camellia)
                 .cipher_mode(CipherMode::CBC)
@@ -221,7 +221,7 @@ mod tests {
     fn xz_with_aes_cbc_archive() {
         archive(
             b"plain text",
-            WriteOption::builder()
+            WriteOptions::builder()
                 .compression(Compression::XZ)
                 .encryption(Encryption::Aes)
                 .cipher_mode(CipherMode::CBC)
@@ -236,7 +236,7 @@ mod tests {
     fn xz_with_camellia_cbc_archive() {
         archive(
             b"plain text",
-            WriteOption::builder()
+            WriteOptions::builder()
                 .compression(Compression::XZ)
                 .encryption(Encryption::Camellia)
                 .cipher_mode(CipherMode::CBC)
@@ -247,7 +247,7 @@ mod tests {
         .unwrap()
     }
 
-    fn create_archive(src: &[u8], options: WriteOption) -> io::Result<Vec<u8>> {
+    fn create_archive(src: &[u8], options: WriteOptions) -> io::Result<Vec<u8>> {
         let mut writer = Archive::write_header(Vec::with_capacity(src.len()))?;
         writer.add_entry({
             let mut builder = EntryBuilder::new_file("test/text".into(), options)?;
@@ -257,7 +257,7 @@ mod tests {
         writer.finalize()
     }
 
-    fn archive(src: &[u8], options: WriteOption) -> io::Result<()> {
+    fn archive(src: &[u8], options: WriteOptions) -> io::Result<()> {
         let archive = create_archive(src, options.clone())?;
         let mut archive_reader = Archive::read_header(archive.as_slice())?;
         let item = archive_reader.entries_skip_solid().next().unwrap().unwrap();
@@ -272,12 +272,12 @@ mod tests {
 
     #[test]
     fn solid_archive() {
-        let write_option = WriteOption::builder().password(Some("PASSWORD")).build();
+        let write_option = WriteOptions::builder().password(Some("PASSWORD")).build();
         let mut archive = Archive::write_solid_header(Vec::new(), write_option).unwrap();
         archive
             .add_entry({
                 let mut builder =
-                    EntryBuilder::new_file("test/text".into(), WriteOption::store()).unwrap();
+                    EntryBuilder::new_file("test/text".into(), WriteOptions::store()).unwrap();
                 builder.write_all(b"text").unwrap();
                 builder.build().unwrap()
             })
@@ -301,13 +301,13 @@ mod tests {
                 builder.build().unwrap()
             };
             let file_entry = {
-                let options = WriteOption::builder().build();
+                let options = WriteOptions::builder().build();
                 let mut builder = EntryBuilder::new_file("test/text".into(), options)?;
                 builder.write_all("text".as_bytes())?;
                 builder.build()?
             };
             writer.add_entry({
-                let mut builder = SolidEntryBuilder::new(WriteOption::builder().build()).unwrap();
+                let mut builder = SolidEntryBuilder::new(WriteOptions::builder().build()).unwrap();
                 builder.add_entry(dir_entry).unwrap();
                 builder.add_entry(file_entry).unwrap();
                 builder.build().unwrap()
@@ -325,7 +325,7 @@ mod tests {
 
     #[test]
     fn copy_entry() {
-        let archive = create_archive(b"archive text", WriteOption::builder().build())
+        let archive = create_archive(b"archive text", WriteOptions::builder().build())
             .expect("failed to create archive");
         let mut reader =
             Archive::read_header(archive.as_slice()).expect("failed to read archive header");
@@ -349,7 +349,7 @@ mod tests {
         writer
             .add_entry({
                 let builder =
-                    EntryBuilder::new_file("text1.txt".into(), WriteOption::builder().build())
+                    EntryBuilder::new_file("text1.txt".into(), WriteOptions::builder().build())
                         .unwrap();
                 builder.build().unwrap()
             })
@@ -361,7 +361,7 @@ mod tests {
         appender
             .add_entry({
                 let builder =
-                    EntryBuilder::new_file("text2.txt".into(), WriteOption::builder().build())
+                    EntryBuilder::new_file("text2.txt".into(), WriteOptions::builder().build())
                         .unwrap();
                 builder.build().unwrap()
             })
@@ -380,7 +380,7 @@ mod tests {
     fn metadata() {
         let original_entry = {
             let mut builder =
-                EntryBuilder::new_file("name".into(), WriteOption::builder().build()).unwrap();
+                EntryBuilder::new_file("name".into(), WriteOptions::builder().build()).unwrap();
             builder.created(Duration::from_secs(31));
             builder.modified(Duration::from_secs(32));
             builder.accessed(Duration::from_secs(33));

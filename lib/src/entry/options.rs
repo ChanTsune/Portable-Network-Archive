@@ -223,9 +223,19 @@ impl TryFrom<u8> for DataKind {
     }
 }
 
+/// Type alias of [`WriteOptions`].
+///
+/// This type alias will be removed in the future version.
+/// Use [`WriteOptions`] instead.
+#[deprecated(
+    note = "`WriteOption` was renamed to `WriteOptions`. This type alias will be removed in the future version.",
+    since = "0.12.1"
+)]
+pub type WriteOption = WriteOptions;
+
 /// Options for writing an entry.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct WriteOption {
+pub struct WriteOptions {
     pub(crate) compression: Compression,
     pub(crate) compression_level: CompressionLevel,
     pub(crate) encryption: Encryption,
@@ -234,15 +244,15 @@ pub struct WriteOption {
     pub(crate) password: Option<String>,
 }
 
-impl WriteOption {
-    /// A new [WriteOption] to simply store.
+impl WriteOptions {
+    /// A new [WriteOptions] to simply store.
     ///
     /// # Examples
     ///
     /// ```
-    /// use libpna::{EntryBuilder, WriteOption};
+    /// use libpna::{EntryBuilder, WriteOptions};
     ///
-    /// EntryBuilder::new_file("example.txt".into(), WriteOption::store()).unwrap();
+    /// EntryBuilder::new_file("example.txt".into(), WriteOptions::store()).unwrap();
     /// ```
     ///
     /// [Entry]: crate::Entry
@@ -258,35 +268,35 @@ impl WriteOption {
         }
     }
 
-    /// Returns a builder for [WriteOption].
+    /// Returns a builder for [WriteOptions].
     ///
     /// # Returns
     ///
-    /// [WriteOptionBuilder] Builder object for [WriteOption].
+    /// [WriteOptionBuilder] Builder object for [WriteOptions].
     ///
     /// # Examples
     ///
     /// ```
-    /// use libpna::WriteOption;
+    /// use libpna::WriteOptions;
     ///
-    /// let builder = WriteOption::builder();
+    /// let builder = WriteOptions::builder();
     /// ```
     #[inline]
     pub const fn builder() -> WriteOptionBuilder {
         WriteOptionBuilder::new()
     }
 
-    /// Converts [WriteOption] into a [WriteOptionBuilder].
+    /// Converts [WriteOptions] into a [WriteOptionBuilder].
     ///
     /// # Returns
     ///
-    /// [WriteOptionBuilder]: Builder object for [WriteOption].
+    /// [WriteOptionBuilder]: Builder object for [WriteOptions].
     ///
     /// # Examples
     /// ```
-    /// use libpna::WriteOption;
+    /// use libpna::WriteOptions;
     ///
-    /// let write_option = WriteOption::builder().build();
+    /// let write_option = WriteOptions::builder().build();
     /// let builder = write_option.into_builder();
     /// ```
     #[inline]
@@ -295,7 +305,7 @@ impl WriteOption {
     }
 }
 
-/// Builder for [`WriteOption`].
+/// Builder for [`WriteOptions`].
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct WriteOptionBuilder {
     compression: Compression,
@@ -312,9 +322,9 @@ impl Default for WriteOptionBuilder {
     }
 }
 
-impl From<WriteOption> for WriteOptionBuilder {
+impl From<WriteOptions> for WriteOptionBuilder {
     #[inline]
-    fn from(value: WriteOption) -> Self {
+    fn from(value: WriteOptions) -> Self {
         Self {
             compression: value.compression,
             compression_level: value.compression_level,
@@ -380,10 +390,10 @@ impl WriteOptionBuilder {
         self
     }
 
-    /// Create new [WriteOption] parameters set from this builder.
+    /// Create new [WriteOptions] parameters set from this builder.
     #[inline]
-    pub fn build(&self) -> WriteOption {
-        WriteOption {
+    pub fn build(&self) -> WriteOptions {
+        WriteOptions {
             compression: self.compression,
             compression_level: self.compression_level,
             encryption: self.encryption,

@@ -36,7 +36,7 @@ fn main() -> io::Result<()> {
 ## Writing an archive
 
 ```rust
-use pna::{Archive, EntryBuilder, WriteOption};
+use pna::{Archive, EntryBuilder, WriteOptions};
 use std::fs::File;
 use std::io::{self, prelude::*};
 
@@ -45,7 +45,7 @@ fn main() -> io::Result<()> {
     let mut archive = Archive::write_header(file)?;
     let mut entry_builder = EntryBuilder::new_file(
         "bar.txt".into(),
-        WriteOption::builder().build(),
+        WriteOptions::builder().build(),
     )?;
     entry_builder.write(b"content")?;
     let entry = entry_builder.build()?;

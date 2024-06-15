@@ -1,5 +1,5 @@
 use clap::Parser;
-use pna::{Archive, EntryBuilder, WriteOption};
+use pna::{Archive, EntryBuilder, WriteOptions};
 use portable_network_archive::{cli, command};
 use std::{fs, io::Write, path::Path};
 
@@ -14,7 +14,7 @@ fn init_resource<P: AsRef<Path>>(path: P) {
     writer
         .add_entry({
             let mut builder =
-                EntryBuilder::new_file("origin1.txt".into(), WriteOption::builder().build())
+                EntryBuilder::new_file("origin1.txt".into(), WriteOptions::builder().build())
                     .unwrap();
             builder.write_all(b"original text\n").unwrap();
             builder.build().unwrap()
@@ -39,7 +39,7 @@ fn init_resource<P: AsRef<Path>>(path: P) {
     writer
         .add_entry({
             let mut builder =
-                EntryBuilder::new_file("dir/origin2.txt".into(), WriteOption::builder().build())
+                EntryBuilder::new_file("dir/origin2.txt".into(), WriteOptions::builder().build())
                     .unwrap();
             builder.write_all(b"original text text\n").unwrap();
             builder.build().unwrap()

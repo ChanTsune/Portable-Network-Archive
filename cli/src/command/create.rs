@@ -13,7 +13,7 @@ use crate::{
 use bytesize::ByteSize;
 use clap::{ArgGroup, Parser, ValueHint};
 use indicatif::HumanDuration;
-use pna::{Archive, SolidEntryBuilder, WriteOption};
+use pna::{Archive, SolidEntryBuilder, WriteOptions};
 use rayon::ThreadPoolBuilder;
 use std::{
     fs::{self, File},
@@ -193,7 +193,7 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
 
 pub(crate) fn create_archive_file<W, F>(
     mut get_writer: F,
-    write_option: WriteOption,
+    write_option: WriteOptions,
     keep_options: KeepOptions,
     owner_options: OwnerOptions,
     solid: bool,
@@ -210,7 +210,7 @@ where
 
     let (tx, rx) = std::sync::mpsc::channel();
     let option = if solid {
-        WriteOption::store()
+        WriteOptions::store()
     } else {
         write_option.clone()
     };
@@ -252,7 +252,7 @@ where
 
 fn create_archive_with_split(
     archive: &Path,
-    write_option: WriteOption,
+    write_option: WriteOptions,
     keep_options: KeepOptions,
     owner_options: OwnerOptions,
     solid: bool,
@@ -266,7 +266,7 @@ fn create_archive_with_split(
 
     let (tx, rx) = std::sync::mpsc::channel();
     let option = if solid {
-        WriteOption::store()
+        WriteOptions::store()
     } else {
         write_option.clone()
     };

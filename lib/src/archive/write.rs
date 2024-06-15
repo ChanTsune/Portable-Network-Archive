@@ -5,7 +5,7 @@ use crate::{
     compress::CompressionWriter,
     entry::{
         get_writer, get_writer_context, Cipher, Entry, EntryHeader, EntryName, EntryPart, Metadata,
-        RegularEntry, SealedEntryExt, SolidHeader, WriteOption,
+        RegularEntry, SealedEntryExt, SolidHeader, WriteOptions,
     },
     io::TryIntoInner,
 };
@@ -91,7 +91,7 @@ impl<W: Write> Archive<W> {
     ///
     /// # Example
     /// ```no_run
-    /// use libpna::{Archive, Metadata, WriteOption};
+    /// use libpna::{Archive, Metadata, WriteOptions};
     /// # use std::error::Error;
     /// use std::fs;
     /// use std::io::{self, prelude::*};
@@ -102,7 +102,7 @@ impl<W: Write> Archive<W> {
     /// archive.write_file(
     ///     "bar.txt".into(),
     ///     Metadata::new(),
-    ///     WriteOption::builder().build(),
+    ///     WriteOptions::builder().build(),
     ///     |writer| writer.write_all(b"text"),
     /// )?;
     /// archive.finalize()?;
@@ -113,7 +113,7 @@ impl<W: Write> Archive<W> {
         &mut self,
         name: EntryName,
         metadata: Metadata,
-        option: WriteOption,
+        option: WriteOptions,
         mut f: F,
     ) -> io::Result<()>
     where
@@ -165,7 +165,7 @@ impl<W: Write> Archive<W> {
     /// # Examples
     ///
     /// ```no_run
-    /// use libpna::{Archive, EntryBuilder, WriteOption};
+    /// use libpna::{Archive, EntryBuilder, WriteOptions};
     /// use std::fs;
     /// # use std::io;
     ///
@@ -173,7 +173,7 @@ impl<W: Write> Archive<W> {
     /// let file = fs::File::create("example.pna")?;
     /// let mut archive = Archive::write_header(file)?;
     /// archive.add_entry(
-    ///     EntryBuilder::new_file("example.txt".into(), WriteOption::builder().build())?.build()?,
+    ///     EntryBuilder::new_file("example.txt".into(), WriteOptions::builder().build())?.build()?,
     /// )?;
     /// archive.finalize()?;
     /// #     Ok(())
@@ -192,7 +192,7 @@ impl<W: Write> Archive<W> {
     /// # Examples
     ///
     /// ```no_run
-    /// # use libpna::{Archive, EntryBuilder, EntryPart, WriteOption};
+    /// # use libpna::{Archive, EntryBuilder, EntryPart, WriteOptions};
     /// # use std::fs::File;
     /// # use std::io;
     ///
@@ -200,7 +200,7 @@ impl<W: Write> Archive<W> {
     /// let part1_file = File::create("example.part1.pna")?;
     /// let mut archive_part1 = Archive::write_header(part1_file)?;
     /// let entry =
-    ///     EntryBuilder::new_file("example.txt".into(), WriteOption::builder().build())?.build()?;
+    ///     EntryBuilder::new_file("example.txt".into(), WriteOptions::builder().build())?.build()?;
     /// archive_part1.add_entry_part(EntryPart::from(entry))?;
     ///
     /// let part2_file = File::create("example.part2.pna")?;
@@ -227,7 +227,7 @@ impl<W: Write> Archive<W> {
     ///
     /// # Examples
     /// ```no_run
-    /// # use libpna::{Archive, EntryBuilder, EntryPart, WriteOption};
+    /// # use libpna::{Archive, EntryBuilder, EntryPart, WriteOptions};
     /// # use std::fs::File;
     /// # use std::io;
     ///
@@ -235,7 +235,7 @@ impl<W: Write> Archive<W> {
     /// let part1_file = File::create("example.part1.pna")?;
     /// let mut archive_part1 = Archive::write_header(part1_file)?;
     /// let entry =
-    ///     EntryBuilder::new_file("example.txt".into(), WriteOption::builder().build())?.build()?;
+    ///     EntryBuilder::new_file("example.txt".into(), WriteOptions::builder().build())?.build()?;
     /// archive_part1.add_entry_part(EntryPart::from(entry))?;
     ///
     /// let part2_file = File::create("example.part2.pna")?;
@@ -323,7 +323,7 @@ impl<W: Write> Archive<W> {
     /// # Arguments
     ///
     /// * `write` - The [Write] object to write the header to.
-    /// * `option` - The [WriteOption] object of a solid mode option.
+    /// * `option` - The [WriteOptions] object of a solid mode option.
     ///
     /// # Returns
     ///
@@ -336,19 +336,19 @@ impl<W: Write> Archive<W> {
     /// # Examples
     ///
     /// ```no_run
-    /// use libpna::{Archive, WriteOption};
+    /// use libpna::{Archive, WriteOptions};
     /// use std::fs::File;
     /// # use std::io;
     ///
     /// # fn main() -> io::Result<()> {
-    /// let option = WriteOption::builder().build();
+    /// let option = WriteOptions::builder().build();
     /// let file = File::create("example.pna")?;
     /// let mut archive = Archive::write_solid_header(file, option)?;
     /// archive.finalize()?;
     /// #    Ok(())
     /// # }
     /// ```
-    pub fn write_solid_header(write: W, option: WriteOption) -> io::Result<SolidArchive<W>> {
+    pub fn write_solid_header(write: W, option: WriteOptions) -> io::Result<SolidArchive<W>> {
         let header = SolidHeader::new(option.compression, option.encryption, option.cipher_mode);
         let context = get_writer_context(option)?;
 
@@ -380,16 +380,16 @@ impl<W: Write> SolidArchive<W> {
     /// # Examples
     ///
     /// ```no_run
-    /// use libpna::{Archive, EntryBuilder, WriteOption};
+    /// use libpna::{Archive, EntryBuilder, WriteOptions};
     /// use std::fs::File;
     /// # use std::io;
     ///
     /// # fn main() -> io::Result<()> {
-    /// let option = WriteOption::builder().build();
+    /// let option = WriteOptions::builder().build();
     /// let file = File::create("example.pna")?;
     /// let mut archive = Archive::write_solid_header(file, option)?;
     /// archive
-    ///     .add_entry(EntryBuilder::new_file("example.txt".into(), WriteOption::store())?.build()?)?;
+    ///     .add_entry(EntryBuilder::new_file("example.txt".into(), WriteOptions::store())?.build()?)?;
     /// archive.finalize()?;
     /// #     Ok(())
     /// # }
@@ -402,14 +402,14 @@ impl<W: Write> SolidArchive<W> {
     ///
     /// # Example
     /// ```no_run
-    /// use libpna::{Archive, Metadata, WriteOption};
+    /// use libpna::{Archive, Metadata, WriteOptions};
     /// # use std::error::Error;
     /// use std::fs;
     /// use std::io::{self, prelude::*};
     ///
     /// # fn main() -> Result<(), Box<dyn Error>> {
     /// let file = fs::File::create("foo.pna")?;
-    /// let option = WriteOption::builder().build();
+    /// let option = WriteOptions::builder().build();
     /// let mut archive = Archive::write_solid_header(file, option)?;
     /// archive.write_file("bar.txt".into(), Metadata::new(), |writer| {
     ///     writer.write_all(b"text")
@@ -422,7 +422,7 @@ impl<W: Write> SolidArchive<W> {
     where
         F: FnMut(&mut SolidArchiveEntryDataWriter<W>) -> io::Result<()>,
     {
-        let option = WriteOption::store();
+        let option = WriteOptions::store();
         let header = EntryHeader::for_file(
             option.compression,
             option.encryption,
@@ -469,12 +469,12 @@ impl<W: Write> SolidArchive<W> {
     /// # Examples
     /// Create an empty archive.
     /// ```no_run
-    /// use libpna::{Archive, WriteOption};
+    /// use libpna::{Archive, WriteOptions};
     /// use std::fs::File;
     /// # use std::io;
     ///
     /// # fn main() -> io::Result<()> {
-    /// let option = WriteOption::builder().build();
+    /// let option = WriteOptions::builder().build();
     /// let file = File::create("example.pna")?;
     /// let mut archive = Archive::write_solid_header(file, option)?;
     /// archive.finalize()?;
@@ -506,7 +506,7 @@ mod tests {
 
     #[test]
     fn archive_write_file_entry() {
-        let option = WriteOption::builder().build();
+        let option = WriteOptions::builder().build();
         let mut writer = Archive::write_header(Vec::new()).expect("failed to write header");
         writer
             .write_file(
@@ -535,7 +535,7 @@ mod tests {
 
     #[test]
     fn solid_write_file_entry() {
-        let option = WriteOption::builder().build();
+        let option = WriteOptions::builder().build();
         let mut writer =
             Archive::write_solid_header(Vec::new(), option).expect("failed to write header");
         writer
