@@ -1,14 +1,14 @@
 #![feature(test)]
 extern crate test;
 
-use libpna::{Archive, EntryBuilder, ReadOption, WriteOptionBuilder};
+use libpna::{Archive, EntryBuilder, ReadOption, WriteOptionsBuilder};
 use std::io::{Read, Write};
 use test::Bencher;
 
 mod archive;
 mod empty;
 
-fn bench_write_archive(b: &mut Bencher, mut options: WriteOptionBuilder) {
+fn bench_write_archive(b: &mut Bencher, mut options: WriteOptionsBuilder) {
     let buf = [24; 1111];
     b.iter(|| {
         let mut vec = Vec::with_capacity(10000);
@@ -28,7 +28,7 @@ fn bench_write_archive(b: &mut Bencher, mut options: WriteOptionBuilder) {
     })
 }
 
-fn bench_read_archive(b: &mut Bencher, mut options: WriteOptionBuilder) {
+fn bench_read_archive(b: &mut Bencher, mut options: WriteOptionsBuilder) {
     let buf = [24; 1111];
     let mut writer = Archive::write_header(Vec::with_capacity(10000)).unwrap();
     writer

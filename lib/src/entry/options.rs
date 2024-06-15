@@ -272,7 +272,7 @@ impl WriteOptions {
     ///
     /// # Returns
     ///
-    /// [WriteOptionBuilder] Builder object for [WriteOptions].
+    /// [WriteOptionsBuilder] Builder object for [WriteOptions].
     ///
     /// # Examples
     ///
@@ -282,15 +282,15 @@ impl WriteOptions {
     /// let builder = WriteOptions::builder();
     /// ```
     #[inline]
-    pub const fn builder() -> WriteOptionBuilder {
-        WriteOptionBuilder::new()
+    pub const fn builder() -> WriteOptionsBuilder {
+        WriteOptionsBuilder::new()
     }
 
-    /// Converts [WriteOptions] into a [WriteOptionBuilder].
+    /// Converts [WriteOptions] into a [WriteOptionsBuilder].
     ///
     /// # Returns
     ///
-    /// [WriteOptionBuilder]: Builder object for [WriteOptions].
+    /// [WriteOptionsBuilder]: Builder object for [WriteOptions].
     ///
     /// # Examples
     /// ```
@@ -300,14 +300,24 @@ impl WriteOptions {
     /// let builder = write_option.into_builder();
     /// ```
     #[inline]
-    pub fn into_builder(self) -> WriteOptionBuilder {
+    pub fn into_builder(self) -> WriteOptionsBuilder {
         self.into()
     }
 }
 
+/// Type alias of [`WriteOptionsBuilder`].
+///
+/// This type alias will be removed in the future version.
+/// Use [`WriteOptionsBuilder`] instead.
+#[deprecated(
+    note = "`WriteOptionBuilder` was renamed to `WriteOptionsBuilder`. This type alias will be removed in the future version.",
+    since = "0.12.1"
+)]
+pub type WriteOptionBuilder = WriteOptionsBuilder;
+
 /// Builder for [`WriteOptions`].
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct WriteOptionBuilder {
+pub struct WriteOptionsBuilder {
     compression: Compression,
     compression_level: CompressionLevel,
     encryption: Encryption,
@@ -316,13 +326,13 @@ pub struct WriteOptionBuilder {
     password: Option<String>,
 }
 
-impl Default for WriteOptionBuilder {
+impl Default for WriteOptionsBuilder {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl From<WriteOptions> for WriteOptionBuilder {
+impl From<WriteOptions> for WriteOptionsBuilder {
     #[inline]
     fn from(value: WriteOptions) -> Self {
         Self {
@@ -336,7 +346,7 @@ impl From<WriteOptions> for WriteOptionBuilder {
     }
 }
 
-impl WriteOptionBuilder {
+impl WriteOptionsBuilder {
     const fn new() -> Self {
         Self {
             compression: Compression::No,
