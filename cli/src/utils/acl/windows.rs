@@ -1,6 +1,6 @@
 use crate::chunk;
 use crate::chunk::{ace_convert_current_platform, AcePlatform, Identifier, OwnerType};
-use crate::utils::fs::windows::{SecurityDescriptor, Sid, SidType};
+use crate::utils::os::windows::security::{SecurityDescriptor, Sid, SidType};
 use field_offset::offset_of;
 use std::path::Path;
 use std::ptr::null_mut;
