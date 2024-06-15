@@ -94,7 +94,9 @@ mod tests {
         let mut ph = argon2_with_salt("pass", argon2::Algorithm::Argon2id, 32, &salt).unwrap();
         ph.hash.take();
         assert_eq!(ph.hash, None);
-        verify_password(&ph.to_string(), "pass").unwrap();
+        let ps = ph.to_string();
+        let ph = verify_password(&ps, "pass").unwrap();
+        assert!(ph.hash.is_some());
     }
 
     #[test]
@@ -109,6 +111,8 @@ mod tests {
         .unwrap();
         ph.hash.take();
         assert_eq!(ph.hash, None);
-        verify_password(&ph.to_string(), "pass").unwrap();
+        let ps = ph.to_string();
+        let ph = verify_password(&ps, "pass").unwrap();
+        assert!(ph.hash.is_some());
     }
 }
