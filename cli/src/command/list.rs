@@ -233,7 +233,7 @@ pub(crate) fn run_list_archive(
         GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
     let now = SystemTime::now();
-    let mut entries = Vec::<TableRow>::new();
+    let mut entries = Vec::new();
 
     run_across_archive(archive_provider, |reader| {
         for entry in reader.entries() {
