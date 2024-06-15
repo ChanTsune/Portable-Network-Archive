@@ -343,6 +343,15 @@ impl FromStr for Ace {
     }
 }
 
+impl TryFrom<&str> for Ace {
+    type Error = ParseAceError;
+
+    #[inline]
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::from_str(value)
+    }
+}
+
 impl TryFrom<&[u8]> for Ace {
     type Error = ParseAceError;
 
