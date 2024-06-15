@@ -18,7 +18,6 @@ use pna::{
 use rayon::prelude::*;
 use std::{
     io,
-    str::FromStr,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tabled::{
@@ -257,11 +256,9 @@ pub(crate) fn run_list_archive(
                                     .iter()
                                     .filter(|c| c.ty() == chunk::faCe)
                                     .map(|c| {
-                                        let body = std::str::from_utf8(c.data())
-                                            .map_err(io::Error::other)?;
-                                        let ace =
-                                            chunk::Ace::from_str(body).map_err(io::Error::other)?;
-                                        Ok(TableRow::from_acl(ace))
+                                        chunk::Ace::try_from(c.data())
+                                            .map(TableRow::from_acl)
+                                            .map_err(io::Error::other)
                                     })
                                     .collect::<io::Result<Vec<_>>>()?
                             } else {
@@ -298,10 +295,9 @@ pub(crate) fn run_list_archive(
                             .iter()
                             .filter(|c| c.ty() == chunk::faCe)
                             .map(|c| {
-                                let body =
-                                    std::str::from_utf8(c.data()).map_err(io::Error::other)?;
-                                let ace = chunk::Ace::from_str(body).map_err(io::Error::other)?;
-                                Ok(TableRow::from_acl(ace))
+                                chunk::Ace::try_from(c.data())
+                                    .map(TableRow::from_acl)
+                                    .map_err(io::Error::other)
                             })
                             .collect::<io::Result<Vec<_>>>()?
                     } else {
