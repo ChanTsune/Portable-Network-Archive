@@ -252,17 +252,18 @@ pub(crate) fn run_list_archive(
                                 Vec::new()
                             };
                             let acl = if args.show_acl {
-                                let mut acl = Vec::new();
-                                for c in entry.extra_chunks() {
-                                    if c.ty() == chunk::faCe {
+                                entry
+                                    .extra_chunks()
+                                    .iter()
+                                    .filter(|c| c.ty() == chunk::faCe)
+                                    .map(|c| {
                                         let body = std::str::from_utf8(c.data())
                                             .map_err(io::Error::other)?;
                                         let ace =
                                             chunk::Ace::from_str(body).map_err(io::Error::other)?;
-                                        acl.push(ace);
-                                    }
-                                }
-                                acl
+                                        Ok(TableRow::from_acl(ace))
+                                    })
+                                    .collect::<io::Result<Vec<_>>>()?
                             } else {
                                 Vec::new()
                             };
@@ -276,9 +277,7 @@ pub(crate) fn run_list_archive(
                                 )
                                     .into(),
                             );
-                            for ace in acl {
-                                entries.push(TableRow::from_acl(ace));
-                            }
+                            entries.extend(acl);
                             entries.extend(xattrs);
                         }
                     } else {
@@ -295,23 +294,21 @@ pub(crate) fn run_list_archive(
                         Vec::new()
                     };
                     let acl = if args.show_acl {
-                        let mut acl = Vec::new();
-                        for c in item.extra_chunks() {
-                            if c.ty() == chunk::faCe {
+                        item.extra_chunks()
+                            .iter()
+                            .filter(|c| c.ty() == chunk::faCe)
+                            .map(|c| {
                                 let body =
                                     std::str::from_utf8(c.data()).map_err(io::Error::other)?;
                                 let ace = chunk::Ace::from_str(body).map_err(io::Error::other)?;
-                                acl.push(ace);
-                            }
-                        }
-                        acl
+                                Ok(TableRow::from_acl(ace))
+                            })
+                            .collect::<io::Result<Vec<_>>>()?
                     } else {
                         Vec::new()
                     };
                     entries.push((item, password, now, None, args.numeric_owner).into());
-                    for ace in acl {
-                        entries.push(TableRow::from_acl(ace));
-                    }
+                    entries.extend(acl);
                     entries.extend(xattrs);
                 }
             }
