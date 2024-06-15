@@ -17,6 +17,7 @@ impl Command for ExperimentalCommand {
             ExperimentalCommands::Strip(cmd) => cmd.execute(verbosity),
             ExperimentalCommands::Update(cmd) => cmd.execute(verbosity),
             ExperimentalCommands::Concat(cmd) => cmd.execute(verbosity),
+            ExperimentalCommands::Chown(cmd) => cmd.execute(verbosity),
         }
     }
 }
@@ -33,4 +34,6 @@ pub(crate) enum ExperimentalCommands {
     Update(command::update::UpdateCommand),
     #[command(about = "Concat archives")]
     Concat(command::concat::ConcatCommand),
+    #[command(about = "Change owner")]
+    Chown(command::chown::ChownCommand),
 }
