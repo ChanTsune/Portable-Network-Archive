@@ -67,9 +67,13 @@ mod owner {
     pub(crate) struct User(pub(crate) windows::Sid);
     impl User {
         #[inline]
-        pub(crate) fn from_name(name: &str, system: Option<&str>) -> Option<Self> {
-            let sid = windows::Sid::try_from_name(name, system).ok()?;
-            Some(Self(sid))
+        pub(crate) fn from_name(name: &str) -> Option<Self> {
+            Self::from_system_name(name, None)
+        }
+
+        #[inline]
+        pub(crate) fn from_system_name(name: &str, system: Option<&str>) -> Option<Self> {
+            windows::Sid::try_from_name(name, system).ok().map(Self)
         }
     }
 
@@ -77,9 +81,13 @@ mod owner {
 
     impl Group {
         #[inline]
-        pub(crate) fn from_name(name: &str, system: Option<&str>) -> Option<Self> {
-            let sid = windows::Sid::try_from_name(name, system).ok()?;
-            Some(Self(sid))
+        pub(crate) fn from_name(name: &str) -> Option<Self> {
+            Self::from_system_name(name, None)
+        }
+
+        #[inline]
+        pub(crate) fn from_system_name(name: &str, system: Option<&str>) -> Option<Self> {
+            windows::Sid::try_from_name(name, system).ok().map(Self)
         }
     }
 }
