@@ -1,5 +1,5 @@
 use argon2::{Argon2, ParamsBuilder, Version};
-use password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
+use password_hash::{PasswordHash, PasswordHasher, SaltString};
 use std::io;
 
 pub(crate) fn argon2_with_salt<'a>(
@@ -54,9 +54,6 @@ pub(crate) fn verify_password<'a>(
                     password_hash.salt.unwrap(),
                 )
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-            argon2
-                .verify_password(password.as_bytes(), &password_hash)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         }
         pbkdf2::Algorithm::PBKDF2_SHA256_IDENT | pbkdf2::Algorithm::PBKDF2_SHA512_IDENT => {
             password_hash = pbkdf2::Pbkdf2
@@ -68,9 +65,6 @@ pub(crate) fn verify_password<'a>(
                         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
                     password_hash.salt.unwrap(),
                 )
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-            pbkdf2::Pbkdf2
-                .verify_password(password.as_bytes(), &password_hash)
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         }
         a => {
