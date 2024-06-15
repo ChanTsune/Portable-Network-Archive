@@ -493,7 +493,7 @@ impl<W: Write> SolidArchive<W> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ReadOption;
+    use crate::ReadOptions;
     use std::io::Read;
 
     #[test]
@@ -524,7 +524,7 @@ mod tests {
             .expect("failed to get entry")
             .expect("failed to read entry");
         let mut data_reader = entry
-            .reader(ReadOption::builder().build())
+            .reader(ReadOptions::builder().build())
             .expect("failed to read entry data");
         let mut data = Vec::new();
         data_reader
@@ -553,7 +553,7 @@ mod tests {
             .expect("failed to get entry")
             .expect("failed to read entry");
         let mut data_reader = entry
-            .reader(ReadOption::builder().build())
+            .reader(ReadOptions::builder().build())
             .expect("failed to read entry data");
         let mut data = Vec::new();
         data_reader

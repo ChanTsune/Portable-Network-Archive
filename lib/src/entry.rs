@@ -204,7 +204,7 @@ impl SolidEntry {
     ///
     /// # Example
     /// ```no_run
-    /// use libpna::{Archive, ReadEntry, ReadOption};
+    /// use libpna::{Archive, ReadEntry, ReadOptions};
     /// use std::fs;
     /// # use std::io;
     ///
@@ -216,7 +216,7 @@ impl SolidEntry {
     ///         ReadEntry::Solid(solid_entry) => {
     ///             for entry in solid_entry.entries(Some("password"))? {
     ///                 let entry = entry?;
-    ///                 let mut reader = entry.reader(ReadOption::builder().build());
+    ///                 let mut reader = entry.reader(ReadOptions::builder().build());
     ///                 // fill your code
     ///             }
     ///         }
@@ -540,7 +540,7 @@ impl RegularEntry {
     ///
     /// # Examples
     /// ```no_run
-    /// use libpna::{Archive, ReadOption};
+    /// use libpna::{Archive, ReadOptions};
     /// use std::{fs, io};
     ///
     /// # fn main() -> io::Result<()> {
@@ -548,7 +548,7 @@ impl RegularEntry {
     /// let mut archive = Archive::read_header(file)?;
     /// for entry in archive.entries_skip_solid() {
     ///     let entry = entry?;
-    ///     let mut reader = entry.reader(ReadOption::builder().build())?;
+    ///     let mut reader = entry.reader(ReadOptions::builder().build())?;
     ///     let name = entry.header().path();
     ///     let mut dist_file = fs::File::create(name)?;
     ///     io::copy(&mut reader, &mut dist_file)?;
@@ -557,7 +557,7 @@ impl RegularEntry {
     /// # }
     /// ```
     #[inline]
-    pub fn reader(&self, option: ReadOption) -> io::Result<EntryDataReader> {
+    pub fn reader(&self, option: ReadOptions) -> io::Result<EntryDataReader> {
         let raw_data_reader =
             crate::io::FlattenReader::new(self.data.iter().map(|it| it.as_slice()).collect());
         let decrypt_reader = decrypt_reader(

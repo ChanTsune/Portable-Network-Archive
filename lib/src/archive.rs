@@ -35,7 +35,7 @@ use std::io::prelude::*;
 ///
 /// Read the entries of a pna file.
 /// ```no_run
-/// # use libpna::{Archive, ReadOption};
+/// # use libpna::{Archive, ReadOptions};
 /// # use std::fs::File;
 /// # use std::io::{self, copy, prelude::*};
 ///
@@ -45,7 +45,7 @@ use std::io::prelude::*;
 /// for entry in archive.entries_skip_solid() {
 ///     let entry = entry?;
 ///     let mut file = File::create(entry.header().path().as_path())?;
-///     let mut reader = entry.reader(ReadOption::builder().build())?;
+///     let mut reader = entry.reader(ReadOptions::builder().build())?;
 ///     copy(&mut reader, &mut file)?;
 /// }
 /// #     Ok(())
@@ -262,7 +262,7 @@ mod tests {
         let mut archive_reader = Archive::read_header(archive.as_slice())?;
         let item = archive_reader.entries_skip_solid().next().unwrap().unwrap();
         let mut reader = item
-            .reader(ReadOption::with_password(options.password))
+            .reader(ReadOptions::with_password(options.password))
             .unwrap();
         let mut dist = Vec::new();
         io::copy(&mut reader, &mut dist)?;
@@ -286,7 +286,7 @@ mod tests {
         let mut archive = Archive::read_header(&buf[..]).unwrap();
         let mut entries = archive.entries_with_password(Some("PASSWORD"));
         let entry = entries.next().unwrap().unwrap();
-        let mut reader = entry.reader(ReadOption::builder().build()).unwrap();
+        let mut reader = entry.reader(ReadOptions::builder().build()).unwrap();
         let mut body = Vec::new();
         reader.read_to_end(&mut body).unwrap();
         assert_eq!(b"text", &body[..]);

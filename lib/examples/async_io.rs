@@ -1,4 +1,4 @@
-use libpna::{Archive, EntryBuilder, ReadOption, WriteOptions};
+use libpna::{Archive, EntryBuilder, ReadOptions, WriteOptions};
 use std::io;
 
 #[tokio::main]
@@ -32,7 +32,7 @@ async fn extract(path: String) -> io::Result<()> {
     let mut archive = Archive::read_header_async(file).await?;
     while let Some(entry) = archive.read_entry_async().await? {
         let mut file = async_std::fs::File::create(entry.header().path().as_path()).await?;
-        let mut reader = entry.reader(ReadOption::builder().build())?;
+        let mut reader = entry.reader(ReadOptions::builder().build())?;
         async_std::io::copy(&mut reader, &mut file).await?;
     }
     Ok(())

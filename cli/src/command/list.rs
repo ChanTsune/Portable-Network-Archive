@@ -12,7 +12,7 @@ use ansi_term::{ANSIString, Colour, Style};
 use chrono::{DateTime, Local};
 use clap::{ArgGroup, Parser};
 use pna::{
-    Chunk, Compression, DataKind, Encryption, ExtendedAttribute, ReadEntry, ReadOption,
+    Chunk, Compression, DataKind, Encryption, ExtendedAttribute, ReadEntry, ReadOptions,
     RegularEntry, SolidHeader,
 };
 use rayon::prelude::*;
@@ -186,7 +186,7 @@ impl
             ) {
                 let path = header.path().to_string();
                 let original = entry
-                    .reader(ReadOption::with_password(password))
+                    .reader(ReadOptions::with_password(password))
                     .map(|r| io::read_to_string(r).unwrap_or_else(|_| "-".to_string()))
                     .unwrap_or_default();
                 format!("{} -> {}", path, original)
