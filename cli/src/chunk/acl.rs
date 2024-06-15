@@ -39,6 +39,7 @@ impl AcePlatform {
 }
 
 impl Display for AcePlatform {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::General => f.write_str(""),
@@ -54,6 +55,7 @@ impl Display for AcePlatform {
 impl FromStr for AcePlatform {
     type Err = core::convert::Infallible;
 
+    #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "" => Ok(Self::General),
@@ -70,6 +72,7 @@ impl FromStr for AcePlatform {
 pub struct Identifier(pub(crate) String);
 
 impl Display for Identifier {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str(&self.0)
     }
@@ -86,6 +89,7 @@ pub enum OwnerType {
 }
 
 impl Display for OwnerType {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match &self {
             OwnerType::Owner => f.write_str("u:"),
@@ -109,6 +113,7 @@ pub enum ParseAceError {
 }
 
 impl Display for ParseAceError {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", self)
     }
@@ -135,6 +140,7 @@ pub struct Ace {
 
 impl Ace {
     #[cfg(feature = "acl")]
+    #[inline]
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
         self.to_string().into_bytes()
     }
