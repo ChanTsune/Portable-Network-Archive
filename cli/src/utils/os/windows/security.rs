@@ -355,7 +355,6 @@ fn set_privilege(privilege_name: PCWSTR) -> windows::core::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::fs::windows::*;
     use windows::Win32::System::WindowsProgramming::GetUserNameW;
 
     pub fn get_current_username() -> io::Result<String> {
@@ -402,20 +401,5 @@ mod tests {
         assert_eq!(username, sid.name);
         assert_eq!(sid_origin.name, sid.name);
         assert_eq!(sid_origin.raw, sid.raw);
-    }
-
-    #[test]
-    fn chown() {
-        let path = "chown.txt";
-        std::fs::write(&path, "chown").unwrap();
-        let sd = SecurityDescriptor::try_from(path.as_ref()).unwrap();
-        change_owner(path.as_ref(), Some(sd.owner_sid().unwrap()), None).unwrap();
-        change_owner(path.as_ref(), None, Some(sd.group_sid().unwrap())).unwrap();
-        change_owner(
-            path.as_ref(),
-            Some(sd.owner_sid().unwrap()),
-            Some(sd.group_sid().unwrap()),
-        )
-        .unwrap();
     }
 }

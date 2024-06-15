@@ -1,8 +1,5 @@
 #[cfg(windows)]
-pub(crate) mod windows;
-
-#[cfg(windows)]
-use crate::utils::os::windows::fs::*;
+use crate::utils::os::windows::{self, fs::*};
 pub(crate) use owner::*;
 pub(crate) use pna::fs::*;
 use std::{
@@ -133,7 +130,7 @@ pub(crate) fn chown<P: AsRef<Path>>(
 ) -> io::Result<()> {
     #[cfg(windows)]
     fn inner(path: &Path, owner: Option<User>, group: Option<Group>) -> io::Result<()> {
-        windows::change_owner(path.as_ref(), owner.map(|it| it.0), group.map(|it| it.0))
+        windows::fs::chown(path.as_ref(), owner.map(|it| it.0), group.map(|it| it.0))
     }
     #[cfg(unix)]
     fn inner(path: &Path, owner: Option<User>, group: Option<Group>) -> io::Result<()> {
