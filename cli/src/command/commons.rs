@@ -181,7 +181,7 @@ pub(crate) fn apply_metadata(
         }
         #[cfg(windows)]
         if keep_options.keep_permission {
-            use crate::utils::fs::windows::SecurityDescriptor;
+            use crate::utils::os::windows::security::SecurityDescriptor;
             let sd = SecurityDescriptor::try_from(path)?;
             let mut stat = unsafe { std::mem::zeroed::<libc::stat>() };
             unsafe { libc::wstat(sd.path.as_ptr() as _, &mut stat) };
