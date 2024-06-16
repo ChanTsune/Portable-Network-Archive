@@ -1,4 +1,5 @@
 pub mod append;
+mod chmod;
 mod chown;
 mod commons;
 pub mod complete;
