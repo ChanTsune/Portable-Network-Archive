@@ -1,11 +1,9 @@
+#[cfg(any(unix, windows))]
+use crate::utils::fs::{Group, User};
 use crate::{
     cli::{PasswordArgs, Verbosity},
     command::{ask_password, commons::run_process_archive_path, Command},
-    utils::{
-        self,
-        fs::{Group, User},
-        GlobPatterns, PathPartExt,
-    },
+    utils::{self, GlobPatterns, PathPartExt},
 };
 use clap::{Parser, ValueHint};
 use pna::Archive;
@@ -51,38 +49,29 @@ fn archive_chown(args: ChownCommand, _: Verbosity) -> io::Result<()> {
             if globs.matches_any_path(name) {
                 let metadata = entry.metadata().clone();
                 let permission = metadata.permission().map(|p| {
-                    let (uid, uname) = args
-                        .owner
-                        .user()
-                        .and_then(|it| {
-                            User::from_name(it).map(|it| {
-                                #[cfg(unix)]
-                                {
-                                    (it.0.uid.as_raw().into(), it.0.name)
-                                }
-                                #[cfg(windows)]
-                                {
-                                    (u64::MAX, it.0.name)
-                                }
-                            })
-                        })
-                        .unwrap_or_else(|| (p.uid(), p.uname().into()));
-                    let (gid, gname) = args
-                        .owner
-                        .group()
-                        .and_then(|it| {
-                            Group::from_name(it).map(|it| {
-                                #[cfg(unix)]
-                                {
-                                    (it.0.gid.as_raw().into(), it.0.name)
-                                }
-                                #[cfg(windows)]
-                                {
-                                    (u64::MAX, it.0.name)
-                                }
-                            })
-                        })
-                        .unwrap_or_else(|| (p.gid(), p.gname().into()));
+                    let user = args.owner.user();
+                    #[cfg(unix)]
+                    let user = user.and_then(|it| {
+                        User::from_name(it).map(|it| (it.0.uid.as_raw().into(), it.0.name))
+                    });
+                    #[cfg(windows)]
+                    let user =
+                        user.and_then(|it| User::from_name(it).map(|it| (u64::MAX, it.0.name)));
+                    #[cfg(not(any(unix, windows)))]
+                    let user = user.map(|_| (p.uid(), p.uname().into()));
+                    let (uid, uname) = user.unwrap_or_else(|| (p.uid(), p.uname().into()));
+
+                    let group = args.owner.group();
+                    #[cfg(unix)]
+                    let group = group.and_then(|it| {
+                        Group::from_name(it).map(|it| (it.0.gid.as_raw().into(), it.0.name))
+                    });
+                    #[cfg(windows)]
+                    let group =
+                        group.and_then(|it| Group::from_name(it).map(|it| (u64::MAX, it.0.name)));
+                    #[cfg(not(any(unix, windows)))]
+                    let group = group.map(|_| (p.gid(), p.gname().into()));
+                    let (gid, gname) = group.unwrap_or_else(|| (p.gid(), p.gname().into()));
                     pna::Permission::new(uid, uname, gid, gname, p.permissions())
                 });
                 out_archive.add_entry(entry.with_metadata(metadata.with_permission(permission)))?;

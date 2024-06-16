@@ -1,5 +1,6 @@
 #[cfg(windows)]
 use crate::utils::os::windows::{self, fs::*};
+#[cfg(any(unix, windows))]
 pub(crate) use owner::*;
 pub(crate) use pna::fs::*;
 use std::{
