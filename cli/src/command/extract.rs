@@ -1,3 +1,5 @@
+#[cfg(any(unix, windows))]
+use crate::utils::fs::{chown, Group, User};
 use crate::{
     cli::{FileArgs, PasswordArgs, Verbosity},
     command::{
@@ -7,11 +9,7 @@ use crate::{
         },
         Command,
     },
-    utils::{
-        self,
-        fs::{chown, Group, User},
-        GlobPatterns,
-    },
+    utils::{self, GlobPatterns},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use indicatif::HumanDuration;
@@ -365,7 +363,15 @@ pub(crate) fn extract_entry(
     Ok(())
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
+fn permissions<'p>(
+    p: &'p Permission,
+    _: &'_ OwnerOptions,
+) -> Option<(&'p Permission, Option<()>, Option<()>)> {
+    Some((p, None, None))
+}
+
+#[cfg(windows)]
 fn permissions<'p>(
     p: &'p Permission,
     _: &'_ OwnerOptions,
