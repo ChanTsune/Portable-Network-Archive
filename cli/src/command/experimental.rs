@@ -18,6 +18,7 @@ impl Command for ExperimentalCommand {
             ExperimentalCommands::Update(cmd) => cmd.execute(verbosity),
             ExperimentalCommands::Concat(cmd) => cmd.execute(verbosity),
             ExperimentalCommands::Chown(cmd) => cmd.execute(verbosity),
+            ExperimentalCommands::Chmod(cmd) => cmd.execute(verbosity),
         }
     }
 }
@@ -36,4 +37,6 @@ pub(crate) enum ExperimentalCommands {
     Concat(command::concat::ConcatCommand),
     #[command(about = "Change owner")]
     Chown(command::chown::ChownCommand),
+    #[command(about = "Change mode")]
+    Chmod(command::chmod::ChmodCommand),
 }
