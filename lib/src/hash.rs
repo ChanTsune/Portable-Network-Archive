@@ -39,12 +39,12 @@ pub(crate) fn verify_password<'a>(
     phsf: &'a str,
     password: &'a str,
 ) -> io::Result<PasswordHash<'a>> {
-    let mut password_hash =
+    let password_hash =
         PasswordHash::new(phsf).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
     match password_hash.algorithm {
         argon2::ARGON2D_IDENT | argon2::ARGON2I_IDENT | argon2::ARGON2ID_IDENT => {
             let argon2 = Argon2::default();
-            password_hash = argon2
+            argon2
                 .hash_password_customized(
                     password.as_bytes(),
                     Some(password_hash.algorithm),
@@ -53,10 +53,10 @@ pub(crate) fn verify_password<'a>(
                         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
                     password_hash.salt.unwrap(),
                 )
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
         }
         pbkdf2::Algorithm::PBKDF2_SHA256_IDENT | pbkdf2::Algorithm::PBKDF2_SHA512_IDENT => {
-            password_hash = pbkdf2::Pbkdf2
+            pbkdf2::Pbkdf2
                 .hash_password_customized(
                     password.as_bytes(),
                     Some(password_hash.algorithm),
@@ -65,16 +65,13 @@ pub(crate) fn verify_password<'a>(
                         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
                     password_hash.salt.unwrap(),
                 )
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
         }
-        a => {
-            return Err(io::Error::new(
-                io::ErrorKind::Unsupported,
-                format!("Unsupported algorithm {a:?}"),
-            ))
-        }
+        a => Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            format!("Unsupported algorithm {a:?}"),
+        )),
     }
-    Ok(password_hash)
 }
 
 #[cfg(test)]
