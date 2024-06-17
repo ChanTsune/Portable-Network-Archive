@@ -2,15 +2,11 @@ use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs},
     utils::PathPartExt,
 };
-#[cfg(unix)]
-use nix::unistd::{Group, User};
 use normalize_path::*;
 use pna::{
     Archive, Entry, EntryBuilder, EntryName, EntryPart, EntryReference, RegularEntry, WriteOptions,
     MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
 };
-#[cfg(unix)]
-use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::{
     fs,
     io::{self, prelude::*},
@@ -166,6 +162,9 @@ pub(crate) fn apply_metadata(
         }
         #[cfg(unix)]
         if keep_options.keep_permission {
+            use nix::unistd::{Group, User};
+            use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
             let mode = meta.permissions().mode() as u16;
             let uid = owner_options.uid.unwrap_or(meta.uid());
             let gid = owner_options.gid.unwrap_or(meta.gid());
@@ -182,6 +181,7 @@ pub(crate) fn apply_metadata(
         #[cfg(windows)]
         if keep_options.keep_permission {
             use crate::utils::os::windows::security::SecurityDescriptor;
+
             let sd = SecurityDescriptor::try_from(path)?;
             let mut stat = unsafe { std::mem::zeroed::<libc::stat>() };
             unsafe { libc::wstat(sd.path.as_ptr() as _, &mut stat) };
