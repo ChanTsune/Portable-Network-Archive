@@ -229,17 +229,8 @@ pub(crate) fn apply_metadata(
     }
     #[cfg(unix)]
     if keep_options.keep_xattr {
-        if xattr::SUPPORTED_PLATFORM {
-            let xattrs = xattr::list(path)?;
-            for name in xattrs {
-                let value = xattr::get(path, &name)?.unwrap_or_default();
-                entry.add_xattr(pna::ExtendedAttribute::new(
-                    name.to_string_lossy().into(),
-                    value,
-                ));
-            }
-        } else {
-            eprintln!("Currently extended attribute is not supported on this platform.");
+        for attr in crate::utils::os::unix::fs::xattrs::get_xattrs(path)? {
+            entry.add_xattr(attr);
         }
     }
     #[cfg(not(unix))]
