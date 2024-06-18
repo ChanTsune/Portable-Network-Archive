@@ -306,13 +306,7 @@ pub(crate) fn extract_entry(
     }
     #[cfg(unix)]
     if keep_options.keep_xattr {
-        if xattr::SUPPORTED_PLATFORM {
-            for x in item.xattrs() {
-                xattr::set(&path, x.name(), x.value())?;
-            }
-        } else {
-            eprintln!("Currently extended attribute is not supported on this platform.");
-        }
+        utils::os::unix::fs::xattrs::set_xattrs(&path, item.xattrs())?;
     }
     #[cfg(not(unix))]
     if keep_options.keep_xattr {
