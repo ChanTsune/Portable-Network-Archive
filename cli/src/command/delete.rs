@@ -49,7 +49,7 @@ fn delete_file_from_archive(args: DeleteCommand, _verbosity: Verbosity) -> io::R
         |entry| {
             let entry = entry?;
             let entry_path = entry.header().path().as_ref();
-            if globs.matches_any_path(entry_path) && !exclude_globs.matches_any_path(entry_path) {
+            if globs.matches_any(entry_path) && !exclude_globs.matches_any(entry_path) {
                 return Ok(());
             }
             out_archive.add_entry(entry)?;

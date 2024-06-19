@@ -321,7 +321,7 @@ pub(crate) fn run_list_archive(
     } else {
         entries
             .into_par_iter()
-            .filter(|r| globs.matches_any_path(r.name.as_ref()))
+            .filter(|r| globs.matches_any(r.name.as_ref()))
             .collect()
     };
     if args.long {

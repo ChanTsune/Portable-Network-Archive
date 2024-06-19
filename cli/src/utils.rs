@@ -7,7 +7,6 @@ mod path;
 pub(crate) mod str;
 
 pub(crate) use path::*;
-use std::path::Path;
 
 pub(crate) struct GlobPatterns(Vec<glob::Pattern>);
 
@@ -30,8 +29,8 @@ impl GlobPatterns {
     }
 
     #[inline]
-    pub(crate) fn matches_any_path(&self, path: &Path) -> bool {
-        self.0.iter().any(|glob| glob.matches_path(path))
+    pub(crate) fn matches_any(&self, s: &str) -> bool {
+        self.0.iter().any(|glob| glob.matches(s))
     }
 }
 
@@ -48,12 +47,12 @@ mod tests {
     #[test]
     fn glob_any_empty() {
         let globs = GlobPatterns::from(Vec::new());
-        assert!(!globs.matches_any_path("some".as_ref()));
+        assert!(!globs.matches_any("some"));
     }
 
     #[test]
     fn glob_any() {
         let globs = GlobPatterns::new(vec!["path/**"]).unwrap();
-        assert!(globs.matches_any_path("path/foo.pna".as_ref()));
+        assert!(globs.matches_any("path/foo.pna"));
     }
 }

@@ -160,8 +160,8 @@ where
     let (tx, rx) = std::sync::mpsc::channel();
     run_process_archive(reader, password_provider, |entry| {
         let item = entry?;
-        let item_path = PathBuf::from(item.header().path().as_str());
-        if !globs.is_empty() && !globs.matches_any_path(&item_path) {
+        let item_path = item.header().path().to_string();
+        if !globs.is_empty() && !globs.matches_any(&item_path) {
             if verbosity == Verbosity::Verbose {
                 eprintln!("Skip: {}", item.header().path())
             }
@@ -185,7 +185,7 @@ where
                 owner_options,
                 verbosity,
             ))
-            .unwrap_or_else(|e| panic!("{e}: {}", item_path.display()));
+            .unwrap_or_else(|e| panic!("{e}: {}", item_path));
         });
         Ok(())
     })?;
