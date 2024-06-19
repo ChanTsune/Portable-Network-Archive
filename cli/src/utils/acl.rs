@@ -1,9 +1,4 @@
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "macos"))]
-mod unix;
+pub use super::os::unix::acl::*;
 #[cfg(windows)]
-mod windows;
-
-#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "macos"))]
-pub use unix::*;
-#[cfg(windows)]
-pub use windows::*;
+pub use super::os::windows::acl::*;
