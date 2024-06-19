@@ -22,7 +22,7 @@ fn multipart_archive() {
         &format!("{}/multipart.part1.pna", env!("CARGO_TARGET_TMPDIR")),
         "--overwrite",
         "--out-dir",
-        &env!("CARGO_TARGET_TMPDIR"),
+        env!("CARGO_TARGET_TMPDIR"),
     ]))
     .unwrap();
 }
