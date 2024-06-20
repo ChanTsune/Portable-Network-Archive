@@ -135,6 +135,7 @@ pub(crate) fn entry_option(
     option_builder.build()
 }
 
+#[cfg_attr(target_os = "wasi", allow(unused_variables))]
 pub(crate) fn apply_metadata(
     mut entry: EntryBuilder,
     path: &Path,
