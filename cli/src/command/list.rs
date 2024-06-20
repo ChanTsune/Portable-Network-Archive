@@ -111,7 +111,7 @@ impl TableRow {
 
 impl
     From<(
-        RegularEntry,
+        &RegularEntry,
         Option<&str>,
         SystemTime,
         Option<&SolidHeader>,
@@ -120,7 +120,7 @@ impl
 {
     fn from(
         (entry, password, now, solid, numeric_owner): (
-            RegularEntry,
+            &RegularEntry,
             Option<&str>,
             SystemTime,
             Option<&SolidHeader>,
@@ -266,7 +266,7 @@ pub(crate) fn run_list_archive(
                             };
                             entries.push(
                                 (
-                                    entry,
+                                    &entry,
                                     password,
                                     now,
                                     Some(solid.header()),
@@ -303,7 +303,7 @@ pub(crate) fn run_list_archive(
                     } else {
                         Vec::new()
                     };
-                    entries.push((item, password, now, None, args.numeric_owner).into());
+                    entries.push((&item, password, now, None, args.numeric_owner).into());
                     entries.extend(acl);
                     entries.extend(xattrs);
                 }
