@@ -118,6 +118,7 @@ impl
         bool,
     )> for TableRow
 {
+    #[inline]
     fn from(
         (entry, password, now, solid, numeric_owner): (
             &RegularEntry,
