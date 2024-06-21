@@ -231,6 +231,7 @@ impl<R: Read> Archive<R> {
     /// # Errors
     ///
     /// Returns an error if an I/O error occurs while reading from the reader.
+    #[inline]
     pub fn read_next_archive<OR: Read>(self, reader: OR) -> io::Result<Archive<OR>> {
         let current_header = self.header;
         let next = Archive::<OR>::read_header_with_buffer(reader, self.buf)?;
@@ -294,6 +295,7 @@ impl<R: AsyncRead + Unpin> Archive<R> {
 
     /// Read a [RegularEntry] from the archive.
     /// This API is unstable.
+    #[inline]
     pub async fn read_entry_async(&mut self) -> io::Result<Option<RegularEntry>> {
         loop {
             let entry = self.next_raw_item_async().await?;
@@ -421,6 +423,7 @@ impl<R: Read + Seek> Archive<R> {
     /// # Ok(())
     /// # }
     /// ```
+    #[inline]
     pub fn seek_to_end(&mut self) -> io::Result<()> {
         let mut reader = ChunkReader::from(&mut self.inner);
         let byte;

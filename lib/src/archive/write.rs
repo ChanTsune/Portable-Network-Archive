@@ -76,11 +76,13 @@ impl<W: Write> Archive<W> {
     /// #    Ok(())
     /// # }
     /// ```
+    #[inline]
     pub fn write_header(write: W) -> io::Result<Self> {
         let header = ArchiveHeader::new(0, 0, 0);
         Self::write_header_with(write, header)
     }
 
+    #[inline]
     fn write_header_with(mut write: W, header: ArchiveHeader) -> io::Result<Self> {
         write.write_all(PNA_HEADER)?;
         (ChunkType::AHED, header.to_bytes().as_slice()).write_in(&mut write)?;
@@ -109,6 +111,7 @@ impl<W: Write> Archive<W> {
     /// #    Ok(())
     /// # }
     /// ```
+    #[inline]
     pub fn write_file<F>(
         &mut self,
         name: EntryName,
@@ -209,6 +212,7 @@ impl<W: Write> Archive<W> {
     /// #    Ok(())
     /// # }
     /// ```
+    #[inline]
     pub fn add_entry_part(&mut self, entry_part: EntryPart) -> io::Result<usize> {
         let mut chunk_writer = ChunkWriter::from(&mut self.inner);
         let mut written_len = 0;
@@ -244,6 +248,7 @@ impl<W: Write> Archive<W> {
     /// #    Ok(())
     /// # }
     /// ```
+    #[inline]
     pub fn split_to_next_archive<OW: Write>(mut self, writer: OW) -> io::Result<Archive<OW>> {
         let next_archive_number = self.header.archive_number + 1;
         let header = ArchiveHeader::new(0, 0, next_archive_number);
@@ -272,6 +277,7 @@ impl<W: Write> Archive<W> {
     /// # Ok(())
     /// # }
     /// ```
+    #[inline]
     pub fn finalize(mut self) -> io::Result<W> {
         let mut chunk_writer = ChunkWriter::from(&mut self.inner);
         chunk_writer.write_chunk((ChunkType::AEND, [].as_slice()))?;
@@ -288,6 +294,7 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
         Self::write_header_with_async(write, header).await
     }
 
+    #[inline]
     async fn write_header_with_async(mut write: W, header: ArchiveHeader) -> io::Result<Self> {
         write.write_all(PNA_HEADER).await?;
         let mut chunk_writer = ChunkWriter::from(&mut write);
@@ -299,6 +306,7 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
 
     /// Adds a new entry to the archive.
     /// This API is unstable.
+    #[inline]
     pub async fn add_entry_async(&mut self, entry: impl Entry) -> io::Result<usize> {
         let mut bytes = Vec::new();
         entry.write_in(&mut bytes)?;
@@ -308,6 +316,7 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
 
     /// Write an end marker to finalize the archive.
     /// This API is unstable.
+    #[inline]
     pub async fn finalize_async(mut self) -> io::Result<W> {
         let mut chunk_writer = ChunkWriter::from(&mut self.inner);
         chunk_writer
@@ -348,6 +357,7 @@ impl<W: Write> Archive<W> {
     /// #    Ok(())
     /// # }
     /// ```
+    #[inline]
     pub fn write_solid_header(write: W, option: WriteOptions) -> io::Result<SolidArchive<W>> {
         let header = SolidHeader::new(option.compression, option.encryption, option.cipher_mode);
         let context = get_writer_context(option)?;
@@ -394,6 +404,7 @@ impl<W: Write> SolidArchive<W> {
     /// #     Ok(())
     /// # }
     /// ```
+    #[inline]
     pub fn add_entry(&mut self, entry: RegularEntry) -> io::Result<usize> {
         entry.write_in(&mut self.inner)
     }
@@ -418,6 +429,7 @@ impl<W: Write> SolidArchive<W> {
     /// #    Ok(())
     /// # }
     /// ```
+    #[inline]
     pub fn write_file<F>(&mut self, name: EntryName, metadata: Metadata, mut f: F) -> io::Result<()>
     where
         F: FnMut(&mut SolidArchiveEntryDataWriter<W>) -> io::Result<()>,
@@ -481,6 +493,7 @@ impl<W: Write> SolidArchive<W> {
     /// #    Ok(())
     /// # }
     /// ```
+    #[inline]
     pub fn finalize(mut self) -> io::Result<W> {
         self.inner.flush()?;
         let mut inner = self.inner.try_into_inner()?.try_into_inner()?.into_inner();

@@ -81,6 +81,7 @@ impl EntryBuilder {
     /// # Returns
     ///
     /// A Result containing the new [EntryBuilder], or an I/O error if creation fails.
+    #[inline]
     pub fn new_file(name: EntryName, option: WriteOptions) -> io::Result<Self> {
         let header = EntryHeader::for_file(
             option.compression,
@@ -123,6 +124,7 @@ impl EntryBuilder {
     /// .unwrap();
     /// let entry = builder.build().unwrap();
     /// ```
+    #[inline]
     pub fn new_symbolic_link(name: EntryName, source: EntryReference) -> io::Result<Self> {
         let option = WriteOptions::store();
         let context = get_writer_context(option)?;
@@ -161,6 +163,7 @@ impl EntryBuilder {
     /// .unwrap();
     /// let entry = builder.build().unwrap();
     /// ```
+    #[inline]
     pub fn new_hard_link(name: EntryName, source: EntryReference) -> io::Result<Self> {
         let option = WriteOptions::store();
         let context = get_writer_context(option)?;
@@ -288,6 +291,7 @@ impl EntryBuilder {
     /// # Returns
     ///
     /// A Result containing the new [RegularEntry], or an I/O error if the build fails.
+    #[inline]
     pub fn build(self) -> io::Result<RegularEntry> {
         let mut data = if let Some(data) = self.data {
             data.try_into_inner()?.try_into_inner()?.inner
@@ -375,6 +379,7 @@ impl SolidEntryBuilder {
     /// # Returns
     ///
     /// A new [SolidEntryBuilder].
+    #[inline]
     pub fn new(option: WriteOptions) -> io::Result<Self> {
         let header = SolidHeader::new(option.compression, option.encryption, option.cipher_mode);
         let context = get_writer_context(option)?;
