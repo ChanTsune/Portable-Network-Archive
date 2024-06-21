@@ -340,6 +340,7 @@ impl Write for EntryBuilder {
 
 #[cfg(feature = "unstable-async")]
 impl AsyncWrite for EntryBuilder {
+    #[inline]
     fn poll_write(
         self: Pin<&mut Self>,
         _cx: &mut Context<'_>,
@@ -348,10 +349,12 @@ impl AsyncWrite for EntryBuilder {
         Poll::Ready(self.get_mut().write(buf))
     }
 
+    #[inline]
     fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Poll::Ready(self.get_mut().flush())
     }
 
+    #[inline]
     fn poll_close(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Poll::Ready(Ok(()))
     }
