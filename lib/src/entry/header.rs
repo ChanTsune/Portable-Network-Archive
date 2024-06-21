@@ -111,13 +111,9 @@ impl EntryHeader {
         data.extend_from_slice(name);
         data
     }
-}
 
-impl TryFrom<&[u8]> for EntryHeader {
-    type Error = io::Error;
-
-    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
-        Ok(EntryHeader {
+    pub(crate) fn try_from_bytes(bytes: &[u8]) -> io::Result<Self> {
+        Ok(Self {
             major: bytes[0],
             minor: bytes[1],
             data_kind: DataKind::try_from(bytes[2])
@@ -131,6 +127,15 @@ impl TryFrom<&[u8]> for EntryHeader {
             path: EntryName::try_from(&bytes[6..])
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
         })
+    }
+}
+
+impl TryFrom<&[u8]> for EntryHeader {
+    type Error = io::Error;
+
+    #[inline]
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        Self::try_from_bytes(bytes)
     }
 }
 
@@ -190,12 +195,8 @@ impl SolidHeader {
             self.cipher_mode as u8,
         ]
     }
-}
 
-impl TryFrom<&[u8]> for SolidHeader {
-    type Error = io::Error;
-
-    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+    pub(crate) fn try_from_bytes(bytes: &[u8]) -> io::Result<Self> {
         let bytes: [_; 5] = bytes
             .try_into()
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
@@ -209,5 +210,14 @@ impl TryFrom<&[u8]> for SolidHeader {
             cipher_mode: CipherMode::try_from(bytes[4])
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
         })
+    }
+}
+
+impl TryFrom<&[u8]> for SolidHeader {
+    type Error = io::Error;
+
+    #[inline]
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        Self::try_from_bytes(bytes)
     }
 }
