@@ -33,6 +33,7 @@ impl MetadataTimeExt for Metadata {
     ///     metadata.created_time(),
     /// );
     /// ```
+    #[inline]
     fn created_time(&self) -> Option<SystemTime> {
         self.created().map(|it| SystemTime::UNIX_EPOCH + it)
     }
@@ -51,6 +52,7 @@ impl MetadataTimeExt for Metadata {
     ///     metadata.modified_time(),
     /// );
     /// ```
+    #[inline]
     fn modified_time(&self) -> Option<SystemTime> {
         self.modified().map(|it| SystemTime::UNIX_EPOCH + it)
     }
@@ -69,6 +71,7 @@ impl MetadataTimeExt for Metadata {
     ///     metadata.accessed_time(),
     /// );
     /// ```
+    #[inline]
     fn accessed_time(&self) -> Option<SystemTime> {
         self.accessed().map(|it| SystemTime::UNIX_EPOCH + it)
     }
@@ -84,6 +87,7 @@ impl MetadataTimeExt for Metadata {
     /// ```
     /// # Panic
     /// When given created time is before unix epoch, it will be panic.
+    #[inline]
     fn with_created_time(self, created_time: Option<SystemTime>) -> Self {
         self.with_created(created_time.map(|it| {
             it.duration_since(SystemTime::UNIX_EPOCH)
@@ -102,6 +106,7 @@ impl MetadataTimeExt for Metadata {
     /// ```
     /// # Panic
     /// When given modified time is before unix epoch, it will be panic.
+    #[inline]
     fn with_modified_time(self, modified_time: Option<SystemTime>) -> Self {
         self.with_modified(modified_time.map(|it| {
             it.duration_since(SystemTime::UNIX_EPOCH)
@@ -120,6 +125,7 @@ impl MetadataTimeExt for Metadata {
     /// ```
     /// # Panic
     /// When given accessed time is before unix epoch, it will be panic.
+    #[inline]
     fn with_accessed_time(self, accessed_time: Option<SystemTime>) -> Self {
         self.with_accessed(accessed_time.map(|it| {
             it.duration_since(SystemTime::UNIX_EPOCH)

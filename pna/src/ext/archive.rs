@@ -28,6 +28,7 @@ impl ArchiveFsExt for Archive<fs::File> {
     /// # Ok(())
     /// # }
     /// ```
+    #[inline]
     fn create<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let file = fs::File::create(path)?;
         Archive::write_header(file)
@@ -45,6 +46,7 @@ impl ArchiveFsExt for Archive<fs::File> {
     /// # Ok(())
     /// # }
     /// ```
+    #[inline]
     fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let file = fs::File::open(path)?;
         Archive::read_header(file)
