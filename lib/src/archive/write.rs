@@ -179,6 +179,7 @@ impl<W: Write> Archive<W> {
     /// #     Ok(())
     /// # }
     /// ```
+    #[inline]
     pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<usize> {
         entry.write_in(&mut self.inner)
     }
@@ -283,6 +284,7 @@ impl<W: Write> Archive<W> {
 impl<W: AsyncWrite + Unpin> Archive<W> {
     /// Writes the archive header to the given object and return a new [Archive].
     /// This API is unstable.
+    #[inline]
     pub async fn write_header_async(write: W) -> io::Result<Self> {
         let header = ArchiveHeader::new(0, 0, 0);
         Self::write_header_with_async(write, header).await

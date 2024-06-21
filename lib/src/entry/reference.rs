@@ -121,6 +121,7 @@ impl EntryReference {
     /// assert_eq!("./foo.txt", EntryReference::from_lossy("./foo.txt"));
     /// assert_eq!("../foo.txt", EntryReference::from_lossy("../foo.txt"));
     /// ```
+    #[inline]
     pub fn from_lossy<T: Into<PathBuf>>(p: T) -> Self {
         let path = p.into();
         let has_root = path.has_root();

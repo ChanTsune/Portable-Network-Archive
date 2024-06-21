@@ -67,6 +67,7 @@ impl EntryBuilder {
     /// # Returns
     ///
     /// A new [EntryBuilder].
+    #[inline]
     pub const fn new_dir(name: EntryName) -> Self {
         Self::new(EntryHeader::for_dir(name))
     }
@@ -417,6 +418,7 @@ impl SolidEntryBuilder {
     /// #     Ok(())
     /// # }
     /// ```
+    #[inline]
     pub fn add_entry(&mut self, entry: RegularEntry) -> io::Result<usize> {
         entry.write_in(&mut self.data)
     }
