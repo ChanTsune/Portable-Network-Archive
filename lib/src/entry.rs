@@ -345,9 +345,7 @@ impl TryFrom<RawEntry> for RegularEntry {
         for chunk in entry.0 {
             match chunk.ty {
                 ChunkType::FEND => break,
-                ChunkType::FHED => {
-                    info = Some(EntryHeader::try_from(chunk.data.as_slice())?);
-                }
+                ChunkType::FHED => info = Some(EntryHeader::try_from(chunk.data.as_slice())?),
                 ChunkType::PHSF => {
                     phsf = Some(
                         String::from_utf8(chunk.data)
