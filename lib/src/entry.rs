@@ -413,11 +413,7 @@ impl SealedEntryExt for RegularEntry {
         if let Some(raw_file_size) = raw_file_size {
             vec.push(RawChunk::from_data(
                 ChunkType::fSIZ,
-                raw_file_size
-                    .to_be_bytes()
-                    .into_iter()
-                    .skip_while(|i| *i == 0)
-                    .collect::<Vec<_>>(),
+                skip_while(&raw_file_size.to_be_bytes(), |i| *i == 0),
             ));
         }
 
