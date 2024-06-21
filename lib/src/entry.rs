@@ -578,6 +578,7 @@ impl RegularEntry {
     /// # Ok(())
     /// # }
     /// ```
+    #[inline]
     pub fn with_metadata(mut self, mut metadata: Metadata) -> Self {
         metadata.compressed_size = self.metadata.compressed_size;
         metadata.raw_file_size = self.metadata.raw_file_size;
@@ -598,6 +599,7 @@ impl RegularEntry {
     /// # Ok(())
     /// # }
     /// ```
+    #[inline]
     pub fn with_xattrs(mut self, xattrs: &[ExtendedAttribute]) -> Self {
         self.xattrs = xattrs.into();
         self
@@ -619,6 +621,7 @@ impl RegularEntry {
     /// # Ok(())
     /// # }
     /// ```
+    #[inline]
     pub fn with_extra_chunks(mut self, chunks: &[RawChunk]) -> Self {
         self.extra = chunks.into();
         self
@@ -666,6 +669,7 @@ impl EntryPart {
 }
 
 impl<T: SealedEntryExt> From<T> for EntryPart {
+    #[inline]
     fn from(value: T) -> Self {
         Self(value.into_chunks())
     }
