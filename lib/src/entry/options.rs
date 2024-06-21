@@ -85,45 +85,10 @@ impl Default for CompressionLevel {
     }
 }
 
-impl From<u8> for CompressionLevel {
+impl<T: Into<i64>> From<T> for CompressionLevel {
     #[inline]
-    fn from(value: u8) -> Self {
-        Self(CompressionLevelImpl::Custom(i64::from(value)))
-    }
-}
-
-impl From<u16> for CompressionLevel {
-    #[inline]
-    fn from(value: u16) -> Self {
-        Self(CompressionLevelImpl::Custom(i64::from(value)))
-    }
-}
-
-impl From<u32> for CompressionLevel {
-    #[inline]
-    fn from(value: u32) -> Self {
-        Self(CompressionLevelImpl::Custom(i64::from(value)))
-    }
-}
-
-impl From<i8> for CompressionLevel {
-    #[inline]
-    fn from(value: i8) -> Self {
-        Self(CompressionLevelImpl::Custom(i64::from(value)))
-    }
-}
-
-impl From<i16> for CompressionLevel {
-    #[inline]
-    fn from(value: i16) -> Self {
-        Self(CompressionLevelImpl::Custom(i64::from(value)))
-    }
-}
-
-impl From<i32> for CompressionLevel {
-    #[inline]
-    fn from(value: i32) -> Self {
-        Self(CompressionLevelImpl::Custom(i64::from(value)))
+    fn from(value: T) -> Self {
+        Self(CompressionLevelImpl::Custom(value.into()))
     }
 }
 
