@@ -294,6 +294,7 @@ pub struct WriteOptionsBuilder {
 }
 
 impl Default for WriteOptionsBuilder {
+    #[inline]
     fn default() -> Self {
         Self::new()
     }

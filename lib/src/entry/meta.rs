@@ -141,6 +141,7 @@ impl Metadata {
 }
 
 impl Default for Metadata {
+    #[inline]
     fn default() -> Self {
         Self::new()
     }

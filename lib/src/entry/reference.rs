@@ -177,6 +177,7 @@ impl TryFrom<&Path> for EntryReference {
 }
 
 impl Display for EntryReference {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         Display::fmt(&self.0, f)
     }

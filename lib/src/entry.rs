@@ -102,6 +102,8 @@ pub enum ReadEntry {
 
 impl TryFrom<RawEntry> for ReadEntry {
     type Error = io::Error;
+
+    #[inline]
     fn try_from(entry: RawEntry) -> Result<Self, Self::Error> {
         if let Some(first_chunk) = entry.0.first() {
             match first_chunk.ty {
@@ -248,6 +250,7 @@ impl SolidEntry {
 impl TryFrom<RawEntry> for SolidEntry {
     type Error = io::Error;
 
+    #[inline]
     fn try_from(entry: RawEntry) -> Result<Self, Self::Error> {
         if let Some(first_chunk) = entry.0.first() {
             if first_chunk.ty != ChunkType::SHED {
@@ -267,6 +270,8 @@ impl TryFrom<RawEntry> for SolidEntry {
 
 impl TryFrom<ChunkSolidEntries> for SolidEntry {
     type Error = io::Error;
+
+    #[inline]
     fn try_from(entry: ChunkSolidEntries) -> Result<Self, Self::Error> {
         let mut extra = vec![];
         let mut data = vec![];
@@ -319,6 +324,8 @@ pub struct RegularEntry {
 
 impl TryFrom<RawEntry> for RegularEntry {
     type Error = io::Error;
+
+    #[inline]
     fn try_from(entry: RawEntry) -> Result<Self, Self::Error> {
         if let Some(first_chunk) = entry.0.first() {
             if first_chunk.ty != ChunkType::FHED {
