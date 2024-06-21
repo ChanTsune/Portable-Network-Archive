@@ -231,6 +231,7 @@ impl SolidEntry {
     /// #    Ok(())
     /// # }
     /// ```
+    #[inline]
     pub fn entries(
         &self,
         password: Option<&str>,
@@ -648,6 +649,7 @@ impl EntryPart {
     }
 
     /// Split [EntryPart] into two parts if this entry is shorter in max_bytes_len.
+    #[inline]
     pub fn split(self, max_bytes_len: usize) -> (EntryPart, Option<EntryPart>) {
         if self.bytes_len() <= max_bytes_len {
             return (self, None);
@@ -700,6 +702,7 @@ impl SealedEntryExt for ChunkSolidEntries {
     }
 }
 
+#[inline]
 fn timestamp(bytes: &[u8]) -> io::Result<Duration> {
     Ok(Duration::from_secs(u64::from_be_bytes(
         bytes
@@ -708,6 +711,7 @@ fn timestamp(bytes: &[u8]) -> io::Result<Duration> {
     )))
 }
 
+#[inline]
 fn u128_from_be_bytes_last(bytes: &[u8]) -> u128 {
     let mut buf = [0u8; 16];
     for i in 1..=buf.len().min(bytes.len()) {
