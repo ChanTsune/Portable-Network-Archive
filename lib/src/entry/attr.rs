@@ -16,6 +16,7 @@ impl ExtendedAttribute {
     ///
     /// let xattr = ExtendedAttribute::new("name".into(), b"value".into());
     /// ```
+    #[inline]
     pub fn new(name: String, value: Vec<u8>) -> Self {
         Self { name, value }
     }
@@ -29,6 +30,7 @@ impl ExtendedAttribute {
     /// let xattr = ExtendedAttribute::new("name".into(), b"value".into());
     /// assert_eq!("name", xattr.name());
     /// ```
+    #[inline]
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -42,6 +44,7 @@ impl ExtendedAttribute {
     /// let xattr = ExtendedAttribute::new("name".into(), b"value".into());
     /// assert_eq!(b"value", xattr.value());
     /// ```
+    #[inline]
     pub fn value(&self) -> &[u8] {
         &self.value
     }
