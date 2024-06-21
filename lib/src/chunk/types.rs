@@ -15,6 +15,7 @@ pub enum ChunkTypeError {
 }
 
 impl Display for ChunkTypeError {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         Display::fmt(
             match self {

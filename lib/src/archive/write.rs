@@ -19,10 +19,12 @@ use std::io::{self, Write};
 pub struct EntryDataWriter<W: Write>(CompressionWriter<CipherWriter<ChunkStreamWriter<W>>>);
 
 impl<W: Write> Write for EntryDataWriter<W> {
+    #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.0.write(buf)
     }
 
+    #[inline]
     fn flush(&mut self) -> io::Result<()> {
         self.0.flush()
     }
@@ -38,10 +40,12 @@ pub struct SolidArchiveEntryDataWriter<'w, W: Write>(
 );
 
 impl<'w, W: Write> Write for SolidArchiveEntryDataWriter<'w, W> {
+    #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.0.write(buf)
     }
 
+    #[inline]
     fn flush(&mut self) -> io::Result<()> {
         self.0.flush()
     }
