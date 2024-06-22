@@ -6,7 +6,7 @@
 //! provide largely a streaming interface to read bytes from.
 
 #![doc(html_root_url = "https://docs.rs/libpna/0.12.1")]
-#![deny(missing_docs)]
+#![deny(missing_docs, clippy::missing_inline_in_public_items)]
 pub(crate) mod archive;
 pub(crate) mod chunk;
 pub(crate) mod cipher;
