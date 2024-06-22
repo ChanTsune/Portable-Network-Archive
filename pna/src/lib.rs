@@ -4,7 +4,14 @@
 //! necessary to manage PNA archives abstracted over a reader or writer hosted by [libpna].
 #![cfg_attr(target_os = "wasi", feature(wasi_ext))]
 #![doc(html_root_url = "https://docs.rs/pna/0.12.0")]
-#![deny(missing_docs, clippy::missing_inline_in_public_items)]
+#![deny(
+    missing_docs,
+    clippy::missing_inline_in_public_items,
+    clippy::missing_const_for_fn,
+    clippy::missing_panics_doc,
+    clippy::missing_errors_doc,
+    clippy::missing_safety_doc
+)]
 mod ext;
 pub mod fs;
 pub mod prelude;
