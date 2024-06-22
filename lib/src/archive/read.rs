@@ -426,17 +426,15 @@ impl<R: Read + Seek> Archive<R> {
     #[inline]
     pub fn seek_to_end(&mut self) -> io::Result<()> {
         let mut reader = ChunkReader::from(&mut self.inner);
-        let byte;
-        loop {
+        let byte = loop {
             let (ty, byte_length) = reader.skip_chunk()?;
             if ty == ChunkType::AEND {
-                byte = byte_length as i64;
-                break;
+                break byte_length;
             } else if ty == ChunkType::ANXT {
                 self.next_archive = true;
             }
-        }
-        self.inner.seek(SeekFrom::Current(-byte))?;
+        };
+        self.inner.seek(SeekFrom::Current(-(byte as i64)))?;
         Ok(())
     }
 }
