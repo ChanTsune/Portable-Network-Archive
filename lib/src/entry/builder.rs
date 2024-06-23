@@ -4,7 +4,7 @@ use crate::{
     compress::CompressionWriter,
     entry::{
         get_writer, get_writer_context, private::SealedEntryExt, Cipher, DataKind, Entry,
-        EntryHeader, EntryName, EntryReference, ExtendedAttribute, Metadata, Permission,
+        EntryData, EntryHeader, EntryName, EntryReference, ExtendedAttribute, Metadata, Permission,
         RegularEntry, SolidEntry, SolidHeader, WriteOptions,
     },
     io::TryIntoInner,
@@ -302,12 +302,16 @@ impl EntryBuilder {
         if let Some(iv) = self.iv {
             data.insert(0, iv);
         }
+        let data = EntryData {
+            data,
+            phsf: self.phsf,
+        };
         let metadata = Metadata {
             raw_file_size: match (self.store_file_size, self.header.data_kind) {
                 (true, DataKind::File) => Some(self.file_size),
                 _ => None,
             },
-            compressed_size: data.iter().map(|d| d.len()).sum(),
+            compressed_size: data.len(),
             created: self.created,
             modified: self.last_modified,
             accessed: self.accessed,
@@ -315,7 +319,6 @@ impl EntryBuilder {
         };
         Ok(RegularEntry {
             header: self.header,
-            phsf: self.phsf,
             extra: self.extra_chunks,
             data,
             metadata,

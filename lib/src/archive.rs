@@ -348,9 +348,10 @@ mod tests {
         let mut writer = Archive::write_header(Vec::new()).unwrap();
         writer
             .add_entry({
-                let builder =
+                let mut builder =
                     EntryBuilder::new_file("text1.txt".into(), WriteOptions::builder().build())
                         .unwrap();
+                builder.write_all(b"file1").unwrap();
                 builder.build().unwrap()
             })
             .unwrap();
@@ -360,9 +361,10 @@ mod tests {
         appender.seek_to_end().unwrap();
         appender
             .add_entry({
-                let builder =
+                let mut builder =
                     EntryBuilder::new_file("text2.txt".into(), WriteOptions::builder().build())
                         .unwrap();
+                builder.write_all(b"file2").unwrap();
                 builder.build().unwrap()
             })
             .unwrap();
@@ -371,8 +373,26 @@ mod tests {
         let mut reader = Archive::read_header(appended.as_slice()).unwrap();
 
         let mut entries = reader.entries_skip_solid();
-        assert!(entries.next().is_some());
-        assert!(entries.next().is_some());
+        assert_eq!(
+            {
+                let entry = entries.next().unwrap().unwrap();
+                let mut reader = entry.reader(ReadOptions::builder().build()).unwrap();
+                let mut buf = Vec::new();
+                reader.read_to_end(&mut buf).unwrap();
+                buf
+            },
+            b"file1"
+        );
+        assert_eq!(
+            {
+                let entry = entries.next().unwrap().unwrap();
+                let mut reader = entry.reader(ReadOptions::builder().build()).unwrap();
+                let mut buf = Vec::new();
+                reader.read_to_end(&mut buf).unwrap();
+                buf
+            },
+            b"file2"
+        );
         assert!(entries.next().is_none());
     }
 

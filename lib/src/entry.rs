@@ -1,5 +1,6 @@
 mod attr;
 mod builder;
+mod data;
 mod header;
 mod meta;
 mod name;
@@ -8,7 +9,9 @@ mod read;
 mod reference;
 mod write;
 
-pub use self::{attr::*, builder::*, header::*, meta::*, name::*, options::*, reference::*};
+pub use self::{
+    attr::*, builder::*, data::*, header::*, meta::*, name::*, options::*, reference::*,
+};
 pub(crate) use self::{private::*, read::*, write::*};
 use crate::{
     chunk::{chunk_data_split, ChunkExt, ChunkReader, ChunkType, RawChunk, MIN_CHUNK_BYTES_SIZE},
@@ -317,9 +320,8 @@ impl TryFrom<ChunkSolidEntries> for SolidEntry {
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct RegularEntry {
     pub(crate) header: EntryHeader,
-    pub(crate) phsf: Option<String>,
     pub(crate) extra: Vec<RawChunk>,
-    pub(crate) data: Vec<Vec<u8>>,
+    pub(crate) data: EntryData,
     pub(crate) metadata: Metadata,
     pub(crate) xattrs: Vec<ExtendedAttribute>,
 }
@@ -386,13 +388,13 @@ impl TryFrom<RawEntry> for RegularEntry {
                 ),
             ));
         }
+        let data = EntryData { data, phsf };
         Ok(Self {
             header,
-            phsf,
             extra,
             metadata: Metadata {
                 raw_file_size: size,
-                compressed_size: data.iter().map(|it| it.len()).sum(),
+                compressed_size: data.len(),
                 created: ctime,
                 modified: mtime,
                 accessed: atime,
@@ -424,10 +426,10 @@ impl SealedEntryExt for RegularEntry {
             ));
         }
 
-        if let Some(p) = self.phsf {
+        if let Some(p) = self.data.phsf {
             vec.push(RawChunk::from_data(ChunkType::PHSF, p.into_bytes()));
         }
-        for data_chunk in self.data {
+        for data_chunk in self.data.data {
             for data_unit in data_chunk.chunks(u32::MAX as usize) {
                 vec.push(RawChunk::from_data(ChunkType::FDAT, data_unit));
             }
@@ -484,10 +486,10 @@ impl SealedEntryExt for RegularEntry {
                 .write_in(writer)?;
         }
 
-        if let Some(p) = &self.phsf {
+        if let Some(p) = &self.data.phsf {
             total += (ChunkType::PHSF, p.as_bytes()).write_in(writer)?;
         }
-        for data_chunk in &self.data {
+        for data_chunk in &self.data.data {
             for data_unit in data_chunk.chunks(u32::MAX as usize) {
                 total += (ChunkType::FDAT, data_unit).write_in(writer)?;
             }
@@ -562,12 +564,12 @@ impl RegularEntry {
     #[inline]
     pub fn reader(&self, option: ReadOptions) -> io::Result<EntryDataReader> {
         let raw_data_reader =
-            crate::io::FlattenReader::new(self.data.iter().map(|it| it.as_slice()).collect());
+            crate::io::FlattenReader::new(self.data.data.iter().map(|it| it.as_slice()).collect());
         let decrypt_reader = decrypt_reader(
             raw_data_reader,
             self.header.encryption,
             self.header.cipher_mode,
-            self.phsf.as_deref(),
+            self.data.phsf.as_deref(),
             option.password.as_deref(),
         )?;
         let reader = decompress_reader(decrypt_reader, self.header.compression)?;
