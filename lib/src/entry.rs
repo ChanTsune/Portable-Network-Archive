@@ -732,6 +732,7 @@ mod tests {
             u32::MAX as u128,
             u128_from_be_bytes_last(&u32::MAX.to_be_bytes())
         );
+        assert_eq!(u128::MAX, u128_from_be_bytes_last(&u128::MAX.to_be_bytes()));
     }
 
     mod entry_part_split {
