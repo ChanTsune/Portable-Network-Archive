@@ -32,6 +32,7 @@ mod private {
 pub trait Entry: SealedEntryExt {}
 
 impl SealedEntryExt for ReadEntry {
+    #[inline]
     fn into_chunks(self) -> Vec<RawChunk> {
         match self {
             Self::Regular(r) => r.into_chunks(),
@@ -39,6 +40,7 @@ impl SealedEntryExt for ReadEntry {
         }
     }
 
+    #[inline]
     fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         match self {
             ReadEntry::Regular(r) => r.write_in(writer),
