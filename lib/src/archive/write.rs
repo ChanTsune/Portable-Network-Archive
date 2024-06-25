@@ -4,8 +4,8 @@ use crate::{
     cipher::CipherWriter,
     compress::CompressionWriter,
     entry::{
-        get_writer, get_writer_context, Cipher, Entry, EntryHeader, EntryName, EntryPart, Metadata,
-        RegularEntry, SealedEntryExt, SolidHeader, WriteOptions,
+        get_writer, get_writer_context, Entry, EntryHeader, EntryName, EntryPart, Metadata,
+        RegularEntry, SealedEntryExt, SolidHeader, WriteCipher, WriteOptions,
     },
     io::TryIntoInner,
 };
@@ -149,7 +149,7 @@ impl<W: Write> Archive<W> {
         if let Some(phsf) = &context.phsf {
             (ChunkType::PHSF, phsf.as_bytes()).write_in(&mut self.inner)?;
         }
-        if let Cipher::Aes(c) | Cipher::Camellia(c) = &context.cipher {
+        if let WriteCipher::Aes(c) | WriteCipher::Camellia(c) = &context.cipher {
             (ChunkType::FDAT, &c.iv[..]).write_in(&mut self.inner)?;
         }
         {
@@ -373,7 +373,7 @@ impl<W: Write> Archive<W> {
         if let Some(phsf) = &context.phsf {
             (ChunkType::PHSF, phsf.as_bytes()).write_in(&mut archive.inner)?;
         }
-        if let Cipher::Aes(c) | Cipher::Camellia(c) = &context.cipher {
+        if let WriteCipher::Aes(c) | WriteCipher::Camellia(c) = &context.cipher {
             (ChunkType::SDAT, c.iv.as_slice()).write_in(&mut archive.inner)?;
         }
         archive.inner.flush()?;
@@ -464,7 +464,7 @@ impl<W: Write> SolidArchive<W> {
         if let Some(phsf) = &context.phsf {
             (ChunkType::PHSF, phsf.as_bytes()).write_in(&mut self.inner)?;
         }
-        if let Cipher::Aes(c) | Cipher::Camellia(c) = &context.cipher {
+        if let WriteCipher::Aes(c) | WriteCipher::Camellia(c) = &context.cipher {
             (ChunkType::FDAT, &c.iv[..]).write_in(&mut self.inner)?;
         }
         {

@@ -19,7 +19,7 @@ pub(crate) struct CipherContext {
     pub(crate) mode: CipherMode,
 }
 
-pub(crate) enum Cipher {
+pub(crate) enum WriteCipher {
     None,
     Aes(CipherContext),
     Camellia(CipherContext),
@@ -28,7 +28,7 @@ pub(crate) enum Cipher {
 pub(crate) struct EntryWriterContext {
     pub(crate) compression_level: CompressionLevel,
     pub(crate) compression: Compression,
-    pub(crate) cipher: Cipher,
+    pub(crate) cipher: WriteCipher,
     pub(crate) phsf: Option<String>,
 }
 
@@ -38,15 +38,15 @@ fn get_cipher(
     hash_algorithm: HashAlgorithm,
     algorithm: Encryption,
     mode: CipherMode,
-) -> io::Result<(Cipher, Option<String>)> {
+) -> io::Result<(WriteCipher, Option<String>)> {
     Ok(match algorithm {
-        Encryption::No => (Cipher::None, None),
+        Encryption::No => (WriteCipher::None, None),
         Encryption::Aes => {
             let salt = random::salt_string();
             let (hash, phsf) = hash(algorithm, hash_algorithm, password.unwrap(), &salt)?;
             let iv = random::random_vec(Aes256::block_size())?;
             (
-                Cipher::Aes(CipherContext {
+                WriteCipher::Aes(CipherContext {
                     iv,
                     key: hash.as_bytes().to_vec(),
                     mode,
@@ -59,7 +59,7 @@ fn get_cipher(
             let (hash, phsf) = hash(algorithm, hash_algorithm, password.unwrap(), &salt)?;
             let iv = random::random_vec(Camellia256::block_size())?;
             (
-                Cipher::Camellia(CipherContext {
+                WriteCipher::Camellia(CipherContext {
                     iv,
                     key: hash.as_bytes().to_vec(),
                     mode,
@@ -129,25 +129,25 @@ fn hash<'s, 'p: 's>(
 }
 
 #[inline]
-fn encryption_writer<W: Write>(writer: W, cipher: &Cipher) -> io::Result<CipherWriter<W>> {
+fn encryption_writer<W: Write>(writer: W, cipher: &WriteCipher) -> io::Result<CipherWriter<W>> {
     Ok(match cipher {
-        Cipher::None => CipherWriter::No(writer),
-        Cipher::Aes(CipherContext {
+        WriteCipher::None => CipherWriter::No(writer),
+        WriteCipher::Aes(CipherContext {
             iv,
             key,
             mode: CipherMode::CBC,
         }) => CipherWriter::CbcAes(EncryptCbcAes256Writer::new(writer, key, iv)?),
-        Cipher::Aes(CipherContext {
+        WriteCipher::Aes(CipherContext {
             iv,
             key,
             mode: CipherMode::CTR,
         }) => CipherWriter::CtrAes(Ctr128BEWriter::new(writer, key, iv)?),
-        Cipher::Camellia(CipherContext {
+        WriteCipher::Camellia(CipherContext {
             iv,
             key,
             mode: CipherMode::CBC,
         }) => CipherWriter::CbcCamellia(EncryptCbcCamellia256Writer::new(writer, key, iv)?),
-        Cipher::Camellia(CipherContext {
+        WriteCipher::Camellia(CipherContext {
             iv,
             key,
             mode: CipherMode::CTR,

@@ -3,9 +3,9 @@ use crate::{
     cipher::CipherWriter,
     compress::CompressionWriter,
     entry::{
-        get_writer, get_writer_context, private::SealedEntryExt, Cipher, DataKind, Entry,
-        EntryHeader, EntryName, EntryReference, ExtendedAttribute, Metadata, Permission,
-        RegularEntry, SolidEntry, SolidHeader, WriteOptions,
+        get_writer, get_writer_context, private::SealedEntryExt, DataKind, Entry, EntryHeader,
+        EntryName, EntryReference, ExtendedAttribute, Metadata, Permission, RegularEntry,
+        SolidEntry, SolidHeader, WriteCipher, WriteOptions,
     },
     io::TryIntoInner,
 };
@@ -95,8 +95,8 @@ impl EntryBuilder {
         Ok(Self {
             data: Some(writer),
             iv: match context.cipher {
-                Cipher::None => None,
-                Cipher::Aes(c) | Cipher::Camellia(c) => Some(c.iv),
+                WriteCipher::None => None,
+                WriteCipher::Aes(c) | WriteCipher::Camellia(c) => Some(c.iv),
             },
             phsf: context.phsf,
             ..Self::new(header)
@@ -134,8 +134,8 @@ impl EntryBuilder {
         Ok(Self {
             data: Some(writer),
             iv: match context.cipher {
-                Cipher::None => None,
-                Cipher::Aes(c) | Cipher::Camellia(c) => Some(c.iv),
+                WriteCipher::None => None,
+                WriteCipher::Aes(c) | WriteCipher::Camellia(c) => Some(c.iv),
             },
             phsf: context.phsf,
             ..Self::new(EntryHeader::for_symbolic_link(name))
@@ -173,8 +173,8 @@ impl EntryBuilder {
         Ok(Self {
             data: Some(writer),
             iv: match context.cipher {
-                Cipher::None => None,
-                Cipher::Aes(c) | Cipher::Camellia(c) => Some(c.iv),
+                WriteCipher::None => None,
+                WriteCipher::Aes(c) | WriteCipher::Camellia(c) => Some(c.iv),
             },
             phsf: context.phsf,
             ..Self::new(EntryHeader::for_hard_link(name))
@@ -391,8 +391,8 @@ impl SolidEntryBuilder {
         Ok(Self {
             header,
             iv: match context.cipher {
-                Cipher::None => None,
-                Cipher::Aes(c) | Cipher::Camellia(c) => Some(c.iv),
+                WriteCipher::None => None,
+                WriteCipher::Aes(c) | WriteCipher::Camellia(c) => Some(c.iv),
             },
             phsf: context.phsf,
             data: writer,
