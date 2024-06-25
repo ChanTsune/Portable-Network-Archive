@@ -92,13 +92,14 @@ impl EntryBuilder {
         );
         let context = get_writer_context(option)?;
         let writer = get_writer(crate::io::FlattenWriter::new(), &context)?;
+        let (iv, phsf) = match context.cipher {
+            None => (None, None),
+            Some(WriteCipher::Aes(c) | WriteCipher::Camellia(c)) => (Some(c.iv), Some(c.phsf)),
+        };
         Ok(Self {
             data: Some(writer),
-            iv: match context.cipher {
-                WriteCipher::None => None,
-                WriteCipher::Aes(c) | WriteCipher::Camellia(c) => Some(c.iv),
-            },
-            phsf: context.phsf,
+            iv,
+            phsf,
             ..Self::new(header)
         })
     }
@@ -131,13 +132,14 @@ impl EntryBuilder {
         let context = get_writer_context(option)?;
         let mut writer = get_writer(crate::io::FlattenWriter::new(), &context)?;
         writer.write_all(source.as_bytes())?;
+        let (iv, phsf) = match context.cipher {
+            None => (None, None),
+            Some(WriteCipher::Aes(c) | WriteCipher::Camellia(c)) => (Some(c.iv), Some(c.phsf)),
+        };
         Ok(Self {
             data: Some(writer),
-            iv: match context.cipher {
-                WriteCipher::None => None,
-                WriteCipher::Aes(c) | WriteCipher::Camellia(c) => Some(c.iv),
-            },
-            phsf: context.phsf,
+            iv,
+            phsf,
             ..Self::new(EntryHeader::for_symbolic_link(name))
         })
     }
@@ -170,13 +172,14 @@ impl EntryBuilder {
         let context = get_writer_context(option)?;
         let mut writer = get_writer(crate::io::FlattenWriter::new(), &context)?;
         writer.write_all(source.as_bytes())?;
+        let (iv, phsf) = match context.cipher {
+            None => (None, None),
+            Some(WriteCipher::Aes(c) | WriteCipher::Camellia(c)) => (Some(c.iv), Some(c.phsf)),
+        };
         Ok(Self {
             data: Some(writer),
-            iv: match context.cipher {
-                WriteCipher::None => None,
-                WriteCipher::Aes(c) | WriteCipher::Camellia(c) => Some(c.iv),
-            },
-            phsf: context.phsf,
+            iv,
+            phsf,
             ..Self::new(EntryHeader::for_hard_link(name))
         })
     }
@@ -388,13 +391,14 @@ impl SolidEntryBuilder {
         let header = SolidHeader::new(option.compression, option.encryption, option.cipher_mode);
         let context = get_writer_context(option)?;
         let writer = get_writer(crate::io::FlattenWriter::new(), &context)?;
+        let (iv, phsf) = match context.cipher {
+            None => (None, None),
+            Some(WriteCipher::Aes(c) | WriteCipher::Camellia(c)) => (Some(c.iv), Some(c.phsf)),
+        };
         Ok(Self {
             header,
-            iv: match context.cipher {
-                WriteCipher::None => None,
-                WriteCipher::Aes(c) | WriteCipher::Camellia(c) => Some(c.iv),
-            },
-            phsf: context.phsf,
+            iv,
+            phsf,
             data: writer,
             extra: Vec::new(),
         })

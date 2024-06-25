@@ -146,10 +146,8 @@ impl<W: Write> Archive<W> {
             (ChunkType::fPRM, p.to_bytes()).write_in(&mut self.inner)?;
         }
         let context = get_writer_context(option)?;
-        if let Some(phsf) = &context.phsf {
-            (ChunkType::PHSF, phsf.as_bytes()).write_in(&mut self.inner)?;
-        }
-        if let WriteCipher::Aes(c) | WriteCipher::Camellia(c) = &context.cipher {
+        if let Some(WriteCipher::Aes(c) | WriteCipher::Camellia(c)) = &context.cipher {
+            (ChunkType::PHSF, c.phsf.as_bytes()).write_in(&mut self.inner)?;
             (ChunkType::FDAT, &c.iv[..]).write_in(&mut self.inner)?;
         }
         {
@@ -370,10 +368,8 @@ impl<W: Write> Archive<W> {
 
         let mut archive = Self::write_header(write)?;
         (ChunkType::SHED, header.to_bytes().as_slice()).write_in(&mut archive.inner)?;
-        if let Some(phsf) = &context.phsf {
-            (ChunkType::PHSF, phsf.as_bytes()).write_in(&mut archive.inner)?;
-        }
-        if let WriteCipher::Aes(c) | WriteCipher::Camellia(c) = &context.cipher {
+        if let Some(WriteCipher::Aes(c) | WriteCipher::Camellia(c)) = &context.cipher {
+            (ChunkType::PHSF, c.phsf.as_bytes()).write_in(&mut archive.inner)?;
             (ChunkType::SDAT, c.iv.as_slice()).write_in(&mut archive.inner)?;
         }
         archive.inner.flush()?;
@@ -461,10 +457,8 @@ impl<W: Write> SolidArchive<W> {
             (ChunkType::fPRM, p.to_bytes()).write_in(&mut self.inner)?;
         }
         let context = get_writer_context(option)?;
-        if let Some(phsf) = &context.phsf {
-            (ChunkType::PHSF, phsf.as_bytes()).write_in(&mut self.inner)?;
-        }
-        if let WriteCipher::Aes(c) | WriteCipher::Camellia(c) = &context.cipher {
+        if let Some(WriteCipher::Aes(c) | WriteCipher::Camellia(c)) = &context.cipher {
+            (ChunkType::PHSF, c.phsf.as_bytes()).write_in(&mut self.inner)?;
             (ChunkType::FDAT, &c.iv[..]).write_in(&mut self.inner)?;
         }
         {
