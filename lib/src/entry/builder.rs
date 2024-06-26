@@ -86,8 +86,8 @@ impl EntryBuilder {
     pub fn new_file(name: EntryName, option: WriteOptions) -> io::Result<Self> {
         let header = EntryHeader::for_file(
             option.compression,
-            option.encryption,
-            option.cipher_mode,
+            option.encryption(),
+            option.cipher_mode(),
             name,
         );
         let context = get_writer_context(option)?;
@@ -388,7 +388,11 @@ impl SolidEntryBuilder {
     /// A new [SolidEntryBuilder].
     #[inline]
     pub fn new(option: WriteOptions) -> io::Result<Self> {
-        let header = SolidHeader::new(option.compression, option.encryption, option.cipher_mode);
+        let header = SolidHeader::new(
+            option.compression,
+            option.encryption(),
+            option.cipher_mode(),
+        );
         let context = get_writer_context(option)?;
         let writer = get_writer(crate::io::FlattenWriter::new(), &context)?;
         let (iv, phsf) = match context.cipher {

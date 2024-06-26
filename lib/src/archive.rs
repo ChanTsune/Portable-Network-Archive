@@ -258,12 +258,11 @@ mod tests {
     }
 
     fn archive(src: &[u8], options: WriteOptions) -> io::Result<()> {
-        let archive = create_archive(src, options.clone())?;
+        let read_options = ReadOptions::with_password(options.password());
+        let archive = create_archive(src, options)?;
         let mut archive_reader = Archive::read_header(archive.as_slice())?;
         let item = archive_reader.entries_skip_solid().next().unwrap().unwrap();
-        let mut reader = item
-            .reader(ReadOptions::with_password(options.password))
-            .unwrap();
+        let mut reader = item.reader(read_options).unwrap();
         let mut dist = Vec::new();
         io::copy(&mut reader, &mut dist)?;
         assert_eq!(src, dist.as_slice());

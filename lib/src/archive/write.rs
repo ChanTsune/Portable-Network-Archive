@@ -128,8 +128,8 @@ impl<W: Write> Archive<W> {
     {
         let header = EntryHeader::for_file(
             option.compression,
-            option.encryption,
-            option.cipher_mode,
+            option.encryption(),
+            option.cipher_mode(),
             name,
         );
         (ChunkType::FHED, header.to_bytes()).write_in(&mut self.inner)?;
@@ -363,7 +363,11 @@ impl<W: Write> Archive<W> {
     /// ```
     #[inline]
     pub fn write_solid_header(write: W, option: WriteOptions) -> io::Result<SolidArchive<W>> {
-        let header = SolidHeader::new(option.compression, option.encryption, option.cipher_mode);
+        let header = SolidHeader::new(
+            option.compression,
+            option.encryption(),
+            option.cipher_mode(),
+        );
         let context = get_writer_context(option)?;
 
         let mut archive = Self::write_header(write)?;
@@ -439,8 +443,8 @@ impl<W: Write> SolidArchive<W> {
         let option = WriteOptions::store();
         let header = EntryHeader::for_file(
             option.compression,
-            option.encryption,
-            option.cipher_mode,
+            option.encryption(),
+            option.cipher_mode(),
             name,
         );
         (ChunkType::FHED, header.to_bytes()).write_in(&mut self.inner)?;
