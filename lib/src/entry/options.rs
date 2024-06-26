@@ -103,6 +103,67 @@ impl FromStr for CompressionLevel {
     }
 }
 
+/// Cipher options.
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) struct Cipher {
+    pub(crate) password: Password,
+    pub(crate) hash_algorithm: HashAlgorithm,
+    pub(crate) cipher_algorithm: CipherAlgorithm,
+    pub(crate) mode: CipherMode,
+}
+
+impl Cipher {
+    /// Create new [Cipher]
+    #[inline]
+    pub(crate) const fn new(
+        password: Password,
+        hash_algorithm: HashAlgorithm,
+        cipher_algorithm: CipherAlgorithm,
+        mode: CipherMode,
+    ) -> Self {
+        Self {
+            password,
+            hash_algorithm,
+            cipher_algorithm,
+            mode,
+        }
+    }
+}
+
+/// Cipher algorithm.
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub enum CipherAlgorithm {
+    /// Aes algorithm.
+    Aes,
+    /// Camellia algorithm.
+    Camellia,
+}
+
+/// Password.
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) struct Password(String);
+
+impl Password {
+    #[inline]
+    pub(crate) fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+}
+
+impl From<String> for Password {
+    #[inline]
+    fn from(value: String) -> Self {
+        Self(value)
+    }
+}
+
+impl From<&str> for Password {
+    #[inline]
+    fn from(value: &str) -> Self {
+        Self(value.into())
+    }
+}
+
 /// Encryption algorithm.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
@@ -205,10 +266,7 @@ pub type WriteOption = WriteOptions;
 pub struct WriteOptions {
     pub(crate) compression: Compression,
     pub(crate) compression_level: CompressionLevel,
-    pub(crate) encryption: Encryption,
-    pub(crate) cipher_mode: CipherMode,
-    pub(crate) hash_algorithm: HashAlgorithm,
-    pub(crate) password: Option<String>,
+    pub(crate) cipher: Option<Cipher>,
 }
 
 impl WriteOptions {
@@ -228,10 +286,7 @@ impl WriteOptions {
         Self {
             compression: Compression::No,
             compression_level: CompressionLevel::DEFAULT,
-            encryption: Encryption::No,
-            cipher_mode: CipherMode::CBC,
-            hash_algorithm: HashAlgorithm::Argon2Id,
-            password: None,
+            cipher: None,
         }
     }
 
@@ -270,6 +325,38 @@ impl WriteOptions {
     pub fn into_builder(self) -> WriteOptionsBuilder {
         self.into()
     }
+
+    #[inline]
+    pub(crate) fn encryption(&self) -> Encryption {
+        self.cipher
+            .as_ref()
+            .map(|it| match it.cipher_algorithm {
+                CipherAlgorithm::Aes => Encryption::Aes,
+                CipherAlgorithm::Camellia => Encryption::Camellia,
+            })
+            .unwrap_or(Encryption::No)
+    }
+
+    #[inline]
+    pub(crate) fn cipher_mode(&self) -> CipherMode {
+        self.cipher
+            .as_ref()
+            .map(|it| it.mode)
+            .unwrap_or(CipherMode::CTR)
+    }
+
+    #[inline]
+    pub(crate) fn hash_algorithm(&self) -> HashAlgorithm {
+        self.cipher
+            .as_ref()
+            .map(|it| it.hash_algorithm)
+            .unwrap_or(HashAlgorithm::Argon2Id)
+    }
+
+    #[inline]
+    pub(crate) fn password(&self) -> Option<&str> {
+        self.cipher.as_ref().map(|it| it.password.0.as_str())
+    }
 }
 
 /// Type alias of [`WriteOptionsBuilder`].
@@ -306,10 +393,10 @@ impl From<WriteOptions> for WriteOptionsBuilder {
         Self {
             compression: value.compression,
             compression_level: value.compression_level,
-            encryption: value.encryption,
-            cipher_mode: value.cipher_mode,
-            hash_algorithm: value.hash_algorithm,
-            password: value.password,
+            encryption: value.encryption(),
+            cipher_mode: value.cipher_mode(),
+            hash_algorithm: value.hash_algorithm(),
+            password: value.password().map(Into::into),
         }
     }
 }
@@ -374,10 +461,17 @@ impl WriteOptionsBuilder {
         WriteOptions {
             compression: self.compression,
             compression_level: self.compression_level,
-            encryption: self.encryption,
-            cipher_mode: self.cipher_mode,
-            hash_algorithm: self.hash_algorithm,
-            password: self.password.clone(),
+            cipher: self.password.clone().map(|p| {
+                Cipher::new(
+                    p.into(),
+                    self.hash_algorithm,
+                    match self.encryption {
+                        Encryption::No | Encryption::Aes => CipherAlgorithm::Aes,
+                        Encryption::Camellia => CipherAlgorithm::Camellia,
+                    },
+                    self.cipher_mode,
+                )
+            }),
         }
     }
 }

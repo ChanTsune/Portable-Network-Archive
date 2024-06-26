@@ -2,7 +2,7 @@ use crate::{
     cipher::{CipherWriter, Ctr128BEWriter, EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
     compress::CompressionWriter,
     entry::{CipherMode, Compression, CompressionLevel, Encryption, HashAlgorithm, WriteOptions},
-    hash, random,
+    hash, random, Cipher, CipherAlgorithm,
 };
 use aes::Aes256;
 use camellia::Camellia256;
@@ -32,17 +32,17 @@ pub(crate) struct EntryWriterContext {
 }
 
 #[inline]
-fn get_cipher(
-    password: Option<&str>,
-    hash_algorithm: HashAlgorithm,
-    algorithm: Encryption,
-    mode: CipherMode,
-) -> io::Result<Option<WriteCipher>> {
-    Ok(match algorithm {
-        Encryption::No => None,
-        Encryption::Aes => {
+fn get_cipher(cipher: Option<Cipher>) -> io::Result<Option<WriteCipher>> {
+    Ok(match cipher {
+        None => None,
+        Some(Cipher {
+            password,
+            hash_algorithm,
+            cipher_algorithm: CipherAlgorithm::Aes,
+            mode,
+        }) => {
             let salt = random::salt_string();
-            let (hash, phsf) = hash(algorithm, hash_algorithm, password.unwrap(), &salt)?;
+            let (hash, phsf) = hash(Encryption::Aes, hash_algorithm, &password.0, &salt)?;
             let iv = random::random_vec(Aes256::block_size())?;
             Some(WriteCipher::Aes(CipherContext {
                 phsf,
@@ -51,9 +51,14 @@ fn get_cipher(
                 mode,
             }))
         }
-        Encryption::Camellia => {
+        Some(Cipher {
+            password,
+            hash_algorithm,
+            cipher_algorithm: CipherAlgorithm::Camellia,
+            mode,
+        }) => {
             let salt = random::salt_string();
-            let (hash, phsf) = hash(algorithm, hash_algorithm, password.unwrap(), &salt)?;
+            let (hash, phsf) = hash(Encryption::Camellia, hash_algorithm, &password.0, &salt)?;
             let iv = random::random_vec(Camellia256::block_size())?;
             Some(WriteCipher::Camellia(CipherContext {
                 phsf,
@@ -67,12 +72,7 @@ fn get_cipher(
 
 #[inline]
 pub(crate) fn get_writer_context(option: WriteOptions) -> io::Result<EntryWriterContext> {
-    let cipher = get_cipher(
-        option.password.as_deref(),
-        option.hash_algorithm,
-        option.encryption,
-        option.cipher_mode,
-    )?;
+    let cipher = get_cipher(option.cipher)?;
     Ok(EntryWriterContext {
         compression_level: option.compression_level,
         compression: option.compression,
