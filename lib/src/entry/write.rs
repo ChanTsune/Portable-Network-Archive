@@ -1,7 +1,7 @@
 use crate::{
     cipher::{CipherWriter, Ctr128BEWriter, EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
     compress::CompressionWriter,
-    entry::{CipherMode, Compression, CompressionLevel, Encryption, HashAlgorithm, WriteOptions},
+    entry::{CipherMode, Compression, CompressionLevel, HashAlgorithm, WriteOptions},
     hash, random, Cipher, CipherAlgorithm,
 };
 use aes::Aes256;
@@ -42,7 +42,12 @@ fn get_cipher(cipher: Option<Cipher>) -> io::Result<Option<WriteCipher>> {
             mode,
         }) => {
             let salt = random::salt_string();
-            let (hash, phsf) = hash(Encryption::Aes, hash_algorithm, password.as_bytes(), &salt)?;
+            let (hash, phsf) = hash(
+                CipherAlgorithm::Aes,
+                hash_algorithm,
+                password.as_bytes(),
+                &salt,
+            )?;
             let iv = random::random_vec(Aes256::block_size())?;
             Some(WriteCipher::Aes(CipherContext {
                 phsf,
@@ -59,7 +64,7 @@ fn get_cipher(cipher: Option<Cipher>) -> io::Result<Option<WriteCipher>> {
         }) => {
             let salt = random::salt_string();
             let (hash, phsf) = hash(
-                Encryption::Camellia,
+                CipherAlgorithm::Camellia,
                 hash_algorithm,
                 password.as_bytes(),
                 &salt,
@@ -87,37 +92,31 @@ pub(crate) fn get_writer_context(option: WriteOptions) -> io::Result<EntryWriter
 
 #[inline]
 fn hash<'s, 'p: 's>(
-    encryption_algorithm: Encryption,
+    cipher_algorithm: CipherAlgorithm,
     hash_algorithm: HashAlgorithm,
     password: &'p [u8],
     salt: &'s SaltString,
 ) -> io::Result<(Output, String)> {
-    let mut password_hash = match (hash_algorithm, encryption_algorithm) {
-        (HashAlgorithm::Argon2Id, Encryption::Aes) => hash::argon2_with_salt(
+    let mut password_hash = match (hash_algorithm, cipher_algorithm) {
+        (HashAlgorithm::Argon2Id, CipherAlgorithm::Aes) => hash::argon2_with_salt(
             password,
             argon2::Algorithm::Argon2id,
             Aes256::key_size(),
             salt,
         ),
-        (HashAlgorithm::Argon2Id, Encryption::Camellia) => hash::argon2_with_salt(
+        (HashAlgorithm::Argon2Id, CipherAlgorithm::Camellia) => hash::argon2_with_salt(
             password,
             argon2::Algorithm::Argon2id,
             Camellia256::key_size(),
             salt,
         ),
-        (HashAlgorithm::Pbkdf2Sha256, Encryption::Aes | Encryption::Camellia) => {
+        (HashAlgorithm::Pbkdf2Sha256, CipherAlgorithm::Aes | CipherAlgorithm::Camellia) => {
             hash::pbkdf2_with_salt(
                 password,
                 pbkdf2::Algorithm::Pbkdf2Sha256,
                 pbkdf2::Params::default(),
                 salt,
             )
-        }
-        (_, Encryption::No) => {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Invalid combination",
-            ))
         }
     }?;
     let hash = password_hash
