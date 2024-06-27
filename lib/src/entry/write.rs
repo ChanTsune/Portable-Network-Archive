@@ -16,7 +16,7 @@ use zstd::stream::write::Encoder as ZstdEncoder;
 pub(crate) struct CipherContext {
     pub(crate) phsf: String,
     pub(crate) iv: Vec<u8>,
-    pub(crate) key: Vec<u8>,
+    pub(crate) key: Output,
     pub(crate) mode: CipherMode,
 }
 
@@ -34,7 +34,7 @@ pub(crate) struct EntryWriterContext {
 #[inline]
 fn to_hashed(cipher: Cipher) -> io::Result<WriteCipher> {
     let salt = random::salt_string();
-    let (hash, phsf) = hash(
+    let (key, phsf) = hash(
         cipher.cipher_algorithm,
         cipher.hash_algorithm,
         cipher.password.as_bytes(),
@@ -49,7 +49,7 @@ fn to_hashed(cipher: Cipher) -> io::Result<WriteCipher> {
         context: CipherContext {
             phsf,
             iv,
-            key: hash.as_bytes().to_vec(),
+            key,
             mode: cipher.mode,
         },
     })
@@ -125,7 +125,7 @@ fn encryption_writer<W: Write>(
                     mode: CipherMode::CBC,
                     ..
                 },
-        }) => CipherWriter::CbcAes(EncryptCbcAes256Writer::new(writer, key, iv)?),
+        }) => CipherWriter::CbcAes(EncryptCbcAes256Writer::new(writer, key.as_bytes(), iv)?),
         Some(WriteCipher {
             algorithm: CipherAlgorithm::Aes,
             context:
@@ -135,7 +135,7 @@ fn encryption_writer<W: Write>(
                     mode: CipherMode::CTR,
                     ..
                 },
-        }) => CipherWriter::CtrAes(Ctr128BEWriter::new(writer, key, iv)?),
+        }) => CipherWriter::CtrAes(Ctr128BEWriter::new(writer, key.as_bytes(), iv)?),
         Some(WriteCipher {
             algorithm: CipherAlgorithm::Camellia,
             context:
@@ -145,7 +145,11 @@ fn encryption_writer<W: Write>(
                     mode: CipherMode::CBC,
                     ..
                 },
-        }) => CipherWriter::CbcCamellia(EncryptCbcCamellia256Writer::new(writer, key, iv)?),
+        }) => CipherWriter::CbcCamellia(EncryptCbcCamellia256Writer::new(
+            writer,
+            key.as_bytes(),
+            iv,
+        )?),
         Some(WriteCipher {
             algorithm: CipherAlgorithm::Camellia,
             context:
@@ -155,7 +159,7 @@ fn encryption_writer<W: Write>(
                     mode: CipherMode::CTR,
                     ..
                 },
-        }) => CipherWriter::CtrCamellia(Ctr128BEWriter::new(writer, key, iv)?),
+        }) => CipherWriter::CtrCamellia(Ctr128BEWriter::new(writer, key.as_bytes(), iv)?),
     })
 }
 
