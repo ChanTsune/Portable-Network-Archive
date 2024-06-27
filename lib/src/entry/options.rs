@@ -458,20 +458,27 @@ impl WriteOptionsBuilder {
     /// Create new [WriteOptions] parameters set from this builder.
     #[inline]
     pub fn build(&self) -> WriteOptions {
+        let cipher = if self.encryption != Encryption::No {
+            Some(Cipher::new(
+                self.password
+                    .as_deref()
+                    .expect("Password was not provided.")
+                    .into(),
+                self.hash_algorithm,
+                match self.encryption {
+                    Encryption::Aes => CipherAlgorithm::Aes,
+                    Encryption::Camellia => CipherAlgorithm::Camellia,
+                    Encryption::No => unreachable!(),
+                },
+                self.cipher_mode,
+            ))
+        } else {
+            None
+        };
         WriteOptions {
             compression: self.compression,
             compression_level: self.compression_level,
-            cipher: self.password.clone().map(|p| {
-                Cipher::new(
-                    p.into(),
-                    self.hash_algorithm,
-                    match self.encryption {
-                        Encryption::No | Encryption::Aes => CipherAlgorithm::Aes,
-                        Encryption::Camellia => CipherAlgorithm::Camellia,
-                    },
-                    self.cipher_mode,
-                )
-            }),
+            cipher,
         }
     }
 }
