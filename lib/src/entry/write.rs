@@ -42,7 +42,7 @@ fn get_cipher(cipher: Option<Cipher>) -> io::Result<Option<WriteCipher>> {
             mode,
         }) => {
             let salt = random::salt_string();
-            let (hash, phsf) = hash(Encryption::Aes, hash_algorithm, &password.0, &salt)?;
+            let (hash, phsf) = hash(Encryption::Aes, hash_algorithm, password.as_bytes(), &salt)?;
             let iv = random::random_vec(Aes256::block_size())?;
             Some(WriteCipher::Aes(CipherContext {
                 phsf,
@@ -58,7 +58,12 @@ fn get_cipher(cipher: Option<Cipher>) -> io::Result<Option<WriteCipher>> {
             mode,
         }) => {
             let salt = random::salt_string();
-            let (hash, phsf) = hash(Encryption::Camellia, hash_algorithm, &password.0, &salt)?;
+            let (hash, phsf) = hash(
+                Encryption::Camellia,
+                hash_algorithm,
+                password.as_bytes(),
+                &salt,
+            )?;
             let iv = random::random_vec(Camellia256::block_size())?;
             Some(WriteCipher::Camellia(CipherContext {
                 phsf,
@@ -84,7 +89,7 @@ pub(crate) fn get_writer_context(option: WriteOptions) -> io::Result<EntryWriter
 fn hash<'s, 'p: 's>(
     encryption_algorithm: Encryption,
     hash_algorithm: HashAlgorithm,
-    password: &'p str,
+    password: &'p [u8],
     salt: &'s SaltString,
 ) -> io::Result<(Output, String)> {
     let mut password_hash = match (hash_algorithm, encryption_algorithm) {

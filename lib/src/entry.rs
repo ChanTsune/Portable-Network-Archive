@@ -243,7 +243,7 @@ impl SolidEntry {
             self.header.encryption,
             self.header.cipher_mode,
             self.phsf.as_deref(),
-            password,
+            password.as_ref().map(|it| it.as_bytes()),
         )?;
         let reader = decompress_reader(reader, self.header.compression)?;
 
@@ -570,7 +570,7 @@ impl RegularEntry {
             self.header.encryption,
             self.header.cipher_mode,
             self.phsf.as_deref(),
-            option.password.as_deref(),
+            option.password.as_ref().map(|it| it.as_bytes()),
         )?;
         let reader = decompress_reader(decrypt_reader, self.header.compression)?;
         Ok(EntryDataReader(EntryReader(reader)))
