@@ -3,7 +3,7 @@ use password_hash::{PasswordHash, PasswordHasher, SaltString};
 use std::io;
 
 pub(crate) fn argon2_with_salt<'a>(
-    password: &'a str,
+    password: &'a [u8],
     algorithm: argon2::Algorithm,
     hash_length: usize,
     salt: &'a SaltString,
@@ -14,30 +14,24 @@ pub(crate) fn argon2_with_salt<'a>(
         .context(algorithm, Version::default())
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
     argon2
-        .hash_password(password.as_bytes(), salt)
+        .hash_password(password, salt)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
 }
 
 pub(crate) fn pbkdf2_with_salt<'a>(
-    password: &'a str,
+    password: &'a [u8],
     algorithm: pbkdf2::Algorithm,
     params: pbkdf2::Params,
     salt: &'a SaltString,
 ) -> io::Result<PasswordHash<'a>> {
     pbkdf2::Pbkdf2
-        .hash_password_customized(
-            password.as_bytes(),
-            Some(algorithm.ident()),
-            None,
-            params,
-            salt,
-        )
+        .hash_password_customized(password, Some(algorithm.ident()), None, params, salt)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
 }
 
 pub(crate) fn verify_password<'a>(
     phsf: &'a str,
-    password: &'a str,
+    password: &'a [u8],
 ) -> io::Result<PasswordHash<'a>> {
     let password_hash =
         PasswordHash::new(phsf).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
@@ -46,7 +40,7 @@ pub(crate) fn verify_password<'a>(
             let argon2 = Argon2::default();
             argon2
                 .hash_password_customized(
-                    password.as_bytes(),
+                    password,
                     Some(password_hash.algorithm),
                     password_hash.version,
                     argon2::Params::try_from(&password_hash)
@@ -58,7 +52,7 @@ pub(crate) fn verify_password<'a>(
         pbkdf2::Algorithm::PBKDF2_SHA256_IDENT | pbkdf2::Algorithm::PBKDF2_SHA512_IDENT => {
             pbkdf2::Pbkdf2
                 .hash_password_customized(
-                    password.as_bytes(),
+                    password,
                     Some(password_hash.algorithm),
                     password_hash.version,
                     pbkdf2::Params::try_from(&password_hash)
@@ -82,11 +76,11 @@ mod tests {
     #[test]
     fn verify_argon2() {
         let salt = random::salt_string();
-        let mut ph = argon2_with_salt("pass", argon2::Algorithm::Argon2id, 32, &salt).unwrap();
+        let mut ph = argon2_with_salt(b"pass", argon2::Algorithm::Argon2id, 32, &salt).unwrap();
         ph.hash.take();
         assert_eq!(ph.hash, None);
         let ps = ph.to_string();
-        let ph = verify_password(&ps, "pass").unwrap();
+        let ph = verify_password(&ps, b"pass").unwrap();
         assert!(ph.hash.is_some());
     }
 
@@ -94,7 +88,7 @@ mod tests {
     fn verify_pbkdf2() {
         let salt = random::salt_string();
         let mut ph = pbkdf2_with_salt(
-            "pass",
+            b"pass",
             pbkdf2::Algorithm::Pbkdf2Sha256,
             pbkdf2::Params::default(),
             &salt,
@@ -103,7 +97,7 @@ mod tests {
         ph.hash.take();
         assert_eq!(ph.hash, None);
         let ps = ph.to_string();
-        let ph = verify_password(&ps, "pass").unwrap();
+        let ph = verify_password(&ps, b"pass").unwrap();
         assert!(ph.hash.is_some());
     }
 }

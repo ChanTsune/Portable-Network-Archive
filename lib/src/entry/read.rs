@@ -15,7 +15,7 @@ pub(crate) fn decrypt_reader<R: Read>(
     encryption: Encryption,
     cipher_mode: CipherMode,
     phsf: Option<&str>,
-    password: Option<&str>,
+    password: Option<&[u8]>,
 ) -> io::Result<DecryptReader<R>> {
     Ok(match encryption {
         Encryption::No => DecryptReader::No(reader),
