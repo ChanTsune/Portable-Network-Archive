@@ -272,7 +272,10 @@ mod tests {
 
     #[test]
     fn solid_archive() {
-        let write_option = WriteOptions::builder().password(Some("PASSWORD")).build();
+        let write_option = WriteOptions::builder()
+            .encryption(Encryption::Camellia)
+            .password(Some("PASSWORD"))
+            .build();
         let mut archive = Archive::write_solid_header(Vec::new(), write_option).unwrap();
         archive
             .add_entry({
