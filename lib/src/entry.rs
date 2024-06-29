@@ -96,6 +96,7 @@ impl<'r> futures_io::AsyncRead for EntryDataReader<'r> {
 }
 
 /// A [RegularEntry] or [SolidEntry] read from an archive.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum ReadEntry {
     /// Solid mode entry
