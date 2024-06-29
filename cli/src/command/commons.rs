@@ -30,6 +30,32 @@ pub(crate) struct OwnerOptions {
     pub(crate) gid: Option<u32>,
 }
 
+impl OwnerOptions {
+    #[inline]
+    pub(crate) fn new(
+        uname: Option<String>,
+        gname: Option<String>,
+        uid: Option<u32>,
+        gid: Option<u32>,
+        numeric_owner: bool,
+    ) -> Self {
+        Self {
+            uname: if numeric_owner {
+                Some(String::new())
+            } else {
+                uname
+            },
+            gname: if numeric_owner {
+                Some(String::new())
+            } else {
+                gname
+            },
+            uid,
+            gid,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) struct CreateOptions {
     pub(crate) option: WriteOptions,

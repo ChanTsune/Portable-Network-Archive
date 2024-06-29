@@ -148,20 +148,13 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
         keep_xattr: args.keep_xattr,
         keep_acl: args.keep_acl,
     };
-    let owner_options = OwnerOptions {
-        uname: if args.numeric_owner {
-            Some(String::new())
-        } else {
-            args.uname
-        },
-        gname: if args.numeric_owner {
-            Some(String::new())
-        } else {
-            args.gname
-        },
-        uid: args.uid,
-        gid: args.gid,
-    };
+    let owner_options = OwnerOptions::new(
+        args.uname,
+        args.gname,
+        args.uid,
+        args.gid,
+        args.numeric_owner,
+    );
     let write_option = entry_option(args.compression, args.cipher, password);
     if let Some(size) = max_file_size {
         create_archive_with_split(

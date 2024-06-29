@@ -144,20 +144,13 @@ fn append_to_archive(args: AppendCommand, verbosity: Verbosity) -> io::Result<()
         keep_xattr: args.keep_xattr,
         keep_acl: args.keep_acl,
     };
-    let owner_options = OwnerOptions {
-        uname: if args.numeric_owner {
-            Some(String::new())
-        } else {
-            args.uname
-        },
-        gname: if args.numeric_owner {
-            Some(String::new())
-        } else {
-            args.gname
-        },
-        uid: args.uid,
-        gid: args.gid,
-    };
+    let owner_options = OwnerOptions::new(
+        args.uname,
+        args.gname,
+        args.uid,
+        args.gid,
+        args.numeric_owner,
+    );
     for file in target_items {
         let option = option.clone();
         let owner_options = owner_options.clone();
