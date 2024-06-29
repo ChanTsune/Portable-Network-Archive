@@ -4,6 +4,7 @@ use std::ffi::OsStr;
 use std::fmt::{self, Display, Formatter};
 use std::path::{Component, Path, PathBuf};
 use std::str;
+use std::str::Utf8Error;
 
 /// A UTF-8 encoded entry name.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -19,6 +20,13 @@ impl Display for EntryNameError {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         Display::fmt(&self.0, f)
+    }
+}
+
+impl From<Utf8Error> for EntryNameError {
+    #[inline]
+    fn from(value: Utf8Error) -> Self {
+        Self(value.to_string())
     }
 }
 
@@ -168,9 +176,7 @@ impl TryFrom<&[u8]> for EntryName {
 
     #[inline]
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        Ok(Self::from(
-            str::from_utf8(value).map_err(|e| EntryNameError(e.to_string()))?,
-        ))
+        Ok(Self::from(str::from_utf8(value)?))
     }
 }
 
