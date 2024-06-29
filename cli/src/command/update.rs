@@ -131,20 +131,13 @@ fn update_archive(args: UpdateCommand, verbosity: Verbosity) -> io::Result<()> {
         keep_xattr: args.keep_xattr,
         keep_acl: args.keep_acl,
     };
-    let owner_options = OwnerOptions {
-        uname: if args.numeric_owner {
-            Some(String::new())
-        } else {
-            args.uname
-        },
-        gname: if args.numeric_owner {
-            Some(String::new())
-        } else {
-            args.gname
-        },
-        uid: args.uid,
-        gid: args.gid,
-    };
+    let owner_options = OwnerOptions::new(
+        args.uname,
+        args.gname,
+        args.uid,
+        args.gid,
+        args.numeric_owner,
+    );
     let create_options = CreateOptions {
         option,
         keep_options,
