@@ -50,9 +50,9 @@ impl EntryReference {
     }
 
     #[inline]
-    fn new_from_path(path: &Path) -> Result<Self, ()> {
-        let path = Utf8Path::from_path(path).ok_or(())?;
-        Ok(Self::new_from_utf8path(path))
+    fn new_from_path(path: &Path) -> Result<Self, EntryReferenceError> {
+        let path = str::from_utf8(path.as_os_str().as_encoded_bytes())?;
+        Ok(Self::new_from_utf8path(Utf8Path::new(path)))
     }
 
     /// Extracts a string slice containing the entire [EntryReference].
@@ -162,7 +162,7 @@ impl From<&str> for EntryReference {
 }
 
 impl TryFrom<&Path> for EntryReference {
-    type Error = ();
+    type Error = EntryReferenceError;
 
     /// ## Examples
     /// ```
