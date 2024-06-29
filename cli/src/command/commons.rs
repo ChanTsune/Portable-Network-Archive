@@ -273,6 +273,7 @@ pub(crate) trait ArchiveProvider {
 pub(crate) struct PathArchiveProvider<'p>(&'p Path);
 
 impl<'p> PathArchiveProvider<'p> {
+    #[inline]
     pub(crate) fn new(path: &'p Path) -> Self {
         Self(path)
     }
@@ -281,10 +282,12 @@ impl<'p> PathArchiveProvider<'p> {
 impl<'p> ArchiveProvider for PathArchiveProvider<'p> {
     type A = fs::File;
 
+    #[inline]
     fn initial_archive(&self) -> io::Result<Self::A> {
         fs::File::open(self.0)
     }
 
+    #[inline]
     fn next_archive(&self, n: usize) -> io::Result<Self::A> {
         fs::File::open(self.0.with_part(n).unwrap())
     }
@@ -293,6 +296,7 @@ impl<'p> ArchiveProvider for PathArchiveProvider<'p> {
 pub(crate) struct StdinArchiveProvider;
 
 impl StdinArchiveProvider {
+    #[inline]
     pub(crate) fn new() -> Self {
         Self
     }
@@ -301,10 +305,12 @@ impl StdinArchiveProvider {
 impl ArchiveProvider for StdinArchiveProvider {
     type A = io::StdinLock<'static>;
 
+    #[inline]
     fn initial_archive(&self) -> io::Result<Self::A> {
         Ok(io::stdin().lock())
     }
 
+    #[inline]
     fn next_archive(&self, _: usize) -> io::Result<Self::A> {
         Ok(io::stdin().lock())
     }
