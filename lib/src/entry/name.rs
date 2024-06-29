@@ -52,7 +52,8 @@ impl EntryName {
 
     #[inline]
     fn new_from_path(name: &Path) -> Result<Self, EntryNameError> {
-        let path = Utf8Path::from_path(name).ok_or(EntryNameError("Not valid as utf8".into()))?;
+        let name = str::from_utf8(name.as_os_str().as_encoded_bytes())?;
+        let path = Utf8Path::new(name);
         Ok(Self::new_from_utf8path(path))
     }
 
