@@ -9,7 +9,7 @@ use std::str;
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct EntryName(String);
 
-/// Error of invalid EntryName
+/// Error of invalid [EntryName].
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct EntryNameError(String);
 
