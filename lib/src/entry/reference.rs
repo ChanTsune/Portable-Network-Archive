@@ -1,8 +1,10 @@
 use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
 use std::borrow::Cow;
+use std::error::Error;
 use std::ffi::OsStr;
 use std::fmt::{self, Display, Formatter};
 use std::path::{Component, Path, PathBuf};
+use std::str::{self, Utf8Error};
 
 /// A UTF-8 encoded entry reference.
 ///
@@ -229,5 +231,25 @@ impl PartialEq<EntryReference> for &str {
     #[inline]
     fn eq(&self, other: &EntryReference) -> bool {
         PartialEq::eq(self, &other.as_str())
+    }
+}
+
+/// Error of invalid [EntryReference].
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct EntryReferenceError(Utf8Error);
+
+impl Display for EntryReferenceError {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        Display::fmt(&self.0, f)
+    }
+}
+
+impl Error for EntryReferenceError {}
+
+impl From<Utf8Error> for EntryReferenceError {
+    #[inline]
+    fn from(value: Utf8Error) -> Self {
+        Self(value)
     }
 }
