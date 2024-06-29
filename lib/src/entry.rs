@@ -61,6 +61,7 @@ impl SealedEntryExt for RawEntry {
         self.0
     }
 
+    #[inline]
     fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         let mut total = 0;
         for chunk in self.0.iter() {
@@ -695,6 +696,7 @@ impl SealedEntryExt for ChunkSolidEntries {
         self.0
     }
 
+    #[inline]
     fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         let mut total = 0;
         for chunk in self.0.iter() {
