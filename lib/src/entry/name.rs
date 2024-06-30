@@ -11,8 +11,8 @@ use std::str::Utf8Error;
 pub struct EntryName(String);
 
 /// Error of invalid [EntryName].
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct EntryNameError(String);
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct EntryNameError(Utf8Error);
 
 impl Error for EntryNameError {}
 
@@ -26,7 +26,7 @@ impl Display for EntryNameError {
 impl From<Utf8Error> for EntryNameError {
     #[inline]
     fn from(value: Utf8Error) -> Self {
-        Self(value.to_string())
+        Self(value)
     }
 }
 
