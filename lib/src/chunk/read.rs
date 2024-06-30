@@ -101,7 +101,7 @@ impl<R: Read + Seek> ChunkReader<R> {
         self.r.read_exact(&mut ty)?;
 
         // skip chunk data
-        self.r.seek(SeekFrom::Current(length as i64))?;
+        self.r.seek(SeekFrom::Current(length.into()))?;
 
         // skip crc sum
         self.r
