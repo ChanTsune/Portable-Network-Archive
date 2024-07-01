@@ -11,7 +11,7 @@ pub mod extract;
 pub mod list;
 pub mod split;
 pub(crate) mod stdio;
-mod strip;
+pub(crate) mod strip;
 pub mod update;
 
 use crate::cli::{CipherAlgorithmArgs, Cli, Commands, PasswordArgs, Verbosity};
@@ -24,6 +24,7 @@ pub fn entry(cli: Cli) -> io::Result<()> {
         Commands::Extract(cmd) => cmd.execute(cli.verbosity.verbosity()),
         Commands::List(cmd) => cmd.execute(cli.verbosity.verbosity()),
         Commands::Split(cmd) => cmd.execute(cli.verbosity.verbosity()),
+        Commands::Strip(cmd) => cmd.execute(cli.verbosity.verbosity()),
         Commands::Complete(cmd) => cmd.execute(cli.verbosity.verbosity()),
         Commands::Experimental(cmd) => cmd.execute(cli.verbosity.verbosity()),
     }

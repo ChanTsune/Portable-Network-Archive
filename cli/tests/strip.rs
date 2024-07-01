@@ -27,7 +27,6 @@ fn archive_strip_metadata() {
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "strip",
         &format!("{}/strip_metadata.pna", env!("CARGO_TARGET_TMPDIR")),
         "--keep-xattr",

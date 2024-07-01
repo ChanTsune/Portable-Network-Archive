@@ -1,7 +1,7 @@
 use crate::command::{
     append::AppendCommand, complete::CompleteCommand, create::CreateCommand,
     experimental::ExperimentalCommand, extract::ExtractCommand, list::ListCommand,
-    split::SplitCommand,
+    split::SplitCommand, strip::StripCommand,
 };
 use clap::{value_parser, ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
 use std::path::PathBuf;
@@ -61,6 +61,8 @@ pub(crate) enum Commands {
     List(ListCommand),
     #[command(about = "Split archive")]
     Split(SplitCommand),
+    #[command(about = "Strip entries metadata")]
+    Strip(StripCommand),
     #[command(about = "Generate shell auto complete")]
     Complete(CompleteCommand),
     #[command(about = "Unstable experimental commands")]
