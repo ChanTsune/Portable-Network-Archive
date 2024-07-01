@@ -112,6 +112,7 @@ impl<R: Read + Seek> ChunkReader<R> {
 }
 
 impl<R> From<R> for ChunkReader<R> {
+    #[inline]
     fn from(reader: R) -> Self {
         Self { r: reader }
     }
