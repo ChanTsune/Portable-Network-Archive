@@ -315,6 +315,7 @@ pub(crate) struct RawEntries<'r, R>(&'r mut Archive<R>);
 impl<'r, R: Read> Iterator for RawEntries<'r, R> {
     type Item = io::Result<RawEntry>;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next_raw_item().transpose()
     }
@@ -378,6 +379,7 @@ pub struct RegularEntries<'r, R> {
 impl<'r, R: Read> Iterator for RegularEntries<'r, R> {
     type Item = io::Result<RegularEntry>;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(entry) = self.buf.pop_front() {
             return Some(entry);

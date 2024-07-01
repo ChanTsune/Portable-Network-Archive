@@ -127,6 +127,7 @@ pub(crate) struct EntryIterator<'s>(EntryReader<crate::io::FlattenReader<'s>>);
 impl Iterator for EntryIterator<'_> {
     type Item = io::Result<RegularEntry>;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let mut chunk_reader = ChunkReader::from(&mut self.0);
         let mut chunks = Vec::new();
