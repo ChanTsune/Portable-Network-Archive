@@ -13,11 +13,10 @@ use crate::{
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use indicatif::HumanDuration;
-use pna::{DataKind, EntryReference, Permission, ReadOptions, RegularEntry};
+use pna::{prelude::*, DataKind, EntryReference, Permission, ReadOptions, RegularEntry};
 use rayon::ThreadPoolBuilder;
 #[cfg(unix)]
 use std::fs::Permissions;
-use std::ops::Add;
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::FileTimesExt;
 #[cfg(unix)]
@@ -28,7 +27,7 @@ use std::{
     fs::{self, File},
     io,
     path::{Path, PathBuf},
-    time::{Instant, SystemTime},
+    time::Instant,
 };
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -243,15 +242,15 @@ pub(crate) fn extract_entry(
             let mut file = File::create(&path)?;
             if keep_options.keep_timestamp {
                 let mut times = fs::FileTimes::new();
-                if let Some(accessed) = item.metadata().accessed() {
-                    times = times.set_accessed(SystemTime::UNIX_EPOCH.add(accessed));
+                if let Some(accessed) = item.metadata().accessed_time() {
+                    times = times.set_accessed(accessed);
                 }
-                if let Some(modified) = item.metadata().modified() {
-                    times = times.set_modified(SystemTime::UNIX_EPOCH.add(modified));
+                if let Some(modified) = item.metadata().modified_time() {
+                    times = times.set_modified(modified);
                 }
                 #[cfg(any(windows, target_os = "macos"))]
-                if let Some(created) = item.metadata().created() {
-                    times = times.set_created(SystemTime::UNIX_EPOCH.add(created));
+                if let Some(created) = item.metadata().created_time() {
+                    times = times.set_created(created);
                 }
                 file.set_times(times)?;
             }
