@@ -16,6 +16,7 @@ pub(crate) enum CompressionWriter<W: Write> {
 }
 
 impl<W: Write> Write for CompressionWriter<W> {
+    #[inline]
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
         match self {
             Self::No(w) => w.write(buf),
@@ -25,6 +26,7 @@ impl<W: Write> Write for CompressionWriter<W> {
         }
     }
 
+    #[inline]
     fn flush(&mut self) -> Result<()> {
         match self {
             Self::No(w) => w.flush(),
@@ -36,6 +38,7 @@ impl<W: Write> Write for CompressionWriter<W> {
 }
 
 impl<W: Write> TryIntoInner<W> for CompressionWriter<W> {
+    #[inline]
     fn try_into_inner(self) -> Result<W> {
         match self {
             Self::No(w) => Ok(w),
