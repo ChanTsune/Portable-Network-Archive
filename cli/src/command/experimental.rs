@@ -14,7 +14,6 @@ impl Command for ExperimentalCommand {
         match self.command {
             ExperimentalCommands::Stdio(cmd) => cmd.execute(verbosity),
             ExperimentalCommands::Delete(cmd) => cmd.execute(verbosity),
-            ExperimentalCommands::Strip(cmd) => cmd.execute(verbosity),
             ExperimentalCommands::Update(cmd) => cmd.execute(verbosity),
             ExperimentalCommands::Concat(cmd) => cmd.execute(verbosity),
             ExperimentalCommands::Chown(cmd) => cmd.execute(verbosity),
@@ -29,8 +28,6 @@ pub(crate) enum ExperimentalCommands {
     Stdio(command::stdio::StdioCommand),
     #[command(about = "Delete entry from archive")]
     Delete(command::delete::DeleteCommand),
-    #[command(about = "Strip entries metadata")]
-    Strip(command::strip::StripCommand),
     #[command(about = "Update entries in archive")]
     Update(command::update::UpdateCommand),
     #[command(about = "Concat archives")]
