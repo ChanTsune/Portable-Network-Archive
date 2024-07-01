@@ -125,7 +125,11 @@ impl EntryReference {
     /// ```
     #[inline]
     pub fn from_lossy<T: Into<PathBuf>>(p: T) -> Self {
-        let path = p.into();
+        Self::from_path_lossy(&p.into())
+    }
+
+    #[inline]
+    fn from_path_lossy(path: &Path) -> Self {
         let has_root = path.has_root();
         let mut components = path.components();
         if has_root {
