@@ -29,6 +29,7 @@ pub(crate) enum CipherWriter<W: Write> {
 }
 
 impl<W: Write> Write for CipherWriter<W> {
+    #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         match self {
             Self::No(w) => w.write(buf),
@@ -39,6 +40,7 @@ impl<W: Write> Write for CipherWriter<W> {
         }
     }
 
+    #[inline]
     fn flush(&mut self) -> io::Result<()> {
         match self {
             Self::No(w) => w.flush(),
@@ -51,6 +53,7 @@ impl<W: Write> Write for CipherWriter<W> {
 }
 
 impl<W: Write> TryIntoInner<W> for CipherWriter<W> {
+    #[inline]
     fn try_into_inner(self) -> io::Result<W> {
         match self {
             Self::No(w) => Ok(w),
