@@ -250,4 +250,19 @@ mod tests {
             EntryHeader::try_from_bytes(&header.to_bytes()).unwrap(),
         );
     }
+
+    #[test]
+    fn solid_header_try_from_bytes() {
+        assert!(SolidHeader::try_from_bytes(&[]).is_err());
+        assert!(SolidHeader::try_from_bytes(&[0; 5]).is_ok());
+    }
+
+    #[test]
+    fn solid_header_to_from_bytes() {
+        let header = SolidHeader::new(Compression::ZStandard, Encryption::Aes, CipherMode::CBC);
+        assert_eq!(
+            header,
+            SolidHeader::try_from_bytes(&header.to_bytes()).unwrap(),
+        );
+    }
 }
