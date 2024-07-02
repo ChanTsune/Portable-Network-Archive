@@ -113,6 +113,12 @@ impl EntryHeader {
     }
 
     pub(crate) fn try_from_bytes(bytes: &[u8]) -> io::Result<Self> {
+        if bytes.len() < 6 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "entry header too short",
+            ));
+        }
         Ok(Self {
             major: bytes[0],
             minor: bytes[1],
