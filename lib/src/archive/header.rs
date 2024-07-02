@@ -35,7 +35,7 @@ impl ArchiveHeader {
     }
 
     #[inline]
-    pub(crate) const fn from_bytes(bytes: [u8; 8]) -> Self {
+    pub(crate) const fn from_bytes(bytes: &[u8; 8]) -> Self {
         let major = bytes[0];
         let minor = bytes[1];
         // NOTE: ignore 2bytes currently unused.
@@ -69,11 +69,11 @@ mod tests {
     #[test]
     fn header_from_bytes() {
         assert_eq!(
-            ArchiveHeader::from_bytes([0u8, 0, 0, 0, 0, 0, 0, 0]),
+            ArchiveHeader::from_bytes(&[0u8, 0, 0, 0, 0, 0, 0, 0]),
             ArchiveHeader::new(0, 0, 0)
         );
         assert_eq!(
-            ArchiveHeader::from_bytes([1u8, 2, 0, 0, 0, 0, 0, 3]),
+            ArchiveHeader::from_bytes(&[1u8, 2, 0, 0, 0, 0, 0, 3]),
             ArchiveHeader::new(1, 2, 3)
         );
     }
@@ -89,8 +89,8 @@ mod tests {
     fn header_to_from_bytes() {
         let bytes = [1u8, 2, 0, 0, 0, 0, 0, 3];
         assert_eq!(
-            ArchiveHeader::from_bytes(bytes),
-            ArchiveHeader::from_bytes(ArchiveHeader::from_bytes(bytes).to_bytes()),
+            ArchiveHeader::from_bytes(&bytes),
+            ArchiveHeader::from_bytes(&ArchiveHeader::from_bytes(&bytes).to_bytes()),
         );
     }
 }
