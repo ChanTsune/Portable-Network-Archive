@@ -227,3 +227,27 @@ impl TryFrom<&[u8]> for SolidHeader {
         Self::try_from_bytes(bytes)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn entry_header_try_from_bytes() {
+        assert!(EntryHeader::try_from_bytes(&[]).is_err());
+    }
+
+    #[test]
+    fn entry_header_to_from_bytes() {
+        let header = EntryHeader::for_file(
+            Compression::ZStandard,
+            Encryption::Camellia,
+            CipherMode::CTR,
+            "file".into(),
+        );
+        assert_eq!(
+            header,
+            EntryHeader::try_from_bytes(&header.to_bytes()).unwrap(),
+        );
+    }
+}
