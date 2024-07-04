@@ -124,8 +124,7 @@ impl ACL {
             .map_err(io::Error::other)?;
         }
         self.security_descriptor
-            .apply(None, None, Some(new_acl as _))?;
-        Ok(())
+            .apply(None, None, Some(new_acl as _))
     }
 }
 
