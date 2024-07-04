@@ -10,10 +10,10 @@ Also, its data structure is inspired by the PNG data structure.
 ## Features
 
 - **File Compression and Decompression**
-  - [x] Supports zlib, zstd, and xz algorithms.
+  - [x] Supports zlib, zstd, and xz.
 
 - **File Encryption and Decryption**
-  - [x] Supports 256-bit AES and 256-bit Camellia encryption.
+  - [x] Supports 256-bit AES and 256-bit Camellia.
 
 - **Solid Mode**
   - [x] Compresses and encrypts entire archives.
@@ -22,7 +22,7 @@ Also, its data structure is inspired by the PNG data structure.
   - [x] Maintains and restores file permissions.
   - [x] Maintains and restores file timestamps.
   - [x] Maintains and restores extended attributes.
-  - [ ] Maintains and restores Access Control Lists (ACLs).
+  - [x] Maintains and restores Access Control Lists (ACLs) (experimental feature).
 
 ## Installation
 
