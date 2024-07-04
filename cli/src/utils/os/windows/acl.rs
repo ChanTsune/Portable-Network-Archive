@@ -5,12 +5,11 @@ use field_offset::offset_of;
 use std::path::Path;
 use std::ptr::null_mut;
 use std::{io, mem};
-use windows::Win32::Foundation::PSID;
 use windows::Win32::Security::{
     AddAccessAllowedAceEx, AddAccessDeniedAceEx, GetAce, InitializeAcl, ACCESS_ALLOWED_ACE,
     ACCESS_DENIED_ACE, ACE_FLAGS, ACE_HEADER, ACL as Win32ACL, ACL_REVISION_DS,
     CONTAINER_INHERIT_ACE, INHERITED_ACE, INHERIT_ONLY_ACE, NO_PROPAGATE_INHERIT_ACE,
-    OBJECT_INHERIT_ACE,
+    OBJECT_INHERIT_ACE, PSID,
 };
 use windows::Win32::Storage::FileSystem::{
     DELETE, FILE_ACCESS_RIGHTS, FILE_APPEND_DATA, FILE_DELETE_CHILD, FILE_EXECUTE,
