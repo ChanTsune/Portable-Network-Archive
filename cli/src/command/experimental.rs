@@ -18,6 +18,7 @@ impl Command for ExperimentalCommand {
             ExperimentalCommands::Concat(cmd) => cmd.execute(verbosity),
             ExperimentalCommands::Chown(cmd) => cmd.execute(verbosity),
             ExperimentalCommands::Chmod(cmd) => cmd.execute(verbosity),
+            ExperimentalCommands::Xattr(cmd) => cmd.execute(verbosity),
         }
     }
 }
@@ -36,4 +37,6 @@ pub(crate) enum ExperimentalCommands {
     Chown(command::chown::ChownCommand),
     #[command(about = "Change mode")]
     Chmod(command::chmod::ChmodCommand),
+    #[command(about = "Manipulate extended attributes")]
+    Xattr(command::xattr::XattrCommand),
 }
