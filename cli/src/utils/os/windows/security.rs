@@ -7,7 +7,6 @@ use std::{io, mem};
 use windows::core::{PCWSTR, PWSTR};
 use windows::Win32::Foundation::{
     CloseHandle, LocalFree, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, HLOCAL, INVALID_HANDLE_VALUE,
-    PSID,
 };
 use windows::Win32::Security::Authorization::{
     ConvertSidToStringSidW, ConvertStringSidToSidW, GetNamedSecurityInfoW, SetNamedSecurityInfoW,
@@ -19,7 +18,7 @@ use windows::Win32::Security::{
     SidTypeDomain, SidTypeGroup, SidTypeInvalid, SidTypeLabel, SidTypeLogonSession, SidTypeUnknown,
     SidTypeUser, SidTypeWellKnownGroup, ACL as Win32ACL, DACL_SECURITY_INFORMATION,
     GROUP_SECURITY_INFORMATION, OBJECT_SECURITY_INFORMATION, OWNER_SECURITY_INFORMATION,
-    PROTECTED_DACL_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, SE_BACKUP_NAME,
+    PROTECTED_DACL_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, PSID, SE_BACKUP_NAME,
     SE_PRIVILEGE_ENABLED, SE_RESTORE_NAME, SE_SECURITY_NAME, SE_TAKE_OWNERSHIP_NAME, SID_NAME_USE,
     TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES, TOKEN_QUERY,
 };
