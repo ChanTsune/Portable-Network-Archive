@@ -13,6 +13,7 @@ pub mod split;
 pub(crate) mod stdio;
 pub(crate) mod strip;
 pub mod update;
+mod xattr;
 
 use crate::cli::{CipherAlgorithmArgs, Cli, Commands, PasswordArgs, Verbosity};
 use std::{fs, io};
