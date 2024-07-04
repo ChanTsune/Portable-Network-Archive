@@ -51,7 +51,7 @@ impl ACL {
         let count = unsafe { *p_acl }.AceCount as u32;
         for i in 0..count {
             let mut header: PACE_HEADER = null_mut();
-            unsafe { GetAce(p_acl, i, mem::transmute(&mut header)) }.map_err(io::Error::other)?;
+            unsafe { GetAce(p_acl, i, mem::transmute(&mut header)) }?;
             let ace = match unsafe { *header }.AceType as u32 {
                 ACCESS_ALLOWED_ACE_TYPE => {
                     let entry_ptr: *mut ACCESS_ALLOWED_ACE = header as *mut ACCESS_ALLOWED_ACE;
@@ -97,8 +97,7 @@ impl ACL {
             + mem::size_of::<Win32ACL>();
         let mut new_acl_buffer = Vec::<u8>::with_capacity(acl_size);
         let new_acl = new_acl_buffer.as_mut_ptr();
-        unsafe { InitializeAcl(new_acl as _, acl_size as u32, ACL_REVISION_DS) }
-            .map_err(io::Error::other)?;
+        unsafe { InitializeAcl(new_acl as _, acl_size as u32, ACL_REVISION_DS) }?;
         for ace in acl_entries {
             match ace.ace_type {
                 AceType::AccessAllow => unsafe {
@@ -120,8 +119,7 @@ impl ACL {
                     )
                 },
                 AceType::Unknown(n) => return Err(io::Error::other(format!("{}", n))),
-            }
-            .map_err(io::Error::other)?;
+            }?;
         }
         self.security_descriptor
             .apply(None, None, Some(new_acl as _))
