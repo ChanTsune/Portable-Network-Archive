@@ -165,7 +165,7 @@ impl From<SID_NAME_USE> for SidType {
     }
 }
 
-fn lookup_account_sid(psid: PSID) -> io::Result<(String, SidType)> {
+fn lookup_account_sid(psid: PSID) -> io::Result<(String, String, SidType)> {
     let mut name_len = 0u32;
     let mut sysname_len = 0u32;
     let mut sid_type = SID_NAME_USE::default();
@@ -187,25 +187,28 @@ fn lookup_account_sid(psid: PSID) -> io::Result<(String, SidType)> {
     let mut name = Vec::<u16>::with_capacity(name_len as usize);
     let mut sysname = Vec::<u16>::with_capacity(sysname_len as usize);
     let name_ptr = PWSTR::from_raw(name.as_mut_ptr() as _);
+    let sysname_ptr = PWSTR::from_raw(sysname.as_mut_ptr() as _);
     unsafe {
         LookupAccountSidW(
             PCWSTR::null(),
             psid,
             name_ptr,
             &mut name_len as _,
-            PWSTR::from_raw(sysname.as_mut_ptr() as _),
+            sysname_ptr,
             &mut sysname_len as _,
             &mut sid_type as _,
         )
     }?;
     let name = unsafe { name_ptr.to_string() }.map_err(io::Error::other)?;
-    Ok((name, SidType::from(sid_type)))
+    let system = unsafe { sysname_ptr.to_string() }.map_err(io::Error::other)?;
+    Ok((name, system, SidType::from(sid_type)))
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Sid {
     pub(crate) ty: SidType,
     pub(crate) name: String,
+    pub(crate) domain: String,
     pub(crate) raw: Vec<u8>,
 }
 
@@ -218,13 +221,13 @@ impl Sid {
 
     pub(crate) fn try_from_name(name: &str, system: Option<&str>) -> io::Result<Self> {
         let encoded_name = encode_wide(name.as_ref())?;
-        let system = system.map(|it| encode_wide(it.as_ref())).transpose()?;
+        let encoded_system = system.map(|it| encode_wide(it.as_ref())).transpose()?;
         let mut sid_len = 0u32;
         let mut sys_name_len = 0u32;
         let mut sid_type = SID_NAME_USE::default();
         match unsafe {
             LookupAccountNameW(
-                system
+                encoded_system
                     .as_ref()
                     .map_or(PCWSTR::null(), |it| PCWSTR::from_raw(it.as_ptr())),
                 PCWSTR::from_raw(encoded_name.as_ptr()),
@@ -244,15 +247,16 @@ impl Sid {
         }
         let mut sid = Vec::with_capacity(sid_len as usize);
         let mut sys_name = Vec::<u16>::with_capacity(sys_name_len as usize);
+        let sys_name_ptr = PWSTR::from_raw(sys_name.as_mut_ptr() as _);
         unsafe {
             LookupAccountNameW(
-                system
+                encoded_system
                     .as_ref()
                     .map_or(PCWSTR::null(), |it| PCWSTR::from_raw(it.as_ptr())),
                 PCWSTR::from_raw(encoded_name.as_ptr()),
                 PSID(sid.as_mut_ptr() as _),
                 &mut sid_len as _,
-                PWSTR::from_raw(sys_name.as_mut_ptr() as _),
+                sys_name_ptr,
                 &mut sys_name_len as _,
                 &mut sid_type as _,
             )?;
@@ -262,6 +266,7 @@ impl Sid {
         Ok(Self {
             ty,
             name: name.to_string(),
+            domain: unsafe { sys_name_ptr.to_string() }.map_err(io::Error::other)?,
             raw: sid,
         })
     }
@@ -315,8 +320,13 @@ impl TryFrom<PSID> for Sid {
         let mut sid = Vec::with_capacity(sid_len as usize);
         unsafe { CopySid(sid_len, PSID(sid.as_mut_ptr() as _), value) }?;
         unsafe { sid.set_len(sid_len as usize) }
-        let (name, ty) = lookup_account_sid(PSID(sid.as_ptr() as _))?;
-        let value = Self { ty, name, raw: sid };
+        let (name, domain, ty) = lookup_account_sid(PSID(sid.as_ptr() as _))?;
+        let value = Self {
+            ty,
+            name,
+            domain,
+            raw: sid,
+        };
         validate_sid(value.as_psid())?;
         Ok(value)
     }
