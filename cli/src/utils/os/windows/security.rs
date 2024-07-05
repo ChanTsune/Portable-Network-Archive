@@ -255,8 +255,7 @@ impl Sid {
                 PWSTR::from_raw(sys_name.as_mut_ptr() as _),
                 &mut sys_name_len as _,
                 &mut sid_type as _,
-            )
-            .map_err(io::Error::other)?;
+            )?;
         }
         let ty = SidType::from(sid_type);
         unsafe { sid.set_len(sid_len as usize) }
