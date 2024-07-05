@@ -315,13 +315,11 @@ pub(crate) fn extract_entry(
         if keep_options.keep_acl {
             use crate::chunk;
             use pna::Chunk;
-            use std::str::FromStr;
 
             let mut acl = Vec::new();
             for c in item.extra_chunks() {
                 if c.ty() == chunk::faCe {
-                    let body = std::str::from_utf8(c.data()).map_err(io::Error::other)?;
-                    let ace = chunk::Ace::from_str(body).map_err(io::Error::other)?;
+                    let ace = chunk::Ace::try_from(c.data()).map_err(io::Error::other)?;
                     acl.push(ace);
                 }
             }
