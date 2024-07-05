@@ -259,7 +259,7 @@ impl Sid {
             .map_err(io::Error::other)?;
         }
         let ty = SidType::from(sid_type);
-        unsafe { sid.set_len(sid_len as usize) }
+        unsafe { sid.set_len(sid_len as usize) };
         Ok(Self {
             ty,
             name: name.to_string(),
