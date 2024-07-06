@@ -26,6 +26,7 @@ jobs:
       - name: install dependencies
         if: startsWith(matrix.os, 'ubuntu')
         run: |
+          sudo apt update
           sudo apt install -y libacl1-dev
       - uses: actions/checkout@v4
       - id: install_rust
