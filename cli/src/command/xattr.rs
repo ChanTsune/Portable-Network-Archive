@@ -86,7 +86,9 @@ fn archive_get_xattr(args: GetXattrCommand, _: Verbosity) -> io::Result<()> {
             let name = entry.header().path().as_ref();
             if globs.matches_any(name) {
                 println!("{}", name);
-                for attr in entry.xattrs() {
+                for attr in entry.xattrs().iter().filter(|a| {
+                    args.name.is_none() || args.name.as_deref().is_some_and(|it| it == a.name())
+                }) {
                     println!("{}: {:?}", attr.name(), attr.value());
                 }
             }
