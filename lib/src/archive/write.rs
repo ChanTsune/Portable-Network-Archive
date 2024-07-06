@@ -583,16 +583,12 @@ mod tests {
     #[tokio::test]
     async fn encode_async() {
         use async_std::io::prelude::*;
-        {
-            let file = async_std::fs::File::create("../target/tmp/async.pna")
-                .await
-                .unwrap();
+        let bytes = {
+            let file = async_std::io::Cursor::new(Vec::new());
             let writer = Archive::write_header_async(file).await.unwrap();
-            writer.finalize_async().await.unwrap();
-        }
-        let mut file = async_std::fs::File::open("../target/tmp/async.pna")
-            .await
-            .unwrap();
+            writer.finalize_async().await.unwrap().into_inner()
+        };
+        let mut file = async_std::io::Cursor::new(bytes);
         let mut buf = Vec::new();
         file.read_to_end(&mut buf).await.unwrap();
         let expected = include_bytes!("../../../resources/test/empty.pna");

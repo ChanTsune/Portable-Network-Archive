@@ -476,15 +476,11 @@ mod tests {
     #[tokio::test]
     async fn extract_async() -> io::Result<()> {
         use crate::ReadOptions;
-        let file = async_std::fs::File::open("../resources/test/zstd.pna").await?;
+        let input = include_bytes!("../../../resources/test/zstd.pna");
+        let file = async_std::io::Cursor::new(input);
         let mut archive = Archive::read_header_async(file).await?;
-        let dist_dir = std::path::PathBuf::from("../target/tmp/");
         while let Some(entry) = archive.read_entry_async().await? {
-            let path = dist_dir.join(entry.header().path());
-            if let Some(parents) = path.parent() {
-                async_std::fs::create_dir_all(parents).await?;
-            }
-            let mut file = async_std::fs::File::create(path).await?;
+            let mut file = async_std::io::Cursor::new(Vec::new());
             let mut reader = entry.reader(ReadOptions::builder().build())?;
             async_std::io::copy(&mut reader, &mut file).await?;
         }
