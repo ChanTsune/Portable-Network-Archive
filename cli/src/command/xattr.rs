@@ -89,7 +89,11 @@ fn archive_get_xattr(args: GetXattrCommand, _: Verbosity) -> io::Result<()> {
                 for attr in entry.xattrs().iter().filter(|a| {
                     args.name.is_none() || args.name.as_deref().is_some_and(|it| it == a.name())
                 }) {
-                    println!("{}: {:?}", attr.name(), attr.value());
+                    println!(
+                        "{}: {}",
+                        attr.name(),
+                        String::from_utf8(attr.value().into()).unwrap_or_else(|e| e.to_string())
+                    );
                 }
             }
             Ok(())
