@@ -38,7 +38,7 @@ pub(crate) struct GetXattrCommand {
     archive: PathBuf,
     #[arg(value_hint = ValueHint::AnyPath)]
     files: Vec<String>,
-    #[arg(long, help = "Filter by name of extended attribute")]
+    #[arg(short, long, help = "Filter by name of extended attribute")]
     name: Option<String>,
     #[command(flatten)]
     password: PasswordArgs,
@@ -56,9 +56,9 @@ pub(crate) struct SetXattrCommand {
     archive: PathBuf,
     #[arg(value_hint = ValueHint::AnyPath)]
     files: Vec<String>,
-    #[arg(long, help = "name of extended attribute")]
+    #[arg(short, long, help = "name of extended attribute")]
     name: String,
-    #[arg(long, help = "value of extended attribute")]
+    #[arg(short, long, help = "value of extended attribute")]
     value: String,
     #[command(flatten)]
     password: PasswordArgs,
