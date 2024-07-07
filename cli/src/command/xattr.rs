@@ -26,9 +26,9 @@ impl Command for XattrCommand {
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) enum XattrCommands {
-    #[command(about = "Get extended attribute from entries")]
+    #[command(about = "Get extended attributes of entries")]
     Get(GetXattrCommand),
-    #[command(about = "Set extended attribute to entries")]
+    #[command(about = "Set extended attributes of entries")]
     Set(SetXattrCommand),
 }
 
