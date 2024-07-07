@@ -59,7 +59,7 @@ pub(crate) struct SetXattrCommand {
     #[arg(short, long, help = "name of extended attribute")]
     name: String,
     #[arg(short, long, help = "value of extended attribute")]
-    value: String,
+    value: Option<String>,
     #[command(flatten)]
     password: PasswordArgs,
 }
@@ -127,7 +127,7 @@ fn archive_set_xattr(args: SetXattrCommand, _: Verbosity) -> io::Result<()> {
                     .map(|it| (it.name(), it.value()))
                     .collect::<IndexMap<_, _>>();
                 let map_entry = xattrs.entry(&args.name);
-                map_entry.or_insert(args.value.as_bytes());
+                map_entry.or_insert(args.value.as_deref().unwrap_or_default().as_bytes());
                 let xattrs = xattrs
                     .into_iter()
                     .map(|(key, value)| pna::ExtendedAttribute::new(key.into(), value.into()))
