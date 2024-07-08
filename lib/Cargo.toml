@@ -27,7 +27,7 @@ liblzma = { version = "0.3.2", features = ["static"] }
 password-hash = { version = "0.5.0", default-features = false }
 pbkdf2 = { version = "0.12.2", features = ["simple", "parallel"] }
 rand = "0.8.5"
-zstd = { version = "0.13.1", default-features = false }
+zstd = { version = "0.13.2", default-features = false }
 
 [dev-dependencies]
 async-std = "1.12.0"
