@@ -56,9 +56,9 @@ pub(crate) struct SetXattrCommand {
     archive: PathBuf,
     #[arg(value_hint = ValueHint::AnyPath)]
     files: Vec<String>,
-    #[arg(short, long, help = "name of extended attribute")]
+    #[arg(short, long, help = "Name of extended attribute")]
     name: String,
-    #[arg(short, long, help = "value of extended attribute")]
+    #[arg(short, long, help = "Value of extended attribute")]
     value: Option<String>,
     #[command(flatten)]
     password: PasswordArgs,
