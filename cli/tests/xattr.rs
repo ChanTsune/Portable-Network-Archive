@@ -2,12 +2,12 @@ use clap::Parser;
 use portable_network_archive::{cli, command};
 
 #[test]
-fn archive_xattr() {
+fn archive_xattr_set() {
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/manipulate_xattr.pna", env!("CARGO_TARGET_TMPDIR")),
+        &format!("{}/xattr_set.pna", env!("CARGO_TARGET_TMPDIR")),
         "--overwrite",
         "-r",
         "../resources/test/raw",
@@ -20,7 +20,7 @@ fn archive_xattr() {
         "experimental",
         "xattr",
         "set",
-        &format!("{}/manipulate_xattr.pna", env!("CARGO_TARGET_TMPDIR")),
+        &format!("{}/xattr_set.pna", env!("CARGO_TARGET_TMPDIR")),
         "--name",
         "user.name",
         "--value",
@@ -34,7 +34,7 @@ fn archive_xattr() {
         "experimental",
         "xattr",
         "get",
-        &format!("{}/manipulate_xattr.pna", env!("CARGO_TARGET_TMPDIR")),
+        &format!("{}/xattr_set.pna", env!("CARGO_TARGET_TMPDIR")),
         "resources/test/raw/empty.txt",
         "--name",
         "user.name",
@@ -44,10 +44,10 @@ fn archive_xattr() {
         "pna",
         "--quiet",
         "x",
-        &format!("{}/manipulate_xattr.pna", env!("CARGO_TARGET_TMPDIR")),
+        &format!("{}/xattr_set.pna", env!("CARGO_TARGET_TMPDIR")),
         "--overwrite",
         "--out-dir",
-        &format!("{}/manipulate_xattr/", env!("CARGO_TARGET_TMPDIR")),
+        &format!("{}/xattr_set/", env!("CARGO_TARGET_TMPDIR")),
         "--keep-xattr",
     ]))
     .unwrap();
