@@ -57,9 +57,11 @@ pub(crate) struct SetXattrCommand {
     #[arg(value_hint = ValueHint::AnyPath)]
     files: Vec<String>,
     #[arg(short, long, help = "Name of extended attribute")]
-    name: String,
+    name: Option<String>,
     #[arg(short, long, help = "Value of extended attribute")]
     value: Option<String>,
+    #[arg(short = 'x', long, help = "Remove extended attribute")]
+    remove: Option<String>,
     #[command(flatten)]
     password: PasswordArgs,
 }
@@ -126,8 +128,13 @@ fn archive_set_xattr(args: SetXattrCommand, _: Verbosity) -> io::Result<()> {
                     .iter()
                     .map(|it| (it.name(), it.value()))
                     .collect::<IndexMap<_, _>>();
-                let map_entry = xattrs.entry(&args.name);
-                map_entry.or_insert(args.value.as_deref().unwrap_or_default().as_bytes());
+                if let Some(name) = args.name.as_deref() {
+                    let map_entry = xattrs.entry(name);
+                    map_entry.or_insert(args.value.as_deref().unwrap_or_default().as_bytes());
+                }
+                if let Some(name) = args.name.as_deref() {
+                    xattrs.shift_remove_entry(name);
+                }
                 let xattrs = xattrs
                     .into_iter()
                     .map(|(key, value)| pna::ExtendedAttribute::new(key.into(), value.into()))
