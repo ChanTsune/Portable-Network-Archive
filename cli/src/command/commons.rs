@@ -4,8 +4,8 @@ use crate::{
 };
 use normalize_path::*;
 use pna::{
-    Archive, Entry, EntryBuilder, EntryName, EntryPart, EntryReference, RegularEntry, WriteOptions,
-    MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
+    Archive, Entry, EntryBuilder, EntryName, EntryPart, EntryReference, ReadEntry, RegularEntry,
+    WriteOptions, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
 };
 use std::{
     fs,
@@ -381,8 +381,27 @@ where
     Provider: FnMut() -> Option<&'p str>,
     F: FnMut(io::Result<RegularEntry>) -> io::Result<()>,
 {
+    let password = password_provider();
+    run_process_entry(archive_provider, |entry| match entry? {
+        ReadEntry::Solid(solid) => {
+            for s in solid.entries(password)? {
+                processor(s)?;
+            }
+            Ok(())
+        }
+        ReadEntry::Regular(regular) => processor(Ok(regular)),
+    })
+}
+
+pub(crate) fn run_process_entry<'p, F>(
+    archive_provider: impl ArchiveProvider,
+    mut processor: F,
+) -> io::Result<()>
+where
+    F: FnMut(io::Result<ReadEntry>) -> io::Result<()>,
+{
     run_across_archive(archive_provider, |archive| {
-        for entry in archive.entries_with_password(password_provider()) {
+        for entry in archive.entries() {
             processor(entry)?;
         }
         Ok(())
