@@ -394,7 +394,7 @@ where
     })
 }
 
-pub(crate) fn run_process_entry<'p, F>(
+pub(crate) fn run_process_entry<F>(
     archive_provider: impl ArchiveProvider,
     mut processor: F,
 ) -> io::Result<()>
