@@ -1,6 +1,6 @@
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs},
-    utils::PathPartExt,
+    utils::{self, PathPartExt},
 };
 use normalize_path::*;
 use pna::{
@@ -8,6 +8,7 @@ use pna::{
     WriteOptions, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
 };
 use std::{
+    env::temp_dir,
     fs,
     io::{self, prelude::*},
     path::{Path, PathBuf},
@@ -406,6 +407,33 @@ where
         }
         Ok(())
     })
+}
+
+pub(crate) fn run_manipulate_entry_by_path<'p, O, P, Provider, F>(
+    output_path: O,
+    input_path: P,
+    password_provider: Provider,
+    mut processor: F,
+) -> io::Result<()>
+where
+    O: AsRef<Path>,
+    P: AsRef<Path>,
+    Provider: FnMut() -> Option<&'p str>,
+    F: FnMut(io::Result<RegularEntry>) -> io::Result<RegularEntry>,
+{
+    let random = rand::random::<usize>();
+    let outfile_path = temp_dir().join(format!("{}.pna.tmp", random));
+    let outfile = fs::File::create(&outfile_path)?;
+    let mut out_archive = Archive::write_header(outfile)?;
+
+    run_process_archive_path(input_path, password_provider, |entry| {
+        out_archive.add_entry(processor(entry)?)?;
+        Ok(())
+    })?;
+
+    out_archive.finalize()?;
+    utils::fs::mv(outfile_path, output_path)?;
+    Ok(())
 }
 
 pub(crate) fn run_process_archive_path<'p, P, Provider, F>(
