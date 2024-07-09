@@ -1,12 +1,15 @@
 use crate::{
     cli::{PasswordArgs, Verbosity},
-    command::{ask_password, commons::run_process_archive_path, Command},
-    utils::{self, GlobPatterns, PathPartExt},
+    command::{
+        ask_password,
+        commons::{run_manipulate_entry_by_path, run_process_archive_path},
+        Command,
+    },
+    utils::{GlobPatterns, PathPartExt},
 };
 use clap::{Parser, ValueHint};
 use indexmap::IndexMap;
-use pna::Archive;
-use std::{env::temp_dir, fs, io, path::PathBuf};
+use std::{io, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(args_conflicts_with_subcommands = true, arg_required_else_help = true)]
@@ -111,12 +114,9 @@ fn archive_set_xattr(args: SetXattrCommand, _: Verbosity) -> io::Result<()> {
     }
     let globs = GlobPatterns::new(args.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-    let random = rand::random::<usize>();
-    let outfile_path = temp_dir().join(format!("{}.pna.tmp", random));
-    let outfile = fs::File::create(&outfile_path)?;
-    let mut out_archive = Archive::write_header(outfile)?;
 
-    run_process_archive_path(
+    run_manipulate_entry_by_path(
+        args.archive.remove_part().unwrap(),
         &args.archive,
         || password.as_deref(),
         |entry| {
@@ -139,16 +139,10 @@ fn archive_set_xattr(args: SetXattrCommand, _: Verbosity) -> io::Result<()> {
                     .into_iter()
                     .map(|(key, value)| pna::ExtendedAttribute::new(key.into(), value.into()))
                     .collect::<Vec<_>>();
-                out_archive.add_entry(entry.with_xattrs(&xattrs))?;
+                Ok(entry.with_xattrs(&xattrs))
             } else {
-                out_archive.add_entry(entry)?;
+                Ok(entry)
             }
-            Ok(())
         },
-    )?;
-
-    out_archive.finalize()?;
-
-    utils::fs::mv(outfile_path, args.archive.remove_part().unwrap())?;
-    Ok(())
+    )
 }
