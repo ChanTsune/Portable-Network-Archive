@@ -841,6 +841,36 @@ impl<T> NormalEntry<T> {
         &self.header
     }
 
+    /// Name of the entry.
+    #[inline]
+    pub fn name(&self) -> EntryName {
+        self.header.path.clone()
+    }
+
+    /// Type of the entry.
+    #[inline]
+    pub const fn data_kind(&self) -> DataKind {
+        self.header.data_kind
+    }
+
+    /// Compression method of the entry.
+    #[inline]
+    pub const fn compression(&self) -> Compression {
+        self.header.compression
+    }
+
+    /// Encryption method of the entry.
+    #[inline]
+    pub const fn encryption(&self) -> Encryption {
+        self.header.encryption
+    }
+
+    /// Cipher mode of the entry's encryption method.
+    #[inline]
+    pub const fn cipher_mode(&self) -> CipherMode {
+        self.header.cipher_mode
+    }
+
     /// Metadata of the entry.
     #[inline]
     pub fn metadata(&self) -> &Metadata {
