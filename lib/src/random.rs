@@ -4,8 +4,7 @@ use std::io;
 
 pub(crate) fn random_bytes(dist: &mut [u8]) -> io::Result<()> {
     let mut rand = OsRng;
-    rand.try_fill_bytes(dist)
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    rand.try_fill_bytes(dist).map_err(io::Error::other)
 }
 
 pub(crate) fn random_vec(size: usize) -> io::Result<Vec<u8>> {

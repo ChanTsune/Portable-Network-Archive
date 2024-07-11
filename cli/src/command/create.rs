@@ -202,7 +202,7 @@ where
 {
     let pool = ThreadPoolBuilder::default()
         .build()
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        .map_err(io::Error::other)?;
 
     let (tx, rx) = std::sync::mpsc::channel();
     let option = if solid {
@@ -258,7 +258,7 @@ fn create_archive_with_split(
 ) -> io::Result<()> {
     let pool = ThreadPoolBuilder::default()
         .build()
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        .map_err(io::Error::other)?;
 
     let (tx, rx) = std::sync::mpsc::channel();
     let option = if solid {

@@ -145,7 +145,7 @@ where
 
     let pool = ThreadPoolBuilder::default()
         .build()
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        .map_err(io::Error::other)?;
 
     let mut hard_link_entries = Vec::new();
 

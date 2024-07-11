@@ -114,7 +114,7 @@ fn append_to_archive(args: AppendCommand, verbosity: Verbosity) -> io::Result<()
     };
     let pool = ThreadPoolBuilder::default()
         .build()
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        .map_err(io::Error::other)?;
 
     let mut files = args.file.files;
     if args.files_from_stdin {
