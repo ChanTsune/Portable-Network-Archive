@@ -7,9 +7,15 @@ use crate::{
     },
     utils::{GlobPatterns, PathPartExt},
 };
+use base64::Engine;
 use clap::{Parser, ValueHint};
 use indexmap::IndexMap;
-use std::{io, path::PathBuf};
+use std::{
+    fmt::{Display, Formatter},
+    io,
+    path::PathBuf,
+    str::FromStr,
+};
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(args_conflicts_with_subcommands = true, arg_required_else_help = true)]
@@ -43,6 +49,8 @@ pub(crate) struct GetXattrCommand {
     files: Vec<String>,
     #[arg(short, long, help = "Filter by name of extended attribute")]
     name: Option<String>,
+    #[arg(short, long, help = "Value encoding")]
+    encoding: Option<Encoding>,
     #[command(flatten)]
     password: PasswordArgs,
 }
@@ -75,6 +83,37 @@ impl Command for SetXattrCommand {
     }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+enum Encoding {
+    #[default]
+    Text,
+    Hex,
+    Base64,
+}
+
+impl Display for Encoding {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Encoding::Text => "text",
+            Encoding::Hex => "hex",
+            Encoding::Base64 => "base64",
+        })
+    }
+}
+
+impl FromStr for Encoding {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "text" => Ok(Self::Text),
+            "hex" => Ok(Self::Hex),
+            "base64" => Ok(Self::Base64),
+            _ => Err("only allowed `text`, `hex` or `base64`".into()),
+        }
+    }
+}
+
 fn archive_get_xattr(args: GetXattrCommand, _: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     if args.files.is_empty() {
@@ -82,6 +121,7 @@ fn archive_get_xattr(args: GetXattrCommand, _: Verbosity) -> io::Result<()> {
     }
     let globs = GlobPatterns::new(args.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let encoding = args.encoding.unwrap_or_default();
 
     run_process_archive_path(
         &args.archive,
@@ -94,11 +134,17 @@ fn archive_get_xattr(args: GetXattrCommand, _: Verbosity) -> io::Result<()> {
                 for attr in entry.xattrs().iter().filter(|a| {
                     args.name.is_none() || args.name.as_deref().is_some_and(|it| it == a.name())
                 }) {
-                    println!(
-                        "{}: {}",
-                        attr.name(),
-                        String::from_utf8(attr.value().into()).unwrap_or_else(|e| e.to_string())
-                    );
+                    match encoding {
+                        Encoding::Text => {
+                            println!("{}: {}", attr.name(), DisplayText(attr.value()));
+                        }
+                        Encoding::Hex => {
+                            println!("{}: {}", attr.name(), DisplayHex(attr.value()));
+                        }
+                        Encoding::Base64 => {
+                            println!("{}: {}", attr.name(), DisplayBase64(attr.value()));
+                        }
+                    }
                 }
             }
             Ok(())
@@ -145,4 +191,62 @@ fn archive_set_xattr(args: SetXattrCommand, _: Verbosity) -> io::Result<()> {
             }
         },
     )
+}
+
+struct DisplayText<'a>(&'a [u8]);
+
+impl<'a> Display for DisplayText<'a> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match std::str::from_utf8(self.0) {
+            Ok(s) => f.write_str(s),
+            Err(e) => write!(f, "{}", e),
+        }
+    }
+}
+
+struct DisplayHex<'a>(&'a [u8]);
+
+impl<'a> Display for DisplayHex<'a> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str("0x")?;
+        for i in self.0 {
+            write!(f, "{:x}", i)?;
+        }
+        Ok(())
+    }
+}
+
+struct DisplayBase64<'a>(&'a [u8]);
+
+impl<'a> Display for DisplayBase64<'a> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str("0s")?;
+        f.write_str(&base64::engine::general_purpose::STANDARD.encode(self.0))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn encode_text() {
+        let v = DisplayText(b"abc");
+        assert_eq!(format!("{}", v), "abc");
+    }
+
+    #[test]
+    fn encode_hex() {
+        let v = DisplayHex(b"abc");
+        assert_eq!(format!("{}", v), "0x616263");
+    }
+
+    #[test]
+    fn encode_base64() {
+        let v = DisplayBase64(b"abc");
+        assert_eq!(format!("{}", v), "0sYWJj");
+    }
 }
