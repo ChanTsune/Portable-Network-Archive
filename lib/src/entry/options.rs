@@ -8,7 +8,7 @@ pub enum Compression {
     No = 0,
     /// Zlib format.
     Deflate = 1,
-    /// Zstandard format.
+    /// ZStandard format.
     ZStandard = 2,
     /// Xz format.
     XZ = 4,
