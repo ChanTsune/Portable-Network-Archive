@@ -5,7 +5,7 @@ use crate::{
         commons::{run_manipulate_entry_by_path, run_process_archive_path},
         Command,
     },
-    utils::{GlobPatterns, PathPartExt},
+    utils::{str::char_chunks, GlobPatterns, PathPartExt},
 };
 use base64::Engine;
 use clap::{Parser, ValueHint};
@@ -70,7 +70,7 @@ pub(crate) struct SetXattrCommand {
     #[arg(short, long, help = "Name of extended attribute")]
     name: Option<String>,
     #[arg(short, long, help = "Value of extended attribute")]
-    value: Option<String>,
+    value: Option<Value>,
     #[arg(short = 'x', long, help = "Remove extended attribute")]
     remove: Option<String>,
     #[command(flatten)]
@@ -176,7 +176,12 @@ fn archive_set_xattr(args: SetXattrCommand, _: Verbosity) -> io::Result<()> {
                     .collect::<IndexMap<_, _>>();
                 if let Some(name) = args.name.as_deref() {
                     let map_entry = xattrs.entry(name);
-                    map_entry.or_insert(args.value.as_deref().unwrap_or_default().as_bytes());
+                    map_entry.or_insert(
+                        args.value
+                            .as_ref()
+                            .map(|it| it.as_bytes())
+                            .unwrap_or_default(),
+                    );
                 }
                 if let Some(name) = args.name.as_deref() {
                     xattrs.shift_remove_entry(name);
@@ -191,6 +196,37 @@ fn archive_set_xattr(args: SetXattrCommand, _: Verbosity) -> io::Result<()> {
             }
         },
     )
+}
+
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+struct Value(Vec<u8>);
+
+impl FromStr for Value {
+    type Err = String;
+
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(if s.starts_with("0x") {
+            let mut vec = Vec::new();
+            for i in char_chunks(&s[2..], 2) {
+                vec.push(u8::from_str_radix(&i, 16).map_err(|e| e.to_string())?);
+            }
+            vec
+        } else if s.starts_with("0s") {
+            base64::engine::general_purpose::STANDARD
+                .decode(&s[2..])
+                .map_err(|e| e.to_string())?
+        } else {
+            s.into()
+        }))
+    }
+}
+
+impl Value {
+    #[inline]
+    fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
 }
 
 struct DisplayText<'a>(&'a [u8]);
@@ -248,5 +284,29 @@ mod tests {
     fn encode_base64() {
         let v = DisplayBase64(b"abc");
         assert_eq!(format!("{}", v), "0sYWJj");
+    }
+
+    #[test]
+    fn decode_text() {
+        assert_eq!(
+            Value("abc".as_bytes().into()),
+            Value::from_str("abc").unwrap()
+        );
+    }
+
+    #[test]
+    fn decode_hex() {
+        assert_eq!(
+            Value("abc".as_bytes().into()),
+            Value::from_str("0x616263").unwrap()
+        );
+    }
+
+    #[test]
+    fn decode_base64() {
+        assert_eq!(
+            Value("abc".as_bytes().into()),
+            Value::from_str("0sYWJj").unwrap()
+        );
     }
 }
