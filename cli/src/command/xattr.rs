@@ -121,7 +121,7 @@ fn archive_get_xattr(args: GetXattrCommand, _: Verbosity) -> io::Result<()> {
     }
     let globs = GlobPatterns::new(args.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-    let encoding = args.encoding.unwrap_or_default();
+    let encoding = args.encoding;
 
     run_process_archive_path(
         &args.archive,
@@ -135,13 +135,16 @@ fn archive_get_xattr(args: GetXattrCommand, _: Verbosity) -> io::Result<()> {
                     args.name.is_none() || args.name.as_deref().is_some_and(|it| it == a.name())
                 }) {
                     match encoding {
-                        Encoding::Text => {
+                        None => {
+                            println!("{}: {}", attr.name(), DisplayAuto(attr.value()));
+                        }
+                        Some(Encoding::Text) => {
                             println!("{}: {}", attr.name(), DisplayText(attr.value()));
                         }
-                        Encoding::Hex => {
+                        Some(Encoding::Hex) => {
                             println!("{}: {}", attr.name(), DisplayHex(attr.value()));
                         }
-                        Encoding::Base64 => {
+                        Some(Encoding::Base64) => {
                             println!("{}: {}", attr.name(), DisplayBase64(attr.value()));
                         }
                     }
@@ -226,6 +229,18 @@ impl Value {
     #[inline]
     fn as_bytes(&self) -> &[u8] {
         &self.0
+    }
+}
+
+struct DisplayAuto<'a>(&'a [u8]);
+
+impl<'a> Display for DisplayAuto<'a> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match std::str::from_utf8(self.0) {
+            Ok(s) => f.write_str(s),
+            Err(_e) => write!(f, "{}", DisplayHex(self.0)),
+        }
     }
 }
 
