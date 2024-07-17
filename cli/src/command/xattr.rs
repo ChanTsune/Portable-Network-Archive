@@ -130,22 +130,22 @@ fn archive_get_xattr(args: GetXattrCommand, _: Verbosity) -> io::Result<()> {
             let entry = entry?;
             let name = entry.header().path().as_ref();
             if globs.matches_any(name) {
-                println!("{}", name);
+                println!("# file: {}", name);
                 for attr in entry.xattrs().iter().filter(|a| {
                     args.name.is_none() || args.name.as_deref().is_some_and(|it| it == a.name())
                 }) {
                     match encoding {
                         None => {
-                            println!("{}: {}", attr.name(), DisplayAuto(attr.value()));
+                            println!("{}={}", attr.name(), DisplayAuto(attr.value()));
                         }
                         Some(Encoding::Text) => {
-                            println!("{}: {}", attr.name(), DisplayText(attr.value()));
+                            println!("{}={}", attr.name(), DisplayText(attr.value()));
                         }
                         Some(Encoding::Hex) => {
-                            println!("{}: {}", attr.name(), DisplayHex(attr.value()));
+                            println!("{}={}", attr.name(), DisplayHex(attr.value()));
                         }
                         Some(Encoding::Base64) => {
-                            println!("{}: {}", attr.name(), DisplayBase64(attr.value()));
+                            println!("{}={}", attr.name(), DisplayBase64(attr.value()));
                         }
                     }
                 }
