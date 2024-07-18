@@ -239,7 +239,7 @@ impl<'a> Display for DisplayAuto<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match std::str::from_utf8(self.0) {
             Ok(s) => f.write_str(s),
-            Err(_e) => write!(f, "{}", DisplayHex(self.0)),
+            Err(_e) => Display::fmt(&DisplayHex(self.0), f),
         }
     }
 }
@@ -251,7 +251,7 @@ impl<'a> Display for DisplayText<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match std::str::from_utf8(self.0) {
             Ok(s) => f.write_str(s),
-            Err(e) => write!(f, "{}", e),
+            Err(e) => Display::fmt(&e, f),
         }
     }
 }
