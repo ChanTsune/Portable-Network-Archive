@@ -115,7 +115,7 @@ pub enum ParseAceError {
 impl Display for ParseAceError {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
+        fmt::Debug::fmt(self, f)
     }
 }
 
