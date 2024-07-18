@@ -296,7 +296,7 @@ impl Display for Sid {
         let mut raw_str = PWSTR::null();
         unsafe { ConvertSidToStringSidW(self.as_psid(), &mut raw_str) }
             .map_err(|_| std::fmt::Error::default())?;
-        let r = write!(f, "{}", unsafe { raw_str.display() });
+        let r = Display::fmt(&unsafe { raw_str.display() }, f);
         unsafe { LocalFree(HLOCAL(raw_str.as_ptr() as _)) };
         r
     }
