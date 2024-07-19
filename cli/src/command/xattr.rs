@@ -11,7 +11,7 @@ use base64::Engine;
 use clap::{Parser, ValueHint};
 use indexmap::IndexMap;
 use std::{
-    fmt::{Display, Formatter},
+    fmt::{Display, Formatter, Write},
     io,
     path::PathBuf,
     str::FromStr,
@@ -279,6 +279,19 @@ impl<'a> Display for DisplayBase64<'a> {
     }
 }
 
+struct EscapeXattrValueText<'s>(&'s str);
+
+impl<'s> Display for EscapeXattrValueText<'s> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.0.chars().try_for_each(|c| match c {
+            '"' => f.write_str("\\\""),
+            '\\' => f.write_str("\\\\"),
+            _ => f.write_char(c),
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -323,5 +336,11 @@ mod tests {
             Value("abc".as_bytes().into()),
             Value::from_str("0sYWJj").unwrap()
         );
+    }
+
+    #[test]
+    fn escape_text() {
+        assert_eq!("", format!("{}", EscapeXattrValueText("")));
+        assert_eq!("a\\\\b\\\"", format!("{}", EscapeXattrValueText("a\\b\"")));
     }
 }
