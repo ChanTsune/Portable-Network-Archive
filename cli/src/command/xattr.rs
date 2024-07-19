@@ -238,7 +238,11 @@ impl<'a> Display for DisplayAuto<'a> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match std::str::from_utf8(self.0) {
-            Ok(s) => f.write_str(s),
+            Ok(s) => {
+                f.write_char('"')?;
+                Display::fmt(&EscapeXattrValueText(s), f)?;
+                f.write_char('"')
+            }
             Err(_e) => Display::fmt(&DisplayHex(self.0), f),
         }
     }
@@ -250,7 +254,11 @@ impl<'a> Display for DisplayText<'a> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match std::str::from_utf8(self.0) {
-            Ok(s) => f.write_str(s),
+            Ok(s) => {
+                f.write_char('"')?;
+                Display::fmt(&EscapeXattrValueText(s), f)?;
+                f.write_char('"')
+            }
             Err(e) => Display::fmt(&e, f),
         }
     }
@@ -299,7 +307,7 @@ mod tests {
     #[test]
     fn encode_text() {
         let v = DisplayText(b"abc");
-        assert_eq!(format!("{}", v), "abc");
+        assert_eq!(format!("{}", v), "\"abc\"");
     }
 
     #[test]
