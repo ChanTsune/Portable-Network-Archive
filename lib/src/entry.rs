@@ -200,6 +200,24 @@ impl SolidEntry {
         &self.header
     }
 
+    /// Compression method of the solid entry.
+    #[inline]
+    pub const fn compression(&self) -> Compression {
+        self.header.compression
+    }
+
+    /// Encryption method of the solid entry.
+    #[inline]
+    pub const fn encryption(&self) -> Encryption {
+        self.header.encryption
+    }
+
+    /// Cipher mode of the solid entry's encryption method.
+    #[inline]
+    pub const fn cipher_mode(&self) -> CipherMode {
+        self.header.cipher_mode
+    }
+
     /// Extra chunks.
     #[inline]
     pub fn extra_chunks(&self) -> &[RawChunk] {
@@ -524,6 +542,36 @@ impl RegularEntry {
     #[inline]
     pub fn header(&self) -> &EntryHeader {
         &self.header
+    }
+
+    /// Path of the entry.
+    #[inline]
+    pub fn path(&self) -> &EntryName {
+        &self.header.path
+    }
+
+    /// Type of the entry.
+    #[inline]
+    pub const fn data_kind(&self) -> DataKind {
+        self.header.data_kind
+    }
+
+    /// Compression method of the entry.
+    #[inline]
+    pub const fn compression(&self) -> Compression {
+        self.header.compression
+    }
+
+    /// Encryption method of the entry.
+    #[inline]
+    pub const fn encryption(&self) -> Encryption {
+        self.header.encryption
+    }
+
+    /// Cipher mode of the entry's encryption method.
+    #[inline]
+    pub const fn cipher_mode(&self) -> CipherMode {
+        self.header.cipher_mode
     }
 
     /// Metadata of the entry.
