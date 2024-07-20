@@ -456,7 +456,12 @@ impl<R: Read> LazyRegularEntries<R> {
                         reader: &mut self.reader,
                     }));
                 }
-                _ => println!("{}", chunk.ty),
+                _ => {
+                    return Some(Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!("unexpected chunk {}", chunk.ty),
+                    )))
+                }
             }
         }
     }
@@ -560,11 +565,10 @@ impl<R: Read> Read for ChunkStreamReader<R> {
             if self.remaining_length == 0 {
                 self.read_crc()?;
             }
-            return Ok(read_len)
+            return Ok(read_len);
         }
         loop {
             let mut single_reader = SingleChunkReader::new(&mut self.inner)?;
-            println!("{}", single_reader.ty);
             if single_reader.ty == self.data_chunk {
                 let total_read = single_reader.read(buf)?;
                 self.remaining_length = single_reader.remaining_length;
