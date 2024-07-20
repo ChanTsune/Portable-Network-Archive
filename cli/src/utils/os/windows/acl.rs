@@ -19,9 +19,14 @@ use windows::Win32::Storage::FileSystem::{
 };
 use windows::Win32::System::SystemServices::{ACCESS_ALLOWED_ACE_TYPE, ACCESS_DENIED_ACE_TYPE};
 
-pub fn set_facl<P: AsRef<Path>>(path: P, acl: Vec<chunk::Ace>) -> io::Result<()> {
-    let acl_entries = acl.into_iter().map(Into::into).collect::<Vec<_>>();
+pub fn set_facl<P: AsRef<Path>>(path: P, ace_list: Vec<chunk::Ace>) -> io::Result<()> {
     let acl = ACL::try_from(path.as_ref())?;
+    let group_sid = acl.security_descriptor.group_sid()?;
+    let owner_sid = acl.security_descriptor.owner_sid()?;
+    let acl_entries = ace_list
+        .into_iter()
+        .map(|it| it.into_acl_entry_with(&owner_sid, &group_sid))
+        .collect::<Vec<_>>();
     acl.set_d_acl(&acl_entries)
 }
 
@@ -179,19 +184,17 @@ const FLAGS_MAPPING_TABLE: [(chunk::Flag, ACE_FLAGS); 6] = [
     (chunk::Flag::ONLY_INHERIT, INHERIT_ONLY_ACE),
 ];
 
-#[allow(clippy::from_over_into)]
-impl Into<ACLEntry> for chunk::Ace {
-    fn into(self) -> ACLEntry {
+impl chunk::Ace {
+    fn into_acl_entry_with(self, owner_sid: &Sid, group_sid: &Sid) -> ACLEntry {
         let slf = ace_convert_current_platform(self);
-        let name = match slf.owner_type {
-            OwnerType::Owner => String::new(),
-            OwnerType::User(i) => i.0,
-            OwnerType::OwnerGroup => String::new(),
-            OwnerType::Group(i) => i.0,
-            OwnerType::Mask => String::new(),
-            OwnerType::Other => "Guest".to_string(),
+        let sid = match slf.owner_type {
+            OwnerType::Owner => owner_sid.clone(),
+            OwnerType::User(i) => Sid::try_from_name(&i.0, None).unwrap(),
+            OwnerType::OwnerGroup => group_sid.clone(),
+            OwnerType::Group(i) => Sid::try_from_name(&i.0, None).unwrap(),
+            OwnerType::Mask => Sid::try_from_name("", None).unwrap(),
+            OwnerType::Other => Sid::try_from_name("Guest", None).unwrap(),
         };
-        let sid = Sid::try_from_name(&name, None).unwrap();
         let ace_type = if slf.allow {
             AceType::AccessAllow
         } else {
