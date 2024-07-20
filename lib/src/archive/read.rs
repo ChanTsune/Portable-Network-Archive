@@ -456,9 +456,8 @@ mod tests {
     #[cfg(feature = "unstable-async")]
     #[tokio::test]
     async fn decode_async() {
-        let file = async_std::fs::File::open("../resources/test/zstd.pna")
-            .await
-            .unwrap();
+        let input = include_bytes!("../../../resources/test/zstd.pna");
+        let file = async_std::io::Cursor::new(input);
         let mut reader = Archive::read_header_async(file).await.unwrap();
         assert!(reader.read_entry_async().await.unwrap().is_some());
         assert!(reader.read_entry_async().await.unwrap().is_some());
