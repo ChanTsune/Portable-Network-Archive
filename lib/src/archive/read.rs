@@ -445,6 +445,7 @@ impl<R: Read> LazyRegularEntries<R> {
         loop {
             let chunk = match reader.read_chunk() {
                 Ok(chunk) => chunk,
+                Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => return None,
                 Err(e) => return Some(Err(e)),
             };
             match chunk.ty {
@@ -494,17 +495,14 @@ impl<R: Read> SingleChunkReader<R> {
 
 impl<R: Read> Read for SingleChunkReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let size = if self.remaining_length < buf.len() {
+        let size = if buf.is_empty() {
+            Ok(0)
+        } else if self.remaining_length < buf.len() {
             self.inner.read(&mut buf[..self.remaining_length])
         } else {
             self.inner.read(buf)
         }?;
         self.remaining_length -= size;
-        if self.remaining_length == 0 {
-            // crc
-            let mut buf = [0u8; mem::size_of::<u32>()];
-            self.inner.read_exact(&mut buf)?;
-        }
         Ok(size)
     }
 }
@@ -550,13 +548,10 @@ impl<R: Read> ChunkStreamReader<R> {
 }
 
 impl<R: Read> Read for ChunkStreamReader<R> {
-    fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
-        if buf.is_empty() {
-            return Ok(0);
-        } else if self.eof {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if buf.is_empty() || self.eof {
             return Ok(0);
         }
-        let mut total_read = 0;
         if self.remaining_length != 0 {
             let read_len = if self.remaining_length < buf.len() {
                 self.inner.read(&mut buf[..self.remaining_length])
@@ -564,26 +559,32 @@ impl<R: Read> Read for ChunkStreamReader<R> {
                 self.inner.read(buf)
             }?;
             self.remaining_length -= read_len;
-            total_read += read_len;
 
             if self.remaining_length == 0 {
                 self.read_crc()?;
             }
+            return Ok(read_len)
         }
         loop {
             let mut single_reader = SingleChunkReader::new(&mut self.inner)?;
             println!("{}", single_reader.ty);
             if single_reader.ty == self.data_chunk {
-                total_read += single_reader.read(&mut buf[total_read..])?;
+                let total_read = single_reader.read(buf)?;
                 self.remaining_length = single_reader.remaining_length;
+                if single_reader.remaining_length == 0 {
+                    self.read_crc()?;
+                }
+                return Ok(total_read);
             } else if single_reader.ty == self.end_chunk {
                 self.read_crc()?;
                 self.eof = true;
-                return Ok(total_read);
+                return Ok(0);
             } else {
                 let mut buf = vec![0; single_reader.remaining_length];
-                // NOTE: Should not call read_exact
-                single_reader.read(&mut buf)?;
+                single_reader.read_exact(&mut buf).unwrap();
+                if single_reader.remaining_length == 0 {
+                    self.read_crc()?;
+                }
             }
         }
     }
@@ -724,10 +725,10 @@ mod tests {
     #[test]
     fn lazy_decode() {
         use crate::Archive;
-        use std::fs::File;
         use std::io::prelude::*;
-        let file = File::open("../resources/test/solid.pna").unwrap();
-        let mut archive = Archive::read_header(file).unwrap();
+
+        let file = include_bytes!("../../../resources/test/solid_zstd.pna");
+        let mut archive = Archive::read_header(file.as_slice()).unwrap();
         while let Some(entry) = archive.lazy_entries().next() {
             match entry.unwrap() {
                 LazyEntry::Regular(mut r) => {
@@ -745,9 +746,6 @@ mod tests {
                     }
                 }
             }
-            // let mut file = File::create(entry.header().path().as_path())?;
-            // let mut reader = entry.reader(ReadOption::builder().build())?;
-            // copy(&mut reader, &mut file)?;
         }
     }
 
