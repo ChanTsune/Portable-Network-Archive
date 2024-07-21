@@ -394,7 +394,7 @@ pub(crate) struct LazyRegularEntry<'r, R> {
 }
 
 impl<'r, R: Read> LazyRegularEntry<'r, R> {
-    fn reader(&'r mut self) -> io::Result<EntryReader<ChunkStreamReader<&mut &mut R>>> {
+    fn reader(&'r mut self) -> io::Result<impl Read + 'r> {
         let reader = ChunkStreamReader::new(&mut self.reader, ChunkType::FDAT, ChunkType::FEND);
         let decrypt_reader = decrypt_reader(
             reader,
@@ -436,10 +436,7 @@ pub(crate) struct LazyRegularEntries<R: Read> {
 }
 
 impl<R: Read> LazyRegularEntries<R> {
-    pub fn next(
-        &mut self,
-    ) -> Option<io::Result<LazyRegularEntry<DecompressReader<DecryptReader<ChunkStreamReader<R>>>>>>
-    {
+    pub fn next(&mut self) -> Option<io::Result<LazyRegularEntry<impl Read>>> {
         let mut reader = ChunkReader::from(&mut self.reader);
 
         loop {
