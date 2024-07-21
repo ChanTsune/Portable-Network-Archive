@@ -470,48 +470,6 @@ impl<R: Read> LazyRegularEntries<R> {
     }
 }
 
-pub(crate) struct SingleChunkReader<R> {
-    inner: R,
-    length: u32,
-    ty: ChunkType,
-    remaining_length: usize,
-}
-
-impl<R: Read> SingleChunkReader<R> {
-    pub(crate) fn new(mut inner: R) -> io::Result<Self> {
-        let length = u32::from_be_bytes({
-            let mut buf = [0u8; mem::size_of::<u32>()];
-            inner.read_exact(&mut buf)?;
-            buf
-        });
-        let ty = ChunkType({
-            let mut buf = [0u8; mem::size_of::<ChunkType>()];
-            inner.read_exact(&mut buf)?;
-            buf
-        });
-        Ok(Self {
-            inner,
-            length,
-            ty,
-            remaining_length: length as usize,
-        })
-    }
-}
-
-impl<R: Read> Read for SingleChunkReader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let size = if buf.is_empty() {
-            Ok(0)
-        } else if self.remaining_length < buf.len() {
-            self.inner.read(&mut buf[..self.remaining_length])
-        } else {
-            self.inner.read(buf)
-        }?;
-        self.remaining_length -= size;
-        Ok(size)
-    }
-}
-
 pub(crate) struct ChunkStreamReader<R> {
     inner: R,
     data_chunk: ChunkType,
@@ -557,12 +515,11 @@ impl<R: Read> Read for ChunkStreamReader<R> {
         if buf.is_empty() || self.eof {
             return Ok(0);
         }
+        let buf_len = buf.len();
         if self.remaining_length != 0 {
-            let read_len = if self.remaining_length < buf.len() {
-                self.inner.read(&mut buf[..self.remaining_length])
-            } else {
-                self.inner.read(buf)
-            }?;
+            let read_len = self
+                .inner
+                .read(&mut buf[..self.remaining_length.min(buf_len)])?;
             self.remaining_length -= read_len;
 
             if self.remaining_length == 0 {
@@ -571,22 +528,27 @@ impl<R: Read> Read for ChunkStreamReader<R> {
             return Ok(read_len);
         }
         loop {
-            let mut single_reader = SingleChunkReader::new(&mut self.inner)?;
-            if single_reader.ty == self.data_chunk {
-                let total_read = single_reader.read(buf)?;
-                self.remaining_length = single_reader.remaining_length;
-                if single_reader.remaining_length == 0 {
+            let mut length = self.read_length()? as usize;
+            let ty = self.read_chunk_type()?;
+            if ty == self.data_chunk {
+                let size = self.inner.read(&mut buf[..length.min(buf_len)])?;
+                length -= size;
+                self.remaining_length = length;
+                if length == 0 {
                     self.read_crc()?;
                 }
-                return Ok(total_read);
-            } else if single_reader.ty == self.end_chunk {
+                return Ok(size);
+            } else if ty == self.end_chunk {
                 self.read_crc()?;
                 self.eof = true;
                 return Ok(0);
             } else {
-                let mut buf = vec![0; single_reader.remaining_length];
-                single_reader.read_exact(&mut buf).unwrap();
-                if single_reader.remaining_length == 0 {
+                if length != 0 {
+                    let mut buf = vec![0; length];
+                    self.inner.read_exact(&mut buf)?;
+                    length = 0;
+                }
+                if length == 0 {
                     self.read_crc()?;
                 }
             }
