@@ -222,6 +222,20 @@ pub enum HashAlgorithm {
     Argon2Id,
 }
 
+impl HashAlgorithm {
+    /// Pbkdf2 with sha256
+    #[inline]
+    pub const fn pbkdf2_sha256() -> Self {
+        Self::Pbkdf2Sha256
+    }
+
+    /// Argon2Id
+    #[inline]
+    pub const fn argon2id() -> Self {
+        Self::Argon2Id
+    }
+}
+
 /// Type of entry.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
