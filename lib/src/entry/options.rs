@@ -217,10 +217,10 @@ impl TryFrom<u8> for CipherMode {
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum HashAlgorithm {
     /// Pbkdf2 with sha256
-    #[deprecated(since = "0.15.0", note = "Use `HashAlgorithm::pbkdf2_sha256` instead.")]
+    #[deprecated(since = "0.14.1", note = "Use `HashAlgorithm::pbkdf2_sha256` instead.")]
     Pbkdf2Sha256,
     /// Argon2Id
-    #[deprecated(since = "0.15.0", note = "Use `HashAlgorithm::argon2id`")]
+    #[deprecated(since = "0.14.1", note = "Use `HashAlgorithm::argon2id`")]
     Argon2Id,
 }
 
