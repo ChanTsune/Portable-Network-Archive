@@ -1,5 +1,8 @@
 use crate::{
-    cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, FileArgs, PasswordArgs, Verbosity},
+    cli::{
+        CipherAlgorithmArgs, CompressionAlgorithmArgs, FileArgs, HashAlgorithmArgs, PasswordArgs,
+        Verbosity,
+    },
     command::{
         ask_password, check_password,
         commons::{
@@ -103,6 +106,8 @@ pub(crate) struct UpdateCommand {
     #[command(flatten)]
     pub(crate) cipher: CipherAlgorithmArgs,
     #[command(flatten)]
+    pub(crate) hash: HashAlgorithmArgs,
+    #[command(flatten)]
     pub(crate) file: FileArgs,
     #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
     pub(crate) exclude: Option<Vec<PathBuf>>,
@@ -124,7 +129,7 @@ fn update_archive(args: UpdateCommand, verbosity: Verbosity) -> io::Result<()> {
             format!("{} is not exists", archive_path.display()),
         ));
     }
-    let option = entry_option(args.compression, args.cipher, password.clone());
+    let option = entry_option(args.compression, args.cipher, args.hash, password.clone());
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
         keep_permission: args.keep_permission,

@@ -1,5 +1,8 @@
 use crate::{
-    cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, FileArgs, PasswordArgs, Verbosity},
+    cli::{
+        CipherAlgorithmArgs, CompressionAlgorithmArgs, FileArgs, HashAlgorithmArgs, PasswordArgs,
+        Verbosity,
+    },
     command::{
         ask_password, check_password,
         commons::{
@@ -88,6 +91,8 @@ pub(crate) struct CreateCommand {
     #[command(flatten)]
     pub(crate) cipher: CipherAlgorithmArgs,
     #[command(flatten)]
+    pub(crate) hash: HashAlgorithmArgs,
+    #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
     pub(crate) file: FileArgs,
@@ -155,7 +160,7 @@ fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
         args.gid,
         args.numeric_owner,
     );
-    let write_option = entry_option(args.compression, args.cipher, password);
+    let write_option = entry_option(args.compression, args.cipher, args.hash, password);
     if let Some(size) = max_file_size {
         create_archive_with_split(
             &args.file.archive,
