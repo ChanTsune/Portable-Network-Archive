@@ -236,7 +236,7 @@ pub(crate) fn apply_metadata(
         if keep_options.keep_acl {
             use crate::chunk;
             use pna::RawChunk;
-            let ace_list = crate::utils::acl::get_facl(path)?;
+            let ace_list = utils::acl::get_facl(path)?;
             for ace in ace_list {
                 entry.add_extra_chunk(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
             }
@@ -257,7 +257,7 @@ pub(crate) fn apply_metadata(
     }
     #[cfg(unix)]
     if keep_options.keep_xattr {
-        for attr in crate::utils::os::unix::fs::xattrs::get_xattrs(path)? {
+        for attr in utils::os::unix::fs::xattrs::get_xattrs(path)? {
             entry.add_xattr(attr);
         }
     }
