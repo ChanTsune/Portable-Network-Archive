@@ -4,6 +4,7 @@ use crate::command::{
     split::SplitCommand, strip::StripCommand,
 };
 use clap::{value_parser, ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
+use pna::HashAlgorithm;
 use std::path::PathBuf;
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
@@ -169,4 +170,23 @@ pub(crate) enum CipherMode {
     Cbc,
     #[default]
     Ctr,
+}
+
+#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[command(group(ArgGroup::new("hash_algorithm").args(["argon2", "pbkdf2"])))]
+pub(crate) struct HashAlgorithmArgs {
+    #[arg(long, help = "Use argon2 for password hashing")]
+    pub(crate) argon2: bool,
+    #[arg(long, help = "Use pbkdf2 for password hashing")]
+    pub(crate) pbkdf2: bool,
+}
+
+impl HashAlgorithmArgs {
+    pub(crate) fn algorithm(&self) -> HashAlgorithm {
+        if self.pbkdf2 {
+            HashAlgorithm::pbkdf2_sha256()
+        } else {
+            HashAlgorithm::argon2id()
+        }
+    }
 }

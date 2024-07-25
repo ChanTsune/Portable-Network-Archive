@@ -1,5 +1,5 @@
 use crate::{
-    cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs},
+    cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
     utils::{self, PathPartExt},
 };
 use normalize_path::*;
@@ -145,6 +145,7 @@ pub(crate) fn create_entry(
 pub(crate) fn entry_option(
     compression: CompressionAlgorithmArgs,
     cipher: CipherAlgorithmArgs,
+    hash: HashAlgorithmArgs,
     password: Option<String>,
 ) -> WriteOptions {
     let (algorithm, level) = compression.algorithm();
@@ -158,6 +159,7 @@ pub(crate) fn entry_option(
             pna::Encryption::No
         })
         .cipher_mode(cipher.mode())
+        .hash_algorithm(hash.algorithm())
         .password(password);
     option_builder.build()
 }

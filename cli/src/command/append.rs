@@ -1,5 +1,8 @@
 use crate::{
-    cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, FileArgs, PasswordArgs, Verbosity},
+    cli::{
+        CipherAlgorithmArgs, CompressionAlgorithmArgs, FileArgs, HashAlgorithmArgs, PasswordArgs,
+        Verbosity,
+    },
     command::{
         ask_password, check_password,
         commons::{
@@ -76,6 +79,8 @@ pub(crate) struct AppendCommand {
     #[command(flatten)]
     pub(crate) cipher: CipherAlgorithmArgs,
     #[command(flatten)]
+    pub(crate) hash: HashAlgorithmArgs,
+    #[command(flatten)]
     pub(crate) file: FileArgs,
     #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
     pub(crate) exclude: Option<Vec<PathBuf>>,
@@ -137,7 +142,7 @@ fn append_to_archive(args: AppendCommand, verbosity: Verbosity) -> io::Result<()
     let target_items = collect_items(&files, args.recursive, args.keep_dir, exclude)?;
 
     let (tx, rx) = std::sync::mpsc::channel();
-    let option = entry_option(args.compression, args.cipher, password);
+    let option = entry_option(args.compression, args.cipher, args.hash, password);
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
         keep_permission: args.keep_permission,

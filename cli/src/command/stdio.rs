@@ -1,5 +1,7 @@
 use crate::{
-    cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, PasswordArgs, Verbosity},
+    cli::{
+        CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs, PasswordArgs, Verbosity,
+    },
     command::{
         ask_password, check_password,
         commons::{
@@ -59,6 +61,8 @@ pub(crate) struct StdioCommand {
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
     pub(crate) cipher: CipherAlgorithmArgs,
+    #[command(flatten)]
+    pub(crate) hash: HashAlgorithmArgs,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
@@ -153,7 +157,7 @@ fn run_create_archive(args: StdioCommand, verbosity: Verbosity) -> io::Result<()
     };
     let target_items = collect_items(&files, args.recursive, args.keep_dir, exclude)?;
 
-    let cli_option = entry_option(args.compression, args.cipher, password);
+    let cli_option = entry_option(args.compression, args.cipher, args.hash, password);
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
         keep_permission: args.keep_permission,
