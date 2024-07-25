@@ -683,6 +683,7 @@ impl EntryPart {
     }
 }
 
+#[doc(hidden)]
 impl<T: SealedEntryExt> From<T> for EntryPart {
     #[inline]
     fn from(value: T) -> Self {
