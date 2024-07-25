@@ -1479,9 +1479,9 @@ mod tests {
 
     mod entry_part_split {
         use super::*;
-        use once_cell::sync::Lazy;
+        use std::sync::LazyLock;
 
-        static TEST_ENTRY: Lazy<RawEntry> = Lazy::new(|| {
+        static TEST_ENTRY: LazyLock<RawEntry> = LazyLock::new(|| {
             RawEntry(vec![
                 RawChunk::from_data(
                     ChunkType::FHED,
