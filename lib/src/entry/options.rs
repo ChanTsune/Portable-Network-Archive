@@ -269,16 +269,6 @@ impl TryFrom<u8> for DataKind {
     }
 }
 
-/// Type alias of [`WriteOptions`].
-///
-/// This type alias will be removed in the future version.
-/// Use [`WriteOptions`] instead.
-#[deprecated(
-    note = "`WriteOption` was renamed to `WriteOptions`. This type alias will be removed in the future version.",
-    since = "0.12.1"
-)]
-pub type WriteOption = WriteOptions;
-
 /// Options for writing an entry.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct WriteOptions {
@@ -376,16 +366,6 @@ impl WriteOptions {
         self.cipher.as_ref().map(|it| it.password.0.as_str())
     }
 }
-
-/// Type alias of [`WriteOptionsBuilder`].
-///
-/// This type alias will be removed in the future version.
-/// Use [`WriteOptionsBuilder`] instead.
-#[deprecated(
-    note = "`WriteOptionBuilder` was renamed to `WriteOptionsBuilder`. This type alias will be removed in the future version.",
-    since = "0.12.1"
-)]
-pub type WriteOptionBuilder = WriteOptionsBuilder;
 
 /// Builder for [`WriteOptions`].
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -505,16 +485,6 @@ impl WriteOptionsBuilder {
     }
 }
 
-/// Type alias of [`ReadOptions`].
-///
-/// This type alias will be removed in the future version.
-/// Use [`ReadOptions`] instead.
-#[deprecated(
-    note = "`ReadOption` was renamed to `ReadOptions`. This type alias will be removed in the future version.",
-    since = "0.12.1"
-)]
-pub type ReadOption = ReadOptions;
-
 /// Options for reading an entry.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct ReadOptions {
@@ -572,16 +542,6 @@ impl ReadOptions {
         self.into()
     }
 }
-
-/// Type alias of [`ReadOptionsBuilder`].
-///
-/// This type alias will be removed in the future version.
-/// Use [`ReadOptionsBuilder`] instead.
-#[deprecated(
-    note = "`ReadOptionBuilder` was renamed to `ReadOptionsBuilder`. This type alias will be removed in the future version.",
-    since = "0.12.1"
-)]
-pub type ReadOptionBuilder = ReadOptionsBuilder;
 
 /// Builder for [`ReadOptions`].
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
