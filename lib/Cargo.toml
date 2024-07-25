@@ -38,7 +38,6 @@ zstd = { version = "0.13.2", features = ["wasm"] }
 pbkdf2 = { version = "0.12.2", features = ["simple", "parallel"] }
 
 [dev-dependencies]
-once_cell = "1.19.0"
 version-sync = "0.9.5"
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]

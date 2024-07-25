@@ -842,7 +842,6 @@ dependencies = [
  "futures-util",
  "getrandom",
  "liblzma",
- "once_cell",
  "password-hash",
  "pbkdf2",
  "rand",
