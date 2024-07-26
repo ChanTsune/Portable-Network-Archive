@@ -35,7 +35,7 @@ pub(crate) trait ChunkExt: Chunk {
     }
 
     #[inline]
-    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
+    fn write_chunk_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         writer.write_all(&self.length().to_be_bytes())?;
         writer.write_all(&self.ty().0)?;
         writer.write_all(self.data())?;
