@@ -64,11 +64,70 @@ impl<T> ChunkExt for T where T: Chunk {}
 
 /// Represents a raw chunk
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct RawChunk {
+pub struct RawChunk<D = Vec<u8>> {
     pub(crate) length: u32,
     pub(crate) ty: ChunkType,
-    pub(crate) data: Vec<u8>,
+    pub(crate) data: D,
     pub(crate) crc: u32,
+}
+
+impl<'d> RawChunk<&'d [u8]> {
+    pub(crate) fn from_slice(ty: ChunkType, data: &'d [u8]) -> Self {
+        let chunk = (ty, data);
+        Self {
+            length: chunk.length(),
+            crc: chunk.crc(),
+            ty,
+            data,
+        }
+    }
+
+    #[inline]
+    pub(crate) fn to_owned(&self) -> RawChunk<Vec<u8>> {
+        RawChunk {
+            length: self.length,
+            ty: self.ty,
+            data: self.data.to_vec(),
+            crc: self.crc,
+        }
+    }
+}
+
+impl<D> RawChunk<D>
+where
+    Self: Chunk,
+{
+    #[inline]
+    pub(crate) fn as_ref(&self) -> RawChunk<&[u8]> {
+        RawChunk {
+            length: self.length,
+            ty: self.ty,
+            data: self.data(),
+            crc: self.crc,
+        }
+    }
+}
+
+impl Chunk for RawChunk<&[u8]> {
+    #[inline]
+    fn length(&self) -> u32 {
+        self.length
+    }
+
+    #[inline]
+    fn ty(&self) -> ChunkType {
+        self.ty
+    }
+
+    #[inline]
+    fn data(&self) -> &[u8] {
+        self.data
+    }
+
+    #[inline]
+    fn crc(&self) -> u32 {
+        self.crc
+    }
 }
 
 impl RawChunk {
@@ -149,11 +208,15 @@ impl<T: Chunk> Chunk for &T {
 }
 
 #[inline]
-pub(crate) fn chunk_data_split(chunk: impl Chunk, mid: usize) -> (RawChunk, RawChunk) {
-    let (first, last) = chunk.data().split_at(mid);
+pub(crate) fn chunk_data_split(
+    ty: ChunkType,
+    data: &[u8],
+    mid: usize,
+) -> (RawChunk<&[u8]>, RawChunk<&[u8]>) {
+    let (first, last) = data.split_at(mid);
     (
-        RawChunk::from_data(chunk.ty(), first),
-        RawChunk::from_data(chunk.ty(), last),
+        RawChunk::from_slice(ty, first),
+        RawChunk::from_slice(ty, last),
     )
 }
 
@@ -184,10 +247,10 @@ mod tests {
         let data = vec![0xAA, 0xBB, 0xCC, 0xDD];
         let chunk = RawChunk::from_data(ChunkType::FDAT, data);
         assert_eq!(
-            chunk_data_split(chunk, 0),
+            chunk_data_split(chunk.ty, chunk.data(), 0),
             (
-                RawChunk::from_data(ChunkType::FDAT, vec![]),
-                RawChunk::from_data(ChunkType::FDAT, vec![0xAA, 0xBB, 0xCC, 0xDD]),
+                RawChunk::from_slice(ChunkType::FDAT, &[]),
+                RawChunk::from_slice(ChunkType::FDAT, &[0xAA, 0xBB, 0xCC, 0xDD]),
             )
         )
     }
@@ -197,10 +260,10 @@ mod tests {
         let data = vec![0xAA, 0xBB, 0xCC, 0xDD];
         let chunk = RawChunk::from_data(ChunkType::FDAT, data);
         assert_eq!(
-            chunk_data_split(chunk, 2),
+            chunk_data_split(chunk.ty, chunk.data(), 2),
             (
-                RawChunk::from_data(ChunkType::FDAT, vec![0xAA, 0xBB]),
-                RawChunk::from_data(ChunkType::FDAT, vec![0xCC, 0xDD]),
+                RawChunk::from_slice(ChunkType::FDAT, &[0xAA, 0xBB]),
+                RawChunk::from_slice(ChunkType::FDAT, &[0xCC, 0xDD]),
             )
         )
     }

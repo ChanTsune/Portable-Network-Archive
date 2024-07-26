@@ -11,7 +11,9 @@ mod write;
 pub use self::{attr::*, builder::*, header::*, meta::*, name::*, options::*, reference::*};
 pub(crate) use self::{private::*, read::*, write::*};
 use crate::{
-    chunk::{chunk_data_split, ChunkExt, ChunkReader, ChunkType, RawChunk, MIN_CHUNK_BYTES_SIZE},
+    chunk::{
+        chunk_data_split, Chunk, ChunkExt, ChunkReader, ChunkType, RawChunk, MIN_CHUNK_BYTES_SIZE,
+    },
     util::slice::skip_while,
 };
 use std::{
@@ -647,15 +649,58 @@ impl RegularEntry {
 
 /// A structure representing the split [Entry] for archive splitting.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct EntryPart(pub(crate) Vec<RawChunk>);
+pub struct EntryPart<T = Vec<u8>>(pub(crate) Vec<RawChunk<T>>);
 
-impl EntryPart {
+impl<T> EntryPart<T>
+where
+    RawChunk<T>: Chunk,
+{
     /// Length in bytes
     #[inline]
     pub fn bytes_len(&self) -> usize {
         self.0.iter().map(|chunk| chunk.bytes_len()).sum()
     }
 
+    /// Get reference.
+    #[doc(hidden)]
+    #[inline]
+    pub fn as_ref(&self) -> EntryPart<&[u8]> {
+        EntryPart(self.0.iter().map(|it| it.as_ref()).collect())
+    }
+}
+
+impl<'a> EntryPart<&'a [u8]> {
+    /// Split [EntryPart] into two parts if this entry is shorter in max_bytes_len.
+    #[inline]
+    pub fn split(self, max_bytes_len: usize) -> (EntryPart<&'a [u8]>, Option<EntryPart<&'a [u8]>>) {
+        if self.bytes_len() <= max_bytes_len {
+            return (self, None);
+        }
+        let mut remaining = VecDeque::from(self.0);
+        let mut first = vec![];
+        let mut total_size = 0;
+        while let Some(chunk) = remaining.pop_front() {
+            // NOTE: If over max size, restore to remaining chunk
+            if max_bytes_len < total_size + chunk.bytes_len() {
+                if chunk.is_stream_chunk() && total_size + MIN_CHUNK_BYTES_SIZE < max_bytes_len {
+                    let available_bytes_len = max_bytes_len - total_size;
+                    let chunk_split_index = available_bytes_len - MIN_CHUNK_BYTES_SIZE;
+                    let (x, y) = chunk_data_split(chunk.ty, chunk.data, chunk_split_index);
+                    first.push(x);
+                    remaining.push_front(y);
+                } else {
+                    remaining.push_front(chunk);
+                }
+                break;
+            }
+            total_size += chunk.bytes_len();
+            first.push(chunk);
+        }
+        (EntryPart(first), Some(EntryPart(Vec::from(remaining))))
+    }
+}
+
+impl EntryPart {
     /// Split [EntryPart] into two parts if this entry is shorter in max_bytes_len.
     #[inline]
     pub fn split(self, max_bytes_len: usize) -> (EntryPart, Option<EntryPart>) {
@@ -671,9 +716,9 @@ impl EntryPart {
                 if chunk.is_stream_chunk() && total_size + MIN_CHUNK_BYTES_SIZE < max_bytes_len {
                     let available_bytes_len = max_bytes_len - total_size;
                     let chunk_split_index = available_bytes_len - MIN_CHUNK_BYTES_SIZE;
-                    let (x, y) = chunk_data_split(chunk, chunk_split_index);
-                    first.push(x);
-                    remaining.push_front(y);
+                    let (x, y) = chunk_data_split(chunk.ty, chunk.data(), chunk_split_index);
+                    first.push(x.to_owned());
+                    remaining.push_front(y.to_owned());
                 } else {
                     remaining.push_front(chunk);
                 }
