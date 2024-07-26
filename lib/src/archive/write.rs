@@ -1,6 +1,6 @@
 use crate::{
     archive::{Archive, ArchiveHeader, SolidArchive, PNA_HEADER},
-    chunk::{ChunkExt, ChunkStreamWriter, ChunkType, ChunkWriter},
+    chunk::{Chunk, ChunkExt, ChunkStreamWriter, ChunkType, ChunkWriter, RawChunk},
     cipher::CipherWriter,
     compress::CompressionWriter,
     entry::{
@@ -219,7 +219,10 @@ impl<W: Write> Archive<W> {
     /// # }
     /// ```
     #[inline]
-    pub fn add_entry_part(&mut self, entry_part: EntryPart) -> io::Result<usize> {
+    pub fn add_entry_part<T>(&mut self, entry_part: EntryPart<T>) -> io::Result<usize>
+    where
+        RawChunk<T>: Chunk,
+    {
         let mut chunk_writer = ChunkWriter::from(&mut self.inner);
         let mut written_len = 0;
         for chunk in entry_part.0 {
