@@ -477,7 +477,7 @@ impl WriteOptionsBuilder {
     ///
     /// ## Panics
     ///
-    /// Panic will be occurred when encryption is enabled and password is not provided.
+    /// Panic will occur when encryption is enabled and password is not provided.
     #[inline]
     pub fn build(&self) -> WriteOptions {
         let cipher = if self.encryption != Encryption::No {
