@@ -249,18 +249,34 @@ impl HashAlgorithm {
     /// Pbkdf2 with sha256
     #[inline]
     pub const fn pbkdf2_sha256() -> Self {
-        #[allow(deprecated)]
-        Self(HashAlgorithmParams::Pbkdf2Sha256 { rounds: None })
+        Self::pbkdf2_sha256_with(None)
+    }
+
+    /// Pbkdf2 with sha256 with parameters.
+    #[inline]
+    pub const fn pbkdf2_sha256_with(rounds: Option<u32>) -> Self {
+        Self(HashAlgorithmParams::Pbkdf2Sha256 { rounds })
     }
 
     /// Argon2Id
     #[inline]
     pub const fn argon2id() -> Self {
         #[allow(deprecated)]
+        Self::argon2id_with(None, None, None)
+    }
+
+    /// Argon2Id with parameters.
+    #[inline]
+    pub const fn argon2id_with(
+        time_cost: Option<u32>,
+        memory_cost: Option<u32>,
+        parallelism_cost: Option<u32>,
+    ) -> Self {
+        #[allow(deprecated)]
         Self(HashAlgorithmParams::Argon2Id {
-            time_cost: None,
-            memory_cost: None,
-            parallelism_cost: None,
+            time_cost,
+            memory_cost,
+            parallelism_cost,
         })
     }
 }
