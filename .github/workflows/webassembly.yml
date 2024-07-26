@@ -61,9 +61,6 @@ jobs:
           target: ${{ matrix.target }}
           toolchain: ${{ matrix.rust }}
       - uses: bytecodealliance/actions/wasmtime/setup@v1
-      - name: Run build
-        run: |
-          cargo build -p portable-network-archive --target ${{ matrix.target }} --release
       - name: Run on wasmtime
         run: |
-          wasmtime target/wasm32-wasi/release/pna.wasm --help
+          cargo run -p portable-network-archive --target ${{ matrix.target }} --release -- --help
