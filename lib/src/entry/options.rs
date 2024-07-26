@@ -213,17 +213,15 @@ impl TryFrom<u8> for CipherMode {
     }
 }
 
-/// Password hash algorithm.
+/// Password hash algorithm parameters.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum HashAlgorithm {
+pub(crate) enum HashAlgorithmParams {
     /// Pbkdf2 with sha256
-    #[deprecated(since = "0.14.1", note = "Use `HashAlgorithm::pbkdf2_sha256` instead.")]
     Pbkdf2Sha256 {
         /// Pbkdf2 rounds, if `None` use default rounds.
         rounds: Option<u32>,
     },
     /// Argon2Id
-    #[deprecated(since = "0.14.1", note = "Use `HashAlgorithm::argon2id`")]
     Argon2Id {
         /// Argon2Id time_cost, if `None` use default time_cost.
         time_cost: Option<u32>,
@@ -234,23 +232,36 @@ pub enum HashAlgorithm {
     },
 }
 
+/// Password hash algorithm.
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct HashAlgorithm(pub(crate) HashAlgorithmParams);
+
 impl HashAlgorithm {
+    #[deprecated(since = "0.14.1", note = "Use `HashAlgorithm::argon2id`")]
+    #[allow(non_upper_case_globals)]
+    /// Pbkdf2 with sha256
+    pub const Argon2Id: Self = Self::argon2id();
+    #[deprecated(since = "0.14.1", note = "Use `HashAlgorithm::pbkdf2_sha256` instead.")]
+    #[allow(non_upper_case_globals)]
+    /// Argon2Id
+    pub const Pbkdf2Sha256: Self = Self::pbkdf2_sha256();
+
     /// Pbkdf2 with sha256
     #[inline]
     pub const fn pbkdf2_sha256() -> Self {
         #[allow(deprecated)]
-        Self::Pbkdf2Sha256 { rounds: None }
+        Self(HashAlgorithmParams::Pbkdf2Sha256 { rounds: None })
     }
 
     /// Argon2Id
     #[inline]
     pub const fn argon2id() -> Self {
         #[allow(deprecated)]
-        Self::Argon2Id {
+        Self(HashAlgorithmParams::Argon2Id {
             time_cost: None,
             memory_cost: None,
             parallelism_cost: None,
-        }
+        })
     }
 }
 
