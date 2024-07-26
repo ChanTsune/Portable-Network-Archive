@@ -1,8 +1,8 @@
 use crate::{
     cipher::{CipherWriter, Ctr128BEWriter, EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
     compress::CompressionWriter,
-    entry::{CipherMode, Compression, CompressionLevel, HashAlgorithm, WriteOptions},
-    hash, random, Cipher, CipherAlgorithm,
+    entry::{CipherMode, Compression, CompressionLevel, HashAlgorithmParams, WriteOptions},
+    hash, random, Cipher, CipherAlgorithm, HashAlgorithm,
 };
 use aes::Aes256;
 use camellia::Camellia256;
@@ -81,9 +81,9 @@ fn hash<'s, 'p: 's>(
     salt: &'s SaltString,
 ) -> io::Result<(Output, String)> {
     #[allow(deprecated)]
-    let mut password_hash = match (hash_algorithm, cipher_algorithm) {
+    let mut password_hash = match (hash_algorithm.0, cipher_algorithm) {
         (
-            HashAlgorithm::Argon2Id {
+            HashAlgorithmParams::Argon2Id {
                 time_cost,
                 memory_cost,
                 parallelism_cost,
@@ -99,7 +99,7 @@ fn hash<'s, 'p: 's>(
             salt,
         ),
         (
-            HashAlgorithm::Argon2Id {
+            HashAlgorithmParams::Argon2Id {
                 time_cost,
                 memory_cost,
                 parallelism_cost,
@@ -115,7 +115,7 @@ fn hash<'s, 'p: 's>(
             salt,
         ),
         (
-            HashAlgorithm::Pbkdf2Sha256 { rounds },
+            HashAlgorithmParams::Pbkdf2Sha256 { rounds },
             CipherAlgorithm::Aes | CipherAlgorithm::Camellia,
         ) => {
             let mut params = pbkdf2::Params::default();
