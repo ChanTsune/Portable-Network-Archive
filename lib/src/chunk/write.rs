@@ -19,7 +19,7 @@ impl<W> From<W> for ChunkWriter<W> {
 impl<W: Write> ChunkWriter<W> {
     #[inline]
     pub(crate) fn write_chunk(&mut self, chunk: impl Chunk) -> io::Result<usize> {
-        chunk.write_in(&mut self.w)
+        chunk.write_chunk_in(&mut self.w)
     }
 }
 

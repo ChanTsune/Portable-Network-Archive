@@ -89,7 +89,7 @@ impl<W: Write> Archive<W> {
     #[inline]
     fn write_header_with(mut write: W, header: ArchiveHeader) -> io::Result<Self> {
         write.write_all(PNA_HEADER)?;
-        (ChunkType::AHED, header.to_bytes().as_slice()).write_in(&mut write)?;
+        (ChunkType::AHED, header.to_bytes().as_slice()).write_chunk_in(&mut write)?;
         Ok(Self::new(write, header))
     }
 
@@ -132,23 +132,26 @@ impl<W: Write> Archive<W> {
             option.cipher_mode(),
             name,
         );
-        (ChunkType::FHED, header.to_bytes()).write_in(&mut self.inner)?;
+        (ChunkType::FHED, header.to_bytes()).write_chunk_in(&mut self.inner)?;
         if let Some(c) = metadata.created {
-            (ChunkType::cTIM, c.as_secs().to_be_bytes().as_slice()).write_in(&mut self.inner)?;
+            (ChunkType::cTIM, c.as_secs().to_be_bytes().as_slice())
+                .write_chunk_in(&mut self.inner)?;
         }
         if let Some(m) = metadata.modified {
-            (ChunkType::mTIM, m.as_secs().to_be_bytes().as_slice()).write_in(&mut self.inner)?;
+            (ChunkType::mTIM, m.as_secs().to_be_bytes().as_slice())
+                .write_chunk_in(&mut self.inner)?;
         }
         if let Some(a) = metadata.accessed {
-            (ChunkType::aTIM, a.as_secs().to_be_bytes().as_slice()).write_in(&mut self.inner)?;
+            (ChunkType::aTIM, a.as_secs().to_be_bytes().as_slice())
+                .write_chunk_in(&mut self.inner)?;
         }
         if let Some(p) = metadata.permission {
-            (ChunkType::fPRM, p.to_bytes()).write_in(&mut self.inner)?;
+            (ChunkType::fPRM, p.to_bytes()).write_chunk_in(&mut self.inner)?;
         }
         let context = get_writer_context(option)?;
         if let Some(WriteCipher { context: c, .. }) = &context.cipher {
-            (ChunkType::PHSF, c.phsf.as_bytes()).write_in(&mut self.inner)?;
-            (ChunkType::FDAT, &c.iv[..]).write_in(&mut self.inner)?;
+            (ChunkType::PHSF, c.phsf.as_bytes()).write_chunk_in(&mut self.inner)?;
+            (ChunkType::FDAT, &c.iv[..]).write_chunk_in(&mut self.inner)?;
         }
         {
             let writer = ChunkStreamWriter::new(ChunkType::FDAT, &mut self.inner);
@@ -157,7 +160,7 @@ impl<W: Write> Archive<W> {
             f(&mut writer)?;
             writer.flush()?;
         }
-        (ChunkType::FEND, Vec::<u8>::new()).write_in(&mut self.inner)?;
+        (ChunkType::FEND, Vec::<u8>::new()).write_chunk_in(&mut self.inner)?;
         Ok(())
     }
 
@@ -371,10 +374,10 @@ impl<W: Write> Archive<W> {
         let context = get_writer_context(option)?;
 
         let mut archive = Self::write_header(write)?;
-        (ChunkType::SHED, header.to_bytes().as_slice()).write_in(&mut archive.inner)?;
+        (ChunkType::SHED, header.to_bytes().as_slice()).write_chunk_in(&mut archive.inner)?;
         if let Some(WriteCipher { context: c, .. }) = &context.cipher {
-            (ChunkType::PHSF, c.phsf.as_bytes()).write_in(&mut archive.inner)?;
-            (ChunkType::SDAT, c.iv.as_slice()).write_in(&mut archive.inner)?;
+            (ChunkType::PHSF, c.phsf.as_bytes()).write_chunk_in(&mut archive.inner)?;
+            (ChunkType::SDAT, c.iv.as_slice()).write_chunk_in(&mut archive.inner)?;
         }
         archive.inner.flush()?;
         let writer = get_writer(
@@ -447,23 +450,26 @@ impl<W: Write> SolidArchive<W> {
             option.cipher_mode(),
             name,
         );
-        (ChunkType::FHED, header.to_bytes()).write_in(&mut self.inner)?;
+        (ChunkType::FHED, header.to_bytes()).write_chunk_in(&mut self.inner)?;
         if let Some(c) = metadata.created {
-            (ChunkType::cTIM, c.as_secs().to_be_bytes().as_slice()).write_in(&mut self.inner)?;
+            (ChunkType::cTIM, c.as_secs().to_be_bytes().as_slice())
+                .write_chunk_in(&mut self.inner)?;
         }
         if let Some(m) = metadata.modified {
-            (ChunkType::mTIM, m.as_secs().to_be_bytes().as_slice()).write_in(&mut self.inner)?;
+            (ChunkType::mTIM, m.as_secs().to_be_bytes().as_slice())
+                .write_chunk_in(&mut self.inner)?;
         }
         if let Some(a) = metadata.accessed {
-            (ChunkType::aTIM, a.as_secs().to_be_bytes().as_slice()).write_in(&mut self.inner)?;
+            (ChunkType::aTIM, a.as_secs().to_be_bytes().as_slice())
+                .write_chunk_in(&mut self.inner)?;
         }
         if let Some(p) = metadata.permission {
-            (ChunkType::fPRM, p.to_bytes()).write_in(&mut self.inner)?;
+            (ChunkType::fPRM, p.to_bytes()).write_chunk_in(&mut self.inner)?;
         }
         let context = get_writer_context(option)?;
         if let Some(WriteCipher { context: c, .. }) = &context.cipher {
-            (ChunkType::PHSF, c.phsf.as_bytes()).write_in(&mut self.inner)?;
-            (ChunkType::FDAT, &c.iv[..]).write_in(&mut self.inner)?;
+            (ChunkType::PHSF, c.phsf.as_bytes()).write_chunk_in(&mut self.inner)?;
+            (ChunkType::FDAT, &c.iv[..]).write_chunk_in(&mut self.inner)?;
         }
         {
             let writer = ChunkStreamWriter::new(ChunkType::FDAT, &mut self.inner);
@@ -472,7 +478,7 @@ impl<W: Write> SolidArchive<W> {
             f(&mut writer)?;
             writer.flush()?;
         }
-        (ChunkType::FEND, Vec::<u8>::new()).write_in(&mut self.inner)?;
+        (ChunkType::FEND, Vec::<u8>::new()).write_chunk_in(&mut self.inner)?;
         Ok(())
     }
 
@@ -501,8 +507,8 @@ impl<W: Write> SolidArchive<W> {
     pub fn finalize(mut self) -> io::Result<W> {
         self.inner.flush()?;
         let mut inner = self.inner.try_into_inner()?.try_into_inner()?.into_inner();
-        (ChunkType::SEND, [].as_slice()).write_in(&mut inner)?;
-        (ChunkType::AEND, [].as_slice()).write_in(&mut inner)?;
+        (ChunkType::SEND, [].as_slice()).write_chunk_in(&mut inner)?;
+        (ChunkType::AEND, [].as_slice()).write_chunk_in(&mut inner)?;
         Ok(inner)
     }
 }
