@@ -54,8 +54,9 @@ impl ExtendedAttribute {
             .split_first_chunk::<{ mem::size_of::<u32>() }>()
             .ok_or(io::ErrorKind::UnexpectedEof)?;
         let len = u32::from_be_bytes(*len) as usize;
-        // TODO: use split_at_checked instead
-        let (name, value) = value.split_at(len);
+        let (name, value) = value
+            .split_at_checked(len)
+            .ok_or(io::ErrorKind::UnexpectedEof)?;
         let name = String::from_utf8(name.to_vec()).map_err(|_| io::ErrorKind::InvalidData)?;
 
         let (len, value) = value
