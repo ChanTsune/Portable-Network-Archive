@@ -277,26 +277,29 @@ impl TryFrom<RawEntry> for SolidEntry {
     }
 }
 
-impl TryFrom<ChunkSolidEntries> for SolidEntry {
+impl<T> TryFrom<ChunkSolidEntries<T>> for SolidEntry<T>
+where
+    RawChunk<T>: Chunk,
+{
     type Error = io::Error;
 
     #[inline]
-    fn try_from(entry: ChunkSolidEntries) -> Result<Self, Self::Error> {
+    fn try_from(entry: ChunkSolidEntries<T>) -> Result<Self, Self::Error> {
         let mut extra = vec![];
         let mut data = vec![];
         let mut info = None;
         let mut phsf = None;
         for chunk in entry.0 {
-            match chunk.ty {
+            match chunk.ty() {
                 ChunkType::SHED => {
-                    info = Some(SolidHeader::try_from(chunk.data.as_slice())?);
+                    info = Some(SolidHeader::try_from(chunk.data())?);
                 }
                 ChunkType::SDAT => {
                     data.push(chunk.data);
                 }
                 ChunkType::PHSF => {
                     phsf = Some(
-                        String::from_utf8(chunk.data)
+                        String::from_utf8(chunk.data().into())
                             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
                     );
                 }
