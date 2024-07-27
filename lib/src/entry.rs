@@ -100,11 +100,11 @@ impl<'r> futures_io::AsyncRead for EntryDataReader<'r> {
 /// A [RegularEntry] or [SolidEntry] read from an archive.
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum ReadEntry {
+pub enum ReadEntry<T = Vec<u8>> {
     /// Solid mode entry
-    Solid(SolidEntry),
+    Solid(SolidEntry<T>),
     /// Regular entry
-    Regular(RegularEntry),
+    Regular(RegularEntry<T>),
 }
 
 impl TryFrom<RawEntry> for ReadEntry {
@@ -153,11 +153,11 @@ impl Iterator for EntryIterator<'_> {
 
 /// A solid mode entry.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct SolidEntry {
+pub struct SolidEntry<T = Vec<u8>> {
     header: SolidHeader,
     phsf: Option<String>,
-    data: Vec<Vec<u8>>,
-    extra: Vec<RawChunk>,
+    data: Vec<T>,
+    extra: Vec<RawChunk<T>>,
 }
 
 impl SealedEntryExt for SolidEntry {
@@ -322,11 +322,11 @@ impl TryFrom<ChunkSolidEntries> for SolidEntry {
 
 /// [Entry] that read from PNA archive.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct RegularEntry {
+pub struct RegularEntry<T = Vec<u8>> {
     pub(crate) header: EntryHeader,
     pub(crate) phsf: Option<String>,
-    pub(crate) extra: Vec<RawChunk>,
-    pub(crate) data: Vec<Vec<u8>>,
+    pub(crate) extra: Vec<RawChunk<T>>,
+    pub(crate) data: Vec<T>,
     pub(crate) metadata: Metadata,
     pub(crate) xattrs: Vec<ExtendedAttribute>,
 }
