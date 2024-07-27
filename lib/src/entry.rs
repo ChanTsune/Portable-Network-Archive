@@ -590,7 +590,7 @@ impl RegularEntry {
     /// use libpna::{EntryBuilder, Metadata};
     ///
     /// # fn main() -> io::Result<()> {
-    /// let mut entry = EntryBuilder::new_dir("direntry".into()).build()?;
+    /// let mut entry = EntryBuilder::new_dir("dir_entry".into()).build()?;
     /// entry.with_metadata(Metadata::new());
     /// # Ok(())
     /// # }
@@ -611,7 +611,7 @@ impl RegularEntry {
     /// use libpna::{EntryBuilder, ExtendedAttribute};
     ///
     /// # fn main() -> io::Result<()> {
-    /// let mut entry = EntryBuilder::new_dir("direntry".into()).build()?;
+    /// let mut entry = EntryBuilder::new_dir("dir_entry".into()).build()?;
     /// entry.with_xattrs(&[ExtendedAttribute::new("key".into(), b"value".into())]);
     /// # Ok(())
     /// # }
@@ -630,7 +630,7 @@ impl RegularEntry {
     /// use libpna::{ChunkType, EntryBuilder, RawChunk};
     ///
     /// # fn main() -> io::Result<()> {
-    /// let mut entry = EntryBuilder::new_dir("direntry".into()).build()?;
+    /// let mut entry = EntryBuilder::new_dir("dir_entry".into()).build()?;
     /// entry.with_extra_chunks(&[RawChunk::from_data(
     ///     ChunkType::private(*b"myTy").unwrap(),
     ///     b"some data",
