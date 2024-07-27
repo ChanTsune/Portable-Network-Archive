@@ -271,10 +271,10 @@ pub(crate) fn apply_metadata(
 }
 
 pub(crate) fn split_to_parts(
-    mut entry_part: EntryPart,
+    mut entry_part: EntryPart<&[u8]>,
     first: usize,
     max: usize,
-) -> Vec<EntryPart> {
+) -> Vec<EntryPart<&[u8]>> {
     let mut parts = vec![];
     let mut split_size = first;
     loop {
@@ -513,8 +513,9 @@ where
     let max_file_size = max_file_size - (PNA_HEADER.len() + MIN_CHUNK_BYTES_SIZE * 3 + 8);
     let mut written_entry_size = 0;
     for entry in entries {
+        let p = EntryPart::from(entry?);
         let parts = split_to_parts(
-            EntryPart::from(entry?),
+            p.as_ref(),
             max_file_size - written_entry_size,
             max_file_size,
         );
