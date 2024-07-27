@@ -195,7 +195,7 @@ impl SealedEntryExt for SolidEntry {
 
 impl Entry for SolidEntry {}
 
-impl SolidEntry {
+impl<T> SolidEntry<T> {
     /// Returns solid mode information header reference.
     #[inline]
     pub fn header(&self) -> &SolidHeader {
@@ -204,10 +204,12 @@ impl SolidEntry {
 
     /// Extra chunks.
     #[inline]
-    pub fn extra_chunks(&self) -> &[RawChunk] {
+    pub fn extra_chunks(&self) -> &[RawChunk<T>] {
         &self.extra
     }
+}
 
+impl SolidEntry<Vec<u8>> {
     /// Returns an iterator over the entries in the [SolidEntry].
     ///
     /// # Example
@@ -244,7 +246,58 @@ impl SolidEntry {
         password: Option<&str>,
     ) -> io::Result<impl Iterator<Item = io::Result<RegularEntry>> + '_> {
         let reader = decrypt_reader(
-            crate::io::FlattenReader::new(self.data.iter().map(|it| it.as_slice()).collect()),
+            crate::io::FlattenReader::new(
+                self.data.iter().map(|it| it.iter().as_slice()).collect(),
+            ),
+            self.header.encryption,
+            self.header.cipher_mode,
+            self.phsf.as_deref(),
+            password.as_ref().map(|it| it.as_bytes()),
+        )?;
+        let reader = decompress_reader(reader, self.header.compression)?;
+
+        Ok(EntryIterator(EntryReader(reader)))
+    }
+}
+
+impl SolidEntry<&[u8]> {
+    /// Returns an iterator over the entries in the [SolidEntry].
+    ///
+    /// # Example
+    ///
+    /// # Example
+    /// ```no_run
+    /// use libpna::{Archive, ReadEntry, ReadOptions};
+    /// use std::fs;
+    /// # use std::io;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let file = fs::File::open("foo.pna")?;
+    /// let mut archive = Archive::read_header(file)?;
+    /// for entry in archive.entries() {
+    ///     match entry? {
+    ///         ReadEntry::Solid(solid_entry) => {
+    ///             for entry in solid_entry.entries(Some("password"))? {
+    ///                 let entry = entry?;
+    ///                 let mut reader = entry.reader(ReadOptions::builder().build());
+    ///                 // fill your code
+    ///             }
+    ///         }
+    ///         ReadEntry::Regular(entry) => {
+    ///             // fill your code
+    ///         }
+    ///     }
+    /// }
+    /// #    Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn entries(
+        &self,
+        password: Option<&str>,
+    ) -> io::Result<impl Iterator<Item = io::Result<RegularEntry>> + '_> {
+        let reader = decrypt_reader(
+            crate::io::FlattenReader::new(self.data.clone()),
             self.header.encryption,
             self.header.cipher_mode,
             self.phsf.as_deref(),
