@@ -132,7 +132,7 @@ impl ChunkReader<&[u8]> {
         let (data, r) = r
             .split_at_checked(length as usize)
             .ok_or(io::ErrorKind::UnexpectedEof)?;
-        crc_hasher.update(&data);
+        crc_hasher.update(data);
 
         // read crc sum
         let (crc, r) = r
