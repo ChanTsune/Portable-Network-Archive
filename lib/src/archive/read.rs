@@ -1,3 +1,5 @@
+mod slice;
+
 use crate::{
     archive::{Archive, ArchiveHeader, PNA_HEADER},
     chunk::{Chunk, ChunkReader, ChunkType, RawChunk},
