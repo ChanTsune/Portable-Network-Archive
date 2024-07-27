@@ -80,7 +80,6 @@ fn hash<'s, 'p: 's>(
     password: &'p [u8],
     salt: &'s SaltString,
 ) -> io::Result<(Output, String)> {
-    #[allow(deprecated)]
     let mut password_hash = match (hash_algorithm.0, cipher_algorithm) {
         (
             HashAlgorithmParams::Argon2Id {

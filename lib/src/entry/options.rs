@@ -261,7 +261,6 @@ impl HashAlgorithm {
     /// Argon2Id
     #[inline]
     pub const fn argon2id() -> Self {
-        #[allow(deprecated)]
         Self::argon2id_with(None, None, None)
     }
 
@@ -272,7 +271,6 @@ impl HashAlgorithm {
         memory_cost: Option<u32>,
         parallelism_cost: Option<u32>,
     ) -> Self {
-        #[allow(deprecated)]
         Self(HashAlgorithmParams::Argon2Id {
             time_cost,
             memory_cost,
