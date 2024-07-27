@@ -9,7 +9,7 @@ use std::{
 };
 
 pub(crate) struct ChunkReader<R> {
-    r: R,
+    pub(crate) r: R,
 }
 
 impl<R: Read> ChunkReader<R> {
