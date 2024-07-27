@@ -55,7 +55,7 @@ impl Entry for ReadEntry {}
 
 /// Chunks from `FHED` to `FEND`, containing `FHED` and `FEND`
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct RawEntry(pub(crate) Vec<RawChunk>);
+pub(crate) struct RawEntry<T = Vec<u8>>(pub(crate) Vec<RawChunk<T>>);
 
 impl SealedEntryExt for RawEntry {
     #[inline]
@@ -739,7 +739,7 @@ impl<T: SealedEntryExt> From<T> for EntryPart {
     }
 }
 
-pub(crate) struct ChunkSolidEntries(pub(crate) Vec<RawChunk>);
+pub(crate) struct ChunkSolidEntries<T = Vec<u8>>(pub(crate) Vec<RawChunk<T>>);
 
 impl SealedEntryExt for ChunkSolidEntries {
     #[inline]
