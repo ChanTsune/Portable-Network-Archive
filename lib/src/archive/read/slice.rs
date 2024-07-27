@@ -12,6 +12,20 @@ fn read_header_from_slice(bytes: &[u8]) -> io::Result<&[u8]> {
 }
 
 impl<'d> Archive<&'d [u8]> {
+    /// Reads the archive header from the provided reader and returns a new [Archive].
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - The [`&[u8]`] object to read the header from.
+    ///
+    /// # Returns
+    ///
+    /// A new [`io::Result<Archive<W>>`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while reading header from the bytes.
+    #[inline]
     pub fn read_header_from_slice(bytes: &'d [u8]) -> io::Result<Self> {
         let bytes = read_header_from_slice(bytes)?;
         let mut chunk_reader = ChunkReader::from(bytes);
