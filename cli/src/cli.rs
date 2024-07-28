@@ -1,5 +1,5 @@
 use crate::command::{
-    append::AppendCommand, complete::CompleteCommand, create::CreateCommand,
+    append::AppendCommand, complete::CompleteCommand, concat::ConcatCommand, create::CreateCommand,
     experimental::ExperimentalCommand, extract::ExtractCommand, list::ListCommand,
     split::SplitCommand, strip::StripCommand,
 };
@@ -62,6 +62,8 @@ pub(crate) enum Commands {
     List(ListCommand),
     #[command(about = "Split archive")]
     Split(SplitCommand),
+    #[command(about = "Concat archives")]
+    Concat(ConcatCommand),
     #[command(about = "Strip entries metadata")]
     Strip(StripCommand),
     #[command(about = "Generate shell auto complete")]
