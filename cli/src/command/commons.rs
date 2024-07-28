@@ -354,7 +354,7 @@ where
     let mut num_archive = 1;
     loop {
         processor(&mut archive)?;
-        if archive.next_archive() {
+        if archive.has_next_archive() {
             num_archive += 1;
             let next_reader = provider.next_archive(num_archive)?;
             archive = archive.read_next_archive(next_reader)?;
