@@ -166,8 +166,8 @@ impl SealedEntryExt for SolidEntry {
         chunks.push(RawChunk::from_data(ChunkType::SHED, self.header.to_bytes()));
         chunks.extend(self.extra);
 
-        if let Some(phsf) = &self.phsf {
-            chunks.push(RawChunk::from_data(ChunkType::PHSF, phsf.as_bytes()));
+        if let Some(phsf) = self.phsf {
+            chunks.push(RawChunk::from_data(ChunkType::PHSF, phsf.into_bytes()));
         }
         for data in self.data {
             chunks.push(RawChunk::from_data(ChunkType::SDAT, data));
