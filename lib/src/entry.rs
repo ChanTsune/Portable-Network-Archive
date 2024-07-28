@@ -111,11 +111,14 @@ pub enum ReadEntry<T = Vec<u8>> {
     Regular(RegularEntry<T>),
 }
 
-impl TryFrom<RawEntry> for ReadEntry {
+impl<T> TryFrom<RawEntry<T>> for ReadEntry<T>
+where
+    RawChunk<T>: Chunk,
+{
     type Error = io::Error;
 
     #[inline]
-    fn try_from(entry: RawEntry) -> Result<Self, Self::Error> {
+    fn try_from(entry: RawEntry<T>) -> Result<Self, Self::Error> {
         if let Some(first_chunk) = entry.0.first() {
             match first_chunk.ty {
                 ChunkType::SHED => Ok(Self::Solid(SolidEntry::try_from(entry)?)),
