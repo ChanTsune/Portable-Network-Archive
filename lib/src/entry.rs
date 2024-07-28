@@ -33,7 +33,11 @@ mod private {
 /// Archive entry.
 pub trait Entry: SealedEntryExt {}
 
-impl SealedEntryExt for ReadEntry {
+impl<T> SealedEntryExt for ReadEntry<T>
+where
+    RegularEntry<T>: SealedEntryExt,
+    SolidEntry<T>: SealedEntryExt,
+{
     #[inline]
     fn into_chunks(self) -> Vec<RawChunk> {
         match self {
@@ -51,7 +55,7 @@ impl SealedEntryExt for ReadEntry {
     }
 }
 
-impl Entry for ReadEntry {}
+impl<T> Entry for ReadEntry<T> where ReadEntry<T>: SealedEntryExt {}
 
 /// Chunks from `FHED` to `FEND`, containing `FHED` and `FEND`
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
