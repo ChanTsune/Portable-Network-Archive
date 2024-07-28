@@ -107,7 +107,7 @@ fn append_to_archive(args: AppendCommand, verbosity: Verbosity) -> io::Result<()
     let mut archive = Archive::read_header(file)?;
     let mut archive = loop {
         archive.seek_to_end()?;
-        if !archive.next_archive() {
+        if !archive.has_next_archive() {
             break archive;
         }
         num += 1;

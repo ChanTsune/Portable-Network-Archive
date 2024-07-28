@@ -23,7 +23,7 @@ fn extract_all(follows: &[&[u8]], password: Option<&str>) {
                 a => panic!("Unexpected entry name {a}"),
             }
         }
-        if archive_reader.next_archive() {
+        if archive_reader.has_next_archive() {
             archive_reader = archive_reader.read_next_archive(follows[idx]).unwrap();
         } else {
             break;
