@@ -616,7 +616,7 @@ impl SealedEntryExt for RegularEntry {
 
 impl Entry for RegularEntry {}
 
-impl RegularEntry {
+impl<T> RegularEntry<T> {
     /// Information in the header of the entry.
     #[inline]
     pub fn header(&self) -> &EntryHeader {
@@ -637,43 +637,8 @@ impl RegularEntry {
 
     /// Extra chunks.
     #[inline]
-    pub fn extra_chunks(&self) -> &[RawChunk] {
+    pub fn extra_chunks(&self) -> &[RawChunk<T>] {
         &self.extra
-    }
-
-    /// Return the reader of this [`RegularEntry`].
-    ///
-    /// # Examples
-    /// ```no_run
-    /// use libpna::{Archive, ReadOptions};
-    /// use std::{fs, io};
-    ///
-    /// # fn main() -> io::Result<()> {
-    /// let file = fs::File::open("foo.pna")?;
-    /// let mut archive = Archive::read_header(file)?;
-    /// for entry in archive.entries_skip_solid() {
-    ///     let entry = entry?;
-    ///     let mut reader = entry.reader(ReadOptions::builder().build())?;
-    ///     let name = entry.header().path();
-    ///     let mut dist_file = fs::File::create(name)?;
-    ///     io::copy(&mut reader, &mut dist_file)?;
-    /// }
-    /// # Ok(())
-    /// # }
-    /// ```
-    #[inline]
-    pub fn reader(&self, option: ReadOptions) -> io::Result<EntryDataReader> {
-        let raw_data_reader =
-            crate::io::FlattenReader::new(self.data.iter().map(|it| it.as_slice()).collect());
-        let decrypt_reader = decrypt_reader(
-            raw_data_reader,
-            self.header.encryption,
-            self.header.cipher_mode,
-            self.phsf.as_deref(),
-            option.password.as_ref().map(|it| it.as_bytes()),
-        )?;
-        let reader = decompress_reader(decrypt_reader, self.header.compression)?;
-        Ok(EntryDataReader(EntryReader(reader)))
     }
 
     /// Apply metadata to the entry.
@@ -715,7 +680,9 @@ impl RegularEntry {
         self.xattrs = xattrs.into();
         self
     }
+}
 
+impl<T: Clone> RegularEntry<T> {
     /// Apply extra chunks to the entry.
     ///
     /// # Example
@@ -733,9 +700,82 @@ impl RegularEntry {
     /// # }
     /// ```
     #[inline]
-    pub fn with_extra_chunks(mut self, chunks: &[RawChunk]) -> Self {
-        self.extra = chunks.into();
+    pub fn with_extra_chunks(mut self, chunks: &[RawChunk<T>]) -> Self {
+        self.extra = chunks.to_vec();
         self
+    }
+}
+
+impl RegularEntry<Vec<u8>> {
+    /// Return the reader of this [`RegularEntry`].
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use libpna::{Archive, ReadOptions};
+    /// use std::{fs, io};
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let file = fs::File::open("foo.pna")?;
+    /// let mut archive = Archive::read_header(file)?;
+    /// for entry in archive.entries_skip_solid() {
+    ///     let entry = entry?;
+    ///     let mut reader = entry.reader(ReadOptions::builder().build())?;
+    ///     let name = entry.header().path();
+    ///     let mut dist_file = fs::File::create(name)?;
+    ///     io::copy(&mut reader, &mut dist_file)?;
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn reader(&self, option: ReadOptions) -> io::Result<EntryDataReader> {
+        let raw_data_reader =
+            crate::io::FlattenReader::new(self.data.iter().map(|it| it.as_slice()).collect());
+        let decrypt_reader = decrypt_reader(
+            raw_data_reader,
+            self.header.encryption,
+            self.header.cipher_mode,
+            self.phsf.as_deref(),
+            option.password.as_ref().map(|it| it.as_bytes()),
+        )?;
+        let reader = decompress_reader(decrypt_reader, self.header.compression)?;
+        Ok(EntryDataReader(EntryReader(reader)))
+    }
+}
+
+impl RegularEntry<&[u8]> {
+    /// Return the reader of this [`RegularEntry`].
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use libpna::{Archive, ReadOptions};
+    /// use std::{fs, io};
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let file = fs::File::open("foo.pna")?;
+    /// let mut archive = Archive::read_header(file)?;
+    /// for entry in archive.entries_skip_solid() {
+    ///     let entry = entry?;
+    ///     let mut reader = entry.reader(ReadOptions::builder().build())?;
+    ///     let name = entry.header().path();
+    ///     let mut dist_file = fs::File::create(name)?;
+    ///     io::copy(&mut reader, &mut dist_file)?;
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn reader(&self, option: ReadOptions) -> io::Result<EntryDataReader> {
+        let raw_data_reader = crate::io::FlattenReader::new(self.data.clone());
+        let decrypt_reader = decrypt_reader(
+            raw_data_reader,
+            self.header.encryption,
+            self.header.cipher_mode,
+            self.phsf.as_deref(),
+            option.password.as_ref().map(|it| it.as_bytes()),
+        )?;
+        let reader = decompress_reader(decrypt_reader, self.header.compression)?;
+        Ok(EntryDataReader(EntryReader(reader)))
     }
 }
 
