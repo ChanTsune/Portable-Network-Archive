@@ -427,11 +427,14 @@ pub struct RegularEntry<T = Vec<u8>> {
     pub(crate) xattrs: Vec<ExtendedAttribute>,
 }
 
-impl TryFrom<RawEntry> for RegularEntry {
+impl<T> TryFrom<RawEntry<T>> for RegularEntry<T>
+where
+    RawChunk<T>: Chunk,
+{
     type Error = io::Error;
 
     #[inline]
-    fn try_from(entry: RawEntry) -> Result<Self, Self::Error> {
+    fn try_from(entry: RawEntry<T>) -> Result<Self, Self::Error> {
         if let Some(first_chunk) = entry.0.first() {
             if first_chunk.ty != ChunkType::FHED {
                 return Err(io::Error::new(
@@ -444,6 +447,7 @@ impl TryFrom<RawEntry> for RegularEntry {
                 ));
             }
         }
+        let mut compressed_size = 0;
         let mut extra = vec![];
         let mut data = vec![];
         let mut xattrs = vec![];
@@ -457,20 +461,23 @@ impl TryFrom<RawEntry> for RegularEntry {
         for chunk in entry.0 {
             match chunk.ty {
                 ChunkType::FEND => break,
-                ChunkType::FHED => info = Some(EntryHeader::try_from(chunk.data.as_slice())?),
+                ChunkType::FHED => info = Some(EntryHeader::try_from(chunk.data())?),
                 ChunkType::PHSF => {
                     phsf = Some(
-                        String::from_utf8(chunk.data)
+                        String::from_utf8(chunk.data().into())
                             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
                     );
                 }
-                ChunkType::FDAT => data.push(chunk.data),
-                ChunkType::fSIZ => size = Some(u128_from_be_bytes_last(&chunk.data)),
-                ChunkType::cTIM => ctime = Some(timestamp(&chunk.data)?),
-                ChunkType::mTIM => mtime = Some(timestamp(&chunk.data)?),
-                ChunkType::aTIM => atime = Some(timestamp(&chunk.data)?),
-                ChunkType::fPRM => permission = Some(Permission::try_from_bytes(&chunk.data)?),
-                ChunkType::xATR => xattrs.push(ExtendedAttribute::try_from_bytes(&chunk.data)?),
+                ChunkType::FDAT => {
+                    compressed_size += chunk.data().len();
+                    data.push(chunk.data);
+                }
+                ChunkType::fSIZ => size = Some(u128_from_be_bytes_last(chunk.data())),
+                ChunkType::cTIM => ctime = Some(timestamp(chunk.data())?),
+                ChunkType::mTIM => mtime = Some(timestamp(chunk.data())?),
+                ChunkType::aTIM => atime = Some(timestamp(chunk.data())?),
+                ChunkType::fPRM => permission = Some(Permission::try_from_bytes(chunk.data())?),
+                ChunkType::xATR => xattrs.push(ExtendedAttribute::try_from_bytes(chunk.data())?),
                 _ => extra.push(chunk),
             }
         }
@@ -495,7 +502,7 @@ impl TryFrom<RawEntry> for RegularEntry {
             extra,
             metadata: Metadata {
                 raw_file_size: size,
-                compressed_size: data.iter().map(|it| it.len()).sum(),
+                compressed_size,
                 created: ctime,
                 modified: mtime,
                 accessed: atime,
