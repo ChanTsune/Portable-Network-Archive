@@ -26,7 +26,6 @@ fn concat_archive() {
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "concat",
         &format!("{}/concatenated.pna", env!("CARGO_TARGET_TMPDIR")),
         &format!("{}/concat.part1.pna", env!("CARGO_TARGET_TMPDIR")),

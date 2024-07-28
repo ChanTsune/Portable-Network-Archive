@@ -3,7 +3,7 @@ mod chmod;
 mod chown;
 mod commons;
 pub mod complete;
-mod concat;
+pub(crate) mod concat;
 pub mod create;
 mod delete;
 pub(super) mod experimental;
@@ -25,6 +25,7 @@ pub fn entry(cli: Cli) -> io::Result<()> {
         Commands::Extract(cmd) => cmd.execute(cli.verbosity.verbosity()),
         Commands::List(cmd) => cmd.execute(cli.verbosity.verbosity()),
         Commands::Split(cmd) => cmd.execute(cli.verbosity.verbosity()),
+        Commands::Concat(cmd) => cmd.execute(cli.verbosity.verbosity()),
         Commands::Strip(cmd) => cmd.execute(cli.verbosity.verbosity()),
         Commands::Complete(cmd) => cmd.execute(cli.verbosity.verbosity()),
         Commands::Experimental(cmd) => cmd.execute(cli.verbosity.verbosity()),

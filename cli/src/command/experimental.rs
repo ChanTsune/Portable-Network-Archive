@@ -15,7 +15,6 @@ impl Command for ExperimentalCommand {
             ExperimentalCommands::Stdio(cmd) => cmd.execute(verbosity),
             ExperimentalCommands::Delete(cmd) => cmd.execute(verbosity),
             ExperimentalCommands::Update(cmd) => cmd.execute(verbosity),
-            ExperimentalCommands::Concat(cmd) => cmd.execute(verbosity),
             ExperimentalCommands::Chown(cmd) => cmd.execute(verbosity),
             ExperimentalCommands::Chmod(cmd) => cmd.execute(verbosity),
             ExperimentalCommands::Xattr(cmd) => cmd.execute(verbosity),
@@ -31,8 +30,6 @@ pub(crate) enum ExperimentalCommands {
     Delete(command::delete::DeleteCommand),
     #[command(about = "Update entries in archive")]
     Update(command::update::UpdateCommand),
-    #[command(about = "Concat archives")]
-    Concat(command::concat::ConcatCommand),
     #[command(about = "Change owner")]
     Chown(command::chown::ChownCommand),
     #[command(about = "Change mode")]
