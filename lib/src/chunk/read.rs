@@ -111,51 +111,50 @@ impl<R: Read + Seek> ChunkReader<R> {
     }
 }
 
-impl ChunkReader<&[u8]> {
-    pub(crate) fn read_chunk_from_slice(&mut self) -> io::Result<RawChunk<&[u8]>> {
-        let mut crc_hasher = Crc32::new();
-
-        // read chunk length
-        let (length, r) = self
-            .r
-            .split_first_chunk::<{ mem::size_of::<u32>() }>()
-            .ok_or(io::ErrorKind::UnexpectedEof)?;
-        let length = u32::from_be_bytes(*length);
-
-        // read a chunk type
-        let (ty, r) = r
-            .split_first_chunk::<{ mem::size_of::<ChunkType>() }>()
-            .ok_or(io::ErrorKind::UnexpectedEof)?;
-        crc_hasher.update(&ty[..]);
-
-        // read chunk data
-        let (data, r) = r
-            .split_at_checked(length as usize)
-            .ok_or(io::ErrorKind::UnexpectedEof)?;
-        crc_hasher.update(data);
-
-        // read crc sum
-        let (crc, r) = r
-            .split_first_chunk::<{ mem::size_of::<u32>() }>()
-            .ok_or(io::ErrorKind::UnexpectedEof)?;
-        let crc = u32::from_be_bytes(*crc);
-
-        if crc != crc_hasher.finalize() {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "Broken chunk"));
-        }
-        self.r = r;
-        Ok(RawChunk {
-            length,
-            ty: ChunkType(*ty),
-            data,
-            crc,
-        })
-    }
-}
-
 impl<R> From<R> for ChunkReader<R> {
     #[inline]
     fn from(reader: R) -> Self {
         Self { r: reader }
     }
+}
+
+pub(crate) fn read_chunk_from_slice(bytes: &[u8]) -> io::Result<(RawChunk<&[u8]>, &[u8])> {
+    let mut crc_hasher = Crc32::new();
+
+    // read chunk length
+    let (length, r) = bytes
+        .split_first_chunk::<{ mem::size_of::<u32>() }>()
+        .ok_or(io::ErrorKind::UnexpectedEof)?;
+    let length = u32::from_be_bytes(*length);
+
+    // read a chunk type
+    let (ty, r) = r
+        .split_first_chunk::<{ mem::size_of::<ChunkType>() }>()
+        .ok_or(io::ErrorKind::UnexpectedEof)?;
+    crc_hasher.update(&ty[..]);
+
+    // read chunk data
+    let (data, r) = r
+        .split_at_checked(length as usize)
+        .ok_or(io::ErrorKind::UnexpectedEof)?;
+    crc_hasher.update(data);
+
+    // read crc sum
+    let (crc, r) = r
+        .split_first_chunk::<{ mem::size_of::<u32>() }>()
+        .ok_or(io::ErrorKind::UnexpectedEof)?;
+    let crc = u32::from_be_bytes(*crc);
+
+    if crc != crc_hasher.finalize() {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "Broken chunk"));
+    }
+    Ok((
+        RawChunk {
+            length,
+            ty: ChunkType(*ty),
+            data,
+            crc,
+        },
+        r,
+    ))
 }
