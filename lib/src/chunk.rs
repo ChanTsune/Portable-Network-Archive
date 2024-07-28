@@ -6,7 +6,7 @@ mod write;
 
 use self::crc::Crc32;
 pub(crate) use self::{
-    read::ChunkReader,
+    read::{read_chunk_from_slice, ChunkReader},
     write::{ChunkStreamWriter, ChunkWriter},
 };
 pub use self::{traits::*, types::*};
