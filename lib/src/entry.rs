@@ -160,7 +160,7 @@ pub struct SolidEntry<T = Vec<u8>> {
     extra: Vec<RawChunk<T>>,
 }
 
-impl SealedEntryExt for SolidEntry {
+impl SealedEntryExt for SolidEntry<Vec<u8>> {
     fn into_chunks(self) -> Vec<RawChunk> {
         let mut chunks = vec![];
         chunks.push(RawChunk::from_data(ChunkType::SHED, self.header.to_bytes()));
@@ -193,7 +193,40 @@ impl SealedEntryExt for SolidEntry {
     }
 }
 
-impl Entry for SolidEntry {}
+impl SealedEntryExt for SolidEntry<&[u8]> {
+    fn into_chunks(self) -> Vec<RawChunk> {
+        let mut chunks = vec![];
+        chunks.push(RawChunk::from_data(ChunkType::SHED, self.header.to_bytes()));
+        chunks.extend(self.extra.into_iter().map(|it| it.to_owned()));
+
+        if let Some(phsf) = self.phsf {
+            chunks.push(RawChunk::from_data(ChunkType::PHSF, phsf.into_bytes()));
+        }
+        for data in self.data {
+            chunks.push(RawChunk::from_data(ChunkType::SDAT, data));
+        }
+        chunks.push(RawChunk::from_data(ChunkType::SEND, Vec::new()));
+        chunks
+    }
+
+    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
+        let mut total = 0;
+        total += (ChunkType::SHED, self.header.to_bytes().as_slice()).write_chunk_in(writer)?;
+        for extra_chunk in &self.extra {
+            total += extra_chunk.write_chunk_in(writer)?;
+        }
+        if let Some(phsf) = &self.phsf {
+            total += (ChunkType::PHSF, phsf.as_bytes()).write_chunk_in(writer)?;
+        }
+        for data in &self.data {
+            total += (ChunkType::SDAT, *data).write_chunk_in(writer)?;
+        }
+        total += (ChunkType::SEND, [].as_slice()).write_chunk_in(writer)?;
+        Ok(total)
+    }
+}
+
+impl<T> Entry for SolidEntry<T> where SolidEntry<T>: SealedEntryExt {}
 
 impl<T> SolidEntry<T> {
     /// Returns solid mode information header reference.
