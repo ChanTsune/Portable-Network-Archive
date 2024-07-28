@@ -61,7 +61,7 @@ impl<T> Entry for ReadEntry<T> where ReadEntry<T>: SealedEntryExt {}
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct RawEntry<T = Vec<u8>>(pub(crate) Vec<RawChunk<T>>);
 
-impl SealedEntryExt for RawEntry {
+impl SealedEntryExt for RawEntry<Vec<u8>> {
     #[inline]
     fn into_chunks(self) -> Vec<RawChunk> {
         self.0
@@ -77,7 +77,23 @@ impl SealedEntryExt for RawEntry {
     }
 }
 
-impl Entry for RawEntry {}
+impl SealedEntryExt for RawEntry<&[u8]> {
+    #[inline]
+    fn into_chunks(self) -> Vec<RawChunk> {
+        self.0.into_iter().map(|it| it.to_owned()).collect()
+    }
+
+    #[inline]
+    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
+        let mut total = 0;
+        for chunk in self.0.iter() {
+            total += chunk.write_chunk_in(writer)?;
+        }
+        Ok(total)
+    }
+}
+
+impl<T> Entry for RawEntry<T> where RawEntry<T>: SealedEntryExt {}
 
 /// Reader for Entry data.
 pub struct EntryDataReader<'r>(EntryReader<crate::io::FlattenReader<'r>>);
