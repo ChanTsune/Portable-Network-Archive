@@ -60,7 +60,7 @@ fn xz(b: &mut Bencher) {
             "pna",
             "--quiet",
             "x",
-            "../resources/test/lzma.pna",
+            "../resources/test/xz.pna",
             "--overwrite",
             "--out-dir",
             &format!("{}/bench/xz/", env!("CARGO_TARGET_TMPDIR")),

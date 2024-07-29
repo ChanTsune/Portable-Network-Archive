@@ -102,8 +102,8 @@ fn zstd() {
 }
 
 #[test]
-fn lzma() {
-    extract_all(include_bytes!("../../resources/test/lzma.pna"), None);
+fn xz() {
+    extract_all(include_bytes!("../../resources/test/xz.pna"), None);
 }
 
 #[test]
