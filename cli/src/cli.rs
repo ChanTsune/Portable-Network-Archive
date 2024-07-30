@@ -5,7 +5,7 @@ use crate::command::{
 };
 use clap::{value_parser, ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
 use pna::HashAlgorithm;
-use std::path::PathBuf;
+use std::{path::PathBuf, str::FromStr};
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(
@@ -178,17 +178,116 @@ pub(crate) enum CipherMode {
 #[command(group(ArgGroup::new("hash_algorithm").args(["argon2", "pbkdf2"])))]
 pub(crate) struct HashAlgorithmArgs {
     #[arg(long, help = "Use argon2 for password hashing")]
-    pub(crate) argon2: bool,
+    pub(crate) argon2: Option<Option<Argon2idParams>>,
     #[arg(long, help = "Use pbkdf2 for password hashing")]
-    pub(crate) pbkdf2: bool,
+    pub(crate) pbkdf2: Option<Option<Pbkdf2Sha256Params>>,
 }
 
 impl HashAlgorithmArgs {
     pub(crate) fn algorithm(&self) -> HashAlgorithm {
-        if self.pbkdf2 {
+        if let Some(Some(params)) = &self.pbkdf2 {
+            HashAlgorithm::pbkdf2_sha256_with(params.rounds)
+        } else if self.pbkdf2.as_ref().is_some_and(|it| it.is_none()) {
             HashAlgorithm::pbkdf2_sha256()
+        } else if let Some(Some(params)) = &self.argon2 {
+            HashAlgorithm::argon2id_with(params.time, params.memory, params.parallelism)
         } else {
             HashAlgorithm::argon2id()
         }
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) struct Argon2idParams {
+    time: Option<u32>,
+    memory: Option<u32>,
+    parallelism: Option<u32>,
+}
+
+impl FromStr for Argon2idParams {
+    type Err = String;
+
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut time = None;
+        let mut memory = None;
+        let mut parallelism = None;
+        for param in s.split(",") {
+            let kv = param.split_once('=');
+            if let Some(("t", n)) = kv {
+                time = Some(
+                    n.parse()
+                        .map_err(|it: std::num::ParseIntError| it.to_string())?,
+                )
+            } else if let Some(("m", n)) = kv {
+                memory = Some(
+                    n.parse()
+                        .map_err(|it: std::num::ParseIntError| it.to_string())?,
+                )
+            } else if let Some(("p", n)) = kv {
+                parallelism = Some(
+                    n.parse()
+                        .map_err(|it: std::num::ParseIntError| it.to_string())?,
+                )
+            } else {
+                return Err(format!("Unknown parameter `{param}`"));
+            }
+        }
+        Ok(Self {
+            time,
+            memory,
+            parallelism,
+        })
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) struct Pbkdf2Sha256Params {
+    rounds: Option<u32>,
+}
+
+impl FromStr for Pbkdf2Sha256Params {
+    type Err = String;
+
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut rounds = None;
+        for param in s.split(",") {
+            let kv = param.split_once('=');
+            if let Some(("r", n)) = kv {
+                rounds = Some(
+                    n.parse()
+                        .map_err(|it: std::num::ParseIntError| it.to_string())?,
+                )
+            } else {
+                return Err(format!("Unknown parameter `{param}`"));
+            }
+        }
+        Ok(Self { rounds })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_argon2id_params() {
+        assert_eq!(
+            Argon2idParams::from_str("t=1,m=2,p=3"),
+            Ok(Argon2idParams {
+                time: Some(1),
+                memory: Some(2),
+                parallelism: Some(3),
+            })
+        );
+    }
+
+    #[test]
+    fn parse_pbkdf2_sha256_params() {
+        assert_eq!(
+            Pbkdf2Sha256Params::from_str("r=1"),
+            Ok(Pbkdf2Sha256Params { rounds: Some(1) })
+        );
     }
 }
