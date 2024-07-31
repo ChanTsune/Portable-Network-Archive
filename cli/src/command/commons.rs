@@ -303,7 +303,7 @@ pub(crate) struct PathArchiveProvider<'p>(&'p Path);
 
 impl<'p> PathArchiveProvider<'p> {
     #[inline]
-    pub(crate) fn new(path: &'p Path) -> Self {
+    pub(crate) const fn new(path: &'p Path) -> Self {
         Self(path)
     }
 }
@@ -326,7 +326,7 @@ pub(crate) struct StdinArchiveProvider;
 
 impl StdinArchiveProvider {
     #[inline]
-    pub(crate) fn new() -> Self {
+    pub(crate) const fn new() -> Self {
         Self
     }
 }
