@@ -51,20 +51,20 @@ use std::io::prelude::*;
 /// #     Ok(())
 /// # }
 /// ```
-pub struct Archive<T> {
+pub struct Archive<T, B = Vec<u8>> {
     inner: T,
     header: ArchiveHeader,
     // following fields are only use in reader mode
     next_archive: bool,
-    buf: Vec<RawChunk>,
+    buf: Vec<RawChunk<B>>,
 }
 
-impl<T> Archive<T> {
+impl<T, B> Archive<T, B> {
     fn new(inner: T, header: ArchiveHeader) -> Self {
         Self::with_buffer(inner, header, Default::default())
     }
 
-    fn with_buffer(inner: T, header: ArchiveHeader, buf: Vec<RawChunk>) -> Self {
+    fn with_buffer(inner: T, header: ArchiveHeader, buf: Vec<RawChunk<B>>) -> Self {
         Self {
             inner,
             header,
