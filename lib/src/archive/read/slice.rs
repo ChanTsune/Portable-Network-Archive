@@ -1,6 +1,6 @@
 use crate::{
     archive::ArchiveHeader, chunk::read_chunk_from_slice, entry::RawEntry, Archive, Chunk,
-    ChunkType, Entry, ReadEntry, RegularEntry, PNA_HEADER,
+    ChunkType, Entry, RawChunk, ReadEntry, RegularEntry, PNA_HEADER,
 };
 use std::io;
 
@@ -30,6 +30,14 @@ impl<'d> Archive<&'d [u8], &'d [u8]> {
     /// Returns an error if an I/O error occurs while reading header from the bytes.
     #[inline]
     pub fn read_header_from_slice(bytes: &'d [u8]) -> io::Result<Self> {
+        Self::read_header_from_slice_with_buffer(bytes, Vec::new())
+    }
+
+    #[inline]
+    fn read_header_from_slice_with_buffer(
+        bytes: &'d [u8],
+        buf: Vec<RawChunk<&'d [u8]>>,
+    ) -> io::Result<Self> {
         let bytes = read_header_from_slice(bytes)?;
         let (chunk, r) = read_chunk_from_slice(bytes)?;
         if chunk.ty != ChunkType::AHED {
@@ -39,7 +47,7 @@ impl<'d> Archive<&'d [u8], &'d [u8]> {
             ));
         }
         let header = ArchiveHeader::try_from_bytes(chunk.data())?;
-        Ok(Self::new(r, header))
+        Ok(Self::with_buffer(r, header, buf))
     }
 
     /// Reads the next raw entry (from `FHED` to `FEND` chunk) from the archive.
@@ -150,6 +158,38 @@ impl<'d> Archive<&'d [u8], &'d [u8]> {
         &'d mut self,
     ) -> impl Iterator<Item = io::Result<impl Entry + 'd>> + 'd {
         RawEntries(self)
+    }
+
+    /// Reads the next archive from the provided reader and returns a new [`Archive`].
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - The [`&[u8]`] to read from.
+    ///
+    /// # Returns
+    ///
+    /// A new `ArchiveReader`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while reading from the reader.
+    #[inline]
+    pub fn read_next_archive_from_slice(
+        self,
+        bytes: &'d [u8],
+    ) -> io::Result<Archive<&[u8], &[u8]>> {
+        let current_header = self.header;
+        let next = Archive::read_header_from_slice_with_buffer(bytes, self.buf)?;
+        if current_header.archive_number + 1 != next.header.archive_number {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Next archive number must be +1 (current: {}, detected: {})",
+                    current_header.archive_number, next.header.archive_number
+                ),
+            ));
+        }
+        Ok(next)
     }
 }
 
