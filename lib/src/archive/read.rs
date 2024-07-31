@@ -219,7 +219,7 @@ impl<R: Read> Archive<R> {
         self.next_archive
     }
 
-    /// Reads the next archive from the provided reader and returns a new `ArchiveReader`.
+    /// Reads the next archive from the provided reader and returns a new [`Archive`].
     ///
     /// # Arguments
     ///
@@ -227,7 +227,7 @@ impl<R: Read> Archive<R> {
     ///
     /// # Returns
     ///
-    /// A new `ArchiveReader`.
+    /// A new [`Archive`].
     ///
     /// # Errors
     ///
