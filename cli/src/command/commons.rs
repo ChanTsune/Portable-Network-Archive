@@ -365,16 +365,6 @@ where
     Ok(())
 }
 
-pub(crate) fn run_across_archive_path<R, F>(path: R, processor: F) -> io::Result<()>
-where
-    R: AsRef<Path>,
-    F: FnMut(&mut Archive<fs::File>) -> io::Result<()>,
-{
-    let path = path.as_ref();
-    let file = PathArchiveProvider::new(path);
-    run_across_archive(file, processor)
-}
-
 pub(crate) fn run_process_archive<'p, Provider, F>(
     archive_provider: impl ArchiveProvider,
     mut password_provider: Provider,

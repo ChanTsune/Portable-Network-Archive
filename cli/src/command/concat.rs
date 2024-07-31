@@ -1,6 +1,9 @@
 use crate::{
     cli::{FileArgs, Verbosity},
-    command::{commons::run_across_archive_path, Command},
+    command::{
+        commons::{run_across_archive, PathArchiveProvider},
+        Command,
+    },
     utils,
 };
 use clap::Parser;
@@ -40,7 +43,7 @@ fn concat_entry(args: ConcatCommand, _verbosity: Verbosity) -> io::Result<()> {
     let mut archive = Archive::write_header(file)?;
 
     for item in &args.files.files {
-        run_across_archive_path(item, |reader| {
+        run_across_archive(PathArchiveProvider::new(item.as_ref()), |reader| {
             for entry in reader.raw_entries() {
                 archive.add_entry(entry?)?;
             }
