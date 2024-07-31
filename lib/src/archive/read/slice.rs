@@ -1,6 +1,6 @@
 use crate::{
-    archive::read::RegularEntries, archive::ArchiveHeader, chunk::read_chunk_from_slice,
-    entry::RawEntry, Archive, Chunk, ChunkType, Entry, ReadEntry, PNA_HEADER,
+    archive::ArchiveHeader, chunk::read_chunk_from_slice, entry::RawEntry, Archive, Chunk,
+    ChunkType, Entry, ReadEntry, RegularEntry, PNA_HEADER,
 };
 use std::io;
 
@@ -14,7 +14,7 @@ fn read_header_from_slice(bytes: &[u8]) -> io::Result<&[u8]> {
     Ok(body)
 }
 
-impl<'d> Archive<&'d [u8]> {
+impl<'d> Archive<&'d [u8], &'d [u8]> {
     /// Reads the archive header from the provided reader and returns a new [Archive].
     ///
     /// # Arguments
@@ -53,7 +53,7 @@ impl<'d> Archive<&'d [u8]> {
     /// Returns an error if an I/O error occurs while reading from the archive.
     fn next_raw_item_slice(&mut self) -> io::Result<Option<RawEntry<&'d [u8]>>> {
         let mut chunks = Vec::new();
-        // std::mem::swap(&mut self.buf, &mut chunks);
+        std::mem::swap(&mut self.buf, &mut chunks);
         loop {
             let (chunk, r) = read_chunk_from_slice(self.inner)?;
             self.inner = r;
@@ -62,15 +62,9 @@ impl<'d> Archive<&'d [u8]> {
                     chunks.push(chunk);
                     break;
                 }
-                ChunkType::ANXT => {
-                    self.next_archive = true;
-                    return Err(io::Error::new(
-                        io::ErrorKind::Unsupported,
-                        "Currently unsplit for &[u8] is not supported",
-                    ));
-                }
+                ChunkType::ANXT => self.next_archive = true,
                 ChunkType::AEND => {
-                    // self.buf = chunks;
+                    self.buf = chunks;
                     return Ok(None);
                 }
                 _ => chunks.push(chunk),
@@ -109,7 +103,7 @@ impl<'d> Archive<&'d [u8]> {
     ///
     /// # fn main() -> io::Result<()> {
     /// let file = include_bytes!("../../../../resources/test/zstd.pna");
-    /// let mut archive = Archive::read_header(&file[..])?;
+    /// let mut archive = Archive::read_header_from_slice(&file[..])?;
     /// for entry in archive.entries_slice() {
     ///     match entry? {
     ///         ReadEntry::Solid(solid_entry) => {
@@ -142,7 +136,7 @@ impl<'d> Archive<&'d [u8]> {
     ///
     /// # fn main() -> io::Result<()> {
     /// let bytes = include_bytes!("../../../../resources/test/zstd.pna");
-    /// let mut src = Archive::read_header(&bytes[..])?;
+    /// let mut src = Archive::read_header_from_slice(&bytes[..])?;
     /// let mut dist = Archive::write_header(Vec::new())?;
     /// for entry in src.raw_entries_from_slice() {
     ///     dist.add_entry(entry?)?;
@@ -159,7 +153,7 @@ impl<'d> Archive<&'d [u8]> {
     }
 }
 
-pub(crate) struct RawEntries<'r>(&'r mut Archive<&'r [u8]>);
+pub(crate) struct RawEntries<'r>(&'r mut Archive<&'r [u8], &'r [u8]>);
 
 impl<'r> Iterator for RawEntries<'r> {
     type Item = io::Result<RawEntry<&'r [u8]>>;
@@ -172,12 +166,12 @@ impl<'r> Iterator for RawEntries<'r> {
 
 /// An iterator over the entries in the archive.
 pub struct Entries<'r> {
-    reader: &'r mut Archive<&'r [u8]>,
+    reader: &'r mut Archive<&'r [u8], &'r [u8]>,
 }
 
 impl<'r> Entries<'r> {
     #[inline]
-    pub(crate) fn new(reader: &'r mut Archive<&'r [u8]>) -> Self {
+    pub(crate) fn new(reader: &'r mut Archive<&'r [u8], &'r [u8]>) -> Self {
         Self { reader }
     }
 
@@ -200,12 +194,25 @@ impl<'r> Entries<'r> {
     /// # }
     /// ```
     #[inline]
-    pub fn extract_solid_entries(self, password: Option<&'r str>) -> RegularEntries<'r, &[u8]> {
-        RegularEntries {
-            reader: self.reader,
-            password,
-            buf: Default::default(),
-        }
+    pub fn extract_solid_entries(
+        self,
+        password: Option<&'r str>,
+    ) -> impl Iterator<Item = io::Result<RegularEntry>> + 'r {
+        self.flat_map(move |f| match f {
+            Ok(ReadEntry::Regular(r)) => vec![Ok(RegularEntry {
+                header: r.header,
+                phsf: r.phsf,
+                extra: r.extra.iter().map(|it| it.to_owned()).collect(),
+                data: r.data.iter().map(|it| it.to_vec()).collect(),
+                metadata: r.metadata,
+                xattrs: r.xattrs,
+            })],
+            Ok(ReadEntry::Solid(r)) => match r.entries(password) {
+                Ok(entries) => entries.collect(),
+                Err(e) => vec![Err(e)],
+            },
+            Err(e) => vec![Err(e)],
+        })
     }
 }
 
