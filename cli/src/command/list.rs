@@ -8,9 +8,9 @@ use crate::{
     },
     utils::GlobPatterns,
 };
-use ansi_term::{ANSIString, Colour, Style};
 use chrono::{DateTime, Local};
 use clap::{ArgGroup, Parser};
+use nu_ansi_term::{ANSIString, Color as Colour, Style};
 use pna::{
     Chunk, Compression, DataKind, Encryption, ExtendedAttribute, ReadEntry, ReadOptions,
     RegularEntry, SolidHeader,

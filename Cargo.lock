@@ -62,15 +62,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ansi_term"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d52a9bb7ec0cf484c551830a7ce27bd20d67eac647e1befb56b0be4ee39a55d2"
-dependencies = [
- "winapi",
-]
-
-[[package]]
 name = "ansitok"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1311,6 +1302,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f5438dd2b2ff4c6df6e1ce22d825ed2fa93ee2922235cc45186991717f0a892d"
 
 [[package]]
+name = "nu-ansi-term"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e1cb62d7a07189335d41d8196638aa01bc1000a31889ba7a249d2bac25d9e48"
+dependencies = [
+ "winapi",
+]
+
+[[package]]
 name = "num-traits"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1466,7 +1466,6 @@ checksum = "7170ef9988bc169ba16dd36a7fa041e5c4cbeb6a35b76d4c03daded371eae7c0"
 name = "portable-network-archive"
 version = "0.15.0"
 dependencies = [
- "ansi_term",
  "base64",
  "bitflags 2.6.0",
  "bytesize",
@@ -1482,6 +1481,7 @@ dependencies = [
  "libc",
  "nix",
  "normalize-path",
+ "nu-ansi-term",
  "pna",
  "rand",
  "rayon",
