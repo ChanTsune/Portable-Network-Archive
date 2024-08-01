@@ -52,6 +52,7 @@ acl = [
     "field-offset",
     "windows/Win32_System_SystemServices",
 ]
+memmap = ["memmap2"]
 
 [[bin]]
 name = "pna"
