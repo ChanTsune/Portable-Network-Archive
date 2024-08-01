@@ -130,7 +130,15 @@ pub(crate) fn create_entry(
         return apply_metadata(entry, path, keep_options, owner_options)?.build();
     } else if path.is_file() {
         let mut entry = EntryBuilder::new_file(EntryName::from_lossy(path), option)?;
-        entry.write_all(&fs::read(path)?)?;
+        #[cfg(feature = "memmap")]
+        {
+            let file = utils::mmap::Mmap::open(path)?;
+            entry.write_all(&file[..])?;
+        }
+        #[cfg(not(feature = "memmap"))]
+        {
+            entry.write_all(&fs::read(path)?)?;
+        }
         return apply_metadata(entry, path, keep_options, owner_options)?.build();
     } else if path.is_dir() {
         let entry = EntryBuilder::new_dir(EntryName::from_lossy(path));
