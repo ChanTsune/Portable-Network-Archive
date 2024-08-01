@@ -135,7 +135,7 @@ impl RawChunk {
     ///
     /// # Examples
     /// ```
-    /// use libpna::{Chunk, ChunkType, RawChunk};
+    /// use libpna::{prelude::*, ChunkType, RawChunk};
     ///
     /// let data = [0xAA, 0xBB, 0xCC, 0xDD];
     /// let chunk = RawChunk::from_data(ChunkType::FDAT, data);
