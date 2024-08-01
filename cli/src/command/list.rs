@@ -10,7 +10,7 @@ use crate::{
 };
 use chrono::{DateTime, Local};
 use clap::{ArgGroup, Parser};
-use nu_ansi_term::{ANSIString, Color as Colour, Style};
+use nu_ansi_term::{AnsiString as ANSIString, Color as Colour, Style};
 use pna::{
     Chunk, Compression, DataKind, Encryption, ExtendedAttribute, ReadEntry, ReadOptions,
     RegularEntry, SolidHeader,
