@@ -2,6 +2,8 @@
 pub(crate) mod acl;
 pub(crate) mod fs;
 mod io;
+#[cfg(feature = "memmap")]
+pub(crate) mod mmap;
 pub(crate) mod os;
 mod path;
 pub(crate) mod str;
