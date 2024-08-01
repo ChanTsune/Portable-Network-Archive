@@ -1,4 +1,5 @@
 pub(crate) mod slice {
+    #[inline]
     pub(crate) fn skip_while<E, P>(s: &[E], mut predicate: P) -> &[E]
     where
         P: FnMut(&E) -> bool,
