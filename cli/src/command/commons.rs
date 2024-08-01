@@ -132,8 +132,14 @@ pub(crate) fn create_entry(
         let mut entry = EntryBuilder::new_file(EntryName::from_lossy(path), option)?;
         #[cfg(feature = "memmap")]
         {
-            let file = utils::mmap::Mmap::open(path)?;
-            entry.write_all(&file[..])?;
+            const FILE_SIZE_THRESHOLD: u64 = 50 * 1024 * 1024;
+            let meta = fs::metadata(path)?;
+            if FILE_SIZE_THRESHOLD < meta.len() {
+                let file = utils::mmap::Mmap::open(path)?;
+                entry.write_all(&file[..])?;
+            } else {
+                entry.write_all(&fs::read(path)?)?;
+            }
         }
         #[cfg(not(feature = "memmap"))]
         {
