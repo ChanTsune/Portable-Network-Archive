@@ -21,7 +21,7 @@ indicatif = { version = "0.17.8", features = ["improved_unicode"] }
 itertools = "0.13.0"
 memmap2 = { version = "0.9.4", optional = true }
 normalize-path = "0.2.1"
-nu-ansi-term = "0.28.0"
+nu-ansi-term = "0.50.1"
 pna = { version = "0.15.0", path = "../pna" }
 rayon = "1.10.0"
 rpassword = "7.3.1"
