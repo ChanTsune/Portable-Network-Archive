@@ -42,10 +42,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: target
-#          key: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}-${{ hashFiles('**/Cargo.lock') }}"
-#          Since the cache hit rate is too low and the cache efficiency is poor,
-#          a cache strategy that intentionally ignores the lock file is used to increase the cache hit efficiency.
-          key: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}"
+          key: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}-${{ hashFiles('**/Cargo.lock') }}"
+          restore-keys: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}"
+          lookup-only: ${{ github.ref_name != github.event.repository.default_branch }}
       - name: run test
         run: |
           cargo hack test --locked --release --feature-powerset
