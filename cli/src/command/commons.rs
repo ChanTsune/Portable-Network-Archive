@@ -294,9 +294,9 @@ pub(crate) fn split_to_parts(
 }
 
 pub(crate) trait ArchiveProvider {
-    type A: Read;
-    fn initial_archive(&self) -> io::Result<Self::A>;
-    fn next_archive(&self, n: usize) -> io::Result<Self::A>;
+    type Source: Read;
+    fn initial_source(&self) -> io::Result<Self::Source>;
+    fn next_source(&self, n: usize) -> io::Result<Self::Source>;
 }
 
 pub(crate) struct PathArchiveProvider<'p>(&'p Path);
@@ -309,15 +309,15 @@ impl<'p> PathArchiveProvider<'p> {
 }
 
 impl<'p> ArchiveProvider for PathArchiveProvider<'p> {
-    type A = fs::File;
+    type Source = fs::File;
 
     #[inline]
-    fn initial_archive(&self) -> io::Result<Self::A> {
+    fn initial_source(&self) -> io::Result<Self::Source> {
         fs::File::open(self.0)
     }
 
     #[inline]
-    fn next_archive(&self, n: usize) -> io::Result<Self::A> {
+    fn next_source(&self, n: usize) -> io::Result<Self::Source> {
         fs::File::open(self.0.with_part(n).unwrap())
     }
 }
@@ -332,15 +332,15 @@ impl StdinArchiveProvider {
 }
 
 impl ArchiveProvider for StdinArchiveProvider {
-    type A = io::StdinLock<'static>;
+    type Source = io::StdinLock<'static>;
 
     #[inline]
-    fn initial_archive(&self) -> io::Result<Self::A> {
+    fn initial_source(&self) -> io::Result<Self::Source> {
         Ok(io::stdin().lock())
     }
 
     #[inline]
-    fn next_archive(&self, _: usize) -> io::Result<Self::A> {
+    fn next_source(&self, _: usize) -> io::Result<Self::Source> {
         Ok(io::stdin().lock())
     }
 }
@@ -348,15 +348,15 @@ impl ArchiveProvider for StdinArchiveProvider {
 pub(crate) fn run_across_archive<P, F>(provider: P, mut processor: F) -> io::Result<()>
 where
     P: ArchiveProvider,
-    F: FnMut(&mut Archive<P::A>) -> io::Result<()>,
+    F: FnMut(&mut Archive<P::Source>) -> io::Result<()>,
 {
-    let mut archive = Archive::read_header(provider.initial_archive()?)?;
+    let mut archive = Archive::read_header(provider.initial_source()?)?;
     let mut num_archive = 1;
     loop {
         processor(&mut archive)?;
         if archive.has_next_archive() {
             num_archive += 1;
-            let next_reader = provider.next_archive(num_archive)?;
+            let next_reader = provider.next_source(num_archive)?;
             archive = archive.read_next_archive(next_reader)?;
         } else {
             break;
