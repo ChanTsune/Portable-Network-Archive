@@ -10,8 +10,7 @@ impl Mmap {
     pub(crate) fn open<P: AsRef<Path>>(path: P) -> io::Result<Mmap> {
         fn inner(path: &Path) -> io::Result<Mmap> {
             let file = fs::File::open(path)?;
-            let inner = unsafe { memmap2::Mmap::map(&file) }?;
-            Ok(Mmap { _file: file, inner })
+            Mmap::try_from(file)
         }
         inner(path.as_ref())
     }
@@ -29,5 +28,14 @@ impl Deref for Mmap {
 
     fn deref(&self) -> &Self::Target {
         self.inner.deref()
+    }
+}
+
+impl TryFrom<fs::File> for Mmap {
+    type Error = io::Error;
+    #[inline]
+    fn try_from(file: fs::File) -> Result<Self, Self::Error> {
+        let inner = unsafe { memmap2::Mmap::map(&file) }?;
+        Ok(Mmap { _file: file, inner })
     }
 }
