@@ -457,8 +457,10 @@ mod tests {
     #[cfg(feature = "unstable-async")]
     #[tokio::test]
     async fn decode_async() {
+        use tokio_util::compat::TokioAsyncReadCompatExt;
+
         let input = include_bytes!("../../../resources/test/zstd.pna");
-        let file = async_std::io::Cursor::new(input);
+        let file = io::Cursor::new(input).compat();
         let mut reader = Archive::read_header_async(file).await.unwrap();
         assert!(reader.read_entry_async().await.unwrap().is_some());
         assert!(reader.read_entry_async().await.unwrap().is_some());
@@ -476,13 +478,15 @@ mod tests {
     #[tokio::test]
     async fn extract_async() -> io::Result<()> {
         use crate::ReadOptions;
+        use tokio_util::compat::{FuturesAsyncReadCompatExt, TokioAsyncReadCompatExt};
+
         let input = include_bytes!("../../../resources/test/zstd.pna");
-        let file = async_std::io::Cursor::new(input);
+        let file = io::Cursor::new(input).compat();
         let mut archive = Archive::read_header_async(file).await?;
         while let Some(entry) = archive.read_entry_async().await? {
-            let mut file = async_std::io::Cursor::new(Vec::new());
-            let mut reader = entry.reader(ReadOptions::builder().build())?;
-            async_std::io::copy(&mut reader, &mut file).await?;
+            let mut file = io::Cursor::new(Vec::new());
+            let mut reader = entry.reader(ReadOptions::builder().build())?.compat();
+            tokio::io::copy(&mut reader, &mut file).await?;
         }
         Ok(())
     }
