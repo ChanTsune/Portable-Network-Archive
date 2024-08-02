@@ -53,6 +53,7 @@ acl = [
     "windows/Win32_System_SystemServices",
 ]
 memmap = ["dep:memmap2"]
+zlib-ng = ["pna/zlib-ng"]
 
 [[bin]]
 name = "pna"

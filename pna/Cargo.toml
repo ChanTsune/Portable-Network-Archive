@@ -16,5 +16,8 @@ libpna = { version = "0.16.0", path = "../lib" }
 [dev-dependencies]
 version-sync = "0.9.5"
 
+[features]
+zlib-ng = ["libpna/zlib-ng"]
+
 [lib]
 name = "pna"
