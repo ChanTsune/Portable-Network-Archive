@@ -44,7 +44,6 @@ jobs:
           path: target
           key: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}-${{ hashFiles('**/Cargo.lock') }}"
           restore-keys: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}"
-          lookup-only: ${{ github.ref_name != github.event.repository.default_branch }}
       - name: run test
         run: |
           cargo hack test --locked --release --feature-powerset
