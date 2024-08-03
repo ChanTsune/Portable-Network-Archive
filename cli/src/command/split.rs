@@ -28,14 +28,15 @@ impl Command for SplitCommand {
 
 fn split_archive(args: SplitCommand, _verbosity: Verbosity) -> io::Result<()> {
     let read_file = File::open(&args.archive)?;
+    let mut read_archive = Archive::read_header(read_file)?;
+    let entries = read_archive.raw_entries();
+
     let base_out_file_name = if let Some(out_dir) = args.out_dir {
         fs::create_dir_all(&out_dir)?;
         out_dir.join(args.archive.file_name().unwrap_or_default())
     } else {
         args.archive.clone()
     };
-    let mut read_archive = Archive::read_header(read_file)?;
-
     let name = base_out_file_name.with_part(1).unwrap();
     if !args.overwrite && name.exists() {
         return Err(io::Error::new(
@@ -45,9 +46,5 @@ fn split_archive(args: SplitCommand, _verbosity: Verbosity) -> io::Result<()> {
     }
     let max_file_size = args.max_size.unwrap_or_else(|| ByteSize::gb(1)).as_u64() as usize;
 
-    write_split_archive(
-        base_out_file_name,
-        read_archive.raw_entries(),
-        max_file_size,
-    )
+    write_split_archive(base_out_file_name, entries, max_file_size)
 }
