@@ -40,7 +40,7 @@ getrandom = { version = "0.2", features = ["js"] }
 
 [features]
 wasm = ["zstd/wasm", "liblzma/wasm"]
-unstable-async = ["futures-io", "futures-util"]
+unstable-async = ["dep:futures-io", "dep:futures-util"]
 
 [[example]]
 name = "async_io"

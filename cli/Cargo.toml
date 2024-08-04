@@ -48,11 +48,11 @@ libc = "0.2.155"
 
 [features]
 acl = [
-    "exacl",
-    "field-offset",
+    "dep:exacl",
+    "dep:field-offset",
     "windows/Win32_System_SystemServices",
 ]
-memmap = ["memmap2"]
+memmap = ["dep:memmap2"]
 
 [[bin]]
 name = "pna"
