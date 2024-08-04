@@ -28,8 +28,16 @@ impl Command for SplitCommand {
 
 fn split_archive(args: SplitCommand, _verbosity: Verbosity) -> io::Result<()> {
     let read_file = File::open(&args.archive)?;
+    #[cfg(not(feature = "memmap"))]
     let mut read_archive = Archive::read_header(read_file)?;
+    #[cfg(not(feature = "memmap"))]
     let entries = read_archive.raw_entries();
+    #[cfg(feature = "memmap")]
+    let mapped_file = crate::utils::mmap::Mmap::try_from(read_file)?;
+    #[cfg(feature = "memmap")]
+    let mut read_archive = Archive::read_header_from_slice(&mapped_file[..])?;
+    #[cfg(feature = "memmap")]
+    let entries = read_archive.raw_entries_from_slice();
 
     let base_out_file_name = if let Some(out_dir) = args.out_dir {
         fs::create_dir_all(&out_dir)?;
