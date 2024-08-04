@@ -20,10 +20,10 @@ impl Command for CompleteCommand {
     }
 }
 
-fn print_completions<G: Generator>(gen: G, cmd: &mut clap::Command) {
+fn print_completions<G: Generator>(generator: G, cmd: &mut clap::Command) {
     let name = env::args().next().map(PathBuf::from).unwrap();
     generate(
-        gen,
+        generator,
         cmd,
         name.file_name().unwrap().to_string_lossy(),
         &mut io::stdout().lock(),
