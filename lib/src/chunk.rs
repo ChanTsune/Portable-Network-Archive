@@ -11,6 +11,7 @@ pub(crate) use self::{
 };
 pub use self::{traits::*, types::*};
 use std::{
+    borrow::Cow,
     io::{self, Write},
     mem,
     ops::Deref,
@@ -122,6 +123,28 @@ impl Chunk for RawChunk<&[u8]> {
     #[inline]
     fn data(&self) -> &[u8] {
         self.data
+    }
+
+    #[inline]
+    fn crc(&self) -> u32 {
+        self.crc
+    }
+}
+
+impl<'a> Chunk for RawChunk<Cow<'a, [u8]>> {
+    #[inline]
+    fn length(&self) -> u32 {
+        self.length
+    }
+
+    #[inline]
+    fn ty(&self) -> ChunkType {
+        self.ty
+    }
+
+    #[inline]
+    fn data(&self) -> &[u8] {
+        self.data.deref()
     }
 
     #[inline]
