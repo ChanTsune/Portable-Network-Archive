@@ -17,6 +17,7 @@ use crate::{
     util::slice::skip_while,
 };
 use std::{
+    borrow::Cow,
     collections::VecDeque,
     io::{self, Read, Write},
     time::Duration,
@@ -78,6 +79,22 @@ impl SealedEntryExt for RawEntry<Vec<u8>> {
 }
 
 impl SealedEntryExt for RawEntry<&[u8]> {
+    #[inline]
+    fn into_chunks(self) -> Vec<RawChunk> {
+        self.0.into_iter().map(|it| it.to_owned()).collect()
+    }
+
+    #[inline]
+    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
+        let mut total = 0;
+        for chunk in self.0.iter() {
+            total += chunk.write_chunk_in(writer)?;
+        }
+        Ok(total)
+    }
+}
+
+impl<'a> SealedEntryExt for RawEntry<Cow<'a, [u8]>> {
     #[inline]
     fn into_chunks(self) -> Vec<RawChunk> {
         self.0.into_iter().map(|it| it.to_owned()).collect()
