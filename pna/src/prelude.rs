@@ -8,4 +8,4 @@
 //! use pna::prelude::*;
 //! ```
 pub use crate::ext::{ArchiveFsExt, MetadataTimeExt};
-pub use libpna::{Chunk, Entry};
+pub use libpna::prelude::*;
