@@ -20,6 +20,7 @@ use std::{
     borrow::Cow,
     collections::VecDeque,
     io::{self, Read, Write},
+    ops::Deref,
     time::Duration,
 };
 
@@ -371,6 +372,55 @@ impl SolidEntry<&[u8]> {
     ) -> io::Result<impl Iterator<Item = io::Result<RegularEntry>> + '_> {
         let reader = decrypt_reader(
             crate::io::FlattenReader::new(self.data.clone()),
+            self.header.encryption,
+            self.header.cipher_mode,
+            self.phsf.as_deref(),
+            password.as_ref().map(|it| it.as_bytes()),
+        )?;
+        let reader = decompress_reader(reader, self.header.compression)?;
+
+        Ok(EntryIterator(EntryReader(reader)))
+    }
+}
+
+impl<'a> SolidEntry<Cow<'a, [u8]>> {
+    /// Returns an iterator over the entries in the [SolidEntry].
+    ///
+    /// # Example
+    ///
+    /// # Example
+    /// ```no_run
+    /// use libpna::{Archive, ReadEntry, ReadOptions};
+    /// use std::fs;
+    /// # use std::io;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let file = fs::File::open("foo.pna")?;
+    /// let mut archive = Archive::read_header(file)?;
+    /// for entry in archive.entries() {
+    ///     match entry? {
+    ///         ReadEntry::Solid(solid_entry) => {
+    ///             for entry in solid_entry.entries(Some("password"))? {
+    ///                 let entry = entry?;
+    ///                 let mut reader = entry.reader(ReadOptions::builder().build());
+    ///                 // fill your code
+    ///             }
+    ///         }
+    ///         ReadEntry::Regular(entry) => {
+    ///             // fill your code
+    ///         }
+    ///     }
+    /// }
+    /// #    Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn entries(
+        &self,
+        password: Option<&str>,
+    ) -> io::Result<impl Iterator<Item = io::Result<RegularEntry>> + '_> {
+        let reader = decrypt_reader(
+            crate::io::FlattenReader::new(self.data.iter().map(|it| it.deref()).collect()),
             self.header.encryption,
             self.header.cipher_mode,
             self.phsf.as_deref(),
