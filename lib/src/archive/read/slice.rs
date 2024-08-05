@@ -179,10 +179,10 @@ impl<'d> Archive<&'d [u8]> {
     /// # }
     /// ```
     #[inline]
-    pub fn raw_entries_from_slice(
-        &'d mut self,
-    ) -> impl Iterator<Item = io::Result<impl Entry + 'd>> + 'd {
-        RawEntries(self)
+    pub fn raw_entries_from_slice<'s>(
+        &'s mut self,
+    ) -> impl Iterator<Item = io::Result<impl Entry + 'd>> + 's {
+        RawEntries::<'s, 'd>(self)
     }
 
     /// Reads the next archive from the provided reader and returns a new [`Archive`].
@@ -215,9 +215,9 @@ impl<'d> Archive<&'d [u8]> {
     }
 }
 
-pub(crate) struct RawEntries<'r>(&'r mut Archive<&'r [u8]>);
+pub(crate) struct RawEntries<'a, 'r>(&'a mut Archive<&'r [u8]>);
 
-impl<'r> Iterator for RawEntries<'r> {
+impl<'a, 'r> Iterator for RawEntries<'a, 'r> {
     type Item = io::Result<RawEntry<Cow<'r, [u8]>>>;
 
     #[inline]
