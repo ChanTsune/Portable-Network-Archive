@@ -94,6 +94,17 @@ impl<'d> RawChunk<&'d [u8]> {
     }
 }
 
+impl<'a> RawChunk<Cow<'a, [u8]>> {
+    pub(crate) fn to_owned(&self) -> RawChunk<Vec<u8>> {
+        RawChunk {
+            length: self.length,
+            ty: self.ty,
+            data: self.data.to_vec(),
+            crc: self.crc,
+        }
+    }
+}
+
 impl<D> RawChunk<D>
 where
     Self: Chunk,
