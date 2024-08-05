@@ -2,6 +2,7 @@ use crate::{
     archive::ArchiveHeader, chunk::read_chunk_from_slice, entry::RawEntry, Archive, Chunk,
     ChunkType, Entry, RawChunk, ReadEntry, RegularEntry, PNA_HEADER,
 };
+use std::borrow::Cow;
 use std::io;
 
 fn read_header_from_slice(bytes: &[u8]) -> io::Result<&[u8]> {
@@ -14,7 +15,7 @@ fn read_header_from_slice(bytes: &[u8]) -> io::Result<&[u8]> {
     Ok(body)
 }
 
-impl<'d> Archive<&'d [u8], &'d [u8]> {
+impl<'d> Archive<&'d [u8]> {
     /// Reads the archive header from the provided reader and returns a new [Archive].
     ///
     /// # Arguments
@@ -34,10 +35,7 @@ impl<'d> Archive<&'d [u8], &'d [u8]> {
     }
 
     #[inline]
-    fn read_header_from_slice_with_buffer(
-        bytes: &'d [u8],
-        buf: Vec<RawChunk<&'d [u8]>>,
-    ) -> io::Result<Self> {
+    fn read_header_from_slice_with_buffer(bytes: &'d [u8], buf: Vec<RawChunk>) -> io::Result<Self> {
         let bytes = read_header_from_slice(bytes)?;
         let (chunk, r) = read_chunk_from_slice(bytes)?;
         if chunk.ty != ChunkType::AHED {
@@ -59,23 +57,50 @@ impl<'d> Archive<&'d [u8], &'d [u8]> {
     /// # Errors
     ///
     /// Returns an error if an I/O error occurs while reading from the archive.
-    fn next_raw_item_slice(&mut self) -> io::Result<Option<RawEntry<&'d [u8]>>> {
+    fn next_raw_item_slice(&mut self) -> io::Result<Option<RawEntry<Cow<'d, [u8]>>>> {
         let mut chunks = Vec::new();
         std::mem::swap(&mut self.buf, &mut chunks);
+        let mut chunks = chunks
+            .into_iter()
+            .map(|it| RawChunk {
+                length: it.length,
+                ty: it.ty,
+                data: Cow::Owned(it.data),
+                crc: it.crc,
+            })
+            .collect::<Vec<_>>();
         loop {
             let (chunk, r) = read_chunk_from_slice(self.inner)?;
             self.inner = r;
             match chunk.ty {
                 ChunkType::FEND | ChunkType::SEND => {
-                    chunks.push(chunk);
+                    chunks.push(RawChunk {
+                        length: chunk.length,
+                        ty: chunk.ty,
+                        data: Cow::Borrowed(chunk.data),
+                        crc: chunk.crc,
+                    });
                     break;
                 }
                 ChunkType::ANXT => self.next_archive = true,
                 ChunkType::AEND => {
-                    self.buf = chunks;
+                    self.buf = chunks
+                        .into_iter()
+                        .map(|it| RawChunk {
+                            length: it.length,
+                            ty: it.ty,
+                            data: it.data.to_vec(),
+                            crc: it.crc,
+                        })
+                        .collect::<Vec<_>>();
                     return Ok(None);
                 }
-                _ => chunks.push(chunk),
+                _ => chunks.push(RawChunk {
+                    length: chunk.length,
+                    ty: chunk.ty,
+                    data: Cow::Borrowed(chunk.data),
+                    crc: chunk.crc,
+                }),
             }
         }
         Ok(Some(RawEntry(chunks)))
@@ -90,7 +115,7 @@ impl<'d> Archive<&'d [u8], &'d [u8]> {
     /// # Errors
     ///
     /// Returns an error if an I/O error occurs while reading from the archive.
-    fn read_entry_slice(&mut self) -> io::Result<Option<ReadEntry<&'d [u8]>>> {
+    fn read_entry_slice(&mut self) -> io::Result<Option<ReadEntry<Cow<'d, [u8]>>>> {
         let entry = self.next_raw_item_slice()?;
         match entry {
             Some(entry) => Ok(Some(entry.try_into()?)),
@@ -174,10 +199,7 @@ impl<'d> Archive<&'d [u8], &'d [u8]> {
     ///
     /// Returns an error if an I/O error occurs while reading from the reader.
     #[inline]
-    pub fn read_next_archive_from_slice(
-        self,
-        bytes: &'d [u8],
-    ) -> io::Result<Archive<&[u8], &[u8]>> {
+    pub fn read_next_archive_from_slice(self, bytes: &'d [u8]) -> io::Result<Archive<&[u8]>> {
         let current_header = self.header;
         let next = Archive::read_header_from_slice_with_buffer(bytes, self.buf)?;
         if current_header.archive_number + 1 != next.header.archive_number {
@@ -193,10 +215,10 @@ impl<'d> Archive<&'d [u8], &'d [u8]> {
     }
 }
 
-pub(crate) struct RawEntries<'r>(&'r mut Archive<&'r [u8], &'r [u8]>);
+pub(crate) struct RawEntries<'r>(&'r mut Archive<&'r [u8]>);
 
 impl<'r> Iterator for RawEntries<'r> {
-    type Item = io::Result<RawEntry<&'r [u8]>>;
+    type Item = io::Result<RawEntry<Cow<'r, [u8]>>>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -206,12 +228,12 @@ impl<'r> Iterator for RawEntries<'r> {
 
 /// An iterator over the entries in the archive.
 pub struct Entries<'r> {
-    reader: &'r mut Archive<&'r [u8], &'r [u8]>,
+    reader: &'r mut Archive<&'r [u8]>,
 }
 
 impl<'r> Entries<'r> {
     #[inline]
-    pub(crate) fn new(reader: &'r mut Archive<&'r [u8], &'r [u8]>) -> Self {
+    pub(crate) fn new(reader: &'r mut Archive<&'r [u8]>) -> Self {
         Self { reader }
     }
 
@@ -257,7 +279,7 @@ impl<'r> Entries<'r> {
 }
 
 impl<'r> Iterator for Entries<'r> {
-    type Item = io::Result<ReadEntry<&'r [u8]>>;
+    type Item = io::Result<ReadEntry<Cow<'r, [u8]>>>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
