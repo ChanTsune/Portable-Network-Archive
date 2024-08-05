@@ -1131,6 +1131,43 @@ impl RegularEntry<&[u8]> {
     }
 }
 
+impl<'a> RegularEntry<Cow<'a, [u8]>> {
+    /// Return the reader of this [`RegularEntry`].
+    ///
+    /// # Examples
+    /// ```no_run
+    /// use libpna::{Archive, ReadOptions};
+    /// use std::{fs, io};
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let file = fs::File::open("foo.pna")?;
+    /// let mut archive = Archive::read_header(file)?;
+    /// for entry in archive.entries_skip_solid() {
+    ///     let entry = entry?;
+    ///     let mut reader = entry.reader(ReadOptions::builder().build())?;
+    ///     let name = entry.header().path();
+    ///     let mut dist_file = fs::File::create(name)?;
+    ///     io::copy(&mut reader, &mut dist_file)?;
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn reader(&self, option: ReadOptions) -> io::Result<EntryDataReader> {
+        let raw_data_reader =
+            crate::io::FlattenReader::new(self.data.iter().map(|it| it.as_ref()).collect());
+        let decrypt_reader = decrypt_reader(
+            raw_data_reader,
+            self.header.encryption,
+            self.header.cipher_mode,
+            self.phsf.as_deref(),
+            option.password.as_ref().map(|it| it.as_bytes()),
+        )?;
+        let reader = decompress_reader(decrypt_reader, self.header.compression)?;
+        Ok(EntryDataReader(EntryReader(reader)))
+    }
+}
+
 /// A structure representing the split [Entry] for archive splitting.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct EntryPart<T = Vec<u8>>(pub(crate) Vec<RawChunk<T>>);
