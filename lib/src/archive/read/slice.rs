@@ -171,7 +171,7 @@ impl<'d> Archive<&'d [u8]> {
     /// let bytes = include_bytes!("../../../../resources/test/zstd.pna");
     /// let mut src = Archive::read_header_from_slice(&bytes[..])?;
     /// let mut dist = Archive::write_header(Vec::new())?;
-    /// for entry in src.raw_entries_from_slice() {
+    /// for entry in src.raw_entries_slice() {
     ///     dist.add_entry(entry?)?;
     /// }
     /// dist.finalize()?;
@@ -179,7 +179,7 @@ impl<'d> Archive<&'d [u8]> {
     /// # }
     /// ```
     #[inline]
-    pub fn raw_entries_from_slice<'s>(
+    pub fn raw_entries_slice<'s>(
         &'s mut self,
     ) -> impl Iterator<Item = io::Result<impl Entry + 'd>> + 's {
         RawEntries::<'s, 'd>(self)

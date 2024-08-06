@@ -37,7 +37,7 @@ fn split_archive(args: SplitCommand, _verbosity: Verbosity) -> io::Result<()> {
     #[cfg(feature = "memmap")]
     let mut read_archive = Archive::read_header_from_slice(&mapped_file[..])?;
     #[cfg(feature = "memmap")]
-    let entries = read_archive.raw_entries_from_slice();
+    let entries = read_archive.raw_entries_slice();
 
     let base_out_file_name = if let Some(out_dir) = args.out_dir {
         fs::create_dir_all(&out_dir)?;
