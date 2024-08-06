@@ -79,7 +79,7 @@ impl<T> Archive<T> {
     ///
     /// `true` if the next archive in the series is available, otherwise `false`.
     ///
-    /// [ANXT]: ChunkType::ANXT
+    /// [ANXT]: crate::chunk::ChunkType::ANXT
     #[inline]
     pub const fn has_next_archive(&self) -> bool {
         self.next_archive
