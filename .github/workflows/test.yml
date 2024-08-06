@@ -41,7 +41,9 @@ jobs:
       - name: Cache rust build
         uses: actions/cache@v4
         with:
-          path: target
+          path: |
+            target
+            !target/tmp
           key: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}-${{ hashFiles('**/Cargo.lock') }}"
           restore-keys: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}"
       - name: run test
