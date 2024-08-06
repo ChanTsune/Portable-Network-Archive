@@ -131,7 +131,7 @@ impl Chunk for RawChunk<&[u8]> {
 }
 
 impl RawChunk {
-    /// Create a new [`RawChunk`] from given [`ChunkType`] and [`T`].
+    /// Create a new [`RawChunk`] from given [`ChunkType`] and bytes.
     ///
     /// # Examples
     /// ```
