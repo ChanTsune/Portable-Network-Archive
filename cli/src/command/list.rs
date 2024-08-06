@@ -25,7 +25,7 @@ use tabled::{
     settings::{
         object::{Rows, Segment},
         themes::Colorization,
-        Alignment, Color, Modify, Padding, Style as TableStyle,
+        Alignment, Color, Modify, Padding, PaddingColor, Style as TableStyle,
     },
 };
 
@@ -392,7 +392,7 @@ fn detail_list_entries(entries: impl Iterator<Item = TableRow>, print_header: bo
     if print_header {
         table.with(Colorization::exact([underline], Rows::first()));
     }
-    table.with(Padding::new(0, 1, 0, 0).colorize(
+    table.with(Padding::new(0, 1, 0, 0)).with(PaddingColor::new(
         Color::empty(),
         reset,
         Color::empty(),
