@@ -25,7 +25,7 @@ nu-ansi-term = "0.50.1"
 pna = { version = "0.16.0", path = "../pna" }
 rayon = "1.10.0"
 rpassword = "7.3.1"
-tabled = { version = "0.15.0", default-features = false, features = ["std", "ansi"] }
+tabled = { version = "0.16.0", default-features = false, features = ["std", "ansi"] }
 rand = "0.8.5"
 indexmap = "2.3.0"
 
