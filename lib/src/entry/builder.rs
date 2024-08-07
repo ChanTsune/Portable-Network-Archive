@@ -475,7 +475,7 @@ impl SolidEntryBuilder {
     /// # }
     /// ```
     #[inline]
-    pub fn build(self) -> io::Result<impl Entry> {
+    pub fn build(self) -> io::Result<impl Entry + Sized> {
         self.build_as_entry()
     }
 }
