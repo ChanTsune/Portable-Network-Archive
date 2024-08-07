@@ -138,7 +138,7 @@ impl<R: Read> Archive<R> {
     /// # }
     /// ```
     #[inline]
-    pub fn raw_entries(&mut self) -> impl Iterator<Item = io::Result<impl Entry>> + '_ {
+    pub fn raw_entries(&mut self) -> impl Iterator<Item = io::Result<impl Entry + Sized>> + '_ {
         RawEntries(self)
     }
 
