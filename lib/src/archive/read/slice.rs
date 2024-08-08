@@ -181,7 +181,7 @@ impl<'d> Archive<&'d [u8]> {
     #[inline]
     pub fn raw_entries_slice<'s>(
         &'s mut self,
-    ) -> impl Iterator<Item = io::Result<impl Entry + 'd>> + 's {
+    ) -> impl Iterator<Item = io::Result<impl Entry + Sized + 'd>> + 's {
         RawEntries::<'s, 'd>(self)
     }
 
