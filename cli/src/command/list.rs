@@ -3,7 +3,7 @@ use crate::{
     cli::{FileArgs, PasswordArgs, Verbosity},
     command::{
         ask_password,
-        commons::{run_across_archive, ArchiveProvider, PathArchiveProvider},
+        commons::{run_process_entry, ArchiveProvider, PathArchiveProvider},
         Command,
     },
     utils::GlobPatterns,
@@ -235,8 +235,8 @@ pub(crate) fn run_list_archive(
     let now = SystemTime::now();
     let mut entries = Vec::new();
 
-    run_across_archive(archive_provider, |reader| {
-        for entry in reader.entries() {
+    run_process_entry(archive_provider, |entry| {
+        {
             match entry? {
                 ReadEntry::Solid(solid) if args.solid => {
                     for entry in solid.entries(password)? {
