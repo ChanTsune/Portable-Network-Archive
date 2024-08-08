@@ -241,72 +241,30 @@ pub(crate) fn run_list_archive(
                 ReadEntry::Solid(solid) => {
                     if args.solid {
                         for entry in solid.entries(password)? {
-                            let entry = entry?;
-                            let xattrs = if args.show_xattr {
-                                entry
-                                    .xattrs()
-                                    .iter()
-                                    .map(|xattr| TableRow::from_xattr(xattr.name(), xattr.value()))
-                                    .collect::<Vec<_>>()
-                            } else {
-                                Vec::new()
-                            };
-                            let acl = if args.show_acl {
-                                entry
-                                    .extra_chunks()
-                                    .iter()
-                                    .filter(|c| c.ty() == chunk::faCe)
-                                    .map(|c| {
-                                        chunk::Ace::try_from(c.data())
-                                            .map(TableRow::from_acl)
-                                            .map_err(io::Error::other)
-                                    })
-                                    .collect::<io::Result<Vec<_>>>()?
-                            } else {
-                                Vec::new()
-                            };
-                            entries.push(
-                                (
-                                    &entry,
-                                    password,
-                                    now,
-                                    Some(solid.header()),
-                                    args.numeric_owner,
-                                )
-                                    .into(),
-                            );
-                            entries.extend(acl);
-                            entries.extend(xattrs);
+                            entries.extend(try_to_rows(
+                                entry?,
+                                password,
+                                now,
+                                Some(solid.header()),
+                                args.numeric_owner,
+                                args.show_xattr,
+                                args.show_acl,
+                            )?);
                         }
                     } else {
                         eprintln!("warning: this archive contain solid mode entry. if you need to show it use --solid option.");
                     }
                 }
                 ReadEntry::Regular(item) => {
-                    let xattrs = if args.show_xattr {
-                        item.xattrs()
-                            .iter()
-                            .map(|xattr| TableRow::from_xattr(xattr.name(), xattr.value()))
-                            .collect::<Vec<_>>()
-                    } else {
-                        Vec::new()
-                    };
-                    let acl = if args.show_acl {
-                        item.extra_chunks()
-                            .iter()
-                            .filter(|c| c.ty() == chunk::faCe)
-                            .map(|c| {
-                                chunk::Ace::try_from(c.data())
-                                    .map(TableRow::from_acl)
-                                    .map_err(io::Error::other)
-                            })
-                            .collect::<io::Result<Vec<_>>>()?
-                    } else {
-                        Vec::new()
-                    };
-                    entries.push((&item, password, now, None, args.numeric_owner).into());
-                    entries.extend(acl);
-                    entries.extend(xattrs);
+                    entries.extend(try_to_rows(
+                        item,
+                        password,
+                        now,
+                        None,
+                        args.numeric_owner,
+                        args.show_xattr,
+                        args.show_acl,
+                    )?);
                 }
             }
         }
@@ -331,6 +289,42 @@ pub(crate) fn run_list_archive(
         simple_list_entries(entries.into_iter());
     }
     Ok(())
+}
+
+fn try_to_rows(
+    entry: RegularEntry,
+    password: Option<&str>,
+    now: SystemTime,
+    solid: Option<&SolidHeader>,
+    numeric_owner: bool,
+    show_xattr: bool,
+    show_acl: bool,
+) -> io::Result<Vec<TableRow>> {
+    let mut rows = Vec::new();
+    let xattrs = if show_xattr {
+        entry
+            .xattrs()
+            .iter()
+            .map(|xattr| TableRow::from_xattr(xattr.name(), xattr.value()))
+            .collect::<Vec<_>>()
+    } else {
+        Vec::new()
+    };
+    let acl = if show_acl {
+        entry
+            .extra_chunks()
+            .iter()
+            .filter(|c| c.ty() == chunk::faCe)
+            .map(|c| chunk::Ace::try_from(c.data()).map(TableRow::from_acl))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(io::Error::other)?
+    } else {
+        Vec::new()
+    };
+    rows.push((&entry, password, now, solid, numeric_owner).into());
+    rows.extend(acl);
+    rows.extend(xattrs);
+    Ok(rows)
 }
 
 fn simple_list_entries(entries: impl Iterator<Item = TableRow>) {
