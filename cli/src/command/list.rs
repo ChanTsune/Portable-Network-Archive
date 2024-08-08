@@ -238,22 +238,21 @@ pub(crate) fn run_list_archive(
     run_across_archive(archive_provider, |reader| {
         for entry in reader.entries() {
             match entry? {
-                ReadEntry::Solid(solid) => {
-                    if args.solid {
-                        for entry in solid.entries(password)? {
-                            entries.extend(try_to_rows(
-                                entry?,
-                                password,
-                                now,
-                                Some(solid.header()),
-                                args.numeric_owner,
-                                args.show_xattr,
-                                args.show_acl,
-                            )?);
-                        }
-                    } else {
-                        eprintln!("warning: this archive contain solid mode entry. if you need to show it use --solid option.");
+                ReadEntry::Solid(solid) if args.solid => {
+                    for entry in solid.entries(password)? {
+                        entries.extend(try_to_rows(
+                            entry?,
+                            password,
+                            now,
+                            Some(solid.header()),
+                            args.numeric_owner,
+                            args.show_xattr,
+                            args.show_acl,
+                        )?);
                     }
+                }
+                ReadEntry::Solid(_) => {
+                    eprintln!("warning: this archive contain solid mode entry. if you need to show it use --solid option.");
                 }
                 ReadEntry::Regular(item) => {
                     entries.extend(try_to_rows(
