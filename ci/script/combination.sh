@@ -13,14 +13,14 @@ for keep in "${keepOptions[@]}"; do
       for solid in "${solidOption[@]}"; do
         if [[ "$encrypt" == "--aes cbc" || "$encrypt" == "--aes ctr" || "$encrypt" == "--camellia cbc" || "$encrypt" == "--camellia ctr" ]]; then
           for hash in "${hashOptions[@]}"; do
-            echo "pna experimental stdio -c $keep $compress $encrypt $hash --password password $solid -r . --unstable --exclude ./target/ | pna experimental stdio -x --password password --out-dir '/tmp/$keep$compress$encrypt$hash$solid.pna'"
-            pna experimental stdio -c $keep $compress $encrypt $hash --password password $solid -r . --unstable --exclude ./target/ | pna experimental stdio -x --password password --overwrite --out-dir "/tmp/$keep$compress$encrypt$hash$solid.pna"
-            diff -r . "/tmp/$keep$compress$encrypt$hash$solid.pna"
+            echo "pna experimental stdio -c $keep $compress $encrypt $hash --password password $solid -r lib --unstable | pna experimental stdio -x --password password --out-dir '/tmp/$keep$compress$encrypt$hash$solid.pna'"
+            pna experimental stdio -c $keep $compress $encrypt $hash --password password $solid -r lib --unstable | pna experimental stdio -x --password password --overwrite --out-dir "/tmp/$keep$compress$encrypt$hash$solid.pna"
+            diff -r lib "/tmp/$keep$compress$encrypt$hash$solid.pna/lib"
           done
         else
-          echo "pna experimental stdio -c $keep $compress $encrypt $solid -r . --unstable --exclude ./target/ | pna experimental stdio -x --out-dir '/tmp/$keep$compress$encrypt$solid.pna'"
-          pna experimental stdio -c $keep $compress $encrypt $solid -r . --unstable --exclude ./target/ | pna experimental stdio -x --overwrite --out-dir "/tmp/$keep$compress$encrypt$solid.pna"
-          diff -r . "/tmp/$keep$compress$encrypt$solid.pna"
+          echo "pna experimental stdio -c $keep $compress $encrypt $solid -r lib --unstable | pna experimental stdio -x --out-dir '/tmp/$keep$compress$encrypt$solid.pna'"
+          pna experimental stdio -c $keep $compress $encrypt $solid -r lib --unstable | pna experimental stdio -x --overwrite --out-dir "/tmp/$keep$compress$encrypt$solid.pna"
+          diff -r lib "/tmp/$keep$compress$encrypt$solid.pna/lib"
         fi
       done
     done
