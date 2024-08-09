@@ -39,6 +39,7 @@ jobs:
           crate: cargo-hack
           cache-key: ${{ matrix.os }}
       - name: Restore rust build cache
+        id: restore-rust-build-cache
         uses: actions/cache/restore@v4
         with:
           path: |
@@ -58,4 +59,4 @@ jobs:
           path: |
             target
             !target/tmp
-          key: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}-${{ hashFiles('**/Cargo.lock') }}"
+          key: "${{ steps.restore-rust-build-cache.outputs.cache-primary-key }}"
