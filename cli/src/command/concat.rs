@@ -1,9 +1,10 @@
+#[cfg(feature = "memmap")]
+use crate::command::commons::run_across_archive_mem;
+#[cfg(not(feature = "memmap"))]
+use crate::command::commons::{run_across_archive, PathArchiveProvider};
 use crate::{
     cli::{FileArgs, Verbosity},
-    command::{
-        commons::{run_across_archive, PathArchiveProvider},
-        Command,
-    },
+    command::Command,
     utils,
 };
 use clap::Parser;
@@ -43,6 +44,14 @@ fn concat_entry(args: ConcatCommand, _verbosity: Verbosity) -> io::Result<()> {
     let mut archive = Archive::write_header(file)?;
 
     for item in &args.files.files {
+        #[cfg(feature = "memmap")]
+        run_across_archive_mem(item, |reader| {
+            for entry in reader.raw_entries_slice() {
+                archive.add_entry(entry?)?;
+            }
+            Ok(())
+        })?;
+        #[cfg(not(feature = "memmap"))]
         run_across_archive(PathArchiveProvider::new(item.as_ref()), |reader| {
             for entry in reader.raw_entries() {
                 archive.add_entry(entry?)?;
