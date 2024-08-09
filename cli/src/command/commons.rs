@@ -400,6 +400,41 @@ where
     })
 }
 
+#[cfg(feature = "memmap")]
+pub(crate) fn run_across_archive_mem<P, F>(path: P, processor: F) -> io::Result<()>
+where
+    P: AsRef<Path>,
+    F: FnMut(&mut Archive<&[u8]>) -> io::Result<()>,
+{
+    fn inner<F>(
+        num_archive: usize,
+        provider: PathArchiveProvider,
+        mut archive: Archive<&[u8]>,
+        mut processor: F,
+    ) -> io::Result<()>
+    where
+        F: FnMut(&mut Archive<&[u8]>) -> io::Result<()>,
+    {
+        processor(&mut archive)?;
+        if archive.has_next_archive() {
+            let next_reader = provider.next_source(num_archive)?;
+            let file = utils::mmap::Mmap::try_from(next_reader)?;
+            inner(
+                num_archive + 1,
+                provider,
+                archive.read_next_archive_from_slice(&file[..])?,
+                processor,
+            )?;
+        }
+        Ok(())
+    }
+    let provider = PathArchiveProvider::new(path.as_ref());
+    let initial_source = provider.initial_source()?;
+    let file = utils::mmap::Mmap::try_from(initial_source)?;
+    let archive = Archive::read_header_from_slice(&file[..])?;
+    inner(2, provider, archive, processor)
+}
+
 pub(crate) fn run_process_entry<F>(
     archive_provider: impl ArchiveProvider,
     mut processor: F,
