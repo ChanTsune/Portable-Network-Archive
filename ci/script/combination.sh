@@ -15,10 +15,12 @@ for keep in "${keepOptions[@]}"; do
           for hash in "${hashOptions[@]}"; do
             echo "pna experimental stdio -c $keep $compress $encrypt $hash --password password $solid -r . --unstable --exclude ./target/ | pna experimental stdio -x --password password --out-dir '/tmp/$keep$compress$encrypt$hash$solid.pna'"
             pna experimental stdio -c $keep $compress $encrypt $hash --password password $solid -r . --unstable --exclude ./target/ | pna experimental stdio -x --password password --overwrite --out-dir "/tmp/$keep$compress$encrypt$hash$solid.pna"
+            diff -r . "/tmp/$keep$compress$encrypt$hash$solid.pna"
           done
         else
           echo "pna experimental stdio -c $keep $compress $encrypt $solid -r . --unstable --exclude ./target/ | pna experimental stdio -x --out-dir '/tmp/$keep$compress$encrypt$solid.pna'"
           pna experimental stdio -c $keep $compress $encrypt $solid -r . --unstable --exclude ./target/ | pna experimental stdio -x --overwrite --out-dir "/tmp/$keep$compress$encrypt$solid.pna"
+          diff -r . "/tmp/$keep$compress$encrypt$solid.pna"
         fi
       done
     done
