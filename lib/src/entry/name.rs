@@ -217,6 +217,13 @@ impl PartialEq<str> for EntryName {
 }
 
 impl PartialEq<&str> for EntryName {
+    /// # Examples
+    ///
+    /// ```
+    /// use libpna::EntryName;
+    ///
+    /// assert_eq!(EntryName::from("test.txt"), "test.txt");
+    /// ```
     #[inline]
     fn eq(&self, other: &&str) -> bool {
         PartialEq::eq(self.as_str(), *other)
@@ -231,6 +238,13 @@ impl PartialEq<EntryName> for str {
 }
 
 impl PartialEq<EntryName> for &str {
+    /// # Examples
+    ///
+    /// ```
+    /// use libpna::EntryName;
+    ///
+    /// assert_eq!("test.txt", EntryName::from("test.txt"));
+    /// ```
     #[inline]
     fn eq(&self, other: &EntryName) -> bool {
         PartialEq::eq(self, &other.as_str())
