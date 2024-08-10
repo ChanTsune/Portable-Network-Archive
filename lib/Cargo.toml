@@ -49,6 +49,3 @@ required-features = ["unstable-async"]
 
 [[example]]
 name = "change_compression_method"
-
-[[example]]
-name = "copy_entries"
