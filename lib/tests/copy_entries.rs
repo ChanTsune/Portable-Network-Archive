@@ -12,10 +12,10 @@ fn copy_entries<R: Read, W: Write>(r: R, w: W) -> io::Result<()> {
     Ok(())
 }
 
-fn main() -> io::Result<()> {
-    let mut dist = vec![];
-    copy_entries(
-        include_bytes!("../../resources/test/deflate.pna").as_slice(),
-        &mut dist,
-    )
+#[test]
+fn copy() {
+    let src = include_bytes!("../../resources/test/deflate.pna");
+    let mut dist = Vec::new();
+    copy_entries(src.as_slice(), &mut dist).unwrap();
+    assert_eq!(src.as_slice(), dist.as_slice());
 }
