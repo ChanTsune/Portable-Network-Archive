@@ -4,7 +4,7 @@ set -eu
 keepOptions=( "--keep-dir" "--keep-timestamp" "--keep-permission" "--keep-xattr" )
 compressionOptions=( "--store" "--deflate" "--zstd" "--xz" )
 encryptionOptions=( "" "--aes cbc" "--aes ctr" "--camellia cbc" "--camellia ctr" )
-hashOptions=( "" "--argon2" "--pbkdf2")
+hashOptions=( "" "--argon2 t=1,m=50" "--pbkdf2 r=1")
 solidOption=( "" "--solid" )
 
 for keep in "${keepOptions[@]}"; do
