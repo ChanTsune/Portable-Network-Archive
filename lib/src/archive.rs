@@ -307,25 +307,27 @@ mod tests {
     }
 
     #[test]
-    fn solid_entry() -> Result<(), Box<dyn std::error::Error>> {
+    fn solid_entry() {
         let archive = {
-            let mut writer = Archive::write_header(Vec::new())?;
+            let mut writer = Archive::write_header(Vec::new()).unwrap();
             let dir_entry = {
                 let builder = EntryBuilder::new_dir("test".into());
                 builder.build().unwrap()
             };
             let file_entry = {
-                let options = WriteOptions::builder().build();
-                let mut builder = EntryBuilder::new_file("test/text".into(), options)?;
-                builder.write_all("text".as_bytes())?;
-                builder.build()?
-            };
-            writer.add_entry({
-                let mut builder = SolidEntryBuilder::new(WriteOptions::builder().build()).unwrap();
-                builder.add_entry(dir_entry).unwrap();
-                builder.add_entry(file_entry).unwrap();
+                let options = WriteOptions::store();
+                let mut builder = EntryBuilder::new_file("test/text".into(), options).unwrap();
+                builder.write_all("text".as_bytes()).unwrap();
                 builder.build().unwrap()
-            })?;
+            };
+            writer
+                .add_entry({
+                    let mut builder = SolidEntryBuilder::new(WriteOptions::store()).unwrap();
+                    builder.add_entry(dir_entry).unwrap();
+                    builder.add_entry(file_entry).unwrap();
+                    builder.build().unwrap()
+                })
+                .unwrap();
             writer.finalize().unwrap()
         };
 
@@ -334,7 +336,6 @@ mod tests {
         entries.next().unwrap().expect("failed to read entry");
         entries.next().unwrap().expect("failed to read entry");
         assert!(entries.next().is_none());
-        Ok(())
     }
 
     #[test]
