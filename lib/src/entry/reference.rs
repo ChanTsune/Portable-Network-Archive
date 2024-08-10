@@ -218,6 +218,13 @@ impl PartialEq<str> for EntryReference {
 }
 
 impl PartialEq<&str> for EntryReference {
+    /// # Examples
+    ///
+    /// ```
+    /// use libpna::EntryReference;
+    ///
+    /// assert_eq!(EntryReference::from("test.txt"), "test.txt");
+    /// ```
     #[inline]
     fn eq(&self, other: &&str) -> bool {
         PartialEq::eq(self.as_str(), *other)
@@ -232,6 +239,13 @@ impl PartialEq<EntryReference> for str {
 }
 
 impl PartialEq<EntryReference> for &str {
+    /// # Examples
+    ///
+    /// ```
+    /// use libpna::EntryReference;
+    ///
+    /// assert_eq!("test.txt", EntryReference::from("test.txt"));
+    /// ```
     #[inline]
     fn eq(&self, other: &EntryReference) -> bool {
         PartialEq::eq(self, &other.as_str())
