@@ -46,6 +46,9 @@ windows = { version = "0.58.0", features = [
 field-offset = { version = "0.3.6", optional = true }
 libc = "0.2.155"
 
+[dev-dependencies]
+walkdir = "2.5.0"
+
 [features]
 acl = [
     "dep:exacl",
