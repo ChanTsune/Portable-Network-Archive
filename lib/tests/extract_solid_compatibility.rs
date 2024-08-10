@@ -88,6 +88,11 @@ fn extract_all(bytes: &[u8], password: Option<&str>) {
 }
 
 #[test]
+fn solid_store() {
+    extract_all(include_bytes!("../../resources/test/solid_store.pna"), None);
+}
+
+#[test]
 fn solid_zstd() {
     extract_all(include_bytes!("../../resources/test/solid_zstd.pna"), None);
 }
