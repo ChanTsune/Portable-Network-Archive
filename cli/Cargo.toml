@@ -48,6 +48,7 @@ libc = "0.2.155"
 
 [dev-dependencies]
 walkdir = "2.5.0"
+assert_cmd = "2.0.16"
 
 [features]
 acl = [
