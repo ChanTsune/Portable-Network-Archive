@@ -2,50 +2,52 @@ pub mod utils {
     pub mod diff;
 }
 
-use clap::Parser;
 use itertools::Itertools;
-use portable_network_archive::{cli, command};
 use utils::diff::diff;
 
+const KEEP_OPTIONS: [Option<&str>; 4] = [
+    Some("--keep-dir"),
+    Some("--keep-timestamp"),
+    Some("--keep-permission"),
+    Some("--keep-xattr"),
+];
+const COMPRESSION_OPTIONS: [Option<&str>; 4] = [
+    Some("--store"),
+    Some("--deflate"),
+    Some("--zstd"),
+    Some("--xz"),
+];
+
+const ENCRYPTION_OPTIONS: [Option<&str>; 3] = [None, Some("--aes"), Some("--camellia")];
+
+const SOLID_OPTIONS: [Option<&str>; 2] = [None, Some("--solid")];
+
 #[test]
-fn combination() {
-    let keep_options = [
-        Some("--keep-dir"),
-        Some("--keep-timestamp"),
-        Some("--keep-permission"),
-        Some("--keep-xattr"),
-    ];
-
-    let compression_options = [
-        Some("--store"),
-        Some("--deflate"),
-        Some("--zstd"),
-        Some("--xz"),
-    ];
-
-    let encryption_options = [None, Some("--aes"), Some("--camellia")];
-
-    let solid_options = [None, Some("--solid")];
-
-    for keep in &keep_options {
-        for compress in &compression_options {
-            for encrypt in &encryption_options {
-                for solid in &solid_options {
-                    let mut options = vec![*keep, *compress, *encrypt, *solid]
+fn combination_fs() {
+    for keep in &KEEP_OPTIONS {
+        for compress in &COMPRESSION_OPTIONS {
+            for encrypt in &ENCRYPTION_OPTIONS {
+                for solid in &SOLID_OPTIONS {
+                    let mut options = [*keep, *compress, *encrypt, *solid]
                         .into_iter()
                         .flatten()
                         .collect::<Vec<_>>();
+                    let joined_options = options.iter().join("");
+
                     if options.contains(&"--aes") || options.contains(&"--camellia") {
                         options.extend(["--password", "password", "--pbkdf2", "r=1"])
                     }
-                    let joined_options = options.iter().join("");
 
-                    command::entry(cli::Cli::parse_from(
+                    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+                    cmd.args(
                         [
-                            "pna",
                             "--quiet",
                             "c",
-                            &format!("{}/{}.pna", env!("CARGO_TARGET_TMPDIR"), joined_options),
+                            &format!(
+                                "{}/filesystem/{}.pna",
+                                env!("CARGO_TARGET_TMPDIR"),
+                                joined_options
+                            ),
                             "--overwrite",
                             "-r",
                             "../lib",
@@ -56,30 +58,39 @@ fn combination() {
                         ]
                         .into_iter()
                         .chain(options),
-                    ))
-                    .unwrap();
-                    command::entry(cli::Cli::parse_from([
-                        "pna",
+                    );
+                    cmd.assert().success();
+                    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+                    cmd.args([
                         "--quiet",
                         "x",
-                        &format!("{}/{}.pna", env!("CARGO_TARGET_TMPDIR"), joined_options),
+                        &format!(
+                            "{}/filesystem/{}.pna",
+                            env!("CARGO_TARGET_TMPDIR"),
+                            joined_options
+                        ),
                         "--overwrite",
                         "--out-dir",
-                        &format!("{}/{}/", env!("CARGO_TARGET_TMPDIR"), joined_options),
-                        "--keep-xattr",
-                        "--keep-timestamp",
-                        "--keep-permission",
+                        &format!(
+                            "{}/filesystem/{}/",
+                            env!("CARGO_TARGET_TMPDIR"),
+                            joined_options
+                        ),
                         "--password",
                         "password",
                         #[cfg(windows)]
                         {
                             "--unstable"
                         },
-                    ]))
-                    .unwrap();
+                    ]);
+                    cmd.assert().success();
                     diff(
                         "../lib",
-                        format!("{}/{}/lib", env!("CARGO_TARGET_TMPDIR"), joined_options),
+                        format!(
+                            "{}/filesystem/{}/lib",
+                            env!("CARGO_TARGET_TMPDIR"),
+                            joined_options
+                        ),
                     )
                     .unwrap();
                 }
