@@ -43,7 +43,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: |
-            target
+            target/*
             !target/tmp
           key: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}-${{ hashFiles('**/Cargo.lock') }}"
           restore-keys: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}"
@@ -57,6 +57,6 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: |
-            target
+            target/*
             !target/tmp
           key: "${{ steps.restore-rust-build-cache.outputs.cache-primary-key }}"
