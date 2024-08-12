@@ -52,7 +52,7 @@ where
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let buf_len = buf.len();
-        if self.eof || buf_len == 0 {
+        if buf_len == 0 {
             return Ok(0);
         }
         let mut total_written = 0;
@@ -64,6 +64,9 @@ where
             if buf_len <= total_written {
                 return Ok(total_written);
             }
+        }
+        if self.eof {
+            return Ok(0);
         }
         let block_size = cbc::Decryptor::<C>::block_size();
         let mut out_block = Block::<cbc::Decryptor<C>>::default();
