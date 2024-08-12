@@ -165,6 +165,15 @@ impl From<&str> for EntryReference {
     }
 }
 
+impl TryFrom<&OsStr> for EntryReference {
+    type Error = EntryReferenceError;
+
+    #[inline]
+    fn try_from(value: &OsStr) -> Result<Self, Self::Error> {
+        Self::new_from_path(Path::new(value))
+    }
+}
+
 impl TryFrom<&Path> for EntryReference {
     type Error = EntryReferenceError;
 
