@@ -281,29 +281,52 @@ mod tests {
         Ok(())
     }
 
-    #[test]
-    fn solid_archive() {
-        let write_option = WriteOptions::builder()
-            .encryption(Encryption::Camellia)
-            .password(Some("PASSWORD"))
-            .build();
+    fn solid_archive(write_option: WriteOptions) {
+        let password = write_option.password().map(|it| it.to_string());
         let mut archive = Archive::write_solid_header(Vec::new(), write_option).unwrap();
-        archive
-            .add_entry({
-                let mut builder =
-                    EntryBuilder::new_file("test/text".into(), WriteOptions::store()).unwrap();
-                builder.write_all(b"text").unwrap();
-                builder.build().unwrap()
-            })
-            .unwrap();
+        for i in 0..200 {
+            archive
+                .add_entry({
+                    let mut builder = EntryBuilder::new_file(
+                        format!("test/text{i}").as_str().into(),
+                        WriteOptions::store(),
+                    )
+                    .unwrap();
+                    builder
+                        .write_all(format!("text{i}").repeat(i).as_bytes())
+                        .unwrap();
+                    builder.build().unwrap()
+                })
+                .unwrap();
+        }
         let buf = archive.finalize().unwrap();
         let mut archive = Archive::read_header(&buf[..]).unwrap();
-        let mut entries = archive.entries_with_password(Some("PASSWORD"));
+        let mut entries = archive.entries();
         let entry = entries.next().unwrap().unwrap();
-        let mut reader = entry.reader(ReadOptions::builder().build()).unwrap();
-        let mut body = Vec::new();
-        reader.read_to_end(&mut body).unwrap();
-        assert_eq!(b"text", &body[..]);
+        if let ReadEntry::Solid(entry) = entry {
+            let mut entries = entry.entries(password.as_deref()).unwrap();
+            for i in 0..200 {
+                let entry = entries.next().unwrap().unwrap();
+                let mut reader = entry.reader(ReadOptions::builder().build()).unwrap();
+                let mut body = Vec::new();
+                reader.read_to_end(&mut body).unwrap();
+                assert_eq!(format!("text{i}").repeat(i).as_bytes(), &body[..]);
+            }
+        } else {
+            panic!()
+        }
+    }
+
+    #[test]
+    fn solid_store_camellia_cbc() {
+        solid_archive(
+            WriteOptions::builder()
+                .compression(Compression::No)
+                .encryption(Encryption::Camellia)
+                .cipher_mode(CipherMode::CBC)
+                .password(Some("PASSWORD"))
+                .build(),
+        );
     }
 
     #[test]
