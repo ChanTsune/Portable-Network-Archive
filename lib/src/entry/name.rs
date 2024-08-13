@@ -147,6 +147,20 @@ impl EntryName {
     }
 }
 
+impl From<String> for EntryName {
+    #[inline]
+    fn from(value: String) -> Self {
+        Self::new_from_utf8(&value)
+    }
+}
+
+impl From<&String> for EntryName {
+    #[inline]
+    fn from(value: &String) -> Self {
+        Self::new_from_utf8(value)
+    }
+}
+
 impl From<&str> for EntryName {
     /// # Examples
     /// ```
