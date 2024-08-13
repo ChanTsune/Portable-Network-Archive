@@ -152,6 +152,20 @@ impl EntryReference {
     }
 }
 
+impl From<String> for EntryReference {
+    #[inline]
+    fn from(value: String) -> Self {
+        Self::new_from_utf8(&value)
+    }
+}
+
+impl From<&String> for EntryReference {
+    #[inline]
+    fn from(value: &String) -> Self {
+        Self::new_from_utf8(value)
+    }
+}
+
 impl From<&str> for EntryReference {
     /// ## Examples
     /// ```
