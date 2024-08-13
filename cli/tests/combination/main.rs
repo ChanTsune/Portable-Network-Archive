@@ -98,3 +98,71 @@ fn combination_fs() {
         }
     }
 }
+
+#[test]
+fn combination_stdio() {
+    for keep in &KEEP_OPTIONS {
+        for compress in &COMPRESSION_OPTIONS {
+            for encrypt in &ENCRYPTION_OPTIONS {
+                for solid in &SOLID_OPTIONS {
+                    let mut options = [*keep, *compress, *encrypt, *solid]
+                        .into_iter()
+                        .flatten()
+                        .collect::<Vec<_>>();
+                    let joined_options = options.iter().join("");
+
+                    if options.contains(&"--aes") || options.contains(&"--camellia") {
+                        options.extend(["--password", "password", "--pbkdf2", "r=1"])
+                    }
+
+                    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+                    cmd.args(
+                        [
+                            "--quiet",
+                            "experimental",
+                            "stdio",
+                            "-c",
+                            "-r",
+                            "../lib",
+                            #[cfg(windows)]
+                            {
+                                "--unstable"
+                            },
+                        ]
+                        .into_iter()
+                        .chain(options),
+                    );
+                    let assert = cmd.assert().success();
+
+                    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+                    cmd.write_stdin(assert.get_output().stdout.as_slice());
+                    cmd.args([
+                        "--quiet",
+                        "experimental",
+                        "stdio",
+                        "-x",
+                        "--overwrite",
+                        "--out-dir",
+                        &format!("{}/stdio/{}/", env!("CARGO_TARGET_TMPDIR"), joined_options),
+                        "--password",
+                        "password",
+                        #[cfg(windows)]
+                        {
+                            "--unstable"
+                        },
+                    ]);
+                    cmd.assert().success();
+                    diff(
+                        "../lib",
+                        format!(
+                            "{}/stdio/{}/lib",
+                            env!("CARGO_TARGET_TMPDIR"),
+                            joined_options
+                        ),
+                    )
+                    .unwrap();
+                }
+            }
+        }
+    }
+}
