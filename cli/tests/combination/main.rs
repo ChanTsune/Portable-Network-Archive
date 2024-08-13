@@ -18,7 +18,13 @@ const COMPRESSION_OPTIONS: [Option<&str>; 4] = [
     Some("--xz"),
 ];
 
-const ENCRYPTION_OPTIONS: [Option<&str>; 3] = [None, Some("--aes"), Some("--camellia")];
+const ENCRYPTION_OPTIONS: [Option<[&str; 2]>; 5] = [
+    None,
+    Some(["--aes", "ctr"]),
+    Some(["--aes", "cbc"]),
+    Some(["--camellia", "ctr"]),
+    Some(["--camellia", "cbc"]),
+];
 
 const SOLID_OPTIONS: [Option<&str>; 2] = [None, Some("--solid")];
 
@@ -28,13 +34,13 @@ fn combination_fs() {
         for compress in &COMPRESSION_OPTIONS {
             for encrypt in &ENCRYPTION_OPTIONS {
                 for solid in &SOLID_OPTIONS {
-                    let mut options = [*keep, *compress, *encrypt, *solid]
+                    let mut options = [*keep, *compress, *solid]
                         .into_iter()
                         .flatten()
+                        .chain(encrypt.iter().flatten().map(|it| *it))
                         .collect::<Vec<_>>();
                     let joined_options = options.iter().join("");
-
-                    if options.contains(&"--aes") || options.contains(&"--camellia") {
+                    if encrypt.is_some() {
                         options.extend(["--password", "password", "--pbkdf2", "r=1"])
                     }
 
@@ -105,13 +111,13 @@ fn combination_stdio() {
         for compress in &COMPRESSION_OPTIONS {
             for encrypt in &ENCRYPTION_OPTIONS {
                 for solid in &SOLID_OPTIONS {
-                    let mut options = [*keep, *compress, *encrypt, *solid]
+                    let mut options = [*keep, *compress, *solid]
                         .into_iter()
                         .flatten()
+                        .chain(encrypt.iter().flatten().map(|it| *it))
                         .collect::<Vec<_>>();
                     let joined_options = options.iter().join("");
-
-                    if options.contains(&"--aes") || options.contains(&"--camellia") {
+                    if encrypt.is_some() {
                         options.extend(["--password", "password", "--pbkdf2", "r=1"])
                     }
 
