@@ -264,14 +264,7 @@ impl<'a, 'r> Entries<'a, 'r> {
         'a: 'r,
     {
         self.flat_map(move |f| match f {
-            Ok(ReadEntry::Regular(r)) => vec![Ok(RegularEntry {
-                header: r.header,
-                phsf: r.phsf,
-                extra: r.extra.iter().map(|it| it.to_owned()).collect(),
-                data: r.data.iter().map(|it| it.to_vec()).collect(),
-                metadata: r.metadata,
-                xattrs: r.xattrs,
-            })],
+            Ok(ReadEntry::Regular(r)) => vec![Ok(r.to_owned())],
             Ok(ReadEntry::Solid(r)) => match r.entries(password) {
                 Ok(entries) => entries.collect(),
                 Err(e) => vec![Err(e)],
