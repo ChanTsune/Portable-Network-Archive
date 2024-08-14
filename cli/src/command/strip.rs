@@ -1,10 +1,14 @@
+#[cfg(feature = "memmap")]
+use crate::command::commons::run_across_archive_mem;
+#[cfg(not(feature = "memmap"))]
+use crate::command::commons::run_process_archive_path;
 use crate::{
     cli::{FileArgs, PasswordArgs, Verbosity},
-    command::{ask_password, commons::run_process_archive_path, Command},
+    command::{ask_password, Command},
     utils::{self, PathPartExt},
 };
 use clap::{Args, Parser, ValueHint};
-use pna::{prelude::*, Archive, Metadata, RegularEntry};
+use pna::{prelude::*, Archive, Metadata, RawChunk, RegularEntry};
 use std::{env::temp_dir, fs, io, path::PathBuf};
 
 #[derive(Args, Clone, Copy, Eq, PartialEq, Hash, Debug)]
@@ -51,6 +55,7 @@ fn strip_metadata(args: StripCommand, _verbosity: Verbosity) -> io::Result<()> {
     let outfile = fs::File::create(&outfile_path)?;
     let mut out_archive = Archive::write_header(outfile)?;
 
+    #[cfg(not(feature = "memmap"))]
     run_process_archive_path(
         &args.file.archive,
         || password.as_deref(),
@@ -60,6 +65,22 @@ fn strip_metadata(args: StripCommand, _verbosity: Verbosity) -> io::Result<()> {
             Ok(())
         },
     )?;
+    #[cfg(feature = "memmap")]
+    run_across_archive_mem(&args.file.archive, |archive| {
+        for entry in archive.entries_slice() {
+            match entry? {
+                pna::ReadEntry::Solid(s) => {
+                    for entry in s.entries(password.as_deref())? {
+                        out_archive.add_entry(strip_entry_metadata(entry?, args.strip_options))?;
+                    }
+                }
+                pna::ReadEntry::Regular(r) => {
+                    out_archive.add_entry(strip_entry_metadata(r, args.strip_options))?;
+                }
+            }
+        }
+        Ok(())
+    })?;
 
     out_archive.finalize()?;
 
@@ -70,7 +91,11 @@ fn strip_metadata(args: StripCommand, _verbosity: Verbosity) -> io::Result<()> {
 }
 
 #[inline]
-fn strip_entry_metadata(mut entry: RegularEntry, options: StripOptions) -> RegularEntry {
+fn strip_entry_metadata<T>(mut entry: RegularEntry<T>, options: StripOptions) -> RegularEntry<T>
+where
+    T: Clone,
+    RawChunk<T>: Chunk,
+{
     let mut metadata = Metadata::new();
     if options.keep_permission {
         metadata = metadata.with_permission(entry.metadata().permission().cloned());
