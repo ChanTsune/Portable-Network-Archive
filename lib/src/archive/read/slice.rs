@@ -151,7 +151,7 @@ impl<'d> Archive<&'d [u8]> {
     /// # }
     /// ```
     #[inline]
-    pub fn entries_slice(&'d mut self) -> Entries<'d> {
+    pub fn entries_slice<'a>(&'a mut self) -> Entries<'a, 'd> {
         Entries::new(self)
     }
 
@@ -227,13 +227,13 @@ impl<'a, 'r> Iterator for RawEntries<'a, 'r> {
 }
 
 /// An iterator over the entries in the archive.
-pub struct Entries<'r> {
-    reader: &'r mut Archive<&'r [u8]>,
+pub struct Entries<'a, 'r> {
+    reader: &'a mut Archive<&'r [u8]>,
 }
 
-impl<'r> Entries<'r> {
+impl<'a, 'r> Entries<'a, 'r> {
     #[inline]
-    pub(crate) fn new(reader: &'r mut Archive<&'r [u8]>) -> Self {
+    pub(crate) fn new(reader: &'a mut Archive<&'r [u8]>) -> Self {
         Self { reader }
     }
 
@@ -259,7 +259,10 @@ impl<'r> Entries<'r> {
     pub fn extract_solid_entries(
         self,
         password: Option<&'r str>,
-    ) -> impl Iterator<Item = io::Result<RegularEntry>> + 'r {
+    ) -> impl Iterator<Item = io::Result<RegularEntry>> + 'a
+    where
+        'a: 'r,
+    {
         self.flat_map(move |f| match f {
             Ok(ReadEntry::Regular(r)) => vec![Ok(RegularEntry {
                 header: r.header,
@@ -278,7 +281,7 @@ impl<'r> Entries<'r> {
     }
 }
 
-impl<'r> Iterator for Entries<'r> {
+impl<'a, 'r> Iterator for Entries<'a, 'r> {
     type Item = io::Result<ReadEntry<Cow<'r, [u8]>>>;
 
     #[inline]
