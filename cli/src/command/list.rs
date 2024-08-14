@@ -150,10 +150,8 @@ impl
             permissions: metadata
                 .permission()
                 .map(|p| paint_permission(header.data_kind(), p.permissions(), entry.xattrs()))
-                .unwrap_or_else(|| paint_data_kind(header.data_kind(), entry.xattrs()))
-                .iter()
-                .map(|it| it.to_string())
-                .collect::<String>(),
+                .map(|it| it.iter().map(|it| it.to_string()).collect::<String>())
+                .unwrap_or_else(|| paint_data_kind(header.data_kind(), entry.xattrs())),
             raw_size: metadata
                 .raw_file_size()
                 .map_or("-".into(), |size| size.to_string()),
@@ -416,23 +414,15 @@ fn datetime(now: SystemTime, d: Option<Duration>) -> String {
     }
 }
 
-fn paint_data_kind(kind: DataKind, xattrs: &[ExtendedAttribute]) -> Vec<ANSIString<'static>> {
+fn paint_data_kind(kind: DataKind, xattrs: &[ExtendedAttribute]) -> String {
     let style_dir = Style::new().fg(Colour::Purple);
     let style_link = Style::new().fg(Colour::Cyan);
     let style_hyphen = Style::new();
-    vec![
+    format!(
+        "{}_________{}",
         kind_paint(kind, style_hyphen, style_dir, style_link),
-        style_hyphen.paint("_"),
-        style_hyphen.paint("_"),
-        style_hyphen.paint("_"),
-        style_hyphen.paint("_"),
-        style_hyphen.paint("_"),
-        style_hyphen.paint("_"),
-        style_hyphen.paint("_"),
-        style_hyphen.paint("_"),
-        style_hyphen.paint("_"),
-        style_hyphen.paint(if xattrs.is_empty() { " " } else { "@" }),
-    ]
+        if xattrs.is_empty() { " " } else { "@" }
+    )
 }
 
 fn kind_paint(
