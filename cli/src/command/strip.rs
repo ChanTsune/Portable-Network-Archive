@@ -4,7 +4,7 @@ use crate::{
     utils::{self, PathPartExt},
 };
 use clap::{Args, Parser, ValueHint};
-use pna::{Archive, Chunk, Metadata};
+use pna::{prelude::*, Archive, Metadata, RegularEntry};
 use std::{env::temp_dir, fs, io, path::PathBuf};
 
 #[derive(Args, Clone, Copy, Eq, PartialEq, Hash, Debug)]
@@ -55,29 +55,7 @@ fn strip_metadata(args: StripCommand, _verbosity: Verbosity) -> io::Result<()> {
         &args.file.archive,
         || password.as_deref(),
         |entry| {
-            let mut entry = entry?;
-            let mut metadata = Metadata::new();
-            if args.strip_options.keep_permission {
-                metadata = metadata.with_permission(entry.metadata().permission().cloned());
-            }
-            if args.strip_options.keep_timestamp {
-                metadata = metadata.with_accessed(entry.metadata().accessed());
-                metadata = metadata.with_created(entry.metadata().created());
-                metadata = metadata.with_modified(entry.metadata().modified());
-            }
-            entry = entry.with_metadata(metadata);
-            if !args.strip_options.keep_xattr {
-                entry = entry.with_xattrs(&[]);
-            }
-            if !args.strip_options.keep_acl {
-                let filtered = entry
-                    .extra_chunks()
-                    .iter()
-                    .filter(|it| it.ty() != crate::chunk::faCe)
-                    .cloned()
-                    .collect::<Vec<_>>();
-                entry = entry.with_extra_chunks(&filtered);
-            }
+            let entry = strip_entry_metadata(entry?, args.strip_options);
             out_archive.add_entry(entry)?;
             Ok(())
         },
@@ -89,4 +67,31 @@ fn strip_metadata(args: StripCommand, _verbosity: Verbosity) -> io::Result<()> {
         utils::fs::mv(outfile_path, args.file.archive.remove_part().unwrap())?;
     }
     Ok(())
+}
+
+#[inline]
+fn strip_entry_metadata(mut entry: RegularEntry, options: StripOptions) -> RegularEntry {
+    let mut metadata = Metadata::new();
+    if options.keep_permission {
+        metadata = metadata.with_permission(entry.metadata().permission().cloned());
+    }
+    if options.keep_timestamp {
+        metadata = metadata.with_accessed(entry.metadata().accessed());
+        metadata = metadata.with_created(entry.metadata().created());
+        metadata = metadata.with_modified(entry.metadata().modified());
+    }
+    entry = entry.with_metadata(metadata);
+    if !options.keep_xattr {
+        entry = entry.with_xattrs(&[]);
+    }
+    if !options.keep_acl {
+        let filtered = entry
+            .extra_chunks()
+            .iter()
+            .filter(|it| it.ty() != crate::chunk::faCe)
+            .cloned()
+            .collect::<Vec<_>>();
+        entry = entry.with_extra_chunks(&filtered);
+    }
+    entry
 }
