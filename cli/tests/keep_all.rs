@@ -14,10 +14,6 @@ fn archive_keep_all() {
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
-        "--password",
-        "password",
-        "--aes",
-        "ctr",
         #[cfg(windows)]
         {
             "--unstable"
@@ -35,8 +31,6 @@ fn archive_keep_all() {
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
-        "--password",
-        "password",
         #[cfg(windows)]
         {
             "--unstable"
