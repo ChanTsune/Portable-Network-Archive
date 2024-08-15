@@ -1194,6 +1194,20 @@ impl<'a> From<RegularEntry<Cow<'a, [u8]>>> for RegularEntry<Vec<u8>> {
     }
 }
 
+impl<'a> From<RegularEntry<&'a [u8]>> for RegularEntry<Vec<u8>> {
+    #[inline]
+    fn from(value: RegularEntry<&'a [u8]>) -> Self {
+        Self {
+            header: value.header,
+            phsf: value.phsf,
+            extra: value.extra.into_iter().map(Into::into).collect(),
+            data: value.data.into_iter().map(Into::into).collect(),
+            metadata: value.metadata,
+            xattrs: value.xattrs,
+        }
+    }
+}
+
 /// A structure representing the split [Entry] for archive splitting.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct EntryPart<T = Vec<u8>>(pub(crate) Vec<RawChunk<T>>);
