@@ -105,6 +105,18 @@ impl<'a> RawChunk<Cow<'a, [u8]>> {
     }
 }
 
+impl<'a> From<RawChunk<Cow<'a, [u8]>>> for RawChunk<Vec<u8>> {
+    #[inline]
+    fn from(value: RawChunk<Cow<'a, [u8]>>) -> Self {
+        Self {
+            length: value.length,
+            ty: value.ty,
+            data: value.data.into(),
+            crc: value.crc,
+        }
+    }
+}
+
 impl<D> RawChunk<D>
 where
     Self: Chunk,
