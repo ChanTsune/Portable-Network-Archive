@@ -141,6 +141,18 @@ impl<'a> From<RawChunk<Vec<u8>>> for RawChunk<Cow<'a, [u8]>> {
     }
 }
 
+impl<'a> From<RawChunk<&'a [u8]>> for RawChunk<Cow<'a, [u8]>> {
+    #[inline]
+    fn from(value: RawChunk<&'a [u8]>) -> Self {
+        Self {
+            length: value.length,
+            ty: value.ty,
+            data: Cow::Borrowed(value.data),
+            crc: value.crc,
+        }
+    }
+}
+
 impl<D> RawChunk<D>
 where
     Self: Chunk,
