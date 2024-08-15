@@ -14,10 +14,6 @@ fn archive_strip_metadata() {
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
-        "--password",
-        "password",
-        "--aes",
-        "ctr",
         #[cfg(windows)]
         {
             "--unstable"
@@ -49,8 +45,6 @@ fn archive_strip_metadata() {
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
-        "--password",
-        "password",
         #[cfg(windows)]
         {
             "--unstable"
