@@ -14,7 +14,7 @@ keywords = ["pna", "archive", "crypto", "data"]
 aes = "0.8.4"
 argon2 = { version = "0.5.3", features = ["std"] }
 camellia = "0.1.0"
-camino = "1.1.7"
+camino = "1.1.8"
 cbc = { version = "0.1.2", features = ["std"] }
 cipher = "0.4.4"
 crc32fast = "1.4.2"
