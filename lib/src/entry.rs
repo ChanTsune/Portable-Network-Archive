@@ -82,7 +82,7 @@ impl SealedEntryExt for RawEntry<Vec<u8>> {
 impl SealedEntryExt for RawEntry<&[u8]> {
     #[inline]
     fn into_chunks(self) -> Vec<RawChunk> {
-        self.0.into_iter().map(|it| it.to_owned()).collect()
+        self.0.into_iter().map(Into::into).collect()
     }
 
     #[inline]
@@ -98,7 +98,7 @@ impl SealedEntryExt for RawEntry<&[u8]> {
 impl<'a> SealedEntryExt for RawEntry<Cow<'a, [u8]>> {
     #[inline]
     fn into_chunks(self) -> Vec<RawChunk> {
-        self.0.into_iter().map(|it| it.to_owned()).collect()
+        self.0.into_iter().map(Into::into).collect()
     }
 
     #[inline]
@@ -238,7 +238,7 @@ impl SealedEntryExt for SolidEntry<&[u8]> {
     fn into_chunks(self) -> Vec<RawChunk> {
         let mut chunks = vec![];
         chunks.push(RawChunk::from_data(ChunkType::SHED, self.header.to_bytes()));
-        chunks.extend(self.extra.into_iter().map(|it| it.to_owned()));
+        chunks.extend(self.extra.into_iter().map(Into::into));
 
         if let Some(phsf) = self.phsf {
             chunks.push(RawChunk::from_data(ChunkType::PHSF, phsf.into_bytes()));
@@ -271,7 +271,7 @@ impl<'a> SealedEntryExt for SolidEntry<Cow<'a, [u8]>> {
     fn into_chunks(self) -> Vec<RawChunk> {
         let mut chunks = vec![];
         chunks.push(RawChunk::from_data(ChunkType::SHED, self.header.to_bytes()));
-        chunks.extend(self.extra.into_iter().map(|it| it.to_owned()));
+        chunks.extend(self.extra.into_iter().map(Into::into));
 
         if let Some(phsf) = self.phsf {
             chunks.push(RawChunk::from_data(ChunkType::PHSF, phsf.into_bytes()));
@@ -756,7 +756,7 @@ impl SealedEntryExt for RegularEntry<&[u8]> {
         } = self.metadata;
         let mut vec = Vec::new();
         vec.push(RawChunk::from_data(ChunkType::FHED, self.header.to_bytes()));
-        vec.extend(self.extra.into_iter().map(|it| it.to_owned()));
+        vec.extend(self.extra.into_iter().map(Into::into));
         if let Some(raw_file_size) = raw_file_size {
             vec.push(RawChunk::from_data(
                 ChunkType::fSIZ,
@@ -867,7 +867,7 @@ impl<'a> SealedEntryExt for RegularEntry<Cow<'a, [u8]>> {
         } = self.metadata;
         let mut vec = Vec::new();
         vec.push(RawChunk::from_data(ChunkType::FHED, self.header.to_bytes()));
-        vec.extend(self.extra.into_iter().map(|it| it.to_owned()));
+        vec.extend(self.extra.into_iter().map(Into::into));
         if let Some(raw_file_size) = raw_file_size {
             vec.push(RawChunk::from_data(
                 ChunkType::fSIZ,
@@ -1294,8 +1294,8 @@ impl EntryPart {
                     let available_bytes_len = max_bytes_len - total_size;
                     let chunk_split_index = available_bytes_len - MIN_CHUNK_BYTES_SIZE;
                     let (x, y) = chunk_data_split(chunk.ty, chunk.data(), chunk_split_index);
-                    first.push(x.to_owned());
-                    remaining.push_front(y.to_owned());
+                    first.push(x.into());
+                    remaining.push_front(y.into());
                 } else {
                     remaining.push_front(chunk);
                 }
