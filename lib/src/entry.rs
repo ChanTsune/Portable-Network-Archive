@@ -1166,18 +1166,6 @@ impl<'a> RegularEntry<Cow<'a, [u8]>> {
         let reader = decompress_reader(decrypt_reader, self.header.compression)?;
         Ok(EntryDataReader(EntryReader(reader)))
     }
-
-    #[inline]
-    pub(crate) fn to_owned(&self) -> RegularEntry<Vec<u8>> {
-        RegularEntry {
-            header: self.header.clone(),
-            phsf: self.phsf.clone(),
-            extra: self.extra.iter().map(|it| it.to_owned()).collect(),
-            data: self.data.iter().map(|it| it.to_vec()).collect(),
-            metadata: self.metadata.clone(),
-            xattrs: self.xattrs.clone(),
-        }
-    }
 }
 
 impl<'a> From<RegularEntry<Cow<'a, [u8]>>> for RegularEntry<Vec<u8>> {
