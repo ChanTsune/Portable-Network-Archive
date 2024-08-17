@@ -503,21 +503,15 @@ where
         let mut phsf = None;
         for chunk in entry.0 {
             match chunk.ty() {
-                ChunkType::SHED => {
-                    info = Some(SolidHeader::try_from(chunk.data())?);
-                }
-                ChunkType::SDAT => {
-                    data.push(chunk.data);
-                }
+                ChunkType::SHED => info = Some(SolidHeader::try_from(chunk.data())?),
+                ChunkType::SDAT => data.push(chunk.data),
                 ChunkType::PHSF => {
                     phsf = Some(
                         String::from_utf8(chunk.data().into())
                             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
-                    );
+                    )
                 }
-                _ => {
-                    extra.push(chunk);
-                }
+                _ => extra.push(chunk),
             }
         }
         let header = info.ok_or_else(|| {
