@@ -71,7 +71,7 @@ impl<R: Read> Archive<R> {
     ///
     /// # Returns
     ///
-    /// An `io::Result` containing an `Option<ChunkEntry>`. Returns `Ok(None)` if there are no more items to read.
+    /// An [`io::Result<Option<RawEntry>>`]. Returns `Ok(None)` if there are no more items to read.
     ///
     /// # Errors
     ///
@@ -102,7 +102,7 @@ impl<R: Read> Archive<R> {
     ///
     /// # Returns
     ///
-    /// An `io::Result` containing an `Option<ReadEntryImpl>`. Returns `Ok(None)` if there are no more entries to read.
+    /// An [`io::Result<Option<ReadEntry>>`]. Returns `Ok(None)` if there are no more entries to read.
     ///
     /// # Errors
     ///
