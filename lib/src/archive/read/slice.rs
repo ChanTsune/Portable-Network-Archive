@@ -60,47 +60,21 @@ impl<'d> Archive<&'d [u8]> {
     fn next_raw_item_slice(&mut self) -> io::Result<Option<RawEntry<Cow<'d, [u8]>>>> {
         let mut chunks = Vec::new();
         std::mem::swap(&mut self.buf, &mut chunks);
-        let mut chunks = chunks
-            .into_iter()
-            .map(|it| RawChunk {
-                length: it.length,
-                ty: it.ty,
-                data: Cow::Owned(it.data),
-                crc: it.crc,
-            })
-            .collect::<Vec<_>>();
+        let mut chunks = chunks.into_iter().map(Into::into).collect::<Vec<_>>();
         loop {
             let (chunk, r) = read_chunk_from_slice(self.inner)?;
             self.inner = r;
             match chunk.ty {
                 ChunkType::FEND | ChunkType::SEND => {
-                    chunks.push(RawChunk {
-                        length: chunk.length,
-                        ty: chunk.ty,
-                        data: Cow::Borrowed(chunk.data),
-                        crc: chunk.crc,
-                    });
+                    chunks.push(chunk.into());
                     break;
                 }
                 ChunkType::ANXT => self.next_archive = true,
                 ChunkType::AEND => {
-                    self.buf = chunks
-                        .into_iter()
-                        .map(|it| RawChunk {
-                            length: it.length,
-                            ty: it.ty,
-                            data: it.data.to_vec(),
-                            crc: it.crc,
-                        })
-                        .collect::<Vec<_>>();
+                    self.buf = chunks.into_iter().map(Into::into).collect::<Vec<_>>();
                     return Ok(None);
                 }
-                _ => chunks.push(RawChunk {
-                    length: chunk.length,
-                    ty: chunk.ty,
-                    data: Cow::Borrowed(chunk.data),
-                    crc: chunk.crc,
-                }),
+                _ => chunks.push(chunk.into()),
             }
         }
         Ok(Some(RawEntry(chunks)))
