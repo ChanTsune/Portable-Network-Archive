@@ -16,7 +16,7 @@ fn read_header_from_slice(bytes: &[u8]) -> io::Result<&[u8]> {
 }
 
 impl<'d> Archive<&'d [u8]> {
-    /// Reads the archive header from the provided reader and returns a new [Archive].
+    /// Reads the archive header from the provided reader and returns a new [`Archive`].
     ///
     /// # Arguments
     ///
@@ -24,7 +24,7 @@ impl<'d> Archive<&'d [u8]> {
     ///
     /// # Returns
     ///
-    /// A new [`io::Result<Archive<W>>`].
+    /// A new [`io::Result<Archive<&[u8]>>`].
     ///
     /// # Errors
     ///
