@@ -501,6 +501,18 @@ impl<'a> From<SolidEntry<&'a [u8]>> for SolidEntry<Cow<'a, [u8]>> {
     }
 }
 
+impl<'a> From<SolidEntry<Vec<u8>>> for SolidEntry<Cow<'a, [u8]>> {
+    #[inline]
+    fn from(value: SolidEntry<Vec<u8>>) -> Self {
+        Self {
+            header: value.header,
+            phsf: value.phsf,
+            data: value.data.into_iter().map(Into::into).collect(),
+            extra: value.extra.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 impl<T> TryFrom<RawEntry<T>> for SolidEntry<T>
 where
     RawChunk<T>: Chunk,
