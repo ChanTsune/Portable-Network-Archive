@@ -33,7 +33,17 @@ jobs:
         with:
           target: ${{ matrix.target }}
           toolchain: ${{ matrix.rust }}
-      - name: Run build
+      - if: ${{ startsWith(matrix.target, 'wasm32-wasi') }}
+        name: Setup wasmtime
+        uses: bytecodealliance/actions/wasmtime/setup@v1
+        with:
+          github_token: ${{ github.token }}
+      - if: ${{ startsWith(matrix.target, 'wasm32-wasi') }}
+        name: Run test
+        run: |
+          cargo test -p libpna --target ${{ matrix.target }} --features wasm
+      - if: ${{ !startsWith(matrix.target, 'wasm32-wasi') }}
+        name: Run build
         run: |
           cargo build -p libpna --target ${{ matrix.target }} --features wasm
 
