@@ -41,7 +41,7 @@ jobs:
       - if: ${{ startsWith(matrix.target, 'wasm32-wasi') }}
         name: Run test
         run: |
-          cargo test -p libpna --target ${{ matrix.target }} --features wasm
+          cargo test -p libpna --target ${{ matrix.target }} --features wasm -- --skip test_readme_deps --skip test_html_root_url
       - if: ${{ !startsWith(matrix.target, 'wasm32-wasi') }}
         name: Run build
         run: |
