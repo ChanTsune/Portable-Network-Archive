@@ -1,3 +1,4 @@
+#![cfg(not(target_family = "wasm"))]
 use libpna::{Archive, EntryBuilder, ReadOptions, WriteOptions};
 use std::io;
 use tokio_util::compat::{
