@@ -41,7 +41,7 @@ liblzma = { version = "0.3.4", features = ["wasm"] }
 zstd = { version = "0.13.2", features = ["wasm"] }
 
 [features]
-wasm = ["zstd/wasm", "liblzma/wasm"]
+wasm = ["zstd/wasm", "liblzma/wasm"] # Deprecated. This feature flag has been replaced by `cfg(target_arch = "wasm32")`.
 zlib-ng = ["flate2/zlib-ng"]
 unstable-async = ["dep:futures-io", "dep:futures-util"]
 
