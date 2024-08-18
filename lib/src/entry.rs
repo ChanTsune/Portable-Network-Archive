@@ -35,30 +35,6 @@ mod private {
 /// Archive entry.
 pub trait Entry: SealedEntryExt {}
 
-impl<T> SealedEntryExt for ReadEntry<T>
-where
-    RegularEntry<T>: SealedEntryExt,
-    SolidEntry<T>: SealedEntryExt,
-{
-    #[inline]
-    fn into_chunks(self) -> Vec<RawChunk> {
-        match self {
-            Self::Regular(r) => r.into_chunks(),
-            Self::Solid(s) => s.into_chunks(),
-        }
-    }
-
-    #[inline]
-    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        match self {
-            ReadEntry::Regular(r) => r.write_in(writer),
-            ReadEntry::Solid(s) => s.write_in(writer),
-        }
-    }
-}
-
-impl<T> Entry for ReadEntry<T> where ReadEntry<T>: SealedEntryExt {}
-
 /// Chunks from `FHED` to `FEND`, containing `FHED` and `FEND`
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct RawEntry<T = Vec<u8>>(pub(crate) Vec<RawChunk<T>>);
@@ -144,6 +120,30 @@ pub enum ReadEntry<T = Vec<u8>> {
     /// Regular entry
     Regular(RegularEntry<T>),
 }
+
+impl<T> SealedEntryExt for ReadEntry<T>
+where
+    RegularEntry<T>: SealedEntryExt,
+    SolidEntry<T>: SealedEntryExt,
+{
+    #[inline]
+    fn into_chunks(self) -> Vec<RawChunk> {
+        match self {
+            Self::Regular(r) => r.into_chunks(),
+            Self::Solid(s) => s.into_chunks(),
+        }
+    }
+
+    #[inline]
+    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
+        match self {
+            ReadEntry::Regular(r) => r.write_in(writer),
+            ReadEntry::Solid(s) => s.write_in(writer),
+        }
+    }
+}
+
+impl<T> Entry for ReadEntry<T> where ReadEntry<T>: SealedEntryExt {}
 
 impl<T> TryFrom<RawEntry<T>> for ReadEntry<T>
 where
