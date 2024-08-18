@@ -120,6 +120,13 @@ impl<'a> From<RawEntry<Cow<'a, [u8]>>> for RawEntry<Vec<u8>> {
     }
 }
 
+impl<'a> From<RawEntry<&'a [u8]>> for RawEntry<Vec<u8>> {
+    #[inline]
+    fn from(value: RawEntry<&'a [u8]>) -> Self {
+        Self(value.0.into_iter().map(Into::into).collect())
+    }
+}
+
 /// Reader for Entry data.
 pub struct EntryDataReader<'r>(EntryReader<crate::io::FlattenReader<'r>>);
 
