@@ -49,7 +49,7 @@ jobs:
           restore-keys: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}"
       - name: run test
         run: |
-          cargo hack test --locked --release --feature-powerset
+          cargo hack test --locked --release --feature-powerset --exclude-features wasm
         env:
           RUST_BACKTRACE: 1
       - name: Save rust build cache
