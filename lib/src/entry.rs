@@ -165,6 +165,16 @@ where
     }
 }
 
+impl<'a> From<ReadEntry<Cow<'a, [u8]>>> for ReadEntry<Vec<u8>> {
+    #[inline]
+    fn from(value: ReadEntry<Cow<'a, [u8]>>) -> Self {
+        match value {
+            ReadEntry::Solid(s) => Self::Solid(s.into()),
+            ReadEntry::Regular(r) => Self::Regular(r.into()),
+        }
+    }
+}
+
 pub(crate) struct EntryIterator<'s>(EntryReader<crate::io::FlattenReader<'s>>);
 
 impl Iterator for EntryIterator<'_> {
