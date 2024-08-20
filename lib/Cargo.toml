@@ -34,7 +34,7 @@ once_cell = "1.19.0"
 version-sync = "0.9.5"
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
-tokio = { version = "1.39.2", features = ["macros", "rt-multi-thread", "fs", "io-util"] }
+tokio = { version = "1.39.3", features = ["macros", "rt-multi-thread", "fs", "io-util"] }
 tokio-util = { version = "0.7.11", features = ["compat"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
