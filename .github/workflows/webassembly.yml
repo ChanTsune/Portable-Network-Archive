@@ -59,6 +59,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - target: wasm32-unknown-emscripten
+            container: emscripten/emsdk:latest
           - target: wasm32-wasi
             container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-23
           - target: wasm32-wasi
@@ -73,7 +75,16 @@ jobs:
         with:
           target: ${{ matrix.target }}
           toolchain: nightly
-      - uses: bytecodealliance/actions/wasmtime/setup@v1
+      - name: Setup wasmtime
+        if: ${{ startsWith(matrix.target, 'wasm32-wasi') }}
+        uses: bytecodealliance/actions/wasmtime/setup@v1
       - name: Run on wasmtime
+        if: ${{ startsWith(matrix.target, 'wasm32-wasi') }}
         run: |
           cargo run -p portable-network-archive --target ${{ matrix.target }} --release -- --help
+      - name: Run on Node.js
+        if: ${{ startsWith(matrix.target, 'wasm32-unknown-emscripten') }}
+        run: |
+          cargo run -p portable-network-archive --target ${{ matrix.target }} --release -- --help
+        env:
+          RUSTFLAGS: "-C link-arg=-sINITIAL_MEMORY=512MB -C link-arg=-sTOTAL_STACK=16MB"
