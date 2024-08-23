@@ -50,7 +50,6 @@ tokio-util = { version = "0.7.13", features = ["compat"] }
 wasm-bindgen-test = "0.3.50"
 
 [features]
-wasm = ["zstd/wasm", "liblzma/wasm"] # Deprecated. This feature flag has been replaced by `cfg(target_arch = "wasm32")`.
 zlib-ng = ["flate2/zlib-ng"]
 unstable-async = ["dep:futures-io", "dep:futures-util"]
 
