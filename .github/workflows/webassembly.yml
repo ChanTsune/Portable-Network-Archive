@@ -41,11 +41,11 @@ jobs:
       - if: ${{ startsWith(matrix.target, 'wasm32-wasi') }}
         name: Run test
         run: |
-          cargo test -p libpna --target ${{ matrix.target }} --features wasm -- --skip test_readme_deps --skip test_html_root_url
+          cargo test -p libpna --target ${{ matrix.target }} -- --skip test_readme_deps --skip test_html_root_url
       - if: ${{ startsWith(matrix.target, 'wasm32-unknown-emscripten') }}
         name: Run test
         run: |
-          cargo test -p libpna --target ${{ matrix.target }} --features wasm -- --skip test_readme_deps --skip test_html_root_url
+          cargo test -p libpna --target ${{ matrix.target }} -- --skip test_readme_deps --skip test_html_root_url
         env:
           RUSTFLAGS: "-C link-arg=-sINITIAL_MEMORY=512MB -C link-arg=-sTOTAL_STACK=16MB"
       - if: ${{ !startsWith(matrix.target, 'wasm32-wasi') && !startsWith(matrix.target, 'wasm32-unknown-emscripten') }}
