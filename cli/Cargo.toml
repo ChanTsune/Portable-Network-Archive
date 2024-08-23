@@ -17,6 +17,7 @@ chrono = "0.4.38"
 clap = { version = "4.5.20", features = ["derive"] }
 clap_complete = "4.5.33"
 fern = "0.7.0"
+gix-prompt = "0.8.8"
 globset = "0.4.15"
 ignore = "0.4.23"
 itertools = "0.13.0"
@@ -45,12 +46,6 @@ windows = { version = "0.58.0", features = [
 ] }
 field-offset = { version = "0.3.6", optional = true }
 libc = "0.2.161"
-
-[target.'cfg(target_os = "emscripten")'.dependencies]
-gix-prompt = "0.8.8"
-
-[target.'cfg(not(target_os = "emscripten"))'.dependencies]
-rpassword = "7.3.1"
 
 [dev-dependencies]
 walkdir = "2.5.0"
