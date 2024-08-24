@@ -26,7 +26,7 @@ use std::os::windows::fs::FileTimesExt;
 use std::{
     fs::{self, File},
     io,
-    path::{Path, PathBuf},
+    path::PathBuf,
     time::Instant,
 };
 
@@ -167,19 +167,10 @@ where
         }
         let tx = tx.clone();
         let password = password.clone();
-        let out_dir = args.out_dir.clone();
-        let owner_options = args.owner_options.clone();
+        let options = args.clone();
         pool.spawn_fifo(move || {
-            tx.send(extract_entry(
-                item,
-                password,
-                args.overwrite,
-                out_dir.as_deref(),
-                args.keep_options,
-                owner_options,
-                verbosity,
-            ))
-            .unwrap_or_else(|e| panic!("{e}: {}", item_path));
+            tx.send(extract_entry(item, password, options, verbosity))
+                .unwrap_or_else(|e| panic!("{e}: {}", item_path));
         });
         Ok(())
     })?;
@@ -189,15 +180,7 @@ where
     }
 
     for item in hard_link_entries {
-        extract_entry(
-            item,
-            password.clone(),
-            args.overwrite,
-            args.out_dir.as_deref(),
-            args.keep_options,
-            args.owner_options.clone(),
-            verbosity,
-        )?;
+        extract_entry(item, password.clone(), args.clone(), verbosity)?;
     }
     Ok(())
 }
@@ -205,10 +188,12 @@ where
 pub(crate) fn extract_entry(
     item: RegularEntry,
     password: Option<String>,
-    overwrite: bool,
-    out_dir: Option<&Path>,
-    keep_options: KeepOptions,
-    owner_options: OwnerOptions,
+    OutputOption {
+        overwrite,
+        out_dir,
+        keep_options,
+        owner_options,
+    }: OutputOption,
     verbosity: Verbosity,
 ) -> io::Result<()> {
     let item_path = item.header().path().as_path();
