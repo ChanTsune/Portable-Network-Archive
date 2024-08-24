@@ -123,6 +123,7 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
     Ok(())
 }
 
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct OutputOption {
     pub(crate) overwrite: bool,
     pub(crate) out_dir: Option<PathBuf>,
