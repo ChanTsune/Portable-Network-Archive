@@ -177,8 +177,8 @@ where
     Ok(())
 }
 
-pub(crate) fn extract_entry(
-    item: RegularEntry,
+pub(crate) fn extract_entry<T>(
+    item: RegularEntry<T>,
     password: Option<String>,
     OutputOption {
         overwrite,
@@ -186,7 +186,11 @@ pub(crate) fn extract_entry(
         keep_options,
         owner_options,
     }: OutputOption,
-) -> io::Result<()> {
+) -> io::Result<()>
+where
+    T: AsRef<[u8]>,
+    pna::RawChunk<T>: Chunk,
+{
     let item_path = item.header().path().as_path();
     log::debug!("Extract: {}", item_path.display());
     let path = if let Some(out_dir) = &out_dir {
@@ -288,7 +292,6 @@ pub(crate) fn extract_entry(
         ))]
         if keep_options.keep_acl {
             use crate::chunk;
-            use pna::Chunk;
 
             let mut acl = Vec::new();
             for c in item.extra_chunks() {
