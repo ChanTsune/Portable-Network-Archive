@@ -101,16 +101,17 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
         args.gid,
         args.numeric_owner,
     );
+    let output_options = OutputOption {
+        overwrite: args.overwrite,
+        out_dir: args.out_dir,
+        keep_options,
+        owner_options,
+    };
     run_extract_archive_reader(
         PathArchiveProvider::new(&args.file.archive),
         args.file.files,
         || password.as_deref(),
-        OutputOption {
-            overwrite: args.overwrite,
-            out_dir: args.out_dir,
-            keep_options,
-            owner_options,
-        },
+        output_options,
         verbosity,
     )?;
     if verbosity != Verbosity::Quite {
