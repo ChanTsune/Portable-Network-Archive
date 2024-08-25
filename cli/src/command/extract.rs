@@ -1,7 +1,7 @@
 #[cfg(any(unix, windows))]
 use crate::utils::fs::{chown, Group, User};
 use crate::{
-    cli::{FileArgs, PasswordArgs, Verbosity},
+    cli::{FileArgs, PasswordArgs},
     command::{
         ask_password,
         commons::{
@@ -78,16 +78,14 @@ pub(crate) struct ExtractCommand {
 }
 
 impl Command for ExtractCommand {
-    fn execute(self, verbosity: Verbosity) -> io::Result<()> {
-        extract_archive(self, verbosity)
+    fn execute(self) -> io::Result<()> {
+        extract_archive(self)
     }
 }
-fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()> {
+fn extract_archive(args: ExtractCommand) -> io::Result<()> {
     let password = ask_password(args.password)?;
     let start = Instant::now();
-    if verbosity != Verbosity::Quite {
-        eprintln!("Extract archive {}", args.file.archive.display());
-    }
+    log::info!("Extract archive {}", args.file.archive.display());
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
         keep_permission: args.keep_permission,
@@ -111,14 +109,11 @@ fn extract_archive(args: ExtractCommand, verbosity: Verbosity) -> io::Result<()>
             keep_options,
             owner_options,
         },
-        verbosity,
     )?;
-    if verbosity != Verbosity::Quite {
-        eprintln!(
-            "Successfully extracted an archive in {}",
-            HumanDuration(start.elapsed())
-        );
-    }
+    log::info!(
+        "Successfully extracted an archive in {}",
+        HumanDuration(start.elapsed())
+    );
     Ok(())
 }
 
@@ -134,7 +129,6 @@ pub(crate) fn run_extract_archive_reader<'p, Provider>(
     files: Vec<String>,
     mut password_provider: Provider,
     args: OutputOption,
-    verbosity: Verbosity,
 ) -> io::Result<()>
 where
     Provider: FnMut() -> Option<&'p str>,
@@ -154,9 +148,7 @@ where
         let item = entry?;
         let item_path = item.header().path().to_string();
         if !globs.is_empty() && !globs.matches_any(&item_path) {
-            if verbosity == Verbosity::Verbose {
-                eprintln!("Skip: {}", item.header().path())
-            }
+            log::debug!("Skip: {}", item.header().path());
             return Ok(());
         }
         if item.header().data_kind() == DataKind::HardLink {
@@ -175,7 +167,6 @@ where
                 out_dir.as_deref(),
                 args.keep_options,
                 owner_options,
-                verbosity,
             ))
             .unwrap_or_else(|e| panic!("{e}: {}", item_path));
         });
@@ -194,7 +185,6 @@ where
             args.out_dir.as_deref(),
             args.keep_options,
             args.owner_options.clone(),
-            verbosity,
         )?;
     }
     Ok(())
@@ -207,12 +197,9 @@ pub(crate) fn extract_entry(
     out_dir: Option<&Path>,
     keep_options: KeepOptions,
     owner_options: OwnerOptions,
-    verbosity: Verbosity,
 ) -> io::Result<()> {
     let item_path = item.header().path().as_path();
-    if verbosity == Verbosity::Verbose {
-        eprintln!("Extract: {}", item_path.display());
-    }
+    log::debug!("Extract: {}", item_path.display());
     let path = if let Some(out_dir) = &out_dir {
         out_dir.join(item_path)
     } else {
@@ -224,9 +211,7 @@ pub(crate) fn extract_entry(
             format!("{} is already exists", path.display()),
         ));
     }
-    if verbosity == Verbosity::Verbose {
-        eprintln!("start: {}", path.display())
-    }
+    log::debug!("start: {}", path.display());
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -294,7 +279,7 @@ pub(crate) fn extract_entry(
     }
     #[cfg(not(any(unix, windows)))]
     if let Some(_) = permissions {
-        eprintln!("Currently permission is not supported on this platform.");
+        log::warn!("Currently permission is not supported on this platform.");
     }
     #[cfg(unix)]
     if keep_options.keep_xattr {
@@ -302,7 +287,7 @@ pub(crate) fn extract_entry(
     }
     #[cfg(not(unix))]
     if keep_options.keep_xattr {
-        eprintln!("Currently extended attribute is not supported on this platform.");
+        log::warn!("Currently extended attribute is not supported on this platform.");
     }
     #[cfg(feature = "acl")]
     {
@@ -334,16 +319,14 @@ pub(crate) fn extract_entry(
             windows
         )))]
         if keep_options.keep_acl {
-            eprintln!("Currently acl is not supported on this platform.");
+            log::warn!("Currently acl is not supported on this platform.");
         }
     }
     #[cfg(not(feature = "acl"))]
     if keep_options.keep_acl {
-        eprintln!("Please enable `acl` feature and rebuild and install pna.");
+        log::warn!("Please enable `acl` feature and rebuild and install pna.");
     }
-    if verbosity == Verbosity::Verbose {
-        eprintln!("end: {}", path.display());
-    }
+    log::debug!("end: {}", path.display());
     Ok(())
 }
 

@@ -1,4 +1,4 @@
-use crate::{cli::Verbosity, command, command::Command};
+use crate::{command, command::Command};
 use clap::{Parser, Subcommand};
 use std::io;
 
@@ -10,14 +10,14 @@ pub(crate) struct ExperimentalCommand {
 }
 
 impl Command for ExperimentalCommand {
-    fn execute(self, verbosity: Verbosity) -> io::Result<()> {
+    fn execute(self) -> io::Result<()> {
         match self.command {
-            ExperimentalCommands::Stdio(cmd) => cmd.execute(verbosity),
-            ExperimentalCommands::Delete(cmd) => cmd.execute(verbosity),
-            ExperimentalCommands::Update(cmd) => cmd.execute(verbosity),
-            ExperimentalCommands::Chown(cmd) => cmd.execute(verbosity),
-            ExperimentalCommands::Chmod(cmd) => cmd.execute(verbosity),
-            ExperimentalCommands::Xattr(cmd) => cmd.execute(verbosity),
+            ExperimentalCommands::Stdio(cmd) => cmd.execute(),
+            ExperimentalCommands::Delete(cmd) => cmd.execute(),
+            ExperimentalCommands::Update(cmd) => cmd.execute(),
+            ExperimentalCommands::Chown(cmd) => cmd.execute(),
+            ExperimentalCommands::Chmod(cmd) => cmd.execute(),
+            ExperimentalCommands::Xattr(cmd) => cmd.execute(),
         }
     }
 }
