@@ -1,24 +1,30 @@
+use clap::Parser;
+use portable_network_archive::{cli, command};
+
 #[test]
 fn archive_list() {
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
-    cmd.args([
+    command::entry(cli::Cli::parse_from([
+        "pna",
         "--quiet",
         "c",
         &format!("{}/list.pna", env!("CARGO_TARGET_TMPDIR")),
         "--overwrite",
         "-r",
         "../resources/test/raw",
-    ]);
-    cmd.assert().success();
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
-    cmd.args(["list", &format!("{}/list.pna", env!("CARGO_TARGET_TMPDIR"))]);
-    cmd.assert().success();
+    ]))
+    .unwrap();
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "list",
+        &format!("{}/list.pna", env!("CARGO_TARGET_TMPDIR")),
+    ]))
+    .unwrap();
 }
 
 #[test]
 fn archive_list_solid() {
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
-    cmd.args([
+    command::entry(cli::Cli::parse_from([
+        "pna",
         "--quiet",
         "c",
         &format!("{}/list_solid.pna", env!("CARGO_TARGET_TMPDIR")),
@@ -26,21 +32,21 @@ fn archive_list_solid() {
         "-r",
         "../resources/test/raw",
         "--solid",
-    ]);
-    cmd.assert().success();
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
-    cmd.args([
+    ]))
+    .unwrap();
+    command::entry(cli::Cli::parse_from([
+        "pna",
         "list",
         &format!("{}/list_solid.pna", env!("CARGO_TARGET_TMPDIR")),
         "--solid",
-    ]);
-    cmd.assert().success();
+    ]))
+    .unwrap();
 }
 
 #[test]
 fn archive_list_detail() {
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
-    cmd.args([
+    command::entry(cli::Cli::parse_from([
+        "pna",
         "--quiet",
         "c",
         &format!("{}/list_detail.pna", env!("CARGO_TARGET_TMPDIR")),
@@ -58,23 +64,23 @@ fn archive_list_detail() {
         {
             "--unstable"
         },
-    ]);
-    cmd.assert().success();
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
-    cmd.args([
+    ]))
+    .unwrap();
+    command::entry(cli::Cli::parse_from([
+        "pna",
         "list",
         "-l",
         &format!("{}/list_detail.pna", env!("CARGO_TARGET_TMPDIR")),
         "--password",
         "password",
-    ]);
-    cmd.assert().success();
+    ]))
+    .unwrap();
 }
 
 #[test]
 fn archive_list_solid_detail() {
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
-    cmd.args([
+    command::entry(cli::Cli::parse_from([
+        "pna",
         "--quiet",
         "c",
         &format!("{}/list_solid_detail.pna", env!("CARGO_TARGET_TMPDIR")),
@@ -93,16 +99,16 @@ fn archive_list_solid_detail() {
         {
             "--unstable"
         },
-    ]);
-    cmd.assert().success();
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
-    cmd.args([
+    ]))
+    .unwrap();
+    command::entry(cli::Cli::parse_from([
+        "pna",
         "list",
         "-l",
         &format!("{}/list_solid_detail.pna", env!("CARGO_TARGET_TMPDIR")),
         "--solid",
         "--password",
         "password",
-    ]);
-    cmd.assert().success();
+    ]))
+    .unwrap();
 }
