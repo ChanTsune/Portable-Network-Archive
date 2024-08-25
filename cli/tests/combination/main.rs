@@ -98,7 +98,7 @@ fn combination_fs() {
                     let mut options = [*keep, *compress, *solid]
                         .into_iter()
                         .flatten()
-                        .chain(encrypt.iter().flatten().map(|it| *it))
+                        .chain(encrypt.iter().flatten().copied())
                         .collect::<Vec<_>>();
                     if encrypt.is_some() {
                         options.extend(["--password", "password"]);
@@ -175,7 +175,7 @@ fn combination_stdio() {
                     let mut options = [*keep, *compress, *solid]
                         .into_iter()
                         .flatten()
-                        .chain(encrypt.iter().flatten().map(|it| *it))
+                        .chain(encrypt.iter().flatten().copied())
                         .collect::<Vec<_>>();
                     if encrypt.is_some() {
                         options.extend(["--password", "password"]);
