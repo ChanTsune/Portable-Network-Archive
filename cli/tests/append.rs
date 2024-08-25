@@ -1,10 +1,7 @@
-use clap::Parser;
-use portable_network_archive::{cli, command};
-
 #[test]
 fn archive_append() {
-    command::entry(cli::Cli::parse_from([
-        "pna",
+    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    cmd.args([
         "--quiet",
         "c",
         &format!("{}/append.pna", env!("CARGO_TARGET_TMPDIR")),
@@ -18,10 +15,11 @@ fn archive_append() {
         {
             "--unstable"
         },
-    ]))
-    .unwrap();
-    command::entry(cli::Cli::parse_from([
-        "pna",
+    ]);
+    cmd.assert().success();
+
+    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    cmd.args([
         "--quiet",
         "append",
         &format!("{}/append.pna", env!("CARGO_TARGET_TMPDIR")),
@@ -34,10 +32,11 @@ fn archive_append() {
         {
             "--unstable"
         },
-    ]))
-    .unwrap();
-    command::entry(cli::Cli::parse_from([
-        "pna",
+    ]);
+    cmd.assert().success();
+
+    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    cmd.args([
         "--quiet",
         "x",
         &format!("{}/append.pna", env!("CARGO_TARGET_TMPDIR")),
@@ -51,14 +50,14 @@ fn archive_append() {
         {
             "--unstable"
         },
-    ]))
-    .unwrap();
+    ]);
+    cmd.assert().success();
 }
 
 #[test]
 fn archive_append_split() {
-    command::entry(cli::Cli::parse_from([
-        "pna",
+    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    cmd.args([
         "--quiet",
         "c",
         &format!("{}/append_split.pna", env!("CARGO_TARGET_TMPDIR")),
@@ -74,10 +73,11 @@ fn archive_append_split() {
         {
             "--unstable"
         },
-    ]))
-    .unwrap();
-    command::entry(cli::Cli::parse_from([
-        "pna",
+    ]);
+    cmd.assert().success();
+
+    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    cmd.args([
         "--quiet",
         "append",
         &format!("{}/append_split.part1.pna", env!("CARGO_TARGET_TMPDIR")),
@@ -90,10 +90,11 @@ fn archive_append_split() {
         {
             "--unstable"
         },
-    ]))
-    .unwrap();
-    command::entry(cli::Cli::parse_from([
-        "pna",
+    ]);
+    cmd.assert().success();
+
+    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    cmd.args([
         "--quiet",
         "x",
         &format!("{}/append_split.part1.pna", env!("CARGO_TARGET_TMPDIR")),
@@ -107,6 +108,6 @@ fn archive_append_split() {
         {
             "--unstable"
         },
-    ]))
-    .unwrap();
+    ]);
+    cmd.assert().success();
 }
