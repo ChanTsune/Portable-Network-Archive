@@ -1,5 +1,4 @@
 use crate::{
-    cli::Verbosity,
     command::{commons::write_split_archive, Command},
     utils::PathPartExt,
 };
@@ -21,12 +20,12 @@ pub(crate) struct SplitCommand {
 }
 
 impl Command for SplitCommand {
-    fn execute(self, verbosity: Verbosity) -> io::Result<()> {
-        split_archive(self, verbosity)
+    fn execute(self) -> io::Result<()> {
+        split_archive(self)
     }
 }
 
-fn split_archive(args: SplitCommand, _verbosity: Verbosity) -> io::Result<()> {
+fn split_archive(args: SplitCommand) -> io::Result<()> {
     let read_file = File::open(&args.archive)?;
     #[cfg(not(feature = "memmap"))]
     let mut read_archive = Archive::read_header(read_file)?;
