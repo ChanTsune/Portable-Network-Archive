@@ -4,10 +4,11 @@ use crate::command::{
     split::SplitCommand, strip::StripCommand,
 };
 use clap::{value_parser, ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
+use log::LevelFilter;
 use pna::HashAlgorithm;
 use std::{path::PathBuf, str::FromStr};
 
-#[derive(Parser, Clone, Debug)]
+#[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(
     name = env!("CARGO_PKG_NAME"),
     version,
@@ -19,9 +20,30 @@ pub struct Cli {
     #[command(subcommand)]
     pub(crate) commands: Commands,
     #[command(flatten)]
-    pub(crate) verbosity: clap_verbosity_flag::Verbosity<clap_verbosity_flag::InfoLevel>,
+    pub(crate) verbosity: VerbosityArgs,
     #[arg(long, global = true, help = "Declare to use unstable features")]
     pub(crate) unstable: bool,
+}
+
+#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[command(group(ArgGroup::new("verbosity").args(["quiet", "verbose"])))]
+pub(crate) struct VerbosityArgs {
+    #[arg(long, global = true, help = "Make some output more quiet")]
+    quiet: bool,
+    #[arg(long, global = true, help = "Make some output more verbose")]
+    verbose: bool,
+}
+
+impl VerbosityArgs {
+    #[inline]
+    #[allow(dead_code)]
+    pub(crate) fn log_level_filter(&self) -> LevelFilter {
+        match (self.quiet, self.verbose) {
+            (true, false) => LevelFilter::Off,
+            (false, true) => LevelFilter::Debug,
+            (_, _) => LevelFilter::Info,
+        }
+    }
 }
 
 #[derive(Subcommand, Clone, Eq, PartialEq, Hash, Debug)]
