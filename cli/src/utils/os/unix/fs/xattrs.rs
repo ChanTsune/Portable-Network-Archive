@@ -14,7 +14,7 @@ pub(crate) fn get_xattrs<P: AsRef<Path>>(path: P) -> io::Result<Vec<ExtendedAttr
     if xattr::SUPPORTED_PLATFORM {
         inner(path.as_ref())
     } else {
-        log::warn!("Currently extended attribute is not supported on this platform.");
+        eprintln!("Currently extended attribute is not supported on this platform.");
         Ok(Vec::new())
     }
 }
@@ -29,7 +29,7 @@ pub(crate) fn set_xattrs<P: AsRef<Path>>(path: P, xattrs: &[ExtendedAttribute]) 
     if xattr::SUPPORTED_PLATFORM {
         inner(path.as_ref(), xattrs)
     } else {
-        log::warn!("Currently extended attribute is not supported on this platform.");
+        eprintln!("Currently extended attribute is not supported on this platform.");
         Ok(())
     }
 }

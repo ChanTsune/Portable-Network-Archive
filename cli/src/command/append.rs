@@ -1,6 +1,7 @@
 use crate::{
     cli::{
         CipherAlgorithmArgs, CompressionAlgorithmArgs, FileArgs, HashAlgorithmArgs, PasswordArgs,
+        Verbosity,
     },
     command::{
         ask_password, check_password,
@@ -86,12 +87,12 @@ pub(crate) struct AppendCommand {
 }
 
 impl Command for AppendCommand {
-    fn execute(self) -> io::Result<()> {
-        append_to_archive(self)
+    fn execute(self, verbosity: Verbosity) -> io::Result<()> {
+        append_to_archive(self, verbosity)
     }
 }
 
-fn append_to_archive(args: AppendCommand) -> io::Result<()> {
+fn append_to_archive(args: AppendCommand, verbosity: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let archive_path = args.file.archive;
@@ -160,7 +161,9 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
         let owner_options = owner_options.clone();
         let tx = tx.clone();
         pool.spawn_fifo(move || {
-            log::debug!("Adding: {}", file.display());
+            if verbosity == Verbosity::Verbose {
+                eprintln!("Adding: {}", file.display());
+            }
             let create_options = CreateOptions {
                 option,
                 keep_options,

@@ -1,6 +1,7 @@
 use crate::{
     cli::{
         CipherAlgorithmArgs, CompressionAlgorithmArgs, FileArgs, HashAlgorithmArgs, PasswordArgs,
+        Verbosity,
     },
     command::{
         ask_password, check_password,
@@ -100,12 +101,12 @@ pub(crate) struct CreateCommand {
 }
 
 impl Command for CreateCommand {
-    fn execute(self) -> io::Result<()> {
-        create_archive(self)
+    fn execute(self, verbosity: Verbosity) -> io::Result<()> {
+        create_archive(self, verbosity)
     }
 }
 
-fn create_archive(args: CreateCommand) -> io::Result<()> {
+fn create_archive(args: CreateCommand, verbosity: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password.clone())?;
     check_password(&password, &args.cipher);
     let start = Instant::now();
@@ -116,7 +117,9 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
             format!("{} is already exists", archive.display()),
         ));
     }
-    log::info!("Create an archive: {}", archive.display());
+    if verbosity != Verbosity::Quite {
+        eprintln!("Create an archive: {}", archive.display());
+    }
     let mut files = args.file.files;
     if args.files_from_stdin {
         files.extend(io::stdin().lines().collect::<io::Result<Vec<_>>>()?);
@@ -167,6 +170,7 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
             args.solid,
             target_items,
             size,
+            verbosity,
         )?;
     } else {
         create_archive_file(
@@ -176,12 +180,15 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
             owner_options,
             args.solid,
             target_items,
+            verbosity,
         )?;
     }
-    log::info!(
-        "Successfully created an archive in {}",
-        HumanDuration(start.elapsed())
-    );
+    if verbosity != Verbosity::Quite {
+        eprintln!(
+            "Successfully created an archive in {}",
+            HumanDuration(start.elapsed())
+        );
+    }
     Ok(())
 }
 
@@ -192,6 +199,7 @@ pub(crate) fn create_archive_file<W, F>(
     owner_options: OwnerOptions,
     solid: bool,
     target_items: Vec<PathBuf>,
+    verbosity: Verbosity,
 ) -> io::Result<()>
 where
     W: Write,
@@ -216,7 +224,9 @@ where
         let create_options = create_options.clone();
         let tx = tx.clone();
         pool.spawn_fifo(move || {
-            log::debug!("Adding: {}", file.display());
+            if verbosity == Verbosity::Verbose {
+                eprintln!("Adding: {}", file.display());
+            }
             tx.send(create_entry(&file, create_options))
                 .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
         });
@@ -249,6 +259,7 @@ fn create_archive_with_split(
     solid: bool,
     target_items: Vec<PathBuf>,
     max_file_size: usize,
+    verbosity: Verbosity,
 ) -> io::Result<()> {
     let pool = ThreadPoolBuilder::default()
         .build()
@@ -269,7 +280,9 @@ fn create_archive_with_split(
         let create_options = create_options.clone();
         let tx = tx.clone();
         pool.spawn_fifo(move || {
-            log::debug!("Adding: {}", file.display());
+            if verbosity == Verbosity::Verbose {
+                eprintln!("Adding: {}", file.display());
+            }
             tx.send(create_entry(&file, create_options))
                 .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
         });

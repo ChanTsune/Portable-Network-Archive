@@ -1,5 +1,5 @@
 use crate::{
-    cli::PasswordArgs,
+    cli::{PasswordArgs, Verbosity},
     command::{ask_password, commons::run_manipulate_entry_by_path, Command},
     utils::{GlobPatterns, PathPartExt},
 };
@@ -23,12 +23,12 @@ pub(crate) struct ChmodCommand {
 }
 
 impl Command for ChmodCommand {
-    fn execute(self) -> io::Result<()> {
-        archive_chmod(self)
+    fn execute(self, verbosity: Verbosity) -> io::Result<()> {
+        archive_chmod(self, verbosity)
     }
 }
 
-fn archive_chmod(args: ChmodCommand) -> io::Result<()> {
+fn archive_chmod(args: ChmodCommand, _: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     if args.files.is_empty() {
         return Ok(());

@@ -1,4 +1,7 @@
-use crate::{cli::Cli, command::Command};
+use crate::{
+    cli::{Cli, Verbosity},
+    command::Command,
+};
 use clap::{Args, CommandFactory};
 use clap_complete::{generate, Generator, Shell};
 use std::{env, io, path::PathBuf};
@@ -10,7 +13,7 @@ pub(crate) struct CompleteCommand {
 }
 
 impl Command for CompleteCommand {
-    fn execute(self) -> io::Result<()> {
+    fn execute(self, _: Verbosity) -> io::Result<()> {
         let cmd = &mut Cli::command();
         print_completions(self.shell, cmd);
         Ok(())
