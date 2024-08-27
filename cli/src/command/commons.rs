@@ -80,9 +80,8 @@ pub(crate) fn collect_items<I: IntoIterator<Item = P>, P: Into<PathBuf>>(
         keep_dir: bool,
         exclude: Option<&Vec<PathBuf>>,
     ) -> io::Result<()> {
-        let cpath = path.normalize();
         if let Some(exclude) = exclude {
-            if exclude.iter().any(|it| it.eq(&cpath)) {
+            if exclude.iter().any(|it| it.eq(path)) {
                 return Ok(());
             }
         }
@@ -92,7 +91,7 @@ pub(crate) fn collect_items<I: IntoIterator<Item = P>, P: Into<PathBuf>>(
             }
             if recursive {
                 for p in fs::read_dir(path)? {
-                    inner(result, &p?.path(), recursive, keep_dir, exclude)?;
+                    inner(result, &p?.path().normalize(), recursive, keep_dir, exclude)?;
                 }
             }
         } else if path.is_file() {
@@ -104,7 +103,7 @@ pub(crate) fn collect_items<I: IntoIterator<Item = P>, P: Into<PathBuf>>(
     for p in files {
         inner(
             &mut target_items,
-            &p.into(),
+            &p.into().normalize(),
             recursive,
             keep_dir,
             exclude.as_ref(),
