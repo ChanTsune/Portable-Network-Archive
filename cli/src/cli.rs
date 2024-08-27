@@ -7,7 +7,7 @@ use clap::{value_parser, ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
 use pna::HashAlgorithm;
 use std::{path::PathBuf, str::FromStr};
 
-#[derive(Parser, Clone, Debug)]
+#[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(
     name = env!("CARGO_PKG_NAME"),
     version,
@@ -19,9 +19,28 @@ pub struct Cli {
     #[command(subcommand)]
     pub(crate) commands: Commands,
     #[command(flatten)]
-    pub(crate) verbosity: clap_verbosity_flag::Verbosity,
+    pub(crate) verbosity: VerbosityArgs,
     #[arg(long, global = true, help = "Declare to use unstable features")]
     pub(crate) unstable: bool,
+}
+
+#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[command(group(ArgGroup::new("verbosity").args(["quiet", "verbose"])))]
+pub(crate) struct VerbosityArgs {
+    #[arg(long, global = true, help = "Make some output more quiet")]
+    quiet: bool,
+    #[arg(long, global = true, help = "Make some output more verbose")]
+    verbose: bool,
+}
+
+impl VerbosityArgs {
+    pub(crate) fn verbosity(&self) -> Verbosity {
+        match (self.quiet, self.verbose) {
+            (true, false) => Verbosity::Quite,
+            (false, true) => Verbosity::Verbose,
+            (_, _) => Verbosity::Normal,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]

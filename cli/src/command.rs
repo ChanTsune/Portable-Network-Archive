@@ -19,21 +19,16 @@ use crate::cli::{CipherAlgorithmArgs, Cli, Commands, PasswordArgs, Verbosity};
 use std::{fs, io};
 
 pub fn entry(cli: Cli) -> io::Result<()> {
-    let verbosity = match cli.verbosity.log_level() {
-        None => Verbosity::Quite,
-        Some(log::Level::Error | log::Level::Warn) => Verbosity::Normal,
-        Some(log::Level::Trace | log::Level::Debug | log::Level::Info) => Verbosity::Verbose,
-    };
     match cli.commands {
-        Commands::Create(cmd) => cmd.execute(verbosity),
-        Commands::Append(cmd) => cmd.execute(verbosity),
-        Commands::Extract(cmd) => cmd.execute(verbosity),
-        Commands::List(cmd) => cmd.execute(verbosity),
-        Commands::Split(cmd) => cmd.execute(verbosity),
-        Commands::Concat(cmd) => cmd.execute(verbosity),
-        Commands::Strip(cmd) => cmd.execute(verbosity),
-        Commands::Complete(cmd) => cmd.execute(verbosity),
-        Commands::Experimental(cmd) => cmd.execute(verbosity),
+        Commands::Create(cmd) => cmd.execute(cli.verbosity.verbosity()),
+        Commands::Append(cmd) => cmd.execute(cli.verbosity.verbosity()),
+        Commands::Extract(cmd) => cmd.execute(cli.verbosity.verbosity()),
+        Commands::List(cmd) => cmd.execute(cli.verbosity.verbosity()),
+        Commands::Split(cmd) => cmd.execute(cli.verbosity.verbosity()),
+        Commands::Concat(cmd) => cmd.execute(cli.verbosity.verbosity()),
+        Commands::Strip(cmd) => cmd.execute(cli.verbosity.verbosity()),
+        Commands::Complete(cmd) => cmd.execute(cli.verbosity.verbosity()),
+        Commands::Experimental(cmd) => cmd.execute(cli.verbosity.verbosity()),
     }
 }
 
