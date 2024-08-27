@@ -1,7 +1,7 @@
 #[cfg(any(unix, windows))]
 use crate::utils::fs::{Group, User};
 use crate::{
-    cli::PasswordArgs,
+    cli::{PasswordArgs, Verbosity},
     command::{ask_password, commons::run_manipulate_entry_by_path, Command},
     utils::{GlobPatterns, PathPartExt},
 };
@@ -22,12 +22,12 @@ pub(crate) struct ChownCommand {
 }
 
 impl Command for ChownCommand {
-    fn execute(self) -> io::Result<()> {
-        archive_chown(self)
+    fn execute(self, verbosity: Verbosity) -> io::Result<()> {
+        archive_chown(self, verbosity)
     }
 }
 
-fn archive_chown(args: ChownCommand) -> io::Result<()> {
+fn archive_chown(args: ChownCommand, _: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     if args.files.is_empty() {
         return Ok(());

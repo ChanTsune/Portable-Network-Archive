@@ -1,5 +1,5 @@
 use crate::{
-    cli::{FileArgs, PasswordArgs},
+    cli::{FileArgs, PasswordArgs, Verbosity},
     command::{ask_password, commons::run_process_archive_path, Command},
     utils::{self, GlobPatterns, PathPartExt},
 };
@@ -21,12 +21,12 @@ pub(crate) struct DeleteCommand {
 }
 
 impl Command for DeleteCommand {
-    fn execute(self) -> io::Result<()> {
-        delete_file_from_archive(self)
+    fn execute(self, verbosity: Verbosity) -> io::Result<()> {
+        delete_file_from_archive(self, verbosity)
     }
 }
 
-fn delete_file_from_archive(args: DeleteCommand) -> io::Result<()> {
+fn delete_file_from_archive(args: DeleteCommand, _verbosity: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     let globs = GlobPatterns::new(args.file.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;

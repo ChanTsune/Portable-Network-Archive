@@ -264,12 +264,12 @@ pub(crate) fn apply_metadata(
             windows
         )))]
         if keep_options.keep_acl {
-            log::warn!("Currently acl is not supported on this platform.");
+            eprintln!("Currently acl is not supported on this platform.");
         }
     }
     #[cfg(not(feature = "acl"))]
     if keep_options.keep_acl {
-        log::warn!("Please enable `acl` feature and rebuild and install pna.");
+        eprintln!("Please enable `acl` feature and rebuild and install pna.");
     }
     #[cfg(unix)]
     if keep_options.keep_xattr {
@@ -279,7 +279,7 @@ pub(crate) fn apply_metadata(
     }
     #[cfg(not(unix))]
     if keep_options.keep_xattr {
-        log::warn!("Currently extended attribute is not supported on this platform.");
+        eprintln!("Currently extended attribute is not supported on this platform.");
     }
     Ok(entry)
 }

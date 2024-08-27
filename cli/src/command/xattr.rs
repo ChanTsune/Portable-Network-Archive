@@ -1,5 +1,5 @@
 use crate::{
-    cli::PasswordArgs,
+    cli::{PasswordArgs, Verbosity},
     command::{
         ask_password,
         commons::{run_manipulate_entry_by_path, run_process_archive_path},
@@ -25,10 +25,10 @@ pub(crate) struct XattrCommand {
 }
 
 impl Command for XattrCommand {
-    fn execute(self) -> io::Result<()> {
+    fn execute(self, verbosity: Verbosity) -> io::Result<()> {
         match self.command {
-            XattrCommands::Get(cmd) => cmd.execute(),
-            XattrCommands::Set(cmd) => cmd.execute(),
+            XattrCommands::Get(cmd) => cmd.execute(verbosity),
+            XattrCommands::Set(cmd) => cmd.execute(verbosity),
         }
     }
 }
@@ -56,8 +56,8 @@ pub(crate) struct GetXattrCommand {
 }
 
 impl Command for GetXattrCommand {
-    fn execute(self) -> io::Result<()> {
-        archive_get_xattr(self)
+    fn execute(self, verbosity: Verbosity) -> io::Result<()> {
+        archive_get_xattr(self, verbosity)
     }
 }
 
@@ -78,8 +78,8 @@ pub(crate) struct SetXattrCommand {
 }
 
 impl Command for SetXattrCommand {
-    fn execute(self) -> io::Result<()> {
-        archive_set_xattr(self)
+    fn execute(self, verbosity: Verbosity) -> io::Result<()> {
+        archive_set_xattr(self, verbosity)
     }
 }
 
@@ -114,7 +114,7 @@ impl FromStr for Encoding {
     }
 }
 
-fn archive_get_xattr(args: GetXattrCommand) -> io::Result<()> {
+fn archive_get_xattr(args: GetXattrCommand, _: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     if args.files.is_empty() {
         return Ok(());
@@ -156,7 +156,7 @@ fn archive_get_xattr(args: GetXattrCommand) -> io::Result<()> {
     Ok(())
 }
 
-fn archive_set_xattr(args: SetXattrCommand) -> io::Result<()> {
+fn archive_set_xattr(args: SetXattrCommand, _: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     if args.files.is_empty() {
         return Ok(());

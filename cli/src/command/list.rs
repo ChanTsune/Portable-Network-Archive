@@ -1,6 +1,6 @@
 use crate::{
     chunk,
-    cli::{FileArgs, PasswordArgs},
+    cli::{FileArgs, PasswordArgs, Verbosity},
     command::{
         ask_password,
         commons::{run_process_entry, ArchiveProvider, PathArchiveProvider},
@@ -59,8 +59,8 @@ pub(crate) struct ListCommand {
 }
 
 impl Command for ListCommand {
-    fn execute(self) -> io::Result<()> {
-        list_archive(self)
+    fn execute(self, verbosity: Verbosity) -> io::Result<()> {
+        list_archive(self, verbosity)
     }
 }
 
@@ -195,7 +195,7 @@ impl
     }
 }
 
-fn list_archive(args: ListCommand) -> io::Result<()> {
+fn list_archive(args: ListCommand, _: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     run_list_archive(
         PathArchiveProvider::new(&args.file.archive),
@@ -250,7 +250,7 @@ pub(crate) fn run_list_archive(
                     }
                 }
                 ReadEntry::Solid(_) => {
-                    log::warn!("This archive contain solid mode entry. if you need to show it use --solid option.");
+                    eprintln!("warning: this archive contain solid mode entry. if you need to show it use --solid option.");
                 }
                 ReadEntry::Regular(item) => {
                     entries.extend(try_to_rows(

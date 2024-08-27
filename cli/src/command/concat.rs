@@ -2,7 +2,11 @@
 use crate::command::commons::run_across_archive_mem;
 #[cfg(not(feature = "memmap"))]
 use crate::command::commons::{run_across_archive, PathArchiveProvider};
-use crate::{cli::FileArgs, command::Command, utils};
+use crate::{
+    cli::{FileArgs, Verbosity},
+    command::Command,
+    utils,
+};
 use clap::Parser;
 use pna::Archive;
 use std::{fs, io};
@@ -16,12 +20,12 @@ pub(crate) struct ConcatCommand {
 }
 
 impl Command for ConcatCommand {
-    fn execute(self) -> io::Result<()> {
-        concat_entry(self)
+    fn execute(self, verbosity: Verbosity) -> io::Result<()> {
+        concat_entry(self, verbosity)
     }
 }
 
-fn concat_entry(args: ConcatCommand) -> io::Result<()> {
+fn concat_entry(args: ConcatCommand, _verbosity: Verbosity) -> io::Result<()> {
     if !args.overwrite && args.files.archive.exists() {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,

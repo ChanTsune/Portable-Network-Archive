@@ -1,6 +1,7 @@
 use crate::{
     cli::{
         CipherAlgorithmArgs, CompressionAlgorithmArgs, FileArgs, HashAlgorithmArgs, PasswordArgs,
+        Verbosity,
     },
     command::{
         ask_password, check_password,
@@ -113,12 +114,12 @@ pub(crate) struct UpdateCommand {
 }
 
 impl Command for UpdateCommand {
-    fn execute(self) -> io::Result<()> {
-        update_archive(self)
+    fn execute(self, verbosity: Verbosity) -> io::Result<()> {
+        update_archive(self, verbosity)
     }
 }
 
-fn update_archive(args: UpdateCommand) -> io::Result<()> {
+fn update_archive(args: UpdateCommand, verbosity: Verbosity) -> io::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let archive_path = args.file.archive;
@@ -227,7 +228,9 @@ fn update_archive(args: UpdateCommand) -> io::Result<()> {
                     let create_options = create_options.clone();
                     let tx = tx.clone();
                     pool.spawn_fifo(move || {
-                        log::debug!("Updating: {}", file.display());
+                        if verbosity == Verbosity::Verbose {
+                            eprintln!("Updating: {}", file.display());
+                        }
                         tx.send(create_entry(&file, create_options))
                             .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
                     });
@@ -246,7 +249,9 @@ fn update_archive(args: UpdateCommand) -> io::Result<()> {
         let create_options = create_options.clone();
         let tx = tx.clone();
         pool.spawn_fifo(move || {
-            log::debug!("Adding: {}", file.display());
+            if verbosity == Verbosity::Verbose {
+                eprintln!("Adding: {}", file.display());
+            }
             tx.send(create_entry(&file, create_options))
                 .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
         });
