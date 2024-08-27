@@ -1,7 +1,5 @@
 use crate::{
-    cli::{
-        CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs, PasswordArgs, Verbosity,
-    },
+    cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs, PasswordArgs},
     command::{
         ask_password, check_password,
         commons::{
@@ -105,8 +103,8 @@ pub(crate) struct StdioCommand {
 }
 
 impl Command for StdioCommand {
-    fn execute(self, verbosity: Verbosity) -> io::Result<()> {
-        run_stdio(self, verbosity)
+    fn execute(self) -> io::Result<()> {
+        run_stdio(self)
     }
 }
 
@@ -116,19 +114,19 @@ pub(crate) struct FileArgs {
     pub(crate) files: Vec<PathBuf>,
 }
 
-fn run_stdio(args: StdioCommand, verbosity: Verbosity) -> io::Result<()> {
+fn run_stdio(args: StdioCommand) -> io::Result<()> {
     if args.create {
-        run_create_archive(args, verbosity)
+        run_create_archive(args)
     } else if args.extract {
-        run_extract_archive(args, verbosity)
+        run_extract_archive(args)
     } else if args.list {
-        run_list_archive(args, verbosity)
+        run_list_archive(args)
     } else {
         unreachable!()
     }
 }
 
-fn run_create_archive(args: StdioCommand, verbosity: Verbosity) -> io::Result<()> {
+fn run_create_archive(args: StdioCommand) -> io::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let mut files = args
@@ -179,7 +177,6 @@ fn run_create_archive(args: StdioCommand, verbosity: Verbosity) -> io::Result<()
             owner_options,
             args.solid,
             target_items,
-            verbosity,
         )
     } else {
         create_archive_file(
@@ -189,12 +186,11 @@ fn run_create_archive(args: StdioCommand, verbosity: Verbosity) -> io::Result<()
             owner_options,
             args.solid,
             target_items,
-            verbosity,
         )
     }
 }
 
-fn run_extract_archive(args: StdioCommand, verbosity: Verbosity) -> io::Result<()> {
+fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
     let password = ask_password(args.password)?;
     let out_option = OutputOption {
         overwrite: args.overwrite,
@@ -219,7 +215,6 @@ fn run_extract_archive(args: StdioCommand, verbosity: Verbosity) -> io::Result<(
             args.files,
             || password.as_deref(),
             out_option,
-            verbosity,
         )
     } else {
         run_extract_archive_reader(
@@ -227,12 +222,11 @@ fn run_extract_archive(args: StdioCommand, verbosity: Verbosity) -> io::Result<(
             args.files,
             || password.as_deref(),
             out_option,
-            verbosity,
         )
     }
 }
 
-fn run_list_archive(args: StdioCommand, _verbosity: Verbosity) -> io::Result<()> {
+fn run_list_archive(args: StdioCommand) -> io::Result<()> {
     let password = ask_password(args.password)?;
     let list_options = ListOptions {
         long: false,
