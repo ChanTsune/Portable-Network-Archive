@@ -3,7 +3,7 @@ use crate::command::commons::run_across_archive_mem;
 #[cfg(not(feature = "memmap"))]
 use crate::command::commons::run_process_archive_path;
 use crate::{
-    cli::{FileArgs, PasswordArgs, Verbosity},
+    cli::{FileArgs, PasswordArgs},
     command::{ask_password, Command},
     utils::{self, PathPartExt},
 };
@@ -36,12 +36,12 @@ pub(crate) struct StripCommand {
 }
 
 impl Command for StripCommand {
-    fn execute(self, verbosity: Verbosity) -> io::Result<()> {
-        strip_metadata(self, verbosity)
+    fn execute(self) -> io::Result<()> {
+        strip_metadata(self)
     }
 }
 
-fn strip_metadata(args: StripCommand, _verbosity: Verbosity) -> io::Result<()> {
+fn strip_metadata(args: StripCommand) -> io::Result<()> {
     let password = ask_password(args.password)?;
     let outfile_path = if let Some(output) = &args.output {
         if let Some(parent) = output.parent() {

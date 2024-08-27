@@ -19,16 +19,9 @@ pub struct Cli {
     #[command(subcommand)]
     pub(crate) commands: Commands,
     #[command(flatten)]
-    pub(crate) verbosity: clap_verbosity_flag::Verbosity,
+    pub(crate) verbosity: clap_verbosity_flag::Verbosity<clap_verbosity_flag::InfoLevel>,
     #[arg(long, global = true, help = "Declare to use unstable features")]
     pub(crate) unstable: bool,
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) enum Verbosity {
-    Quite,
-    Normal,
-    Verbose,
 }
 
 #[derive(Subcommand, Clone, Eq, PartialEq, Hash, Debug)]
