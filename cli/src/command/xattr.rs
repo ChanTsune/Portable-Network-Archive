@@ -92,6 +92,7 @@ enum Encoding {
 }
 
 impl Display for Encoding {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Encoding::Text => "text",
@@ -104,6 +105,7 @@ impl Display for Encoding {
 impl FromStr for Encoding {
     type Err = String;
 
+    #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "text" => Ok(Self::Text),
