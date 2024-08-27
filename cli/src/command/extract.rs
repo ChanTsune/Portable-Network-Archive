@@ -287,15 +287,9 @@ where
             windows
         ))]
         if keep_options.keep_acl {
-            use crate::chunk;
+            use crate::ext::*;
 
-            let mut acl = Vec::new();
-            for c in item.extra_chunks() {
-                if c.ty() == chunk::faCe {
-                    let ace = chunk::Ace::try_from(c.data()).map_err(io::Error::other)?;
-                    acl.push(ace);
-                }
-            }
+            let acl = item.acl()?;
             if !acl.is_empty() {
                 utils::acl::set_facl(&path, acl)?;
             }
