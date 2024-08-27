@@ -6,14 +6,15 @@ use crate::{
         commons::{run_process_entry, ArchiveProvider, PathArchiveProvider},
         Command,
     },
+    ext::*,
     utils::GlobPatterns,
 };
 use chrono::{DateTime, Local};
 use clap::{ArgGroup, Parser};
 use nu_ansi_term::{AnsiString as ANSIString, Color as Colour, Style};
 use pna::{
-    Chunk, Compression, DataKind, Encryption, ExtendedAttribute, ReadEntry, ReadOptions,
-    RegularEntry, SolidHeader,
+    Compression, DataKind, Encryption, ExtendedAttribute, ReadEntry, ReadOptions, RegularEntry,
+    SolidHeader,
 };
 use rayon::prelude::*;
 use std::{
@@ -309,12 +310,10 @@ fn try_to_rows(
     };
     let acl = if show_acl {
         entry
-            .extra_chunks()
-            .iter()
-            .filter(|c| c.ty() == chunk::faCe)
-            .map(|c| chunk::Ace::try_from(c.data()).map(TableRow::from_acl))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(io::Error::other)?
+            .acl()?
+            .into_iter()
+            .map(TableRow::from_acl)
+            .collect::<Vec<_>>()
     } else {
         Vec::new()
     };

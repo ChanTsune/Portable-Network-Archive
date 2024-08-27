@@ -1,6 +1,7 @@
 mod chunk;
 mod cli;
 mod command;
+mod ext;
 mod utils;
 
 use clap::Parser;
