@@ -70,45 +70,41 @@ pub(crate) fn collect_items<I: IntoIterator<Item = P>, P: Into<PathBuf>>(
     keep_dir: bool,
     exclude: Option<Vec<PathBuf>>,
 ) -> io::Result<Vec<PathBuf>> {
+    let mut files = files.into_iter();
     let exclude = exclude
         .as_ref()
         .map(|it| it.iter().map(|path| path.normalize()).collect::<Vec<_>>());
-    fn inner(
-        result: &mut Vec<PathBuf>,
-        path: &Path,
-        recursive: bool,
-        keep_dir: bool,
-        exclude: Option<&Vec<PathBuf>>,
-    ) -> io::Result<()> {
-        let cpath = path.normalize();
-        if let Some(exclude) = exclude {
-            if exclude.iter().any(|it| it.eq(&cpath)) {
-                return Ok(());
-            }
-        }
-        if path.is_dir() {
-            if keep_dir {
-                result.push(path.to_path_buf());
-            }
-            if recursive {
-                for p in fs::read_dir(path)? {
-                    inner(result, &p?.path(), recursive, keep_dir, exclude)?;
-                }
-            }
-        } else if path.is_file() {
-            result.push(path.to_path_buf());
-        }
-        Ok(())
-    }
     let mut target_items = vec![];
-    for p in files {
-        inner(
-            &mut target_items,
-            &p.into(),
-            recursive,
-            keep_dir,
-            exclude.as_ref(),
-        )?;
+    let walker = {
+        if let Some(p) = files.next() {
+            let mut builder = ignore::WalkBuilder::new(&p.into());
+            while let Some(p) = files.next() {
+                builder.add(p.into());
+            }
+            for exclude_path in exclude.into_iter().flatten() {
+                builder.add_ignore(exclude_path);
+            }
+            builder
+                .max_depth(if recursive { None } else { Some(0) })
+                .hidden(false)
+                .ignore(false)
+                .git_ignore(false)
+                .git_exclude(false)
+                .git_global(false)
+                .parents(false)
+                .ignore_case_insensitive(false)
+                .follow_links(false)
+                .ignore_case_insensitive(false);
+            Some(builder.build())
+        } else {
+            None
+        }
+    };
+    for path in walker.into_iter().flatten() {
+        let path = path.map_err(io::Error::other)?.into_path();
+        if keep_dir || path.is_file() {
+            target_items.push(path);
+        }
     }
     Ok(target_items)
 }
