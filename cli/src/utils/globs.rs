@@ -1,16 +1,15 @@
-pub(crate) struct GlobPatterns(Vec<glob::Pattern>);
+pub(crate) struct GlobPatterns(globset::GlobSet);
 
 impl GlobPatterns {
     #[inline]
     pub(crate) fn new<I: IntoIterator<Item = S>, S: AsRef<str>>(
         patterns: I,
-    ) -> Result<Self, glob::PatternError> {
-        Ok(Self(
-            patterns
-                .into_iter()
-                .map(|pattern| glob::Pattern::new(pattern.as_ref()))
-                .collect::<Result<Vec<_>, _>>()?,
-        ))
+    ) -> Result<Self, globset::Error> {
+        let mut builder = globset::GlobSet::builder();
+        for pattern in patterns {
+            builder.add(globset::Glob::new(pattern.as_ref())?);
+        }
+        Ok(Self(builder.build()?))
     }
 
     #[inline]
@@ -20,14 +19,20 @@ impl GlobPatterns {
 
     #[inline]
     pub(crate) fn matches_any(&self, s: &str) -> bool {
-        self.0.iter().any(|glob| glob.matches(s))
+        self.0.is_match(s)
     }
 }
 
-impl From<Vec<glob::Pattern>> for GlobPatterns {
+impl TryFrom<Vec<globset::Glob>> for GlobPatterns {
+    type Error = globset::Error;
+
     #[inline]
-    fn from(value: Vec<glob::Pattern>) -> Self {
-        Self(value)
+    fn try_from(patterns: Vec<globset::Glob>) -> Result<Self, Self::Error> {
+        let mut builder = globset::GlobSet::builder();
+        for pattern in patterns {
+            builder.add(pattern);
+        }
+        Ok(Self(builder.build()?))
     }
 }
 
@@ -36,7 +41,7 @@ mod tests {
     use super::*;
     #[test]
     fn glob_any_empty() {
-        let globs = GlobPatterns::from(Vec::new());
+        let globs = GlobPatterns::try_from(Vec::new()).unwrap();
         assert!(!globs.matches_any("some"));
     }
 
