@@ -572,3 +572,94 @@ where
     on_complete(part_num)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn collect_items_only_file() {
+        let source = [format!(
+            "{}/../resources/test/raw",
+            env!("CARGO_MANIFEST_DIR")
+        )];
+        let items = collect_items(source, false, false, None).unwrap();
+        assert_eq!(
+            items.into_iter().collect::<HashSet<_>>(),
+            [].into_iter().collect::<HashSet<_>>()
+        );
+    }
+
+    #[test]
+    fn collect_items_keep_dir() {
+        let source = [format!(
+            "{}/../resources/test/raw",
+            env!("CARGO_MANIFEST_DIR")
+        )];
+        let items = collect_items(source, false, true, None).unwrap();
+        assert_eq!(
+            items.into_iter().collect::<HashSet<_>>(),
+            [format!(
+                "{}/../resources/test/raw",
+                env!("CARGO_MANIFEST_DIR")
+            )]
+            .into_iter()
+            .map(Into::into)
+            .collect::<HashSet<_>>()
+        );
+    }
+
+    #[test]
+    fn collect_items_recursive() {
+        let source = [format!(
+            "{}/../resources/test/raw",
+            env!("CARGO_MANIFEST_DIR")
+        )];
+        let items = collect_items(source, true, false, None).unwrap();
+        assert_eq!(
+            items.into_iter().collect::<HashSet<_>>(),
+            [
+                format!(
+                    "{}/../resources/test/raw/first/second/third/pna.txt",
+                    env!("CARGO_MANIFEST_DIR")
+                ),
+                format!(
+                    "{}/../resources/test/raw/images/icon.bmp",
+                    env!("CARGO_MANIFEST_DIR")
+                ),
+                format!(
+                    "{}/../resources/test/raw/images/icon.png",
+                    env!("CARGO_MANIFEST_DIR")
+                ),
+                format!(
+                    "{}/../resources/test/raw/images/icon.svg",
+                    env!("CARGO_MANIFEST_DIR")
+                ),
+                format!(
+                    "{}/../resources/test/raw/parent/child.txt",
+                    env!("CARGO_MANIFEST_DIR")
+                ),
+                format!(
+                    "{}/../resources/test/raw/pna/empty.pna",
+                    env!("CARGO_MANIFEST_DIR")
+                ),
+                format!(
+                    "{}/../resources/test/raw/pna/nest.pna",
+                    env!("CARGO_MANIFEST_DIR")
+                ),
+                format!(
+                    "{}/../resources/test/raw/empty.txt",
+                    env!("CARGO_MANIFEST_DIR")
+                ),
+                format!(
+                    "{}/../resources/test/raw/text.txt",
+                    env!("CARGO_MANIFEST_DIR")
+                ),
+            ]
+            .into_iter()
+            .map(Into::into)
+            .collect::<HashSet<_>>()
+        );
+    }
+}
