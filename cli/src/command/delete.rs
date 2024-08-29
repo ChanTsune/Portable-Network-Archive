@@ -7,13 +7,13 @@ use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
 use std::{env::temp_dir, fs, io, path::PathBuf};
 
-#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(group(ArgGroup::new("unstable-delete-exclude").args(["exclude"]).requires("unstable")))]
 pub(crate) struct DeleteCommand {
     #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
     output: Option<PathBuf>,
     #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
-    pub(crate) exclude: Option<Vec<glob::Pattern>>,
+    pub(crate) exclude: Option<Vec<globset::Glob>>,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
@@ -30,7 +30,8 @@ fn delete_file_from_archive(args: DeleteCommand) -> io::Result<()> {
     let password = ask_password(args.password)?;
     let globs = GlobPatterns::new(args.file.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-    let exclude_globs = GlobPatterns::from(args.exclude.unwrap_or_default());
+    let exclude_globs = GlobPatterns::try_from(args.exclude.unwrap_or_default())
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
     let outfile_path = if let Some(output) = &args.output {
         if let Some(parent) = output.parent() {
             fs::create_dir_all(parent)?;
