@@ -48,6 +48,9 @@ windows = { version = "0.58.0", features = [
 field-offset = { version = "0.3.6", optional = true }
 libc = "0.2.158"
 
+[target.'cfg(target_os = "emscripten")'.dependencies]
+gix-prompt = "0.8.7"
+
 [dev-dependencies]
 walkdir = "2.5.0"
 assert_cmd = "2.0.16"
