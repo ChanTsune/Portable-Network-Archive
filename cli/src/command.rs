@@ -41,7 +41,10 @@ fn ask_password(args: PasswordArgs) -> io::Result<Option<String>> {
             log::warn!("Using a password on the command line interface can be insecure.");
             password
         }
+        #[cfg(not(target_os = "emscripten"))]
         Some(None) => Some(rpassword::prompt_password("Enter password: ")?),
+        #[cfg(target_os = "emscripten")]
+        Some(None) => Some(gix_prompt::securely("Enter password: ").map_err(io::Error::other)?),
         None => None,
     })
 }
