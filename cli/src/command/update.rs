@@ -224,12 +224,13 @@ fn update_archive(args: UpdateCommand) -> io::Result<()> {
                 if !exclude.contains(&normalized_path)
                     && need_update_condition(&normalized_path, &entry).unwrap_or(true)
                 {
-                    let create_options = create_options.clone();
                     let tx = tx.clone();
-                    pool.spawn_fifo(move || {
-                        log::debug!("Updating: {}", file.display());
-                        tx.send(create_entry(&file, create_options))
-                            .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
+                    pool.scope_fifo(|s| {
+                        s.spawn_fifo(|_| {
+                            log::debug!("Updating: {}", file.display());
+                            tx.send(create_entry(&file, create_options.clone()))
+                                .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
+                        });
                     });
                 } else {
                     out_archive.add_entry(entry)?;
@@ -243,12 +244,13 @@ fn update_archive(args: UpdateCommand) -> io::Result<()> {
 
     // NOTE: Add new entries
     for file in target_items {
-        let create_options = create_options.clone();
         let tx = tx.clone();
-        pool.spawn_fifo(move || {
-            log::debug!("Adding: {}", file.display());
-            tx.send(create_entry(&file, create_options))
-                .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
+        pool.scope_fifo(|s| {
+            s.spawn_fifo(|_| {
+                log::debug!("Adding: {}", file.display());
+                tx.send(create_entry(&file, create_options.clone()))
+                    .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
+            });
         });
     }
 

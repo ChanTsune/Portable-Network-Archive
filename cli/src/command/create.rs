@@ -213,12 +213,13 @@ where
         owner_options,
     };
     for file in target_items {
-        let create_options = create_options.clone();
         let tx = tx.clone();
-        pool.spawn_fifo(move || {
-            log::debug!("Adding: {}", file.display());
-            tx.send(create_entry(&file, create_options))
-                .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
+        pool.scope_fifo(|s| {
+            s.spawn_fifo(|_| {
+                log::debug!("Adding: {}", file.display());
+                tx.send(create_entry(&file, create_options.clone()))
+                    .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
+            })
         });
     }
 
@@ -266,12 +267,13 @@ fn create_archive_with_split(
         owner_options,
     };
     for file in target_items {
-        let create_options = create_options.clone();
         let tx = tx.clone();
-        pool.spawn_fifo(move || {
-            log::debug!("Adding: {}", file.display());
-            tx.send(create_entry(&file, create_options))
-                .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
+        pool.scope_fifo(|s| {
+            s.spawn_fifo(|_| {
+                log::debug!("Adding: {}", file.display());
+                tx.send(create_entry(&file, create_options.clone()))
+                    .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
+            })
         });
     }
 
