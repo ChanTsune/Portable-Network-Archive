@@ -31,6 +31,7 @@ use std::{
     group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from-stdin").args(["files_from_stdin"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude-from").args(["files_from"]).requires("unstable")),
+    group(ArgGroup::new("unstable-gitignore").args(["gitignore"]).requires("unstable")),
     group(ArgGroup::new("read-files-from").args(["files_from", "files_from_stdin"])),
     group(ArgGroup::new("store-uname").args(["uname"]).requires("keep_permission")),
     group(ArgGroup::new("store-gname").args(["gname"]).requires("keep_permission")),
@@ -85,6 +86,8 @@ pub(crate) struct CreateCommand {
     pub(crate) files_from_stdin: bool,
     #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
     pub(crate) exclude_from: Option<String>,
+    #[arg(long, help = "Ignore files from .gitignore (unstable)")]
+    pub(crate) gitignore: bool,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -135,7 +138,13 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
     } else {
         None
     };
-    let target_items = collect_items(&files, args.recursive, args.keep_dir, exclude)?;
+    let target_items = collect_items(
+        &files,
+        args.recursive,
+        args.keep_dir,
+        args.gitignore,
+        exclude,
+    )?;
 
     if let Some(parent) = archive.parent() {
         fs::create_dir_all(parent)?;
