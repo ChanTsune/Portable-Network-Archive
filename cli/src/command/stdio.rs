@@ -26,6 +26,7 @@ use std::{
     group(ArgGroup::new("bundled-flags").args(["create", "extract", "list"]).required(true)),
     group(ArgGroup::new("unstable-exclude-from").args(["files_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
+    group(ArgGroup::new("unstable-gitignore").args(["gitignore"]).requires("unstable")),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
 )]
@@ -65,6 +66,8 @@ pub(crate) struct StdioCommand {
     pub(crate) password: PasswordArgs,
     #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
     pub(crate) exclude: Option<Vec<PathBuf>>,
+    #[arg(long, help = "Ignore files from .gitignore (unstable)")]
+    pub(crate) gitignore: bool,
     #[arg(long, help = "Output directory of extracted files", value_hint = ValueHint::DirPath)]
     pub(crate) out_dir: Option<PathBuf>,
     #[arg(
@@ -153,7 +156,13 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
     } else {
         None
     };
-    let target_items = collect_items(&files, args.recursive, args.keep_dir, exclude)?;
+    let target_items = collect_items(
+        &files,
+        args.recursive,
+        args.keep_dir,
+        args.gitignore,
+        exclude,
+    )?;
 
     let cli_option = entry_option(args.compression, args.cipher, args.hash, password);
     let keep_options = KeepOptions {
