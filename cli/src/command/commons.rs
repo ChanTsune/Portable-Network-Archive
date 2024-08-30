@@ -78,8 +78,8 @@ pub(crate) fn collect_items<I: IntoIterator<Item = P>, P: Into<PathBuf>>(
     let mut target_items = vec![];
     let walker = {
         if let Some(p) = files.next() {
-            let mut builder = ignore::WalkBuilder::new(&p.into());
-            while let Some(p) = files.next() {
+            let mut builder = ignore::WalkBuilder::new(p.into());
+            for p in files {
                 builder.add(p.into());
             }
             for exclude_path in exclude.into_iter().flatten() {
