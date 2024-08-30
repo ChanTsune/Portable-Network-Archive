@@ -158,11 +158,11 @@ where
             return Ok(());
         }
         let tx = tx.clone();
-        let password = password.clone();
-        let options = args.clone();
-        pool.spawn_fifo(move || {
-            tx.send(extract_entry(item, password, options))
-                .unwrap_or_else(|e| panic!("{e}: {}", item_path));
+        pool.scope_fifo(|s| {
+            s.spawn_fifo(|_| {
+                tx.send(extract_entry(item, password.clone(), args.clone()))
+                    .unwrap_or_else(|e| panic!("{e}: {}", item_path));
+            })
         });
         Ok(())
     })?;
