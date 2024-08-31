@@ -267,8 +267,7 @@ where
     #[cfg(windows)]
     if let Some((p, u, g)) = permissions {
         chown(&path, u, g)?;
-        let s = utils::str::encode_wide(path.as_os_str())?;
-        unsafe { libc::wchmod(s.as_ptr() as _, p.permissions() as _) };
+        utils::os::windows::fs::chmod(&path, p.permissions())?;
     }
     #[cfg(not(any(unix, windows)))]
     if let Some(_) = permissions {
