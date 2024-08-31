@@ -48,7 +48,7 @@ fn archive_chown(args: ChownCommand) -> io::Result<()> {
                     let user = args.owner.user();
                     #[cfg(unix)]
                     let user = user.and_then(|it| {
-                        User::from_name(it).map(|it| (it.0.uid.as_raw().into(), it.0.name))
+                        User::from_name(it).map(|it| (it.as_raw().into(), it.0.name))
                     });
                     #[cfg(windows)]
                     let user =
@@ -60,7 +60,7 @@ fn archive_chown(args: ChownCommand) -> io::Result<()> {
                     let group = args.owner.group();
                     #[cfg(unix)]
                     let group = group.and_then(|it| {
-                        Group::from_name(it).map(|it| (it.0.gid.as_raw().into(), it.0.name))
+                        Group::from_name(it).map(|it| (it.as_raw().into(), it.0.name))
                     });
                     #[cfg(windows)]
                     let group =
