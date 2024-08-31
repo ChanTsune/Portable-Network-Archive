@@ -15,12 +15,8 @@ use clap::{ArgGroup, Parser, ValueHint};
 use indicatif::HumanDuration;
 use pna::{prelude::*, DataKind, EntryReference, Permission, ReadOptions, RegularEntry};
 use rayon::ThreadPoolBuilder;
-#[cfg(unix)]
-use std::fs::Permissions;
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::FileTimesExt;
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
 #[cfg(windows)]
 use std::os::windows::fs::FileTimesExt;
 use std::{
@@ -261,8 +257,9 @@ where
     }
     #[cfg(unix)]
     permissions.map(|(p, u, g)| {
+        use std::os::unix::fs::PermissionsExt;
         chown(&path, u, g)?;
-        fs::set_permissions(&path, p)
+        fs::set_permissions(&path, fs::Permissions::from_mode(p.permissions().into()))
     });
     #[cfg(windows)]
     if let Some((p, u, g)) = permissions {
@@ -336,12 +333,12 @@ fn permissions<'p>(
 ) -> Option<(&'p Permission, Option<User>, Option<Group>)> {
     Some((p, User::from_name(p.uname()), Group::from_name(p.gname())))
 }
+
 #[cfg(unix)]
-fn permissions(
-    permission: &Permission,
-    owner_options: &OwnerOptions,
-) -> Option<(Permissions, Option<User>, Option<Group>)> {
-    let p = Permissions::from_mode(permission.permissions().into());
+fn permissions<'p>(
+    permission: &'p Permission,
+    owner_options: &'_ OwnerOptions,
+) -> Option<(&'p Permission, Option<User>, Option<Group>)> {
     let user = if let Some(uid) = owner_options.uid {
         User::from_uid(uid.into())
     } else {
@@ -358,7 +355,7 @@ fn permissions(
             permission.gid(),
         )
     };
-    Some((p, user, group))
+    Some((permission, user, group))
 }
 
 #[cfg(unix)]
