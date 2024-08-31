@@ -104,9 +104,15 @@ mod owner {
         pub(crate) fn from_uid(uid: Uid) -> Option<Self> {
             unistd::User::from_uid(uid).ok().flatten().map(Self)
         }
+
         #[inline]
         pub(crate) fn from_name(name: &str) -> Option<Self> {
             unistd::User::from_name(name).ok().flatten().map(Self)
+        }
+
+        #[inline]
+        pub(crate) fn as_raw(&self) -> u32 {
+            self.0.uid.as_raw()
         }
     }
     pub(crate) struct Group(pub(crate) unistd::Group);
@@ -116,9 +122,15 @@ mod owner {
         pub(crate) fn from_gid(gid: Gid) -> Option<Self> {
             unistd::Group::from_gid(gid).ok().flatten().map(Self)
         }
+
         #[inline]
         pub(crate) fn from_name(name: &str) -> Option<Self> {
             unistd::Group::from_name(name).ok().flatten().map(Self)
+        }
+
+        #[inline]
+        pub(crate) fn as_raw(&self) -> u32 {
+            self.0.gid.as_raw()
         }
     }
 }
@@ -137,8 +149,8 @@ pub(crate) fn chown<P: AsRef<Path>>(
     fn inner(path: &Path, owner: Option<User>, group: Option<Group>) -> io::Result<()> {
         std::os::unix::fs::chown(
             path,
-            owner.map(|it| it.0.uid.as_raw()),
-            group.map(|it| it.0.gid.as_raw()),
+            owner.map(|it| it.as_raw()),
+            group.map(|it| it.as_raw()),
         )
     }
     inner(path.as_ref(), owner, group)
