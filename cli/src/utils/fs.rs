@@ -1,7 +1,9 @@
+#[cfg(unix)]
+pub(crate) use crate::utils::os::unix::fs::owner::*;
+#[cfg(windows)]
+pub(crate) use crate::utils::os::windows::fs::owner::*;
 #[cfg(windows)]
 use crate::utils::os::windows::{self, fs::*};
-#[cfg(any(unix, windows))]
-pub(crate) use owner::*;
 pub(crate) use pna::fs::*;
 use std::{
     fs,
@@ -60,79 +62,6 @@ pub(crate) fn read_to_lines<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> 
         reader.lines().collect::<io::Result<Vec<_>>>()
     }
     inner(path.as_ref())
-}
-
-#[cfg(windows)]
-mod owner {
-    use crate::utils::os::windows::security;
-
-    pub(crate) struct User(pub(crate) security::Sid);
-    impl User {
-        #[inline]
-        pub(crate) fn from_name(name: &str) -> Option<Self> {
-            Self::from_system_name(name, None)
-        }
-
-        #[inline]
-        pub(crate) fn from_system_name(name: &str, system: Option<&str>) -> Option<Self> {
-            security::Sid::try_from_name(name, system).ok().map(Self)
-        }
-    }
-
-    pub(crate) struct Group(pub(crate) security::Sid);
-
-    impl Group {
-        #[inline]
-        pub(crate) fn from_name(name: &str) -> Option<Self> {
-            Self::from_system_name(name, None)
-        }
-
-        #[inline]
-        pub(crate) fn from_system_name(name: &str, system: Option<&str>) -> Option<Self> {
-            security::Sid::try_from_name(name, system).ok().map(Self)
-        }
-    }
-}
-#[cfg(unix)]
-mod owner {
-    use nix::unistd;
-    use nix::unistd::{Gid, Uid};
-
-    pub(crate) struct User(pub(crate) unistd::User);
-    impl User {
-        #[inline]
-        pub(crate) fn from_uid(uid: Uid) -> Option<Self> {
-            unistd::User::from_uid(uid).ok().flatten().map(Self)
-        }
-
-        #[inline]
-        pub(crate) fn from_name(name: &str) -> Option<Self> {
-            unistd::User::from_name(name).ok().flatten().map(Self)
-        }
-
-        #[inline]
-        pub(crate) fn as_raw(&self) -> u32 {
-            self.0.uid.as_raw()
-        }
-    }
-    pub(crate) struct Group(pub(crate) unistd::Group);
-
-    impl Group {
-        #[inline]
-        pub(crate) fn from_gid(gid: Gid) -> Option<Self> {
-            unistd::Group::from_gid(gid).ok().flatten().map(Self)
-        }
-
-        #[inline]
-        pub(crate) fn from_name(name: &str) -> Option<Self> {
-            unistd::Group::from_name(name).ok().flatten().map(Self)
-        }
-
-        #[inline]
-        pub(crate) fn as_raw(&self) -> u32 {
-            self.0.gid.as_raw()
-        }
-    }
 }
 
 #[cfg(any(windows, unix))]
