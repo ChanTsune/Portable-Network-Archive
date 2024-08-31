@@ -4,6 +4,7 @@ mod command;
 mod utils;
 
 use clap::Parser;
+use log::Level;
 use std::io;
 
 fn main() -> io::Result<()> {
@@ -14,6 +15,13 @@ fn main() -> io::Result<()> {
 
 fn init_logger(level: log::LevelFilter) -> io::Result<()> {
     let base = fern::Dispatch::new();
-    let stderr = fern::Dispatch::new().level(level).chain(io::stderr());
+    let stderr = fern::Dispatch::new()
+        .level(level)
+        .format(|out, msg, rec| match rec.level() {
+            Level::Error => out.finish(format_args!("error: {}", msg)),
+            Level::Warn => out.finish(format_args!("warning: {}", msg)),
+            Level::Info | Level::Debug | Level::Trace => out.finish(*msg),
+        })
+        .chain(io::stderr());
     base.chain(stderr).apply().map_err(io::Error::other)
 }
