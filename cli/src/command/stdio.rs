@@ -24,7 +24,7 @@ use std::{
 #[command(
     group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
     group(ArgGroup::new("bundled-flags").args(["create", "extract", "list"]).required(true)),
-    group(ArgGroup::new("unstable-exclude-from").args(["files_from"]).requires("unstable")),
+    group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-gitignore").args(["gitignore"]).requires("unstable")),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
