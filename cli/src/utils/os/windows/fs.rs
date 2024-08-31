@@ -30,6 +30,12 @@ pub(crate) fn chown(path: &Path, owner: Option<Sid>, group: Option<Sid>) -> io::
     )
 }
 
+pub(crate) fn chmod(path: &Path, mode: u16) -> io::Result<()> {
+    let s = encode_wide(path.as_os_str())?;
+    unsafe { libc::wchmod(s.as_ptr() as _, mode as _) };
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
