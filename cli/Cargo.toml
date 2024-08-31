@@ -32,7 +32,7 @@ indexmap = "2.4.0"
 log = "0.4.22"
 
 [target.'cfg(unix)'.dependencies]
-nix = { version = "0.29.0", features = ["user", "fs"] }
+nix = { version = "0.29.0", features = ["user"] }
 xattr = "1.3.1"
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "macos"))'.dependencies]
