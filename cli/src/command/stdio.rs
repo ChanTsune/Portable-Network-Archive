@@ -68,6 +68,8 @@ pub(crate) struct StdioCommand {
     pub(crate) exclude: Option<Vec<PathBuf>>,
     #[arg(long, help = "Ignore files from .gitignore (unstable)")]
     pub(crate) gitignore: bool,
+    #[arg(long, help = "Follow symbolic links")]
+    pub(crate) follow_links: bool,
     #[arg(long, help = "Output directory of extracted files", value_hint = ValueHint::DirPath)]
     pub(crate) out_dir: Option<PathBuf>,
     #[arg(
@@ -161,6 +163,7 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
         args.recursive,
         args.keep_dir,
         args.gitignore,
+        args.follow_links,
         exclude,
     )?;
 

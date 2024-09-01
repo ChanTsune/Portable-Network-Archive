@@ -69,6 +69,7 @@ pub(crate) fn collect_items<I: IntoIterator<Item = P>, P: Into<PathBuf>>(
     recursive: bool,
     keep_dir: bool,
     gitignore: bool,
+    follow_links: bool,
     exclude: Option<Vec<PathBuf>>,
 ) -> io::Result<Vec<PathBuf>> {
     let mut files = files.into_iter();
@@ -93,7 +94,7 @@ pub(crate) fn collect_items<I: IntoIterator<Item = P>, P: Into<PathBuf>>(
                 .git_exclude(false)
                 .git_global(false)
                 .parents(false)
-                .follow_links(false)
+                .follow_links(follow_links)
                 .ignore_case_insensitive(false);
             Some(builder.build())
         } else {
@@ -580,7 +581,7 @@ mod tests {
             "{}/../resources/test/raw",
             env!("CARGO_MANIFEST_DIR")
         )];
-        let items = collect_items(source, false, false, false, None).unwrap();
+        let items = collect_items(source, false, false, false, false, None).unwrap();
         assert_eq!(
             items.into_iter().collect::<HashSet<_>>(),
             [].into_iter().collect::<HashSet<_>>()
@@ -593,7 +594,7 @@ mod tests {
             "{}/../resources/test/raw",
             env!("CARGO_MANIFEST_DIR")
         )];
-        let items = collect_items(source, false, true, false, None).unwrap();
+        let items = collect_items(source, false, true, false, false, None).unwrap();
         assert_eq!(
             items.into_iter().collect::<HashSet<_>>(),
             [format!(
@@ -612,7 +613,7 @@ mod tests {
             "{}/../resources/test/raw",
             env!("CARGO_MANIFEST_DIR")
         )];
-        let items = collect_items(source, true, false, false, None).unwrap();
+        let items = collect_items(source, true, false, false, false, None).unwrap();
         assert_eq!(
             items.into_iter().collect::<HashSet<_>>(),
             [

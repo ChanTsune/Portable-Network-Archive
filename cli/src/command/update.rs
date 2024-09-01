@@ -113,6 +113,8 @@ pub(crate) struct UpdateCommand {
     pub(crate) exclude: Option<Vec<PathBuf>>,
     #[arg(long, help = "Ignore files from .gitignore (unstable)")]
     pub(crate) gitignore: bool,
+    #[arg(long, help = "Follow symbolic links")]
+    pub(crate) follow_links: bool,
 }
 
 impl Command for UpdateCommand {
@@ -170,8 +172,14 @@ fn update_archive(args: UpdateCommand) -> io::Result<()> {
                 .map(|it| PathBuf::from(it).normalize()),
         );
     }
-    let mut target_items =
-        collect_items(&files, args.recursive, args.keep_dir, args.gitignore, None)?;
+    let mut target_items = collect_items(
+        &files,
+        args.recursive,
+        args.keep_dir,
+        args.gitignore,
+        args.follow_links,
+        None,
+    )?;
 
     let pool = ThreadPoolBuilder::default()
         .build()
