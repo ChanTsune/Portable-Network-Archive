@@ -88,6 +88,8 @@ pub(crate) struct CreateCommand {
     pub(crate) exclude_from: Option<String>,
     #[arg(long, help = "Ignore files from .gitignore (unstable)")]
     pub(crate) gitignore: bool,
+    #[arg(long, help = "Follow symbolic links")]
+    pub(crate) follow_links: bool,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -143,6 +145,7 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
         args.recursive,
         args.keep_dir,
         args.gitignore,
+        args.follow_links,
         exclude,
     )?;
 
