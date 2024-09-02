@@ -41,7 +41,7 @@ pbkdf2 = { version = "0.12.2", features = ["simple", "parallel"] }
 version-sync = "0.9.5"
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
-tokio = { version = "1.39.3", features = ["macros", "rt-multi-thread", "fs", "io-util"] }
+tokio = { version = "1.40.0", features = ["macros", "rt-multi-thread", "fs", "io-util"] }
 tokio-util = { version = "0.7.11", features = ["compat"] }
 
 [features]
