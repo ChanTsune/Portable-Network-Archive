@@ -173,7 +173,7 @@ impl<'d> Archive<&'d [u8]> {
     ///
     /// Returns an error if an I/O error occurs while reading from the reader.
     #[inline]
-    pub fn read_next_archive_from_slice(self, bytes: &'d [u8]) -> io::Result<Archive<&[u8]>> {
+    pub fn read_next_archive_from_slice(self, bytes: &[u8]) -> io::Result<Archive<&[u8]>> {
         let current_header = self.header;
         let next = Archive::read_header_from_slice_with_buffer(bytes, self.buf)?;
         if current_header.archive_number + 1 != next.header.archive_number {
