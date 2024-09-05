@@ -20,8 +20,10 @@ jobs:
             container: emscripten/emsdk:latest
           - target: wasm32-unknown-unknown
             container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-23
+          - target: wasm32-unknown-unknown
           - target: wasm32-wasi
             container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-23
+          - target: wasm32-wasi
 
     runs-on: ubuntu-latest
     container: ${{ matrix.container }}
