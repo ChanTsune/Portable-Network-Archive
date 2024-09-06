@@ -73,9 +73,7 @@ pub(crate) fn collect_items<I: IntoIterator<Item = P>, P: Into<PathBuf>>(
     exclude: Option<Vec<PathBuf>>,
 ) -> io::Result<Vec<PathBuf>> {
     let mut files = files.into_iter();
-    let exclude = exclude
-        .as_ref()
-        .map(|it| it.iter().map(|path| path.normalize()).collect::<Vec<_>>());
+    let exclude = exclude.map(|it| it.into_iter().map(|path| path.normalize()));
     let mut target_items = vec![];
     let walker = {
         if let Some(p) = files.next() {
