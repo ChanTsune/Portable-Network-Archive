@@ -14,6 +14,11 @@ impl User {
     }
 
     #[inline]
+    pub(crate) fn name(&self) -> &str {
+        &self.0.name
+    }
+
+    #[inline]
     pub(crate) fn as_raw(&self) -> u32 {
         self.0.uid.as_raw()
     }
@@ -29,6 +34,11 @@ impl Group {
     #[inline]
     pub(crate) fn from_name(name: &str) -> Option<Self> {
         unistd::Group::from_name(name).ok().flatten().map(Self)
+    }
+
+    #[inline]
+    pub(crate) fn name(&self) -> &str {
+        &self.0.name
     }
 
     #[inline]
