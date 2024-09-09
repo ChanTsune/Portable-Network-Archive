@@ -60,3 +60,27 @@ jobs:
             target/*
             !target/tmp
           key: "${{ steps.restore-rust-build-cache.outputs.cache-primary-key }}"
+
+  tier3:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+        rust:
+          - stable
+        target:
+          - x86_64-unknown-redox
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: install_rust
+        uses: ./.github/actions/setup-rust
+        with:
+          channel: ${{ matrix.rust }}
+          target: ${{ matrix.target }}
+      - name: run test
+        run: |
+          cargo check --locked --target ${{ matrix.target }}
+        env:
+          RUST_BACKTRACE: 1
