@@ -3,7 +3,7 @@ on:
   pull_request:
   push:
 jobs:
-  rust_doc_test:
+  tier1:
     strategy:
       fail-fast: false
       matrix:
