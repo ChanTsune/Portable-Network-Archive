@@ -1,7 +1,7 @@
 use nix::unistd;
 use nix::unistd::{Gid, Uid};
 
-pub(crate) struct User(pub(crate) unistd::User);
+pub(crate) struct User(unistd::User);
 impl User {
     #[inline]
     pub(crate) fn from_uid(uid: Uid) -> Option<Self> {
@@ -23,7 +23,7 @@ impl User {
         self.0.uid.as_raw()
     }
 }
-pub(crate) struct Group(pub(crate) unistd::Group);
+pub(crate) struct Group(unistd::Group);
 
 impl Group {
     #[inline]
