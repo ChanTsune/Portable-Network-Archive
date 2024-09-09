@@ -17,7 +17,7 @@ chrono = "0.4.38"
 clap = { version = "4.5.17", features = ["derive"] }
 clap_complete = "4.5.26"
 fern = "0.6.2"
-globset = "0.4.14"
+globset = "0.4.15"
 ignore = "0.4.22"
 indicatif = { version = "0.17.8", features = ["improved_unicode"] }
 itertools = "0.13.0"
