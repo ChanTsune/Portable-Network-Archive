@@ -51,8 +51,8 @@ fn archive_chown(args: ChownCommand) -> io::Result<()> {
                         User::from_name(it).map(|it| (it.as_raw().into(), it.name().into()))
                     });
                     #[cfg(windows)]
-                    let user =
-                        user.and_then(|it| User::from_name(it).map(|it| (u64::MAX, it.0.name)));
+                    let user = user
+                        .and_then(|it| User::from_name(it).map(|it| (u64::MAX, it.name().into())));
                     #[cfg(not(any(unix, windows)))]
                     let user = user.map(|_| (p.uid(), p.uname().into()));
                     let (uid, uname) = user.unwrap_or_else(|| (p.uid(), p.uname().into()));
@@ -63,8 +63,8 @@ fn archive_chown(args: ChownCommand) -> io::Result<()> {
                         Group::from_name(it).map(|it| (it.as_raw().into(), it.name().into()))
                     });
                     #[cfg(windows)]
-                    let group =
-                        group.and_then(|it| Group::from_name(it).map(|it| (u64::MAX, it.0.name)));
+                    let group = group
+                        .and_then(|it| Group::from_name(it).map(|it| (u64::MAX, it.name().into())));
                     #[cfg(not(any(unix, windows)))]
                     let group = group.map(|_| (p.gid(), p.gname().into()));
                     let (gid, gname) = group.unwrap_or_else(|| (p.gid(), p.gname().into()));
