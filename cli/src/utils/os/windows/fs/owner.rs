@@ -1,6 +1,6 @@
 use crate::utils::os::windows::security;
 
-pub(crate) struct User(pub(crate) security::Sid);
+pub(crate) struct User(security::Sid);
 impl User {
     #[inline]
     pub(crate) fn from_name(name: &str) -> Option<Self> {
@@ -18,7 +18,6 @@ impl User {
     }
 }
 
-pub(crate) struct Group(pub(crate) security::Sid);
 impl From<User> for security::Sid {
     #[inline]
     fn from(value: User) -> Self {
@@ -26,6 +25,7 @@ impl From<User> for security::Sid {
     }
 }
 
+pub(crate) struct Group(security::Sid);
 
 impl Group {
     #[inline]
