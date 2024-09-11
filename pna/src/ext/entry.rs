@@ -5,10 +5,18 @@ use std::{fs, io, path::Path};
 /// [RegularEntry] extension method trait.
 pub trait EntryFsExt: private::Sealed {
     /// Create Entry from a given path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while creating entry.
     fn from_path<P: AsRef<Path>>(path: P) -> io::Result<Self>
     where
         Self: Sized;
     /// Create Entry from a given path with option.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while creating entry.
     fn from_path_with<P: AsRef<Path>>(path: P, options: WriteOptions) -> io::Result<Self>
     where
         Self: Sized;
