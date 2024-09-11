@@ -19,6 +19,13 @@ impl User {
 }
 
 pub(crate) struct Group(pub(crate) security::Sid);
+impl From<User> for security::Sid {
+    #[inline]
+    fn from(value: User) -> Self {
+        value.0
+    }
+}
+
 
 impl Group {
     #[inline]
@@ -34,5 +41,12 @@ impl Group {
     #[inline]
     pub(crate) fn name(&self) -> &str {
         &self.0.name
+    }
+}
+
+impl From<Group> for security::Sid {
+    #[inline]
+    fn from(value: Group) -> Self {
+        value.0
     }
 }
