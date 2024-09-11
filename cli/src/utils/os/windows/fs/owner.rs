@@ -11,6 +11,11 @@ impl User {
     pub(crate) fn from_system_name(name: &str, system: Option<&str>) -> Option<Self> {
         security::Sid::try_from_name(name, system).ok().map(Self)
     }
+
+    #[inline]
+    pub(crate) fn name(&self) -> &str {
+        &self.0.name
+    }
 }
 
 pub(crate) struct Group(pub(crate) security::Sid);
@@ -24,5 +29,10 @@ impl Group {
     #[inline]
     pub(crate) fn from_system_name(name: &str, system: Option<&str>) -> Option<Self> {
         security::Sid::try_from_name(name, system).ok().map(Self)
+    }
+
+    #[inline]
+    pub(crate) fn name(&self) -> &str {
+        &self.0.name
     }
 }
