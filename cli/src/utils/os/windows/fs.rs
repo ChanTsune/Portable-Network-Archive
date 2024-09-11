@@ -21,11 +21,16 @@ pub(crate) fn move_file(src: &std::ffi::OsStr, dist: &std::ffi::OsStr) -> io::Re
     .map_err(Into::into)
 }
 
-pub(crate) fn chown(path: &Path, owner: Option<Sid>, group: Option<Sid>) -> io::Result<()> {
+#[inline]
+pub(crate) fn chown<U: Into<Sid>, G: Into<Sid>>(
+    path: &Path,
+    owner: Option<U>,
+    group: Option<G>,
+) -> io::Result<()> {
     let sd = SecurityDescriptor::try_from(path)?;
     sd.apply(
-        owner.and_then(|it| it.to_psid().ok()),
-        group.and_then(|it| it.to_psid().ok()),
+        owner.and_then(|it| it.into().to_psid().ok()),
+        group.and_then(|it| it.into().to_psid().ok()),
         None,
     )
 }
@@ -45,8 +50,8 @@ mod tests {
         let path = "chown.txt";
         std::fs::write(&path, "chown").unwrap();
         let sd = SecurityDescriptor::try_from(path.as_ref()).unwrap();
-        chown(path.as_ref(), Some(sd.owner_sid().unwrap()), None).unwrap();
-        chown(path.as_ref(), None, Some(sd.group_sid().unwrap())).unwrap();
+        chown::<_, Sid>(path.as_ref(), Some(sd.owner_sid().unwrap()), None).unwrap();
+        chown::<Sid, _>(path.as_ref(), None, Some(sd.group_sid().unwrap())).unwrap();
         chown(
             path.as_ref(),
             Some(sd.owner_sid().unwrap()),

@@ -72,7 +72,7 @@ pub(crate) fn chown<P: AsRef<Path>>(
 ) -> io::Result<()> {
     #[cfg(windows)]
     fn inner(path: &Path, owner: Option<User>, group: Option<Group>) -> io::Result<()> {
-        windows::fs::chown(path.as_ref(), owner.map(|it| it.0), group.map(|it| it.0))
+        windows::fs::chown(path.as_ref(), owner, group)
     }
     #[cfg(unix)]
     fn inner(path: &Path, owner: Option<User>, group: Option<Group>) -> io::Result<()> {
