@@ -430,6 +430,45 @@ where
     inner(2, provider, archive, processor)
 }
 
+#[cfg(feature = "memmap")]
+pub(crate) fn run_read_entries_mem<P, F>(path: P, mut processor: F) -> io::Result<()>
+where
+    P: AsRef<Path>,
+    F: FnMut(io::Result<ReadEntry<std::borrow::Cow<[u8]>>>) -> io::Result<()>,
+{
+    run_across_archive_mem(path, |archive| {
+        for entry in archive.entries_slice() {
+            processor(entry)?;
+        }
+        Ok(())
+    })
+}
+
+#[cfg(feature = "memmap")]
+pub(crate) fn run_entries_mem<'p, P, Provider, F>(
+    path: P,
+    mut password_provider: Provider,
+    mut processor: F,
+) -> io::Result<()>
+where
+    P: AsRef<Path>,
+    Provider: FnMut() -> Option<&'p str>,
+    F: FnMut(io::Result<RegularEntry<std::borrow::Cow<[u8]>>>) -> io::Result<()>,
+{
+    let password = password_provider();
+    run_read_entries_mem(path, |entry| {
+        match entry? {
+            ReadEntry::Solid(s) => {
+                for r in s.entries(password)? {
+                    processor(r.map(Into::into))?;
+                }
+            }
+            ReadEntry::Regular(r) => processor(Ok(r))?,
+        }
+        Ok(())
+    })
+}
+
 pub(crate) fn run_process_entry<F>(
     archive_provider: impl ArchiveProvider,
     mut processor: F,
