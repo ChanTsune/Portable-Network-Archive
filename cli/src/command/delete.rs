@@ -1,5 +1,5 @@
 #[cfg(feature = "memmap")]
-use crate::command::commons::run_across_archive_mem;
+use crate::command::commons::run_entries_mem;
 #[cfg(not(feature = "memmap"))]
 use crate::command::commons::run_process_archive_path;
 use crate::{
@@ -49,31 +49,19 @@ fn delete_file_from_archive(args: DeleteCommand) -> io::Result<()> {
     let mut out_archive = Archive::write_header(outfile)?;
 
     #[cfg(feature = "memmap")]
-    run_across_archive_mem(&args.file.archive, |archive| {
-        for read_entry in archive.entries_slice() {
-            let read_entry = read_entry?;
-            match read_entry {
-                pna::ReadEntry::Solid(solid) => {
-                    for entry in solid.entries(password.as_deref())? {
-                        let entry = entry?;
-                        let entry_path = entry.header().path().as_ref();
-                        if globs.matches_any(entry_path) && !exclude_globs.matches_any(entry_path) {
-                            return Ok(());
-                        }
-                        out_archive.add_entry(entry)?;
-                    }
-                }
-                pna::ReadEntry::Regular(entry) => {
-                    let entry_path = entry.header().path().as_ref();
-                    if globs.matches_any(entry_path) && !exclude_globs.matches_any(entry_path) {
-                        return Ok(());
-                    }
-                    out_archive.add_entry(entry)?;
-                }
+    run_entries_mem(
+        &args.file.archive,
+        || password.as_deref(),
+        |entry| {
+            let entry = entry?;
+            let entry_path = entry.header().path().as_ref();
+            if globs.matches_any(entry_path) && !exclude_globs.matches_any(entry_path) {
+                return Ok(());
             }
-        }
-        Ok(())
-    })?;
+            out_archive.add_entry(entry)?;
+            Ok(())
+        },
+    )?;
 
     #[cfg(not(feature = "memmap"))]
     run_process_archive_path(
