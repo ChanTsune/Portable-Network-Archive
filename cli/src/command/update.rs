@@ -1,7 +1,3 @@
-#[cfg(feature = "memmap")]
-use crate::command::commons::run_entries_mem as run_entries;
-#[cfg(not(feature = "memmap"))]
-use crate::command::commons::run_process_archive_path as run_entries;
 use crate::{
     cli::{
         CipherAlgorithmArgs, CompressionAlgorithmArgs, FileArgs, HashAlgorithmArgs, PasswordArgs,
@@ -9,7 +5,8 @@ use crate::{
     command::{
         ask_password, check_password,
         commons::{
-            collect_items, create_entry, entry_option, CreateOptions, KeepOptions, OwnerOptions,
+            collect_items, create_entry, entry_option, run_entries, CreateOptions, KeepOptions,
+            OwnerOptions,
         },
         Command,
     },

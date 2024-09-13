@@ -445,7 +445,7 @@ where
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_entries_mem<'p, P, Provider, F>(
+pub(crate) fn run_entries<'p, P, Provider, F>(
     path: P,
     mut password_provider: Provider,
     mut processor: F,
@@ -469,6 +469,36 @@ where
     })
 }
 
+#[cfg(feature = "memmap")]
+pub(crate) fn run_manipulate_entry<'p, O, P, Provider, F>(
+    output_path: O,
+    input_path: P,
+    password_provider: Provider,
+    mut processor: F,
+) -> io::Result<()>
+where
+    O: AsRef<Path>,
+    P: AsRef<Path>,
+    Provider: FnMut() -> Option<&'p str>,
+    F: FnMut(
+        io::Result<RegularEntry<std::borrow::Cow<[u8]>>>,
+    ) -> io::Result<RegularEntry<std::borrow::Cow<[u8]>>>,
+{
+    let random = rand::random::<usize>();
+    let outfile_path = temp_dir().join(format!("{}.pna.tmp", random));
+    let outfile = fs::File::create(&outfile_path)?;
+    let mut out_archive = Archive::write_header(outfile)?;
+
+    run_entries(input_path, password_provider, |entry| {
+        out_archive.add_entry(processor(entry)?)?;
+        Ok(())
+    })?;
+
+    out_archive.finalize()?;
+    utils::fs::mv(outfile_path, output_path)?;
+    Ok(())
+}
+
 pub(crate) fn run_process_entry<F>(
     archive_provider: impl ArchiveProvider,
     mut processor: F,
@@ -484,7 +514,8 @@ where
     })
 }
 
-pub(crate) fn run_manipulate_entry_by_path<'p, O, P, Provider, F>(
+#[cfg(not(feature = "memmap"))]
+pub(crate) fn run_manipulate_entry<'p, O, P, Provider, F>(
     output_path: O,
     input_path: P,
     password_provider: Provider,
@@ -501,7 +532,7 @@ where
     let outfile = fs::File::create(&outfile_path)?;
     let mut out_archive = Archive::write_header(outfile)?;
 
-    run_process_archive_path(input_path, password_provider, |entry| {
+    run_entries(input_path, password_provider, |entry| {
         out_archive.add_entry(processor(entry)?)?;
         Ok(())
     })?;
@@ -511,7 +542,8 @@ where
     Ok(())
 }
 
-pub(crate) fn run_process_archive_path<'p, P, Provider, F>(
+#[cfg(not(feature = "memmap"))]
+pub(crate) fn run_entries<'p, P, Provider, F>(
     path: P,
     password_provider: Provider,
     processor: F,
