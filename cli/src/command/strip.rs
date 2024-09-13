@@ -1,5 +1,5 @@
 #[cfg(feature = "memmap")]
-use crate::command::commons::run_across_archive_mem;
+use crate::command::commons::run_entries_mem;
 #[cfg(not(feature = "memmap"))]
 use crate::command::commons::run_process_archive_path;
 use crate::{
@@ -66,21 +66,15 @@ fn strip_metadata(args: StripCommand) -> io::Result<()> {
         },
     )?;
     #[cfg(feature = "memmap")]
-    run_across_archive_mem(&args.file.archive, |archive| {
-        for entry in archive.entries_slice() {
-            match entry? {
-                pna::ReadEntry::Solid(s) => {
-                    for entry in s.entries(password.as_deref())? {
-                        out_archive.add_entry(strip_entry_metadata(entry?, args.strip_options))?;
-                    }
-                }
-                pna::ReadEntry::Regular(r) => {
-                    out_archive.add_entry(strip_entry_metadata(r, args.strip_options))?;
-                }
-            }
-        }
-        Ok(())
-    })?;
+    run_entries_mem(
+        &args.file.archive,
+        || password.as_deref(),
+        |entry| {
+            let entry = strip_entry_metadata(entry?, args.strip_options);
+            out_archive.add_entry(entry)?;
+            Ok(())
+        },
+    )?;
 
     out_archive.finalize()?;
 
