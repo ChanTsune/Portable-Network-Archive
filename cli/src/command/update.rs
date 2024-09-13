@@ -194,35 +194,35 @@ fn update_archive(args: UpdateCommand) -> io::Result<()> {
     let mut out_archive = Archive::write_header(outfile)?;
 
     let need_update_condition = if args.newer_ctime {
-        |path: &Path, metadata: &Metadata| -> io::Result<bool> {
-            let meta = fs::metadata(path)?;
-            let ctime = meta.created()?;
-            let d = metadata.created().ok_or(io::ErrorKind::Other)?;
-            Ok(SystemTime::UNIX_EPOCH + d < ctime)
+        |path: &Path, metadata: &Metadata| -> Option<bool> {
+            let meta = fs::metadata(path).ok()?;
+            let ctime = meta.created().ok()?;
+            let d = metadata.created()?;
+            Some(SystemTime::UNIX_EPOCH + d < ctime)
         }
     } else if args.newer_mtime {
-        |path: &Path, metadata: &Metadata| -> io::Result<bool> {
-            let meta = fs::metadata(path)?;
-            let mtime = meta.modified()?;
-            let d = metadata.modified().ok_or(io::ErrorKind::Other)?;
-            Ok(SystemTime::UNIX_EPOCH + d < mtime)
+        |path: &Path, metadata: &Metadata| -> Option<bool> {
+            let meta = fs::metadata(path).ok()?;
+            let mtime = meta.modified().ok()?;
+            let d = metadata.modified()?;
+            Some(SystemTime::UNIX_EPOCH + d < mtime)
         }
     } else if args.older_ctime {
-        |path: &Path, metadata: &Metadata| -> io::Result<bool> {
-            let meta = fs::metadata(path)?;
-            let ctime = meta.created()?;
-            let d = metadata.created().ok_or(io::ErrorKind::Other)?;
-            Ok(SystemTime::UNIX_EPOCH + d > ctime)
+        |path: &Path, metadata: &Metadata| -> Option<bool> {
+            let meta = fs::metadata(path).ok()?;
+            let ctime = meta.created().ok()?;
+            let d = metadata.created()?;
+            Some(SystemTime::UNIX_EPOCH + d > ctime)
         }
     } else if args.older_mtime {
-        |path: &Path, metadata: &Metadata| -> io::Result<bool> {
-            let meta = fs::metadata(path)?;
-            let mtime = meta.modified()?;
-            let d = metadata.modified().ok_or(io::ErrorKind::Other)?;
-            Ok(SystemTime::UNIX_EPOCH + d > mtime)
+        |path: &Path, metadata: &Metadata| -> Option<bool> {
+            let meta = fs::metadata(path).ok()?;
+            let mtime = meta.modified().ok()?;
+            let d = metadata.modified()?;
+            Some(SystemTime::UNIX_EPOCH + d > mtime)
         }
     } else {
-        |_: &Path, _: &Metadata| -> io::Result<bool> { Ok(true) }
+        |_: &Path, _: &Metadata| -> Option<bool> { Some(true) }
     };
 
     run_process_archive_path(
