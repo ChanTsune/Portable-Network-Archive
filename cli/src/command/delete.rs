@@ -1,7 +1,7 @@
 #[cfg(feature = "memmap")]
-use crate::command::commons::run_entries_mem;
+use crate::command::commons::run_entries_mem as run_entries;
 #[cfg(not(feature = "memmap"))]
-use crate::command::commons::run_process_archive_path;
+use crate::command::commons::run_process_archive_path as run_entries;
 use crate::{
     cli::{FileArgs, PasswordArgs},
     command::{ask_password, Command},
@@ -48,23 +48,7 @@ fn delete_file_from_archive(args: DeleteCommand) -> io::Result<()> {
     let outfile = fs::File::create(&outfile_path)?;
     let mut out_archive = Archive::write_header(outfile)?;
 
-    #[cfg(feature = "memmap")]
-    run_entries_mem(
-        &args.file.archive,
-        || password.as_deref(),
-        |entry| {
-            let entry = entry?;
-            let entry_path = entry.header().path().as_ref();
-            if globs.matches_any(entry_path) && !exclude_globs.matches_any(entry_path) {
-                return Ok(());
-            }
-            out_archive.add_entry(entry)?;
-            Ok(())
-        },
-    )?;
-
-    #[cfg(not(feature = "memmap"))]
-    run_process_archive_path(
+    run_entries(
         &args.file.archive,
         || password.as_deref(),
         |entry| {
