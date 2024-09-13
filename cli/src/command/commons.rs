@@ -4,8 +4,8 @@ use crate::{
 };
 use normalize_path::*;
 use pna::{
-    Archive, Entry, EntryBuilder, EntryName, EntryPart, EntryReference, ReadEntry, RegularEntry,
-    WriteOptions, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
+    prelude::*, Archive, EntryBuilder, EntryName, EntryPart, EntryReference, ReadEntry,
+    RegularEntry, WriteOptions, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
 };
 use std::{
     env::temp_dir,
