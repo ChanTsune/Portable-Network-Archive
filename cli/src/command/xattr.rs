@@ -1,10 +1,10 @@
-#[cfg(feature = "memmap")]
-use crate::command::commons::run_entries_mem as run_entries;
-#[cfg(not(feature = "memmap"))]
-use crate::command::commons::run_process_archive_path as run_entries;
 use crate::{
     cli::PasswordArgs,
-    command::{ask_password, commons::run_manipulate_entry_by_path, Command},
+    command::{
+        ask_password,
+        commons::{run_entries, run_manipulate_entry},
+        Command,
+    },
     utils::{str::char_chunks, GlobPatterns, PathPartExt},
 };
 use base64::Engine;
@@ -166,7 +166,7 @@ fn archive_set_xattr(args: SetXattrCommand) -> io::Result<()> {
     let globs = GlobPatterns::new(args.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-    run_manipulate_entry_by_path(
+    run_manipulate_entry(
         args.archive.remove_part().unwrap(),
         &args.archive,
         || password.as_deref(),

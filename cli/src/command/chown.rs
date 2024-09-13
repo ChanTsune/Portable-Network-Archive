@@ -2,7 +2,7 @@
 use crate::utils::fs::{Group, User};
 use crate::{
     cli::PasswordArgs,
-    command::{ask_password, commons::run_manipulate_entry_by_path, Command},
+    command::{ask_password, commons::run_manipulate_entry, Command},
     utils::{GlobPatterns, PathPartExt},
 };
 use clap::{Parser, ValueHint};
@@ -35,7 +35,7 @@ fn archive_chown(args: ChownCommand) -> io::Result<()> {
     let globs = GlobPatterns::new(args.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-    run_manipulate_entry_by_path(
+    run_manipulate_entry(
         args.archive.remove_part().unwrap(),
         &args.archive,
         || password.as_deref(),
