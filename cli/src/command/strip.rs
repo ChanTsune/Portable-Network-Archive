@@ -1,7 +1,7 @@
 #[cfg(feature = "memmap")]
-use crate::command::commons::run_entries_mem;
+use crate::command::commons::run_entries_mem as run_entries;
 #[cfg(not(feature = "memmap"))]
-use crate::command::commons::run_process_archive_path;
+use crate::command::commons::run_process_archive_path as run_entries;
 use crate::{
     cli::{FileArgs, PasswordArgs},
     command::{ask_password, Command},
@@ -55,8 +55,7 @@ fn strip_metadata(args: StripCommand) -> io::Result<()> {
     let outfile = fs::File::create(&outfile_path)?;
     let mut out_archive = Archive::write_header(outfile)?;
 
-    #[cfg(not(feature = "memmap"))]
-    run_process_archive_path(
+    run_entries(
         &args.file.archive,
         || password.as_deref(),
         |entry| {
@@ -65,17 +64,6 @@ fn strip_metadata(args: StripCommand) -> io::Result<()> {
             Ok(())
         },
     )?;
-    #[cfg(feature = "memmap")]
-    run_entries_mem(
-        &args.file.archive,
-        || password.as_deref(),
-        |entry| {
-            let entry = strip_entry_metadata(entry?, args.strip_options);
-            out_archive.add_entry(entry)?;
-            Ok(())
-        },
-    )?;
-
     out_archive.finalize()?;
 
     if args.output.is_none() {
