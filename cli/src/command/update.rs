@@ -14,7 +14,7 @@ use crate::{
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use normalize_path::*;
-use pna::{Archive, RegularEntry};
+use pna::{Archive, Metadata};
 use rayon::ThreadPoolBuilder;
 use std::{
     env::temp_dir,
@@ -194,35 +194,35 @@ fn update_archive(args: UpdateCommand) -> io::Result<()> {
     let mut out_archive = Archive::write_header(outfile)?;
 
     let need_update_condition = if args.newer_ctime {
-        |path: &Path, entry: &RegularEntry| -> io::Result<bool> {
+        |path: &Path, metadata: &Metadata| -> io::Result<bool> {
             let meta = fs::metadata(path)?;
             let ctime = meta.created()?;
-            let d = entry.metadata().created().ok_or(io::ErrorKind::Other)?;
+            let d = metadata.created().ok_or(io::ErrorKind::Other)?;
             Ok(SystemTime::UNIX_EPOCH + d < ctime)
         }
     } else if args.newer_mtime {
-        |path: &Path, entry: &RegularEntry| -> io::Result<bool> {
+        |path: &Path, metadata: &Metadata| -> io::Result<bool> {
             let meta = fs::metadata(path)?;
             let mtime = meta.modified()?;
-            let d = entry.metadata().modified().ok_or(io::ErrorKind::Other)?;
+            let d = metadata.modified().ok_or(io::ErrorKind::Other)?;
             Ok(SystemTime::UNIX_EPOCH + d < mtime)
         }
     } else if args.older_ctime {
-        |path: &Path, entry: &RegularEntry| -> io::Result<bool> {
+        |path: &Path, metadata: &Metadata| -> io::Result<bool> {
             let meta = fs::metadata(path)?;
             let ctime = meta.created()?;
-            let d = entry.metadata().created().ok_or(io::ErrorKind::Other)?;
+            let d = metadata.created().ok_or(io::ErrorKind::Other)?;
             Ok(SystemTime::UNIX_EPOCH + d > ctime)
         }
     } else if args.older_mtime {
-        |path: &Path, entry: &RegularEntry| -> io::Result<bool> {
+        |path: &Path, metadata: &Metadata| -> io::Result<bool> {
             let meta = fs::metadata(path)?;
             let mtime = meta.modified()?;
-            let d = entry.metadata().modified().ok_or(io::ErrorKind::Other)?;
+            let d = metadata.modified().ok_or(io::ErrorKind::Other)?;
             Ok(SystemTime::UNIX_EPOCH + d > mtime)
         }
     } else {
-        |_: &Path, _: &RegularEntry| -> io::Result<bool> { Ok(true) }
+        |_: &Path, _: &Metadata| -> io::Result<bool> { Ok(true) }
     };
 
     run_process_archive_path(
@@ -234,7 +234,7 @@ fn update_archive(args: UpdateCommand) -> io::Result<()> {
             let normalized_path = file.normalize();
             if target_items.contains(&normalized_path) {
                 if !exclude.contains(&normalized_path)
-                    && need_update_condition(&normalized_path, &entry).unwrap_or(true)
+                    && need_update_condition(&normalized_path, entry.metadata()).unwrap_or(true)
                 {
                     let tx = tx.clone();
                     pool.scope_fifo(|s| {
