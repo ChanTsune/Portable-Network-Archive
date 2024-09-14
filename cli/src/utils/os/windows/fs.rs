@@ -37,8 +37,12 @@ pub(crate) fn chown<U: Into<Sid>, G: Into<Sid>>(
 
 pub(crate) fn chmod(path: &Path, mode: u16) -> io::Result<()> {
     let s = encode_wide(path.as_os_str())?;
-    unsafe { libc::wchmod(s.as_ptr() as _, mode as _) };
-    Ok(())
+    let code = unsafe { libc::wchmod(s.as_ptr() as _, mode as _) };
+    if code == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
 }
 
 pub(crate) fn stat(path: *const libc::wchar_t) -> io::Result<libc::stat> {
