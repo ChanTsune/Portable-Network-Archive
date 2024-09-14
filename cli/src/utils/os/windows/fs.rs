@@ -41,6 +41,16 @@ pub(crate) fn chmod(path: &Path, mode: u16) -> io::Result<()> {
     Ok(())
 }
 
+pub(crate) fn stat(path: *const libc::wchar_t) -> io::Result<libc::stat> {
+    let mut stat = unsafe { std::mem::zeroed::<libc::stat>() };
+    let code = unsafe { libc::wstat(path, &mut stat) };
+    if code == 0 {
+        Ok(stat)
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
