@@ -1,12 +1,14 @@
+#[cfg(feature = "memmap")]
+use crate::command::commons::run_entries;
+#[cfg(not(feature = "memmap"))]
+use crate::command::commons::PathArchiveProvider;
 #[cfg(any(unix, windows))]
 use crate::utils::fs::{chown, Group, User};
 use crate::{
     cli::{FileArgs, PasswordArgs},
     command::{
         ask_password,
-        commons::{
-            run_process_archive, ArchiveProvider, KeepOptions, OwnerOptions, PathArchiveProvider,
-        },
+        commons::{run_process_archive, ArchiveProvider, KeepOptions, OwnerOptions},
         Command,
     },
     utils::{self, GlobPatterns},
@@ -19,6 +21,8 @@ use rayon::ThreadPoolBuilder;
 use std::os::macos::fs::FileTimesExt;
 #[cfg(windows)]
 use std::os::windows::fs::FileTimesExt;
+#[cfg(feature = "memmap")]
+use std::path::Path;
 use std::{
     fs::{self, File},
     io,
@@ -101,8 +105,16 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
         keep_options,
         owner_options,
     };
+    #[cfg(not(feature = "memmap"))]
     run_extract_archive_reader(
         PathArchiveProvider::new(&args.file.archive),
+        args.file.files,
+        || password.as_deref(),
+        output_options,
+    )?;
+    #[cfg(feature = "memmap")]
+    run_extract_archive(
+        args.file.archive,
         args.file.files,
         || password.as_deref(),
         output_options,
@@ -151,6 +163,58 @@ where
         }
         if item.header().data_kind() == DataKind::HardLink {
             hard_link_entries.push(item);
+            return Ok(());
+        }
+        let tx = tx.clone();
+        pool.scope_fifo(|s| {
+            s.spawn_fifo(|_| {
+                tx.send(extract_entry(item, password.clone(), args.clone()))
+                    .unwrap_or_else(|e| panic!("{e}: {}", item_path));
+            })
+        });
+        Ok(())
+    })?;
+    drop(tx);
+    for result in rx {
+        result?;
+    }
+
+    for item in hard_link_entries {
+        extract_entry(item, password.clone(), args.clone())?;
+    }
+    Ok(())
+}
+
+#[cfg(feature = "memmap")]
+pub(crate) fn run_extract_archive<'p, Provider>(
+    path: impl AsRef<Path>,
+    files: Vec<String>,
+    mut password_provider: Provider,
+    args: OutputOption,
+) -> io::Result<()>
+where
+    Provider: FnMut() -> Option<&'p str>,
+{
+    let password = password_provider().map(ToOwned::to_owned);
+    let globs =
+        GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+
+    let pool = ThreadPoolBuilder::default()
+        .build()
+        .map_err(io::Error::other)?;
+
+    let mut hard_link_entries = Vec::<RegularEntry>::new();
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    run_entries(path, password_provider, |entry| {
+        let item = entry?;
+        let item_path = item.header().path().to_string();
+        if !globs.is_empty() && !globs.matches_any(&item_path) {
+            log::debug!("Skip: {}", item.header().path());
+            return Ok(());
+        }
+        if item.header().data_kind() == DataKind::HardLink {
+            hard_link_entries.push(item.into());
             return Ok(());
         }
         let tx = tx.clone();
