@@ -21,7 +21,7 @@ globset = "0.4.15"
 ignore = "0.4.23"
 indicatif = { version = "0.17.8", features = ["improved_unicode"] }
 itertools = "0.13.0"
-memmap2 = { version = "0.9.4", optional = true }
+memmap2 = { version = "0.9.5", optional = true }
 normalize-path = "0.2.1"
 nu-ansi-term = "0.50.1"
 pna = { version = "0.18.0", path = "../pna" }
