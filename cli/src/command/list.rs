@@ -110,9 +110,9 @@ impl TableRow {
     }
 }
 
-impl
+impl<T: AsRef<[u8]>>
     From<(
-        &RegularEntry,
+        &RegularEntry<T>,
         Option<&str>,
         SystemTime,
         Option<&SolidHeader>,
@@ -122,7 +122,7 @@ impl
     #[inline]
     fn from(
         (entry, password, now, solid, numeric_owner): (
-            &RegularEntry,
+            &RegularEntry<T>,
             Option<&str>,
             SystemTime,
             Option<&SolidHeader>,
