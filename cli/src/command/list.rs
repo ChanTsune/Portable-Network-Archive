@@ -198,18 +198,19 @@ impl<T: AsRef<[u8]>>
 
 fn list_archive(args: ListCommand) -> io::Result<()> {
     let password = ask_password(args.password)?;
+    let options = ListOptions {
+        long: args.long,
+        header: args.header,
+        solid: args.solid,
+        show_xattr: args.show_xattr,
+        show_acl: args.show_acl,
+        numeric_owner: args.numeric_owner,
+    };
     run_list_archive(
         PathArchiveProvider::new(&args.file.archive),
         password.as_deref(),
         &args.file.files,
-        ListOptions {
-            long: args.long,
-            header: args.header,
-            solid: args.solid,
-            show_xattr: args.show_xattr,
-            show_acl: args.show_acl,
-            numeric_owner: args.numeric_owner,
-        },
+        options,
     )
 }
 
@@ -235,36 +236,32 @@ pub(crate) fn run_list_archive(
     let mut entries = Vec::new();
 
     run_process_entry(archive_provider, |entry| {
-        {
-            match entry? {
-                ReadEntry::Solid(solid) if args.solid => {
-                    for entry in solid.entries(password)? {
-                        entries.extend(try_to_rows(
-                            entry?,
-                            password,
-                            now,
-                            Some(solid.header()),
-                            args.numeric_owner,
-                            args.show_xattr,
-                            args.show_acl,
-                        )?);
-                    }
-                }
-                ReadEntry::Solid(_) => {
-                    log::warn!("This archive contain solid mode entry. if you need to show it use --solid option.");
-                }
-                ReadEntry::Regular(item) => {
+        match entry? {
+            ReadEntry::Solid(solid) if args.solid => {
+                for entry in solid.entries(password)? {
                     entries.extend(try_to_rows(
-                        item,
+                        entry?,
                         password,
                         now,
-                        None,
+                        Some(solid.header()),
                         args.numeric_owner,
                         args.show_xattr,
                         args.show_acl,
-                    )?);
+                    )?)
                 }
             }
+            ReadEntry::Solid(_) => {
+                log::warn!("This archive contain solid mode entry. if you need to show it use --solid option.");
+            }
+            ReadEntry::Regular(item) => entries.extend(try_to_rows(
+                item,
+                password,
+                now,
+                None,
+                args.numeric_owner,
+                args.show_xattr,
+                args.show_acl,
+            )?),
         }
         Ok(())
     })?;
