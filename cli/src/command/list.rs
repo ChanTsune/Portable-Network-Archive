@@ -1,9 +1,13 @@
+#[cfg(feature = "memmap")]
+use crate::command::commons::run_read_entries_mem;
+#[cfg(not(feature = "memmap"))]
+use crate::command::commons::PathArchiveProvider;
 use crate::{
     chunk,
     cli::{FileArgs, PasswordArgs},
     command::{
         ask_password,
-        commons::{run_process_entry, ArchiveProvider, PathArchiveProvider},
+        commons::{run_process_entry, ArchiveProvider},
         Command,
     },
     ext::*,
@@ -17,6 +21,8 @@ use pna::{
     ReadOptions, RegularEntry, SolidHeader,
 };
 use rayon::prelude::*;
+#[cfg(feature = "memmap")]
+use std::path::Path;
 use std::{
     io,
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -206,12 +212,24 @@ fn list_archive(args: ListCommand) -> io::Result<()> {
         show_acl: args.show_acl,
         numeric_owner: args.numeric_owner,
     };
-    run_list_archive(
-        PathArchiveProvider::new(&args.file.archive),
-        password.as_deref(),
-        &args.file.files,
-        options,
-    )
+    #[cfg(not(feature = "memmap"))]
+    {
+        run_list_archive(
+            PathArchiveProvider::new(&args.file.archive),
+            password.as_deref(),
+            &args.file.files,
+            options,
+        )
+    }
+    #[cfg(feature = "memmap")]
+    {
+        run_list_archive_mem(
+            &args.file.archive,
+            password.as_deref(),
+            &args.file.files,
+            options,
+        )
+    }
 }
 
 pub(crate) struct ListOptions {
@@ -248,6 +266,53 @@ pub(crate) fn run_list_archive(
                         args.show_xattr,
                         args.show_acl,
                     )?)
+                }
+            }
+            ReadEntry::Solid(_) => {
+                log::warn!("This archive contain solid mode entry. if you need to show it use --solid option.");
+            }
+            ReadEntry::Regular(item) => entries.extend(try_to_rows(
+                item,
+                password,
+                now,
+                None,
+                args.numeric_owner,
+                args.show_xattr,
+                args.show_acl,
+            )?),
+        }
+        Ok(())
+    })?;
+    print_entries(entries, globs, args);
+    Ok(())
+}
+
+#[cfg(feature = "memmap")]
+pub(crate) fn run_list_archive_mem(
+    archive_provider: impl AsRef<Path>,
+    password: Option<&str>,
+    files: &[String],
+    args: ListOptions,
+) -> io::Result<()> {
+    let globs =
+        GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+
+    let now = SystemTime::now();
+    let mut entries = Vec::new();
+
+    run_read_entries_mem(archive_provider, |entry| {
+        match entry? {
+            ReadEntry::Solid(solid) if args.solid => {
+                for entry in solid.entries(password)? {
+                    entries.extend(try_to_rows(
+                        entry?,
+                        password,
+                        now,
+                        Some(solid.header()),
+                        args.numeric_owner,
+                        args.show_xattr,
+                        args.show_acl,
+                    )?);
                 }
             }
             ReadEntry::Solid(_) => {
