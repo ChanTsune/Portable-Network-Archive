@@ -13,8 +13,8 @@ use chrono::{DateTime, Local};
 use clap::{ArgGroup, Parser};
 use nu_ansi_term::{AnsiString as ANSIString, Color as Colour, Style};
 use pna::{
-    Compression, DataKind, Encryption, ExtendedAttribute, ReadEntry, ReadOptions, RegularEntry,
-    SolidHeader,
+    prelude::*, Compression, DataKind, Encryption, ExtendedAttribute, RawChunk, ReadEntry,
+    ReadOptions, RegularEntry, SolidHeader,
 };
 use rayon::prelude::*;
 use std::{
@@ -292,15 +292,19 @@ fn print_entries(entries: Vec<TableRow>, globs: GlobPatterns, options: ListOptio
     }
 }
 
-fn try_to_rows(
-    entry: RegularEntry,
+fn try_to_rows<T>(
+    entry: RegularEntry<T>,
     password: Option<&str>,
     now: SystemTime,
     solid: Option<&SolidHeader>,
     numeric_owner: bool,
     show_xattr: bool,
     show_acl: bool,
-) -> io::Result<Vec<TableRow>> {
+) -> io::Result<Vec<TableRow>>
+where
+    T: AsRef<[u8]>,
+    RawChunk<T>: Chunk,
+{
     let mut rows = Vec::new();
     let xattrs = if show_xattr {
         entry
