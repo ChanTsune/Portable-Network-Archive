@@ -268,9 +268,13 @@ pub(crate) fn run_list_archive(
         }
         Ok(())
     })?;
+    print_entries(entries, globs, args);
+    Ok(())
+}
 
+fn print_entries(entries: Vec<TableRow>, globs: GlobPatterns, options: ListOptions) {
     if entries.is_empty() {
-        return Ok(());
+        return;
     }
 
     let entries = if globs.is_empty() {
@@ -281,12 +285,11 @@ pub(crate) fn run_list_archive(
             .filter(|r| globs.matches_any(r.name.as_ref()))
             .collect()
     };
-    if args.long {
-        detail_list_entries(entries.into_iter(), args.header);
+    if options.long {
+        detail_list_entries(entries.into_iter(), options.header);
     } else {
         simple_list_entries(entries.into_iter());
     }
-    Ok(())
 }
 
 fn try_to_rows(
