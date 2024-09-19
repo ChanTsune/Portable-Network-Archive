@@ -82,51 +82,25 @@ struct TableRow {
     created: String,
     modified: String,
     name: String,
+    xattrs: Vec<ExtendedAttribute>,
+    acl: Vec<chunk::Ace>,
 }
 
-impl TableRow {
-    fn from_xattr(name: &str, value: &[u8]) -> Self {
-        Self {
-            encryption: String::new(),
-            compression: String::new(),
-            permissions: name.to_owned(),
-            raw_size: value.len().to_string(),
-            compressed_size: String::new(),
-            user: String::new(),
-            group: String::new(),
-            created: String::new(),
-            modified: String::new(),
-            name: String::new(),
-        }
-    }
-
-    fn from_acl(acl: chunk::Ace) -> Self {
-        Self {
-            encryption: String::new(),
-            compression: String::new(),
-            permissions: acl.to_string(),
-            raw_size: String::new(),
-            compressed_size: String::new(),
-            user: String::new(),
-            group: String::new(),
-            created: String::new(),
-            modified: String::new(),
-            name: String::new(),
-        }
-    }
-}
-
-impl<T: AsRef<[u8]>>
-    From<(
+impl<T>
+    TryFrom<(
         &RegularEntry<T>,
         Option<&str>,
         SystemTime,
         Option<&SolidHeader>,
         bool,
     )> for TableRow
+where
+    T: AsRef<[u8]>,
+    RawChunk<T>: Chunk,
 {
+    type Error = io::Error;
     #[inline]
-    fn from(
+    fn try_from(
         (entry, password, now, solid, numeric_owner): (
             &RegularEntry<T>,
             Option<&str>,
@@ -134,10 +108,10 @@ impl<T: AsRef<[u8]>>
             Option<&SolidHeader>,
             bool,
         ),
-    ) -> Self {
+    ) -> Result<Self, Self::Error> {
         let header = entry.header();
         let metadata = entry.metadata();
-        TableRow {
+        Ok(Self {
             encryption: match solid.map(|s| s.encryption()).unwrap_or(header.encryption()) {
                 Encryption::No => "-".to_string(),
                 _ => format!("{:?}({:?})", header.encryption(), header.cipher_mode())
@@ -198,7 +172,9 @@ impl<T: AsRef<[u8]>>
             } else {
                 header.path().to_string()
             },
-        }
+            xattrs: entry.xattrs().to_vec(),
+            acl: entry.acl()?,
+        })
     }
 }
 
@@ -257,29 +233,24 @@ pub(crate) fn run_list_archive(
         match entry? {
             ReadEntry::Solid(solid) if args.solid => {
                 for entry in solid.entries(password)? {
-                    entries.extend(try_to_rows(
-                        entry?,
-                        password,
-                        now,
-                        Some(solid.header()),
-                        args.numeric_owner,
-                        args.show_xattr,
-                        args.show_acl,
-                    )?)
+                    entries.push(
+                        (
+                            &entry?,
+                            password,
+                            now,
+                            Some(solid.header()),
+                            args.numeric_owner,
+                        )
+                            .try_into()?,
+                    )
                 }
             }
             ReadEntry::Solid(_) => {
                 log::warn!("This archive contain solid mode entry. if you need to show it use --solid option.");
             }
-            ReadEntry::Regular(item) => entries.extend(try_to_rows(
-                item,
-                password,
-                now,
-                None,
-                args.numeric_owner,
-                args.show_xattr,
-                args.show_acl,
-            )?),
+            ReadEntry::Regular(item) => {
+                entries.push((&item, password, now, None, args.numeric_owner).try_into()?)
+            }
         }
         Ok(())
     })?;
@@ -304,29 +275,24 @@ pub(crate) fn run_list_archive_mem(
         match entry? {
             ReadEntry::Solid(solid) if args.solid => {
                 for entry in solid.entries(password)? {
-                    entries.extend(try_to_rows(
-                        entry?,
-                        password,
-                        now,
-                        Some(solid.header()),
-                        args.numeric_owner,
-                        args.show_xattr,
-                        args.show_acl,
-                    )?);
+                    entries.push(
+                        (
+                            &entry?,
+                            password,
+                            now,
+                            Some(solid.header()),
+                            args.numeric_owner,
+                        )
+                            .try_into()?,
+                    );
                 }
             }
             ReadEntry::Solid(_) => {
                 log::warn!("This archive contain solid mode entry. if you need to show it use --solid option.");
             }
-            ReadEntry::Regular(item) => entries.extend(try_to_rows(
-                item,
-                password,
-                now,
-                None,
-                args.numeric_owner,
-                args.show_xattr,
-                args.show_acl,
-            )?),
+            ReadEntry::Regular(item) => {
+                entries.push((&item, password, now, None, args.numeric_owner).try_into()?)
+            }
         }
         Ok(())
     })?;
@@ -348,48 +314,10 @@ fn print_entries(entries: Vec<TableRow>, globs: GlobPatterns, options: ListOptio
             .collect()
     };
     if options.long {
-        detail_list_entries(entries.into_iter(), options.header);
+        detail_list_entries(entries.into_iter(), options);
     } else {
         simple_list_entries(entries.into_iter());
     }
-}
-
-fn try_to_rows<T>(
-    entry: RegularEntry<T>,
-    password: Option<&str>,
-    now: SystemTime,
-    solid: Option<&SolidHeader>,
-    numeric_owner: bool,
-    show_xattr: bool,
-    show_acl: bool,
-) -> io::Result<Vec<TableRow>>
-where
-    T: AsRef<[u8]>,
-    RawChunk<T>: Chunk,
-{
-    let mut rows = Vec::new();
-    let xattrs = if show_xattr {
-        entry
-            .xattrs()
-            .iter()
-            .map(|xattr| TableRow::from_xattr(xattr.name(), xattr.value()))
-            .collect::<Vec<_>>()
-    } else {
-        Vec::new()
-    };
-    let acl = if show_acl {
-        entry
-            .acl()?
-            .into_iter()
-            .map(TableRow::from_acl)
-            .collect::<Vec<_>>()
-    } else {
-        Vec::new()
-    };
-    rows.push((&entry, password, now, solid, numeric_owner).into());
-    rows.extend(acl);
-    rows.extend(xattrs);
-    Ok(rows)
 }
 
 fn simple_list_entries(entries: impl Iterator<Item = TableRow>) {
@@ -398,7 +326,7 @@ fn simple_list_entries(entries: impl Iterator<Item = TableRow>) {
     }
 }
 
-fn detail_list_entries(entries: impl Iterator<Item = TableRow>, print_header: bool) {
+fn detail_list_entries(entries: impl Iterator<Item = TableRow>, options: ListOptions) {
     let underline = Color::new("\x1B[4m", "\x1B[0m");
     let reset = Color::new("\x1B[8m", "\x1B[0m");
     let header = [
@@ -413,9 +341,11 @@ fn detail_list_entries(entries: impl Iterator<Item = TableRow>, print_header: bo
         "Modified",
         "Name",
     ];
-
+    let mut acl_rows = Vec::new();
+    let mut xattr_rows = Vec::new();
     let mut builder = TableBuilder::new();
-    if print_header {
+    builder.set_empty(String::new());
+    if options.header {
         builder.push_record(header);
     }
     for content in entries {
@@ -431,6 +361,23 @@ fn detail_list_entries(entries: impl Iterator<Item = TableRow>, print_header: bo
             content.modified,
             content.name,
         ]);
+        if options.show_acl {
+            for a in &content.acl {
+                builder.push_record([String::new(), String::new(), a.to_string()]);
+                acl_rows.push(builder.count_records());
+            }
+        }
+        if options.show_xattr {
+            for x in &content.xattrs {
+                builder.push_record([
+                    String::new(),
+                    String::new(),
+                    x.name().into(),
+                    x.value().len().to_string(),
+                ]);
+                xattr_rows.push(builder.count_records());
+            }
+        }
     }
     let mut table = builder.build();
     table
@@ -448,7 +395,7 @@ fn detail_list_entries(entries: impl Iterator<Item = TableRow>, print_header: bo
             Color::empty(),
         ]))
         .with(Modify::new(Segment::new(.., 3..=4)).with(Alignment::right()));
-    if print_header {
+    if options.header {
         table.with(Colorization::exact([underline], Rows::first()));
     }
     table.with(Padding::new(0, 1, 0, 0)).with(PaddingColor::new(
