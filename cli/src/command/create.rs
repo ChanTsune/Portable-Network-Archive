@@ -10,11 +10,10 @@ use crate::{
         },
         Command,
     },
-    utils,
+    utils::{self, fmt::DurationDisplay},
 };
 use bytesize::ByteSize;
 use clap::{ArgGroup, Parser, ValueHint};
-use indicatif::HumanDuration;
 use pna::{Archive, SolidEntryBuilder, WriteOptions};
 use rayon::ThreadPoolBuilder;
 use std::{
@@ -192,7 +191,7 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
     }
     log::info!(
         "Successfully created an archive in {}",
-        HumanDuration(start.elapsed())
+        DurationDisplay(start.elapsed())
     );
     Ok(())
 }
