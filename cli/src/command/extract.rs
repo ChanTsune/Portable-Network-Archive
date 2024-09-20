@@ -11,10 +11,9 @@ use crate::{
         commons::{run_process_archive, ArchiveProvider, KeepOptions, OwnerOptions},
         Command,
     },
-    utils::{self, GlobPatterns},
+    utils::{self, fmt::DurationDisplay, GlobPatterns},
 };
 use clap::{ArgGroup, Parser, ValueHint};
-use indicatif::HumanDuration;
 use pna::{prelude::*, DataKind, EntryReference, Permission, ReadOptions, RegularEntry};
 use rayon::ThreadPoolBuilder;
 #[cfg(target_os = "macos")]
@@ -121,7 +120,7 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
     )?;
     log::info!(
         "Successfully extracted an archive in {}",
-        HumanDuration(start.elapsed())
+        DurationDisplay(start.elapsed())
     );
     Ok(())
 }
