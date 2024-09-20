@@ -19,7 +19,6 @@ clap_complete = "4.5.28"
 fern = "0.6.2"
 globset = "0.4.15"
 ignore = "0.4.23"
-indicatif = { version = "0.17.8", features = ["improved_unicode"] }
 itertools = "0.13.0"
 memmap2 = { version = "0.9.5", optional = true }
 normalize-path = "0.2.1"
