@@ -164,6 +164,33 @@ impl ChunkType {
     pub const unsafe fn from_unchecked(ty: [u8; 4]) -> Self {
         Self(ty)
     }
+
+    // -- Chunk type determination --
+
+    /// Returns true if the chunk is critical.
+    #[inline]
+    pub const fn is_critical(&self) -> bool {
+        self.0[0] & 32 == 0
+    }
+
+    /// Returns true if the chunk is private.
+    #[inline]
+    pub const fn is_private(&self) -> bool {
+        self.0[1] & 32 != 0
+    }
+
+    /// Checks whether the reserved bit of the chunk name is set.
+    /// If it is set, the chunk name is invalid.
+    #[inline]
+    pub const fn is_set_reserved(&self) -> bool {
+        self.0[2] & 32 != 0
+    }
+
+    /// Returns true if the chunk is safe to copy if unknown.
+    #[inline]
+    pub const fn is_safe_to_copy(&self) -> bool {
+        self.0[3] & 32 != 0
+    }
 }
 
 impl Display for ChunkType {
@@ -180,5 +207,27 @@ mod tests {
     #[test]
     fn to_string() {
         assert_eq!("AHED", ChunkType::AHED.to_string());
+    }
+
+    #[test]
+    fn is_critical() {
+        assert!(ChunkType::AHED.is_critical());
+        assert!(!ChunkType::cTIM.is_critical());
+    }
+
+    #[test]
+    fn is_private() {
+        assert!(!ChunkType::AHED.is_private());
+        assert!(ChunkType::private(*b"myTy").unwrap().is_private());
+    }
+
+    #[test]
+    fn is_set_reserved() {
+        assert!(!ChunkType::AHED.is_set_reserved());
+    }
+
+    #[test]
+    fn is_safe_to_copy() {
+        assert!(!ChunkType::AHED.is_safe_to_copy());
     }
 }
