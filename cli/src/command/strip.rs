@@ -87,14 +87,15 @@ where
     if !options.keep_xattr {
         entry = entry.with_xattrs(&[]);
     }
-    if !options.keep_acl {
-        let filtered = entry
-            .extra_chunks()
-            .iter()
-            .filter(|it| it.ty() != crate::chunk::faCe)
-            .cloned()
-            .collect::<Vec<_>>();
-        entry = entry.with_extra_chunks(&filtered);
+    let mut keep_private_chunks = Vec::new();
+    if options.keep_acl {
+        keep_private_chunks.push(crate::chunk::faCe);
     }
-    entry
+    let filtered = entry
+        .extra_chunks()
+        .iter()
+        .filter(|it| keep_private_chunks.contains(&it.ty()))
+        .cloned()
+        .collect::<Vec<_>>();
+    entry.with_extra_chunks(&filtered)
 }
