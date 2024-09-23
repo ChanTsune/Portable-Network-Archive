@@ -1,5 +1,5 @@
 use crate::{
-    cli::{FileArgs, PasswordArgs},
+    cli::{FileArgs, PasswordArgs, PrivateChunkType},
     command::{ask_password, commons::run_entries, Command},
     utils::{self, PathPartExt},
 };
@@ -7,7 +7,7 @@ use clap::{Args, Parser, ValueHint};
 use pna::{prelude::*, Archive, Metadata, RawChunk, RegularEntry};
 use std::{env::temp_dir, fs, io, path::PathBuf};
 
-#[derive(Args, Clone, Copy, Eq, PartialEq, Hash, Debug)]
+#[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) struct StripOptions {
     #[arg(long, help = "Keep the timestamp of the files")]
     pub(crate) keep_timestamp: bool,
@@ -17,6 +17,8 @@ pub(crate) struct StripOptions {
     pub(crate) keep_xattr: bool,
     #[arg(long, help = "Keep the acl of the files")]
     pub(crate) keep_acl: bool,
+    #[arg(long, help = "Keep private chunks", value_delimiter = ',', num_args = 0..)]
+    pub(crate) keep_private: Option<Vec<PrivateChunkType>>,
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
@@ -55,7 +57,7 @@ fn strip_metadata(args: StripCommand) -> io::Result<()> {
         &args.file.archive,
         || password.as_deref(),
         |entry| {
-            let entry = strip_entry_metadata(entry?, args.strip_options);
+            let entry = strip_entry_metadata(entry?, &args.strip_options);
             out_archive.add_entry(entry)?;
             Ok(())
         },
@@ -69,7 +71,7 @@ fn strip_metadata(args: StripCommand) -> io::Result<()> {
 }
 
 #[inline]
-fn strip_entry_metadata<T>(mut entry: RegularEntry<T>, options: StripOptions) -> RegularEntry<T>
+fn strip_entry_metadata<T>(mut entry: RegularEntry<T>, options: &StripOptions) -> RegularEntry<T>
 where
     T: Clone,
     RawChunk<T>: Chunk,
@@ -87,14 +89,21 @@ where
     if !options.keep_xattr {
         entry = entry.with_xattrs(&[]);
     }
+    let keep_private_all = options
+        .keep_private
+        .as_ref()
+        .is_some_and(|it| it.is_empty());
     let mut keep_private_chunks = Vec::new();
     if options.keep_acl {
         keep_private_chunks.push(crate::chunk::faCe);
     }
+    if let Some(chunks) = &options.keep_private {
+        keep_private_chunks.extend(chunks.iter().map(|it| it.0))
+    }
     let filtered = entry
         .extra_chunks()
         .iter()
-        .filter(|it| keep_private_chunks.contains(&it.ty()))
+        .filter(|it| keep_private_all || keep_private_chunks.contains(&it.ty()))
         .cloned()
         .collect::<Vec<_>>();
     entry.with_extra_chunks(&filtered)
