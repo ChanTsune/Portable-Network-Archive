@@ -1,6 +1,6 @@
 use std::{
     error::Error,
-    fmt::{self, Display, Formatter},
+    fmt::{self, Debug, Display, Formatter},
 };
 
 /// [ChunkType] validation error.
@@ -31,7 +31,7 @@ impl Display for ChunkTypeError {
 impl Error for ChunkTypeError {}
 
 /// A 4-byte chunk type code.
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ChunkType(pub(crate) [u8; 4]);
 
 impl ChunkType {
@@ -190,6 +190,31 @@ impl ChunkType {
     #[inline]
     pub const fn is_safe_to_copy(&self) -> bool {
         self.0[3] & 32 != 0
+    }
+}
+
+impl Debug for ChunkType {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        struct DebugType([u8; 4]);
+
+        impl Debug for DebugType {
+            #[inline]
+            fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+                for &c in &self.0[..] {
+                    write!(f, "{}", char::from(c).escape_debug())?;
+                }
+                Ok(())
+            }
+        }
+
+        f.debug_struct("ChunkType")
+            .field("type", &DebugType(self.0))
+            .field("critical", &self.is_critical())
+            .field("private", &self.is_private())
+            .field("reserved", &self.is_set_reserved())
+            .field("safe_to_copy", &self.is_safe_to_copy())
+            .finish()
     }
 }
 
