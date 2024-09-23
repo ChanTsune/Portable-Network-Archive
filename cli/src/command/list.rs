@@ -131,7 +131,6 @@ where
             permissions: metadata
                 .permission()
                 .map(|p| paint_permission(header.data_kind(), p.permissions(), entry.xattrs()))
-                .map(|it| it.iter().map(|it| it.to_string()).collect::<String>())
                 .unwrap_or_else(|| paint_data_kind(header.data_kind(), entry.xattrs())),
             raw_size: metadata
                 .raw_file_size()
@@ -453,11 +452,7 @@ fn kind_paint(
     }
 }
 
-fn paint_permission(
-    kind: DataKind,
-    permission: u16,
-    xattrs: &[ExtendedAttribute],
-) -> Vec<ANSIString<'static>> {
+fn paint_permission(kind: DataKind, permission: u16, xattrs: &[ExtendedAttribute]) -> String {
     let style_read = Style::new().fg(Colour::Yellow);
     let style_write = Style::new().fg(Colour::Red);
     let style_exec = Style::new().fg(Colour::Blue);
@@ -475,7 +470,8 @@ fn paint_permission(
     let paint =
         |style: Style, c: &'static str, bit: u16| style_paint(style, c, "-", permission & bit != 0);
 
-    vec![
+    format!(
+        "{}{}{}{}{}{}{}{}{}{}{}",
         kind_paint(kind, style_hyphen, style_dir, style_link),
         paint(style_read, "r", 0b100000000),  // owner_read
         paint(style_write, "w", 0b010000000), // owner_write
@@ -487,5 +483,5 @@ fn paint_permission(
         paint(style_write, "w", 0b000000010), // other_write
         paint(style_exec, "x", 0b000000001),  // other_exec
         style_hyphen.paint(if xattrs.is_empty() { " " } else { "@" }),
-    ]
+    )
 }
