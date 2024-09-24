@@ -479,13 +479,18 @@ fn kind_paint(kind: DataKind) -> impl Display + 'static {
 }
 
 fn paint_permission(kind: DataKind, permission: u16, xattrs: &[ExtendedAttribute]) -> String {
-    let style_paint = |style: &'static Style, c: &'static str, h: &'static str, bool: bool| {
+    fn style_paint<'s>(
+        style: &'s Style,
+        c: &'s str,
+        h: &'s str,
+        bool: bool,
+    ) -> StyledDisplay<'s, &'s str> {
         if bool {
             style.paint(c)
         } else {
             STYLE_HYPHEN.paint(h)
         }
-    };
+    }
     let paint = |style: &'static Style, c: &'static str, bit: u16| {
         style_paint(style, c, "-", permission & bit != 0)
     };
