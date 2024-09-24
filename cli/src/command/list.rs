@@ -14,8 +14,10 @@ use crate::{
     utils::GlobPatterns,
 };
 use chrono::{DateTime, Local};
-use clap::{ArgGroup, Parser};
-use nu_ansi_term::{AnsiString as ANSIString, Color as Colour, Style};
+use clap::{
+    builder::styling::{AnsiColor, Color as Colour, Style},
+    ArgGroup, Parser,
+};
 use pna::{
     prelude::*, Compression, DataKind, Encryption, ExtendedAttribute, RawChunk, ReadEntry,
     ReadOptions, RegularEntry, SolidHeader,
@@ -24,6 +26,7 @@ use rayon::prelude::*;
 #[cfg(feature = "memmap")]
 use std::path::Path;
 use std::{
+    fmt::{Display, Formatter},
     io,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -428,60 +431,77 @@ fn datetime(now: SystemTime, d: Option<Duration>) -> String {
     }
 }
 
+#[derive(Clone, Eq, PartialEq, Debug)]
+struct StyledDisplay<'s, T> {
+    style: &'s Style,
+    v: T,
+}
+
+impl<'s, T: Display> Display for StyledDisplay<'s, T> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}{:#}", self.style, self.v, self.style)
+    }
+}
+
+trait StyleExt<T> {
+    fn paint(&self, v: T) -> StyledDisplay<T>;
+}
+
+impl<T: Display> StyleExt<T> for Style {
+    #[inline]
+    fn paint(&self, v: T) -> StyledDisplay<T> {
+        StyledDisplay { style: self, v }
+    }
+}
+
+const STYLE_READ: Style = Style::new().fg_color(Some(Colour::Ansi(AnsiColor::Yellow)));
+const STYLE_WRITE: Style = Style::new().fg_color(Some(Colour::Ansi(AnsiColor::Red)));
+const STYLE_EXEC: Style = Style::new().fg_color(Some(Colour::Ansi(AnsiColor::Blue)));
+const STYLE_DIR: Style = Style::new().fg_color(Some(Colour::Ansi(AnsiColor::Magenta)));
+const STYLE_LINK: Style = Style::new().fg_color(Some(Colour::Ansi(AnsiColor::Cyan)));
+const STYLE_HYPHEN: Style = Style::new();
+
 fn paint_data_kind(kind: DataKind, xattrs: &[ExtendedAttribute]) -> String {
-    let style_dir = Style::new().fg(Colour::Purple);
-    let style_link = Style::new().fg(Colour::Cyan);
-    let style_hyphen = Style::new();
     format!(
         "{}_________{}",
-        kind_paint(kind, style_hyphen, style_dir, style_link),
+        kind_paint(kind),
         if xattrs.is_empty() { " " } else { "@" }
     )
 }
 
-fn kind_paint(
-    kind: DataKind,
-    style_hyphen: Style,
-    style_dir: Style,
-    style_link: Style,
-) -> ANSIString<'static> {
+fn kind_paint(kind: DataKind) -> impl Display + 'static {
     match kind {
-        DataKind::File | DataKind::HardLink => style_hyphen.paint("."),
-        DataKind::Directory => style_dir.paint("d"),
-        DataKind::SymbolicLink => style_link.paint("l"),
+        DataKind::File | DataKind::HardLink => STYLE_HYPHEN.paint("."),
+        DataKind::Directory => STYLE_DIR.paint("d"),
+        DataKind::SymbolicLink => STYLE_LINK.paint("l"),
     }
 }
 
 fn paint_permission(kind: DataKind, permission: u16, xattrs: &[ExtendedAttribute]) -> String {
-    let style_read = Style::new().fg(Colour::Yellow);
-    let style_write = Style::new().fg(Colour::Red);
-    let style_exec = Style::new().fg(Colour::Blue);
-    let style_dir = Style::new().fg(Colour::Purple);
-    let style_link = Style::new().fg(Colour::Cyan);
-    let style_hyphen = Style::new();
-
-    let style_paint = |style: Style, c: &'static str, h: &'static str, bool: bool| {
+    let style_paint = |style: &'static Style, c: &'static str, h: &'static str, bool: bool| {
         if bool {
             style.paint(c)
         } else {
-            style_hyphen.paint(h)
+            STYLE_HYPHEN.paint(h)
         }
     };
-    let paint =
-        |style: Style, c: &'static str, bit: u16| style_paint(style, c, "-", permission & bit != 0);
+    let paint = |style: &'static Style, c: &'static str, bit: u16| {
+        style_paint(style, c, "-", permission & bit != 0)
+    };
 
     format!(
         "{}{}{}{}{}{}{}{}{}{}{}",
-        kind_paint(kind, style_hyphen, style_dir, style_link),
-        paint(style_read, "r", 0b100000000),  // owner_read
-        paint(style_write, "w", 0b010000000), // owner_write
-        paint(style_exec, "x", 0b001000000),  // owner_exec
-        paint(style_read, "r", 0b000100000),  // group_read
-        paint(style_write, "w", 0b000010000), // group_write
-        paint(style_exec, "x", 0b000001000),  // group_exec
-        paint(style_read, "r", 0b000000100),  // other_read
-        paint(style_write, "w", 0b000000010), // other_write
-        paint(style_exec, "x", 0b000000001),  // other_exec
-        style_hyphen.paint(if xattrs.is_empty() { " " } else { "@" }),
+        kind_paint(kind),
+        paint(&STYLE_READ, "r", 0b100000000),  // owner_read
+        paint(&STYLE_WRITE, "w", 0b010000000), // owner_write
+        paint(&STYLE_EXEC, "x", 0b001000000),  // owner_exec
+        paint(&STYLE_READ, "r", 0b000100000),  // group_read
+        paint(&STYLE_WRITE, "w", 0b000010000), // group_write
+        paint(&STYLE_EXEC, "x", 0b000001000),  // group_exec
+        paint(&STYLE_READ, "r", 0b000000100),  // other_read
+        paint(&STYLE_WRITE, "w", 0b000000010), // other_write
+        paint(&STYLE_EXEC, "x", 0b000000001),  // other_exec
+        STYLE_HYPHEN.paint(if xattrs.is_empty() { " " } else { "@" }),
     )
 }
