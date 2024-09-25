@@ -43,6 +43,7 @@ use tabled::{
 #[clap(disable_help_flag = true)]
 #[command(
     group(ArgGroup::new("unstable-acl").args(["show_acl"]).requires("unstable")),
+    group(ArgGroup::new("unstable-private-chunk").args(["show_private"]).requires("unstable")),
 )]
 pub(crate) struct ListCommand {
     #[arg(short, long, help = "Display extended file metadata as a table")]
@@ -55,6 +56,11 @@ pub(crate) struct ListCommand {
     pub(crate) show_xattr: bool,
     #[arg(short = 'e', help = "Display acl in a table (unstable)")]
     pub(crate) show_acl: bool,
+    #[arg(
+        long = "private",
+        help = "Display private chunks in a table (unstable)"
+    )]
+    pub(crate) show_private: bool,
     #[arg(
         long,
         help = "Display user id and group id instead of user name and group name"
@@ -87,6 +93,7 @@ struct TableRow {
     name: String,
     xattrs: Vec<ExtendedAttribute>,
     acl: Vec<chunk::Ace>,
+    privates: Vec<RawChunk>,
 }
 
 impl<T>
@@ -98,8 +105,9 @@ impl<T>
         bool,
     )> for TableRow
 where
-    T: AsRef<[u8]>,
+    T: AsRef<[u8]> + Clone,
     RawChunk<T>: Chunk,
+    RawChunk: From<RawChunk<T>>,
 {
     type Error = io::Error;
     #[inline]
@@ -176,6 +184,12 @@ where
             },
             xattrs: entry.xattrs().to_vec(),
             acl: entry.acl()?,
+            privates: entry
+                .extra_chunks()
+                .iter()
+                .filter(|it| it.ty() != chunk::faCe)
+                .map(|it| (*it).clone().into())
+                .collect::<Vec<_>>(),
         })
     }
 }
@@ -188,6 +202,7 @@ fn list_archive(args: ListCommand) -> io::Result<()> {
         solid: args.solid,
         show_xattr: args.show_xattr,
         show_acl: args.show_acl,
+        show_private: args.show_private,
         numeric_owner: args.numeric_owner,
     };
     #[cfg(not(feature = "memmap"))]
@@ -216,6 +231,7 @@ pub(crate) struct ListOptions {
     pub(crate) solid: bool,
     pub(crate) show_xattr: bool,
     pub(crate) show_acl: bool,
+    pub(crate) show_private: bool,
     pub(crate) numeric_owner: bool,
 }
 
@@ -378,6 +394,16 @@ fn detail_list_entries(entries: impl Iterator<Item = TableRow>, options: ListOpt
                     x.value().len().to_string(),
                 ]);
                 xattr_rows.push(builder.count_records());
+            }
+        }
+        if options.show_private {
+            for c in &content.privates {
+                builder.push_record([
+                    String::new(),
+                    String::new(),
+                    format!("chunk:{}", c.ty()),
+                    c.data().len().to_string(),
+                ]);
             }
         }
     }
