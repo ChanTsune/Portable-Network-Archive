@@ -237,15 +237,6 @@ pub(crate) enum HashAlgorithmParams {
 pub struct HashAlgorithm(pub(crate) HashAlgorithmParams);
 
 impl HashAlgorithm {
-    #[deprecated(since = "0.14.1", note = "Use `HashAlgorithm::argon2id`")]
-    #[allow(non_upper_case_globals)]
-    /// Pbkdf2 with sha256
-    pub const Argon2Id: Self = Self::argon2id();
-    #[deprecated(since = "0.14.1", note = "Use `HashAlgorithm::pbkdf2_sha256` instead.")]
-    #[allow(non_upper_case_globals)]
-    /// Argon2Id
-    pub const Pbkdf2Sha256: Self = Self::pbkdf2_sha256();
-
     /// Pbkdf2 with sha256
     #[inline]
     pub const fn pbkdf2_sha256() -> Self {
