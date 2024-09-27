@@ -569,6 +569,13 @@ pub struct NormalEntry<T = Vec<u8>> {
     pub(crate) xattrs: Vec<ExtendedAttribute>,
 }
 
+#[deprecated(
+    note = "Renamed to `libpna::NormalEntry`. This type alias will be removed in libpna version 0.22.0.",
+    since = "0.19.0"
+)]
+/// Type alias of [NormalEntry]
+pub type RegularEntry<T> = NormalEntry<T>;
+
 impl<T> TryFrom<RawEntry<T>> for NormalEntry<T>
 where
     RawChunk<T>: Chunk,
