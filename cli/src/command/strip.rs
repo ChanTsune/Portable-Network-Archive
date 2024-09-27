@@ -1,11 +1,11 @@
 use crate::{
     cli::{FileArgs, PasswordArgs, PrivateChunkType},
-    command::{ask_password, commons::run_entries, Command},
-    utils::{self, PathPartExt},
+    command::{ask_password, commons::run_manipulate_entry, Command},
+    utils::PathPartExt,
 };
 use clap::{Args, Parser, ValueHint};
-use pna::{prelude::*, Archive, Metadata, RawChunk, RegularEntry};
-use std::{env::temp_dir, fs, io, path::PathBuf};
+use pna::{prelude::*, Metadata, RawChunk, RegularEntry};
+use std::{io, path::PathBuf};
 
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) struct StripOptions {
@@ -41,33 +41,13 @@ impl Command for StripCommand {
 
 fn strip_metadata(args: StripCommand) -> io::Result<()> {
     let password = ask_password(args.password)?;
-    let outfile_path = if let Some(output) = &args.output {
-        if let Some(parent) = output.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        output.clone()
-    } else {
-        let random = rand::random::<usize>();
-        temp_dir().join(format!("{}.pna.tmp", random))
-    };
-    let outfile = fs::File::create(&outfile_path)?;
-    let mut out_archive = Archive::write_header(outfile)?;
-
-    run_entries(
+    run_manipulate_entry(
+        args.output
+            .unwrap_or_else(|| args.file.archive.remove_part().unwrap()),
         &args.file.archive,
         || password.as_deref(),
-        |entry| {
-            let entry = strip_entry_metadata(entry?, &args.strip_options);
-            out_archive.add_entry(entry)?;
-            Ok(())
-        },
-    )?;
-    out_archive.finalize()?;
-
-    if args.output.is_none() {
-        utils::fs::mv(outfile_path, args.file.archive.remove_part().unwrap())?;
-    }
-    Ok(())
+        |entry| Ok(strip_entry_metadata(entry?, &args.strip_options)),
+    )
 }
 
 #[inline]
