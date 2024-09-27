@@ -208,7 +208,7 @@ impl FromStr for Argon2idParams {
         let mut time = None;
         let mut memory = None;
         let mut parallelism = None;
-        for param in s.split(",") {
+        for param in s.split(',') {
             let kv = param.split_once('=');
             if let Some(("t", n)) = kv {
                 time = Some(
@@ -248,7 +248,7 @@ impl FromStr for Pbkdf2Sha256Params {
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut rounds = None;
-        for param in s.split(",") {
+        for param in s.split(',') {
             let kv = param.split_once('=');
             if let Some(("r", n)) = kv {
                 rounds = Some(
