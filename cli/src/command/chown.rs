@@ -10,7 +10,7 @@ use crate::{
     utils::{GlobPatterns, PathPartExt},
 };
 use clap::{Parser, ValueHint};
-use pna::RegularEntry;
+use pna::NormalEntry;
 use std::ops::Not;
 use std::{io, path::PathBuf, str::FromStr};
 
@@ -74,7 +74,7 @@ fn archive_chown(args: ChownCommand) -> io::Result<()> {
 }
 
 #[inline]
-fn transform_entry<T>(entry: RegularEntry<T>, owner: &Owner) -> RegularEntry<T> {
+fn transform_entry<T>(entry: NormalEntry<T>, owner: &Owner) -> NormalEntry<T> {
     let metadata = entry.metadata().clone();
     let permission = metadata.permission().map(|p| {
         let user = owner.user();

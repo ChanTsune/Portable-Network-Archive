@@ -11,7 +11,7 @@ use crate::{
     utils::PathPartExt,
 };
 use clap::{Args, Parser, ValueHint};
-use pna::{prelude::*, Metadata, RawChunk, RegularEntry};
+use pna::{prelude::*, Metadata, NormalEntry, RawChunk};
 use std::{io, path::PathBuf};
 
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
@@ -71,7 +71,7 @@ fn strip_metadata(args: StripCommand) -> io::Result<()> {
 }
 
 #[inline]
-fn strip_entry_metadata<T>(mut entry: RegularEntry<T>, options: &StripOptions) -> RegularEntry<T>
+fn strip_entry_metadata<T>(mut entry: NormalEntry<T>, options: &StripOptions) -> NormalEntry<T>
 where
     T: Clone,
     RawChunk<T>: Chunk,

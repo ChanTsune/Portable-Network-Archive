@@ -1,12 +1,12 @@
 use crate::chunk::{self, Ace};
-use pna::{prelude::*, RawChunk, RegularEntry};
+use pna::{prelude::*, NormalEntry, RawChunk};
 use std::io;
 
 pub(crate) trait RegularEntryExt {
     fn acl(&self) -> io::Result<Vec<Ace>>;
 }
 
-impl<T> RegularEntryExt for RegularEntry<T>
+impl<T> RegularEntryExt for NormalEntry<T>
 where
     RawChunk<T>: Chunk,
 {

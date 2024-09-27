@@ -1,6 +1,6 @@
 use crate::{
     archive::ArchiveHeader, chunk::read_chunk_from_slice, entry::RawEntry, Archive, Chunk,
-    ChunkType, Entry, RawChunk, ReadEntry, RegularEntry, PNA_HEADER,
+    ChunkType, Entry, NormalEntry, RawChunk, ReadEntry, PNA_HEADER,
 };
 use std::borrow::Cow;
 use std::io;
@@ -211,7 +211,7 @@ impl<'a, 'r> Entries<'a, 'r> {
         Self { reader }
     }
 
-    /// Returns an iterator that extract solid entries in the archive and returns a regular entry.
+    /// Returns an iterator that extract solid entries in the archive and returns a normal entry.
     ///
     /// # Example
     ///
@@ -233,7 +233,7 @@ impl<'a, 'r> Entries<'a, 'r> {
     pub fn extract_solid_entries(
         self,
         password: Option<&'r str>,
-    ) -> impl Iterator<Item = io::Result<RegularEntry>> + 'a
+    ) -> impl Iterator<Item = io::Result<NormalEntry>> + 'a
     where
         'a: 'r,
     {

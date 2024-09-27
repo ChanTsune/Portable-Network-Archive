@@ -1,8 +1,8 @@
 use super::private;
-use libpna::{EntryBuilder, RegularEntry, WriteOptions};
+use libpna::{EntryBuilder, NormalEntry, WriteOptions};
 use std::{fs, io, path::Path};
 
-/// [RegularEntry] extension method trait.
+/// [NormalEntry] extension method trait.
 pub trait EntryFsExt: private::Sealed {
     /// Create Entry from a given path.
     ///
@@ -22,7 +22,7 @@ pub trait EntryFsExt: private::Sealed {
         Self: Sized;
 }
 
-impl EntryFsExt for RegularEntry {
+impl EntryFsExt for NormalEntry {
     /// Create Entry from a given path.
     ///
     /// # Errors
@@ -34,10 +34,10 @@ impl EntryFsExt for RegularEntry {
     /// ```no_run
     /// # use std::io::{self, prelude::*};
     /// use pna::prelude::*;
-    /// use pna::RegularEntry;
+    /// use pna::NormalEntry;
     ///
     /// # fn main() -> io::Result<()> {
-    /// RegularEntry::from_path("path/to/file")?;
+    /// NormalEntry::from_path("path/to/file")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -57,10 +57,10 @@ impl EntryFsExt for RegularEntry {
     /// ```no_run
     /// # use std::io::{self, prelude::*};
     /// use pna::prelude::*;
-    /// use pna::{RegularEntry, WriteOptions};
+    /// use pna::{NormalEntry, WriteOptions};
     ///
     /// # fn main() -> io::Result<()> {
-    /// RegularEntry::from_path_with("path/to/file", WriteOptions::store())?;
+    /// NormalEntry::from_path_with("path/to/file", WriteOptions::store())?;
     /// # Ok(())
     /// # }
     /// ```

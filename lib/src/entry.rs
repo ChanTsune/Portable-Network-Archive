@@ -138,19 +138,19 @@ impl<'r> futures_io::AsyncRead for EntryDataReader<'r> {
     }
 }
 
-/// A [RegularEntry] or [SolidEntry] read from an archive.
+/// A [NormalEntry] or [SolidEntry] read from an archive.
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum ReadEntry<T = Vec<u8>> {
     /// Solid mode entry
     Solid(SolidEntry<T>),
     /// Regular entry
-    Regular(RegularEntry<T>),
+    Regular(NormalEntry<T>),
 }
 
 impl<T> SealedEntryExt for ReadEntry<T>
 where
-    RegularEntry<T>: SealedEntryExt,
+    NormalEntry<T>: SealedEntryExt,
     SolidEntry<T>: SealedEntryExt,
 {
     #[inline]
@@ -183,7 +183,7 @@ where
         if let Some(first_chunk) = entry.0.first() {
             match first_chunk.ty {
                 ChunkType::SHED => Ok(Self::Solid(SolidEntry::try_from(entry)?)),
-                ChunkType::FHED => Ok(Self::Regular(RegularEntry::try_from(entry)?)),
+                ChunkType::FHED => Ok(Self::Regular(NormalEntry::try_from(entry)?)),
                 _ => Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid entry")),
             }
         } else {
@@ -192,9 +192,9 @@ where
     }
 }
 
-impl<T> From<RegularEntry<T>> for ReadEntry<T> {
+impl<T> From<NormalEntry<T>> for ReadEntry<T> {
     #[inline]
-    fn from(value: RegularEntry<T>) -> Self {
+    fn from(value: NormalEntry<T>) -> Self {
         Self::Regular(value)
     }
 }
@@ -249,7 +249,7 @@ impl<'a> From<ReadEntry<&'a [u8]>> for ReadEntry<Cow<'a, [u8]>> {
 pub(crate) struct EntryIterator<'s>(EntryReader<crate::io::FlattenReader<'s>>);
 
 impl Iterator for EntryIterator<'_> {
-    type Item = io::Result<RegularEntry>;
+    type Item = io::Result<NormalEntry>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -432,7 +432,7 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
     pub fn entries(
         &self,
         password: Option<&str>,
-    ) -> io::Result<impl Iterator<Item = io::Result<RegularEntry>> + '_> {
+    ) -> io::Result<impl Iterator<Item = io::Result<NormalEntry>> + '_> {
         let reader = decrypt_reader(
             crate::io::FlattenReader::new(self.data.iter().map(|it| it.as_ref()).collect()),
             self.header.encryption,
@@ -560,7 +560,7 @@ where
 
 /// [Entry] that read from PNA archive.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct RegularEntry<T = Vec<u8>> {
+pub struct NormalEntry<T = Vec<u8>> {
     pub(crate) header: EntryHeader,
     pub(crate) phsf: Option<String>,
     pub(crate) extra: Vec<RawChunk<T>>,
@@ -569,7 +569,7 @@ pub struct RegularEntry<T = Vec<u8>> {
     pub(crate) xattrs: Vec<ExtendedAttribute>,
 }
 
-impl<T> TryFrom<RawEntry<T>> for RegularEntry<T>
+impl<T> TryFrom<RawEntry<T>> for NormalEntry<T>
 where
     RawChunk<T>: Chunk,
 {
@@ -656,7 +656,7 @@ where
     }
 }
 
-impl SealedEntryExt for RegularEntry<Vec<u8>> {
+impl SealedEntryExt for NormalEntry<Vec<u8>> {
     fn into_chunks(self) -> Vec<RawChunk> {
         let Metadata {
             raw_file_size,
@@ -767,7 +767,7 @@ impl SealedEntryExt for RegularEntry<Vec<u8>> {
     }
 }
 
-impl SealedEntryExt for RegularEntry<&[u8]> {
+impl SealedEntryExt for NormalEntry<&[u8]> {
     fn into_chunks(self) -> Vec<RawChunk> {
         let Metadata {
             raw_file_size,
@@ -878,7 +878,7 @@ impl SealedEntryExt for RegularEntry<&[u8]> {
     }
 }
 
-impl<'a> SealedEntryExt for RegularEntry<Cow<'a, [u8]>> {
+impl<'a> SealedEntryExt for NormalEntry<Cow<'a, [u8]>> {
     fn into_chunks(self) -> Vec<RawChunk> {
         let Metadata {
             raw_file_size,
@@ -989,9 +989,9 @@ impl<'a> SealedEntryExt for RegularEntry<Cow<'a, [u8]>> {
     }
 }
 
-impl<T> Entry for RegularEntry<T> where RegularEntry<T>: SealedEntryExt {}
+impl<T> Entry for NormalEntry<T> where NormalEntry<T>: SealedEntryExt {}
 
-impl<T> RegularEntry<T> {
+impl<T> NormalEntry<T> {
     /// Information in the header of the entry.
     #[inline]
     pub fn header(&self) -> &EntryHeader {
@@ -1057,7 +1057,7 @@ impl<T> RegularEntry<T> {
     }
 }
 
-impl<T: Clone> RegularEntry<T> {
+impl<T: Clone> NormalEntry<T> {
     /// Apply extra chunks to the entry.
     ///
     /// # Example
@@ -1081,8 +1081,8 @@ impl<T: Clone> RegularEntry<T> {
     }
 }
 
-impl<T: AsRef<[u8]>> RegularEntry<T> {
-    /// Return the reader of this [`RegularEntry`].
+impl<T: AsRef<[u8]>> NormalEntry<T> {
+    /// Return the reader of this [`NormalEntry`].
     ///
     /// # Examples
     /// ```no_run
@@ -1118,9 +1118,9 @@ impl<T: AsRef<[u8]>> RegularEntry<T> {
     }
 }
 
-impl<'a> From<RegularEntry<Cow<'a, [u8]>>> for RegularEntry<Vec<u8>> {
+impl<'a> From<NormalEntry<Cow<'a, [u8]>>> for NormalEntry<Vec<u8>> {
     #[inline]
-    fn from(value: RegularEntry<Cow<'a, [u8]>>) -> Self {
+    fn from(value: NormalEntry<Cow<'a, [u8]>>) -> Self {
         Self {
             header: value.header,
             phsf: value.phsf,
@@ -1132,9 +1132,9 @@ impl<'a> From<RegularEntry<Cow<'a, [u8]>>> for RegularEntry<Vec<u8>> {
     }
 }
 
-impl<'a> From<RegularEntry<&'a [u8]>> for RegularEntry<Vec<u8>> {
+impl<'a> From<NormalEntry<&'a [u8]>> for NormalEntry<Vec<u8>> {
     #[inline]
-    fn from(value: RegularEntry<&'a [u8]>) -> Self {
+    fn from(value: NormalEntry<&'a [u8]>) -> Self {
         Self {
             header: value.header,
             phsf: value.phsf,
@@ -1146,9 +1146,9 @@ impl<'a> From<RegularEntry<&'a [u8]>> for RegularEntry<Vec<u8>> {
     }
 }
 
-impl<'a> From<RegularEntry<Vec<u8>>> for RegularEntry<Cow<'a, [u8]>> {
+impl<'a> From<NormalEntry<Vec<u8>>> for NormalEntry<Cow<'a, [u8]>> {
     #[inline]
-    fn from(value: RegularEntry<Vec<u8>>) -> Self {
+    fn from(value: NormalEntry<Vec<u8>>) -> Self {
         Self {
             header: value.header,
             phsf: value.phsf,
@@ -1160,9 +1160,9 @@ impl<'a> From<RegularEntry<Vec<u8>>> for RegularEntry<Cow<'a, [u8]>> {
     }
 }
 
-impl<'a> From<RegularEntry<&'a [u8]>> for RegularEntry<Cow<'a, [u8]>> {
+impl<'a> From<NormalEntry<&'a [u8]>> for NormalEntry<Cow<'a, [u8]>> {
     #[inline]
-    fn from(value: RegularEntry<&'a [u8]>) -> Self {
+    fn from(value: NormalEntry<&'a [u8]>) -> Self {
         Self {
             header: value.header,
             phsf: value.phsf,

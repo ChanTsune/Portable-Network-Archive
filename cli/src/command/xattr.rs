@@ -12,7 +12,7 @@ use crate::{
 use base64::Engine;
 use clap::{Parser, ValueHint};
 use indexmap::IndexMap;
-use pna::RegularEntry;
+use pna::NormalEntry;
 use std::{
     fmt::{Display, Formatter, Write},
     io,
@@ -219,11 +219,11 @@ fn archive_set_xattr(args: SetXattrCommand) -> io::Result<()> {
 
 #[inline]
 fn transform_entry<T>(
-    entry: RegularEntry<T>,
+    entry: NormalEntry<T>,
     name: Option<&str>,
     value: &[u8],
     remove: Option<&str>,
-) -> RegularEntry<T> {
+) -> NormalEntry<T> {
     let mut xattrs = entry
         .xattrs()
         .iter()

@@ -3,7 +3,7 @@ mod slice;
 use crate::{
     archive::{Archive, ArchiveHeader, PNA_HEADER},
     chunk::{Chunk, ChunkReader, ChunkType, RawChunk},
-    entry::{Entry, RawEntry, ReadEntry, RegularEntry},
+    entry::{Entry, NormalEntry, RawEntry, ReadEntry},
 };
 #[cfg(feature = "unstable-async")]
 use futures_io::AsyncRead;
@@ -148,7 +148,7 @@ impl<R: Read> Archive<R> {
     ///
     /// An iterator over the entries in the archive.
     #[inline]
-    pub fn entries_skip_solid(&mut self) -> impl Iterator<Item = io::Result<RegularEntry>> + '_ {
+    pub fn entries_skip_solid(&mut self) -> impl Iterator<Item = io::Result<NormalEntry>> + '_ {
         self.entries().filter_map(|it| match it {
             Ok(e) => match e {
                 ReadEntry::Solid(_) => None,
@@ -204,7 +204,7 @@ impl<R: Read> Archive<R> {
     pub fn entries_with_password<'a>(
         &'a mut self,
         password: Option<&'a str>,
-    ) -> impl Iterator<Item = io::Result<RegularEntry>> + 'a {
+    ) -> impl Iterator<Item = io::Result<NormalEntry>> + 'a {
         self.entries().extract_solid_entries(password)
     }
 
@@ -296,10 +296,10 @@ impl<R: AsyncRead + Unpin> Archive<R> {
         Ok(Some(RawEntry(chunks)))
     }
 
-    /// Read a [RegularEntry] from the archive.
+    /// Read a [NormalEntry] from the archive.
     /// This API is unstable.
     #[inline]
-    pub async fn read_entry_async(&mut self) -> io::Result<Option<RegularEntry>> {
+    pub async fn read_entry_async(&mut self) -> io::Result<Option<NormalEntry>> {
         loop {
             let entry = self.next_raw_item_async().await?;
             match entry {
@@ -335,7 +335,7 @@ impl<'r, R: Read> Entries<'r, R> {
         Self { reader }
     }
 
-    /// Returns an iterator that extract solid entries in the archive and returns a regular entry.
+    /// Returns an iterator that extract solid entries in the archive and returns a normal entry.
     ///
     /// # Example
     /// ```no_run
@@ -376,11 +376,11 @@ impl<'r, R: Read> Iterator for Entries<'r, R> {
 pub struct RegularEntries<'r, R> {
     reader: &'r mut Archive<R>,
     password: Option<&'r str>,
-    buf: VecDeque<io::Result<RegularEntry>>,
+    buf: VecDeque<io::Result<NormalEntry>>,
 }
 
 impl<'r, R: Read> Iterator for RegularEntries<'r, R> {
-    type Item = io::Result<RegularEntry>;
+    type Item = io::Result<NormalEntry>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {

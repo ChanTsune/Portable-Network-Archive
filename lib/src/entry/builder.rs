@@ -4,7 +4,7 @@ use crate::{
     compress::CompressionWriter,
     entry::{
         get_writer, get_writer_context, private::SealedEntryExt, DataKind, Entry, EntryHeader,
-        EntryName, EntryReference, ExtendedAttribute, Metadata, Permission, RegularEntry,
+        EntryName, EntryReference, ExtendedAttribute, Metadata, NormalEntry, Permission,
         SolidEntry, SolidHeader, WriteCipher, WriteOptions,
     },
     io::TryIntoInner,
@@ -24,7 +24,7 @@ use std::{
 
 const MAX_CHUNK_DATA_LENGTH: usize = u32::MAX as usize;
 
-/// A builder for creating a new [RegularEntry].
+/// A builder for creating a new [NormalEntry].
 pub struct EntryBuilder {
     header: EntryHeader,
     phsf: Option<String>,
@@ -290,13 +290,13 @@ impl EntryBuilder {
         self
     }
 
-    /// Builds the entry and returns a Result containing the new [RegularEntry].
+    /// Builds the entry and returns a Result containing the new [NormalEntry].
     ///
     /// # Returns
     ///
-    /// A Result containing the new [RegularEntry], or an I/O error if the build fails.
+    /// A Result containing the new [NormalEntry], or an I/O error if the build fails.
     #[inline]
-    pub fn build(self) -> io::Result<RegularEntry> {
+    pub fn build(self) -> io::Result<NormalEntry> {
         let mut data = if let Some(data) = self.data {
             data.try_into_inner()?.try_into_inner()?.inner
         } else {
@@ -316,7 +316,7 @@ impl EntryBuilder {
             accessed: self.accessed,
             permission: self.permission,
         };
-        Ok(RegularEntry {
+        Ok(NormalEntry {
             header: self.header,
             phsf: self.phsf,
             extra: self.extra_chunks,
@@ -435,9 +435,9 @@ impl SolidEntryBuilder {
     /// # }
     /// ```
     #[inline]
-    pub fn add_entry<T>(&mut self, entry: RegularEntry<T>) -> io::Result<usize>
+    pub fn add_entry<T>(&mut self, entry: NormalEntry<T>) -> io::Result<usize>
     where
-        RegularEntry<T>: Entry,
+        NormalEntry<T>: Entry,
     {
         entry.write_in(&mut self.data)
     }
