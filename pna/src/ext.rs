@@ -4,7 +4,7 @@ mod metadata;
 
 pub use archive::*;
 pub use entry::*;
-use libpna::{Archive, Metadata, RegularEntry};
+use libpna::{Archive, Metadata, NormalEntry};
 pub use metadata::*;
 use std::fs;
 
@@ -14,5 +14,5 @@ mod private {
     pub trait Sealed {}
     impl Sealed for Archive<fs::File> {}
     impl Sealed for Metadata {}
-    impl Sealed for RegularEntry {}
+    impl Sealed for NormalEntry {}
 }

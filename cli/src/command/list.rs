@@ -19,8 +19,8 @@ use clap::{
     ArgGroup, Parser,
 };
 use pna::{
-    prelude::*, Compression, DataKind, Encryption, ExtendedAttribute, RawChunk, ReadEntry,
-    ReadOptions, RegularEntry, SolidHeader,
+    prelude::*, Compression, DataKind, Encryption, ExtendedAttribute, NormalEntry, RawChunk,
+    ReadEntry, ReadOptions, SolidHeader,
 };
 use rayon::prelude::*;
 #[cfg(feature = "memmap")]
@@ -98,7 +98,7 @@ struct TableRow {
 
 impl<T>
     TryFrom<(
-        &RegularEntry<T>,
+        &NormalEntry<T>,
         Option<&str>,
         SystemTime,
         Option<&SolidHeader>,
@@ -113,7 +113,7 @@ where
     #[inline]
     fn try_from(
         (entry, password, now, solid, numeric_owner): (
-            &RegularEntry<T>,
+            &NormalEntry<T>,
             Option<&str>,
             SystemTime,
             Option<&SolidHeader>,

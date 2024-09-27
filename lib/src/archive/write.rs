@@ -5,7 +5,7 @@ use crate::{
     compress::CompressionWriter,
     entry::{
         get_writer, get_writer_context, Entry, EntryHeader, EntryName, EntryPart, Metadata,
-        RegularEntry, SealedEntryExt, SolidHeader, WriteCipher, WriteOptions,
+        NormalEntry, SealedEntryExt, SolidHeader, WriteCipher, WriteOptions,
     },
     io::TryIntoInner,
 };
@@ -417,9 +417,9 @@ impl<W: Write> SolidArchive<W> {
     /// # }
     /// ```
     #[inline]
-    pub fn add_entry<T>(&mut self, entry: RegularEntry<T>) -> io::Result<usize>
+    pub fn add_entry<T>(&mut self, entry: NormalEntry<T>) -> io::Result<usize>
     where
-        RegularEntry<T>: Entry,
+        NormalEntry<T>: Entry,
     {
         entry.write_in(&mut self.inner)
     }

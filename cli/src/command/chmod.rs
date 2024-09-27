@@ -8,7 +8,7 @@ use crate::{
     utils::{GlobPatterns, PathPartExt},
 };
 use clap::{Parser, ValueHint};
-use pna::RegularEntry;
+use pna::NormalEntry;
 use std::{
     io,
     path::PathBuf,
@@ -75,7 +75,7 @@ fn archive_chmod(args: ChmodCommand) -> io::Result<()> {
 }
 
 #[inline]
-fn transform_entry<T>(entry: RegularEntry<T>, mode: Mode) -> RegularEntry<T> {
+fn transform_entry<T>(entry: NormalEntry<T>, mode: Mode) -> NormalEntry<T> {
     let metadata = entry.metadata().clone();
     let permission = metadata.permission().map(|p| {
         let mode = mode.apply_to(p.permissions());

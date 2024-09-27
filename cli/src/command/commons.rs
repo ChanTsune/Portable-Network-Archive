@@ -4,8 +4,8 @@ use crate::{
 };
 use normalize_path::*;
 use pna::{
-    prelude::*, Archive, EntryBuilder, EntryName, EntryPart, EntryReference, ReadEntry,
-    RegularEntry, SolidEntryBuilder, WriteOptions, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
+    prelude::*, Archive, EntryBuilder, EntryName, EntryPart, EntryReference, NormalEntry,
+    ReadEntry, SolidEntryBuilder, WriteOptions, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
 };
 use std::{
     env::temp_dir,
@@ -115,7 +115,7 @@ pub(crate) fn create_entry(
         keep_options,
         owner_options,
     }: CreateOptions,
-) -> io::Result<RegularEntry> {
+) -> io::Result<NormalEntry> {
     if path.is_symlink() {
         let source = fs::read_link(path)?;
         let entry = EntryBuilder::new_symbolic_link(
@@ -363,9 +363,9 @@ pub(crate) trait TransformStrategy {
     where
         W: Write,
         T: AsRef<[u8]>,
-        F: FnMut(io::Result<RegularEntry<T>>) -> io::Result<Option<RegularEntry<T>>>,
-        RegularEntry<T>: From<RegularEntry>,
-        RegularEntry<T>: Entry;
+        F: FnMut(io::Result<NormalEntry<T>>) -> io::Result<Option<NormalEntry<T>>>,
+        NormalEntry<T>: From<NormalEntry>,
+        NormalEntry<T>: Entry;
 }
 
 pub(crate) struct TransformStrategyUnSolid;
@@ -380,9 +380,9 @@ impl TransformStrategy for TransformStrategyUnSolid {
     where
         W: Write,
         T: AsRef<[u8]>,
-        F: FnMut(io::Result<RegularEntry<T>>) -> io::Result<Option<RegularEntry<T>>>,
-        RegularEntry<T>: From<RegularEntry>,
-        RegularEntry<T>: Entry,
+        F: FnMut(io::Result<NormalEntry<T>>) -> io::Result<Option<NormalEntry<T>>>,
+        NormalEntry<T>: From<NormalEntry>,
+        NormalEntry<T>: Entry,
     {
         match read_entry? {
             ReadEntry::Solid(s) => {
@@ -415,9 +415,9 @@ impl TransformStrategy for TransformStrategyKeepSolid {
     where
         W: Write,
         T: AsRef<[u8]>,
-        F: FnMut(io::Result<RegularEntry<T>>) -> io::Result<Option<RegularEntry<T>>>,
-        RegularEntry<T>: From<RegularEntry>,
-        RegularEntry<T>: Entry,
+        F: FnMut(io::Result<NormalEntry<T>>) -> io::Result<Option<NormalEntry<T>>>,
+        NormalEntry<T>: From<NormalEntry>,
+        NormalEntry<T>: Entry,
     {
         match read_entry? {
             ReadEntry::Solid(s) => {
@@ -478,7 +478,7 @@ pub(crate) fn run_process_archive<'p, Provider, F>(
 ) -> io::Result<()>
 where
     Provider: FnMut() -> Option<&'p str>,
-    F: FnMut(io::Result<RegularEntry>) -> io::Result<()>,
+    F: FnMut(io::Result<NormalEntry>) -> io::Result<()>,
 {
     let password = password_provider();
     run_read_entries(archive_provider, |entry| match entry? {
@@ -550,7 +550,7 @@ pub(crate) fn run_entries<'p, P, Provider, F>(
 where
     P: AsRef<Path>,
     Provider: FnMut() -> Option<&'p str>,
-    F: FnMut(io::Result<RegularEntry<std::borrow::Cow<[u8]>>>) -> io::Result<()>,
+    F: FnMut(io::Result<NormalEntry<std::borrow::Cow<[u8]>>>) -> io::Result<()>,
 {
     let password = password_provider();
     run_read_entries_mem(path, |entry| {
@@ -579,8 +579,8 @@ where
     P: AsRef<Path>,
     Provider: FnMut() -> Option<&'p str>,
     F: FnMut(
-        io::Result<RegularEntry<std::borrow::Cow<[u8]>>>,
-    ) -> io::Result<Option<RegularEntry<std::borrow::Cow<[u8]>>>>,
+        io::Result<NormalEntry<std::borrow::Cow<[u8]>>>,
+    ) -> io::Result<Option<NormalEntry<std::borrow::Cow<[u8]>>>>,
     Transform: TransformStrategy,
 {
     let password = password_provider();
@@ -633,7 +633,7 @@ where
     O: AsRef<Path>,
     P: AsRef<Path>,
     Provider: FnMut() -> Option<&'p str>,
-    F: FnMut(io::Result<RegularEntry>) -> io::Result<Option<RegularEntry>>,
+    F: FnMut(io::Result<NormalEntry>) -> io::Result<Option<NormalEntry>>,
     Transform: TransformStrategy,
 {
     let password = password_provider();
@@ -664,7 +664,7 @@ pub(crate) fn run_entries<'p, P, Provider, F>(
 where
     P: AsRef<Path>,
     Provider: FnMut() -> Option<&'p str>,
-    F: FnMut(io::Result<RegularEntry>) -> io::Result<()>,
+    F: FnMut(io::Result<NormalEntry>) -> io::Result<()>,
 {
     let path = path.as_ref();
     let provider = PathArchiveProvider(path);

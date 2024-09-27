@@ -14,7 +14,7 @@ use crate::{
     utils::{self, fmt::DurationDisplay, GlobPatterns},
 };
 use clap::{ArgGroup, Parser, ValueHint};
-use pna::{prelude::*, DataKind, EntryReference, Permission, ReadOptions, RegularEntry};
+use pna::{prelude::*, DataKind, EntryReference, NormalEntry, Permission, ReadOptions};
 use rayon::ThreadPoolBuilder;
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::FileTimesExt;
@@ -202,7 +202,7 @@ where
         .build()
         .map_err(io::Error::other)?;
 
-    let mut hard_link_entries = Vec::<RegularEntry>::new();
+    let mut hard_link_entries = Vec::<NormalEntry>::new();
 
     let (tx, rx) = std::sync::mpsc::channel();
     run_entries(path, password_provider, |entry| {
@@ -237,7 +237,7 @@ where
 }
 
 pub(crate) fn extract_entry<T>(
-    item: RegularEntry<T>,
+    item: NormalEntry<T>,
     password: Option<&str>,
     OutputOption {
         overwrite,
