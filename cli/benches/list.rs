@@ -6,7 +6,7 @@ use portable_network_archive::{cli, command};
 use test::Bencher;
 
 #[bench]
-fn regular(b: &mut Bencher) {
+fn normal(b: &mut Bencher) {
     b.iter(|| {
         command::entry(cli::Cli::parse_from([
             "pna",
