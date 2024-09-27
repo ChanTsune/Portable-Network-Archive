@@ -484,8 +484,8 @@ where
     ) -> io::Result<RegularEntry<std::borrow::Cow<[u8]>>>,
 {
     let random = rand::random::<usize>();
-    let outfile_path = temp_dir().join(format!("{}.pna.tmp", random));
-    let outfile = fs::File::create(&outfile_path)?;
+    let temp_path = temp_dir().join(format!("{}.pna.tmp", random));
+    let outfile = fs::File::create(&temp_path)?;
     let mut out_archive = Archive::write_header(outfile)?;
 
     run_entries(input_path, password_provider, |entry| {
@@ -494,7 +494,7 @@ where
     })?;
 
     out_archive.finalize()?;
-    utils::fs::mv(outfile_path, output_path)?;
+    utils::fs::mv(temp_path, output_path)?;
     Ok(())
 }
 
@@ -527,8 +527,8 @@ where
     F: FnMut(io::Result<RegularEntry>) -> io::Result<RegularEntry>,
 {
     let random = rand::random::<usize>();
-    let outfile_path = temp_dir().join(format!("{}.pna.tmp", random));
-    let outfile = fs::File::create(&outfile_path)?;
+    let temp_path = temp_dir().join(format!("{}.pna.tmp", random));
+    let outfile = fs::File::create(&temp_path)?;
     let mut out_archive = Archive::write_header(outfile)?;
 
     run_entries(input_path, password_provider, |entry| {
@@ -537,7 +537,7 @@ where
     })?;
 
     out_archive.finalize()?;
-    utils::fs::mv(outfile_path, output_path)?;
+    utils::fs::mv(temp_path, output_path)?;
     Ok(())
 }
 
