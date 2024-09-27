@@ -354,8 +354,8 @@ impl<'r, R: Read> Entries<'r, R> {
     /// # }
     /// ```
     #[inline]
-    pub fn extract_solid_entries(self, password: Option<&'r str>) -> RegularEntries<'r, R> {
-        RegularEntries {
+    pub fn extract_solid_entries(self, password: Option<&'r str>) -> NormalEntries<'r, R> {
+        NormalEntries {
             reader: self.reader,
             password,
             buf: Default::default(),
@@ -373,13 +373,13 @@ impl<'r, R: Read> Iterator for Entries<'r, R> {
 }
 
 /// An iterator over the entries in the archive.
-pub struct RegularEntries<'r, R> {
+pub struct NormalEntries<'r, R> {
     reader: &'r mut Archive<R>,
     password: Option<&'r str>,
     buf: VecDeque<io::Result<NormalEntry>>,
 }
 
-impl<'r, R: Read> Iterator for RegularEntries<'r, R> {
+impl<'r, R: Read> Iterator for NormalEntries<'r, R> {
     type Item = io::Result<NormalEntry>;
 
     #[inline]
