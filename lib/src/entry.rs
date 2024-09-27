@@ -144,8 +144,8 @@ impl<'r> futures_io::AsyncRead for EntryDataReader<'r> {
 pub enum ReadEntry<T = Vec<u8>> {
     /// Solid mode entry
     Solid(SolidEntry<T>),
-    /// Regular entry
-    Regular(NormalEntry<T>),
+    /// Normal entry
+    Normal(NormalEntry<T>),
 }
 
 impl<T> SealedEntryExt for ReadEntry<T>
@@ -156,7 +156,7 @@ where
     #[inline]
     fn into_chunks(self) -> Vec<RawChunk> {
         match self {
-            Self::Regular(r) => r.into_chunks(),
+            Self::Normal(r) => r.into_chunks(),
             Self::Solid(s) => s.into_chunks(),
         }
     }
@@ -164,7 +164,7 @@ where
     #[inline]
     fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         match self {
-            ReadEntry::Regular(r) => r.write_in(writer),
+            ReadEntry::Normal(r) => r.write_in(writer),
             ReadEntry::Solid(s) => s.write_in(writer),
         }
     }
@@ -183,7 +183,7 @@ where
         if let Some(first_chunk) = entry.0.first() {
             match first_chunk.ty {
                 ChunkType::SHED => Ok(Self::Solid(SolidEntry::try_from(entry)?)),
-                ChunkType::FHED => Ok(Self::Regular(NormalEntry::try_from(entry)?)),
+                ChunkType::FHED => Ok(Self::Normal(NormalEntry::try_from(entry)?)),
                 _ => Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid entry")),
             }
         } else {
@@ -195,7 +195,7 @@ where
 impl<T> From<NormalEntry<T>> for ReadEntry<T> {
     #[inline]
     fn from(value: NormalEntry<T>) -> Self {
-        Self::Regular(value)
+        Self::Normal(value)
     }
 }
 
@@ -211,7 +211,7 @@ impl<'a> From<ReadEntry<Cow<'a, [u8]>>> for ReadEntry<Vec<u8>> {
     fn from(value: ReadEntry<Cow<'a, [u8]>>) -> Self {
         match value {
             ReadEntry::Solid(s) => Self::Solid(s.into()),
-            ReadEntry::Regular(r) => Self::Regular(r.into()),
+            ReadEntry::Normal(r) => Self::Normal(r.into()),
         }
     }
 }
@@ -221,7 +221,7 @@ impl<'a> From<ReadEntry<&'a [u8]>> for ReadEntry<Vec<u8>> {
     fn from(value: ReadEntry<&'a [u8]>) -> Self {
         match value {
             ReadEntry::Solid(s) => Self::Solid(s.into()),
-            ReadEntry::Regular(r) => Self::Regular(r.into()),
+            ReadEntry::Normal(r) => Self::Normal(r.into()),
         }
     }
 }
@@ -231,7 +231,7 @@ impl<'a> From<ReadEntry<Vec<u8>>> for ReadEntry<Cow<'a, [u8]>> {
     fn from(value: ReadEntry<Vec<u8>>) -> Self {
         match value {
             ReadEntry::Solid(s) => Self::Solid(s.into()),
-            ReadEntry::Regular(r) => Self::Regular(r.into()),
+            ReadEntry::Normal(r) => Self::Normal(r.into()),
         }
     }
 }
@@ -241,7 +241,7 @@ impl<'a> From<ReadEntry<&'a [u8]>> for ReadEntry<Cow<'a, [u8]>> {
     fn from(value: ReadEntry<&'a [u8]>) -> Self {
         match value {
             ReadEntry::Solid(s) => Self::Solid(s.into()),
-            ReadEntry::Regular(r) => Self::Regular(r.into()),
+            ReadEntry::Normal(r) => Self::Normal(r.into()),
         }
     }
 }
@@ -420,7 +420,7 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
     ///                 // fill your code
     ///             }
     ///         }
-    ///         ReadEntry::Regular(entry) => {
+    ///         ReadEntry::Normal(entry) => {
     ///             // fill your code
     ///         }
     ///     }

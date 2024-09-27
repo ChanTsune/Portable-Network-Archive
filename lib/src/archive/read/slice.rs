@@ -116,7 +116,7 @@ impl<'d> Archive<&'d [u8]> {
     ///         ReadEntry::Solid(solid_entry) => {
     ///             // fill your code
     ///         }
-    ///         ReadEntry::Regular(entry) => {
+    ///         ReadEntry::Normal(entry) => {
     ///             // fill your code
     ///         }
     ///     }
@@ -238,7 +238,7 @@ impl<'a, 'r> Entries<'a, 'r> {
         'a: 'r,
     {
         self.flat_map(move |f| match f {
-            Ok(ReadEntry::Regular(r)) => vec![Ok(r.into())],
+            Ok(ReadEntry::Normal(r)) => vec![Ok(r.into())],
             Ok(ReadEntry::Solid(r)) => match r.entries(password) {
                 Ok(entries) => entries.collect(),
                 Err(e) => vec![Err(e)],

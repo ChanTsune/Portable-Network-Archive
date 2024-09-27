@@ -75,7 +75,7 @@ fn bench_read_archive_from_slice(b: &mut Bencher, mut options: WriteOptionsBuild
             let mut buf = Vec::with_capacity(1000);
             match item.unwrap() {
                 ReadEntry::Solid(_) => (),
-                ReadEntry::Regular(item) => {
+                ReadEntry::Normal(item) => {
                     item.reader(ReadOptions::with_password(Some("password")))
                         .unwrap()
                         .read_to_end(&mut buf)

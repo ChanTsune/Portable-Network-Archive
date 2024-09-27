@@ -393,7 +393,7 @@ impl TransformStrategy for TransformStrategyUnSolid {
                 }
                 Ok(())
             }
-            ReadEntry::Regular(n) => {
+            ReadEntry::Normal(n) => {
                 if let Some(entry) = transformer(Ok(n))? {
                     archive.add_entry(entry)?;
                 }
@@ -438,7 +438,7 @@ impl TransformStrategy for TransformStrategyKeepSolid {
                 archive.add_entry(builder.build()?)?;
                 Ok(())
             }
-            ReadEntry::Regular(n) => {
+            ReadEntry::Normal(n) => {
                 if let Some(entry) = transformer(Ok(n))? {
                     archive.add_entry(entry)?;
                 }
@@ -488,7 +488,7 @@ where
             }
             Ok(())
         }
-        ReadEntry::Regular(regular) => processor(Ok(regular)),
+        ReadEntry::Normal(regular) => processor(Ok(regular)),
     })
 }
 
@@ -560,7 +560,7 @@ where
                     processor(r.map(Into::into))?;
                 }
             }
-            ReadEntry::Regular(r) => processor(Ok(r))?,
+            ReadEntry::Normal(r) => processor(Ok(r))?,
         }
         Ok(())
     })
