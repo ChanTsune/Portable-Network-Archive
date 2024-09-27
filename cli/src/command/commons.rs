@@ -383,7 +383,7 @@ where
     F: FnMut(io::Result<RegularEntry>) -> io::Result<()>,
 {
     let password = password_provider();
-    run_process_entry(archive_provider, |entry| match entry? {
+    run_read_entries(archive_provider, |entry| match entry? {
         ReadEntry::Solid(solid) => {
             for s in solid.entries(password)? {
                 processor(s)?;
@@ -498,7 +498,7 @@ where
     Ok(())
 }
 
-pub(crate) fn run_process_entry<F>(
+pub(crate) fn run_read_entries<F>(
     archive_provider: impl ArchiveProvider,
     mut processor: F,
 ) -> io::Result<()>
