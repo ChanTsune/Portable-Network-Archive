@@ -266,7 +266,7 @@ pub(crate) fn run_list_archive(
             ReadEntry::Solid(_) => {
                 log::warn!("This archive contain solid mode entry. if you need to show it use --solid option.");
             }
-            ReadEntry::Regular(item) => {
+            ReadEntry::Normal(item) => {
                 entries.push((&item, password, now, None, args.numeric_owner).try_into()?)
             }
         }
@@ -308,7 +308,7 @@ pub(crate) fn run_list_archive_mem(
             ReadEntry::Solid(_) => {
                 log::warn!("This archive contain solid mode entry. if you need to show it use --solid option.");
             }
-            ReadEntry::Regular(item) => {
+            ReadEntry::Normal(item) => {
                 entries.push((&item, password, now, None, args.numeric_owner).try_into()?)
             }
         }

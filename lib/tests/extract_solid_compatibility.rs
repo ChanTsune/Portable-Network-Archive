@@ -75,7 +75,7 @@ fn extract_all(bytes: &[u8], password: Option<&str>) {
                     assert_entry(item, password);
                 }
             }
-            ReadEntry::Regular(item) => {
+            ReadEntry::Normal(item) => {
                 if item.header().data_kind() == DataKind::Directory {
                     continue;
                 }

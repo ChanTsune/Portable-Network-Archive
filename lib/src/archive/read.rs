@@ -152,7 +152,7 @@ impl<R: Read> Archive<R> {
         self.entries().filter_map(|it| match it {
             Ok(e) => match e {
                 ReadEntry::Solid(_) => None,
-                ReadEntry::Regular(r) => Some(Ok(r)),
+                ReadEntry::Normal(r) => Some(Ok(r)),
             },
             Err(e) => Some(Err(e)),
         })
@@ -178,7 +178,7 @@ impl<R: Read> Archive<R> {
     ///         ReadEntry::Solid(solid_entry) => {
     ///             // fill your code
     ///         }
-    ///         ReadEntry::Regular(entry) => {
+    ///         ReadEntry::Normal(entry) => {
     ///             // fill your code
     ///         }
     ///     }
@@ -305,7 +305,7 @@ impl<R: AsyncRead + Unpin> Archive<R> {
             match entry {
                 Some(entry) => match entry.try_into()? {
                     ReadEntry::Solid(_) => continue,
-                    ReadEntry::Regular(entry) => return Ok(Some(entry)),
+                    ReadEntry::Normal(entry) => return Ok(Some(entry)),
                 },
                 None => return Ok(None),
             };
@@ -389,7 +389,7 @@ impl<'r, R: Read> Iterator for NormalEntries<'r, R> {
         }
         let entry = self.reader.read_entry();
         match entry {
-            Ok(Some(ReadEntry::Regular(entry))) => Some(Ok(entry)),
+            Ok(Some(ReadEntry::Normal(entry))) => Some(Ok(entry)),
             Ok(Some(ReadEntry::Solid(entry))) => {
                 let entries = entry.entries(self.password);
                 match entries {
