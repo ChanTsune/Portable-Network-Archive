@@ -93,7 +93,7 @@ impl<W: Write> Archive<W> {
         Ok(Self::new(write, header))
     }
 
-    /// Write regular file entry into archive.
+    /// Write regular file as normal entry into archive.
     ///
     /// # Example
     /// ```no_run
@@ -424,7 +424,7 @@ impl<W: Write> SolidArchive<W> {
         entry.write_in(&mut self.inner)
     }
 
-    /// Write regular file entry into archive.
+    /// Write regular file as solid entry into archive.
     ///
     /// # Example
     /// ```no_run
