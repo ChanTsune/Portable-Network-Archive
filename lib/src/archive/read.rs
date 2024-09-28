@@ -208,19 +208,6 @@ impl<R: Read> Archive<R> {
         self.entries().extract_solid_entries(password)
     }
 
-    /// Returns `true` if [ANXT] chunk is appeared before call this method calling.
-    ///
-    /// # Returns
-    ///
-    /// `true` if the next archive in the series is available, otherwise `false`.
-    ///
-    /// [ANXT]: ChunkType::ANXT
-    #[deprecated(since = "0.16.0", note = "Renamed to `Archive::has_next_archive`")]
-    #[inline]
-    pub const fn next_archive(&self) -> bool {
-        self.next_archive
-    }
-
     /// Reads the next archive from the provided reader and returns a new [`Archive`].
     ///
     /// # Arguments
