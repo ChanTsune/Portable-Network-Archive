@@ -481,7 +481,7 @@ where
     Provider: FnMut() -> Option<&'p str>,
     F: FnMut(
         io::Result<RegularEntry<std::borrow::Cow<[u8]>>>,
-    ) -> io::Result<RegularEntry<std::borrow::Cow<[u8]>>>,
+    ) -> io::Result<Option<RegularEntry<std::borrow::Cow<[u8]>>>>,
 {
     let random = rand::random::<usize>();
     let temp_path = temp_dir().join(format!("{}.pna.tmp", random));
@@ -489,7 +489,9 @@ where
     let mut out_archive = Archive::write_header(outfile)?;
 
     run_entries(input_path, password_provider, |entry| {
-        out_archive.add_entry(processor(entry)?)?;
+        if let Some(entry) = processor(entry)? {
+            out_archive.add_entry(entry)?;
+        }
         Ok(())
     })?;
 
@@ -524,7 +526,7 @@ where
     O: AsRef<Path>,
     P: AsRef<Path>,
     Provider: FnMut() -> Option<&'p str>,
-    F: FnMut(io::Result<RegularEntry>) -> io::Result<RegularEntry>,
+    F: FnMut(io::Result<RegularEntry>) -> io::Result<Option<RegularEntry>>,
 {
     let output_path = output_path.as_ref();
     let random = rand::random::<usize>();
@@ -533,7 +535,9 @@ where
     let mut out_archive = Archive::write_header(outfile)?;
 
     run_entries(input_path, password_provider, |entry| {
-        out_archive.add_entry(processor(entry)?)?;
+        if let Some(entry) = processor(entry)? {
+            out_archive.add_entry(entry)?;
+        }
         Ok(())
     })?;
 

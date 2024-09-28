@@ -70,9 +70,11 @@ fn archive_chown(args: ChownCommand) -> io::Result<()> {
                     let (gid, gname) = group.unwrap_or_else(|| (p.gid(), p.gname().into()));
                     pna::Permission::new(uid, uname, gid, gname, p.permissions())
                 });
-                Ok(entry.with_metadata(metadata.with_permission(permission)))
+                Ok(Some(
+                    entry.with_metadata(metadata.with_permission(permission)),
+                ))
             } else {
-                Ok(entry)
+                Ok(Some(entry))
             }
         },
     )

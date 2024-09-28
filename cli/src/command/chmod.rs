@@ -49,9 +49,11 @@ fn archive_chmod(args: ChmodCommand) -> io::Result<()> {
                     let mode = args.mode.apply_to(p.permissions());
                     pna::Permission::new(p.uid(), p.uname().into(), p.gid(), p.gname().into(), mode)
                 });
-                Ok(entry.with_metadata(metadata.with_permission(permission)))
+                Ok(Some(
+                    entry.with_metadata(metadata.with_permission(permission)),
+                ))
             } else {
-                Ok(entry)
+                Ok(Some(entry))
             }
         },
     )

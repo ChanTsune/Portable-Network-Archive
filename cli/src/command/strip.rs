@@ -46,7 +46,7 @@ fn strip_metadata(args: StripCommand) -> io::Result<()> {
             .unwrap_or_else(|| args.file.archive.remove_part().unwrap()),
         &args.file.archive,
         || password.as_deref(),
-        |entry| Ok(strip_entry_metadata(entry?, &args.strip_options)),
+        |entry| Ok(Some(strip_entry_metadata(entry?, &args.strip_options))),
     )
 }
 
