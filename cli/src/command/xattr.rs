@@ -195,9 +195,9 @@ fn archive_set_xattr(args: SetXattrCommand) -> io::Result<()> {
                     .into_iter()
                     .map(|(key, value)| pna::ExtendedAttribute::new(key.into(), value.into()))
                     .collect::<Vec<_>>();
-                Ok(entry.with_xattrs(&xattrs))
+                Ok(Some(entry.with_xattrs(&xattrs)))
             } else {
-                Ok(entry)
+                Ok(Some(entry))
             }
         },
     )
