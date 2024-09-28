@@ -1,11 +1,10 @@
 use crate::{
     cli::{FileArgs, PasswordArgs},
-    command::{ask_password, commons::run_entries, Command},
-    utils::{self, GlobPatterns, PathPartExt},
+    command::{ask_password, commons::run_manipulate_entry, Command},
+    utils::{GlobPatterns, PathPartExt},
 };
 use clap::{ArgGroup, Parser, ValueHint};
-use pna::Archive;
-use std::{env::temp_dir, fs, io, path::PathBuf};
+use std::{io, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(group(ArgGroup::new("unstable-delete-exclude").args(["exclude"]).requires("unstable")))]
@@ -32,35 +31,18 @@ fn delete_file_from_archive(args: DeleteCommand) -> io::Result<()> {
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
     let exclude_globs = GlobPatterns::try_from(args.exclude.unwrap_or_default())
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-    let outfile_path = if let Some(output) = &args.output {
-        if let Some(parent) = output.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        output.clone()
-    } else {
-        let random = rand::random::<usize>();
-        temp_dir().join(format!("{}.pna.tmp", random))
-    };
-    let outfile = fs::File::create(&outfile_path)?;
-    let mut out_archive = Archive::write_header(outfile)?;
-
-    run_entries(
+    run_manipulate_entry(
+        args.output
+            .unwrap_or_else(|| args.file.archive.remove_part().unwrap()),
         &args.file.archive,
         || password.as_deref(),
         |entry| {
             let entry = entry?;
             let entry_path = entry.header().path().as_ref();
             if globs.matches_any(entry_path) && !exclude_globs.matches_any(entry_path) {
-                return Ok(());
+                return Ok(None);
             }
-            out_archive.add_entry(entry)?;
-            Ok(())
+            Ok(Some(entry))
         },
-    )?;
-    out_archive.finalize()?;
-
-    if args.output.is_none() {
-        utils::fs::mv(outfile_path, args.file.archive.remove_part().unwrap())?;
-    }
-    Ok(())
+    )
 }
