@@ -34,8 +34,11 @@ pub(crate) fn mv<Src: AsRef<Path>, Dist: AsRef<Path>>(src: Src, dist: Dist) -> i
     fn inner(src: &Path, dist: &Path) -> io::Result<()> {
         use std::os::unix::fs::MetadataExt;
         let src_meta = fs::metadata(src)?;
-        let dist_meta = fs::metadata(dist)?;
-        if src_meta.dev() == dist_meta.dev() {
+        if dist
+            .parent()
+            .and_then(|parent| fs::metadata(parent).ok())
+            .is_some_and(|dist_meta| src_meta.dev() == dist_meta.dev())
+        {
             fs::rename(src, dist)
         } else {
             fs::copy(src, dist)?;
