@@ -435,7 +435,10 @@ impl SolidEntryBuilder {
     /// # }
     /// ```
     #[inline]
-    pub fn add_entry(&mut self, entry: RegularEntry) -> io::Result<usize> {
+    pub fn add_entry<T>(&mut self, entry: RegularEntry<T>) -> io::Result<usize>
+    where
+        RegularEntry<T>: Entry,
+    {
         entry.write_in(&mut self.data)
     }
 
