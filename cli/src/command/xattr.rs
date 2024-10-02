@@ -130,7 +130,7 @@ fn archive_get_xattr(args: GetXattrCommand) -> io::Result<()> {
         || password.as_deref(),
         |entry| {
             let entry = entry?;
-            let name = entry.header().path().as_ref();
+            let name = entry.header().path();
             if globs.matches_any(name) {
                 println!("# file: {}", name);
                 for attr in entry.xattrs().iter().filter(|a| {
@@ -172,8 +172,7 @@ fn archive_set_xattr(args: SetXattrCommand) -> io::Result<()> {
         || password.as_deref(),
         |entry| {
             let entry = entry?;
-            let name = entry.header().path().as_ref();
-            if globs.matches_any(name) {
+            if globs.matches_any(entry.header().path()) {
                 let mut xattrs = entry
                     .xattrs()
                     .iter()

@@ -1,3 +1,5 @@
+use std::path::Path;
+
 pub(crate) struct GlobPatterns(globset::GlobSet);
 
 impl GlobPatterns {
@@ -18,7 +20,7 @@ impl GlobPatterns {
     }
 
     #[inline]
-    pub(crate) fn matches_any(&self, s: &str) -> bool {
+    pub(crate) fn matches_any<P: AsRef<Path>>(&self, s: P) -> bool {
         self.0.is_match(s)
     }
 }
