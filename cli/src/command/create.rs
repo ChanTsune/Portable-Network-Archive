@@ -14,11 +14,12 @@ use crate::{
 };
 use bytesize::ByteSize;
 use clap::{ArgGroup, Parser, ValueHint};
-use pna::{Archive, SolidEntryBuilder, WriteOptions};
+use pna::{Archive, Entry, RegularEntry, SolidEntryBuilder, WriteOptions};
 use rayon::ThreadPoolBuilder;
 use std::{
     fs::{self, File},
     io::{self, prelude::*},
+    marker::PhantomData,
     path::{Path, PathBuf},
     time::Instant,
 };
@@ -179,13 +180,20 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
             target_items,
             size,
         )?;
-    } else {
-        create_archive_file(
+    } else if args.solid {
+        create_archive_file::<SolidArchiveStrategy<_>, _>(
             || File::create(&args.file.archive),
             write_option,
             keep_options,
             owner_options,
-            args.solid,
+            target_items,
+        )?;
+    } else {
+        create_archive_file::<NormalArchiveStrategy<_>, _>(
+            || File::create(&args.file.archive),
+            write_option,
+            keep_options,
+            owner_options,
             target_items,
         )?;
     }
@@ -196,33 +204,138 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
     Ok(())
 }
 
-pub(crate) fn create_archive_file<W, F>(
+pub(crate) trait CreateArchiveStrategy {
+    type Output;
+    fn new(
+        write_options: WriteOptions,
+        keep_options: KeepOptions,
+        owner_options: OwnerOptions,
+    ) -> Self;
+    fn get_create_options(&self) -> CreateOptions;
+
+    fn create_archive<T>(
+        &self,
+        dist: Self::Output,
+        entries: impl Iterator<Item = io::Result<RegularEntry<T>>>,
+    ) -> io::Result<Self::Output>
+    where
+        RegularEntry<T>: Entry;
+}
+
+pub(crate) struct SolidArchiveStrategy<T> {
+    write_options: WriteOptions,
+    keep_options: KeepOptions,
+    owner_options: OwnerOptions,
+    _marker: PhantomData<T>,
+}
+
+impl<T: Write> CreateArchiveStrategy for SolidArchiveStrategy<T> {
+    type Output = T;
+
+    #[inline]
+    fn new(
+        write_options: WriteOptions,
+        keep_options: KeepOptions,
+        owner_options: OwnerOptions,
+    ) -> Self {
+        Self {
+            write_options,
+            keep_options,
+            owner_options,
+            _marker: PhantomData,
+        }
+    }
+
+    #[inline]
+    fn get_create_options(&self) -> CreateOptions {
+        CreateOptions {
+            option: WriteOptions::store(),
+            keep_options: self.keep_options.clone(),
+            owner_options: self.owner_options.clone(),
+        }
+    }
+
+    #[inline]
+    fn create_archive<D>(
+        &self,
+        dist: Self::Output,
+        entries: impl Iterator<Item = io::Result<RegularEntry<D>>>,
+    ) -> io::Result<Self::Output>
+    where
+        RegularEntry<D>: Entry,
+    {
+        let mut writer = Archive::write_solid_header(dist, self.write_options.clone())?;
+        for entry in entries {
+            writer.add_entry(entry?)?;
+        }
+        writer.finalize()
+    }
+}
+
+pub(crate) struct NormalArchiveStrategy<T> {
+    create_options: CreateOptions,
+    _marker: PhantomData<T>,
+}
+
+impl<T: Write> CreateArchiveStrategy for NormalArchiveStrategy<T> {
+    type Output = T;
+
+    #[inline]
+    fn new(
+        write_options: WriteOptions,
+        keep_options: KeepOptions,
+        owner_options: OwnerOptions,
+    ) -> Self {
+        Self {
+            create_options: CreateOptions {
+                option: write_options,
+                keep_options,
+                owner_options,
+            },
+            _marker: PhantomData,
+        }
+    }
+
+    #[inline]
+    fn get_create_options(&self) -> CreateOptions {
+        self.create_options.clone()
+    }
+
+    #[inline]
+    fn create_archive<D>(
+        &self,
+        dist: Self::Output,
+        entries: impl Iterator<Item = io::Result<RegularEntry<D>>>,
+    ) -> io::Result<Self::Output>
+    where
+        RegularEntry<D>: Entry,
+    {
+        let mut writer = Archive::write_header(dist)?;
+        for entry in entries {
+            writer.add_entry(entry?)?;
+        }
+        writer.finalize()
+    }
+}
+
+pub(crate) fn create_archive_file<S, F>(
     mut get_writer: F,
     write_option: WriteOptions,
     keep_options: KeepOptions,
     owner_options: OwnerOptions,
-    solid: bool,
     target_items: Vec<PathBuf>,
 ) -> io::Result<()>
 where
-    W: Write,
-    F: FnMut() -> io::Result<W>,
+    S: CreateArchiveStrategy,
+    F: FnMut() -> io::Result<<S as CreateArchiveStrategy>::Output>,
 {
     let pool = ThreadPoolBuilder::default()
         .build()
         .map_err(io::Error::other)?;
 
     let (tx, rx) = std::sync::mpsc::channel();
-    let option = if solid {
-        WriteOptions::store()
-    } else {
-        write_option.clone()
-    };
-    let create_options = CreateOptions {
-        option,
-        keep_options,
-        owner_options,
-    };
+    let strategy = S::new(write_option, keep_options, owner_options);
+    let create_options = strategy.get_create_options();
     for file in target_items {
         let tx = tx.clone();
         pool.scope_fifo(|s| {
@@ -237,19 +350,7 @@ where
     drop(tx);
 
     let file = get_writer()?;
-    if solid {
-        let mut writer = Archive::write_solid_header(file, write_option)?;
-        for entry in rx.into_iter() {
-            writer.add_entry(entry?)?;
-        }
-        writer.finalize()?;
-    } else {
-        let mut writer = Archive::write_header(file)?;
-        for entry in rx.into_iter() {
-            writer.add_entry(entry?)?;
-        }
-        writer.finalize()?;
-    }
+    strategy.create_archive(file, rx.into_iter())?;
     Ok(())
 }
 

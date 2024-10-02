@@ -6,7 +6,7 @@ use crate::{
             collect_items, entry_option, KeepOptions, OwnerOptions, PathArchiveProvider,
             StdinArchiveProvider,
         },
-        create::create_archive_file,
+        create::{create_archive_file, NormalArchiveStrategy, SolidArchiveStrategy},
         extract::{run_extract_archive_reader, OutputOption},
         list::ListOptions,
         Command,
@@ -181,24 +181,35 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
         args.gid,
         args.numeric_owner,
     );
-    if let Some(file) = args.file {
-        create_archive_file(
+    match (args.file, args.solid) {
+        (Some(file), true) => create_archive_file::<SolidArchiveStrategy<_>, _>(
             || fs::File::open(&file),
             cli_option,
             keep_options,
             owner_options,
-            args.solid,
             target_items,
-        )
-    } else {
-        create_archive_file(
+        ),
+        (Some(file), false) => create_archive_file::<NormalArchiveStrategy<_>, _>(
+            || fs::File::open(&file),
+            cli_option,
+            keep_options,
+            owner_options,
+            target_items,
+        ),
+        (None, true) => create_archive_file::<SolidArchiveStrategy<_>, _>(
             || Ok(stdout().lock()),
             cli_option,
             keep_options,
             owner_options,
-            args.solid,
             target_items,
-        )
+        ),
+        (None, false) => create_archive_file::<NormalArchiveStrategy<_>, _>(
+            || Ok(stdout().lock()),
+            cli_option,
+            keep_options,
+            owner_options,
+            target_items,
+        ),
     }
 }
 
