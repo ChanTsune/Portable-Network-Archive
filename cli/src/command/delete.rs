@@ -38,7 +38,7 @@ fn delete_file_from_archive(args: DeleteCommand) -> io::Result<()> {
         || password.as_deref(),
         |entry| {
             let entry = entry?;
-            let entry_path = entry.header().path().as_ref();
+            let entry_path = entry.header().path();
             if globs.matches_any(entry_path) && !exclude_globs.matches_any(entry_path) {
                 return Ok(None);
             }

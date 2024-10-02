@@ -42,8 +42,7 @@ fn archive_chmod(args: ChmodCommand) -> io::Result<()> {
         || password.as_deref(),
         |entry| {
             let entry = entry?;
-            let name = entry.header().path().as_ref();
-            if globs.matches_any(name) {
+            if globs.matches_any(entry.header().path()) {
                 let metadata = entry.metadata().clone();
                 let permission = metadata.permission().map(|p| {
                     let mode = args.mode.apply_to(p.permissions());

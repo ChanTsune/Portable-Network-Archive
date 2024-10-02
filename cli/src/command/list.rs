@@ -328,7 +328,7 @@ fn print_entries(entries: Vec<TableRow>, globs: GlobPatterns, options: ListOptio
     } else {
         entries
             .into_par_iter()
-            .filter(|r| globs.matches_any(r.name.as_ref()))
+            .filter(|r| globs.matches_any(&r.name))
             .collect()
     };
     if options.long {
