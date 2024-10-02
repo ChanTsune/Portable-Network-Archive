@@ -165,6 +165,10 @@ fn archive_set_xattr(args: SetXattrCommand) -> io::Result<()> {
     }
     let globs = GlobPatterns::new(args.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let value = args
+        .value
+        .as_ref()
+        .map_or_else(Default::default, |it| it.as_bytes());
 
     run_manipulate_entry(
         args.archive.remove_part().unwrap(),
@@ -180,12 +184,7 @@ fn archive_set_xattr(args: SetXattrCommand) -> io::Result<()> {
                     .collect::<IndexMap<_, _>>();
                 if let Some(name) = args.name.as_deref() {
                     let map_entry = xattrs.entry(name);
-                    map_entry.or_insert(
-                        args.value
-                            .as_ref()
-                            .map(|it| it.as_bytes())
-                            .unwrap_or_default(),
-                    );
+                    map_entry.or_insert(value);
                 }
                 if let Some(name) = args.name.as_deref() {
                     xattrs.shift_remove_entry(name);
