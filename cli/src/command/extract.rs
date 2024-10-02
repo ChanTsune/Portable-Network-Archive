@@ -142,7 +142,7 @@ pub(crate) fn run_extract_archive_reader<'p, Provider>(
 where
     Provider: FnMut() -> Option<&'p str>,
 {
-    let password = password_provider().map(ToOwned::to_owned);
+    let password = password_provider();
     let globs =
         GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
@@ -167,7 +167,7 @@ where
         let tx = tx.clone();
         pool.scope_fifo(|s| {
             s.spawn_fifo(|_| {
-                tx.send(extract_entry(item, password.clone(), args.clone()))
+                tx.send(extract_entry(item, password, args.clone()))
                     .unwrap_or_else(|e| panic!("{e}: {}", item_path));
             })
         });
@@ -179,7 +179,7 @@ where
     }
 
     for item in hard_link_entries {
-        extract_entry(item, password.clone(), args.clone())?;
+        extract_entry(item, password, args.clone())?;
     }
     Ok(())
 }
@@ -194,7 +194,7 @@ pub(crate) fn run_extract_archive<'p, Provider>(
 where
     Provider: FnMut() -> Option<&'p str>,
 {
-    let password = password_provider().map(ToOwned::to_owned);
+    let password = password_provider();
     let globs =
         GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
@@ -219,7 +219,7 @@ where
         let tx = tx.clone();
         pool.scope_fifo(|s| {
             s.spawn_fifo(|_| {
-                tx.send(extract_entry(item, password.clone(), args.clone()))
+                tx.send(extract_entry(item, password, args.clone()))
                     .unwrap_or_else(|e| panic!("{e}: {}", item_path));
             })
         });
@@ -231,14 +231,14 @@ where
     }
 
     for item in hard_link_entries {
-        extract_entry(item, password.clone(), args.clone())?;
+        extract_entry(item, password, args.clone())?;
     }
     Ok(())
 }
 
 pub(crate) fn extract_entry<T>(
     item: RegularEntry<T>,
-    password: Option<String>,
+    password: Option<&str>,
     OutputOption {
         overwrite,
         out_dir,
