@@ -67,7 +67,8 @@ pub(crate) enum Target {
 }
 
 impl Target {
-    fn apply_to(&self, n: u16) -> u16 {
+    #[inline]
+    const fn apply_to(&self, n: u16) -> u16 {
         match self {
             Target::User => n << 6,
             Target::Group => n << 3,
@@ -90,7 +91,7 @@ impl Mode {
     const GROUP_MASK: u16 = 0o707;
     const OTHER_MASK: u16 = 0o770;
     #[inline]
-    pub(crate) fn apply_to(&self, mode: u16) -> u16 {
+    pub(crate) const fn apply_to(&self, mode: u16) -> u16 {
         match self {
             Mode::Num(mode) => *mode,
             Mode::Equal(t, m) => match t {
