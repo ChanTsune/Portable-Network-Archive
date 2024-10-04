@@ -6,6 +6,7 @@ use crate::{
     utils::{GlobPatterns, PathPartExt},
 };
 use clap::{Parser, ValueHint};
+use pna::RegularEntry;
 use std::ops::Not;
 use std::{io, path::PathBuf, str::FromStr};
 
@@ -42,41 +43,41 @@ fn archive_chown(args: ChownCommand) -> io::Result<()> {
         |entry| {
             let entry = entry?;
             if globs.matches_any(entry.header().path()) {
-                let metadata = entry.metadata().clone();
-                let permission = metadata.permission().map(|p| {
-                    let user = args.owner.user();
-                    #[cfg(unix)]
-                    let user = user.and_then(|it| {
-                        User::from_name(it).map(|it| (it.as_raw().into(), it.name().into()))
-                    });
-                    #[cfg(windows)]
-                    let user = user
-                        .and_then(|it| User::from_name(it).map(|it| (u64::MAX, it.name().into())));
-                    #[cfg(not(any(unix, windows)))]
-                    let user = user.map(|_| (p.uid(), p.uname().into()));
-                    let (uid, uname) = user.unwrap_or_else(|| (p.uid(), p.uname().into()));
-
-                    let group = args.owner.group();
-                    #[cfg(unix)]
-                    let group = group.and_then(|it| {
-                        Group::from_name(it).map(|it| (it.as_raw().into(), it.name().into()))
-                    });
-                    #[cfg(windows)]
-                    let group = group
-                        .and_then(|it| Group::from_name(it).map(|it| (u64::MAX, it.name().into())));
-                    #[cfg(not(any(unix, windows)))]
-                    let group = group.map(|_| (p.gid(), p.gname().into()));
-                    let (gid, gname) = group.unwrap_or_else(|| (p.gid(), p.gname().into()));
-                    pna::Permission::new(uid, uname, gid, gname, p.permissions())
-                });
-                Ok(Some(
-                    entry.with_metadata(metadata.with_permission(permission)),
-                ))
+                Ok(Some(transform_entry(entry, &args.owner)))
             } else {
                 Ok(Some(entry))
             }
         },
     )
+}
+
+#[inline]
+fn transform_entry<T>(entry: RegularEntry<T>, owner: &Owner) -> RegularEntry<T> {
+    let metadata = entry.metadata().clone();
+    let permission = metadata.permission().map(|p| {
+        let user = owner.user();
+        #[cfg(unix)]
+        let user = user
+            .and_then(|it| User::from_name(it).map(|it| (it.as_raw().into(), it.name().into())));
+        #[cfg(windows)]
+        let user = user.and_then(|it| User::from_name(it).map(|it| (u64::MAX, it.name().into())));
+        #[cfg(not(any(unix, windows)))]
+        let user = user.map(|_| (p.uid(), p.uname().into()));
+        let (uid, uname) = user.unwrap_or_else(|| (p.uid(), p.uname().into()));
+
+        let group = owner.group();
+        #[cfg(unix)]
+        let group = group
+            .and_then(|it| Group::from_name(it).map(|it| (it.as_raw().into(), it.name().into())));
+        #[cfg(windows)]
+        let group =
+            group.and_then(|it| Group::from_name(it).map(|it| (u64::MAX, it.name().into())));
+        #[cfg(not(any(unix, windows)))]
+        let group = group.map(|_| (p.gid(), p.gname().into()));
+        let (gid, gname) = group.unwrap_or_else(|| (p.gid(), p.gname().into()));
+        pna::Permission::new(uid, uname, gid, gname, p.permissions())
+    });
+    entry.with_metadata(metadata.with_permission(permission))
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
