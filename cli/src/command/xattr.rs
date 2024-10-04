@@ -10,6 +10,7 @@ use crate::{
 use base64::Engine;
 use clap::{Parser, ValueHint};
 use indexmap::IndexMap;
+use pna::RegularEntry;
 use std::{
     fmt::{Display, Formatter, Write},
     io,
@@ -177,28 +178,43 @@ fn archive_set_xattr(args: SetXattrCommand) -> io::Result<()> {
         |entry| {
             let entry = entry?;
             if globs.matches_any(entry.header().path()) {
-                let mut xattrs = entry
-                    .xattrs()
-                    .iter()
-                    .map(|it| (it.name(), it.value()))
-                    .collect::<IndexMap<_, _>>();
-                if let Some(name) = args.name.as_deref() {
-                    let map_entry = xattrs.entry(name);
-                    map_entry.or_insert(value);
-                }
-                if let Some(name) = args.name.as_deref() {
-                    xattrs.shift_remove_entry(name);
-                }
-                let xattrs = xattrs
-                    .into_iter()
-                    .map(|(key, value)| pna::ExtendedAttribute::new(key.into(), value.into()))
-                    .collect::<Vec<_>>();
-                Ok(Some(entry.with_xattrs(&xattrs)))
+                Ok(Some(transform_entry(
+                    entry,
+                    args.name.as_deref(),
+                    value,
+                    args.remove.as_deref(),
+                )))
             } else {
                 Ok(Some(entry))
             }
         },
     )
+}
+
+#[inline]
+fn transform_entry<T>(
+    entry: RegularEntry<T>,
+    name: Option<&str>,
+    value: &[u8],
+    remove: Option<&str>,
+) -> RegularEntry<T> {
+    let mut xattrs = entry
+        .xattrs()
+        .iter()
+        .map(|it| (it.name(), it.value()))
+        .collect::<IndexMap<_, _>>();
+    if let Some(name) = name {
+        let map_entry = xattrs.entry(name);
+        map_entry.or_insert(value);
+    }
+    if let Some(name) = remove {
+        xattrs.shift_remove_entry(name);
+    }
+    let xattrs = xattrs
+        .into_iter()
+        .map(|(key, value)| pna::ExtendedAttribute::new(key.into(), value.into()))
+        .collect::<Vec<_>>();
+    entry.with_xattrs(&xattrs)
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
