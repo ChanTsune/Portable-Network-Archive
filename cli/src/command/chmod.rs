@@ -4,6 +4,7 @@ use crate::{
     utils::{GlobPatterns, PathPartExt},
 };
 use clap::{Parser, ValueHint};
+use pna::RegularEntry;
 use std::{
     io,
     path::PathBuf,
@@ -43,19 +44,22 @@ fn archive_chmod(args: ChmodCommand) -> io::Result<()> {
         |entry| {
             let entry = entry?;
             if globs.matches_any(entry.header().path()) {
-                let metadata = entry.metadata().clone();
-                let permission = metadata.permission().map(|p| {
-                    let mode = args.mode.apply_to(p.permissions());
-                    pna::Permission::new(p.uid(), p.uname().into(), p.gid(), p.gname().into(), mode)
-                });
-                Ok(Some(
-                    entry.with_metadata(metadata.with_permission(permission)),
-                ))
+                Ok(Some(transform_entry(entry, args.mode)))
             } else {
                 Ok(Some(entry))
             }
         },
     )
+}
+
+#[inline]
+fn transform_entry<T>(entry: RegularEntry<T>, mode: Mode) -> RegularEntry<T> {
+    let metadata = entry.metadata().clone();
+    let permission = metadata.permission().map(|p| {
+        let mode = mode.apply_to(p.permissions());
+        pna::Permission::new(p.uid(), p.uname().into(), p.gid(), p.gname().into(), mode)
+    });
+    entry.with_metadata(metadata.with_permission(permission))
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
