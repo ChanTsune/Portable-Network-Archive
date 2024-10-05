@@ -192,6 +192,20 @@ where
     }
 }
 
+impl<T> From<RegularEntry<T>> for ReadEntry<T> {
+    #[inline]
+    fn from(value: RegularEntry<T>) -> Self {
+        Self::Regular(value)
+    }
+}
+
+impl<T> From<SolidEntry<T>> for ReadEntry<T> {
+    #[inline]
+    fn from(value: SolidEntry<T>) -> Self {
+        Self::Solid(value)
+    }
+}
+
 impl<'a> From<ReadEntry<Cow<'a, [u8]>>> for ReadEntry<Vec<u8>> {
     #[inline]
     fn from(value: ReadEntry<Cow<'a, [u8]>>) -> Self {
