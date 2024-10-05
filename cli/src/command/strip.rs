@@ -1,6 +1,10 @@
 use crate::{
     cli::{FileArgs, PasswordArgs, PrivateChunkType},
-    command::{ask_password, commons::run_manipulate_entry, Command},
+    command::{
+        ask_password,
+        commons::{run_manipulate_entry, TransformStrategyUnSolid},
+        Command,
+    },
     utils::PathPartExt,
 };
 use clap::{Args, Parser, ValueHint};
@@ -47,6 +51,7 @@ fn strip_metadata(args: StripCommand) -> io::Result<()> {
         &args.file.archive,
         || password.as_deref(),
         |entry| Ok(Some(strip_entry_metadata(entry?, &args.strip_options))),
+        TransformStrategyUnSolid,
     )
 }
 

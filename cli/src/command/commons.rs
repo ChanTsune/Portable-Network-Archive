@@ -5,7 +5,7 @@ use crate::{
 use normalize_path::*;
 use pna::{
     prelude::*, Archive, EntryBuilder, EntryName, EntryPart, EntryReference, ReadEntry,
-    RegularEntry, WriteOptions, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
+    RegularEntry, SolidEntryBuilder, WriteOptions, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
 };
 use std::{
     env::temp_dir,
@@ -353,6 +353,56 @@ impl ArchiveProvider for StdinArchiveProvider {
     }
 }
 
+pub(crate) trait TransformStrategy {
+    fn transform<W, T, F>(
+        archive: &mut Archive<W>,
+        password: Option<&str>,
+        read_entry: io::Result<ReadEntry<T>>,
+        transformer: F,
+    ) -> io::Result<()>
+    where
+        W: Write,
+        T: AsRef<[u8]>,
+        F: FnMut(io::Result<RegularEntry<T>>) -> io::Result<Option<RegularEntry<T>>>,
+        RegularEntry<T>: From<RegularEntry>,
+        RegularEntry<T>: Entry;
+}
+
+pub(crate) struct TransformStrategyUnSolid;
+
+impl TransformStrategy for TransformStrategyUnSolid {
+    fn transform<W, T, F>(
+        archive: &mut Archive<W>,
+        password: Option<&str>,
+        read_entry: io::Result<ReadEntry<T>>,
+        mut transformer: F,
+    ) -> io::Result<()>
+    where
+        W: Write,
+        T: AsRef<[u8]>,
+        F: FnMut(io::Result<RegularEntry<T>>) -> io::Result<Option<RegularEntry<T>>>,
+        RegularEntry<T>: From<RegularEntry>,
+        RegularEntry<T>: Entry,
+    {
+        match read_entry? {
+            ReadEntry::Solid(s) => {
+                for n in s.entries(password)? {
+                    if let Some(entry) = transformer(n.map(Into::into))? {
+                        archive.add_entry(entry)?;
+                    }
+                }
+                Ok(())
+            }
+            ReadEntry::Regular(n) => {
+                if let Some(entry) = transformer(Ok(n))? {
+                    archive.add_entry(entry)?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
 pub(crate) fn run_across_archive<P, F>(provider: P, mut processor: F) -> io::Result<()>
 where
     P: ArchiveProvider,
@@ -469,11 +519,12 @@ where
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_manipulate_entry<'p, O, P, Provider, F>(
+pub(crate) fn run_manipulate_entry<'p, O, P, Provider, F, Transform>(
     output_path: O,
     input_path: P,
-    password_provider: Provider,
+    mut password_provider: Provider,
     mut processor: F,
+    _strategy: Transform,
 ) -> io::Result<()>
 where
     O: AsRef<Path>,
@@ -482,17 +533,16 @@ where
     F: FnMut(
         io::Result<RegularEntry<std::borrow::Cow<[u8]>>>,
     ) -> io::Result<Option<RegularEntry<std::borrow::Cow<[u8]>>>>,
+    Transform: TransformStrategy,
 {
+    let password = password_provider();
     let random = rand::random::<usize>();
     let temp_path = temp_dir().join(format!("{}.pna.tmp", random));
     let outfile = fs::File::create(&temp_path)?;
     let mut out_archive = Archive::write_header(outfile)?;
 
-    run_entries(input_path, password_provider, |entry| {
-        if let Some(entry) = processor(entry)? {
-            out_archive.add_entry(entry)?;
-        }
-        Ok(())
+    run_read_entries_mem(input_path, |entry| {
+        Transform::transform(&mut out_archive, password, entry, |it| processor(it))
     })?;
 
     out_archive.finalize()?;
@@ -516,29 +566,29 @@ where
 }
 
 #[cfg(not(feature = "memmap"))]
-pub(crate) fn run_manipulate_entry<'p, O, P, Provider, F>(
+pub(crate) fn run_manipulate_entry<'p, O, P, Provider, F, Transform>(
     output_path: O,
     input_path: P,
-    password_provider: Provider,
+    mut password_provider: Provider,
     mut processor: F,
+    _strategy: Transform,
 ) -> io::Result<()>
 where
     O: AsRef<Path>,
     P: AsRef<Path>,
     Provider: FnMut() -> Option<&'p str>,
     F: FnMut(io::Result<RegularEntry>) -> io::Result<Option<RegularEntry>>,
+    Transform: TransformStrategy,
 {
+    let password = password_provider();
     let output_path = output_path.as_ref();
     let random = rand::random::<usize>();
     let temp_path = temp_dir().join(format!("{}.pna.tmp", random));
     let outfile = fs::File::create(&temp_path)?;
     let mut out_archive = Archive::write_header(outfile)?;
 
-    run_entries(input_path, password_provider, |entry| {
-        if let Some(entry) = processor(entry)? {
-            out_archive.add_entry(entry)?;
-        }
-        Ok(())
+    run_read_entries(PathArchiveProvider(input_path.as_ref()), |entry| {
+        Transform::transform(&mut out_archive, password, entry, |it| processor(it))
     })?;
 
     out_archive.finalize()?;

@@ -2,7 +2,11 @@
 use crate::utils::fs::{Group, User};
 use crate::{
     cli::PasswordArgs,
-    command::{ask_password, commons::run_manipulate_entry, Command},
+    command::{
+        ask_password,
+        commons::{run_manipulate_entry, TransformStrategyUnSolid},
+        Command,
+    },
     utils::{GlobPatterns, PathPartExt},
 };
 use clap::{Parser, ValueHint};
@@ -48,6 +52,7 @@ fn archive_chown(args: ChownCommand) -> io::Result<()> {
                 Ok(Some(entry))
             }
         },
+        TransformStrategyUnSolid,
     )
 }
 

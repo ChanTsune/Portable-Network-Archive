@@ -2,7 +2,7 @@ use crate::{
     cli::PasswordArgs,
     command::{
         ask_password,
-        commons::{run_entries, run_manipulate_entry},
+        commons::{run_entries, run_manipulate_entry, TransformStrategyUnSolid},
         Command,
     },
     utils::{str::char_chunks, GlobPatterns, PathPartExt},
@@ -188,6 +188,7 @@ fn archive_set_xattr(args: SetXattrCommand) -> io::Result<()> {
                 Ok(Some(entry))
             }
         },
+        TransformStrategyUnSolid,
     )
 }
 
