@@ -403,6 +403,54 @@ impl TransformStrategy for TransformStrategyUnSolid {
     }
 }
 
+pub(crate) struct TransformStrategyKeepSolid;
+
+impl TransformStrategy for TransformStrategyKeepSolid {
+    fn transform<W, T, F>(
+        archive: &mut Archive<W>,
+        password: Option<&str>,
+        read_entry: io::Result<ReadEntry<T>>,
+        mut transformer: F,
+    ) -> io::Result<()>
+    where
+        W: Write,
+        T: AsRef<[u8]>,
+        F: FnMut(io::Result<RegularEntry<T>>) -> io::Result<Option<RegularEntry<T>>>,
+        RegularEntry<T>: From<RegularEntry>,
+        RegularEntry<T>: Entry,
+    {
+        match read_entry? {
+            ReadEntry::Solid(s) => {
+                let header = s.header();
+                let mut builder = SolidEntryBuilder::new(
+                    WriteOptions::builder()
+                        .compression(header.compression())
+                        .encryption(header.encryption())
+                        .cipher_mode(header.cipher_mode())
+                        .password(password)
+                        .build(),
+                )?;
+                for n in s.entries(password)? {
+                    if let Some(entry) = transformer(n.map(Into::into))? {
+                        builder.add_entry(entry)?;
+                    }
+                }
+                archive.add_entry(builder.build()?)?;
+                Ok(())
+            }
+            ReadEntry::Regular(n) => {
+                if let Some(entry) = transformer(Ok(n))? {
+                    archive.add_entry(entry)?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+// TODO:
+// pub(crate) struct TransformStrategyToSolid;
+
 pub(crate) fn run_across_archive<P, F>(provider: P, mut processor: F) -> io::Result<()>
 where
     P: ArchiveProvider,
