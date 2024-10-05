@@ -1,6 +1,10 @@
 use crate::{
     cli::PasswordArgs,
-    command::{ask_password, commons::run_manipulate_entry, Command},
+    command::{
+        ask_password,
+        commons::{run_manipulate_entry, TransformStrategyUnSolid},
+        Command,
+    },
     utils::{GlobPatterns, PathPartExt},
 };
 use clap::{Parser, ValueHint};
@@ -49,6 +53,7 @@ fn archive_chmod(args: ChmodCommand) -> io::Result<()> {
                 Ok(Some(entry))
             }
         },
+        TransformStrategyUnSolid,
     )
 }
 

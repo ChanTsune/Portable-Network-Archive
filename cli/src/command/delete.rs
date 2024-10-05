@@ -1,6 +1,10 @@
 use crate::{
     cli::{FileArgs, PasswordArgs},
-    command::{ask_password, commons::run_manipulate_entry, Command},
+    command::{
+        ask_password,
+        commons::{run_manipulate_entry, TransformStrategyUnSolid},
+        Command,
+    },
     utils::{GlobPatterns, PathPartExt},
 };
 use clap::{ArgGroup, Parser, ValueHint};
@@ -44,5 +48,6 @@ fn delete_file_from_archive(args: DeleteCommand) -> io::Result<()> {
             }
             Ok(Some(entry))
         },
+        TransformStrategyUnSolid,
     )
 }
