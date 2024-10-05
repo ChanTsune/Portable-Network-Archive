@@ -614,6 +614,14 @@ where
 }
 
 #[cfg(not(feature = "memmap"))]
+pub(crate) fn run_read_entries_path<F>(path: impl AsRef<Path>, processor: F) -> io::Result<()>
+where
+    F: FnMut(io::Result<ReadEntry>) -> io::Result<()>,
+{
+    run_read_entries(PathArchiveProvider(path.as_ref()), processor)
+}
+
+#[cfg(not(feature = "memmap"))]
 pub(crate) fn run_manipulate_entry<'p, O, P, Provider, F, Transform>(
     output_path: O,
     input_path: P,
@@ -635,7 +643,7 @@ where
     let outfile = fs::File::create(&temp_path)?;
     let mut out_archive = Archive::write_header(outfile)?;
 
-    run_read_entries(PathArchiveProvider(input_path.as_ref()), |entry| {
+    run_read_entries_path(input_path, |entry| {
         Transform::transform(&mut out_archive, password, entry, |it| processor(it))
     })?;
 

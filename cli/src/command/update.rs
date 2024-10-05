@@ -1,12 +1,17 @@
+#[cfg(feature = "memmap")]
+use crate::command::commons::run_read_entries_mem as run_read_entries;
+#[cfg(not(feature = "memmap"))]
+use crate::command::commons::run_read_entries_path as run_read_entries;
 use crate::{
     cli::{
         CipherAlgorithmArgs, CompressionAlgorithmArgs, FileArgs, HashAlgorithmArgs, PasswordArgs,
+        SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs,
     },
     command::{
         ask_password, check_password,
         commons::{
-            collect_items, create_entry, entry_option, run_entries, CreateOptions, KeepOptions,
-            OwnerOptions,
+            collect_items, create_entry, entry_option, CreateOptions, KeepOptions, OwnerOptions,
+            TransformStrategy, TransformStrategyKeepSolid, TransformStrategyUnSolid,
         },
         Command,
     },
@@ -108,6 +113,8 @@ pub(crate) struct UpdateCommand {
     #[command(flatten)]
     pub(crate) hash: HashAlgorithmArgs,
     #[command(flatten)]
+    pub(crate) transform_strategy: SolidEntriesTransformStrategyArgs,
+    #[command(flatten)]
     pub(crate) file: FileArgs,
     #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
     pub(crate) exclude: Option<Vec<PathBuf>>,
@@ -119,11 +126,18 @@ pub(crate) struct UpdateCommand {
 
 impl Command for UpdateCommand {
     fn execute(self) -> io::Result<()> {
-        update_archive(self)
+        match self.transform_strategy.strategy() {
+            SolidEntriesTransformStrategy::UnSolid => {
+                update_archive::<TransformStrategyUnSolid>(self)
+            }
+            SolidEntriesTransformStrategy::KeepSolid => {
+                update_archive::<TransformStrategyKeepSolid>(self)
+            }
+        }
     }
 }
 
-fn update_archive(args: UpdateCommand) -> io::Result<()> {
+fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let archive_path = args.file.archive;
@@ -225,15 +239,13 @@ fn update_archive(args: UpdateCommand) -> io::Result<()> {
         |_: &Path, _: &Metadata| -> Option<bool> { Some(true) }
     };
 
-    run_entries(
-        &archive_path,
-        || password.as_deref(),
-        |entry| {
+    run_read_entries(&archive_path, |entry| {
+        Strategy::transform(&mut out_archive, password.as_deref(), entry, |entry| {
             let entry = entry?;
             let file = entry.header().path().as_path().to_path_buf();
             let normalized_path = file.normalize();
             if target_items.contains(&normalized_path) {
-                if !exclude.contains(&normalized_path)
+                let entry = if !exclude.contains(&normalized_path)
                     && need_update_condition(&normalized_path, entry.metadata()).unwrap_or(true)
                 {
                     let tx = tx.clone();
@@ -244,15 +256,16 @@ fn update_archive(args: UpdateCommand) -> io::Result<()> {
                                 .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
                         });
                     });
+                    None
                 } else {
-                    out_archive.add_entry(entry)?;
-                }
+                    Some(entry)
+                };
                 target_items.retain(|p| p.normalize() == normalized_path);
-                return Ok(());
+                return Ok(entry);
             }
-            Ok(())
-        },
-    )?;
+            Ok(None)
+        })
+    })?;
 
     // NOTE: Add new entries
     for file in target_items {
@@ -268,7 +281,12 @@ fn update_archive(args: UpdateCommand) -> io::Result<()> {
 
     drop(tx);
     for entry in rx.into_iter() {
-        out_archive.add_entry(entry?)?;
+        Strategy::transform(
+            &mut out_archive,
+            password.as_deref(),
+            entry.map(Into::into),
+            |entry| entry.map(Some),
+        )?;
     }
     out_archive.finalize()?;
 
