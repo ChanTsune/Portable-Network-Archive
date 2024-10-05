@@ -1,8 +1,11 @@
 use crate::{
-    cli::{FileArgs, PasswordArgs, PrivateChunkType},
+    cli::{
+        FileArgs, PasswordArgs, PrivateChunkType, SolidEntriesTransformStrategy,
+        SolidEntriesTransformStrategyArgs,
+    },
     command::{
         ask_password,
-        commons::{run_manipulate_entry, TransformStrategyUnSolid},
+        commons::{run_manipulate_entry, TransformStrategyKeepSolid, TransformStrategyUnSolid},
         Command,
     },
     utils::PathPartExt,
@@ -29,6 +32,8 @@ pub(crate) struct StripOptions {
 pub(crate) struct StripCommand {
     #[command(flatten)]
     pub(crate) strip_options: StripOptions,
+    #[command(flatten)]
+    transform_strategy: SolidEntriesTransformStrategyArgs,
     #[arg(long, help = "Output file path", value_hint = ValueHint::AnyPath)]
     pub(crate) output: Option<PathBuf>,
     #[command(flatten)]
@@ -45,14 +50,24 @@ impl Command for StripCommand {
 
 fn strip_metadata(args: StripCommand) -> io::Result<()> {
     let password = ask_password(args.password)?;
-    run_manipulate_entry(
-        args.output
-            .unwrap_or_else(|| args.file.archive.remove_part().unwrap()),
-        &args.file.archive,
-        || password.as_deref(),
-        |entry| Ok(Some(strip_entry_metadata(entry?, &args.strip_options))),
-        TransformStrategyUnSolid,
-    )
+    match args.transform_strategy.strategy() {
+        SolidEntriesTransformStrategy::UnSolid => run_manipulate_entry(
+            args.output
+                .unwrap_or_else(|| args.file.archive.remove_part().unwrap()),
+            &args.file.archive,
+            || password.as_deref(),
+            |entry| Ok(Some(strip_entry_metadata(entry?, &args.strip_options))),
+            TransformStrategyUnSolid,
+        ),
+        SolidEntriesTransformStrategy::KeepSolid => run_manipulate_entry(
+            args.output
+                .unwrap_or_else(|| args.file.archive.remove_part().unwrap()),
+            &args.file.archive,
+            || password.as_deref(),
+            |entry| Ok(Some(strip_entry_metadata(entry?, &args.strip_options))),
+            TransformStrategyKeepSolid,
+        ),
+    }
 }
 
 #[inline]

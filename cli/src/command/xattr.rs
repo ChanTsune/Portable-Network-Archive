@@ -1,8 +1,10 @@
 use crate::{
-    cli::PasswordArgs,
+    cli::{PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs},
     command::{
         ask_password,
-        commons::{run_entries, run_manipulate_entry, TransformStrategyUnSolid},
+        commons::{
+            run_entries, run_manipulate_entry, TransformStrategyKeepSolid, TransformStrategyUnSolid,
+        },
         Command,
     },
     utils::{str::char_chunks, GlobPatterns, PathPartExt},
@@ -74,6 +76,8 @@ pub(crate) struct SetXattrCommand {
     value: Option<Value>,
     #[arg(short = 'x', long, help = "Remove extended attribute")]
     remove: Option<String>,
+    #[command(flatten)]
+    transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
     password: PasswordArgs,
 }
@@ -171,25 +175,46 @@ fn archive_set_xattr(args: SetXattrCommand) -> io::Result<()> {
         .as_ref()
         .map_or_else(Default::default, |it| it.as_bytes());
 
-    run_manipulate_entry(
-        args.archive.remove_part().unwrap(),
-        &args.archive,
-        || password.as_deref(),
-        |entry| {
-            let entry = entry?;
-            if globs.matches_any(entry.header().path()) {
-                Ok(Some(transform_entry(
-                    entry,
-                    args.name.as_deref(),
-                    value,
-                    args.remove.as_deref(),
-                )))
-            } else {
-                Ok(Some(entry))
-            }
-        },
-        TransformStrategyUnSolid,
-    )
+    match args.transform_strategy.strategy() {
+        SolidEntriesTransformStrategy::UnSolid => run_manipulate_entry(
+            args.archive.remove_part().unwrap(),
+            &args.archive,
+            || password.as_deref(),
+            |entry| {
+                let entry = entry?;
+                if globs.matches_any(entry.header().path()) {
+                    Ok(Some(transform_entry(
+                        entry,
+                        args.name.as_deref(),
+                        value,
+                        args.remove.as_deref(),
+                    )))
+                } else {
+                    Ok(Some(entry))
+                }
+            },
+            TransformStrategyUnSolid,
+        ),
+        SolidEntriesTransformStrategy::KeepSolid => run_manipulate_entry(
+            args.archive.remove_part().unwrap(),
+            &args.archive,
+            || password.as_deref(),
+            |entry| {
+                let entry = entry?;
+                if globs.matches_any(entry.header().path()) {
+                    Ok(Some(transform_entry(
+                        entry,
+                        args.name.as_deref(),
+                        value,
+                        args.remove.as_deref(),
+                    )))
+                } else {
+                    Ok(Some(entry))
+                }
+            },
+            TransformStrategyKeepSolid,
+        ),
+    }
 }
 
 #[inline]

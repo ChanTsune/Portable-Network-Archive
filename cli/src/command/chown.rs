@@ -1,10 +1,10 @@
 #[cfg(any(unix, windows))]
 use crate::utils::fs::{Group, User};
 use crate::{
-    cli::PasswordArgs,
+    cli::{PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs},
     command::{
         ask_password,
-        commons::{run_manipulate_entry, TransformStrategyUnSolid},
+        commons::{run_manipulate_entry, TransformStrategyKeepSolid, TransformStrategyUnSolid},
         Command,
     },
     utils::{GlobPatterns, PathPartExt},
@@ -23,6 +23,8 @@ pub(crate) struct ChownCommand {
     #[arg(value_hint = ValueHint::AnyPath)]
     files: Vec<String>,
     #[command(flatten)]
+    transform_strategy: SolidEntriesTransformStrategyArgs,
+    #[command(flatten)]
     password: PasswordArgs,
 }
 
@@ -39,21 +41,36 @@ fn archive_chown(args: ChownCommand) -> io::Result<()> {
     }
     let globs = GlobPatterns::new(args.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-
-    run_manipulate_entry(
-        args.archive.remove_part().unwrap(),
-        &args.archive,
-        || password.as_deref(),
-        |entry| {
-            let entry = entry?;
-            if globs.matches_any(entry.header().path()) {
-                Ok(Some(transform_entry(entry, &args.owner)))
-            } else {
-                Ok(Some(entry))
-            }
-        },
-        TransformStrategyUnSolid,
-    )
+    match args.transform_strategy.strategy() {
+        SolidEntriesTransformStrategy::UnSolid => run_manipulate_entry(
+            args.archive.remove_part().unwrap(),
+            &args.archive,
+            || password.as_deref(),
+            |entry| {
+                let entry = entry?;
+                if globs.matches_any(entry.header().path()) {
+                    Ok(Some(transform_entry(entry, &args.owner)))
+                } else {
+                    Ok(Some(entry))
+                }
+            },
+            TransformStrategyUnSolid,
+        ),
+        SolidEntriesTransformStrategy::KeepSolid => run_manipulate_entry(
+            args.archive.remove_part().unwrap(),
+            &args.archive,
+            || password.as_deref(),
+            |entry| {
+                let entry = entry?;
+                if globs.matches_any(entry.header().path()) {
+                    Ok(Some(transform_entry(entry, &args.owner)))
+                } else {
+                    Ok(Some(entry))
+                }
+            },
+            TransformStrategyKeepSolid,
+        ),
+    }
 }
 
 #[inline]

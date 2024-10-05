@@ -1,8 +1,10 @@
 use crate::{
-    cli::{FileArgs, PasswordArgs},
+    cli::{
+        FileArgs, PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs,
+    },
     command::{
         ask_password,
-        commons::{run_manipulate_entry, TransformStrategyUnSolid},
+        commons::{run_manipulate_entry, TransformStrategyKeepSolid, TransformStrategyUnSolid},
         Command,
     },
     utils::{GlobPatterns, PathPartExt},
@@ -20,6 +22,8 @@ pub(crate) struct DeleteCommand {
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
+    pub(crate) transform_strategy: SolidEntriesTransformStrategyArgs,
+    #[command(flatten)]
     file: FileArgs,
 }
 
@@ -35,19 +39,36 @@ fn delete_file_from_archive(args: DeleteCommand) -> io::Result<()> {
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
     let exclude_globs = GlobPatterns::try_from(args.exclude.unwrap_or_default())
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-    run_manipulate_entry(
-        args.output
-            .unwrap_or_else(|| args.file.archive.remove_part().unwrap()),
-        &args.file.archive,
-        || password.as_deref(),
-        |entry| {
-            let entry = entry?;
-            let entry_path = entry.header().path();
-            if globs.matches_any(entry_path) && !exclude_globs.matches_any(entry_path) {
-                return Ok(None);
-            }
-            Ok(Some(entry))
-        },
-        TransformStrategyUnSolid,
-    )
+    match args.transform_strategy.strategy() {
+        SolidEntriesTransformStrategy::UnSolid => run_manipulate_entry(
+            args.output
+                .unwrap_or_else(|| args.file.archive.remove_part().unwrap()),
+            &args.file.archive,
+            || password.as_deref(),
+            |entry| {
+                let entry = entry?;
+                let entry_path = entry.header().path();
+                if globs.matches_any(entry_path) && !exclude_globs.matches_any(entry_path) {
+                    return Ok(None);
+                }
+                Ok(Some(entry))
+            },
+            TransformStrategyUnSolid,
+        ),
+        SolidEntriesTransformStrategy::KeepSolid => run_manipulate_entry(
+            args.output
+                .unwrap_or_else(|| args.file.archive.remove_part().unwrap()),
+            &args.file.archive,
+            || password.as_deref(),
+            |entry| {
+                let entry = entry?;
+                let entry_path = entry.header().path();
+                if globs.matches_any(entry_path) && !exclude_globs.matches_any(entry_path) {
+                    return Ok(None);
+                }
+                Ok(Some(entry))
+            },
+            TransformStrategyKeepSolid,
+        ),
+    }
 }

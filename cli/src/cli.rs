@@ -89,6 +89,32 @@ pub(crate) struct PasswordArgs {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[command(group(ArgGroup::new("transform_strategy").args(["password", "password_file"])))]
+pub(crate) struct SolidEntriesTransformStrategyArgs {
+    #[arg(long, help = "Unsolid input solid entries.")]
+    pub(crate) unsolid: bool,
+    #[arg(long, help = "Keep input solid entries.")]
+    pub(crate) keep_solid: bool,
+}
+
+impl SolidEntriesTransformStrategyArgs {
+    #[inline]
+    pub(crate) fn strategy(&self) -> SolidEntriesTransformStrategy {
+        if self.unsolid {
+            SolidEntriesTransformStrategy::UnSolid
+        } else {
+            SolidEntriesTransformStrategy::KeepSolid
+        }
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) enum SolidEntriesTransformStrategy {
+    UnSolid,
+    KeepSolid,
+}
+
+#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(group(ArgGroup::new("compression_method").args(["store", "deflate", "zstd", "xz"])))]
 pub(crate) struct CompressionAlgorithmArgs {
     #[arg(long, help = "No compression")]
