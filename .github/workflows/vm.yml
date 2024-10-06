@@ -41,3 +41,23 @@ jobs:
             uname -a
             cargo install -f cargo-hack --locked
             cargo hack test --locked --release --feature-powerset --exclude-features wasm
+
+  OpenBSD-test:
+    runs-on: ubuntu-latest
+    name: Test on OpenBSD
+    steps:
+      - uses: actions/checkout@v4.1.6
+      - name: Test in OpenBSD
+        id: test
+        uses: vmactions/OpenBSD-vm@v1.1.2
+        with:
+          usesh: true
+          prepare: |
+            /usr/sbin/pkg_add -I -v autoconf-2.71 automake-1.16.5 gmake gettext-tools gtar libtool m4
+            /usr/sbin/pkg_add -v rust
+          run: |
+            set -e
+            export LC_ALL=C LANG=C
+            uname -a
+            cargo install -f cargo-hack --locked
+            cargo hack test --locked --release --feature-powerset --exclude-features wasm
