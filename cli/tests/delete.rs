@@ -100,3 +100,72 @@ fn delete_output_exclude() {
     ]))
     .unwrap();
 }
+
+#[test]
+fn delete_solid() {
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        &format!("{}/delete_solid.pna", env!("CARGO_TARGET_TMPDIR")),
+        "--overwrite",
+        "--solid",
+        "-r",
+        "../resources/test/raw",
+    ]))
+    .unwrap();
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "--quiet",
+        "experimental",
+        "delete",
+        &format!("{}/delete_solid.pna", env!("CARGO_TARGET_TMPDIR")),
+        "resources/test/raw/text.txt",
+    ]))
+    .unwrap();
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        &format!("{}/delete_solid.pna", env!("CARGO_TARGET_TMPDIR")),
+        "--overwrite",
+        "--out-dir",
+        &format!("{}/delete_solid/", env!("CARGO_TARGET_TMPDIR")),
+    ]))
+    .unwrap();
+}
+
+#[test]
+fn delete_unsolid() {
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        &format!("{}/delete_unsolid.pna", env!("CARGO_TARGET_TMPDIR")),
+        "--overwrite",
+        "--solid",
+        "-r",
+        "../resources/test/raw",
+    ]))
+    .unwrap();
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "--quiet",
+        "experimental",
+        "delete",
+        "--unsolid",
+        &format!("{}/delete_unsolid.pna", env!("CARGO_TARGET_TMPDIR")),
+        "resources/test/raw/text.txt",
+    ]))
+    .unwrap();
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        &format!("{}/delete_unsolid.pna", env!("CARGO_TARGET_TMPDIR")),
+        "--overwrite",
+        "--out-dir",
+        &format!("{}/delete_unsolid/", env!("CARGO_TARGET_TMPDIR")),
+    ]))
+    .unwrap();
+}
