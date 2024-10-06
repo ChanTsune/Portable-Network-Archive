@@ -21,3 +21,23 @@ jobs:
             uname -a
             cargo install -f cargo-hack --locked
             cargo hack test --locked --release --feature-powerset --exclude-features wasm
+
+  NetBSD-test:
+    runs-on: ubuntu-latest
+    name: Test on NetBSD
+    steps:
+      - uses: actions/checkout@v4.1.6
+      - name: Test in NetBSD
+        id: test
+        uses: vmactions/NetBSD-vm@v1.1.3
+        with:
+          usesh: true
+          prepare: |
+            /usr/sbin/pkg_add -v autoconf automake gmake gettext-tools gtar-base libtool-base m4 po4a
+            /usr/sbin/pkg_add -v rust
+          run: |
+            set -e
+            export LC_ALL=C LANG=C
+            uname -a
+            cargo install -f cargo-hack --locked
+            cargo hack test --locked --release --feature-powerset --exclude-features wasm
