@@ -590,7 +590,7 @@ where
     let mut out_archive = Archive::write_header(outfile)?;
 
     run_read_entries_mem(input_path, |entry| {
-        Transform::transform(&mut out_archive, password, entry, |it| processor(it))
+        Transform::transform(&mut out_archive, password, entry, &mut processor)
     })?;
 
     out_archive.finalize()?;
@@ -644,7 +644,7 @@ where
     let mut out_archive = Archive::write_header(outfile)?;
 
     run_read_entries_path(input_path, |entry| {
-        Transform::transform(&mut out_archive, password, entry, |it| processor(it))
+        Transform::transform(&mut out_archive, password, entry, &mut processor)
     })?;
 
     out_archive.finalize()?;
