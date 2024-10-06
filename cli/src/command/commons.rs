@@ -567,7 +567,7 @@ where
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_manipulate_entry<'p, O, P, Provider, F, Transform>(
+pub(crate) fn run_transform_entry<'p, O, P, Provider, F, Transform>(
     output_path: O,
     input_path: P,
     mut password_provider: Provider,
@@ -622,7 +622,7 @@ where
 }
 
 #[cfg(not(feature = "memmap"))]
-pub(crate) fn run_manipulate_entry<'p, O, P, Provider, F, Transform>(
+pub(crate) fn run_transform_entry<'p, O, P, Provider, F, Transform>(
     output_path: O,
     input_path: P,
     mut password_provider: Provider,
