@@ -17,7 +17,6 @@ use normalize_path::*;
 use pna::{Archive, Metadata};
 use rayon::ThreadPoolBuilder;
 use std::{
-    env::temp_dir,
     fs, io,
     path::{Path, PathBuf},
     time::SystemTime,
@@ -187,12 +186,6 @@ fn update_archive(args: UpdateCommand) -> io::Result<()> {
 
     let (tx, rx) = std::sync::mpsc::channel();
 
-    let random = rand::random::<usize>();
-    let outfile_path = temp_dir().join(format!("{}.pna.tmp", random));
-
-    let outfile = fs::File::create(&outfile_path)?;
-    let mut out_archive = Archive::write_header(outfile)?;
-
     let need_update_condition = if args.newer_ctime {
         |path: &Path, metadata: &Metadata| -> Option<bool> {
             let meta = fs::metadata(path).ok()?;
@@ -245,7 +238,12 @@ fn update_archive(args: UpdateCommand) -> io::Result<()> {
                         });
                     });
                 } else {
-                    out_archive.add_entry(entry)?;
+                    pool.scope_fifo(|s| {
+                        s.spawn_fifo(|_| {
+                            tx.send(Ok(entry.into()))
+                                .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
+                        })
+                    });
                 }
                 target_items.retain(|p| p.normalize() == normalized_path);
                 return Ok(());
@@ -267,12 +265,12 @@ fn update_archive(args: UpdateCommand) -> io::Result<()> {
     }
 
     drop(tx);
+
+    let outfile = fs::File::create(archive_path.remove_part().unwrap())?;
+    let mut out_archive = Archive::write_header(outfile)?;
     for entry in rx.into_iter() {
         out_archive.add_entry(entry?)?;
     }
     out_archive.finalize()?;
-
-    utils::fs::mv(outfile_path, archive_path.remove_part().unwrap())?;
-
     Ok(())
 }
