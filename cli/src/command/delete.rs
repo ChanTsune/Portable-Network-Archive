@@ -4,7 +4,7 @@ use crate::{
     },
     command::{
         ask_password,
-        commons::{run_manipulate_entry, TransformStrategyKeepSolid, TransformStrategyUnSolid},
+        commons::{run_transform_entry, TransformStrategyKeepSolid, TransformStrategyUnSolid},
         Command,
     },
     utils::{GlobPatterns, PathPartExt},
@@ -40,7 +40,7 @@ fn delete_file_from_archive(args: DeleteCommand) -> io::Result<()> {
     let exclude_globs = GlobPatterns::try_from(args.exclude.unwrap_or_default())
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
     match args.transform_strategy.strategy() {
-        SolidEntriesTransformStrategy::UnSolid => run_manipulate_entry(
+        SolidEntriesTransformStrategy::UnSolid => run_transform_entry(
             args.output
                 .unwrap_or_else(|| args.file.archive.remove_part().unwrap()),
             &args.file.archive,
@@ -55,7 +55,7 @@ fn delete_file_from_archive(args: DeleteCommand) -> io::Result<()> {
             },
             TransformStrategyUnSolid,
         ),
-        SolidEntriesTransformStrategy::KeepSolid => run_manipulate_entry(
+        SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
             args.output
                 .unwrap_or_else(|| args.file.archive.remove_part().unwrap()),
             &args.file.archive,

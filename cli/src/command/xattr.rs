@@ -3,7 +3,7 @@ use crate::{
     command::{
         ask_password,
         commons::{
-            run_entries, run_manipulate_entry, TransformStrategyKeepSolid, TransformStrategyUnSolid,
+            run_entries, run_transform_entry, TransformStrategyKeepSolid, TransformStrategyUnSolid,
         },
         Command,
     },
@@ -176,7 +176,7 @@ fn archive_set_xattr(args: SetXattrCommand) -> io::Result<()> {
         .map_or_else(Default::default, |it| it.as_bytes());
 
     match args.transform_strategy.strategy() {
-        SolidEntriesTransformStrategy::UnSolid => run_manipulate_entry(
+        SolidEntriesTransformStrategy::UnSolid => run_transform_entry(
             args.archive.remove_part().unwrap(),
             &args.archive,
             || password.as_deref(),
@@ -195,7 +195,7 @@ fn archive_set_xattr(args: SetXattrCommand) -> io::Result<()> {
             },
             TransformStrategyUnSolid,
         ),
-        SolidEntriesTransformStrategy::KeepSolid => run_manipulate_entry(
+        SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
             args.archive.remove_part().unwrap(),
             &args.archive,
             || password.as_deref(),

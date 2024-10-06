@@ -4,7 +4,7 @@ use crate::{
     cli::{PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs},
     command::{
         ask_password,
-        commons::{run_manipulate_entry, TransformStrategyKeepSolid, TransformStrategyUnSolid},
+        commons::{run_transform_entry, TransformStrategyKeepSolid, TransformStrategyUnSolid},
         Command,
     },
     utils::{GlobPatterns, PathPartExt},
@@ -42,7 +42,7 @@ fn archive_chown(args: ChownCommand) -> io::Result<()> {
     let globs = GlobPatterns::new(args.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
     match args.transform_strategy.strategy() {
-        SolidEntriesTransformStrategy::UnSolid => run_manipulate_entry(
+        SolidEntriesTransformStrategy::UnSolid => run_transform_entry(
             args.archive.remove_part().unwrap(),
             &args.archive,
             || password.as_deref(),
@@ -56,7 +56,7 @@ fn archive_chown(args: ChownCommand) -> io::Result<()> {
             },
             TransformStrategyUnSolid,
         ),
-        SolidEntriesTransformStrategy::KeepSolid => run_manipulate_entry(
+        SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
             args.archive.remove_part().unwrap(),
             &args.archive,
             || password.as_deref(),
