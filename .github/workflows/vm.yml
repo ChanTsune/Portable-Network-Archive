@@ -1,0 +1,23 @@
+name: VM Tests
+on:
+  pull_request:
+jobs:
+  solaris-test:
+    runs-on: ubuntu-latest
+    name: Test on Solaris
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test in Solaris
+        id: test
+        uses: vmactions/solaris-vm@v1.0.9
+        with:
+          usesh: true
+          prepare: |
+            pkg install bash libtool automake gnu-m4 tree wget gcc autoconf //solaris/text/gawk pkg://solaris/text/gnu-diffutils pkg://solaris/text/gnu-grep pkg://solaris/text/gnu-sed
+            pkg install pkg:/developer/rust/cargo
+          run: |
+            set -e
+            export LC_ALL=C LANG=C
+            uname -a
+            cargo install -f cargo-hack --locked
+            cargo hack test --locked --release --feature-powerset --exclude-features wasm
