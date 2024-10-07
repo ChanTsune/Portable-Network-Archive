@@ -33,10 +33,11 @@ jobs:
         with:
           usesh: true
           prepare: |
-            /usr/sbin/pkg_add -v autoconf automake gmake gettext-tools gtar-base libtool-base m4 po4a
-            /usr/sbin/pkg_add -v rust
+            /usr/sbin/pkg_add -v autoconf automake gmake gettext-tools gtar-base libtool-base m4 po4a curl
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           run: |
             set -e
+            . "$HOME/.cargo/env"
             export LC_ALL=C LANG=C
             uname -a
             cargo install -f cargo-hack --locked
