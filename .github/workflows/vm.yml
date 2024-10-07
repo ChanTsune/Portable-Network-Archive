@@ -62,3 +62,24 @@ jobs:
             uname -a
             cargo install -f cargo-hack --locked
             cargo hack test --locked --release --feature-powerset --exclude-features wasm
+
+  OmniOS-test:
+    runs-on: ubuntu-latest
+    name: Test on OmniOS
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test in OmniOS
+        id: test
+        uses: vmactions/omnios-vm@v1.0.8
+        with:
+          usesh: true
+          prepare: |
+            pkg install curl pkg:/developer/gcc13
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          run: |
+            set -e
+            . "$HOME/.cargo/env"
+            export LC_ALL=C LANG=C
+            uname -a
+            cargo install -f cargo-hack --locked
+            cargo hack test --locked --release --feature-powerset --exclude-features wasm
