@@ -43,6 +43,27 @@ jobs:
             cargo install -f cargo-hack --locked
             cargo hack test --locked --release --feature-powerset --exclude-features wasm
 
+  FreeBSD-test:
+    runs-on: ubuntu-latest
+    name: Test on FreeBSD
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test in FreeBSD
+        id: test
+        uses: vmactions/freebsd-vm@v1.1.4
+        with:
+          usesh: true
+          prepare: |
+            pkg install -y curl
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          run: |
+            set -e
+            . "$HOME/.cargo/env"
+            export LC_ALL=C LANG=C
+            uname -a
+            cargo install -f cargo-hack --locked
+            cargo hack test --locked --release --feature-powerset --exclude-features wasm
+
   OpenBSD-test:
     runs-on: ubuntu-latest
     name: Test on OpenBSD
