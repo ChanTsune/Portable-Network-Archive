@@ -12,6 +12,7 @@ use crate::{
     },
     utils::{self, fmt::DurationDisplay},
 };
+use anyhow::Context;
 use bytesize::ByteSize;
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::{Archive, SolidEntryBuilder, WriteOptions};
@@ -104,12 +105,12 @@ pub(crate) struct CreateCommand {
 
 impl Command for CreateCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         create_archive(self)
     }
 }
 
-fn create_archive(args: CreateCommand) -> io::Result<()> {
+fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password.clone())?;
     check_password(&password, &args.cipher);
     let start = Instant::now();
@@ -118,7 +119,8 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
             format!("{} is already exists", archive.display()),
-        ));
+        ))
+        .with_context(|| "");
     }
     log::info!("Create an archive: {}", archive.display());
     let mut files = args.file.files;
