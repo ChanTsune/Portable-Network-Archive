@@ -249,7 +249,7 @@ pub(crate) fn run_list_archive(
     password: Option<&str>,
     files: &[String],
     args: ListOptions,
-) -> io::Result<()> {
+) -> anyhow::Result<()> {
     let globs =
         GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 

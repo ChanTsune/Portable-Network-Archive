@@ -12,7 +12,6 @@ use crate::{
     },
     utils::{self, fmt::DurationDisplay},
 };
-use anyhow::Context;
 use bytesize::ByteSize;
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::{Archive, SolidEntryBuilder, WriteOptions};
@@ -120,8 +119,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
             format!("{} is already exists", archive.display()),
-        ))
-        .with_context(|| "");
+        ))?;
     }
     log::info!("Create an archive: {}", archive.display());
     let mut files = args.file.files;
@@ -206,14 +204,12 @@ pub(crate) fn create_archive_file<W, F>(
     owner_options: OwnerOptions,
     solid: bool,
     target_items: Vec<PathBuf>,
-) -> io::Result<()>
+) -> anyhow::Result<()>
 where
     W: Write,
     F: FnMut() -> io::Result<W>,
 {
-    let pool = ThreadPoolBuilder::default()
-        .build()
-        .map_err(io::Error::other)?;
+    let pool = ThreadPoolBuilder::default().build()?;
 
     let (tx, rx) = std::sync::mpsc::channel();
     let option = if solid {
@@ -264,10 +260,8 @@ fn create_archive_with_split(
     solid: bool,
     target_items: Vec<PathBuf>,
     max_file_size: usize,
-) -> io::Result<()> {
-    let pool = ThreadPoolBuilder::default()
-        .build()
-        .map_err(io::Error::other)?;
+) -> anyhow::Result<()> {
+    let pool = ThreadPoolBuilder::default().build()?;
 
     let (tx, rx) = std::sync::mpsc::channel();
     let option = if solid {
@@ -301,7 +295,11 @@ fn create_archive_with_split(
         let entries = entries_builder.build();
         write_split_archive(archive, [entries].into_iter(), max_file_size)?;
     } else {
-        write_split_archive(archive, rx.into_iter(), max_file_size)?;
+        write_split_archive(
+            archive,
+            rx.into_iter().map(|it| it.map_err(io::Error::other)),
+            max_file_size,
+        )?;
     }
     Ok(())
 }
