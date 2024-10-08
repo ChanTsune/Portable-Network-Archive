@@ -1,16 +1,29 @@
 use nix::unistd;
 use nix::unistd::{Gid, Uid};
+use std::io;
 
 pub(crate) struct User(unistd::User);
 impl User {
     #[inline]
-    pub(crate) fn from_uid(uid: Uid) -> Option<Self> {
-        unistd::User::from_uid(uid).ok().flatten().map(Self)
+    pub(crate) fn from_uid(uid: Uid) -> io::Result<Self> {
+        if let Some(user) = unistd::User::from_uid(uid)? {
+            return Ok(Self(user));
+        }
+        Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("uid {} not found", uid),
+        ))
     }
 
     #[inline]
-    pub(crate) fn from_name(name: &str) -> Option<Self> {
-        unistd::User::from_name(name).ok().flatten().map(Self)
+    pub(crate) fn from_name(name: &str) -> io::Result<Self> {
+        if let Some(user) = unistd::User::from_name(name)? {
+            return Ok(Self(user));
+        }
+        Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("username {} not found", name),
+        ))
     }
 
     #[inline]
@@ -27,13 +40,25 @@ pub(crate) struct Group(unistd::Group);
 
 impl Group {
     #[inline]
-    pub(crate) fn from_gid(gid: Gid) -> Option<Self> {
-        unistd::Group::from_gid(gid).ok().flatten().map(Self)
+    pub(crate) fn from_gid(gid: Gid) -> io::Result<Self> {
+        if let Some(group) = unistd::Group::from_gid(gid)? {
+            return Ok(Self(group));
+        }
+        Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("gid {} not found", gid),
+        ))
     }
 
     #[inline]
-    pub(crate) fn from_name(name: &str) -> Option<Self> {
-        unistd::Group::from_name(name).ok().flatten().map(Self)
+    pub(crate) fn from_name(name: &str) -> io::Result<Self> {
+        if let Some(group) = unistd::Group::from_name(name)? {
+            return Ok(Self(group));
+        }
+        Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("gname {} not found", name),
+        ))
     }
 
     #[inline]
