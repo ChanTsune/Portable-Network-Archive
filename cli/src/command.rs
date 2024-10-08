@@ -18,7 +18,7 @@ mod xattr;
 use crate::cli::{CipherAlgorithmArgs, Cli, Commands, PasswordArgs};
 use std::{fs, io};
 
-pub fn entry(cli: Cli) -> io::Result<()> {
+pub fn entry(cli: Cli) -> anyhow::Result<()> {
     match cli.commands {
         Commands::Create(cmd) => cmd.execute(),
         Commands::Append(cmd) => cmd.execute(),
@@ -63,5 +63,5 @@ fn check_password(password: &Option<String>, cipher_args: &CipherAlgorithmArgs) 
 }
 
 trait Command {
-    fn execute(self) -> io::Result<()>;
+    fn execute(self) -> anyhow::Result<()>;
 }

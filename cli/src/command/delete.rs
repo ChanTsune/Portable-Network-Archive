@@ -9,6 +9,7 @@ use crate::{
     },
     utils::{GlobPatterns, PathPartExt},
 };
+use anyhow::Context;
 use clap::{ArgGroup, Parser, ValueHint};
 use std::{io, path::PathBuf};
 
@@ -28,12 +29,12 @@ pub(crate) struct DeleteCommand {
 }
 
 impl Command for DeleteCommand {
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         delete_file_from_archive(self)
     }
 }
 
-fn delete_file_from_archive(args: DeleteCommand) -> io::Result<()> {
+fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let globs = GlobPatterns::new(args.file.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
@@ -71,4 +72,5 @@ fn delete_file_from_archive(args: DeleteCommand) -> io::Result<()> {
             TransformStrategyKeepSolid,
         ),
     }
+    .with_context(|| "While deleting a file")
 }
