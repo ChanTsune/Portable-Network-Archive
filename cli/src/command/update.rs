@@ -139,7 +139,7 @@ impl Command for UpdateCommand {
     }
 }
 
-fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Result<()> {
+fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let archive_path = args.file.archive;
@@ -147,7 +147,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
             format!("{} is not exists", archive_path.display()),
-        ));
+        ))?;
     }
     let option = entry_option(args.compression, args.cipher, args.hash, password.clone());
     let keep_options = KeepOptions {
@@ -286,7 +286,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
         Strategy::transform(
             &mut out_archive,
             password.as_deref(),
-            entry.map(Into::into),
+            entry.map(Into::into).map_err(io::Error::other),
             |entry| entry.map(Some),
         )?;
     }

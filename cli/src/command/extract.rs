@@ -138,7 +138,7 @@ pub(crate) fn run_extract_archive_reader<'p, Provider>(
     files: Vec<String>,
     mut password_provider: Provider,
     args: OutputOption,
-) -> io::Result<()>
+) -> anyhow::Result<()>
 where
     Provider: FnMut() -> Option<&'p str>,
 {
@@ -146,9 +146,7 @@ where
     let globs =
         GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-    let pool = ThreadPoolBuilder::default()
-        .build()
-        .map_err(io::Error::other)?;
+    let pool = ThreadPoolBuilder::default().build()?;
 
     let mut hard_link_entries = Vec::new();
 
