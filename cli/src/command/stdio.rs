@@ -13,6 +13,7 @@ use crate::{
     },
     utils,
 };
+use anyhow::Context;
 use clap::{ArgGroup, Args, Parser, ValueHint};
 use std::{
     fs,
@@ -108,7 +109,7 @@ pub(crate) struct StdioCommand {
 }
 
 impl Command for StdioCommand {
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         run_stdio(self)
     }
 }
@@ -119,7 +120,7 @@ pub(crate) struct FileArgs {
     pub(crate) files: Vec<PathBuf>,
 }
 
-fn run_stdio(args: StdioCommand) -> io::Result<()> {
+fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     if args.create {
         run_create_archive(args)
     } else if args.extract {
@@ -129,6 +130,7 @@ fn run_stdio(args: StdioCommand) -> io::Result<()> {
     } else {
         unreachable!()
     }
+    .with_context(|| "")
 }
 
 fn run_create_archive(args: StdioCommand) -> io::Result<()> {

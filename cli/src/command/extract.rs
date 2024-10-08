@@ -77,11 +77,11 @@ pub(crate) struct ExtractCommand {
 }
 
 impl Command for ExtractCommand {
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         extract_archive(self)
     }
 }
-fn extract_archive(args: ExtractCommand) -> io::Result<()> {
+fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let start = Instant::now();
     log::info!("Extract archive {}", args.file.archive.display());
