@@ -13,7 +13,6 @@ use crate::{
     },
     utils,
 };
-use anyhow::Context;
 use clap::{ArgGroup, Args, Parser, ValueHint};
 use std::{fs, io, path::PathBuf, time::SystemTime};
 
@@ -127,10 +126,9 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     } else {
         unreachable!()
     }
-    .with_context(|| "")
 }
 
-fn run_create_archive(args: StdioCommand) -> io::Result<()> {
+fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let mut files = args
@@ -191,7 +189,7 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
         )
     } else {
         create_archive_file(
-            || Ok(stdout().lock()),
+            || Ok(io::stdout().lock()),
             cli_option,
             keep_options,
             owner_options,
@@ -201,7 +199,7 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
     }
 }
 
-fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
+fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let out_option = OutputOption {
         overwrite: args.overwrite,
@@ -237,7 +235,7 @@ fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
     }
 }
 
-fn run_list_archive(args: StdioCommand) -> io::Result<()> {
+fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let list_options = ListOptions {
         long: false,

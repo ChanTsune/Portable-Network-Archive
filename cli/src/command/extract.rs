@@ -138,7 +138,7 @@ pub(crate) fn run_extract_archive_reader<'p, Provider>(
     files: Vec<String>,
     mut password_provider: Provider,
     args: OutputOption,
-) -> io::Result<()>
+) -> anyhow::Result<()>
 where
     Provider: FnMut() -> Option<&'p str>,
 {
