@@ -9,6 +9,7 @@ use crate::{
     },
     utils::{str::char_chunks, GlobPatterns, PathPartExt},
 };
+use anyhow::Context;
 use base64::Engine;
 use clap::{Parser, ValueHint};
 use indexmap::IndexMap;
@@ -29,7 +30,7 @@ pub(crate) struct XattrCommand {
 
 impl Command for XattrCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         match self.command {
             XattrCommands::Get(cmd) => cmd.execute(),
             XattrCommands::Set(cmd) => cmd.execute(),
@@ -61,7 +62,7 @@ pub(crate) struct GetXattrCommand {
 
 impl Command for GetXattrCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         archive_get_xattr(self)
     }
 }
@@ -86,7 +87,7 @@ pub(crate) struct SetXattrCommand {
 
 impl Command for SetXattrCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         archive_set_xattr(self)
     }
 }
@@ -124,7 +125,7 @@ impl FromStr for Encoding {
     }
 }
 
-fn archive_get_xattr(args: GetXattrCommand) -> io::Result<()> {
+fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     if args.files.is_empty() {
         return Ok(());
@@ -166,7 +167,7 @@ fn archive_get_xattr(args: GetXattrCommand) -> io::Result<()> {
     Ok(())
 }
 
-fn archive_set_xattr(args: SetXattrCommand) -> io::Result<()> {
+fn archive_set_xattr(args: SetXattrCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     if args.files.is_empty() {
         return Ok(());
@@ -218,6 +219,7 @@ fn archive_set_xattr(args: SetXattrCommand) -> io::Result<()> {
             TransformStrategyKeepSolid,
         ),
     }
+    .with_context(|| "failed to apply transform strategy")
 }
 
 #[inline]

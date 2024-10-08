@@ -17,6 +17,7 @@ use crate::{
     },
     utils::{self, PathPartExt},
 };
+use anyhow::Context;
 use clap::{ArgGroup, Parser, ValueHint};
 use normalize_path::*;
 use pna::{Archive, Metadata};
@@ -126,7 +127,7 @@ pub(crate) struct UpdateCommand {
 
 impl Command for UpdateCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         match self.transform_strategy.strategy() {
             SolidEntriesTransformStrategy::UnSolid => {
                 update_archive::<TransformStrategyUnSolid>(self)
@@ -135,6 +136,7 @@ impl Command for UpdateCommand {
                 update_archive::<TransformStrategyKeepSolid>(self)
             }
         }
+        .with_context(|| "When updating archive")
     }
 }
 

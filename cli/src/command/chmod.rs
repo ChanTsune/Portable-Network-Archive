@@ -7,6 +7,7 @@ use crate::{
     },
     utils::{GlobPatterns, PathPartExt},
 };
+use anyhow::Context;
 use bitflags::bitflags;
 use clap::{Parser, ValueHint};
 use pna::NormalEntry;
@@ -28,12 +29,12 @@ pub(crate) struct ChmodCommand {
 
 impl Command for ChmodCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         archive_chmod(self)
     }
 }
 
-fn archive_chmod(args: ChmodCommand) -> io::Result<()> {
+fn archive_chmod(args: ChmodCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     if args.files.is_empty() {
         return Ok(());
@@ -70,6 +71,7 @@ fn archive_chmod(args: ChmodCommand) -> io::Result<()> {
             TransformStrategyKeepSolid,
         ),
     }
+    .with_context(|| "While processing a chmod file")
 }
 
 #[inline]
