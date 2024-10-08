@@ -109,6 +109,7 @@ impl<T> Archive<T> {
 /// # }
 /// ```
 pub struct SolidArchive<T: Write> {
+    archive_header: ArchiveHeader,
     inner: CompressionWriter<CipherWriter<ChunkStreamWriter<T>>>,
 }
 

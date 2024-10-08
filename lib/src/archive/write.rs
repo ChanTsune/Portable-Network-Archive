@@ -369,6 +369,12 @@ impl<W: Write> Archive<W> {
     /// ```
     #[inline]
     pub fn write_solid_header(write: W, option: WriteOptions) -> io::Result<SolidArchive<W>> {
+        let archive = Self::write_header(write)?;
+        archive.into_solid_archive(option)
+    }
+
+    #[inline]
+    fn into_solid_archive(mut self, option: WriteOptions) -> io::Result<SolidArchive<W>> {
         let header = SolidHeader::new(
             option.compression,
             option.encryption(),
@@ -376,19 +382,21 @@ impl<W: Write> Archive<W> {
         );
         let context = get_writer_context(option)?;
 
-        let mut archive = Self::write_header(write)?;
-        (ChunkType::SHED, header.to_bytes().as_slice()).write_chunk_in(&mut archive.inner)?;
+        (ChunkType::SHED, header.to_bytes().as_slice()).write_chunk_in(&mut self.inner)?;
         if let Some(WriteCipher { context: c, .. }) = &context.cipher {
-            (ChunkType::PHSF, c.phsf.as_bytes()).write_chunk_in(&mut archive.inner)?;
-            (ChunkType::SDAT, c.iv.as_slice()).write_chunk_in(&mut archive.inner)?;
+            (ChunkType::PHSF, c.phsf.as_bytes()).write_chunk_in(&mut self.inner)?;
+            (ChunkType::SDAT, c.iv.as_slice()).write_chunk_in(&mut self.inner)?;
         }
-        archive.inner.flush()?;
+        self.inner.flush()?;
         let writer = get_writer(
-            ChunkStreamWriter::new(ChunkType::SDAT, archive.inner),
+            ChunkStreamWriter::new(ChunkType::SDAT, self.inner),
             &context,
         )?;
 
-        Ok(SolidArchive { inner: writer })
+        Ok(SolidArchive {
+            archive_header: self.header,
+            inner: writer,
+        })
     }
 }
 
@@ -510,12 +518,17 @@ impl<W: Write> SolidArchive<W> {
     /// # }
     /// ```
     #[inline]
-    pub fn finalize(mut self) -> io::Result<W> {
+    pub fn finalize(self) -> io::Result<W> {
+        let archive = self.finalize_solid_entry()?;
+        archive.finalize()
+    }
+
+    #[inline]
+    fn finalize_solid_entry(mut self) -> io::Result<Archive<W>> {
         self.inner.flush()?;
         let mut inner = self.inner.try_into_inner()?.try_into_inner()?.into_inner();
         (ChunkType::SEND, [].as_slice()).write_chunk_in(&mut inner)?;
-        (ChunkType::AEND, [].as_slice()).write_chunk_in(&mut inner)?;
-        Ok(inner)
+        Ok(Archive::new(inner, self.archive_header))
     }
 }
 
