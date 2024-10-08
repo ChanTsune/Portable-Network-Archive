@@ -1,15 +1,19 @@
 use nix::unistd::{Gid, Uid};
+use std::io;
 
 pub(crate) struct User(Uid);
 impl User {
     #[inline]
-    pub(crate) fn from_uid(uid: Uid) -> Option<Self> {
-        Some(Self(uid))
+    pub(crate) fn from_uid(uid: Uid) -> io::Result<Self> {
+        Ok(Self(uid))
     }
 
     #[inline]
-    pub(crate) fn from_name(_name: &str) -> Option<Self> {
-        None
+    pub(crate) fn from_name(_name: &str) -> io::Result<Self> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "can not find by username",
+        ))
     }
 
     #[inline]
@@ -26,13 +30,16 @@ pub(crate) struct Group(Gid);
 
 impl Group {
     #[inline]
-    pub(crate) fn from_gid(gid: Gid) -> Option<Self> {
-        Some(Self(gid))
+    pub(crate) fn from_gid(gid: Gid) -> io::Result<Self> {
+        Ok(Self(gid))
     }
 
     #[inline]
-    pub(crate) fn from_name(_name: &str) -> Option<Self> {
-        None
+    pub(crate) fn from_name(_name: &str) -> io::Result<Self> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "can not find by gname",
+        ))
     }
 
     #[inline]

@@ -207,8 +207,8 @@ pub(crate) fn apply_metadata(
             let mode = meta.permissions().mode() as u16;
             let uid = owner_options.uid.unwrap_or(meta.uid());
             let gid = owner_options.gid.unwrap_or(meta.gid());
-            let user = User::from_uid(uid.into()).ok_or(io::ErrorKind::NotFound)?;
-            let group = Group::from_gid(gid.into()).ok_or(io::ErrorKind::NotFound)?;
+            let user = User::from_uid(uid.into())?;
+            let group = Group::from_gid(gid.into())?;
             entry.permission(pna::Permission::new(
                 uid.into(),
                 owner_options.uname.unwrap_or(user.name().into()),

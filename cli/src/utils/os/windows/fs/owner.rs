@@ -1,15 +1,16 @@
 use crate::utils::os::windows::security;
+use std::io;
 
 pub(crate) struct User(security::Sid);
 impl User {
     #[inline]
-    pub(crate) fn from_name(name: &str) -> Option<Self> {
+    pub(crate) fn from_name(name: &str) -> io::Result<Self> {
         Self::from_system_name(name, None)
     }
 
     #[inline]
-    pub(crate) fn from_system_name(name: &str, system: Option<&str>) -> Option<Self> {
-        security::Sid::try_from_name(name, system).ok().map(Self)
+    pub(crate) fn from_system_name(name: &str, system: Option<&str>) -> io::Result<Self> {
+        security::Sid::try_from_name(name, system).map(Self)
     }
 
     #[inline]
@@ -29,13 +30,13 @@ pub(crate) struct Group(security::Sid);
 
 impl Group {
     #[inline]
-    pub(crate) fn from_name(name: &str) -> Option<Self> {
+    pub(crate) fn from_name(name: &str) -> io::Result<Self> {
         Self::from_system_name(name, None)
     }
 
     #[inline]
-    pub(crate) fn from_system_name(name: &str, system: Option<&str>) -> Option<Self> {
-        security::Sid::try_from_name(name, system).ok().map(Self)
+    pub(crate) fn from_system_name(name: &str, system: Option<&str>) -> io::Result<Self> {
+        security::Sid::try_from_name(name, system).map(Self)
     }
 
     #[inline]

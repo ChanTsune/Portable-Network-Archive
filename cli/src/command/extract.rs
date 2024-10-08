@@ -388,7 +388,11 @@ fn permissions<'p>(
     p: &'p Permission,
     _: &'_ OwnerOptions,
 ) -> Option<(&'p Permission, Option<User>, Option<Group>)> {
-    Some((p, User::from_name(p.uname()), Group::from_name(p.gname())))
+    Some((
+        p,
+        User::from_name(p.uname()).ok(),
+        Group::from_name(p.gname()).ok(),
+    ))
 }
 
 #[cfg(unix)]
@@ -412,22 +416,22 @@ fn permissions<'p>(
             permission.gid(),
         )
     };
-    Some((permission, user, group))
+    Some((permission, user.ok(), group.ok()))
 }
 
 #[cfg(unix)]
-fn search_owner(name: &str, id: u64) -> Option<User> {
+fn search_owner(name: &str, id: u64) -> io::Result<User> {
     let user = User::from_name(name);
-    if user.is_some() {
+    if user.is_ok() {
         return user;
     }
     User::from_uid((id as u32).into())
 }
 
 #[cfg(unix)]
-fn search_group(name: &str, id: u64) -> Option<Group> {
+fn search_group(name: &str, id: u64) -> io::Result<Group> {
     let group = Group::from_name(name);
-    if group.is_some() {
+    if group.is_ok() {
         return group;
     }
     Group::from_gid((id as u32).into())
