@@ -101,7 +101,7 @@ pub(crate) fn collect_items<I: IntoIterator<Item = P>, P: Into<PathBuf>>(
         }
     };
     for path in walker.into_iter().flatten() {
-        let path = path?.into_path();
+        let path = path.unwrap().into_path();
         if keep_dir || path.is_file() {
             target_items.push(path);
         }
@@ -183,7 +183,7 @@ pub(crate) fn apply_metadata(
     owner_options: OwnerOptions,
 ) -> io::Result<EntryBuilder> {
     if keep_options.keep_timestamp || keep_options.keep_permission {
-        let meta = fs::metadata(path)?;
+        let meta = fs::metadata(path).unwrap();
         if keep_options.keep_timestamp {
             if let Ok(c) = meta.created() {
                 if let Ok(created_since_unix_epoch) = c.duration_since(UNIX_EPOCH) {
@@ -209,8 +209,8 @@ pub(crate) fn apply_metadata(
             let mode = meta.permissions().mode() as u16;
             let uid = owner_options.uid.unwrap_or(meta.uid());
             let gid = owner_options.gid.unwrap_or(meta.gid());
-            let user = User::from_uid(uid.into())?;
-            let group = Group::from_gid(gid.into())?;
+            let user = User::from_uid(uid.into()).unwrap();
+            let group = Group::from_gid(gid.into()).unwrap();
             entry.permission(pna::Permission::new(
                 uid.into(),
                 owner_options.uname.unwrap_or(user.name().into()),
@@ -248,7 +248,7 @@ pub(crate) fn apply_metadata(
         if keep_options.keep_acl {
             use crate::chunk;
             use pna::RawChunk;
-            let ace_list = utils::acl::get_facl(path)?;
+            let ace_list = utils::acl::get_facl(path).unwrap();
             for ace in ace_list {
                 entry.add_extra_chunk(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
             }
@@ -269,7 +269,7 @@ pub(crate) fn apply_metadata(
     }
     #[cfg(unix)]
     if keep_options.keep_xattr {
-        for attr in utils::os::unix::fs::xattrs::get_xattrs(path)? {
+        for attr in utils::os::unix::fs::xattrs::get_xattrs(path).unwrap() {
             entry.add_xattr(attr);
         }
     }
