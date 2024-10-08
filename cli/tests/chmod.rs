@@ -11,8 +11,6 @@ fn archive_chmod() {
         "--overwrite",
         "-r",
         "../resources/test/raw",
-        "--keep-xattr",
-        "--keep-timestamp",
         "--keep-permission",
         #[cfg(windows)]
         {

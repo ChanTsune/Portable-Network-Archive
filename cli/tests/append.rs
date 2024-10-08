@@ -11,13 +11,6 @@ fn archive_append() {
         "--overwrite",
         "-r",
         "../resources/test/raw",
-        "--keep-xattr",
-        "--keep-timestamp",
-        "--keep-permission",
-        #[cfg(windows)]
-        {
-            "--unstable"
-        },
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -27,13 +20,6 @@ fn archive_append() {
         &format!("{}/append.pna", env!("CARGO_TARGET_TMPDIR")),
         "../resources/test/store.pna",
         "../resources/test/zstd.pna",
-        "--keep-xattr",
-        "--keep-timestamp",
-        "--keep-permission",
-        #[cfg(windows)]
-        {
-            "--unstable"
-        },
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -44,13 +30,6 @@ fn archive_append() {
         "--overwrite",
         "--out-dir",
         &format!("{}/append/", env!("CARGO_TARGET_TMPDIR")),
-        "--keep-xattr",
-        "--keep-timestamp",
-        "--keep-permission",
-        #[cfg(windows)]
-        {
-            "--unstable"
-        },
     ]))
     .unwrap();
 }
@@ -65,9 +44,6 @@ fn archive_append_split() {
         "--overwrite",
         "-r",
         "../resources/test/raw",
-        "--keep-xattr",
-        "--keep-timestamp",
-        "--keep-permission",
         "--split",
         "100kib",
         #[cfg(windows)]
@@ -83,13 +59,6 @@ fn archive_append_split() {
         &format!("{}/append_split.part1.pna", env!("CARGO_TARGET_TMPDIR")),
         "../resources/test/store.pna",
         "../resources/test/zstd.pna",
-        "--keep-xattr",
-        "--keep-timestamp",
-        "--keep-permission",
-        #[cfg(windows)]
-        {
-            "--unstable"
-        },
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -100,13 +69,6 @@ fn archive_append_split() {
         "--overwrite",
         "--out-dir",
         &format!("{}/append_split/", env!("CARGO_TARGET_TMPDIR")),
-        "--keep-xattr",
-        "--keep-timestamp",
-        "--keep-permission",
-        #[cfg(windows)]
-        {
-            "--unstable"
-        },
     ]))
     .unwrap();
 }

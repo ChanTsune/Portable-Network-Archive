@@ -11,13 +11,6 @@ fn delete_overwrite() {
         "--overwrite",
         "-r",
         "../resources/test/raw",
-        "--keep-xattr",
-        "--keep-timestamp",
-        "--keep-permission",
-        #[cfg(windows)]
-        {
-            "--unstable"
-        },
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -41,13 +34,6 @@ fn delete_output() {
         "--overwrite",
         "-r",
         "../resources/test/raw",
-        "--keep-xattr",
-        "--keep-timestamp",
-        "--keep-permission",
-        #[cfg(windows)]
-        {
-            "--unstable"
-        },
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -73,13 +59,6 @@ fn delete_output_exclude() {
         "--overwrite",
         "-r",
         "../resources/test/raw",
-        "--keep-xattr",
-        "--keep-timestamp",
-        "--keep-permission",
-        #[cfg(windows)]
-        {
-            "--unstable"
-        },
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([

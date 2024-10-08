@@ -15,17 +15,10 @@ fn archive_password_from_file() {
         "--overwrite",
         "-r",
         "../resources/test/raw",
-        "--keep-xattr",
-        "--keep-timestamp",
-        "--keep-permission",
         "--password-file",
         password_file_path.to_str().unwrap(),
         "--aes",
         "ctr",
-        #[cfg(windows)]
-        {
-            "--unstable"
-        },
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -36,15 +29,8 @@ fn archive_password_from_file() {
         "--overwrite",
         "--out-dir",
         &format!("{}/password_from_file/", env!("CARGO_TARGET_TMPDIR")),
-        "--keep-xattr",
-        "--keep-timestamp",
-        "--keep-permission",
         "--password",
         "archive_password_from_file",
-        #[cfg(windows)]
-        {
-            "--unstable"
-        },
     ]))
     .unwrap();
 }

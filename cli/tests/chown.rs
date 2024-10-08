@@ -11,8 +11,6 @@ fn archive_chown() {
         "--overwrite",
         "-r",
         "../resources/test/raw",
-        "--keep-xattr",
-        "--keep-timestamp",
         "--keep-permission",
         #[cfg(windows)]
         {

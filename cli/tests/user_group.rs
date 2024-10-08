@@ -12,8 +12,6 @@ fn archive_create_uname_gname() {
         "--overwrite",
         "-r",
         "../resources/test/raw",
-        "--keep-xattr",
-        "--keep-timestamp",
         "--keep-permission",
         "--uname",
         "test_user",
@@ -36,8 +34,6 @@ fn archive_create_uname_gname() {
         "--overwrite",
         "--out-dir",
         &format!("{}/create_uname_gname/", env!("CARGO_TARGET_TMPDIR")),
-        "--keep-xattr",
-        "--keep-timestamp",
         "--keep-permission",
     ]))
     .unwrap();
@@ -53,8 +49,6 @@ fn archive_create_uid_gid() {
         "--overwrite",
         "-r",
         "../resources/test/raw",
-        "--keep-xattr",
-        "--keep-timestamp",
         "--keep-permission",
         "--uid",
         "0",
@@ -78,8 +72,6 @@ fn archive_create_uid_gid() {
         "--overwrite",
         "--out-dir",
         &format!("{}/create_uid_gid/", env!("CARGO_TARGET_TMPDIR")),
-        "--keep-xattr",
-        "--keep-timestamp",
         "--keep-permission",
     ]))
     .unwrap();
