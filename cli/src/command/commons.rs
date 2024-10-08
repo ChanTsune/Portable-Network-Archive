@@ -584,6 +584,7 @@ where
     Transform: TransformStrategy,
 {
     let password = password_provider();
+    let output_path = output_path.as_ref();
     let random = rand::random::<usize>();
     let temp_path = temp_dir().join(format!("{}.pna.tmp", random));
     let outfile = fs::File::create(&temp_path)?;
@@ -594,6 +595,9 @@ where
     })?;
 
     out_archive.finalize()?;
+    if let Some(parent) = output_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
     utils::fs::mv(temp_path, output_path)?;
     Ok(())
 }
