@@ -101,7 +101,7 @@ pub(crate) fn collect_items<I: IntoIterator<Item = P>, P: Into<PathBuf>>(
         }
     };
     for path in walker.into_iter().flatten() {
-        let path = path?.into_path();
+        let path = path.unwrap().into_path();
         if keep_dir || path.is_file() {
             target_items.push(path);
         }
@@ -183,7 +183,7 @@ pub(crate) fn apply_metadata(
     owner_options: OwnerOptions,
 ) -> io::Result<EntryBuilder> {
     if keep_options.keep_timestamp || keep_options.keep_permission {
-        let meta = fs::metadata(path)?;
+        let meta = fs::metadata(path).unwrap();
         if keep_options.keep_timestamp {
             if let Ok(c) = meta.created() {
                 if let Ok(created_since_unix_epoch) = c.duration_since(UNIX_EPOCH) {
@@ -274,7 +274,7 @@ pub(crate) fn apply_metadata(
     }
     #[cfg(unix)]
     if keep_options.keep_xattr {
-        for attr in utils::os::unix::fs::xattrs::get_xattrs(path)? {
+        for attr in utils::os::unix::fs::xattrs::get_xattrs(path).unwrap() {
             entry.add_xattr(attr);
         }
     }

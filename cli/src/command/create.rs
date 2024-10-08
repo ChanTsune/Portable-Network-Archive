@@ -147,10 +147,11 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         args.gitignore,
         args.follow_links,
         exclude,
-    )?;
+    )
+    .unwrap();
 
     if let Some(parent) = archive.parent() {
-        fs::create_dir_all(parent)?;
+        fs::create_dir_all(parent).unwrap();
     }
     let max_file_size = args
         .split
@@ -188,7 +189,8 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
             owner_options,
             args.solid,
             target_items,
-        )?;
+        )
+        .unwrap();
     }
     log::info!(
         "Successfully created an archive in {}",
@@ -209,7 +211,7 @@ where
     W: Write,
     F: FnMut() -> io::Result<W>,
 {
-    let pool = ThreadPoolBuilder::default().build()?;
+    let pool = ThreadPoolBuilder::default().build().unwrap();
 
     let (tx, rx) = std::sync::mpsc::channel();
     let option = if solid {
@@ -235,17 +237,17 @@ where
 
     drop(tx);
 
-    let file = get_writer()?;
+    let file = get_writer().unwrap();
     if solid {
-        let mut writer = Archive::write_solid_header(file, write_option)?;
+        let mut writer = Archive::write_solid_header(file, write_option).unwrap();
         for entry in rx.into_iter() {
-            writer.add_entry(entry?)?;
+            writer.add_entry(entry.unwrap())?;
         }
         writer.finalize()?;
     } else {
         let mut writer = Archive::write_header(file)?;
         for entry in rx.into_iter() {
-            writer.add_entry(entry?)?;
+            writer.add_entry(entry.unwrap())?;
         }
         writer.finalize()?;
     }
