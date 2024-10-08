@@ -12,6 +12,7 @@ use crate::{
     },
     utils::{self, fmt::DurationDisplay},
 };
+use anyhow::Context;
 use bytesize::ByteSize;
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::{Archive, SolidEntryBuilder, WriteOptions};

@@ -13,6 +13,7 @@ use crate::{
     },
     utils,
 };
+use anyhow::Context;
 use clap::{ArgGroup, Args, Parser, ValueHint};
 use std::{fs, io, path::PathBuf};
 
@@ -126,6 +127,7 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     } else {
         unreachable!()
     }
+    .with_context(|| "")
 }
 
 fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {

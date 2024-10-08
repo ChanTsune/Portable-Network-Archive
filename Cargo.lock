@@ -121,12 +121,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "anyhow"
-version = "1.0.89"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86fdf8605db99b54d3cd748a44c6d04df638eb5dafb219b135d0149bd0db01f6"
-
-[[package]]
 name = "argon2"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -996,9 +990,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.162"
+version = "0.2.164"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18d287de67fe55fd7e1581fe933d965a5a9477b38e949cfa9f8574ef01506398"
+checksum = "433bfe06b8c75da9b2e3fbea6e5329ff87748f0b144ef75306e674c3f6f7c13f"
 
 [[package]]
 name = "liblzma"
@@ -1273,7 +1267,6 @@ dependencies = [
 name = "portable-network-archive"
 version = "0.20.0"
 dependencies = [
- "anyhow",
  "assert_cmd",
  "base64",
  "bitflags",
