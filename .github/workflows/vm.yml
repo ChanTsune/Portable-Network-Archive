@@ -48,6 +48,7 @@ jobs:
             . "$HOME/.cargo/env"
             export LC_ALL=C LANG=C
             uname -a
+            export PATH=$PATH:/usr/sbin
             chown -R $(whoami):$(id -gn) ./
             chmod -R a+rw ./
             cargo install -f cargo-hack --locked
