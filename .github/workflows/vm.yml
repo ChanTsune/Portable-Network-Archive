@@ -75,7 +75,7 @@ jobs:
             chown -R $(whoami):$(id -gn) ./
             chmod -R a+rw ./
             cargo install -f cargo-hack --locked
-            cargo hack test --locked --release --feature-powerset --exclude-features wasm
+            cargo hack test --locked --release --feature-powerset --exclude-features wasm,acl
 
   OpenBSD-test:
     runs-on: ubuntu-latest
