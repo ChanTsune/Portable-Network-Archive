@@ -18,7 +18,7 @@ jobs:
           envs: "RUST_BACKTRACE"
           usesh: true
           prepare: |
-            pkg install bash libtool automake gnu-m4 tree wget gcc autoconf //solaris/text/gawk pkg://solaris/text/gnu-diffutils pkg://solaris/text/gnu-grep pkg://solaris/text/gnu-sed
+            pkg install bash libtool automake gnu-m4 tree wget gcc autoconf //solaris/text/gawk pkg://solaris/text/gnu-diffutils pkg://solaris/text/gnu-grep pkg://solaris/text/gnu-sed cmake
             pkg install pkg:/developer/rust/cargo
           run: |
             set -e
@@ -41,7 +41,7 @@ jobs:
           envs: "RUST_BACKTRACE"
           usesh: true
           prepare: |
-            /usr/sbin/pkg_add -v autoconf automake gmake gettext-tools gtar-base libtool-base m4 po4a curl
+            /usr/sbin/pkg_add -v autoconf automake gmake gettext-tools gtar-base libtool-base m4 po4a curl cmake
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           run: |
             set -e
@@ -65,7 +65,7 @@ jobs:
           envs: "RUST_BACKTRACE"
           usesh: true
           prepare: |
-            pkg install -y curl
+            pkg install -y curl cmake
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           run: |
             set -e
@@ -89,8 +89,8 @@ jobs:
           envs: "RUST_BACKTRACE"
           usesh: true
           prepare: |
-            /usr/sbin/pkg_add -I -v autoconf-2.71 automake-1.16.5 gmake gettext-tools gtar libtool m4
-            /usr/sbin/pkg_add -v rust
+            /usr/sbin/pkg_add -I -v autoconf-2.71 automake-1.16.5 gmake gettext-tools gtar libtool m4 cmake
+            /usr/sbin/pkg_add -I -v rust
           run: |
             set -e
             export LC_ALL=C LANG=C
@@ -112,7 +112,8 @@ jobs:
           envs: "RUST_BACKTRACE"
           usesh: true
           prepare: |
-            pkg install -y curl rust
+            pkg install -y curl cmake 
+            pkg install -y rust
           run: |
             set -e
             export LC_ALL=C LANG=C
@@ -134,7 +135,7 @@ jobs:
           envs: "RUST_BACKTRACE"
           usesh: true
           prepare: |
-            pkg install curl pkg:/developer/gcc13
+            pkg install curl pkg:/developer/gcc13 cmake
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           run: |
             set -e
