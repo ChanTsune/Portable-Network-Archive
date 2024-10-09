@@ -68,14 +68,14 @@ impl CompressionLevel {
     /// Minimum compression level.
     /// This value will be replaced with the minimum level for each algorithm.
     #[inline]
-    pub fn min() -> Self {
+    pub const fn min() -> Self {
         Self(CompressionLevelImpl::Min)
     }
 
     /// Maximum compression level.
     /// This value will be replaced with the maximum level for each algorithm.
     #[inline]
-    pub fn max() -> Self {
+    pub const fn max() -> Self {
         Self(CompressionLevelImpl::Max)
     }
 }
