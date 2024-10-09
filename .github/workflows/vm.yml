@@ -24,6 +24,8 @@ jobs:
             set -e
             export LC_ALL=C LANG=C
             uname -a
+            chown -R $(whoami):$(id -gn) ./
+            chmod -R a+rw ./
             cargo install -f cargo-hack --locked
             cargo hack test --locked --release --feature-powerset --exclude-features wasm
 
@@ -46,6 +48,8 @@ jobs:
             . "$HOME/.cargo/env"
             export LC_ALL=C LANG=C
             uname -a
+            chown -R $(whoami):$(id -gn) ./
+            chmod -R a+rw ./
             cargo install -f cargo-hack --locked
             cargo hack test --locked --release --feature-powerset --exclude-features wasm
 
@@ -68,6 +72,8 @@ jobs:
             . "$HOME/.cargo/env"
             export LC_ALL=C LANG=C
             uname -a
+            chown -R $(whoami):$(id -gn) ./
+            chmod -R a+rw ./
             cargo install -f cargo-hack --locked
             cargo hack test --locked --release --feature-powerset --exclude-features wasm
 
@@ -89,6 +95,8 @@ jobs:
             set -e
             export LC_ALL=C LANG=C
             uname -a
+            chown -R $(whoami):$(id -gn) ./
+            chmod -R a+rw ./
             cargo install -f cargo-hack --locked
             cargo hack test --locked --release --feature-powerset --exclude-features wasm
 
@@ -105,11 +113,12 @@ jobs:
           usesh: true
           prepare: |
             pkg install -y curl rust
-
           run: |
             set -e
             export LC_ALL=C LANG=C
             uname -a
+            chown -R $(whoami):$(id -gn) ./
+            chmod -R a+rw ./
             cargo install -f cargo-hack --locked
             cargo hack test --locked --release --feature-powerset --exclude-features wasm
 
@@ -132,5 +141,7 @@ jobs:
             . "$HOME/.cargo/env"
             export LC_ALL=C LANG=C
             uname -a
+            chown -R $(whoami):$(id -gn) ./
+            chmod -R a+rw ./
             cargo install -f cargo-hack --locked
             cargo hack test --locked --release --feature-powerset --exclude-features wasm
