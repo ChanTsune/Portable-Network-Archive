@@ -22,7 +22,7 @@ async fn create(path: String, file_names: &[String]) -> io::Result<()> {
     for file_name in file_names {
         let mut file = tokio::fs::File::open(file_name).await?;
         let mut entry_builder =
-            EntryBuilder::new_file(file_name.as_str().into(), WriteOptions::builder().build())?
+            EntryBuilder::new_file(file_name.into(), WriteOptions::builder().build())?
                 .compat_write();
         tokio::io::copy(&mut file, &mut entry_builder).await?;
         let entry = entry_builder.into_inner().build()?;
