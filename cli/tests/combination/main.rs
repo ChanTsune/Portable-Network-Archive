@@ -5,11 +5,21 @@ pub mod utils {
 use itertools::Itertools;
 use utils::diff::diff;
 
+// NOTE: Skip `--keep-xattr` option for NetBSD
+//       because NetBSD default filesystem is not support extended attribute.
+#[cfg(not(target_os = "netbsd"))]
 const KEEP_OPTIONS: [Option<&str>; 4] = [
     Some("--keep-dir"),
     Some("--keep-timestamp"),
     Some("--keep-permission"),
     Some("--keep-xattr"),
+];
+
+#[cfg(target_os = "netbsd")]
+const KEEP_OPTIONS: [Option<&str>; 3] = [
+    Some("--keep-dir"),
+    Some("--keep-timestamp"),
+    Some("--keep-permission"),
 ];
 const COMPRESSION_OPTIONS: [Option<&str>; 4] = [
     Some("--store"),
