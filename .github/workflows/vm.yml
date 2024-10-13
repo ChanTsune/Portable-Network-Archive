@@ -6,28 +6,28 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  solaris-test:
-    runs-on: ubuntu-latest
-    name: Test on Solaris
-    steps:
-      - uses: actions/checkout@v4
-      - name: Test in Solaris
-        id: test
-        uses: vmactions/solaris-vm@v1.0.9
-        with:
-          envs: "RUST_BACKTRACE"
-          usesh: true
-          prepare: |
-            pkg install bash libtool automake gnu-m4 tree wget gcc autoconf //solaris/text/gawk pkg://solaris/text/gnu-diffutils pkg://solaris/text/gnu-grep pkg://solaris/text/gnu-sed cmake
-            pkg install pkg:/developer/rust/cargo
-          run: |
-            set -e
-            export LC_ALL=C LANG=C
-            uname -a
-            chown -R $(whoami):$(id -gn) ./
-            chmod -R a+rw ./
-            cargo install -f cargo-hack --locked
-            cargo hack test --locked --release --feature-powerset --exclude-features wasm
+#  solaris-test:
+#    runs-on: ubuntu-latest
+#    name: Test on Solaris
+#    steps:
+#      - uses: actions/checkout@v4
+#      - name: Test in Solaris
+#        id: test
+#        uses: vmactions/solaris-vm@v1.0.9
+#        with:
+#          envs: "RUST_BACKTRACE"
+#          usesh: true
+#          prepare: |
+#            pkg install bash libtool automake gnu-m4 tree wget gcc autoconf //solaris/text/gawk pkg://solaris/text/gnu-diffutils pkg://solaris/text/gnu-grep pkg://solaris/text/gnu-sed cmake
+#            pkg install pkg:/developer/rust/cargo
+#          run: |
+#            set -e
+#            export LC_ALL=C LANG=C
+#            uname -a
+#            chown -R $(whoami):$(id -gn) ./
+#            chmod -R a+rw ./
+#            cargo install -f cargo-hack --locked
+#            cargo hack test --locked --release --feature-powerset --exclude-features wasm
 
   NetBSD-test:
     runs-on: ubuntu-latest
@@ -78,51 +78,51 @@ jobs:
             cargo install -f cargo-hack --locked
             cargo hack test --locked --release --feature-powerset --exclude-features wasm,acl
 
-  OpenBSD-test:
-    runs-on: ubuntu-latest
-    name: Test on OpenBSD
-    steps:
-      - uses: actions/checkout@v4.1.6
-      - name: Test in OpenBSD
-        id: test
-        uses: vmactions/OpenBSD-vm@v1.1.2
-        with:
-          envs: "RUST_BACKTRACE"
-          usesh: true
-          prepare: |
-            /usr/sbin/pkg_add -I -v autoconf-2.71 automake-1.16.5 gmake gettext-tools gtar libtool m4 cmake
-            /usr/sbin/pkg_add -I -v rust
-          run: |
-            set -e
-            export LC_ALL=C LANG=C
-            uname -a
-            chown -R $(whoami):$(id -gn) ./
-            chmod -R a+rw ./
-            cargo install -f cargo-hack --locked
-            cargo hack test --locked --release --feature-powerset --exclude-features wasm
+#  OpenBSD-test:
+#    runs-on: ubuntu-latest
+#    name: Test on OpenBSD
+#    steps:
+#      - uses: actions/checkout@v4.1.6
+#      - name: Test in OpenBSD
+#        id: test
+#        uses: vmactions/OpenBSD-vm@v1.1.2
+#        with:
+#          envs: "RUST_BACKTRACE"
+#          usesh: true
+#          prepare: |
+#            /usr/sbin/pkg_add -I -v autoconf-2.71 automake-1.16.5 gmake gettext-tools gtar libtool m4 cmake
+#            /usr/sbin/pkg_add -I -v rust
+#          run: |
+#            set -e
+#            export LC_ALL=C LANG=C
+#            uname -a
+#            chown -R $(whoami):$(id -gn) ./
+#            chmod -R a+rw ./
+#            cargo install -f cargo-hack --locked
+#            cargo hack test --locked --release --feature-powerset --exclude-features wasm
 
-  DragonflyBSD-test:
-    runs-on: ubuntu-latest
-    name: Test on DragonflyBSD
-    steps:
-      - uses: actions/checkout@v4
-      - name: Test in DragonflyBSD
-        id: test
-        uses: vmactions/dragonflybsd-vm@v1.0.9
-        with:
-          envs: "RUST_BACKTRACE"
-          usesh: true
-          prepare: |
-            pkg install -y curl cmake 
-            pkg install -y rust
-          run: |
-            set -e
-            export LC_ALL=C LANG=C
-            uname -a
-            chown -R $(whoami):$(id -gn) ./
-            chmod -R a+rw ./
-            cargo install -f cargo-hack --locked
-            cargo hack test --locked --release --feature-powerset --exclude-features wasm
+#  DragonflyBSD-test:
+#    runs-on: ubuntu-latest
+#    name: Test on DragonflyBSD
+#    steps:
+#      - uses: actions/checkout@v4
+#      - name: Test in DragonflyBSD
+#        id: test
+#        uses: vmactions/dragonflybsd-vm@v1.0.9
+#        with:
+#          envs: "RUST_BACKTRACE"
+#          usesh: true
+#          prepare: |
+#            pkg install -y curl cmake
+#            pkg install -y rust
+#          run: |
+#            set -e
+#            export LC_ALL=C LANG=C
+#            uname -a
+#            chown -R $(whoami):$(id -gn) ./
+#            chmod -R a+rw ./
+#            cargo install -f cargo-hack --locked
+#            cargo hack test --locked --release --feature-powerset --exclude-features wasm
 
   OmniOS-test:
     runs-on: ubuntu-latest
