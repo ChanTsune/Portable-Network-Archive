@@ -53,6 +53,7 @@ fn archive_list_detail() {
         "--overwrite",
         "-r",
         "../resources/test/raw",
+        #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
@@ -88,6 +89,7 @@ fn archive_list_solid_detail() {
         "-r",
         "../resources/test/raw",
         "--solid",
+        #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",

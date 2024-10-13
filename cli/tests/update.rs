@@ -11,6 +11,7 @@ fn archive_update_newer_mtime() {
         "--overwrite",
         "-r",
         "../resources/test/raw",
+        #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
@@ -31,6 +32,7 @@ fn archive_update_newer_mtime() {
         &format!("{}/update_all.pna", env!("CARGO_TARGET_TMPDIR")),
         "-r",
         "../resources/test/raw",
+        #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
@@ -48,6 +50,7 @@ fn archive_update_newer_mtime() {
         "--overwrite",
         "--out-dir",
         &format!("{}/update_all/", env!("CARGO_TARGET_TMPDIR")),
+        #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",

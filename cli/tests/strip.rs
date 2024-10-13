@@ -11,6 +11,7 @@ fn archive_strip_metadata() {
         "--overwrite",
         "-r",
         "../resources/test/raw",
+        #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
@@ -42,6 +43,7 @@ fn archive_strip_metadata() {
         "--overwrite",
         "--out-dir",
         &format!("{}/strip_metadata/", env!("CARGO_TARGET_TMPDIR")),
+        #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
