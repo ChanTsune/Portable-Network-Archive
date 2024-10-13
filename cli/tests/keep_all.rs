@@ -11,6 +11,7 @@ fn archive_keep_all() {
         "--overwrite",
         "-r",
         "../resources/test/raw",
+        #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
@@ -28,6 +29,7 @@ fn archive_keep_all() {
         "--overwrite",
         "--out-dir",
         &format!("{}/keep_all/", env!("CARGO_TARGET_TMPDIR")),
+        #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",

@@ -114,6 +114,7 @@ fn zstd_keep_xattr(b: &mut Bencher) {
             "x",
             "../resources/test/zstd_keep_xattr.pna",
             "--overwrite",
+            #[cfg(not(target_os = "netbsd"))]
             "--keep-xattr",
             "--out-dir",
             &format!("{}/bench/zstd_keep_xattr/", env!("CARGO_TARGET_TMPDIR")),

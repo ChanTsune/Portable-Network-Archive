@@ -11,6 +11,7 @@ fn archive_xattr_set() {
         "--overwrite",
         "-r",
         "../resources/test/raw",
+        #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
     ]))
     .unwrap();
@@ -48,6 +49,7 @@ fn archive_xattr_set() {
         "--overwrite",
         "--out-dir",
         &format!("{}/xattr_set/", env!("CARGO_TARGET_TMPDIR")),
+        #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
     ]))
     .unwrap();
@@ -63,6 +65,7 @@ fn archive_xattr_remove() {
         "--overwrite",
         "-r",
         "../resources/test/raw",
+        #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
     ]))
     .unwrap();
@@ -112,6 +115,7 @@ fn archive_xattr_remove() {
         "--overwrite",
         "--out-dir",
         &format!("{}/xattr_remove/", env!("CARGO_TARGET_TMPDIR")),
+        #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
     ]))
     .unwrap();
