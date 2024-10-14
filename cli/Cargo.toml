@@ -1,6 +1,6 @@
 [package]
 name = "portable-network-archive"
-version = "0.18.0"
+version = "0.19.0"
 edition = "2021"
 license = "Apache-2.0 OR MIT"
 description = "Portable-Network-Archive cli"
@@ -22,7 +22,7 @@ ignore = "0.4.23"
 itertools = "0.13.0"
 memmap2 = { version = "0.9.5", optional = true }
 normalize-path = "0.2.1"
-pna = { version = "0.18.0", path = "../pna" }
+pna = { version = "0.19.0", path = "../pna" }
 rayon = "1.10.0"
 tabled = { version = "0.16.0", default-features = false, features = ["std", "ansi"] }
 rand = "0.8.5"
