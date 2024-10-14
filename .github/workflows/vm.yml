@@ -1,6 +1,9 @@
 name: VM Tests
 on:
+  push:
+    branches: ["main"]
   pull_request:
+    branches: ["*"]
 
 env:
   RUST_BACKTRACE: 1
