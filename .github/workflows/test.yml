@@ -61,6 +61,31 @@ jobs:
             !target/tmp
           key: "${{ steps.restore-rust-build-cache.outputs.cache-primary-key }}"
 
+  tier3_cross:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - container: redoxos/redoxer
+            target: x86_64-unknown-redox
+    runs-on: ubuntu-latest
+    container: ${{ matrix.container }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: run test
+        if: startsWith(matrix.target, 'x86_64-unknown-redox')
+        run: |
+          export PATH=$PATH:/root/.redoxer/toolchain/bin
+          rustup default nightly
+          rustup target add ${{ matrix.target }}
+          cargo build --locked --target ${{ matrix.target }}
+        env:
+          RUST_BACKTRACE: 1
+          AR_x86_64_unknown_redox: "x86_64-unknown-redox-ar"
+          CC_x86_64_unknown_redox: "x86_64-unknown-redox-gcc"
+          CARGO_TARGET_X86_64_UNKNOWN_REDOX_LINKER: "x86_64-unknown-redox-gcc"
+          CARGO_TARGET_X86_64_UNKNOWN_REDOX_RUNNER: "redoxer exec --folder ."
+
   tier3:
     strategy:
       fail-fast: false
@@ -72,7 +97,6 @@ jobs:
         target:
           - x86_64-pc-solaris
           - x86_64-unknown-fuchsia
-          - x86_64-unknown-redox
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
