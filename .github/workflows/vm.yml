@@ -10,28 +10,30 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-#  solaris-test:
-#    runs-on: ubuntu-latest
-#    name: Test on Solaris
-#    steps:
-#      - uses: actions/checkout@v4
-#      - name: Test in Solaris
-#        id: test
-#        uses: vmactions/solaris-vm@v1.0.9
-#        with:
-#          envs: "RUST_BACKTRACE"
-#          usesh: true
-#          prepare: |
-#            pkg install bash libtool automake gnu-m4 tree wget gcc autoconf //solaris/text/gawk pkg://solaris/text/gnu-diffutils pkg://solaris/text/gnu-grep pkg://solaris/text/gnu-sed cmake
-#            pkg install pkg:/developer/rust/cargo
-#          run: |
-#            set -e
-#            export LC_ALL=C LANG=C
-#            uname -a
-#            chown -R $(whoami):$(id -gn) ./
-#            chmod -R a+rw ./
-#            cargo install -f cargo-hack --locked
-#            cargo hack test --locked --release --feature-powerset --exclude-features wasm
+  solaris-test:
+    runs-on: ubuntu-latest
+    name: Test on Solaris
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test in Solaris
+        id: test
+        uses: vmactions/solaris-vm@v1.0.9
+        with:
+          envs: "RUST_BACKTRACE"
+          usesh: true
+          prepare: |
+            pkg install bash libtool automake gnu-m4 tree wget gcc autoconf //solaris/text/gawk pkg://solaris/text/gnu-diffutils pkg://solaris/text/gnu-grep pkg://solaris/text/gnu-sed cmake
+            source <(curl -s https://raw.githubusercontent.com/psumbera/solaris-rust/refs/heads/main/sh.rust-web-install)
+            mv /root/.rust_solaris/rustc-*/ /root/.rust_solaris/rustc/
+          run: |
+            set -e
+            export LC_ALL=C LANG=C
+            export PATH=/root/.rust_solaris/rustc/bin:$PATH
+            uname -a
+            chown -R $(whoami):$(id -gn) ./
+            chmod -R a+rw ./
+            cargo install -f cargo-hack --locked
+            cargo hack test --locked --release --feature-powerset --exclude-features wasm
 
   NetBSD-test:
     runs-on: ubuntu-latest
@@ -117,7 +119,7 @@ jobs:
 #          envs: "RUST_BACKTRACE"
 #          usesh: true
 #          prepare: |
-#            pkg install -y curl cmake
+#            pkg install -y curl cmake libnghttp2
 #            pkg install -y rust
 #          run: |
 #            set -e
