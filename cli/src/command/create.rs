@@ -104,12 +104,12 @@ pub(crate) struct CreateCommand {
 }
 
 impl Command for CreateCommand {
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         create_archive(self)
     }
 }
 
-fn create_archive(args: CreateCommand) -> io::Result<()> {
+fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password.clone())?;
     check_password(&password, &args.cipher);
     let start = Instant::now();
@@ -118,7 +118,7 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
             format!("{} is already exists", archive.display()),
-        ));
+        ))?;
     }
     log::info!("Create an archive: {}", archive.display());
     let mut files = args.file.files;
@@ -146,10 +146,11 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
         args.gitignore,
         args.follow_links,
         exclude,
-    )?;
+    )
+    .unwrap();
 
     if let Some(parent) = archive.parent() {
-        fs::create_dir_all(parent)?;
+        fs::create_dir_all(parent).unwrap();
     }
     let max_file_size = args
         .split
@@ -187,7 +188,8 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
             owner_options,
             args.solid,
             target_items,
-        )?;
+        )
+        .unwrap();
     }
     log::info!(
         "Successfully created an archive in {}",
@@ -203,14 +205,12 @@ pub(crate) fn create_archive_file<W, F>(
     owner_options: OwnerOptions,
     solid: bool,
     target_items: Vec<PathBuf>,
-) -> io::Result<()>
+) -> anyhow::Result<()>
 where
     W: Write,
     F: FnMut() -> io::Result<W>,
 {
-    let pool = ThreadPoolBuilder::default()
-        .build()
-        .map_err(io::Error::other)?;
+    let pool = ThreadPoolBuilder::default().build().unwrap();
 
     let (tx, rx) = std::sync::mpsc::channel();
     let option = if solid {
@@ -236,17 +236,17 @@ where
 
     drop(tx);
 
-    let file = get_writer()?;
+    let file = get_writer().unwrap();
     if solid {
-        let mut writer = Archive::write_solid_header(file, write_option)?;
+        let mut writer = Archive::write_solid_header(file, write_option).unwrap();
         for entry in rx.into_iter() {
-            writer.add_entry(entry?)?;
+            writer.add_entry(entry.unwrap())?;
         }
         writer.finalize()?;
     } else {
         let mut writer = Archive::write_header(file)?;
         for entry in rx.into_iter() {
-            writer.add_entry(entry?)?;
+            writer.add_entry(entry.unwrap())?;
         }
         writer.finalize()?;
     }
@@ -261,10 +261,8 @@ fn create_archive_with_split(
     solid: bool,
     target_items: Vec<PathBuf>,
     max_file_size: usize,
-) -> io::Result<()> {
-    let pool = ThreadPoolBuilder::default()
-        .build()
-        .map_err(io::Error::other)?;
+) -> anyhow::Result<()> {
+    let pool = ThreadPoolBuilder::default().build()?;
 
     let (tx, rx) = std::sync::mpsc::channel();
     let option = if solid {
@@ -298,7 +296,11 @@ fn create_archive_with_split(
         let entries = entries_builder.build();
         write_split_archive(archive, [entries].into_iter(), max_file_size)?;
     } else {
-        write_split_archive(archive, rx.into_iter(), max_file_size)?;
+        write_split_archive(
+            archive,
+            rx.into_iter().map(|it| it.map_err(io::Error::other)),
+            max_file_size,
+        )?;
     }
     Ok(())
 }

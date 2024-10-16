@@ -2,6 +2,7 @@ use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
     utils::{self, PathPartExt},
 };
+use anyhow::Context;
 use normalize_path::*;
 use pna::{
     prelude::*, Archive, EntryBuilder, EntryName, EntryPart, EntryReference, NormalEntry,
@@ -71,7 +72,7 @@ pub(crate) fn collect_items<I: IntoIterator<Item = P>, P: Into<PathBuf>>(
     gitignore: bool,
     follow_links: bool,
     exclude: Option<Vec<PathBuf>>,
-) -> io::Result<Vec<PathBuf>> {
+) -> anyhow::Result<Vec<PathBuf>> {
     let mut files = files.into_iter();
     let exclude = exclude.map(|it| it.into_iter().map(|path| path.normalize()));
     let mut target_items = vec![];
@@ -100,7 +101,7 @@ pub(crate) fn collect_items<I: IntoIterator<Item = P>, P: Into<PathBuf>>(
         }
     };
     for path in walker.into_iter().flatten() {
-        let path = path.map_err(io::Error::other)?.into_path();
+        let path = path.unwrap().into_path();
         if keep_dir || path.is_file() {
             target_items.push(path);
         }
@@ -115,14 +116,14 @@ pub(crate) fn create_entry(
         keep_options,
         owner_options,
     }: CreateOptions,
-) -> io::Result<NormalEntry> {
+) -> anyhow::Result<NormalEntry> {
     if path.is_symlink() {
         let source = fs::read_link(path)?;
         let entry = EntryBuilder::new_symbolic_link(
             EntryName::from_lossy(path),
             EntryReference::from_lossy(source.as_path()),
         )?;
-        return apply_metadata(entry, path, keep_options, owner_options)?.build();
+        return Ok(apply_metadata(entry, path, keep_options, owner_options)?.build()?);
     } else if path.is_file() {
         let mut entry = EntryBuilder::new_file(EntryName::from_lossy(path), option)?;
         #[cfg(feature = "memmap")]
@@ -140,15 +141,16 @@ pub(crate) fn create_entry(
         {
             entry.write_all(&fs::read(path)?)?;
         }
-        return apply_metadata(entry, path, keep_options, owner_options)?.build();
+        return Ok(apply_metadata(entry, path, keep_options, owner_options)?.build()?);
     } else if path.is_dir() {
         let entry = EntryBuilder::new_dir(EntryName::from_lossy(path));
-        return apply_metadata(entry, path, keep_options, owner_options)?.build();
+        return Ok(apply_metadata(entry, path, keep_options, owner_options)?.build()?);
     }
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
         "Currently not a regular file is not supported.",
     ))
+    .with_context(|| "")
 }
 
 pub(crate) fn entry_option(
@@ -181,7 +183,7 @@ pub(crate) fn apply_metadata(
     owner_options: OwnerOptions,
 ) -> io::Result<EntryBuilder> {
     if keep_options.keep_timestamp || keep_options.keep_permission {
-        let meta = fs::metadata(path)?;
+        let meta = fs::metadata(path).unwrap();
         if keep_options.keep_timestamp {
             if let Ok(c) = meta.created() {
                 if let Ok(created_since_unix_epoch) = c.duration_since(UNIX_EPOCH) {
@@ -207,8 +209,8 @@ pub(crate) fn apply_metadata(
             let mode = meta.permissions().mode() as u16;
             let uid = owner_options.uid.unwrap_or(meta.uid());
             let gid = owner_options.gid.unwrap_or(meta.gid());
-            let user = User::from_uid(uid.into())?;
-            let group = Group::from_gid(gid.into())?;
+            let user = User::from_uid(uid.into()).unwrap();
+            let group = Group::from_gid(gid.into()).unwrap();
             entry.permission(pna::Permission::new(
                 uid.into(),
                 owner_options.uname.unwrap_or(user.name().into()),
@@ -246,7 +248,7 @@ pub(crate) fn apply_metadata(
         if keep_options.keep_acl {
             use crate::chunk;
             use pna::RawChunk;
-            let ace_list = utils::acl::get_facl(path)?;
+            let ace_list = utils::acl::get_facl(path).unwrap();
             for ace in ace_list {
                 entry.add_extra_chunk(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
             }
@@ -267,7 +269,7 @@ pub(crate) fn apply_metadata(
     }
     #[cfg(unix)]
     if keep_options.keep_xattr {
-        for attr in utils::os::unix::fs::xattrs::get_xattrs(path)? {
+        for attr in utils::os::unix::fs::xattrs::get_xattrs(path).unwrap() {
             entry.add_xattr(attr);
         }
     }

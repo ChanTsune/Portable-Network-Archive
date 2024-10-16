@@ -2,6 +2,7 @@ use crate::{
     command::{commons::write_split_archive, Command},
     utils::PathPartExt,
 };
+use anyhow::Context;
 use bytesize::ByteSize;
 use clap::{Parser, ValueHint};
 use pna::Archive;
@@ -20,12 +21,12 @@ pub(crate) struct SplitCommand {
 }
 
 impl Command for SplitCommand {
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         split_archive(self)
     }
 }
 
-fn split_archive(args: SplitCommand) -> io::Result<()> {
+fn split_archive(args: SplitCommand) -> anyhow::Result<()> {
     let read_file = File::open(&args.archive)?;
     #[cfg(not(feature = "memmap"))]
     let mut read_archive = Archive::read_header(read_file)?;
@@ -49,9 +50,11 @@ fn split_archive(args: SplitCommand) -> io::Result<()> {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
             format!("{} is already exists", name.display()),
-        ));
+        ))
+        .with_context(|| format!("While overwriting {}", name.display()));
     }
     let max_file_size = args.max_size.unwrap_or_else(|| ByteSize::gb(1)).as_u64() as usize;
 
     write_split_archive(base_out_file_name, entries, max_file_size)
+        .with_context(|| "failed to write archive")
 }

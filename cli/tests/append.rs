@@ -2,7 +2,7 @@ use clap::Parser;
 use portable_network_archive::{cli, command};
 
 #[test]
-fn archive_append() {
+fn archive_append() -> anyhow::Result<()> {
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -11,8 +11,7 @@ fn archive_append() {
         "--overwrite",
         "-r",
         "../resources/test/raw",
-    ]))
-    .unwrap();
+    ]))?;
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -20,8 +19,7 @@ fn archive_append() {
         &format!("{}/append.pna", env!("CARGO_TARGET_TMPDIR")),
         "../resources/test/store.pna",
         "../resources/test/zstd.pna",
-    ]))
-    .unwrap();
+    ]))?;
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -31,11 +29,10 @@ fn archive_append() {
         "--out-dir",
         &format!("{}/append/", env!("CARGO_TARGET_TMPDIR")),
     ]))
-    .unwrap();
 }
 
 #[test]
-fn archive_append_split() {
+fn archive_append_split() -> anyhow::Result<()> {
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -50,8 +47,7 @@ fn archive_append_split() {
         {
             "--unstable"
         },
-    ]))
-    .unwrap();
+    ]))?;
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -59,8 +55,7 @@ fn archive_append_split() {
         &format!("{}/append_split.part1.pna", env!("CARGO_TARGET_TMPDIR")),
         "../resources/test/store.pna",
         "../resources/test/zstd.pna",
-    ]))
-    .unwrap();
+    ]))?;
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -70,5 +65,4 @@ fn archive_append_split() {
         "--out-dir",
         &format!("{}/append_split/", env!("CARGO_TARGET_TMPDIR")),
     ]))
-    .unwrap();
 }

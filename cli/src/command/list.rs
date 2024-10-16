@@ -13,6 +13,7 @@ use crate::{
     ext::*,
     utils::GlobPatterns,
 };
+use anyhow::Context;
 use chrono::{DateTime, Local};
 use clap::{
     builder::styling::{AnsiColor, Color as Colour, Style},
@@ -75,7 +76,7 @@ pub(crate) struct ListCommand {
 }
 
 impl Command for ListCommand {
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         list_archive(self)
     }
 }
@@ -194,7 +195,7 @@ where
     }
 }
 
-fn list_archive(args: ListCommand) -> io::Result<()> {
+fn list_archive(args: ListCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let options = ListOptions {
         long: args.long,
@@ -213,6 +214,7 @@ fn list_archive(args: ListCommand) -> io::Result<()> {
             &args.file.files,
             options,
         )
+        .with_context(|| "")
     }
     #[cfg(feature = "memmap")]
     {
@@ -222,6 +224,7 @@ fn list_archive(args: ListCommand) -> io::Result<()> {
             &args.file.files,
             options,
         )
+        .with_context(|| "")
     }
 }
 
@@ -240,7 +243,7 @@ pub(crate) fn run_list_archive(
     password: Option<&str>,
     files: &[String],
     args: ListOptions,
-) -> io::Result<()> {
+) -> anyhow::Result<()> {
     let globs =
         GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
