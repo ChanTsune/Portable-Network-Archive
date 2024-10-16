@@ -156,7 +156,7 @@ fn read_deflate_archive_from_slice(b: &mut Bencher) {
 }
 
 #[bench]
-fn write_lzma_archive(b: &mut Bencher) {
+fn write_xz_archive(b: &mut Bencher) {
     bench_write_archive(b, {
         let mut builder = WriteOptions::builder();
         builder.compression(Compression::XZ);
@@ -165,7 +165,7 @@ fn write_lzma_archive(b: &mut Bencher) {
 }
 
 #[bench]
-fn read_lzma_archive(b: &mut Bencher) {
+fn read_xz_archive(b: &mut Bencher) {
     bench_read_archive(b, {
         let mut builder = WriteOptions::builder();
         builder.compression(Compression::XZ);
@@ -174,7 +174,7 @@ fn read_lzma_archive(b: &mut Bencher) {
 }
 
 #[bench]
-fn read_lzma_archive_from_slice(b: &mut Bencher) {
+fn read_xz_archive_from_slice(b: &mut Bencher) {
     bench_read_archive_from_slice(b, {
         let mut builder = WriteOptions::builder();
         builder.compression(Compression::XZ);
