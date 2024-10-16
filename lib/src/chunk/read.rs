@@ -134,9 +134,8 @@ pub(crate) fn read_chunk_from_slice(bytes: &[u8]) -> io::Result<(RawChunk<&[u8]>
     crc_hasher.update(&ty[..]);
 
     // read chunk data
-    let (data, r) = r
-        .split_at_checked(length as usize)
-        .ok_or(io::ErrorKind::UnexpectedEof)?;
+    // TODO: use split_at_checked instead
+    let (data, r) = r.split_at(length as usize);
     crc_hasher.update(data);
 
     // read crc sum

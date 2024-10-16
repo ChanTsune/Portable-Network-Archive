@@ -6,9 +6,8 @@ use std::borrow::Cow;
 use std::io;
 
 fn read_header_from_slice(bytes: &[u8]) -> io::Result<&[u8]> {
-    let (header, body) = bytes
-        .split_at_checked(PNA_HEADER.len())
-        .ok_or(io::ErrorKind::UnexpectedEof)?;
+    // TODO: use split_at_checked instead
+    let (header, body) = bytes.split_at(PNA_HEADER.len());
     if header != PNA_HEADER {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "It's not PNA"));
     }
