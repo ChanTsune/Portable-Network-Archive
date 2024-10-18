@@ -26,7 +26,7 @@ jobs:
             container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-23
           - target: wasm32-wasi
           - target: wasm32-wasip1
-            container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-22
+            container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-23
 #          - target: wasm32-wasip1
 
     runs-on: ubuntu-latest
