@@ -373,8 +373,39 @@ impl<W: Write> Archive<W> {
         archive.into_solid_archive(option)
     }
 
+    /// Writes the solid entry header to the given `Write` object and return a new [SolidArchive].
+    ///
+    /// # Arguments
+    ///
+    /// * `option` - The [WriteOptions] object of a solid mode option.
+    ///
+    /// # Returns
+    ///
+    /// A new [`io::Result<SolidArchive<W>>`]
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing solid header to the writer.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use libpna::{Archive, WriteOptions};
+    /// use std::fs::File;
+    /// # use std::io;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let option = WriteOptions::builder().build();
+    /// let file = File::create("example.pna")?;
+    /// let mut archive = Archive::write_header(file)?;
+    /// let mut solid_archive = archive.into_solid_archive(option)?;
+    /// let mut archive = solid_archive.finalize_solid_entry()?;
+    /// archive.finalize()?;
+    /// #    Ok(())
+    /// # }
+    /// ```
     #[inline]
-    fn into_solid_archive(mut self, option: WriteOptions) -> io::Result<SolidArchive<W>> {
+    pub fn into_solid_archive(mut self, option: WriteOptions) -> io::Result<SolidArchive<W>> {
         let header = SolidHeader::new(
             option.compression,
             option.encryption(),
@@ -523,8 +554,29 @@ impl<W: Write> SolidArchive<W> {
         archive.finalize()
     }
 
+    /// Write an end marker of solid entry to finalize the solid entry.
+    ///
+    /// Marks that the solid entry contains no more entries.
+    ///
+    /// # Examples
+    /// Create an empty solid archive.
+    /// ```no_run
+    /// use libpna::{Archive, WriteOptions};
+    /// use std::fs::File;
+    /// # use std::io;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let option = WriteOptions::builder().build();
+    /// let file = File::create("example.pna")?;
+    /// let mut archive = Archive::write_header(file)?;
+    /// let mut solid_archive = archive.into_solid_archive(option)?;
+    /// let mut archive = solid_archive.finalize_solid_entry()?;
+    /// archive.finalize()?;
+    /// #    Ok(())
+    /// # }
+    /// ```
     #[inline]
-    fn finalize_solid_entry(mut self) -> io::Result<Archive<W>> {
+    pub fn finalize_solid_entry(mut self) -> io::Result<Archive<W>> {
         self.inner.flush()?;
         let mut inner = self.inner.try_into_inner()?.try_into_inner()?.into_inner();
         (ChunkType::SEND, [].as_slice()).write_chunk_in(&mut inner)?;
