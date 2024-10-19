@@ -201,19 +201,23 @@ pub(crate) fn apply_metadata(
         }
         #[cfg(unix)]
         if keep_options.keep_permission {
-            use crate::utils::os::unix::fs::owner::{Group, User};
+            use crate::utils::fs::{Group, User};
             use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
             let mode = meta.permissions().mode() as u16;
             let uid = owner_options.uid.unwrap_or(meta.uid());
             let gid = owner_options.gid.unwrap_or(meta.gid());
-            let user = User::from_uid(uid.into())?;
-            let group = Group::from_gid(gid.into())?;
             entry.permission(pna::Permission::new(
                 uid.into(),
-                owner_options.uname.unwrap_or(user.name().into()),
+                match owner_options.uname {
+                    None => User::from_uid(uid.into())?.name().into(),
+                    Some(uname) => uname,
+                },
                 gid.into(),
-                owner_options.gname.unwrap_or(group.name().into()),
+                match owner_options.gname {
+                    None => Group::from_gid(gid.into())?.name().into(),
+                    Some(gname) => gname,
+                },
                 mode,
             ));
         }
