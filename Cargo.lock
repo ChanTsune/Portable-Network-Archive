@@ -895,6 +895,7 @@ dependencies = [
  "password-hash",
  "pbkdf2",
  "rand",
+ "rand_chacha",
  "tokio",
  "tokio-util",
  "version-sync",
