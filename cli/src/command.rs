@@ -1,3 +1,4 @@
+mod acl;
 pub mod append;
 mod chmod;
 mod chown;
