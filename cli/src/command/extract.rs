@@ -77,6 +77,7 @@ pub(crate) struct ExtractCommand {
 }
 
 impl Command for ExtractCommand {
+    #[inline]
     fn execute(self) -> io::Result<()> {
         extract_archive(self)
     }

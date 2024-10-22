@@ -29,6 +29,7 @@ pub(crate) struct ChownCommand {
 }
 
 impl Command for ChownCommand {
+    #[inline]
     fn execute(self) -> io::Result<()> {
         archive_chown(self)
     }

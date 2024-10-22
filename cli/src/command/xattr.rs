@@ -28,6 +28,7 @@ pub(crate) struct XattrCommand {
 }
 
 impl Command for XattrCommand {
+    #[inline]
     fn execute(self) -> io::Result<()> {
         match self.command {
             XattrCommands::Get(cmd) => cmd.execute(),
@@ -59,6 +60,7 @@ pub(crate) struct GetXattrCommand {
 }
 
 impl Command for GetXattrCommand {
+    #[inline]
     fn execute(self) -> io::Result<()> {
         archive_get_xattr(self)
     }
@@ -83,6 +85,7 @@ pub(crate) struct SetXattrCommand {
 }
 
 impl Command for SetXattrCommand {
+    #[inline]
     fn execute(self) -> io::Result<()> {
         archive_set_xattr(self)
     }

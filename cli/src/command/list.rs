@@ -75,6 +75,7 @@ pub(crate) struct ListCommand {
 }
 
 impl Command for ListCommand {
+    #[inline]
     fn execute(self) -> io::Result<()> {
         list_archive(self)
     }
