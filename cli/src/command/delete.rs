@@ -28,6 +28,7 @@ pub(crate) struct DeleteCommand {
 }
 
 impl Command for DeleteCommand {
+    #[inline]
     fn execute(self) -> io::Result<()> {
         delete_file_from_archive(self)
     }

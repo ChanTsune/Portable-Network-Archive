@@ -20,6 +20,7 @@ pub(crate) struct SplitCommand {
 }
 
 impl Command for SplitCommand {
+    #[inline]
     fn execute(self) -> io::Result<()> {
         split_archive(self)
     }
