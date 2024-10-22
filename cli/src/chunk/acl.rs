@@ -140,7 +140,6 @@ pub struct Ace {
 }
 
 impl Ace {
-    #[cfg(feature = "acl")]
     #[inline]
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
         self.to_string().into_bytes()

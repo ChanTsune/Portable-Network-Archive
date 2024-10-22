@@ -19,6 +19,7 @@ impl Command for ExperimentalCommand {
             ExperimentalCommands::Chown(cmd) => cmd.execute(),
             ExperimentalCommands::Chmod(cmd) => cmd.execute(),
             ExperimentalCommands::Xattr(cmd) => cmd.execute(),
+            ExperimentalCommands::Acl(cmd) => cmd.execute(),
         }
     }
 }
@@ -37,4 +38,6 @@ pub(crate) enum ExperimentalCommands {
     Chmod(command::chmod::ChmodCommand),
     #[command(about = "Manipulate extended attributes")]
     Xattr(command::xattr::XattrCommand),
+    #[command(about = "Manipulate ACLs of entries")]
+    Acl(command::acl::AclCommand),
 }
