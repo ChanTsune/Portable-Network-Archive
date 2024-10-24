@@ -16,6 +16,7 @@ pub(crate) struct ConcatCommand {
 }
 
 impl Command for ConcatCommand {
+    #[inline]
     fn execute(self) -> io::Result<()> {
         concat_entry(self)
     }

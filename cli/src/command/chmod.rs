@@ -30,6 +30,7 @@ pub(crate) struct ChmodCommand {
 }
 
 impl Command for ChmodCommand {
+    #[inline]
     fn execute(self) -> io::Result<()> {
         archive_chmod(self)
     }

@@ -10,6 +10,7 @@ pub(crate) struct CompleteCommand {
 }
 
 impl Command for CompleteCommand {
+    #[inline]
     fn execute(self) -> io::Result<()> {
         let cmd = &mut Cli::command();
         print_completions(self.shell, cmd);

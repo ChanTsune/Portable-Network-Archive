@@ -10,6 +10,7 @@ pub(crate) struct ExperimentalCommand {
 }
 
 impl Command for ExperimentalCommand {
+    #[inline]
     fn execute(self) -> io::Result<()> {
         match self.command {
             ExperimentalCommands::Stdio(cmd) => cmd.execute(),

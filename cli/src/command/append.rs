@@ -91,6 +91,7 @@ pub(crate) struct AppendCommand {
 }
 
 impl Command for AppendCommand {
+    #[inline]
     fn execute(self) -> io::Result<()> {
         append_to_archive(self)
     }

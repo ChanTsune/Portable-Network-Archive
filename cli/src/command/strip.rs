@@ -43,6 +43,7 @@ pub(crate) struct StripCommand {
 }
 
 impl Command for StripCommand {
+    #[inline]
     fn execute(self) -> io::Result<()> {
         strip_metadata(self)
     }

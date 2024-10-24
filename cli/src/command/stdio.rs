@@ -108,6 +108,7 @@ pub(crate) struct StdioCommand {
 }
 
 impl Command for StdioCommand {
+    #[inline]
     fn execute(self) -> io::Result<()> {
         run_stdio(self)
     }

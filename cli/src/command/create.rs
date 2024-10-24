@@ -104,6 +104,7 @@ pub(crate) struct CreateCommand {
 }
 
 impl Command for CreateCommand {
+    #[inline]
     fn execute(self) -> io::Result<()> {
         create_archive(self)
     }

@@ -125,6 +125,7 @@ pub(crate) struct UpdateCommand {
 }
 
 impl Command for UpdateCommand {
+    #[inline]
     fn execute(self) -> io::Result<()> {
         match self.transform_strategy.strategy() {
             SolidEntriesTransformStrategy::UnSolid => {
