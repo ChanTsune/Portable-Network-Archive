@@ -7,6 +7,7 @@ use crate::{
     },
     utils::{GlobPatterns, PathPartExt},
 };
+use bitflags::bitflags;
 use clap::{Parser, ValueHint};
 use pna::NormalEntry;
 use std::{io, path::PathBuf, str::FromStr};
@@ -81,23 +82,30 @@ fn transform_entry<T>(entry: NormalEntry<T>, mode: Mode) -> NormalEntry<T> {
     entry.with_metadata(metadata.with_permission(permission))
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) enum Target {
-    User,
-    Group,
-    Other,
-    All,
+bitflags! {
+    #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+    pub(crate) struct Target: u8 {
+        const User = 0b001;
+        const Group = 0b010;
+        const Other = 0b100;
+        const All = 0b111;
+    }
 }
 
 impl Target {
     #[inline]
     const fn apply_to(&self, n: u16) -> u16 {
-        match self {
-            Target::User => n << 6,
-            Target::Group => n << 3,
-            Target::Other => n,
-            Target::All => n << 6 | n << 3 | n,
+        let mut result = 0;
+        if self.contains(Target::User) {
+            result |= n << 6;
         }
+        if self.contains(Target::Group) {
+            result |= n << 3;
+        }
+        if self.contains(Target::Other) {
+            result |= n;
+        }
+        result
     }
 }
 
@@ -110,19 +118,31 @@ pub(crate) enum Mode {
 }
 
 impl Mode {
-    const OWNER_MASK: u16 = 0o077;
-    const GROUP_MASK: u16 = 0o707;
-    const OTHER_MASK: u16 = 0o770;
+    const OWNER_MASK: u16 = 0o700;
+    const GROUP_MASK: u16 = 0o070;
+    const OTHER_MASK: u16 = 0o007;
     #[inline]
     pub(crate) const fn apply_to(&self, mode: u16) -> u16 {
         match self {
             Mode::Num(mode) => *mode,
-            Mode::Equal(t, m) => match t {
-                Target::User => mode & Self::OWNER_MASK | t.apply_to(*m as u16),
-                Target::Group => mode & Self::GROUP_MASK | t.apply_to(*m as u16),
-                Target::Other => mode & Self::OTHER_MASK | t.apply_to(*m as u16),
-                Target::All => t.apply_to(*m as u16),
-            },
+            Mode::Equal(t, m) => {
+                let owner_mode = if t.contains(Target::User) {
+                    Target::User.apply_to(*m as u16)
+                } else {
+                    mode & Self::OWNER_MASK
+                };
+                let group_mode = if t.contains(Target::Group) {
+                    Target::Group.apply_to(*m as u16)
+                } else {
+                    mode & Self::GROUP_MASK
+                };
+                let other_mode = if t.contains(Target::Other) {
+                    Target::Other.apply_to(*m as u16)
+                } else {
+                    mode & Self::OTHER_MASK
+                };
+                owner_mode | group_mode | other_mode
+            }
             Mode::Plus(t, m) => mode | t.apply_to(*m as u16),
             Mode::Minus(t, m) => mode & !t.apply_to(*m as u16),
         }
@@ -154,13 +174,11 @@ impl FromStr for Mode {
 
         #[inline]
         fn parse_alphabetic_mode(
-            mut chars: impl Iterator<Item = char>,
+            t: char,
+            chars: impl Iterator<Item = char>,
             target: Target,
         ) -> Result<Mode, <Mode as FromStr>::Err> {
-            match chars
-                .next()
-                .ok_or_else(|| "excepted one of '+', '-' or '='".to_string())?
-            {
+            match t {
                 '+' => Ok(Mode::Plus(target, parse_mode(chars)?)),
                 '-' => Ok(Mode::Minus(target, parse_mode(chars)?)),
                 '=' => Ok(Mode::Equal(target, parse_mode(chars)?)),
@@ -182,15 +200,24 @@ impl FromStr for Mode {
                 Err(format!("invalid mode length {}", s.len()))
             };
         }
-        let mut chars = s.chars();
-        match chars.next().expect("") {
-            'u' => parse_alphabetic_mode(chars, Target::User),
-            'g' => parse_alphabetic_mode(chars, Target::Group),
-            'o' => parse_alphabetic_mode(chars, Target::Other),
-            'a' => parse_alphabetic_mode(chars, Target::All),
-            '+' | '-' | '=' => parse_alphabetic_mode(s.chars(), Target::All),
-            first => Err(format!("unexpected character '{}'", first)),
+        let mut target = Target::empty();
+        for (idx, c) in s.chars().enumerate() {
+            match c {
+                'u' => target |= Target::User,
+                'g' => target |= Target::Group,
+                'o' => target |= Target::Other,
+                'a' => target |= Target::All,
+                t @ ('+' | '-' | '=') => {
+                    return parse_alphabetic_mode(
+                        t,
+                        s.chars().skip(idx + 1),
+                        if idx == 0 { Target::All } else { target },
+                    )
+                }
+                first => return Err(format!("unexpected character '{}'", first)),
+            }
         }
+        Err("mode must not be empty".into())
     }
 }
 
@@ -236,6 +263,10 @@ mod tests {
             Mode::from_str("a-w").unwrap(),
             Mode::Minus(Target::All, 0o2),
         );
+        assert_eq!(
+            Mode::from_str("ug+x").unwrap(),
+            Mode::Plus(Target::User | Target::Group, 0o1),
+        );
     }
 
     #[test]
@@ -245,5 +276,8 @@ mod tests {
         assert_eq!(Mode::from_str("o+r").unwrap().apply_to(0o600), 0o604);
         assert_eq!(Mode::from_str("u-r").unwrap().apply_to(0o600), 0o200);
         assert_eq!(Mode::from_str("g=rw").unwrap().apply_to(0o777), 0o767);
+        assert_eq!(Mode::from_str("u=rw").unwrap().apply_to(0o000), 0o600);
+        assert_eq!(Mode::from_str("go-x").unwrap().apply_to(0o777), 0o766);
+        assert_eq!(Mode::from_str("go=r").unwrap().apply_to(0o777), 0o744);
     }
 }
