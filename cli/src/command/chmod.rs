@@ -9,11 +9,7 @@ use crate::{
 };
 use clap::{Parser, ValueHint};
 use pna::NormalEntry;
-use std::{
-    io,
-    path::PathBuf,
-    str::{Chars, FromStr},
-};
+use std::{io, path::PathBuf, str::FromStr};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ChmodCommand {
@@ -137,7 +133,7 @@ impl FromStr for Mode {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         #[inline]
-        fn parse_mode(chars: Chars) -> Result<u8, <Mode as FromStr>::Err> {
+        fn parse_mode(chars: impl Iterator<Item = char>) -> Result<u8, <Mode as FromStr>::Err> {
             let mut mode = 0;
             for c in chars {
                 match c {
@@ -157,7 +153,7 @@ impl FromStr for Mode {
 
         #[inline]
         fn parse_alphabetic_mode(
-            mut chars: Chars,
+            mut chars: impl Iterator<Item = char>,
             target: Target,
         ) -> Result<Mode, <Mode as FromStr>::Err> {
             match chars
