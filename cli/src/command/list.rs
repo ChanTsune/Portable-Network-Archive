@@ -464,7 +464,7 @@ struct StyledDisplay<'s, T> {
     v: T,
 }
 
-impl<'s, T: Display> Display for StyledDisplay<'s, T> {
+impl<T: Display> Display for StyledDisplay<'_, T> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}{}{:#}", self.style, self.v, self.style)

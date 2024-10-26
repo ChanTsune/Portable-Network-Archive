@@ -320,7 +320,7 @@ impl<'p> PathArchiveProvider<'p> {
     }
 }
 
-impl<'p> ArchiveProvider for PathArchiveProvider<'p> {
+impl ArchiveProvider for PathArchiveProvider<'_> {
     type Source = fs::File;
 
     #[inline]
