@@ -48,7 +48,7 @@ impl<'r> FlattenReader<'r> {
     }
 }
 
-impl<'r> io::Read for FlattenReader<'r> {
+impl io::Read for FlattenReader<'_> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if let Some(c) = self.inner.get_mut(self.index) {
