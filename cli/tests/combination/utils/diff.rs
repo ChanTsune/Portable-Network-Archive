@@ -35,16 +35,22 @@ fn diff_dirs(dir1: &Path, dir2: &Path) -> io::Result<Vec<String>> {
 
     // Compare common files
     for entry in entries1_set.intersection(&entries2_set) {
-        let path1 = entries1_set.get(entry).unwrap();
-        let path2 = entries2_set.get(entry).unwrap();
+        let path1 = dir1.join(entries1_set.get(entry).unwrap());
+        let path2 = dir2.join(entries2_set.get(entry).unwrap());
         if path1.is_file() && path2.is_file() {
-            if !compare_files(path1, path2)? {
+            if !compare_files(&path1, &path2)? {
                 differences.push(format!(
                     "Files differ: {} and {}",
                     path1.display(),
                     path2.display()
                 ));
             }
+        } else if (path1.is_file() && path2.is_dir()) || (path1.is_dir() && path2.is_file()) {
+            differences.push(format!(
+                "File type differ: {} and {}",
+                path1.display(),
+                path2.display()
+            ));
         }
     }
 
