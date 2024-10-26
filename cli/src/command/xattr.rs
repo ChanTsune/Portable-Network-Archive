@@ -279,7 +279,7 @@ impl Value {
 
 struct DisplayAuto<'a>(&'a [u8]);
 
-impl<'a> Display for DisplayAuto<'a> {
+impl Display for DisplayAuto<'_> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match std::str::from_utf8(self.0) {
@@ -295,7 +295,7 @@ impl<'a> Display for DisplayAuto<'a> {
 
 struct DisplayText<'a>(&'a [u8]);
 
-impl<'a> Display for DisplayText<'a> {
+impl Display for DisplayText<'_> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match std::str::from_utf8(self.0) {
@@ -311,7 +311,7 @@ impl<'a> Display for DisplayText<'a> {
 
 struct DisplayHex<'a>(&'a [u8]);
 
-impl<'a> Display for DisplayHex<'a> {
+impl Display for DisplayHex<'_> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str("0x")?;
@@ -324,7 +324,7 @@ impl<'a> Display for DisplayHex<'a> {
 
 struct DisplayBase64<'a>(&'a [u8]);
 
-impl<'a> Display for DisplayBase64<'a> {
+impl Display for DisplayBase64<'_> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str("0s")?;
@@ -334,7 +334,7 @@ impl<'a> Display for DisplayBase64<'a> {
 
 struct EscapeXattrValueText<'s>(&'s str);
 
-impl<'s> Display for EscapeXattrValueText<'s> {
+impl Display for EscapeXattrValueText<'_> {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.0.chars().try_for_each(|c| match c {
