@@ -190,7 +190,7 @@ impl<'d> Archive<&'d [u8]> {
 
 pub(crate) struct RawEntries<'a, 'r>(&'a mut Archive<&'r [u8]>);
 
-impl<'a, 'r> Iterator for RawEntries<'a, 'r> {
+impl<'r> Iterator for RawEntries<'_, 'r> {
     type Item = io::Result<RawEntry<Cow<'r, [u8]>>>;
 
     #[inline]
@@ -247,7 +247,7 @@ impl<'a, 'r> Entries<'a, 'r> {
     }
 }
 
-impl<'a, 'r> Iterator for Entries<'a, 'r> {
+impl<'r> Iterator for Entries<'_, 'r> {
     type Item = io::Result<ReadEntry<Cow<'r, [u8]>>>;
 
     #[inline]

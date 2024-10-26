@@ -70,7 +70,7 @@ impl SealedEntryExt for RawEntry<&[u8]> {
     }
 }
 
-impl<'a> SealedEntryExt for RawEntry<Cow<'a, [u8]>> {
+impl SealedEntryExt for RawEntry<Cow<'_, [u8]>> {
     #[inline]
     fn into_chunks(self) -> Vec<RawChunk> {
         self.0.into_iter().map(Into::into).collect()
@@ -102,7 +102,7 @@ impl<'a> From<RawEntry<&'a [u8]>> for RawEntry<Vec<u8>> {
     }
 }
 
-impl<'a> From<RawEntry<Vec<u8>>> for RawEntry<Cow<'a, [u8]>> {
+impl From<RawEntry<Vec<u8>>> for RawEntry<Cow<'_, [u8]>> {
     #[inline]
     fn from(value: RawEntry<Vec<u8>>) -> Self {
         Self(value.0.into_iter().map(Into::into).collect())
@@ -119,7 +119,7 @@ impl<'a> From<RawEntry<&'a [u8]>> for RawEntry<Cow<'a, [u8]>> {
 /// Reader for Entry data.
 pub struct EntryDataReader<'r>(EntryReader<crate::io::FlattenReader<'r>>);
 
-impl<'r> Read for EntryDataReader<'r> {
+impl Read for EntryDataReader<'_> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
@@ -226,7 +226,7 @@ impl<'a> From<ReadEntry<&'a [u8]>> for ReadEntry<Vec<u8>> {
     }
 }
 
-impl<'a> From<ReadEntry<Vec<u8>>> for ReadEntry<Cow<'a, [u8]>> {
+impl From<ReadEntry<Vec<u8>>> for ReadEntry<Cow<'_, [u8]>> {
     #[inline]
     fn from(value: ReadEntry<Vec<u8>>) -> Self {
         match value {
@@ -348,7 +348,7 @@ impl SealedEntryExt for SolidEntry<&[u8]> {
     }
 }
 
-impl<'a> SealedEntryExt for SolidEntry<Cow<'a, [u8]>> {
+impl SealedEntryExt for SolidEntry<Cow<'_, [u8]>> {
     fn into_chunks(self) -> Vec<RawChunk> {
         let mut chunks = vec![];
         chunks.push(RawChunk::from_data(ChunkType::SHED, self.header.to_bytes()));
@@ -482,7 +482,7 @@ impl<'a> From<SolidEntry<&'a [u8]>> for SolidEntry<Cow<'a, [u8]>> {
     }
 }
 
-impl<'a> From<SolidEntry<Vec<u8>>> for SolidEntry<Cow<'a, [u8]>> {
+impl From<SolidEntry<Vec<u8>>> for SolidEntry<Cow<'_, [u8]>> {
     #[inline]
     fn from(value: SolidEntry<Vec<u8>>) -> Self {
         Self {
@@ -885,7 +885,7 @@ impl SealedEntryExt for NormalEntry<&[u8]> {
     }
 }
 
-impl<'a> SealedEntryExt for NormalEntry<Cow<'a, [u8]>> {
+impl SealedEntryExt for NormalEntry<Cow<'_, [u8]>> {
     fn into_chunks(self) -> Vec<RawChunk> {
         let Metadata {
             raw_file_size,
@@ -1153,7 +1153,7 @@ impl<'a> From<NormalEntry<&'a [u8]>> for NormalEntry<Vec<u8>> {
     }
 }
 
-impl<'a> From<NormalEntry<Vec<u8>>> for NormalEntry<Cow<'a, [u8]>> {
+impl From<NormalEntry<Vec<u8>>> for NormalEntry<Cow<'_, [u8]>> {
     #[inline]
     fn from(value: NormalEntry<Vec<u8>>) -> Self {
         Self {

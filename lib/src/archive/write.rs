@@ -39,7 +39,7 @@ pub struct SolidArchiveEntryDataWriter<'w, W: Write>(
     >,
 );
 
-impl<'w, W: Write> Write for SolidArchiveEntryDataWriter<'w, W> {
+impl<W: Write> Write for SolidArchiveEntryDataWriter<'_, W> {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.0.write(buf)

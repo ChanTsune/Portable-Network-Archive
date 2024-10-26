@@ -108,7 +108,7 @@ impl<'a> From<RawChunk<&'a [u8]>> for RawChunk<Vec<u8>> {
     }
 }
 
-impl<'a> From<RawChunk<Vec<u8>>> for RawChunk<Cow<'a, [u8]>> {
+impl From<RawChunk<Vec<u8>>> for RawChunk<Cow<'_, [u8]>> {
     #[inline]
     fn from(value: RawChunk<Vec<u8>>) -> Self {
         Self {
@@ -169,7 +169,7 @@ impl Chunk for RawChunk<&[u8]> {
     }
 }
 
-impl<'a> Chunk for RawChunk<Cow<'a, [u8]>> {
+impl Chunk for RawChunk<Cow<'_, [u8]>> {
     #[inline]
     fn length(&self) -> u32 {
         self.length

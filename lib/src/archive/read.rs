@@ -315,7 +315,7 @@ impl<R: AsyncRead + Unpin> Archive<R> {
 
 pub(crate) struct RawEntries<'r, R>(&'r mut Archive<R>);
 
-impl<'r, R: Read> Iterator for RawEntries<'r, R> {
+impl<R: Read> Iterator for RawEntries<'_, R> {
     type Item = io::Result<RawEntry>;
 
     #[inline]
@@ -363,7 +363,7 @@ impl<'r, R: Read> Entries<'r, R> {
     }
 }
 
-impl<'r, R: Read> Iterator for Entries<'r, R> {
+impl<R: Read> Iterator for Entries<'_, R> {
     type Item = io::Result<ReadEntry>;
 
     #[inline]
@@ -379,7 +379,7 @@ pub struct NormalEntries<'r, R> {
     buf: VecDeque<io::Result<NormalEntry>>,
 }
 
-impl<'r, R: Read> Iterator for NormalEntries<'r, R> {
+impl<R: Read> Iterator for NormalEntries<'_, R> {
     type Item = io::Result<NormalEntry>;
 
     #[inline]
