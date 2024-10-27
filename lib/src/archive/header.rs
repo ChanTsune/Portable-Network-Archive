@@ -38,7 +38,7 @@ impl ArchiveHeader {
     pub(crate) const fn from_bytes(bytes: &[u8; 8]) -> Self {
         let major = bytes[0];
         let minor = bytes[1];
-        // NOTE: ignore 2bytes currently unused.
+        // NOTE: ignore 2 bytes currently unused.
         let archive_number = u32::from_be_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]);
         Self::new(major, minor, archive_number)
     }
