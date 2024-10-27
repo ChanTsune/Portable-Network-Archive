@@ -17,17 +17,6 @@ jobs:
           - stable
           - beta
           - nightly
-          - nightly-2024-10-21 # FIXME: unpin this
-        exclude:
-          - os: ubuntu-latest
-            rust: nightly-2024-10-21
-          - os: windows-latest
-            rust: nightly-2024-10-21
-          - os: macos-latest
-            rust: nightly-2024-10-21
-          - os: freebsd-latest
-            rust: nightly
-
     runs-on: ${{ matrix.os }}
     steps:
       - name: git autocrlf false
