@@ -146,26 +146,22 @@ impl Ace {
     }
 }
 
+const FLAG_NAME_MAP: &[(Flag, &[&str])] = &[
+    (Flag::DEFAULT, &["d", "default"]),
+    (Flag::FILE_INHERIT, &["file_inherit"]),
+    (Flag::DIRECTORY_INHERIT, &["directory_inherit"]),
+    (Flag::ONLY_INHERIT, &["only_inherit"]),
+    (Flag::LIMIT_INHERIT, &["limit_inherit"]),
+    (Flag::INHERITED, &["inherited"]),
+];
+
 impl Display for Ace {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut flags = Vec::new();
-        if self.flags.contains(Flag::DEFAULT) {
-            flags.push("d");
-        }
-        if self.flags.contains(Flag::FILE_INHERIT) {
-            flags.push("file_inherit");
-        }
-        if self.flags.contains(Flag::DIRECTORY_INHERIT) {
-            flags.push("directory_inherit");
-        }
-        if self.flags.contains(Flag::LIMIT_INHERIT) {
-            flags.push("limit_inherit");
-        }
-        if self.flags.contains(Flag::ONLY_INHERIT) {
-            flags.push("only_inherit");
-        }
-        if self.flags.contains(Flag::INHERITED) {
-            flags.push("inherited");
+        for (f, names) in FLAG_NAME_MAP {
+            if self.flags.contains(*f) {
+                flags.push(names[0]);
+            }
         }
 
         let mut permission_list = Vec::new();
@@ -237,29 +233,12 @@ impl FromStr for Ace {
         let mut it = s.split(':');
         let platform = AcePlatform::from_str(it.next().ok_or(ParseAceError::NotEnoughElement)?)
             .expect("Infallible error occurred");
-        let flag_list = it
-            .next()
-            .ok_or(ParseAceError::NotEnoughElement)?
-            .split(',')
-            .collect::<Vec<_>>();
+        let mut flag_list = it.next().ok_or(ParseAceError::NotEnoughElement)?.split(',');
         let mut flags = Flag::empty();
-        if flag_list.contains(&"d") || flag_list.contains(&"default") {
-            flags.insert(Flag::DEFAULT);
-        }
-        if flag_list.contains(&"file_inherit") {
-            flags.insert(Flag::FILE_INHERIT);
-        }
-        if flag_list.contains(&"directory_inherit") {
-            flags.insert(Flag::DIRECTORY_INHERIT);
-        }
-        if flag_list.contains(&"limit_inherit") {
-            flags.insert(Flag::LIMIT_INHERIT);
-        }
-        if flag_list.contains(&"only_inherit") {
-            flags.insert(Flag::ONLY_INHERIT);
-        }
-        if flag_list.contains(&"inherited") {
-            flags.insert(Flag::INHERITED);
+        for (f, names) in FLAG_NAME_MAP {
+            if flag_list.any(|it| names.contains(&it)) {
+                flags.insert(*f);
+            }
         }
         let owner_type = it.next().ok_or(ParseAceError::NotEnoughElement)?;
         let owner_name = it.next().ok_or(ParseAceError::NotEnoughElement)?;
