@@ -155,6 +155,25 @@ const FLAG_NAME_MAP: &[(Flag, &[&str])] = &[
     (Flag::INHERITED, &["inherited"]),
 ];
 
+const PERMISSION_NAME_MAP: &[(Permission, &[&str])] = &[
+    (Permission::READ, &["r", "read"]),
+    (Permission::WRITE, &["w", "write"]),
+    (Permission::EXECUTE, &["x", "execute"]),
+    (Permission::DELETE, &["delete"]),
+    (Permission::APPEND, &["append"]),
+    (Permission::DELETE_CHILD, &["delete_child"]),
+    (Permission::READATTR, &["readattr"]),
+    (Permission::WRITEATTR, &["writeattr"]),
+    (Permission::READEXTATTR, &["readextattr"]),
+    (Permission::WRITEEXTATTR, &["writeextattr"]),
+    (Permission::READSECURITY, &["readsecurity"]),
+    (Permission::WRITESECURITY, &["writesecurity"]),
+    (Permission::CHOWN, &["chown"]),
+    (Permission::SYNC, &["sync"]),
+    (Permission::READ_DATA, &["read_data"]),
+    (Permission::WRITE_DATA, &["write_data"]),
+];
+
 impl Display for Ace {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut flags = Vec::new();
@@ -165,53 +184,10 @@ impl Display for Ace {
         }
 
         let mut permission_list = Vec::new();
-        if self.permission.contains(Permission::READ) {
-            permission_list.push("r");
-        }
-        if self.permission.contains(Permission::WRITE) {
-            permission_list.push("w");
-        }
-        if self.permission.contains(Permission::EXECUTE) {
-            permission_list.push("x");
-        }
-        if self.permission.contains(Permission::DELETE) {
-            permission_list.push("delete");
-        }
-        if self.permission.contains(Permission::APPEND) {
-            permission_list.push("append");
-        }
-        if self.permission.contains(Permission::DELETE_CHILD) {
-            permission_list.push("delete_child");
-        }
-        if self.permission.contains(Permission::READATTR) {
-            permission_list.push("readattr");
-        }
-        if self.permission.contains(Permission::WRITEATTR) {
-            permission_list.push("writeattr");
-        }
-        if self.permission.contains(Permission::READEXTATTR) {
-            permission_list.push("readextattr");
-        }
-        if self.permission.contains(Permission::WRITEEXTATTR) {
-            permission_list.push("writeextattr");
-        }
-        if self.permission.contains(Permission::READSECURITY) {
-            permission_list.push("readsecurity");
-        }
-        if self.permission.contains(Permission::WRITESECURITY) {
-            permission_list.push("writesecurity");
-        }
-        if self.permission.contains(Permission::CHOWN) {
-            permission_list.push("chown");
-        }
-        if self.permission.contains(Permission::SYNC) {
-            permission_list.push("sync");
-        }
-        if self.permission.contains(Permission::READ_DATA) {
-            permission_list.push("read_data");
-        }
-        if self.permission.contains(Permission::WRITE_DATA) {
-            permission_list.push("write_data");
+        for (f, names) in PERMISSION_NAME_MAP {
+            if self.permission.contains(*f) {
+                permission_list.push(names[0]);
+            }
         }
 
         write!(
@@ -260,59 +236,12 @@ impl FromStr for Ace {
             "deny" => false,
             a => return Err(Self::Err::UnexpectedAccessControl(a.to_string())),
         };
-        let permissions = it
-            .next()
-            .ok_or(ParseAceError::NotEnoughElement)?
-            .split(',')
-            .collect::<Vec<_>>();
+        let mut permissions = it.next().ok_or(ParseAceError::NotEnoughElement)?.split(',');
         let mut permission = Permission::empty();
-        if permissions.contains(&"r") || permissions.contains(&"read") {
-            permission.insert(Permission::READ);
-        }
-        if permissions.contains(&"w") || permissions.contains(&"write") {
-            permission.insert(Permission::WRITE);
-        }
-        if permissions.contains(&"x") || permissions.contains(&"execute") {
-            permission.insert(Permission::EXECUTE);
-        }
-        if permissions.contains(&"delete") {
-            permission.insert(Permission::DELETE);
-        }
-        if permissions.contains(&"append") {
-            permission.insert(Permission::APPEND);
-        }
-        if permissions.contains(&"delete_child") {
-            permission.insert(Permission::DELETE_CHILD);
-        }
-        if permissions.contains(&"readattr") {
-            permission.insert(Permission::READATTR);
-        }
-        if permissions.contains(&"writeattr") {
-            permission.insert(Permission::WRITEATTR);
-        }
-        if permissions.contains(&"readextattr") {
-            permission.insert(Permission::READEXTATTR);
-        }
-        if permissions.contains(&"writeextattr") {
-            permission.insert(Permission::WRITEEXTATTR);
-        }
-        if permissions.contains(&"readsecurity") {
-            permission.insert(Permission::READSECURITY);
-        }
-        if permissions.contains(&"writesecurity") {
-            permission.insert(Permission::WRITESECURITY);
-        }
-        if permissions.contains(&"chown") {
-            permission.insert(Permission::CHOWN);
-        }
-        if permissions.contains(&"sync") {
-            permission.insert(Permission::SYNC);
-        }
-        if permissions.contains(&"read_data") {
-            permission.insert(Permission::READ_DATA);
-        }
-        if permissions.contains(&"write_data") {
-            permission.insert(Permission::WRITE_DATA);
+        for (f, names) in PERMISSION_NAME_MAP {
+            if permissions.any(|it| names.contains(&it)) {
+                permission.insert(*f);
+            }
         }
 
         if it.next().is_some() {
