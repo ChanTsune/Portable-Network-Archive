@@ -1,4 +1,5 @@
 use bitflags::bitflags;
+use itertools::Itertools;
 use pna::ChunkType;
 use std::{
     error::Error,
@@ -176,28 +177,22 @@ const PERMISSION_NAME_MAP: &[(Permission, &[&str])] = &[
 
 impl Display for Ace {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let mut flags = Vec::new();
-        for (f, names) in FLAG_NAME_MAP {
-            if self.flags.contains(*f) {
-                flags.push(names[0]);
-            }
-        }
-
-        let mut permission_list = Vec::new();
-        for (f, names) in PERMISSION_NAME_MAP {
-            if self.permission.contains(*f) {
-                permission_list.push(names[0]);
-            }
-        }
-
         write!(
             f,
             "{}:{}:{}:{}:{}",
             self.platform,
-            flags.join(","),
+            FLAG_NAME_MAP
+                .iter()
+                .filter(|(f, _)| self.flags.contains(*f))
+                .map(|(_, names)| names[0])
+                .join(","),
             self.owner_type,
             if self.allow { "allow" } else { "deny" },
-            permission_list.join(","),
+            PERMISSION_NAME_MAP
+                .iter()
+                .filter(|(f, _)| self.permission.contains(*f))
+                .map(|(_, names)| names[0])
+                .join(","),
         )
     }
 }
