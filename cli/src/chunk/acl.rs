@@ -175,6 +175,7 @@ const PERMISSION_NAME_MAP: &[(Permission, &[&str])] = &[
 ];
 
 impl Display for Ace {
+    #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut flags = Vec::new();
         for (f, names) in FLAG_NAME_MAP {
@@ -205,6 +206,7 @@ impl Display for Ace {
 impl FromStr for Ace {
     type Err = ParseAceError;
 
+    #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut it = s.split(':');
         let platform = AcePlatform::from_str(it.next().ok_or(ParseAceError::NotEnoughElement)?)
