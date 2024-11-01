@@ -76,7 +76,7 @@ jobs:
       - name: run test
         if: startsWith(matrix.target, 'x86_64-unknown-redox')
         run: |
-          export PATH=$PATH:/root/.redoxer/toolchain/bin
+          export PATH=$PATH:/root/.redoxer/${{ matrix.target }}/toolchain/bin
           rustup default nightly
           rustup target add ${{ matrix.target }}
           cargo build --locked --target ${{ matrix.target }}
