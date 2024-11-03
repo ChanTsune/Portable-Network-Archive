@@ -127,7 +127,7 @@ impl Read for EntryDataReader<'_> {
 }
 
 #[cfg(feature = "unstable-async")]
-impl<'r> futures_io::AsyncRead for EntryDataReader<'r> {
+impl futures_io::AsyncRead for EntryDataReader<'_> {
     #[inline]
     fn poll_read(
         self: std::pin::Pin<&mut Self>,
