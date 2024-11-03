@@ -147,33 +147,37 @@ impl Ace {
     }
 }
 
-const FLAG_NAME_MAP: &[(Flag, &[&str])] = &[
-    (Flag::DEFAULT, &["d", "default"]),
-    (Flag::FILE_INHERIT, &["file_inherit"]),
-    (Flag::DIRECTORY_INHERIT, &["directory_inherit"]),
-    (Flag::ONLY_INHERIT, &["only_inherit"]),
-    (Flag::LIMIT_INHERIT, &["limit_inherit"]),
-    (Flag::INHERITED, &["inherited"]),
-];
+impl Flag {
+    pub(crate) const FLAG_NAME_MAP: &'static [(Flag, &'static [&'static str])] = &[
+        (Flag::DEFAULT, &["d", "default"]),
+        (Flag::FILE_INHERIT, &["file_inherit"]),
+        (Flag::DIRECTORY_INHERIT, &["directory_inherit"]),
+        (Flag::ONLY_INHERIT, &["only_inherit"]),
+        (Flag::LIMIT_INHERIT, &["limit_inherit"]),
+        (Flag::INHERITED, &["inherited"]),
+    ];
+}
 
-const PERMISSION_NAME_MAP: &[(Permission, &[&str])] = &[
-    (Permission::READ, &["r", "read"]),
-    (Permission::WRITE, &["w", "write"]),
-    (Permission::EXECUTE, &["x", "execute"]),
-    (Permission::DELETE, &["delete"]),
-    (Permission::APPEND, &["append"]),
-    (Permission::DELETE_CHILD, &["delete_child"]),
-    (Permission::READATTR, &["readattr"]),
-    (Permission::WRITEATTR, &["writeattr"]),
-    (Permission::READEXTATTR, &["readextattr"]),
-    (Permission::WRITEEXTATTR, &["writeextattr"]),
-    (Permission::READSECURITY, &["readsecurity"]),
-    (Permission::WRITESECURITY, &["writesecurity"]),
-    (Permission::CHOWN, &["chown"]),
-    (Permission::SYNC, &["sync"]),
-    (Permission::READ_DATA, &["read_data"]),
-    (Permission::WRITE_DATA, &["write_data"]),
-];
+impl Permission {
+    pub(crate) const PERMISSION_NAME_MAP: &'static [(Permission, &'static [&'static str])] = &[
+        (Permission::READ, &["r", "read"]),
+        (Permission::WRITE, &["w", "write"]),
+        (Permission::EXECUTE, &["x", "execute"]),
+        (Permission::DELETE, &["delete"]),
+        (Permission::APPEND, &["append"]),
+        (Permission::DELETE_CHILD, &["delete_child"]),
+        (Permission::READATTR, &["readattr"]),
+        (Permission::WRITEATTR, &["writeattr"]),
+        (Permission::READEXTATTR, &["readextattr"]),
+        (Permission::WRITEEXTATTR, &["writeextattr"]),
+        (Permission::READSECURITY, &["readsecurity"]),
+        (Permission::WRITESECURITY, &["writesecurity"]),
+        (Permission::CHOWN, &["chown"]),
+        (Permission::SYNC, &["sync"]),
+        (Permission::READ_DATA, &["read_data"]),
+        (Permission::WRITE_DATA, &["write_data"]),
+    ];
+}
 
 impl Display for Ace {
     #[inline]
@@ -182,14 +186,14 @@ impl Display for Ace {
             f,
             "{}:{}:{}:{}:{}",
             self.platform,
-            FLAG_NAME_MAP
+            Flag::FLAG_NAME_MAP
                 .iter()
                 .filter(|(f, _)| self.flags.contains(*f))
                 .map(|(_, names)| names[0])
                 .join(","),
             self.owner_type,
             if self.allow { "allow" } else { "deny" },
-            PERMISSION_NAME_MAP
+            Permission::PERMISSION_NAME_MAP
                 .iter()
                 .filter(|(f, _)| self.permission.contains(*f))
                 .map(|(_, names)| names[0])
@@ -208,7 +212,7 @@ impl FromStr for Ace {
             .expect("Infallible error occurred");
         let mut flag_list = it.next().ok_or(ParseAceError::NotEnoughElement)?.split(',');
         let mut flags = Flag::empty();
-        for (f, names) in FLAG_NAME_MAP {
+        for (f, names) in Flag::FLAG_NAME_MAP {
             if flag_list.any(|it| names.contains(&it)) {
                 flags.insert(*f);
             }
@@ -235,7 +239,7 @@ impl FromStr for Ace {
         };
         let mut permissions = it.next().ok_or(ParseAceError::NotEnoughElement)?.split(',');
         let mut permission = Permission::empty();
-        for (f, names) in PERMISSION_NAME_MAP {
+        for (f, names) in Permission::PERMISSION_NAME_MAP {
             if permissions.any(|it| names.contains(&it)) {
                 permission.insert(*f);
             }
