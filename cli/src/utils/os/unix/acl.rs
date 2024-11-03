@@ -227,7 +227,7 @@ impl Into<exacl::AclEntry> for Ace {
             #[cfg(any(target_os = "linux", target_os = "freebsd"))]
             OwnerType::Mask => (exacl::AclEntryKind::Mask, String::new()),
             #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
-            OwnerType::Other => (exacl::AclEntryKind::Group, "everyone".to_string()),
+            OwnerType::Other => (exacl::AclEntryKind::Group, "everyone".into()),
             #[cfg(any(target_os = "linux", target_os = "freebsd"))]
             OwnerType::Other => (exacl::AclEntryKind::Other, String::new()),
         };

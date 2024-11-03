@@ -125,7 +125,7 @@ where
         let metadata = entry.metadata();
         Ok(Self {
             encryption: match solid.map(|s| s.encryption()).unwrap_or(header.encryption()) {
-                Encryption::No => "-".to_string(),
+                Encryption::No => "-".into(),
                 _ => format!("{:?}({:?})", header.encryption(), header.cipher_mode())
                     .to_ascii_lowercase(),
             },
@@ -135,8 +135,8 @@ where
                     .unwrap_or(header.compression()),
                 solid,
             ) {
-                (Compression::No, None) => "-".to_string(),
-                (Compression::No, Some(_)) => "-(solid)".to_string(),
+                (Compression::No, None) => "-".into(),
+                (Compression::No, Some(_)) => "-(solid)".into(),
                 (method, None) => format!("{:?}", method).to_ascii_lowercase(),
                 (method, Some(_)) => format!("{:?}(solid)", method).to_ascii_lowercase(),
             },
@@ -154,20 +154,20 @@ where
                     if numeric_owner {
                         p.uid().to_string()
                     } else {
-                        p.uname().to_string()
+                        p.uname().into()
                     }
                 })
-                .unwrap_or_else(|| "-".to_string()),
+                .unwrap_or_else(|| "-".into()),
             group: metadata
                 .permission()
                 .map(|p| {
                     if numeric_owner {
                         p.gid().to_string()
                     } else {
-                        p.gname().to_string()
+                        p.gname().into()
                     }
                 })
-                .unwrap_or_else(|| "-".to_string()),
+                .unwrap_or_else(|| "-".into()),
             created: datetime(now, metadata.created()),
             modified: datetime(now, metadata.modified()),
             name: if matches!(
@@ -177,7 +177,7 @@ where
                 let path = header.path().to_string();
                 let original = entry
                     .reader(ReadOptions::with_password(password))
-                    .map(|r| io::read_to_string(r).unwrap_or_else(|_| "-".to_string()))
+                    .map(|r| io::read_to_string(r).unwrap_or_else(|_| "-".into()))
                     .unwrap_or_default();
                 format!("{} -> {}", path, original)
             } else {
@@ -445,7 +445,7 @@ fn within_six_months(now: SystemTime, x: SystemTime) -> bool {
 
 fn datetime(now: SystemTime, d: Option<Duration>) -> String {
     match d {
-        None => "-".to_string(),
+        None => "-".into(),
         Some(d) => {
             let time = UNIX_EPOCH + d;
             let datetime = DateTime::<Local>::from(time);

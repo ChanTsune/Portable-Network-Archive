@@ -64,7 +64,7 @@ impl FromStr for AcePlatform {
             "macos" => Ok(Self::MacOs),
             "linux" => Ok(Self::Linux),
             "freebsd" => Ok(Self::FreeBSD),
-            s => Ok(Self::Unknown(s.to_string())),
+            s => Ok(Self::Unknown(s.into())),
         }
     }
 }
@@ -218,20 +218,20 @@ impl FromStr for Ace {
         let owner = match owner_type {
             "u" | "user" => match owner_name {
                 "" => OwnerType::Owner,
-                name => OwnerType::User(Identifier(name.to_string())),
+                name => OwnerType::User(Identifier(name.into())),
             },
             "g" | "group" => match owner_name {
                 "" => OwnerType::OwnerGroup,
-                name => OwnerType::Group(Identifier(name.to_string())),
+                name => OwnerType::Group(Identifier(name.into())),
             },
             "m" | "mask" => OwnerType::Mask,
             "o" | "other" => OwnerType::Other,
-            o => return Err(Self::Err::UnexpectedOwnerType(o.to_string())),
+            o => return Err(Self::Err::UnexpectedOwnerType(o.into())),
         };
         let allow = match it.next().ok_or(Self::Err::NotEnoughElement)? {
             "allow" => true,
             "deny" => false,
-            a => return Err(Self::Err::UnexpectedAccessControl(a.to_string())),
+            a => return Err(Self::Err::UnexpectedAccessControl(a.into())),
         };
         let mut permissions = it.next().ok_or(ParseAceError::NotEnoughElement)?.split(',');
         let mut permission = Permission::empty();
