@@ -1,12 +1,11 @@
-use crate::chunk::{
-    ace_convert_current_platform, Ace, AcePlatform, Flag, Identifier, OwnerType, Permission,
-};
+use crate::chunk::{Ace, AcePlatform, Acl, Flag, Identifier, OwnerType, Permission};
 use std::io;
 use std::path::Path;
 
-pub fn set_facl<P: AsRef<Path>>(path: P, acl: Vec<Ace>) -> io::Result<()> {
+pub fn set_facl<P: AsRef<Path>>(path: P, acl: Acl) -> io::Result<()> {
     let path = path.as_ref();
-    let mut acl_entries: Vec<exacl::AclEntry> = acl.into_iter().map(Into::into).collect::<Vec<_>>();
+    let mut acl_entries: Vec<exacl::AclEntry> =
+        acl.entries.into_iter().map(Into::into).collect::<Vec<_>>();
     #[cfg(target_os = "macos")]
     {
         use std::os::unix::fs::MetadataExt;
@@ -86,9 +85,12 @@ pub fn set_facl<P: AsRef<Path>>(path: P, acl: Vec<Ace>) -> io::Result<()> {
     exacl::setfacl(&[path], &acl_entries, None)
 }
 
-pub fn get_facl<P: AsRef<Path>>(path: P) -> io::Result<Vec<Ace>> {
+pub fn get_facl<P: AsRef<Path>>(path: P) -> io::Result<Acl> {
     let ace_list = exacl::getfacl(path.as_ref(), None)?;
-    Ok(ace_list.into_iter().map(Into::into).collect())
+    Ok(Acl {
+        platform: AcePlatform::CURRENT,
+        entries: ace_list.into_iter().map(Into::into).collect(),
+    })
 }
 
 #[allow(clippy::from_over_into)]
@@ -183,7 +185,6 @@ impl Into<Ace> for exacl::AclEntry {
         }
 
         Ace {
-            platform: AcePlatform::CURRENT,
             flags,
             owner_type: match self.kind {
                 exacl::AclEntryKind::User if self.name.is_empty() => OwnerType::Owner,
@@ -207,7 +208,7 @@ impl Into<Ace> for exacl::AclEntry {
 #[allow(clippy::from_over_into)]
 impl Into<exacl::AclEntry> for Ace {
     fn into(self) -> exacl::AclEntry {
-        let slf = ace_convert_current_platform(self);
+        let slf = self;
         let (kind, name) = match slf.owner_type {
             OwnerType::Owner => (exacl::AclEntryKind::User, String::new()),
             OwnerType::User(u) => (exacl::AclEntryKind::User, u.0),
@@ -337,7 +338,7 @@ mod tests {
     fn ace_mutual_convert() {
         let acl_entry = exacl::AclEntry {
             kind: exacl::AclEntryKind::User,
-            name: "name".to_string(),
+            name: "name".into(),
             perms: exacl::Perm::all(),
             flags: exacl::Flag::all(),
             allow: false,

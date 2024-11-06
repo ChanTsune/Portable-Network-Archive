@@ -96,6 +96,7 @@ where
         .is_some_and(|it| it.is_empty());
     let mut keep_private_chunks = Vec::new();
     if options.keep_acl {
+        keep_private_chunks.push(crate::chunk::faCl);
         keep_private_chunks.push(crate::chunk::faCe);
     }
     if let Some(chunks) = &options.keep_private {

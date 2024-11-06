@@ -93,7 +93,7 @@ struct TableRow {
     modified: String,
     name: String,
     xattrs: Vec<ExtendedAttribute>,
-    acl: Vec<chunk::Ace>,
+    acl: Vec<chunk::AceWithPlatform>,
     privates: Vec<RawChunk>,
 }
 
@@ -123,7 +123,7 @@ where
     ) -> Result<Self, Self::Error> {
         let header = entry.header();
         let metadata = entry.metadata();
-        let acl = entry.acl()?;
+        let acl = entry.acl_with_platform()?;
         let has_acl = !acl.is_empty();
         let has_xattr = !entry.xattrs().is_empty();
         Ok(Self {
@@ -193,7 +193,7 @@ where
             privates: entry
                 .extra_chunks()
                 .iter()
-                .filter(|it| it.ty() != chunk::faCe)
+                .filter(|it| it.ty() != chunk::faCe && it.ty() != chunk::faCl)
                 .map(|it| (*it).clone().into())
                 .collect::<Vec<_>>(),
         })

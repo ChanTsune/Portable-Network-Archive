@@ -109,7 +109,6 @@ impl AclEntries {
 
     fn to_ace(&self) -> Ace {
         Ace {
-            platform: AcePlatform::General,
             flags: if self.default {
                 Flag::DEFAULT
             } else {
@@ -233,8 +232,11 @@ fn archive_get_acl(args: GetAclCommand) -> io::Result<()> {
                     "# group: {}",
                     permission.map(|it| it.gname()).unwrap_or("-")
                 );
-                for ace in entry.acl()? {
-                    println!("{}", ace);
+                for (platform, acl) in entry.acl()? {
+                    println!("# platform: {}", platform);
+                    for ace in acl {
+                        println!("{}", ace);
+                    }
                 }
             }
             Ok(())
@@ -302,11 +304,19 @@ where
     RawChunk<T>: Chunk,
     RawChunk<T>: From<RawChunk>,
 {
-    let mut acl = entry.acl().unwrap_or_default();
+    let platform = AcePlatform::General;
+    let platform = &platform;
+    let mut acls = entry.acl().unwrap_or_default();
+    let acl = if let Some(acl) = acls.get_mut(platform) {
+        acl
+    } else {
+        return entry;
+    };
+
     let extra_without_known = entry
         .extra_chunks()
         .iter()
-        .filter(|it| it.ty() != crate::chunk::faCe)
+        .filter(|it| it.ty() != crate::chunk::faCe && it.ty() != crate::chunk::faCl)
         .cloned();
     if let Some(modify) = modify {
         let ace = modify.to_ace();
@@ -323,9 +333,15 @@ where
         log::debug!("Removing ace {}", remove.to_ace());
         acl.retain(|it| !remove.is_match(it));
     }
-    let extra_chunks = acl
+    let mut acl_chunks = Vec::new();
+    for (platform, aces) in acls {
+        acl_chunks.push(RawChunk::from_data(crate::chunk::faCl, platform.to_bytes()).into());
+        for ace in aces {
+            acl_chunks.push(RawChunk::from_data(crate::chunk::faCe, ace.to_bytes()).into());
+        }
+    }
+    let extra_chunks = acl_chunks
         .into_iter()
-        .map(|it| RawChunk::from_data(crate::chunk::faCe, it.to_bytes()).into())
         .chain(extra_without_known)
         .collect::<Vec<_>>();
     entry.with_extra_chunks(&extra_chunks)
