@@ -11,6 +11,10 @@ use std::{
 #[allow(non_upper_case_globals)]
 pub const faCe: ChunkType = unsafe { ChunkType::from_unchecked(*b"faCe") };
 
+/// [ChunkType] File Access Control List
+#[allow(non_upper_case_globals)]
+pub const faCl: ChunkType = unsafe { ChunkType::from_unchecked(*b"faCl") };
+
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum AcePlatform {
     General,
@@ -53,6 +57,13 @@ impl Display for AcePlatform {
     }
 }
 
+impl AcePlatform {
+    #[inline]
+    pub(crate) fn to_bytes(&self) -> Vec<u8> {
+        self.to_string().into_bytes()
+    }
+}
+
 impl FromStr for AcePlatform {
     type Err = core::convert::Infallible;
 
@@ -66,6 +77,14 @@ impl FromStr for AcePlatform {
             "freebsd" => Ok(Self::FreeBSD),
             s => Ok(Self::Unknown(s.into())),
         }
+    }
+}
+
+impl TryFrom<&[u8]> for AcePlatform {
+    type Error = Utf8Error;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        Ok(Self::from_str(from_utf8(value)?).expect("Infallible error occurred"))
     }
 }
 
@@ -131,8 +150,7 @@ impl From<Utf8Error> for ParseAceError {
 
 /// Access Control Entry
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct Ace {
-    pub(crate) platform: AcePlatform,
+pub(crate) struct Ace {
     pub(crate) flags: Flag,
     pub(crate) owner_type: OwnerType,
     pub(crate) allow: bool,
@@ -146,45 +164,12 @@ impl Ace {
     }
 }
 
-impl Flag {
-    pub(crate) const FLAG_NAME_MAP: &'static [(Flag, &'static [&'static str])] = &[
-        (Flag::DEFAULT, &["d", "default"]),
-        (Flag::FILE_INHERIT, &["file_inherit"]),
-        (Flag::DIRECTORY_INHERIT, &["directory_inherit"]),
-        (Flag::ONLY_INHERIT, &["only_inherit"]),
-        (Flag::LIMIT_INHERIT, &["limit_inherit"]),
-        (Flag::INHERITED, &["inherited"]),
-    ];
-}
-
-impl Permission {
-    pub(crate) const PERMISSION_NAME_MAP: &'static [(Permission, &'static [&'static str])] = &[
-        (Permission::READ, &["r", "read"]),
-        (Permission::WRITE, &["w", "write"]),
-        (Permission::EXECUTE, &["x", "execute"]),
-        (Permission::DELETE, &["delete"]),
-        (Permission::APPEND, &["append"]),
-        (Permission::DELETE_CHILD, &["delete_child"]),
-        (Permission::READATTR, &["readattr"]),
-        (Permission::WRITEATTR, &["writeattr"]),
-        (Permission::READEXTATTR, &["readextattr"]),
-        (Permission::WRITEEXTATTR, &["writeextattr"]),
-        (Permission::READSECURITY, &["readsecurity"]),
-        (Permission::WRITESECURITY, &["writesecurity"]),
-        (Permission::CHOWN, &["chown"]),
-        (Permission::SYNC, &["sync"]),
-        (Permission::READ_DATA, &["read_data"]),
-        (Permission::WRITE_DATA, &["write_data"]),
-    ];
-}
-
 impl Display for Ace {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{}:{}:{}:{}:{}",
-            self.platform,
+            "{}:{}:{}:{}",
             Flag::FLAG_NAME_MAP
                 .iter()
                 .filter(|(f, _)| self.flags.contains(*f))
@@ -207,8 +192,6 @@ impl FromStr for Ace {
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut it = s.split(':');
-        let platform = AcePlatform::from_str(it.next().ok_or(ParseAceError::NotEnoughElement)?)
-            .expect("Infallible error occurred");
         let mut flag_list = it.next().ok_or(ParseAceError::NotEnoughElement)?.split(',');
         let mut flags = Flag::empty();
         for (f, names) in Flag::FLAG_NAME_MAP {
@@ -248,7 +231,6 @@ impl FromStr for Ace {
             return Err(Self::Err::TooManyElement);
         }
         Ok(Self {
-            platform,
             flags,
             owner_type: owner,
             allow,
@@ -276,13 +258,113 @@ impl TryFrom<&[u8]> for Ace {
     }
 }
 
-#[allow(dead_code)]
-pub fn ace_convert_current_platform(src: Ace) -> Ace {
-    ace_convert_platform(src, AcePlatform::CURRENT)
+/// Access Control Entry with a platform
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) struct AceWithPlatform {
+    pub(crate) platform: Option<AcePlatform>,
+    pub(crate) ace: Ace,
 }
 
-pub fn ace_convert_platform(src: Ace, to: AcePlatform) -> Ace {
-    match &to {
+impl Flag {
+    pub(crate) const FLAG_NAME_MAP: &'static [(Flag, &'static [&'static str])] = &[
+        (Flag::DEFAULT, &["d", "default"]),
+        (Flag::FILE_INHERIT, &["file_inherit"]),
+        (Flag::DIRECTORY_INHERIT, &["directory_inherit"]),
+        (Flag::ONLY_INHERIT, &["only_inherit"]),
+        (Flag::LIMIT_INHERIT, &["limit_inherit"]),
+        (Flag::INHERITED, &["inherited"]),
+    ];
+}
+
+impl Permission {
+    pub(crate) const PERMISSION_NAME_MAP: &'static [(Permission, &'static [&'static str])] = &[
+        (Permission::READ, &["r", "read"]),
+        (Permission::WRITE, &["w", "write"]),
+        (Permission::EXECUTE, &["x", "execute"]),
+        (Permission::DELETE, &["delete"]),
+        (Permission::APPEND, &["append"]),
+        (Permission::DELETE_CHILD, &["delete_child"]),
+        (Permission::READATTR, &["readattr"]),
+        (Permission::WRITEATTR, &["writeattr"]),
+        (Permission::READEXTATTR, &["readextattr"]),
+        (Permission::WRITEEXTATTR, &["writeextattr"]),
+        (Permission::READSECURITY, &["readsecurity"]),
+        (Permission::WRITESECURITY, &["writesecurity"]),
+        (Permission::CHOWN, &["chown"]),
+        (Permission::SYNC, &["sync"]),
+        (Permission::READ_DATA, &["read_data"]),
+        (Permission::WRITE_DATA, &["write_data"]),
+    ];
+}
+
+impl Display for AceWithPlatform {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}:{}",
+            self.platform.as_ref().unwrap_or(&AcePlatform::General),
+            self.ace
+        )
+    }
+}
+
+impl FromStr for AceWithPlatform {
+    type Err = ParseAceError;
+
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let num_sep = s.chars().filter(|c| c.eq(&':')).count();
+        if num_sep == 5 {
+            let (p, r) = s.split_once(':').ok_or(ParseAceError::NotEnoughElement)?;
+            let platform = AcePlatform::from_str(p).expect("Infallible error occurred");
+            Ok(Self {
+                platform: Some(platform),
+                ace: r.parse()?,
+            })
+        } else {
+            Ok(Self {
+                platform: None,
+                ace: s.parse()?,
+            })
+        }
+    }
+}
+
+impl TryFrom<&str> for AceWithPlatform {
+    type Error = ParseAceError;
+
+    #[inline]
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::from_str(value)
+    }
+}
+
+impl TryFrom<&[u8]> for AceWithPlatform {
+    type Error = ParseAceError;
+
+    #[inline]
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        let body = from_utf8(value)?;
+        Self::from_str(body)
+    }
+}
+
+/// Access Control List
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct Acl {
+    pub(crate) platform: AcePlatform,
+    pub(crate) entries: Vec<Ace>,
+}
+
+#[allow(dead_code)]
+pub fn acl_convert_current_platform(src: Acl) -> Acl {
+    let platform = AcePlatform::CURRENT;
+    ace_convert_platform(src, &platform)
+}
+
+pub fn ace_convert_platform(src: Acl, to: &AcePlatform) -> Acl {
+    match to {
         AcePlatform::General | AcePlatform::Unknown(_) => ace_to_generic(src),
         AcePlatform::Windows => ace_to_windows(src),
         AcePlatform::MacOs => ace_to_macos(src),
@@ -331,47 +413,77 @@ fn to_general_permission(src_permission: Permission) -> Permission {
     permission
 }
 
-fn ace_to_generic(src: Ace) -> Ace {
+fn ace_to_generic(src: Acl) -> Acl {
     match src.platform {
         AcePlatform::General => src,
-        AcePlatform::Windows => Ace {
+        AcePlatform::Windows => Acl {
             platform: AcePlatform::General,
-            flags: Flag::empty(),
-            owner_type: src.owner_type,
-            allow: src.allow,
-            permission: to_general_permission(src.permission),
+            entries: src
+                .entries
+                .into_iter()
+                .map(|ace| Ace {
+                    flags: Flag::empty(),
+                    owner_type: ace.owner_type,
+                    allow: ace.allow,
+                    permission: to_general_permission(ace.permission),
+                })
+                .collect(),
         },
-        AcePlatform::MacOs => Ace {
+        AcePlatform::MacOs => Acl {
             platform: AcePlatform::General,
-            flags: src.flags & {
-                let mut macos_flags = Flag::all();
-                macos_flags.remove(Flag::DEFAULT);
-                macos_flags
-            },
-            owner_type: src.owner_type,
-            allow: src.allow,
-            permission: to_general_permission(src.permission),
+            entries: src
+                .entries
+                .into_iter()
+                .map(|ace| Ace {
+                    flags: ace.flags & {
+                        let mut macos_flags = Flag::all();
+                        macos_flags.remove(Flag::DEFAULT);
+                        macos_flags
+                    },
+                    owner_type: ace.owner_type,
+                    allow: ace.allow,
+                    permission: to_general_permission(ace.permission),
+                })
+                .collect(),
         },
-        AcePlatform::Linux => Ace {
-            platform: AcePlatform::Linux,
-            flags: src.flags & Flag::DEFAULT,
-            owner_type: src.owner_type,
-            allow: src.allow,
-            permission: to_general_permission(src.permission),
-        },
-        AcePlatform::FreeBSD => Ace {
+        AcePlatform::Linux => Acl {
             platform: AcePlatform::General,
-            flags: src.flags,
-            owner_type: src.owner_type,
-            allow: src.allow,
-            permission: to_general_permission(src.permission),
+            entries: src
+                .entries
+                .into_iter()
+                .map(|ace| Ace {
+                    flags: ace.flags & Flag::DEFAULT,
+                    owner_type: ace.owner_type,
+                    allow: ace.allow,
+                    permission: to_general_permission(ace.permission),
+                })
+                .collect(),
         },
-        AcePlatform::Unknown(_) => Ace {
+        AcePlatform::FreeBSD => Acl {
             platform: AcePlatform::General,
-            flags: Flag::empty(),
-            owner_type: src.owner_type,
-            allow: src.allow,
-            permission: to_general_permission(src.permission),
+            entries: src
+                .entries
+                .into_iter()
+                .map(|ace| Ace {
+                    flags: ace.flags,
+                    owner_type: ace.owner_type,
+                    allow: ace.allow,
+                    permission: to_general_permission(ace.permission),
+                })
+                .collect(),
+        },
+        AcePlatform::Unknown(_) => Acl {
+            platform: AcePlatform::General,
+            entries: src
+                .entries
+                .into_iter()
+                .map(|ace| Ace {
+                    flags: Flag::empty(),
+                    owner_type: ace.owner_type,
+                    allow: ace.allow,
+                    permission: to_general_permission(ace.permission),
+                })
+                .collect(),
         },
     }
 }
@@ -425,7 +537,7 @@ const GENERIC_TO_WINDOWS_PERMISSION_TABLE: [(&[Permission], Permission); 3] = [
     ),
 ];
 
-fn ace_to_windows(src: Ace) -> Ace {
+fn ace_to_windows(src: Acl) -> Acl {
     match src.platform {
         AcePlatform::Windows => src,
         AcePlatform::General
@@ -434,21 +546,27 @@ fn ace_to_windows(src: Ace) -> Ace {
         | AcePlatform::FreeBSD
         | AcePlatform::Unknown(_) => {
             let src = ace_to_generic(src);
-            Ace {
+            Acl {
                 platform: AcePlatform::Windows,
-                flags: src.flags,
-                owner_type: src.owner_type,
-                allow: src.allow,
-                permission: mapping_permission(
-                    src.permission,
-                    &GENERIC_TO_WINDOWS_PERMISSION_TABLE,
-                ),
+                entries: src
+                    .entries
+                    .into_iter()
+                    .map(|ace| Ace {
+                        flags: ace.flags,
+                        owner_type: ace.owner_type,
+                        allow: ace.allow,
+                        permission: mapping_permission(
+                            ace.permission,
+                            &GENERIC_TO_WINDOWS_PERMISSION_TABLE,
+                        ),
+                    })
+                    .collect(),
             }
         }
     }
 }
 
-fn ace_to_linux(src: Ace) -> Ace {
+fn ace_to_linux(src: Acl) -> Acl {
     match src.platform {
         AcePlatform::Linux => src,
         AcePlatform::General
@@ -489,7 +607,7 @@ const GENERIC_TO_MACOS_PERMISSION_TABLE: [(&[Permission], Permission); 3] = [
     (&[Permission::EXECUTE], Permission::EXECUTE),
 ];
 
-fn ace_to_macos(src: Ace) -> Ace {
+fn ace_to_macos(src: Acl) -> Acl {
     match src.platform {
         AcePlatform::MacOs => src,
         AcePlatform::General
@@ -498,18 +616,27 @@ fn ace_to_macos(src: Ace) -> Ace {
         | AcePlatform::FreeBSD
         | AcePlatform::Unknown(_) => {
             let src = ace_to_generic(src);
-            Ace {
+            Acl {
                 platform: AcePlatform::MacOs,
-                flags: src.flags,
-                owner_type: src.owner_type,
-                allow: src.allow,
-                permission: mapping_permission(src.permission, &GENERIC_TO_MACOS_PERMISSION_TABLE),
+                entries: src
+                    .entries
+                    .into_iter()
+                    .map(|ace| Ace {
+                        flags: ace.flags,
+                        owner_type: ace.owner_type,
+                        allow: ace.allow,
+                        permission: mapping_permission(
+                            ace.permission,
+                            &GENERIC_TO_MACOS_PERMISSION_TABLE,
+                        ),
+                    })
+                    .collect(),
             }
         }
     }
 }
 
-fn ace_to_freebsd(src: Ace) -> Ace {
+fn ace_to_freebsd(src: Acl) -> Acl {
     match src.platform {
         AcePlatform::FreeBSD => src,
         AcePlatform::General
@@ -597,9 +724,22 @@ bitflags! {
 mod tests {
     use super::*;
     #[test]
+    fn ace_with_platform_to_string_from_str() {
+        let ace = AceWithPlatform {
+            platform: Some(AcePlatform::CURRENT),
+            ace: Ace {
+                flags: Flag::all(),
+                owner_type: OwnerType::Owner,
+                allow: true,
+                permission: Permission::all(),
+            },
+        };
+        assert_eq!(AceWithPlatform::from_str(&ace.to_string()), Ok(ace));
+    }
+
+    #[test]
     fn ace_to_string_from_str() {
         let ace = Ace {
-            platform: AcePlatform::CURRENT,
             flags: Flag::all(),
             owner_type: OwnerType::Owner,
             allow: true,

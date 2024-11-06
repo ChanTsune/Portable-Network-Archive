@@ -250,8 +250,9 @@ pub(crate) fn apply_metadata(
         if keep_options.keep_acl {
             use crate::chunk;
             use pna::RawChunk;
-            let ace_list = utils::acl::get_facl(path)?;
-            for ace in ace_list {
+            let acl = utils::acl::get_facl(path)?;
+            entry.add_extra_chunk(RawChunk::from_data(chunk::faCl, acl.platform.to_bytes()));
+            for ace in acl.entries {
                 entry.add_extra_chunk(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
             }
         }

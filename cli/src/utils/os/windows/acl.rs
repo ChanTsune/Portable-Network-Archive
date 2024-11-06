@@ -1,10 +1,9 @@
-use crate::chunk;
-use crate::chunk::{ace_convert_current_platform, AcePlatform, Identifier, OwnerType};
-use crate::utils::os::windows::security::{SecurityDescriptor, Sid, SidType};
+use crate::{
+    chunk::{self, AcePlatform, Identifier, OwnerType},
+    utils::os::windows::security::{SecurityDescriptor, Sid, SidType},
+};
 use field_offset::offset_of;
-use std::path::Path;
-use std::ptr::null_mut;
-use std::{io, mem};
+use std::{io, mem, path::Path, ptr::null_mut};
 use windows::Win32::Security::{
     AddAccessAllowedAceEx, AddAccessDeniedAceEx, GetAce, InitializeAcl, ACCESS_ALLOWED_ACE,
     ACCESS_DENIED_ACE, ACE_FLAGS, ACE_HEADER, ACL as Win32ACL, ACL_REVISION_DS,
@@ -19,21 +18,25 @@ use windows::Win32::Storage::FileSystem::{
 };
 use windows::Win32::System::SystemServices::{ACCESS_ALLOWED_ACE_TYPE, ACCESS_DENIED_ACE_TYPE};
 
-pub fn set_facl<P: AsRef<Path>>(path: P, ace_list: Vec<chunk::Ace>) -> io::Result<()> {
+pub fn set_facl<P: AsRef<Path>>(path: P, ace_list: chunk::Acl) -> io::Result<()> {
     let acl = ACL::try_from(path.as_ref())?;
     let group_sid = acl.security_descriptor.group_sid()?;
     let owner_sid = acl.security_descriptor.owner_sid()?;
     let acl_entries = ace_list
+        .entries
         .into_iter()
         .map(|it| it.into_acl_entry_with(&owner_sid, &group_sid))
         .collect::<Vec<_>>();
     acl.set_d_acl(&acl_entries)
 }
 
-pub fn get_facl<P: AsRef<Path>>(path: P) -> io::Result<Vec<chunk::Ace>> {
+pub fn get_facl<P: AsRef<Path>>(path: P) -> io::Result<chunk::Acl> {
     let acl = ACL::try_from(path.as_ref())?;
     let ace_list = acl.get_d_acl()?;
-    Ok(ace_list.into_iter().map(Into::into).collect())
+    Ok(chunk::Acl {
+        platform: AcePlatform::Windows,
+        entries: ace_list.into_iter().map(Into::into).collect(),
+    })
 }
 
 #[allow(non_camel_case_types)]
@@ -186,7 +189,7 @@ const FLAGS_MAPPING_TABLE: [(chunk::Flag, ACE_FLAGS); 6] = [
 
 impl chunk::Ace {
     fn into_acl_entry_with(self, owner_sid: &Sid, group_sid: &Sid) -> ACLEntry {
-        let slf = ace_convert_current_platform(self);
+        let slf = self;
         let sid = match slf.owner_type {
             OwnerType::Owner => owner_sid.clone(),
             OwnerType::User(i) => Sid::try_from_name(&i.0, None).unwrap(),
@@ -235,7 +238,6 @@ impl Into<chunk::Ace> for ACLEntry {
             t => panic!("Unsupported ace type {:?}", t),
         };
         chunk::Ace {
-            platform: AcePlatform::Windows,
             flags: {
                 let mut flags = chunk::Flag::empty();
                 for (f, g) in FLAGS_MAPPING_TABLE {
@@ -276,7 +278,7 @@ impl Into<chunk::Ace> for ACLEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chunk::Ace;
+    use crate::chunk::{acl_convert_current_platform, Ace, Acl};
     #[test]
     fn acl_for_everyone() {
         let path = "everyone.txt";
@@ -285,41 +287,45 @@ mod tests {
 
         set_facl(
             &path,
-            vec![Ace {
+            acl_convert_current_platform(Acl {
                 platform: AcePlatform::General,
-                flags: chunk::Flag::empty(),
-                owner_type: OwnerType::Group(Identifier(sid.name.clone())),
-                allow: true,
-                permission: chunk::Permission::READ
-                    | chunk::Permission::WRITE
-                    | chunk::Permission::EXECUTE,
-            }],
+                entries: vec![Ace {
+                    flags: chunk::Flag::empty(),
+                    owner_type: OwnerType::Group(Identifier(sid.name.clone())),
+                    allow: true,
+                    permission: chunk::Permission::READ
+                        | chunk::Permission::WRITE
+                        | chunk::Permission::EXECUTE,
+                }],
+            }),
         )
         .unwrap();
         let acl = get_facl(&path).unwrap();
-        assert_eq!(acl.len(), 1);
+        assert_eq!(acl.entries.len(), 1);
 
         assert_eq!(
-            &acl[0],
-            &Ace {
+            acl,
+            Acl {
                 platform: AcePlatform::Windows,
-                flags: chunk::Flag::empty(),
-                owner_type: OwnerType::Group(Identifier(sid.name)),
-                allow: true,
-                permission: chunk::Permission::READ
-                    | chunk::Permission::WRITE
-                    | chunk::Permission::EXECUTE
-                    | chunk::Permission::DELETE
-                    | chunk::Permission::APPEND
-                    | chunk::Permission::READATTR
-                    | chunk::Permission::WRITEATTR
-                    | chunk::Permission::READEXTATTR
-                    | chunk::Permission::WRITEEXTATTR
-                    | chunk::Permission::READSECURITY
-                    | chunk::Permission::WRITESECURITY
-                    | chunk::Permission::SYNC
-                    | chunk::Permission::READ_DATA
-                    | chunk::Permission::WRITE_DATA,
+                entries: vec![Ace {
+                    flags: chunk::Flag::empty(),
+                    owner_type: OwnerType::Group(Identifier(sid.name)),
+                    allow: true,
+                    permission: chunk::Permission::READ
+                        | chunk::Permission::WRITE
+                        | chunk::Permission::EXECUTE
+                        | chunk::Permission::DELETE
+                        | chunk::Permission::APPEND
+                        | chunk::Permission::READATTR
+                        | chunk::Permission::WRITEATTR
+                        | chunk::Permission::READEXTATTR
+                        | chunk::Permission::WRITEEXTATTR
+                        | chunk::Permission::READSECURITY
+                        | chunk::Permission::WRITESECURITY
+                        | chunk::Permission::SYNC
+                        | chunk::Permission::READ_DATA
+                        | chunk::Permission::WRITE_DATA,
+                }]
             }
         );
     }
@@ -329,6 +335,6 @@ mod tests {
         let path = "default.txt";
         std::fs::write(&path, "default").unwrap();
         let acl = get_facl(&path).unwrap();
-        assert_ne!(acl.len(), 0);
+        assert_ne!(acl.entries.len(), 0);
     }
 }

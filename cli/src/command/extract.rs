@@ -351,11 +351,23 @@ where
             windows
         ))]
         if keep_options.keep_acl {
+            use crate::chunk::{acl_convert_current_platform, AcePlatform, Acl};
             use crate::ext::*;
+            use itertools::Itertools;
 
-            let acl = item.acl()?;
-            if !acl.is_empty() {
-                utils::acl::set_facl(&path, acl)?;
+            let platform = AcePlatform::CURRENT;
+            let acls = item.acl()?;
+            if let Some((platform, acl)) = acls.into_iter().find_or_first(|(p, _)| p.eq(&platform))
+            {
+                if !acl.is_empty() {
+                    utils::acl::set_facl(
+                        &path,
+                        acl_convert_current_platform(Acl {
+                            platform,
+                            entries: acl,
+                        }),
+                    )?;
+                }
             }
         }
         #[cfg(not(any(
