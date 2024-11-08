@@ -16,13 +16,13 @@ Also, its data structure is inspired by the PNG data structure.
   - [x] Supports 256-bit AES and 256-bit Camellia.
 
 - **Solid Mode**
-  - [x] Compresses and encrypts entire archives.
+  - [x] Compresses and encrypts the entire archive as a single block.
 
-- **File Attribute Preservation**
-  - [x] Maintains and restores file permissions.
-  - [x] Maintains and restores file timestamps.
-  - [x] Maintains and restores extended attributes.
-  - [x] Maintains and restores Access Control Lists (ACLs) (experimental feature).
+- **File Attribute Preservation (Maintains and restores)**
+  - [x] File permissions.
+  - [x] File timestamps.
+  - [x] Extended attributes.
+  - [x] Access Control Lists (ACLs) (experimental).
 
 ## Installation
 
