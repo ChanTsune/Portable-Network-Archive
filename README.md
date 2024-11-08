@@ -7,6 +7,19 @@
 PNA (Portable Network Archive) is a highly scalable archive format that can be compressed, encrypted, and split.
 Also, its data structure is inspired by the PNG data structure.
 
+### Why PNA?
+
+**Portable Network Archive (PNA): A Flexible, Secure, and Cross-Platform Archive Format**
+- **Portability:** Works seamlessly across multiple platforms, combining the strengths of TAR and ZIP formats.
+- **Compression Flexibility:** Advanced per-file and archive-wide compression options reduce the need for full archive decompression.
+- **Encryption & Security:** Supports 256-bit AES and Camellia for robust protection of sensitive data.
+- **Splittable Structure**: Based on PNG’s data unit structure, enabling the easy division of large archives into smaller parts.
+- **Streamability:** Supports serial read and write operations, making it suitable streaming processing, similar to a TAR format.
+- **Extensibility**: Designed to accommodate future extensions and private add-ons, ensuring compatibility with the basic PNA format while allowing for flexible customization.
+- **Error Resilience:** File integrity checks and error detection ensure data is secure during transmission.
+
+Additionally, the PNA specification includes a rationale appendix to help developers understand key design choices, making implementation more straightforward.
+
 ## Features
 
 - **File Compression and Decompression**
