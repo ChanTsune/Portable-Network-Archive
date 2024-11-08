@@ -24,6 +24,19 @@ Also, its data structure is inspired by the PNG data structure.
   - [x] Extended attributes.
   - [x] Access Control Lists (ACLs) (experimental).
 
+## Supported Operating Systems
+
+PNA (Portable Network Archive) CLI is cross-platform and compatible with the following operating systems:
+
+- **Windows**
+- **Linux**
+- **macOS**
+- **FreeBSD**
+
+This compatibility ensures that users can utilize PNA across different environments without any platform-specific limitations.
+
+Further supported operating systems will be added in the future.
+
 ## Installation
 
 ### Via Cargo
