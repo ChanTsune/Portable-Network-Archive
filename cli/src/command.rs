@@ -10,6 +10,7 @@ mod delete;
 pub(super) mod experimental;
 pub mod extract;
 pub mod list;
+mod migrate;
 pub mod split;
 pub(crate) mod stdio;
 pub(crate) mod strip;

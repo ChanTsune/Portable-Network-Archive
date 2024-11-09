@@ -20,6 +20,7 @@ impl Command for ExperimentalCommand {
             ExperimentalCommands::Chmod(cmd) => cmd.execute(),
             ExperimentalCommands::Xattr(cmd) => cmd.execute(),
             ExperimentalCommands::Acl(cmd) => cmd.execute(),
+            ExperimentalCommands::Migrate(cmd) => cmd.execute(),
         }
     }
 }
@@ -40,4 +41,6 @@ pub(crate) enum ExperimentalCommands {
     Xattr(command::xattr::XattrCommand),
     #[command(about = "Manipulate ACLs of entries")]
     Acl(command::acl::AclCommand),
+    #[command(about = "Migrate old format to latest format")]
+    Migrate(command::migrate::MigrateCommand),
 }
