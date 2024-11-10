@@ -7,28 +7,22 @@ use utils::diff::diff;
 
 // NOTE: Skip `--keep-xattr` option for NetBSD
 //       because NetBSD default filesystem is not support extended attribute.
-#[cfg(not(target_os = "netbsd"))]
-const KEEP_OPTIONS: [Option<&str>; 4] = [
+const KEEP_OPTIONS: &[Option<&str>] = &[
     Some("--keep-dir"),
     Some("--keep-timestamp"),
     Some("--keep-permission"),
+    #[cfg(not(target_os = "netbsd"))]
     Some("--keep-xattr"),
 ];
 
-#[cfg(target_os = "netbsd")]
-const KEEP_OPTIONS: [Option<&str>; 3] = [
-    Some("--keep-dir"),
-    Some("--keep-timestamp"),
-    Some("--keep-permission"),
-];
-const COMPRESSION_OPTIONS: [Option<&str>; 4] = [
+const COMPRESSION_OPTIONS: &[Option<&str>] = &[
     Some("--store"),
     Some("--deflate"),
     Some("--zstd"),
     Some("--xz"),
 ];
 
-const ENCRYPTION_OPTIONS: [Option<[&str; 2]>; 5] = [
+const ENCRYPTION_OPTIONS: &[Option<[&str; 2]>] = &[
     None,
     Some(["--aes", "ctr"]),
     Some(["--aes", "cbc"]),
@@ -36,9 +30,9 @@ const ENCRYPTION_OPTIONS: [Option<[&str; 2]>; 5] = [
     Some(["--camellia", "cbc"]),
 ];
 
-const HASH_OPTIONS: [[&str; 2]; 2] = [["--pbkdf2", "r=1"], ["--argon2", "t=1,m=50"]];
+const HASH_OPTIONS: &[[&str; 2]] = &[["--pbkdf2", "r=1"], ["--argon2", "t=1,m=50"]];
 
-const SOLID_OPTIONS: [Option<&str>; 2] = [None, Some("--solid")];
+const SOLID_OPTIONS: &[Option<&str>] = &[None, Some("--solid")];
 
 #[test]
 fn combination_fs() {
@@ -59,9 +53,7 @@ fn combination_fs() {
                 "-r",
                 "../lib",
                 #[cfg(windows)]
-                {
-                    "--unstable"
-                },
+                "--unstable",
             ]
             .into_iter()
             .chain(options),
@@ -86,9 +78,7 @@ fn combination_fs() {
             "--password",
             "password",
             #[cfg(windows)]
-            {
-                "--unstable"
-            },
+            "--unstable",
         ]);
         cmd.assert().success();
         diff(
@@ -101,10 +91,10 @@ fn combination_fs() {
         )
         .unwrap();
     }
-    for keep in &KEEP_OPTIONS {
-        for compress in &COMPRESSION_OPTIONS {
-            for encrypt in &ENCRYPTION_OPTIONS {
-                for solid in &SOLID_OPTIONS {
+    for keep in KEEP_OPTIONS {
+        for compress in COMPRESSION_OPTIONS {
+            for encrypt in ENCRYPTION_OPTIONS {
+                for solid in SOLID_OPTIONS {
                     let mut options = [*keep, *compress, *solid]
                         .into_iter()
                         .flatten()
@@ -112,7 +102,7 @@ fn combination_fs() {
                         .collect::<Vec<_>>();
                     if encrypt.is_some() {
                         options.extend(["--password", "password"]);
-                        for hash in &HASH_OPTIONS {
+                        for hash in HASH_OPTIONS {
                             let mut options = options.clone();
                             options.extend(hash);
                             inner(options)
@@ -141,9 +131,7 @@ fn combination_stdio() {
                 "-r",
                 "../lib",
                 #[cfg(windows)]
-                {
-                    "--unstable"
-                },
+                "--unstable",
             ]
             .into_iter()
             .chain(options),
@@ -163,9 +151,7 @@ fn combination_stdio() {
             "--password",
             "password",
             #[cfg(windows)]
-            {
-                "--unstable"
-            },
+            "--unstable",
         ]);
         cmd.assert().success();
         diff(
@@ -178,10 +164,10 @@ fn combination_stdio() {
         )
         .unwrap();
     }
-    for keep in &KEEP_OPTIONS {
-        for compress in &COMPRESSION_OPTIONS {
-            for encrypt in &ENCRYPTION_OPTIONS {
-                for solid in &SOLID_OPTIONS {
+    for keep in KEEP_OPTIONS {
+        for compress in COMPRESSION_OPTIONS {
+            for encrypt in ENCRYPTION_OPTIONS {
+                for solid in SOLID_OPTIONS {
                     let mut options = [*keep, *compress, *solid]
                         .into_iter()
                         .flatten()
@@ -189,7 +175,7 @@ fn combination_stdio() {
                         .collect::<Vec<_>>();
                     if encrypt.is_some() {
                         options.extend(["--password", "password"]);
-                        for hash in &HASH_OPTIONS {
+                        for hash in HASH_OPTIONS {
                             let mut options = options.clone();
                             options.extend(hash);
                             inner(options)
