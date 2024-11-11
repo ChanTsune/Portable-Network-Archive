@@ -1,0 +1,36 @@
+name: 'Commit Message Labeler'
+description: 'Label a pull request based on commit messages'
+
+inputs:
+  pr_number:
+    description: 'Pull request number'
+    required: true
+  message_contains:
+    description: 'String to contains in commit messages'
+    required: true
+  label_name:
+    description: 'Label to add if the string is found'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Get commit messages
+      id: get_commits
+      shell: bash
+      run: |
+        commits=$(gh pr view ${{ inputs.pr_number }} --json commits --jq '.commits[].messageHeadline')
+        if echo "$commits" | grep -q "${{ inputs.message_contains }}"; then
+          echo "matched=true" >> $GITHUB_ENV
+        else
+          echo "matched=false" >> $GITHUB_ENV
+        fi
+      env:
+        GH_TOKEN: ${{ github.token }}
+    - name: Add label based on commit content
+      if: env.matched == 'true'
+      shell: bash
+      run: |
+        gh pr edit ${{ inputs.pr_number }} --add-label "${{ inputs.label_name }}"
+      env:
+        GH_TOKEN: ${{ github.token }}

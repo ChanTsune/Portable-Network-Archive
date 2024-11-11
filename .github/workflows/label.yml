@@ -10,3 +10,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/labeler@v5
+      - uses: ./.github/actions/label_by_message
+        with:
+          pr_number: ${{ github.event.pull_request.number }}
+          message_contains: ':boom:'
+          label_name: 'break'
