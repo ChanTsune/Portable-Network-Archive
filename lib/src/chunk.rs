@@ -12,7 +12,7 @@ pub(crate) use self::{
 pub use self::{traits::*, types::*};
 use std::{
     borrow::Cow,
-    io::{self, Write},
+    io::{self, prelude::*},
     mem,
     ops::Deref,
 };
