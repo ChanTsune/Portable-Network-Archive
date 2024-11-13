@@ -281,6 +281,50 @@ pub(crate) fn chunk_data_split(
     )
 }
 
+/// Read archive as chunks
+///
+/// # Example
+///
+/// ```no_run
+/// # use std::{io, fs};
+/// use libpna::{prelude::*, read_as_chunks};
+/// # fn main() -> io::Result<()> {
+/// let archive = fs::File::open("foo.pna")?;
+/// for chunk in read_as_chunks(archive)? {
+///     let chunk = chunk?;
+///     println!("chunk type: {}, chunk data size: {}", chunk.ty(), chunk.length());
+/// }
+/// # Ok(())
+/// # }
+/// ```
+#[inline]
+pub fn read_as_chunks<R: Read>(
+    mut archive: R,
+) -> io::Result<impl Iterator<Item = io::Result<impl Chunk>>> {
+    struct Chunks<R> {
+        reader: ChunkReader<R>,
+        eoa: bool,
+    }
+    impl<R: Read> Iterator for Chunks<R> {
+        type Item = io::Result<RawChunk>;
+        #[inline]
+        fn next(&mut self) -> Option<Self::Item> {
+            if self.eoa {
+                return None;
+            }
+            Some(self.reader.read_chunk().inspect(|chunk| {
+                self.eoa = chunk.ty() == ChunkType::AEND;
+            }))
+        }
+    }
+    crate::archive::read_pna_header(&mut archive)?;
+
+    Ok(Chunks {
+        reader: ChunkReader::from(archive),
+        eoa: false,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -15,7 +15,7 @@ use std::{
     mem::swap,
 };
 
-fn read_pna_header<R: Read>(mut reader: R) -> io::Result<()> {
+pub(crate) fn read_pna_header<R: Read>(mut reader: R) -> io::Result<()> {
     let mut header = [0u8; PNA_HEADER.len()];
     reader.read_exact(&mut header)?;
     if &header != PNA_HEADER {
