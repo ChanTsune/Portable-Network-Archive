@@ -50,7 +50,7 @@ jobs:
       - if: ${{ startsWith(matrix.target, 'wasm32-wasi') }}
         name: Run test
         run: |
-          cargo test -p libpna --target ${{ matrix.target }} -- --skip test_readme_deps --skip test_html_root_url
+          cargo test -p libpna --target ${{ matrix.target }}
       - if: ${{ startsWith(matrix.target, 'wasm32-unknown-emscripten') }}
         name: Run test
         run: |
