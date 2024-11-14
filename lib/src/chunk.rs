@@ -259,12 +259,12 @@ impl<T: Deref<Target = [u8]>> Chunk for (ChunkType, T) {
 impl<T: Chunk> Chunk for &T {
     #[inline]
     fn ty(&self) -> ChunkType {
-        (*self).ty()
+        T::ty(*self)
     }
 
     #[inline]
     fn data(&self) -> &[u8] {
-        (*self).data()
+        T::data(*self)
     }
 }
 
