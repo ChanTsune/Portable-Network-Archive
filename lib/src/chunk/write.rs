@@ -82,12 +82,7 @@ mod tests {
     #[test]
     fn write_aend_chunk() {
         let mut chunk_writer = ChunkWriter::from(Vec::new());
-        assert_eq!(
-            chunk_writer
-                .write_chunk((ChunkType::AEND, [].as_slice()))
-                .unwrap(),
-            12
-        );
+        assert_eq!(chunk_writer.write_chunk((ChunkType::AEND, [])).unwrap(), 12);
         assert_eq!(
             chunk_writer.w,
             [0, 0, 0, 0, 65, 69, 78, 68, 107, 246, 72, 109]

@@ -300,7 +300,7 @@ impl SealedEntryExt for SolidEntry<Vec<u8>> {
 
     fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         let mut total = 0;
-        total += (ChunkType::SHED, self.header.to_bytes().as_slice()).write_chunk_in(writer)?;
+        total += (ChunkType::SHED, self.header.to_bytes()).write_chunk_in(writer)?;
         for extra_chunk in &self.extra {
             total += extra_chunk.write_chunk_in(writer)?;
         }
@@ -308,9 +308,9 @@ impl SealedEntryExt for SolidEntry<Vec<u8>> {
             total += (ChunkType::PHSF, phsf.as_bytes()).write_chunk_in(writer)?;
         }
         for data in &self.data {
-            total += (ChunkType::SDAT, data.as_slice()).write_chunk_in(writer)?;
+            total += (ChunkType::SDAT, data).write_chunk_in(writer)?;
         }
-        total += (ChunkType::SEND, [].as_slice()).write_chunk_in(writer)?;
+        total += (ChunkType::SEND, []).write_chunk_in(writer)?;
         Ok(total)
     }
 }
@@ -333,7 +333,7 @@ impl SealedEntryExt for SolidEntry<&[u8]> {
 
     fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         let mut total = 0;
-        total += (ChunkType::SHED, self.header.to_bytes().as_slice()).write_chunk_in(writer)?;
+        total += (ChunkType::SHED, self.header.to_bytes()).write_chunk_in(writer)?;
         for extra_chunk in &self.extra {
             total += extra_chunk.write_chunk_in(writer)?;
         }
@@ -343,7 +343,7 @@ impl SealedEntryExt for SolidEntry<&[u8]> {
         for data in &self.data {
             total += (ChunkType::SDAT, *data).write_chunk_in(writer)?;
         }
-        total += (ChunkType::SEND, [].as_slice()).write_chunk_in(writer)?;
+        total += (ChunkType::SEND, []).write_chunk_in(writer)?;
         Ok(total)
     }
 }
@@ -366,7 +366,7 @@ impl SealedEntryExt for SolidEntry<Cow<'_, [u8]>> {
 
     fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         let mut total = 0;
-        total += (ChunkType::SHED, self.header.to_bytes().as_slice()).write_chunk_in(writer)?;
+        total += (ChunkType::SHED, self.header.to_bytes()).write_chunk_in(writer)?;
         for extra_chunk in &self.extra {
             total += extra_chunk.write_chunk_in(writer)?;
         }
@@ -376,7 +376,7 @@ impl SealedEntryExt for SolidEntry<Cow<'_, [u8]>> {
         for data in &self.data {
             total += (ChunkType::SDAT, data.as_ref()).write_chunk_in(writer)?;
         }
-        total += (ChunkType::SEND, [].as_slice()).write_chunk_in(writer)?;
+        total += (ChunkType::SEND, []).write_chunk_in(writer)?;
         Ok(total)
     }
 }
@@ -752,16 +752,13 @@ impl SealedEntryExt for NormalEntry<Vec<u8>> {
             }
         }
         if let Some(c) = created {
-            total +=
-                (ChunkType::cTIM, c.as_secs().to_be_bytes().as_slice()).write_chunk_in(writer)?;
+            total += (ChunkType::cTIM, c.as_secs().to_be_bytes()).write_chunk_in(writer)?;
         }
         if let Some(d) = modified {
-            total +=
-                (ChunkType::mTIM, d.as_secs().to_be_bytes().as_slice()).write_chunk_in(writer)?;
+            total += (ChunkType::mTIM, d.as_secs().to_be_bytes()).write_chunk_in(writer)?;
         }
         if let Some(a) = accessed {
-            total +=
-                (ChunkType::aTIM, a.as_secs().to_be_bytes().as_slice()).write_chunk_in(writer)?;
+            total += (ChunkType::aTIM, a.as_secs().to_be_bytes()).write_chunk_in(writer)?;
         }
         if let Some(p) = permission {
             total += (ChunkType::fPRM, p.to_bytes()).write_chunk_in(writer)?;
@@ -769,7 +766,7 @@ impl SealedEntryExt for NormalEntry<Vec<u8>> {
         for xattr in &self.xattrs {
             total += (ChunkType::xATR, xattr.to_bytes()).write_chunk_in(writer)?;
         }
-        total += (ChunkType::FEND, [].as_slice()).write_chunk_in(writer)?;
+        total += (ChunkType::FEND, []).write_chunk_in(writer)?;
         Ok(total)
     }
 }
@@ -863,16 +860,13 @@ impl SealedEntryExt for NormalEntry<&[u8]> {
             }
         }
         if let Some(c) = created {
-            total +=
-                (ChunkType::cTIM, c.as_secs().to_be_bytes().as_slice()).write_chunk_in(writer)?;
+            total += (ChunkType::cTIM, c.as_secs().to_be_bytes()).write_chunk_in(writer)?;
         }
         if let Some(d) = modified {
-            total +=
-                (ChunkType::mTIM, d.as_secs().to_be_bytes().as_slice()).write_chunk_in(writer)?;
+            total += (ChunkType::mTIM, d.as_secs().to_be_bytes()).write_chunk_in(writer)?;
         }
         if let Some(a) = accessed {
-            total +=
-                (ChunkType::aTIM, a.as_secs().to_be_bytes().as_slice()).write_chunk_in(writer)?;
+            total += (ChunkType::aTIM, a.as_secs().to_be_bytes()).write_chunk_in(writer)?;
         }
         if let Some(p) = permission {
             total += (ChunkType::fPRM, p.to_bytes()).write_chunk_in(writer)?;
@@ -880,7 +874,7 @@ impl SealedEntryExt for NormalEntry<&[u8]> {
         for xattr in &self.xattrs {
             total += (ChunkType::xATR, xattr.to_bytes()).write_chunk_in(writer)?;
         }
-        total += (ChunkType::FEND, [].as_slice()).write_chunk_in(writer)?;
+        total += (ChunkType::FEND, []).write_chunk_in(writer)?;
         Ok(total)
     }
 }
@@ -974,16 +968,13 @@ impl SealedEntryExt for NormalEntry<Cow<'_, [u8]>> {
             }
         }
         if let Some(c) = created {
-            total +=
-                (ChunkType::cTIM, c.as_secs().to_be_bytes().as_slice()).write_chunk_in(writer)?;
+            total += (ChunkType::cTIM, c.as_secs().to_be_bytes()).write_chunk_in(writer)?;
         }
         if let Some(d) = modified {
-            total +=
-                (ChunkType::mTIM, d.as_secs().to_be_bytes().as_slice()).write_chunk_in(writer)?;
+            total += (ChunkType::mTIM, d.as_secs().to_be_bytes()).write_chunk_in(writer)?;
         }
         if let Some(a) = accessed {
-            total +=
-                (ChunkType::aTIM, a.as_secs().to_be_bytes().as_slice()).write_chunk_in(writer)?;
+            total += (ChunkType::aTIM, a.as_secs().to_be_bytes()).write_chunk_in(writer)?;
         }
         if let Some(p) = permission {
             total += (ChunkType::fPRM, p.to_bytes()).write_chunk_in(writer)?;
@@ -991,7 +982,7 @@ impl SealedEntryExt for NormalEntry<Cow<'_, [u8]>> {
         for xattr in &self.xattrs {
             total += (ChunkType::xATR, xattr.to_bytes()).write_chunk_in(writer)?;
         }
-        total += (ChunkType::FEND, [].as_slice()).write_chunk_in(writer)?;
+        total += (ChunkType::FEND, []).write_chunk_in(writer)?;
         Ok(total)
     }
 }
