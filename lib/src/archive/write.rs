@@ -89,7 +89,7 @@ impl<W: Write> Archive<W> {
     #[inline]
     fn write_header_with(mut write: W, header: ArchiveHeader) -> io::Result<Self> {
         write.write_all(PNA_HEADER)?;
-        (ChunkType::AHED, header.to_bytes().as_slice()).write_chunk_in(&mut write)?;
+        (ChunkType::AHED, header.to_bytes()).write_chunk_in(&mut write)?;
         Ok(Self::new(write, header))
     }
 
@@ -134,16 +134,13 @@ impl<W: Write> Archive<W> {
         );
         (ChunkType::FHED, header.to_bytes()).write_chunk_in(&mut self.inner)?;
         if let Some(c) = metadata.created {
-            (ChunkType::cTIM, c.as_secs().to_be_bytes().as_slice())
-                .write_chunk_in(&mut self.inner)?;
+            (ChunkType::cTIM, c.as_secs().to_be_bytes()).write_chunk_in(&mut self.inner)?;
         }
         if let Some(m) = metadata.modified {
-            (ChunkType::mTIM, m.as_secs().to_be_bytes().as_slice())
-                .write_chunk_in(&mut self.inner)?;
+            (ChunkType::mTIM, m.as_secs().to_be_bytes()).write_chunk_in(&mut self.inner)?;
         }
         if let Some(a) = metadata.accessed {
-            (ChunkType::aTIM, a.as_secs().to_be_bytes().as_slice())
-                .write_chunk_in(&mut self.inner)?;
+            (ChunkType::aTIM, a.as_secs().to_be_bytes()).write_chunk_in(&mut self.inner)?;
         }
         if let Some(p) = metadata.permission {
             (ChunkType::fPRM, p.to_bytes()).write_chunk_in(&mut self.inner)?;
@@ -233,7 +230,7 @@ impl<W: Write> Archive<W> {
 
     fn add_next_archive_marker(&mut self) -> io::Result<usize> {
         let mut chunk_writer = ChunkWriter::from(&mut self.inner);
-        chunk_writer.write_chunk((ChunkType::ANXT, [].as_slice()))
+        chunk_writer.write_chunk((ChunkType::ANXT, []))
     }
 
     /// Split to the next archive.
@@ -289,7 +286,7 @@ impl<W: Write> Archive<W> {
     #[inline]
     pub fn finalize(mut self) -> io::Result<W> {
         let mut chunk_writer = ChunkWriter::from(&mut self.inner);
-        chunk_writer.write_chunk((ChunkType::AEND, [].as_slice()))?;
+        chunk_writer.write_chunk((ChunkType::AEND, []))?;
         Ok(self.inner)
     }
 }
@@ -309,7 +306,7 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
         write.write_all(PNA_HEADER).await?;
         let mut chunk_writer = ChunkWriter::from(&mut write);
         chunk_writer
-            .write_chunk_async((ChunkType::AHED, header.to_bytes().as_slice()))
+            .write_chunk_async((ChunkType::AHED, header.to_bytes()))
             .await?;
         Ok(Self::new(write, header))
     }
@@ -330,7 +327,7 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
     pub async fn finalize_async(mut self) -> io::Result<W> {
         let mut chunk_writer = ChunkWriter::from(&mut self.inner);
         chunk_writer
-            .write_chunk_async((ChunkType::AEND, [].as_slice()))
+            .write_chunk_async((ChunkType::AEND, []))
             .await?;
         Ok(self.inner)
     }
@@ -382,7 +379,7 @@ impl<W: Write> Archive<W> {
         );
         let context = get_writer_context(option)?;
 
-        (ChunkType::SHED, header.to_bytes().as_slice()).write_chunk_in(&mut self.inner)?;
+        (ChunkType::SHED, header.to_bytes()).write_chunk_in(&mut self.inner)?;
         if let Some(WriteCipher { context: c, .. }) = &context.cipher {
             (ChunkType::PHSF, c.phsf.as_bytes()).write_chunk_in(&mut self.inner)?;
             (ChunkType::SDAT, c.iv.as_slice()).write_chunk_in(&mut self.inner)?;
@@ -466,16 +463,13 @@ impl<W: Write> SolidArchive<W> {
         );
         (ChunkType::FHED, header.to_bytes()).write_chunk_in(&mut self.inner)?;
         if let Some(c) = metadata.created {
-            (ChunkType::cTIM, c.as_secs().to_be_bytes().as_slice())
-                .write_chunk_in(&mut self.inner)?;
+            (ChunkType::cTIM, c.as_secs().to_be_bytes()).write_chunk_in(&mut self.inner)?;
         }
         if let Some(m) = metadata.modified {
-            (ChunkType::mTIM, m.as_secs().to_be_bytes().as_slice())
-                .write_chunk_in(&mut self.inner)?;
+            (ChunkType::mTIM, m.as_secs().to_be_bytes()).write_chunk_in(&mut self.inner)?;
         }
         if let Some(a) = metadata.accessed {
-            (ChunkType::aTIM, a.as_secs().to_be_bytes().as_slice())
-                .write_chunk_in(&mut self.inner)?;
+            (ChunkType::aTIM, a.as_secs().to_be_bytes()).write_chunk_in(&mut self.inner)?;
         }
         if let Some(p) = metadata.permission {
             (ChunkType::fPRM, p.to_bytes()).write_chunk_in(&mut self.inner)?;
@@ -527,7 +521,7 @@ impl<W: Write> SolidArchive<W> {
     fn finalize_solid_entry(mut self) -> io::Result<Archive<W>> {
         self.inner.flush()?;
         let mut inner = self.inner.try_into_inner()?.try_into_inner()?.into_inner();
-        (ChunkType::SEND, [].as_slice()).write_chunk_in(&mut inner)?;
+        (ChunkType::SEND, []).write_chunk_in(&mut inner)?;
         Ok(Archive::new(inner, self.archive_header))
     }
 }
