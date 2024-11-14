@@ -244,7 +244,7 @@ impl Chunk for RawChunk {
     }
 }
 
-impl<T: Deref<Target = [u8]>> Chunk for (ChunkType, T) {
+impl<T: AsRef<[u8]>> Chunk for (ChunkType, T) {
     #[inline]
     fn ty(&self) -> ChunkType {
         self.0
@@ -252,7 +252,7 @@ impl<T: Deref<Target = [u8]>> Chunk for (ChunkType, T) {
 
     #[inline]
     fn data(&self) -> &[u8] {
-        &self.1
+        self.1.as_ref()
     }
 }
 
