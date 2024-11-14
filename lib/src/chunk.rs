@@ -268,6 +268,18 @@ impl<T: Chunk> Chunk for &T {
     }
 }
 
+impl<T: Chunk> Chunk for &mut T {
+    #[inline]
+    fn ty(&self) -> ChunkType {
+        T::ty(*self)
+    }
+
+    #[inline]
+    fn data(&self) -> &[u8] {
+        T::data(*self)
+    }
+}
+
 #[inline]
 pub(crate) fn chunk_data_split(
     ty: ChunkType,
