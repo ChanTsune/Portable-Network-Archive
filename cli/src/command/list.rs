@@ -496,9 +496,9 @@ const STYLE_HYPHEN: Style = Style::new();
 
 fn kind_paint(kind: DataKind) -> impl Display + 'static {
     match kind {
-        DataKind::File | DataKind::HardLink => STYLE_HYPHEN.paint("."),
-        DataKind::Directory => STYLE_DIR.paint("d"),
-        DataKind::SymbolicLink => STYLE_LINK.paint("l"),
+        DataKind::File | DataKind::HardLink => STYLE_HYPHEN.paint('.'),
+        DataKind::Directory => STYLE_DIR.paint('d'),
+        DataKind::SymbolicLink => STYLE_LINK.paint('l'),
     }
 }
 
@@ -509,34 +509,26 @@ fn paint_permission(
     has_acl: bool,
 ) -> String {
     let permission = permission.map(|p| p.permissions()).unwrap_or_default();
-    fn style_paint<'s>(
-        style: &'s Style,
-        c: &'s str,
-        h: &'s str,
-        bool: bool,
-    ) -> StyledDisplay<'s, &'s str> {
-        if bool {
+    let paint = |style: &'static Style, c: char, bit: u16| {
+        if permission & bit != 0 {
             style.paint(c)
         } else {
-            STYLE_HYPHEN.paint(h)
+            STYLE_HYPHEN.paint('-')
         }
-    }
-    let paint = |style: &'static Style, c: &'static str, bit: u16| {
-        style_paint(style, c, "-", permission & bit != 0)
     };
 
     format!(
         "{}{}{}{}{}{}{}{}{}{}{}",
         kind_paint(kind),
-        paint(&STYLE_READ, "r", 0b100000000),  // owner_read
-        paint(&STYLE_WRITE, "w", 0b010000000), // owner_write
-        paint(&STYLE_EXEC, "x", 0b001000000),  // owner_exec
-        paint(&STYLE_READ, "r", 0b000100000),  // group_read
-        paint(&STYLE_WRITE, "w", 0b000010000), // group_write
-        paint(&STYLE_EXEC, "x", 0b000001000),  // group_exec
-        paint(&STYLE_READ, "r", 0b000000100),  // other_read
-        paint(&STYLE_WRITE, "w", 0b000000010), // other_write
-        paint(&STYLE_EXEC, "x", 0b000000001),  // other_exec
+        paint(&STYLE_READ, 'r', 0b100000000),  // owner_read
+        paint(&STYLE_WRITE, 'w', 0b010000000), // owner_write
+        paint(&STYLE_EXEC, 'x', 0b001000000),  // owner_exec
+        paint(&STYLE_READ, 'r', 0b000100000),  // group_read
+        paint(&STYLE_WRITE, 'w', 0b000010000), // group_write
+        paint(&STYLE_EXEC, 'x', 0b000001000),  // group_exec
+        paint(&STYLE_READ, 'r', 0b000000100),  // other_read
+        paint(&STYLE_WRITE, 'w', 0b000000010), // other_write
+        paint(&STYLE_EXEC, 'x', 0b000000001),  // other_exec
         STYLE_HYPHEN.paint(if has_xattr {
             '@'
         } else if has_acl {
