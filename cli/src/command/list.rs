@@ -19,8 +19,8 @@ use clap::{
     ArgGroup, Parser,
 };
 use pna::{
-    prelude::*, Compression, DataKind, Encryption, ExtendedAttribute, NormalEntry, RawChunk,
-    ReadEntry, ReadOptions, SolidHeader,
+    prelude::*, Compression, DataKind, Encryption, ExtendedAttribute, NormalEntry, Permission,
+    RawChunk, ReadEntry, ReadOptions, SolidHeader,
 };
 use rayon::prelude::*;
 #[cfg(feature = "memmap")]
@@ -123,6 +123,9 @@ where
     ) -> Result<Self, Self::Error> {
         let header = entry.header();
         let metadata = entry.metadata();
+        let acl = entry.acl()?;
+        let has_acl = !acl.is_empty();
+        let has_xattr = !entry.xattrs().is_empty();
         Ok(Self {
             encryption: match solid.map(|s| s.encryption()).unwrap_or(header.encryption()) {
                 Encryption::No => "-".into(),
@@ -140,10 +143,12 @@ where
                 (method, None) => format!("{:?}", method).to_ascii_lowercase(),
                 (method, Some(_)) => format!("{:?}(solid)", method).to_ascii_lowercase(),
             },
-            permissions: metadata
-                .permission()
-                .map(|p| paint_permission(header.data_kind(), p.permissions(), entry.xattrs()))
-                .unwrap_or_else(|| paint_data_kind(header.data_kind(), entry.xattrs())),
+            permissions: paint_permission(
+                header.data_kind(),
+                metadata.permission(),
+                has_xattr,
+                has_acl,
+            ),
             raw_size: metadata
                 .raw_file_size()
                 .map_or("-".into(), |size| size.to_string()),
@@ -184,7 +189,7 @@ where
                 header.path().to_string()
             },
             xattrs: entry.xattrs().to_vec(),
-            acl: entry.acl()?,
+            acl,
             privates: entry
                 .extra_chunks()
                 .iter()
@@ -489,14 +494,6 @@ const STYLE_DIR: Style = Style::new().fg_color(Some(Colour::Ansi(AnsiColor::Mage
 const STYLE_LINK: Style = Style::new().fg_color(Some(Colour::Ansi(AnsiColor::Cyan)));
 const STYLE_HYPHEN: Style = Style::new();
 
-fn paint_data_kind(kind: DataKind, xattrs: &[ExtendedAttribute]) -> String {
-    format!(
-        "{}_________{}",
-        kind_paint(kind),
-        if xattrs.is_empty() { " " } else { "@" }
-    )
-}
-
 fn kind_paint(kind: DataKind) -> impl Display + 'static {
     match kind {
         DataKind::File | DataKind::HardLink => STYLE_HYPHEN.paint("."),
@@ -505,7 +502,13 @@ fn kind_paint(kind: DataKind) -> impl Display + 'static {
     }
 }
 
-fn paint_permission(kind: DataKind, permission: u16, xattrs: &[ExtendedAttribute]) -> String {
+fn paint_permission(
+    kind: DataKind,
+    permission: Option<&Permission>,
+    has_xattr: bool,
+    has_acl: bool,
+) -> String {
+    let permission = permission.map(|p| p.permissions()).unwrap_or_default();
     fn style_paint<'s>(
         style: &'s Style,
         c: &'s str,
@@ -534,6 +537,12 @@ fn paint_permission(kind: DataKind, permission: u16, xattrs: &[ExtendedAttribute
         paint(&STYLE_READ, "r", 0b000000100),  // other_read
         paint(&STYLE_WRITE, "w", 0b000000010), // other_write
         paint(&STYLE_EXEC, "x", 0b000000001),  // other_exec
-        STYLE_HYPHEN.paint(if xattrs.is_empty() { " " } else { "@" }),
+        STYLE_HYPHEN.paint(if has_xattr {
+            '@'
+        } else if has_acl {
+            '+'
+        } else {
+            ' '
+        }),
     )
 }
