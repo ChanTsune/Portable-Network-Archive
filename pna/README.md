@@ -10,7 +10,7 @@ A pna archive reading/writing library for Rust.
 ```toml
 # Cargo.toml
 [dependencies]
-pna = "0.19"
+pna = "0.20"
 ```
 
 ## Reading an archive
