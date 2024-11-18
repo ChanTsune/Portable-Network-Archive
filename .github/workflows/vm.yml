@@ -117,7 +117,7 @@ jobs:
           envs: "RUST_BACKTRACE"
           usesh: true
           prepare: |
-            pkg install -y curl cmake 
+            pkg install -y curl cmake libnghttp2
             pkg install -y rust
           run: |
             set -e
