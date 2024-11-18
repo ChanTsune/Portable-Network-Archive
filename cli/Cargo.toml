@@ -11,6 +11,7 @@ rust-version = "1.82"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = "1.0.89"
 base64 = "0.22.1"
 bitflags = "2.9.1"
 bstr = "1.12.0"
