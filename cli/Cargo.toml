@@ -49,8 +49,9 @@ field-offset = { version = "0.3.6", optional = true }
 libc = "0.2.162"
 
 [dev-dependencies]
-walkdir = "2.5.0"
+anyhow = "1.0.89"
 assert_cmd = "2.0.16"
+walkdir = "2.5.0"
 
 [features]
 acl = [
