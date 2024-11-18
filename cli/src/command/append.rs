@@ -11,6 +11,7 @@ use crate::{
     },
     utils::{self, PathPartExt},
 };
+use anyhow::Context;
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
 use rayon::ThreadPoolBuilder;
@@ -92,12 +93,12 @@ pub(crate) struct AppendCommand {
 
 impl Command for AppendCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         append_to_archive(self)
     }
 }
 
-fn append_to_archive(args: AppendCommand) -> io::Result<()> {
+fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let archive_path = args.file.archive;
@@ -105,7 +106,8 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
             format!("{} is not exists", archive_path.display()),
-        ));
+        ))
+        .with_context(|| format!("{} does not exists", archive_path.display()));
     }
     let mut num = 1;
     let file = File::options().write(true).read(true).open(&archive_path)?;
