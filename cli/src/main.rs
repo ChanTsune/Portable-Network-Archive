@@ -5,13 +5,14 @@ mod ext;
 mod utils;
 
 use clap::Parser;
+use command::Command;
 use log::Level;
 use std::io;
 
 fn main() -> io::Result<()> {
-    let args = cli::Cli::parse();
-    init_logger(args.verbosity.log_level_filter())?;
-    command::entry(args)
+    let cli = cli::Cli::parse();
+    init_logger(cli.verbosity.log_level_filter())?;
+    cli.execute()
 }
 
 fn init_logger(level: log::LevelFilter) -> io::Result<()> {
