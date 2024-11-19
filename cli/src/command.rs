@@ -61,6 +61,13 @@ fn check_password(password: &Option<String>, cipher_args: &CipherAlgorithmArgs) 
     }
 }
 
-trait Command {
+pub trait Command {
     fn execute(self) -> io::Result<()>;
+}
+
+impl Command for Cli {
+    #[inline]
+    fn execute(self) -> io::Result<()> {
+        entry(self)
+    }
 }
