@@ -1,0 +1,63 @@
+use crate::command::Command;
+use clap::Parser;
+use pna::prelude::*;
+use std::{fs, io, path::PathBuf};
+use tabled::{builder::Builder as TableBuilder, settings::Style as TableStyle};
+
+#[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
+#[command(args_conflicts_with_subcommands = true, arg_required_else_help = true)]
+pub(crate) struct ChunkCommand {
+    #[command(subcommand)]
+    command: ChunkCommands,
+}
+
+impl Command for ChunkCommand {
+    #[inline]
+    fn execute(self) -> io::Result<()> {
+        match self.command {
+            ChunkCommands::List(cmd) => cmd.execute(),
+        }
+    }
+}
+
+#[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
+pub(crate) enum ChunkCommands {
+    #[command(about = "List chunks")]
+    List(ListCommand),
+}
+
+#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[clap(disable_help_flag = true)]
+pub(crate) struct ListCommand {
+    #[arg(short, long, help = "Display chunk body")]
+    pub(crate) long: bool,
+    #[arg(short, long, help = "Add a header row to each column")]
+    pub(crate) header: bool,
+    #[arg()]
+    pub(crate) archive: PathBuf,
+    #[arg(long, action = clap::ArgAction::Help)]
+    help: Option<bool>,
+}
+
+impl Command for ListCommand {
+    #[inline]
+    fn execute(self) -> io::Result<()> {
+        list_archive_chunks(self)
+    }
+}
+
+fn list_archive_chunks(args: ListCommand) -> io::Result<()> {
+    let archive = fs::File::open(args.archive)?;
+    let mut builder = TableBuilder::new();
+    if args.header {
+        builder.push_record(["type", "size"])
+    }
+    for chunk in pna::read_as_chunks(archive)? {
+        let chunk = chunk?;
+        builder.push_record([chunk.ty().to_string(), chunk.length().to_string()]);
+    }
+    let mut table = builder.build();
+    table.with(TableStyle::empty());
+    println!("{}", table);
+    Ok(())
+}

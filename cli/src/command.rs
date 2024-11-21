@@ -2,6 +2,7 @@ mod acl;
 pub mod append;
 mod chmod;
 mod chown;
+mod chunk;
 mod commons;
 pub mod complete;
 pub(crate) mod concat;
