@@ -5,7 +5,7 @@ use crate::{
 use std::borrow::Cow;
 use std::io;
 
-fn read_header_from_slice(bytes: &[u8]) -> io::Result<&[u8]> {
+pub(crate) fn read_header_from_slice(bytes: &[u8]) -> io::Result<&[u8]> {
     // TODO: use split_at_checked instead
     let (header, body) = bytes.split_at(PNA_HEADER.len());
     if header != PNA_HEADER {

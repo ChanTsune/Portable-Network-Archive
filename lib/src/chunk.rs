@@ -341,6 +341,52 @@ pub fn read_as_chunks<R: Read>(
     })
 }
 
+/// Read chunks from archive slice
+///
+/// # Example
+///
+/// ```
+/// # use std::{io, fs};
+/// use libpna::{prelude::*, read_chunks_from_slice};
+/// # fn main() -> io::Result<()> {
+/// let bytes = include_bytes!("../../resources/test/zstd.pna");
+/// for chunk in read_chunks_from_slice(bytes)? {
+///     let chunk = chunk?;
+///     println!("chunk type: {}, chunk data size: {}", chunk.ty(), chunk.length());
+/// }
+/// # Ok(())
+/// # }
+/// ```
+#[inline]
+pub fn read_chunks_from_slice(
+    archive: &[u8],
+) -> io::Result<impl Iterator<Item = io::Result<impl Chunk + '_>>> {
+    struct Chunks<'a> {
+        reader: &'a [u8],
+        eoa: bool,
+    }
+    impl<'a> Iterator for Chunks<'a> {
+        type Item = io::Result<RawChunk<&'a [u8]>>;
+        #[inline]
+        fn next(&mut self) -> Option<Self::Item> {
+            if self.eoa {
+                return None;
+            }
+            Some(read_chunk_from_slice(self.reader).map(|(chunk, bytes)| {
+                self.eoa = chunk.ty() == ChunkType::AEND;
+                self.reader = bytes;
+                chunk
+            }))
+        }
+    }
+    let archive = crate::archive::read_header_from_slice(archive)?;
+
+    Ok(Chunks {
+        reader: archive,
+        eoa: false,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

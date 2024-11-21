@@ -9,6 +9,7 @@ use crate::{
 use futures_io::AsyncRead;
 #[cfg(feature = "unstable-async")]
 use futures_util::AsyncReadExt;
+pub(crate) use slice::read_header_from_slice;
 use std::{
     collections::VecDeque,
     io::{self, Read, Seek, SeekFrom},
