@@ -221,7 +221,10 @@ impl<'a, 'r> Entries<'a, 'r> {
     /// # fn main() -> io::Result<()> {
     /// let file = include_bytes!("../../../../resources/test/zstd.pna");
     /// let mut archive = Archive::read_header_from_slice(&file[..])?;
-    /// for entry in archive.entries_slice().extract_solid_entries(Some("password")) {
+    /// for entry in archive
+    ///     .entries_slice()
+    ///     .extract_solid_entries(Some("password"))
+    /// {
     ///     let mut reader = entry?.reader(ReadOptions::builder().build());
     ///     // fill your code
     /// }

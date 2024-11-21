@@ -304,7 +304,11 @@ pub(crate) fn chunk_data_split(
 /// let archive = fs::File::open("foo.pna")?;
 /// for chunk in read_as_chunks(archive)? {
 ///     let chunk = chunk?;
-///     println!("chunk type: {}, chunk data size: {}", chunk.ty(), chunk.length());
+///     println!(
+///         "chunk type: {}, chunk data size: {}",
+///         chunk.ty(),
+///         chunk.length()
+///     );
 /// }
 /// # Ok(())
 /// # }
