@@ -21,6 +21,7 @@ impl Command for ExperimentalCommand {
             ExperimentalCommands::Xattr(cmd) => cmd.execute(),
             ExperimentalCommands::Acl(cmd) => cmd.execute(),
             ExperimentalCommands::Migrate(cmd) => cmd.execute(),
+            ExperimentalCommands::Chunk(cmd) => cmd.execute(),
         }
     }
 }
@@ -43,4 +44,6 @@ pub(crate) enum ExperimentalCommands {
     Acl(command::acl::AclCommand),
     #[command(about = "Migrate old format to latest format")]
     Migrate(command::migrate::MigrateCommand),
+    #[command(about = "Chunk level operation")]
+    Chunk(command::chunk::ChunkCommand),
 }
