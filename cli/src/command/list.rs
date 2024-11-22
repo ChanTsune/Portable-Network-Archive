@@ -127,10 +127,14 @@ where
         let has_acl = !acl.is_empty();
         let has_xattr = !entry.xattrs().is_empty();
         Ok(Self {
-            encryption: match solid.map(|s| s.encryption()).unwrap_or(header.encryption()) {
-                Encryption::No => "-".into(),
-                _ => format!("{:?}({:?})", header.encryption(), header.cipher_mode())
-                    .to_ascii_lowercase(),
+            encryption: match solid
+                .map(|s| (s.encryption(), s.cipher_mode()))
+                .unwrap_or_else(|| (header.encryption(), header.cipher_mode()))
+            {
+                (Encryption::No, _) => "-".into(),
+                (encryption, cipher_mode) => {
+                    format!("{:?}({:?})", encryption, cipher_mode).to_ascii_lowercase()
+                }
             },
             compression: match (
                 solid
