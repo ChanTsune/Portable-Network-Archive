@@ -92,8 +92,8 @@ struct TableRow {
     permissions: String,
     raw_size: Option<u128>,
     compressed_size: usize,
-    user: String,
-    group: String,
+    user: Option<Subject>,
+    group: Option<Subject>,
     created: Option<Duration>,
     modified: Option<Duration>,
     name: String,
@@ -102,7 +102,23 @@ struct TableRow {
     privates: Vec<RawChunk>,
 }
 
-impl<T> TryFrom<(&NormalEntry<T>, Option<&str>, Option<&SolidHeader>, bool)> for TableRow
+struct Subject {
+    id: u64,
+    name: String,
+}
+
+impl Subject {
+    #[inline]
+    fn value(self, numeric: bool) -> String {
+        if numeric {
+            self.id.to_string()
+        } else {
+            self.name
+        }
+    }
+}
+
+impl<T> TryFrom<(&NormalEntry<T>, Option<&str>, Option<&SolidHeader>)> for TableRow
 where
     T: AsRef<[u8]> + Clone,
     RawChunk<T>: Chunk,
@@ -111,12 +127,7 @@ where
     type Error = io::Error;
     #[inline]
     fn try_from(
-        (entry, password, solid, numeric_owner): (
-            &NormalEntry<T>,
-            Option<&str>,
-            Option<&SolidHeader>,
-            bool,
-        ),
+        (entry, password, solid): (&NormalEntry<T>, Option<&str>, Option<&SolidHeader>),
     ) -> Result<Self, Self::Error> {
         let header = entry.header();
         let metadata = entry.metadata();
@@ -152,26 +163,14 @@ where
             ),
             raw_size: metadata.raw_file_size(),
             compressed_size: metadata.compressed_size(),
-            user: metadata
-                .permission()
-                .map(|p| {
-                    if numeric_owner {
-                        p.uid().to_string()
-                    } else {
-                        p.uname().into()
-                    }
-                })
-                .unwrap_or_else(|| "-".into()),
-            group: metadata
-                .permission()
-                .map(|p| {
-                    if numeric_owner {
-                        p.gid().to_string()
-                    } else {
-                        p.gname().into()
-                    }
-                })
-                .unwrap_or_else(|| "-".into()),
+            user: metadata.permission().map(|p| Subject {
+                id: p.uid(),
+                name: p.uname().into(),
+            }),
+            group: metadata.permission().map(|p| Subject {
+                id: p.gid(),
+                name: p.gname().into(),
+            }),
             created: metadata.created(),
             modified: metadata.modified(),
             name: if matches!(
@@ -267,17 +266,13 @@ pub(crate) fn run_list_archive(
         match entry? {
             ReadEntry::Solid(solid) if args.solid => {
                 for entry in solid.entries(password)? {
-                    entries.push(
-                        (&entry?, password, Some(solid.header()), args.numeric_owner).try_into()?,
-                    )
+                    entries.push((&entry?, password, Some(solid.header())).try_into()?)
                 }
             }
             ReadEntry::Solid(_) => {
                 log::warn!("This archive contain solid mode entry. if you need to show it use --solid option.");
             }
-            ReadEntry::Normal(item) => {
-                entries.push((&item, password, None, args.numeric_owner).try_into()?)
-            }
+            ReadEntry::Normal(item) => entries.push((&item, password, None).try_into()?),
         }
         Ok(())
     })?;
@@ -301,17 +296,13 @@ pub(crate) fn run_list_archive_mem(
         match entry? {
             ReadEntry::Solid(solid) if args.solid => {
                 for entry in solid.entries(password)? {
-                    entries.push(
-                        (&entry?, password, Some(solid.header()), args.numeric_owner).try_into()?,
-                    );
+                    entries.push((&entry?, password, Some(solid.header())).try_into()?);
                 }
             }
             ReadEntry::Solid(_) => {
                 log::warn!("This archive contain solid mode entry. if you need to show it use --solid option.");
             }
-            ReadEntry::Normal(item) => {
-                entries.push((&item, password, None, args.numeric_owner).try_into()?)
-            }
+            ReadEntry::Normal(item) => entries.push((&item, password, None).try_into()?),
         }
         Ok(())
     })?;
@@ -376,8 +367,12 @@ fn detail_list_entries(entries: impl Iterator<Item = TableRow>, options: ListOpt
                 .raw_size
                 .map_or_else(|| "-".into(), |size| size.to_string()),
             content.compressed_size.to_string(),
-            content.user,
-            content.group,
+            content
+                .user
+                .map_or_else(|| "-".into(), |it| it.value(options.numeric_owner)),
+            content
+                .group
+                .map_or_else(|| "-".into(), |it| it.value(options.numeric_owner)),
             datetime(options.time_format, content.created),
             datetime(options.time_format, content.modified),
             content.name,
