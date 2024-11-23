@@ -90,8 +90,8 @@ struct TableRow {
     encryption: String,
     compression: String,
     permissions: String,
-    raw_size: String,
-    compressed_size: String,
+    raw_size: Option<u128>,
+    compressed_size: usize,
     user: String,
     group: String,
     created: Option<Duration>,
@@ -150,10 +150,8 @@ where
                 has_xattr,
                 has_acl,
             ),
-            raw_size: metadata
-                .raw_file_size()
-                .map_or("-".into(), |size| size.to_string()),
-            compressed_size: metadata.compressed_size().to_string(),
+            raw_size: metadata.raw_file_size(),
+            compressed_size: metadata.compressed_size(),
             user: metadata
                 .permission()
                 .map(|p| {
@@ -374,8 +372,10 @@ fn detail_list_entries(entries: impl Iterator<Item = TableRow>, options: ListOpt
             content.encryption,
             content.compression,
             content.permissions,
-            content.raw_size,
-            content.compressed_size,
+            content
+                .raw_size
+                .map_or_else(|| "-".into(), |size| size.to_string()),
+            content.compressed_size.to_string(),
             content.user,
             content.group,
             datetime(options.time_format, content.created),
