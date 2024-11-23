@@ -66,6 +66,11 @@ pub(crate) struct ListCommand {
         help = "Display user id and group id instead of user name and group name"
     )]
     pub(crate) numeric_owner: bool,
+    #[arg(
+        short = 'T',
+        help = "When used with the -l option, display complete time information for the entry, including month, day, hour, minute, second, and year"
+    )]
+    pub(crate) long_time: bool,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
@@ -89,22 +94,15 @@ struct TableRow {
     compressed_size: String,
     user: String,
     group: String,
-    created: String,
-    modified: String,
+    created: Option<Duration>,
+    modified: Option<Duration>,
     name: String,
     xattrs: Vec<ExtendedAttribute>,
     acl: Vec<chunk::AceWithPlatform>,
     privates: Vec<RawChunk>,
 }
 
-impl<T>
-    TryFrom<(
-        &NormalEntry<T>,
-        Option<&str>,
-        SystemTime,
-        Option<&SolidHeader>,
-        bool,
-    )> for TableRow
+impl<T> TryFrom<(&NormalEntry<T>, Option<&str>, Option<&SolidHeader>, bool)> for TableRow
 where
     T: AsRef<[u8]> + Clone,
     RawChunk<T>: Chunk,
@@ -113,10 +111,9 @@ where
     type Error = io::Error;
     #[inline]
     fn try_from(
-        (entry, password, now, solid, numeric_owner): (
+        (entry, password, solid, numeric_owner): (
             &NormalEntry<T>,
             Option<&str>,
-            SystemTime,
             Option<&SolidHeader>,
             bool,
         ),
@@ -177,8 +174,8 @@ where
                     }
                 })
                 .unwrap_or_else(|| "-".into()),
-            created: datetime(now, metadata.created()),
-            modified: datetime(now, metadata.modified()),
+            created: metadata.created(),
+            modified: metadata.modified(),
             name: if matches!(
                 header.data_kind(),
                 DataKind::SymbolicLink | DataKind::HardLink
@@ -213,6 +210,11 @@ fn list_archive(args: ListCommand) -> io::Result<()> {
         show_xattr: args.show_xattr,
         show_acl: args.show_acl,
         show_private: args.show_private,
+        time_format: if args.long_time {
+            TimeFormat::Long
+        } else {
+            TimeFormat::Auto(SystemTime::now())
+        },
         numeric_owner: args.numeric_owner,
     };
     #[cfg(not(feature = "memmap"))]
@@ -235,6 +237,12 @@ fn list_archive(args: ListCommand) -> io::Result<()> {
     }
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) enum TimeFormat {
+    Auto(SystemTime),
+    Long,
+}
+
 pub(crate) struct ListOptions {
     pub(crate) long: bool,
     pub(crate) header: bool,
@@ -242,6 +250,7 @@ pub(crate) struct ListOptions {
     pub(crate) show_xattr: bool,
     pub(crate) show_acl: bool,
     pub(crate) show_private: bool,
+    pub(crate) time_format: TimeFormat,
     pub(crate) numeric_owner: bool,
 }
 
@@ -254,7 +263,6 @@ pub(crate) fn run_list_archive(
     let globs =
         GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-    let now = SystemTime::now();
     let mut entries = Vec::new();
 
     run_read_entries(archive_provider, |entry| {
@@ -262,14 +270,7 @@ pub(crate) fn run_list_archive(
             ReadEntry::Solid(solid) if args.solid => {
                 for entry in solid.entries(password)? {
                     entries.push(
-                        (
-                            &entry?,
-                            password,
-                            now,
-                            Some(solid.header()),
-                            args.numeric_owner,
-                        )
-                            .try_into()?,
+                        (&entry?, password, Some(solid.header()), args.numeric_owner).try_into()?,
                     )
                 }
             }
@@ -277,7 +278,7 @@ pub(crate) fn run_list_archive(
                 log::warn!("This archive contain solid mode entry. if you need to show it use --solid option.");
             }
             ReadEntry::Normal(item) => {
-                entries.push((&item, password, now, None, args.numeric_owner).try_into()?)
+                entries.push((&item, password, None, args.numeric_owner).try_into()?)
             }
         }
         Ok(())
@@ -296,7 +297,6 @@ pub(crate) fn run_list_archive_mem(
     let globs =
         GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-    let now = SystemTime::now();
     let mut entries = Vec::new();
 
     run_read_entries_mem(archive_provider, |entry| {
@@ -304,14 +304,7 @@ pub(crate) fn run_list_archive_mem(
             ReadEntry::Solid(solid) if args.solid => {
                 for entry in solid.entries(password)? {
                     entries.push(
-                        (
-                            &entry?,
-                            password,
-                            now,
-                            Some(solid.header()),
-                            args.numeric_owner,
-                        )
-                            .try_into()?,
+                        (&entry?, password, Some(solid.header()), args.numeric_owner).try_into()?,
                     );
                 }
             }
@@ -319,7 +312,7 @@ pub(crate) fn run_list_archive_mem(
                 log::warn!("This archive contain solid mode entry. if you need to show it use --solid option.");
             }
             ReadEntry::Normal(item) => {
-                entries.push((&item, password, now, None, args.numeric_owner).try_into()?)
+                entries.push((&item, password, None, args.numeric_owner).try_into()?)
             }
         }
         Ok(())
@@ -385,8 +378,8 @@ fn detail_list_entries(entries: impl Iterator<Item = TableRow>, options: ListOpt
             content.compressed_size,
             content.user,
             content.group,
-            content.created,
-            content.modified,
+            datetime(options.time_format, content.created),
+            datetime(options.time_format, content.modified),
             content.name,
         ]);
         if options.show_acl {
@@ -452,17 +445,23 @@ fn within_six_months(now: SystemTime, x: SystemTime) -> bool {
     six_months_ago <= x
 }
 
-fn datetime(now: SystemTime, d: Option<Duration>) -> String {
+fn datetime(format: TimeFormat, d: Option<Duration>) -> String {
     match d {
         None => "-".into(),
         Some(d) => {
             let time = UNIX_EPOCH + d;
             let datetime = DateTime::<Local>::from(time);
-            if within_six_months(now, time) {
-                datetime.format("%b %e %H:%M").to_string()
-            } else {
-                datetime.format("%b %e  %Y").to_string()
+            match format {
+                TimeFormat::Auto(now) => {
+                    if within_six_months(now, time) {
+                        datetime.format("%b %e %H:%M")
+                    } else {
+                        datetime.format("%b %e  %Y")
+                    }
+                }
+                TimeFormat::Long => datetime.format("%b %e %H:%M:%S %Y"),
             }
+            .to_string()
         }
     }
 }
