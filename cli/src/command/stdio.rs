@@ -8,7 +8,7 @@ use crate::{
         },
         create::create_archive_file,
         extract::{run_extract_archive_reader, OutputOption},
-        list::ListOptions,
+        list::{ListOptions, TimeFormat},
         Command,
     },
     utils,
@@ -18,6 +18,7 @@ use std::{
     fs,
     io::{self, stdout},
     path::PathBuf,
+    time::SystemTime,
 };
 
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
@@ -248,6 +249,7 @@ fn run_list_archive(args: StdioCommand) -> io::Result<()> {
         show_xattr: false,
         show_acl: false,
         show_private: false,
+        time_format: TimeFormat::Auto(SystemTime::now()),
         numeric_owner: args.numeric_owner,
     };
     if let Some(path) = args.file {
