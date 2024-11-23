@@ -26,6 +26,7 @@ use rayon::prelude::*;
 #[cfg(feature = "memmap")]
 use std::path::Path;
 use std::{
+    collections::HashMap,
     fmt::{Display, Formatter},
     io,
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -93,7 +94,7 @@ struct TableRow {
     modified: String,
     name: String,
     xattrs: Vec<ExtendedAttribute>,
-    acl: Vec<chunk::AceWithPlatform>,
+    acl: HashMap<chunk::AcePlatform, Vec<chunk::Ace>>,
     privates: Vec<RawChunk>,
 }
 
@@ -123,7 +124,7 @@ where
     ) -> Result<Self, Self::Error> {
         let header = entry.header();
         let metadata = entry.metadata();
-        let acl = entry.acl_with_platform()?;
+        let acl = entry.acl()?;
         let has_acl = !acl.is_empty();
         let has_xattr = !entry.xattrs().is_empty();
         Ok(Self {
@@ -390,7 +391,13 @@ fn detail_list_entries(entries: impl Iterator<Item = TableRow>, options: ListOpt
             content.name,
         ]);
         if options.show_acl {
-            for a in &content.acl {
+            let acl = content.acl.into_iter().flat_map(|(platform, ace)| {
+                ace.into_iter().map(move |it| chunk::AceWithPlatform {
+                    platform: Some(platform.clone()),
+                    ace: it,
+                })
+            });
+            for a in acl {
                 builder.push_record([String::new(), String::new(), a.to_string()]);
                 acl_rows.push(builder.count_records());
             }

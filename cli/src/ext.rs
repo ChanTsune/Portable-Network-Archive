@@ -5,18 +5,6 @@ use std::io;
 
 pub(crate) trait NormalEntryExt {
     fn acl(&self) -> io::Result<HashMap<AcePlatform, Vec<Ace>>>;
-    fn acl_with_platform(&self) -> io::Result<Vec<AceWithPlatform>> {
-        let acl = self.acl()?;
-        Ok(acl
-            .into_iter()
-            .flat_map(|(platform, ace)| {
-                ace.into_iter().map(move |it| AceWithPlatform {
-                    platform: Some(platform.clone()),
-                    ace: it,
-                })
-            })
-            .collect())
-    }
 }
 
 impl<T> NormalEntryExt for NormalEntry<T>
