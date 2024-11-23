@@ -178,12 +178,11 @@ where
                 header.data_kind(),
                 DataKind::SymbolicLink | DataKind::HardLink
             ) {
-                let path = header.path().to_string();
                 let original = entry
                     .reader(ReadOptions::with_password(password))
                     .map(|r| io::read_to_string(r).unwrap_or_else(|_| "-".into()))
                     .unwrap_or_default();
-                format!("{} -> {}", path, original)
+                format!("{} -> {}", header.path(), original)
             } else {
                 header.path().to_string()
             },
