@@ -62,9 +62,7 @@ fn archive_list_detail() {
         "--aes",
         "ctr",
         #[cfg(windows)]
-        {
-            "--unstable"
-        },
+        "--unstable",
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -97,10 +95,7 @@ fn archive_list_solid_detail() {
         "password",
         "--aes",
         "ctr",
-        #[cfg(windows)]
-        {
-            "--unstable"
-        },
+        "--unstable",
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -111,6 +106,82 @@ fn archive_list_solid_detail() {
         "--solid",
         "--password",
         "password",
+    ]))
+    .unwrap();
+}
+
+#[test]
+fn archive_list_jsonl() {
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        &format!("{}/list_jsonl.pna", env!("CARGO_TARGET_TMPDIR")),
+        "--overwrite",
+        "-r",
+        "../resources/test/raw",
+        #[cfg(not(target_os = "netbsd"))]
+        "--keep-xattr",
+        "--keep-timestamp",
+        "--keep-permission",
+        #[cfg(feature = "acl")]
+        "--keep-acl",
+        "--password",
+        "password",
+        "--aes",
+        "ctr",
+        "--unstable",
+    ]))
+    .unwrap();
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "list",
+        "-l",
+        "--format",
+        "jsonl",
+        &format!("{}/list_jsonl.pna", env!("CARGO_TARGET_TMPDIR")),
+        "--password",
+        "password",
+        "--unstable",
+    ]))
+    .unwrap();
+}
+
+#[test]
+fn archive_list_solid_jsonl() {
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        &format!("{}/list_solid_jsonl.pna", env!("CARGO_TARGET_TMPDIR")),
+        "--overwrite",
+        "-r",
+        "../resources/test/raw",
+        "--solid",
+        #[cfg(not(target_os = "netbsd"))]
+        "--keep-xattr",
+        "--keep-timestamp",
+        "--keep-permission",
+        #[cfg(feature = "acl")]
+        "--keep-acl",
+        "--password",
+        "password",
+        "--aes",
+        "ctr",
+        "--unstable",
+    ]))
+    .unwrap();
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "list",
+        "-l",
+        "--format",
+        "jsonl",
+        &format!("{}/list_solid_jsonl.pna", env!("CARGO_TARGET_TMPDIR")),
+        "--solid",
+        "--password",
+        "password",
+        "--unstable",
     ]))
     .unwrap();
 }
