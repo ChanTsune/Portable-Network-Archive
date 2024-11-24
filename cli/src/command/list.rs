@@ -13,6 +13,7 @@ use crate::{
     ext::*,
     utils::GlobPatterns,
 };
+use base64::Engine;
 use chrono::{DateTime, Local};
 use clap::{
     builder::styling::{AnsiColor, Color as Colour, Style},
@@ -23,12 +24,14 @@ use pna::{
     RawChunk, ReadEntry, ReadOptions, SolidHeader,
 };
 use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 #[cfg(feature = "memmap")]
 use std::path::Path;
 use std::{
     collections::HashMap,
     fmt::{Display, Formatter},
-    io,
+    io::{self, prelude::*},
+    str::FromStr,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tabled::{
@@ -45,6 +48,7 @@ use tabled::{
 #[command(
     group(ArgGroup::new("unstable-acl").args(["show_acl"]).requires("unstable")),
     group(ArgGroup::new("unstable-private-chunk").args(["show_private"]).requires("unstable")),
+    group(ArgGroup::new("unstable-format").args(["format"]).requires("unstable")),
 )]
 pub(crate) struct ListCommand {
     #[arg(short, long, help = "Display extended file metadata as a table")]
@@ -72,6 +76,8 @@ pub(crate) struct ListCommand {
         help = "When used with the -l option, display complete time information for the entry, including month, day, hour, minute, second, and year"
     )]
     pub(crate) long_time: bool,
+    #[arg(long, help = "Display format")]
+    format: Option<Format>,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
@@ -84,6 +90,25 @@ impl Command for ListCommand {
     #[inline]
     fn execute(self) -> io::Result<()> {
         list_archive(self)
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) enum Format {
+    Table,
+    JsonL,
+}
+
+impl FromStr for Format {
+    type Err = String;
+
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "table" => Ok(Self::Table),
+            "jsonl" => Ok(Self::JsonL),
+            unknown => Err(format!("unknown value: {}", unknown)),
+        }
     }
 }
 
@@ -214,6 +239,7 @@ fn list_archive(args: ListCommand) -> io::Result<()> {
             TimeFormat::Auto(SystemTime::now())
         },
         numeric_owner: args.numeric_owner,
+        format: args.format,
     };
     #[cfg(not(feature = "memmap"))]
     {
@@ -250,6 +276,7 @@ pub(crate) struct ListOptions {
     pub(crate) show_private: bool,
     pub(crate) time_format: TimeFormat,
     pub(crate) numeric_owner: bool,
+    pub(crate) format: Option<Format>,
 }
 
 pub(crate) fn run_list_archive(
@@ -324,10 +351,16 @@ fn print_entries(entries: Vec<TableRow>, globs: GlobPatterns, options: ListOptio
             .filter(|r| globs.matches_any(&r.name))
             .collect()
     };
-    if options.long {
-        detail_list_entries(entries.into_iter(), options);
-    } else {
-        simple_list_entries(entries.into_iter());
+    match options.format {
+        Some(Format::JsonL) => json_line_entries(entries.into_iter()),
+        Some(Format::Table) => detail_list_entries(entries.into_iter(), options),
+        None => {
+            if options.long {
+                detail_list_entries(entries.into_iter(), options)
+            } else {
+                simple_list_entries(entries.into_iter())
+            }
+        }
     }
 }
 
@@ -542,4 +575,71 @@ fn paint_permission(
             ' '
         }),
     )
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct FileInfo {
+    filename: String,
+    permissions: String,
+    owner: String,
+    group: String,
+    raw_size: u128,
+    size: usize,
+    encryption: String,
+    compression: String,
+    created: String,
+    modified: String,
+    accessed: String,
+    acl: Vec<AclEntry>,
+    xattr: Vec<XAttr>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct AclEntry {
+    platform: String,
+    entries: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct XAttr {
+    key: String,
+    value: String,
+}
+
+fn json_line_entries(entries: impl Iterator<Item = TableRow>) {
+    let mut stdout = io::stdout().lock();
+    for line in entries.map(|it| FileInfo {
+        filename: it.name,
+        permissions: it.permissions,
+        owner: it.user.map_or_else(|| "".into(), |it| it.name),
+        group: it.group.map_or_else(|| "".into(), |it| it.name),
+        raw_size: it.raw_size.unwrap_or_default(),
+        size: it.compressed_size,
+        encryption: it.encryption,
+        compression: it.compression,
+        created: datetime(TimeFormat::Long, it.created),
+        modified: datetime(TimeFormat::Long, it.modified),
+        accessed: datetime(TimeFormat::Long, None),
+        acl: it
+            .acl
+            .into_iter()
+            .map(|(platform, ace)| AclEntry {
+                platform: platform.to_string(),
+                entries: ace.into_iter().map(|it| it.to_string()).collect(),
+            })
+            .collect(),
+        xattr: it
+            .xattrs
+            .into_iter()
+            .map(|x| XAttr {
+                key: x.name().into(),
+                value: base64::engine::general_purpose::STANDARD.encode(x.value()),
+            })
+            .collect(),
+    }) {
+        match serde_json::to_writer(&mut stdout, &line) {
+            Ok(_) => stdout.write_all(b"\n").expect(""),
+            Err(e) => log::info!("{}", e),
+        }
+    }
 }

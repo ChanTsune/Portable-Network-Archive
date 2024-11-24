@@ -251,6 +251,7 @@ fn run_list_archive(args: StdioCommand) -> io::Result<()> {
         show_private: false,
         time_format: TimeFormat::Auto(SystemTime::now()),
         numeric_owner: args.numeric_owner,
+        format: None,
     };
     if let Some(path) = args.file {
         crate::command::list::run_list_archive(
