@@ -251,6 +251,7 @@ fn run_list_archive(args: StdioCommand) -> io::Result<()> {
         show_private: false,
         time_format: TimeFormat::Auto(SystemTime::now()),
         numeric_owner: args.numeric_owner,
+        hide_control_chars: false,
         format: None,
     };
     if let Some(path) = args.file {
