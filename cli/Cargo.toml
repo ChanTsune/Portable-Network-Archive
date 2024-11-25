@@ -17,7 +17,7 @@ chrono = "0.4.38"
 clap = { version = "4.5.21", features = ["derive"] }
 clap_complete = "4.5.38"
 fern = "0.7.0"
-gix-prompt = "0.8.8"
+gix-prompt = "0.8.9"
 globset = "0.4.15"
 ignore = "0.4.23"
 itertools = "0.13.0"
