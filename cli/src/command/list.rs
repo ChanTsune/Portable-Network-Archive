@@ -78,6 +78,11 @@ pub(crate) struct ListCommand {
     pub(crate) long_time: bool,
     #[arg(long, help = "Display format")]
     format: Option<Format>,
+    #[arg(
+        short = 'q',
+        help = "Force printing of non-graphic characters in file names as the character '?'"
+    )]
+    hide_control_chars: bool,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
@@ -238,6 +243,7 @@ fn list_archive(args: ListCommand) -> io::Result<()> {
             TimeFormat::Auto(SystemTime::now())
         },
         numeric_owner: args.numeric_owner,
+        hide_control_chars: args.hide_control_chars,
         format: args.format,
     };
     #[cfg(not(feature = "memmap"))]
@@ -275,6 +281,7 @@ pub(crate) struct ListOptions {
     pub(crate) show_private: bool,
     pub(crate) time_format: TimeFormat,
     pub(crate) numeric_owner: bool,
+    pub(crate) hide_control_chars: bool,
     pub(crate) format: Option<Format>,
 }
 
@@ -357,15 +364,22 @@ fn print_entries(entries: Vec<TableRow>, globs: GlobPatterns, options: ListOptio
             if options.long {
                 detail_list_entries(entries.into_iter(), options)
             } else {
-                simple_list_entries(entries.into_iter())
+                simple_list_entries(entries.into_iter(), options)
             }
         }
     }
 }
 
-fn simple_list_entries(entries: impl Iterator<Item = TableRow>) {
+fn simple_list_entries(entries: impl Iterator<Item = TableRow>, options: ListOptions) {
     for path in entries {
-        println!("{}", path.name)
+        println!(
+            "{}",
+            if options.hide_control_chars {
+                hide_control_chars(&path.name)
+            } else {
+                path.name
+            }
+        )
     }
 }
 
@@ -408,7 +422,11 @@ fn detail_list_entries(entries: impl Iterator<Item = TableRow>, options: ListOpt
                 .map_or_else(|| "-".into(), |it| it.value(options.numeric_owner)),
             datetime(options.time_format, content.created),
             datetime(options.time_format, content.modified),
-            content.name,
+            if options.hide_control_chars {
+                hide_control_chars(&content.name)
+            } else {
+                content.name
+            },
         ]);
         if options.show_acl {
             let acl = content.acl.into_iter().flat_map(|(platform, ace)| {
@@ -498,6 +516,13 @@ fn datetime(format: TimeFormat, d: Option<Duration>) -> String {
             .to_string()
         }
     }
+}
+
+#[inline]
+fn hide_control_chars(s: &str) -> String {
+    s.chars()
+        .map(|c| if c.is_control() { '?' } else { c })
+        .collect()
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
