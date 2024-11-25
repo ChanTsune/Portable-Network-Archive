@@ -1,9 +1,5 @@
-pub mod utils {
-    pub mod diff;
-}
-
+use crate::utils::diff::diff;
 use itertools::Itertools;
-use utils::diff::diff;
 
 // NOTE: Skip `--keep-xattr` option for NetBSD
 //       because NetBSD default filesystem is not support extended attribute.
