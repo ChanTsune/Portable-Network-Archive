@@ -1,7 +1,11 @@
+pub mod utils {
+    pub mod diff;
+}
 mod acl;
 mod append;
 mod chmod;
 mod chown;
+mod combination;
 mod concat;
 mod delete;
 mod encrypt;
