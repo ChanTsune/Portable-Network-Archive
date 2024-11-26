@@ -20,8 +20,8 @@ use clap::{
     ArgGroup, Parser,
 };
 use pna::{
-    prelude::*, Compression, DataKind, Encryption, ExtendedAttribute, NormalEntry, Permission,
-    RawChunk, ReadEntry, ReadOptions, SolidHeader,
+    prelude::*, Compression, DataKind, Encryption, ExtendedAttribute, NormalEntry, RawChunk,
+    ReadEntry, ReadOptions, SolidHeader,
 };
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -113,9 +113,10 @@ impl FromStr for Format {
 }
 
 struct TableRow {
+    data_kind: DataKind,
     encryption: String,
     compression: String,
-    permissions: String,
+    permission_mode: u16,
     raw_size: Option<u128>,
     compressed_size: usize,
     user: Option<Subject>,
@@ -158,9 +159,8 @@ where
         let header = entry.header();
         let metadata = entry.metadata();
         let acl = entry.acl()?;
-        let has_acl = !acl.is_empty();
-        let has_xattr = !entry.xattrs().is_empty();
         Ok(Self {
+            data_kind: header.data_kind(),
             encryption: match solid
                 .map(|s| (s.encryption(), s.cipher_mode()))
                 .unwrap_or_else(|| (header.encryption(), header.cipher_mode()))
@@ -181,12 +181,7 @@ where
                 (method, None) => format!("{:?}", method).to_ascii_lowercase(),
                 (method, Some(_)) => format!("{:?}(solid)", method).to_ascii_lowercase(),
             },
-            permissions: paint_permission(
-                header.data_kind(),
-                metadata.permission(),
-                has_xattr,
-                has_acl,
-            ),
+            permission_mode: metadata.permission().map_or(0, |it| it.permissions()),
             raw_size: metadata.raw_file_size(),
             compressed_size: metadata.compressed_size(),
             user: metadata.permission().map(|p| Subject {
@@ -392,10 +387,17 @@ fn detail_list_entries(entries: impl Iterator<Item = TableRow>, options: ListOpt
         builder.push_record(header);
     }
     for content in entries {
+        let has_acl = !content.acl.is_empty();
+        let has_xattr = !content.xattrs.is_empty();
         builder.push_record([
             content.encryption,
             content.compression,
-            content.permissions,
+            paint_permission(
+                content.data_kind,
+                content.permission_mode,
+                has_xattr,
+                has_acl,
+            ),
             content
                 .raw_size
                 .map_or_else(|| "-".into(), |size| size.to_string()),
@@ -539,13 +541,7 @@ fn kind_paint(kind: DataKind) -> impl Display + 'static {
     }
 }
 
-fn paint_permission(
-    kind: DataKind,
-    permission: Option<&Permission>,
-    has_xattr: bool,
-    has_acl: bool,
-) -> String {
-    let permission = permission.map(|p| p.permissions()).unwrap_or_default();
+fn paint_permission(kind: DataKind, permission: u16, has_xattr: bool, has_acl: bool) -> String {
     let paint = |style: &'static Style, c: char, bit: u16| {
         if permission & bit != 0 {
             style.paint(c)
@@ -573,6 +569,46 @@ fn paint_permission(
         } else {
             ' '
         }),
+    )
+}
+
+fn kind_char(kind: DataKind) -> char {
+    match kind {
+        DataKind::File | DataKind::HardLink => '.',
+        DataKind::Directory => 'd',
+        DataKind::SymbolicLink => 'l',
+    }
+}
+
+fn permission_string(kind: DataKind, permission: u16, has_xattr: bool, has_acl: bool) -> String {
+    #[inline(always)]
+    fn paint(permission: u16, c: char, bit: u16) -> char {
+        if permission & bit != 0 {
+            c
+        } else {
+            '-'
+        }
+    }
+
+    format!(
+        "{}{}{}{}{}{}{}{}{}{}{}",
+        kind_char(kind),
+        paint(permission, 'r', 0b100000000), // owner_read
+        paint(permission, 'w', 0b010000000), // owner_write
+        paint(permission, 'x', 0b001000000), // owner_exec
+        paint(permission, 'r', 0b000100000), // group_read
+        paint(permission, 'w', 0b000010000), // group_write
+        paint(permission, 'x', 0b000001000), // group_exec
+        paint(permission, 'r', 0b000000100), // other_read
+        paint(permission, 'w', 0b000000010), // other_write
+        paint(permission, 'x', 0b000000001), // other_exec
+        if has_xattr {
+            '@'
+        } else if has_acl {
+            '+'
+        } else {
+            ' '
+        },
     )
 }
 
@@ -609,7 +645,12 @@ fn json_line_entries(entries: impl Iterator<Item = TableRow>) {
     let mut stdout = io::stdout().lock();
     for line in entries.map(|it| FileInfo {
         filename: it.name,
-        permissions: it.permissions,
+        permissions: permission_string(
+            it.data_kind,
+            it.permission_mode,
+            !it.xattrs.is_empty(),
+            !it.acl.is_empty(),
+        ),
         owner: it.user.map_or_else(|| "".into(), |it| it.name),
         group: it.group.map_or_else(|| "".into(), |it| it.name),
         raw_size: it.raw_size.unwrap_or_default(),
