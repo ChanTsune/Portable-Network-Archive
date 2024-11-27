@@ -166,19 +166,17 @@ where
         let acl = entry.acl()?;
         Ok(Self {
             data_kind: header.data_kind(),
-            encryption: match solid
-                .map(|s| (s.encryption(), s.cipher_mode()))
-                .unwrap_or_else(|| (header.encryption(), header.cipher_mode()))
-            {
+            encryption: match solid.map_or_else(
+                || (header.encryption(), header.cipher_mode()),
+                |s| (s.encryption(), s.cipher_mode()),
+            ) {
                 (Encryption::No, _) => "-".into(),
                 (encryption, cipher_mode) => {
                     format!("{:?}({:?})", encryption, cipher_mode).to_ascii_lowercase()
                 }
             },
             compression: match (
-                solid
-                    .map(|s| s.compression())
-                    .unwrap_or(header.compression()),
+                solid.map_or(header.compression(), |s| s.compression()),
                 solid,
             ) {
                 (Compression::No, None) => "-".into(),
