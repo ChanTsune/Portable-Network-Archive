@@ -83,6 +83,8 @@ pub(crate) struct ListCommand {
         help = "Force printing of non-graphic characters in file names as the character '?'"
     )]
     hide_control_chars: bool,
+    #[arg(long, help = "Display type indicator by entry kinds")]
+    classify: bool,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
@@ -150,7 +152,13 @@ impl Subject {
     }
 }
 
-impl<T> TryFrom<(&NormalEntry<T>, Option<&str>, Option<&SolidHeader>)> for TableRow
+impl<T>
+    TryFrom<(
+        &NormalEntry<T>,
+        Option<&str>,
+        Option<&SolidHeader>,
+        &ListOptions,
+    )> for TableRow
 where
     T: AsRef<[u8]> + Clone,
     RawChunk<T>: Chunk,
@@ -159,7 +167,12 @@ where
     type Error = io::Error;
     #[inline]
     fn try_from(
-        (entry, password, solid): (&NormalEntry<T>, Option<&str>, Option<&SolidHeader>),
+        (entry, password, solid, options): (
+            &NormalEntry<T>,
+            Option<&str>,
+            Option<&SolidHeader>,
+            &ListOptions,
+        ),
     ) -> Result<Self, Self::Error> {
         let header = entry.header();
         let metadata = entry.metadata();
@@ -199,17 +212,16 @@ where
             }),
             created: metadata.created(),
             modified: metadata.modified(),
-            name: if matches!(
-                header.data_kind(),
-                DataKind::SymbolicLink | DataKind::HardLink
-            ) {
-                let original = entry
-                    .reader(ReadOptions::with_password(password))
-                    .map(|r| io::read_to_string(r).unwrap_or_else(|_| "-".into()))
-                    .unwrap_or_default();
-                format!("{} -> {}", header.path(), original)
-            } else {
-                header.path().to_string()
+            name: match header.data_kind() {
+                DataKind::SymbolicLink | DataKind::HardLink => {
+                    let original = entry
+                        .reader(ReadOptions::with_password(password))
+                        .map(|r| io::read_to_string(r).unwrap_or_else(|_| "-".into()))
+                        .unwrap_or_default();
+                    format!("{} -> {}", header.path(), original)
+                }
+                DataKind::Directory if options.classify => format!("{}/", header.path()),
+                _ => header.path().to_string(),
             },
             xattrs: entry.xattrs().to_vec(),
             acl,
@@ -239,6 +251,7 @@ fn list_archive(args: ListCommand) -> io::Result<()> {
         },
         numeric_owner: args.numeric_owner,
         hide_control_chars: args.hide_control_chars,
+        classify: args.classify,
         format: args.format,
     };
     #[cfg(not(feature = "memmap"))]
@@ -277,6 +290,7 @@ pub(crate) struct ListOptions {
     pub(crate) time_format: TimeFormat,
     pub(crate) numeric_owner: bool,
     pub(crate) hide_control_chars: bool,
+    pub(crate) classify: bool,
     pub(crate) format: Option<Format>,
 }
 
@@ -295,13 +309,13 @@ pub(crate) fn run_list_archive(
         match entry? {
             ReadEntry::Solid(solid) if args.solid => {
                 for entry in solid.entries(password)? {
-                    entries.push((&entry?, password, Some(solid.header())).try_into()?)
+                    entries.push((&entry?, password, Some(solid.header()), &args).try_into()?)
                 }
             }
             ReadEntry::Solid(_) => {
                 log::warn!("This archive contain solid mode entry. if you need to show it use --solid option.");
             }
-            ReadEntry::Normal(item) => entries.push((&item, password, None).try_into()?),
+            ReadEntry::Normal(item) => entries.push((&item, password, None, &args).try_into()?),
         }
         Ok(())
     })?;
@@ -325,13 +339,13 @@ pub(crate) fn run_list_archive_mem(
         match entry? {
             ReadEntry::Solid(solid) if args.solid => {
                 for entry in solid.entries(password)? {
-                    entries.push((&entry?, password, Some(solid.header())).try_into()?);
+                    entries.push((&entry?, password, Some(solid.header()), &args).try_into()?);
                 }
             }
             ReadEntry::Solid(_) => {
                 log::warn!("This archive contain solid mode entry. if you need to show it use --solid option.");
             }
-            ReadEntry::Normal(item) => entries.push((&item, password, None).try_into()?),
+            ReadEntry::Normal(item) => entries.push((&item, password, None, &args).try_into()?),
         }
         Ok(())
     })?;
