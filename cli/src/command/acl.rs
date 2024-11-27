@@ -224,14 +224,8 @@ fn archive_get_acl(args: GetAclCommand) -> io::Result<()> {
             let permission = entry.metadata().permission();
             if globs.matches_any(name) {
                 println!("# file: {}", name);
-                println!(
-                    "# owner: {}",
-                    permission.map(|it| it.uname()).unwrap_or("-")
-                );
-                println!(
-                    "# group: {}",
-                    permission.map(|it| it.gname()).unwrap_or("-")
-                );
+                println!("# owner: {}", permission.map_or("-", |it| it.uname()));
+                println!("# group: {}", permission.map_or("-", |it| it.gname()));
                 for (platform, acl) in entry.acl()? {
                     println!("# platform: {}", platform);
                     for ace in acl {
