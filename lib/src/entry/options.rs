@@ -589,6 +589,7 @@ impl From<ReadOptions> for ReadOptionsBuilder {
 }
 
 impl ReadOptionsBuilder {
+    #[inline]
     const fn new() -> Self {
         Self { password: None }
     }
