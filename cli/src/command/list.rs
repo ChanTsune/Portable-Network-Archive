@@ -130,6 +130,7 @@ struct TableRow {
     group: Option<Subject>,
     created: Option<Duration>,
     modified: Option<Duration>,
+    accessed: Option<Duration>,
     name: String,
     xattrs: Vec<ExtendedAttribute>,
     acl: HashMap<chunk::AcePlatform, Vec<chunk::Ace>>,
@@ -210,6 +211,7 @@ where
             }),
             created: metadata.created(),
             modified: metadata.modified(),
+            accessed: metadata.accessed(),
             name: match header.data_kind() {
                 DataKind::SymbolicLink | DataKind::HardLink => {
                     let original = entry
@@ -696,7 +698,7 @@ fn json_line_entries(entries: impl Iterator<Item = TableRow>) {
         compression: it.compression,
         created: datetime(TimeFormat::Long, it.created),
         modified: datetime(TimeFormat::Long, it.modified),
-        accessed: datetime(TimeFormat::Long, None),
+        accessed: datetime(TimeFormat::Long, it.accessed),
         acl: it
             .acl
             .into_iter()
