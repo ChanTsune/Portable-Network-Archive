@@ -368,27 +368,22 @@ impl WriteOptions {
     pub(crate) fn encryption(&self) -> Encryption {
         self.cipher
             .as_ref()
-            .map(|it| match it.cipher_algorithm {
+            .map_or(Encryption::No, |it| match it.cipher_algorithm {
                 CipherAlgorithm::Aes => Encryption::Aes,
                 CipherAlgorithm::Camellia => Encryption::Camellia,
             })
-            .unwrap_or(Encryption::No)
     }
 
     #[inline]
     pub(crate) fn cipher_mode(&self) -> CipherMode {
-        self.cipher
-            .as_ref()
-            .map(|it| it.mode)
-            .unwrap_or(CipherMode::CTR)
+        self.cipher.as_ref().map_or(CipherMode::CTR, |it| it.mode)
     }
 
     #[inline]
     pub(crate) fn hash_algorithm(&self) -> HashAlgorithm {
         self.cipher
             .as_ref()
-            .map(|it| it.hash_algorithm)
-            .unwrap_or(HashAlgorithm::argon2id())
+            .map_or_else(HashAlgorithm::argon2id, |it| it.hash_algorithm)
     }
 
     #[inline]
