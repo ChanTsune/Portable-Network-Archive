@@ -214,8 +214,8 @@ where
                 DataKind::SymbolicLink | DataKind::HardLink => {
                     let original = entry
                         .reader(ReadOptions::with_password(password))
-                        .map(|r| io::read_to_string(r).unwrap_or_else(|_| "-".into()))
-                        .unwrap_or_default();
+                        .and_then(io::read_to_string)
+                        .unwrap_or_else(|_| "-".into());
                     format!("{} -> {}", header.path(), original)
                 }
                 DataKind::Directory if options.classify => format!("{}/", header.path()),
