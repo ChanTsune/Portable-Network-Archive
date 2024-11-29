@@ -41,7 +41,7 @@ jobs:
           cache-key: ${{ matrix.os }}
       - name: Restore rust build cache
         id: restore-rust-build-cache
-        uses: ChanTsune/cache/restore@local-fs-backend
+        uses: ChanTsune/cache@local-fs-backend
         with:
           path: |
             target/*
@@ -53,14 +53,6 @@ jobs:
           cargo hack test --locked --release --feature-powerset --exclude-features wasm
         env:
           RUST_BACKTRACE: 1
-      - name: Save rust build cache
-        if: ${{ github.ref_name == github.event.repository.default_branch }}
-        uses: ChanTsune/cache/save@local-fs-backend
-        with:
-          path: |
-            target/*
-            !target/tmp
-          key: "${{ steps.restore-rust-build-cache.outputs.cache-primary-key }}"
 
   tier3_cross:
     strategy:
