@@ -80,6 +80,11 @@ pub(crate) struct ListCommand {
     #[arg(long, help = "Display format")]
     format: Option<Format>,
     #[arg(
+        long,
+        help = "Which timestamp field to list (modified, accessed, created)"
+    )]
+    time: Option<TimeField>,
+    #[arg(
         short = 'q',
         help = "Force printing of non-graphic characters in file names as the character '?'"
     )]
@@ -266,6 +271,7 @@ fn list_archive(args: ListCommand) -> io::Result<()> {
         } else {
             TimeFormat::Auto(SystemTime::now())
         },
+        time_field: args.time.unwrap_or_default(),
         numeric_owner: args.numeric_owner,
         hide_control_chars: args.hide_control_chars,
         classify: args.classify,
@@ -291,10 +297,43 @@ fn list_archive(args: ListCommand) -> io::Result<()> {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum TimeFormat {
     Auto(SystemTime),
     Long,
+}
+
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) enum TimeField {
+    Created,
+    #[default]
+    Modified,
+    Accessed,
+}
+
+impl TimeField {
+    #[inline]
+    const fn as_str(&self) -> &'static str {
+        match self {
+            TimeField::Created => "created",
+            TimeField::Modified => "modified",
+            TimeField::Accessed => "accessed",
+        }
+    }
+}
+
+impl FromStr for TimeField {
+    type Err = String;
+
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "created" => Ok(Self::Created),
+            "modified" => Ok(Self::Modified),
+            "accessed" => Ok(Self::Accessed),
+            _ => Err(s.into()),
+        }
+    }
 }
 
 pub(crate) struct ListOptions {
@@ -305,6 +344,7 @@ pub(crate) struct ListOptions {
     pub(crate) show_acl: bool,
     pub(crate) show_private: bool,
     pub(crate) time_format: TimeFormat,
+    pub(crate) time_field: TimeField,
     pub(crate) numeric_owner: bool,
     pub(crate) hide_control_chars: bool,
     pub(crate) classify: bool,
@@ -423,8 +463,7 @@ fn detail_list_entries(entries: impl Iterator<Item = TableRow>, options: ListOpt
         "Compressed Size",
         "User",
         "Group",
-        "Created",
-        "Modified",
+        options.time_field.as_str(),
         "Name",
     ];
     let mut acl_rows = Vec::new();
@@ -456,8 +495,14 @@ fn detail_list_entries(entries: impl Iterator<Item = TableRow>, options: ListOpt
             content
                 .group
                 .map_or_else(|| "-".into(), |it| it.value(options.numeric_owner)),
-            datetime(options.time_format, content.created),
-            datetime(options.time_format, content.modified),
+            datetime(
+                options.time_format,
+                match options.time_field {
+                    TimeField::Created => content.created,
+                    TimeField::Modified => content.modified,
+                    TimeField::Accessed => content.accessed,
+                },
+            ),
             {
                 let name = match content.entry_type {
                     EntryType::Directory(path) if options.classify => format!("{}/", path),
