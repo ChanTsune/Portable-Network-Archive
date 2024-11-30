@@ -396,13 +396,13 @@ fn simple_list_entries(entries: impl Iterator<Item = TableRow>, options: ListOpt
     for path in entries {
         let path = match path.entry_type {
             EntryType::Directory(name) if options.classify => format!("{}/", name),
-            EntryType::SymbolicLink(name, link_to) if options.classify => {
-                format!("{}@ -> {}", name, link_to)
+            EntryType::SymbolicLink(name, _) if options.classify => {
+                format!("{}@", name)
             }
-            EntryType::File(name) | EntryType::Directory(name) => name,
-            EntryType::SymbolicLink(name, link_to) | EntryType::HardLink(name, link_to) => {
-                format!("{} -> {}", name, link_to)
-            }
+            EntryType::File(name)
+            | EntryType::Directory(name)
+            | EntryType::SymbolicLink(name, _)
+            | EntryType::HardLink(name, _) => name,
         };
         if options.hide_control_chars {
             println!("{}", hide_control_chars(&path))
