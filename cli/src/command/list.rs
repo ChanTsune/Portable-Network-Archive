@@ -119,8 +119,26 @@ impl FromStr for Format {
     }
 }
 
+enum EntryType {
+    File(String),
+    Directory(String),
+    SymbolicLink(String, String),
+    HardLink(String, String),
+}
+
+impl EntryType {
+    #[inline]
+    fn name(&self) -> &str {
+        match self {
+            EntryType::File(name)
+            | EntryType::Directory(name)
+            | EntryType::SymbolicLink(name, _)
+            | EntryType::HardLink(name, _) => name,
+        }
+    }
+}
+
 struct TableRow {
-    data_kind: DataKind,
     encryption: String,
     compression: String,
     permission_mode: u16,
@@ -131,7 +149,7 @@ struct TableRow {
     created: Option<Duration>,
     modified: Option<Duration>,
     accessed: Option<Duration>,
-    name: String,
+    entry_type: EntryType,
     xattrs: Vec<ExtendedAttribute>,
     acl: HashMap<chunk::AcePlatform, Vec<chunk::Ace>>,
     privates: Vec<RawChunk>,
@@ -153,13 +171,7 @@ impl Subject {
     }
 }
 
-impl<T>
-    TryFrom<(
-        &NormalEntry<T>,
-        Option<&str>,
-        Option<&SolidHeader>,
-        &ListOptions,
-    )> for TableRow
+impl<T> TryFrom<(&NormalEntry<T>, Option<&str>, Option<&SolidHeader>)> for TableRow
 where
     T: AsRef<[u8]> + Clone,
     RawChunk<T>: Chunk,
@@ -168,18 +180,12 @@ where
     type Error = io::Error;
     #[inline]
     fn try_from(
-        (entry, password, solid, options): (
-            &NormalEntry<T>,
-            Option<&str>,
-            Option<&SolidHeader>,
-            &ListOptions,
-        ),
+        (entry, password, solid): (&NormalEntry<T>, Option<&str>, Option<&SolidHeader>),
     ) -> Result<Self, Self::Error> {
         let header = entry.header();
         let metadata = entry.metadata();
         let acl = entry.acl()?;
         Ok(Self {
-            data_kind: header.data_kind(),
             encryption: match solid.map_or_else(
                 || (header.encryption(), header.cipher_mode()),
                 |s| (s.encryption(), s.cipher_mode()),
@@ -212,16 +218,23 @@ where
             created: metadata.created(),
             modified: metadata.modified(),
             accessed: metadata.accessed(),
-            name: match header.data_kind() {
-                DataKind::SymbolicLink | DataKind::HardLink => {
-                    let original = entry
+            entry_type: match header.data_kind() {
+                DataKind::SymbolicLink => EntryType::SymbolicLink(
+                    header.path().to_string(),
+                    entry
                         .reader(ReadOptions::with_password(password))
                         .and_then(io::read_to_string)
-                        .unwrap_or_else(|_| "-".into());
-                    format!("{} -> {}", header.path(), original)
-                }
-                DataKind::Directory if options.classify => format!("{}/", header.path()),
-                _ => header.path().to_string(),
+                        .unwrap_or_else(|_| "-".into()),
+                ),
+                DataKind::HardLink => EntryType::HardLink(
+                    header.path().to_string(),
+                    entry
+                        .reader(ReadOptions::with_password(password))
+                        .and_then(io::read_to_string)
+                        .unwrap_or_else(|_| "-".into()),
+                ),
+                DataKind::Directory => EntryType::Directory(header.path().to_string()),
+                DataKind::File => EntryType::File(header.path().to_string()),
             },
             xattrs: entry.xattrs().to_vec(),
             acl,
@@ -309,13 +322,13 @@ pub(crate) fn run_list_archive(
         match entry? {
             ReadEntry::Solid(solid) if args.solid => {
                 for entry in solid.entries(password)? {
-                    entries.push((&entry?, password, Some(solid.header()), &args).try_into()?)
+                    entries.push((&entry?, password, Some(solid.header())).try_into()?)
                 }
             }
             ReadEntry::Solid(_) => {
                 log::warn!("This archive contain solid mode entry. if you need to show it use --solid option.");
             }
-            ReadEntry::Normal(item) => entries.push((&item, password, None, &args).try_into()?),
+            ReadEntry::Normal(item) => entries.push((&item, password, None).try_into()?),
         }
         Ok(())
     })?;
@@ -339,13 +352,13 @@ pub(crate) fn run_list_archive_mem(
         match entry? {
             ReadEntry::Solid(solid) if args.solid => {
                 for entry in solid.entries(password)? {
-                    entries.push((&entry?, password, Some(solid.header()), &args).try_into()?);
+                    entries.push((&entry?, password, Some(solid.header())).try_into()?);
                 }
             }
             ReadEntry::Solid(_) => {
                 log::warn!("This archive contain solid mode entry. if you need to show it use --solid option.");
             }
-            ReadEntry::Normal(item) => entries.push((&item, password, None, &args).try_into()?),
+            ReadEntry::Normal(item) => entries.push((&item, password, None).try_into()?),
         }
         Ok(())
     })?;
@@ -363,7 +376,7 @@ fn print_entries(entries: Vec<TableRow>, globs: GlobPatterns, options: ListOptio
     } else {
         entries
             .into_par_iter()
-            .filter(|r| globs.matches_any(&r.name))
+            .filter(|r| globs.matches_any(r.entry_type.name()))
             .collect()
     };
     match options.format {
@@ -381,14 +394,19 @@ fn print_entries(entries: Vec<TableRow>, globs: GlobPatterns, options: ListOptio
 
 fn simple_list_entries(entries: impl Iterator<Item = TableRow>, options: ListOptions) {
     for path in entries {
-        println!(
-            "{}",
-            if options.hide_control_chars {
-                hide_control_chars(&path.name)
-            } else {
-                path.name
+        let path = match path.entry_type {
+            EntryType::Directory(name) if options.classify => format!("{}/", name),
+            EntryType::SymbolicLink(name, _) if options.classify => format!("{}@", name),
+            EntryType::File(name) | EntryType::Directory(name) => name,
+            EntryType::SymbolicLink(name, link_to) | EntryType::HardLink(name, link_to) => {
+                format!("{} -> {}", name, link_to)
             }
-        )
+        };
+        if options.hide_control_chars {
+            println!("{}", hide_control_chars(&path))
+        } else {
+            println!("{}", path)
+        }
     }
 }
 
@@ -421,7 +439,7 @@ fn detail_list_entries(entries: impl Iterator<Item = TableRow>, options: ListOpt
             content.encryption,
             content.compression,
             paint_permission(
-                content.data_kind,
+                &content.entry_type,
                 content.permission_mode,
                 has_xattr,
                 has_acl,
@@ -438,10 +456,20 @@ fn detail_list_entries(entries: impl Iterator<Item = TableRow>, options: ListOpt
                 .map_or_else(|| "-".into(), |it| it.value(options.numeric_owner)),
             datetime(options.time_format, content.created),
             datetime(options.time_format, content.modified),
-            if options.hide_control_chars {
-                hide_control_chars(&content.name)
-            } else {
-                content.name
+            {
+                let name = match content.entry_type {
+                    EntryType::File(path) => path,
+                    EntryType::Directory(path) if options.classify => format!("{}/", path),
+                    EntryType::Directory(path) => path,
+                    EntryType::SymbolicLink(path, link_to) | EntryType::HardLink(path, link_to) => {
+                        format!("{} -> {}", path, link_to)
+                    }
+                };
+                if options.hide_control_chars {
+                    hide_control_chars(&name)
+                } else {
+                    name
+                }
             },
         ]);
         if options.show_acl {
@@ -572,15 +600,15 @@ const STYLE_DIR: Style = Style::new().fg_color(Some(Colour::Ansi(AnsiColor::Mage
 const STYLE_LINK: Style = Style::new().fg_color(Some(Colour::Ansi(AnsiColor::Cyan)));
 const STYLE_HYPHEN: Style = Style::new();
 
-fn kind_paint(kind: DataKind) -> impl Display + 'static {
+fn kind_paint(kind: &EntryType) -> impl Display + 'static {
     match kind {
-        DataKind::File | DataKind::HardLink => STYLE_HYPHEN.paint('.'),
-        DataKind::Directory => STYLE_DIR.paint('d'),
-        DataKind::SymbolicLink => STYLE_LINK.paint('l'),
+        EntryType::File(_) | EntryType::HardLink(_, _) => STYLE_HYPHEN.paint('.'),
+        EntryType::Directory(_) => STYLE_DIR.paint('d'),
+        EntryType::SymbolicLink(_, _) => STYLE_LINK.paint('l'),
     }
 }
 
-fn paint_permission(kind: DataKind, permission: u16, has_xattr: bool, has_acl: bool) -> String {
+fn paint_permission(kind: &EntryType, permission: u16, has_xattr: bool, has_acl: bool) -> String {
     let paint = |style: &'static Style, c: char, bit: u16| {
         if permission & bit != 0 {
             style.paint(c)
@@ -611,15 +639,15 @@ fn paint_permission(kind: DataKind, permission: u16, has_xattr: bool, has_acl: b
     )
 }
 
-fn kind_char(kind: DataKind) -> char {
+fn kind_char(kind: &EntryType) -> char {
     match kind {
-        DataKind::File | DataKind::HardLink => '.',
-        DataKind::Directory => 'd',
-        DataKind::SymbolicLink => 'l',
+        EntryType::File(_) | EntryType::HardLink(_, _) => '.',
+        EntryType::Directory(_) => 'd',
+        EntryType::SymbolicLink(_, _) => 'l',
     }
 }
 
-fn permission_string(kind: DataKind, permission: u16, has_xattr: bool, has_acl: bool) -> String {
+fn permission_string(kind: &EntryType, permission: u16, has_xattr: bool, has_acl: bool) -> String {
     #[inline(always)]
     fn paint(permission: u16, c: char, bit: u16) -> char {
         if permission & bit != 0 {
@@ -683,9 +711,9 @@ struct XAttr {
 fn json_line_entries(entries: impl Iterator<Item = TableRow>) {
     let mut stdout = io::stdout().lock();
     for line in entries.map(|it| FileInfo {
-        filename: it.name,
+        filename: it.entry_type.name().into(),
         permissions: permission_string(
-            it.data_kind,
+            &it.entry_type,
             it.permission_mode,
             !it.xattrs.is_empty(),
             !it.acl.is_empty(),
