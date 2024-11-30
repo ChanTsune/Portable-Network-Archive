@@ -396,7 +396,9 @@ fn simple_list_entries(entries: impl Iterator<Item = TableRow>, options: ListOpt
     for path in entries {
         let path = match path.entry_type {
             EntryType::Directory(name) if options.classify => format!("{}/", name),
-            EntryType::SymbolicLink(name, _) if options.classify => format!("{}@", name),
+            EntryType::SymbolicLink(name, link_to) if options.classify => {
+                format!("{}@ -> {}", name, link_to)
+            }
             EntryType::File(name) | EntryType::Directory(name) => name,
             EntryType::SymbolicLink(name, link_to) | EntryType::HardLink(name, link_to) => {
                 format!("{} -> {}", name, link_to)
@@ -458,9 +460,11 @@ fn detail_list_entries(entries: impl Iterator<Item = TableRow>, options: ListOpt
             datetime(options.time_format, content.modified),
             {
                 let name = match content.entry_type {
-                    EntryType::File(path) => path,
                     EntryType::Directory(path) if options.classify => format!("{}/", path),
-                    EntryType::Directory(path) => path,
+                    EntryType::SymbolicLink(name, link_to) if options.classify => {
+                        format!("{}@ -> {}", name, link_to)
+                    }
+                    EntryType::File(path) | EntryType::Directory(path) => path,
                     EntryType::SymbolicLink(path, link_to) | EntryType::HardLink(path, link_to) => {
                         format!("{} -> {}", path, link_to)
                     }
