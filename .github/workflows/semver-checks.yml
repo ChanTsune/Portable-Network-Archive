@@ -1,0 +1,31 @@
+name: semver-checks
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["*"]
+
+jobs:
+  semver-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-rust
+      - name: install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y libacl1-dev
+      - name: Check semver
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          package: pna,libpna
+          feature-group: all-features
+      - name: Add label if contains break
+        if: failure()
+        shell: bash
+        run: |
+          gh pr edit ${{ github.event.pull_request.number }} --add-label 'break'
+        env:
+          GH_TOKEN: ${{ github.token }}
