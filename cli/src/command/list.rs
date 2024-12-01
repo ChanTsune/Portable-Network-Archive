@@ -386,7 +386,7 @@ fn print_entries(entries: Vec<TableRow>, globs: GlobPatterns, options: ListOptio
     match options.format {
         Some(Format::JsonL) => json_line_entries(entries.into_iter()),
         Some(Format::Table) => detail_list_entries(entries.into_iter(), options),
-        Some(Format::Tree) => tree_entries(entries),
+        Some(Format::Tree) => tree_entries(entries, options),
         None if options.long => detail_list_entries(entries.into_iter(), options),
         None => simple_list_entries(entries.into_iter(), options),
     }
@@ -755,50 +755,74 @@ fn json_line_entries(entries: impl Iterator<Item = TableRow>) {
     }
 }
 
-fn tree_entries(entries: Vec<TableRow>) {
-    let mut entries = entries
+fn tree_entries(entries: Vec<TableRow>, options: ListOptions) {
+    let entries = entries
         .into_iter()
-        .map(|it| it.entry_type.name().to_string())
+        .map(|it| match it.entry_type {
+            EntryType::File(name) => (name, DataKind::File),
+            EntryType::Directory(name) => (name, DataKind::Directory),
+            EntryType::SymbolicLink(name, _) => (name, DataKind::SymbolicLink),
+            EntryType::HardLink(name, _) => (name, DataKind::HardLink),
+        })
         .collect::<Vec<_>>();
-    entries.sort();
-    let entries = entries.iter().map(|it| it.as_str()).collect::<Vec<_>>();
+    let entries = entries
+        .iter()
+        .map(|(name, kind)| (name.as_str(), *kind))
+        .collect::<Vec<_>>();
     let tree = build_tree(&entries);
     println!(".");
-    display_tree(&tree, "", "");
+    display_tree(&tree, "", "", &options);
 }
 
-fn build_tree<'s>(paths: &[&'s str]) -> HashMap<&'s str, Vec<&'s str>> {
+fn build_tree<'s>(paths: &[(&'s str, DataKind)]) -> HashMap<&'s str, Vec<(&'s str, DataKind)>> {
     let mut tree: HashMap<_, Vec<_>> = HashMap::new();
 
-    for path in paths {
+    for (path, kind) in paths {
         let indices = path
             .char_indices()
             .filter(|(_, c)| *c == '/')
-            .chain([(path.len(), '/')]);
+            .map(|(idx, _)| (idx, DataKind::Directory))
+            .chain([(path.len(), *kind)]);
         let mut start = 0;
-        for (end, _) in indices {
+        for (end, k) in indices {
             let key = &path[..start];
             let value = &path[start..end];
             let value = value.strip_prefix('/').unwrap_or(value);
-            tree.entry(key).or_default().push(value);
+            tree.entry(key).or_default().push((value, k));
             start = end;
         }
     }
 
     for children in tree.values_mut() {
-        children.sort();
+        children.sort_by_key(|(v, _)| *v);
         children.dedup();
     }
 
     tree
 }
 
-fn display_tree(tree: &HashMap<&str, Vec<&str>>, root: &str, prefix: &str) {
+fn display_tree(
+    tree: &HashMap<&str, Vec<(&str, DataKind)>>,
+    root: &str,
+    prefix: &str,
+    options: &ListOptions,
+) {
     if let Some(children) = tree.get(root) {
-        for (i, child) in children.iter().enumerate() {
+        for (i, (child, kind)) in children.iter().enumerate() {
             let is_last = i == children.len() - 1;
             let branch = if is_last { "└── " } else { "├── " };
-            println!("{}{}{}", prefix, branch, child);
+            match kind {
+                DataKind::Directory if options.classify => {
+                    println!("{}{}{}/", prefix, branch, child)
+                }
+                DataKind::SymbolicLink if options.classify => {
+                    println!("{}{}{}@", prefix, branch, child)
+                }
+                DataKind::File
+                | DataKind::Directory
+                | DataKind::SymbolicLink
+                | DataKind::HardLink => println!("{}{}{}", prefix, branch, child),
+            };
 
             let new_root = if root.is_empty() {
                 Cow::Borrowed(*child)
@@ -812,7 +836,7 @@ fn display_tree(tree: &HashMap<&str, Vec<&str>>, root: &str, prefix: &str) {
                 format!("{}│   ", prefix)
             };
 
-            display_tree(tree, &new_root, &new_prefix);
+            display_tree(tree, &new_root, &new_prefix, options);
         }
     }
 }
