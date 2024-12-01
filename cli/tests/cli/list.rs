@@ -185,3 +185,79 @@ fn archive_list_solid_jsonl() {
     ]))
     .unwrap();
 }
+
+#[test]
+fn archive_list_tree() {
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        &format!("{}/list_tree.pna", env!("CARGO_TARGET_TMPDIR")),
+        "--overwrite",
+        "-r",
+        "../resources/test/raw",
+        #[cfg(not(target_os = "netbsd"))]
+        "--keep-xattr",
+        "--keep-timestamp",
+        "--keep-permission",
+        #[cfg(feature = "acl")]
+        "--keep-acl",
+        "--password",
+        "password",
+        "--aes",
+        "ctr",
+        "--unstable",
+    ]))
+    .unwrap();
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "list",
+        "-l",
+        "--format",
+        "tree",
+        &format!("{}/list_tree.pna", env!("CARGO_TARGET_TMPDIR")),
+        "--password",
+        "password",
+        "--unstable",
+    ]))
+    .unwrap();
+}
+
+#[test]
+fn archive_list_solid_tree() {
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        &format!("{}/list_solid_tree.pna", env!("CARGO_TARGET_TMPDIR")),
+        "--overwrite",
+        "-r",
+        "../resources/test/raw",
+        "--solid",
+        #[cfg(not(target_os = "netbsd"))]
+        "--keep-xattr",
+        "--keep-timestamp",
+        "--keep-permission",
+        #[cfg(feature = "acl")]
+        "--keep-acl",
+        "--password",
+        "password",
+        "--aes",
+        "ctr",
+        "--unstable",
+    ]))
+    .unwrap();
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "list",
+        "-l",
+        "--format",
+        "tree",
+        &format!("{}/list_solid_tree.pna", env!("CARGO_TARGET_TMPDIR")),
+        "--solid",
+        "--password",
+        "password",
+        "--unstable",
+    ]))
+    .unwrap();
+}
