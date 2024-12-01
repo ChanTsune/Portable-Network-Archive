@@ -28,6 +28,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "memmap")]
 use std::path::Path;
 use std::{
+    borrow::Cow,
     collections::HashMap,
     fmt::{Display, Formatter},
     io::{self, prelude::*},
@@ -104,6 +105,7 @@ impl Command for ListCommand {
 pub(crate) enum Format {
     Table,
     JsonL,
+    Tree,
 }
 
 impl FromStr for Format {
@@ -114,11 +116,13 @@ impl FromStr for Format {
         match s {
             "table" => Ok(Self::Table),
             "jsonl" => Ok(Self::JsonL),
+            "tree" => Ok(Self::Tree),
             unknown => Err(format!("unknown value: {}", unknown)),
         }
     }
 }
 
+#[derive(Debug)]
 enum EntryType {
     File(String),
     Directory(String),
@@ -382,6 +386,7 @@ fn print_entries(entries: Vec<TableRow>, globs: GlobPatterns, options: ListOptio
     match options.format {
         Some(Format::JsonL) => json_line_entries(entries.into_iter()),
         Some(Format::Table) => detail_list_entries(entries.into_iter(), options),
+        Some(Format::Tree) => tree_entries(entries),
         None if options.long => detail_list_entries(entries.into_iter(), options),
         None => simple_list_entries(entries.into_iter(), options),
     }
@@ -746,6 +751,68 @@ fn json_line_entries(entries: impl Iterator<Item = TableRow>) {
         match serde_json::to_writer(&mut stdout, &line) {
             Ok(_) => stdout.write_all(b"\n").expect(""),
             Err(e) => log::info!("{}", e),
+        }
+    }
+}
+
+fn tree_entries(entries: Vec<TableRow>) {
+    let mut entries = entries
+        .into_iter()
+        .map(|it| it.entry_type.name().to_string())
+        .collect::<Vec<_>>();
+    entries.sort();
+    let entries = entries.iter().map(|it| it.as_str()).collect::<Vec<_>>();
+    let tree = build_tree(&entries);
+    println!(".");
+    display_tree(&tree, "", "");
+}
+
+fn build_tree<'s>(paths: &[&'s str]) -> HashMap<&'s str, Vec<&'s str>> {
+    let mut tree: HashMap<_, Vec<_>> = HashMap::new();
+
+    for path in paths {
+        let indices = path
+            .char_indices()
+            .filter(|(_, c)| *c == '/')
+            .chain([(path.len(), '/')]);
+        let mut start = 0;
+        for (end, _) in indices {
+            let key = &path[..start];
+            let value = &path[start..end];
+            let value = value.strip_prefix('/').unwrap_or(value);
+            tree.entry(key).or_default().push(value);
+            start = end;
+        }
+    }
+
+    for children in tree.values_mut() {
+        children.sort();
+        children.dedup();
+    }
+
+    tree
+}
+
+fn display_tree(tree: &HashMap<&str, Vec<&str>>, root: &str, prefix: &str) {
+    if let Some(children) = tree.get(root) {
+        for (i, child) in children.iter().enumerate() {
+            let is_last = i == children.len() - 1;
+            let branch = if is_last { "└── " } else { "├── " };
+            println!("{}{}{}", prefix, branch, child);
+
+            let new_root = if root.is_empty() {
+                Cow::Borrowed(*child)
+            } else {
+                Cow::Owned(format!("{}/{}", root, child))
+            };
+
+            let new_prefix = if is_last {
+                format!("{}    ", prefix)
+            } else {
+                format!("{}│   ", prefix)
+            };
+
+            display_tree(tree, &new_root, &new_prefix);
         }
     }
 }
