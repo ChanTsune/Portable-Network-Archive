@@ -382,13 +382,8 @@ fn print_entries(entries: Vec<TableRow>, globs: GlobPatterns, options: ListOptio
     match options.format {
         Some(Format::JsonL) => json_line_entries(entries.into_iter()),
         Some(Format::Table) => detail_list_entries(entries.into_iter(), options),
-        None => {
-            if options.long {
-                detail_list_entries(entries.into_iter(), options)
-            } else {
-                simple_list_entries(entries.into_iter(), options)
-            }
-        }
+        None if options.long => detail_list_entries(entries.into_iter(), options),
+        None => simple_list_entries(entries.into_iter(), options),
     }
 }
 
