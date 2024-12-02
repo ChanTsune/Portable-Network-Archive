@@ -663,6 +663,64 @@ where
     }
 }
 
+impl<T> NormalEntry<T>
+where
+    RawChunk<T>: Chunk,
+    T: AsRef<[u8]>,
+{
+    #[inline]
+    fn chunks_write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
+        let mut total = 0;
+
+        let Metadata {
+            raw_file_size,
+            compressed_size: _,
+            created,
+            modified,
+            accessed,
+            permission,
+        } = &self.metadata;
+
+        total += (ChunkType::FHED, self.header.to_bytes()).write_chunk_in(writer)?;
+        for ex in &self.extra {
+            total += ex.write_chunk_in(writer)?;
+        }
+        if let Some(raw_file_size) = raw_file_size {
+            total += (
+                ChunkType::fSIZ,
+                skip_while(&raw_file_size.to_be_bytes(), |i| *i == 0),
+            )
+                .write_chunk_in(writer)?;
+        }
+
+        if let Some(p) = &self.phsf {
+            total += (ChunkType::PHSF, p.as_bytes()).write_chunk_in(writer)?;
+        }
+        for data_chunk in &self.data {
+            for data_unit in data_chunk.as_ref().chunks(u32::MAX as usize) {
+                total += (ChunkType::FDAT, data_unit).write_chunk_in(writer)?;
+            }
+        }
+        if let Some(c) = created {
+            total += (ChunkType::cTIM, c.as_secs().to_be_bytes()).write_chunk_in(writer)?;
+        }
+        if let Some(d) = modified {
+            total += (ChunkType::mTIM, d.as_secs().to_be_bytes()).write_chunk_in(writer)?;
+        }
+        if let Some(a) = accessed {
+            total += (ChunkType::aTIM, a.as_secs().to_be_bytes()).write_chunk_in(writer)?;
+        }
+        if let Some(p) = permission {
+            total += (ChunkType::fPRM, p.to_bytes()).write_chunk_in(writer)?;
+        }
+        for xattr in &self.xattrs {
+            total += (ChunkType::xATR, xattr.to_bytes()).write_chunk_in(writer)?;
+        }
+        total += (ChunkType::FEND, []).write_chunk_in(writer)?;
+        Ok(total)
+    }
+}
+
 impl SealedEntryExt for NormalEntry<Vec<u8>> {
     fn into_chunks(self) -> Vec<RawChunk> {
         let Metadata {
@@ -719,55 +777,9 @@ impl SealedEntryExt for NormalEntry<Vec<u8>> {
         vec
     }
 
+    #[inline]
     fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        let mut total = 0;
-
-        let Metadata {
-            raw_file_size,
-            compressed_size: _,
-            created,
-            modified,
-            accessed,
-            permission,
-        } = &self.metadata;
-
-        total += (ChunkType::FHED, self.header.to_bytes()).write_chunk_in(writer)?;
-        for ex in &self.extra {
-            total += ex.write_chunk_in(writer)?;
-        }
-        if let Some(raw_file_size) = raw_file_size {
-            total += (
-                ChunkType::fSIZ,
-                skip_while(&raw_file_size.to_be_bytes(), |i| *i == 0),
-            )
-                .write_chunk_in(writer)?;
-        }
-
-        if let Some(p) = &self.phsf {
-            total += (ChunkType::PHSF, p.as_bytes()).write_chunk_in(writer)?;
-        }
-        for data_chunk in &self.data {
-            for data_unit in data_chunk.chunks(u32::MAX as usize) {
-                total += (ChunkType::FDAT, data_unit).write_chunk_in(writer)?;
-            }
-        }
-        if let Some(c) = created {
-            total += (ChunkType::cTIM, c.as_secs().to_be_bytes()).write_chunk_in(writer)?;
-        }
-        if let Some(d) = modified {
-            total += (ChunkType::mTIM, d.as_secs().to_be_bytes()).write_chunk_in(writer)?;
-        }
-        if let Some(a) = accessed {
-            total += (ChunkType::aTIM, a.as_secs().to_be_bytes()).write_chunk_in(writer)?;
-        }
-        if let Some(p) = permission {
-            total += (ChunkType::fPRM, p.to_bytes()).write_chunk_in(writer)?;
-        }
-        for xattr in &self.xattrs {
-            total += (ChunkType::xATR, xattr.to_bytes()).write_chunk_in(writer)?;
-        }
-        total += (ChunkType::FEND, []).write_chunk_in(writer)?;
-        Ok(total)
+        self.chunks_write_in(writer)
     }
 }
 
@@ -827,55 +839,9 @@ impl SealedEntryExt for NormalEntry<&[u8]> {
         vec
     }
 
+    #[inline]
     fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        let mut total = 0;
-
-        let Metadata {
-            raw_file_size,
-            compressed_size: _,
-            created,
-            modified,
-            accessed,
-            permission,
-        } = &self.metadata;
-
-        total += (ChunkType::FHED, self.header.to_bytes()).write_chunk_in(writer)?;
-        for ex in &self.extra {
-            total += ex.write_chunk_in(writer)?;
-        }
-        if let Some(raw_file_size) = raw_file_size {
-            total += (
-                ChunkType::fSIZ,
-                skip_while(&raw_file_size.to_be_bytes(), |i| *i == 0),
-            )
-                .write_chunk_in(writer)?;
-        }
-
-        if let Some(p) = &self.phsf {
-            total += (ChunkType::PHSF, p.as_bytes()).write_chunk_in(writer)?;
-        }
-        for data_chunk in &self.data {
-            for data_unit in data_chunk.chunks(u32::MAX as usize) {
-                total += (ChunkType::FDAT, data_unit).write_chunk_in(writer)?;
-            }
-        }
-        if let Some(c) = created {
-            total += (ChunkType::cTIM, c.as_secs().to_be_bytes()).write_chunk_in(writer)?;
-        }
-        if let Some(d) = modified {
-            total += (ChunkType::mTIM, d.as_secs().to_be_bytes()).write_chunk_in(writer)?;
-        }
-        if let Some(a) = accessed {
-            total += (ChunkType::aTIM, a.as_secs().to_be_bytes()).write_chunk_in(writer)?;
-        }
-        if let Some(p) = permission {
-            total += (ChunkType::fPRM, p.to_bytes()).write_chunk_in(writer)?;
-        }
-        for xattr in &self.xattrs {
-            total += (ChunkType::xATR, xattr.to_bytes()).write_chunk_in(writer)?;
-        }
-        total += (ChunkType::FEND, []).write_chunk_in(writer)?;
-        Ok(total)
+        self.chunks_write_in(writer)
     }
 }
 
@@ -935,55 +901,9 @@ impl SealedEntryExt for NormalEntry<Cow<'_, [u8]>> {
         vec
     }
 
+    #[inline]
     fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        let mut total = 0;
-
-        let Metadata {
-            raw_file_size,
-            compressed_size: _,
-            created,
-            modified,
-            accessed,
-            permission,
-        } = &self.metadata;
-
-        total += (ChunkType::FHED, self.header.to_bytes()).write_chunk_in(writer)?;
-        for ex in &self.extra {
-            total += ex.write_chunk_in(writer)?;
-        }
-        if let Some(raw_file_size) = raw_file_size {
-            total += (
-                ChunkType::fSIZ,
-                skip_while(&raw_file_size.to_be_bytes(), |i| *i == 0),
-            )
-                .write_chunk_in(writer)?;
-        }
-
-        if let Some(p) = &self.phsf {
-            total += (ChunkType::PHSF, p.as_bytes()).write_chunk_in(writer)?;
-        }
-        for data_chunk in &self.data {
-            for data_unit in data_chunk.chunks(u32::MAX as usize) {
-                total += (ChunkType::FDAT, data_unit).write_chunk_in(writer)?;
-            }
-        }
-        if let Some(c) = created {
-            total += (ChunkType::cTIM, c.as_secs().to_be_bytes()).write_chunk_in(writer)?;
-        }
-        if let Some(d) = modified {
-            total += (ChunkType::mTIM, d.as_secs().to_be_bytes()).write_chunk_in(writer)?;
-        }
-        if let Some(a) = accessed {
-            total += (ChunkType::aTIM, a.as_secs().to_be_bytes()).write_chunk_in(writer)?;
-        }
-        if let Some(p) = permission {
-            total += (ChunkType::fPRM, p.to_bytes()).write_chunk_in(writer)?;
-        }
-        for xattr in &self.xattrs {
-            total += (ChunkType::xATR, xattr.to_bytes()).write_chunk_in(writer)?;
-        }
-        total += (ChunkType::FEND, []).write_chunk_in(writer)?;
-        Ok(total)
+        self.chunks_write_in(writer)
     }
 }
 
