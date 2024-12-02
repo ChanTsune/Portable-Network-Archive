@@ -29,7 +29,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::{
     borrow::Cow,
-    collections::HashMap,
+    collections::{BTreeSet, HashMap},
     fmt::{Display, Formatter},
     io::{self, prelude::*},
     str::FromStr,
@@ -755,6 +755,19 @@ fn json_line_entries(entries: impl Iterator<Item = TableRow>) {
     }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+struct TreeEntry<'s> {
+    name: &'s str,
+    kind: DataKind,
+}
+
+impl<'s> TreeEntry<'s> {
+    #[inline]
+    const fn new(name: &'s str, kind: DataKind) -> Self {
+        Self { name, kind }
+    }
+}
+
 fn tree_entries(entries: Vec<TableRow>, options: ListOptions) {
     let entries = entries
         .into_iter()
@@ -774,8 +787,8 @@ fn tree_entries(entries: Vec<TableRow>, options: ListOptions) {
     display_tree(&tree, "", "", &options);
 }
 
-fn build_tree<'s>(paths: &[(&'s str, DataKind)]) -> HashMap<&'s str, Vec<(&'s str, DataKind)>> {
-    let mut tree: HashMap<_, Vec<_>> = HashMap::new();
+fn build_tree<'s>(paths: &[(&'s str, DataKind)]) -> HashMap<&'s str, BTreeSet<TreeEntry<'s>>> {
+    let mut tree: HashMap<_, BTreeSet<_>> = HashMap::new();
 
     for (path, kind) in paths {
         let indices = path
@@ -788,27 +801,23 @@ fn build_tree<'s>(paths: &[(&'s str, DataKind)]) -> HashMap<&'s str, Vec<(&'s st
             let key = &path[..start];
             let value = &path[start..end];
             let value = value.strip_prefix('/').unwrap_or(value);
-            tree.entry(key).or_default().push((value, k));
+            tree.entry(key)
+                .or_default()
+                .insert(TreeEntry::new(value, k));
             start = end;
         }
     }
-
-    for children in tree.values_mut() {
-        children.sort_by_key(|(v, _)| *v);
-        children.dedup();
-    }
-
     tree
 }
 
 fn display_tree(
-    tree: &HashMap<&str, Vec<(&str, DataKind)>>,
+    tree: &HashMap<&str, BTreeSet<TreeEntry>>,
     root: &str,
     prefix: &str,
     options: &ListOptions,
 ) {
     if let Some(children) = tree.get(root) {
-        for (i, (child, kind)) in children.iter().enumerate() {
+        for (i, TreeEntry { name: child, kind }) in children.iter().enumerate() {
             let is_last = i == children.len() - 1;
             let branch = if is_last { "└── " } else { "├── " };
             match kind {
