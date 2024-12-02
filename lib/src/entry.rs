@@ -38,6 +38,18 @@ pub trait Entry: SealedEntryExt {}
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct RawEntry<T = Vec<u8>>(pub(crate) Vec<RawChunk<T>>);
 
+#[inline]
+fn chunks_write_in<W: Write>(
+    chunks: impl Iterator<Item = impl Chunk>,
+    writer: &mut W,
+) -> io::Result<usize> {
+    let mut total = 0;
+    for chunk in chunks {
+        total += chunk.write_chunk_in(writer)?;
+    }
+    Ok(total)
+}
+
 impl SealedEntryExt for RawEntry<Vec<u8>> {
     #[inline]
     fn into_chunks(self) -> Vec<RawChunk> {
@@ -46,11 +58,7 @@ impl SealedEntryExt for RawEntry<Vec<u8>> {
 
     #[inline]
     fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        let mut total = 0;
-        for chunk in self.0.iter() {
-            total += chunk.write_chunk_in(writer)?;
-        }
-        Ok(total)
+        chunks_write_in(self.0.iter(), writer)
     }
 }
 
@@ -62,11 +70,7 @@ impl SealedEntryExt for RawEntry<&[u8]> {
 
     #[inline]
     fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        let mut total = 0;
-        for chunk in self.0.iter() {
-            total += chunk.write_chunk_in(writer)?;
-        }
-        Ok(total)
+        chunks_write_in(self.0.iter(), writer)
     }
 }
 
@@ -78,11 +82,7 @@ impl SealedEntryExt for RawEntry<Cow<'_, [u8]>> {
 
     #[inline]
     fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        let mut total = 0;
-        for chunk in self.0.iter() {
-            total += chunk.write_chunk_in(writer)?;
-        }
-        Ok(total)
+        chunks_write_in(self.0.iter(), writer)
     }
 }
 
@@ -1274,11 +1274,7 @@ impl SealedEntryExt for ChunkSolidEntries {
 
     #[inline]
     fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        let mut total = 0;
-        for chunk in self.0.iter() {
-            total += chunk.write_chunk_in(writer)?;
-        }
-        Ok(total)
+        chunks_write_in(self.0.iter(), writer)
     }
 }
 
