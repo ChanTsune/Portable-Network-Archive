@@ -37,6 +37,11 @@ mod private {
     pub trait SealedEntryExt {
         fn into_chunks(self) -> Vec<RawChunk>;
         fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize>;
+        #[cfg(feature = "unstable-async")]
+        async fn write_in_async<W: futures_io::AsyncWrite + std::marker::Unpin>(
+            &self,
+            writer: &mut W,
+        ) -> io::Result<usize>;
     }
 }
 
@@ -71,6 +76,19 @@ where
     #[inline]
     fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         chunks_write_in(self.0.iter(), writer)
+    }
+
+    #[cfg(feature = "unstable-async")]
+    #[inline]
+    async fn write_in_async<W: futures_io::AsyncWrite + std::marker::Unpin>(
+        &self,
+        writer: &mut W,
+    ) -> io::Result<usize> {
+        let mut total = 0;
+        for chunk in self.0.iter() {
+            total += chunk.write_chunk_in_async(writer).await?;
+        }
+        Ok(total)
     }
 }
 
@@ -159,6 +177,18 @@ where
         match self {
             ReadEntry::Normal(r) => r.write_in(writer),
             ReadEntry::Solid(s) => s.write_in(writer),
+        }
+    }
+
+    #[cfg(feature = "unstable-async")]
+    #[inline]
+    async fn write_in_async<W: futures_io::AsyncWrite + std::marker::Unpin>(
+        &self,
+        writer: &mut W,
+    ) -> io::Result<usize> {
+        match self {
+            ReadEntry::Normal(r) => r.write_in_async(writer).await,
+            ReadEntry::Solid(s) => s.write_in_async(writer).await,
         }
     }
 }
@@ -330,6 +360,31 @@ where
         total += (ChunkType::SEND, []).write_chunk_in(writer)?;
         Ok(total)
     }
+
+    #[cfg(feature = "unstable-async")]
+    #[inline]
+    async fn chunks_write_in_async<W: futures_io::AsyncWrite + std::marker::Unpin>(
+        &self,
+        writer: &mut W,
+    ) -> io::Result<usize> {
+        let mut total = 0;
+        total += (ChunkType::SHED, self.header.to_bytes())
+            .write_chunk_in_async(writer)
+            .await?;
+        for extra_chunk in &self.extra {
+            total += extra_chunk.write_chunk_in_async(writer).await?;
+        }
+        if let Some(phsf) = &self.phsf {
+            total += (ChunkType::PHSF, phsf.as_bytes())
+                .write_chunk_in_async(writer)
+                .await?;
+        }
+        for data in &self.data {
+            total += (ChunkType::SDAT, data).write_chunk_in_async(writer).await?;
+        }
+        total += (ChunkType::SEND, []).write_chunk_in_async(writer).await?;
+        Ok(total)
+    }
 }
 
 impl<T> SealedEntryExt for SolidEntry<T>
@@ -355,6 +410,15 @@ where
     #[inline]
     fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         self.chunks_write_in(writer)
+    }
+
+    #[cfg(feature = "unstable-async")]
+    #[inline]
+    async fn write_in_async<W: futures_io::AsyncWrite + std::marker::Unpin>(
+        &self,
+        writer: &mut W,
+    ) -> io::Result<usize> {
+        self.chunks_write_in_async(writer).await
     }
 }
 
@@ -730,6 +794,92 @@ where
         total += (ChunkType::FEND, []).write_chunk_in(writer)?;
         Ok(total)
     }
+
+    #[cfg(feature = "unstable-async")]
+    #[inline]
+    async fn chunks_write_in_async<W: futures_io::AsyncWrite + std::marker::Unpin>(
+        &self,
+        writer: &mut W,
+    ) -> io::Result<usize> {
+        let mut total = 0;
+
+        let Metadata {
+            raw_file_size,
+            compressed_size: _,
+            created,
+            modified,
+            accessed,
+            permission,
+        } = &self.metadata;
+
+        total += (ChunkType::FHED, self.header.to_bytes())
+            .write_chunk_in_async(writer)
+            .await?;
+        for ex in &self.extra {
+            total += ex.write_chunk_in_async(writer).await?;
+        }
+        if let Some(raw_file_size) = raw_file_size {
+            total += (
+                ChunkType::fSIZ,
+                skip_while(&raw_file_size.to_be_bytes(), |i| *i == 0),
+            )
+                .write_chunk_in_async(writer)
+                .await?;
+        }
+
+        if let Some(phsf) = &self.phsf {
+            total += (ChunkType::PHSF, phsf.as_bytes())
+                .write_chunk_in_async(writer)
+                .await?;
+        }
+        for data_chunk in &self.data {
+            total += (ChunkType::FDAT, data_chunk)
+                .write_chunk_in_async(writer)
+                .await?;
+        }
+        if let Some(c) = created {
+            total += (ChunkType::cTIM, c.whole_seconds().to_be_bytes())
+                .write_chunk_in_async(writer)
+                .await?;
+            if c.subsec_nanoseconds() != 0 {
+                total += (ChunkType::cTNS, c.subsec_nanoseconds().to_be_bytes())
+                    .write_chunk_in_async(writer)
+                    .await?;
+            }
+        }
+        if let Some(d) = modified {
+            total += (ChunkType::mTIM, d.whole_seconds().to_be_bytes())
+                .write_chunk_in_async(writer)
+                .await?;
+            if d.subsec_nanoseconds() != 0 {
+                total += (ChunkType::mTNS, d.subsec_nanoseconds().to_be_bytes())
+                    .write_chunk_in_async(writer)
+                    .await?;
+            }
+        }
+        if let Some(a) = accessed {
+            total += (ChunkType::aTIM, a.whole_seconds().to_be_bytes())
+                .write_chunk_in_async(writer)
+                .await?;
+            if a.subsec_nanoseconds() != 0 {
+                total += (ChunkType::aTNS, a.subsec_nanoseconds().to_be_bytes())
+                    .write_chunk_in_async(writer)
+                    .await?;
+            }
+        }
+        if let Some(p) = permission {
+            total += (ChunkType::fPRM, p.to_bytes())
+                .write_chunk_in_async(writer)
+                .await?;
+        }
+        for xattr in &self.xattrs {
+            total += (ChunkType::xATR, xattr.to_bytes())
+                .write_chunk_in_async(writer)
+                .await?;
+        }
+        total += (ChunkType::FEND, []).write_chunk_in_async(writer).await?;
+        Ok(total)
+    }
 }
 
 impl<T> SealedEntryExt for NormalEntry<T>
@@ -811,6 +961,15 @@ where
     #[inline]
     fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         self.chunks_write_in(writer)
+    }
+
+    #[cfg(feature = "unstable-async")]
+    #[inline]
+    async fn write_in_async<W: futures_io::AsyncWrite + std::marker::Unpin>(
+        &self,
+        writer: &mut W,
+    ) -> io::Result<usize> {
+        self.chunks_write_in_async(writer).await
     }
 }
 
