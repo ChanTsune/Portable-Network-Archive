@@ -1019,7 +1019,7 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
             self.header.encryption,
             self.header.cipher_mode,
             self.phsf.as_deref(),
-            option.password.as_ref().map(|it| it.as_bytes()),
+            option.password().as_ref().map(|it| it.as_bytes()),
         )?;
         let reader = decompress_reader(decrypt_reader, self.header.compression)?;
         Ok(EntryDataReader(EntryReader(reader)))
