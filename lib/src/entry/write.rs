@@ -56,16 +56,8 @@ fn to_hashed(cipher: Cipher) -> io::Result<WriteCipher> {
 }
 
 #[inline]
-fn get_cipher(cipher: Option<Cipher>) -> io::Result<Option<WriteCipher>> {
-    Ok(match cipher {
-        None => None,
-        Some(it) => Some(to_hashed(it)?),
-    })
-}
-
-#[inline]
 pub(crate) fn get_writer_context(option: WriteOptions) -> io::Result<EntryWriterContext> {
-    let cipher = get_cipher(option.cipher)?;
+    let cipher = option.cipher.map(to_hashed).transpose()?;
     Ok(EntryWriterContext {
         compression_level: option.compression_level,
         compression: option.compression,
