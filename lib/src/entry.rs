@@ -1011,7 +1011,7 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
     /// # }
     /// ```
     #[inline]
-    pub fn reader(&self, option: ReadOptions) -> io::Result<EntryDataReader> {
+    pub fn reader(&self, option: impl ReadOption) -> io::Result<EntryDataReader> {
         let raw_data_reader =
             crate::io::FlattenReader::new(self.data.iter().map(|it| it.as_ref()).collect());
         let decrypt_reader = decrypt_reader(
@@ -1019,7 +1019,7 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
             self.header.encryption,
             self.header.cipher_mode,
             self.phsf.as_deref(),
-            option.password().as_ref().map(|it| it.as_bytes()),
+            option.password().map(|it| it.as_bytes()),
         )?;
         let reader = decompress_reader(decrypt_reader, self.header.compression)?;
         Ok(EntryDataReader(EntryReader(reader)))
