@@ -107,6 +107,25 @@ mod private {
             T::cipher(self)
         }
     }
+
+    /// Entry read option getter trait.
+    pub trait ReadOption {
+        fn password(&self) -> Option<&str>;
+    }
+
+    impl<T: ReadOption> ReadOption for &T {
+        #[inline]
+        fn password(&self) -> Option<&str> {
+            T::password(self)
+        }
+    }
+
+    impl ReadOption for ReadOptions {
+        #[inline]
+        fn password(&self) -> Option<&str> {
+            self.password.as_deref()
+        }
+    }
 }
 
 /// Compression method.
@@ -605,7 +624,7 @@ impl WriteOptionsBuilder {
 /// Options for reading an entry.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct ReadOptions {
-    pub(crate) password: Option<String>,
+    password: Option<String>,
 }
 
 impl ReadOptions {
