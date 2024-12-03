@@ -1,5 +1,28 @@
 use crate::compress;
+pub(crate) use private::*;
 use std::str::FromStr;
+
+mod private {
+    use super::*;
+    /// Entry read option getter trait.
+    pub trait ReadOption {
+        fn password(&self) -> Option<&str>;
+    }
+
+    impl<T: ReadOption> ReadOption for &T {
+        #[inline]
+        fn password(&self) -> Option<&str> {
+            T::password(self)
+        }
+    }
+
+    impl ReadOption for ReadOptions {
+        #[inline]
+        fn password(&self) -> Option<&str> {
+            self.password.as_deref()
+        }
+    }
+}
 
 /// Compression method.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -541,7 +564,7 @@ impl WriteOptionsBuilder {
 /// Options for reading an entry.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct ReadOptions {
-    pub(crate) password: Option<String>,
+    password: Option<String>,
 }
 
 impl ReadOptions {
