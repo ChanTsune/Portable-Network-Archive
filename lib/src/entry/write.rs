@@ -1,7 +1,7 @@
 use crate::{
     cipher::{CipherWriter, Ctr128BEWriter, EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
     compress::CompressionWriter,
-    entry::{CipherMode, Compression, CompressionLevel, HashAlgorithmParams, WriteOptions},
+    entry::{CipherMode, Compress, HashAlgorithmParams, WriteOptions},
     hash, random, Cipher, CipherAlgorithm, HashAlgorithm,
 };
 use aes::Aes256;
@@ -26,8 +26,7 @@ pub(crate) struct WriteCipher {
 }
 
 pub(crate) struct EntryWriterContext {
-    pub(crate) compression_level: CompressionLevel,
-    pub(crate) compression: Compression,
+    pub(crate) compress: Compress,
     pub(crate) cipher: Option<WriteCipher>,
 }
 
@@ -67,8 +66,7 @@ fn get_cipher(cipher: Option<Cipher>) -> io::Result<Option<WriteCipher>> {
 pub(crate) fn get_writer_context(option: WriteOptions) -> io::Result<EntryWriterContext> {
     let cipher = get_cipher(option.cipher)?;
     Ok(EntryWriterContext {
-        compression_level: option.compression_level,
-        compression: option.compression,
+        compress: option.compress,
         cipher,
     })
 }
@@ -188,14 +186,15 @@ fn encryption_writer<W: Write>(
 #[inline]
 fn compression_writer<W: Write>(
     writer: W,
-    algorithm: Compression,
-    level: CompressionLevel,
+    algorithm: Compress,
 ) -> io::Result<CompressionWriter<W>> {
     Ok(match algorithm {
-        Compression::No => CompressionWriter::No(writer),
-        Compression::Deflate => CompressionWriter::Deflate(ZlibEncoder::new(writer, level.into())),
-        Compression::ZStandard => CompressionWriter::ZStd(ZstdEncoder::new(writer, level.into())?),
-        Compression::XZ => CompressionWriter::Xz(XzEncoder::new(writer, level.into())),
+        Compress::No => CompressionWriter::No(writer),
+        Compress::Deflate(level) => {
+            CompressionWriter::Deflate(ZlibEncoder::new(writer, level.into()))
+        }
+        Compress::ZStandard(level) => CompressionWriter::ZStd(ZstdEncoder::new(writer, level)?),
+        Compress::XZ(level) => CompressionWriter::Xz(XzEncoder::new(writer, level)),
     })
 }
 
@@ -205,5 +204,5 @@ pub(crate) fn get_writer<W: Write>(
     context: &EntryWriterContext,
 ) -> io::Result<CompressionWriter<CipherWriter<W>>> {
     let writer = encryption_writer(writer, &context.cipher)?;
-    compression_writer(writer, context.compression, context.compression_level)
+    compression_writer(writer, context.compress)
 }
