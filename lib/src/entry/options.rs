@@ -1,5 +1,43 @@
 use crate::compress;
+pub(crate) use private::*;
 use std::str::FromStr;
+
+mod private {
+    use super::*;
+
+    /// Write option getter trait.
+    pub trait WriteOption {
+        fn compress(&self) -> Compress;
+        fn cipher(&self) -> Option<&Cipher>;
+    }
+
+    impl WriteOption for WriteOptions {
+        #[inline]
+        fn compress(&self) -> Compress {
+            self.compress
+        }
+
+        #[inline]
+        fn cipher(&self) -> Option<&Cipher> {
+            self.cipher.as_ref()
+        }
+    }
+
+    impl<T> WriteOption for &T
+    where
+        T: WriteOption,
+    {
+        #[inline]
+        fn compress(&self) -> Compress {
+            T::compress(self)
+        }
+
+        #[inline]
+        fn cipher(&self) -> Option<&Cipher> {
+            T::cipher(self)
+        }
+    }
+}
 
 /// Compression method.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
