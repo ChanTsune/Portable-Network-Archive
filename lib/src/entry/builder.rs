@@ -85,7 +85,7 @@ impl EntryBuilder {
     #[inline]
     pub fn new_file(name: EntryName, option: WriteOptions) -> io::Result<Self> {
         let header = EntryHeader::for_file(
-            option.compression,
+            option.compression(),
             option.encryption(),
             option.cipher_mode(),
             name,
@@ -389,7 +389,7 @@ impl SolidEntryBuilder {
     #[inline]
     pub fn new(option: WriteOptions) -> io::Result<Self> {
         let header = SolidHeader::new(
-            option.compression,
+            option.compression(),
             option.encryption(),
             option.cipher_mode(),
         );

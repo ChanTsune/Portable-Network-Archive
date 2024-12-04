@@ -1,3 +1,4 @@
+use crate::compress;
 use std::str::FromStr;
 
 /// Compression method.
@@ -101,6 +102,15 @@ impl FromStr for CompressionLevel {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self(CompressionLevelImpl::from_str(s)?))
     }
+}
+
+/// Compression options.
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) enum CompressOption {
+    No,
+    Deflate(compress::deflate::DeflateCompressionLevel),
+    ZStandard(compress::zstandard::ZstdCompressionLevel),
+    XZ(compress::xz::XZCompressionLevel),
 }
 
 /// Cipher options.
@@ -302,8 +312,7 @@ impl TryFrom<u8> for DataKind {
 /// Options for writing an entry.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct WriteOptions {
-    pub(crate) compression: Compression,
-    pub(crate) compression_level: CompressionLevel,
+    pub(crate) compress: CompressOption,
     pub(crate) cipher: Option<Cipher>,
 }
 
@@ -322,8 +331,7 @@ impl WriteOptions {
     #[inline]
     pub const fn store() -> Self {
         Self {
-            compression: Compression::No,
-            compression_level: CompressionLevel::DEFAULT,
+            compress: CompressOption::No,
             cipher: None,
         }
     }
@@ -362,6 +370,16 @@ impl WriteOptions {
     #[inline]
     pub fn into_builder(self) -> WriteOptionsBuilder {
         self.into()
+    }
+
+    #[inline]
+    pub(crate) fn compression(&self) -> Compression {
+        match self.compress {
+            CompressOption::No => Compression::No,
+            CompressOption::Deflate(_) => Compression::Deflate,
+            CompressOption::ZStandard(_) => Compression::ZStandard,
+            CompressOption::XZ(_) => Compression::XZ,
+        }
     }
 
     #[inline]
@@ -413,9 +431,15 @@ impl Default for WriteOptionsBuilder {
 impl From<WriteOptions> for WriteOptionsBuilder {
     #[inline]
     fn from(value: WriteOptions) -> Self {
+        let (compression, compression_level) = match value.compress {
+            CompressOption::No => (Compression::No, CompressionLevel::DEFAULT),
+            CompressOption::Deflate(level) => (Compression::Deflate, level.into()),
+            CompressOption::ZStandard(level) => (Compression::ZStandard, level.into()),
+            CompressOption::XZ(level) => (Compression::XZ, level.into()),
+        };
         Self {
-            compression: value.compression,
-            compression_level: value.compression_level,
+            compression,
+            compression_level,
             encryption: value.encryption(),
             cipher_mode: value.cipher_mode(),
             hash_algorithm: value.hash_algorithm(),
@@ -503,8 +527,12 @@ impl WriteOptionsBuilder {
             None
         };
         WriteOptions {
-            compression: self.compression,
-            compression_level: self.compression_level,
+            compress: match self.compression {
+                Compression::No => CompressOption::No,
+                Compression::Deflate => CompressOption::Deflate(self.compression_level.into()),
+                Compression::ZStandard => CompressOption::ZStandard(self.compression_level.into()),
+                Compression::XZ => CompressOption::XZ(self.compression_level.into()),
+            },
             cipher,
         }
     }
