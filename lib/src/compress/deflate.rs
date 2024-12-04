@@ -1,6 +1,62 @@
 use crate::entry::CompressionLevelImpl;
 use crate::CompressionLevel;
 use flate2::Compression;
+use std::{
+    cmp::Ordering,
+    hash::{Hash, Hasher},
+};
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub(crate) struct DeflateCompressionLevel(Compression);
+
+impl From<DeflateCompressionLevel> for i64 {
+    #[inline]
+    fn from(value: DeflateCompressionLevel) -> Self {
+        value.0.level().into()
+    }
+}
+
+impl From<Compression> for DeflateCompressionLevel {
+    #[inline]
+    fn from(value: Compression) -> Self {
+        Self(value)
+    }
+}
+
+impl From<DeflateCompressionLevel> for Compression {
+    #[inline]
+    fn from(value: DeflateCompressionLevel) -> Self {
+        value.0
+    }
+}
+
+impl From<CompressionLevel> for DeflateCompressionLevel {
+    #[inline]
+    fn from(value: CompressionLevel) -> Self {
+        Self(value.into())
+    }
+}
+
+impl Hash for DeflateCompressionLevel {
+    #[inline]
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.level().hash(state)
+    }
+}
+
+impl Ord for DeflateCompressionLevel {
+    #[inline]
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.level().cmp(&other.0.level())
+    }
+}
+
+impl PartialOrd for DeflateCompressionLevel {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
 
 impl From<CompressionLevel> for Compression {
     #[inline]
