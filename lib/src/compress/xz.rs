@@ -1,10 +1,10 @@
-use crate::entry::CompressionLevelImpl;
+use crate::entry::{CompressionLevel, CompressionLevelImpl};
 
-pub(crate) type CompressionLevel = u32;
+pub(crate) type XZCompressionLevel = u32;
 
-impl From<crate::CompressionLevel> for CompressionLevel {
+impl From<CompressionLevel> for XZCompressionLevel {
     #[inline]
-    fn from(value: crate::CompressionLevel) -> Self {
+    fn from(value: CompressionLevel) -> Self {
         match value.0 {
             CompressionLevelImpl::Min => 0,
             CompressionLevelImpl::Max => 9,
@@ -19,27 +19,21 @@ mod tests {
     use super::*;
     #[test]
     fn min() {
-        assert_eq!(CompressionLevel::from(crate::CompressionLevel::from(0)), 0);
+        assert_eq!(XZCompressionLevel::from(CompressionLevel::from(0)), 0);
     }
 
     #[test]
     fn max() {
-        assert_eq!(CompressionLevel::from(crate::CompressionLevel::from(9)), 9);
+        assert_eq!(XZCompressionLevel::from(CompressionLevel::from(9)), 9);
     }
 
     #[test]
     fn default() {
-        assert_eq!(
-            CompressionLevel::from(crate::CompressionLevel::default()),
-            6
-        );
+        assert_eq!(XZCompressionLevel::from(CompressionLevel::default()), 6);
     }
 
     #[test]
     fn out_of_range() {
-        assert_eq!(
-            CompressionLevel::from(crate::CompressionLevel::from(100)),
-            9
-        );
+        assert_eq!(XZCompressionLevel::from(CompressionLevel::from(100)), 9);
     }
 }
