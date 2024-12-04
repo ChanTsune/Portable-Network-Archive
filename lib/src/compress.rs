@@ -4,9 +4,9 @@ use liblzma::{read::XzDecoder, write::XzEncoder};
 use std::io::{BufReader, Read, Result, Write};
 use zstd::stream::{read::Decoder as ZStdDecoder, write::Encoder as ZstdEncoder};
 
-mod deflate;
-mod xz;
-mod zstandard;
+pub(crate) mod deflate;
+pub(crate) mod xz;
+pub(crate) mod zstandard;
 
 pub(crate) enum CompressionWriter<W: Write> {
     No(W),
