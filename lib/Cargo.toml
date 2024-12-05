@@ -43,7 +43,7 @@ version-sync = "0.9.5"
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
 tokio = { version = "1.42.0", features = ["macros", "rt-multi-thread", "fs", "io-util"] }
-tokio-util = { version = "0.7.12", features = ["compat"] }
+tokio-util = { version = "0.7.13", features = ["compat"] }
 
 [features]
 wasm = ["zstd/wasm", "liblzma/wasm"] # Deprecated. This feature flag has been replaced by `cfg(target_arch = "wasm32")`.
