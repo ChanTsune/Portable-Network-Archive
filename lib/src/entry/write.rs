@@ -1,7 +1,7 @@
 use crate::{
     cipher::{CipherWriter, Ctr128BEWriter, EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
     compress::CompressionWriter,
-    entry::{CipherMode, Compress, HashAlgorithmParams, WriteOption, WriteOptions},
+    entry::{CipherMode, Compress, HashAlgorithmParams, WriteOption},
     hash, random, Cipher, CipherAlgorithm, HashAlgorithm,
 };
 use aes::Aes256;
@@ -55,7 +55,7 @@ fn to_hashed(cipher: &Cipher) -> io::Result<WriteCipher> {
 }
 
 #[inline]
-pub(crate) fn get_writer_context(option: WriteOptions) -> io::Result<EntryWriterContext> {
+pub(crate) fn get_writer_context(option: impl WriteOption) -> io::Result<EntryWriterContext> {
     let cipher = option.cipher().map(to_hashed).transpose()?;
     Ok(EntryWriterContext {
         compress: option.compress(),

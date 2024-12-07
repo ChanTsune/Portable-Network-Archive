@@ -371,7 +371,7 @@ impl<W: Write> Archive<W> {
     }
 
     #[inline]
-    fn into_solid_archive(mut self, option: WriteOptions) -> io::Result<SolidArchive<W>> {
+    fn into_solid_archive(mut self, option: impl WriteOption) -> io::Result<SolidArchive<W>> {
         let header = SolidHeader::new(
             option.compression(),
             option.encryption(),
