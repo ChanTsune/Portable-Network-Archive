@@ -29,13 +29,6 @@ impl<const N: usize> io::Write for FlattenWriter<N> {
     }
 }
 
-impl TryIntoInner<Vec<u8>> for Vec<u8> {
-    #[inline]
-    fn try_into_inner(self) -> io::Result<Self> {
-        Ok(self)
-    }
-}
-
 pub(crate) struct FlattenReader<'r> {
     index: usize,
     inner: Vec<&'r [u8]>,
