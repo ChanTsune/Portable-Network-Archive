@@ -83,7 +83,7 @@ impl EntryBuilder {
     ///
     /// A Result containing the new [EntryBuilder], or an I/O error if creation fails.
     #[inline]
-    pub fn new_file(name: EntryName, option: WriteOptions) -> io::Result<Self> {
+    pub fn new_file(name: EntryName, option: impl WriteOption) -> io::Result<Self> {
         let header = EntryHeader::for_file(
             option.compression(),
             option.encryption(),
@@ -387,7 +387,7 @@ impl SolidEntryBuilder {
     ///
     /// A new [SolidEntryBuilder].
     #[inline]
-    pub fn new(option: WriteOptions) -> io::Result<Self> {
+    pub fn new(option: impl WriteOption) -> io::Result<Self> {
         let header = SolidHeader::new(
             option.compression(),
             option.encryption(),
