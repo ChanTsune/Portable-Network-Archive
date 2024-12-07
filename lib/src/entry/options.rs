@@ -384,8 +384,8 @@ impl TryFrom<u8> for DataKind {
 /// Options for writing an entry.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct WriteOptions {
-    pub(crate) compress: Compress,
-    pub(crate) cipher: Option<Cipher>,
+    compress: Compress,
+    cipher: Option<Cipher>,
 }
 
 impl WriteOptions {
