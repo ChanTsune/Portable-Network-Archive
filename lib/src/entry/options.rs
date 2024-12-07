@@ -98,6 +98,23 @@ impl<T: Into<i64>> From<T> for CompressionLevel {
 impl FromStr for CompressionLevel {
     type Err = core::num::ParseIntError;
 
+    /// Parses a string `s` to return a value of this type.
+    ///
+    /// If parsing succeeds, return the value inside [`Ok`], otherwise
+    /// when the string is ill-formatted return an error specific to the
+    /// inside [`Err`]. The error type is specific to the implementation of the trait.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::str::FromStr;
+    /// use libpna::CompressionLevel;
+    ///
+    /// assert_eq!(CompressionLevel::min(), CompressionLevel::from_str("min").unwrap());
+    /// assert_eq!(CompressionLevel::max(), CompressionLevel::from_str("max").unwrap());
+    /// assert_eq!(CompressionLevel::default(), CompressionLevel::from_str("default").unwrap());
+    /// assert_eq!(CompressionLevel::from(3), CompressionLevel::from_str("3").unwrap());
+    /// ```
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self(CompressionLevelImpl::from_str(s)?))
