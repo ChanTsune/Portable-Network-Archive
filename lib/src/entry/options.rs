@@ -5,6 +5,42 @@ use std::str::FromStr;
 mod private {
     use super::*;
 
+    /// Compression options.
+    #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+    pub enum Compress {
+        No,
+        Deflate(compress::deflate::DeflateCompressionLevel),
+        ZStandard(compress::zstandard::ZstdCompressionLevel),
+        XZ(compress::xz::XZCompressionLevel),
+    }
+
+    /// Cipher options.
+    #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+    pub struct Cipher {
+        pub(crate) password: Password,
+        pub(crate) hash_algorithm: HashAlgorithm,
+        pub(crate) cipher_algorithm: CipherAlgorithm,
+        pub(crate) mode: CipherMode,
+    }
+
+    impl Cipher {
+        /// Create new [Cipher]
+        #[inline]
+        pub(crate) const fn new(
+            password: Password,
+            hash_algorithm: HashAlgorithm,
+            cipher_algorithm: CipherAlgorithm,
+            mode: CipherMode,
+        ) -> Self {
+            Self {
+                password,
+                hash_algorithm,
+                cipher_algorithm,
+                mode,
+            }
+        }
+    }
+
     /// Write option getter trait.
     pub trait WriteOption {
         fn compress(&self) -> Compress;
@@ -202,42 +238,6 @@ impl FromStr for CompressionLevel {
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self(CompressionLevelImpl::from_str(s)?))
-    }
-}
-
-/// Compression options.
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) enum Compress {
-    No,
-    Deflate(compress::deflate::DeflateCompressionLevel),
-    ZStandard(compress::zstandard::ZstdCompressionLevel),
-    XZ(compress::xz::XZCompressionLevel),
-}
-
-/// Cipher options.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct Cipher {
-    pub(crate) password: Password,
-    pub(crate) hash_algorithm: HashAlgorithm,
-    pub(crate) cipher_algorithm: CipherAlgorithm,
-    pub(crate) mode: CipherMode,
-}
-
-impl Cipher {
-    /// Create new [Cipher]
-    #[inline]
-    pub(crate) const fn new(
-        password: Password,
-        hash_algorithm: HashAlgorithm,
-        cipher_algorithm: CipherAlgorithm,
-        mode: CipherMode,
-    ) -> Self {
-        Self {
-            password,
-            hash_algorithm,
-            cipher_algorithm,
-            mode,
-        }
     }
 }
 
