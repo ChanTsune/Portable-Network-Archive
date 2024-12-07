@@ -5,7 +5,7 @@ use crate::{
     compress::CompressionWriter,
     entry::{
         get_writer, get_writer_context, Entry, EntryHeader, EntryName, EntryPart, Metadata,
-        NormalEntry, SealedEntryExt, SolidHeader, WriteCipher, WriteOptions,
+        NormalEntry, SealedEntryExt, SolidHeader, WriteCipher, WriteOption, WriteOptions,
     },
     io::TryIntoInner,
 };

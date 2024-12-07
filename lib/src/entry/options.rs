@@ -9,6 +9,40 @@ mod private {
     pub trait WriteOption {
         fn compress(&self) -> Compress;
         fn cipher(&self) -> Option<&Cipher>;
+        #[inline]
+        fn compression(&self) -> Compression {
+            match self.compress() {
+                Compress::No => Compression::No,
+                Compress::Deflate(_) => Compression::Deflate,
+                Compress::ZStandard(_) => Compression::ZStandard,
+                Compress::XZ(_) => Compression::XZ,
+            }
+        }
+
+        #[inline]
+        fn encryption(&self) -> Encryption {
+            self.cipher()
+                .map_or(Encryption::No, |it| match it.cipher_algorithm {
+                    CipherAlgorithm::Aes => Encryption::Aes,
+                    CipherAlgorithm::Camellia => Encryption::Camellia,
+                })
+        }
+
+        #[inline]
+        fn cipher_mode(&self) -> CipherMode {
+            self.cipher().map_or(CipherMode::CTR, |it| it.mode)
+        }
+
+        #[inline]
+        fn hash_algorithm(&self) -> HashAlgorithm {
+            self.cipher()
+                .map_or_else(HashAlgorithm::argon2id, |it| it.hash_algorithm)
+        }
+
+        #[inline]
+        fn password(&self) -> Option<&str> {
+            self.cipher().map(|it| it.password.0.as_str())
+        }
     }
 
     impl WriteOption for WriteOptions {
@@ -437,43 +471,6 @@ impl WriteOptions {
     #[inline]
     pub fn into_builder(self) -> WriteOptionsBuilder {
         self.into()
-    }
-
-    #[inline]
-    pub(crate) fn compression(&self) -> Compression {
-        match self.compress {
-            Compress::No => Compression::No,
-            Compress::Deflate(_) => Compression::Deflate,
-            Compress::ZStandard(_) => Compression::ZStandard,
-            Compress::XZ(_) => Compression::XZ,
-        }
-    }
-
-    #[inline]
-    pub(crate) fn encryption(&self) -> Encryption {
-        self.cipher
-            .as_ref()
-            .map_or(Encryption::No, |it| match it.cipher_algorithm {
-                CipherAlgorithm::Aes => Encryption::Aes,
-                CipherAlgorithm::Camellia => Encryption::Camellia,
-            })
-    }
-
-    #[inline]
-    pub(crate) fn cipher_mode(&self) -> CipherMode {
-        self.cipher.as_ref().map_or(CipherMode::CTR, |it| it.mode)
-    }
-
-    #[inline]
-    pub(crate) fn hash_algorithm(&self) -> HashAlgorithm {
-        self.cipher
-            .as_ref()
-            .map_or_else(HashAlgorithm::argon2id, |it| it.hash_algorithm)
-    }
-
-    #[inline]
-    pub(crate) fn password(&self) -> Option<&str> {
-        self.cipher.as_ref().map(|it| it.password.0.as_str())
     }
 }
 

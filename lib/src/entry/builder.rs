@@ -5,7 +5,7 @@ use crate::{
     entry::{
         get_writer, get_writer_context, private::SealedEntryExt, DataKind, Entry, EntryHeader,
         EntryName, EntryReference, ExtendedAttribute, Metadata, NormalEntry, Permission,
-        SolidEntry, SolidHeader, WriteCipher, WriteOptions,
+        SolidEntry, SolidHeader, WriteCipher, WriteOption, WriteOptions,
     },
     io::TryIntoInner,
 };
