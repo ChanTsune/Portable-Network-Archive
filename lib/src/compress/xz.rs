@@ -1,6 +1,6 @@
 use crate::entry::{CompressionLevel, CompressionLevelImpl};
 
-pub(crate) type XZCompressionLevel = u32;
+pub type XZCompressionLevel = u32;
 
 impl From<CompressionLevel> for XZCompressionLevel {
     #[inline]

@@ -2,7 +2,7 @@ use crate::entry::CompressionLevelImpl;
 use crate::CompressionLevel;
 use zstd::zstd_safe;
 
-pub(crate) type ZstdCompressionLevel = zstd_safe::CompressionLevel;
+pub type ZstdCompressionLevel = zstd_safe::CompressionLevel;
 
 impl From<CompressionLevel> for ZstdCompressionLevel {
     #[inline]

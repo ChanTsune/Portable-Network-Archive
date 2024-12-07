@@ -7,7 +7,7 @@ use std::{
 };
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub(crate) struct DeflateCompressionLevel(Compression);
+pub struct DeflateCompressionLevel(Compression);
 
 impl From<DeflateCompressionLevel> for i64 {
     #[inline]
