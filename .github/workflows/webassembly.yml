@@ -68,7 +68,7 @@ jobs:
       - if: ${{ endsWith(matrix.target, 'unknown') }}
         name: Install wasm-bindgen-cli from crates.io
         run: |
-          cargo binstall --no-confirm wasm-bindgen-cli --version ${{ steps.get_version.outputs.version }}
+          cargo binstall --no-confirm --force wasm-bindgen-cli --version ${{ steps.get_version.outputs.version }}
       - if: ${{ endsWith(matrix.target, 'unknown') }}
         name: Run build
         run: |

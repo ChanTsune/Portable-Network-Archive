@@ -390,6 +390,8 @@ pub fn read_chunks_from_slice(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+    use wasm_bindgen_test::wasm_bindgen_test as test;
 
     #[test]
     fn to_bytes() {

@@ -21,6 +21,9 @@ impl From<CompressionLevel> for ZstdCompressionLevel {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+    use wasm_bindgen_test::wasm_bindgen_test as test;
+
     #[test]
     fn min() {
         assert_eq!(ZstdCompressionLevel::from(CompressionLevel::from(0)), 0);
