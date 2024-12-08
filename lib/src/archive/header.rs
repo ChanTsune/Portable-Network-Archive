@@ -54,6 +54,9 @@ impl ArchiveHeader {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+    use wasm_bindgen_test::wasm_bindgen_test as test;
+
     #[test]
     fn header_to_bytes() {
         assert_eq!(

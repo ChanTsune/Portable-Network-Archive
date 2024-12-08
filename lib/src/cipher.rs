@@ -91,6 +91,8 @@ mod tests {
     use cipher::{
         BlockCipher, BlockDecryptMut, BlockEncryptMut, BlockSizeUser, KeyIvInit, KeySizeUser,
     };
+    #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+    use wasm_bindgen_test::wasm_bindgen_test as test;
 
     fn encrypt_cbc<Cipher>(key: &[u8], iv: &[u8], data: &[u8]) -> io::Result<Vec<u8>>
     where

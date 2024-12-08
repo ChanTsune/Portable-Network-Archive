@@ -120,6 +120,8 @@ mod tests {
     use crate::entry::*;
     use std::io::{self, Cursor};
     use std::time::Duration;
+    #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+    use wasm_bindgen_test::wasm_bindgen_test as test;
 
     #[test]
     fn store_archive() {

@@ -120,6 +120,8 @@ where
 mod tests {
     use super::*;
     use cipher::block_padding::Pkcs7;
+    #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+    use wasm_bindgen_test::wasm_bindgen_test as test;
 
     #[test]
     fn read_decrypt() {
