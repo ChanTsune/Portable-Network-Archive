@@ -78,6 +78,8 @@ impl<W: Write> Write for ChunkStreamWriter<W> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+    use wasm_bindgen_test::wasm_bindgen_test as test;
 
     #[test]
     fn write_aend_chunk() {
