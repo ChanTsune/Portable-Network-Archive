@@ -53,10 +53,26 @@ jobs:
           cargo test -p libpna --target ${{ matrix.target }} -- --skip test_readme_deps --skip test_html_root_url
         env:
           RUSTFLAGS: "-C link-arg=-sINITIAL_MEMORY=512MB -C link-arg=-sTOTAL_STACK=16MB"
-      - if: ${{ !startsWith(matrix.target, 'wasm32-wasi') && !startsWith(matrix.target, 'wasm32-unknown-emscripten') }}
+      - if: ${{ endsWith(matrix.target, 'unknown') }}
+        name: Install jq
+        uses: dcarbone/install-jq-action@v3.0.1
+      - if: ${{ endsWith(matrix.target, 'unknown') }}
+        name: get wasm-bindgen version
+        id: get_version
+        run: |
+          VERSION=$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == "wasm-bindgen") | .version')
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+      - if: ${{ endsWith(matrix.target, 'unknown') }}
+        name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@v1.10.16
+      - if: ${{ endsWith(matrix.target, 'unknown') }}
+        name: Install wasm-bindgen-cli from crates.io
+        run: |
+          cargo binstall --no-confirm wasm-bindgen-cli --version ${{ steps.get_version.outputs.version }}
+      - if: ${{ endsWith(matrix.target, 'unknown') }}
         name: Run build
         run: |
-          cargo build -p libpna --target ${{ matrix.target }}
+          cargo test -p libpna --target ${{ matrix.target }} --release
 
   wasi_cli_test:
     name: wasi test
