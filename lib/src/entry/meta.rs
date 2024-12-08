@@ -56,7 +56,7 @@ impl Metadata {
     /// # }
     /// ```
     #[inline]
-    pub fn with_created(mut self, created: Option<Duration>) -> Self {
+    pub const fn with_created(mut self, created: Option<Duration>) -> Self {
         self.created = created;
         self
     }
@@ -76,7 +76,7 @@ impl Metadata {
     /// # }
     /// ```
     #[inline]
-    pub fn with_modified(mut self, modified: Option<Duration>) -> Self {
+    pub const fn with_modified(mut self, modified: Option<Duration>) -> Self {
         self.modified = modified;
         self
     }
@@ -96,7 +96,7 @@ impl Metadata {
     /// # }
     /// ```
     #[inline]
-    pub fn with_accessed(mut self, accessed: Option<Duration>) -> Self {
+    pub const fn with_accessed(mut self, accessed: Option<Duration>) -> Self {
         self.accessed = accessed;
         self
     }
