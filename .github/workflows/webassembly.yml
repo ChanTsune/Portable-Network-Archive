@@ -53,10 +53,16 @@ jobs:
           cargo test -p libpna --target ${{ matrix.target }} -- --skip test_readme_deps --skip test_html_root_url
         env:
           RUSTFLAGS: "-C link-arg=-sINITIAL_MEMORY=512MB -C link-arg=-sTOTAL_STACK=16MB"
-      - if: ${{ !startsWith(matrix.target, 'wasm32-wasi') && !startsWith(matrix.target, 'wasm32-unknown-emscripten') }}
+      - if: ${{ endsWith(matrix.target, 'unknown') }}
+        name: Install wasm-bindgen-cli from crates.io
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: wasm-bindgen-cli
+          version: '0.2.97'
+      - if: ${{ endsWith(matrix.target, 'unknown') }}
         name: Run build
         run: |
-          cargo build -p libpna --target ${{ matrix.target }}
+          cargo test -p libpna --target ${{ matrix.target }} --release
 
   wasi_cli_test:
     name: wasi test
