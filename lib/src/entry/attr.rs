@@ -17,7 +17,7 @@ impl ExtendedAttribute {
     /// let xattr = ExtendedAttribute::new("name".into(), b"value".into());
     /// ```
     #[inline]
-    pub fn new(name: String, value: Vec<u8>) -> Self {
+    pub const fn new(name: String, value: Vec<u8>) -> Self {
         Self { name, value }
     }
 
