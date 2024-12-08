@@ -36,7 +36,7 @@ pub(crate) struct FlattenReader<'r> {
 
 impl<'r> FlattenReader<'r> {
     #[inline]
-    pub(crate) fn new(inner: Vec<&'r [u8]>) -> Self {
+    pub(crate) const fn new(inner: Vec<&'r [u8]>) -> Self {
         Self { index: 0, inner }
     }
 }
