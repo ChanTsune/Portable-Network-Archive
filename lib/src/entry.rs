@@ -1209,6 +1209,8 @@ fn u128_from_be_bytes_last(bytes: &[u8]) -> u128 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+    use wasm_bindgen_test::wasm_bindgen_test as test;
 
     #[test]
     fn u128_from_be_bytes() {
@@ -1224,6 +1226,8 @@ mod tests {
     mod entry_part_split {
         use super::*;
         use std::sync::LazyLock;
+        #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+        use wasm_bindgen_test::wasm_bindgen_test as test;
 
         static TEST_ENTRY: LazyLock<RawEntry> = LazyLock::new(|| {
             RawEntry(vec![

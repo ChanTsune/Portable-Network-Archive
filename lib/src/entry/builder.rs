@@ -487,6 +487,8 @@ impl SolidEntryBuilder {
 mod tests {
     use super::*;
     use crate::ChunkType;
+    #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+    use wasm_bindgen_test::wasm_bindgen_test as test;
 
     #[test]
     fn entry_extra_chunk() {

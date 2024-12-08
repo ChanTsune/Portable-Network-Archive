@@ -84,6 +84,8 @@ pub(crate) fn verify_password<'a>(
 mod tests {
     use super::*;
     use crate::random;
+    #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+    use wasm_bindgen_test::wasm_bindgen_test as test;
 
     #[test]
     fn verify_argon2() {

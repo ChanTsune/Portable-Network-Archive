@@ -50,6 +50,8 @@ where
 mod tests {
     use super::*;
     use ctr::CtrCore;
+    #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+    use wasm_bindgen_test::wasm_bindgen_test as test;
 
     type CtrReader<W, C, F> = StreamCipherReader<W, CtrCore<C, F>>;
     type Aes128Ctr64LEReader<R> = CtrReader<R, aes::Aes128, ctr::flavors::Ctr64LE>;
