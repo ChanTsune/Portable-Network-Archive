@@ -54,11 +54,17 @@ jobs:
         env:
           RUSTFLAGS: "-C link-arg=-sINITIAL_MEMORY=512MB -C link-arg=-sTOTAL_STACK=16MB"
       - if: ${{ endsWith(matrix.target, 'unknown') }}
+        name: get wasm-bindgen version
+        id: get_version
+        run: |
+          VERSION=$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == "wasm-bindgen") | .version')
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+      - if: ${{ endsWith(matrix.target, 'unknown') }}
         name: Install wasm-bindgen-cli from crates.io
         uses: baptiste0928/cargo-install@v3
         with:
           crate: wasm-bindgen-cli
-          version: '0.2.97'
+          version: ${{ steps.get_version.outputs.version }}
       - if: ${{ endsWith(matrix.target, 'unknown') }}
         name: Run build
         run: |
