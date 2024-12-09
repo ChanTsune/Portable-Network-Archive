@@ -61,11 +61,11 @@ pub struct Archive<T> {
 }
 
 impl<T> Archive<T> {
-    fn new(inner: T, header: ArchiveHeader) -> Self {
+    const fn new(inner: T, header: ArchiveHeader) -> Self {
         Self::with_buffer(inner, header, Vec::new())
     }
 
-    fn with_buffer(inner: T, header: ArchiveHeader, buf: Vec<RawChunk>) -> Self {
+    const fn with_buffer(inner: T, header: ArchiveHeader, buf: Vec<RawChunk>) -> Self {
         Self {
             inner,
             header,
