@@ -60,11 +60,12 @@ jobs:
           VERSION=$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == "wasm-bindgen") | .version')
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
       - if: ${{ endsWith(matrix.target, 'unknown') }}
+        name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@v1.10.16
+      - if: ${{ endsWith(matrix.target, 'unknown') }}
         name: Install wasm-bindgen-cli from crates.io
-        uses: baptiste0928/cargo-install@v3
-        with:
-          crate: wasm-bindgen-cli
-          version: ${{ steps.get_version.outputs.version }}
+        run: |
+          cargo binstall --no-confirm wasm-bindgen-cli --version ${{ steps.get_version.outputs.version }}
       - if: ${{ endsWith(matrix.target, 'unknown') }}
         name: Run build
         run: |
