@@ -1,5 +1,113 @@
 use crate::compress;
+pub(crate) use private::*;
 use std::str::FromStr;
+
+mod private {
+    use super::*;
+
+    /// Compression options.
+    #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+    pub enum Compress {
+        No,
+        Deflate(compress::deflate::DeflateCompressionLevel),
+        ZStandard(compress::zstandard::ZstdCompressionLevel),
+        XZ(compress::xz::XZCompressionLevel),
+    }
+
+    /// Cipher options.
+    #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+    pub struct Cipher {
+        pub(crate) password: Password,
+        pub(crate) hash_algorithm: HashAlgorithm,
+        pub(crate) cipher_algorithm: CipherAlgorithm,
+        pub(crate) mode: CipherMode,
+    }
+
+    impl Cipher {
+        /// Create new [Cipher]
+        #[inline]
+        pub(crate) const fn new(
+            password: Password,
+            hash_algorithm: HashAlgorithm,
+            cipher_algorithm: CipherAlgorithm,
+            mode: CipherMode,
+        ) -> Self {
+            Self {
+                password,
+                hash_algorithm,
+                cipher_algorithm,
+                mode,
+            }
+        }
+    }
+
+    /// Write option getter trait.
+    pub trait WriteOption {
+        fn compress(&self) -> Compress;
+        fn cipher(&self) -> Option<&Cipher>;
+        #[inline]
+        fn compression(&self) -> Compression {
+            match self.compress() {
+                Compress::No => Compression::No,
+                Compress::Deflate(_) => Compression::Deflate,
+                Compress::ZStandard(_) => Compression::ZStandard,
+                Compress::XZ(_) => Compression::XZ,
+            }
+        }
+
+        #[inline]
+        fn encryption(&self) -> Encryption {
+            self.cipher()
+                .map_or(Encryption::No, |it| match it.cipher_algorithm {
+                    CipherAlgorithm::Aes => Encryption::Aes,
+                    CipherAlgorithm::Camellia => Encryption::Camellia,
+                })
+        }
+
+        #[inline]
+        fn cipher_mode(&self) -> CipherMode {
+            self.cipher().map_or(CipherMode::CTR, |it| it.mode)
+        }
+
+        #[inline]
+        fn hash_algorithm(&self) -> HashAlgorithm {
+            self.cipher()
+                .map_or_else(HashAlgorithm::argon2id, |it| it.hash_algorithm)
+        }
+
+        #[inline]
+        fn password(&self) -> Option<&str> {
+            self.cipher().map(|it| it.password.0.as_str())
+        }
+    }
+
+    impl WriteOption for WriteOptions {
+        #[inline]
+        fn compress(&self) -> Compress {
+            self.compress
+        }
+
+        #[inline]
+        fn cipher(&self) -> Option<&Cipher> {
+            self.cipher.as_ref()
+        }
+    }
+
+    impl<T> WriteOption for &T
+    where
+        T: WriteOption,
+    {
+        #[inline]
+        fn compress(&self) -> Compress {
+            T::compress(self)
+        }
+
+        #[inline]
+        fn cipher(&self) -> Option<&Cipher> {
+            T::cipher(self)
+        }
+    }
+}
 
 /// Compression method.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -118,42 +226,6 @@ impl FromStr for CompressionLevel {
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self(CompressionLevelImpl::from_str(s)?))
-    }
-}
-
-/// Compression options.
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) enum Compress {
-    No,
-    Deflate(compress::deflate::DeflateCompressionLevel),
-    ZStandard(compress::zstandard::ZstdCompressionLevel),
-    XZ(compress::xz::XZCompressionLevel),
-}
-
-/// Cipher options.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct Cipher {
-    pub(crate) password: Password,
-    pub(crate) hash_algorithm: HashAlgorithm,
-    pub(crate) cipher_algorithm: CipherAlgorithm,
-    pub(crate) mode: CipherMode,
-}
-
-impl Cipher {
-    /// Create new [Cipher]
-    #[inline]
-    pub(crate) const fn new(
-        password: Password,
-        hash_algorithm: HashAlgorithm,
-        cipher_algorithm: CipherAlgorithm,
-        mode: CipherMode,
-    ) -> Self {
-        Self {
-            password,
-            hash_algorithm,
-            cipher_algorithm,
-            mode,
-        }
     }
 }
 
@@ -329,8 +401,8 @@ impl TryFrom<u8> for DataKind {
 /// Options for writing an entry.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct WriteOptions {
-    pub(crate) compress: Compress,
-    pub(crate) cipher: Option<Cipher>,
+    compress: Compress,
+    cipher: Option<Cipher>,
 }
 
 impl WriteOptions {
@@ -387,43 +459,6 @@ impl WriteOptions {
     #[inline]
     pub fn into_builder(self) -> WriteOptionsBuilder {
         self.into()
-    }
-
-    #[inline]
-    pub(crate) fn compression(&self) -> Compression {
-        match self.compress {
-            Compress::No => Compression::No,
-            Compress::Deflate(_) => Compression::Deflate,
-            Compress::ZStandard(_) => Compression::ZStandard,
-            Compress::XZ(_) => Compression::XZ,
-        }
-    }
-
-    #[inline]
-    pub(crate) fn encryption(&self) -> Encryption {
-        self.cipher
-            .as_ref()
-            .map_or(Encryption::No, |it| match it.cipher_algorithm {
-                CipherAlgorithm::Aes => Encryption::Aes,
-                CipherAlgorithm::Camellia => Encryption::Camellia,
-            })
-    }
-
-    #[inline]
-    pub(crate) fn cipher_mode(&self) -> CipherMode {
-        self.cipher.as_ref().map_or(CipherMode::CTR, |it| it.mode)
-    }
-
-    #[inline]
-    pub(crate) fn hash_algorithm(&self) -> HashAlgorithm {
-        self.cipher
-            .as_ref()
-            .map_or_else(HashAlgorithm::argon2id, |it| it.hash_algorithm)
-    }
-
-    #[inline]
-    pub(crate) fn password(&self) -> Option<&str> {
-        self.cipher.as_ref().map(|it| it.password.0.as_str())
     }
 }
 
