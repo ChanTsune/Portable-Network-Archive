@@ -59,7 +59,7 @@ impl EntryName {
 
     #[inline]
     pub(crate) fn as_bytes(&self) -> &[u8] {
-        self.as_str().as_bytes()
+        self.0.as_bytes()
     }
 
     /// Extracts a string slice containing the entire `EntryName`.
@@ -74,7 +74,7 @@ impl EntryName {
     /// ```
     #[inline]
     pub fn as_str(&self) -> &str {
-        self.as_ref()
+        self.0.as_str()
     }
 
     /// Converts to an [`OsStr`] slice.
@@ -91,7 +91,7 @@ impl EntryName {
     /// ```
     #[inline]
     pub fn as_os_str(&self) -> &OsStr {
-        self.as_ref()
+        self.0.as_ref()
     }
 
     /// Coerces to a [`Path`] slice.
@@ -107,7 +107,7 @@ impl EntryName {
     /// ```
     #[inline]
     pub fn as_path(&self) -> &Path {
-        self.as_ref()
+        self.0.as_ref()
     }
 
     fn from_path_lossy(p: &Path) -> Self {
@@ -214,21 +214,21 @@ impl Display for EntryName {
 impl AsRef<str> for EntryName {
     #[inline]
     fn as_ref(&self) -> &str {
-        &self.0
+        self.as_str()
     }
 }
 
 impl AsRef<OsStr> for EntryName {
     #[inline]
     fn as_ref(&self) -> &OsStr {
-        self.0.as_ref()
+        self.as_os_str()
     }
 }
 
 impl AsRef<Path> for EntryName {
     #[inline]
     fn as_ref(&self) -> &Path {
-        self.0.as_ref()
+        self.as_path()
     }
 }
 
