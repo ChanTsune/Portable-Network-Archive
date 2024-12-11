@@ -352,7 +352,11 @@ pub fn read_as_chunks<R: Read>(
 /// let bytes = include_bytes!("../../resources/test/zstd.pna");
 /// for chunk in read_chunks_from_slice(bytes)? {
 ///     let chunk = chunk?;
-///     println!("chunk type: {}, chunk data size: {}", chunk.ty(), chunk.length());
+///     println!(
+///         "chunk type: {}, chunk data size: {}",
+///         chunk.ty(),
+///         chunk.length()
+///     );
 /// }
 /// # Ok(())
 /// # }
