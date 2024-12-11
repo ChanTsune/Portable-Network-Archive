@@ -50,19 +50,31 @@ fn list_archive_chunks(args: ListCommand) -> io::Result<()> {
     let archive = fs::File::open(args.archive)?;
     let mut builder = TableBuilder::new();
     if args.header {
-        builder.push_record(["Index", "Type", "Size", "Offset"])
+        builder.push_record(
+            ["Index", "Type", "Size", "Offset"]
+                .into_iter()
+                .chain(args.long.then_some("Body")),
+        )
     }
     let mut offset = pna::PNA_HEADER.len();
     let mut idx = 0;
     for chunk in pna::read_as_chunks(archive)? {
         let chunk = chunk?;
         idx += 1;
-        builder.push_record([
-            idx.to_string(),
-            chunk.ty().to_string(),
-            chunk.length().to_string(),
-            format!("{:#06x}", offset),
-        ]);
+        builder.push_record(
+            [
+                idx.to_string(),
+                chunk.ty().to_string(),
+                chunk.length().to_string(),
+                format!("{:#06x}", offset),
+            ]
+            .into_iter()
+            .chain(args.long.then(|| {
+                std::str::from_utf8(chunk.data())
+                    .unwrap_or_default()
+                    .to_string()
+            })),
+        );
         offset += chunk.length() as usize + std::mem::size_of::<u32>() * 3;
     }
     let mut table = builder.build();
