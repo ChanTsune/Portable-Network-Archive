@@ -107,13 +107,25 @@ impl FromStr for CompressionLevel {
     /// # Examples
     ///
     /// ```
-    /// use std::str::FromStr;
     /// use libpna::CompressionLevel;
+    /// use std::str::FromStr;
     ///
-    /// assert_eq!(CompressionLevel::min(), CompressionLevel::from_str("min").unwrap());
-    /// assert_eq!(CompressionLevel::max(), CompressionLevel::from_str("max").unwrap());
-    /// assert_eq!(CompressionLevel::default(), CompressionLevel::from_str("default").unwrap());
-    /// assert_eq!(CompressionLevel::from(3), CompressionLevel::from_str("3").unwrap());
+    /// assert_eq!(
+    ///     CompressionLevel::min(),
+    ///     CompressionLevel::from_str("min").unwrap()
+    /// );
+    /// assert_eq!(
+    ///     CompressionLevel::max(),
+    ///     CompressionLevel::from_str("max").unwrap()
+    /// );
+    /// assert_eq!(
+    ///     CompressionLevel::default(),
+    ///     CompressionLevel::from_str("default").unwrap()
+    /// );
+    /// assert_eq!(
+    ///     CompressionLevel::from(3),
+    ///     CompressionLevel::from_str("3").unwrap()
+    /// );
     /// ```
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
