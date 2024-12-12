@@ -16,6 +16,8 @@ fn init_resource<P: AsRef<Path>>(dir: P) {
     os::unix::fs::symlink(Path::new("text.txt"), dir.join("link.txt")).unwrap();
     #[cfg(windows)]
     os::windows::fs::symlink_file(Path::new("text.txt"), dir.join("link.txt")).unwrap();
+    #[cfg(target_os = "wasi")]
+    os::wasi::fs::symlink_path(Path::new("text.txt"), dir.join("link.txt")).unwrap();
 }
 
 #[test]
