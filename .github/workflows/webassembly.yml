@@ -52,9 +52,6 @@ jobs:
         env:
           RUSTFLAGS: "-C link-arg=-sINITIAL_MEMORY=512MB -C link-arg=-sTOTAL_STACK=16MB"
       - if: ${{ endsWith(matrix.target, 'unknown') }}
-        name: Install jq
-        uses: dcarbone/install-jq-action@v3.0.1
-      - if: ${{ endsWith(matrix.target, 'unknown') }}
         name: get wasm-bindgen version
         id: get_version
         run: |
