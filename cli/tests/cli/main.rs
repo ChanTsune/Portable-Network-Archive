@@ -1,3 +1,4 @@
+#![cfg_attr(target_os = "wasi", feature(wasi_ext))]
 pub mod utils {
     pub mod diff;
 }
@@ -5,6 +6,7 @@ mod acl;
 mod append;
 mod chmod;
 mod chown;
+#[cfg(not(target_family = "wasm"))]
 mod combination;
 mod concat;
 mod delete;

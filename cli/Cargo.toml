@@ -52,6 +52,8 @@ libc = "0.2.168"
 
 [dev-dependencies]
 walkdir = "2.5.0"
+
+[target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
 assert_cmd = "2.0.16"
 
 [features]
