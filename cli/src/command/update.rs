@@ -20,7 +20,6 @@ use crate::{
 use clap::{ArgGroup, Parser, ValueHint};
 use normalize_path::*;
 use pna::{Archive, Metadata};
-use rayon::ThreadPoolBuilder;
 use std::{
     env::temp_dir,
     fs, io,
@@ -196,9 +195,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
         None,
     )?;
 
-    let pool = ThreadPoolBuilder::default()
-        .build()
-        .map_err(io::Error::other)?;
+    let pool = utils::thread::build()?;
 
     let (tx, rx) = std::sync::mpsc::channel();
 
