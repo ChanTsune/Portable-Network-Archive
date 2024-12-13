@@ -168,7 +168,7 @@ where
         let tx = tx.clone();
         pool.scope_fifo(|s| {
             s.spawn_fifo(|_| {
-                tx.send(extract_entry(item, password, args.clone()))
+                tx.send(extract_entry(item, password, &args))
                     .unwrap_or_else(|e| panic!("{e}: {}", item_path));
             })
         });
@@ -180,7 +180,7 @@ where
     }
 
     for item in hard_link_entries {
-        extract_entry(item, password, args.clone())?;
+        extract_entry(item, password, &args)?;
     }
     Ok(())
 }
@@ -220,7 +220,7 @@ where
         let tx = tx.clone();
         pool.scope_fifo(|s| {
             s.spawn_fifo(|_| {
-                tx.send(extract_entry(item, password, args.clone()))
+                tx.send(extract_entry(item, password, &args))
                     .unwrap_or_else(|e| panic!("{e}: {}", item_path));
             })
         });
@@ -232,7 +232,7 @@ where
     }
 
     for item in hard_link_entries {
-        extract_entry(item, password, args.clone())?;
+        extract_entry(item, password, &args)?;
     }
     Ok(())
 }
@@ -245,12 +245,13 @@ pub(crate) fn extract_entry<T>(
         out_dir,
         keep_options,
         owner_options,
-    }: OutputOption,
+    }: &OutputOption,
 ) -> io::Result<()>
 where
     T: AsRef<[u8]>,
     pna::RawChunk<T>: Chunk,
 {
+    let overwrite = *overwrite;
     let item_path = item.header().path().as_path();
     log::debug!("Extract: {}", item_path.display());
     let path = if let Some(out_dir) = &out_dir {
