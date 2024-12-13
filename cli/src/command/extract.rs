@@ -15,7 +15,6 @@ use crate::{
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::{prelude::*, DataKind, EntryReference, NormalEntry, Permission, ReadOptions};
-use rayon::ThreadPoolBuilder;
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::FileTimesExt;
 #[cfg(windows)]
@@ -147,9 +146,7 @@ where
     let globs =
         GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-    let pool = ThreadPoolBuilder::default()
-        .build()
-        .map_err(io::Error::other)?;
+    let pool = utils::thread::build()?;
 
     let mut hard_link_entries = Vec::new();
 
@@ -199,9 +196,7 @@ where
     let globs =
         GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-    let pool = ThreadPoolBuilder::default()
-        .build()
-        .map_err(io::Error::other)?;
+    let pool = utils::thread::build()?;
 
     let mut hard_link_entries = Vec::<NormalEntry>::new();
 

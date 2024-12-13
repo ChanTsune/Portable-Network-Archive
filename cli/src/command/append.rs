@@ -13,7 +13,6 @@ use crate::{
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
-use rayon::ThreadPoolBuilder;
 use std::{fs::File, io, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -122,9 +121,7 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
             .open(archive_path.with_part(num).unwrap())?;
         archive = archive.read_next_archive(file)?;
     };
-    let pool = ThreadPoolBuilder::default()
-        .build()
-        .map_err(io::Error::other)?;
+    let pool = utils::thread::build()?;
 
     let mut files = args.file.files;
     if args.files_from_stdin {

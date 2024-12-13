@@ -15,7 +15,6 @@ use crate::{
 use bytesize::ByteSize;
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::{Archive, SolidEntryBuilder, WriteOptions};
-use rayon::ThreadPoolBuilder;
 use std::{
     fs::{self, File},
     io::{self, prelude::*},
@@ -209,9 +208,7 @@ where
     W: Write,
     F: FnMut() -> io::Result<W>,
 {
-    let pool = ThreadPoolBuilder::default()
-        .build()
-        .map_err(io::Error::other)?;
+    let pool = utils::thread::build()?;
 
     let (tx, rx) = std::sync::mpsc::channel();
     let option = if solid {
@@ -263,9 +260,7 @@ fn create_archive_with_split(
     target_items: Vec<PathBuf>,
     max_file_size: usize,
 ) -> io::Result<()> {
-    let pool = ThreadPoolBuilder::default()
-        .build()
-        .map_err(io::Error::other)?;
+    let pool = utils::thread::build()?;
 
     let (tx, rx) = std::sync::mpsc::channel();
     let option = if solid {
