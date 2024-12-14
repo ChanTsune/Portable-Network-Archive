@@ -267,7 +267,7 @@ where
     let permissions = if keep_options.keep_permission {
         item.metadata()
             .permission()
-            .and_then(|p| permissions(p, &owner_options))
+            .and_then(|p| permissions(p, owner_options))
     } else {
         None
     };
