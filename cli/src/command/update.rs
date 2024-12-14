@@ -15,13 +15,12 @@ use crate::{
         },
         Command,
     },
-    utils::{self, PathPartExt},
+    utils::{self, env::temp_dir, PathPartExt},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use normalize_path::*;
 use pna::{Archive, Metadata};
 use std::{
-    env::temp_dir,
     fs, io,
     path::{Path, PathBuf},
     time::SystemTime,
@@ -200,7 +199,14 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
     let (tx, rx) = std::sync::mpsc::channel();
 
     let random = rand::random::<usize>();
-    let outfile_path = temp_dir().join(format!("{}.pna.tmp", random));
+    let outfile_path = temp_dir()
+        .unwrap_or_else(|| {
+            archive_path
+                .parent()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("."))
+        })
+        .join(format!("{}.pna.tmp", random));
 
     let outfile = fs::File::create(&outfile_path)?;
     let mut out_archive = Archive::write_header(outfile)?;

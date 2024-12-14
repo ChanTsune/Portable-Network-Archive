@@ -1,6 +1,6 @@
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
-    utils::{self, PathPartExt},
+    utils::{self, env::temp_dir, PathPartExt},
 };
 use normalize_path::*;
 use pna::{
@@ -8,7 +8,6 @@ use pna::{
     ReadEntry, SolidEntryBuilder, WriteOptions, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
 };
 use std::{
-    env::temp_dir,
     fs,
     io::{self, prelude::*},
     path::{Path, PathBuf},
@@ -591,7 +590,14 @@ where
     let password = password_provider();
     let output_path = output_path.as_ref();
     let random = rand::random::<usize>();
-    let temp_path = temp_dir().join(format!("{}.pna.tmp", random));
+    let temp_path = temp_dir()
+        .unwrap_or_else(|| {
+            output_path
+                .parent()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("."))
+        })
+        .join(format!("{}.pna.tmp", random));
     let outfile = fs::File::create(&temp_path)?;
     let mut out_archive = Archive::write_header(outfile)?;
 
@@ -648,7 +654,14 @@ where
     let password = password_provider();
     let output_path = output_path.as_ref();
     let random = rand::random::<usize>();
-    let temp_path = temp_dir().join(format!("{}.pna.tmp", random));
+    let temp_path = temp_dir()
+        .unwrap_or_else(|| {
+            output_path
+                .parent()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("."))
+        })
+        .join(format!("{}.pna.tmp", random));
     let outfile = fs::File::create(&temp_path)?;
     let mut out_archive = Archive::write_header(outfile)?;
 
