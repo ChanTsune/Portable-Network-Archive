@@ -31,11 +31,17 @@ pub use entry::*;
 mod tests {
     #[test]
     fn test_readme_deps() {
-        version_sync::assert_markdown_deps_updated!("README.md");
+        version_sync::assert_markdown_deps_updated!(&format!(
+            "{}/README.md",
+            env!("CARGO_MANIFEST_DIR")
+        ));
     }
 
     #[test]
     fn test_html_root_url() {
-        version_sync::assert_html_root_url_updated!("src/lib.rs");
+        version_sync::assert_html_root_url_updated!(&format!(
+            "{}/src/lib.rs",
+            env!("CARGO_MANIFEST_DIR")
+        ));
     }
 }
