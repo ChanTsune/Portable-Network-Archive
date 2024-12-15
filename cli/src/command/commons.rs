@@ -590,14 +590,14 @@ where
     let password = password_provider();
     let output_path = output_path.as_ref();
     let random = rand::random::<usize>();
-    let temp_path = temp_dir()
-        .unwrap_or_else(|| {
-            output_path
-                .parent()
-                .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from("."))
-        })
-        .join(format!("{}.pna.tmp", random));
+    let temp_dir_path = temp_dir().unwrap_or_else(|| {
+        output_path
+            .parent()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("."))
+    });
+    fs::create_dir_all(&temp_dir_path)?;
+    let temp_path = temp_dir_path.join(format!("{}.pna.tmp", random));
     let outfile = fs::File::create(&temp_path)?;
     let mut out_archive = Archive::write_header(outfile)?;
 
@@ -654,14 +654,14 @@ where
     let password = password_provider();
     let output_path = output_path.as_ref();
     let random = rand::random::<usize>();
-    let temp_path = temp_dir()
-        .unwrap_or_else(|| {
-            output_path
-                .parent()
-                .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from("."))
-        })
-        .join(format!("{}.pna.tmp", random));
+    let temp_dir_path = temp_dir().unwrap_or_else(|| {
+        output_path
+            .parent()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("."))
+    });
+    fs::create_dir_all(&temp_dir_path)?;
+    let temp_path = temp_dir_path.join(format!("{}.pna.tmp", random));
     let outfile = fs::File::create(&temp_path)?;
     let mut out_archive = Archive::write_header(outfile)?;
 
