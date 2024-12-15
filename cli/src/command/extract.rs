@@ -146,8 +146,6 @@ where
     let globs =
         GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-    let pool = utils::thread::build()?;
-
     let mut hard_link_entries = Vec::new();
 
     let (tx, rx) = std::sync::mpsc::channel();
@@ -163,7 +161,7 @@ where
             return Ok(());
         }
         let tx = tx.clone();
-        pool.scope_fifo(|s| {
+        rayon::scope_fifo(|s| {
             s.spawn_fifo(|_| {
                 tx.send(extract_entry(item, password, &args))
                     .unwrap_or_else(|e| panic!("{e}: {}", item_path));
@@ -196,8 +194,6 @@ where
     let globs =
         GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-    let pool = utils::thread::build()?;
-
     let mut hard_link_entries = Vec::<NormalEntry>::new();
 
     let (tx, rx) = std::sync::mpsc::channel();
@@ -213,7 +209,7 @@ where
             return Ok(());
         }
         let tx = tx.clone();
-        pool.scope_fifo(|s| {
+        rayon::scope_fifo(|s| {
             s.spawn_fifo(|_| {
                 tx.send(extract_entry(item, password, &args))
                     .unwrap_or_else(|e| panic!("{e}: {}", item_path));

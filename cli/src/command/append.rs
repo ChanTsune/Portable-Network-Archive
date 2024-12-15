@@ -121,7 +121,6 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
             .open(archive_path.with_part(num).unwrap())?;
         archive = archive.read_next_archive(file)?;
     };
-    let pool = utils::thread::build()?;
 
     let mut files = args.file.files;
     if args.files_from_stdin {
@@ -172,7 +171,7 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
     };
     for file in target_items {
         let tx = tx.clone();
-        pool.scope_fifo(|s| {
+        rayon::scope_fifo(|s| {
             s.spawn_fifo(|_| {
                 log::debug!("Adding: {}", file.display());
                 tx.send(create_entry(&file, create_options.clone()))
