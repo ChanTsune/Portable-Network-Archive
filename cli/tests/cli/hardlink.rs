@@ -1,3 +1,4 @@
+use crate::utils::setup;
 use clap::Parser;
 use pna::{Archive, EntryBuilder, WriteOptions};
 use portable_network_archive::{cli, command};
@@ -67,6 +68,7 @@ fn init_resource<P: AsRef<Path>>(path: P) {
 
 #[test]
 fn hardlink() {
+    setup();
     init_resource(format!("{}/hardlink.pna", env!("CARGO_TARGET_TMPDIR")));
     command::entry(cli::Cli::parse_from([
         "pna",

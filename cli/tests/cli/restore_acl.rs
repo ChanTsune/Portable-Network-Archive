@@ -1,9 +1,11 @@
 #![cfg(feature = "acl")]
+use crate::utils::setup;
 use clap::Parser;
 use portable_network_archive::{cli, command};
 
 #[test]
 fn extract_windows_acl() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -20,6 +22,7 @@ fn extract_windows_acl() {
 
 #[test]
 fn extract_linux_acl() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -36,6 +39,7 @@ fn extract_linux_acl() {
 
 #[test]
 fn extract_macos_acl() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -52,6 +56,7 @@ fn extract_macos_acl() {
 
 #[test]
 fn extract_freebsd_acl() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",

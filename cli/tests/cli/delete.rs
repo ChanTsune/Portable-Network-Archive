@@ -1,8 +1,10 @@
+use crate::utils::setup;
 use clap::Parser;
 use portable_network_archive::{cli, command};
 
 #[test]
 fn delete_overwrite() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -26,6 +28,7 @@ fn delete_overwrite() {
 
 #[test]
 fn delete_output() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -51,6 +54,7 @@ fn delete_output() {
 
 #[test]
 fn delete_output_exclude() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -82,6 +86,7 @@ fn delete_output_exclude() {
 
 #[test]
 fn delete_solid() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -116,6 +121,7 @@ fn delete_solid() {
 
 #[test]
 fn delete_unsolid() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",

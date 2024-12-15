@@ -1,3 +1,4 @@
+use crate::utils::setup;
 use clap::Parser;
 use portable_network_archive::{cli, command};
 use std::io::Write;
@@ -22,6 +23,7 @@ fn init_resource<P: AsRef<Path>>(dir: P) {
 
 #[test]
 fn symlink() {
+    setup();
     init_resource(format!("{}/symlink/source", env!("CARGO_TARGET_TMPDIR")));
     command::entry(cli::Cli::parse_from([
         "pna",

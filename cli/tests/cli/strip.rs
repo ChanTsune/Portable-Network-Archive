@@ -1,8 +1,10 @@
+use crate::utils::setup;
 use clap::Parser;
 use portable_network_archive::{cli, command};
 
 #[test]
 fn archive_strip_metadata() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",

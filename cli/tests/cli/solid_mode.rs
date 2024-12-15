@@ -1,8 +1,10 @@
+use crate::utils::setup;
 use clap::Parser;
 use portable_network_archive::{cli, command};
 
 #[test]
 fn solid_store_archive() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -29,6 +31,7 @@ fn solid_store_archive() {
 
 #[test]
 fn solid_zstd_archive() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -55,6 +58,7 @@ fn solid_zstd_archive() {
 
 #[test]
 fn solid_xz_archive() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -81,6 +85,7 @@ fn solid_xz_archive() {
 
 #[test]
 fn solid_deflate_archive() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",

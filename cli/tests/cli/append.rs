@@ -1,8 +1,10 @@
+use crate::utils::setup;
 use clap::Parser;
 use portable_network_archive::{cli, command};
 
 #[test]
 fn archive_append() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -36,6 +38,7 @@ fn archive_append() {
 
 #[test]
 fn archive_append_split() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",

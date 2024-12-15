@@ -1,3 +1,4 @@
+use crate::utils::setup;
 use clap::Parser;
 use portable_network_archive::{cli, command};
 use std::fs;
@@ -5,6 +6,7 @@ use std::path::PathBuf;
 
 #[test]
 fn archive_password_from_file() {
+    setup();
     let password_file_path = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("password_file");
     fs::write(&password_file_path, "archive_password_from_file").unwrap();
     command::entry(cli::Cli::parse_from([

@@ -1,8 +1,10 @@
+use crate::utils::setup;
 use clap::Parser;
 use portable_network_archive::{cli, command};
 
 #[test]
 fn aes_ctr_archive() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -33,6 +35,7 @@ fn aes_ctr_archive() {
 
 #[test]
 fn aes_cbc_archive() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -63,6 +66,7 @@ fn aes_cbc_archive() {
 
 #[test]
 fn camellia_ctr_archive() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -93,6 +97,7 @@ fn camellia_ctr_archive() {
 
 #[test]
 fn camellia_cbc_archive() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
