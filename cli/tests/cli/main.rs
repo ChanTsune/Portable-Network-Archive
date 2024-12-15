@@ -1,7 +1,4 @@
 #![cfg_attr(target_os = "wasi", feature(wasi_ext))]
-pub mod utils {
-    pub mod diff;
-}
 mod acl;
 mod append;
 mod chmod;
@@ -26,4 +23,5 @@ mod strip;
 mod symlink;
 mod update;
 mod user_group;
+pub mod utils;
 mod xattr;

@@ -1,8 +1,10 @@
+use crate::utils::setup;
 use clap::Parser;
 use portable_network_archive::{cli, command};
 
 #[test]
 fn archive_list() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -23,6 +25,7 @@ fn archive_list() {
 
 #[test]
 fn archive_list_solid() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -45,6 +48,7 @@ fn archive_list_solid() {
 
 #[test]
 fn archive_list_detail() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -78,6 +82,7 @@ fn archive_list_detail() {
 
 #[test]
 fn archive_list_solid_detail() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -112,6 +117,7 @@ fn archive_list_solid_detail() {
 
 #[test]
 fn archive_list_jsonl() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -149,6 +155,7 @@ fn archive_list_jsonl() {
 
 #[test]
 fn archive_list_solid_jsonl() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -188,6 +195,7 @@ fn archive_list_solid_jsonl() {
 
 #[test]
 fn archive_list_tree() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -225,6 +233,7 @@ fn archive_list_tree() {
 
 #[test]
 fn archive_list_solid_tree() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",

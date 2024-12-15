@@ -1,8 +1,10 @@
+use crate::utils::setup;
 use clap::Parser;
 use portable_network_archive::{cli, command};
 
 #[test]
 fn aes_ctr_argon2_archive() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -34,6 +36,7 @@ fn aes_ctr_argon2_archive() {
 
 #[test]
 fn aes_ctr_argon2_with_params_archive() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -75,6 +78,7 @@ fn aes_ctr_argon2_with_params_archive() {
 
 #[test]
 fn aes_ctr_pbkdf2_archive() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -106,6 +110,7 @@ fn aes_ctr_pbkdf2_archive() {
 
 #[test]
 fn aes_ctr_pbkdf2_with_params_archive() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",

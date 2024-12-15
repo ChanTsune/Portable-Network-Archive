@@ -1,9 +1,11 @@
 #![cfg(unix)]
+use crate::utils::setup;
 use clap::Parser;
 use portable_network_archive::{cli, command};
 
 #[test]
 fn archive_create_uname_gname() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
@@ -41,6 +43,7 @@ fn archive_create_uname_gname() {
 
 #[test]
 fn archive_create_uid_gid() {
+    setup();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",

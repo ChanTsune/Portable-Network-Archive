@@ -1,4 +1,4 @@
-use crate::utils::diff::diff;
+use crate::utils::{diff::diff, setup};
 use itertools::Itertools;
 
 // NOTE: Skip `--keep-xattr` option for NetBSD
@@ -32,6 +32,7 @@ const SOLID_OPTIONS: &[Option<&str>] = &[None, Some("--solid")];
 
 #[test]
 fn combination_fs() {
+    setup();
     fn inner(options: Vec<&str>) {
         let joined_options = options.iter().join("");
 
@@ -114,6 +115,7 @@ fn combination_fs() {
 
 #[test]
 fn combination_stdio() {
+    setup();
     fn inner(options: Vec<&str>) {
         let joined_options = options.iter().join("");
 
