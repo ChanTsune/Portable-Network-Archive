@@ -44,7 +44,7 @@ jobs:
       - if: ${{ startsWith(matrix.target, 'wasm32-wasi') }}
         name: Run test
         run: |
-          cargo test -p libpna --target ${{ matrix.target }}
+          cargo test -p libpna --target ${{ matrix.target }} -- --nocapture
       - if: ${{ startsWith(matrix.target, 'wasm32-unknown-emscripten') }}
         name: Run test
         run: |
@@ -65,7 +65,7 @@ jobs:
         run: |
           cargo binstall --no-confirm --force wasm-bindgen-cli --version ${{ steps.get_version.outputs.version }}
       - if: ${{ endsWith(matrix.target, 'unknown') }}
-        name: Run build
+        name: Run test
         run: |
           cargo test -p libpna --target ${{ matrix.target }} --release
 
