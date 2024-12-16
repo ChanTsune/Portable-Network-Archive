@@ -119,7 +119,7 @@ pub(crate) fn create_entry(
         let source = fs::read_link(path)?;
         let entry = EntryBuilder::new_symbolic_link(
             EntryName::from_lossy(path),
-            EntryReference::from_lossy(source.as_path()),
+            EntryReference::from_lossy(source),
         )?;
         return apply_metadata(entry, path, keep_options, owner_options)?.build();
     } else if path.is_file() {
