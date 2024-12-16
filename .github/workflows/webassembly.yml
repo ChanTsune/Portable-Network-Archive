@@ -41,10 +41,14 @@ jobs:
         uses: bytecodealliance/actions/wasmtime/setup@v1
         with:
           github_token: ${{ github.token }}
-      - if: ${{ startsWith(matrix.target, 'wasm32-wasi') }}
+      - if: ${{ startsWith(matrix.target, 'wasm32-wasi') && matrix.rust != 'nightly' }}
         name: Run test
         run: |
           cargo test -p libpna --target ${{ matrix.target }} -- --nocapture
+      - if: ${{ startsWith(matrix.target, 'wasm32-wasi') && matrix.rust == 'nightly'}}
+        name: Run test
+        run: |
+          cargo test --target ${{ matrix.target }} -- --nocapture
       - if: ${{ startsWith(matrix.target, 'wasm32-unknown-emscripten') }}
         name: Run test
         run: |
@@ -68,27 +72,3 @@ jobs:
         name: Run test
         run: |
           cargo test -p libpna --target ${{ matrix.target }} --release
-
-  wasi_cli_test:
-    name: wasi test
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: wasm32-wasip1
-            container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-25
-
-    runs-on: ubuntu-latest
-    container: ${{ matrix.container }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          target: ${{ matrix.target }}
-          toolchain: nightly
-      - uses: bytecodealliance/actions/wasmtime/setup@v1
-      - name: Run on wasmtime
-        run: |
-          cargo run -p portable-network-archive --target ${{ matrix.target }} --release -- --help
