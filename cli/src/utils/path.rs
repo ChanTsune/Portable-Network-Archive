@@ -47,12 +47,12 @@ fn remove_part_n<P: AsRef<Path>>(path: P) -> Option<PathBuf> {
         let parent = path.parent();
         let file_name = PathBuf::from(path.file_name()?);
         let removed = if let Some(extension) = file_name.extension() {
-            if extension.to_str().unwrap().starts_with("part") {
+            if extension.to_string_lossy().starts_with("part") {
                 PathBuf::from(file_name.file_stem().unwrap())
             } else {
                 let stem = PathBuf::from(file_name.file_stem().unwrap());
                 if let Some(may) = stem.extension() {
-                    if may.to_str().unwrap().starts_with("part") {
+                    if may.to_string_lossy().starts_with("part") {
                         stem.with_extension(extension)
                     } else {
                         file_name
