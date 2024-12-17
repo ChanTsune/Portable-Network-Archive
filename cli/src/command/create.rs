@@ -110,7 +110,7 @@ impl Command for CreateCommand {
 }
 
 fn create_archive(args: CreateCommand) -> io::Result<()> {
-    let password = ask_password(args.password.clone())?;
+    let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let start = Instant::now();
     let archive = &args.file.archive;
