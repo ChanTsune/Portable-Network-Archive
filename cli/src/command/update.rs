@@ -194,8 +194,6 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
         None,
     )?;
 
-    let pool = utils::thread::build()?;
-
     let (tx, rx) = std::sync::mpsc::channel();
 
     let random = rand::random::<usize>();
@@ -252,7 +250,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
                     && need_update_condition(&normalized_path, entry.metadata()).unwrap_or(true)
                 {
                     let tx = tx.clone();
-                    pool.scope_fifo(|s| {
+                    rayon::scope_fifo(|s| {
                         s.spawn_fifo(|_| {
                             log::debug!("Updating: {}", file.display());
                             tx.send(create_entry(&file, create_options.clone()))
@@ -273,7 +271,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
     // NOTE: Add new entries
     for file in target_items {
         let tx = tx.clone();
-        pool.scope_fifo(|s| {
+        rayon::scope_fifo(|s| {
             s.spawn_fifo(|_| {
                 log::debug!("Adding: {}", file.display());
                 tx.send(create_entry(&file, create_options.clone()))
