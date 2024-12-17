@@ -297,7 +297,7 @@ mod tests {
             archive
                 .add_entry({
                     let mut builder = EntryBuilder::new_file(
-                        format!("test/text{i}").as_str().into(),
+                        format!("test/text{i}").into(),
                         WriteOptions::store(),
                     )
                     .unwrap();
