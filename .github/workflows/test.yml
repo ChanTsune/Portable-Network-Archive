@@ -124,6 +124,9 @@ jobs:
           rustup default nightly
           rustup target add "$TARGET"
           cargo build -p portable-network-archive --locked --target "$TARGET"
+          cp target/"$TARGET"/debug/pna pna
+          cargo clean
+          redoxer exec --folder . -- /root/pna
         env:
           TARGET: ${{ matrix.target }}
           RUST_BACKTRACE: 1
