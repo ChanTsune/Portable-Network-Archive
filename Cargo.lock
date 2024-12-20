@@ -121,6 +121,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "arbitrary"
+version = "1.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dde20b3d026af13f561bdd0f15edf01fc734f0dafcedbaf42bba506a9517f223"
+
+[[package]]
 name = "argon2"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1002,6 +1008,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5aaeb2981e0606ca11d79718f8bb01164f1d6ed75080182d3abf017e6d244b6d"
 
 [[package]]
+name = "libfuzzer-sys"
+version = "0.4.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b9569d2f74e257076d8c6bfa73fb505b46b851e51ddaecc825944aa3bed17fa"
+dependencies = [
+ "arbitrary",
+ "cc",
+]
+
+[[package]]
 name = "liblzma"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1315,6 +1331,14 @@ dependencies = [
  "walkdir",
  "windows",
  "xattr",
+]
+
+[[package]]
+name = "portable-network-archive-fuzz"
+version = "0.0.0"
+dependencies = [
+ "libfuzzer-sys",
+ "libpna",
 ]
 
 [[package]]

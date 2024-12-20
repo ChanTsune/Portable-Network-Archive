@@ -1,0 +1,33 @@
+name: Fuzzing with cargo fuzz
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  fuzz:
+    name: Run cargo fuzz
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - id: install_rust
+        uses: ./.github/actions/setup-rust
+        with:
+          channel: nightly
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz
+      - name: Run fuzzing
+        run: |
+          cargo fuzz run --release fuzz_target_1 -- -max_total_time=300 || true
+      - name: Upload crash artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: fuzz-crashes
+          path: fuzz/artifacts
+          if-no-files-found: ignore
