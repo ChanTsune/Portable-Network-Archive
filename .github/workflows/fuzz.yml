@@ -1,0 +1,39 @@
+name: Fuzzing with cargo fuzz
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  fuzz:
+    name: Run cargo fuzz
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        fuzz_target:
+          - aes_ctr
+          - aes_cbc
+          - camellia_ctr
+          - camellia_cbc
+    steps:
+      - uses: actions/checkout@v4
+      - id: install_rust
+        uses: ./.github/actions/setup-rust
+        with:
+          channel: nightly
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz
+      - name: Run fuzzing
+        run: |
+          cargo fuzz run --release ${{ matrix.fuzz_target }} -- -max_total_time=300 || true
+      - name: Upload crash artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: fuzz-${{ matrix.fuzz_target }}-crashes
+          path: fuzz/artifacts
+          if-no-files-found: ignore

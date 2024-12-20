@@ -1,0 +1,41 @@
+[package]
+name = "portable-network-archive-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+libpna = { path = "../lib" }
+
+
+[[bin]]
+name = "cipher"
+path = "fuzz_targets/aes_cbc.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "aes_ctr"
+path = "fuzz_targets/aes_ctr.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "camellia_ctr"
+path = "fuzz_targets/camellia_ctr.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "camellia_cbc"
+path = "fuzz_targets/camellia_cbc.rs"
+test = false
+doc = false
+bench = false
