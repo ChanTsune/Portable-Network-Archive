@@ -126,11 +126,14 @@ impl ChunkType {
     /// );
     /// ```
     #[inline]
-    pub fn private(ty: [u8; 4]) -> Result<Self, ChunkTypeError> {
-        for c in ty {
-            if !c.is_ascii_alphabetic() {
+    pub const fn private(ty: [u8; 4]) -> Result<Self, ChunkTypeError> {
+        // NOTE: use a while statement for const context.
+        let mut idx = 0;
+        while idx < ty.len() {
+            if !ty[idx].is_ascii_alphabetic() {
                 return Err(ChunkTypeError::NonAsciiAlphabetic);
             }
+            idx += 1;
         }
         if !ty[1].is_ascii_lowercase() {
             return Err(ChunkTypeError::NonPrivateChunkType);
