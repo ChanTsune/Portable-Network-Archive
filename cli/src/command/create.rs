@@ -208,8 +208,6 @@ where
     W: Write,
     F: FnMut() -> io::Result<W>,
 {
-    let pool = utils::thread::build()?;
-
     let (tx, rx) = std::sync::mpsc::channel();
     let option = if solid {
         WriteOptions::store()
@@ -223,7 +221,7 @@ where
     };
     for file in target_items {
         let tx = tx.clone();
-        pool.scope_fifo(|s| {
+        rayon::scope_fifo(|s| {
             s.spawn_fifo(|_| {
                 log::debug!("Adding: {}", file.display());
                 tx.send(create_entry(&file, create_options.clone()))
@@ -260,8 +258,6 @@ fn create_archive_with_split(
     target_items: Vec<PathBuf>,
     max_file_size: usize,
 ) -> io::Result<()> {
-    let pool = utils::thread::build()?;
-
     let (tx, rx) = std::sync::mpsc::channel();
     let option = if solid {
         WriteOptions::store()
@@ -275,7 +271,7 @@ fn create_archive_with_split(
     };
     for file in target_items {
         let tx = tx.clone();
-        pool.scope_fifo(|s| {
+        rayon::scope_fifo(|s| {
             s.spawn_fifo(|_| {
                 log::debug!("Adding: {}", file.display());
                 tx.send(create_entry(&file, create_options.clone()))
