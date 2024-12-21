@@ -5,7 +5,7 @@ use crate::{
     compress::CompressionWriter,
     entry::{
         get_writer, get_writer_context, Entry, EntryHeader, EntryName, EntryPart, Metadata,
-        NormalEntry, SealedEntryExt, SolidHeader, WriteCipher, WriteOptions,
+        NormalEntry, SealedEntryExt, SolidHeader, WriteCipher, WriteOption, WriteOptions,
     },
     io::TryIntoInner,
 };
@@ -120,7 +120,7 @@ impl<W: Write> Archive<W> {
         &mut self,
         name: EntryName,
         metadata: Metadata,
-        option: WriteOptions,
+        option: impl WriteOption,
         mut f: F,
     ) -> io::Result<()>
     where
@@ -365,13 +365,13 @@ impl<W: Write> Archive<W> {
     /// # }
     /// ```
     #[inline]
-    pub fn write_solid_header(write: W, option: WriteOptions) -> io::Result<SolidArchive<W>> {
+    pub fn write_solid_header(write: W, option: impl WriteOption) -> io::Result<SolidArchive<W>> {
         let archive = Self::write_header(write)?;
         archive.into_solid_archive(option)
     }
 
     #[inline]
-    fn into_solid_archive(mut self, option: WriteOptions) -> io::Result<SolidArchive<W>> {
+    fn into_solid_archive(mut self, option: impl WriteOption) -> io::Result<SolidArchive<W>> {
         let header = SolidHeader::new(
             option.compression(),
             option.encryption(),
