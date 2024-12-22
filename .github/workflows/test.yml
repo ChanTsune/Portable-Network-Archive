@@ -71,7 +71,7 @@ jobs:
           export PATH=$PATH:/root/.redoxer/${{ matrix.target }}/toolchain/bin
           rustup default nightly
           rustup target add ${{ matrix.target }}
-          cargo build --locked --target ${{ matrix.target }}
+          cargo build -p portable-network-archive --locked --target ${{ matrix.target }}
         env:
           RUST_BACKTRACE: 1
           AR_x86_64_unknown_redox: "x86_64-unknown-redox-ar"
