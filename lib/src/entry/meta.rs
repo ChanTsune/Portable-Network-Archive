@@ -108,12 +108,12 @@ impl Metadata {
         self
     }
 
-    /// Raw file size of entry data
+    /// Raw file size of entry data in bytes
     #[inline]
     pub const fn raw_file_size(&self) -> Option<u128> {
         self.raw_file_size
     }
-    /// Compressed size of entry data
+    /// Compressed size of entry data in bytes
     #[inline]
     pub const fn compressed_size(&self) -> usize {
         self.compressed_size
