@@ -17,13 +17,13 @@ use std::{
     ops::Deref,
 };
 
-/// Minimum required size of bytes to represent [`Chunk`].
-/// length:4 + chunk type:4 + data:0 + crc:4
+/// Minimum required size in bytes to represent [`Chunk`].
+/// length: 4 bytes + chunk type: 4 bytes + data: 0 bytes + crc: 4 bytes
 pub const MIN_CHUNK_BYTES_SIZE: usize =
     mem::size_of::<u32>() + mem::size_of::<ChunkType>() + mem::size_of::<u32>();
 
 pub(crate) trait ChunkExt: Chunk {
-    /// byte size of chunk
+    /// size of chunk in bytes
     #[inline]
     fn bytes_len(&self) -> usize {
         MIN_CHUNK_BYTES_SIZE + self.data().len()
