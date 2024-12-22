@@ -37,23 +37,19 @@ where
     C: BlockEncryptMut + BlockCipher,
     P: Padding<<C as BlockSizeUser>::BlockSize>,
 {
-    fn encrypt_write_block(
-        &mut self,
-        block: &Block<cbc::Encryptor<C>>,
-        len: usize,
-    ) -> io::Result<usize> {
+    fn encrypt_write_block(&mut self, block: &Block<cbc::Encryptor<C>>) -> io::Result<()> {
         let mut out_block = Block::<cbc::Encryptor<C>>::default();
         self.c.encrypt_block_b2b_mut(block, &mut out_block);
-        self.w.write_all(out_block.as_slice())?;
-        Ok(len)
+        self.w.write_all(out_block.as_slice())
     }
 
     fn encrypt_write(&mut self, data: &[u8], len: usize) -> io::Result<usize> {
         let in_block = Block::<cbc::Encryptor<C>>::from_slice(data);
-        self.encrypt_write_block(in_block, len)
+        self.encrypt_write_block(in_block)?;
+        Ok(len)
     }
 
-    fn encrypt_write_with_padding(&mut self) -> io::Result<usize> {
+    fn encrypt_write_with_padding(&mut self) -> io::Result<()> {
         let (mut v, pos) = {
             let d = self.buf.drain(..);
             let pos = d.len();
@@ -63,7 +59,7 @@ where
         };
         let block = Block::<cbc::Encryptor<C>>::from_mut_slice(&mut v);
         P::pad(block, pos);
-        self.encrypt_write_block(block, pos)
+        self.encrypt_write_block(block)
     }
 }
 
