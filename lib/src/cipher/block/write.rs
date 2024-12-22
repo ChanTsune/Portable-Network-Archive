@@ -148,8 +148,9 @@ mod tests {
                 CbcBlockCipherEncryptWriter::<_, aes::Aes128, Pkcs7>::new(&mut ct, &key, &iv)
                     .unwrap();
             for p in plaintext.chunks(7) {
-                assert_eq!(writer.write(p).unwrap(), p.len())
+                assert_eq!(writer.write(p).unwrap(), p.len());
             }
+            writer.finish().unwrap();
         };
     }
 }
