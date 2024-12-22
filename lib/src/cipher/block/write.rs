@@ -43,23 +43,19 @@ where
         self.w.write_all(out_block.as_slice())
     }
 
-    fn encrypt_write(&mut self, data: &[u8], len: usize) -> io::Result<usize> {
+    fn encrypt_write(&mut self, data: &[u8]) -> io::Result<()> {
         let in_block = Block::<cbc::Encryptor<C>>::from_slice(data);
-        self.encrypt_write_block(in_block)?;
-        Ok(len)
+        self.encrypt_write_block(in_block)
     }
 
-    fn encrypt_write_with_padding(&mut self) -> io::Result<()> {
-        let (mut v, pos) = {
-            let d = self.buf.drain(..);
-            let pos = d.len();
-            let mut v = vec![0; cbc::Encryptor::<C>::block_size()];
-            v[..pos].copy_from_slice(d.as_slice());
-            (v, pos)
-        };
+    fn encrypt_write_with_padding(mut self) -> io::Result<W> {
+        let pos = self.buf.len();
+        let mut v = vec![0; cbc::Encryptor::<C>::block_size()];
+        v[..pos].copy_from_slice(self.buf.as_slice());
         let block = Block::<cbc::Encryptor<C>>::from_mut_slice(&mut v);
         P::pad(block, pos);
-        self.encrypt_write_block(block)
+        self.encrypt_write_block(block)?;
+        Ok(self.w)
     }
 }
 
@@ -75,22 +71,22 @@ where
             self.buf.extend_from_slice(buf);
             return Ok(buf.len());
         }
-        let (vec, remaining) = {
-            let d = self.buf.drain(..);
-            let remaining = block_size - d.len();
-            let mut vec = Vec::with_capacity(block_size);
-            vec.extend_from_slice(d.as_slice());
-            vec.extend_from_slice(&buf[..remaining]);
-            (vec, remaining)
-        };
-        let mut total_written = self.encrypt_write(&vec, remaining)?;
+
+        let remaining = block_size - self.buf.len();
+        let mut vec = Vec::with_capacity(block_size);
+        vec.extend_from_slice(self.buf.as_slice());
+        vec.extend_from_slice(&buf[..remaining]);
+        self.buf.clear();
+
+        self.encrypt_write(&vec)?;
+        let mut total_written = remaining;
         for b in buf[remaining..].chunks(block_size) {
             if b.len() == block_size {
-                total_written += self.encrypt_write(b, b.len())?;
+                self.encrypt_write(b)?;
             } else {
                 self.buf.extend_from_slice(b);
-                total_written += b.len();
             }
+            total_written += b.len();
         }
         Ok(total_written)
     }
@@ -106,9 +102,8 @@ where
     C: BlockEncryptMut + BlockCipher,
     P: Padding<<C as BlockSizeUser>::BlockSize>,
 {
-    pub(crate) fn finish(mut self) -> io::Result<W> {
-        self.encrypt_write_with_padding()?;
-        Ok(self.w)
+    pub(crate) fn finish(self) -> io::Result<W> {
+        self.encrypt_write_with_padding()
     }
 }
 
