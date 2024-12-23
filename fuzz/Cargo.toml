@@ -13,7 +13,7 @@ libpna = { path = "../lib" }
 
 
 [[bin]]
-name = "cipher"
+name = "aes_cbc"
 path = "fuzz_targets/aes_cbc.rs"
 test = false
 doc = false
