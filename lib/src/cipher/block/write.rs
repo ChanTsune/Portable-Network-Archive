@@ -26,7 +26,7 @@ where
             w,
             c: cbc::Encryptor::<C>::new_from_slices(key, iv).unwrap(),
             padding: PhantomData,
-            buf: Vec::new(),
+            buf: Vec::with_capacity(cbc::Encryptor::<C>::block_size()),
         })
     }
 }
@@ -37,24 +37,13 @@ where
     C: BlockEncryptMut + BlockCipher,
     P: Padding<<C as BlockSizeUser>::BlockSize>,
 {
-    fn encrypt_write_block(&mut self, block: &Block<cbc::Encryptor<C>>) -> io::Result<()> {
-        let mut out_block = Block::<cbc::Encryptor<C>>::default();
-        self.c.encrypt_block_b2b_mut(block, &mut out_block);
-        self.w.write_all(out_block.as_slice())
-    }
-
-    fn encrypt_write(&mut self, data: &[u8]) -> io::Result<()> {
-        let in_block = Block::<cbc::Encryptor<C>>::from_slice(data);
-        self.encrypt_write_block(in_block)
-    }
-
     fn encrypt_write_with_padding(mut self) -> io::Result<W> {
         let pos = self.buf.len();
-        let mut v = vec![0; cbc::Encryptor::<C>::block_size()];
-        v[..pos].copy_from_slice(self.buf.as_slice());
-        let block = Block::<cbc::Encryptor<C>>::from_mut_slice(&mut v);
+        unsafe { self.buf.set_len(cbc::Encryptor::<C>::block_size()) };
+        let block = Block::<cbc::Encryptor<C>>::from_mut_slice(&mut self.buf);
         P::pad(block, pos);
-        self.encrypt_write_block(block)?;
+        self.c.encrypt_block_inout_mut(block.into());
+        self.w.write_all(block.as_slice())?;
         Ok(self.w)
     }
 }
@@ -73,16 +62,20 @@ where
         }
 
         let remaining = block_size - self.buf.len();
-        let mut vec = Vec::with_capacity(block_size);
-        vec.extend_from_slice(self.buf.as_slice());
-        vec.extend_from_slice(&buf[..remaining]);
+        self.buf.extend_from_slice(&buf[..remaining]);
+
+        let inout_block = Block::<cbc::Encryptor<C>>::from_mut_slice(&mut self.buf);
+        self.c.encrypt_block_inout_mut(inout_block.into());
+        self.w.write_all(inout_block.as_slice())?;
         self.buf.clear();
 
-        self.encrypt_write(&vec)?;
+        let mut out_block = Block::<cbc::Encryptor<C>>::default();
         let mut total_written = remaining;
         for b in buf[remaining..].chunks(block_size) {
             if b.len() == block_size {
-                self.encrypt_write(b)?;
+                let in_block = Block::<cbc::Encryptor<C>>::from_slice(b);
+                self.c.encrypt_block_b2b_mut(in_block, &mut out_block);
+                self.w.write_all(out_block.as_slice())?;
             } else {
                 self.buf.extend_from_slice(b);
             }
