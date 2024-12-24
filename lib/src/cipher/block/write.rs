@@ -108,7 +108,7 @@ mod tests {
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
     #[test]
-    fn read_decrypt() {
+    fn write_encrypt() {
         let key = [0x42; 16];
         let iv = [0x24; 16];
         let plaintext = *b"hello world! this is my plaintext.";
