@@ -1,11 +1,5 @@
-mod chunk;
-mod cli;
-mod command;
-mod ext;
-mod utils;
-
 use clap::Parser;
-use command::Command;
+use portable_network_archive::{cli, command::Command};
 use std::io;
 
 fn main() -> io::Result<()> {
