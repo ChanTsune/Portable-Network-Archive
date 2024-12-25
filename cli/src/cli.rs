@@ -4,9 +4,9 @@ use crate::command::{
     split::SplitCommand, strip::StripCommand,
 };
 use clap::{value_parser, ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
-use log::LevelFilter;
+use log::{Level, LevelFilter};
 use pna::{ChunkType, ChunkTypeError, HashAlgorithm};
-use std::{path::PathBuf, str::FromStr};
+use std::{io, path::PathBuf, str::FromStr};
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(
@@ -23,6 +23,22 @@ pub struct Cli {
     pub(crate) verbosity: VerbosityArgs,
     #[arg(long, global = true, help = "Declare to use unstable features")]
     pub(crate) unstable: bool,
+}
+
+impl Cli {
+    pub fn init_logger(&self) -> io::Result<()> {
+        let level = self.verbosity.log_level_filter();
+        let base = fern::Dispatch::new();
+        let stderr = fern::Dispatch::new()
+            .level(level)
+            .format(|out, msg, rec| match rec.level() {
+                Level::Error => out.finish(format_args!("error: {}", msg)),
+                Level::Warn => out.finish(format_args!("warning: {}", msg)),
+                Level::Info | Level::Debug | Level::Trace => out.finish(*msg),
+            })
+            .chain(io::stderr());
+        base.chain(stderr).apply().map_err(io::Error::other)
+    }
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
