@@ -1,6 +1,6 @@
 use crate::{
     archive::{Archive, ArchiveHeader, SolidArchive, PNA_HEADER},
-    chunk::{Chunk, ChunkExt, ChunkStreamWriter, ChunkType, ChunkWriter, RawChunk},
+    chunk::{Chunk, ChunkExt, ChunkStreamWriter, ChunkType, RawChunk},
     cipher::CipherWriter,
     compress::CompressionWriter,
     entry::{
@@ -220,17 +220,16 @@ impl<W: Write> Archive<W> {
     where
         RawChunk<T>: Chunk,
     {
-        let mut chunk_writer = ChunkWriter::from(&mut self.inner);
         let mut written_len = 0;
         for chunk in entry_part.0 {
-            written_len += chunk_writer.write_chunk(chunk)?;
+            written_len += chunk.write_chunk_in(&mut self.inner)?;
         }
         Ok(written_len)
     }
 
+    #[inline]
     fn add_next_archive_marker(&mut self) -> io::Result<usize> {
-        let mut chunk_writer = ChunkWriter::from(&mut self.inner);
-        chunk_writer.write_chunk((ChunkType::ANXT, []))
+        (ChunkType::ANXT, []).write_chunk_in(&mut self.inner)
     }
 
     /// Split to the next archive.
@@ -285,8 +284,7 @@ impl<W: Write> Archive<W> {
     /// ```
     #[inline]
     pub fn finalize(mut self) -> io::Result<W> {
-        let mut chunk_writer = ChunkWriter::from(&mut self.inner);
-        chunk_writer.write_chunk((ChunkType::AEND, []))?;
+        (ChunkType::AEND, []).write_chunk_in(&mut self.inner)?;
         Ok(self.inner)
     }
 }
@@ -304,7 +302,7 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
     #[inline]
     async fn write_header_with_async(mut write: W, header: ArchiveHeader) -> io::Result<Self> {
         write.write_all(PNA_HEADER).await?;
-        let mut chunk_writer = ChunkWriter::from(&mut write);
+        let mut chunk_writer = crate::chunk::ChunkWriter::from(&mut write);
         chunk_writer
             .write_chunk_async((ChunkType::AHED, header.to_bytes()))
             .await?;
@@ -325,7 +323,7 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
     /// This API is unstable.
     #[inline]
     pub async fn finalize_async(mut self) -> io::Result<W> {
-        let mut chunk_writer = ChunkWriter::from(&mut self.inner);
+        let mut chunk_writer = crate::chunk::ChunkWriter::from(&mut self.inner);
         chunk_writer
             .write_chunk_async((ChunkType::AEND, []))
             .await?;

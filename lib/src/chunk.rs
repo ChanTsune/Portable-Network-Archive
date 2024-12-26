@@ -5,10 +5,7 @@ mod types;
 mod write;
 
 use self::crc::Crc32;
-pub(crate) use self::{
-    read::{read_chunk_from_slice, ChunkReader},
-    write::{ChunkStreamWriter, ChunkWriter},
-};
+pub(crate) use self::{read::*, write::*};
 pub use self::{traits::*, types::*};
 use std::{
     borrow::Cow,
