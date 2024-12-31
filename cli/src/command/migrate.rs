@@ -25,12 +25,12 @@ pub(crate) struct MigrateCommand {
 
 impl Command for MigrateCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         migrate_metadata(self)
     }
 }
 
-fn migrate_metadata(args: MigrateCommand) -> io::Result<()> {
+fn migrate_metadata(args: MigrateCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => run_transform_entry(
@@ -47,7 +47,8 @@ fn migrate_metadata(args: MigrateCommand) -> io::Result<()> {
             |entry| Ok(Some(strip_entry_metadata(entry?)?)),
             TransformStrategyKeepSolid,
         ),
-    }
+    }?;
+    Ok(())
 }
 
 #[inline]

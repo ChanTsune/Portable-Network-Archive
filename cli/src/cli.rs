@@ -26,7 +26,7 @@ pub struct Cli {
 }
 
 impl Cli {
-    pub fn init_logger(&self) -> io::Result<()> {
+    pub fn init_logger(&self) -> anyhow::Result<()> {
         let level = self.verbosity.log_level_filter();
         let base = fern::Dispatch::new();
         let stderr = fern::Dispatch::new()
@@ -37,7 +37,8 @@ impl Cli {
                 Level::Info | Level::Debug | Level::Trace => out.finish(*msg),
             })
             .chain(io::stderr());
-        base.chain(stderr).apply().map_err(io::Error::other)
+        base.chain(stderr).apply()?;
+        Ok(())
     }
 }
 

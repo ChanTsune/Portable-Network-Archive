@@ -1,7 +1,7 @@
 use crate::command::Command;
 use clap::Parser;
 use pna::prelude::*;
-use std::{fs, io, path::PathBuf};
+use std::{fs, path::PathBuf};
 use tabled::{builder::Builder as TableBuilder, settings::Style as TableStyle};
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
@@ -13,7 +13,7 @@ pub(crate) struct ChunkCommand {
 
 impl Command for ChunkCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         match self.command {
             ChunkCommands::List(cmd) => cmd.execute(),
         }
@@ -41,12 +41,12 @@ pub(crate) struct ListCommand {
 
 impl Command for ListCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         list_archive_chunks(self)
     }
 }
 
-fn list_archive_chunks(args: ListCommand) -> io::Result<()> {
+fn list_archive_chunks(args: ListCommand) -> anyhow::Result<()> {
     let archive = fs::File::open(args.archive)?;
     let mut builder = TableBuilder::new();
     if args.header {

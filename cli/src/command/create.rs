@@ -104,12 +104,12 @@ pub(crate) struct CreateCommand {
 
 impl Command for CreateCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         create_archive(self)
     }
 }
 
-fn create_archive(args: CreateCommand) -> io::Result<()> {
+fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let start = Instant::now();
@@ -118,7 +118,7 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
             format!("{} is already exists", archive.display()),
-        ));
+        ))?;
     }
     log::info!("Create an archive: {}", archive.display());
     let mut files = args.file.files;
@@ -203,7 +203,7 @@ pub(crate) fn create_archive_file<W, F>(
     owner_options: OwnerOptions,
     solid: bool,
     target_items: Vec<PathBuf>,
-) -> io::Result<()>
+) -> anyhow::Result<()>
 where
     W: Write,
     F: FnMut() -> io::Result<W>,
@@ -259,7 +259,7 @@ fn create_archive_with_split(
     solid: bool,
     target_items: Vec<PathBuf>,
     max_file_size: usize,
-) -> io::Result<()> {
+) -> anyhow::Result<()> {
     let pool = utils::thread::build()?;
 
     let (tx, rx) = std::sync::mpsc::channel();
@@ -294,7 +294,11 @@ fn create_archive_with_split(
         let entries = entries_builder.build();
         write_split_archive(archive, [entries].into_iter(), max_file_size)?;
     } else {
-        write_split_archive(archive, rx.into_iter(), max_file_size)?;
+        write_split_archive(
+            archive,
+            rx.into_iter().map(|it| it.map_err(io::Error::other)),
+            max_file_size,
+        )?;
     }
     Ok(())
 }

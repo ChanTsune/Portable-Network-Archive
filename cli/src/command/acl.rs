@@ -33,7 +33,7 @@ pub(crate) struct AclCommand {
 
 impl Command for AclCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         match self.command {
             XattrCommands::Get(cmd) => cmd.execute(),
             XattrCommands::Set(cmd) => cmd.execute(),
@@ -61,7 +61,7 @@ pub(crate) struct GetAclCommand {
 
 impl Command for GetAclCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         archive_get_acl(self)
     }
 }
@@ -84,7 +84,7 @@ pub(crate) struct SetAclCommand {
 
 impl Command for SetAclCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         archive_set_acl(self)
     }
 }
@@ -207,7 +207,7 @@ impl FromStr for AclEntries {
     }
 }
 
-fn archive_get_acl(args: GetAclCommand) -> io::Result<()> {
+fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     if args.files.is_empty() {
         return Ok(());
@@ -239,7 +239,7 @@ fn archive_get_acl(args: GetAclCommand) -> io::Result<()> {
     Ok(())
 }
 
-fn archive_set_acl(args: SetAclCommand) -> io::Result<()> {
+fn archive_set_acl(args: SetAclCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     if args.files.is_empty() {
         return Ok(());
@@ -284,7 +284,8 @@ fn archive_set_acl(args: SetAclCommand) -> io::Result<()> {
             },
             TransformStrategyKeepSolid,
         ),
-    }
+    }?;
+    Ok(())
 }
 
 #[inline]

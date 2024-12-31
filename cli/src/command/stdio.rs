@@ -14,12 +14,7 @@ use crate::{
     utils,
 };
 use clap::{ArgGroup, Args, Parser, ValueHint};
-use std::{
-    fs,
-    io::{self, stdout},
-    path::PathBuf,
-    time::SystemTime,
-};
+use std::{fs, io, path::PathBuf, time::SystemTime};
 
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(
@@ -110,7 +105,7 @@ pub(crate) struct StdioCommand {
 
 impl Command for StdioCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         run_stdio(self)
     }
 }
@@ -121,7 +116,7 @@ pub(crate) struct FileArgs {
     pub(crate) files: Vec<PathBuf>,
 }
 
-fn run_stdio(args: StdioCommand) -> io::Result<()> {
+fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     if args.create {
         run_create_archive(args)
     } else if args.extract {
@@ -133,7 +128,7 @@ fn run_stdio(args: StdioCommand) -> io::Result<()> {
     }
 }
 
-fn run_create_archive(args: StdioCommand) -> io::Result<()> {
+fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let mut files = args
@@ -194,7 +189,7 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
         )
     } else {
         create_archive_file(
-            || Ok(stdout().lock()),
+            || Ok(io::stdout().lock()),
             cli_option,
             keep_options,
             owner_options,
@@ -204,7 +199,7 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
     }
 }
 
-fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
+fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let out_option = OutputOption {
         overwrite: args.overwrite,
@@ -240,7 +235,7 @@ fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
     }
 }
 
-fn run_list_archive(args: StdioCommand) -> io::Result<()> {
+fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let list_options = ListOptions {
         long: false,
