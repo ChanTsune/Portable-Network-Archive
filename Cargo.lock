@@ -73,9 +73,9 @@ dependencies = [
 
 [[package]]
 name = "anstream"
-version = "0.6.15"
+version = "0.6.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64e15c1ab1f89faffbf04a634d5e1962e9074f2741eef6d97f3c4e322426d526"
+checksum = "5f581a3637024bb8f62027f3ab6151f502090388c1dad05b01c70fb733b33c20"
 dependencies = [
  "anstyle",
  "anstyle-parse",
