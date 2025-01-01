@@ -63,10 +63,10 @@ fn read_dir_recursively(dir: &Path) -> io::Result<std::collections::HashMap<Path
         .into_iter()
         .filter_map(Result::ok)
     {
-        let path = entry.path().to_path_buf();
+        let path = entry.path();
         if path.is_file() || path.is_dir() {
-            let relative_path = path.strip_prefix(dir).unwrap().to_path_buf();
-            entries.insert(relative_path, path);
+            let relative_path = path.strip_prefix(dir).unwrap();
+            entries.insert(relative_path.to_path_buf(), path.to_path_buf());
         }
     }
     Ok(entries)
