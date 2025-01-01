@@ -224,7 +224,7 @@ where
         rayon::scope_fifo(|s| {
             s.spawn_fifo(|_| {
                 log::debug!("Adding: {}", file.display());
-                tx.send(create_entry(&file, create_options.clone()))
+                tx.send(create_entry(&file, &create_options))
                     .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
             })
         });
@@ -274,7 +274,7 @@ fn create_archive_with_split(
         rayon::scope_fifo(|s| {
             s.spawn_fifo(|_| {
                 log::debug!("Adding: {}", file.display());
-                tx.send(create_entry(&file, create_options.clone()))
+                tx.send(create_entry(&file, &create_options))
                     .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
             })
         });

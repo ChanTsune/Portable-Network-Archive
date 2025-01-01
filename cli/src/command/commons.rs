@@ -113,7 +113,7 @@ pub(crate) fn create_entry(
         option,
         keep_options,
         owner_options,
-    }: CreateOptions,
+    }: &CreateOptions,
 ) -> io::Result<NormalEntry> {
     if path.is_symlink() {
         let source = fs::read_link(path)?;
@@ -176,8 +176,8 @@ pub(crate) fn entry_option(
 pub(crate) fn apply_metadata(
     mut entry: EntryBuilder,
     path: &Path,
-    keep_options: KeepOptions,
-    owner_options: OwnerOptions,
+    keep_options: &KeepOptions,
+    owner_options: &OwnerOptions,
 ) -> io::Result<EntryBuilder> {
     if keep_options.keep_timestamp || keep_options.keep_permission {
         let meta = fs::metadata(path)?;
@@ -208,14 +208,14 @@ pub(crate) fn apply_metadata(
             let gid = owner_options.gid.unwrap_or(meta.gid());
             entry.permission(pna::Permission::new(
                 uid.into(),
-                match owner_options.uname {
+                match owner_options.uname.as_deref() {
                     None => User::from_uid(uid.into())?.name().into(),
-                    Some(uname) => uname,
+                    Some(uname) => uname.into(),
                 },
                 gid.into(),
-                match owner_options.gname {
+                match owner_options.gname.as_deref() {
                     None => Group::from_gid(gid.into())?.name().into(),
-                    Some(gname) => gname,
+                    Some(gname) => gname.into(),
                 },
                 mode,
             ));
@@ -231,9 +231,9 @@ pub(crate) fn apply_metadata(
             let group = sd.group_sid()?;
             entry.permission(pna::Permission::new(
                 u64::MAX,
-                owner_options.uname.unwrap_or(user.name),
+                owner_options.uname.clone().unwrap_or(user.name),
                 u64::MAX,
-                owner_options.gname.unwrap_or(group.name),
+                owner_options.gname.clone().unwrap_or(group.name),
                 mode,
             ));
         }
