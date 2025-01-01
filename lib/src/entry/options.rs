@@ -581,7 +581,7 @@ impl WriteOptionsBuilder {
     /// Set the password to this builder.
     #[inline]
     pub fn password<S: AsRef<str>>(&mut self, password: Option<S>) -> &mut Self {
-        self.password = password.map(|it| it.as_ref().to_string());
+        self.password = password.map(|it| it.as_ref().into());
         self
     }
 
