@@ -22,6 +22,7 @@ use std::os::windows::fs::FileTimesExt;
 #[cfg(feature = "memmap")]
 use std::path::Path;
 use std::{
+    borrow::Cow,
     fs::{self, File},
     io,
     path::PathBuf,
@@ -246,9 +247,9 @@ where
     let item_path = item.header().path().as_path();
     log::debug!("Extract: {}", item_path.display());
     let path = if let Some(out_dir) = &out_dir {
-        out_dir.join(item_path)
+        Cow::from(out_dir.join(item_path))
     } else {
-        item_path.to_path_buf()
+        Cow::from(item_path)
     };
     if path.exists() && !overwrite {
         return Err(io::Error::new(
