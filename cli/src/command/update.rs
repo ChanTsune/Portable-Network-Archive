@@ -243,7 +243,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
     run_read_entries(&archive_path, |entry| {
         Strategy::transform(&mut out_archive, password.as_deref(), entry, |entry| {
             let entry = entry?;
-            let file = entry.header().path().as_path().to_path_buf();
+            let file = entry.header().path().as_path();
             let normalized_path = file.normalize();
             if target_items.contains(&normalized_path) {
                 let entry = if !exclude.contains(&normalized_path)
