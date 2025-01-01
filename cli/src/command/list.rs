@@ -501,14 +501,12 @@ fn detail_list_entries(entries: impl Iterator<Item = TableRow>, options: ListOpt
             content
                 .group
                 .map_or_else(|| "-".into(), |it| it.value(options.numeric_owner)),
-            datetime(
-                options.time_format,
-                match options.time_field {
-                    TimeField::Created => content.created,
-                    TimeField::Modified => content.modified,
-                    TimeField::Accessed => content.accessed,
-                },
-            ),
+            match options.time_field {
+                TimeField::Created => content.created,
+                TimeField::Modified => content.modified,
+                TimeField::Accessed => content.accessed,
+            }
+            .map_or_else(|| "-".into(), |d| datetime(options.time_format, d)),
             {
                 let name = match content.entry_type {
                     EntryType::Directory(path) if options.classify => format!("{}/", path),
@@ -596,25 +594,20 @@ fn within_six_months(now: SystemTime, x: SystemTime) -> bool {
     six_months_ago <= x
 }
 
-fn datetime(format: TimeFormat, d: Option<Duration>) -> String {
-    match d {
-        None => "-".into(),
-        Some(d) => {
-            let time = UNIX_EPOCH + d;
-            let datetime = DateTime::<Local>::from(time);
-            match format {
-                TimeFormat::Auto(now) => {
-                    if within_six_months(now, time) {
-                        datetime.format("%b %e %H:%M")
-                    } else {
-                        datetime.format("%b %e  %Y")
-                    }
-                }
-                TimeFormat::Long => datetime.format("%b %e %H:%M:%S %Y"),
+fn datetime(format: TimeFormat, since_unix_epoch: Duration) -> String {
+    let time = UNIX_EPOCH + since_unix_epoch;
+    let datetime = DateTime::<Local>::from(time);
+    match format {
+        TimeFormat::Auto(now) => {
+            if within_six_months(now, time) {
+                datetime.format("%b %e %H:%M")
+            } else {
+                datetime.format("%b %e  %Y")
             }
-            .to_string()
         }
+        TimeFormat::Long => datetime.format("%b %e %H:%M:%S %Y"),
     }
+    .to_string()
 }
 
 #[inline]
@@ -780,9 +773,15 @@ fn json_line_entries(entries: impl IntoParallelIterator<Item = TableRow>) {
             size: it.compressed_size,
             encryption: it.encryption,
             compression: it.compression,
-            created: datetime(TimeFormat::Long, it.created),
-            modified: datetime(TimeFormat::Long, it.modified),
-            accessed: datetime(TimeFormat::Long, it.accessed),
+            created: it
+                .created
+                .map_or_else(String::new, |d| datetime(TimeFormat::Long, d)),
+            modified: it
+                .modified
+                .map_or_else(String::new, |d| datetime(TimeFormat::Long, d)),
+            accessed: it
+                .accessed
+                .map_or_else(String::new, |d| datetime(TimeFormat::Long, d)),
             acl: it
                 .acl
                 .into_iter()
