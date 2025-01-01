@@ -146,7 +146,8 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
             format!("{} is not exists", archive_path.display()),
         ));
     }
-    let option = entry_option(args.compression, args.cipher, args.hash, password.clone());
+    let password = password.as_deref();
+    let option = entry_option(args.compression, args.cipher, args.hash, password);
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
         keep_permission: args.keep_permission,
@@ -241,7 +242,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
     };
 
     run_read_entries(&archive_path, |entry| {
-        Strategy::transform(&mut out_archive, password.as_deref(), entry, |entry| {
+        Strategy::transform(&mut out_archive, password, entry, |entry| {
             let entry = entry?;
             let file = entry.header().path().as_path().to_path_buf();
             let normalized_path = file.normalize();
@@ -282,12 +283,9 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
 
     drop(tx);
     for entry in rx.into_iter() {
-        Strategy::transform(
-            &mut out_archive,
-            password.as_deref(),
-            entry.map(Into::into),
-            |entry| entry.map(Some),
-        )?;
+        Strategy::transform(&mut out_archive, password, entry.map(Into::into), |entry| {
+            entry.map(Some)
+        })?;
     }
     out_archive.finalize()?;
 
