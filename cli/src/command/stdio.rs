@@ -169,6 +169,7 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
         exclude,
     )?;
 
+    let password = password.as_deref();
     let cli_option = entry_option(args.compression, args.cipher, args.hash, password);
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,

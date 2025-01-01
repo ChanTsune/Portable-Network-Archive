@@ -168,6 +168,7 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
         args.gid,
         args.numeric_owner,
     );
+    let password = password.as_deref();
     let write_option = entry_option(args.compression, args.cipher, args.hash, password);
     if let Some(size) = max_file_size {
         create_archive_with_split(

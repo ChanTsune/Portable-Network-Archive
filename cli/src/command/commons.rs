@@ -154,7 +154,7 @@ pub(crate) fn entry_option(
     compression: CompressionAlgorithmArgs,
     cipher: CipherAlgorithmArgs,
     hash: HashAlgorithmArgs,
-    password: Option<String>,
+    password: Option<&str>,
 ) -> WriteOptions {
     let (algorithm, level) = compression.algorithm();
     let mut option_builder = WriteOptions::builder();

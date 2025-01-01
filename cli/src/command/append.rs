@@ -150,6 +150,7 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
     )?;
 
     let (tx, rx) = std::sync::mpsc::channel();
+    let password = password.as_deref();
     let option = entry_option(args.compression, args.cipher, args.hash, password);
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
