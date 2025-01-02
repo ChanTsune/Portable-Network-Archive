@@ -321,7 +321,7 @@ where
             }
             r => r?,
         }
-        let _ = fs::set_permissions(&path, fs::Permissions::from_mode(p.permissions().into()));
+        fs::set_permissions(&path, fs::Permissions::from_mode(p.permissions().into()))?;
     };
     #[cfg(windows)]
     if let Some((p, u, g)) = permissions {
