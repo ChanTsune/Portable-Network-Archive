@@ -72,39 +72,39 @@ pub(crate) fn collect_items<I: IntoIterator<Item = P>, P: Into<PathBuf>>(
     exclude: Option<Vec<PathBuf>>,
 ) -> io::Result<Vec<PathBuf>> {
     let mut files = files.into_iter();
-    let exclude = exclude.map(|it| it.into_iter().map(|path| path.normalize()));
-    let mut target_items = vec![];
-    let walker = {
-        if let Some(p) = files.next() {
-            let mut builder = ignore::WalkBuilder::new(p.into());
-            for p in files {
-                builder.add(p.into());
-            }
-            for exclude_path in exclude.into_iter().flatten() {
-                builder.add_ignore(exclude_path);
-            }
-            builder
-                .max_depth(if recursive { None } else { Some(0) })
-                .hidden(false)
-                .ignore(false)
-                .git_ignore(gitignore)
-                .git_exclude(false)
-                .git_global(false)
-                .parents(false)
-                .follow_links(follow_links)
-                .ignore_case_insensitive(false);
-            Some(builder.build())
-        } else {
-            None
+    let exclude = exclude.into_iter().flatten().map(|path| path.normalize());
+    if let Some(p) = files.next() {
+        let mut builder = ignore::WalkBuilder::new(p.into());
+        for p in files {
+            builder.add(p.into());
         }
-    };
-    for path in walker.into_iter().flatten() {
-        let path = path.map_err(io::Error::other)?.into_path();
-        if keep_dir || path.is_file() {
-            target_items.push(path);
+        for exclude_path in exclude {
+            builder.add_ignore(exclude_path);
         }
+        builder
+            .max_depth(if recursive { None } else { Some(0) })
+            .hidden(false)
+            .ignore(false)
+            .git_ignore(gitignore)
+            .git_exclude(false)
+            .git_global(false)
+            .parents(false)
+            .follow_links(follow_links)
+            .ignore_case_insensitive(false);
+        let walker = builder.build();
+        walker
+            .filter_map(|path| match path {
+                Ok(path) => {
+                    let path = path.into_path();
+                    (keep_dir || path.is_file()).then_some(Ok(path))
+                }
+                Err(e) => Some(Err(e)),
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(io::Error::other)
+    } else {
+        Ok(Vec::new())
     }
-    Ok(target_items)
 }
 
 pub(crate) fn create_entry(
