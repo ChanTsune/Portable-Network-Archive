@@ -21,13 +21,7 @@ use std::os::macos::fs::FileTimesExt;
 use std::os::windows::fs::FileTimesExt;
 #[cfg(feature = "memmap")]
 use std::path::Path;
-use std::{
-    borrow::Cow,
-    fs::{self, File},
-    io,
-    path::PathBuf,
-    time::Instant,
-};
+use std::{borrow::Cow, fs, io, path::PathBuf, time::Instant};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(
@@ -270,7 +264,7 @@ where
     };
     match item.header().data_kind() {
         DataKind::File => {
-            let mut file = File::create(&path)?;
+            let mut file = fs::File::create(&path)?;
             if keep_options.keep_timestamp {
                 let mut times = fs::FileTimes::new();
                 if let Some(accessed) = item.metadata().accessed_time() {
