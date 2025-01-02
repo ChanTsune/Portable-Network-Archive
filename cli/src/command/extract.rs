@@ -307,11 +307,16 @@ where
         }
     }
     #[cfg(unix)]
-    permissions.map(|(p, u, g)| {
+    if let Some((p, u, g)) = permissions {
         use std::os::unix::fs::PermissionsExt;
-        chown(&path, u, g)?;
-        fs::set_permissions(&path, fs::Permissions::from_mode(p.permissions().into()))
-    });
+        match chown(&path, u, g) {
+            Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
+                log::warn!("failed to restore owner of {}: {}", path.display(), e)
+            }
+            r => r?,
+        }
+        let _ = fs::set_permissions(&path, fs::Permissions::from_mode(p.permissions().into()));
+    };
     #[cfg(windows)]
     if let Some((p, u, g)) = permissions {
         chown(&path, u, g)?;
