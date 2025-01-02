@@ -297,14 +297,14 @@ where
             if overwrite && path.exists() {
                 utils::fs::remove(&path)?;
             }
-            utils::fs::symlink(original.as_str(), &path)?;
+            utils::fs::symlink(original, &path)?;
         }
         DataKind::HardLink => {
             let reader = item.reader(ReadOptions::with_password(password))?;
             let original = EntryReference::from_lossy(io::read_to_string(reader)?);
-            let mut original = PathBuf::from(original.as_str());
+            let mut original = Cow::from(original.as_path());
             if let Some(parent) = path.parent() {
-                original = parent.join(original);
+                original = Cow::from(parent.join(original));
             }
             if overwrite && path.exists() {
                 utils::fs::remove(&path)?;
