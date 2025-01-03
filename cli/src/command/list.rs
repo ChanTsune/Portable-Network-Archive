@@ -424,7 +424,7 @@ fn print_entries(entries: Vec<TableRow>, globs: GlobPatterns, options: ListOptio
             .collect()
     };
     match options.format {
-        Some(Format::JsonL) => json_line_entries(entries.into_iter()),
+        Some(Format::JsonL) => json_line_entries(entries),
         Some(Format::Table) => detail_list_entries(entries.into_iter(), options),
         Some(Format::Tree) => tree_entries(entries, options),
         None if options.long => detail_list_entries(entries.into_iter(), options),
@@ -757,42 +757,46 @@ struct XAttr {
     value: String,
 }
 
-fn json_line_entries(entries: impl Iterator<Item = TableRow>) {
+fn json_line_entries(entries: impl IntoParallelIterator<Item = TableRow>) {
     let mut stdout = io::stdout().lock();
-    for line in entries.map(|it| FileInfo {
-        filename: it.entry_type.name().into(),
-        permissions: permission_string(
-            &it.entry_type,
-            it.permission_mode,
-            !it.xattrs.is_empty(),
-            !it.acl.is_empty(),
-        ),
-        owner: it.user.map_or_else(String::new, |it| it.name),
-        group: it.group.map_or_else(String::new, |it| it.name),
-        raw_size: it.raw_size.unwrap_or_default(),
-        size: it.compressed_size,
-        encryption: it.encryption,
-        compression: it.compression,
-        created: datetime(TimeFormat::Long, it.created),
-        modified: datetime(TimeFormat::Long, it.modified),
-        accessed: datetime(TimeFormat::Long, it.accessed),
-        acl: it
-            .acl
-            .into_par_iter()
-            .map(|(platform, ace)| AclEntry {
-                platform: platform.to_string(),
-                entries: ace.into_par_iter().map(|it| it.to_string()).collect(),
-            })
-            .collect(),
-        xattr: it
-            .xattrs
-            .into_par_iter()
-            .map(|x| XAttr {
-                key: x.name().into(),
-                value: base64::engine::general_purpose::STANDARD.encode(x.value()),
-            })
-            .collect(),
-    }) {
+    let entries = entries
+        .into_par_iter()
+        .map(|it| FileInfo {
+            filename: it.entry_type.name().into(),
+            permissions: permission_string(
+                &it.entry_type,
+                it.permission_mode,
+                !it.xattrs.is_empty(),
+                !it.acl.is_empty(),
+            ),
+            owner: it.user.map_or_else(String::new, |it| it.name),
+            group: it.group.map_or_else(String::new, |it| it.name),
+            raw_size: it.raw_size.unwrap_or_default(),
+            size: it.compressed_size,
+            encryption: it.encryption,
+            compression: it.compression,
+            created: datetime(TimeFormat::Long, it.created),
+            modified: datetime(TimeFormat::Long, it.modified),
+            accessed: datetime(TimeFormat::Long, it.accessed),
+            acl: it
+                .acl
+                .into_iter()
+                .map(|(platform, ace)| AclEntry {
+                    platform: platform.to_string(),
+                    entries: ace.into_iter().map(|it| it.to_string()).collect(),
+                })
+                .collect(),
+            xattr: it
+                .xattrs
+                .into_iter()
+                .map(|x| XAttr {
+                    key: x.name().into(),
+                    value: base64::engine::general_purpose::STANDARD.encode(x.value()),
+                })
+                .collect(),
+        })
+        .collect::<Vec<_>>();
+    for line in entries {
         match serde_json::to_writer(&mut stdout, &line) {
             Ok(_) => stdout.write_all(b"\n").expect(""),
             Err(e) => log::info!("{}", e),
