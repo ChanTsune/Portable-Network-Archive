@@ -279,14 +279,38 @@ impl Into<chunk::Ace> for ACLEntry {
 mod tests {
     use super::*;
     use crate::chunk::{acl_convert_current_platform, Ace, Acl};
+
+    struct AutoRemoveFile<'s> {
+        path: &'s str,
+    }
+
+    impl<'s> AutoRemoveFile<'s> {
+        #[inline]
+        fn new(path: &'s str) -> Self {
+            Self { path }
+        }
+        #[inline]
+        fn write<C: AsRef<[u8]>>(&self, contents: C) -> io::Result<()> {
+            std::fs::write(self.path, contents)
+        }
+    }
+
+    impl Drop for AutoRemoveFile<'_> {
+        #[inline]
+        fn drop(&mut self) {
+            // ignore result
+            let _ = std::fs::remove_file(self.path);
+        }
+    }
+
     #[test]
     fn acl_for_everyone() {
-        let path = "everyone.txt";
-        std::fs::write(&path, "everyone").unwrap();
+        let file = AutoRemoveFile::new("everyone.txt");
+        file.write("everyone").unwrap();
         let sid = Sid::try_from_name("Everyone", None).unwrap();
 
         set_facl(
-            &path,
+            file.path,
             acl_convert_current_platform(Acl {
                 platform: AcePlatform::General,
                 entries: vec![Ace {
@@ -300,7 +324,7 @@ mod tests {
             }),
         )
         .unwrap();
-        let acl = get_facl(&path).unwrap();
+        let acl = get_facl(file.path).unwrap();
         assert_eq!(acl.entries.len(), 1);
 
         assert_eq!(
@@ -332,9 +356,9 @@ mod tests {
 
     #[test]
     fn get_acl() {
-        let path = "default.txt";
-        std::fs::write(&path, "default").unwrap();
-        let acl = get_facl(&path).unwrap();
+        let file = AutoRemoveFile::new("default.txt");
+        file.write("default").unwrap();
+        let acl = get_facl(file.path).unwrap();
         assert_ne!(acl.entries.len(), 0);
     }
 }
