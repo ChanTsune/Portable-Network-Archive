@@ -778,15 +778,15 @@ fn json_line_entries(entries: impl Iterator<Item = TableRow>) {
         accessed: datetime(TimeFormat::Long, it.accessed),
         acl: it
             .acl
-            .into_iter()
+            .into_par_iter()
             .map(|(platform, ace)| AclEntry {
                 platform: platform.to_string(),
-                entries: ace.into_iter().map(|it| it.to_string()).collect(),
+                entries: ace.into_par_iter().map(|it| it.to_string()).collect(),
             })
             .collect(),
         xattr: it
             .xattrs
-            .into_iter()
+            .into_par_iter()
             .map(|x| XAttr {
                 key: x.name().into(),
                 value: base64::engine::general_purpose::STANDARD.encode(x.value()),
@@ -815,7 +815,7 @@ impl<'s> TreeEntry<'s> {
 
 fn tree_entries(entries: Vec<TableRow>, options: ListOptions) {
     let entries = entries
-        .into_iter()
+        .into_par_iter()
         .map(|it| match it.entry_type {
             EntryType::File(name) => (name, DataKind::File),
             EntryType::Directory(name) => (name, DataKind::Directory),
@@ -824,7 +824,7 @@ fn tree_entries(entries: Vec<TableRow>, options: ListOptions) {
         })
         .collect::<Vec<_>>();
     let entries = entries
-        .iter()
+        .par_iter()
         .map(|(name, kind)| (name.as_str(), *kind))
         .collect::<Vec<_>>();
     let tree = build_tree(&entries);
