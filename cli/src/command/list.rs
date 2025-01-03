@@ -428,27 +428,33 @@ fn print_entries(entries: Vec<TableRow>, globs: GlobPatterns, options: ListOptio
         Some(Format::Table) => detail_list_entries(entries.into_iter(), options),
         Some(Format::Tree) => tree_entries(entries, options),
         None if options.long => detail_list_entries(entries.into_iter(), options),
-        None => simple_list_entries(entries.into_iter(), options),
+        None => simple_list_entries(entries, options),
     }
 }
 
-fn simple_list_entries(entries: impl Iterator<Item = TableRow>, options: ListOptions) {
-    for path in entries {
-        let path = match path.entry_type {
-            EntryType::Directory(name) if options.classify => format!("{}/", name),
-            EntryType::SymbolicLink(name, _) if options.classify => {
-                format!("{}@", name)
+fn simple_list_entries(entries: impl IntoParallelIterator<Item = TableRow>, options: ListOptions) {
+    let entries = entries
+        .into_par_iter()
+        .map(|path| {
+            let path = match path.entry_type {
+                EntryType::Directory(name) if options.classify => format!("{}/", name),
+                EntryType::SymbolicLink(name, _) if options.classify => {
+                    format!("{}@", name)
+                }
+                EntryType::File(name)
+                | EntryType::Directory(name)
+                | EntryType::SymbolicLink(name, _)
+                | EntryType::HardLink(name, _) => name,
+            };
+            if options.hide_control_chars {
+                hide_control_chars(&path)
+            } else {
+                path
             }
-            EntryType::File(name)
-            | EntryType::Directory(name)
-            | EntryType::SymbolicLink(name, _)
-            | EntryType::HardLink(name, _) => name,
-        };
-        if options.hide_control_chars {
-            println!("{}", hide_control_chars(&path))
-        } else {
-            println!("{}", path)
-        }
+        })
+        .collect::<Vec<_>>();
+    for path in entries {
+        println!("{}", path)
     }
 }
 
