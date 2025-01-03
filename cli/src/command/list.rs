@@ -813,7 +813,7 @@ impl<'s> TreeEntry<'s> {
     }
 }
 
-fn tree_entries(entries: Vec<TableRow>, options: ListOptions) {
+fn tree_entries(entries: impl IntoParallelIterator<Item = TableRow>, options: ListOptions) {
     let entries = entries
         .into_par_iter()
         .map(|it| match it.entry_type {
