@@ -282,12 +282,17 @@ pub(crate) fn chunk_data_split(
     ty: ChunkType,
     data: &[u8],
     mid: usize,
-) -> (RawChunk<&[u8]>, RawChunk<&[u8]>) {
-    let (first, last) = data.split_at(mid);
-    (
-        RawChunk::from_slice(ty, first),
-        RawChunk::from_slice(ty, last),
-    )
+) -> (RawChunk<&[u8]>, Option<RawChunk<&[u8]>>) {
+    // TODO: use split_at_checked
+    if data.len() < mid {
+        (RawChunk::from_slice(ty, data), None)
+    } else {
+        let (first, last) = data.split_at(mid);
+        (
+            RawChunk::from_slice(ty, first),
+            Some(RawChunk::from_slice(ty, last)),
+        )
+    }
 }
 
 /// Read archive as chunks
@@ -420,7 +425,10 @@ mod tests {
             chunk_data_split(chunk.ty, chunk.data(), 0),
             (
                 RawChunk::from_slice(ChunkType::FDAT, &[]),
-                RawChunk::from_slice(ChunkType::FDAT, &[0xAA, 0xBB, 0xCC, 0xDD]),
+                Some(RawChunk::from_slice(
+                    ChunkType::FDAT,
+                    &[0xAA, 0xBB, 0xCC, 0xDD]
+                )),
             )
         )
     }
@@ -433,7 +441,33 @@ mod tests {
             chunk_data_split(chunk.ty, chunk.data(), 2),
             (
                 RawChunk::from_slice(ChunkType::FDAT, &[0xAA, 0xBB]),
-                RawChunk::from_slice(ChunkType::FDAT, &[0xCC, 0xDD]),
+                Some(RawChunk::from_slice(ChunkType::FDAT, &[0xCC, 0xDD])),
+            )
+        )
+    }
+
+    #[test]
+    fn data_split_at_just() {
+        let data = vec![0xAA, 0xBB, 0xCC, 0xDD];
+        let chunk = RawChunk::from_data(ChunkType::FDAT, data);
+        assert_eq!(
+            chunk_data_split(chunk.ty, chunk.data(), 4),
+            (
+                RawChunk::from_slice(ChunkType::FDAT, &[0xAA, 0xBB, 0xCC, 0xDD]),
+                Some(RawChunk::from_slice(ChunkType::FDAT, &[])),
+            )
+        )
+    }
+
+    #[test]
+    fn data_split_at_over() {
+        let data = vec![0xAA, 0xBB, 0xCC, 0xDD];
+        let chunk = RawChunk::from_data(ChunkType::FDAT, data);
+        assert_eq!(
+            chunk_data_split(chunk.ty, chunk.data(), 5),
+            (
+                RawChunk::from_slice(ChunkType::FDAT, &[0xAA, 0xBB, 0xCC, 0xDD]),
+                None,
             )
         )
     }

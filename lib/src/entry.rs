@@ -1122,7 +1122,9 @@ impl<'a> EntryPart<&'a [u8]> {
                     let chunk_split_index = available_bytes_len - MIN_CHUNK_BYTES_SIZE;
                     let (x, y) = chunk_data_split(chunk.ty, chunk.data, chunk_split_index);
                     first.push(x);
-                    remaining.push_front(y);
+                    if let Some(y) = y {
+                        remaining.push_front(y);
+                    }
                 } else {
                     remaining.push_front(chunk);
                 }
@@ -1153,7 +1155,9 @@ impl EntryPart {
                     let chunk_split_index = available_bytes_len - MIN_CHUNK_BYTES_SIZE;
                     let (x, y) = chunk_data_split(chunk.ty, chunk.data(), chunk_split_index);
                     first.push(x.into());
-                    remaining.push_front(y.into());
+                    if let Some(y) = y {
+                        remaining.push_front(y.into());
+                    }
                 } else {
                     remaining.push_front(chunk);
                 }
