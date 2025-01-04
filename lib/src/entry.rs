@@ -1124,7 +1124,7 @@ impl<'a> EntryPart<&'a [u8]> {
                     first.push(x);
                     remaining.push_front(y);
                 } else {
-                    remaining.push_front(chunk);
+                    first.push(chunk);
                 }
                 break;
             }
@@ -1155,7 +1155,7 @@ impl EntryPart {
                     first.push(x.into());
                     remaining.push_front(y.into());
                 } else {
-                    remaining.push_front(chunk);
+                    first.push(chunk);
                 }
                 break;
             }
