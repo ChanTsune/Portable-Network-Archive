@@ -9,16 +9,25 @@ on:
       - main
 
 jobs:
+  fuzz_target:
+    name: Detect fuzz target
+    runs-on: ubuntu-latest
+    outputs:
+      fuzz_target: ${{ steps.fuzz_target.outputs.fuzz_target }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: fuzz_target
+        name: Detect fuzz target
+        run: |
+          echo fuzz_target=$(ls fuzz/fuzz_targets | jq -Rsc 'split("\n")[0:-1] | map(select(test("\\.rs$"))) | map(sub("\\.rs$"; ""))') >> "$GITHUB_OUTPUT"
+
   fuzz:
     name: Run cargo fuzz
     runs-on: ubuntu-latest
+    needs: fuzz_target
     strategy:
       matrix:
-        fuzz_target:
-          - aes_ctr
-          - aes_cbc
-          - camellia_ctr
-          - camellia_cbc
+        fuzz_target: ${{ fromJSON(needs.fuzz_target.outputs.fuzz_target) }}
     steps:
       - uses: actions/checkout@v4
       - id: install_rust
