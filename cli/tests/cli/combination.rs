@@ -1,4 +1,4 @@
-use crate::utils::{diff::diff, setup};
+use crate::utils::{components_count, copy_dir_all, diff::diff, setup};
 use itertools::Itertools;
 
 // NOTE: Skip `--keep-xattr` option for NetBSD
@@ -33,6 +33,11 @@ const SOLID_OPTIONS: &[Option<&str>] = &[None, Some("--solid")];
 #[test]
 fn combination_fs() {
     setup();
+    copy_dir_all(
+        "../lib",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/combination_fs/in/"),
+    )
+    .unwrap();
     fn inner(options: Vec<&str>) {
         let joined_options = options.iter().join("");
 
@@ -42,13 +47,13 @@ fn combination_fs() {
                 "--quiet",
                 "c",
                 &format!(
-                    "{}/filesystem/{}.pna",
+                    "{}/combination_fs/{}.pna",
                     env!("CARGO_TARGET_TMPDIR"),
                     joined_options
                 ),
                 "--overwrite",
                 "-r",
-                "../lib",
+                concat!(env!("CARGO_TARGET_TMPDIR"), "/combination_fs/in/"),
                 #[cfg(windows)]
                 "--unstable",
             ]
@@ -61,17 +66,20 @@ fn combination_fs() {
             "--quiet",
             "x",
             &format!(
-                "{}/filesystem/{}.pna",
+                "{}/combination_fs/{}.pna",
                 env!("CARGO_TARGET_TMPDIR"),
                 joined_options
             ),
             "--overwrite",
             "--out-dir",
             &format!(
-                "{}/filesystem/{}/",
+                "{}/combination_fs/out/{}/",
                 env!("CARGO_TARGET_TMPDIR"),
                 joined_options
             ),
+            "--strip-components",
+            &components_count(concat!(env!("CARGO_TARGET_TMPDIR"), "/combination_fs/in/"))
+                .to_string(),
             "--password",
             "password",
             #[cfg(windows)]
@@ -79,11 +87,11 @@ fn combination_fs() {
         ]);
         cmd.assert().success();
         diff(
-            "../lib",
+            concat!(env!("CARGO_TARGET_TMPDIR"), "/combination_fs/in/"),
             format!(
-                "{}/filesystem/{}/lib",
+                "{}/combination_fs/out/{}",
                 env!("CARGO_TARGET_TMPDIR"),
-                joined_options
+                joined_options,
             ),
         )
         .unwrap();
@@ -116,6 +124,11 @@ fn combination_fs() {
 #[test]
 fn combination_stdio() {
     setup();
+    copy_dir_all(
+        "../lib",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/combination_stdio/in/"),
+    )
+    .unwrap();
     fn inner(options: Vec<&str>) {
         let joined_options = options.iter().join("");
 
@@ -127,7 +140,7 @@ fn combination_stdio() {
                 "stdio",
                 "-c",
                 "-r",
-                "../lib",
+                concat!(env!("CARGO_TARGET_TMPDIR"), "/combination_stdio/in/"),
                 #[cfg(windows)]
                 "--unstable",
             ]
@@ -145,7 +158,17 @@ fn combination_stdio() {
             "-x",
             "--overwrite",
             "--out-dir",
-            &format!("{}/stdio/{}/", env!("CARGO_TARGET_TMPDIR"), joined_options),
+            &format!(
+                "{}/combination_stdio/out/{}/",
+                env!("CARGO_TARGET_TMPDIR"),
+                joined_options
+            ),
+            "--strip-components",
+            &components_count(concat!(
+                env!("CARGO_TARGET_TMPDIR"),
+                "/combination_stdio/in/"
+            ))
+            .to_string(),
             "--password",
             "password",
             #[cfg(windows)]
@@ -153,11 +176,11 @@ fn combination_stdio() {
         ]);
         cmd.assert().success();
         diff(
-            "../lib",
+            concat!(env!("CARGO_TARGET_TMPDIR"), "/combination_stdio/in/"),
             format!(
-                "{}/stdio/{}/lib",
+                "{}/combination_stdio/out/{}",
                 env!("CARGO_TARGET_TMPDIR"),
-                joined_options
+                joined_options,
             ),
         )
         .unwrap();
