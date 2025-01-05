@@ -1105,6 +1105,44 @@ where
 }
 
 impl<'a> EntryPart<&'a [u8]> {
+    /// Split [EntryPart] into two parts if this entry can be split into smaller than given value.
+    ///
+    /// ## Errors
+    /// If it can't split into smaller than given value,
+    /// it returns an error containing the original value.
+    #[inline]
+    pub fn try_split(self, max_bytes_len: usize) -> Result<(Self, Option<Self>), Self> {
+        if self.bytes_len() <= max_bytes_len {
+            return Ok((self, None));
+        }
+        let mut remaining = VecDeque::from(self.0);
+        let mut first = Vec::new();
+        let mut total_size = 0;
+        while let Some(chunk) = remaining.pop_front() {
+            // NOTE: If over max size, restore to remaining chunk
+            if max_bytes_len < total_size + chunk.bytes_len() {
+                if chunk.is_stream_chunk() && total_size + MIN_CHUNK_BYTES_SIZE < max_bytes_len {
+                    let available_bytes_len = max_bytes_len - total_size;
+                    let chunk_split_index = available_bytes_len - MIN_CHUNK_BYTES_SIZE;
+                    let (x, y) = chunk_data_split(chunk.ty, chunk.data, chunk_split_index);
+                    first.push(x);
+                    if let Some(y) = y {
+                        remaining.push_front(y);
+                    }
+                } else {
+                    remaining.push_front(chunk);
+                }
+                break;
+            }
+            total_size += chunk.bytes_len();
+            first.push(chunk);
+        }
+        if first.is_empty() {
+            return Err(Self(Vec::from(remaining)));
+        }
+        Ok((Self(first), Some(Self(Vec::from(remaining)))))
+    }
+
     /// Split [EntryPart] into two parts if this entry is shorter in max_bytes_len.
     #[inline]
     pub fn split(self, max_bytes_len: usize) -> (EntryPart<&'a [u8]>, Option<EntryPart<&'a [u8]>>) {
@@ -1213,6 +1251,7 @@ fn u128_from_be_bytes_last(bytes: &[u8]) -> u128 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::LazyLock;
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
@@ -1227,22 +1266,21 @@ mod tests {
         assert_eq!(u128::MAX, u128_from_be_bytes_last(&u128::MAX.to_be_bytes()));
     }
 
+    static TEST_ENTRY: LazyLock<RawEntry> = LazyLock::new(|| {
+        RawEntry(vec![
+            RawChunk::from_data(
+                ChunkType::FHED,
+                vec![0, 0, 0, 0, 0, 1, 116, 101, 115, 116, 46, 116, 120, 116],
+            ),
+            RawChunk::from_data(ChunkType::FDAT, vec![116, 101, 120, 116]),
+            RawChunk::from_data(ChunkType::FEND, vec![]),
+        ])
+    });
+
     mod entry_part_split {
         use super::*;
-        use std::sync::LazyLock;
         #[cfg(all(target_family = "wasm", target_os = "unknown"))]
         use wasm_bindgen_test::wasm_bindgen_test as test;
-
-        static TEST_ENTRY: LazyLock<RawEntry> = LazyLock::new(|| {
-            RawEntry(vec![
-                RawChunk::from_data(
-                    ChunkType::FHED,
-                    vec![0, 0, 0, 0, 0, 1, 116, 101, 115, 116, 46, 116, 120, 116],
-                ),
-                RawChunk::from_data(ChunkType::FDAT, vec![116, 101, 120, 116]),
-                RawChunk::from_data(ChunkType::FEND, vec![]),
-            ])
-        });
 
         #[test]
         fn split_zero() {
@@ -1346,6 +1384,116 @@ mod tests {
                     RawChunk::from_data(ChunkType::FEND, vec![]),
                 ]))
             )
+        }
+    }
+    mod entry_part_try_split {
+        use super::*;
+        #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+        use wasm_bindgen_test::wasm_bindgen_test as test;
+
+        #[test]
+        fn split_zero() {
+            let entry = TEST_ENTRY.clone();
+            let part = EntryPart::from(entry.clone());
+            assert_eq!(
+                part.as_ref().try_split(0),
+                Err(EntryPart::from(entry).as_ref())
+            )
+        }
+
+        #[test]
+        fn bounds_check_spans_unsplittable_chunks() {
+            assert_eq!(26, TEST_ENTRY.0.first().unwrap().bytes_len());
+            let entry = TEST_ENTRY.clone();
+            let part = EntryPart::from(entry.clone());
+            assert_eq!(
+                part.as_ref().try_split(25),
+                Err(EntryPart::from(entry).as_ref())
+            )
+        }
+
+        #[test]
+        fn bounds_check_just_end_unsplittable_chunks() {
+            assert_eq!(26, TEST_ENTRY.0.first().unwrap().bytes_len());
+            let entry = TEST_ENTRY.clone();
+            let part = EntryPart::from(entry.clone());
+
+            assert_eq!(
+                part.as_ref().try_split(26),
+                Ok((
+                    EntryPart(vec![RawChunk::from_slice(
+                        ChunkType::FHED,
+                        &[0, 0, 0, 0, 0, 1, 116, 101, 115, 116, 46, 116, 120, 116],
+                    )]),
+                    Some(EntryPart(vec![
+                        RawChunk::from_slice(ChunkType::FDAT, &[116, 101, 120, 116]),
+                        RawChunk::from_slice(ChunkType::FEND, &[]),
+                    ]))
+                ))
+            )
+        }
+
+        #[test]
+        fn spans_splittable_chunks_below_minimum_chunk_size() {
+            let entry = TEST_ENTRY.clone();
+            let part = EntryPart::from(entry.clone());
+
+            assert_eq!(
+                part.as_ref().try_split(27),
+                Ok((
+                    EntryPart(vec![RawChunk::from_slice(
+                        ChunkType::FHED,
+                        &[0, 0, 0, 0, 0, 1, 116, 101, 115, 116, 46, 116, 120, 116],
+                    )]),
+                    Some(EntryPart(vec![
+                        RawChunk::from_slice(ChunkType::FDAT, &[116, 101, 120, 116]),
+                        RawChunk::from_slice(ChunkType::FEND, &[]),
+                    ]))
+                ))
+            )
+        }
+
+        #[test]
+        fn spans_splittable_chunks() {
+            let entry = TEST_ENTRY.clone();
+            let part = EntryPart::from(entry.clone());
+
+            assert_eq!(
+                part.as_ref().try_split(39),
+                Ok((
+                    EntryPart(vec![
+                        RawChunk::from_slice(
+                            ChunkType::FHED,
+                            &[0, 0, 0, 0, 0, 1, 116, 101, 115, 116, 46, 116, 120, 116],
+                        ),
+                        RawChunk::from_slice(ChunkType::FDAT, &[116]),
+                    ]),
+                    Some(EntryPart(vec![
+                        RawChunk::from_slice(ChunkType::FDAT, &[101, 120, 116]),
+                        RawChunk::from_slice(ChunkType::FEND, &[]),
+                    ]))
+                )),
+            )
+        }
+
+        #[test]
+        fn spans_just_end_of_splittable_chunks() {
+            let entry = TEST_ENTRY.clone();
+            let part = EntryPart::from(entry.clone());
+
+            assert_eq!(
+                part.as_ref().try_split(42),
+                Ok((
+                    EntryPart(vec![
+                        RawChunk::from_slice(
+                            ChunkType::FHED,
+                            &[0, 0, 0, 0, 0, 1, 116, 101, 115, 116, 46, 116, 120, 116],
+                        ),
+                        RawChunk::from_slice(ChunkType::FDAT, &[116, 101, 120, 116]),
+                    ]),
+                    Some(EntryPart(vec![RawChunk::from_slice(ChunkType::FEND, &[])]))
+                ))
+            );
         }
     }
 }
