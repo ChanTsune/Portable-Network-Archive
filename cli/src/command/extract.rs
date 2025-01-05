@@ -66,6 +66,11 @@ pub(crate) struct ExtractCommand {
         help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names in the archive to be ignored in favor of the numeric user and group ids."
     )]
     pub(crate) numeric_owner: bool,
+    #[arg(
+        long,
+        help = "Remove the specified number of leading path elements. Path names with fewer elements will be silently skipped"
+    )]
+    strip_components: Option<usize>,
     #[command(flatten)]
     pub(crate) file: FileArgs,
 }
@@ -95,6 +100,7 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
     );
     let output_options = OutputOption {
         overwrite: args.overwrite,
+        strip_components: args.strip_components,
         out_dir: args.out_dir,
         keep_options,
         owner_options,
@@ -123,6 +129,7 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct OutputOption {
     pub(crate) overwrite: bool,
+    pub(crate) strip_components: Option<usize>,
     pub(crate) out_dir: Option<PathBuf>,
     pub(crate) keep_options: KeepOptions,
     pub(crate) owner_options: OwnerOptions,
@@ -228,6 +235,7 @@ pub(crate) fn extract_entry<T>(
     password: Option<&str>,
     OutputOption {
         overwrite,
+        strip_components,
         out_dir,
         keep_options,
         owner_options,
@@ -240,6 +248,13 @@ where
     let overwrite = *overwrite;
     let item_path = item.header().path().as_path();
     log::debug!("Extract: {}", item_path.display());
+    let item_path = if let Some(strip_count) = strip_components {
+        Cow::from(PathBuf::from_iter(
+            item_path.components().skip(*strip_count),
+        ))
+    } else {
+        Cow::from(item_path)
+    };
     let path = if let Some(out_dir) = &out_dir {
         Cow::from(out_dir.join(item_path))
     } else {
