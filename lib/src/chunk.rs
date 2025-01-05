@@ -287,7 +287,7 @@ pub(crate) fn chunk_data_split(
     mid: usize,
 ) -> (RawChunk<&[u8]>, Option<RawChunk<&[u8]>>) {
     // TODO: use split_at_checked
-    if data.len() < mid {
+    if data.len() <= mid {
         (RawChunk::from_slice(ty, data), None)
     } else {
         let (first, last) = data.split_at(mid);
@@ -457,7 +457,7 @@ mod tests {
             chunk_data_split(chunk.ty, chunk.data(), 4),
             (
                 RawChunk::from_slice(ChunkType::FDAT, &[0xAA, 0xBB, 0xCC, 0xDD]),
-                Some(RawChunk::from_slice(ChunkType::FDAT, &[])),
+                None,
             )
         )
     }
