@@ -75,6 +75,11 @@ pub(crate) struct StdioCommand {
     pub(crate) out_dir: Option<PathBuf>,
     #[arg(
         long,
+        help = "Remove the specified number of leading path elements. Path names with fewer elements will be silently skipped"
+    )]
+    strip_components: Option<usize>,
+    #[arg(
+        long,
         help = "On create, archiving user to the entries from given name. On extract, restore user from given name"
     )]
     pub(crate) uname: Option<String>,
@@ -209,6 +214,7 @@ fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
     let password = ask_password(args.password)?;
     let out_option = OutputOption {
         overwrite: args.overwrite,
+        strip_components: args.strip_components,
         out_dir: args.out_dir,
         keep_options: KeepOptions {
             keep_timestamp: args.keep_timestamp,
