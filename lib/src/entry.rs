@@ -1144,6 +1144,10 @@ impl<'a> EntryPart<&'a [u8]> {
     }
 
     /// Split [EntryPart] into two parts if this entry is shorter in max_bytes_len.
+    #[deprecated(
+        note = "Use `EntryPart::try_split` instead. This method will be removed in libpna version 0.24.0.",
+        since = "0.21.2"
+    )]
     #[inline]
     pub fn split(self, max_bytes_len: usize) -> (EntryPart<&'a [u8]>, Option<EntryPart<&'a [u8]>>) {
         if self.bytes_len() <= max_bytes_len {
@@ -1177,6 +1181,10 @@ impl<'a> EntryPart<&'a [u8]> {
 
 impl EntryPart {
     /// Split [EntryPart] into two parts if this entry is shorter in max_bytes_len.
+    #[deprecated(
+        note = "Use `EntryPart::try_split` instead. This method will be removed in libpna version 0.24.0.",
+        since = "0.21.2"
+    )]
     #[inline]
     pub fn split(self, max_bytes_len: usize) -> (EntryPart, Option<EntryPart>) {
         if self.bytes_len() <= max_bytes_len {
@@ -1277,6 +1285,7 @@ mod tests {
         ])
     });
 
+    #[allow(deprecated)]
     mod entry_part_split {
         use super::*;
         #[cfg(all(target_family = "wasm", target_os = "unknown"))]
