@@ -1,7 +1,9 @@
 pub mod diff;
 
-use std::path::Path;
-use std::{fs, io};
+use std::{
+    fs, io,
+    path::{Component, Path},
+};
 
 pub fn setup() {
     #[cfg(target_os = "wasi")]
@@ -20,4 +22,14 @@ pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<
         }
     }
     Ok(())
+}
+
+pub fn components_count<P: AsRef<Path>>(p: P) -> usize {
+    p.as_ref()
+        .components()
+        .filter(|it| match it {
+            Component::Normal(_) => true,
+            _ => false,
+        })
+        .count()
 }
