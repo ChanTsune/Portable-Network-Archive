@@ -286,23 +286,27 @@ pub(crate) fn split_to_parts(
     mut entry_part: EntryPart<&[u8]>,
     first: usize,
     max: usize,
-) -> Vec<EntryPart<&[u8]>> {
+) -> io::Result<Vec<EntryPart<&[u8]>>> {
     let mut parts = vec![];
     let mut split_size = first;
     loop {
-        match entry_part.split(split_size) {
-            (write_part, Some(remaining_part)) => {
+        match entry_part.try_split(split_size) {
+            Ok((write_part, Some(remaining_part))) => {
                 parts.push(write_part);
                 entry_part = remaining_part;
                 split_size = max;
             }
-            (write_part, None) => {
+            Ok((write_part, None)) => {
                 parts.push(write_part);
                 break;
             }
+            Err(_) => return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("A chunk was detected that could not be divided into chunks smaller than the given size {}", max)
+            ))
         }
     }
-    parts
+    Ok(parts)
 }
 
 pub(crate) trait ArchiveProvider {
@@ -758,7 +762,7 @@ where
             p.as_ref(),
             max_file_size - written_entry_size,
             max_file_size,
-        );
+        )?;
         for part in parts {
             if written_entry_size + part.bytes_len() > max_file_size {
                 part_num += 1;
