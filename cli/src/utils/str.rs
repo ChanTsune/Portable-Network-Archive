@@ -56,4 +56,13 @@ mod tests {
         assert_eq!(iter.next().unwrap(), "e");
         assert!(iter.next().is_none());
     }
+
+    #[test]
+    fn char_chunks_multi_byte() {
+        let mut iter = char_chunks("Hello 新世界", 4);
+        assert_eq!(iter.next().unwrap(), "Hell");
+        assert_eq!(iter.next().unwrap(), "o 新世");
+        assert_eq!(iter.next().unwrap(), "界");
+        assert!(iter.next().is_none());
+    }
 }
