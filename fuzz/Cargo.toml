@@ -39,3 +39,10 @@ path = "fuzz_targets/camellia_cbc.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "split_archive"
+path = "fuzz_targets/split_archive.rs"
+test = false
+doc = false
+bench = false
