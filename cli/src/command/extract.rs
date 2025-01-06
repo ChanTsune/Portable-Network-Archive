@@ -255,10 +255,10 @@ where
     } else {
         Cow::from(item_path)
     };
-    let path = if let Some(out_dir) = &out_dir {
+    let path = if let Some(out_dir) = out_dir {
         Cow::from(out_dir.join(item_path))
     } else {
-        Cow::from(item_path)
+        item_path
     };
     if path.exists() && !overwrite {
         return Err(io::Error::new(
