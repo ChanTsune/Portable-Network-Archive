@@ -1,5 +1,3 @@
-use itertools::Itertools;
-
 #[cfg(windows)]
 pub(crate) fn encode_wide(s: &std::ffi::OsStr) -> std::io::Result<Vec<u16>> {
     use std::os::windows::prelude::*;
@@ -15,13 +13,18 @@ pub(crate) fn encode_wide(s: &std::ffi::OsStr) -> std::io::Result<Vec<u16>> {
 }
 
 #[inline]
-pub(crate) fn char_chunks(src: &str, chunk_size: usize) -> impl Iterator<Item = String> + '_ {
-    src.chars()
-        .chunks(chunk_size)
-        .into_iter()
-        .map(|it| it.collect::<String>())
-        .collect_vec()
-        .into_iter()
+pub(crate) fn char_chunks(src: &str, chunk_size: usize) -> impl Iterator<Item = &str> {
+    let mut start = 0;
+    src.char_indices()
+        .step_by(chunk_size)
+        .map(|(i, _)| i)
+        .chain(std::iter::once(src.as_bytes().len()))
+        .map(move |i| {
+            let chunk = &src[start..i];
+            start = i;
+            chunk
+        })
+        .skip(1)
 }
 
 #[cfg(test)]
