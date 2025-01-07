@@ -1,6 +1,6 @@
 use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
 use std::error::Error;
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::fmt::{self, Display, Formatter};
 use std::path::{Component, Path, PathBuf};
 use std::str;
@@ -182,6 +182,24 @@ impl TryFrom<&OsStr> for EntryName {
 
     #[inline]
     fn try_from(value: &OsStr) -> Result<Self, Self::Error> {
+        Self::new_from_path(Path::new(value))
+    }
+}
+
+impl TryFrom<OsString> for EntryName {
+    type Error = EntryNameError;
+
+    #[inline]
+    fn try_from(value: OsString) -> Result<Self, Self::Error> {
+        Self::new_from_path(Path::new(&value))
+    }
+}
+
+impl TryFrom<&OsString> for EntryName {
+    type Error = EntryNameError;
+
+    #[inline]
+    fn try_from(value: &OsString) -> Result<Self, Self::Error> {
         Self::new_from_path(Path::new(value))
     }
 }
