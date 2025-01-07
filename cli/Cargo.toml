@@ -1,6 +1,6 @@
 [package]
 name = "portable-network-archive"
-version = "0.21.0"
+version = "0.21.1"
 edition = "2021"
 license = "Apache-2.0 OR MIT"
 description = "Portable-Network-Archive cli"
@@ -24,7 +24,7 @@ itertools = "0.14.0"
 memmap2 = { version = "0.9.5", optional = true }
 nom = "7.1.3"
 normalize-path = "0.2.1"
-pna = { version = "0.21.0", path = "../pna" }
+pna = { version = "0.21.1", path = "../pna" }
 rayon = "1.10.0"
 serde = { version = "1.0.217", features = ["derive"] }
 serde_json = "1.0.134"
