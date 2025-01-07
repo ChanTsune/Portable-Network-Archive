@@ -1,4 +1,5 @@
 use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
+use std::borrow::Cow;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::fmt::{self, Display, Formatter};
@@ -173,6 +174,27 @@ impl From<&str> for EntryName {
     /// ```
     #[inline]
     fn from(value: &str) -> Self {
+        Self::new_from_utf8(value)
+    }
+}
+
+impl From<Cow<'_, str>> for EntryName {
+    /// ## Examples
+    /// ```
+    /// use std::borrow::Cow;
+    /// use libpna::EntryName;
+    ///
+    /// assert_eq!("test.txt", EntryName::from(Cow::from("test.txt")));
+    /// ```
+    #[inline]
+    fn from(value: Cow<'_, str>) -> Self {
+        Self::new_from_utf8(&value)
+    }
+}
+
+impl From<&Cow<'_, str>> for EntryName {
+    #[inline]
+    fn from(value: &Cow<'_, str>) -> Self {
         Self::new_from_utf8(value)
     }
 }
