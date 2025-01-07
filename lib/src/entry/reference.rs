@@ -223,6 +223,40 @@ impl TryFrom<&Path> for EntryReference {
     }
 }
 
+impl TryFrom<PathBuf> for EntryReference {
+    type Error = EntryReferenceError;
+
+    /// ## Examples
+    /// ```
+    /// use libpna::EntryReference;
+    /// use std::path::PathBuf;
+    ///
+    /// let p = PathBuf::from("path/to/file");
+    /// assert_eq!("path/to/file", EntryReference::try_from(p).unwrap());
+    /// ```
+    #[inline]
+    fn try_from(value: PathBuf) -> Result<Self, Self::Error> {
+        Self::new_from_path(&value)
+    }
+}
+
+impl TryFrom<&PathBuf> for EntryReference {
+    type Error = EntryReferenceError;
+
+    /// ## Examples
+    /// ```
+    /// use libpna::EntryReference;
+    /// use std::path::PathBuf;
+    ///
+    /// let p = PathBuf::from("path/to/file");
+    /// assert_eq!("path/to/file", EntryReference::try_from(&p).unwrap());
+    /// ```
+    #[inline]
+    fn try_from(value: &PathBuf) -> Result<Self, Self::Error> {
+        Self::new_from_path(value)
+    }
+}
+
 impl Display for EntryReference {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
