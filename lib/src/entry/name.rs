@@ -282,26 +282,20 @@ mod tests {
 
     #[test]
     fn remove_root() {
-        assert_eq!(EntryName::from("/test.txt"), EntryName::from("test.txt"));
-        assert_eq!(
-            EntryName::from("/test/test.txt"),
-            EntryName::from("test/test.txt")
-        );
+        assert_eq!("test.txt", EntryName::from("/test.txt"));
+        assert_eq!("test/test.txt", EntryName::from("/test/test.txt"));
     }
 
     #[test]
     fn remove_last() {
-        assert_eq!(EntryName::from("test/"), EntryName::from("test"));
-        assert_eq!(EntryName::from("test/test/"), EntryName::from("test/test"));
+        assert_eq!("test", EntryName::from("test/"));
+        assert_eq!("test/test", EntryName::from("test/test/"));
     }
 
     #[cfg(target_os = "windows")]
     #[test]
     fn remove_prefix() {
-        assert_eq!(EntryName::from("C:\\test.txt"), EntryName::from("test.txt"));
-        assert_eq!(
-            EntryName::from("C:\\test\\test.txt"),
-            EntryName::from("test/test.txt")
-        );
+        assert_eq!("test.txt", EntryName::from("C:\\test.txt"));
+        assert_eq!("test/test.txt", EntryName::from("C:\\test\\test.txt"));
     }
 }
