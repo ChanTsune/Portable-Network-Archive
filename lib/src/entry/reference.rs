@@ -179,6 +179,27 @@ impl From<&str> for EntryReference {
     }
 }
 
+impl From<Cow<'_, str>> for EntryReference {
+    /// ## Examples
+    /// ```
+    /// use std::borrow::Cow;
+    /// use libpna::EntryReference;
+    ///
+    /// assert_eq!("test.txt", EntryReference::from(Cow::from("test.txt")));
+    /// ```
+    #[inline]
+    fn from(value: Cow<'_, str>) -> Self {
+        Self::new_from_utf8(&value)
+    }
+}
+
+impl From<&Cow<'_, str>> for EntryReference {
+    #[inline]
+    fn from(value: &Cow<'_, str>) -> Self {
+        Self::new_from_utf8(value)
+    }
+}
+
 impl TryFrom<&OsStr> for EntryReference {
     type Error = EntryReferenceError;
 
