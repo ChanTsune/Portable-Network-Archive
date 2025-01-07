@@ -27,9 +27,6 @@ pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<
 pub fn components_count<P: AsRef<Path>>(p: P) -> usize {
     p.as_ref()
         .components()
-        .filter(|it| match it {
-            Component::Normal(_) => true,
-            _ => false,
-        })
+        .filter(|it| matches!(it, Component::Normal(_)))
         .count()
 }
