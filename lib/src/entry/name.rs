@@ -213,6 +213,24 @@ impl TryFrom<&Path> for EntryName {
     }
 }
 
+impl TryFrom<PathBuf> for EntryName {
+    type Error = EntryNameError;
+
+    #[inline]
+    fn try_from(value: PathBuf) -> Result<Self, Self::Error> {
+        Self::new_from_path(&value)
+    }
+}
+
+impl TryFrom<&PathBuf> for EntryName {
+    type Error = EntryNameError;
+
+    #[inline]
+    fn try_from(value: &PathBuf) -> Result<Self, Self::Error> {
+        Self::new_from_path(value)
+    }
+}
+
 impl TryFrom<&[u8]> for EntryName {
     type Error = EntryNameError;
 
