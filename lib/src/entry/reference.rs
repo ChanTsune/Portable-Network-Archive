@@ -294,3 +294,22 @@ impl From<Utf8Error> for EntryReferenceError {
         Self(value)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+    use wasm_bindgen_test::wasm_bindgen_test as test;
+
+    #[test]
+    fn keep_root() {
+        assert_eq!("/test.txt", EntryReference::from("/test.txt"));
+        assert_eq!("/test/test.txt", EntryReference::from("/test/test.txt"));
+    }
+
+    #[test]
+    fn remove_last() {
+        assert_eq!("test", EntryReference::from("test/"));
+        assert_eq!("test/test", EntryReference::from("test/test/"));
+    }
+}
