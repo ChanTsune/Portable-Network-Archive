@@ -1291,7 +1291,7 @@ checksum = "26072860ba924cbfa98ea39c8c19b4dd6a4a25423dbdf219c1eca91aa0cf6964"
 
 [[package]]
 name = "pna"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "libpna",
  "version-sync",
