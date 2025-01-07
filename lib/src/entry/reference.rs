@@ -24,21 +24,21 @@ pub struct EntryReference(String);
 impl EntryReference {
     fn new_from_utf8path(path: &Utf8Path) -> Self {
         let has_root = path.has_root();
-        let mut components = path.components();
-        if has_root {
-            components.next();
-        };
-        let p = components
-            .map(|it| match it {
-                Utf8Component::Prefix(p) => p.as_str(),
-                Utf8Component::RootDir => unreachable!(),
-                Utf8Component::CurDir => ".",
-                Utf8Component::ParentDir => "..",
-                Utf8Component::Normal(n) => n,
+        let has_prefix = path
+            .components()
+            .any(|it| matches!(&it, Utf8Component::Prefix(_)));
+        let p = path
+            .components()
+            .filter_map(|it| match it {
+                Utf8Component::Prefix(p) => Some(p.as_str()),
+                Utf8Component::RootDir => None,
+                Utf8Component::CurDir => Some("."),
+                Utf8Component::ParentDir => Some(".."),
+                Utf8Component::Normal(n) => Some(n),
             })
             .collect::<Vec<_>>();
         let mut s = p.join("/");
-        if has_root {
+        if !has_prefix && has_root {
             s.insert(0, '/');
         };
         Self(s)
@@ -131,21 +131,21 @@ impl EntryReference {
     #[inline]
     fn from_path_lossy(path: &Path) -> Self {
         let has_root = path.has_root();
-        let mut components = path.components();
-        if has_root {
-            components.next();
-        };
-        let p = components
-            .map(|it| match it {
-                Component::Prefix(p) => p.as_os_str().to_string_lossy(),
-                Component::RootDir => unreachable!(),
-                Component::CurDir => Cow::from("."),
-                Component::ParentDir => Cow::from(".."),
-                Component::Normal(n) => n.to_string_lossy(),
+        let has_prefix = path
+            .components()
+            .any(|it| matches!(&it, Component::Prefix(_)));
+        let p = path
+            .components()
+            .filter_map(|it| match it {
+                Component::Prefix(p) => Some(p.as_os_str().to_string_lossy()),
+                Component::RootDir => None,
+                Component::CurDir => Some(Cow::from(".")),
+                Component::ParentDir => Some(Cow::from("..")),
+                Component::Normal(n) => Some(n.to_string_lossy()),
             })
             .collect::<Vec<_>>();
         let mut s = p.join("/");
-        if has_root {
+        if !has_prefix && has_root {
             s.insert(0, '/');
         };
         Self(s)
