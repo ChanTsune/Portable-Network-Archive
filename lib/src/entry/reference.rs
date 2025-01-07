@@ -312,4 +312,14 @@ mod tests {
         assert_eq!("test", EntryReference::from("test/"));
         assert_eq!("test/test", EntryReference::from("test/test/"));
     }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn keep_prefix() {
+        assert_eq!("C:/test.txt", EntryReference::from("C:\\test.txt"));
+        assert_eq!(
+            "C:/test/test.txt",
+            EntryReference::from("C:\\test\\test.txt")
+        );
+    }
 }
