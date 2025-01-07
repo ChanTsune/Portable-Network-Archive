@@ -257,7 +257,7 @@ impl FromStr for Value {
         Ok(Self(if let Some(stripped) = s.strip_prefix("0x") {
             let mut vec = Vec::new();
             for i in char_chunks(stripped, 2) {
-                vec.push(u8::from_str_radix(&i, 16).map_err(|e| e.to_string())?);
+                vec.push(u8::from_str_radix(i, 16).map_err(|e| e.to_string())?);
             }
             vec
         } else if let Some(stripped) = s.strip_prefix("0s") {
