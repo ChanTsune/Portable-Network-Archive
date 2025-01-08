@@ -19,6 +19,9 @@ use std::{
 pub const MIN_CHUNK_BYTES_SIZE: usize =
     mem::size_of::<u32>() + mem::size_of::<ChunkType>() + mem::size_of::<u32>();
 
+/// Maximum length of chunk body in bytes.
+pub(crate) const MAX_CHUNK_DATA_LENGTH: usize = u32::MAX as usize;
+
 pub(crate) trait ChunkExt: Chunk {
     /// size of chunk in bytes
     #[inline]
