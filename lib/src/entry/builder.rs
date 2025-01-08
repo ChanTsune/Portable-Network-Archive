@@ -1,5 +1,5 @@
 use crate::{
-    chunk::RawChunk,
+    chunk::{RawChunk, MAX_CHUNK_DATA_LENGTH},
     cipher::CipherWriter,
     compress::CompressionWriter,
     entry::{
@@ -21,8 +21,6 @@ use std::{
     pin::Pin,
     task::{Context, Poll},
 };
-
-const MAX_CHUNK_DATA_LENGTH: usize = u32::MAX as usize;
 
 /// A builder for creating a new [NormalEntry].
 pub struct EntryBuilder {
