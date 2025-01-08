@@ -12,7 +12,8 @@ pub use self::{attr::*, builder::*, header::*, meta::*, name::*, options::*, ref
 pub(crate) use self::{private::*, read::*, write::*};
 use crate::{
     chunk::{
-        chunk_data_split, Chunk, ChunkExt, ChunkReader, ChunkType, RawChunk, MIN_CHUNK_BYTES_SIZE,
+        chunk_data_split, Chunk, ChunkExt, ChunkReader, ChunkType, RawChunk, MAX_CHUNK_DATA_LENGTH,
+        MIN_CHUNK_BYTES_SIZE,
     },
     util::slice::skip_while,
 };
@@ -687,7 +688,7 @@ where
             total += (ChunkType::PHSF, p.as_bytes()).write_chunk_in(writer)?;
         }
         for data_chunk in &self.data {
-            for data_unit in data_chunk.as_ref().chunks(u32::MAX as usize) {
+            for data_unit in data_chunk.as_ref().chunks(MAX_CHUNK_DATA_LENGTH) {
                 total += (ChunkType::FDAT, data_unit).write_chunk_in(writer)?;
             }
         }
@@ -735,7 +736,7 @@ impl SealedEntryExt for NormalEntry<Vec<u8>> {
             vec.push(RawChunk::from_data(ChunkType::PHSF, p.into_bytes()));
         }
         for data_chunk in self.data {
-            for data_unit in data_chunk.chunks(u32::MAX as usize) {
+            for data_unit in data_chunk.chunks(MAX_CHUNK_DATA_LENGTH) {
                 vec.push(RawChunk::from_data(ChunkType::FDAT, data_unit));
             }
         }
@@ -797,7 +798,7 @@ impl SealedEntryExt for NormalEntry<&[u8]> {
             vec.push(RawChunk::from_data(ChunkType::PHSF, p.into_bytes()));
         }
         for data_chunk in self.data {
-            for data_unit in data_chunk.chunks(u32::MAX as usize) {
+            for data_unit in data_chunk.chunks(MAX_CHUNK_DATA_LENGTH) {
                 vec.push(RawChunk::from_data(ChunkType::FDAT, data_unit));
             }
         }
@@ -859,7 +860,7 @@ impl SealedEntryExt for NormalEntry<Cow<'_, [u8]>> {
             vec.push(RawChunk::from_data(ChunkType::PHSF, p.into_bytes()));
         }
         for data_chunk in self.data {
-            for data_unit in data_chunk.chunks(u32::MAX as usize) {
+            for data_unit in data_chunk.chunks(MAX_CHUNK_DATA_LENGTH) {
                 vec.push(RawChunk::from_data(ChunkType::FDAT, data_unit));
             }
         }
