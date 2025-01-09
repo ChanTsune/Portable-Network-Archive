@@ -46,8 +46,13 @@ exacl = { version = "0.12.0", optional = true }
 windows = { version = "0.59.0", features = [
   "Win32_Storage_FileSystem",
   "Win32_Security_Authorization",
-  "Win32_System_WindowsProgramming",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
   "Win32_System_Threading",
+  "Win32_System_Variant",
+  "Win32_System_WindowsProgramming",
+  "Win32_UI_Shell",
+  "Win32_UI_Shell_PropertiesSystem",
 ] }
 field-offset = { version = "0.3.6", optional = true }
 libc = "0.2.169"
