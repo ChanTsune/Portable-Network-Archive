@@ -1,4 +1,5 @@
 pub(crate) mod owner;
+mod properties;
 
 use super::security::{SecurityDescriptor, Sid};
 use crate::utils::str::encode_wide;
