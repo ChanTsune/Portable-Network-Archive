@@ -17,9 +17,7 @@ impl<const N: usize> FlattenWriter<N> {
 impl<const N: usize> io::Write for FlattenWriter<N> {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        for b in buf.chunks(N) {
-            self.inner.push(b.to_vec());
-        }
+        self.inner.extend(buf.chunks(N).map(|it| it.to_vec()));
         Ok(buf.len())
     }
 
