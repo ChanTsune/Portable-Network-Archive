@@ -1039,7 +1039,7 @@ dependencies = [
 
 [[package]]
 name = "libpna"
-version = "0.21.2"
+version = "0.21.3"
 dependencies = [
  "aes",
  "argon2",
