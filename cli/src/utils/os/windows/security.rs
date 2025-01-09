@@ -97,8 +97,8 @@ impl SecurityDescriptor {
                 PCWSTR::from_raw(self.path.as_ptr()),
                 SE_FILE_OBJECT,
                 securityinfo,
-                owner.as_ref(),
-                group.as_ref(),
+                owner,
+                group,
                 pacl,
                 None,
             )
@@ -124,7 +124,7 @@ impl Drop for SecurityDescriptor {
     fn drop(&mut self) {
         if !self.p_security_descriptor.is_invalid() {
             unsafe {
-                LocalFree(HLOCAL(self.p_security_descriptor.0));
+                LocalFree(Some(HLOCAL(self.p_security_descriptor.0)));
             }
         }
     }
@@ -173,9 +173,9 @@ fn lookup_account_sid(psid: PSID) -> io::Result<(String, String, SidType)> {
         LookupAccountSidW(
             PCWSTR::null(),
             psid,
-            PWSTR::null(),
+            None,
             &mut name_len as _,
-            PWSTR::null(),
+            None,
             &mut sysname_len as _,
             &mut sid_type as _,
         )
@@ -192,9 +192,9 @@ fn lookup_account_sid(psid: PSID) -> io::Result<(String, String, SidType)> {
         LookupAccountSidW(
             PCWSTR::null(),
             psid,
-            name_ptr,
+            Some(name_ptr),
             &mut name_len as _,
-            sysname_ptr,
+            Some(sysname_ptr),
             &mut sysname_len as _,
             &mut sid_type as _,
         )
@@ -231,9 +231,9 @@ impl Sid {
                     .as_ref()
                     .map_or(PCWSTR::null(), |it| PCWSTR::from_raw(it.as_ptr())),
                 PCWSTR::from_raw(encoded_name.as_ptr()),
-                PSID::default(),
+                None,
                 &mut sid_len as _,
-                PWSTR::null(),
+                None,
                 &mut sys_name_len as _,
                 &mut sid_type as _,
             )
@@ -254,9 +254,9 @@ impl Sid {
                     .as_ref()
                     .map_or(PCWSTR::null(), |it| PCWSTR::from_raw(it.as_ptr())),
                 PCWSTR::from_raw(encoded_name.as_ptr()),
-                PSID(sid.as_mut_ptr() as _),
+                Some(PSID(sid.as_mut_ptr() as _)),
                 &mut sid_len as _,
-                sys_name_ptr,
+                Some(sys_name_ptr),
                 &mut sys_name_len as _,
                 &mut sid_type as _,
             )?;
@@ -286,7 +286,7 @@ impl Sid {
         unsafe { ConvertSidToStringSidW(self.as_psid(), &mut raw_str) }?;
         let mut psid = PSID::default();
         unsafe { ConvertStringSidToSidW(raw_str, &mut psid as _) }?;
-        unsafe { LocalFree(HLOCAL(raw_str.as_ptr() as _)) };
+        unsafe { LocalFree(Some(HLOCAL(raw_str.as_ptr() as _))) };
         Ok(psid)
     }
 }
@@ -297,7 +297,7 @@ impl Display for Sid {
         unsafe { ConvertSidToStringSidW(self.as_psid(), &mut raw_str) }
             .map_err(|_| std::fmt::Error::default())?;
         let r = Display::fmt(&unsafe { raw_str.display() }, f);
-        unsafe { LocalFree(HLOCAL(raw_str.as_ptr() as _)) };
+        unsafe { LocalFree(Some(HLOCAL(raw_str.as_ptr() as _))) };
         r
     }
 }
@@ -367,14 +367,14 @@ mod tests {
 
     pub fn get_current_username() -> io::Result<String> {
         let mut username_len = 0u32;
-        match unsafe { GetUserNameW(PWSTR::null(), &mut username_len as _) } {
+        match unsafe { GetUserNameW(None, &mut username_len as _) } {
             Ok(_) => Err(io::Error::other("failed to get current username")),
             Err(e) if e.code() == ERROR_INSUFFICIENT_BUFFER.to_hresult() => Ok(()),
             Err(e) => Err(e.into()),
         }?;
         let mut username = Vec::<u16>::with_capacity(username_len as usize);
         let str = PWSTR::from_raw(username.as_mut_ptr());
-        unsafe { GetUserNameW(str, &mut username_len as _) }?;
+        unsafe { GetUserNameW(Some(str), &mut username_len as _) }?;
         unsafe { str.to_string() }.map_err(io::Error::other)
     }
 
