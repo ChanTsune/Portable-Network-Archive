@@ -60,8 +60,13 @@ scopeguard = "1.2.0"
 windows = { version = "0.62.2", features = [
   "Win32_Storage_FileSystem",
   "Win32_Security_Authorization",
-  "Win32_System_WindowsProgramming",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
   "Win32_System_Threading",
+  "Win32_System_Variant",
+  "Win32_System_WindowsProgramming",
+  "Win32_UI_Shell",
+  "Win32_UI_Shell_PropertiesSystem",
 ] }
 field-offset = { version = "0.3.6", optional = true }
 
