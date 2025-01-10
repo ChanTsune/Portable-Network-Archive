@@ -63,15 +63,20 @@ pub(crate) fn set_properties<P: AsRef<Path>>(
 ) -> io::Result<()> {
     let store = get_property_store(path, GPS_DEFAULT)?;
     for (key_name, value) in properties {
+        io::stdout()
+            .lock()
+            .write_all(format!("k: {}, v: {}\n", key_name, value).as_bytes())
+            .unwrap();
         let mut key = Default::default();
-        unsafe { PSGetPropertyKeyFromName(&HSTRING::from(key_name), &mut key) }?;
+        unsafe { PSGetPropertyKeyFromName(&HSTRING::from(key_name), &mut key) }.unwrap();
 
-        let mut prop_variant = unsafe { InitPropVariantFromStringAsVector(&HSTRING::from(value)) }?;
-        unsafe { PSCoerceToCanonicalValue(&key, &mut prop_variant) }?;
-        unsafe { store.SetValue(&key, &prop_variant) }?;
-        unsafe { PropVariantClear(&mut prop_variant) }?;
+        let mut prop_variant =
+            unsafe { InitPropVariantFromStringAsVector(&HSTRING::from(value)) }.unwrap();
+        unsafe { PSCoerceToCanonicalValue(&key, &mut prop_variant) }.unwrap();
+        unsafe { store.SetValue(&key, &prop_variant) }.unwrap();
+        unsafe { PropVariantClear(&mut prop_variant) }.unwrap();
     }
-    unsafe { store.Commit() }?;
+    unsafe { store.Commit() }.unwrap();
     Ok(())
 }
 
