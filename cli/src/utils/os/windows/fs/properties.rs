@@ -7,10 +7,14 @@ use std::{
 use windows::{
     core::HSTRING,
     Win32::{
-        System::Com::{CoTaskMemFree, StructuredStorage::PropVariantClear},
+        System::Com::{
+            CoTaskMemFree,
+            StructuredStorage::{InitPropVariantFromStringAsVector, PropVariantClear},
+        },
         UI::Shell::PropertiesSystem::{
-            IPropertyStore, PSFormatForDisplayAlloc, PSGetNameFromPropertyKey,
-            SHGetPropertyStoreFromParsingName, GETPROPERTYSTOREFLAGS, GPS_DEFAULT, PDFF_DEFAULT,
+            IPropertyStore, PSCoerceToCanonicalValue, PSFormatForDisplayAlloc,
+            PSGetNameFromPropertyKey, PSGetPropertyKeyFromName, SHGetPropertyStoreFromParsingName,
+            GETPROPERTYSTOREFLAGS, GPS_DEFAULT, PDFF_DEFAULT,
         },
     },
 };
@@ -53,6 +57,24 @@ pub(crate) fn get_properties<P: AsRef<Path>>(path: P) -> io::Result<Vec<(String,
     Ok(properties)
 }
 
+pub(crate) fn set_properties<P: AsRef<Path>>(
+    path: P,
+    properties: impl IntoIterator<Item = (String, String)>,
+) -> io::Result<()> {
+    let store = get_property_store(path, GPS_DEFAULT)?;
+    for (key_name, value) in properties {
+        let mut key = Default::default();
+        unsafe { PSGetPropertyKeyFromName(&HSTRING::from(key_name), &mut key) }?;
+
+        let mut prop_variant = unsafe { InitPropVariantFromStringAsVector(&HSTRING::from(value)) }?;
+        unsafe { PSCoerceToCanonicalValue(&key, &mut prop_variant) }?;
+        unsafe { store.SetValue(&key, &prop_variant) }?;
+        unsafe { PropVariantClear(&mut prop_variant) }?;
+    }
+    unsafe { store.Commit() }?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -61,10 +83,11 @@ mod tests {
     };
 
     #[test]
-    fn get_props() {
+    fn get_set_props() {
         unsafe { CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE) }.unwrap();
         fs::write("empty.txt", "").unwrap();
-        get_properties("empty.txt").unwrap();
+        let props = get_properties("empty.txt").unwrap();
+        set_properties("empty.txt", props).unwrap();
         fs::remove_file("empty.txt").unwrap();
         unsafe {
             CoUninitialize();
