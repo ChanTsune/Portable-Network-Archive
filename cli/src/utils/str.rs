@@ -18,7 +18,7 @@ pub(crate) fn char_chunks(src: &str, chunk_size: usize) -> impl Iterator<Item = 
     src.char_indices()
         .step_by(chunk_size)
         .map(|(i, _)| i)
-        .chain(std::iter::once(src.as_bytes().len()))
+        .chain(std::iter::once(src.len()))
         .map(move |i| {
             let chunk = &src[start..i];
             start = i;
