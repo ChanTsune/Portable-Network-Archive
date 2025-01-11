@@ -32,27 +32,27 @@ mod tests {
     use super::*;
 
     #[test]
-    fn char_windows_empty() {
+    fn char_chunks_empty() {
         let mut iter = char_chunks("", 2);
         assert!(iter.next().is_none());
     }
 
     #[test]
-    fn char_windows_short() {
+    fn char_chunks_short() {
         let mut iter = char_chunks("a", 2);
         assert_eq!(iter.next().unwrap(), "a");
         assert!(iter.next().is_none());
     }
 
     #[test]
-    fn char_windows_just() {
+    fn char_chunks_just() {
         let mut iter = char_chunks("ab", 2);
         assert_eq!(iter.next().unwrap(), "ab");
         assert!(iter.next().is_none());
     }
 
     #[test]
-    fn char_windows_long() {
+    fn char_chunks_long() {
         let mut iter = char_chunks("abcde", 2);
         assert_eq!(iter.next().unwrap(), "ab");
         assert_eq!(iter.next().unwrap(), "cd");
