@@ -368,26 +368,17 @@ mod tests {
 
     #[test]
     fn decode_text() {
-        assert_eq!(
-            Value("abc".as_bytes().into()),
-            Value::from_str("abc").unwrap()
-        );
+        assert_eq!(Value(b"abc".into()), Value::from_str("abc").unwrap());
     }
 
     #[test]
     fn decode_hex() {
-        assert_eq!(
-            Value("abc".as_bytes().into()),
-            Value::from_str("0x616263").unwrap()
-        );
+        assert_eq!(Value(b"abc".into()), Value::from_str("0x616263").unwrap());
     }
 
     #[test]
     fn decode_base64() {
-        assert_eq!(
-            Value("abc".as_bytes().into()),
-            Value::from_str("0sYWJj").unwrap()
-        );
+        assert_eq!(Value(b"abc".into()), Value::from_str("0sYWJj").unwrap());
     }
 
     #[test]
