@@ -255,11 +255,10 @@ impl FromStr for Value {
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self(if let Some(stripped) = s.strip_prefix("0x") {
-            let mut vec = Vec::new();
-            for i in char_chunks(stripped, 2) {
-                vec.push(u8::from_str_radix(i, 16).map_err(|e| e.to_string())?);
-            }
-            vec
+            char_chunks(stripped, 2)
+                .map(|i| u8::from_str_radix(i, 16))
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?
         } else if let Some(stripped) = s.strip_prefix("0s") {
             base64::engine::general_purpose::STANDARD
                 .decode(stripped)
