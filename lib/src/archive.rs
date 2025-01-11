@@ -350,7 +350,7 @@ mod tests {
             let file_entry = {
                 let options = WriteOptions::store();
                 let mut builder = EntryBuilder::new_file("test/text".into(), options).unwrap();
-                builder.write_all("text".as_bytes()).unwrap();
+                builder.write_all(b"text").unwrap();
                 builder.build().unwrap()
             };
             writer
