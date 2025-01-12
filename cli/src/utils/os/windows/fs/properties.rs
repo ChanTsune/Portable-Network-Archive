@@ -73,7 +73,7 @@ pub(crate) fn set_properties<P: AsRef<Path>>(
         let mut prop_variant =
             unsafe { InitPropVariantFromStringAsVector(&HSTRING::from(value)) }.unwrap();
         unsafe { PSCoerceToCanonicalValue(&key, &mut prop_variant) }.unwrap();
-        unsafe { store.SetValue(&key, &prop_variant) }.unwrap();
+        // unsafe { store.SetValue(&key, &prop_variant) }.unwrap();
         unsafe { PropVariantClear(&mut prop_variant) }.unwrap();
     }
     unsafe { store.Commit() }.unwrap();
