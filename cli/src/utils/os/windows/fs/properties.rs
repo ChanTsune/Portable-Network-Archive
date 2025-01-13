@@ -21,7 +21,7 @@ use windows::{
         UI::Shell::PropertiesSystem::{
             IPropertyStore, PSCoerceToCanonicalValue, PSGetNameFromPropertyKey,
             PSGetPropertyKeyFromName, SHGetPropertyStoreFromParsingName, GETPROPERTYSTOREFLAGS,
-            GPS_DEFAULT,
+            GPS_DEFAULT, GPS_READWRITE,
         },
     },
 };
@@ -91,7 +91,7 @@ pub(crate) fn set_properties<P: AsRef<Path>>(
     path: P,
     properties: impl IntoIterator<Item = (String, String)>,
 ) -> io::Result<()> {
-    let store = get_property_store(path, GPS_DEFAULT)?;
+    let store = get_property_store(path, GPS_READWRITE)?;
     for (key_name, value) in properties {
         io::stdout()
             .lock()
