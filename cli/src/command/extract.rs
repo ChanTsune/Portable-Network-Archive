@@ -248,10 +248,11 @@ where
     let overwrite = *overwrite;
     let item_path = item.header().path().as_path();
     log::debug!("Extract: {}", item_path.display());
-    let item_path = if let Some(strip_count) = strip_components {
-        Cow::from(PathBuf::from_iter(
-            item_path.components().skip(*strip_count),
-        ))
+    let item_path = if let Some(strip_count) = *strip_components {
+        if item_path.components().count() <= strip_count {
+            return Ok(());
+        }
+        Cow::from(PathBuf::from_iter(item_path.components().skip(strip_count)))
     } else {
         Cow::from(item_path)
     };
