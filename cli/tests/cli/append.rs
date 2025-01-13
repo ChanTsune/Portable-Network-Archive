@@ -84,10 +84,6 @@ fn archive_append_split() {
         concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_append_split/in/"),
         "--split",
         "100kib",
-        #[cfg(windows)]
-        {
-            "--unstable"
-        },
     ]))
     .unwrap();
 
