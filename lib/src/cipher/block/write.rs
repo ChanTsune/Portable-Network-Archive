@@ -1,3 +1,4 @@
+use arrayvec::ArrayVec;
 use cipher::block_padding::Padding;
 use cipher::{Block, BlockCipher, BlockEncryptMut, BlockSizeUser, KeyIvInit};
 use std::io::{self, Write};
@@ -11,7 +12,7 @@ where
     w: W,
     c: cbc::Encryptor<C>,
     padding: PhantomData<P>,
-    buf: Vec<u8>,
+    buf: ArrayVec<u8, 16>,
 }
 
 impl<W, C, P> CbcBlockCipherEncryptWriter<W, C, P>
@@ -22,11 +23,12 @@ where
     cbc::Encryptor<C>: KeyIvInit,
 {
     pub(crate) fn new(w: W, key: &[u8], iv: &[u8]) -> io::Result<Self> {
+        debug_assert_eq!(cbc::Encryptor::<C>::block_size(), 16);
         Ok(Self {
             w,
             c: cbc::Encryptor::<C>::new_from_slices(key, iv).unwrap(),
             padding: PhantomData,
-            buf: Vec::with_capacity(cbc::Encryptor::<C>::block_size()),
+            buf: ArrayVec::new(),
         })
     }
 }
@@ -57,13 +59,13 @@ where
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let block_size = cbc::Encryptor::<C>::block_size();
         if buf.len() + self.buf.len() < block_size {
-            self.buf.extend_from_slice(buf);
+            self.buf.try_extend_from_slice(buf).expect("");
             return Ok(buf.len());
         }
         let mut total_written = 0;
         if !self.buf.is_empty() {
             let remaining = block_size - self.buf.len();
-            self.buf.extend_from_slice(&buf[..remaining]);
+            self.buf.try_extend_from_slice(&buf[..remaining]).expect("");
             total_written += remaining;
 
             let inout_block = Block::<cbc::Encryptor<C>>::from_mut_slice(&mut self.buf);
@@ -81,7 +83,7 @@ where
             self.w.write_all(out_block.as_slice())?;
             total_written += b.len();
         }
-        self.buf.extend_from_slice(remainder);
+        self.buf.try_extend_from_slice(remainder).expect("");
         total_written += remainder.len();
         Ok(total_written)
     }
