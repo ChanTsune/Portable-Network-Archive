@@ -1,24 +1,40 @@
-use crate::utils::setup;
+use crate::utils::{components_count, copy_dir_all, diff::diff, setup};
 use clap::Parser;
 use portable_network_archive::{cli, command};
 use std::fs;
-use std::path::PathBuf;
 
 #[test]
 fn archive_password_from_file() {
     setup();
-    let password_file_path = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("password_file");
+    copy_dir_all(
+        "../resources/test/raw",
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/archive_password_from_file/in/"
+        ),
+    )
+    .unwrap();
+    let password_file_path = concat!(
+        env!("CARGO_TARGET_TMPDIR"),
+        "/archive_password_from_file/password_file"
+    );
     fs::write(&password_file_path, "archive_password_from_file").unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/password_from_file.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/archive_password_from_file/password_from_file.pna"
+        ),
         "--overwrite",
         "-r",
-        "../resources/test/raw",
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/archive_password_from_file/in/"
+        ),
         "--password-file",
-        password_file_path.to_str().unwrap(),
+        password_file_path,
         "--aes",
         "ctr",
     ]))
@@ -27,12 +43,36 @@ fn archive_password_from_file() {
         "pna",
         "--quiet",
         "x",
-        &format!("{}/password_from_file.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/archive_password_from_file/password_from_file.pna"
+        ),
         "--overwrite",
         "--out-dir",
-        &format!("{}/password_from_file/", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/archive_password_from_file/out/"
+        ),
         "--password",
         "archive_password_from_file",
+        "--strip-components",
+        &components_count(concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/archive_password_from_file/in/"
+        ))
+        .to_string(),
     ]))
+    .unwrap();
+
+    diff(
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/archive_password_from_file/in/"
+        ),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/archive_password_from_file/out/"
+        ),
+    )
     .unwrap();
 }
