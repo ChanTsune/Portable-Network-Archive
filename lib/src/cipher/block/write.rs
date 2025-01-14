@@ -71,16 +71,16 @@ where
 
         let mut out_block = Block::<cbc::Encryptor<C>>::default();
         let mut total_written = remaining;
-        for b in buf[remaining..].chunks(block_size) {
-            if b.len() == block_size {
-                let in_block = Block::<cbc::Encryptor<C>>::from_slice(b);
-                self.c.encrypt_block_b2b_mut(in_block, &mut out_block);
-                self.w.write_all(out_block.as_slice())?;
-            } else {
-                self.buf.extend_from_slice(b);
-            }
+        let chunks = buf[remaining..].chunks_exact(block_size);
+        let remainder = chunks.remainder();
+        for b in chunks {
+            let in_block = Block::<cbc::Encryptor<C>>::from_slice(b);
+            self.c.encrypt_block_b2b_mut(in_block, &mut out_block);
+            self.w.write_all(out_block.as_slice())?;
             total_written += b.len();
         }
+        self.buf.extend_from_slice(remainder);
+        total_written += remainder.len();
         Ok(total_written)
     }
 
