@@ -37,6 +37,8 @@ fn archive_password_from_file() {
         password_file_path,
         "--aes",
         "ctr",
+        "--argon2",
+        "t=1,m=50",
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
