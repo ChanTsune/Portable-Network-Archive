@@ -1,44 +1,69 @@
-use crate::utils::setup;
+use crate::utils::{components_count, copy_dir_all, diff::diff, setup};
 use clap::Parser;
 use portable_network_archive::{cli, command};
+use std::fs;
 
 #[test]
 fn archive_keep_all() {
     setup();
-    command::entry(cli::Cli::parse_from([
-        "pna",
-        "--quiet",
-        "c",
-        &format!("{}/keep_all.pna", env!("CARGO_TARGET_TMPDIR")),
-        "--overwrite",
-        "-r",
+    copy_dir_all(
         "../resources/test/raw",
-        #[cfg(not(target_os = "netbsd"))]
-        "--keep-xattr",
-        "--keep-timestamp",
-        "--keep-permission",
-        #[cfg(windows)]
-        {
-            "--unstable"
-        },
-    ]))
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_keep_all/in/"),
+    )
     .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
-        "x",
-        &format!("{}/keep_all.pna", env!("CARGO_TARGET_TMPDIR")),
+        "c",
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/archive_keep_all/keep_all.pna"
+        ),
         "--overwrite",
-        "--out-dir",
-        &format!("{}/keep_all/", env!("CARGO_TARGET_TMPDIR")),
+        "-r",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_keep_all/in/"),
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
         #[cfg(windows)]
-        {
-            "--unstable"
-        },
+        "--unstable",
     ]))
+    .unwrap();
+    assert!(fs::exists(concat!(
+        env!("CARGO_TARGET_TMPDIR"),
+        "/archive_keep_all/keep_all.pna"
+    ))
+    .unwrap());
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/archive_keep_all/keep_all.pna"
+        ),
+        "--overwrite",
+        "--out-dir",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_keep_all/out/"),
+        #[cfg(not(target_os = "netbsd"))]
+        "--keep-xattr",
+        "--keep-timestamp",
+        "--keep-permission",
+        "--strip-components",
+        &components_count(concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/archive_keep_all/in/"
+        ))
+        .to_string(),
+        #[cfg(windows)]
+        "--unstable",
+    ]))
+    .unwrap();
+
+    diff(
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_keep_all/in/"),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_keep_all/out/"),
+    )
     .unwrap();
 }
