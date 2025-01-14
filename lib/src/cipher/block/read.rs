@@ -1,3 +1,4 @@
+use arrayvec::ArrayVec;
 use cipher::block_padding::Padding;
 use cipher::{Block, BlockCipher, BlockDecryptMut, BlockSizeUser, KeyIvInit};
 use std::io::{self, Read};
@@ -11,8 +12,8 @@ where
     r: R,
     c: cbc::Decryptor<C>,
     padding: PhantomData<P>,
-    remaining: Vec<u8>,
-    buf: Vec<u8>,
+    remaining: ArrayVec<u8, 16>,
+    buf: ArrayVec<u8, 16>,
     eof: bool,
 }
 
@@ -25,7 +26,9 @@ where
 {
     pub(crate) fn new(mut r: R, key: &[u8], iv: &[u8]) -> io::Result<Self> {
         let block_size = cbc::Decryptor::<C>::block_size();
-        let mut buf = vec![0u8; block_size];
+        let mut buf = ArrayVec::new();
+        debug_assert_eq!(block_size, buf.capacity());
+        unsafe { buf.set_len(buf.capacity()) };
         let prev_len = r.read(&mut buf)?;
         if prev_len != block_size {
             return Err(io::Error::new(
@@ -37,7 +40,7 @@ where
             r,
             c: cbc::Decryptor::<C>::new_from_slices(key, iv).unwrap(),
             padding: PhantomData,
-            remaining: Vec::new(),
+            remaining: ArrayVec::new(),
             buf,
             eof: false,
         })
@@ -58,8 +61,8 @@ where
         let mut total_written = 0;
         if !self.remaining.is_empty() && buf_len != 0 {
             let l = std::cmp::min(self.remaining.len(), buf_len);
-            let d = self.remaining.drain(0..l);
-            buf[..l].copy_from_slice(d.as_slice());
+            buf[..l].copy_from_slice(&self.remaining[..l]);
+            self.remaining.drain(..l);
             total_written += l;
             if buf_len <= total_written {
                 return Ok(total_written);
@@ -84,7 +87,9 @@ where
             chunk[..should_write_len].copy_from_slice(&blk[..should_write_len]);
             total_written += should_write_len;
             if self.eof || buf_len <= total_written {
-                self.remaining.extend_from_slice(&blk[should_write_len..]);
+                self.remaining
+                    .try_extend_from_slice(&blk[should_write_len..])
+                    .expect("");
                 break;
             }
         }
