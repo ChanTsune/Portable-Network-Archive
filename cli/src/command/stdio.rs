@@ -141,17 +141,9 @@ fn run_stdio(args: StdioCommand) -> io::Result<()> {
 fn run_create_archive(args: StdioCommand) -> io::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
-    let mut files = args
-        .files
-        .into_iter()
-        .map(PathBuf::from)
-        .collect::<Vec<_>>();
+    let mut files = args.files;
     if let Some(path) = args.files_from {
-        files.extend(
-            utils::fs::read_to_lines(path)?
-                .into_iter()
-                .map(PathBuf::from),
-        );
+        files.extend(utils::fs::read_to_lines(path)?);
     }
     let exclude = if args.exclude.is_some() || args.exclude_from.is_some() {
         let mut exclude = Vec::new();
