@@ -60,18 +60,20 @@ where
             self.buf.extend_from_slice(buf);
             return Ok(buf.len());
         }
+        let mut total_written = 0;
+        if !self.buf.is_empty() {
+            let remaining = block_size - self.buf.len();
+            self.buf.extend_from_slice(&buf[..remaining]);
+            total_written += remaining;
 
-        let remaining = block_size - self.buf.len();
-        self.buf.extend_from_slice(&buf[..remaining]);
-
-        let inout_block = Block::<cbc::Encryptor<C>>::from_mut_slice(&mut self.buf);
-        self.c.encrypt_block_inout_mut(inout_block.into());
-        self.w.write_all(inout_block.as_slice())?;
-        self.buf.clear();
+            let inout_block = Block::<cbc::Encryptor<C>>::from_mut_slice(&mut self.buf);
+            self.c.encrypt_block_inout_mut(inout_block.into());
+            self.w.write_all(inout_block.as_slice())?;
+            self.buf.clear();
+        }
 
         let mut out_block = Block::<cbc::Encryptor<C>>::default();
-        let mut total_written = remaining;
-        let chunks = buf[remaining..].chunks_exact(block_size);
+        let chunks = buf[total_written..].chunks_exact(block_size);
         let remainder = chunks.remainder();
         for b in chunks {
             let in_block = Block::<cbc::Encryptor<C>>::from_slice(b);
