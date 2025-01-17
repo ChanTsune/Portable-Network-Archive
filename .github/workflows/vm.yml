@@ -33,7 +33,7 @@ jobs:
             uname -a
             chown -R $(whoami):$(id -gn) ./
             chmod -R a+rw ./
-            cargo install -f cargo-hack --locked
+            cargo install -f cargo-hack@0.6.33 --locked
             cargo hack test --locked --release --feature-powerset --exclude-features wasm
 
   NetBSD-test:
