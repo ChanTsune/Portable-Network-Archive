@@ -24,9 +24,14 @@ impl TestResources {
 
     pub fn extract_in(item: &str, into: impl AsRef<Path>) -> io::Result<()> {
         let path = into.as_ref();
+        if let Some(b) = Self::get(item) {
+            let path = path.join(item);
+            fs::write(path, b.data)?;
+            return Ok(());
+        }
         Self::iter().try_for_each(|i| {
-            if let Some(striped) = i.strip_prefix(item) {
-                let path = path.join(striped);
+            if i.starts_with(item) {
+                let path = path.join(i.as_ref());
                 if let Some(parent) = path.parent() {
                     fs::create_dir_all(parent)?;
                 }
