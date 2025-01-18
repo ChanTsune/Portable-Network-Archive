@@ -21,6 +21,7 @@ jobs:
         uses: vmactions/solaris-vm@v1.1.1
         with:
           envs: "RUST_BACKTRACE"
+          copyback: false
           usesh: true
           prepare: |
             pkg install bash libtool automake gnu-m4 tree wget gcc autoconf //solaris/text/gawk pkg://solaris/text/gnu-diffutils pkg://solaris/text/gnu-grep pkg://solaris/text/gnu-sed cmake
@@ -47,6 +48,7 @@ jobs:
         uses: vmactions/NetBSD-vm@v1.1.8
         with:
           envs: "RUST_BACKTRACE"
+          copyback: false
           usesh: true
           prepare: |
             /usr/sbin/pkg_add -v autoconf automake gmake gettext-tools gtar-base libtool-base m4 po4a curl cmake
@@ -73,6 +75,7 @@ jobs:
         uses: vmactions/freebsd-vm@v1.1.8
         with:
           envs: "RUST_BACKTRACE"
+          copyback: false
           usesh: true
           prepare: |
             pkg install -y curl cmake
@@ -98,6 +101,7 @@ jobs:
         uses: vmactions/OpenBSD-vm@v1.1.6
         with:
           envs: "RUST_BACKTRACE"
+          copyback: false
           usesh: true
           prepare: |
             /usr/sbin/pkg_add -I -v autoconf-2.71 automake-1.16.5 gmake gettext-tools gtar libtool m4 cmake
@@ -122,6 +126,7 @@ jobs:
 #        uses: vmactions/dragonflybsd-vm@v1.0.9
 #        with:
 #          envs: "RUST_BACKTRACE"
+#          copyback: false
 #          usesh: true
 #          prepare: |
 #            pkg install -y curl cmake libnghttp2
@@ -146,6 +151,7 @@ jobs:
         uses: vmactions/omnios-vm@v1.1.0
         with:
           envs: "RUST_BACKTRACE"
+          copyback: false
           usesh: true
           prepare: |
             pkg install curl pkg:/developer/gcc13 cmake
