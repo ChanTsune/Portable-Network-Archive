@@ -2,7 +2,6 @@ pub mod diff;
 
 use std::{
     fs, io,
-    ops::Deref,
     path::{Component, Path},
 };
 
@@ -12,34 +11,54 @@ pub struct TestResources;
 
 impl TestResources {
     pub fn extract_all(into: impl AsRef<Path>) -> io::Result<()> {
-        let path = into.as_ref();
-        Self::iter().try_for_each(|i| {
-            let path = path.join(i.deref());
+        extract_all::<Self>(into)
+    }
+    pub fn extract_in(item: &str, into: impl AsRef<Path>) -> io::Result<()> {
+        extract_in::<Self>(item, into)
+    }
+}
+
+#[derive(rust_embed::Embed)]
+#[folder = "../lib"]
+pub struct LibSourceCode;
+
+impl LibSourceCode {
+    pub fn extract_all(into: impl AsRef<Path>) -> io::Result<()> {
+        extract_all::<Self>(into)
+    }
+    pub fn extract_in(item: &str, into: impl AsRef<Path>) -> io::Result<()> {
+        extract_in::<Self>(item, into)
+    }
+}
+
+pub fn extract_all<T: rust_embed::Embed>(into: impl AsRef<Path>) -> io::Result<()> {
+    let path = into.as_ref();
+    T::iter().try_for_each(|i| {
+        let path = path.join(i.as_ref());
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(path, T::get(&i).unwrap().data)
+    })
+}
+
+pub fn extract_in<T: rust_embed::Embed>(item: &str, into: impl AsRef<Path>) -> io::Result<()> {
+    let path = into.as_ref();
+    if let Some(b) = T::get(item) {
+        let path = path.join(item);
+        fs::write(path, b.data)?;
+        return Ok(());
+    }
+    T::iter().try_for_each(|i| {
+        if i.starts_with(item) {
+            let path = path.join(i.as_ref());
             if let Some(parent) = path.parent() {
                 fs::create_dir_all(parent)?;
             }
-            fs::write(path, Self::get(&i).unwrap().data)
-        })
-    }
-
-    pub fn extract_in(item: &str, into: impl AsRef<Path>) -> io::Result<()> {
-        let path = into.as_ref();
-        if let Some(b) = Self::get(item) {
-            let path = path.join(item);
-            fs::write(path, b.data)?;
-            return Ok(());
+            fs::write(path, T::get(&i).unwrap().data)?;
         }
-        Self::iter().try_for_each(|i| {
-            if i.starts_with(item) {
-                let path = path.join(i.as_ref());
-                if let Some(parent) = path.parent() {
-                    fs::create_dir_all(parent)?;
-                }
-                fs::write(path, Self::get(&i).unwrap().data)?;
-            }
-            Ok(())
-        })
-    }
+        Ok(())
+    })
 }
 
 pub fn setup() {

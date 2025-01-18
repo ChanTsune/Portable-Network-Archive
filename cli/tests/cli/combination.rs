@@ -1,4 +1,4 @@
-use crate::utils::{components_count, copy_dir_all, diff::diff, setup};
+use crate::utils::{components_count, diff::diff, setup, LibSourceCode};
 use itertools::Itertools;
 
 // NOTE: Skip `--keep-xattr` option for NetBSD
@@ -33,11 +33,8 @@ const SOLID_OPTIONS: &[Option<&str>] = &[None, Some("--solid")];
 #[test]
 fn combination_fs() {
     setup();
-    copy_dir_all(
-        "../lib",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/combination_fs/in/"),
-    )
-    .unwrap();
+    LibSourceCode::extract_all(concat!(env!("CARGO_TARGET_TMPDIR"), "/combination_fs/in/"))
+        .unwrap();
     fn inner(options: Vec<&str>) {
         let joined_options = options.iter().join("");
 
@@ -124,10 +121,10 @@ fn combination_fs() {
 #[test]
 fn combination_stdio() {
     setup();
-    copy_dir_all(
-        "../lib",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/combination_stdio/in/"),
-    )
+    LibSourceCode::extract_all(concat!(
+        env!("CARGO_TARGET_TMPDIR"),
+        "/combination_stdio/in/"
+    ))
     .unwrap();
     fn inner(options: Vec<&str>) {
         let joined_options = options.iter().join("");
