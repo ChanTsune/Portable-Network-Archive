@@ -1,13 +1,12 @@
-use crate::utils::{components_count, copy_dir_all, diff::diff, setup};
+use crate::utils::{components_count, diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command};
-use std::fs;
 
 #[test]
 fn archive_append() {
     setup();
-    copy_dir_all(
-        "../resources/test/raw",
+    TestResources::extract_in(
+        "raw/",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_append/in/"),
     )
     .unwrap();
@@ -23,14 +22,14 @@ fn archive_append() {
     .unwrap();
 
     // Copy extra input
-    fs::copy(
-        "../resources/test/store.pna",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_append/in/store.pna"),
+    TestResources::extract_in(
+        "store.pna",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_append/in/"),
     )
     .unwrap();
-    fs::copy(
-        "../resources/test/zstd.pna",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_append/in/zstd.pna"),
+    TestResources::extract_in(
+        "zstd.pna",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_append/in/"),
     )
     .unwrap();
 
@@ -66,8 +65,8 @@ fn archive_append() {
 #[test]
 fn archive_append_split() {
     setup();
-    copy_dir_all(
-        "../resources/test/raw",
+    TestResources::extract_in(
+        "raw/",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_append_split/in/"),
     )
     .unwrap();
@@ -88,20 +87,14 @@ fn archive_append_split() {
     .unwrap();
 
     // Copy extra input
-    fs::copy(
-        "../resources/test/store.pna",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_append_split/in/store.pna"
-        ),
+    TestResources::extract_in(
+        "store.pna",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_append_split/in/"),
     )
     .unwrap();
-    fs::copy(
-        "../resources/test/zstd.pna",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_append_split/in/zstd.pna"
-        ),
+    TestResources::extract_in(
+        "zstd.pna",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_append_split/in/"),
     )
     .unwrap();
 
