@@ -1,4 +1,4 @@
-use crate::utils::{components_count, copy_dir_all, diff::diff, setup};
+use crate::utils::{components_count, diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command};
 use std::fs;
@@ -6,8 +6,8 @@ use std::fs;
 #[test]
 fn split_archive() {
     setup();
-    copy_dir_all(
-        "../resources/test/raw/",
+    TestResources::extract_in(
+        "raw/",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/split_archive/in/"),
     )
     .unwrap();
