@@ -5,7 +5,7 @@ use crate::{
 use bytesize::ByteSize;
 use clap::{Parser, ValueHint};
 use pna::Archive;
-use std::{fs, fs::File, io, path::PathBuf};
+use std::{fs, io, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct SplitCommand {
@@ -27,7 +27,7 @@ impl Command for SplitCommand {
 }
 
 fn split_archive(args: SplitCommand) -> io::Result<()> {
-    let read_file = File::open(&args.archive)?;
+    let read_file = fs::File::open(&args.archive)?;
     #[cfg(not(feature = "memmap"))]
     let mut read_archive = Archive::read_header(read_file)?;
     #[cfg(not(feature = "memmap"))]
