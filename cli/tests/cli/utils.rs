@@ -2,8 +2,40 @@ pub mod diff;
 
 use std::{
     fs, io,
+    ops::Deref,
     path::{Component, Path},
 };
+
+#[derive(rust_embed::Embed)]
+#[folder = "../resources/test"]
+pub struct TestResources;
+
+impl TestResources {
+    pub fn extract_all(into: impl AsRef<Path>) -> io::Result<()> {
+        let path = into.as_ref();
+        Self::iter().try_for_each(|i| {
+            let path = path.join(i.deref());
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::write(path, Self::get(&i).unwrap().data)
+        })
+    }
+
+    pub fn extract_in(item: &str, into: impl AsRef<Path>) -> io::Result<()> {
+        let path = into.as_ref();
+        Self::iter().try_for_each(|i| {
+            if let Some(striped) = i.strip_prefix(item) {
+                let path = path.join(striped);
+                if let Some(parent) = path.parent() {
+                    fs::create_dir_all(parent)?;
+                }
+                fs::write(path, Self::get(&i).unwrap().data)?;
+            }
+            Ok(())
+        })
+    }
+}
 
 pub fn setup() {
     #[cfg(target_os = "wasi")]

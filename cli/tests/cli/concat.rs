@@ -1,25 +1,30 @@
-use crate::utils::setup;
+use crate::utils::{components_count, diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command};
 
 #[test]
 fn concat_archive() {
     setup();
+    TestResources::extract_in(
+        "raw/",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/concat_archive/in"),
+    )
+    .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "create",
-        &format!("{}/concat.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/concat_archive/concat.pna"),
         "--overwrite",
         "-r",
-        "../resources/test/raw/",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/concat_archive/in"),
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "split",
-        &format!("{}/concat.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/concat_archive/concat.pna"),
         "--overwrite",
         "--max-size",
         "100kb",
@@ -29,8 +34,14 @@ fn concat_archive() {
         "pna",
         "--quiet",
         "concat",
-        &format!("{}/concatenated.pna", env!("CARGO_TARGET_TMPDIR")),
-        &format!("{}/concat.part1.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/concat_archive/concatenated.pna"
+        ),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/concat_archive/concat.part1.pna"
+        ),
         "--overwrite",
     ]))
     .unwrap();
@@ -38,10 +49,20 @@ fn concat_archive() {
         "pna",
         "--quiet",
         "x",
-        &format!("{}/concatenated.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/concat_archive/concatenated.pna"
+        ),
         "--overwrite",
         "--out-dir",
-        &format!("{}/concatenated/", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/concat_archive/out"),
+        "--strip-components",
+        &components_count(concat!(env!("CARGO_TARGET_TMPDIR"), "/concat_archive/in")).to_string(),
     ]))
+    .unwrap();
+    diff(
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/concat_archive/in"),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/concat_archive/out"),
+    )
     .unwrap();
 }
