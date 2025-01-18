@@ -51,6 +51,7 @@ field-offset = { version = "0.3.6", optional = true }
 libc = "0.2.169"
 
 [dev-dependencies]
+rust-embed = "8.5.0"
 walkdir = "2.5.0"
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
