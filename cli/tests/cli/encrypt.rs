@@ -1,18 +1,26 @@
-use crate::utils::setup;
+use crate::utils::{components_count, diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command};
 
 #[test]
 fn aes_ctr_archive() {
     setup();
+    TestResources::extract_in(
+        "raw/",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_aes_ctr/in/"),
+    )
+    .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/zstd_aes_ctr.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/zstd_aes_ctr/zstd_aes_ctr.pna"
+        ),
         "--overwrite",
         "-r",
-        "../resources/test/raw",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_aes_ctr/in/"),
         "--password",
         "password",
         "--aes",
@@ -23,27 +31,46 @@ fn aes_ctr_archive() {
         "pna",
         "--quiet",
         "x",
-        &format!("{}/zstd_aes_ctr.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/zstd_aes_ctr/zstd_aes_ctr.pna"
+        ),
         "--overwrite",
         "--out-dir",
-        &format!("{}/zstd_aes_ctr/", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_aes_ctr/out/"),
         "--password",
         "password",
+        "--strip-components",
+        &components_count(concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_aes_ctr/in/")).to_string(),
     ]))
+    .unwrap();
+
+    diff(
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_aes_ctr/in/"),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_aes_ctr/out/"),
+    )
     .unwrap();
 }
 
 #[test]
 fn aes_cbc_archive() {
     setup();
+    TestResources::extract_in(
+        "raw/",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_aes_cbc/in/"),
+    )
+    .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/zstd_aes_cbc.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/zstd_aes_cbc/zstd_aes_cbc.pna"
+        ),
         "--overwrite",
         "-r",
-        "../resources/test/raw",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_aes_cbc/in/"),
         "--password",
         "password",
         "--aes",
@@ -54,27 +81,46 @@ fn aes_cbc_archive() {
         "pna",
         "--quiet",
         "x",
-        &format!("{}/zstd_aes_cbc.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/zstd_aes_cbc/zstd_aes_cbc.pna"
+        ),
         "--overwrite",
         "--out-dir",
-        &format!("{}/zstd_aes_cbc/", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_aes_cbc/out/"),
         "--password",
         "password",
+        "--strip-components",
+        &components_count(concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_aes_cbc/in/")).to_string(),
     ]))
+    .unwrap();
+
+    diff(
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_aes_cbc/in/"),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_aes_cbc/out/"),
+    )
     .unwrap();
 }
 
 #[test]
 fn camellia_ctr_archive() {
     setup();
+    TestResources::extract_in(
+        "raw/",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_camellia_ctr/in/"),
+    )
+    .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/zstd_camellia_ctr.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/zstd_camellia_ctr/zstd_camellia_ctr.pna"
+        ),
         "--overwrite",
         "-r",
-        "../resources/test/raw",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_camellia_ctr/in/"),
         "--password",
         "password",
         "--camellia",
@@ -85,27 +131,50 @@ fn camellia_ctr_archive() {
         "pna",
         "--quiet",
         "x",
-        &format!("{}/zstd_camellia_ctr.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/zstd_camellia_ctr/zstd_camellia_ctr.pna"
+        ),
         "--overwrite",
         "--out-dir",
-        &format!("{}/zstd_camellia_ctr/", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_camellia_ctr/out/"),
         "--password",
         "password",
+        "--strip-components",
+        &components_count(concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/zstd_camellia_ctr/in/"
+        ))
+        .to_string(),
     ]))
+    .unwrap();
+
+    diff(
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_camellia_ctr/in/"),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_camellia_ctr/out/"),
+    )
     .unwrap();
 }
 
 #[test]
 fn camellia_cbc_archive() {
     setup();
+    TestResources::extract_in(
+        "raw/",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_camellia_cbc/in/"),
+    )
+    .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/zstd_camellia_cbc.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/zstd_camellia_cbc/zstd_camellia_cbc.pna"
+        ),
         "--overwrite",
         "-r",
-        "../resources/test/raw",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_camellia_cbc/in/"),
         "--password",
         "password",
         "--aes",
@@ -116,12 +185,27 @@ fn camellia_cbc_archive() {
         "pna",
         "--quiet",
         "x",
-        &format!("{}/zstd_camellia_cbc.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/zstd_camellia_cbc/zstd_camellia_cbc.pna"
+        ),
         "--overwrite",
         "--out-dir",
-        &format!("{}/zstd_camellia_cbc/", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_camellia_cbc/out/"),
         "--password",
         "password",
+        "--strip-components",
+        &components_count(concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/zstd_camellia_cbc/in/"
+        ))
+        .to_string(),
     ]))
+    .unwrap();
+
+    diff(
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_camellia_cbc/in/"),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_camellia_cbc/out/"),
+    )
     .unwrap();
 }
