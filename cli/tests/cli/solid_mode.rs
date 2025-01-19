@@ -1,19 +1,24 @@
-use crate::utils::setup;
+use crate::utils::{components_count, diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command};
 
 #[test]
 fn solid_store_archive() {
     setup();
+    TestResources::extract_in(
+        "raw/",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_store/in/"),
+    )
+    .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/solid_store.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_store/solid_store.pna"),
         "--store",
         "--overwrite",
         "-r",
-        "../resources/test/raw",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_store/in/"),
         "--solid",
     ]))
     .unwrap();
@@ -21,26 +26,38 @@ fn solid_store_archive() {
         "pna",
         "--quiet",
         "x",
-        &format!("{}/solid_store.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_store/solid_store.pna"),
         "--overwrite",
         "--out-dir",
-        &format!("{}/solid_store/", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_store/out/"),
+        "--strip-components",
+        &components_count(concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_store/out/")).to_string(),
     ]))
+    .unwrap();
+    diff(
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_store/in/"),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_store/out/"),
+    )
     .unwrap();
 }
 
 #[test]
 fn solid_zstd_archive() {
     setup();
+    TestResources::extract_in(
+        "raw/",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_zstd/in/"),
+    )
+    .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/solid_zstd.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_zstd/solid_zstd.pna"),
         "--zstd",
         "--overwrite",
         "-r",
-        "../resources/test/raw",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_zstd/in/"),
         "--solid",
     ]))
     .unwrap();
@@ -48,26 +65,39 @@ fn solid_zstd_archive() {
         "pna",
         "--quiet",
         "x",
-        &format!("{}/solid_zstd.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_zstd/solid_zstd.pna"),
         "--overwrite",
         "--out-dir",
-        &format!("{}/solid_zstd/", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_zstd/out/"),
+        "--strip-components",
+        &components_count(concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_zstd/in/")).to_string(),
     ]))
     .unwrap();
+
+    diff(
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_zstd/in/"),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_zstd/out/"),
+    )
+    .unwrap()
 }
 
 #[test]
 fn solid_xz_archive() {
     setup();
+    TestResources::extract_in(
+        "raw/",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_xz/in/"),
+    )
+    .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/solid_xz.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_xz/solid_xz.pna"),
         "--xz",
         "--overwrite",
         "-r",
-        "../resources/test/raw",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_xz/in/"),
         "--solid",
     ]))
     .unwrap();
@@ -75,26 +105,42 @@ fn solid_xz_archive() {
         "pna",
         "--quiet",
         "x",
-        &format!("{}/solid_xz.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_xz/solid_xz.pna"),
         "--overwrite",
         "--out-dir",
-        &format!("{}/solid_xz/", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_xz/out/"),
+        "--strip-components",
+        &components_count(concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_xz/in/")).to_string(),
     ]))
     .unwrap();
+
+    diff(
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_xz/in/"),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_xz/out/"),
+    )
+    .unwrap()
 }
 
 #[test]
 fn solid_deflate_archive() {
     setup();
+    TestResources::extract_in(
+        "raw/",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_deflate/in/"),
+    )
+    .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/solid_deflate.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/solid_deflate/solid_deflate.pna"
+        ),
         "--deflate",
         "--overwrite",
         "-r",
-        "../resources/test/raw",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_deflate/in/"),
         "--solid",
     ]))
     .unwrap();
@@ -102,10 +148,20 @@ fn solid_deflate_archive() {
         "pna",
         "--quiet",
         "x",
-        &format!("{}/solid_deflate.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/solid_deflate/solid_deflate.pna"
+        ),
         "--overwrite",
         "--out-dir",
-        &format!("{}/solid_deflate/", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_deflate/out/"),
+        "--strip-components",
+        &components_count(concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_deflate/in/")).to_string(),
     ]))
+    .unwrap();
+    diff(
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_deflate/in/"),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_deflate/out/"),
+    )
     .unwrap();
 }
