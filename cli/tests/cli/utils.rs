@@ -46,6 +46,9 @@ pub fn extract_in<T: rust_embed::Embed>(item: &str, into: impl AsRef<Path>) -> i
     let path = into.as_ref();
     if let Some(b) = T::get(item) {
         let path = path.join(item);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
         fs::write(path, b.data)?;
         return Ok(());
     }
