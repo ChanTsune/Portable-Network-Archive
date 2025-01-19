@@ -52,4 +52,12 @@ mod tests {
         let globs = GlobPatterns::new(vec!["path/**"]).unwrap();
         assert!(globs.matches_any("path/foo.pna"));
     }
+
+    #[test]
+    fn glob_prefix() {
+        let globs = GlobPatterns::new(vec!["**/foo.pna"]).unwrap();
+        assert!(globs.matches_any("path/foo.pna"));
+        let globs = GlobPatterns::new(vec!["**/foo.pna"]).unwrap();
+        assert!(globs.matches_any("path/path/foo.pna"));
+    }
 }
