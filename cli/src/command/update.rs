@@ -18,8 +18,9 @@ use crate::{
     utils::{self, env::temp_dir, PathPartExt},
 };
 use clap::{ArgGroup, Parser, ValueHint};
+use indexmap::IndexMap;
 use normalize_path::*;
-use pna::{Archive, Metadata};
+use pna::{Archive, EntryName, Metadata};
 use std::{
     fs, io,
     path::{Path, PathBuf},
@@ -186,7 +187,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
                 .map(|it| PathBuf::from(it).normalize()),
         );
     }
-    let mut target_items = collect_items(
+    let target_items = collect_items(
         &files,
         args.recursive,
         args.keep_dir,
@@ -241,28 +242,30 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
         |_: &Path, _: &Metadata| -> Option<bool> { Some(true) }
     };
 
+    let mut target_files_mapping = target_items
+        .into_iter()
+        .map(|it| (EntryName::from_lossy(&it), it))
+        .collect::<IndexMap<_, _>>();
+
     run_read_entries(&archive_path, |entry| {
         Strategy::transform(&mut out_archive, password, entry, |entry| {
             let entry = entry?;
-            let file = entry.header().path().as_path();
-            let normalized_path = file.normalize();
-            if target_items.contains(&normalized_path) {
-                let entry = if !exclude.contains(&normalized_path)
-                    && need_update_condition(&normalized_path, entry.metadata()).unwrap_or(true)
+            if let Some(target_path) = target_files_mapping.swap_remove(entry.header().path()) {
+                let entry = if !exclude.contains(&target_path)
+                    && need_update_condition(&target_path, entry.metadata()).unwrap_or(true)
                 {
                     let tx = tx.clone();
                     rayon::scope_fifo(|s| {
                         s.spawn_fifo(|_| {
-                            log::debug!("Updating: {}", file.display());
-                            tx.send(create_entry(file, &create_options))
-                                .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
+                            log::debug!("Updating: {}", target_path.display());
+                            tx.send(create_entry(&target_path, &create_options))
+                                .unwrap_or_else(|e| panic!("{e}: {}", target_path.display()));
                         });
                     });
                     None
                 } else {
                     Some(entry)
                 };
-                target_items.retain(|p| p.normalize() == normalized_path);
                 return Ok(entry);
             }
             Ok(None)
@@ -270,7 +273,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
     })?;
 
     // NOTE: Add new entries
-    for file in target_items {
+    for (_, file) in target_files_mapping {
         let tx = tx.clone();
         rayon::scope_fifo(|s| {
             s.spawn_fifo(|_| {
