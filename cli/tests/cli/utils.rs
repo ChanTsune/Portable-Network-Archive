@@ -65,8 +65,7 @@ pub fn extract_in<T: rust_embed::Embed>(item: &str, into: impl AsRef<Path>) -> i
 }
 
 pub fn setup() {
-    #[cfg(target_os = "wasi")]
-    std::env::set_current_dir(env!("CARGO_MANIFEST_DIR")).expect("Failed to set current dir");
+    std::env::set_current_dir(env!("CARGO_TARGET_TMPDIR")).expect("Failed to set current dir");
 }
 
 pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
