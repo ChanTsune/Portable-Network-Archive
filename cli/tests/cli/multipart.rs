@@ -1,17 +1,18 @@
-use crate::utils::setup;
+use crate::utils::{diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command};
 
 #[test]
 fn multipart_archive() {
     setup();
+    TestResources::extract_in("multipart_test.txt", "./multipart_archive/in/").unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/multipart.pna", env!("CARGO_TARGET_TMPDIR")),
+        "./multipart_archive/multipart.pna",
         "--overwrite",
-        "../resources/test/multipart_test.txt",
+        "./multipart_archive/in/multipart_test.txt",
         "--unstable",
         "--split",
         "110",
@@ -21,10 +22,14 @@ fn multipart_archive() {
         "pna",
         "--quiet",
         "x",
-        &format!("{}/multipart.part1.pna", env!("CARGO_TARGET_TMPDIR")),
+        "./multipart_archive/multipart.part1.pna",
         "--overwrite",
         "--out-dir",
-        env!("CARGO_TARGET_TMPDIR"),
+        "./multipart_archive/out/",
+        "--strip-components",
+        "2",
     ]))
     .unwrap();
+
+    diff("./multipart_archive/in/", "./multipart_archive/out/").unwrap();
 }
