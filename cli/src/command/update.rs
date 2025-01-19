@@ -18,6 +18,7 @@ use crate::{
     utils::{self, env::temp_dir, PathPartExt},
 };
 use clap::{ArgGroup, Parser, ValueHint};
+use itertools::Itertools;
 use normalize_path::*;
 use pna::{Archive, Metadata};
 use std::{
@@ -246,9 +247,12 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
             let entry = entry?;
             let file = entry.header().path().as_path();
             let normalized_path = file.normalize();
-            if target_items.contains(&normalized_path) {
-                let entry = if !exclude.contains(&normalized_path)
-                    && need_update_condition(&normalized_path, entry.metadata()).unwrap_or(true)
+            if let Some((matched_idx, matched)) = target_items
+                .iter()
+                .find_position(|it| *it == &normalized_path)
+            {
+                let entry = if !exclude.contains(matched)
+                    && need_update_condition(matched, entry.metadata()).unwrap_or(true)
                 {
                     let tx = tx.clone();
                     rayon::scope_fifo(|s| {
@@ -262,7 +266,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
                 } else {
                     Some(entry)
                 };
-                target_items.retain(|p| p.normalize() == normalized_path);
+                target_items.remove(matched_idx);
                 return Ok(entry);
             }
             Ok(None)
