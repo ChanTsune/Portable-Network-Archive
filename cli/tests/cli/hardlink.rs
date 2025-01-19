@@ -69,48 +69,51 @@ fn init_resource<P: AsRef<Path>>(path: P) {
 #[test]
 fn hardlink() {
     setup();
-    init_resource(format!("{}/hardlink.pna", env!("CARGO_TARGET_TMPDIR")));
+    init_resource(concat!(
+        env!("CARGO_TARGET_TMPDIR"),
+        "/hardlink/hardlink.pna"
+    ));
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "x",
-        &format!("{}/hardlink.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/hardlink/hardlink.pna"),
         "--overwrite",
         "--out-dir",
-        &format!("{}/hardlink/dist", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/hardlink/dist"),
     ]))
     .unwrap();
 
     assert_eq!(
         "original text\n",
-        fs::read_to_string(format!(
-            "{}/hardlink/dist/linked1.txt",
-            env!("CARGO_TARGET_TMPDIR")
+        fs::read_to_string(concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/hardlink/dist/linked1.txt",
         ))
         .unwrap()
     );
     assert_eq!(
         "original text\n",
-        fs::read_to_string(format!(
-            "{}/hardlink/dist/dir/linked1.txt",
-            env!("CARGO_TARGET_TMPDIR")
+        fs::read_to_string(concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/hardlink/dist/dir/linked1.txt",
         ))
         .unwrap()
     );
 
     assert_eq!(
         "original text text\n",
-        fs::read_to_string(format!(
-            "{}/hardlink/dist/dir/linked2.txt",
-            env!("CARGO_TARGET_TMPDIR")
+        fs::read_to_string(concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/hardlink/dist/dir/linked2.txt",
         ))
         .unwrap()
     );
     assert_eq!(
         "original text text\n",
-        fs::read_to_string(format!(
-            "{}/hardlink/dist/linked2.txt",
-            env!("CARGO_TARGET_TMPDIR")
+        fs::read_to_string(concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/hardlink/dist/linked2.txt",
         ))
         .unwrap()
     );
