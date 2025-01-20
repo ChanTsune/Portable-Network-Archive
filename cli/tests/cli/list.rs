@@ -65,6 +65,8 @@ fn archive_list_detail() {
         "password",
         "--aes",
         "ctr",
+        "--argon2",
+        "t=1,m=50",
         #[cfg(windows)]
         "--unstable",
     ]))
@@ -100,6 +102,8 @@ fn archive_list_solid_detail() {
         "password",
         "--aes",
         "ctr",
+        "--argon2",
+        "t=1,m=50",
         "--unstable",
     ]))
     .unwrap();
@@ -136,6 +140,8 @@ fn archive_list_jsonl() {
         "password",
         "--aes",
         "ctr",
+        "--argon2",
+        "t=1,m=50",
         "--unstable",
     ]))
     .unwrap();
@@ -175,6 +181,8 @@ fn archive_list_solid_jsonl() {
         "password",
         "--aes",
         "ctr",
+        "--argon2",
+        "t=1,m=50",
         "--unstable",
     ]))
     .unwrap();
@@ -214,6 +222,8 @@ fn archive_list_tree() {
         "password",
         "--aes",
         "ctr",
+        "--argon2",
+        "t=1,m=50",
         "--unstable",
     ]))
     .unwrap();
@@ -253,6 +263,8 @@ fn archive_list_solid_tree() {
         "password",
         "--aes",
         "ctr",
+        "--argon2",
+        "t=1,m=50",
         "--unstable",
     ]))
     .unwrap();
