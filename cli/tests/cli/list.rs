@@ -1,24 +1,25 @@
-use crate::utils::setup;
+use crate::utils::{setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command};
 
 #[test]
 fn archive_list() {
     setup();
+    TestResources::extract_in("raw/", concat!(env!("CARGO_TARGET_TMPDIR"), "/list/in/")).unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/list.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list/list.pna"),
         "--overwrite",
         "-r",
-        "../resources/test/raw",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list/in/"),
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "list",
-        &format!("{}/list.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list/list.pna"),
     ]))
     .unwrap();
 }
@@ -26,21 +27,26 @@ fn archive_list() {
 #[test]
 fn archive_list_solid() {
     setup();
+    TestResources::extract_in(
+        "raw/",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list_solid/in/"),
+    )
+    .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/list_solid.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list_solid/list_solid.pna"),
         "--overwrite",
         "-r",
-        "../resources/test/raw",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list_solid/in/"),
         "--solid",
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "list",
-        &format!("{}/list_solid.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list_solid/list_solid.pna"),
         "--solid",
     ]))
     .unwrap();
@@ -49,14 +55,19 @@ fn archive_list_solid() {
 #[test]
 fn archive_list_detail() {
     setup();
+    TestResources::extract_in(
+        "raw/",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list_detail/in/"),
+    )
+    .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/list_detail.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list_detail/list_detail.pna"),
         "--overwrite",
         "-r",
-        "../resources/test/raw",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list_detail/in/"),
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
@@ -75,7 +86,7 @@ fn archive_list_detail() {
         "pna",
         "list",
         "-l",
-        &format!("{}/list_detail.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list_detail/list_detail.pna"),
         "--password",
         "password",
     ]))
@@ -85,14 +96,22 @@ fn archive_list_detail() {
 #[test]
 fn archive_list_solid_detail() {
     setup();
+    TestResources::extract_in(
+        "raw/",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list_solid_detail/in/"),
+    )
+    .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/list_solid_detail.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/list_solid_detail/list_solid_detail.pna"
+        ),
         "--overwrite",
         "-r",
-        "../resources/test/raw",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list_solid_detail/in/"),
         "--solid",
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
@@ -111,7 +130,10 @@ fn archive_list_solid_detail() {
         "pna",
         "list",
         "-l",
-        &format!("{}/list_solid_detail.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/list_solid_detail/list_solid_detail.pna"
+        ),
         "--solid",
         "--password",
         "password",
@@ -122,14 +144,19 @@ fn archive_list_solid_detail() {
 #[test]
 fn archive_list_jsonl() {
     setup();
+    TestResources::extract_in(
+        "raw/",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list_jsonl/in/"),
+    )
+    .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/list_jsonl.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list_jsonl/list_jsonl.pna"),
         "--overwrite",
         "-r",
-        "../resources/test/raw",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list_jsonl/in/"),
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
@@ -151,7 +178,7 @@ fn archive_list_jsonl() {
         "-l",
         "--format",
         "jsonl",
-        &format!("{}/list_jsonl.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list_jsonl/list_jsonl.pna"),
         "--password",
         "password",
         "--unstable",
@@ -162,14 +189,22 @@ fn archive_list_jsonl() {
 #[test]
 fn archive_list_solid_jsonl() {
     setup();
+    TestResources::extract_in(
+        "raw/",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list_solid_jsonl/in/"),
+    )
+    .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/list_solid_jsonl.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/list_solid_jsonl/list_solid_jsonl.pna"
+        ),
         "--overwrite",
         "-r",
-        "../resources/test/raw",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list_solid_jsonl/in/"),
         "--solid",
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
@@ -192,7 +227,10 @@ fn archive_list_solid_jsonl() {
         "-l",
         "--format",
         "jsonl",
-        &format!("{}/list_solid_jsonl.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/list_solid_jsonl/list_solid_jsonl.pna"
+        ),
         "--solid",
         "--password",
         "password",
@@ -204,14 +242,19 @@ fn archive_list_solid_jsonl() {
 #[test]
 fn archive_list_tree() {
     setup();
+    TestResources::extract_in(
+        "raw/",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list_tree/in/"),
+    )
+    .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/list_tree.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list_tree/list_tree.pna"),
         "--overwrite",
         "-r",
-        "../resources/test/raw",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list_tree/in/"),
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
@@ -233,7 +276,7 @@ fn archive_list_tree() {
         "-l",
         "--format",
         "tree",
-        &format!("{}/list_tree.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list_tree/list_tree.pna"),
         "--password",
         "password",
         "--unstable",
@@ -244,14 +287,22 @@ fn archive_list_tree() {
 #[test]
 fn archive_list_solid_tree() {
     setup();
+    TestResources::extract_in(
+        "raw/",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list_solid_tree/in/"),
+    )
+    .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/list_solid_tree.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/list_solid_tree/list_solid_tree.pna"
+        ),
         "--overwrite",
         "-r",
-        "../resources/test/raw",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/list_solid_tree/in/"),
         "--solid",
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
@@ -274,7 +325,10 @@ fn archive_list_solid_tree() {
         "-l",
         "--format",
         "tree",
-        &format!("{}/list_solid_tree.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/list_solid_tree/list_solid_tree.pna"
+        ),
         "--solid",
         "--password",
         "password",
