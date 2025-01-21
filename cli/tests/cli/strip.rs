@@ -1,58 +1,78 @@
-use crate::utils::setup;
+use crate::utils::{components_count, diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command};
 
 #[test]
 fn archive_strip_metadata() {
     setup();
+    TestResources::extract_in(
+        "raw/",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_strip_metadata/in/"),
+    )
+    .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/strip_metadata.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/archive_strip_metadata/strip_metadata.pna"
+        ),
         "--overwrite",
         "-r",
-        "../resources/test/raw",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_strip_metadata/in/"),
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
         #[cfg(windows)]
-        {
-            "--unstable"
-        },
+        "--unstable",
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "strip",
-        &format!("{}/strip_metadata.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/archive_strip_metadata/strip_metadata.pna"
+        ),
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
         #[cfg(windows)]
-        {
-            "--unstable"
-        },
+        "--unstable",
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "x",
-        &format!("{}/strip_metadata.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/archive_strip_metadata/strip_metadata.pna"
+        ),
         "--overwrite",
         "--out-dir",
-        &format!("{}/strip_metadata/", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_strip_metadata/out/"),
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
+        "--strip-components",
+        &components_count(concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/archive_strip_metadata/in/"
+        ))
+        .to_string(),
         #[cfg(windows)]
-        {
-            "--unstable"
-        },
+        "--unstable",
     ]))
+    .unwrap();
+
+    diff(
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_strip_metadata/in/"),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_strip_metadata/out/"),
+    )
     .unwrap();
 }
