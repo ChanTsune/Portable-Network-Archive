@@ -63,8 +63,8 @@ pub(crate) struct CreateOptions {
     pub(crate) owner_options: OwnerOptions,
 }
 
-pub(crate) fn collect_items<I: IntoIterator<Item = P>, P: Into<PathBuf>>(
-    files: I,
+pub(crate) fn collect_items(
+    files: impl IntoIterator<Item = impl AsRef<Path>>,
     recursive: bool,
     keep_dir: bool,
     gitignore: bool,
@@ -74,9 +74,9 @@ pub(crate) fn collect_items<I: IntoIterator<Item = P>, P: Into<PathBuf>>(
     let mut files = files.into_iter();
     let exclude = exclude.into_iter().flatten().map(|path| path.normalize());
     if let Some(p) = files.next() {
-        let mut builder = ignore::WalkBuilder::new(p.into());
+        let mut builder = ignore::WalkBuilder::new(p);
         for p in files {
-            builder.add(p.into());
+            builder.add(p);
         }
         for exclude_path in exclude {
             builder.add_ignore(exclude_path);
