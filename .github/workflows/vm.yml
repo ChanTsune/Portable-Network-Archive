@@ -151,30 +151,32 @@ jobs:
             ulimit -n 2048
             cargo hack test --locked --release --feature-powerset --exclude-features wasm
 
-#  DragonflyBSD-test:
-#    runs-on: ubuntu-latest
-#    timeout-minutes: 60
-#    name: Test on DragonflyBSD
-#    steps:
-#      - uses: actions/checkout@v4
-#      - name: Test in DragonflyBSD
-#        id: test
-#        uses: vmactions/dragonflybsd-vm@v1.0.9
-#        with:
-#          envs: "RUST_BACKTRACE"
-#          copyback: false
-#          usesh: true
-#          prepare: |
-#            pkg install -y curl cmake libnghttp2
-#            pkg install -y rust
-#          run: |
-#            set -e
-#            export LC_ALL=C LANG=C
-#            uname -a
-#            chown -R $(whoami):$(id -gn) ./
-#            chmod -R a+rw ./
-#            cargo install -f cargo-hack --locked
-#            cargo hack test --locked --release --feature-powerset --exclude-features wasm
+  DragonflyBSD-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    name: Test on DragonflyBSD
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Test in DragonflyBSD
+        id: test
+        uses: vmactions/dragonflybsd-vm@323497fa680c1856dd1ba5c4fd89182a9194f649 # v1.2.7
+        with:
+          envs: "RUST_BACKTRACE"
+          copyback: false
+          usesh: true
+          prepare: |
+            pkg install -y curl cmake libnghttp2
+            pkg install -y rust
+          run: |
+            set -e
+            export LC_ALL=C LANG=C
+            uname -a
+            chown -R $(whoami):$(id -gn) ./
+            chmod -R a+rw ./
+            cargo install -f cargo-hack --locked
+            cargo hack test --locked --release --feature-powerset --exclude-features wasm
 
   OmniOS-test:
     runs-on: ubuntu-latest
