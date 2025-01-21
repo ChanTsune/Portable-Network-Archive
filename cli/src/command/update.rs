@@ -19,7 +19,6 @@ use crate::{
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;
-use normalize_path::*;
 use pna::{Archive, EntryName, Metadata};
 use std::{
     fs, io,
@@ -174,26 +173,26 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
     } else if let Some(path) = args.files_from {
         files.extend(utils::fs::read_to_lines(path)?);
     }
-    let mut exclude = args
-        .exclude
-        .unwrap_or_default()
-        .into_iter()
-        .map(|p| p.normalize())
-        .collect::<Vec<_>>();
-    if let Some(p) = args.exclude_from {
-        exclude.extend(
-            utils::fs::read_to_lines(p)?
-                .into_iter()
-                .map(|it| PathBuf::from(it).normalize()),
-        );
-    }
+    let exclude = if args.exclude.is_some() || args.exclude_from.is_some() {
+        let mut exclude = Vec::new();
+        if let Some(e) = args.exclude {
+            exclude.extend(e);
+        }
+        if let Some(p) = args.exclude_from {
+            exclude.extend(utils::fs::read_to_lines(p)?.into_iter().map(PathBuf::from));
+        }
+        Some(exclude)
+    } else {
+        None
+    };
+
     let target_items = collect_items(
         &files,
         args.recursive,
         args.keep_dir,
         args.gitignore,
         args.follow_links,
-        None,
+        exclude,
     )?;
 
     let (tx, rx) = std::sync::mpsc::channel();
@@ -251,9 +250,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
         Strategy::transform(&mut out_archive, password, entry, |entry| {
             let entry = entry?;
             if let Some(target_path) = target_files_mapping.swap_remove(entry.header().path()) {
-                let entry = if !exclude.contains(&target_path)
-                    && need_update_condition(&target_path, entry.metadata()).unwrap_or(true)
-                {
+                if need_update_condition(&target_path, entry.metadata()).unwrap_or(true) {
                     let tx = tx.clone();
                     rayon::scope_fifo(|s| {
                         s.spawn_fifo(|_| {
@@ -262,11 +259,10 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
                                 .unwrap_or_else(|e| panic!("{e}: {}", target_path.display()));
                         });
                     });
-                    None
+                    Ok(None)
                 } else {
-                    Some(entry)
-                };
-                return Ok(entry);
+                    Ok(Some(entry))
+                }
             } else {
                 Ok(Some(entry))
             }
