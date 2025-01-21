@@ -1,19 +1,24 @@
 #![cfg(feature = "acl")]
-use crate::utils::setup;
+use crate::utils::{components_count, diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command};
 
 #[test]
 fn archive_keep_acl() {
     setup();
+    TestResources::extract_in(
+        "raw/",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/keep_acl/in/"),
+    )
+    .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/keep_acl.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/keep_acl/keep_acl.pna"),
         "--overwrite",
         "-r",
-        "../resources/test/raw",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/keep_acl/in/"),
         "--keep-acl",
         "--unstable",
     ]))
@@ -22,12 +27,20 @@ fn archive_keep_acl() {
         "pna",
         "--quiet",
         "x",
-        &format!("{}/keep_acl.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/keep_acl/keep_acl.pna"),
         "--overwrite",
         "--out-dir",
-        &format!("{}/keep_acl/", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/keep_acl/out/"),
         "--keep-acl",
         "--unstable",
+        "--strip-components",
+        &components_count(concat!(env!("CARGO_TARGET_TMPDIR"), "/keep_acl/in/")).to_string(),
     ]))
+    .unwrap();
+
+    diff(
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/keep_acl/in/"),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/keep_acl/out/"),
+    )
     .unwrap();
 }
