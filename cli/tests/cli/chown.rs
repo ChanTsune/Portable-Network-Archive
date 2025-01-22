@@ -1,23 +1,22 @@
-use crate::utils::setup;
+use crate::utils::{setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command};
 
 #[test]
 fn archive_chown() {
     setup();
+    TestResources::extract_in("raw/", concat!(env!("CARGO_TARGET_TMPDIR"), "/chown/in/")).unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/chown.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/chown/chown.pna"),
         "--overwrite",
         "-r",
-        "../resources/test/raw",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/chown/in/"),
         "--keep-permission",
         #[cfg(windows)]
-        {
-            "--unstable"
-        },
+        "--unstable",
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -25,9 +24,9 @@ fn archive_chown() {
         "--quiet",
         "experimental",
         "chown",
-        &format!("{}/chown.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/chown/chown.pna"),
         "user:group",
-        "resources/test/raw/text.txt",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/chown/in/raw/text.txt"),
     ]))
     .unwrap();
 }
