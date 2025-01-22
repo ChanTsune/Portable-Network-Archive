@@ -1,18 +1,23 @@
-use crate::utils::setup;
+use crate::utils::{components_count, diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command};
 
 #[test]
 fn archive_acl_get_set() {
     setup();
+    TestResources::extract_in(
+        "raw/",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/acl_get_set/in/"),
+    )
+    .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/acl_get_set.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/acl_get_set/acl_get_set.pna"),
         "--overwrite",
         "-r",
-        "../resources/test/raw",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/acl_get_set/in/"),
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -21,8 +26,8 @@ fn archive_acl_get_set() {
         "experimental",
         "acl",
         "set",
-        &format!("{}/acl_get_set.pna", env!("CARGO_TARGET_TMPDIR")),
-        "resources/test/raw/text.txt",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/acl_get_set/acl_get_set.pna"),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/acl_get_set/in/raw/text.txt"),
         "-m",
         "u:test:r,w,x",
     ]))
@@ -33,8 +38,8 @@ fn archive_acl_get_set() {
         "experimental",
         "acl",
         "set",
-        &format!("{}/acl_get_set.pna", env!("CARGO_TARGET_TMPDIR")),
-        "resources/test/raw/text.txt",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/acl_get_set/acl_get_set.pna"),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/acl_get_set/in/raw/text.txt"),
         "-m",
         "g:test_group:r,w,x",
     ]))
@@ -45,8 +50,8 @@ fn archive_acl_get_set() {
         "experimental",
         "acl",
         "set",
-        &format!("{}/acl_get_set.pna", env!("CARGO_TARGET_TMPDIR")),
-        "resources/test/raw/text.txt",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/acl_get_set/acl_get_set.pna"),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/acl_get_set/in/raw/text.txt"),
         "-x",
         "g:test_group",
     ]))
@@ -57,18 +62,26 @@ fn archive_acl_get_set() {
         "experimental",
         "acl",
         "get",
-        &format!("{}/acl_get_set.pna", env!("CARGO_TARGET_TMPDIR")),
-        "resources/test/raw/text.txt",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/acl_get_set/acl_get_set.pna"),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/acl_get_set/in/raw/text.txt"),
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "x",
-        &format!("{}/acl_get_set.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/acl_get_set/acl_get_set.pna"),
         "--overwrite",
         "--out-dir",
-        &format!("{}/acl_get_set/", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/acl_get_set/out/"),
+        "--strip-components",
+        &components_count(concat!(env!("CARGO_TARGET_TMPDIR"), "/acl_get_set/in/")).to_string(),
     ]))
+    .unwrap();
+
+    diff(
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/acl_get_set/in/"),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/acl_get_set/out/"),
+    )
     .unwrap();
 }
