@@ -252,3 +252,83 @@ fn archive_update_older_mtime() {
     )
     .unwrap();
 }
+
+#[test]
+fn archive_update_deletion() {
+    setup();
+    TestResources::extract_in(
+        "raw/",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_update_deletion/in/"),
+    )
+    .unwrap();
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/archive_update_deletion/update_deletion.pna"
+        ),
+        "--overwrite",
+        "-r",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_update_deletion/in/"),
+        "--keep-timestamp",
+    ]))
+    .unwrap();
+
+    fs::remove_file(concat!(
+        env!("CARGO_TARGET_TMPDIR"),
+        "/archive_update_deletion/in/raw/empty.txt"
+    ))
+    .unwrap();
+
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "--quiet",
+        "experimental",
+        "update",
+        "--newer-mtime",
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/archive_update_deletion/update_deletion.pna"
+        ),
+        "-r",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_update_deletion/in/"),
+        "--keep-timestamp",
+    ]))
+    .unwrap();
+
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/archive_update_deletion/update_deletion.pna"
+        ),
+        "--overwrite",
+        "--out-dir",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_update_deletion/out/"),
+        "--keep-timestamp",
+        "--strip-components",
+        &components_count(concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/archive_update_deletion/in/"
+        ))
+        .to_string(),
+    ]))
+    .unwrap();
+
+    // restore original empty.txt
+    TestResources::extract_in(
+        "raw/empty.txt",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_update_deletion/in/"),
+    )
+    .unwrap();
+
+    diff(
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_update_deletion/in/"),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_update_deletion/out/"),
+    )
+    .unwrap();
+}
