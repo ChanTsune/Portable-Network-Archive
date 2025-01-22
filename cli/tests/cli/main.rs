@@ -8,6 +8,7 @@ mod chown;
 #[cfg(not(target_family = "wasm"))]
 mod combination;
 mod concat;
+mod create;
 mod delete;
 mod encrypt;
 mod hardlink;

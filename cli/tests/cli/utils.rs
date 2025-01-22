@@ -83,6 +83,27 @@ pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<
     Ok(())
 }
 
+pub fn remove_with_empty_parents(path: impl AsRef<Path>) -> io::Result<()> {
+    fn inner(path: &Path) -> io::Result<()> {
+        if path.is_dir() {
+            fs::remove_dir_all(path)?;
+        } else {
+            fs::remove_file(path)?;
+        }
+        let mut current_path = path;
+        while let Some(dir) = current_path.parent() {
+            if fs::read_dir(dir)?.next().is_none() {
+                fs::remove_dir(dir)?;
+                current_path = dir;
+            } else {
+                break;
+            }
+        }
+        Ok(())
+    }
+    inner(path.as_ref())
+}
+
 pub fn components_count<P: AsRef<Path>>(p: P) -> usize {
     p.as_ref()
         .components()
