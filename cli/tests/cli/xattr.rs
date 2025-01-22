@@ -1,18 +1,23 @@
-use crate::utils::setup;
+use crate::utils::{components_count, diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command};
 
 #[test]
 fn archive_xattr_set() {
     setup();
+    TestResources::extract_in(
+        "raw/",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/xattr_set/in/"),
+    )
+    .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/xattr_set.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/xattr_set/xattr_set.pna"),
         "--overwrite",
         "-r",
-        "../resources/test/raw",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/xattr_set/in/"),
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
     ]))
@@ -23,12 +28,12 @@ fn archive_xattr_set() {
         "experimental",
         "xattr",
         "set",
-        &format!("{}/xattr_set.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/xattr_set/xattr_set.pna"),
         "--name",
         "user.name",
         "--value",
         "pna developers!",
-        "resources/test/raw/empty.txt",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/xattr_set/in/raw/empty.txt"),
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -37,8 +42,8 @@ fn archive_xattr_set() {
         "experimental",
         "xattr",
         "get",
-        &format!("{}/xattr_set.pna", env!("CARGO_TARGET_TMPDIR")),
-        "resources/test/raw/empty.txt",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/xattr_set/xattr_set.pna"),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/xattr_set/in/raw/empty.txt"),
         "--name",
         "user.name",
     ]))
@@ -47,27 +52,43 @@ fn archive_xattr_set() {
         "pna",
         "--quiet",
         "x",
-        &format!("{}/xattr_set.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/xattr_set/xattr_set.pna"),
         "--overwrite",
         "--out-dir",
-        &format!("{}/xattr_set/", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/xattr_set/out/"),
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
+        "--strip-components",
+        &components_count(concat!(env!("CARGO_TARGET_TMPDIR"), "/xattr_set/in/")).to_string(),
     ]))
+    .unwrap();
+
+    diff(
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/xattr_set/in/"),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/xattr_set/out/"),
+    )
     .unwrap();
 }
 
 #[test]
 fn archive_xattr_remove() {
     setup();
+    TestResources::extract_in(
+        "raw/",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/xattr_remove/in/"),
+    )
+    .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        &format!("{}/xattr_remove.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/xattr_remove/xattr_remove.pna"
+        ),
         "--overwrite",
         "-r",
-        "../resources/test/raw",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/xattr_remove/in/"),
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
     ]))
@@ -78,12 +99,18 @@ fn archive_xattr_remove() {
         "experimental",
         "xattr",
         "set",
-        &format!("{}/xattr_remove.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/xattr_remove/xattr_remove.pna"
+        ),
         "--name",
         "user.name",
         "--value",
         "pna developers!",
-        "resources/test/raw/empty.txt",
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/xattr_remove/in/raw/empty.txt"
+        ),
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -92,10 +119,16 @@ fn archive_xattr_remove() {
         "experimental",
         "xattr",
         "set",
-        &format!("{}/xattr_remove.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/xattr_remove/xattr_remove.pna"
+        ),
         "--remove",
         "user.name",
-        "resources/test/raw/empty.txt",
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/xattr_remove/in/raw/empty.txt"
+        ),
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -104,8 +137,14 @@ fn archive_xattr_remove() {
         "experimental",
         "xattr",
         "get",
-        &format!("{}/xattr_remove.pna", env!("CARGO_TARGET_TMPDIR")),
-        "resources/test/raw/empty.txt",
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/xattr_remove/xattr_remove.pna"
+        ),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/xattr_remove/in/raw/empty.txt"
+        ),
         "--name",
         "user.name",
     ]))
@@ -114,12 +153,23 @@ fn archive_xattr_remove() {
         "pna",
         "--quiet",
         "x",
-        &format!("{}/xattr_remove.pna", env!("CARGO_TARGET_TMPDIR")),
+        concat!(
+            env!("CARGO_TARGET_TMPDIR"),
+            "/xattr_remove/xattr_remove.pna"
+        ),
         "--overwrite",
         "--out-dir",
-        &format!("{}/xattr_remove/", env!("CARGO_TARGET_TMPDIR")),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/xattr_remove/out/"),
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
+        "--strip-components",
+        &components_count(concat!(env!("CARGO_TARGET_TMPDIR"), "/xattr_remove/in/")).to_string(),
     ]))
+    .unwrap();
+
+    diff(
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/xattr_remove/in/"),
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/xattr_remove/out/"),
+    )
     .unwrap();
 }
