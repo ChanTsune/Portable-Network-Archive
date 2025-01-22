@@ -16,14 +16,6 @@ fn archive_update_newer_mtime() {
         ),
     )
     .unwrap();
-    TestResources::extract_in(
-        "raw/",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime/in/"
-        ),
-    )
-    .unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
