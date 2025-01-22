@@ -1,6 +1,6 @@
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
-    utils::{self, env::temp_dir, PathPartExt},
+    utils::{self, env::temp_dir, GlobPatterns, PathPartExt},
 };
 use normalize_path::*;
 use pna::{
@@ -72,15 +72,19 @@ pub(crate) fn collect_items(
     exclude: Option<Vec<PathBuf>>,
 ) -> io::Result<Vec<PathBuf>> {
     let mut files = files.into_iter();
-    let exclude = exclude.into_iter().flatten().map(|path| path.normalize());
+    let exclude = GlobPatterns::new(
+        exclude
+            .into_iter()
+            .flatten()
+            .map(|path| path.normalize().to_string_lossy().into_owned()),
+    )
+    .map_err(io::Error::other)?;
     if let Some(p) = files.next() {
         let mut builder = ignore::WalkBuilder::new(p);
         for p in files {
             builder.add(p);
         }
-        for exclude_path in exclude {
-            builder.add_ignore(exclude_path);
-        }
+        builder.filter_entry(move |e| !exclude.matches_any(e.path()));
         builder
             .max_depth(if recursive { None } else { Some(0) })
             .hidden(false)
