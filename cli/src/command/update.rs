@@ -283,8 +283,9 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
                     Some(entry)
                 };
                 return Ok(entry);
+            } else {
+                Ok(Some(entry))
             }
-            Ok(None)
         })
     })?;
 
