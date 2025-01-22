@@ -30,7 +30,7 @@ use std::path::Path;
 use std::{
     borrow::Cow,
     collections::{BTreeSet, HashMap},
-    fmt::{Display, Formatter},
+    fmt::{self, Display, Formatter},
     io::{self, prelude::*},
     str::FromStr,
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -764,7 +764,6 @@ struct XAttr {
 }
 
 fn json_line_entries(entries: impl IntoParallelIterator<Item = TableRow>) {
-    let mut stdout = io::stdout().lock();
     let entries = entries
         .into_par_iter()
         .map(|it| FileInfo {
@@ -802,11 +801,54 @@ fn json_line_entries(entries: impl IntoParallelIterator<Item = TableRow>) {
                 .collect(),
         })
         .collect::<Vec<_>>();
-    for line in entries {
-        match serde_json::to_writer(&mut stdout, &line) {
-            Ok(_) => stdout.write_all(b"\n").expect(""),
-            Err(e) => log::info!("{}", e),
+
+    print!("{}", JsonLDisplay(entries));
+}
+
+struct JsonLDisplay<T>(Vec<T>);
+
+impl<T: serde::Serialize> Display for JsonLDisplay<T> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        struct FormatterAdapter<'f, 'a>(&'f mut Formatter<'a>);
+        impl Write for FormatterAdapter<'_, '_> {
+            #[inline]
+            fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+                self.0
+                    .write_str(unsafe { std::str::from_utf8_unchecked(buf) })
+                    .map_err(io::Error::other)?;
+                Ok(buf.len())
+            }
+
+            #[inline]
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
         }
+
+        impl fmt::Write for FormatterAdapter<'_, '_> {
+            #[inline]
+            fn write_str(&mut self, s: &str) -> fmt::Result {
+                self.0.write_str(s)
+            }
+
+            #[inline]
+            fn write_char(&mut self, c: char) -> fmt::Result {
+                self.0.write_char(c)
+            }
+
+            #[inline]
+            fn write_fmt(&mut self, args: fmt::Arguments<'_>) -> fmt::Result {
+                self.0.write_fmt(args)
+            }
+        }
+        let mut writer = FormatterAdapter(f);
+        for line in &self.0 {
+            use core::fmt::Write;
+            serde_json::to_writer(&mut writer, &line).map_err(|_| fmt::Error)?;
+            writer.write_char('\n')?;
+        }
+        Ok(())
     }
 }
 
