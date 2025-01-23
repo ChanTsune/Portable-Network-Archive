@@ -159,39 +159,6 @@ impl<R: Read> Archive<R> {
         })
     }
 
-    /// Returns an iterator over the entries in the archive.
-    ///
-    /// # Returns
-    ///
-    /// An iterator over the entries in the archive.
-    ///
-    /// # Example
-    /// ```no_run
-    /// use libpna::{Archive, ReadEntry};
-    /// use std::fs;
-    /// # use std::io;
-    ///
-    /// # fn main() -> io::Result<()> {
-    /// let file = fs::File::open("foo.pna")?;
-    /// let mut archive = Archive::read_header(file)?;
-    /// for entry in archive.entries() {
-    ///     match entry? {
-    ///         ReadEntry::Solid(solid_entry) => {
-    ///             // fill your code
-    ///         }
-    ///         ReadEntry::Normal(entry) => {
-    ///             // fill your code
-    ///         }
-    ///     }
-    /// }
-    /// #    Ok(())
-    /// # }
-    /// ```
-    #[inline]
-    pub fn entries(&mut self) -> Entries<R> {
-        Entries::new(self)
-    }
-
     /// Returns an iterator over the entries in the archive, including entries in solid mode.
     ///
     /// # Arguments
@@ -236,6 +203,37 @@ impl<R: Read> Archive<R> {
             ));
         }
         Ok(next)
+    }
+}
+
+impl<R> Archive<R> {
+    /// Returns an iterator over the entries in the archive.
+    ///
+    /// # Returns
+    ///
+    /// An iterator over the entries in the archive.
+    ///
+    /// # Example
+    /// ```no_run
+    /// use libpna::{Archive, ReadEntry};
+    /// use std::fs;
+    /// # use std::io;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let file = fs::File::open("foo.pna")?;
+    /// let mut archive = Archive::read_header(file)?;
+    /// for entry in archive.entries() {
+    ///     match entry? {
+    ///         ReadEntry::Solid(solid_entry) => todo!("fill your code"),
+    ///         ReadEntry::Normal(entry) => todo!("fill your code"),
+    ///     }
+    /// }
+    /// #    Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn entries(&mut self) -> Entries<R> {
+        Entries::new(self)
     }
 }
 
@@ -317,7 +315,7 @@ pub struct Entries<'r, R> {
     reader: &'r mut Archive<R>,
 }
 
-impl<'r, R: Read> Entries<'r, R> {
+impl<'r, R> Entries<'r, R> {
     #[inline]
     pub(crate) fn new(reader: &'r mut Archive<R>) -> Self {
         Self { reader }
