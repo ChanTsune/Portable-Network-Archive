@@ -343,11 +343,7 @@ impl<'r, R: Read> Entries<'r, R> {
     /// ```
     #[inline]
     pub fn extract_solid_entries(self, password: Option<&'r str>) -> NormalEntries<'r, R> {
-        NormalEntries {
-            reader: self.reader,
-            password,
-            buf: Default::default(),
-        }
+        NormalEntries::new(self.reader, password)
     }
 }
 
@@ -365,6 +361,17 @@ pub struct NormalEntries<'r, R> {
     reader: &'r mut Archive<R>,
     password: Option<&'r str>,
     buf: VecDeque<io::Result<NormalEntry>>,
+}
+
+impl<'r, R> NormalEntries<'r, R> {
+    #[inline]
+    pub(crate) fn new(reader: &'r mut Archive<R>, password: Option<&'r str>) -> Self {
+        Self {
+            reader,
+            password,
+            buf: Default::default(),
+        }
+    }
 }
 
 impl<R: Read> Iterator for NormalEntries<'_, R> {
