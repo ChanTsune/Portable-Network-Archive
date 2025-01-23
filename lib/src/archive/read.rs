@@ -6,8 +6,6 @@ use crate::{
     entry::{Entry, NormalEntry, RawEntry, ReadEntry},
 };
 #[cfg(feature = "unstable-async")]
-use futures_io::AsyncRead;
-#[cfg(feature = "unstable-async")]
 use futures_util::AsyncReadExt;
 pub(crate) use slice::read_header_from_slice;
 use std::{
@@ -26,7 +24,7 @@ pub(crate) fn read_pna_header<R: Read>(mut reader: R) -> io::Result<()> {
 }
 
 #[cfg(feature = "unstable-async")]
-async fn read_pna_header_async<R: AsyncRead + Unpin>(mut reader: R) -> io::Result<()> {
+async fn read_pna_header_async<R: futures_io::AsyncRead + Unpin>(mut reader: R) -> io::Result<()> {
     let mut header = [0u8; PNA_HEADER.len()];
     reader.read_exact(&mut header).await?;
     if &header != PNA_HEADER {
@@ -238,7 +236,7 @@ impl<R> Archive<R> {
 }
 
 #[cfg(feature = "unstable-async")]
-impl<R: AsyncRead + Unpin> Archive<R> {
+impl<R: futures_io::AsyncRead + Unpin> Archive<R> {
     /// Reads the archive header from the provided reader and returns a new [Archive].
     /// This API is unstable.
     #[inline]
