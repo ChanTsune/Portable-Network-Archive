@@ -282,20 +282,15 @@ impl<R: futures_io::AsyncRead + Unpin> Archive<R> {
         Ok(Some(RawEntry(chunks)))
     }
 
-    /// Read a [NormalEntry] from the archive.
+    /// Read a [ReadEntry] from the archive.
     /// This API is unstable.
     #[inline]
-    pub async fn read_entry_async(&mut self) -> io::Result<Option<NormalEntry>> {
-        loop {
-            let entry = self.next_raw_item_async().await?;
-            match entry {
-                Some(entry) => match entry.try_into()? {
-                    ReadEntry::Solid(_) => continue,
-                    ReadEntry::Normal(entry) => return Ok(Some(entry)),
-                },
-                None => return Ok(None),
-            };
-        }
+    pub async fn read_entry_async(&mut self) -> io::Result<Option<ReadEntry>> {
+        let entry = self.next_raw_item_async().await?;
+        Ok(match entry {
+            Some(entry) => Some(entry.try_into()?),
+            None => None,
+        })
     }
 }
 
@@ -474,9 +469,21 @@ mod tests {
         let file = io::Cursor::new(input).compat();
         let mut archive = Archive::read_header_async(file).await?;
         while let Some(entry) = archive.read_entry_async().await? {
-            let mut file = io::Cursor::new(Vec::new());
-            let mut reader = entry.reader(ReadOptions::builder().build())?.compat();
-            tokio::io::copy(&mut reader, &mut file).await?;
+            match entry {
+                ReadEntry::Solid(solid_entry) => {
+                    for entry in solid_entry.entries(None)? {
+                        let entry = entry?;
+                        let mut file = io::Cursor::new(Vec::new());
+                        let mut reader = entry.reader(ReadOptions::builder().build())?.compat();
+                        tokio::io::copy(&mut reader, &mut file).await?;
+                    }
+                }
+                ReadEntry::Normal(entry) => {
+                    let mut file = io::Cursor::new(Vec::new());
+                    let mut reader = entry.reader(ReadOptions::builder().build())?.compat();
+                    tokio::io::copy(&mut reader, &mut file).await?;
+                }
+            }
         }
         Ok(())
     }

@@ -1,5 +1,5 @@
 #![cfg(not(target_family = "wasm"))]
-use libpna::{Archive, EntryBuilder, ReadOptions, WriteOptions};
+use libpna::{Archive, EntryBuilder, ReadEntry, ReadOptions, WriteOptions};
 use std::io;
 use tokio_util::compat::{
     FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt, TokioAsyncReadCompatExt,
@@ -36,9 +36,21 @@ async fn extract(path: String) -> io::Result<()> {
     let file = tokio::fs::File::open(path).await?.compat();
     let mut archive = Archive::read_header_async(file).await?;
     while let Some(entry) = archive.read_entry_async().await? {
-        let mut file = tokio::fs::File::create(entry.header().path().as_path()).await?;
-        let mut reader = entry.reader(ReadOptions::builder().build())?.compat();
-        tokio::io::copy(&mut reader, &mut file).await?;
+        match entry {
+            ReadEntry::Solid(solid_entry) => {
+                for entry in solid_entry.entries(None)? {
+                    let entry = entry?;
+                    let mut file = io::Cursor::new(Vec::new());
+                    let mut reader = entry.reader(ReadOptions::builder().build())?.compat();
+                    tokio::io::copy(&mut reader, &mut file).await?;
+                }
+            }
+            ReadEntry::Normal(entry) => {
+                let mut file = io::Cursor::new(Vec::new());
+                let mut reader = entry.reader(ReadOptions::builder().build())?.compat();
+                tokio::io::copy(&mut reader, &mut file).await?;
+            }
+        }
     }
     Ok(())
 }
