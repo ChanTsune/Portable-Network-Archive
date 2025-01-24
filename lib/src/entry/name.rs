@@ -253,6 +253,15 @@ impl TryFrom<&PathBuf> for EntryName {
     }
 }
 
+impl TryFrom<Cow<'_, Path>> for EntryName {
+    type Error = EntryNameError;
+
+    #[inline]
+    fn try_from(value: Cow<'_, Path>) -> Result<Self, Self::Error> {
+        Self::new_from_path(&value)
+    }
+}
+
 impl TryFrom<&[u8]> for EntryName {
     type Error = EntryNameError;
 
