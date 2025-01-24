@@ -227,6 +227,15 @@ impl TryFrom<&OsString> for EntryReference {
     }
 }
 
+impl TryFrom<Cow<'_, OsStr>> for EntryReference {
+    type Error = EntryReferenceError;
+
+    #[inline]
+    fn try_from(value: Cow<'_, OsStr>) -> Result<Self, Self::Error> {
+        Self::new_from_path(Path::new(&value))
+    }
+}
+
 impl TryFrom<&Path> for EntryReference {
     type Error = EntryReferenceError;
 
