@@ -22,7 +22,7 @@ use indexmap::IndexMap;
 use normalize_path::*;
 use pna::{Archive, EntryName, Metadata};
 use std::{
-    env, fs, io,
+    fs, io,
     path::{Path, PathBuf},
     time::SystemTime,
 };
@@ -103,15 +103,6 @@ pub(crate) struct UpdateCommand {
     pub(crate) files_from_stdin: bool,
     #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
     pub(crate) exclude_from: Option<String>,
-    #[arg(
-        short = 'C',
-        long = "cd",
-        aliases = ["directory"],
-        value_name = "DIRECTORY",
-        help = "changes the directory before adding the following files",
-        value_hint = ValueHint::DirPath
-    )]
-    working_dir: Option<PathBuf>,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -147,10 +138,9 @@ impl Command for UpdateCommand {
 }
 
 fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Result<()> {
-    let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
-    let archive_path = &args.file.archive;
+    let archive_path = args.file.archive;
     if !archive_path.exists() {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
@@ -197,12 +187,6 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
                 .map(|it| PathBuf::from(it).normalize()),
         );
     }
-
-    let archive_path = current_dir.join(args.file.archive);
-    if let Some(working_dir) = args.working_dir {
-        env::set_current_dir(working_dir)?;
-    }
-
     let target_items = collect_items(
         &files,
         args.recursive,
@@ -310,6 +294,5 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
 
     utils::fs::mv(outfile_path, archive_path.remove_part().unwrap())?;
 
-    env::set_current_dir(current_dir)?;
     Ok(())
 }
