@@ -1258,6 +1258,26 @@ mod tests {
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
     #[test]
+    fn entry_trait_bounds() {
+        fn check_impl<T: Entry>() {}
+        check_impl::<NormalEntry<Vec<u8>>>();
+        check_impl::<NormalEntry<Cow<[u8]>>>();
+        check_impl::<NormalEntry<&[u8]>>();
+
+        check_impl::<SolidEntry<Vec<u8>>>();
+        check_impl::<SolidEntry<Cow<[u8]>>>();
+        check_impl::<SolidEntry<&[u8]>>();
+
+        check_impl::<ReadEntry<Vec<u8>>>();
+        check_impl::<ReadEntry<Cow<[u8]>>>();
+        check_impl::<ReadEntry<&[u8]>>();
+
+        check_impl::<RawEntry<Vec<u8>>>();
+        check_impl::<RawEntry<Cow<[u8]>>>();
+        check_impl::<RawEntry<&[u8]>>();
+    }
+
+    #[test]
     fn u128_from_be_bytes() {
         assert_eq!(0, u128_from_be_bytes_last(&[]));
         assert_eq!(1, u128_from_be_bytes_last(&[1]));
