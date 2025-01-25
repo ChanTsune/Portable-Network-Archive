@@ -305,7 +305,7 @@ where
             let reader = item.reader(ReadOptions::with_password(password))?;
             let original = EntryReference::from_lossy(io::read_to_string(reader)?);
             if overwrite && path.exists() {
-                utils::fs::remove(&path)?;
+                utils::fs::remove_path_all(&path)?;
             }
             utils::fs::symlink(original, &path)?;
         }
@@ -317,7 +317,7 @@ where
                 original = Cow::from(parent.join(original));
             }
             if overwrite && path.exists() {
-                utils::fs::remove(&path)?;
+                utils::fs::remove_path_all(&path)?;
             }
             fs::hard_link(original, &path)?;
         }
