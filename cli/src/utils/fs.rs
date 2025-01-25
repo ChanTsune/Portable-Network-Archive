@@ -17,18 +17,6 @@ pub(crate) fn is_pna<P: AsRef<Path>>(path: P) -> io::Result<bool> {
 }
 
 #[inline]
-pub(crate) fn remove<P: AsRef<Path>>(path: P) -> io::Result<()> {
-    fn inner(path: &Path) -> io::Result<()> {
-        if path.is_dir() {
-            fs::remove_dir_all(path)
-        } else {
-            fs::remove_file(path)
-        }
-    }
-    inner(path.as_ref())
-}
-
-#[inline]
 pub(crate) fn mv<Src: AsRef<Path>, Dist: AsRef<Path>>(src: Src, dist: Dist) -> io::Result<()> {
     #[cfg(unix)]
     fn inner(src: &Path, dist: &Path) -> io::Result<()> {
