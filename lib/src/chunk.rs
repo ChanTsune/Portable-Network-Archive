@@ -403,6 +403,14 @@ mod tests {
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
     #[test]
+    fn chunk_trait_bounds() {
+        fn check_impl<T: Chunk>() {}
+        check_impl::<RawChunk<Vec<u8>>>();
+        check_impl::<RawChunk<Cow<[u8]>>>();
+        check_impl::<RawChunk<&[u8]>>();
+    }
+
+    #[test]
     fn to_bytes() {
         let data = vec![0xAA, 0xBB, 0xCC, 0xDD];
         let chunk = RawChunk::from_data(ChunkType::FDAT, data);
