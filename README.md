@@ -48,7 +48,7 @@ PNA CLI (Command-Line Interface) is cross-platform and compatible with the follo
 
 This compatibility ensures that users can utilize PNA across different environments without any platform-specific limitations.
 
-Further supported operating systems will be added in the future.
+Support for additional operating systems is planned for future releases.
 
 ## Installation
 
