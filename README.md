@@ -39,7 +39,7 @@ Additionally, the PNA specification includes a rationale appendix to help develo
 
 ## Supported Operating Systems
 
-PNA (Portable Network Archive) CLI is cross-platform and compatible with the following operating systems:
+PNA CLI (Command-Line Interface) is cross-platform and compatible with the following operating systems:
 
 - **Windows**
 - **Linux**
