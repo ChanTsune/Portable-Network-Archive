@@ -14,7 +14,7 @@ Also, its data structure is inspired by the PNG data structure.
 - **Compression Flexibility:** Advanced per-file and archive-wide compression options reduce the need for full archive decompression.
 - **Encryption & Security:** Supports 256-bit AES and Camellia for robust protection of sensitive data.
 - **Splittable Structure**: Based on PNG’s data unit structure, enabling the easy division of large archives into smaller parts.
-- **Streamability:** Supports serial read and write operations, making it suitable streaming processing, similar to a TAR format.
+- **Streamability:** Supports serial read and write operations, making it suitable for streaming processing, similar to a TAR format.
 - **Extensibility**: Designed to accommodate future extensions and private add-ons, ensuring compatibility with the basic PNA format while allowing for flexible customization.
 - **Error Resilience:** File integrity checks and error detection ensure data is secure during transmission.
 
