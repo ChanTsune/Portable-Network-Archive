@@ -36,6 +36,7 @@ jobs:
         with:
           target: ${{ matrix.target }}
           toolchain: ${{ matrix.rust }}
+          rustflags: ''
       - if: ${{ startsWith(matrix.target, 'wasm32-wasi') }}
         name: Setup wasmtime
         uses: bytecodealliance/actions/wasmtime/setup@v1
