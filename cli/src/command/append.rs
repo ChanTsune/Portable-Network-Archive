@@ -18,7 +18,7 @@ use crate::{
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
-use std::{fs::File, io, path::PathBuf};
+use std::{env, fs::File, io, path::PathBuf};
 
 #[derive(Parser, Clone, Debug)]
 #[command(
@@ -112,6 +112,15 @@ pub(crate) struct AppendCommand {
         help = "Modify file or archive member names according to pattern that like GNU tar -transform option"
     )]
     transforms: Option<Vec<TransformRule>>,
+    #[arg(
+        short = 'C',
+        long = "cd",
+        aliases = ["directory"],
+        value_name = "DIRECTORY",
+        help = "changes the directory before adding the following files",
+        value_hint = ValueHint::DirPath
+    )]
+    working_dir: Option<PathBuf>,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -134,30 +143,16 @@ impl Command for AppendCommand {
 }
 
 fn append_to_archive(args: AppendCommand) -> io::Result<()> {
+    let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
-    let archive_path = args.file.archive;
+    let archive_path = &args.file.archive;
     if !archive_path.exists() {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
             format!("{} is not exists", archive_path.display()),
         ));
     }
-    let mut num = 1;
-    let file = File::options().write(true).read(true).open(&archive_path)?;
-    let mut archive = Archive::read_header(file)?;
-    let mut archive = loop {
-        archive.seek_to_end()?;
-        if !archive.has_next_archive() {
-            break archive;
-        }
-        num += 1;
-        let file = File::options()
-            .write(true)
-            .read(true)
-            .open(archive_path.with_part(num).unwrap())?;
-        archive = archive.read_next_archive(file)?;
-    };
 
     let mut files = args.file.files;
     if args.files_from_stdin {
@@ -175,6 +170,27 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
         }
         exclude
     };
+
+    let archive_path = current_dir.join(args.file.archive);
+    if let Some(working_dir) = args.working_dir {
+        env::set_current_dir(working_dir)?;
+    }
+    let mut num = 1;
+    let file = File::options().write(true).read(true).open(&archive_path)?;
+    let mut archive = Archive::read_header(file)?;
+    let mut archive = loop {
+        archive.seek_to_end()?;
+        if !archive.has_next_archive() {
+            break archive;
+        }
+        num += 1;
+        let file = File::options()
+            .write(true)
+            .read(true)
+            .open(archive_path.with_part(num).unwrap())?;
+        archive = archive.read_next_archive(file)?;
+    };
+
     let target_items = collect_items(
         &files,
         args.recursive,
@@ -223,5 +239,7 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
         archive.add_entry(entry?)?;
     }
     archive.finalize()?;
+
+    env::set_current_dir(current_dir)?;
     Ok(())
 }
