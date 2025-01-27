@@ -149,6 +149,18 @@ pub(crate) fn collect_items(
     }
 }
 
+pub(crate) fn collect_split_archives(first: impl AsRef<Path>) -> io::Result<Vec<fs::File>> {
+    let mut archives = Vec::new();
+    let mut n = 1;
+    let mut target_archive = PathBuf::from(first.as_ref());
+    while fs::exists(&target_archive)? {
+        archives.push(fs::File::open(&target_archive)?);
+        n += 1;
+        target_archive = target_archive.with_part(n).expect("");
+    }
+    Ok(archives)
+}
+
 pub(crate) fn create_entry(
     path: &Path,
     CreateOptions {
@@ -359,58 +371,6 @@ pub(crate) fn split_to_parts(
     Ok(parts)
 }
 
-pub(crate) trait ArchiveProvider {
-    type Source: Read;
-    fn initial_source(&self) -> io::Result<Self::Source>;
-    fn next_source(&self, n: usize) -> io::Result<Self::Source>;
-}
-
-pub(crate) struct PathArchiveProvider<'p>(&'p Path);
-
-impl<'p> PathArchiveProvider<'p> {
-    #[inline]
-    pub(crate) const fn new(path: &'p Path) -> Self {
-        Self(path)
-    }
-}
-
-impl ArchiveProvider for PathArchiveProvider<'_> {
-    type Source = fs::File;
-
-    #[inline]
-    fn initial_source(&self) -> io::Result<Self::Source> {
-        fs::File::open(self.0)
-    }
-
-    #[inline]
-    fn next_source(&self, n: usize) -> io::Result<Self::Source> {
-        fs::File::open(self.0.with_part(n).unwrap())
-    }
-}
-
-pub(crate) struct StdinArchiveProvider;
-
-impl StdinArchiveProvider {
-    #[inline]
-    pub(crate) const fn new() -> Self {
-        Self
-    }
-}
-
-impl ArchiveProvider for StdinArchiveProvider {
-    type Source = io::StdinLock<'static>;
-
-    #[inline]
-    fn initial_source(&self) -> io::Result<Self::Source> {
-        Ok(io::stdin().lock())
-    }
-
-    #[inline]
-    fn next_source(&self, _: usize) -> io::Result<Self::Source> {
-        Ok(io::stdin().lock())
-    }
-}
-
 pub(crate) trait TransformStrategy {
     fn transform<W, T, F>(
         archive: &mut Archive<W>,
@@ -509,18 +469,25 @@ impl TransformStrategy for TransformStrategyKeepSolid {
 // TODO:
 // pub(crate) struct TransformStrategyToSolid;
 
-pub(crate) fn run_across_archive<P, F>(provider: P, mut processor: F) -> io::Result<()>
+pub(crate) fn run_across_archive<R, F>(
+    provider: impl IntoIterator<Item = R>,
+    mut processor: F,
+) -> io::Result<()>
 where
-    P: ArchiveProvider,
-    F: FnMut(&mut Archive<P::Source>) -> io::Result<()>,
+    R: Read,
+    F: FnMut(&mut Archive<R>) -> io::Result<()>,
 {
-    let mut archive = Archive::read_header(provider.initial_source()?)?;
-    let mut num_archive = 1;
+    let mut iter = provider.into_iter();
+    let mut archive = Archive::read_header(iter.next().expect(""))?;
     loop {
         processor(&mut archive)?;
         if archive.has_next_archive() {
-            num_archive += 1;
-            let next_reader = provider.next_source(num_archive)?;
+            let next_reader = iter.next().ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "Archive is split, but no subsequent archives are found",
+                )
+            })?;
             archive = archive.read_next_archive(next_reader)?;
         } else {
             break;
@@ -530,7 +497,7 @@ where
 }
 
 pub(crate) fn run_process_archive<'p, Provider, F>(
-    archive_provider: impl ArchiveProvider,
+    archive_provider: impl IntoIterator<Item = impl Read>,
     mut password_provider: Provider,
     mut processor: F,
 ) -> io::Result<()>
@@ -540,25 +507,19 @@ where
 {
     let password = password_provider();
     run_read_entries(archive_provider, |entry| match entry? {
-        ReadEntry::Solid(solid) => {
-            for s in solid.entries(password)? {
-                processor(s)?;
-            }
-            Ok(())
-        }
+        ReadEntry::Solid(solid) => solid.entries(password)?.try_for_each(&mut processor),
         ReadEntry::Normal(regular) => processor(Ok(regular)),
     })
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_across_archive_mem<P, F>(path: P, processor: F) -> io::Result<()>
+pub(crate) fn run_across_archive_mem<F>(archives: Vec<fs::File>, processor: F) -> io::Result<()>
 where
-    P: AsRef<Path>,
     F: FnMut(&mut Archive<&[u8]>) -> io::Result<()>,
 {
     fn inner<F>(
-        num_archive: usize,
-        provider: PathArchiveProvider,
+        idx: usize,
+        provider: &[utils::mmap::Mmap],
         mut archive: Archive<&[u8]>,
         mut processor: F,
     ) -> io::Result<()>
@@ -567,10 +528,14 @@ where
     {
         processor(&mut archive)?;
         if archive.has_next_archive() {
-            let next_reader = provider.next_source(num_archive)?;
-            let file = utils::mmap::Mmap::try_from(next_reader)?;
+            let file = provider.get(idx).ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "Archive is split, but no subsequent archives are found",
+                )
+            })?;
             inner(
-                num_archive + 1,
+                idx + 1,
                 provider,
                 archive.read_next_archive_from_slice(&file[..])?,
                 processor,
@@ -578,63 +543,54 @@ where
         }
         Ok(())
     }
-    let provider = PathArchiveProvider::new(path.as_ref());
-    let initial_source = provider.initial_source()?;
-    let file = utils::mmap::Mmap::try_from(initial_source)?;
-    let archive = Archive::read_header_from_slice(&file[..])?;
-    inner(2, provider, archive, processor)
+    let archives = archives
+        .into_iter()
+        .map(utils::mmap::Mmap::try_from)
+        .collect::<io::Result<Vec<_>>>()?;
+    let initial_file = &archives[0];
+    let archive = Archive::read_header_from_slice(initial_file)?;
+    inner(1, &archives, archive, processor)
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_read_entries_mem<P, F>(path: P, mut processor: F) -> io::Result<()>
+pub(crate) fn run_read_entries_mem<F>(archives: Vec<fs::File>, mut processor: F) -> io::Result<()>
 where
-    P: AsRef<Path>,
     F: FnMut(io::Result<ReadEntry<std::borrow::Cow<[u8]>>>) -> io::Result<()>,
 {
-    run_across_archive_mem(path, |archive| {
-        for entry in archive.entries_slice() {
-            processor(entry)?;
-        }
-        Ok(())
+    run_across_archive_mem(archives, |archive| {
+        archive.entries_slice().try_for_each(&mut processor)
     })
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_entries<'p, P, Provider, F>(
-    path: P,
+pub(crate) fn run_entries<'p, Provider, F>(
+    archives: Vec<fs::File>,
     mut password_provider: Provider,
     mut processor: F,
 ) -> io::Result<()>
 where
-    P: AsRef<Path>,
     Provider: FnMut() -> Option<&'p str>,
     F: FnMut(io::Result<NormalEntry<std::borrow::Cow<[u8]>>>) -> io::Result<()>,
 {
     let password = password_provider();
-    run_read_entries_mem(path, |entry| {
-        match entry? {
-            ReadEntry::Solid(s) => {
-                for r in s.entries(password)? {
-                    processor(r.map(Into::into))?;
-                }
-            }
-            ReadEntry::Normal(r) => processor(Ok(r))?,
-        }
-        Ok(())
+    run_read_entries_mem(archives, |entry| match entry? {
+        ReadEntry::Solid(s) => s
+            .entries(password)?
+            .try_for_each(|r| processor(r.map(Into::into))),
+        ReadEntry::Normal(r) => processor(Ok(r)),
     })
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_transform_entry<'p, O, P, Provider, F, Transform>(
+pub(crate) fn run_transform_entry<'p, O, Provider, F, Transform>(
     output_path: O,
-    input_path: P,
+    archives: Vec<fs::File>,
     mut password_provider: Provider,
     mut processor: F,
     _strategy: Transform,
 ) -> io::Result<()>
 where
     O: AsRef<Path>,
-    P: AsRef<Path>,
     Provider: FnMut() -> Option<&'p str>,
     F: FnMut(
         io::Result<NormalEntry<std::borrow::Cow<[u8]>>>,
@@ -655,7 +611,7 @@ where
     let outfile = fs::File::create(&temp_path)?;
     let mut out_archive = Archive::write_header(outfile)?;
 
-    run_read_entries_mem(input_path, |entry| {
+    run_read_entries_mem(archives, |entry| {
         Transform::transform(&mut out_archive, password, entry, &mut processor)
     })?;
 
@@ -668,39 +624,27 @@ where
 }
 
 pub(crate) fn run_read_entries<F>(
-    archive_provider: impl ArchiveProvider,
+    archive_provider: impl IntoIterator<Item = impl Read>,
     mut processor: F,
 ) -> io::Result<()>
 where
     F: FnMut(io::Result<ReadEntry>) -> io::Result<()>,
 {
     run_across_archive(archive_provider, |archive| {
-        for entry in archive.entries() {
-            processor(entry)?;
-        }
-        Ok(())
+        archive.entries().try_for_each(&mut processor)
     })
 }
 
 #[cfg(not(feature = "memmap"))]
-pub(crate) fn run_read_entries_path<F>(path: impl AsRef<Path>, processor: F) -> io::Result<()>
-where
-    F: FnMut(io::Result<ReadEntry>) -> io::Result<()>,
-{
-    run_read_entries(PathArchiveProvider(path.as_ref()), processor)
-}
-
-#[cfg(not(feature = "memmap"))]
-pub(crate) fn run_transform_entry<'p, O, P, Provider, F, Transform>(
+pub(crate) fn run_transform_entry<'p, O, Provider, F, Transform>(
     output_path: O,
-    input_path: P,
+    archives: impl IntoIterator<Item = impl Read>,
     mut password_provider: Provider,
     mut processor: F,
     _strategy: Transform,
 ) -> io::Result<()>
 where
     O: AsRef<Path>,
-    P: AsRef<Path>,
     Provider: FnMut() -> Option<&'p str>,
     F: FnMut(io::Result<NormalEntry>) -> io::Result<Option<NormalEntry>>,
     Transform: TransformStrategy,
@@ -719,7 +663,7 @@ where
     let outfile = fs::File::create(&temp_path)?;
     let mut out_archive = Archive::write_header(outfile)?;
 
-    run_read_entries_path(input_path, |entry| {
+    run_read_entries(archives, |entry| {
         Transform::transform(&mut out_archive, password, entry, &mut processor)
     })?;
 
@@ -732,19 +676,16 @@ where
 }
 
 #[cfg(not(feature = "memmap"))]
-pub(crate) fn run_entries<'p, P, Provider, F>(
-    path: P,
+pub(crate) fn run_entries<'p, Provider, F>(
+    archives: Vec<fs::File>,
     password_provider: Provider,
     processor: F,
 ) -> io::Result<()>
 where
-    P: AsRef<Path>,
     Provider: FnMut() -> Option<&'p str>,
     F: FnMut(io::Result<NormalEntry>) -> io::Result<()>,
 {
-    let path = path.as_ref();
-    let provider = PathArchiveProvider(path);
-    run_process_archive(provider, password_provider, processor)
+    run_process_archive(archives, password_provider, processor)
 }
 
 pub(crate) fn write_split_archive(

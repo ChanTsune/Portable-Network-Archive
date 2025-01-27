@@ -3,8 +3,8 @@ use crate::{
     command::{
         ask_password, check_password,
         commons::{
-            collect_items, entry_option, KeepOptions, OwnerOptions, PathArchiveProvider,
-            PathTransformers, StdinArchiveProvider,
+            collect_items, collect_split_archives, entry_option, KeepOptions, OwnerOptions,
+            PathTransformers,
         },
         create::create_archive_file,
         extract::{run_extract_archive_reader, OutputOption},
@@ -274,16 +274,12 @@ fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
         ),
         path_transformers: PathTransformers::new(args.substitutions, args.transforms),
     };
-    if let Some(file) = args.file {
-        run_extract_archive_reader(
-            PathArchiveProvider::new(&file),
-            args.files,
-            || password.as_deref(),
-            out_option,
-        )
+    if let Some(path) = args.file {
+        let archives = collect_split_archives(&path)?;
+        run_extract_archive_reader(archives, args.files, || password.as_deref(), out_option)
     } else {
         run_extract_archive_reader(
-            StdinArchiveProvider::new(),
+            std::iter::repeat_with(|| io::stdin().lock()),
             args.files,
             || password.as_deref(),
             out_option,
@@ -308,15 +304,16 @@ fn run_list_archive(args: StdioCommand) -> io::Result<()> {
         format: None,
     };
     if let Some(path) = args.file {
+        let archives = collect_split_archives(&path)?;
         crate::command::list::run_list_archive(
-            PathArchiveProvider::new(&path),
+            archives,
             password.as_deref(),
             &args.files,
             list_options,
         )
     } else {
         crate::command::list::run_list_archive(
-            StdinArchiveProvider::new(),
+            std::iter::repeat_with(|| io::stdin().lock()),
             password.as_deref(),
             &args.files,
             list_options,
