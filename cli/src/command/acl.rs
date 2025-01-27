@@ -17,7 +17,7 @@ use nom::{
     bytes::complete::{tag, take_while},
     character::complete::char,
     combinator::{map, opt},
-    sequence::tuple,
+    Parser as _,
 };
 use pna::{Chunk, NormalEntry, RawChunk};
 use std::io;
@@ -141,28 +141,28 @@ impl FromStr for AclEntries {
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         fn kw_default(s: &str) -> nom::IResult<&str, (char, Option<&str>)> {
-            tuple((char('d'), opt(tag("efault"))))(s)
+            (char('d'), opt(tag("efault"))).parse(s)
         }
         fn kw_user(s: &str) -> nom::IResult<&str, (char, Option<&str>)> {
-            tuple((char('u'), opt(tag("ser"))))(s)
+            (char('u'), opt(tag("ser"))).parse(s)
         }
         fn kw_group(s: &str) -> nom::IResult<&str, (char, Option<&str>)> {
-            tuple((char('g'), opt(tag("roup"))))(s)
+            (char('g'), opt(tag("roup"))).parse(s)
         }
         fn kw_other(s: &str) -> nom::IResult<&str, (char, Option<&str>)> {
-            tuple((char('o'), opt(tag("ther"))))(s)
+            (char('o'), opt(tag("ther"))).parse(s)
         }
         fn kw_mask(s: &str) -> nom::IResult<&str, (char, Option<&str>)> {
-            tuple((char('m'), opt(tag("ask"))))(s)
+            (char('m'), opt(tag("ask"))).parse(s)
         }
         let (p, v) = map(
-            tuple((
-                opt(map(tuple((kw_default, char(':'))), |_| true)),
+            (
+                opt(map((kw_default, char(':')), |_| true)),
                 alt((
-                    map(tuple((kw_other, opt(char(':')))), |_| OwnerType::Other),
-                    map(tuple((kw_mask, opt(char(':')))), |_| OwnerType::Mask),
+                    map((kw_other, opt(char(':'))), |_| OwnerType::Other),
+                    map((kw_mask, opt(char(':'))), |_| OwnerType::Mask),
                     map(
-                        tuple((kw_group, char(':'), take_while(|c| c != ':'))),
+                        (kw_group, char(':'), take_while(|c| c != ':')),
                         |(_, _, gid)| {
                             if gid.is_empty() {
                                 OwnerType::OwnerGroup
@@ -172,7 +172,7 @@ impl FromStr for AclEntries {
                         },
                     ),
                     map(
-                        tuple((opt(tuple((kw_user, char(':')))), take_while(|c| c != ':'))),
+                        (opt((kw_user, char(':'))), take_while(|c| c != ':')),
                         |(_, uid)| {
                             if uid.is_empty() {
                                 OwnerType::Owner
@@ -183,7 +183,7 @@ impl FromStr for AclEntries {
                     ),
                 )),
                 opt(map(
-                    tuple((char(':'), take_while(|_| true))),
+                    (char(':'), take_while(|_| true)),
                     |(_, c): (_, &str)| {
                         if c.is_empty() {
                             Vec::new()
@@ -192,13 +192,14 @@ impl FromStr for AclEntries {
                         }
                     },
                 )),
-            )),
+            ),
             |(d, owner, permissions)| AclEntries {
                 default: d.unwrap_or_default(),
                 owner,
                 permissions,
             },
-        )(s)
+        )
+        .parse_complete(s)
         .map_err(|it| it.to_string())?;
         if !p.is_empty() {
             return Err(format!("unexpected value: {}", p));
