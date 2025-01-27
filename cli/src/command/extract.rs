@@ -18,7 +18,7 @@ use std::io::Read;
 use std::os::macos::fs::FileTimesExt;
 #[cfg(windows)]
 use std::os::windows::fs::FileTimesExt;
-use std::{borrow::Cow, fs, io, path::PathBuf, time::Instant};
+use std::{borrow::Cow, env, fs, io, path::PathBuf, time::Instant};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(
@@ -68,6 +68,15 @@ pub(crate) struct ExtractCommand {
         help = "Remove the specified number of leading path elements. Path names with fewer elements will be silently skipped"
     )]
     strip_components: Option<usize>,
+    #[arg(
+        short = 'C',
+        long = "cd",
+        aliases = ["directory"],
+        value_name = "DIRECTORY",
+        help = "Change directories after opening the archive but before extracting entries from the archive",
+        value_hint = ValueHint::DirPath
+    )]
+    working_dir: Option<PathBuf>,
     #[command(flatten)]
     pub(crate) file: FileArgs,
 }
@@ -79,6 +88,7 @@ impl Command for ExtractCommand {
     }
 }
 fn extract_archive(args: ExtractCommand) -> io::Result<()> {
+    let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     let start = Instant::now();
     log::info!("Extract archive {}", args.file.archive.display());
@@ -105,6 +115,9 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
         keep_options,
         owner_options,
     };
+    if let Some(working_dir) = args.working_dir {
+        env::set_current_dir(working_dir)?;
+    }
     #[cfg(not(feature = "memmap"))]
     run_extract_archive_reader(
         archives,
@@ -123,6 +136,7 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
         "Successfully extracted an archive in {}",
         DurationDisplay(start.elapsed())
     );
+    env::set_current_dir(current_dir)?;
     Ok(())
 }
 
