@@ -1,7 +1,5 @@
 #[cfg(feature = "memmap")]
 use crate::command::commons::run_entries;
-#[cfg(not(feature = "memmap"))]
-use crate::command::commons::PathArchiveProvider;
 #[cfg(any(unix, windows))]
 use crate::utils::fs::{chown, Group, User};
 use crate::{
@@ -9,7 +7,8 @@ use crate::{
     command::{
         ask_password,
         commons::{
-            run_process_archive, ArchiveProvider, KeepOptions, OwnerOptions, PathTransformers,
+            collect_split_archives, run_process_archive, KeepOptions, OwnerOptions,
+            PathTransformers,
         },
         Command,
     },
@@ -22,12 +21,11 @@ use crate::{
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::{prelude::*, DataKind, EntryReference, NormalEntry, Permission, ReadOptions};
+use std::io::Read;
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::FileTimesExt;
 #[cfg(windows)]
 use std::os::windows::fs::FileTimesExt;
-#[cfg(feature = "memmap")]
-use std::path::Path;
 use std::{borrow::Cow, fs, io, path::PathBuf, time::Instant};
 
 #[derive(Parser, Clone, Debug)]
@@ -131,6 +129,8 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
     let start = Instant::now();
     log::info!("Extract archive {}", args.file.archive.display());
 
+    let archives = collect_split_archives(&args.file.archive)?;
+
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
@@ -164,14 +164,14 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
     };
     #[cfg(not(feature = "memmap"))]
     run_extract_archive_reader(
-        PathArchiveProvider::new(&args.file.archive),
+        archives,
         args.file.files,
         || password.as_deref(),
         output_options,
     )?;
     #[cfg(feature = "memmap")]
     run_extract_archive(
-        args.file.archive,
+        archives,
         args.file.files,
         || password.as_deref(),
         output_options,
@@ -195,7 +195,7 @@ pub(crate) struct OutputOption {
 }
 
 pub(crate) fn run_extract_archive_reader<'p, Provider>(
-    reader: impl ArchiveProvider,
+    reader: impl IntoIterator<Item = impl Read>,
     files: Vec<String>,
     mut password_provider: Provider,
     args: OutputOption,
@@ -243,7 +243,7 @@ where
 
 #[cfg(feature = "memmap")]
 pub(crate) fn run_extract_archive<'p, Provider>(
-    path: impl AsRef<Path>,
+    archives: Vec<fs::File>,
     files: Vec<String>,
     mut password_provider: Provider,
     args: OutputOption,
@@ -258,7 +258,8 @@ where
     let mut hard_link_entries = Vec::<NormalEntry>::new();
 
     let (tx, rx) = std::sync::mpsc::channel();
-    run_entries(path, password_provider, |entry| {
+
+    run_entries(archives, password_provider, |entry| {
         let item = entry?;
         let item_path = item.header().path().to_string();
         if !globs.is_empty() && !globs.matches_any(&item_path) {
