@@ -19,7 +19,7 @@ use crate::{
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
 use std::{
-    fs, io,
+    env, fs, io,
     path::{Path, PathBuf},
 };
 
@@ -127,6 +127,15 @@ pub(crate) struct AppendCommand {
         help = "Modify file or archive member names according to pattern that like GNU tar -transform option"
     )]
     transforms: Option<Vec<TransformRule>>,
+    #[arg(
+        short = 'C',
+        long = "cd",
+        aliases = ["directory"],
+        value_name = "DIRECTORY",
+        help = "changes the directory before adding the following files",
+        value_hint = ValueHint::DirPath
+    )]
+    working_dir: Option<PathBuf>,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -195,6 +204,9 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
         }
         exclude
     };
+    if let Some(working_dir) = args.working_dir {
+        env::set_current_dir(working_dir)?;
+    }
     let target_items = collect_items(
         &files,
         args.recursive,
