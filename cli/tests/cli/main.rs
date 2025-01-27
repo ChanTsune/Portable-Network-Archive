@@ -1,6 +1,8 @@
 #![cfg_attr(target_os = "wasi", feature(wasi_ext))]
 mod acl;
 mod append;
+#[cfg(not(target_family = "wasm"))]
+mod cd_option;
 mod chmod;
 mod chown;
 #[cfg(not(target_family = "wasm"))]
