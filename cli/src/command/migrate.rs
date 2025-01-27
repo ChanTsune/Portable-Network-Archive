@@ -2,7 +2,10 @@ use crate::{
     cli::{PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs},
     command::{
         ask_password,
-        commons::{run_transform_entry, TransformStrategyKeepSolid, TransformStrategyUnSolid},
+        commons::{
+            collect_split_archives, run_transform_entry, TransformStrategyKeepSolid,
+            TransformStrategyUnSolid,
+        },
         Command,
     },
     ext::*,
@@ -32,17 +35,20 @@ impl Command for MigrateCommand {
 
 fn migrate_metadata(args: MigrateCommand) -> io::Result<()> {
     let password = ask_password(args.password)?;
+
+    let archives = collect_split_archives(&args.archive)?;
+
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => run_transform_entry(
             args.output,
-            &args.archive,
+            archives,
             || password.as_deref(),
             |entry| Ok(Some(strip_entry_metadata(entry?)?)),
             TransformStrategyUnSolid,
         ),
         SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
             args.output,
-            &args.archive,
+            archives,
             || password.as_deref(),
             |entry| Ok(Some(strip_entry_metadata(entry?)?)),
             TransformStrategyKeepSolid,

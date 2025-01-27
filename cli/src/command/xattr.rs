@@ -3,7 +3,8 @@ use crate::{
     command::{
         ask_password,
         commons::{
-            run_entries, run_transform_entry, TransformStrategyKeepSolid, TransformStrategyUnSolid,
+            collect_split_archives, run_entries, run_transform_entry, TransformStrategyKeepSolid,
+            TransformStrategyUnSolid,
         },
         Command,
     },
@@ -133,8 +134,10 @@ fn archive_get_xattr(args: GetXattrCommand) -> io::Result<()> {
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
     let encoding = args.encoding;
 
+    let archives = collect_split_archives(&args.archive)?;
+
     run_entries(
-        &args.archive,
+        archives,
         || password.as_deref(),
         |entry| {
             let entry = entry?;
@@ -178,10 +181,12 @@ fn archive_set_xattr(args: SetXattrCommand) -> io::Result<()> {
         .as_ref()
         .map_or_else(Default::default, |it| it.as_bytes());
 
+    let archives = collect_split_archives(&args.archive)?;
+
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => run_transform_entry(
             args.archive.remove_part().unwrap(),
-            &args.archive,
+            archives,
             || password.as_deref(),
             |entry| {
                 let entry = entry?;
@@ -200,7 +205,7 @@ fn archive_set_xattr(args: SetXattrCommand) -> io::Result<()> {
         ),
         SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
             args.archive.remove_part().unwrap(),
-            &args.archive,
+            archives,
             || password.as_deref(),
             |entry| {
                 let entry = entry?;

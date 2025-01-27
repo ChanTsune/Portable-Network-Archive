@@ -18,7 +18,7 @@ fn archive_password_from_file() {
         env!("CARGO_TARGET_TMPDIR"),
         "/archive_password_from_file/password_file"
     );
-    fs::write(&password_file_path, "archive_password_from_file").unwrap();
+    fs::write(password_file_path, "archive_password_from_file").unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
