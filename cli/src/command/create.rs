@@ -20,7 +20,7 @@ use bytesize::ByteSize;
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::{Archive, SolidEntryBuilder, WriteOptions};
 use std::{
-    fs::{self, File},
+    env, fs,
     io::{self, prelude::*},
     path::{Path, PathBuf},
     time::Instant,
@@ -142,6 +142,15 @@ pub(crate) struct CreateCommand {
         help = "Modify file or archive member names according to pattern that like GNU tar -transform option"
     )]
     transforms: Option<Vec<TransformRule>>,
+    #[arg(
+        short = 'C',
+        long = "cd",
+        aliases = ["directory"],
+        value_name = "DIRECTORY",
+        help = "changes the directory before adding the following files",
+        value_hint = ValueHint::DirPath
+    )]
+    working_dir: Option<PathBuf>,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -162,6 +171,7 @@ impl Command for CreateCommand {
 }
 
 fn create_archive(args: CreateCommand) -> io::Result<()> {
+    let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let start = Instant::now();
@@ -186,6 +196,10 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
         }
         exclude
     };
+    let archive_path = current_dir.join(archive);
+    if let Some(working_dir) = args.working_dir {
+        env::set_current_dir(working_dir)?;
+    }
     let target_items = collect_items(
         &files,
         args.recursive,
@@ -195,7 +209,7 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
         exclude,
     )?;
 
-    if let Some(parent) = archive.parent() {
+    if let Some(parent) = archive_path.parent() {
         fs::create_dir_all(parent)?;
     }
     let max_file_size = args
@@ -220,7 +234,7 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
     let write_option = entry_option(args.compression, args.cipher, args.hash, password);
     if let Some(size) = max_file_size {
         create_archive_with_split(
-            &args.file.archive,
+            &archive_path,
             write_option,
             keep_options,
             owner_options,
@@ -231,7 +245,7 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
         )?;
     } else {
         create_archive_file(
-            || File::create(&args.file.archive),
+            || fs::File::create(&archive_path),
             write_option,
             keep_options,
             owner_options,
@@ -244,6 +258,7 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
         "Successfully created an archive in {}",
         DurationDisplay(start.elapsed())
     );
+    env::set_current_dir(current_dir)?;
     Ok(())
 }
 
