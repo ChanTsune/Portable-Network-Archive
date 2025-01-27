@@ -4,7 +4,10 @@ use crate::{
     },
     command::{
         ask_password,
-        commons::{run_transform_entry, TransformStrategyKeepSolid, TransformStrategyUnSolid},
+        commons::{
+            collect_split_archives, run_transform_entry, TransformStrategyKeepSolid,
+            TransformStrategyUnSolid,
+        },
         Command,
     },
     utils::{self, GlobPatterns, PathPartExt},
@@ -51,11 +54,14 @@ fn delete_file_from_archive(args: DeleteCommand) -> io::Result<()> {
         GlobPatterns::new(exclude)
     }
     .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+
+    let archives = collect_split_archives(&args.file.archive)?;
+
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => run_transform_entry(
             args.output
                 .unwrap_or_else(|| args.file.archive.remove_part().unwrap()),
-            &args.file.archive,
+            archives,
             || password.as_deref(),
             |entry| {
                 let entry = entry?;
@@ -70,7 +76,7 @@ fn delete_file_from_archive(args: DeleteCommand) -> io::Result<()> {
         SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
             args.output
                 .unwrap_or_else(|| args.file.archive.remove_part().unwrap()),
-            &args.file.archive,
+            archives,
             || password.as_deref(),
             |entry| {
                 let entry = entry?;
