@@ -1,11 +1,11 @@
-use crate::utils::{copy_dir_all, diff::diff, setup};
+use crate::utils::{diff::diff, setup, TestResources};
 use std::fs;
 
 #[test]
 fn create_extract_with_cd() {
     setup();
-    copy_dir_all(
-        "../resources/test/raw/",
+    TestResources::extract_in(
+        "raw/",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/create_extract_with_cd/in/"),
     )
     .unwrap();
@@ -59,8 +59,8 @@ fn create_extract_with_cd() {
 #[test]
 fn append_with_cd() {
     setup();
-    copy_dir_all(
-        "../resources/test/raw/",
+    TestResources::extract_in(
+        "raw/",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/append_with_cd/in/"),
     )
     .unwrap();
@@ -88,14 +88,14 @@ fn append_with_cd() {
     .unwrap());
 
     // Copy extra input
-    fs::copy(
-        "../resources/test/store.pna",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/append_with_cd/in/store.pna"),
+    TestResources::extract_in(
+        "store.pna",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/append_with_cd/in/"),
     )
     .unwrap();
-    fs::copy(
-        "../resources/test/zstd.pna",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/append_with_cd/in/zstd.pna"),
+    TestResources::extract_in(
+        "zstd.pna",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/append_with_cd/in/"),
     )
     .unwrap();
 
@@ -141,8 +141,8 @@ fn append_with_cd() {
 #[test]
 fn update_with_cd() {
     setup();
-    copy_dir_all(
-        "../resources/test/raw/",
+    TestResources::extract_in(
+        "raw/",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/update_with_cd/in/"),
     )
     .unwrap();
@@ -170,14 +170,14 @@ fn update_with_cd() {
     .unwrap());
 
     // Copy extra input
-    fs::copy(
-        "../resources/test/store.pna",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/update_with_cd/in/store.pna"),
+    TestResources::extract_in(
+        "store.pna",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/update_with_cd/in/"),
     )
     .unwrap();
-    fs::copy(
-        "../resources/test/zstd.pna",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/update_with_cd/in/zstd.pna"),
+    TestResources::extract_in(
+        "zstd.pna",
+        concat!(env!("CARGO_TARGET_TMPDIR"), "/update_with_cd/in/"),
     )
     .unwrap();
 
