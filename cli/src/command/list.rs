@@ -1,13 +1,11 @@
 #[cfg(feature = "memmap")]
 use crate::command::commons::run_read_entries_mem;
-#[cfg(not(feature = "memmap"))]
-use crate::command::commons::PathArchiveProvider;
 use crate::{
     chunk,
     cli::{FileArgs, PasswordArgs},
     command::{
         ask_password,
-        commons::{run_read_entries, ArchiveProvider},
+        commons::{collect_split_archives, run_read_entries},
         Command,
     },
     ext::*,
@@ -25,8 +23,6 @@ use pna::{
 };
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "memmap")]
-use std::path::Path;
 use std::{
     borrow::Cow,
     collections::{BTreeSet, HashMap},
@@ -277,23 +273,15 @@ fn list_archive(args: ListCommand) -> io::Result<()> {
         classify: args.classify,
         format: args.format,
     };
+    let archives = collect_split_archives(&args.file.archive)?;
+
     #[cfg(not(feature = "memmap"))]
     {
-        run_list_archive(
-            PathArchiveProvider::new(&args.file.archive),
-            password.as_deref(),
-            &args.file.files,
-            options,
-        )
+        run_list_archive(archives, password.as_deref(), &args.file.files, options)
     }
     #[cfg(feature = "memmap")]
     {
-        run_list_archive_mem(
-            &args.file.archive,
-            password.as_deref(),
-            &args.file.files,
-            options,
-        )
+        run_list_archive_mem(archives, password.as_deref(), &args.file.files, options)
     }
 }
 
@@ -352,7 +340,7 @@ pub(crate) struct ListOptions {
 }
 
 pub(crate) fn run_list_archive(
-    archive_provider: impl ArchiveProvider,
+    archive_provider: impl IntoIterator<Item = impl Read>,
     password: Option<&str>,
     files: &[String],
     args: ListOptions,
@@ -382,7 +370,7 @@ pub(crate) fn run_list_archive(
 
 #[cfg(feature = "memmap")]
 pub(crate) fn run_list_archive_mem(
-    archive_provider: impl AsRef<Path>,
+    archives: Vec<std::fs::File>,
     password: Option<&str>,
     files: &[String],
     args: ListOptions,
@@ -392,7 +380,7 @@ pub(crate) fn run_list_archive_mem(
 
     let mut entries = Vec::new();
 
-    run_read_entries_mem(archive_provider, |entry| {
+    run_read_entries_mem(archives, |entry| {
         match entry? {
             ReadEntry::Solid(solid) if args.solid => {
                 for entry in solid.entries(password)? {

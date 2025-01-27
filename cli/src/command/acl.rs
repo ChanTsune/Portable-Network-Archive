@@ -4,7 +4,8 @@ use crate::{
     command::{
         ask_password,
         commons::{
-            run_entries, run_transform_entry, TransformStrategyKeepSolid, TransformStrategyUnSolid,
+            collect_split_archives, run_entries, run_transform_entry, TransformStrategyKeepSolid,
+            TransformStrategyUnSolid,
         },
         Command,
     },
@@ -215,8 +216,10 @@ fn archive_get_acl(args: GetAclCommand) -> io::Result<()> {
     let globs = GlobPatterns::new(args.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
+    let archives = collect_split_archives(&args.archive)?;
+
     run_entries(
-        &args.archive,
+        archives,
         || password.as_deref(),
         |entry| {
             let entry = entry?;
@@ -247,10 +250,12 @@ fn archive_set_acl(args: SetAclCommand) -> io::Result<()> {
     let globs = GlobPatterns::new(args.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
+    let archives = collect_split_archives(&args.archive)?;
+
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => run_transform_entry(
             args.archive.remove_part().unwrap(),
-            &args.archive,
+            archives,
             || password.as_deref(),
             |entry| {
                 let entry = entry?;
@@ -268,7 +273,7 @@ fn archive_set_acl(args: SetAclCommand) -> io::Result<()> {
         ),
         SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
             args.archive.remove_part().unwrap(),
-            &args.archive,
+            archives,
             || password.as_deref(),
             |entry| {
                 let entry = entry?;

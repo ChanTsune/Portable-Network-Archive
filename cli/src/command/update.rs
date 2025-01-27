@@ -1,7 +1,7 @@
+#[cfg(not(feature = "memmap"))]
+use crate::command::commons::run_read_entries;
 #[cfg(feature = "memmap")]
 use crate::command::commons::run_read_entries_mem as run_read_entries;
-#[cfg(not(feature = "memmap"))]
-use crate::command::commons::run_read_entries_path as run_read_entries;
 use crate::{
     cli::{
         CipherAlgorithmArgs, CompressionAlgorithmArgs, FileArgs, HashAlgorithmArgs, PasswordArgs,
@@ -10,8 +10,9 @@ use crate::{
     command::{
         ask_password, check_password,
         commons::{
-            collect_items, create_entry, entry_option, CreateOptions, KeepOptions, OwnerOptions,
-            TransformStrategy, TransformStrategyKeepSolid, TransformStrategyUnSolid,
+            collect_items, collect_split_archives, create_entry, entry_option, CreateOptions,
+            KeepOptions, OwnerOptions, TransformStrategy, TransformStrategyKeepSolid,
+            TransformStrategyUnSolid,
         },
         Command,
     },
@@ -139,7 +140,7 @@ impl Command for UpdateCommand {
 fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
-    let archive_path = args.file.archive;
+    let archive_path = &args.file.archive;
     if !archive_path.exists() {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
@@ -166,6 +167,8 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
         keep_options,
         owner_options,
     };
+
+    let archives = collect_split_archives(&args.file.archive)?;
 
     let mut files = args.file.files;
     if args.files_from_stdin {
@@ -246,7 +249,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
         .map(|it| (EntryName::from_lossy(&it), it))
         .collect::<IndexMap<_, _>>();
 
-    run_read_entries(&archive_path, |entry| {
+    run_read_entries(archives, |entry| {
         Strategy::transform(&mut out_archive, password, entry, |entry| {
             let entry = entry?;
             if let Some(target_path) = target_files_mapping.swap_remove(entry.header().path()) {
