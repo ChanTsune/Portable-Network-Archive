@@ -553,7 +553,7 @@ where
 {
     let password = password_provider();
     let output_path = output_path.as_ref();
-    let random = rand::random::<usize>();
+    let random = rand::random::<u64>();
     let temp_dir_path = temp_dir().unwrap_or_else(|| {
         output_path
             .parent()
@@ -605,7 +605,7 @@ where
 {
     let password = password_provider();
     let output_path = output_path.as_ref();
-    let random = rand::random::<usize>();
+    let random = rand::random::<u64>();
     let temp_dir_path = temp_dir().unwrap_or_else(|| {
         output_path
             .parent()
