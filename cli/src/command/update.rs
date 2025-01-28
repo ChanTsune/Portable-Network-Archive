@@ -197,7 +197,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
 
     let (tx, rx) = std::sync::mpsc::channel();
 
-    let random = rand::random::<usize>();
+    let random = rand::random::<u64>();
     let temp_dir_path = temp_dir().unwrap_or_else(|| {
         archive_path
             .parent()
