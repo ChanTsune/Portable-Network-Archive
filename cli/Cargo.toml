@@ -32,6 +32,7 @@ tabled = { version = "0.17.0", default-features = false, features = ["std", "ans
 rand = "0.8.5"
 indexmap = "2.7.1"
 log = "0.4.25"
+regex = "1.10.4"
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.29.0", features = ["user"] }
