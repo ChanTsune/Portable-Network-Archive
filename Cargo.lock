@@ -1341,6 +1341,7 @@ dependencies = [
  "pna",
  "rand",
  "rayon",
+ "regex",
  "rust-embed",
  "serde",
  "serde_json",
