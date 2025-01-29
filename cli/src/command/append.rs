@@ -9,13 +9,13 @@ use crate::{
         },
         Command,
     },
-    utils::{self, PathPartExt},
+    utils::{self, re::bsd::Substitution, PathPartExt},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
 use std::{fs::File, io, path::PathBuf};
 
-#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Parser, Clone, Debug)]
 #[command(
     group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
     group(ArgGroup::new("unstable-append-exclude").args(["exclude"]).requires("unstable")),
@@ -23,6 +23,7 @@ use std::{fs::File, io, path::PathBuf};
     group(ArgGroup::new("unstable-files-from-stdin").args(["files_from_stdin"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-gitignore").args(["gitignore"]).requires("unstable")),
+    group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
     group(ArgGroup::new("read-files-from").args(["files_from", "files_from_stdin"])),
     group(ArgGroup::new("store-uname").args(["uname"]).requires("keep_permission")),
     group(ArgGroup::new("store-gname").args(["gname"]).requires("keep_permission")),
@@ -75,6 +76,12 @@ pub(crate) struct AppendCommand {
     pub(crate) gitignore: bool,
     #[arg(long, help = "Follow symbolic links")]
     pub(crate) follow_links: bool,
+    #[arg(
+        short = 's',
+        value_name = "PATTERN",
+        help = "Modify file or archive member names according to pattern that like BSD tar -s option"
+    )]
+    substitutions: Option<Vec<Substitution>>,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -175,7 +182,7 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
         rayon::scope_fifo(|s| {
             s.spawn_fifo(|_| {
                 log::debug!("Adding: {}", file.display());
-                tx.send(create_entry(&file, &create_options))
+                tx.send(create_entry(&file, &create_options, &args.substitutions))
                     .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
             })
         });

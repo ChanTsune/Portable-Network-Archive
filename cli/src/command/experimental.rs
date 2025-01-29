@@ -2,7 +2,7 @@ use crate::{command, command::Command};
 use clap::{Parser, Subcommand};
 use std::io;
 
-#[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Parser, Clone, Debug)]
 #[command(args_conflicts_with_subcommands = true, arg_required_else_help = true)]
 pub(crate) struct ExperimentalCommand {
     #[command(subcommand)]
@@ -26,7 +26,7 @@ impl Command for ExperimentalCommand {
     }
 }
 
-#[derive(Subcommand, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Subcommand, Clone, Debug)]
 pub(crate) enum ExperimentalCommands {
     #[command(about = "Archive manipulation via stdio")]
     Stdio(command::stdio::StdioCommand),

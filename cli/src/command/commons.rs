@@ -1,6 +1,6 @@
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
-    utils::{self, env::temp_dir, GlobPatterns, PathPartExt},
+    utils::{self, env::temp_dir, re::bsd::Substitution, GlobPatterns, PathPartExt},
 };
 use normalize_path::*;
 use pna::{
@@ -118,16 +118,36 @@ pub(crate) fn create_entry(
         keep_options,
         owner_options,
     }: &CreateOptions,
+    substitutions: &Option<Vec<Substitution>>,
 ) -> io::Result<NormalEntry> {
+    let entry_name = if let Some(substitutions) = substitutions {
+        let mut name = path.to_string_lossy().to_string();
+        for substitution in substitutions {
+            if let Some(replaced) = substitution.apply(&name, false, false) {
+                name = replaced.into();
+            }
+        }
+        EntryName::from(name)
+    } else {
+        EntryName::from_lossy(path)
+    };
     if path.is_symlink() {
         let source = fs::read_link(path)?;
-        let entry = EntryBuilder::new_symbolic_link(
-            EntryName::from_lossy(path),
-            EntryReference::from_lossy(source),
-        )?;
+        let reference = if let Some(substitutions) = substitutions {
+            let mut name = path.to_string_lossy().to_string();
+            for substitution in substitutions {
+                if let Some(replaced) = substitution.apply(&name, true, false) {
+                    name = replaced.into();
+                }
+            }
+            EntryReference::from(name)
+        } else {
+            EntryReference::from_lossy(source)
+        };
+        let entry = EntryBuilder::new_symbolic_link(entry_name, reference)?;
         return apply_metadata(entry, path, keep_options, owner_options)?.build();
     } else if path.is_file() {
-        let mut entry = EntryBuilder::new_file(EntryName::from_lossy(path), option)?;
+        let mut entry = EntryBuilder::new_file(entry_name, option)?;
         #[cfg(feature = "memmap")]
         {
             const FILE_SIZE_THRESHOLD: u64 = 50 * 1024 * 1024;
@@ -145,7 +165,7 @@ pub(crate) fn create_entry(
         }
         return apply_metadata(entry, path, keep_options, owner_options)?.build();
     } else if path.is_dir() {
-        let entry = EntryBuilder::new_dir(EntryName::from_lossy(path));
+        let entry = EntryBuilder::new_dir(entry_name);
         return apply_metadata(entry, path, keep_options, owner_options)?.build();
     }
     Err(io::Error::new(

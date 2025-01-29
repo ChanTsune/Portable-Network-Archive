@@ -15,7 +15,7 @@ use crate::{
         },
         Command,
     },
-    utils::{self, env::temp_dir, PathPartExt},
+    utils::{self, env::temp_dir, re::bsd::Substitution, PathPartExt},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;
@@ -26,7 +26,7 @@ use std::{
     time::SystemTime,
 };
 
-#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Parser, Clone, Debug)]
 #[command(
     group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
     group(ArgGroup::new("unstable-update-exclude").args(["exclude"]).requires("unstable")),
@@ -34,6 +34,7 @@ use std::{
     group(ArgGroup::new("unstable-files-from-stdin").args(["files_from_stdin"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-gitignore").args(["gitignore"]).requires("unstable")),
+    group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
     group(ArgGroup::new("read-files-from").args(["files_from", "files_from_stdin"])),
     group(ArgGroup::new("store-uname").args(["uname"]).requires("keep_permission")),
     group(ArgGroup::new("store-gname").args(["gname"]).requires("keep_permission")),
@@ -102,6 +103,12 @@ pub(crate) struct UpdateCommand {
     pub(crate) files_from_stdin: bool,
     #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
     pub(crate) exclude_from: Option<String>,
+    #[arg(
+        short = 's',
+        value_name = "PATTERN",
+        help = "Modify file or archive member names according to pattern that like BSD tar -s option"
+    )]
+    substitutions: Option<Vec<Substitution>>,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -255,8 +262,12 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
                     rayon::scope_fifo(|s| {
                         s.spawn_fifo(|_| {
                             log::debug!("Updating: {}", target_path.display());
-                            tx.send(create_entry(&target_path, &create_options))
-                                .unwrap_or_else(|e| panic!("{e}: {}", target_path.display()));
+                            tx.send(create_entry(
+                                &target_path,
+                                &create_options,
+                                &args.substitutions,
+                            ))
+                            .unwrap_or_else(|e| panic!("{e}: {}", target_path.display()));
                         });
                     });
                     Ok(None)
@@ -275,7 +286,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
         rayon::scope_fifo(|s| {
             s.spawn_fifo(|_| {
                 log::debug!("Adding: {}", file.display());
-                tx.send(create_entry(&file, &create_options))
+                tx.send(create_entry(&file, &create_options, &args.substitutions))
                     .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
             });
         });
