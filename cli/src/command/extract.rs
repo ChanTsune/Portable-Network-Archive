@@ -8,10 +8,12 @@ use crate::{
     cli::{FileArgs, PasswordArgs},
     command::{
         ask_password,
-        commons::{run_process_archive, ArchiveProvider, KeepOptions, OwnerOptions},
+        commons::{
+            apply_substitutions, run_process_archive, ArchiveProvider, KeepOptions, OwnerOptions,
+        },
         Command,
     },
-    utils::{self, fmt::DurationDisplay, GlobPatterns},
+    utils::{self, fmt::DurationDisplay, re::bsd::Substitution, GlobPatterns},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::{prelude::*, DataKind, EntryReference, NormalEntry, Permission, ReadOptions};
@@ -23,9 +25,10 @@ use std::os::windows::fs::FileTimesExt;
 use std::path::Path;
 use std::{borrow::Cow, fs, io, path::PathBuf, time::Instant};
 
-#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Parser, Clone, Debug)]
 #[command(
     group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
+    group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
 )]
@@ -71,6 +74,12 @@ pub(crate) struct ExtractCommand {
         help = "Remove the specified number of leading path elements. Path names with fewer elements will be silently skipped"
     )]
     strip_components: Option<usize>,
+    #[arg(
+        short = 's',
+        value_name = "PATTERN",
+        help = "Modify file or archive member names according to pattern that like BSD tar -s option"
+    )]
+    substitutions: Option<Vec<Substitution>>,
     #[command(flatten)]
     pub(crate) file: FileArgs,
 }
@@ -104,6 +113,7 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
         out_dir: args.out_dir,
         keep_options,
         owner_options,
+        substitutions: args.substitutions,
     };
     #[cfg(not(feature = "memmap"))]
     run_extract_archive_reader(
@@ -126,13 +136,14 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
     Ok(())
 }
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct OutputOption {
     pub(crate) overwrite: bool,
     pub(crate) strip_components: Option<usize>,
     pub(crate) out_dir: Option<PathBuf>,
     pub(crate) keep_options: KeepOptions,
     pub(crate) owner_options: OwnerOptions,
+    pub(crate) substitutions: Option<Vec<Substitution>>,
 }
 
 pub(crate) fn run_extract_archive_reader<'p, Provider>(
@@ -239,6 +250,7 @@ pub(crate) fn extract_entry<T>(
         out_dir,
         keep_options,
         owner_options,
+        substitutions,
     }: &OutputOption,
 ) -> io::Result<()>
 where
@@ -255,6 +267,16 @@ where
         Cow::from(PathBuf::from_iter(item_path.components().skip(strip_count)))
     } else {
         Cow::from(item_path)
+    };
+    let item_path = if let Some(substitutions) = substitutions {
+        Cow::from(PathBuf::from(apply_substitutions(
+            item_path.to_string_lossy(),
+            substitutions,
+            false,
+            false,
+        )))
+    } else {
+        item_path
     };
     let path = if let Some(out_dir) = out_dir {
         Cow::from(out_dir.join(item_path))
@@ -303,7 +325,13 @@ where
         }
         DataKind::SymbolicLink => {
             let reader = item.reader(ReadOptions::with_password(password))?;
-            let original = EntryReference::from_lossy(io::read_to_string(reader)?);
+            let original = io::read_to_string(reader)?;
+            let original = if let Some(substitutions) = substitutions {
+                apply_substitutions(original, substitutions, true, false)
+            } else {
+                original
+            };
+            let original = EntryReference::from_lossy(original);
             if overwrite && path.exists() {
                 utils::fs::remove_path_all(&path)?;
             }
@@ -311,7 +339,13 @@ where
         }
         DataKind::HardLink => {
             let reader = item.reader(ReadOptions::with_password(password))?;
-            let original = EntryReference::from_lossy(io::read_to_string(reader)?);
+            let original = io::read_to_string(reader)?;
+            let original = if let Some(substitutions) = substitutions {
+                apply_substitutions(original, substitutions, true, false)
+            } else {
+                original
+            };
+            let original = EntryReference::from_lossy(original);
             let mut original = Cow::from(original.as_path());
             if let Some(parent) = path.parent() {
                 original = Cow::from(parent.join(original));
