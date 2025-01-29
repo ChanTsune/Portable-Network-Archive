@@ -123,6 +123,11 @@ pub(crate) struct ExtractCommand {
         value_hint = ValueHint::DirPath
     )]
     working_dir: Option<PathBuf>,
+    #[arg(
+        long,
+        help = "chroot() to the current directory after processing any --cd options and before extracting any files"
+    )]
+    chroot: bool,
     #[command(flatten)]
     pub(crate) file: FileArgs,
 }
@@ -134,7 +139,6 @@ impl Command for ExtractCommand {
     }
 }
 fn extract_archive(args: ExtractCommand) -> io::Result<()> {
-    let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     let start = Instant::now();
     log::info!("Extract archive {}", args.file.archive.display());
@@ -178,6 +182,15 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
     }
+    #[cfg(all(unix, not(target_os = "fuchsia")))]
+    if args.chroot {
+        std::os::unix::fs::chroot(env::current_dir()?)?;
+        env::set_current_dir("/")?;
+    }
+    #[cfg(not(all(unix, not(target_os = "fuchsia"))))]
+    if args.chroot {
+        log::warn!("chroot not supported on this platform");
+    };
     #[cfg(not(feature = "memmap"))]
     run_extract_archive_reader(
         archives,
@@ -196,7 +209,6 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
         "Successfully extracted an archive in {}",
         DurationDisplay(start.elapsed())
     );
-    env::set_current_dir(current_dir)?;
     Ok(())
 }
 
