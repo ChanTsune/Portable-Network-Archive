@@ -254,7 +254,6 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
         "Successfully created an archive in {}",
         DurationDisplay(start.elapsed())
     );
-    env::set_current_dir(current_dir)?;
     Ok(())
 }
 

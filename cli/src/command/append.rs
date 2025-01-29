@@ -245,6 +245,5 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
     }
     archive.finalize()?;
 
-    env::set_current_dir(current_dir)?;
     Ok(())
 }

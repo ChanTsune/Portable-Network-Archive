@@ -354,6 +354,5 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
 
     utils::fs::mv(outfile_path, archive_path.remove_part().unwrap())?;
 
-    env::set_current_dir(current_dir)?;
     Ok(())
 }
