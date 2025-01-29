@@ -111,6 +111,37 @@ pub(crate) fn collect_items(
     }
 }
 
+pub(crate) fn apply_substitutions(
+    name: impl Into<String>,
+    substitutions: &[Substitution],
+    is_symlink: bool,
+    is_hardlink: bool,
+) -> String {
+    fn recurse(
+        name: String,
+        substitutions: &[Substitution],
+        is_symlink: bool,
+        is_hardlink: bool,
+        index: usize,
+    ) -> String {
+        if index >= substitutions.len() {
+            return name;
+        }
+
+        if let Some(replaced) = substitutions[index].apply(&name, is_symlink, is_hardlink) {
+            return recurse(
+                replaced.into(),
+                substitutions,
+                is_symlink,
+                is_hardlink,
+                index + 1,
+            );
+        }
+        recurse(name, substitutions, is_symlink, is_hardlink, index + 1)
+    }
+    recurse(name.into(), substitutions, is_symlink, is_hardlink, 0)
+}
+
 pub(crate) fn create_entry(
     path: &Path,
     CreateOptions {
@@ -121,26 +152,24 @@ pub(crate) fn create_entry(
     substitutions: &Option<Vec<Substitution>>,
 ) -> io::Result<NormalEntry> {
     let entry_name = if let Some(substitutions) = substitutions {
-        let mut name = path.to_string_lossy().to_string();
-        for substitution in substitutions {
-            if let Some(replaced) = substitution.apply(&name, false, false) {
-                name = replaced.into();
-            }
-        }
-        EntryName::from(name)
+        EntryName::from(apply_substitutions(
+            path.to_string_lossy(),
+            substitutions,
+            false,
+            false,
+        ))
     } else {
         EntryName::from_lossy(path)
     };
     if path.is_symlink() {
         let source = fs::read_link(path)?;
         let reference = if let Some(substitutions) = substitutions {
-            let mut name = path.to_string_lossy().to_string();
-            for substitution in substitutions {
-                if let Some(replaced) = substitution.apply(&name, true, false) {
-                    name = replaced.into();
-                }
-            }
-            EntryReference::from(name)
+            EntryReference::from(apply_substitutions(
+                path.to_string_lossy(),
+                substitutions,
+                true,
+                false,
+            ))
         } else {
             EntryReference::from_lossy(source)
         };

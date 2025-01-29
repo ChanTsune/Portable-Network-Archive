@@ -230,6 +230,7 @@ fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
             args.gid,
             args.numeric_owner,
         ),
+        substitutions: args.substitutions,
     };
     if let Some(file) = args.file {
         run_extract_archive_reader(
