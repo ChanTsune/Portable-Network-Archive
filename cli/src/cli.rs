@@ -8,7 +8,7 @@ use log::{Level, LevelFilter};
 use pna::{ChunkType, ChunkTypeError, HashAlgorithm};
 use std::{io, path::PathBuf, str::FromStr};
 
-#[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Parser, Clone, Debug)]
 #[command(
     name = env!("CARGO_PKG_NAME"),
     version,
@@ -62,7 +62,7 @@ impl VerbosityArgs {
     }
 }
 
-#[derive(Subcommand, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Subcommand, Clone, Debug)]
 pub(crate) enum Commands {
     #[command(visible_alias = "c", about = "Create archive")]
     Create(CreateCommand),

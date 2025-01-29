@@ -11,7 +11,7 @@ use crate::{
         list::{ListOptions, TimeField, TimeFormat},
         Command,
     },
-    utils,
+    utils::{self, re::bsd::Substitution},
 };
 use clap::{ArgGroup, Args, Parser, ValueHint};
 use std::{
@@ -21,13 +21,14 @@ use std::{
     time::SystemTime,
 };
 
-#[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Args, Clone, Debug)]
 #[command(
     group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
     group(ArgGroup::new("bundled-flags").args(["create", "extract", "list"]).required(true)),
     group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-gitignore").args(["gitignore"]).requires("unstable")),
+    group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
 )]
@@ -107,6 +108,12 @@ pub(crate) struct StdioCommand {
     pub(crate) files_from: Option<String>,
     #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
     pub(crate) exclude_from: Option<String>,
+    #[arg(
+        short = 's',
+        value_name = "PATTERN",
+        help = "Modify file or archive member names according to pattern that like BSD tar -s option"
+    )]
+    substitutions: Option<Vec<Substitution>>,
     #[arg(short, long, help = "Input archive file path")]
     file: Option<PathBuf>,
     #[arg(help = "Files or patterns")]
@@ -188,6 +195,7 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
             keep_options,
             owner_options,
             args.solid,
+            args.substitutions,
             target_items,
         )
     } else {
@@ -197,6 +205,7 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
             keep_options,
             owner_options,
             args.solid,
+            args.substitutions,
             target_items,
         )
     }
