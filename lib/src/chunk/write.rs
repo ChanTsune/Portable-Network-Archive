@@ -16,13 +16,6 @@ impl<W> ChunkWriter<W> {
     }
 }
 
-impl<W> From<W> for ChunkWriter<W> {
-    #[inline]
-    fn from(writer: W) -> Self {
-        Self { w: writer }
-    }
-}
-
 impl<W: Write> ChunkWriter<W> {
     #[inline]
     pub(crate) fn write_chunk(&mut self, chunk: impl Chunk) -> io::Result<usize> {
