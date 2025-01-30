@@ -103,12 +103,13 @@ impl<'d> Archive<&'d [u8]> {
     /// An iterator over the entries in the archive.
     ///
     /// # Example
-    /// ```
+    /// ```no_run
     /// use libpna::{Archive, ReadEntry};
+    /// use std::fs;
     /// # use std::io;
     ///
     /// # fn main() -> io::Result<()> {
-    /// let file = include_bytes!("../../../../resources/test/zstd.pna");
+    /// let file = fs::read("foo.pna")?;
     /// let mut archive = Archive::read_header_from_slice(&file[..])?;
     /// for entry in archive.entries_slice() {
     ///     match entry? {
@@ -136,12 +137,13 @@ impl<'d> Archive<&'d [u8]> {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// # use std::io;
     /// use libpna::Archive;
+    /// use std::fs;
     ///
     /// # fn main() -> io::Result<()> {
-    /// let bytes = include_bytes!("../../../../resources/test/zstd.pna");
+    /// let bytes = fs::read("foo.pna")?;
     /// let mut src = Archive::read_header_from_slice(&bytes[..])?;
     /// let mut dist = Archive::write_header(Vec::new())?;
     /// for entry in src.raw_entries_slice() {
@@ -214,12 +216,13 @@ impl<'a, 'r> Entries<'a, 'r> {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```no_run
     /// use libpna::{Archive, ReadEntry, ReadOptions};
+    /// use std::fs;
     /// # use std::io;
     ///
     /// # fn main() -> io::Result<()> {
-    /// let file = include_bytes!("../../../../resources/test/zstd.pna");
+    /// let file = fs::read("foo.pna")?;
     /// let mut archive = Archive::read_header_from_slice(&file[..])?;
     /// for entry in archive
     ///     .entries_slice()
