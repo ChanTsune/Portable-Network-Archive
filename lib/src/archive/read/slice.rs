@@ -209,7 +209,7 @@ pub struct Entries<'a, 'r> {
 
 impl<'a, 'r> Entries<'a, 'r> {
     #[inline]
-    pub(crate) fn new(reader: &'a mut Archive<&'r [u8]>) -> Self {
+    pub(crate) const fn new(reader: &'a mut Archive<&'r [u8]>) -> Self {
         Self { reader }
     }
 
