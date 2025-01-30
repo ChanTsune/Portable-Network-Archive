@@ -234,7 +234,7 @@ impl<R> Archive<R> {
     /// # }
     /// ```
     #[inline]
-    pub fn entries(&mut self) -> Entries<'_, R> {
+    pub const fn entries(&mut self) -> Entries<'_, R> {
         Entries::new(self)
     }
 }
