@@ -126,7 +126,7 @@ impl<'d> Archive<&'d [u8]> {
     /// # }
     /// ```
     #[inline]
-    pub fn entries_slice<'a>(&'a mut self) -> Entries<'a, 'd> {
+    pub const fn entries_slice<'a>(&'a mut self) -> Entries<'a, 'd> {
         Entries::new(self)
     }
 
