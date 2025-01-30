@@ -9,6 +9,13 @@ pub(crate) struct ChunkWriter<W> {
     w: W,
 }
 
+impl<W> ChunkWriter<W> {
+    #[inline]
+    pub(crate) const fn new(writer: W) -> Self {
+        Self { w: writer }
+    }
+}
+
 impl<W> From<W> for ChunkWriter<W> {
     #[inline]
     fn from(writer: W) -> Self {
@@ -52,7 +59,7 @@ impl<W> ChunkStreamWriter<W> {
     pub(crate) fn new(ty: ChunkType, inner: W) -> Self {
         Self {
             ty,
-            w: ChunkWriter::from(inner),
+            w: ChunkWriter::new(inner),
         }
     }
 
@@ -83,7 +90,7 @@ mod tests {
 
     #[test]
     fn write_aend_chunk() {
-        let mut chunk_writer = ChunkWriter::from(Vec::new());
+        let mut chunk_writer = ChunkWriter::new(Vec::new());
         assert_eq!(chunk_writer.write_chunk((ChunkType::AEND, [])).unwrap(), 12);
         assert_eq!(
             chunk_writer.w,
@@ -93,10 +100,10 @@ mod tests {
 
     #[test]
     fn write_fdat_chunk() {
-        let mut chunk_writer = ChunkWriter::from(Vec::new());
+        let mut chunk_writer = ChunkWriter::new(Vec::new());
         assert_eq!(
             chunk_writer
-                .write_chunk((ChunkType::FDAT, "text data".as_bytes()))
+                .write_chunk((ChunkType::FDAT, b"text data"))
                 .unwrap(),
             21,
         );
