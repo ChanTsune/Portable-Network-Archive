@@ -302,7 +302,7 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
     #[inline]
     async fn write_header_with_async(mut write: W, header: ArchiveHeader) -> io::Result<Self> {
         write.write_all(PNA_HEADER).await?;
-        let mut chunk_writer = crate::chunk::ChunkWriter::from(&mut write);
+        let mut chunk_writer = crate::chunk::ChunkWriter::new(&mut write);
         chunk_writer
             .write_chunk_async((ChunkType::AHED, header.to_bytes()))
             .await?;
@@ -323,7 +323,7 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
     /// This API is unstable.
     #[inline]
     pub async fn finalize_async(mut self) -> io::Result<W> {
-        let mut chunk_writer = crate::chunk::ChunkWriter::from(&mut self.inner);
+        let mut chunk_writer = crate::chunk::ChunkWriter::new(&mut self.inner);
         chunk_writer
             .write_chunk_async((ChunkType::AEND, []))
             .await?;
