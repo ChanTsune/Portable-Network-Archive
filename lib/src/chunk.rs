@@ -72,6 +72,21 @@ pub struct RawChunk<D = Vec<u8>> {
     pub(crate) crc: u32,
 }
 
+impl<D> From<(ChunkType, D)> for RawChunk<D>
+where
+    (ChunkType, D): Chunk,
+{
+    #[inline]
+    fn from(value: (ChunkType, D)) -> Self {
+        Self {
+            length: value.length(),
+            crc: value.crc(),
+            ty: value.0,
+            data: value.1,
+        }
+    }
+}
+
 impl<'d> RawChunk<&'d [u8]> {
     pub(crate) fn from_slice(ty: ChunkType, data: &'d [u8]) -> Self {
         let chunk = (ty, data);
