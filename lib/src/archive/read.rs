@@ -230,7 +230,7 @@ impl<R> Archive<R> {
     /// # }
     /// ```
     #[inline]
-    pub fn entries(&mut self) -> Entries<R> {
+    pub const fn entries(&mut self) -> Entries<R> {
         Entries::new(self)
     }
 }
@@ -310,7 +310,7 @@ pub struct Entries<'r, R> {
 
 impl<'r, R> Entries<'r, R> {
     #[inline]
-    pub(crate) fn new(reader: &'r mut Archive<R>) -> Self {
+    pub(crate) const fn new(reader: &'r mut Archive<R>) -> Self {
         Self { reader }
     }
 
