@@ -769,7 +769,7 @@ impl SolidEntryBuilder {
     /// ```
     #[inline]
     #[must_use = "building an entry without using it is wasteful"]
-    pub fn build(self) -> io::Result<impl Entry + Sized> {
+    pub fn build(self) -> io::Result<SolidEntry> {
         self.build_as_entry()
     }
 }
