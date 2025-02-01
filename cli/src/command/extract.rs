@@ -8,12 +8,15 @@ use crate::{
     cli::{FileArgs, PasswordArgs},
     command::{
         ask_password,
-        commons::{
-            apply_substitutions, run_process_archive, ArchiveProvider, KeepOptions, OwnerOptions,
-        },
+        commons::{run_process_archive, ArchiveProvider, KeepOptions, OwnerOptions},
         Command,
     },
-    utils::{self, fmt::DurationDisplay, re::bsd::SubstitutionRule, GlobPatterns},
+    utils::{
+        self,
+        fmt::DurationDisplay,
+        re::bsd::{SubstitutionRule, SubstitutionRules},
+        GlobPatterns,
+    },
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::{prelude::*, DataKind, EntryReference, NormalEntry, Permission, ReadOptions};
@@ -129,7 +132,7 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
         out_dir: args.out_dir,
         keep_options,
         owner_options,
-        substitutions: args.substitutions,
+        substitutions: args.substitutions.map(SubstitutionRules::new),
     };
     #[cfg(not(feature = "memmap"))]
     run_extract_archive_reader(
@@ -159,7 +162,7 @@ pub(crate) struct OutputOption {
     pub(crate) out_dir: Option<PathBuf>,
     pub(crate) keep_options: KeepOptions,
     pub(crate) owner_options: OwnerOptions,
-    pub(crate) substitutions: Option<Vec<SubstitutionRule>>,
+    pub(crate) substitutions: Option<SubstitutionRules>,
 }
 
 pub(crate) fn run_extract_archive_reader<'p, Provider>(
@@ -285,9 +288,8 @@ where
         Cow::from(item_path)
     };
     let item_path = if let Some(substitutions) = substitutions {
-        Cow::from(PathBuf::from(apply_substitutions(
+        Cow::from(PathBuf::from(substitutions.apply(
             item_path.to_string_lossy(),
-            substitutions,
             false,
             false,
         )))
@@ -343,7 +345,7 @@ where
             let reader = item.reader(ReadOptions::with_password(password))?;
             let original = io::read_to_string(reader)?;
             let original = if let Some(substitutions) = substitutions {
-                apply_substitutions(original, substitutions, true, false)
+                substitutions.apply(original, true, false)
             } else {
                 original
             };
@@ -357,7 +359,7 @@ where
             let reader = item.reader(ReadOptions::with_password(password))?;
             let original = io::read_to_string(reader)?;
             let original = if let Some(substitutions) = substitutions {
-                apply_substitutions(original, substitutions, true, false)
+                substitutions.apply(original, true, false)
             } else {
                 original
             };

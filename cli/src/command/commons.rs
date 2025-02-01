@@ -1,6 +1,6 @@
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
-    utils::{self, env::temp_dir, re::bsd::SubstitutionRule, GlobPatterns, PathPartExt},
+    utils::{self, env::temp_dir, re::bsd::SubstitutionRules, GlobPatterns, PathPartExt},
 };
 use normalize_path::*;
 use pna::{
@@ -111,37 +111,6 @@ pub(crate) fn collect_items(
     }
 }
 
-pub(crate) fn apply_substitutions(
-    name: impl Into<String>,
-    substitutions: &[SubstitutionRule],
-    is_symlink: bool,
-    is_hardlink: bool,
-) -> String {
-    fn recurse(
-        name: String,
-        substitutions: &[SubstitutionRule],
-        is_symlink: bool,
-        is_hardlink: bool,
-        index: usize,
-    ) -> String {
-        if index >= substitutions.len() {
-            return name;
-        }
-
-        if let Some(replaced) = substitutions[index].apply(&name, is_symlink, is_hardlink) {
-            return recurse(
-                replaced.into(),
-                substitutions,
-                is_symlink,
-                is_hardlink,
-                index + 1,
-            );
-        }
-        recurse(name, substitutions, is_symlink, is_hardlink, index + 1)
-    }
-    recurse(name.into(), substitutions, is_symlink, is_hardlink, 0)
-}
-
 pub(crate) fn create_entry(
     path: &Path,
     CreateOptions {
@@ -149,27 +118,17 @@ pub(crate) fn create_entry(
         keep_options,
         owner_options,
     }: &CreateOptions,
-    substitutions: &Option<Vec<SubstitutionRule>>,
+    substitutions: &Option<SubstitutionRules>,
 ) -> io::Result<NormalEntry> {
     let entry_name = if let Some(substitutions) = substitutions {
-        EntryName::from(apply_substitutions(
-            path.to_string_lossy(),
-            substitutions,
-            false,
-            false,
-        ))
+        EntryName::from(substitutions.apply(path.to_string_lossy(), false, false))
     } else {
         EntryName::from_lossy(path)
     };
     if path.is_symlink() {
         let source = fs::read_link(path)?;
         let reference = if let Some(substitutions) = substitutions {
-            EntryReference::from(apply_substitutions(
-                path.to_string_lossy(),
-                substitutions,
-                true,
-                false,
-            ))
+            EntryReference::from(substitutions.apply(path.to_string_lossy(), true, false))
         } else {
             EntryReference::from_lossy(source)
         };
