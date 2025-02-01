@@ -10,7 +10,11 @@ use crate::{
         },
         Command,
     },
-    utils::{self, fmt::DurationDisplay, re::bsd::SubstitutionRule},
+    utils::{
+        self,
+        fmt::DurationDisplay,
+        re::bsd::{SubstitutionRule, SubstitutionRules},
+    },
 };
 use bytesize::ByteSize;
 use clap::{ArgGroup, Parser, ValueHint};
@@ -195,6 +199,7 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
         args.gid,
         args.numeric_owner,
     );
+    let substitutions = args.substitutions.map(SubstitutionRules::new);
     let password = password.as_deref();
     let write_option = entry_option(args.compression, args.cipher, args.hash, password);
     if let Some(size) = max_file_size {
@@ -204,7 +209,7 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
             keep_options,
             owner_options,
             args.solid,
-            args.substitutions,
+            substitutions,
             target_items,
             size,
         )?;
@@ -215,7 +220,7 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
             keep_options,
             owner_options,
             args.solid,
-            args.substitutions,
+            substitutions,
             target_items,
         )?;
     }
@@ -232,7 +237,7 @@ pub(crate) fn create_archive_file<W, F>(
     keep_options: KeepOptions,
     owner_options: OwnerOptions,
     solid: bool,
-    substitutions: Option<Vec<SubstitutionRule>>,
+    substitutions: Option<SubstitutionRules>,
     target_items: Vec<PathBuf>,
 ) -> io::Result<()>
 where
@@ -286,7 +291,7 @@ fn create_archive_with_split(
     keep_options: KeepOptions,
     owner_options: OwnerOptions,
     solid: bool,
-    substitutions: Option<Vec<SubstitutionRule>>,
+    substitutions: Option<SubstitutionRules>,
     target_items: Vec<PathBuf>,
     max_file_size: usize,
 ) -> io::Result<()> {

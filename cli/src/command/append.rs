@@ -9,7 +9,11 @@ use crate::{
         },
         Command,
     },
-    utils::{self, re::bsd::SubstitutionRule, PathPartExt},
+    utils::{
+        self,
+        re::bsd::{SubstitutionRule, SubstitutionRules},
+        PathPartExt,
+    },
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
@@ -193,12 +197,13 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
         keep_options,
         owner_options,
     };
+    let substitutions = args.substitutions.map(SubstitutionRules::new);
     for file in target_items {
         let tx = tx.clone();
         rayon::scope_fifo(|s| {
             s.spawn_fifo(|_| {
                 log::debug!("Adding: {}", file.display());
-                tx.send(create_entry(&file, &create_options, &args.substitutions))
+                tx.send(create_entry(&file, &create_options, &substitutions))
                     .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
             })
         });

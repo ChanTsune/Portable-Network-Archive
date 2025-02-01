@@ -15,7 +15,12 @@ use crate::{
         },
         Command,
     },
-    utils::{self, env::temp_dir, re::bsd::SubstitutionRule, PathPartExt},
+    utils::{
+        self,
+        env::temp_dir,
+        re::bsd::{SubstitutionRule, SubstitutionRules},
+        PathPartExt,
+    },
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;
@@ -189,6 +194,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
         keep_options,
         owner_options,
     };
+    let substitutions = args.substitutions.map(SubstitutionRules::new);
 
     let mut files = args.file.files;
     if args.files_from_stdin {
@@ -278,12 +284,8 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
                     rayon::scope_fifo(|s| {
                         s.spawn_fifo(|_| {
                             log::debug!("Updating: {}", target_path.display());
-                            tx.send(create_entry(
-                                &target_path,
-                                &create_options,
-                                &args.substitutions,
-                            ))
-                            .unwrap_or_else(|e| panic!("{e}: {}", target_path.display()));
+                            tx.send(create_entry(&target_path, &create_options, &substitutions))
+                                .unwrap_or_else(|e| panic!("{e}: {}", target_path.display()));
                         });
                     });
                     Ok(None)
@@ -302,7 +304,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
         rayon::scope_fifo(|s| {
             s.spawn_fifo(|_| {
                 log::debug!("Adding: {}", file.display());
-                tx.send(create_entry(&file, &create_options, &args.substitutions))
+                tx.send(create_entry(&file, &create_options, &substitutions))
                     .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
             });
         });

@@ -162,6 +162,56 @@ impl SubstitutionRule {
     }
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct SubstitutionRules(Vec<SubstitutionRule>);
+
+impl SubstitutionRules {
+    #[inline]
+    pub(crate) fn new(rules: Vec<SubstitutionRule>) -> Self {
+        Self(rules)
+    }
+    #[inline]
+    pub(crate) fn apply(
+        &self,
+        name: impl Into<String>,
+        is_symlink: bool,
+        is_hardlink: bool,
+    ) -> String {
+        apply_substitutions(name, &self.0, is_symlink, is_hardlink)
+    }
+}
+
+fn apply_substitutions(
+    name: impl Into<String>,
+    substitutions: &[SubstitutionRule],
+    is_symlink: bool,
+    is_hardlink: bool,
+) -> String {
+    fn recurse(
+        name: String,
+        substitutions: &[SubstitutionRule],
+        is_symlink: bool,
+        is_hardlink: bool,
+        index: usize,
+    ) -> String {
+        if index >= substitutions.len() {
+            return name;
+        }
+
+        if let Some(replaced) = substitutions[index].apply(&name, is_symlink, is_hardlink) {
+            return recurse(
+                replaced.into(),
+                substitutions,
+                is_symlink,
+                is_hardlink,
+                index + 1,
+            );
+        }
+        recurse(name, substitutions, is_symlink, is_hardlink, index + 1)
+    }
+    recurse(name.into(), substitutions, is_symlink, is_hardlink, 0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

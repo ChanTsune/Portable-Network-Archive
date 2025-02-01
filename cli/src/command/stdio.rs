@@ -11,7 +11,10 @@ use crate::{
         list::{ListOptions, TimeField, TimeFormat},
         Command,
     },
-    utils::{self, re::bsd::SubstitutionRule},
+    utils::{
+        self,
+        re::bsd::{SubstitutionRule, SubstitutionRules},
+    },
 };
 use clap::{ArgGroup, Args, Parser, ValueHint};
 use std::{
@@ -204,6 +207,7 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
         args.gid,
         args.numeric_owner,
     );
+    let substitutions = args.substitutions.map(SubstitutionRules::new);
     if let Some(file) = args.file {
         create_archive_file(
             || fs::File::open(&file),
@@ -211,7 +215,7 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
             keep_options,
             owner_options,
             args.solid,
-            args.substitutions,
+            substitutions,
             target_items,
         )
     } else {
@@ -221,7 +225,7 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
             keep_options,
             owner_options,
             args.solid,
-            args.substitutions,
+            substitutions,
             target_items,
         )
     }
@@ -246,7 +250,7 @@ fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
             args.gid,
             args.numeric_owner,
         ),
-        substitutions: args.substitutions,
+        substitutions: args.substitutions.map(SubstitutionRules::new),
     };
     if let Some(file) = args.file {
         run_extract_archive_reader(
