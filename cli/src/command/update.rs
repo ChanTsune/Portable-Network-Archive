@@ -50,13 +50,29 @@ pub(crate) struct UpdateCommand {
     pub(crate) recursive: bool,
     #[arg(long, help = "Archiving the directories")]
     pub(crate) keep_dir: bool,
-    #[arg(long, help = "Archiving the timestamp of the files")]
+    #[arg(
+        long,
+        visible_alias = "preserve-timestamps",
+        help = "Archiving the timestamp of the files"
+    )]
     pub(crate) keep_timestamp: bool,
-    #[arg(long, help = "Archiving the permissions of the files")]
+    #[arg(
+        long,
+        visible_alias = "preserve-permissions",
+        help = "Archiving the permissions of the files"
+    )]
     pub(crate) keep_permission: bool,
-    #[arg(long, help = "Archiving the extended attributes of the files")]
+    #[arg(
+        long,
+        visible_alias = "preserve-xattrs",
+        help = "Archiving the extended attributes of the files"
+    )]
     pub(crate) keep_xattr: bool,
-    #[arg(long, help = "Archiving the acl of the files")]
+    #[arg(
+        long,
+        visible_alias = "preserve-acls",
+        help = "Archiving the acl of the files"
+    )]
     pub(crate) keep_acl: bool,
     #[arg(long, help = "Archiving user to the entries from given name")]
     pub(crate) uname: Option<String>,

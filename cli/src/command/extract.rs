@@ -42,13 +42,29 @@ pub(crate) struct ExtractCommand {
     pub(crate) out_dir: Option<PathBuf>,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
-    #[arg(long, help = "Restore the timestamp of the files")]
+    #[arg(
+        long,
+        visible_alias = "preserve-timestamps",
+        help = "Restore the timestamp of the files"
+    )]
     pub(crate) keep_timestamp: bool,
-    #[arg(long, help = "Restore the permissions of the files")]
+    #[arg(
+        long,
+        visible_alias = "preserve-permissions",
+        help = "Restore the permissions of the files"
+    )]
     pub(crate) keep_permission: bool,
-    #[arg(long, help = "Restore the extended attributes of the files")]
+    #[arg(
+        long,
+        visible_alias = "preserve-xattrs",
+        help = "Restore the extended attributes of the files"
+    )]
     pub(crate) keep_xattr: bool,
-    #[arg(long, help = "Restore the acl of the files")]
+    #[arg(
+        long,
+        visible_alias = "preserve-acls",
+        help = "Restore the acl of the files"
+    )]
     pub(crate) keep_acl: bool,
     #[arg(long, help = "Restore user from given name")]
     pub(crate) uname: Option<String>,
