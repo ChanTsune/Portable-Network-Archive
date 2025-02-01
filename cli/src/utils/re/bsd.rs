@@ -92,9 +92,9 @@ impl FromStr for Substitution {
 impl Substitution {
     /// Parses a substitution rule from a BSD tar-style argument string.
     pub fn parse(rule: &str) -> Result<Self, SubstitutionError> {
-        let delimiter = rule.chars().next().ok_or(SubstitutionError::Empty)?;
-        let mut parts = rule.split(delimiter);
-        let _ = parts.next(); // ignore first empty str
+        let mut rule = rule.chars();
+        let delimiter = rule.next().ok_or(SubstitutionError::Empty)?;
+        let mut parts = rule.as_str().split(delimiter);
         let pattern = parts.next().ok_or(SubstitutionError::InvalidFormat)?;
         let replacement = parts.next().ok_or(SubstitutionError::InvalidFormat)?;
         let flags = parts.next().ok_or(SubstitutionError::InvalidFormat)?;
