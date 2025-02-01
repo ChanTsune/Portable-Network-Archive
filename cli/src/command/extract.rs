@@ -13,7 +13,7 @@ use crate::{
         },
         Command,
     },
-    utils::{self, fmt::DurationDisplay, re::bsd::Substitution, GlobPatterns},
+    utils::{self, fmt::DurationDisplay, re::bsd::SubstitutionRule, GlobPatterns},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::{prelude::*, DataKind, EntryReference, NormalEntry, Permission, ReadOptions};
@@ -95,7 +95,7 @@ pub(crate) struct ExtractCommand {
         value_name = "PATTERN",
         help = "Modify file or archive member names according to pattern that like BSD tar -s option"
     )]
-    substitutions: Option<Vec<Substitution>>,
+    substitutions: Option<Vec<SubstitutionRule>>,
     #[command(flatten)]
     pub(crate) file: FileArgs,
 }
@@ -159,7 +159,7 @@ pub(crate) struct OutputOption {
     pub(crate) out_dir: Option<PathBuf>,
     pub(crate) keep_options: KeepOptions,
     pub(crate) owner_options: OwnerOptions,
-    pub(crate) substitutions: Option<Vec<Substitution>>,
+    pub(crate) substitutions: Option<Vec<SubstitutionRule>>,
 }
 
 pub(crate) fn run_extract_archive_reader<'p, Provider>(

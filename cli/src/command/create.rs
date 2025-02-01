@@ -10,7 +10,7 @@ use crate::{
         },
         Command,
     },
-    utils::{self, fmt::DurationDisplay, re::bsd::Substitution},
+    utils::{self, fmt::DurationDisplay, re::bsd::SubstitutionRule},
 };
 use bytesize::ByteSize;
 use clap::{ArgGroup, Parser, ValueHint};
@@ -114,7 +114,7 @@ pub(crate) struct CreateCommand {
         value_name = "PATTERN",
         help = "Modify file or archive member names according to pattern that like BSD tar -s option"
     )]
-    substitutions: Option<Vec<Substitution>>,
+    substitutions: Option<Vec<SubstitutionRule>>,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -232,7 +232,7 @@ pub(crate) fn create_archive_file<W, F>(
     keep_options: KeepOptions,
     owner_options: OwnerOptions,
     solid: bool,
-    substitutions: Option<Vec<Substitution>>,
+    substitutions: Option<Vec<SubstitutionRule>>,
     target_items: Vec<PathBuf>,
 ) -> io::Result<()>
 where
@@ -286,7 +286,7 @@ fn create_archive_with_split(
     keep_options: KeepOptions,
     owner_options: OwnerOptions,
     solid: bool,
-    substitutions: Option<Vec<Substitution>>,
+    substitutions: Option<Vec<SubstitutionRule>>,
     target_items: Vec<PathBuf>,
     max_file_size: usize,
 ) -> io::Result<()> {

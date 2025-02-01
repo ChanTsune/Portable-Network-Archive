@@ -70,7 +70,7 @@ impl Replacer for SubstitutionReplacer {
 
 /// Struct representing a substitution rule.
 #[derive(Clone, Debug)]
-pub(crate) struct Substitution {
+pub(crate) struct SubstitutionRule {
     pattern: Regex,
     replacement: SubstitutionReplacer,
     global: bool,
@@ -80,7 +80,7 @@ pub(crate) struct Substitution {
     apply_to_regular_files: bool,
 }
 
-impl FromStr for Substitution {
+impl FromStr for SubstitutionRule {
     type Err = SubstitutionError;
 
     #[inline]
@@ -89,7 +89,7 @@ impl FromStr for Substitution {
     }
 }
 
-impl Substitution {
+impl SubstitutionRule {
     /// Parses a substitution rule from a BSD tar-style argument string.
     pub fn parse(rule: &str) -> Result<Self, SubstitutionError> {
         let mut rule = rule.chars();
@@ -168,7 +168,7 @@ mod tests {
 
     #[test]
     fn parse_and_apply_single() {
-        let substitution = Substitution::parse("/foo/bar/").unwrap();
+        let substitution = SubstitutionRule::parse("/foo/bar/").unwrap();
         let input = "foo baz foo";
         let result = substitution.apply(input, false, false).unwrap();
         assert_eq!(result, "bar baz foo");
@@ -176,7 +176,7 @@ mod tests {
 
     #[test]
     fn parse_and_apply_global() {
-        let substitution = Substitution::parse("/foo/bar/g").unwrap();
+        let substitution = SubstitutionRule::parse("/foo/bar/g").unwrap();
         let input = "foo baz foo";
         let result = substitution.apply(input, false, false).unwrap();
         assert_eq!(result, "bar baz bar");
@@ -184,7 +184,7 @@ mod tests {
 
     #[test]
     fn parse_and_apply_regular_files() {
-        let substitution = Substitution::parse("/foo/abc/r").unwrap();
+        let substitution = SubstitutionRule::parse("/foo/abc/r").unwrap();
         let input = "foo baz foo";
         let result = substitution.apply(input, false, false).unwrap();
         assert_eq!(result, "abc baz foo");
@@ -192,7 +192,7 @@ mod tests {
 
     #[test]
     fn parse_and_skip_regular_files() {
-        let substitution = Substitution::parse("/foo/abc/R").unwrap();
+        let substitution = SubstitutionRule::parse("/foo/abc/R").unwrap();
         let input = "foo baz foo";
         let result = substitution.apply(input, false, false);
         assert!(result.is_none());
@@ -200,7 +200,7 @@ mod tests {
 
     #[test]
     fn parse_and_apply_symlinks() {
-        let substitution = Substitution::parse("/foo/bar/s").unwrap();
+        let substitution = SubstitutionRule::parse("/foo/bar/s").unwrap();
         let input = "foo baz foo";
         let result = substitution.apply(input, true, false).unwrap();
         assert_eq!(result, "bar baz foo");
@@ -208,7 +208,7 @@ mod tests {
 
     #[test]
     fn parse_and_skip_symlinks() {
-        let substitution = Substitution::parse("/foo/bar/S").unwrap();
+        let substitution = SubstitutionRule::parse("/foo/bar/S").unwrap();
         let input = "foo baz foo";
         let result = substitution.apply(input, true, false);
         assert!(result.is_none());
@@ -216,7 +216,7 @@ mod tests {
 
     #[test]
     fn parse_and_apply_hardlinks() {
-        let substitution = Substitution::parse("/foo/bar/h").unwrap();
+        let substitution = SubstitutionRule::parse("/foo/bar/h").unwrap();
         let input = "foo baz foo";
         let result = substitution.apply(input, false, true).unwrap();
         assert_eq!(result, "bar baz foo");
@@ -224,7 +224,7 @@ mod tests {
 
     #[test]
     fn parse_and_skip_hardlinks() {
-        let substitution = Substitution::parse("/foo/bar/H").unwrap();
+        let substitution = SubstitutionRule::parse("/foo/bar/H").unwrap();
         let input = "foo baz foo";
         let result = substitution.apply(input, false, true);
         assert!(result.is_none());
@@ -232,7 +232,7 @@ mod tests {
 
     #[test]
     fn parse_and_notify() {
-        let substitution = Substitution::parse("/foo/bar/p").unwrap();
+        let substitution = SubstitutionRule::parse("/foo/bar/p").unwrap();
         let input = "foo baz foo";
         let result = substitution.apply(input, false, false).unwrap();
         assert_eq!(result, "bar baz foo");
@@ -240,12 +240,12 @@ mod tests {
 
     #[test]
     fn multiple_captures() {
-        let substitution = Substitution::parse("/(foo)/\\1bar/g").unwrap();
+        let substitution = SubstitutionRule::parse("/(foo)/\\1bar/g").unwrap();
         let input = "foo baz foo";
         let result = substitution.apply(input, false, false).unwrap();
         assert_eq!(result, "foobar baz foobar");
 
-        let substitution = Substitution::parse("/(foo)/\\1bar/").unwrap();
+        let substitution = SubstitutionRule::parse("/(foo)/\\1bar/").unwrap();
         let input = "foo baz foo";
         let result = substitution.apply(input, false, false).unwrap();
         assert_eq!(result, "foobar baz foo");
@@ -253,7 +253,7 @@ mod tests {
 
     #[test]
     fn tilde_replacement() {
-        let substitution = Substitution::parse("/foo/~bar~/g").unwrap();
+        let substitution = SubstitutionRule::parse("/foo/~bar~/g").unwrap();
         let input = "foo baz foo";
         let result = substitution.apply(input, false, false).unwrap();
         assert_eq!(result, "foobarfoo baz foobarfoo");

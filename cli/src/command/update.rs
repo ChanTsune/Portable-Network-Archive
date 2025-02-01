@@ -15,7 +15,7 @@ use crate::{
         },
         Command,
     },
-    utils::{self, env::temp_dir, re::bsd::Substitution, PathPartExt},
+    utils::{self, env::temp_dir, re::bsd::SubstitutionRule, PathPartExt},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;
@@ -124,7 +124,7 @@ pub(crate) struct UpdateCommand {
         value_name = "PATTERN",
         help = "Modify file or archive member names according to pattern that like BSD tar -s option"
     )]
-    substitutions: Option<Vec<Substitution>>,
+    substitutions: Option<Vec<SubstitutionRule>>,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
