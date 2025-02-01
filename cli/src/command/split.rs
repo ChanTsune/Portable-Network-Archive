@@ -15,7 +15,11 @@ pub(crate) struct SplitCommand {
     pub(crate) out_dir: Option<PathBuf>,
     #[arg(long, help = "Overwrite file")]
     pub(crate) overwrite: bool,
-    #[arg(long, help = "Maximum size of split archive")]
+    #[arg(
+        long,
+        value_name = "size",
+        help = "Maximum size in bytes of split archive"
+    )]
     pub(crate) max_size: Option<ByteSize>,
 }
 
