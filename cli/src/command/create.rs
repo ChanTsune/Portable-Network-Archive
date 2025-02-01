@@ -72,7 +72,11 @@ pub(crate) struct CreateCommand {
         help = "Archiving the acl of the files"
     )]
     pub(crate) keep_acl: bool,
-    #[arg(long, help = "Split archive by total entry size")]
+    #[arg(
+        long,
+        value_name = "size",
+        help = "Splits archive by given size in bytes"
+    )]
     pub(crate) split: Option<Option<ByteSize>>,
     #[arg(long, help = "Solid mode archive")]
     pub(crate) solid: bool,
