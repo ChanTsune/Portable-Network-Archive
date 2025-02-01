@@ -78,7 +78,7 @@ pub(crate) struct CreateCommand {
         help = "Splits archive by given size in bytes"
     )]
     pub(crate) split: Option<Option<ByteSize>>,
-    #[arg(long, help = "Solid mode archive")]
+    #[arg(long, help = "Create an archive in solid mode")]
     pub(crate) solid: bool,
     #[arg(long, help = "Archiving user to the entries from given name")]
     pub(crate) uname: Option<String>,
