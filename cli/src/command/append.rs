@@ -9,7 +9,7 @@ use crate::{
         },
         Command,
     },
-    utils::{self, re::bsd::Substitution, PathPartExt},
+    utils::{self, re::bsd::SubstitutionRule, PathPartExt},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
@@ -97,7 +97,7 @@ pub(crate) struct AppendCommand {
         value_name = "PATTERN",
         help = "Modify file or archive member names according to pattern that like BSD tar -s option"
     )]
-    substitutions: Option<Vec<Substitution>>,
+    substitutions: Option<Vec<SubstitutionRule>>,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]

@@ -11,7 +11,7 @@ use crate::{
         list::{ListOptions, TimeField, TimeFormat},
         Command,
     },
-    utils::{self, re::bsd::Substitution},
+    utils::{self, re::bsd::SubstitutionRule},
 };
 use clap::{ArgGroup, Args, Parser, ValueHint};
 use std::{
@@ -129,7 +129,7 @@ pub(crate) struct StdioCommand {
         value_name = "PATTERN",
         help = "Modify file or archive member names according to pattern that like BSD tar -s option"
     )]
-    substitutions: Option<Vec<Substitution>>,
+    substitutions: Option<Vec<SubstitutionRule>>,
     #[arg(short, long, help = "Input archive file path")]
     file: Option<PathBuf>,
     #[arg(help = "Files or patterns")]

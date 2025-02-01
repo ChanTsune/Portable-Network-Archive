@@ -1,6 +1,6 @@
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
-    utils::{self, env::temp_dir, re::bsd::Substitution, GlobPatterns, PathPartExt},
+    utils::{self, env::temp_dir, re::bsd::SubstitutionRule, GlobPatterns, PathPartExt},
 };
 use normalize_path::*;
 use pna::{
@@ -113,13 +113,13 @@ pub(crate) fn collect_items(
 
 pub(crate) fn apply_substitutions(
     name: impl Into<String>,
-    substitutions: &[Substitution],
+    substitutions: &[SubstitutionRule],
     is_symlink: bool,
     is_hardlink: bool,
 ) -> String {
     fn recurse(
         name: String,
-        substitutions: &[Substitution],
+        substitutions: &[SubstitutionRule],
         is_symlink: bool,
         is_hardlink: bool,
         index: usize,
@@ -149,7 +149,7 @@ pub(crate) fn create_entry(
         keep_options,
         owner_options,
     }: &CreateOptions,
-    substitutions: &Option<Vec<Substitution>>,
+    substitutions: &Option<Vec<SubstitutionRule>>,
 ) -> io::Result<NormalEntry> {
     let entry_name = if let Some(substitutions) = substitutions {
         EntryName::from(apply_substitutions(
