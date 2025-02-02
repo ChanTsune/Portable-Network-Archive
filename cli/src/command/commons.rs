@@ -1,6 +1,14 @@
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
-    utils::{self, env::temp_dir, re::bsd::SubstitutionRules, GlobPatterns, PathPartExt},
+    utils::{
+        self,
+        env::temp_dir,
+        re::{
+            bsd::{SubstitutionRule, SubstitutionRules},
+            gnu::{TransformRule, TransformRules},
+        },
+        GlobPatterns, PathPartExt,
+    },
 };
 use normalize_path::*;
 use pna::{
@@ -63,6 +71,37 @@ pub(crate) struct CreateOptions {
     pub(crate) owner_options: OwnerOptions,
 }
 
+#[derive(Clone, Debug)]
+pub(crate) enum PathTransformers {
+    BsdSubstitutions(SubstitutionRules),
+    GnuTransforms(TransformRules),
+}
+
+impl PathTransformers {
+    pub(crate) fn new(
+        substitutions: Option<Vec<SubstitutionRule>>,
+        transforms: Option<Vec<TransformRule>>,
+    ) -> Option<Self> {
+        if let Some(s) = substitutions {
+            Some(Self::BsdSubstitutions(SubstitutionRules::new(s)))
+        } else {
+            transforms.map(|t| Self::GnuTransforms(TransformRules::new(t)))
+        }
+    }
+    #[inline]
+    pub(crate) fn apply(
+        &self,
+        input: impl Into<String>,
+        is_symlink: bool,
+        is_hardlink: bool,
+    ) -> String {
+        match self {
+            Self::BsdSubstitutions(s) => s.apply(input, is_symlink, is_hardlink),
+            Self::GnuTransforms(t) => t.apply(input, is_symlink, is_hardlink),
+        }
+    }
+}
+
 pub(crate) fn collect_items(
     files: impl IntoIterator<Item = impl AsRef<Path>>,
     recursive: bool,
@@ -118,7 +157,7 @@ pub(crate) fn create_entry(
         keep_options,
         owner_options,
     }: &CreateOptions,
-    substitutions: &Option<SubstitutionRules>,
+    substitutions: &Option<PathTransformers>,
 ) -> io::Result<NormalEntry> {
     let entry_name = if let Some(substitutions) = substitutions {
         EntryName::from(substitutions.apply(path.to_string_lossy(), false, false))

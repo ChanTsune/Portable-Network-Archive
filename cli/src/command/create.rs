@@ -6,14 +6,14 @@ use crate::{
         ask_password, check_password,
         commons::{
             collect_items, create_entry, entry_option, write_split_archive, CreateOptions,
-            KeepOptions, OwnerOptions,
+            KeepOptions, OwnerOptions, PathTransformers,
         },
         Command,
     },
     utils::{
         self,
         fmt::DurationDisplay,
-        re::bsd::{SubstitutionRule, SubstitutionRules},
+        re::{bsd::SubstitutionRule, gnu::TransformRule},
     },
 };
 use bytesize::ByteSize;
@@ -35,6 +35,8 @@ use std::{
     group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-gitignore").args(["gitignore"]).requires("unstable")),
     group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
+    group(ArgGroup::new("unstable-transform").args(["transforms"]).requires("unstable")),
+    group(ArgGroup::new("path-transform").args(["substitutions", "transforms"])),
     group(ArgGroup::new("read-files-from").args(["files_from", "files_from_stdin"])),
     group(ArgGroup::new("store-uname").args(["uname"]).requires("keep_permission")),
     group(ArgGroup::new("store-gname").args(["gname"]).requires("keep_permission")),
@@ -119,6 +121,13 @@ pub(crate) struct CreateCommand {
         help = "Modify file or archive member names according to pattern that like BSD tar -s option"
     )]
     substitutions: Option<Vec<SubstitutionRule>>,
+    #[arg(
+        long = "transform",
+        visible_alias = "xform",
+        value_name = "PATTERN",
+        help = "Modify file or archive member names according to pattern that like GNU tar -transform option"
+    )]
+    transforms: Option<Vec<TransformRule>>,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -199,7 +208,7 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
         args.gid,
         args.numeric_owner,
     );
-    let substitutions = args.substitutions.map(SubstitutionRules::new);
+    let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
     let password = password.as_deref();
     let write_option = entry_option(args.compression, args.cipher, args.hash, password);
     if let Some(size) = max_file_size {
@@ -209,7 +218,7 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
             keep_options,
             owner_options,
             args.solid,
-            substitutions,
+            path_transformers,
             target_items,
             size,
         )?;
@@ -220,7 +229,7 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
             keep_options,
             owner_options,
             args.solid,
-            substitutions,
+            path_transformers,
             target_items,
         )?;
     }
@@ -237,7 +246,7 @@ pub(crate) fn create_archive_file<W, F>(
     keep_options: KeepOptions,
     owner_options: OwnerOptions,
     solid: bool,
-    substitutions: Option<SubstitutionRules>,
+    path_transformers: Option<PathTransformers>,
     target_items: Vec<PathBuf>,
 ) -> io::Result<()>
 where
@@ -260,7 +269,7 @@ where
         rayon::scope_fifo(|s| {
             s.spawn_fifo(|_| {
                 log::debug!("Adding: {}", file.display());
-                tx.send(create_entry(&file, &create_options, &substitutions))
+                tx.send(create_entry(&file, &create_options, &path_transformers))
                     .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
             })
         });
@@ -291,7 +300,7 @@ fn create_archive_with_split(
     keep_options: KeepOptions,
     owner_options: OwnerOptions,
     solid: bool,
-    substitutions: Option<SubstitutionRules>,
+    path_transformers: Option<PathTransformers>,
     target_items: Vec<PathBuf>,
     max_file_size: usize,
 ) -> io::Result<()> {
@@ -311,7 +320,7 @@ fn create_archive_with_split(
         rayon::scope_fifo(|s| {
             s.spawn_fifo(|_| {
                 log::debug!("Adding: {}", file.display());
-                tx.send(create_entry(&file, &create_options, &substitutions))
+                tx.send(create_entry(&file, &create_options, &path_transformers))
                     .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
             })
         });
