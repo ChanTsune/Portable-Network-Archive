@@ -84,11 +84,7 @@ pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<
 
 pub fn remove_with_empty_parents(path: impl AsRef<Path>) -> io::Result<()> {
     fn inner(path: &Path) -> io::Result<()> {
-        if path.is_dir() {
-            fs::remove_dir_all(path)?;
-        } else {
-            fs::remove_file(path)?;
-        }
+        pna::fs::remove_path_all(path)?;
         let mut current_path = path;
         while let Some(dir) = current_path.parent() {
             if fs::read_dir(dir)?.next().is_none() {
