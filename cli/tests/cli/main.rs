@@ -15,7 +15,6 @@ mod keep_acl;
 mod keep_all;
 mod list;
 mod multipart;
-mod password_from_file;
 mod restore_acl;
 mod restore_acl_0_19_1;
 mod solid_mode;
