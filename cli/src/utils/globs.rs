@@ -23,6 +23,12 @@ impl GlobPatterns {
     pub(crate) fn matches_any<P: AsRef<Path>>(&self, s: P) -> bool {
         self.0.is_match(s)
     }
+
+    #[inline]
+    pub(crate) fn starts_with_matches_any<P: AsRef<Path>>(&self, s: P) -> bool {
+        let p = s.as_ref();
+        p.ancestors().any(|it| self.0.is_match(it))
+    }
 }
 
 impl TryFrom<Vec<globset::Glob>> for GlobPatterns {
@@ -48,7 +54,7 @@ mod tests {
     }
 
     #[test]
-    fn glob_any() {
+    fn glob_suffix() {
         let globs = GlobPatterns::new(vec!["path/**"]).unwrap();
         assert!(globs.matches_any("path/foo.pna"));
     }
@@ -57,7 +63,28 @@ mod tests {
     fn glob_prefix() {
         let globs = GlobPatterns::new(vec!["**/foo.pna"]).unwrap();
         assert!(globs.matches_any("path/foo.pna"));
-        let globs = GlobPatterns::new(vec!["**/foo.pna"]).unwrap();
         assert!(globs.matches_any("path/path/foo.pna"));
+    }
+
+    #[test]
+    fn glob_middle_component() {
+        let globs = GlobPatterns::new(vec!["usr/**/bin"]).unwrap();
+        assert!(globs.matches_any("usr/local/bin"));
+        assert!(globs.matches_any("usr/share/bin"));
+    }
+
+    #[test]
+    fn glob_starts_with() {
+        let globs = GlobPatterns::new(vec!["usr"]).unwrap();
+        assert!(globs.starts_with_matches_any("usr/local/bin"));
+        assert!(globs.starts_with_matches_any("usr/share/bin"));
+        assert!(!globs.starts_with_matches_any("etc/usr/bin"));
+        let globs = GlobPatterns::new(vec!["usr/**"]).unwrap();
+        assert!(globs.starts_with_matches_any("usr/local/bin"));
+        assert!(globs.starts_with_matches_any("usr/share/bin"));
+        assert!(!globs.starts_with_matches_any("etc/usr/bin"));
+        let globs = GlobPatterns::new(vec!["**/bin"]).unwrap();
+        assert!(globs.starts_with_matches_any("usr/local/bin"));
+        assert!(globs.starts_with_matches_any("usr/share/bin"));
     }
 }
