@@ -187,29 +187,13 @@ fn apply_substitutions(
     is_symlink: bool,
     is_hardlink: bool,
 ) -> String {
-    fn recurse(
-        name: String,
-        substitutions: &[SubstitutionRule],
-        is_symlink: bool,
-        is_hardlink: bool,
-        index: usize,
-    ) -> String {
-        if index >= substitutions.len() {
-            return name;
+    let mut output = name.into();
+    for rule in substitutions {
+        if let Some(applied) = rule.apply(&output, is_symlink, is_hardlink) {
+            output = applied.into_owned();
         }
-
-        if let Some(replaced) = substitutions[index].apply(&name, is_symlink, is_hardlink) {
-            return recurse(
-                replaced.into(),
-                substitutions,
-                is_symlink,
-                is_hardlink,
-                index + 1,
-            );
-        }
-        recurse(name, substitutions, is_symlink, is_hardlink, index + 1)
     }
-    recurse(name.into(), substitutions, is_symlink, is_hardlink, 0)
+    output
 }
 
 #[cfg(test)]
