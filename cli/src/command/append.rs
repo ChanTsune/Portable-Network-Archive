@@ -6,12 +6,13 @@ use crate::{
         ask_password, check_password,
         commons::{
             collect_items, create_entry, entry_option, CreateOptions, KeepOptions, OwnerOptions,
+            PathTransformers,
         },
         Command,
     },
     utils::{
         self,
-        re::bsd::{SubstitutionRule, SubstitutionRules},
+        re::{bsd::SubstitutionRule, gnu::TransformRule},
         PathPartExt,
     },
 };
@@ -28,6 +29,8 @@ use std::{fs::File, io, path::PathBuf};
     group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-gitignore").args(["gitignore"]).requires("unstable")),
     group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
+    group(ArgGroup::new("unstable-transform").args(["transforms"]).requires("unstable")),
+    group(ArgGroup::new("path-transform").args(["substitutions", "transforms"])),
     group(ArgGroup::new("read-files-from").args(["files_from", "files_from_stdin"])),
     group(ArgGroup::new("store-uname").args(["uname"]).requires("keep_permission")),
     group(ArgGroup::new("store-gname").args(["gname"]).requires("keep_permission")),
@@ -102,6 +105,13 @@ pub(crate) struct AppendCommand {
         help = "Modify file or archive member names according to pattern that like BSD tar -s option"
     )]
     substitutions: Option<Vec<SubstitutionRule>>,
+    #[arg(
+        long = "transform",
+        visible_alias = "xform",
+        value_name = "PATTERN",
+        help = "Modify file or archive member names according to pattern that like GNU tar -transform option"
+    )]
+    transforms: Option<Vec<TransformRule>>,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -197,13 +207,13 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
         keep_options,
         owner_options,
     };
-    let substitutions = args.substitutions.map(SubstitutionRules::new);
+    let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
     for file in target_items {
         let tx = tx.clone();
         rayon::scope_fifo(|s| {
             s.spawn_fifo(|_| {
                 log::debug!("Adding: {}", file.display());
-                tx.send(create_entry(&file, &create_options, &substitutions))
+                tx.send(create_entry(&file, &create_options, &path_transformers))
                     .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
             })
         });

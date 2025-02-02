@@ -4,7 +4,7 @@ use crate::{
         ask_password, check_password,
         commons::{
             collect_items, entry_option, KeepOptions, OwnerOptions, PathArchiveProvider,
-            StdinArchiveProvider,
+            PathTransformers, StdinArchiveProvider,
         },
         create::create_archive_file,
         extract::{run_extract_archive_reader, OutputOption},
@@ -13,7 +13,7 @@ use crate::{
     },
     utils::{
         self,
-        re::bsd::{SubstitutionRule, SubstitutionRules},
+        re::{bsd::SubstitutionRule, gnu::TransformRule},
     },
 };
 use clap::{ArgGroup, Args, Parser, ValueHint};
@@ -32,6 +32,8 @@ use std::{
     group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-gitignore").args(["gitignore"]).requires("unstable")),
     group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
+    group(ArgGroup::new("unstable-transform").args(["transforms"]).requires("unstable")),
+    group(ArgGroup::new("path-transform").args(["substitutions", "transforms"])),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
 )]
@@ -133,6 +135,13 @@ pub(crate) struct StdioCommand {
         help = "Modify file or archive member names according to pattern that like BSD tar -s option"
     )]
     substitutions: Option<Vec<SubstitutionRule>>,
+    #[arg(
+        long = "transform",
+        visible_alias = "xform",
+        value_name = "PATTERN",
+        help = "Modify file or archive member names according to pattern that like GNU tar -transform option"
+    )]
+    transforms: Option<Vec<TransformRule>>,
     #[arg(short, long, help = "Input archive file path")]
     file: Option<PathBuf>,
     #[arg(help = "Files or patterns")]
@@ -207,7 +216,7 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
         args.gid,
         args.numeric_owner,
     );
-    let substitutions = args.substitutions.map(SubstitutionRules::new);
+    let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
     if let Some(file) = args.file {
         create_archive_file(
             || fs::File::open(&file),
@@ -215,7 +224,7 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
             keep_options,
             owner_options,
             args.solid,
-            substitutions,
+            path_transformers,
             target_items,
         )
     } else {
@@ -225,7 +234,7 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
             keep_options,
             owner_options,
             args.solid,
-            substitutions,
+            path_transformers,
             target_items,
         )
     }
@@ -250,7 +259,7 @@ fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
             args.gid,
             args.numeric_owner,
         ),
-        substitutions: args.substitutions.map(SubstitutionRules::new),
+        path_transformers: PathTransformers::new(args.substitutions, args.transforms),
     };
     if let Some(file) = args.file {
         run_extract_archive_reader(

@@ -87,7 +87,7 @@ impl TransformRule {
                 'H' => apply_to_hardlinks = false,
                 'r' => apply_to_regular_files = true,
                 'R' => apply_to_regular_files = false,
-                f if f.is_digit(10) => match_number = f.to_digit(10).map(|it| it as usize),
+                f if f.is_ascii_digit() => match_number = f.to_digit(10).map(|it| it as usize),
                 f => return Err(TransformRuleError::InvalidFlag(f)),
             }
         }
@@ -164,6 +164,11 @@ fn apply_transforms(
 pub(crate) struct TransformRules(Vec<TransformRule>);
 
 impl TransformRules {
+    #[inline]
+    pub(crate) fn new(rules: Vec<TransformRule>) -> TransformRules {
+        Self(rules)
+    }
+
     #[inline]
     pub(crate) fn apply(
         &self,

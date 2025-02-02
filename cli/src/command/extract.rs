@@ -8,13 +8,15 @@ use crate::{
     cli::{FileArgs, PasswordArgs},
     command::{
         ask_password,
-        commons::{run_process_archive, ArchiveProvider, KeepOptions, OwnerOptions},
+        commons::{
+            run_process_archive, ArchiveProvider, KeepOptions, OwnerOptions, PathTransformers,
+        },
         Command,
     },
     utils::{
         self,
         fmt::DurationDisplay,
-        re::bsd::{SubstitutionRule, SubstitutionRules},
+        re::{bsd::SubstitutionRule, gnu::TransformRule},
         GlobPatterns,
     },
 };
@@ -32,6 +34,8 @@ use std::{borrow::Cow, fs, io, path::PathBuf, time::Instant};
 #[command(
     group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
     group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
+    group(ArgGroup::new("unstable-transform").args(["transforms"]).requires("unstable")),
+    group(ArgGroup::new("path-transform").args(["substitutions", "transforms"])),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
 )]
@@ -99,6 +103,13 @@ pub(crate) struct ExtractCommand {
         help = "Modify file or archive member names according to pattern that like BSD tar -s option"
     )]
     substitutions: Option<Vec<SubstitutionRule>>,
+    #[arg(
+        long = "transform",
+        visible_alias = "xform",
+        value_name = "PATTERN",
+        help = "Modify file or archive member names according to pattern that like GNU tar -transform option"
+    )]
+    transforms: Option<Vec<TransformRule>>,
     #[command(flatten)]
     pub(crate) file: FileArgs,
 }
@@ -132,7 +143,7 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
         out_dir: args.out_dir,
         keep_options,
         owner_options,
-        substitutions: args.substitutions.map(SubstitutionRules::new),
+        path_transformers: PathTransformers::new(args.substitutions, args.transforms),
     };
     #[cfg(not(feature = "memmap"))]
     run_extract_archive_reader(
@@ -162,7 +173,7 @@ pub(crate) struct OutputOption {
     pub(crate) out_dir: Option<PathBuf>,
     pub(crate) keep_options: KeepOptions,
     pub(crate) owner_options: OwnerOptions,
-    pub(crate) substitutions: Option<SubstitutionRules>,
+    pub(crate) path_transformers: Option<PathTransformers>,
 }
 
 pub(crate) fn run_extract_archive_reader<'p, Provider>(
@@ -269,7 +280,7 @@ pub(crate) fn extract_entry<T>(
         out_dir,
         keep_options,
         owner_options,
-        substitutions,
+        path_transformers,
     }: &OutputOption,
 ) -> io::Result<()>
 where
@@ -287,8 +298,8 @@ where
     } else {
         Cow::from(item_path)
     };
-    let item_path = if let Some(substitutions) = substitutions {
-        Cow::from(PathBuf::from(substitutions.apply(
+    let item_path = if let Some(transformers) = path_transformers {
+        Cow::from(PathBuf::from(transformers.apply(
             item_path.to_string_lossy(),
             false,
             false,
@@ -344,7 +355,7 @@ where
         DataKind::SymbolicLink => {
             let reader = item.reader(ReadOptions::with_password(password))?;
             let original = io::read_to_string(reader)?;
-            let original = if let Some(substitutions) = substitutions {
+            let original = if let Some(substitutions) = path_transformers {
                 substitutions.apply(original, true, false)
             } else {
                 original
@@ -358,7 +369,7 @@ where
         DataKind::HardLink => {
             let reader = item.reader(ReadOptions::with_password(password))?;
             let original = io::read_to_string(reader)?;
-            let original = if let Some(substitutions) = substitutions {
+            let original = if let Some(substitutions) = path_transformers {
                 substitutions.apply(original, true, false)
             } else {
                 original
