@@ -202,6 +202,14 @@ mod tests {
         let transformed = expressions.apply(input, false, false).unwrap();
         assert_eq!(transformed, "var/local/bin");
     }
+    // TODO: Support this use case
+    // #[test]
+    // fn convert_each_file_name_to_lower_case() {
+    //     let input = "UsR/locAl/Bin";
+    //     let expressions = TransformRule::from_str("s/.*/\\L&/").unwrap();
+    //     let transformed = expressions.apply(input, false, false).unwrap();
+    //     assert_eq!(transformed, "usr/local/bin");
+    // }
 
     #[test]
     fn prepend_prefix_to_each_file_name() {
