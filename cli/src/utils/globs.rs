@@ -1,5 +1,6 @@
 use std::path::Path;
 
+#[derive(Clone, Debug)]
 pub(crate) struct GlobPatterns(globset::GlobSet);
 
 impl GlobPatterns {
