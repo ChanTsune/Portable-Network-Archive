@@ -32,6 +32,8 @@ use std::{borrow::Cow, fs, io, path::PathBuf, time::Instant};
 
 #[derive(Parser, Clone, Debug)]
 #[command(
+    group(ArgGroup::new("unstable-exclude").args(["exclude"]).requires("unstable")),
+    group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
     group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
     group(ArgGroup::new("unstable-transform").args(["transforms"]).requires("unstable")),
@@ -92,6 +94,10 @@ pub(crate) struct ExtractCommand {
         help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names in the archive to be ignored in favor of the numeric user and group ids."
     )]
     pub(crate) numeric_owner: bool,
+    #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
+    exclude: Option<Vec<String>>,
+    #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
+    exclude_from: Option<PathBuf>,
     #[arg(
         long,
         help = "Remove the specified number of leading path elements. Path names with fewer elements will be silently skipped"
@@ -124,6 +130,19 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
     let password = ask_password(args.password)?;
     let start = Instant::now();
     log::info!("Extract archive {}", args.file.archive.display());
+
+    let exclude = {
+        let mut exclude = Vec::new();
+        if let Some(e) = args.exclude {
+            exclude.extend(e);
+        }
+        if let Some(p) = args.exclude_from {
+            exclude.extend(utils::fs::read_to_lines(p)?);
+        }
+        GlobPatterns::new(exclude)
+    }
+    .map_err(io::Error::other)?;
+
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
         keep_permission: args.keep_permission,
@@ -141,6 +160,7 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
         overwrite: args.overwrite,
         strip_components: args.strip_components,
         out_dir: args.out_dir,
+        exclude,
         keep_options,
         owner_options,
         path_transformers: PathTransformers::new(args.substitutions, args.transforms),
@@ -171,6 +191,7 @@ pub(crate) struct OutputOption {
     pub(crate) overwrite: bool,
     pub(crate) strip_components: Option<usize>,
     pub(crate) out_dir: Option<PathBuf>,
+    pub(crate) exclude: GlobPatterns,
     pub(crate) keep_options: KeepOptions,
     pub(crate) owner_options: OwnerOptions,
     pub(crate) path_transformers: Option<PathTransformers>,
@@ -278,6 +299,7 @@ pub(crate) fn extract_entry<T>(
         overwrite,
         strip_components,
         out_dir,
+        exclude,
         keep_options,
         owner_options,
         path_transformers,
@@ -289,6 +311,9 @@ where
 {
     let overwrite = *overwrite;
     let item_path = item.header().path().as_path();
+    if exclude.starts_with_matches_any(item_path) {
+        return Ok(());
+    }
     log::debug!("Extract: {}", item_path.display());
     let item_path = if let Some(strip_count) = *strip_components {
         if item_path.components().count() <= strip_count {

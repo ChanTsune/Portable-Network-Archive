@@ -14,6 +14,7 @@ use crate::{
     utils::{
         self,
         re::{bsd::SubstitutionRule, gnu::TransformRule},
+        GlobPatterns,
     },
 };
 use clap::{ArgGroup, Args, Parser, ValueHint};
@@ -88,7 +89,7 @@ pub(crate) struct StdioCommand {
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
-    pub(crate) exclude: Option<Vec<PathBuf>>,
+    pub(crate) exclude: Option<Vec<String>>,
     #[arg(long, help = "Ignore files from .gitignore (unstable)")]
     pub(crate) gitignore: bool,
     #[arg(long, help = "Follow symbolic links")]
@@ -183,7 +184,7 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
     let exclude = if args.exclude.is_some() || args.exclude_from.is_some() {
         let mut exclude = Vec::new();
         if let Some(e) = args.exclude {
-            exclude.extend(e);
+            exclude.extend(e.into_iter().map(PathBuf::from));
         }
         if let Some(p) = args.exclude_from {
             exclude.extend(utils::fs::read_to_lines(p)?.into_iter().map(PathBuf::from));
@@ -242,10 +243,24 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
 
 fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
     let password = ask_password(args.password)?;
+
+    let exclude = {
+        let mut exclude = Vec::new();
+        if let Some(e) = args.exclude {
+            exclude.extend(e);
+        }
+        if let Some(p) = args.exclude_from {
+            exclude.extend(utils::fs::read_to_lines(p)?);
+        }
+        GlobPatterns::new(exclude)
+    }
+    .map_err(io::Error::other)?;
+
     let out_option = OutputOption {
         overwrite: args.overwrite,
         strip_components: args.strip_components,
         out_dir: args.out_dir,
+        exclude,
         keep_options: KeepOptions {
             keep_timestamp: args.keep_timestamp,
             keep_permission: args.keep_permission,
