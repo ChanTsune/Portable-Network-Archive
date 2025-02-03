@@ -65,6 +65,7 @@ pub fn extract_in<T: rust_embed::Embed>(item: &str, into: impl AsRef<Path>) -> i
 }
 
 pub fn setup() {
+    fs::create_dir_all(env!("CARGO_TARGET_TMPDIR")).expect("Failed to create working dir");
     std::env::set_current_dir(env!("CARGO_TARGET_TMPDIR")).expect("Failed to set current dir");
 }
 
