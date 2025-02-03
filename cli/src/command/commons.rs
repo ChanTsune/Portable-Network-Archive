@@ -108,13 +108,12 @@ pub(crate) fn collect_items(
     keep_dir: bool,
     gitignore: bool,
     follow_links: bool,
-    exclude: Option<Vec<PathBuf>>,
+    exclude: impl IntoIterator<Item = PathBuf>,
 ) -> io::Result<Vec<PathBuf>> {
     let mut files = files.into_iter();
     let exclude = GlobPatterns::new(
         exclude
             .into_iter()
-            .flatten()
             .map(|path| path.normalize().to_string_lossy().into_owned()),
     )
     .map_err(io::Error::other)?;
@@ -836,11 +835,11 @@ mod tests {
 
     #[test]
     fn collect_items_only_file() {
-        let source = [format!(
-            "{}/../resources/test/raw",
-            env!("CARGO_MANIFEST_DIR")
+        let source = [concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../resources/test/raw",
         )];
-        let items = collect_items(source, false, false, false, false, None).unwrap();
+        let items = collect_items(source, false, false, false, false, []).unwrap();
         assert_eq!(
             items.into_iter().collect::<HashSet<_>>(),
             [].into_iter().collect::<HashSet<_>>()
@@ -849,16 +848,16 @@ mod tests {
 
     #[test]
     fn collect_items_keep_dir() {
-        let source = [format!(
-            "{}/../resources/test/raw",
-            env!("CARGO_MANIFEST_DIR")
+        let source = [concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../resources/test/raw",
         )];
-        let items = collect_items(source, false, true, false, false, None).unwrap();
+        let items = collect_items(source, false, true, false, false, []).unwrap();
         assert_eq!(
             items.into_iter().collect::<HashSet<_>>(),
-            [format!(
-                "{}/../resources/test/raw",
-                env!("CARGO_MANIFEST_DIR")
+            [concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../resources/test/raw",
             )]
             .into_iter()
             .map(Into::into)
@@ -868,49 +867,49 @@ mod tests {
 
     #[test]
     fn collect_items_recursive() {
-        let source = [format!(
-            "{}/../resources/test/raw",
-            env!("CARGO_MANIFEST_DIR")
+        let source = [concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../resources/test/raw",
         )];
-        let items = collect_items(source, true, false, false, false, None).unwrap();
+        let items = collect_items(source, true, false, false, false, []).unwrap();
         assert_eq!(
             items.into_iter().collect::<HashSet<_>>(),
             [
-                format!(
-                    "{}/../resources/test/raw/first/second/third/pna.txt",
-                    env!("CARGO_MANIFEST_DIR")
+                concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../resources/test/raw/first/second/third/pna.txt"
                 ),
-                format!(
-                    "{}/../resources/test/raw/images/icon.bmp",
-                    env!("CARGO_MANIFEST_DIR")
+                concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../resources/test/raw/images/icon.bmp"
                 ),
-                format!(
-                    "{}/../resources/test/raw/images/icon.png",
-                    env!("CARGO_MANIFEST_DIR")
+                concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../resources/test/raw/images/icon.png"
                 ),
-                format!(
-                    "{}/../resources/test/raw/images/icon.svg",
-                    env!("CARGO_MANIFEST_DIR")
+                concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../resources/test/raw/images/icon.svg"
                 ),
-                format!(
-                    "{}/../resources/test/raw/parent/child.txt",
-                    env!("CARGO_MANIFEST_DIR")
+                concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../resources/test/raw/parent/child.txt"
                 ),
-                format!(
-                    "{}/../resources/test/raw/pna/empty.pna",
-                    env!("CARGO_MANIFEST_DIR")
+                concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../resources/test/raw/pna/empty.pna"
                 ),
-                format!(
-                    "{}/../resources/test/raw/pna/nest.pna",
-                    env!("CARGO_MANIFEST_DIR")
+                concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../resources/test/raw/pna/nest.pna"
                 ),
-                format!(
-                    "{}/../resources/test/raw/empty.txt",
-                    env!("CARGO_MANIFEST_DIR")
+                concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../resources/test/raw/empty.txt"
                 ),
-                format!(
-                    "{}/../resources/test/raw/text.txt",
-                    env!("CARGO_MANIFEST_DIR")
+                concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../resources/test/raw/text.txt"
                 ),
             ]
             .into_iter()

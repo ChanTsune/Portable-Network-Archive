@@ -181,7 +181,7 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
     if let Some(path) = args.files_from {
         files.extend(utils::fs::read_to_lines(path)?);
     }
-    let exclude = if args.exclude.is_some() || args.exclude_from.is_some() {
+    let exclude = {
         let mut exclude = Vec::new();
         if let Some(e) = args.exclude {
             exclude.extend(e.into_iter().map(PathBuf::from));
@@ -189,9 +189,7 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
         if let Some(p) = args.exclude_from {
             exclude.extend(utils::fs::read_to_lines(p)?.into_iter().map(PathBuf::from));
         }
-        Some(exclude)
-    } else {
-        None
+        exclude
     };
     let target_items = collect_items(
         &files,
