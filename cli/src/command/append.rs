@@ -18,7 +18,11 @@ use crate::{
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
-use std::{env, fs::File, io, path::PathBuf};
+use std::{
+    env,
+    fs, io,
+    path::{Path, PathBuf},
+};
 
 #[derive(Parser, Clone, Debug)]
 #[command(
@@ -149,7 +153,6 @@ impl Command for AppendCommand {
 }
 
 fn append_to_archive(args: AppendCommand) -> io::Result<()> {
-    let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let archive_path = &args.file.archive;
@@ -159,54 +162,6 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
             format!("{} is not exists", archive_path.display()),
         ));
     }
-
-    let mut files = args.file.files;
-    if args.files_from_stdin {
-        files.extend(io::stdin().lines().collect::<io::Result<Vec<_>>>()?);
-    } else if let Some(path) = args.files_from {
-        files.extend(utils::fs::read_to_lines(path)?);
-    }
-    let exclude = {
-        let mut exclude = Vec::new();
-        if let Some(e) = args.exclude {
-            exclude.extend(e);
-        }
-        if let Some(p) = args.exclude_from {
-            exclude.extend(utils::fs::read_to_lines(p)?.into_iter().map(PathBuf::from));
-        }
-        exclude
-    };
-
-    let archive_path = current_dir.join(args.file.archive);
-    if let Some(working_dir) = args.working_dir {
-        env::set_current_dir(working_dir)?;
-    }
-    let mut num = 1;
-    let file = File::options().write(true).read(true).open(&archive_path)?;
-    let mut archive = Archive::read_header(file)?;
-    let mut archive = loop {
-        archive.seek_to_end()?;
-        if !archive.has_next_archive() {
-            break archive;
-        }
-        num += 1;
-        let file = File::options()
-            .write(true)
-            .read(true)
-            .open(archive_path.with_part(num).unwrap())?;
-        archive = archive.read_next_archive(file)?;
-    };
-
-    let target_items = collect_items(
-        &files,
-        args.recursive,
-        args.keep_dir,
-        args.gitignore,
-        args.follow_links,
-        exclude,
-    )?;
-
-    let (tx, rx) = std::sync::mpsc::channel();
     let password = password.as_deref();
     let option = entry_option(args.compression, args.cipher, args.hash, password);
     let keep_options = KeepOptions {
@@ -228,12 +183,55 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
         owner_options,
     };
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
+
+    let archive = open_archive_then_seek_to_end(&archive_path)?;
+
+    let mut files = args.file.files;
+    if args.files_from_stdin {
+        files.extend(io::stdin().lines().collect::<io::Result<Vec<_>>>()?);
+    } else if let Some(path) = args.files_from {
+        files.extend(utils::fs::read_to_lines(path)?);
+    }
+    let exclude = {
+        let mut exclude = Vec::new();
+        if let Some(e) = args.exclude {
+            exclude.extend(e);
+        }
+        if let Some(p) = args.exclude_from {
+            exclude.extend(utils::fs::read_to_lines(p)?.into_iter().map(PathBuf::from));
+        }
+        exclude
+    };
+
+    if let Some(working_dir) = args.working_dir {
+        env::set_current_dir(working_dir)?;
+    }
+
+    let target_items = collect_items(
+        &files,
+        args.recursive,
+        args.keep_dir,
+        args.gitignore,
+        args.follow_links,
+        exclude,
+    )?;
+
+    run_append_archive(&create_options, &path_transformers, archive, target_items)
+}
+
+fn run_append_archive(
+    create_options: &CreateOptions,
+    path_transformers: &Option<PathTransformers>,
+    mut archive: Archive<fs::File>,
+    target_items: Vec<PathBuf>,
+) -> io::Result<()> {
+    let (tx, rx) = std::sync::mpsc::channel();
     for file in target_items {
         let tx = tx.clone();
         rayon::scope_fifo(|s| {
             s.spawn_fifo(|_| {
                 log::debug!("Adding: {}", file.display());
-                tx.send(create_entry(&file, &create_options, &path_transformers))
+                tx.send(create_entry(&file, create_options, path_transformers))
                     .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
             })
         });
@@ -247,4 +245,26 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
     archive.finalize()?;
 
     Ok(())
+}
+
+fn open_archive_then_seek_to_end(path: impl AsRef<Path>) -> io::Result<Archive<fs::File>> {
+    let archive_path = path.as_ref();
+    let mut num = 1;
+    let file = fs::File::options()
+        .write(true)
+        .read(true)
+        .open(archive_path)?;
+    let mut archive = Archive::read_header(file)?;
+    loop {
+        archive.seek_to_end()?;
+        if !archive.has_next_archive() {
+            break Ok(archive);
+        }
+        num += 1;
+        let file = fs::File::options()
+            .write(true)
+            .read(true)
+            .open(archive_path.with_part(num).unwrap())?;
+        archive = archive.read_next_archive(file)?;
+    }
 }
