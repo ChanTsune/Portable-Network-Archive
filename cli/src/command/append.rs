@@ -18,7 +18,10 @@ use crate::{
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
-use std::{fs::File, io};
+use std::{
+    fs, io,
+    path::{Path, PathBuf},
+};
 
 #[derive(Parser, Clone, Debug)]
 #[command(
@@ -155,21 +158,29 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
             format!("{} is not exists", archive_path.display()),
         ));
     }
-    let mut num = 1;
-    let file = File::options().write(true).read(true).open(&archive_path)?;
-    let mut archive = Archive::read_header(file)?;
-    let mut archive = loop {
-        archive.seek_to_end()?;
-        if !archive.has_next_archive() {
-            break archive;
-        }
-        num += 1;
-        let file = File::options()
-            .write(true)
-            .read(true)
-            .open(archive_path.with_part(num).unwrap())?;
-        archive = archive.read_next_archive(file)?;
+    let password = password.as_deref();
+    let option = entry_option(args.compression, args.cipher, args.hash, password);
+    let keep_options = KeepOptions {
+        keep_timestamp: args.keep_timestamp,
+        keep_permission: args.keep_permission,
+        keep_xattr: args.keep_xattr,
+        keep_acl: args.keep_acl,
     };
+    let owner_options = OwnerOptions::new(
+        args.uname,
+        args.gname,
+        args.uid,
+        args.gid,
+        args.numeric_owner,
+    );
+    let create_options = CreateOptions {
+        option,
+        keep_options,
+        owner_options,
+    };
+    let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
+
+    let archive = open_archive_then_seek_to_end(&archive_path)?;
 
     let mut files = args.file.files;
     if args.files_from_stdin {
@@ -193,34 +204,22 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
         exclude,
     )?;
 
+    run_append_archive(&create_options, &path_transformers, archive, target_items)
+}
+
+fn run_append_archive(
+    create_options: &CreateOptions,
+    path_transformers: &Option<PathTransformers>,
+    mut archive: Archive<fs::File>,
+    target_items: Vec<PathBuf>,
+) -> io::Result<()> {
     let (tx, rx) = std::sync::mpsc::channel();
-    let password = password.as_deref();
-    let option = entry_option(args.compression, args.cipher, args.hash, password);
-    let keep_options = KeepOptions {
-        keep_timestamp: args.keep_timestamp,
-        keep_permission: args.keep_permission,
-        keep_xattr: args.keep_xattr,
-        keep_acl: args.keep_acl,
-    };
-    let owner_options = OwnerOptions::new(
-        args.uname,
-        args.gname,
-        args.uid,
-        args.gid,
-        args.numeric_owner,
-    );
-    let create_options = CreateOptions {
-        option,
-        keep_options,
-        owner_options,
-    };
-    let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
     for file in target_items {
         let tx = tx.clone();
         rayon::scope_fifo(|s| {
             s.spawn_fifo(|_| {
                 log::debug!("Adding: {}", file.display());
-                tx.send(create_entry(&file, &create_options, &path_transformers))
+                tx.send(create_entry(&file, create_options, path_transformers))
                     .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
             })
         });
@@ -233,4 +232,26 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
     }
     archive.finalize()?;
     Ok(())
+}
+
+fn open_archive_then_seek_to_end(path: impl AsRef<Path>) -> io::Result<Archive<fs::File>> {
+    let archive_path = path.as_ref();
+    let mut num = 1;
+    let file = fs::File::options()
+        .write(true)
+        .read(true)
+        .open(archive_path)?;
+    let mut archive = Archive::read_header(file)?;
+    loop {
+        archive.seek_to_end()?;
+        if !archive.has_next_archive() {
+            break Ok(archive);
+        }
+        num += 1;
+        let file = fs::File::options()
+            .write(true)
+            .read(true)
+            .open(archive_path.with_part(num).unwrap())?;
+        archive = archive.read_next_archive(file)?;
+    }
 }
