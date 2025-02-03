@@ -51,8 +51,9 @@ jobs:
       - name: run test
         run: |
           cargo hack test --locked --release --feature-powerset --exclude-features wasm
-        env:
-          RUST_BACKTRACE: 1
+# FIXME: https://github.com/ChanTsune/Portable-Network-Archive/issues/1477
+#        env:
+#          RUST_BACKTRACE: 1
 
   tier3_cross:
     strategy:
