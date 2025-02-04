@@ -52,9 +52,10 @@ pub(crate) struct CreateCommand {
         short,
         long,
         visible_alias = "recursion",
-        help = "Add the directory to the archive recursively"
+        help = "Add the directory to the archive recursively",
+        default_value_t = true
     )]
-    pub(crate) recursive: bool,
+    recursive: bool,
     #[arg(long, help = "Overwrite file")]
     pub(crate) overwrite: bool,
     #[arg(long, help = "Archiving the directories")]

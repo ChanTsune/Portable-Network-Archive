@@ -58,9 +58,10 @@ pub(crate) struct UpdateCommand {
         short,
         long,
         visible_alias = "recursion",
-        help = "Add the directory to the archive recursively"
+        help = "Add the directory to the archive recursively",
+        default_value_t = true
     )]
-    pub(crate) recursive: bool,
+    recursive: bool,
     #[arg(long, help = "Archiving the directories")]
     pub(crate) keep_dir: bool,
     #[arg(
