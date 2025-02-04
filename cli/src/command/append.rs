@@ -50,9 +50,10 @@ pub(crate) struct AppendCommand {
         short,
         long,
         visible_alias = "recursion",
-        help = "Add the directory to the archive recursively"
+        help = "Add the directory to the archive recursively",
+        default_value_t = true
     )]
-    pub(crate) recursive: bool,
+    recursive: bool,
     #[arg(
         long,
         visible_alias = "no-recursion",
@@ -209,7 +210,7 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
     }
     let target_items = collect_items(
         &files,
-        args.recursive,
+        !args.no_recursive,
         args.keep_dir,
         args.gitignore,
         args.follow_links,
