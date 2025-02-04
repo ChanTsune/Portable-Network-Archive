@@ -12,7 +12,6 @@ fn archive_chown() {
         "c",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/chown/chown.pna"),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/chown/in/"),
         "--keep-permission",
         #[cfg(windows)]

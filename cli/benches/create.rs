@@ -15,7 +15,6 @@ fn store(b: &mut Bencher) {
             &format!("{}/bench/store.pna", env!("CARGO_TARGET_TMPDIR")),
             "--store",
             "--overwrite",
-            "-r",
             "../resources/test/raw/",
         ]))
         .unwrap()
@@ -32,7 +31,6 @@ fn zstd(b: &mut Bencher) {
             &format!("{}/bench/zstd.pna", env!("CARGO_TARGET_TMPDIR")),
             "--zstd",
             "--overwrite",
-            "-r",
             "../resources/test/raw/",
         ]))
         .unwrap()
@@ -49,7 +47,6 @@ fn deflate(b: &mut Bencher) {
             &format!("{}/bench/deflate.pna", env!("CARGO_TARGET_TMPDIR")),
             "--deflate",
             "--overwrite",
-            "-r",
             "../resources/test/raw/",
         ]))
         .unwrap()
@@ -66,7 +63,6 @@ fn xz(b: &mut Bencher) {
             &format!("{}/bench/xz.pna", env!("CARGO_TARGET_TMPDIR")),
             "--xz",
             "--overwrite",
-            "-r",
             "../resources/test/raw/",
         ]))
         .unwrap()
@@ -87,7 +83,6 @@ fn zstd_keep_timestamp(b: &mut Bencher) {
             "--zstd",
             "--keep-timestamp",
             "--overwrite",
-            "-r",
             "../resources/test/raw/",
         ]))
         .unwrap()
@@ -108,7 +103,6 @@ fn zstd_keep_permission(b: &mut Bencher) {
             "--zstd",
             "--keep-permission",
             "--overwrite",
-            "-r",
             "../resources/test/raw/",
         ]))
         .unwrap()

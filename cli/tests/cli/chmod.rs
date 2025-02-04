@@ -12,7 +12,6 @@ fn archive_chmod() {
         "c",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/chmod/chmod.pna"),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/chmod/in/"),
         "--keep-permission",
         #[cfg(windows)]

@@ -17,7 +17,6 @@ fn solid_store_archive() {
         concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_store/solid_store.pna"),
         "--store",
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_store/in/"),
         "--solid",
     ]))
@@ -56,7 +55,6 @@ fn solid_zstd_archive() {
         concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_zstd/solid_zstd.pna"),
         "--zstd",
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_zstd/in/"),
         "--solid",
     ]))
@@ -96,7 +94,6 @@ fn solid_xz_archive() {
         concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_xz/solid_xz.pna"),
         "--xz",
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_xz/in/"),
         "--solid",
     ]))
@@ -139,7 +136,6 @@ fn solid_deflate_archive() {
         ),
         "--deflate",
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_deflate/in/"),
         "--solid",
     ]))
