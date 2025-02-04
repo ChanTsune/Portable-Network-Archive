@@ -1,7 +1,7 @@
 use crate::command::{
-    append::AppendCommand, complete::CompleteCommand, concat::ConcatCommand, create::CreateCommand,
-    experimental::ExperimentalCommand, extract::ExtractCommand, list::ListCommand,
-    split::SplitCommand, strip::StripCommand,
+    append::AppendCommand, bugreport::BugReportCommand, complete::CompleteCommand,
+    concat::ConcatCommand, create::CreateCommand, experimental::ExperimentalCommand,
+    extract::ExtractCommand, list::ListCommand, split::SplitCommand, strip::StripCommand,
 };
 use clap::{value_parser, ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
 use log::{Level, LevelFilter};
@@ -80,6 +80,8 @@ pub(crate) enum Commands {
     Strip(StripCommand),
     #[command(about = "Generate shell auto complete")]
     Complete(CompleteCommand),
+    #[command(about = "Generate bug report template")]
+    BugReport(BugReportCommand),
     #[command(about = "Unstable experimental commands")]
     Experimental(ExperimentalCommand),
 }
