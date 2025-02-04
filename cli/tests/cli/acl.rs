@@ -16,7 +16,6 @@ fn archive_acl_get_set() {
         "c",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/acl_get_set/acl_get_set.pna"),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/acl_get_set/in/"),
     ]))
     .unwrap();
