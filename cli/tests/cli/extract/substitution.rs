@@ -13,7 +13,6 @@ fn extract_with_substitution() {
         "c",
         "extract_with_substitution/extract_with_substitution.pna",
         "--overwrite",
-        "-r",
         "extract_with_substitution/in/",
     ]))
     .unwrap();

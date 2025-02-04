@@ -16,7 +16,6 @@ fn concat_archive() {
         "create",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/concat_archive/concat.pna"),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/concat_archive/in"),
     ]))
     .unwrap();

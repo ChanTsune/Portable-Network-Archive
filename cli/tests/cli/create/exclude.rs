@@ -13,7 +13,6 @@ fn create_with_exclude() {
         "c",
         "create_with_exclude/create_with_exclude.pna",
         "--overwrite",
-        "-r",
         "create_with_exclude/in/",
         "--exclude",
         "**.txt",

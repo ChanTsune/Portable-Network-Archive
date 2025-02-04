@@ -17,7 +17,6 @@ fn split_archive() {
         "create",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/split_archive/split.pna"),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/split_archive/in/"),
     ]))
     .unwrap();

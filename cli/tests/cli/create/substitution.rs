@@ -13,7 +13,6 @@ fn create_with_substitution() {
         "c",
         "create_with_substitution/create_with_substitution.pna",
         "--overwrite",
-        "-r",
         "create_with_substitution/in/",
         "-s",
         "#create_with_substitution/in/##",
