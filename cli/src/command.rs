@@ -1,5 +1,6 @@
 mod acl;
 pub mod append;
+pub mod bugreport;
 mod chmod;
 mod chown;
 mod chunk;
@@ -31,6 +32,7 @@ pub fn entry(cli: Cli) -> io::Result<()> {
         Commands::Concat(cmd) => cmd.execute(),
         Commands::Strip(cmd) => cmd.execute(),
         Commands::Complete(cmd) => cmd.execute(),
+        Commands::BugReport(cmd) => cmd.execute(),
         Commands::Experimental(cmd) => cmd.execute(),
     }
 }
