@@ -19,8 +19,7 @@ use crate::{
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
 use std::{
-    env,
-    fs, io,
+    env, fs, io,
     path::{Path, PathBuf},
 };
 
@@ -219,10 +218,10 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
     run_append_archive(&create_options, &path_transformers, archive, target_items)
 }
 
-fn run_append_archive(
+pub(crate) fn run_append_archive(
     create_options: &CreateOptions,
     path_transformers: &Option<PathTransformers>,
-    mut archive: Archive<fs::File>,
+    mut archive: Archive<impl io::Write>,
     target_items: Vec<PathBuf>,
 ) -> io::Result<()> {
     let (tx, rx) = std::sync::mpsc::channel();
@@ -247,7 +246,9 @@ fn run_append_archive(
     Ok(())
 }
 
-fn open_archive_then_seek_to_end(path: impl AsRef<Path>) -> io::Result<Archive<fs::File>> {
+pub(crate) fn open_archive_then_seek_to_end(
+    path: impl AsRef<Path>,
+) -> io::Result<Archive<fs::File>> {
     let archive_path = path.as_ref();
     let mut num = 1;
     let file = fs::File::options()

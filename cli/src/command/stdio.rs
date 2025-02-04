@@ -1,10 +1,11 @@
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs, PasswordArgs},
     command::{
+        append::{open_archive_then_seek_to_end, run_append_archive},
         ask_password, check_password,
         commons::{
-            collect_items, collect_split_archives, entry_option, KeepOptions, OwnerOptions,
-            PathTransformers,
+            collect_items, collect_split_archives, entry_option, CreateOptions, KeepOptions,
+            OwnerOptions, PathTransformers,
         },
         create::create_archive_file,
         extract::{run_extract_archive_reader, OutputOption},
@@ -18,12 +19,8 @@ use crate::{
     },
 };
 use clap::{ArgGroup, Args, Parser, ValueHint};
-use std::{
-    fs,
-    io::{self, stdout},
-    path::PathBuf,
-    time::SystemTime,
-};
+use pna::Archive;
+use std::{fs, io, path::PathBuf, time::SystemTime};
 
 #[derive(Args, Clone, Debug)]
 #[command(
@@ -48,6 +45,8 @@ pub(crate) struct StdioCommand {
     extract: bool,
     #[arg(short = 't', long, help = "List files in archive")]
     list: bool,
+    #[arg(long, help = "Append files to archive")]
+    append: bool,
     #[arg(
         short,
         long,
@@ -175,6 +174,8 @@ fn run_stdio(args: StdioCommand) -> io::Result<()> {
         run_extract_archive(args)
     } else if args.list {
         run_list_archive(args)
+    } else if args.append {
+        run_append(args)
     } else {
         unreachable!()
     }
@@ -234,7 +235,7 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
         )
     } else {
         create_archive_file(
-            || Ok(stdout().lock()),
+            || Ok(io::stdout().lock()),
             cli_option,
             keep_options,
             owner_options,
@@ -323,6 +324,82 @@ fn run_list_archive(args: StdioCommand) -> io::Result<()> {
             password.as_deref(),
             &args.files,
             list_options,
+        )
+    }
+}
+
+fn run_append(args: StdioCommand) -> io::Result<()> {
+    let password = ask_password(args.password)?;
+    check_password(&password, &args.cipher);
+    let password = password.as_deref();
+    let option = entry_option(args.compression, args.cipher, args.hash, password);
+    let keep_options = KeepOptions {
+        keep_timestamp: args.keep_timestamp,
+        keep_permission: args.keep_permission,
+        keep_xattr: args.keep_xattr,
+        keep_acl: args.keep_acl,
+    };
+    let owner_options = OwnerOptions::new(
+        args.uname,
+        args.gname,
+        args.uid,
+        args.gid,
+        args.numeric_owner,
+    );
+    let create_options = CreateOptions {
+        option,
+        keep_options,
+        owner_options,
+    };
+    let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
+
+    let mut files = args.files;
+    if let Some(path) = args.files_from {
+        files.extend(utils::fs::read_to_lines(path)?);
+    }
+    let exclude = {
+        let mut exclude = Vec::new();
+        if let Some(e) = args.exclude {
+            exclude.extend(e.into_iter().map(PathBuf::from));
+        }
+        if let Some(p) = args.exclude_from {
+            exclude.extend(utils::fs::read_to_lines(p)?.into_iter().map(PathBuf::from));
+        }
+        exclude
+    };
+
+    if let Some(file) = &args.file {
+        let archive = open_archive_then_seek_to_end(file)?;
+        let target_items = collect_items(
+            &files,
+            args.recursive,
+            args.keep_dir,
+            args.gitignore,
+            args.follow_links,
+            exclude,
+        )?;
+        run_append_archive(&create_options, &path_transformers, archive, target_items)
+    } else {
+        let target_items = collect_items(
+            &files,
+            args.recursive,
+            args.keep_dir,
+            args.gitignore,
+            args.follow_links,
+            exclude,
+        )?;
+        let mut output_archive = Archive::write_header(io::stdout().lock())?;
+        {
+            let mut input_archive = Archive::read_header(io::stdin().lock())?;
+            for entry in input_archive.raw_entries() {
+                output_archive.add_entry(entry?)?;
+            }
+        }
+        run_append_archive(
+            &create_options,
+            &path_transformers,
+            output_archive,
+            target_items,
         )
     }
 }
