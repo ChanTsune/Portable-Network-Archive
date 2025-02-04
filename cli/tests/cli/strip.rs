@@ -19,7 +19,6 @@ fn archive_strip_metadata() {
             "/archive_strip_metadata/strip_metadata.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_strip_metadata/in/"),
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",

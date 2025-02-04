@@ -23,7 +23,6 @@ fn archive_create_uname_gname() {
             "/archive_create_uname_gname/create_uname_gname.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(
             env!("CARGO_TARGET_TMPDIR"),
             "/archive_create_uname_gname/in/"
@@ -99,7 +98,6 @@ fn archive_create_uid_gid() {
             "/archive_create_uid_gid/create_uid_gid.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_create_uid_gid/in/"),
         "--keep-permission",
         "--uid",

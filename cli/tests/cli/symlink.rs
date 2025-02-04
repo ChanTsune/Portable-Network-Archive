@@ -31,7 +31,6 @@ fn symlink() {
         "c",
         &format!("{}/symlink.pna", env!("CARGO_TARGET_TMPDIR")),
         "--overwrite",
-        "-r",
         &format!("{}/symlink/source", env!("CARGO_TARGET_TMPDIR")),
     ]))
     .unwrap();

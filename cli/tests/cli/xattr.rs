@@ -16,7 +16,6 @@ fn archive_xattr_set() {
         "c",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/xattr_set/xattr_set.pna"),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/xattr_set/in/"),
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
@@ -87,7 +86,6 @@ fn archive_xattr_remove() {
             "/xattr_remove/xattr_remove.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/xattr_remove/in/"),
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",

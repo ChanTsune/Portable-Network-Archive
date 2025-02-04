@@ -12,7 +12,6 @@ fn archive_list() {
         "c",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/list/list.pna"),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/list/in/"),
     ]))
     .unwrap();
@@ -38,7 +37,6 @@ fn archive_list_solid() {
         "c",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/list_solid/list_solid.pna"),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/list_solid/in/"),
         "--solid",
     ]))
@@ -66,7 +64,6 @@ fn archive_list_detail() {
         "c",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/list_detail/list_detail.pna"),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/list_detail/in/"),
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
@@ -110,7 +107,6 @@ fn archive_list_solid_detail() {
             "/list_solid_detail/list_solid_detail.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/list_solid_detail/in/"),
         "--solid",
         #[cfg(not(target_os = "netbsd"))]
@@ -155,7 +151,6 @@ fn archive_list_jsonl() {
         "c",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/list_jsonl/list_jsonl.pna"),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/list_jsonl/in/"),
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
@@ -203,7 +198,6 @@ fn archive_list_solid_jsonl() {
             "/list_solid_jsonl/list_solid_jsonl.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/list_solid_jsonl/in/"),
         "--solid",
         #[cfg(not(target_os = "netbsd"))]
@@ -253,7 +247,6 @@ fn archive_list_tree() {
         "c",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/list_tree/list_tree.pna"),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/list_tree/in/"),
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
@@ -301,7 +294,6 @@ fn archive_list_solid_tree() {
             "/list_solid_tree/list_solid_tree.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/list_solid_tree/in/"),
         "--solid",
         #[cfg(not(target_os = "netbsd"))]

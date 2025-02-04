@@ -16,7 +16,6 @@ fn extract_with_password_file() {
         "c",
         "extract_with_password_file/password_from_file.pna",
         "--overwrite",
-        "-r",
         "extract_with_password_file/in/",
         "--password",
         password,

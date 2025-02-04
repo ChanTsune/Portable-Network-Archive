@@ -20,7 +20,6 @@ fn delete_overwrite() {
             "/delete_overwrite/delete_overwrite.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/delete_overwrite/in/"),
     ]))
     .unwrap();
@@ -85,7 +84,6 @@ fn delete_output() {
             "/delete_output/delete_output.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/delete_output/in/"),
     ]))
     .unwrap();
@@ -145,7 +143,6 @@ fn delete_output_exclude() {
             "/delete_output_exclude/delete_output_exclude.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/delete_output_exclude/in/"),
     ]))
     .unwrap();
@@ -215,7 +212,6 @@ fn delete_solid() {
         ),
         "--overwrite",
         "--solid",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/delete_solid/in/"),
     ]))
     .unwrap();
@@ -276,7 +272,6 @@ fn delete_unsolid() {
         ),
         "--overwrite",
         "--solid",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/delete_unsolid/in/"),
     ]))
     .unwrap();

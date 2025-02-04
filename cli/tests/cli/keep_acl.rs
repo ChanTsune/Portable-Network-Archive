@@ -17,7 +17,6 @@ fn archive_keep_acl() {
         "c",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/keep_acl/keep_acl.pna"),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/keep_acl/in/"),
         "--keep-acl",
         "--unstable",

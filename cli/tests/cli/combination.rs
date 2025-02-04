@@ -49,7 +49,6 @@ fn combination_fs() {
                     joined_options
                 ),
                 "--overwrite",
-                "-r",
                 concat!(env!("CARGO_TARGET_TMPDIR"), "/combination_fs/in/"),
                 #[cfg(windows)]
                 "--unstable",
@@ -136,7 +135,6 @@ fn combination_stdio() {
                 "experimental",
                 "stdio",
                 "-c",
-                "-r",
                 concat!(env!("CARGO_TARGET_TMPDIR"), "/combination_stdio/in/"),
                 #[cfg(windows)]
                 "--unstable",
