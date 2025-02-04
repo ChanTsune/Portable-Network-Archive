@@ -19,7 +19,6 @@ fn aes_ctr_archive() {
             "/zstd_aes_ctr/zstd_aes_ctr.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_aes_ctr/in/"),
         "--password",
         "password",
@@ -69,7 +68,6 @@ fn aes_cbc_archive() {
             "/zstd_aes_cbc/zstd_aes_cbc.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_aes_cbc/in/"),
         "--password",
         "password",
@@ -119,7 +117,6 @@ fn camellia_ctr_archive() {
             "/zstd_camellia_ctr/zstd_camellia_ctr.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_camellia_ctr/in/"),
         "--password",
         "password",
@@ -173,7 +170,6 @@ fn camellia_cbc_archive() {
             "/zstd_camellia_cbc/zstd_camellia_cbc.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/zstd_camellia_cbc/in/"),
         "--password",
         "password",

@@ -20,7 +20,6 @@ fn create_with_split(b: &mut Bencher) {
             "--split",
             "3MB",
             "--overwrite",
-            "-r",
             "../resources/test/raw/",
         ]))
         .unwrap()

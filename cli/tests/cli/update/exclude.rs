@@ -24,7 +24,6 @@ fn archive_update_newer_mtime_with_exclude() {
             "/archive_update_newer_mtime_with_exclude/update_newer_mtime.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(
             env!("CARGO_TARGET_TMPDIR"),
             "/archive_update_newer_mtime_with_exclude/in/"
@@ -68,7 +67,6 @@ fn archive_update_newer_mtime_with_exclude() {
             env!("CARGO_TARGET_TMPDIR"),
             "/archive_update_newer_mtime_with_exclude/update_newer_mtime.pna"
         ),
-        "-r",
         concat!(
             env!("CARGO_TARGET_TMPDIR"),
             "/archive_update_newer_mtime_with_exclude/in/"

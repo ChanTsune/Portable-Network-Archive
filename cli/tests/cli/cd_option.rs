@@ -21,7 +21,6 @@ fn create_extract_with_cd() {
         "--overwrite",
         "-C",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/create_extract_with_cd/in/"),
-        "-r",
         ".",
     ]);
     cmd.assert().success();
@@ -76,7 +75,6 @@ fn append_with_cd() {
         "--overwrite",
         "-C",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/append_with_cd/in/"),
-        "-r",
         ".",
     ]);
     cmd.assert().success();
@@ -158,7 +156,6 @@ fn update_with_cd() {
         "--overwrite",
         "-C",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/update_with_cd/in/"),
-        "-r",
         ".",
     ]);
     cmd.assert().success();
@@ -192,7 +189,6 @@ fn update_with_cd() {
         ),
         "-C",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/update_with_cd/in/"),
-        "-r",
         ".",
     ]);
     cmd.assert().success();

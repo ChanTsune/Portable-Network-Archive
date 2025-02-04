@@ -20,7 +20,6 @@ fn archive_keep_all() {
             "/archive_keep_all/keep_all.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_keep_all/in/"),
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",

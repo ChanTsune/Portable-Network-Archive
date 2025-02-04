@@ -16,7 +16,6 @@ fn archive_append() {
         "c",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_append/append.pna"),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_append/in/"),
     ]))
     .unwrap();
@@ -79,7 +78,6 @@ fn archive_append_split() {
             "/archive_append_split/append_split.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_append_split/in/"),
         "--split",
         "100kib",

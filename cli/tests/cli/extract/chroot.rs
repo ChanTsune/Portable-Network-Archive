@@ -26,7 +26,6 @@ fn archive_extract_chroot() {
         "--overwrite",
         "-C",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/extract_chroot/in/"),
-        "-r",
         ".",
     ]);
     cmd.assert().success();

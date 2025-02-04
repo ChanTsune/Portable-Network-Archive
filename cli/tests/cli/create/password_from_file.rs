@@ -16,7 +16,6 @@ fn create_with_password_file() {
         "c",
         "create_with_password_file/password_from_file.pna",
         "--overwrite",
-        "-r",
         "create_with_password_file/in/",
         "--password-file",
         password_file_path,
