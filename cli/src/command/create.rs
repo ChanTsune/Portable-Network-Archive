@@ -48,8 +48,13 @@ use std::{
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
 ))]
 pub(crate) struct CreateCommand {
-    #[arg(short, long, help = "Add the directory to the archive recursively")]
-    pub(crate) recursive: bool,
+    #[arg(
+        short,
+        long,
+        help = "Add the directory to the archive recursively",
+        default_value_t = true
+    )]
+    recursive: bool,
     #[arg(long, help = "Overwrite file")]
     pub(crate) overwrite: bool,
     #[arg(long, help = "Archiving the directories")]
