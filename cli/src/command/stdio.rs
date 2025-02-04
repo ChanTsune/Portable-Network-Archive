@@ -53,7 +53,8 @@ pub(crate) struct StdioCommand {
         short,
         long,
         visible_alias = "recursion",
-        help = "Add the directory to the archive recursively"
+        help = "Add the directory to the archive recursively",
+        default_value_t = true
     )]
     recursive: bool,
     #[arg(
