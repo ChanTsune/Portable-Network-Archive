@@ -76,15 +76,21 @@ mod tests {
 
     #[test]
     fn glob_starts_with() {
-        let globs = GlobPatterns::new(vec!["usr"]).unwrap();
+        let globs = GlobPatterns::new(["usr"]).unwrap();
         assert!(globs.starts_with_matches_any("usr/local/bin"));
         assert!(globs.starts_with_matches_any("usr/share/bin"));
         assert!(!globs.starts_with_matches_any("etc/usr/bin"));
-        let globs = GlobPatterns::new(vec!["usr/**"]).unwrap();
+
+        let globs = GlobPatterns::new(["usr/**"]).unwrap();
         assert!(globs.starts_with_matches_any("usr/local/bin"));
         assert!(globs.starts_with_matches_any("usr/share/bin"));
         assert!(!globs.starts_with_matches_any("etc/usr/bin"));
-        let globs = GlobPatterns::new(vec!["**/bin"]).unwrap();
+
+        let globs = GlobPatterns::new(["**/bin"]).unwrap();
+        assert!(globs.starts_with_matches_any("usr/local/bin"));
+        assert!(globs.starts_with_matches_any("usr/share/bin"));
+
+        let globs = GlobPatterns::new(["usr/**/bin"]).unwrap();
         assert!(globs.starts_with_matches_any("usr/local/bin"));
         assert!(globs.starts_with_matches_any("usr/share/bin"));
     }
