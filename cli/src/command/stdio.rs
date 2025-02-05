@@ -48,7 +48,12 @@ pub(crate) struct StdioCommand {
     extract: bool,
     #[arg(short = 't', long, help = "List files in archive")]
     list: bool,
-    #[arg(short, long, help = "Add the directory to the archive recursively")]
+    #[arg(
+        short,
+        long,
+        visible_alias = "recursion",
+        help = "Add the directory to the archive recursively"
+    )]
     recursive: bool,
     #[arg(long, help = "Overwrite file")]
     overwrite: bool,
