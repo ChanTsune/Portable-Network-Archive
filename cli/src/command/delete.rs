@@ -7,18 +7,23 @@ use crate::{
         commons::{run_transform_entry, TransformStrategyKeepSolid, TransformStrategyUnSolid},
         Command,
     },
-    utils::{GlobPatterns, PathPartExt},
+    utils::{self, GlobPatterns, PathPartExt},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use std::{io, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
-#[command(group(ArgGroup::new("unstable-delete-exclude").args(["exclude"]).requires("unstable")))]
+#[command(
+    group(ArgGroup::new("unstable-delete-exclude").args(["exclude"]).requires("unstable")),
+    group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
+)]
 pub(crate) struct DeleteCommand {
     #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
     output: Option<PathBuf>,
     #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
-    pub(crate) exclude: Option<Vec<globset::Glob>>,
+    exclude: Option<Vec<String>>,
+    #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
+    exclude_from: Option<PathBuf>,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
@@ -38,8 +43,14 @@ fn delete_file_from_archive(args: DeleteCommand) -> io::Result<()> {
     let password = ask_password(args.password)?;
     let globs = GlobPatterns::new(args.file.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-    let exclude_globs = GlobPatterns::try_from(args.exclude.unwrap_or_default())
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let exclude_globs = {
+        let mut exclude = args.exclude.unwrap_or_default();
+        if let Some(p) = args.exclude_from {
+            exclude.extend(utils::fs::read_to_lines(p)?);
+        }
+        GlobPatterns::new(exclude)
+    }
+    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => run_transform_entry(
             args.output
