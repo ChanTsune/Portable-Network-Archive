@@ -141,7 +141,7 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
         }
         GlobPatterns::new(exclude)
     }
-    .map_err(io::Error::other)?;
+    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
