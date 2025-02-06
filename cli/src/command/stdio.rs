@@ -194,12 +194,9 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
         files.extend(utils::fs::read_to_lines(path)?);
     }
     let exclude = {
-        let mut exclude = Vec::new();
-        if let Some(e) = args.exclude {
-            exclude.extend(e.into_iter().map(PathBuf::from));
-        }
+        let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
-            exclude.extend(utils::fs::read_to_lines(p)?.into_iter().map(PathBuf::from));
+            exclude.extend(utils::fs::read_to_lines(p)?);
         }
         exclude
     };
@@ -255,10 +252,7 @@ fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
     let password = ask_password(args.password)?;
 
     let exclude = {
-        let mut exclude = Vec::new();
-        if let Some(e) = args.exclude {
-            exclude.extend(e);
-        }
+        let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
