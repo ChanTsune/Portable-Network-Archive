@@ -257,7 +257,7 @@ fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
         }
         GlobPatterns::new(exclude)
     }
-    .map_err(io::Error::other)?;
+    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
     let out_option = OutputOption {
         overwrite: args.overwrite,
