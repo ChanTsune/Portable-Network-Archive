@@ -130,6 +130,8 @@ pub(crate) struct UpdateCommand {
     pub(crate) files_from: Option<String>,
     #[arg(long, help = "Read archiving files from stdin (unstable)")]
     pub(crate) files_from_stdin: bool,
+    #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
+    pub(crate) exclude: Option<Vec<String>>,
     #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
     pub(crate) exclude_from: Option<String>,
     #[arg(
@@ -157,8 +159,6 @@ pub(crate) struct UpdateCommand {
     pub(crate) transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
     pub(crate) file: FileArgs,
-    #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
-    pub(crate) exclude: Option<Vec<PathBuf>>,
     #[arg(long, help = "Ignore files from .gitignore (unstable)")]
     pub(crate) gitignore: bool,
     #[arg(long, help = "Follow symbolic links")]
@@ -223,7 +223,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
             exclude.extend(e);
         }
         if let Some(p) = args.exclude_from {
-            exclude.extend(utils::fs::read_to_lines(p)?.into_iter().map(PathBuf::from));
+            exclude.extend(utils::fs::read_to_lines(p)?);
         }
         exclude
     };
