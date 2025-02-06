@@ -18,7 +18,7 @@ use crate::{
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
-use std::{fs::File, io, path::PathBuf};
+use std::{fs::File, io};
 
 #[derive(Parser, Clone, Debug)]
 #[command(
@@ -128,7 +128,7 @@ pub(crate) struct AppendCommand {
     #[command(flatten)]
     pub(crate) file: FileArgs,
     #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
-    pub(crate) exclude: Option<Vec<PathBuf>>,
+    pub(crate) exclude: Option<Vec<String>>,
 }
 
 impl Command for AppendCommand {
@@ -176,7 +176,7 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
             exclude.extend(e);
         }
         if let Some(p) = args.exclude_from {
-            exclude.extend(utils::fs::read_to_lines(p)?.into_iter().map(PathBuf::from));
+            exclude.extend(utils::fs::read_to_lines(p)?);
         }
         exclude
     };
