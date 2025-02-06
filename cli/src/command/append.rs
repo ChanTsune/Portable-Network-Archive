@@ -37,6 +37,7 @@ use std::{fs::File, io};
     group(ArgGroup::new("store-numeric-owner").args(["numeric_owner"]).requires("keep_permission")),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
+    group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
@@ -49,6 +50,12 @@ pub(crate) struct AppendCommand {
         help = "Add the directory to the archive recursively"
     )]
     pub(crate) recursive: bool,
+    #[arg(
+        long,
+        visible_alias = "no-recursion",
+        help = "Do not recursively add directories to the archives. This is the inverse option of --recursive"
+    )]
+    no_recursive: bool,
     #[arg(long, help = "Archiving the directories")]
     pub(crate) keep_dir: bool,
     #[arg(
