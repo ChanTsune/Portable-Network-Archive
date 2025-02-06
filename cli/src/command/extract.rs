@@ -132,10 +132,7 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
     log::info!("Extract archive {}", args.file.archive.display());
 
     let exclude = {
-        let mut exclude = Vec::new();
-        if let Some(e) = args.exclude {
-            exclude.extend(e);
-        }
+        let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
