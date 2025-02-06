@@ -108,13 +108,13 @@ pub(crate) fn collect_items(
     keep_dir: bool,
     gitignore: bool,
     follow_links: bool,
-    exclude: impl IntoIterator<Item = PathBuf>,
+    exclude: impl IntoIterator<Item = impl AsRef<Path>>,
 ) -> io::Result<Vec<PathBuf>> {
     let mut files = files.into_iter();
     let exclude = GlobPatterns::new(
         exclude
             .into_iter()
-            .map(|path| path.normalize().to_string_lossy().into_owned()),
+            .map(|path| path.as_ref().normalize().to_string_lossy().into_owned()),
     )
     .map_err(io::Error::other)?;
     if let Some(p) = files.next() {
@@ -839,7 +839,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../resources/test/raw",
         )];
-        let items = collect_items(source, false, false, false, false, []).unwrap();
+        let items = collect_items(source, false, false, false, false, Vec::<&str>::new()).unwrap();
         assert_eq!(
             items.into_iter().collect::<HashSet<_>>(),
             [].into_iter().collect::<HashSet<_>>()
@@ -852,7 +852,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../resources/test/raw",
         )];
-        let items = collect_items(source, false, true, false, false, []).unwrap();
+        let items = collect_items(source, false, true, false, false, Vec::<&str>::new()).unwrap();
         assert_eq!(
             items.into_iter().collect::<HashSet<_>>(),
             [concat!(
@@ -871,7 +871,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../resources/test/raw",
         )];
-        let items = collect_items(source, true, false, false, false, []).unwrap();
+        let items = collect_items(source, true, false, false, false, Vec::<&str>::new()).unwrap();
         assert_eq!(
             items.into_iter().collect::<HashSet<_>>(),
             [
