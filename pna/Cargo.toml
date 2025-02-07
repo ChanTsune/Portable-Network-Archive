@@ -22,3 +22,9 @@ zlib-ng = ["libpna/zlib-ng"]
 
 [lib]
 name = "pna"
+
+[package.metadata.release]
+pre-release-replacements = [
+    { file = "README.md", search = "pna = \"[0-9]+\\.[0-9]+\"", replace = "pna = \"{{version}}\"" },
+    { file = "src/lib.rs", search = "https://docs.rs/pna/[0-9]+\\.[0-9]+\\.[0-9]+", replace = "https://docs.rs/pna/{{version}}" },
+]
