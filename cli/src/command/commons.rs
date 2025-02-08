@@ -171,7 +171,14 @@ pub(crate) fn create_entry(
             EntryReference::from_lossy(source)
         };
         let entry = EntryBuilder::new_symbolic_link(entry_name, reference)?;
-        return apply_metadata(entry, path, keep_options, owner_options)?.build();
+        return apply_metadata(
+            entry,
+            path,
+            keep_options,
+            owner_options,
+            fs::symlink_metadata,
+        )?
+        .build();
     } else if path.is_file() {
         let mut entry = EntryBuilder::new_file(entry_name, option)?;
         #[cfg(feature = "memmap")]
@@ -189,10 +196,10 @@ pub(crate) fn create_entry(
         {
             entry.write_all(&fs::read(path)?)?;
         }
-        return apply_metadata(entry, path, keep_options, owner_options)?.build();
+        return apply_metadata(entry, path, keep_options, owner_options, fs::metadata)?.build();
     } else if path.is_dir() {
         let entry = EntryBuilder::new_dir(entry_name);
-        return apply_metadata(entry, path, keep_options, owner_options)?.build();
+        return apply_metadata(entry, path, keep_options, owner_options, fs::metadata)?.build();
     }
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
@@ -223,14 +230,15 @@ pub(crate) fn entry_option(
 }
 
 #[cfg_attr(target_os = "wasi", allow(unused_variables))]
-pub(crate) fn apply_metadata(
+pub(crate) fn apply_metadata<'p>(
     mut entry: EntryBuilder,
-    path: &Path,
+    path: &'p Path,
     keep_options: &KeepOptions,
     owner_options: &OwnerOptions,
+    metadata: impl Fn(&'p Path) -> io::Result<fs::Metadata>,
 ) -> io::Result<EntryBuilder> {
     if keep_options.keep_timestamp || keep_options.keep_permission {
-        let meta = fs::metadata(path)?;
+        let meta = metadata(path)?;
         if keep_options.keep_timestamp {
             if let Ok(c) = meta.created() {
                 if let Ok(created_since_unix_epoch) = c.duration_since(UNIX_EPOCH) {
