@@ -182,8 +182,8 @@ impl From<&str> for EntryReference {
 impl From<Cow<'_, str>> for EntryReference {
     /// ## Examples
     /// ```
-    /// use std::borrow::Cow;
     /// use libpna::EntryReference;
+    /// use std::borrow::Cow;
     ///
     /// assert_eq!("test.txt", EntryReference::from(Cow::from("test.txt")));
     /// ```
