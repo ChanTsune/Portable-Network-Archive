@@ -8,7 +8,7 @@ pub mod complete;
 pub(crate) mod concat;
 mod core;
 pub mod create;
-mod delete;
+pub mod delete;
 pub mod diff;
 pub(super) mod experimental;
 pub mod extract;
@@ -68,6 +68,7 @@ impl Cli {
             Commands::Append(cmd) => cmd.execute(ctx),
             Commands::Extract(cmd) => cmd.execute(ctx),
             Commands::List(cmd) => cmd.execute(ctx),
+            Commands::Delete(cmd) => cmd.execute(ctx),
             Commands::Split(cmd) => cmd.execute(ctx),
             Commands::Concat(cmd) => cmd.execute(ctx),
             Commands::Strip(cmd) => cmd.execute(ctx),
