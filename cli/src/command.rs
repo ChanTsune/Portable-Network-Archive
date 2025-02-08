@@ -8,7 +8,7 @@ mod commons;
 pub mod complete;
 pub(crate) mod concat;
 pub mod create;
-mod delete;
+pub mod delete;
 pub(super) mod experimental;
 pub mod extract;
 pub mod list;
@@ -28,6 +28,7 @@ pub fn entry(cli: Cli) -> io::Result<()> {
         Commands::Append(cmd) => cmd.execute(),
         Commands::Extract(cmd) => cmd.execute(),
         Commands::List(cmd) => cmd.execute(),
+        Commands::Delete(cmd) => cmd.execute(),
         Commands::Split(cmd) => cmd.execute(),
         Commands::Concat(cmd) => cmd.execute(),
         Commands::Strip(cmd) => cmd.execute(),
