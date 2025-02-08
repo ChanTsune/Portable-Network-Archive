@@ -35,6 +35,7 @@ use std::{
     group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
     group(ArgGroup::new("unstable-transform").args(["transforms"]).requires("unstable")),
     group(ArgGroup::new("path-transform").args(["substitutions", "transforms"])),
+    group(ArgGroup::new("owner-flag").args(["same_owner", "no_same_owner"])),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
     group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
@@ -155,6 +156,13 @@ pub(crate) struct StdioCommand {
         help = "Modify file or archive member names according to pattern that like GNU tar -transform option"
     )]
     transforms: Option<Vec<TransformRule>>,
+    #[arg(
+        long,
+        help = "Try extracting files with the same ownership as exists in the archive"
+    )]
+    same_owner: bool,
+    #[arg(long, help = "Extract files as yourself")]
+    no_same_owner: bool,
     #[arg(short, long, help = "Input archive file path")]
     file: Option<PathBuf>,
     #[arg(help = "Files or patterns")]
@@ -278,6 +286,7 @@ fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
             args.gid,
             args.numeric_owner,
         ),
+        same_owner: !args.no_same_owner,
         path_transformers: PathTransformers::new(args.substitutions, args.transforms),
     };
     if let Some(file) = args.file {

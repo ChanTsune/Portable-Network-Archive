@@ -38,6 +38,7 @@ use std::{borrow::Cow, fs, io, path::PathBuf, time::Instant};
     group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
     group(ArgGroup::new("unstable-transform").args(["transforms"]).requires("unstable")),
     group(ArgGroup::new("path-transform").args(["substitutions", "transforms"])),
+    group(ArgGroup::new("owner-flag").args(["same_owner", "no_same_owner"])),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
 )]
@@ -116,6 +117,13 @@ pub(crate) struct ExtractCommand {
         help = "Modify file or archive member names according to pattern that like GNU tar -transform option"
     )]
     transforms: Option<Vec<TransformRule>>,
+    #[arg(
+        long,
+        help = "Try extracting files with the same ownership as exists in the archive"
+    )]
+    same_owner: bool,
+    #[arg(long, help = "Extract files as yourself")]
+    no_same_owner: bool,
     #[command(flatten)]
     pub(crate) file: FileArgs,
 }
@@ -160,6 +168,7 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
         exclude,
         keep_options,
         owner_options,
+        same_owner: !args.no_same_owner,
         path_transformers: PathTransformers::new(args.substitutions, args.transforms),
     };
     #[cfg(not(feature = "memmap"))]
@@ -191,6 +200,7 @@ pub(crate) struct OutputOption {
     pub(crate) exclude: GlobPatterns,
     pub(crate) keep_options: KeepOptions,
     pub(crate) owner_options: OwnerOptions,
+    pub(crate) same_owner: bool,
     pub(crate) path_transformers: Option<PathTransformers>,
 }
 
@@ -299,6 +309,7 @@ pub(crate) fn extract_entry<T>(
         exclude,
         keep_options,
         owner_options,
+        same_owner,
         path_transformers,
     }: &OutputOption,
 ) -> io::Result<()>
@@ -306,6 +317,7 @@ where
     T: AsRef<[u8]>,
     pna::RawChunk<T>: Chunk,
 {
+    let same_owner = *same_owner;
     let overwrite = *overwrite;
     let item_path = item.header().path().as_path();
     if exclude.starts_with_matches_any(item_path) {
@@ -410,17 +422,21 @@ where
     #[cfg(unix)]
     if let Some((p, u, g)) = permissions {
         use std::os::unix::fs::PermissionsExt;
-        match chown(&path, u, g) {
-            Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
-                log::warn!("failed to restore owner of {}: {}", path.display(), e)
+        if same_owner {
+            match chown(&path, u, g) {
+                Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
+                    log::warn!("failed to restore owner of {}: {}", path.display(), e)
+                }
+                r => r?,
             }
-            r => r?,
         }
         fs::set_permissions(&path, fs::Permissions::from_mode(p.permissions().into()))?;
     };
     #[cfg(windows)]
     if let Some((p, u, g)) = permissions {
-        chown(&path, u, g)?;
+        if same_owner {
+            chown(&path, u, g)?;
+        }
         utils::os::windows::fs::chmod(&path, p.permissions())?;
     }
     #[cfg(not(any(unix, windows)))]
