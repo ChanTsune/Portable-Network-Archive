@@ -181,8 +181,8 @@ impl From<&str> for EntryName {
 impl From<Cow<'_, str>> for EntryName {
     /// ## Examples
     /// ```
-    /// use std::borrow::Cow;
     /// use libpna::EntryName;
+    /// use std::borrow::Cow;
     ///
     /// assert_eq!("test.txt", EntryName::from(Cow::from("test.txt")));
     /// ```
