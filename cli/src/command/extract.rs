@@ -243,7 +243,7 @@ where
     let globs =
         GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-    let mut hard_link_entries = Vec::new();
+    let mut link_entries = Vec::new();
 
     let (tx, rx) = std::sync::mpsc::channel();
     run_process_archive(reader, password_provider, |entry| {
@@ -253,8 +253,11 @@ where
             log::debug!("Skip: {}", item.header().path());
             return Ok(());
         }
-        if item.header().data_kind() == DataKind::HardLink {
-            hard_link_entries.push(item);
+        if matches!(
+            item.header().data_kind(),
+            DataKind::SymbolicLink | DataKind::HardLink
+        ) {
+            link_entries.push(item);
             return Ok(());
         }
         let tx = tx.clone();
@@ -271,7 +274,7 @@ where
         result?;
     }
 
-    for item in hard_link_entries {
+    for item in link_entries {
         extract_entry(item, password, &args)?;
     }
     Ok(())
@@ -291,7 +294,7 @@ where
     let globs =
         GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-    let mut hard_link_entries = Vec::<NormalEntry>::new();
+    let mut link_entries = Vec::<NormalEntry>::new();
 
     let (tx, rx) = std::sync::mpsc::channel();
 
@@ -302,8 +305,11 @@ where
             log::debug!("Skip: {}", item.header().path());
             return Ok(());
         }
-        if item.header().data_kind() == DataKind::HardLink {
-            hard_link_entries.push(item.into());
+        if matches!(
+            item.header().data_kind(),
+            DataKind::SymbolicLink | DataKind::HardLink
+        ) {
+            link_entries.push(item.into());
             return Ok(());
         }
         let tx = tx.clone();
@@ -320,7 +326,7 @@ where
         result?;
     }
 
-    for item in hard_link_entries {
+    for item in link_entries {
         extract_entry(item, password, &args)?;
     }
     Ok(())
