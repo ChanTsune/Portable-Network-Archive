@@ -22,7 +22,6 @@ mod restore_acl_0_19_1;
 mod solid_mode;
 mod split;
 mod strip;
-mod symlink;
 mod update;
 mod user_group;
 pub mod utils;
