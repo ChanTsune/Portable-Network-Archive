@@ -18,7 +18,7 @@ use crate::{
     },
     utils::{
         self,
-        env::temp_dir,
+        env::temp_dir_or_else,
         re::{bsd::SubstitutionRule, gnu::TransformRule},
         PathPartExt,
     },
@@ -262,12 +262,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
     let (tx, rx) = std::sync::mpsc::channel();
 
     let random = rand::random::<usize>();
-    let temp_dir_path = temp_dir().unwrap_or_else(|| {
-        archive_path
-            .parent()
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from("."))
-    });
+    let temp_dir_path = temp_dir_or_else(|| archive_path.parent().unwrap_or_else(|| ".".as_ref()));
     fs::create_dir_all(&temp_dir_path)?;
     let outfile_path = temp_dir_path.join(format!("{}.pna.tmp", random));
     let outfile = fs::File::create(&outfile_path)?;

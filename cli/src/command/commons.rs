@@ -2,7 +2,7 @@ use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
     utils::{
         self,
-        env::temp_dir,
+        env::temp_dir_or_else,
         re::{
             bsd::{SubstitutionRule, SubstitutionRules},
             gnu::{TransformRule, TransformRules},
@@ -608,12 +608,7 @@ where
     let password = password_provider();
     let output_path = output_path.as_ref();
     let random = rand::random::<usize>();
-    let temp_dir_path = temp_dir().unwrap_or_else(|| {
-        output_path
-            .parent()
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from("."))
-    });
+    let temp_dir_path = temp_dir_or_else(|| output_path.parent().unwrap_or_else(|| ".".as_ref()));
     fs::create_dir_all(&temp_dir_path)?;
     let temp_path = temp_dir_path.join(format!("{}.pna.tmp", random));
     let outfile = fs::File::create(&temp_path)?;
@@ -660,12 +655,7 @@ where
     let password = password_provider();
     let output_path = output_path.as_ref();
     let random = rand::random::<usize>();
-    let temp_dir_path = temp_dir().unwrap_or_else(|| {
-        output_path
-            .parent()
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from("."))
-    });
+    let temp_dir_path = temp_dir_or_else(|| output_path.parent().unwrap_or_else(|| ".".as_ref()));
     fs::create_dir_all(&temp_dir_path)?;
     let temp_path = temp_dir_path.join(format!("{}.pna.tmp", random));
     let outfile = fs::File::create(&temp_path)?;
