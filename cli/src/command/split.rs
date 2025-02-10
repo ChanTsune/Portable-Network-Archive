@@ -58,5 +58,5 @@ fn split_archive(args: SplitCommand) -> io::Result<()> {
     }
     let max_file_size = args.max_size.unwrap_or_else(|| ByteSize::gb(1)).as_u64() as usize;
 
-    write_split_archive(base_out_file_name, entries, max_file_size)
+    write_split_archive(base_out_file_name, entries, max_file_size, args.overwrite)
 }

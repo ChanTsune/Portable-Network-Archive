@@ -392,7 +392,7 @@ where
     };
     match item.header().data_kind() {
         DataKind::File => {
-            let mut file = fs::File::create(&path)?;
+            let mut file = utils::fs::file_create(&path, overwrite)?;
             if keep_options.keep_timestamp {
                 let mut times = fs::FileTimes::new();
                 if let Some(accessed) = item.metadata().accessed_time() {

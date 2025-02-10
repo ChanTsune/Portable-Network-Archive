@@ -700,12 +700,14 @@ pub(crate) fn write_split_archive(
     archive: impl AsRef<Path>,
     entries: impl Iterator<Item = io::Result<impl Entry + Sized>>,
     max_file_size: usize,
+    overwrite: bool,
 ) -> io::Result<()> {
     write_split_archive_path(
         archive,
         entries,
         |base, n| base.with_part(n).unwrap(),
         max_file_size,
+        overwrite,
     )
 }
 
@@ -714,6 +716,7 @@ pub(crate) fn write_split_archive_path<F, P>(
     entries: impl Iterator<Item = io::Result<impl Entry + Sized>>,
     mut get_part_path: F,
     max_file_size: usize,
+    overwrite: bool,
 ) -> io::Result<()>
 where
     F: FnMut(&Path, usize) -> P,
@@ -722,11 +725,11 @@ where
     let archive = archive.as_ref();
     let first_item_path = get_part_path(archive, 1);
     let first_item_path = first_item_path.as_ref();
-    let file = fs::File::create(first_item_path)?;
+    let file = utils::fs::file_create(first_item_path, overwrite)?;
     write_split_archive_writer(
         file,
         entries,
-        |n| fs::File::create(get_part_path(archive, n)),
+        |n| utils::fs::file_create(get_part_path(archive, n), overwrite),
         max_file_size,
         |n| {
             if n == 1 {

@@ -75,3 +75,12 @@ pub(crate) fn chown<P: AsRef<Path>>(
     }
     inner(path.as_ref(), owner, group)
 }
+
+#[inline]
+pub(crate) fn file_create(path: impl AsRef<Path>, overwrite: bool) -> io::Result<fs::File> {
+    if overwrite {
+        fs::File::create(path)
+    } else {
+        fs::File::create_new(path)
+    }
+}
