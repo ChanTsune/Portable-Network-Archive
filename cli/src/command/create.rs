@@ -243,10 +243,11 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
             path_transformers,
             target_items,
             size,
+            args.overwrite,
         )?;
     } else {
         create_archive_file(
-            || fs::File::create(&archive_path),
+            || utils::fs::file_create(&archive_path, args.overwrite),
             write_option,
             keep_options,
             owner_options,
@@ -325,6 +326,7 @@ fn create_archive_with_split(
     path_transformers: Option<PathTransformers>,
     target_items: Vec<PathBuf>,
     max_file_size: usize,
+    overwrite: bool,
 ) -> io::Result<()> {
     let (tx, rx) = std::sync::mpsc::channel();
     let option = if solid {
@@ -356,9 +358,9 @@ fn create_archive_with_split(
             entries_builder.add_entry(entry?)?;
         }
         let entries = entries_builder.build();
-        write_split_archive(archive, [entries].into_iter(), max_file_size)?;
+        write_split_archive(archive, [entries].into_iter(), max_file_size, overwrite)?;
     } else {
-        write_split_archive(archive, rx.into_iter(), max_file_size)?;
+        write_split_archive(archive, rx.into_iter(), max_file_size, overwrite)?;
     }
     Ok(())
 }

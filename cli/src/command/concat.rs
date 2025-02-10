@@ -9,7 +9,7 @@ use crate::{
 };
 use clap::Parser;
 use pna::Archive;
-use std::{fs, io};
+use std::io;
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ConcatCommand {
@@ -41,7 +41,7 @@ fn concat_entry(args: ConcatCommand) -> io::Result<()> {
             ));
         }
     }
-    let file = fs::File::create(&args.files.archive)?;
+    let file = utils::fs::file_create(&args.files.archive, args.overwrite)?;
     let mut archive = Archive::write_header(file)?;
 
     for item in &args.files.files {
