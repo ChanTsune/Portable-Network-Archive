@@ -16,6 +16,8 @@ fn init_resource<P: AsRef<Path>>(dir: P) {
     let mut file = fs::File::create(dir.join("text.txt")).unwrap();
     file.write_all(b"content").unwrap();
     pna::fs::symlink(Path::new("text.txt"), dir.join("link.txt")).unwrap();
+    fs::create_dir_all(dir.join("dir")).unwrap();
+    pna::fs::symlink(Path::new("dir"), dir.join("link_dir")).unwrap();
 }
 
 #[test]
@@ -28,6 +30,7 @@ fn symlink_no_follow() {
         "c",
         "symlink_no_follow/symlink_no_follow.pna",
         "--overwrite",
+        "--keep-dir",
         "symlink_no_follow/source",
     ]))
     .unwrap();
@@ -45,4 +48,5 @@ fn symlink_no_follow() {
     .unwrap();
 
     assert!(PathBuf::from("symlink_no_follow/dist/link.txt").is_symlink());
+    assert!(PathBuf::from("symlink_no_follow/dist/link_dir").is_symlink());
 }
