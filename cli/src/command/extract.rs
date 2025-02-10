@@ -422,7 +422,7 @@ where
                 original
             };
             let original = EntryReference::from_lossy(original);
-            if overwrite && path.exists() {
+            if overwrite && fs::symlink_metadata(&path).is_ok() {
                 utils::fs::remove_path_all(&path)?;
             }
             utils::fs::symlink(original, &path)?;
