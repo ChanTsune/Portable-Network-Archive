@@ -13,7 +13,7 @@ keywords = ["pna", "archive", "cli", "crypto", "data"]
 base64 = "0.22.1"
 bitflags = "2.8.0"
 bugreport = { version =  "0.5.1", default-features = false, features = ["collector_operating_system", "format_markdown"] }
-bytesize = "1.3.0"
+bytesize = "1.3.2"
 chrono = "0.4.39"
 clap = { version = "4.5.28", features = ["derive"] }
 clap_complete = "4.5.44"
