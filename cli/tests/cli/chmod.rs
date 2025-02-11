@@ -1,18 +1,18 @@
-use crate::utils::{setup, TestResources};
+use crate::utils::{diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command};
 
 #[test]
 fn archive_chmod() {
     setup();
-    TestResources::extract_in("raw/", concat!(env!("CARGO_TARGET_TMPDIR"), "/chmod/in/")).unwrap();
+    TestResources::extract_in("raw/", "chmod/in/").unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/chmod/chmod.pna"),
+        "chmod/chmod.pna",
         "--overwrite",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/chmod/in/"),
+        "chmod/in/",
         "--keep-permission",
         #[cfg(windows)]
         "--unstable",
@@ -23,10 +23,10 @@ fn archive_chmod() {
         "--quiet",
         "experimental",
         "chmod",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/chmod/chmod.pna"),
+        "chmod/chmod.pna",
         "--",
         "-w",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/chmod/in/raw/text.txt"),
+        "chmod/in/raw/text.txt",
     ]))
     .unwrap();
     command::entry(cli::Cli::parse_from([
@@ -34,9 +34,26 @@ fn archive_chmod() {
         "--quiet",
         "experimental",
         "chmod",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/chmod/chmod.pna"),
+        "chmod/chmod.pna",
         "+w",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/chmod/in/raw/text.txt"),
+        "chmod/in/raw/text.txt",
     ]))
     .unwrap();
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "chmod/chmod.pna",
+        "--overwrite",
+        "--out-dir",
+        "chmod/out/",
+        "--keep-permission",
+        #[cfg(windows)]
+        "--unstable",
+        "--strip-components",
+        "2",
+    ]))
+    .unwrap();
+
+    diff("chmod/in/", "chmod/out/").unwrap();
 }
