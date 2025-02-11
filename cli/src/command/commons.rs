@@ -69,6 +69,7 @@ pub(crate) struct CreateOptions {
     pub(crate) option: WriteOptions,
     pub(crate) keep_options: KeepOptions,
     pub(crate) owner_options: OwnerOptions,
+    pub(crate) follow_links: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -167,6 +168,7 @@ pub(crate) fn create_entry(
         option,
         keep_options,
         owner_options,
+        follow_links,
     }: &CreateOptions,
     substitutions: &Option<PathTransformers>,
 ) -> io::Result<NormalEntry> {
@@ -175,7 +177,7 @@ pub(crate) fn create_entry(
     } else {
         EntryName::from_lossy(path)
     };
-    if path.is_symlink() {
+    if !follow_links && path.is_symlink() {
         let source = fs::read_link(path)?;
         let reference = if let Some(substitutions) = substitutions {
             EntryReference::from(substitutions.apply(path.to_string_lossy(), true, false))

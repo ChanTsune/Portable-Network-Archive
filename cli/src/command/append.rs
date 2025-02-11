@@ -187,6 +187,7 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
         option,
         keep_options,
         owner_options,
+        follow_links: args.follow_links,
     };
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
 

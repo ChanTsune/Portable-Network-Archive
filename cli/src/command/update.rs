@@ -226,6 +226,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
         option,
         keep_options,
         owner_options,
+        follow_links: args.follow_links,
     };
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
 
