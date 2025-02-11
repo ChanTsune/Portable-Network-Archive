@@ -243,6 +243,7 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
             keep_options,
             owner_options,
             args.solid,
+            args.follow_links,
             path_transformers,
             target_items,
         )
@@ -253,6 +254,7 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
             keep_options,
             owner_options,
             args.solid,
+            args.follow_links,
             path_transformers,
             target_items,
         )
@@ -361,6 +363,7 @@ fn run_append(args: StdioCommand) -> io::Result<()> {
         option,
         keep_options,
         owner_options,
+        follow_links: args.follow_links,
     };
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
 

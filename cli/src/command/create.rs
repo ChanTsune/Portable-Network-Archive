@@ -240,6 +240,7 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
             keep_options,
             owner_options,
             args.solid,
+            args.follow_links,
             path_transformers,
             target_items,
             size,
@@ -251,6 +252,7 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
             keep_options,
             owner_options,
             args.solid,
+            args.follow_links,
             path_transformers,
             target_items,
         )?;
@@ -268,6 +270,7 @@ pub(crate) fn create_archive_file<W, F>(
     keep_options: KeepOptions,
     owner_options: OwnerOptions,
     solid: bool,
+    follow_links: bool,
     path_transformers: Option<PathTransformers>,
     target_items: Vec<PathBuf>,
 ) -> io::Result<()>
@@ -285,6 +288,7 @@ where
         option,
         keep_options,
         owner_options,
+        follow_links,
     };
     for file in target_items {
         let tx = tx.clone();
@@ -322,6 +326,7 @@ fn create_archive_with_split(
     keep_options: KeepOptions,
     owner_options: OwnerOptions,
     solid: bool,
+    follow_links: bool,
     path_transformers: Option<PathTransformers>,
     target_items: Vec<PathBuf>,
     max_file_size: usize,
@@ -336,6 +341,7 @@ fn create_archive_with_split(
         option,
         keep_options,
         owner_options,
+        follow_links,
     };
     for file in target_items {
         let tx = tx.clone();

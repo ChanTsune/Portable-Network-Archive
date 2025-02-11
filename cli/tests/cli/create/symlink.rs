@@ -55,3 +55,39 @@ fn symlink_no_follow() {
         fs::read_to_string("symlink_no_follow/dist/link_dir/in_dir_text.txt").unwrap(),
     );
 }
+
+#[test]
+fn symlink_follow() {
+    setup();
+    init_resource("symlink_follow/source");
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "symlink_follow/symlink_follow.pna",
+        "--overwrite",
+        "--keep-dir",
+        "--follow-links",
+        "symlink_follow/source",
+    ]))
+    .unwrap();
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "symlink_follow/symlink_follow.pna",
+        "--overwrite",
+        "--out-dir",
+        "symlink_follow/dist",
+        "--strip-components",
+        "2",
+    ]))
+    .unwrap();
+
+    assert!(!PathBuf::from("symlink_follow/dist/link.txt").is_symlink());
+    assert!(!PathBuf::from("symlink_follow/dist/link_dir").is_symlink());
+    assert_eq!(
+        fs::read_to_string("symlink_follow/dist/dir/in_dir_text.txt").unwrap(),
+        fs::read_to_string("symlink_follow/dist/link_dir/in_dir_text.txt").unwrap(),
+    );
+}
