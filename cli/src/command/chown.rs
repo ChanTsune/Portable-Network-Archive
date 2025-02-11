@@ -23,7 +23,7 @@ pub(crate) struct ChownCommand {
     #[arg(value_hint = ValueHint::FilePath)]
     archive: PathBuf,
     #[arg(help = "owner[:group]|:group")]
-    owner: Owner,
+    owner: StringOwner,
     #[arg(value_hint = ValueHint::AnyPath)]
     files: Vec<String>,
     #[command(flatten)]
@@ -47,6 +47,8 @@ fn archive_chown(args: ChownCommand) -> io::Result<()> {
     let globs = GlobPatterns::new(args.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
+    let owner = args.owner.try_into_owner()?;
+
     let archives = collect_split_archives(&args.archive)?;
 
     match args.transform_strategy.strategy() {
@@ -57,7 +59,7 @@ fn archive_chown(args: ChownCommand) -> io::Result<()> {
             |entry| {
                 let entry = entry?;
                 if globs.matches_any(entry.header().path()) {
-                    Ok(Some(transform_entry(entry, &args.owner)))
+                    Ok(Some(transform_entry(entry, &owner)))
                 } else {
                     Ok(Some(entry))
                 }
@@ -71,7 +73,7 @@ fn archive_chown(args: ChownCommand) -> io::Result<()> {
             |entry| {
                 let entry = entry?;
                 if globs.matches_any(entry.header().path()) {
-                    Ok(Some(transform_entry(entry, &args.owner)))
+                    Ok(Some(transform_entry(entry, &owner)))
                 } else {
                     Ok(Some(entry))
                 }
@@ -85,25 +87,19 @@ fn archive_chown(args: ChownCommand) -> io::Result<()> {
 fn transform_entry<T>(entry: NormalEntry<T>, owner: &Owner) -> NormalEntry<T> {
     let metadata = entry.metadata().clone();
     let permission = metadata.permission().map(|p| {
-        let user = owner.user();
-        let user = user.and_then(|it| {
-            User::from_name(it).ok().map(|it| {
-                (
-                    it.uid().unwrap_or(u64::MAX),
-                    it.name().unwrap_or_default().into(),
-                )
-            })
+        let user = owner.user.as_ref().map(|it| {
+            (
+                it.uid().unwrap_or(u64::MAX),
+                it.name().unwrap_or_default().into(),
+            )
         });
         let (uid, uname) = user.unwrap_or_else(|| (p.uid(), p.uname().into()));
 
-        let group = owner.group();
-        let group = group.and_then(|it| {
-            Group::from_name(it).ok().map(|it| {
-                (
-                    it.gid().unwrap_or(u64::MAX),
-                    it.name().unwrap_or_default().into(),
-                )
-            })
+        let group = owner.group.as_ref().map(|it| {
+            (
+                it.gid().unwrap_or(u64::MAX),
+                it.name().unwrap_or_default().into(),
+            )
         });
         let (gid, gname) = group.unwrap_or_else(|| (p.gid(), p.gname().into()));
         pna::Permission::new(uid, uname, gid, gname, p.permissions())
@@ -111,25 +107,44 @@ fn transform_entry<T>(entry: NormalEntry<T>, owner: &Owner) -> NormalEntry<T> {
     entry.with_metadata(metadata.with_permission(permission))
 }
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[cfg(any(unix, windows))]
 pub(crate) struct Owner {
+    user: Option<User>,
+    group: Option<Group>,
+}
+
+#[cfg(not(any(unix, windows)))]
+pub(crate) type Owner = StringOwner;
+
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) struct StringOwner {
     user: Option<String>,
     group: Option<String>,
 }
 
-impl Owner {
+impl StringOwner {
+    #[cfg(any(unix, windows))]
     #[inline]
-    pub(crate) fn user(&self) -> Option<&str> {
-        self.user.as_deref()
+    fn try_into_owner(self) -> io::Result<Owner> {
+        let user = match &self.user {
+            Some(user) => Some(User::from_name(user)?),
+            None => None,
+        };
+        let group = match &self.group {
+            Some(group) => Some(Group::from_name(group)?),
+            None => None,
+        };
+        Ok(Owner { user, group })
     }
 
+    #[cfg(not(any(unix, windows)))]
     #[inline]
-    pub(crate) fn group(&self) -> Option<&str> {
-        self.group.as_deref()
+    fn try_into_owner(self) -> io::Result<Owner> {
+        Ok(self)
     }
 }
 
-impl FromStr for Owner {
+impl FromStr for StringOwner {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -155,8 +170,8 @@ mod tests {
     #[test]
     fn owner_from_str_user() {
         assert_eq!(
-            Owner::from_str("user").unwrap(),
-            Owner {
+            StringOwner::from_str("user").unwrap(),
+            StringOwner {
                 user: Some("user".into()),
                 group: None,
             }
@@ -166,8 +181,8 @@ mod tests {
     #[test]
     fn group() {
         assert_eq!(
-            Owner::from_str(":group").unwrap(),
-            Owner {
+            StringOwner::from_str(":group").unwrap(),
+            StringOwner {
                 user: None,
                 group: Some("group".into()),
             }
@@ -177,8 +192,8 @@ mod tests {
     #[test]
     fn user_group() {
         assert_eq!(
-            Owner::from_str("user:group").unwrap(),
-            Owner {
+            StringOwner::from_str("user:group").unwrap(),
+            StringOwner {
                 user: Some("user".into()),
                 group: Some("group".into()),
             }
