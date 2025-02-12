@@ -281,12 +281,18 @@ pub(crate) fn apply_metadata<'p>(
             entry.permission(pna::Permission::new(
                 uid.into(),
                 match owner_options.uname.as_deref() {
-                    None => User::from_uid(uid.into())?.name().into(),
+                    None => User::from_uid(uid.into())?
+                        .name()
+                        .unwrap_or_default()
+                        .into(),
                     Some(uname) => uname.into(),
                 },
                 gid.into(),
                 match owner_options.gname.as_deref() {
-                    None => Group::from_gid(gid.into())?.name().into(),
+                    None => Group::from_gid(gid.into())?
+                        .name()
+                        .unwrap_or_default()
+                        .into(),
                     Some(gname) => gname.into(),
                 },
                 mode,
