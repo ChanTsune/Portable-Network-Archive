@@ -52,9 +52,9 @@ pub(crate) struct GetXattrCommand {
     archive: PathBuf,
     #[arg(value_hint = ValueHint::AnyPath)]
     files: Vec<String>,
-    #[arg(short, long, help = "Filter by name of extended attribute")]
+    #[arg(short, long, help = "Dump the value of the named extended attribute")]
     name: Option<String>,
-    #[arg(short, long, help = "Value encoding")]
+    #[arg(short, long, help = "Encode values after retrieving them")]
     encoding: Option<Encoding>,
     #[command(flatten)]
     password: PasswordArgs,
