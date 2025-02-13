@@ -11,11 +11,11 @@ use crate::{
     utils::{str::char_chunks, GlobPatterns, PathPartExt},
 };
 use base64::Engine;
-use clap::{Parser, ValueHint};
+use clap::{ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;
 use pna::NormalEntry;
 use std::{
-    fmt::{Display, Formatter, Write},
+    fmt::{self, Display, Formatter, Write},
     io,
     path::PathBuf,
     str::FromStr,
@@ -47,6 +47,9 @@ pub(crate) enum XattrCommands {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
+#[command(
+    group(ArgGroup::new("dump-flags").args(["name", "dump"])),
+)]
 pub(crate) struct GetXattrCommand {
     #[arg(value_hint = ValueHint::FilePath)]
     archive: PathBuf,
@@ -54,6 +57,12 @@ pub(crate) struct GetXattrCommand {
     files: Vec<String>,
     #[arg(short, long, help = "Dump the value of the named extended attribute")]
     name: Option<String>,
+    #[arg(
+        short,
+        long,
+        help = "Dump the values of all matched extended attributes"
+    )]
+    dump: bool,
     #[arg(short, long, help = "Encode values after retrieving them")]
     encoding: Option<Encoding>,
     #[command(flatten)]
@@ -102,7 +111,7 @@ enum Encoding {
 
 impl Display for Encoding {
     #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Encoding::Text => "text",
             Encoding::Hex => "hex",
@@ -125,6 +134,40 @@ impl FromStr for Encoding {
     }
 }
 
+enum MatchStrategy<'s> {
+    All,
+    Named(&'s str),
+}
+
+struct DumpOption<'s> {
+    dump: bool,
+    matcher: MatchStrategy<'s>,
+}
+
+impl<'a> DumpOption<'a> {
+    #[inline]
+    fn new(dump: bool, name: Option<&'a str>) -> Self {
+        match name {
+            Some(name) => Self {
+                dump: true,
+                matcher: MatchStrategy::Named(name),
+            },
+            None => Self {
+                dump,
+                matcher: MatchStrategy::All,
+            },
+        }
+    }
+
+    #[inline]
+    fn is_match(&self, name: &str) -> bool {
+        match self.matcher {
+            MatchStrategy::All => true,
+            MatchStrategy::Named(n) => n == name,
+        }
+    }
+}
+
 fn archive_get_xattr(args: GetXattrCommand) -> io::Result<()> {
     let password = ask_password(args.password)?;
     if args.files.is_empty() {
@@ -133,6 +176,7 @@ fn archive_get_xattr(args: GetXattrCommand) -> io::Result<()> {
     let globs = GlobPatterns::new(args.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
     let encoding = args.encoding;
+    let dump_option = DumpOption::new(args.dump, args.name.as_deref());
 
     let archives = collect_split_archives(&args.archive)?;
 
@@ -144,22 +188,19 @@ fn archive_get_xattr(args: GetXattrCommand) -> io::Result<()> {
             let name = entry.header().path();
             if globs.matches_any(name) {
                 println!("# file: {}", name);
-                for attr in entry.xattrs().iter().filter(|a| {
-                    args.name.is_none() || args.name.as_deref().is_some_and(|it| it == a.name())
-                }) {
-                    match encoding {
-                        None => {
-                            println!("{}={}", attr.name(), DisplayAuto(attr.value()));
-                        }
-                        Some(Encoding::Text) => {
-                            println!("{}={}", attr.name(), DisplayText(attr.value()));
-                        }
-                        Some(Encoding::Hex) => {
-                            println!("{}={}", attr.name(), DisplayHex(attr.value()));
-                        }
-                        Some(Encoding::Base64) => {
-                            println!("{}={}", attr.name(), DisplayBase64(attr.value()));
-                        }
+                for attr in entry
+                    .xattrs()
+                    .iter()
+                    .filter(|a| dump_option.is_match(a.name()))
+                {
+                    if dump_option.dump {
+                        println!(
+                            "{}={}",
+                            attr.name(),
+                            DisplayValue::new(attr.value(), encoding)
+                        );
+                    } else {
+                        println!("{}", attr.name());
                     }
                 }
             }
@@ -281,28 +322,32 @@ impl Value {
     }
 }
 
-struct DisplayAuto<'a>(&'a [u8]);
+struct DisplayValue<'a> {
+    value: &'a [u8],
+    encoding: Option<Encoding>,
+}
 
-impl Display for DisplayAuto<'_> {
+impl<'a> DisplayValue<'a> {
     #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match std::str::from_utf8(self.0) {
+    const fn new(value: &'a [u8], encoding: Option<Encoding>) -> Self {
+        Self { value, encoding }
+    }
+
+    #[inline]
+    fn fmt_auto(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match std::str::from_utf8(self.value) {
             Ok(s) => {
                 f.write_char('"')?;
                 Display::fmt(&EscapeXattrValueText(s), f)?;
                 f.write_char('"')
             }
-            Err(_e) => Display::fmt(&DisplayHex(self.0), f),
+            Err(_e) => self.fmt_hex(f),
         }
     }
-}
 
-struct DisplayText<'a>(&'a [u8]);
-
-impl Display for DisplayText<'_> {
     #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match std::str::from_utf8(self.0) {
+    fn fmt_text(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match std::str::from_utf8(self.value) {
             Ok(s) => {
                 f.write_char('"')?;
                 Display::fmt(&EscapeXattrValueText(s), f)?;
@@ -311,28 +356,32 @@ impl Display for DisplayText<'_> {
             Err(e) => Display::fmt(&e, f),
         }
     }
-}
 
-struct DisplayHex<'a>(&'a [u8]);
-
-impl Display for DisplayHex<'_> {
     #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt_hex(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str("0x")?;
-        for i in self.0 {
+        for i in self.value {
             write!(f, "{:x}", i)?;
         }
         Ok(())
     }
+
+    #[inline]
+    fn fmt_base64(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str("0s")?;
+        f.write_str(&base64::engine::general_purpose::STANDARD.encode(self.value))
+    }
 }
 
-struct DisplayBase64<'a>(&'a [u8]);
-
-impl Display for DisplayBase64<'_> {
+impl Display for DisplayValue<'_> {
     #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_str("0s")?;
-        f.write_str(&base64::engine::general_purpose::STANDARD.encode(self.0))
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match &self.encoding {
+            None => self.fmt_auto(f),
+            Some(Encoding::Text) => self.fmt_text(f),
+            Some(Encoding::Hex) => self.fmt_hex(f),
+            Some(Encoding::Base64) => self.fmt_base64(f),
+        }
     }
 }
 
@@ -340,7 +389,7 @@ struct EscapeXattrValueText<'s>(&'s str);
 
 impl Display for EscapeXattrValueText<'_> {
     #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         self.0.chars().try_for_each(|c| match c {
             '"' => f.write_str("\\\""),
             '\\' => f.write_str("\\\\"),
@@ -355,19 +404,19 @@ mod tests {
 
     #[test]
     fn encode_text() {
-        let v = DisplayText(b"abc");
+        let v = DisplayValue::new(b"abc", Some(Encoding::Text));
         assert_eq!(format!("{}", v), "\"abc\"");
     }
 
     #[test]
     fn encode_hex() {
-        let v = DisplayHex(b"abc");
+        let v = DisplayValue::new(b"abc", Some(Encoding::Hex));
         assert_eq!(format!("{}", v), "0x616263");
     }
 
     #[test]
     fn encode_base64() {
-        let v = DisplayBase64(b"abc");
+        let v = DisplayValue::new(b"abc", Some(Encoding::Base64));
         assert_eq!(format!("{}", v), "0sYWJj");
     }
 
