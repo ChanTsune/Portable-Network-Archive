@@ -27,7 +27,6 @@ fn archive_update_newer_mtime() {
             "/archive_update_newer_mtime/update_newer_mtime.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(
             env!("CARGO_TARGET_TMPDIR"),
             "/archive_update_newer_mtime/in/"
@@ -71,7 +70,6 @@ fn archive_update_newer_mtime() {
             env!("CARGO_TARGET_TMPDIR"),
             "/archive_update_newer_mtime/update_newer_mtime.pna"
         ),
-        "-r",
         concat!(
             env!("CARGO_TARGET_TMPDIR"),
             "/archive_update_newer_mtime/in/"
@@ -155,7 +153,6 @@ fn archive_update_older_mtime() {
             "/archive_update_older_mtime/update_older_mtime.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(
             env!("CARGO_TARGET_TMPDIR"),
             "/archive_update_older_mtime/in/"
@@ -199,7 +196,6 @@ fn archive_update_older_mtime() {
             env!("CARGO_TARGET_TMPDIR"),
             "/archive_update_older_mtime/update_older_mtime.pna"
         ),
-        "-r",
         concat!(
             env!("CARGO_TARGET_TMPDIR"),
             "/archive_update_older_mtime/in/"
@@ -272,7 +268,6 @@ fn archive_update_deletion() {
             "/archive_update_deletion/update_deletion.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_update_deletion/in/"),
         "--keep-timestamp",
     ]))
@@ -294,7 +289,6 @@ fn archive_update_deletion() {
             env!("CARGO_TARGET_TMPDIR"),
             "/archive_update_deletion/update_deletion.pna"
         ),
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_update_deletion/in/"),
         "--keep-timestamp",
     ]))

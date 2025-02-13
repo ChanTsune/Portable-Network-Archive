@@ -13,7 +13,6 @@ fn extract_with_exclude() {
         "c",
         "extract_with_exclude/extract_with_exclude.pna",
         "--overwrite",
-        "-r",
         "extract_with_exclude/in/",
     ]))
     .unwrap();

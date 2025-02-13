@@ -1,11 +1,15 @@
+#[cfg(not(feature = "memmap"))]
+use crate::command::commons::run_across_archive;
 #[cfg(feature = "memmap")]
 use crate::command::commons::run_across_archive_mem;
-#[cfg(not(feature = "memmap"))]
-use crate::command::commons::{run_across_archive, PathArchiveProvider};
-use crate::{cli::FileArgs, command::Command, utils};
+use crate::{
+    cli::FileArgs,
+    command::{commons::collect_split_archives, Command},
+    utils,
+};
 use clap::Parser;
 use pna::Archive;
-use std::{fs, io};
+use std::io;
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ConcatCommand {
@@ -37,19 +41,20 @@ fn concat_entry(args: ConcatCommand) -> io::Result<()> {
             ));
         }
     }
-    let file = fs::File::create(&args.files.archive)?;
+    let file = utils::fs::file_create(&args.files.archive, args.overwrite)?;
     let mut archive = Archive::write_header(file)?;
 
     for item in &args.files.files {
+        let archives = collect_split_archives(item)?;
         #[cfg(feature = "memmap")]
-        run_across_archive_mem(item, |reader| {
+        run_across_archive_mem(archives, |reader| {
             for entry in reader.raw_entries_slice() {
                 archive.add_entry(entry?)?;
             }
             Ok(())
         })?;
         #[cfg(not(feature = "memmap"))]
-        run_across_archive(PathArchiveProvider::new(item.as_ref()), |reader| {
+        run_across_archive(archives, |reader| {
             for entry in reader.raw_entries() {
                 archive.add_entry(entry?)?;
             }

@@ -2,7 +2,10 @@ use crate::{
     cli::{PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs},
     command::{
         ask_password,
-        commons::{run_transform_entry, TransformStrategyKeepSolid, TransformStrategyUnSolid},
+        commons::{
+            collect_split_archives, run_transform_entry, TransformStrategyKeepSolid,
+            TransformStrategyUnSolid,
+        },
         Command,
     },
     utils::{GlobPatterns, PathPartExt},
@@ -40,10 +43,13 @@ fn archive_chmod(args: ChmodCommand) -> io::Result<()> {
     }
     let globs = GlobPatterns::new(args.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+
+    let archives = collect_split_archives(&args.archive)?;
+
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => run_transform_entry(
             args.archive.remove_part().unwrap(),
-            &args.archive,
+            archives,
             || password.as_deref(),
             |entry| {
                 let entry = entry?;
@@ -57,7 +63,7 @@ fn archive_chmod(args: ChmodCommand) -> io::Result<()> {
         ),
         SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
             args.archive.remove_part().unwrap(),
-            &args.archive,
+            archives,
             || password.as_deref(),
             |entry| {
                 let entry = entry?;

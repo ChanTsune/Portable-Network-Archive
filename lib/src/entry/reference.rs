@@ -227,6 +227,15 @@ impl TryFrom<&OsString> for EntryReference {
     }
 }
 
+impl TryFrom<Cow<'_, OsStr>> for EntryReference {
+    type Error = EntryReferenceError;
+
+    #[inline]
+    fn try_from(value: Cow<'_, OsStr>) -> Result<Self, Self::Error> {
+        Self::new_from_path(Path::new(&value))
+    }
+}
+
 impl TryFrom<&Path> for EntryReference {
     type Error = EntryReferenceError;
 
@@ -275,6 +284,24 @@ impl TryFrom<&PathBuf> for EntryReference {
     #[inline]
     fn try_from(value: &PathBuf) -> Result<Self, Self::Error> {
         Self::new_from_path(value)
+    }
+}
+
+impl TryFrom<Cow<'_, Path>> for EntryReference {
+    type Error = EntryReferenceError;
+
+    /// ## Examples
+    /// ```
+    /// use std::borrow::Cow;
+    /// use libpna::EntryReference;
+    /// use std::path::PathBuf;
+    ///
+    /// let p = Cow::from(PathBuf::from("path/to/file"));
+    /// assert_eq!("path/to/file", EntryReference::try_from(p).unwrap());
+    /// ```
+    #[inline]
+    fn try_from(value: Cow<'_, Path>) -> Result<Self, Self::Error> {
+        Self::new_from_path(&value)
     }
 }
 

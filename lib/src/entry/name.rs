@@ -226,6 +226,15 @@ impl TryFrom<&OsString> for EntryName {
     }
 }
 
+impl TryFrom<Cow<'_, OsStr>> for EntryName {
+    type Error = EntryNameError;
+
+    #[inline]
+    fn try_from(value: Cow<'_, OsStr>) -> Result<Self, Self::Error> {
+        Self::new_from_path(Path::new(&value))
+    }
+}
+
 impl TryFrom<&Path> for EntryName {
     type Error = EntryNameError;
 
@@ -250,6 +259,15 @@ impl TryFrom<&PathBuf> for EntryName {
     #[inline]
     fn try_from(value: &PathBuf) -> Result<Self, Self::Error> {
         Self::new_from_path(value)
+    }
+}
+
+impl TryFrom<Cow<'_, Path>> for EntryName {
+    type Error = EntryNameError;
+
+    #[inline]
+    fn try_from(value: Cow<'_, Path>) -> Result<Self, Self::Error> {
+        Self::new_from_path(&value)
     }
 }
 

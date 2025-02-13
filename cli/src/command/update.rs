@@ -1,7 +1,7 @@
+#[cfg(not(feature = "memmap"))]
+use crate::command::commons::run_read_entries;
 #[cfg(feature = "memmap")]
 use crate::command::commons::run_read_entries_mem as run_read_entries;
-#[cfg(not(feature = "memmap"))]
-use crate::command::commons::run_read_entries_path as run_read_entries;
 use crate::{
     cli::{
         CipherAlgorithmArgs, CompressionAlgorithmArgs, FileArgs, HashAlgorithmArgs, PasswordArgs,
@@ -10,15 +10,15 @@ use crate::{
     command::{
         ask_password, check_password,
         commons::{
-            collect_items, create_entry, entry_option, CreateOptions, KeepOptions, OwnerOptions,
-            PathTransformers, TransformStrategy, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid,
+            collect_items, collect_split_archives, create_entry, entry_option, CreateOptions,
+            KeepOptions, OwnerOptions, PathTransformers, TransformStrategy,
+            TransformStrategyKeepSolid, TransformStrategyUnSolid,
         },
         Command,
     },
     utils::{
         self,
-        env::temp_dir,
+        env::temp_dir_or_else,
         re::{bsd::SubstitutionRule, gnu::TransformRule},
         PathPartExt,
     },
@@ -27,7 +27,7 @@ use clap::{ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;
 use pna::{Archive, EntryName, Metadata};
 use std::{
-    fs, io,
+    env, fs, io,
     path::{Path, PathBuf},
     time::SystemTime,
 };
@@ -59,9 +59,10 @@ pub(crate) struct UpdateCommand {
         short,
         long,
         visible_alias = "recursion",
-        help = "Add the directory to the archive recursively"
+        help = "Add the directory to the archive recursively",
+        default_value_t = true
     )]
-    pub(crate) recursive: bool,
+    recursive: bool,
     #[arg(
         long,
         visible_alias = "no-recursion",
@@ -154,6 +155,15 @@ pub(crate) struct UpdateCommand {
         help = "Modify file or archive member names according to pattern that like GNU tar -transform option"
     )]
     transforms: Option<Vec<TransformRule>>,
+    #[arg(
+        short = 'C',
+        long = "cd",
+        aliases = ["directory"],
+        value_name = "DIRECTORY",
+        help = "changes the directory before adding the following files",
+        value_hint = ValueHint::DirPath
+    )]
+    working_dir: Option<PathBuf>,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -187,9 +197,10 @@ impl Command for UpdateCommand {
 }
 
 fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Result<()> {
+    let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
-    let archive_path = args.file.archive;
+    let archive_path = &args.file.archive;
     if !archive_path.exists() {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
@@ -215,8 +226,11 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
         option,
         keep_options,
         owner_options,
+        follow_links: args.follow_links,
     };
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
+
+    let archives = collect_split_archives(&args.file.archive)?;
 
     let mut files = args.file.files;
     if args.files_from_stdin {
@@ -232,9 +246,14 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
         exclude
     };
 
+    let archive_path = current_dir.join(args.file.archive);
+    if let Some(working_dir) = args.working_dir {
+        env::set_current_dir(working_dir)?;
+    }
+
     let target_items = collect_items(
         &files,
-        args.recursive,
+        !args.no_recursive,
         args.keep_dir,
         args.gitignore,
         args.follow_links,
@@ -244,12 +263,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
     let (tx, rx) = std::sync::mpsc::channel();
 
     let random = rand::random::<u64>();
-    let temp_dir_path = temp_dir().unwrap_or_else(|| {
-        archive_path
-            .parent()
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from("."))
-    });
+    let temp_dir_path = temp_dir_or_else(|| archive_path.parent().unwrap_or_else(|| ".".as_ref()));
     fs::create_dir_all(&temp_dir_path)?;
     let outfile_path = temp_dir_path.join(format!("{}.pna.tmp", random));
     let outfile = fs::File::create(&outfile_path)?;
@@ -292,7 +306,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
         .map(|it| (EntryName::from_lossy(&it), it))
         .collect::<IndexMap<_, _>>();
 
-    run_read_entries(&archive_path, |entry| {
+    run_read_entries(archives, |entry| {
         Strategy::transform(&mut out_archive, password, entry, |entry| {
             let entry = entry?;
             if let Some(target_path) = target_files_mapping.swap_remove(entry.header().path()) {

@@ -19,7 +19,6 @@ fn aes_ctr_argon2_archive() {
             "/aes_argon2_ctr/zstd_aes_argon2_ctr.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/aes_argon2_ctr/in/"),
         "--password",
         "password",
@@ -75,7 +74,6 @@ fn aes_ctr_argon2_with_params_archive() {
             "/aes_argon2_with_params_ctr/zstd_aes_argon2_with_params_ctr.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(
             env!("CARGO_TARGET_TMPDIR"),
             "/aes_argon2_with_params_ctr/in/"
@@ -143,7 +141,6 @@ fn aes_ctr_pbkdf2_archive() {
             "/aes_pbkdf2_ctr/zstd_aes_pbkdf2_ctr.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/aes_pbkdf2_ctr/in/"),
         "--password",
         "password",
@@ -197,7 +194,6 @@ fn aes_ctr_pbkdf2_with_params_archive() {
             "/aes_pbkdf2_with_params_ctr/zstd_aes_pbkdf2_with_params_ctr.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(
             env!("CARGO_TARGET_TMPDIR"),
             "/aes_pbkdf2_with_params_ctr/in/"

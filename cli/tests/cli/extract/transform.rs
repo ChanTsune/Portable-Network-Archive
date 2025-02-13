@@ -13,7 +13,6 @@ fn extract_with_transform() {
         "c",
         "extract_with_transform/extract_with_transform.pna",
         "--overwrite",
-        "-r",
         "extract_with_transform/in/",
     ]))
     .unwrap();

@@ -1,13 +1,17 @@
-#[cfg(any(unix, windows))]
-use crate::utils::fs::{Group, User};
 use crate::{
     cli::{PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs},
     command::{
         ask_password,
-        commons::{run_transform_entry, TransformStrategyKeepSolid, TransformStrategyUnSolid},
+        commons::{
+            collect_split_archives, run_transform_entry, TransformStrategyKeepSolid,
+            TransformStrategyUnSolid,
+        },
         Command,
     },
-    utils::{GlobPatterns, PathPartExt},
+    utils::{
+        fs::{Group, User},
+        GlobPatterns, PathPartExt,
+    },
 };
 use clap::{Parser, ValueHint};
 use pna::NormalEntry;
@@ -42,10 +46,13 @@ fn archive_chown(args: ChownCommand) -> io::Result<()> {
     }
     let globs = GlobPatterns::new(args.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+
+    let archives = collect_split_archives(&args.archive)?;
+
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => run_transform_entry(
             args.archive.remove_part().unwrap(),
-            &args.archive,
+            archives,
             || password.as_deref(),
             |entry| {
                 let entry = entry?;
@@ -59,7 +66,7 @@ fn archive_chown(args: ChownCommand) -> io::Result<()> {
         ),
         SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
             args.archive.remove_part().unwrap(),
-            &args.archive,
+            archives,
             || password.as_deref(),
             |entry| {
                 let entry = entry?;
@@ -79,37 +86,25 @@ fn transform_entry<T>(entry: NormalEntry<T>, owner: &Owner) -> NormalEntry<T> {
     let metadata = entry.metadata().clone();
     let permission = metadata.permission().map(|p| {
         let user = owner.user();
-        #[cfg(unix)]
         let user = user.and_then(|it| {
-            User::from_name(it)
-                .ok()
-                .map(|it| (it.as_raw().into(), it.name().into()))
+            User::from_name(it).ok().map(|it| {
+                (
+                    it.uid().unwrap_or(u64::MAX),
+                    it.name().unwrap_or_default().into(),
+                )
+            })
         });
-        #[cfg(windows)]
-        let user = user.and_then(|it| {
-            User::from_name(it)
-                .ok()
-                .map(|it| (u64::MAX, it.name().into()))
-        });
-        #[cfg(not(any(unix, windows)))]
-        let user = user.map(|_| (p.uid(), p.uname().into()));
         let (uid, uname) = user.unwrap_or_else(|| (p.uid(), p.uname().into()));
 
         let group = owner.group();
-        #[cfg(unix)]
         let group = group.and_then(|it| {
-            Group::from_name(it)
-                .ok()
-                .map(|it| (it.as_raw().into(), it.name().into()))
+            Group::from_name(it).ok().map(|it| {
+                (
+                    it.gid().unwrap_or(u64::MAX),
+                    it.name().unwrap_or_default().into(),
+                )
+            })
         });
-        #[cfg(windows)]
-        let group = group.and_then(|it| {
-            Group::from_name(it)
-                .ok()
-                .map(|it| (u64::MAX, it.name().into()))
-        });
-        #[cfg(not(any(unix, windows)))]
-        let group = group.map(|_| (p.gid(), p.gname().into()));
         let (gid, gname) = group.unwrap_or_else(|| (p.gid(), p.gname().into()));
         pna::Permission::new(uid, uname, gid, gname, p.permissions())
     });

@@ -1,9 +1,8 @@
-#[cfg(unix)]
-pub(crate) use crate::utils::os::unix::fs::owner::*;
-#[cfg(windows)]
-pub(crate) use crate::utils::os::windows::fs::owner::*;
+mod owner;
+
 #[cfg(windows)]
 use crate::utils::os::windows::{self, fs::*};
+pub(crate) use owner::*;
 pub(crate) use pna::fs::*;
 use std::{
     fs,
@@ -63,15 +62,24 @@ pub(crate) fn chown<P: AsRef<Path>>(
 ) -> io::Result<()> {
     #[cfg(windows)]
     fn inner(path: &Path, owner: Option<User>, group: Option<Group>) -> io::Result<()> {
-        windows::fs::chown(path.as_ref(), owner, group)
+        windows::fs::chown(path.as_ref(), owner.map(|it| it.0), group.map(|it| it.0))
     }
     #[cfg(unix)]
     fn inner(path: &Path, owner: Option<User>, group: Option<Group>) -> io::Result<()> {
         std::os::unix::fs::chown(
             path,
-            owner.map(|it| it.as_raw()),
-            group.map(|it| it.as_raw()),
+            owner.map(|it| it.0.as_raw()),
+            group.map(|it| it.0.as_raw()),
         )
     }
     inner(path.as_ref(), owner, group)
+}
+
+#[inline]
+pub(crate) fn file_create(path: impl AsRef<Path>, overwrite: bool) -> io::Result<fs::File> {
+    if overwrite {
+        fs::File::create(path)
+    } else {
+        fs::File::create_new(path)
+    }
 }

@@ -1,7 +1,5 @@
 #[cfg(feature = "memmap")]
 use crate::command::commons::run_entries;
-#[cfg(not(feature = "memmap"))]
-use crate::command::commons::PathArchiveProvider;
 #[cfg(any(unix, windows))]
 use crate::utils::fs::{chown, Group, User};
 use crate::{
@@ -9,7 +7,8 @@ use crate::{
     command::{
         ask_password,
         commons::{
-            run_process_archive, ArchiveProvider, KeepOptions, OwnerOptions, PathTransformers,
+            collect_split_archives, run_process_archive, KeepOptions, OwnerOptions,
+            PathTransformers,
         },
         Command,
     },
@@ -22,13 +21,12 @@ use crate::{
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::{prelude::*, DataKind, EntryReference, NormalEntry, Permission, ReadOptions};
+use std::io::Read;
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::FileTimesExt;
 #[cfg(windows)]
 use std::os::windows::fs::FileTimesExt;
-#[cfg(feature = "memmap")]
-use std::path::Path;
-use std::{borrow::Cow, fs, io, path::PathBuf, time::Instant};
+use std::{borrow::Cow, env, fs, io, path::PathBuf, time::Instant};
 
 #[derive(Parser, Clone, Debug)]
 #[command(
@@ -124,6 +122,20 @@ pub(crate) struct ExtractCommand {
     same_owner: bool,
     #[arg(long, help = "Extract files as yourself")]
     no_same_owner: bool,
+    #[arg(
+        short = 'C',
+        long = "cd",
+        aliases = ["directory"],
+        value_name = "DIRECTORY",
+        help = "Change directories after opening the archive but before extracting entries from the archive",
+        value_hint = ValueHint::DirPath
+    )]
+    working_dir: Option<PathBuf>,
+    #[arg(
+        long,
+        help = "chroot() to the current directory after processing any --cd options and before extracting any files"
+    )]
+    chroot: bool,
     #[command(flatten)]
     pub(crate) file: FileArgs,
 }
@@ -138,6 +150,8 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
     let password = ask_password(args.password)?;
     let start = Instant::now();
     log::info!("Extract archive {}", args.file.archive.display());
+
+    let archives = collect_split_archives(&args.file.archive)?;
 
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
@@ -171,16 +185,28 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
         same_owner: !args.no_same_owner,
         path_transformers: PathTransformers::new(args.substitutions, args.transforms),
     };
+    if let Some(working_dir) = args.working_dir {
+        env::set_current_dir(working_dir)?;
+    }
+    #[cfg(all(unix, not(target_os = "fuchsia")))]
+    if args.chroot {
+        std::os::unix::fs::chroot(env::current_dir()?)?;
+        env::set_current_dir("/")?;
+    }
+    #[cfg(not(all(unix, not(target_os = "fuchsia"))))]
+    if args.chroot {
+        log::warn!("chroot not supported on this platform");
+    };
     #[cfg(not(feature = "memmap"))]
     run_extract_archive_reader(
-        PathArchiveProvider::new(&args.file.archive),
+        archives,
         args.file.files,
         || password.as_deref(),
         output_options,
     )?;
     #[cfg(feature = "memmap")]
     run_extract_archive(
-        args.file.archive,
+        archives,
         args.file.files,
         || password.as_deref(),
         output_options,
@@ -205,7 +231,7 @@ pub(crate) struct OutputOption {
 }
 
 pub(crate) fn run_extract_archive_reader<'p, Provider>(
-    reader: impl ArchiveProvider,
+    reader: impl IntoIterator<Item = impl Read>,
     files: Vec<String>,
     mut password_provider: Provider,
     args: OutputOption,
@@ -253,7 +279,7 @@ where
 
 #[cfg(feature = "memmap")]
 pub(crate) fn run_extract_archive<'p, Provider>(
-    path: impl AsRef<Path>,
+    archives: Vec<fs::File>,
     files: Vec<String>,
     mut password_provider: Provider,
     args: OutputOption,
@@ -268,7 +294,8 @@ where
     let mut hard_link_entries = Vec::<NormalEntry>::new();
 
     let (tx, rx) = std::sync::mpsc::channel();
-    run_entries(path, password_provider, |entry| {
+
+    run_entries(archives, password_provider, |entry| {
         let item = entry?;
         let item_path = item.header().path().to_string();
         if !globs.is_empty() && !globs.matches_any(&item_path) {
@@ -365,7 +392,7 @@ where
     };
     match item.header().data_kind() {
         DataKind::File => {
-            let mut file = fs::File::create(&path)?;
+            let mut file = utils::fs::file_create(&path, overwrite)?;
             if keep_options.keep_timestamp {
                 let mut times = fs::FileTimes::new();
                 if let Some(accessed) = item.metadata().accessed_time() {
@@ -395,7 +422,7 @@ where
                 original
             };
             let original = EntryReference::from_lossy(original);
-            if overwrite && path.exists() {
+            if overwrite && fs::symlink_metadata(&path).is_ok() {
                 utils::fs::remove_path_all(&path)?;
             }
             utils::fs::symlink(original, &path)?;

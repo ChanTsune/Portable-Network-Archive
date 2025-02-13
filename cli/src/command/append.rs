@@ -19,7 +19,7 @@ use crate::{
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
 use std::{
-    fs, io,
+    env, fs, io,
     path::{Path, PathBuf},
 };
 
@@ -50,9 +50,10 @@ pub(crate) struct AppendCommand {
         short,
         long,
         visible_alias = "recursion",
-        help = "Add the directory to the archive recursively"
+        help = "Add the directory to the archive recursively",
+        default_value_t = true
     )]
-    pub(crate) recursive: bool,
+    recursive: bool,
     #[arg(
         long,
         visible_alias = "no-recursion",
@@ -127,6 +128,15 @@ pub(crate) struct AppendCommand {
         help = "Modify file or archive member names according to pattern that like GNU tar -transform option"
     )]
     transforms: Option<Vec<TransformRule>>,
+    #[arg(
+        short = 'C',
+        long = "cd",
+        aliases = ["directory"],
+        value_name = "DIRECTORY",
+        help = "changes the directory before adding the following files",
+        value_hint = ValueHint::DirPath
+    )]
+    working_dir: Option<PathBuf>,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -177,6 +187,7 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
         option,
         keep_options,
         owner_options,
+        follow_links: args.follow_links,
     };
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
 
@@ -195,9 +206,12 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
         }
         exclude
     };
+    if let Some(working_dir) = args.working_dir {
+        env::set_current_dir(working_dir)?;
+    }
     let target_items = collect_items(
         &files,
-        args.recursive,
+        !args.no_recursive,
         args.keep_dir,
         args.gitignore,
         args.follow_links,
@@ -207,10 +221,10 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
     run_append_archive(&create_options, &path_transformers, archive, target_items)
 }
 
-fn run_append_archive(
+pub(crate) fn run_append_archive(
     create_options: &CreateOptions,
     path_transformers: &Option<PathTransformers>,
-    mut archive: Archive<fs::File>,
+    mut archive: Archive<impl io::Write>,
     target_items: Vec<PathBuf>,
 ) -> io::Result<()> {
     let (tx, rx) = std::sync::mpsc::channel();
@@ -234,7 +248,9 @@ fn run_append_archive(
     Ok(())
 }
 
-fn open_archive_then_seek_to_end(path: impl AsRef<Path>) -> io::Result<Archive<fs::File>> {
+pub(crate) fn open_archive_then_seek_to_end(
+    path: impl AsRef<Path>,
+) -> io::Result<Archive<fs::File>> {
     let archive_path = path.as_ref();
     let mut num = 1;
     let file = fs::File::options()

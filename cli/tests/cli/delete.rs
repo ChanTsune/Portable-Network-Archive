@@ -1,3 +1,5 @@
+mod exclude;
+
 use crate::utils::{components_count, diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command};
@@ -20,7 +22,6 @@ fn delete_overwrite() {
             "/delete_overwrite/delete_overwrite.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/delete_overwrite/in/"),
     ]))
     .unwrap();
@@ -85,7 +86,6 @@ fn delete_output() {
             "/delete_output/delete_output.pna"
         ),
         "--overwrite",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/delete_output/in/"),
     ]))
     .unwrap();
@@ -129,75 +129,6 @@ fn delete_output() {
 }
 
 #[test]
-fn delete_output_exclude() {
-    setup();
-    TestResources::extract_in(
-        "raw/",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/delete_output_exclude/in/"),
-    )
-    .unwrap();
-    command::entry(cli::Cli::parse_from([
-        "pna",
-        "--quiet",
-        "c",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/delete_output_exclude/delete_output_exclude.pna"
-        ),
-        "--overwrite",
-        "-r",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/delete_output_exclude/in/"),
-    ]))
-    .unwrap();
-    command::entry(cli::Cli::parse_from([
-        "pna",
-        "--quiet",
-        "experimental",
-        "delete",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/delete_output_exclude/delete_output_exclude.pna"
-        ),
-        "**/raw/text.txt",
-        "--exclude",
-        "**/raw/**",
-        "--unstable",
-        "--output",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/delete_output_exclude/delete_excluded.pna"
-        ),
-    ]))
-    .unwrap();
-
-    command::entry(cli::Cli::parse_from([
-        "pna",
-        "--quiet",
-        "x",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/delete_output_exclude/delete_excluded.pna"
-        ),
-        "--overwrite",
-        "--out-dir",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/delete_output_exclude/out/"),
-        "--strip-components",
-        &components_count(concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/delete_output_exclude/in/"
-        ))
-        .to_string(),
-    ]))
-    .unwrap();
-
-    diff(
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/delete_output_exclude/in/"),
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/delete_output_exclude/out/"),
-    )
-    .unwrap();
-}
-
-#[test]
 fn delete_solid() {
     setup();
     TestResources::extract_in(
@@ -215,7 +146,6 @@ fn delete_solid() {
         ),
         "--overwrite",
         "--solid",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/delete_solid/in/"),
     ]))
     .unwrap();
@@ -276,7 +206,6 @@ fn delete_unsolid() {
         ),
         "--overwrite",
         "--solid",
-        "-r",
         concat!(env!("CARGO_TARGET_TMPDIR"), "/delete_unsolid/in/"),
     ]))
     .unwrap();

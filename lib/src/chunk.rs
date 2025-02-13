@@ -11,7 +11,6 @@ use std::{
     borrow::Cow,
     io::{self, prelude::*},
     mem,
-    ops::Deref,
 };
 
 /// Minimum required size in bytes to represent [`Chunk`].
@@ -70,6 +69,21 @@ pub struct RawChunk<D = Vec<u8>> {
     pub(crate) ty: ChunkType,
     pub(crate) data: D,
     pub(crate) crc: u32,
+}
+
+impl<D> From<(ChunkType, D)> for RawChunk<D>
+where
+    (ChunkType, D): Chunk,
+{
+    #[inline]
+    fn from(value: (ChunkType, D)) -> Self {
+        Self {
+            length: value.length(),
+            crc: value.crc(),
+            ty: value.0,
+            data: value.1,
+        }
+    }
 }
 
 impl<'d> RawChunk<&'d [u8]> {
@@ -147,7 +161,7 @@ where
     }
 }
 
-impl Chunk for RawChunk<&[u8]> {
+impl<T: AsRef<[u8]>> Chunk for RawChunk<T> {
     #[inline]
     fn length(&self) -> u32 {
         self.length
@@ -160,29 +174,7 @@ impl Chunk for RawChunk<&[u8]> {
 
     #[inline]
     fn data(&self) -> &[u8] {
-        self.data
-    }
-
-    #[inline]
-    fn crc(&self) -> u32 {
-        self.crc
-    }
-}
-
-impl Chunk for RawChunk<Cow<'_, [u8]>> {
-    #[inline]
-    fn length(&self) -> u32 {
-        self.length
-    }
-
-    #[inline]
-    fn ty(&self) -> ChunkType {
-        self.ty
-    }
-
-    #[inline]
-    fn data(&self) -> &[u8] {
-        self.data.deref()
+        self.data.as_ref()
     }
 
     #[inline]
@@ -219,28 +211,6 @@ impl RawChunk {
             }
         }
         inner(ty, data.into())
-    }
-}
-
-impl Chunk for RawChunk {
-    #[inline]
-    fn length(&self) -> u32 {
-        self.length
-    }
-
-    #[inline]
-    fn ty(&self) -> ChunkType {
-        self.ty
-    }
-
-    #[inline]
-    fn data(&self) -> &[u8] {
-        &self.data
-    }
-
-    #[inline]
-    fn crc(&self) -> u32 {
-        self.crc
     }
 }
 
@@ -408,6 +378,7 @@ mod tests {
         check_impl::<RawChunk<Vec<u8>>>();
         check_impl::<RawChunk<Cow<[u8]>>>();
         check_impl::<RawChunk<&[u8]>>();
+        check_impl::<RawChunk<[u8; 1]>>();
     }
 
     #[test]
