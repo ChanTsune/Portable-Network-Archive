@@ -400,4 +400,41 @@ mod tests {
         assert_eq!("", format!("{}", EscapeXattrValueText("")));
         assert_eq!("a\\\\b\\\"", format!("{}", EscapeXattrValueText("a\\b\"")));
     }
+
+    #[test]
+    fn set_xattr() {
+        let xattrs = transform_xattr(&[], Some("key"), b"value", None);
+
+        assert_eq!(
+            xattrs,
+            vec![pna::ExtendedAttribute::new("key".into(), b"value".into()),]
+        );
+    }
+
+    #[test]
+    fn overwrite_xattr() {
+        let xattrs = transform_xattr(
+            &[pna::ExtendedAttribute::new("key".into(), b"origin".into())],
+            Some("key"),
+            b"value",
+            None,
+        );
+
+        assert_eq!(
+            xattrs,
+            vec![pna::ExtendedAttribute::new("key".into(), b"value".into()),]
+        );
+    }
+
+    #[test]
+    fn remove_xattr() {
+        let xattrs = transform_xattr(
+            &[pna::ExtendedAttribute::new("key".into(), b"origin".into())],
+            None,
+            b"value",
+            Some("key"),
+        );
+
+        assert_eq!(xattrs, vec![]);
+    }
 }
