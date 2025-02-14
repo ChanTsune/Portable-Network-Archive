@@ -300,7 +300,7 @@ fn transform_xattr(
         .collect()
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Clone, Default, Eq, PartialEq, Hash, Debug)]
 struct Value(Vec<u8>);
 
 impl FromStr for Value {
