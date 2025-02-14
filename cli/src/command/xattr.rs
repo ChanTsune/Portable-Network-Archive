@@ -232,8 +232,18 @@ fn transform_entry<T>(
     value: &[u8],
     remove: Option<&str>,
 ) -> NormalEntry<T> {
-    let mut xattrs = entry
-        .xattrs()
+    let xattrs = transform_xattr(entry.xattrs(), name, value, remove);
+    entry.with_xattrs(&xattrs)
+}
+
+#[inline]
+fn transform_xattr(
+    xattrs: &[pna::ExtendedAttribute],
+    name: Option<&str>,
+    value: &[u8],
+    remove: Option<&str>,
+) -> Vec<pna::ExtendedAttribute> {
+    let mut xattrs = xattrs
         .iter()
         .map(|it| (it.name(), it.value()))
         .collect::<IndexMap<_, _>>();
@@ -244,11 +254,10 @@ fn transform_entry<T>(
     if let Some(name) = remove {
         xattrs.shift_remove_entry(name);
     }
-    let xattrs = xattrs
+    xattrs
         .into_iter()
         .map(|(key, value)| pna::ExtendedAttribute::new(key.into(), value.into()))
-        .collect::<Vec<_>>();
-    entry.with_xattrs(&xattrs)
+        .collect()
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
