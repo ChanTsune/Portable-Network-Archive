@@ -15,6 +15,7 @@ use clap::{ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;
 use pna::NormalEntry;
 use std::{
+    collections::HashMap,
     fmt::{self, Display, Formatter, Write},
     io,
     path::PathBuf,
@@ -266,6 +267,28 @@ fn archive_set_xattr(args: SetXattrCommand) -> io::Result<()> {
     }
 }
 
+fn parse_dump(reader: impl io::BufRead) -> io::Result<HashMap<String, Vec<(String, Value)>>> {
+    let mut result = HashMap::new();
+    let mut current_file = None;
+
+    for line in reader.lines() {
+        let line = line?;
+        if let Some(path) = line.strip_prefix("# file: ") {
+            current_file = Some(path.to_string());
+        } else if let Some(file) = &current_file {
+            if let Some((key, value)) = line.split_once('=') {
+                let parsed_value = Value::from_str(value)
+                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+                result
+                    .entry(file.clone())
+                    .or_insert_with(Vec::new)
+                    .push((key.to_string(), parsed_value));
+            }
+        }
+    }
+    Ok(result)
+}
+
 #[inline]
 fn transform_entry<T>(
     entry: NormalEntry<T>,
@@ -409,6 +432,40 @@ impl Display for EscapeXattrValueText<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parse_dump_for_restore() {
+        assert_eq!(
+            parse_dump(
+                vec![
+                    "# file: path/to/file1",
+                    "user.a=\"abc\"",
+                    "user.b=0x0102",
+                    "",
+                    "# file: path/to/file2",
+                    "user.c=0sYWJj",
+                ]
+                .join("\n")
+                .as_bytes()
+            )
+            .unwrap(),
+            {
+                let mut expected = HashMap::<String, Vec<(String, Value)>>::new();
+                expected.insert(
+                    "path/to/file1".into(),
+                    vec![
+                        ("user.a".into(), Value("abc".into())),
+                        ("user.b".into(), Value(vec![1, 2])),
+                    ],
+                );
+                expected.insert(
+                    "path/to/file2".into(),
+                    vec![("user.c".into(), Value("abc".into()))],
+                );
+                expected
+            }
+        );
+    }
 
     #[test]
     fn encode_text() {
