@@ -248,8 +248,7 @@ fn transform_xattr(
         .map(|it| (it.name(), it.value()))
         .collect::<IndexMap<_, _>>();
     if let Some(name) = name {
-        let map_entry = xattrs.entry(name);
-        map_entry.or_insert(value);
+        xattrs.insert(name, value);
     }
     if let Some(name) = remove {
         xattrs.shift_remove_entry(name);
