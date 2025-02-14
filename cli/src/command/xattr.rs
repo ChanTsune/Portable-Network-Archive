@@ -318,7 +318,7 @@ impl FromStr for Value {
                 .decode(stripped)
                 .map_err(|e| e.to_string())?
         } else {
-            s.into()
+            s.trim_matches('"').into()
         }))
     }
 }
