@@ -14,6 +14,7 @@ use base64::Engine;
 use clap::{ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;
 use pna::NormalEntry;
+use regex::Regex;
 use std::{
     collections::HashMap,
     fmt::{self, Display, Formatter, Write},
@@ -64,6 +65,13 @@ pub(crate) struct GetXattrCommand {
         help = "Dump the values of all matched extended attributes"
     )]
     dump: bool,
+    #[arg(
+        short = 'm',
+        long = "match",
+        value_name = "pattern",
+        help = "Only include attributes with names matching the regular expression pattern. Specify '-' for including all attributes"
+    )]
+    regex_match: Option<String>,
     #[arg(short, long, help = "Encode values after retrieving them")]
     encoding: Option<Encoding>,
     #[command(flatten)]
@@ -144,6 +152,7 @@ impl FromStr for Encoding {
 enum MatchStrategy<'s> {
     All,
     Named(&'s str),
+    Regex(Regex),
 }
 
 struct DumpOption<'s> {
@@ -153,17 +162,25 @@ struct DumpOption<'s> {
 
 impl<'a> DumpOption<'a> {
     #[inline]
-    fn new(dump: bool, name: Option<&'a str>) -> Self {
-        match name {
-            Some(name) => Self {
-                dump: true,
-                matcher: MatchStrategy::Named(name),
-            },
-            None => Self {
+    fn new(
+        dump: bool,
+        name: Option<&'a str>,
+        regex_match: Option<&'a str>,
+    ) -> Result<Self, regex::Error> {
+        Ok(match (name, regex_match) {
+            (None, None) | (None, Some("-")) => Self {
                 dump,
                 matcher: MatchStrategy::All,
             },
-        }
+            (None, Some(re)) => Self {
+                dump,
+                matcher: MatchStrategy::Regex(Regex::new(re)?),
+            },
+            (Some(name), _) => Self {
+                dump: true,
+                matcher: MatchStrategy::Named(name),
+            },
+        })
     }
 
     #[inline]
@@ -171,6 +188,7 @@ impl<'a> DumpOption<'a> {
         match self.matcher {
             MatchStrategy::All => true,
             MatchStrategy::Named(n) => n == name,
+            MatchStrategy::Regex(ref re) => re.is_match(name),
         }
     }
 }
@@ -183,7 +201,8 @@ fn archive_get_xattr(args: GetXattrCommand) -> io::Result<()> {
     let globs = GlobPatterns::new(args.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
     let encoding = args.encoding;
-    let dump_option = DumpOption::new(args.dump, args.name.as_deref());
+    let dump_option = DumpOption::new(args.dump, args.name.as_deref(), args.regex_match.as_deref())
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
     let archives = collect_split_archives(&args.archive)?;
 
