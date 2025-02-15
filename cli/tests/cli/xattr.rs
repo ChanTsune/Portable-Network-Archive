@@ -1,5 +1,7 @@
 #[cfg(not(target_family = "wasm"))]
 mod dump;
+#[cfg(not(target_family = "wasm"))]
+mod restore;
 
 use crate::utils::{diff::diff, setup, TestResources};
 use clap::Parser;
