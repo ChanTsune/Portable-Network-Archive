@@ -1333,6 +1333,7 @@ dependencies = [
  "assert_cmd",
  "base64",
  "bitflags",
+ "bstr",
  "bugreport",
  "bytesize",
  "chrono",
