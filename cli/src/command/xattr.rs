@@ -170,7 +170,7 @@ impl<'a> DumpOption<'a> {
 
 fn archive_get_xattr(args: GetXattrCommand) -> io::Result<()> {
     let password = ask_password(args.password)?;
-    if args.files.is_empty() {
+    if !args.dump && args.files.is_empty() {
         return Ok(());
     }
     let globs = GlobPatterns::new(args.files)
@@ -186,7 +186,7 @@ fn archive_get_xattr(args: GetXattrCommand) -> io::Result<()> {
         |entry| {
             let entry = entry?;
             let name = entry.header().path();
-            if globs.matches_any(name) {
+            if args.dump || globs.matches_any(name) {
                 println!("# file: {}", name);
                 for attr in entry
                     .xattrs()
