@@ -432,7 +432,10 @@ impl<'a> DisplayValue<'a> {
         match std::str::from_utf8(self.value) {
             Ok(s) => {
                 f.write_char('"')?;
-                Display::fmt(&EscapeXattrValueText(s), f)?;
+                Display::fmt(
+                    &unsafe { String::from_utf8_unchecked(escape_xattr_value_text(s.as_bytes())) },
+                    f,
+                )?;
                 f.write_char('"')
             }
             Err(_e) => self.fmt_base64(f),
@@ -441,14 +444,12 @@ impl<'a> DisplayValue<'a> {
 
     #[inline]
     fn fmt_text(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match std::str::from_utf8(self.value) {
-            Ok(s) => {
-                f.write_char('"')?;
-                Display::fmt(&EscapeXattrValueText(s), f)?;
-                f.write_char('"')
-            }
-            Err(e) => Display::fmt(&e, f),
-        }
+        f.write_char('"')?;
+        Display::fmt(
+            &unsafe { String::from_utf8_unchecked(escape_xattr_value_text(self.value)) },
+            f,
+        )?;
+        f.write_char('"')
     }
 
     #[inline]
@@ -479,17 +480,20 @@ impl Display for DisplayValue<'_> {
     }
 }
 
-struct EscapeXattrValueText<'s>(&'s str);
-
-impl Display for EscapeXattrValueText<'_> {
-    #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        self.0.chars().try_for_each(|c| match c {
-            '"' => f.write_str("\\\""),
-            '\\' => f.write_str("\\\\"),
-            _ => f.write_char(c),
-        })
-    }
+fn escape_xattr_value_text(text: &[u8]) -> Vec<u8> {
+    let mut result = Vec::with_capacity(text.len());
+    text.iter().for_each(|c| match c {
+        b'"' => result.extend_from_slice(b"\\\""),
+        b'\\' => result.extend_from_slice(b"\\\\"),
+        b'\0' | b'\n' | b'\r' => {
+            result.push(b'\\');
+            result.push(b'0' + (*c >> 6));
+            result.push(b'0' + ((*c & 0o70) >> 3));
+            result.push(b'0' + (*c & 0o7));
+        }
+        _ => result.push(*c),
+    });
+    result
 }
 
 #[cfg(test)]
@@ -569,8 +573,8 @@ mod tests {
 
     #[test]
     fn escape_text() {
-        assert_eq!("", format!("{}", EscapeXattrValueText("")));
-        assert_eq!("a\\\\b\\\"", format!("{}", EscapeXattrValueText("a\\b\"")));
+        assert_eq!(b"".as_slice(), escape_xattr_value_text(b""));
+        assert_eq!(b"a\\\\b\\\"".as_slice(), escape_xattr_value_text(b"a\\b\""));
     }
 
     #[test]
