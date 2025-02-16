@@ -434,7 +434,7 @@ impl<'a> DisplayValue<'a> {
                 Display::fmt(&EscapeXattrValueText(s), f)?;
                 f.write_char('"')
             }
-            Err(_e) => self.fmt_hex(f),
+            Err(_e) => self.fmt_base64(f),
         }
     }
 
