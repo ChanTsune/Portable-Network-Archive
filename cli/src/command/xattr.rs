@@ -454,7 +454,7 @@ impl<'a> DisplayValue<'a> {
     fn fmt_hex(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str("0x")?;
         for i in self.value {
-            write!(f, "{:x}", i)?;
+            write!(f, "{:02x}", i)?;
         }
         Ok(())
     }
@@ -555,6 +555,10 @@ mod tests {
     #[test]
     fn decode_hex() {
         assert_eq!(Value(b"abc".into()), Value::from_str("0x616263").unwrap());
+        assert_eq!(
+            Value([0, 1, 17].into()),
+            Value::from_str("0x000111").unwrap()
+        );
     }
 
     #[test]
