@@ -53,6 +53,7 @@ fn xattr_get_dump() {
             "user.meta=\"\x01\x02\x03\x04\x05\"\n",
             "user.name=\"pna\"\n",
             "user.value=\"inspired by png data structure\"\n",
+            "\n",
         ));
     }
     let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();

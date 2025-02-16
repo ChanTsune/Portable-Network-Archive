@@ -229,6 +229,7 @@ fn archive_get_xattr(args: GetXattrCommand) -> io::Result<()> {
                         println!("{}", attr.name());
                     }
                 }
+                println!();
             }
             Ok(())
         },
