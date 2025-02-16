@@ -8,17 +8,21 @@ use crate::{
         },
         Command,
     },
-    utils::{str::char_chunks, GlobPatterns, PathPartExt},
+    ext::BufReadExt,
+    utils::{GlobPatterns, PathPartExt},
 };
 use base64::Engine;
+use bstr::ByteSlice;
 use clap::{ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;
 use pna::NormalEntry;
 use regex::Regex;
 use std::{
     collections::HashMap,
+    error::Error,
     fmt::{self, Display, Formatter, Write},
     fs, io,
+    num::ParseIntError,
     path::PathBuf,
     str::FromStr,
 };
@@ -334,18 +338,53 @@ fn parse_dump(reader: impl io::BufRead) -> io::Result<HashMap<String, Vec<(Strin
     let mut result = HashMap::new();
     let mut current_file = None;
 
-    for line in reader.lines() {
+    let mut lines = reader.lines_with_eol();
+    while let Some(line) = lines.next() {
         let line = line?;
-        if let Some(path) = line.strip_prefix("# file: ") {
-            current_file = Some(path.to_string());
+        if let Some(path) = line.strip_prefix(b"# file: ") {
+            current_file = Some(
+                String::from_utf8(path.trim_end_with(|i| i == '\n' || i == '\r').into())
+                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+            );
         } else if let Some(file) = &current_file {
-            if let Some((key, value)) = line.split_once('=') {
-                let parsed_value = Value::from_str(value)
+            // TODO: use slice::split_once when it is stabilized.
+            if let Some((key, value)) = line.split_once_str("=") {
+                let key = String::from_utf8(key.into())
                     .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+                let parsed_value =
+                    match Value::try_from(value.trim_end_with(|i| i == '\n' || i == '\r')) {
+                        Ok(v) => v,
+                        Err(ValueError::Unclosed) => {
+                            let mut tmp = value.to_vec();
+                            loop {
+                                if let Some(nxt) = lines.next() {
+                                    tmp.extend_from_slice(&nxt?);
+                                    match Value::try_from(
+                                        tmp.trim_end_with(|i| i == '\n' || i == '\r'),
+                                    ) {
+                                        Ok(v) => break v,
+                                        Err(ValueError::Unclosed) => continue,
+                                        Err(e) => {
+                                            return Err(io::Error::new(
+                                                io::ErrorKind::InvalidData,
+                                                e,
+                                            ))
+                                        }
+                                    }
+                                } else {
+                                    return Err(io::Error::new(
+                                        io::ErrorKind::InvalidData,
+                                        ValueError::Unclosed,
+                                    ));
+                                }
+                            }
+                        }
+                        Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidData, e)),
+                    };
                 result
                     .entry(file.clone())
                     .or_insert_with(Vec::new)
-                    .push((key.to_string(), parsed_value));
+                    .push((key, parsed_value));
             }
         }
     }
@@ -386,25 +425,65 @@ fn transform_xattr(
         .collect()
 }
 
+#[derive(Clone, Eq, PartialEq, Debug)]
+enum ValueError {
+    InvalidHex(ParseIntError),
+    InvalidBase64(base64::DecodeError),
+    Unclosed,
+    InvalidEscaped,
+}
+
+impl Display for ValueError {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            ValueError::InvalidHex(e) => Display::fmt(e, f),
+            ValueError::InvalidBase64(e) => Display::fmt(e, f),
+            ValueError::Unclosed => f.write_str("missing tailing quote"),
+            ValueError::InvalidEscaped => f.write_str("unknown escape character"),
+        }
+    }
+}
+
+impl Error for ValueError {}
+
 #[derive(Clone, Default, Eq, PartialEq, Hash, Debug)]
 struct Value(Vec<u8>);
 
 impl FromStr for Value {
-    type Err = String;
+    type Err = ValueError;
 
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(if let Some(stripped) = s.strip_prefix("0x") {
-            char_chunks(stripped, 2)
-                .map(|i| u8::from_str_radix(i, 16))
+        Self::try_from(s.as_bytes())
+    }
+}
+
+impl TryFrom<&[u8]> for Value {
+    type Error = ValueError;
+
+    #[inline]
+    fn try_from(s: &[u8]) -> Result<Self, Self::Error> {
+        Ok(Self(if let Some(stripped) = s.strip_prefix(b"0x") {
+            stripped
+                .chunks(2)
+                .map(|i| u8::from_str_radix(unsafe { std::str::from_utf8_unchecked(i) }, 16))
                 .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| e.to_string())?
-        } else if let Some(stripped) = s.strip_prefix("0s") {
+                .map_err(ValueError::InvalidHex)?
+        } else if let Some(stripped) = s.strip_prefix(b"0s") {
             base64::engine::general_purpose::STANDARD
                 .decode(stripped)
-                .map_err(|e| e.to_string())?
+                .map_err(ValueError::InvalidBase64)?
+        } else if let Some(s) = s.strip_prefix(b"\"") {
+            if s.ends_with(b"\\\"") && !s.ends_with(b"\\\\\"") {
+                return Err(ValueError::Unclosed);
+            } else if let Some(s) = s.strip_suffix(b"\"") {
+                unescape_xattr_value_text(s)?
+            } else {
+                return Err(ValueError::Unclosed);
+            }
         } else {
-            s.trim_matches('"').into()
+            s.to_vec()
         }))
     }
 }
@@ -496,6 +575,41 @@ fn escape_xattr_value_text(text: &[u8]) -> Vec<u8> {
     result
 }
 
+fn unescape_xattr_value_text(text: &[u8]) -> Result<Vec<u8>, ValueError> {
+    let mut result = Vec::with_capacity(text.len());
+    let mut chars = text.iter().copied();
+    while let Some(c) = chars.next() {
+        match c {
+            b'\\' => {
+                if let Some(next_char) = chars.next() {
+                    if next_char == b'\\' {
+                        result.push(b'\\')
+                    } else if next_char == b'"' {
+                        result.push(b'"')
+                    } else if matches!(next_char, b'0'..=b'7') {
+                        let mut unescaped = next_char - b'0';
+                        let next_char = chars.next().ok_or(ValueError::InvalidEscaped)?;
+                        if matches!(next_char, b'0'..=b'7') {
+                            unescaped = (unescaped << 3) + next_char - b'0';
+                        }
+                        let next_char = chars.next().ok_or(ValueError::InvalidEscaped)?;
+                        if matches!(next_char, b'0'..=b'7') {
+                            unescaped = (unescaped << 3) + next_char - b'0';
+                        }
+                        result.push(unescaped);
+                    } else {
+                        return Err(ValueError::InvalidEscaped);
+                    }
+                } else {
+                    return Err(ValueError::InvalidEscaped);
+                }
+            }
+            _ => result.push(c),
+        };
+    }
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -555,6 +669,7 @@ mod tests {
     #[test]
     fn decode_text() {
         assert_eq!(Value(b"abc".into()), Value::from_str("abc").unwrap());
+        assert_eq!(Value(b"a\\".into()), Value::from_str("\"a\\\\\"").unwrap());
     }
 
     #[test]
