@@ -122,7 +122,7 @@ pub(crate) fn collect_items(
         for p in files {
             builder.add(p);
         }
-        builder.filter_entry(move |e| !exclude.matches_any(e.path()));
+        builder.filter_entry(move |e| !exclude.starts_with_matches_any(e.path()));
         builder
             .max_depth(if recursive { None } else { Some(0) })
             .hidden(false)
