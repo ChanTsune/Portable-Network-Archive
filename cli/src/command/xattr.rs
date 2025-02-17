@@ -693,6 +693,14 @@ mod tests {
     }
 
     #[test]
+    fn escape_unescape() {
+        assert_eq!(
+            b"\"\\\n\r\0".as_slice(),
+            unescape_xattr_value_text(&escape_xattr_value_text(b"\"\\\n\r\0")).unwrap()
+        );
+    }
+
+    #[test]
     fn set_xattr() {
         let xattrs = transform_xattr(&[], Some("key"), b"value", None);
 
