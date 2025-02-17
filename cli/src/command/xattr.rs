@@ -618,7 +618,7 @@ mod tests {
     fn parse_dump_for_restore() {
         assert_eq!(
             parse_dump(
-                vec![
+                [
                     "# file: path/to/file1",
                     "user.a=\"abc\"",
                     "user.b=0x0102",
