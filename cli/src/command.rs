@@ -17,7 +17,7 @@ pub mod split;
 pub(crate) mod stdio;
 pub(crate) mod strip;
 pub mod update;
-mod xattr;
+pub mod xattr;
 
 use crate::cli::{CipherAlgorithmArgs, Cli, Commands, PasswordArgs};
 use std::{fs, io};
@@ -31,6 +31,7 @@ pub fn entry(cli: Cli) -> io::Result<()> {
         Commands::Split(cmd) => cmd.execute(),
         Commands::Concat(cmd) => cmd.execute(),
         Commands::Strip(cmd) => cmd.execute(),
+        Commands::Xattr(cmd) => cmd.execute(),
         Commands::Complete(cmd) => cmd.execute(),
         Commands::BugReport(cmd) => cmd.execute(),
         Commands::Experimental(cmd) => cmd.execute(),
