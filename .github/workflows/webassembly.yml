@@ -50,10 +50,16 @@ jobs:
         name: Run test
         run: |
           cargo test --target ${{ matrix.target }} -- --nocapture
-      - if: ${{ startsWith(matrix.target, 'wasm32-unknown-emscripten') }}
+      - if: ${{ startsWith(matrix.target, 'wasm32-unknown-emscripten') && matrix.rust != 'nightly' }}
         name: Run test
         run: |
           cargo test -p libpna --target ${{ matrix.target }} -- --skip test_readme_deps --skip test_html_root_url
+        env:
+          RUSTFLAGS: "-C link-arg=-sINITIAL_MEMORY=512MB -C link-arg=-sTOTAL_STACK=16MB"
+      - name: Run on Node.js
+        if: ${{ startsWith(matrix.target, 'wasm32-unknown-emscripten') && matrix.rust == 'nightly' }}
+        run: |
+          cargo run -p portable-network-archive --target ${{ matrix.target }} --release -- --help
         env:
           RUSTFLAGS: "-C link-arg=-sINITIAL_MEMORY=512MB -C link-arg=-sTOTAL_STACK=16MB"
       - if: ${{ endsWith(matrix.target, 'unknown') }}
