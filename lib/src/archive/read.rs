@@ -303,6 +303,22 @@ impl<R: Read> Iterator for RawEntries<'_, R> {
     }
 }
 
+#[cfg(feature = "unstable-async")]
+impl<R: futures_io::AsyncRead + Unpin> futures_util::Stream for RawEntries<'_, R> {
+    type Item = io::Result<RawEntry>;
+
+    #[inline]
+    fn poll_next(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        use futures_util::Future;
+        let this = self.get_mut();
+        let mut pinned = std::pin::pin!(this.0.next_raw_item_async());
+        pinned.as_mut().poll(cx).map(|it| it.transpose())
+    }
+}
+
 /// An iterator over the entries in the archive.
 pub struct Entries<'r, R> {
     reader: &'r mut Archive<R>,
