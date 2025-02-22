@@ -71,10 +71,8 @@ fn delete_file_from_archive(args: DeleteCommand) -> io::Result<()> {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
         Exclude {
-            include: GlobPatterns::new(args.include.unwrap_or_default())
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-            exclude: GlobPatterns::new(exclude)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+            include: args.include.unwrap_or_default().into(),
+            exclude: exclude.into(),
         }
     };
 

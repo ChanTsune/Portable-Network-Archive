@@ -166,10 +166,8 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
         Exclude {
-            include: GlobPatterns::new(args.include.unwrap_or_default())
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-            exclude: GlobPatterns::new(exclude)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+            include: args.include.unwrap_or_default().into(),
+            exclude: exclude.into(),
         }
     };
 
@@ -357,10 +355,11 @@ where
 {
     let same_owner = *same_owner;
     let overwrite = *overwrite;
-    let item_path = item.header().path().as_path();
+    let item_path = item.header().path().as_str();
     if exclude.excluded(item_path) {
         return Ok(());
     }
+    let item_path = item.header().path().as_path();
     log::debug!("Extract: {}", item_path.display());
     let item_path = if let Some(strip_count) = *strip_components {
         if item_path.components().count() <= strip_count {

@@ -14,7 +14,6 @@ use crate::{
         self,
         fmt::DurationDisplay,
         re::{bsd::SubstitutionRule, gnu::TransformRule},
-        GlobPatterns,
     },
 };
 use bytesize::ByteSize;
@@ -203,10 +202,8 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
         Exclude {
-            include: GlobPatterns::new(args.include.unwrap_or_default())
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-            exclude: GlobPatterns::new(exclude)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+            include: args.include.unwrap_or_default().into(),
+            exclude: exclude.into(),
         }
     };
     let archive_path = current_dir.join(archive);
