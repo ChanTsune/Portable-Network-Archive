@@ -20,7 +20,7 @@ use crate::{
         self,
         env::temp_dir_or_else,
         re::{bsd::SubstitutionRule, gnu::TransformRule},
-        GlobPatterns, PathPartExt,
+        PathPartExt,
     },
 };
 use clap::{ArgGroup, Parser, ValueHint};
@@ -250,10 +250,8 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
         Exclude {
-            include: GlobPatterns::new(args.include.unwrap_or_default())
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-            exclude: GlobPatterns::new(exclude)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+            include: args.include.unwrap_or_default().into(),
+            exclude: exclude.into(),
         }
     };
 
