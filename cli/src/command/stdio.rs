@@ -217,10 +217,8 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
         Exclude {
-            include: GlobPatterns::new(args.include.unwrap_or_default())
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-            exclude: GlobPatterns::new(exclude)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+            include: args.include.unwrap_or_default().into(),
+            exclude: exclude.into(),
         }
     };
     let target_items = collect_items(
@@ -282,10 +280,8 @@ fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
         Exclude {
-            include: GlobPatterns::new(args.include.unwrap_or_default())
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-            exclude: GlobPatterns::new(exclude)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+            include: args.include.unwrap_or_default().into(),
+            exclude: exclude.into(),
         }
     };
 
@@ -396,10 +392,8 @@ fn run_append(args: StdioCommand) -> io::Result<()> {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
         Exclude {
-            include: GlobPatterns::new(args.include.unwrap_or_default())
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-            exclude: GlobPatterns::new(exclude)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+            include: args.include.unwrap_or_default().into(),
+            exclude: exclude.into(),
         }
     };
 

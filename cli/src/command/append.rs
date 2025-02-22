@@ -13,7 +13,7 @@ use crate::{
     utils::{
         self,
         re::{bsd::SubstitutionRule, gnu::TransformRule},
-        GlobPatterns, PathPartExt,
+        PathPartExt,
     },
 };
 use clap::{ArgGroup, Parser, ValueHint};
@@ -211,10 +211,8 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
         Exclude {
-            include: GlobPatterns::new(args.include.unwrap_or_default())
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-            exclude: GlobPatterns::new(exclude)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+            include: args.include.unwrap_or_default().into(),
+            exclude: exclude.into(),
         }
     };
     if let Some(working_dir) = args.working_dir {
