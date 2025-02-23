@@ -323,19 +323,22 @@ fn run_list_archive(args: StdioCommand) -> io::Result<()> {
         classify: false,
         format: None,
     };
+    let files_globs = GlobPatterns::new(&args.files)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+
     if let Some(path) = args.file {
         let archives = collect_split_archives(&path)?;
         crate::command::list::run_list_archive(
             archives,
             password.as_deref(),
-            &args.files,
+            files_globs,
             list_options,
         )
     } else {
         crate::command::list::run_list_archive(
             std::iter::repeat_with(|| io::stdin().lock()),
             password.as_deref(),
-            &args.files,
+            files_globs,
             list_options,
         )
     }
