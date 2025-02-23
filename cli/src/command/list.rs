@@ -413,9 +413,9 @@ fn print_entries(entries: Vec<TableRow>, globs: GlobPatterns, options: ListOptio
     };
     match options.format {
         Some(Format::JsonL) => json_line_entries(entries),
-        Some(Format::Table) => detail_list_entries(entries.into_iter(), options),
+        Some(Format::Table) => detail_list_entries(entries, options),
         Some(Format::Tree) => tree_entries(entries, options),
-        None if options.long => detail_list_entries(entries.into_iter(), options),
+        None if options.long => detail_list_entries(entries, options),
         None => simple_list_entries(entries, options),
     }
 }
@@ -446,7 +446,7 @@ fn simple_list_entries(entries: impl IntoParallelIterator<Item = TableRow>, opti
     }
 }
 
-fn detail_list_entries(entries: impl Iterator<Item = TableRow>, options: ListOptions) {
+fn detail_list_entries(entries: impl IntoIterator<Item = TableRow>, options: ListOptions) {
     let underline = Color::new("\x1B[4m", "\x1B[0m");
     let reset = Color::new("\x1B[8m", "\x1B[0m");
     let header = [
