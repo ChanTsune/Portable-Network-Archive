@@ -273,15 +273,18 @@ fn list_archive(args: ListCommand) -> io::Result<()> {
         classify: args.classify,
         format: args.format,
     };
+    let files_globs = GlobPatterns::new(&args.file.files)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+
     let archives = collect_split_archives(&args.file.archive)?;
 
     #[cfg(not(feature = "memmap"))]
     {
-        run_list_archive(archives, password.as_deref(), &args.file.files, options)
+        run_list_archive(archives, password.as_deref(), files_globs, options)
     }
     #[cfg(feature = "memmap")]
     {
-        run_list_archive_mem(archives, password.as_deref(), &args.file.files, options)
+        run_list_archive_mem(archives, password.as_deref(), files_globs, options)
     }
 }
 
@@ -342,12 +345,9 @@ pub(crate) struct ListOptions {
 pub(crate) fn run_list_archive(
     archive_provider: impl IntoIterator<Item = impl Read>,
     password: Option<&str>,
-    files: &[String],
+    files_globs: GlobPatterns,
     args: ListOptions,
 ) -> io::Result<()> {
-    let globs =
-        GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-
     let mut entries = Vec::new();
 
     run_read_entries(archive_provider, |entry| {
@@ -364,7 +364,7 @@ pub(crate) fn run_list_archive(
         }
         Ok(())
     })?;
-    print_entries(entries, globs, args);
+    print_entries(entries, files_globs, args);
     Ok(())
 }
 
@@ -372,12 +372,9 @@ pub(crate) fn run_list_archive(
 pub(crate) fn run_list_archive_mem(
     archives: Vec<std::fs::File>,
     password: Option<&str>,
-    files: &[String],
+    files_globs: GlobPatterns,
     args: ListOptions,
 ) -> io::Result<()> {
-    let globs =
-        GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-
     let mut entries = Vec::new();
 
     run_read_entries_mem(archives, |entry| {
@@ -394,7 +391,7 @@ pub(crate) fn run_list_archive_mem(
         }
         Ok(())
     })?;
-    print_entries(entries, globs, args);
+    print_entries(entries, files_globs, args);
     Ok(())
 }
 
