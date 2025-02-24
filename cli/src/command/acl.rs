@@ -73,9 +73,15 @@ pub(crate) struct SetAclCommand {
     archive: PathBuf,
     #[arg(value_hint = ValueHint::AnyPath)]
     files: Vec<String>,
-    #[arg(short = 'm', help = "")]
+    #[arg(
+        short = 'm',
+        help = "Modify the ACL on the specified file. New entries will be added, and existing entries will be modified according to the entries argument."
+    )]
     modify: Option<AclEntries>,
-    #[arg(short = 'x', help = "")]
+    #[arg(
+        short = 'x',
+        help = "Remove the ACL entries specified there from the access or default ACL of the specified files."
+    )]
     remove: Option<AclEntries>,
     #[command(flatten)]
     transform_strategy: SolidEntriesTransformStrategyArgs,
