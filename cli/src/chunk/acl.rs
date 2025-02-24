@@ -747,4 +747,32 @@ mod tests {
         };
         assert_eq!(Ace::from_str(&ace.to_string()), Ok(ace));
     }
+
+    #[test]
+    fn ace_with_platform_from_str() {
+        let ace = AceWithPlatform {
+            platform: Some(AcePlatform::General),
+            ace: Ace {
+                flags: Flag::DEFAULT | Flag::INHERITED,
+                owner_type: OwnerType::Owner,
+                allow: true,
+                permission: Permission::READ | Permission::WRITE | Permission::EXECUTE,
+            },
+        };
+        assert_eq!(
+            AceWithPlatform::from_str(":d,inherited:u::allow:r,w,x"),
+            Ok(ace)
+        );
+    }
+
+    #[test]
+    fn ace_from_str() {
+        let ace = Ace {
+            flags: Flag::DEFAULT | Flag::INHERITED,
+            owner_type: OwnerType::Owner,
+            allow: true,
+            permission: Permission::READ | Permission::WRITE | Permission::EXECUTE,
+        };
+        assert_eq!(Ace::from_str("d,inherited:u::allow:r,w,x"), Ok(ace));
+    }
 }
