@@ -16,7 +16,7 @@ use crate::{
         self,
         fmt::DurationDisplay,
         re::{bsd::SubstitutionRule, gnu::TransformRule},
-        GlobPatterns,
+        ExcludeGlobPatterns, GlobPatterns,
     },
 };
 use clap::{ArgGroup, Parser, ValueHint};
@@ -158,7 +158,7 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
         if let Some(p) = args.exclude_from {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
-        GlobPatterns::new(exclude)
+        ExcludeGlobPatterns::new(exclude)
     }
     .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
@@ -223,7 +223,7 @@ pub(crate) struct OutputOption {
     pub(crate) overwrite: bool,
     pub(crate) strip_components: Option<usize>,
     pub(crate) out_dir: Option<PathBuf>,
-    pub(crate) exclude: GlobPatterns,
+    pub(crate) exclude: ExcludeGlobPatterns,
     pub(crate) keep_options: KeepOptions,
     pub(crate) owner_options: OwnerOptions,
     pub(crate) same_owner: bool,
@@ -346,10 +346,10 @@ where
 {
     let same_owner = *same_owner;
     let overwrite = *overwrite;
-    let item_path = item.header().path().as_path();
-    if exclude.starts_with_matches_any(item_path) {
+    if exclude.matches_any(item.header().path()) {
         return Ok(());
     }
+    let item_path = item.header().path().as_path();
     log::debug!("Extract: {}", item_path.display());
     let item_path = if let Some(strip_count) = *strip_components {
         if item_path.components().count() <= strip_count {

@@ -15,7 +15,7 @@ use crate::{
     utils::{
         self,
         re::{bsd::SubstitutionRule, gnu::TransformRule},
-        GlobPatterns,
+        ExcludeGlobPatterns,
     },
 };
 use clap::{ArgGroup, Args, Parser, ValueHint};
@@ -269,7 +269,7 @@ fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
         if let Some(p) = args.exclude_from {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
-        GlobPatterns::new(exclude)
+        ExcludeGlobPatterns::new(exclude)
     }
     .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
