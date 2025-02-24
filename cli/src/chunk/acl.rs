@@ -2,6 +2,7 @@ use bitflags::bitflags;
 use itertools::Itertools;
 use pna::ChunkType;
 use std::{
+    collections::HashSet,
     error::Error,
     fmt::{self, Display, Formatter},
     str::{from_utf8, FromStr, Utf8Error},
@@ -174,14 +175,14 @@ impl Display for Ace {
                 .iter()
                 .filter(|(f, _)| self.flags.contains(*f))
                 .map(|(_, names)| names[0])
-                .join(","),
+                .join("|"),
             self.owner_type,
             if self.allow { "allow" } else { "deny" },
             Permission::PERMISSION_NAME_MAP
                 .iter()
                 .filter(|(f, _)| self.permission.contains(*f))
                 .map(|(_, names)| names[0])
-                .join(","),
+                .join("|"),
         )
     }
 }
@@ -192,10 +193,16 @@ impl FromStr for Ace {
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut it = s.split(':');
-        let mut flag_list = it.next().ok_or(ParseAceError::NotEnoughElement)?.split(',');
+        let flag_list = it.next().ok_or(ParseAceError::NotEnoughElement)?;
+        let flag_list = if flag_list.contains(',') {
+            flag_list.split(',')
+        } else {
+            flag_list.split('|')
+        }
+        .collect::<HashSet<_>>();
         let mut flags = Flag::empty();
         for (f, names) in Flag::FLAG_NAME_MAP {
-            if flag_list.any(|it| names.contains(&it)) {
+            if names.iter().any(|name| flag_list.contains(name)) {
                 flags.insert(*f);
             }
         }
@@ -219,10 +226,16 @@ impl FromStr for Ace {
             "deny" => false,
             a => return Err(Self::Err::UnexpectedAccessControl(a.into())),
         };
-        let mut permissions = it.next().ok_or(ParseAceError::NotEnoughElement)?.split(',');
+        let permissions = it.next().ok_or(ParseAceError::NotEnoughElement)?;
+        let permissions = if permissions.contains(',') {
+            permissions.split(',')
+        } else {
+            permissions.split('|')
+        }
+        .collect::<HashSet<_>>();
         let mut permission = Permission::empty();
         for (f, names) in Permission::PERMISSION_NAME_MAP {
-            if permissions.any(|it| names.contains(&it)) {
+            if names.iter().any(|name| permissions.contains(name)) {
                 permission.insert(*f);
             }
         }
@@ -746,5 +759,66 @@ mod tests {
             permission: Permission::all(),
         };
         assert_eq!(Ace::from_str(&ace.to_string()), Ok(ace));
+    }
+
+    #[test]
+    fn ace_with_platform_from_str() {
+        let ace = AceWithPlatform {
+            platform: Some(AcePlatform::General),
+            ace: Ace {
+                flags: Flag::DEFAULT | Flag::INHERITED,
+                owner_type: OwnerType::Owner,
+                allow: true,
+                permission: Permission::READ | Permission::WRITE | Permission::EXECUTE,
+            },
+        };
+        assert_eq!(
+            AceWithPlatform::from_str(":d|inherited:u::allow:r|w|x"),
+            Ok(ace)
+        );
+    }
+
+    #[test]
+    fn ace_from_str() {
+        let ace = Ace {
+            flags: Flag::DEFAULT | Flag::INHERITED,
+            owner_type: OwnerType::Owner,
+            allow: true,
+            permission: Permission::READ | Permission::WRITE | Permission::EXECUTE,
+        };
+        assert_eq!(Ace::from_str("d|inherited:u::allow:r|w|x"), Ok(ace));
+    }
+
+    /// old version compatibility tests
+    mod compat {
+        use super::*;
+
+        #[test]
+        fn ace_with_platform_from_str() {
+            let ace = AceWithPlatform {
+                platform: Some(AcePlatform::General),
+                ace: Ace {
+                    flags: Flag::DEFAULT | Flag::INHERITED,
+                    owner_type: OwnerType::Owner,
+                    allow: true,
+                    permission: Permission::READ | Permission::WRITE | Permission::EXECUTE,
+                },
+            };
+            assert_eq!(
+                AceWithPlatform::from_str(":d,inherited:u::allow:r,w,x"),
+                Ok(ace)
+            );
+        }
+
+        #[test]
+        fn ace_from_str() {
+            let ace = Ace {
+                flags: Flag::DEFAULT | Flag::INHERITED,
+                owner_type: OwnerType::Owner,
+                allow: true,
+                permission: Permission::READ | Permission::WRITE | Permission::EXECUTE,
+            };
+            assert_eq!(Ace::from_str("d,inherited:u::allow:r,w,x"), Ok(ace));
+        }
     }
 }

@@ -188,8 +188,10 @@ impl FromStr for AclEntries {
                     |(_, c): (_, &str)| {
                         if c.is_empty() {
                             Vec::new()
-                        } else {
+                        } else if c.contains(',') {
                             c.split(',').map(|it| it.to_string()).collect()
+                        } else {
+                            c.split('|').map(|it| it.to_string()).collect()
                         }
                     },
                 )),
