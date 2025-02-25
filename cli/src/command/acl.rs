@@ -21,6 +21,7 @@ use nom::{
     Parser as _,
 };
 use pna::{Chunk, NormalEntry, RawChunk};
+use regex::Regex;
 use std::io;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -162,6 +163,8 @@ impl FromStr for AclEntries {
         fn kw_mask(s: &str) -> nom::IResult<&str, (char, Option<&str>)> {
             (char('m'), opt(tag("ask"))).parse(s)
         }
+        let rwx_regex =
+            Regex::from_str("^([\\-r]?)([\\-w]?)([\\-x]?)$").expect("invalid 'rwx' regex");
         let (p, v) = map(
             (
                 opt(map((kw_default, char(':')), |_| true)),
@@ -195,7 +198,20 @@ impl FromStr for AclEntries {
                         if c.is_empty() {
                             Vec::new()
                         } else {
-                            c.split(',').map(|it| it.to_string()).collect()
+                            c.split(',')
+                                .flat_map(|it| {
+                                    if let Some(cap) = rwx_regex.captures(it) {
+                                        cap.iter()
+                                            .skip(1)
+                                            .flatten()
+                                            .map(|it| it.as_str().to_string())
+                                            .filter(|it| *it != "-")
+                                            .collect()
+                                    } else {
+                                        vec![it.to_string()]
+                                    }
+                                })
+                                .collect()
                         }
                     },
                 )),
@@ -457,6 +473,50 @@ mod tests {
                 default: false,
                 owner: OwnerType::Other,
                 permissions: None,
+            }
+        );
+    }
+
+    #[test]
+    fn parse_acl_rwx() {
+        assert_eq!(
+            AclEntries::from_str("d:u::rwx").unwrap(),
+            AclEntries {
+                default: true,
+                owner: OwnerType::Owner,
+                permissions: Some(vec!["r".into(), "w".into(), "x".into()]),
+            }
+        );
+        assert_eq!(
+            AclEntries::from_str("d:u::rw-").unwrap(),
+            AclEntries {
+                default: true,
+                owner: OwnerType::Owner,
+                permissions: Some(vec!["r".into(), "w".into()]),
+            }
+        );
+        assert_eq!(
+            AclEntries::from_str("d:u::r-x").unwrap(),
+            AclEntries {
+                default: true,
+                owner: OwnerType::Owner,
+                permissions: Some(vec!["r".into(), "x".into()]),
+            }
+        );
+        assert_eq!(
+            AclEntries::from_str("d:u::-w-").unwrap(),
+            AclEntries {
+                default: true,
+                owner: OwnerType::Owner,
+                permissions: Some(vec!["w".into()]),
+            }
+        );
+        assert_eq!(
+            AclEntries::from_str("d:u::---").unwrap(),
+            AclEntries {
+                default: true,
+                owner: OwnerType::Owner,
+                permissions: Some(vec![]),
             }
         );
     }
