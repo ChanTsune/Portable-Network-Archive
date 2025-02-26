@@ -12,7 +12,7 @@ use crate::{
     ext::NormalEntryExt,
     utils::{GlobPatterns, PathPartExt},
 };
-use clap::{Parser, ValueHint};
+use clap::{ArgGroup, Parser, ValueHint};
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while},
@@ -69,11 +69,16 @@ impl Command for GetAclCommand {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
+#[command(
+    group(ArgGroup::new("set-flags").args(["set", "modify"])),
+)]
 pub(crate) struct SetAclCommand {
     #[arg(value_hint = ValueHint::FilePath)]
     archive: PathBuf,
     #[arg(value_hint = ValueHint::AnyPath)]
     files: Vec<String>,
+    #[arg(long, help = "Set the ACL on the specified file.")]
+    set: Option<AclEntries>,
     #[arg(
         short = 'm',
         help = "Modify the ACL on the specified file. New entries will be added, and existing entries will be modified according to the entries argument."
@@ -285,6 +290,7 @@ fn archive_set_acl(args: SetAclCommand) -> io::Result<()> {
                 if globs.matches_any(entry.header().path()) {
                     Ok(Some(transform_entry(
                         entry,
+                        args.set.as_ref(),
                         args.modify.as_ref(),
                         args.remove.as_ref(),
                     )))
@@ -303,6 +309,7 @@ fn archive_set_acl(args: SetAclCommand) -> io::Result<()> {
                 if globs.matches_any(entry.header().path()) {
                     Ok(Some(transform_entry(
                         entry,
+                        args.set.as_ref(),
                         args.modify.as_ref(),
                         args.remove.as_ref(),
                     )))
@@ -318,6 +325,7 @@ fn archive_set_acl(args: SetAclCommand) -> io::Result<()> {
 #[inline]
 fn transform_entry<T>(
     entry: NormalEntry<T>,
+    set: Option<&AclEntries>,
     modify: Option<&AclEntries>,
     remove: Option<&AclEntries>,
 ) -> NormalEntry<T>
@@ -340,6 +348,12 @@ where
         .iter()
         .filter(|it| it.ty() != crate::chunk::faCe && it.ty() != crate::chunk::faCl)
         .cloned();
+    if let Some(set) = set {
+        let ace = set.to_ace();
+        log::debug!("Setting ace {}", ace);
+        acl.clear();
+        acl.push(ace);
+    }
     if let Some(modify) = modify {
         let ace = modify.to_ace();
         let item = acl.iter_mut().find(|it| modify.is_match(it));
