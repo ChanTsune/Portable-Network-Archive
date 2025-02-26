@@ -22,9 +22,7 @@ use nom::{
 };
 use pna::{Chunk, NormalEntry, RawChunk};
 use regex::Regex;
-use std::io;
-use std::path::PathBuf;
-use std::str::FromStr;
+use std::{collections::HashSet, io, path::PathBuf, str::FromStr};
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(args_conflicts_with_subcommands = true, arg_required_else_help = true)]
@@ -125,9 +123,11 @@ impl AclEntries {
             owner_type: self.owner.clone(),
             allow: true,
             permission: if let Some(permissions) = &self.permissions {
+                let permissions: HashSet<_> =
+                    HashSet::from_iter(permissions.iter().map(|it| it.as_str()));
                 let mut permission = Permission::empty();
                 for (f, names) in Permission::PERMISSION_NAME_MAP {
-                    if names.iter().any(|it| permissions.iter().any(|s| s == it)) {
+                    if names.iter().any(|it| permissions.contains(it)) {
                         permission.insert(*f);
                     }
                 }
