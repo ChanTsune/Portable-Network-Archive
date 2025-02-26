@@ -74,11 +74,13 @@ pub(crate) struct SetAclCommand {
     files: Vec<String>,
     #[arg(
         short = 'm',
+        long,
         help = "Modify the ACL on the specified file. New entries will be added, and existing entries will be modified according to the entries argument."
     )]
     modify: Option<AclEntries>,
     #[arg(
         short = 'x',
+        long,
         help = "Remove the ACL entries specified there from the access or default ACL of the specified files."
     )]
     remove: Option<AclEntries>,
