@@ -89,6 +89,12 @@ pub(crate) struct SetAclCommand {
         help = "Remove the ACL entries specified there from the access or default ACL of the specified files."
     )]
     remove: Option<AclEntries>,
+    #[arg(
+        long,
+        help = "Target ACL platform",
+        default_value_t = AcePlatform::General
+    )]
+    platform: AcePlatform,
     #[command(flatten)]
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
@@ -292,6 +298,7 @@ fn archive_set_acl(args: SetAclCommand) -> io::Result<()> {
                 if globs.matches_any(entry.header().path()) {
                     Ok(Some(transform_entry(
                         entry,
+                        &args.platform,
                         args.set.as_ref(),
                         args.modify.as_ref(),
                         args.remove.as_ref(),
@@ -311,6 +318,7 @@ fn archive_set_acl(args: SetAclCommand) -> io::Result<()> {
                 if globs.matches_any(entry.header().path()) {
                     Ok(Some(transform_entry(
                         entry,
+                        &args.platform,
                         args.set.as_ref(),
                         args.modify.as_ref(),
                         args.remove.as_ref(),
@@ -327,6 +335,7 @@ fn archive_set_acl(args: SetAclCommand) -> io::Result<()> {
 #[inline]
 fn transform_entry<T>(
     entry: NormalEntry<T>,
+    platform: &AcePlatform,
     set: Option<&AclEntries>,
     modify: Option<&AclEntries>,
     remove: Option<&AclEntries>,
@@ -336,14 +345,8 @@ where
     RawChunk<T>: Chunk,
     RawChunk<T>: From<RawChunk>,
 {
-    let platform = AcePlatform::General;
-    let platform = &platform;
     let mut acls = entry.acl().unwrap_or_default();
-    let acl = if let Some(acl) = acls.get_mut(platform) {
-        acl
-    } else {
-        return entry;
-    };
+    let acl = acls.entry(platform.clone()).or_default();
 
     let extra_without_known = entry
         .extra_chunks()
