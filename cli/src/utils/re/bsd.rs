@@ -1,31 +1,17 @@
 use regex::{Captures, Regex, Replacer};
-use std::{
-    borrow::Cow,
-    error::Error,
-    fmt::{Debug, Display, Formatter},
-    str::FromStr,
-};
+use std::{borrow::Cow, fmt::Debug, str::FromStr};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(thiserror::Error, Clone, Debug, PartialEq)]
 pub(crate) enum SubstitutionError {
+    #[error("Empty substitution rule")]
     Empty,
+    #[error("Invalid substitution rule format")]
     InvalidFormat,
+    #[error("Invalid flag: {0}")]
     InvalidFlag(char),
-    InvalidPattern(regex::Error),
+    #[error(transparent)]
+    InvalidPattern(#[from] regex::Error),
 }
-impl Display for SubstitutionError {
-    #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Empty => f.write_str("Empty substitution rule"),
-            Self::InvalidFormat => f.write_str("Invalid substitution rule format"),
-            Self::InvalidFlag(flag) => write!(f, "Invalid flag: {}", flag),
-            Self::InvalidPattern(e) => write!(f, "{}", e),
-        }
-    }
-}
-
-impl Error for SubstitutionError {}
 
 #[derive(Clone, Debug)]
 struct SubstitutionReplacer(String);
@@ -119,7 +105,7 @@ impl SubstitutionRule {
             }
         }
 
-        let regex = Regex::new(pattern).map_err(SubstitutionError::InvalidPattern)?;
+        let regex = Regex::new(pattern)?;
         Ok(Self {
             pattern: regex,
             replacement: SubstitutionReplacer(replacement.into()),
