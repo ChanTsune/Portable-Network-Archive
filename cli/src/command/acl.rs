@@ -9,7 +9,7 @@ use crate::{
         },
         Command,
     },
-    ext::NormalEntryExt,
+    ext::{Acls, NormalEntryExt},
     utils::{GlobPatterns, PathPartExt},
 };
 use clap::{ArgGroup, Parser, ValueHint};
@@ -345,14 +345,36 @@ where
     RawChunk<T>: Chunk,
     RawChunk<T>: From<RawChunk>,
 {
-    let mut acls = entry.acl().unwrap_or_default();
-    let acl = acls.entry(platform.clone()).or_default();
-
     let extra_without_known = entry
         .extra_chunks()
         .iter()
         .filter(|it| it.ty() != crate::chunk::faCe && it.ty() != crate::chunk::faCl)
         .cloned();
+    let acls = entry.acl().unwrap_or_default();
+    let acls = transform_acl(acls, platform, set, modify, remove);
+    let mut acl_chunks = Vec::new();
+    for (platform, aces) in acls {
+        acl_chunks.push(RawChunk::from_data(crate::chunk::faCl, platform.to_bytes()).into());
+        for ace in aces {
+            acl_chunks.push(RawChunk::from_data(crate::chunk::faCe, ace.to_bytes()).into());
+        }
+    }
+    let extra_chunks = acl_chunks
+        .into_iter()
+        .chain(extra_without_known)
+        .collect::<Vec<_>>();
+    entry.with_extra_chunks(&extra_chunks)
+}
+
+fn transform_acl(
+    mut acls: Acls,
+    platform: &AcePlatform,
+    set: Option<&AclEntries>,
+    modify: Option<&AclEntries>,
+    remove: Option<&AclEntries>,
+) -> Acls {
+    let acl = acls.entry(platform.clone()).or_default();
+
     if let Some(set) = set {
         let ace = set.to_ace();
         log::debug!("Setting ace {}", ace);
@@ -374,18 +396,7 @@ where
         log::debug!("Removing ace {}", remove.to_ace());
         acl.retain(|it| !remove.is_match(it));
     }
-    let mut acl_chunks = Vec::new();
-    for (platform, aces) in acls {
-        acl_chunks.push(RawChunk::from_data(crate::chunk::faCl, platform.to_bytes()).into());
-        for ace in aces {
-            acl_chunks.push(RawChunk::from_data(crate::chunk::faCe, ace.to_bytes()).into());
-        }
-    }
-    let extra_chunks = acl_chunks
-        .into_iter()
-        .chain(extra_without_known)
-        .collect::<Vec<_>>();
-    entry.with_extra_chunks(&extra_chunks)
+    acls
 }
 
 #[cfg(test)]
