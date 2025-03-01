@@ -550,4 +550,147 @@ mod tests {
             }
         );
     }
+
+    #[test]
+    fn transform_acl_set() {
+        let mut acls = Acls::new();
+        acls.insert(
+            AcePlatform::Linux,
+            vec![Ace {
+                flags: Flag::empty(),
+                owner_type: OwnerType::Owner,
+                allow: true,
+                permission: Permission::READ,
+            }],
+        );
+
+        let actual = transform_acl(
+            acls,
+            &AcePlatform::Linux,
+            Some(&AclEntries::from_str("u::rw-").unwrap()),
+            None,
+            None,
+        );
+        let expected = {
+            let mut acls = Acls::new();
+            acls.insert(
+                AcePlatform::Linux,
+                vec![Ace {
+                    flags: Flag::empty(),
+                    owner_type: OwnerType::Owner,
+                    allow: true,
+                    permission: Permission::READ | Permission::WRITE,
+                }],
+            );
+            acls
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn transform_acl_add() {
+        let acls = Acls::new();
+        let actual = transform_acl(
+            acls,
+            &AcePlatform::Linux,
+            None,
+            Some(&AclEntries::from_str("u::rw-").unwrap()),
+            None,
+        );
+        let expected = {
+            let mut acls = Acls::new();
+            acls.insert(
+                AcePlatform::Linux,
+                vec![Ace {
+                    flags: Flag::empty(),
+                    owner_type: OwnerType::Owner,
+                    allow: true,
+                    permission: Permission::READ | Permission::WRITE,
+                }],
+            );
+            acls
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn transform_acl_modify() {
+        let mut acls = Acls::new();
+        acls.insert(
+            AcePlatform::Linux,
+            vec![Ace {
+                flags: Flag::empty(),
+                owner_type: OwnerType::Owner,
+                allow: true,
+                permission: Permission::READ,
+            }],
+        );
+        let actual = transform_acl(
+            acls,
+            &AcePlatform::Linux,
+            None,
+            Some(&AclEntries::from_str("u::rwx").unwrap()),
+            None,
+        );
+        let expected = {
+            let mut acls = Acls::new();
+            acls.insert(
+                AcePlatform::Linux,
+                vec![Ace {
+                    flags: Flag::empty(),
+                    owner_type: OwnerType::Owner,
+                    allow: true,
+                    permission: Permission::READ | Permission::WRITE | Permission::EXECUTE,
+                }],
+            );
+            acls
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn transform_acl_remove() {
+        let mut acls = Acls::new();
+        acls.insert(
+            AcePlatform::Linux,
+            vec![
+                Ace {
+                    flags: Flag::empty(),
+                    owner_type: OwnerType::Owner,
+                    allow: true,
+                    permission: Permission::READ | Permission::WRITE,
+                },
+                Ace {
+                    flags: Flag::empty(),
+                    owner_type: OwnerType::User(Identifier("test".into())),
+                    allow: true,
+                    permission: Permission::READ,
+                },
+            ],
+        );
+        let actual = transform_acl(
+            acls,
+            &AcePlatform::Linux,
+            None,
+            None,
+            Some(&AclEntries::from_str("u:").unwrap()),
+        );
+        let expected = {
+            let mut acls = Acls::new();
+            acls.insert(
+                AcePlatform::Linux,
+                vec![Ace {
+                    flags: Flag::empty(),
+                    owner_type: OwnerType::User(Identifier("test".into())),
+                    allow: true,
+                    permission: Permission::READ,
+                }],
+            );
+            acls
+        };
+        assert_eq!(actual, expected);
+    }
 }
