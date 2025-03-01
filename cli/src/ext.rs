@@ -6,8 +6,10 @@ pub(crate) use read_buf::*;
 use std::collections::HashMap;
 use std::io;
 
+pub(crate) type Acls = HashMap<AcePlatform, Vec<Ace>>;
+
 pub(crate) trait NormalEntryExt {
-    fn acl(&self) -> io::Result<HashMap<AcePlatform, Vec<Ace>>>;
+    fn acl(&self) -> io::Result<Acls>;
 }
 
 impl<T> NormalEntryExt for NormalEntry<T>
@@ -15,8 +17,8 @@ where
     RawChunk<T>: Chunk,
 {
     #[inline]
-    fn acl(&self) -> io::Result<HashMap<AcePlatform, Vec<Ace>>> {
-        let mut acls = HashMap::new();
+    fn acl(&self) -> io::Result<Acls> {
+        let mut acls = Acls::new();
         let mut platform = AcePlatform::General;
         for c in self.extra_chunks().iter() {
             match c.ty() {
