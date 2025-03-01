@@ -19,7 +19,6 @@ use pna::NormalEntry;
 use regex::Regex;
 use std::{
     collections::HashMap,
-    error::Error,
     fmt::{self, Display, Formatter, Write},
     fs, io,
     num::ParseIntError,
@@ -425,27 +424,17 @@ fn transform_xattr(
         .collect()
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(thiserror::Error, Clone, Eq, PartialEq, Debug)]
 enum ValueError {
-    InvalidHex(ParseIntError),
-    InvalidBase64(base64::DecodeError),
+    #[error(transparent)]
+    InvalidHex(#[from] ParseIntError),
+    #[error(transparent)]
+    InvalidBase64(#[from] base64::DecodeError),
+    #[error("missing tailing quote")]
     Unclosed,
+    #[error("unknown escape character")]
     InvalidEscaped,
 }
-
-impl Display for ValueError {
-    #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            ValueError::InvalidHex(e) => Display::fmt(e, f),
-            ValueError::InvalidBase64(e) => Display::fmt(e, f),
-            ValueError::Unclosed => f.write_str("missing tailing quote"),
-            ValueError::InvalidEscaped => f.write_str("unknown escape character"),
-        }
-    }
-}
-
-impl Error for ValueError {}
 
 #[derive(Clone, Default, Eq, PartialEq, Hash, Debug)]
 struct Value(Vec<u8>);
@@ -468,12 +457,9 @@ impl TryFrom<&[u8]> for Value {
             stripped
                 .chunks(2)
                 .map(|i| u8::from_str_radix(unsafe { std::str::from_utf8_unchecked(i) }, 16))
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(ValueError::InvalidHex)?
+                .collect::<Result<Vec<_>, _>>()?
         } else if let Some(stripped) = s.strip_prefix(b"0s") {
-            base64::engine::general_purpose::STANDARD
-                .decode(stripped)
-                .map_err(ValueError::InvalidBase64)?
+            base64::engine::general_purpose::STANDARD.decode(stripped)?
         } else if let Some(s) = s.strip_prefix(b"\"") {
             if s.ends_with(b"\\\"") && !s.ends_with(b"\\\\\"") {
                 return Err(ValueError::Unclosed);
