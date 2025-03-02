@@ -211,7 +211,8 @@ impl FromStr for AclEntries {
                         if c.is_empty() {
                             Vec::new()
                         } else {
-                            c.split(',')
+                            let separator = if c.contains(',') { ',' } else { '|' };
+                            c.split(separator)
                                 .flat_map(|it| {
                                     if let Some(cap) = rwx_regex.captures(it) {
                                         cap.iter()
