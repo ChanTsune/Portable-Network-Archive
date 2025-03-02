@@ -285,6 +285,13 @@ fn archive_set_acl(args: SetAclCommand) -> io::Result<()> {
     }
     let globs = GlobPatterns::new(args.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let set_strategy = SetAclsStrategy::Apply {
+        globs,
+        set: args.set,
+        modify: args.modify,
+        remove: args.remove,
+        platform: args.platform,
+    };
 
     let archives = collect_split_archives(&args.archive)?;
 
@@ -293,42 +300,58 @@ fn archive_set_acl(args: SetAclCommand) -> io::Result<()> {
             args.archive.remove_part().unwrap(),
             archives,
             || password.as_deref(),
-            |entry| {
-                let entry = entry?;
-                if globs.matches_any(entry.header().path()) {
-                    Ok(Some(transform_entry(
-                        entry,
-                        &args.platform,
-                        args.set.as_ref(),
-                        args.modify.as_ref(),
-                        args.remove.as_ref(),
-                    )))
-                } else {
-                    Ok(Some(entry))
-                }
-            },
+            |entry| Ok(Some(set_strategy.transform_entry(entry?))),
             TransformStrategyUnSolid,
         ),
         SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
             args.archive.remove_part().unwrap(),
             archives,
             || password.as_deref(),
-            |entry| {
-                let entry = entry?;
-                if globs.matches_any(entry.header().path()) {
-                    Ok(Some(transform_entry(
-                        entry,
-                        &args.platform,
-                        args.set.as_ref(),
-                        args.modify.as_ref(),
-                        args.remove.as_ref(),
-                    )))
-                } else {
-                    Ok(Some(entry))
-                }
-            },
+            |entry| Ok(Some(set_strategy.transform_entry(entry?))),
             TransformStrategyKeepSolid,
         ),
+    }
+}
+
+enum SetAclsStrategy {
+    Apply {
+        globs: GlobPatterns,
+        set: Option<AclEntries>,
+        modify: Option<AclEntries>,
+        remove: Option<AclEntries>,
+        platform: AcePlatform,
+    },
+}
+
+impl SetAclsStrategy {
+    #[inline]
+    fn transform_entry<T>(&self, entry: NormalEntry<T>) -> NormalEntry<T>
+    where
+        T: Clone,
+        RawChunk<T>: Chunk,
+        RawChunk<T>: From<RawChunk>,
+    {
+        match self {
+            Self::Apply {
+                globs,
+                set,
+                modify,
+                remove,
+                platform,
+            } => {
+                if globs.matches_any(entry.header().path()) {
+                    transform_entry(
+                        entry,
+                        platform,
+                        set.as_ref(),
+                        modify.as_ref(),
+                        remove.as_ref(),
+                    )
+                } else {
+                    entry
+                }
+            }
+        }
     }
 }
 
