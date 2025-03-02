@@ -22,7 +22,12 @@ use nom::{
 };
 use pna::{Chunk, NormalEntry, RawChunk};
 use regex::Regex;
-use std::{collections::HashSet, io, path::PathBuf, str::FromStr};
+use std::{
+    collections::{HashMap, HashSet},
+    fs, io,
+    path::PathBuf,
+    str::FromStr,
+};
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(args_conflicts_with_subcommands = true, arg_required_else_help = true)]
@@ -95,6 +100,12 @@ pub(crate) struct SetAclCommand {
         default_value_t = AcePlatform::General
     )]
     platform: AcePlatform,
+    #[arg(
+        long,
+        help = "Restore a permission backup created by `pna acl get *` or similar. All permissions of a complete directory subtree are restored using this mechanism. If a dash (-) is given as the file name, reads from standard input",
+        value_hint = ValueHint::FilePath
+    )]
+    restore: Option<String>,
     #[command(flatten)]
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
@@ -280,17 +291,22 @@ fn archive_get_acl(args: GetAclCommand) -> io::Result<()> {
 
 fn archive_set_acl(args: SetAclCommand) -> io::Result<()> {
     let password = ask_password(args.password)?;
-    if args.files.is_empty() {
+    let set_strategy = if let Some("-") = args.restore.as_deref() {
+        SetAclsStrategy::Restore(parse_acl_dump(io::stdin().lock())?)
+    } else if let Some(path) = args.restore.as_deref() {
+        SetAclsStrategy::Restore(parse_acl_dump(io::BufReader::new(fs::File::open(path)?))?)
+    } else if args.files.is_empty() {
         return Ok(());
-    }
-    let globs = GlobPatterns::new(args.files)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-    let set_strategy = SetAclsStrategy::Apply {
-        globs,
-        set: args.set,
-        modify: args.modify,
-        remove: args.remove,
-        platform: args.platform,
+    } else {
+        let globs = GlobPatterns::new(args.files)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        SetAclsStrategy::Apply {
+            globs,
+            set: args.set,
+            modify: args.modify,
+            remove: args.remove,
+            platform: args.platform,
+        }
     };
 
     let archives = collect_split_archives(&args.archive)?;
@@ -314,6 +330,7 @@ fn archive_set_acl(args: SetAclCommand) -> io::Result<()> {
 }
 
 enum SetAclsStrategy {
+    Restore(HashMap<String, Acls>),
     Apply {
         globs: GlobPatterns,
         set: Option<AclEntries>,
@@ -332,6 +349,33 @@ impl SetAclsStrategy {
         RawChunk<T>: From<RawChunk>,
     {
         match self {
+            Self::Restore(restore) => {
+                if let Some(acls) = restore.get(entry.header().path().as_str()) {
+                    let extra_without_known = entry
+                        .extra_chunks()
+                        .iter()
+                        .filter(|it| it.ty() != crate::chunk::faCe && it.ty() != crate::chunk::faCl)
+                        .cloned();
+                    let mut acl_chunks = Vec::new();
+                    for (platform, aces) in acls {
+                        acl_chunks.push(
+                            RawChunk::from_data(crate::chunk::faCl, platform.to_bytes()).into(),
+                        );
+                        for ace in aces {
+                            acl_chunks.push(
+                                RawChunk::from_data(crate::chunk::faCe, ace.to_bytes()).into(),
+                            );
+                        }
+                    }
+                    let extra_chunks = acl_chunks
+                        .into_iter()
+                        .chain(extra_without_known)
+                        .collect::<Vec<_>>();
+                    entry.with_extra_chunks(&extra_chunks)
+                } else {
+                    entry
+                }
+            }
             Self::Apply {
                 globs,
                 set,
@@ -420,6 +464,35 @@ fn transform_acl(
         acl.retain(|it| !remove.is_match(it));
     }
     acls
+}
+
+fn parse_acl_dump(reader: impl io::BufRead) -> io::Result<HashMap<String, Acls>> {
+    let mut result = HashMap::new();
+    let mut current_file = None;
+    let mut current_platform = AcePlatform::General;
+    let mut lines = reader.lines();
+
+    while let Some(line) = lines.next() {
+        let line = line?;
+        if let Some(path) = line.strip_prefix("# file: ") {
+            current_file = Some(String::from(path));
+        } else if let Some(_) = line.strip_prefix("# owner: ") {
+            // ignore
+        } else if let Some(_) = line.strip_prefix("# group: ") {
+            // ignore
+        } else if let Some(platform) = line.strip_prefix("# platform: ") {
+            current_platform = AcePlatform::from_str(platform).expect("Infallible error occurred");
+        } else if let Some(file) = &current_file {
+            let ace =
+                Ace::from_str(&line).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+            let file_entry = result.entry(file.clone()).or_insert_with(Acls::new);
+            file_entry
+                .entry(current_platform.clone())
+                .or_default()
+                .push(ace);
+        }
+    }
+    Ok(result)
 }
 
 #[cfg(test)]
