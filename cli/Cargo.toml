@@ -11,7 +11,7 @@ keywords = ["pna", "archive", "cli", "crypto", "data"]
 
 [dependencies]
 base64 = "0.22.1"
-bitflags = "2.8.0"
+bitflags = "2.9.0"
 bstr = "1.11.3"
 bugreport = { version =  "0.5.1", default-features = false, features = ["collector_operating_system", "format_markdown"] }
 bytesize = "2.0.0"
