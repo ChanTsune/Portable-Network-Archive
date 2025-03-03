@@ -1,8 +1,5 @@
-mod read_buf;
-
 use crate::chunk::{self, Ace, AcePlatform, AceWithPlatform};
 use pna::{prelude::*, NormalEntry, RawChunk};
-pub(crate) use read_buf::*;
 use std::collections::HashMap;
 use std::io;
 
