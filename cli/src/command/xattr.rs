@@ -8,11 +8,10 @@ use crate::{
         },
         Command,
     },
-    ext::BufReadExt,
     utils::{GlobPatterns, PathPartExt},
 };
 use base64::Engine;
-use bstr::ByteSlice;
+use bstr::{io::BufReadExt, ByteSlice};
 use clap::{ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;
 use pna::NormalEntry;
@@ -334,15 +333,14 @@ impl SetAttrStrategy {
 }
 
 fn parse_dump(reader: impl io::BufRead) -> io::Result<HashMap<String, Vec<(String, Value)>>> {
-    let mut result = HashMap::new();
+    let mut result = HashMap::<_, Vec<_>>::new();
     let mut current_file = None;
 
-    let mut lines = reader.lines_with_eol();
-    while let Some(line) = lines.next() {
+    for line in reader.byte_lines() {
         let line = line?;
         if let Some(path) = line.strip_prefix(b"# file: ") {
             current_file = Some(
-                String::from_utf8(path.trim_end_with(|i| i == '\n' || i == '\r').into())
+                String::from_utf8(path.into())
                     .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
             );
         } else if let Some(file) = &current_file {
@@ -350,40 +348,9 @@ fn parse_dump(reader: impl io::BufRead) -> io::Result<HashMap<String, Vec<(Strin
             if let Some((key, value)) = line.split_once_str("=") {
                 let key = String::from_utf8(key.into())
                     .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-                let parsed_value =
-                    match Value::try_from(value.trim_end_with(|i| i == '\n' || i == '\r')) {
-                        Ok(v) => v,
-                        Err(ValueError::Unclosed) => {
-                            let mut tmp = value.to_vec();
-                            loop {
-                                if let Some(nxt) = lines.next() {
-                                    tmp.extend_from_slice(&nxt?);
-                                    match Value::try_from(
-                                        tmp.trim_end_with(|i| i == '\n' || i == '\r'),
-                                    ) {
-                                        Ok(v) => break v,
-                                        Err(ValueError::Unclosed) => continue,
-                                        Err(e) => {
-                                            return Err(io::Error::new(
-                                                io::ErrorKind::InvalidData,
-                                                e,
-                                            ))
-                                        }
-                                    }
-                                } else {
-                                    return Err(io::Error::new(
-                                        io::ErrorKind::InvalidData,
-                                        ValueError::Unclosed,
-                                    ));
-                                }
-                            }
-                        }
-                        Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidData, e)),
-                    };
-                result
-                    .entry(file.clone())
-                    .or_insert_with(Vec::new)
-                    .push((key, parsed_value));
+                let value = Value::try_from(value)
+                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+                result.entry(file.clone()).or_default().push((key, value));
             }
         }
     }
