@@ -56,6 +56,8 @@ pub(crate) enum XattrCommands {
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) struct GetAclCommand {
+    #[arg(long, help = "Display specified ACL platform", value_delimiter = ',')]
+    platform: Vec<AcePlatform>,
     #[arg(value_hint = ValueHint::FilePath)]
     archive: PathBuf,
     #[arg(value_hint = ValueHint::AnyPath)]
@@ -262,6 +264,7 @@ fn archive_get_acl(args: GetAclCommand) -> io::Result<()> {
     }
     let globs = GlobPatterns::new(args.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let platforms = args.platform.into_iter().collect::<HashSet<_>>();
 
     let archives = collect_split_archives(&args.archive)?;
 
@@ -278,7 +281,11 @@ fn archive_get_acl(args: GetAclCommand) -> io::Result<()> {
                 println!("# file: {}", name);
                 println!("# owner: {}", uname);
                 println!("# group: {}", gname);
-                for (platform, acl) in entry.acl()? {
+                for (platform, acl) in entry
+                    .acl()?
+                    .into_iter()
+                    .filter(|(p, _)| platforms.is_empty() || platforms.contains(p))
+                {
                     println!("# platform: {}", platform);
                     for ace in acl {
                         println!("{}", ace);
