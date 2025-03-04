@@ -74,3 +74,21 @@ fn extract_freebsd_acl() {
     ]))
     .unwrap();
 }
+
+#[test]
+fn extract_generic_acl() {
+    setup();
+    TestResources::extract_in("generic_acl.pna", ".").unwrap();
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "generic_acl.pna",
+        "--overwrite",
+        "--out-dir",
+        "generic_acl/out/",
+        "--keep-acl",
+        "--unstable",
+    ]))
+    .unwrap();
+}
