@@ -284,6 +284,7 @@ fn archive_get_acl(args: GetAclCommand) -> io::Result<()> {
                         println!("{}", ace);
                     }
                 }
+                println!();
             }
             Ok(())
         },
