@@ -124,6 +124,7 @@ impl Command for SetAclCommand {
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) struct AclEntries {
     default: bool,
+    allow: Option<bool>,
     owner: OwnerType,
     permissions: Option<Vec<String>>,
 }
@@ -136,6 +137,11 @@ impl AclEntries {
         if self.owner != ace.owner_type {
             return false;
         }
+        if let Some(allow) = self.allow {
+            if allow != ace.allow {
+                return false;
+            }
+        }
         true
     }
 
@@ -147,7 +153,7 @@ impl AclEntries {
                 Flag::empty()
             },
             owner_type: self.owner.clone(),
-            allow: true,
+            allow: self.allow.unwrap_or(true),
             permission: if let Some(permissions) = &self.permissions {
                 let permissions: HashSet<_> =
                     HashSet::from_iter(permissions.iter().map(|it| it.as_str()));
@@ -168,14 +174,20 @@ impl AclEntries {
 impl FromStr for AclEntries {
     type Err = String;
 
-    /// `"[d[efault]:] [u[ser]:]uid [:perms]"`
-    /// `"[d[efault]:] g[roup]:gid [:perms]"`
-    /// `"[d[efault]:] m[ask][:] [:perms]"`
-    /// `"[d[efault]:] o[ther][:] [:perms]"`
+    /// `"[d[efault]:] [u[ser]:]uid [:(allow|deny)] [:perms]"`
+    /// `"[d[efault]:] g[roup]:gid [:(allow|deny)] [:perms]"`
+    /// `"[d[efault]:] m[ask][:] [:(allow|deny)] [:perms]"`
+    /// `"[d[efault]:] o[ther][:] [:(allow|deny)] [:perms]"`
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         fn kw_default(s: &str) -> nom::IResult<&str, (char, Option<&str>)> {
             (char('d'), opt(tag("efault"))).parse(s)
+        }
+        fn kw_allow(s: &str) -> nom::IResult<&str, &str> {
+            tag("allow").parse(s)
+        }
+        fn kw_deny(s: &str) -> nom::IResult<&str, &str> {
+            tag("deny").parse(s)
         }
         fn kw_user(s: &str) -> nom::IResult<&str, (char, Option<&str>)> {
             (char('u'), opt(tag("ser"))).parse(s)
@@ -218,6 +230,13 @@ impl FromStr for AclEntries {
                         },
                     ),
                 )),
+                map(
+                    opt((
+                        char(':'),
+                        alt((map(kw_allow, |_| true), map(kw_deny, |_| false))),
+                    )),
+                    |a| a.map(|(_, a)| a),
+                ),
                 opt(map(
                     (char(':'), take_while(|_| true)),
                     |(_, c): (_, &str)| {
@@ -242,8 +261,9 @@ impl FromStr for AclEntries {
                     },
                 )),
             ),
-            |(d, owner, permissions)| AclEntries {
+            |(d, owner, allow, permissions)| AclEntries {
                 default: d.unwrap_or_default(),
+                allow,
                 owner,
                 permissions,
             },
@@ -515,6 +535,7 @@ mod tests {
             AclEntries::from_str("uname").unwrap(),
             AclEntries {
                 default: false,
+                allow: None,
                 owner: OwnerType::User(Identifier("uname".into())),
                 permissions: None,
             }
@@ -523,6 +544,7 @@ mod tests {
             AclEntries::from_str("user:").unwrap(),
             AclEntries {
                 default: false,
+                allow: None,
                 owner: OwnerType::Owner,
                 permissions: None,
             }
@@ -531,6 +553,7 @@ mod tests {
             AclEntries::from_str("uname:").unwrap(),
             AclEntries {
                 default: false,
+                allow: None,
                 owner: OwnerType::User(Identifier("uname".into())),
                 permissions: Some(Vec::new()),
             }
@@ -543,6 +566,7 @@ mod tests {
             AclEntries::from_str("g:").unwrap(),
             AclEntries {
                 default: false,
+                allow: None,
                 owner: OwnerType::OwnerGroup,
                 permissions: None,
             }
@@ -551,6 +575,7 @@ mod tests {
             AclEntries::from_str("group:gname").unwrap(),
             AclEntries {
                 default: false,
+                allow: None,
                 owner: OwnerType::Group(Identifier("gname".into())),
                 permissions: None,
             }
@@ -559,6 +584,7 @@ mod tests {
             AclEntries::from_str("g::").unwrap(),
             AclEntries {
                 default: false,
+                allow: None,
                 owner: OwnerType::OwnerGroup,
                 permissions: Some(Vec::new()),
             }
@@ -567,6 +593,7 @@ mod tests {
             AclEntries::from_str("group:gname:").unwrap(),
             AclEntries {
                 default: false,
+                allow: None,
                 owner: OwnerType::Group(Identifier("gname".into())),
                 permissions: Some(Vec::new()),
             }
@@ -579,6 +606,7 @@ mod tests {
             AclEntries::from_str("m:").unwrap(),
             AclEntries {
                 default: false,
+                allow: None,
                 owner: OwnerType::Mask,
                 permissions: None,
             }
@@ -587,6 +615,7 @@ mod tests {
             AclEntries::from_str("mask:").unwrap(),
             AclEntries {
                 default: false,
+                allow: None,
                 owner: OwnerType::Mask,
                 permissions: None,
             }
@@ -599,6 +628,7 @@ mod tests {
             AclEntries::from_str("o:").unwrap(),
             AclEntries {
                 default: false,
+                allow: None,
                 owner: OwnerType::Other,
                 permissions: None,
             }
@@ -607,6 +637,7 @@ mod tests {
             AclEntries::from_str("other:").unwrap(),
             AclEntries {
                 default: false,
+                allow: None,
                 owner: OwnerType::Other,
                 permissions: None,
             }
@@ -619,6 +650,7 @@ mod tests {
             AclEntries::from_str("d:u::rwx").unwrap(),
             AclEntries {
                 default: true,
+                allow: None,
                 owner: OwnerType::Owner,
                 permissions: Some(vec!["r".into(), "w".into(), "x".into()]),
             }
@@ -627,6 +659,7 @@ mod tests {
             AclEntries::from_str("d:u::rw-").unwrap(),
             AclEntries {
                 default: true,
+                allow: None,
                 owner: OwnerType::Owner,
                 permissions: Some(vec!["r".into(), "w".into()]),
             }
@@ -635,6 +668,7 @@ mod tests {
             AclEntries::from_str("d:u::r-x").unwrap(),
             AclEntries {
                 default: true,
+                allow: None,
                 owner: OwnerType::Owner,
                 permissions: Some(vec!["r".into(), "x".into()]),
             }
@@ -643,6 +677,7 @@ mod tests {
             AclEntries::from_str("d:u::-w-").unwrap(),
             AclEntries {
                 default: true,
+                allow: None,
                 owner: OwnerType::Owner,
                 permissions: Some(vec!["w".into()]),
             }
@@ -651,6 +686,7 @@ mod tests {
             AclEntries::from_str("d:u::---").unwrap(),
             AclEntries {
                 default: true,
+                allow: None,
                 owner: OwnerType::Owner,
                 permissions: Some(vec![]),
             }
