@@ -58,6 +58,8 @@ pub(crate) enum XattrCommands {
 pub(crate) struct GetAclCommand {
     #[arg(long, help = "Display specified ACL platform", value_delimiter = ',')]
     platform: Vec<AcePlatform>,
+    #[arg(short, long, help = "List numeric user and group IDs")]
+    numeric: bool,
     #[arg(value_hint = ValueHint::FilePath)]
     archive: PathBuf,
     #[arg(value_hint = ValueHint::AnyPath)]
@@ -265,6 +267,7 @@ fn archive_get_acl(args: GetAclCommand) -> io::Result<()> {
     let globs = GlobPatterns::new(args.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
     let platforms = args.platform.into_iter().collect::<HashSet<_>>();
+    let numeric_owner = args.numeric;
 
     let archives = collect_split_archives(&args.archive)?;
 
@@ -276,11 +279,19 @@ fn archive_get_acl(args: GetAclCommand) -> io::Result<()> {
             let name = entry.header().path();
             if globs.matches_any(name) {
                 let permission = entry.metadata().permission();
-                let uname = permission.map_or_else(Default::default, |it| it.uname());
-                let gname = permission.map_or_else(Default::default, |it| it.gname());
                 println!("# file: {}", name);
-                println!("# owner: {}", uname);
-                println!("# group: {}", gname);
+                if let Some(permission) = permission {
+                    if numeric_owner {
+                        println!("# owner: {}", permission.uid());
+                        println!("# group: {}", permission.gid());
+                    } else {
+                        println!("# owner: {}", permission.uname());
+                        println!("# group: {}", permission.gname());
+                    }
+                } else {
+                    println!("# owner: ");
+                    println!("# group: ");
+                }
                 for (platform, acl) in entry
                     .acl()?
                     .into_iter()
