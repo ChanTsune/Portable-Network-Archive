@@ -9,7 +9,7 @@ use crate::{
         },
         Command,
     },
-    ext::{Acls, NormalEntryExt},
+    ext::{Acls, NormalEntryExt, PermissionExt},
     utils::{GlobPatterns, PathPartExt},
 };
 use clap::{ArgGroup, Parser, ValueHint};
@@ -301,13 +301,8 @@ fn archive_get_acl(args: GetAclCommand) -> io::Result<()> {
                 let permission = entry.metadata().permission();
                 println!("# file: {}", name);
                 if let Some(permission) = permission {
-                    if numeric_owner {
-                        println!("# owner: {}", permission.uid());
-                        println!("# group: {}", permission.gid());
-                    } else {
-                        println!("# owner: {}", permission.uname());
-                        println!("# group: {}", permission.gname());
-                    }
+                    println!("# owner: {}", permission.owner_display(numeric_owner));
+                    println!("# group: {}", permission.group_display(numeric_owner));
                 } else {
                     println!("# owner: ");
                     println!("# group: ");
