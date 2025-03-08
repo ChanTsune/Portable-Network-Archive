@@ -1,3 +1,11 @@
+FROM rust:slim as dev
+
+ENV CARGO_TARGET_DIR /tmp/target/
+
+RUN rustup component add clippy rustfmt
+
+RUN apt update && apt install -y libacl1-dev g++ cmake git
+
 FROM rust:slim as builder
 
 RUN rustup target add "$(uname -m)"-unknown-linux-musl
