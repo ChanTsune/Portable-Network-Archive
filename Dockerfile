@@ -2,7 +2,7 @@ FROM rust:slim as builder
 
 RUN rustup target add "$(uname -m)"-unknown-linux-musl
 
-RUN apt update && apt install -y libacl1-dev musl-tools
+RUN apt update && apt install -y libacl1-dev cmake musl-tools
 
 WORKDIR /work
 
