@@ -76,7 +76,7 @@ fn solid_zstd_archive() {
         concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_zstd/in/"),
         concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_zstd/out/"),
     )
-    .unwrap()
+    .unwrap();
 }
 
 #[test]
@@ -115,7 +115,7 @@ fn solid_xz_archive() {
         concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_xz/in/"),
         concat!(env!("CARGO_TARGET_TMPDIR"), "/solid_xz/out/"),
     )
-    .unwrap()
+    .unwrap();
 }
 
 #[test]
