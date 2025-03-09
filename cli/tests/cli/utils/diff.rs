@@ -1,5 +1,6 @@
-use std::collections::HashSet;
+use path_slash::*;
 use std::{
+    collections::{HashMap, HashSet},
     fs, io,
     path::{Path, PathBuf},
 };
@@ -73,16 +74,17 @@ fn diff_dirs(dir1: &Path, dir2: &Path) -> io::Result<HashSet<DiffError>> {
     Ok(differences)
 }
 
-fn read_dir_recursively(dir: &Path) -> io::Result<std::collections::HashMap<PathBuf, PathBuf>> {
-    let mut entries = std::collections::HashMap::new();
+fn read_dir_recursively(dir: &Path) -> io::Result<HashMap<PathBuf, PathBuf>> {
+    let mut entries = HashMap::new();
     for entry in walkdir::WalkDir::new(dir)
         .into_iter()
         .filter_map(Result::ok)
     {
-        let path = entry.path();
+        // Convert path to forward slashes for cross-platform compatibility
+        let path = PathBuf::from(entry.path().to_slash_lossy().as_ref());
         if path.is_file() || path.is_dir() {
             let relative_path = path.strip_prefix(dir).unwrap();
-            entries.insert(relative_path.to_path_buf(), path.to_path_buf());
+            entries.insert(relative_path.to_path_buf(), path);
         }
     }
     Ok(entries)
