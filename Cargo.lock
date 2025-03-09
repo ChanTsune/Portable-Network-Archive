@@ -1288,6 +1288,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "path-slash"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e91099d4268b0e11973f036e885d652fb0b21fedcf69738c627f94db6a44f42"
+
+[[package]]
 name = "pbkdf2"
 version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1359,6 +1365,7 @@ dependencies = [
  "nix",
  "nom 8.0.0",
  "normalize-path",
+ "path-slash",
  "pna",
  "rand",
  "rayon",
