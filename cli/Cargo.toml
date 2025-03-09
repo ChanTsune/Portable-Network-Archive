@@ -56,6 +56,7 @@ libc = "0.2.170"
 
 [dev-dependencies]
 maplit = "1.0.2"
+path-slash = "0.2.1"
 rust-embed = { version = "8.6.0", features = ["debug-embed"] }
 walkdir = "2.5.0"
 
