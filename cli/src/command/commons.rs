@@ -7,10 +7,11 @@ use crate::{
             bsd::{SubstitutionRule, SubstitutionRules},
             gnu::{TransformRule, TransformRules},
         },
-        GlobPatterns, PathPartExt,
+        ExcludeGlobPatterns, PathPartExt,
     },
 };
 use normalize_path::*;
+use path_slash::*;
 use pna::{
     prelude::*, Archive, EntryBuilder, EntryName, EntryPart, EntryReference, NormalEntry,
     ReadEntry, SolidEntryBuilder, WriteOptions, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
@@ -112,10 +113,10 @@ pub(crate) fn collect_items(
     exclude: impl IntoIterator<Item = impl AsRef<Path>>,
 ) -> io::Result<Vec<PathBuf>> {
     let mut files = files.into_iter();
-    let exclude = GlobPatterns::new(
+    let exclude = ExcludeGlobPatterns::new(
         exclude
             .into_iter()
-            .map(|path| path.as_ref().normalize().to_string_lossy().into_owned()),
+            .map(|path| path.as_ref().normalize().to_slash_lossy().into_owned()),
     )
     .map_err(io::Error::other)?;
     if let Some(p) = files.next() {
@@ -123,7 +124,7 @@ pub(crate) fn collect_items(
         for p in files {
             builder.add(p);
         }
-        builder.filter_entry(move |e| !exclude.matches_any(e.path()));
+        builder.filter_entry(move |e| !exclude.matches_any(e.path().to_slash_lossy()));
         builder
             .max_depth(if recursive { None } else { Some(0) })
             .hidden(false)
