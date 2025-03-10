@@ -106,3 +106,57 @@ jobs:
           cargo check --locked --target ${{ matrix.target }}
         env:
           RUST_BACKTRACE: 1
+
+  msrv:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+        crate:
+          - libpna
+          - pna
+          - portable-network-archive
+        include:
+          - crate: libpna
+            rust: '1.80'
+          - crate: pna
+            rust: '1.80'
+          - crate: portable-network-archive
+            rust: '1.81'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: git autocrlf false
+        if: startsWith(matrix.os, 'windows')
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+      - name: install dependencies
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt update
+          sudo apt install -y libacl1-dev
+      - uses: actions/checkout@v4
+      - id: install_rust
+        uses: ./.github/actions/setup-rust
+        with:
+          channel: ${{ matrix.rust }}
+      - name: Install cargo-hack from crates.io
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: cargo-hack
+          cache-key: ${{ matrix.os }}
+      - name: Restore rust build cache
+        id: restore-rust-build-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            target/*
+            !target/tmp
+          key: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}-${{ hashFiles('**/Cargo.lock') }}"
+          restore-keys: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}"
+      - name: run test
+        run: |
+          cargo hack test --locked --release --feature-powerset --exclude-features wasm -p ${{ matrix.crate }}
+        env:
+          RUST_BACKTRACE: 1
