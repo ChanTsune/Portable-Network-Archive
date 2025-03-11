@@ -506,9 +506,9 @@ fn parse_acl_dump(reader: impl io::BufRead) -> io::Result<HashMap<String, Acls>>
     let mut result = HashMap::new();
     let mut current_file = None;
     let mut current_platform = AcePlatform::General;
-    let mut lines = reader.lines();
+    let lines = reader.lines();
 
-    while let Some(line) = lines.next() {
+    for line in lines {
         let line = line?;
         if let Some(path) = line.strip_prefix("# file: ") {
             current_file = Some(String::from(path));
