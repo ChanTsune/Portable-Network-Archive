@@ -8,18 +8,16 @@ use crate::{
         },
         Command,
     },
-    ext::BufReadExt,
     utils::{GlobPatterns, PathPartExt},
 };
 use base64::Engine;
-use bstr::ByteSlice;
+use bstr::{io::BufReadExt, ByteSlice};
 use clap::{ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;
 use pna::NormalEntry;
 use regex::Regex;
 use std::{
     collections::HashMap,
-    error::Error,
     fmt::{self, Display, Formatter, Write},
     fs, io,
     num::ParseIntError,
@@ -335,15 +333,14 @@ impl SetAttrStrategy {
 }
 
 fn parse_dump(reader: impl io::BufRead) -> io::Result<HashMap<String, Vec<(String, Value)>>> {
-    let mut result = HashMap::new();
+    let mut result = HashMap::<_, Vec<_>>::new();
     let mut current_file = None;
 
-    let mut lines = reader.lines_with_eol();
-    while let Some(line) = lines.next() {
+    for line in reader.byte_lines() {
         let line = line?;
         if let Some(path) = line.strip_prefix(b"# file: ") {
             current_file = Some(
-                String::from_utf8(path.trim_end_with(|i| i == '\n' || i == '\r').into())
+                String::from_utf8(path.into())
                     .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
             );
         } else if let Some(file) = &current_file {
@@ -351,40 +348,9 @@ fn parse_dump(reader: impl io::BufRead) -> io::Result<HashMap<String, Vec<(Strin
             if let Some((key, value)) = line.split_once_str("=") {
                 let key = String::from_utf8(key.into())
                     .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-                let parsed_value =
-                    match Value::try_from(value.trim_end_with(|i| i == '\n' || i == '\r')) {
-                        Ok(v) => v,
-                        Err(ValueError::Unclosed) => {
-                            let mut tmp = value.to_vec();
-                            loop {
-                                if let Some(nxt) = lines.next() {
-                                    tmp.extend_from_slice(&nxt?);
-                                    match Value::try_from(
-                                        tmp.trim_end_with(|i| i == '\n' || i == '\r'),
-                                    ) {
-                                        Ok(v) => break v,
-                                        Err(ValueError::Unclosed) => continue,
-                                        Err(e) => {
-                                            return Err(io::Error::new(
-                                                io::ErrorKind::InvalidData,
-                                                e,
-                                            ))
-                                        }
-                                    }
-                                } else {
-                                    return Err(io::Error::new(
-                                        io::ErrorKind::InvalidData,
-                                        ValueError::Unclosed,
-                                    ));
-                                }
-                            }
-                        }
-                        Err(e) => return Err(io::Error::new(io::ErrorKind::InvalidData, e)),
-                    };
-                result
-                    .entry(file.clone())
-                    .or_insert_with(Vec::new)
-                    .push((key, parsed_value));
+                let value = Value::try_from(value)
+                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+                result.entry(file.clone()).or_default().push((key, value));
             }
         }
     }
@@ -425,27 +391,17 @@ fn transform_xattr(
         .collect()
 }
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(thiserror::Error, Clone, Eq, PartialEq, Debug)]
 enum ValueError {
-    InvalidHex(ParseIntError),
-    InvalidBase64(base64::DecodeError),
+    #[error(transparent)]
+    InvalidHex(#[from] ParseIntError),
+    #[error(transparent)]
+    InvalidBase64(#[from] base64::DecodeError),
+    #[error("missing tailing quote")]
     Unclosed,
+    #[error("unknown escape character")]
     InvalidEscaped,
 }
-
-impl Display for ValueError {
-    #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            ValueError::InvalidHex(e) => Display::fmt(e, f),
-            ValueError::InvalidBase64(e) => Display::fmt(e, f),
-            ValueError::Unclosed => f.write_str("missing tailing quote"),
-            ValueError::InvalidEscaped => f.write_str("unknown escape character"),
-        }
-    }
-}
-
-impl Error for ValueError {}
 
 #[derive(Clone, Default, Eq, PartialEq, Hash, Debug)]
 struct Value(Vec<u8>);
@@ -468,12 +424,9 @@ impl TryFrom<&[u8]> for Value {
             stripped
                 .chunks(2)
                 .map(|i| u8::from_str_radix(unsafe { std::str::from_utf8_unchecked(i) }, 16))
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(ValueError::InvalidHex)?
+                .collect::<Result<Vec<_>, _>>()?
         } else if let Some(stripped) = s.strip_prefix(b"0s") {
-            base64::engine::general_purpose::STANDARD
-                .decode(stripped)
-                .map_err(ValueError::InvalidBase64)?
+            base64::engine::general_purpose::STANDARD.decode(stripped)?
         } else if let Some(s) = s.strip_prefix(b"\"") {
             if s.ends_with(b"\\\"") && !s.ends_with(b"\\\\\"") {
                 return Err(ValueError::Unclosed);

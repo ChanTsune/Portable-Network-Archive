@@ -185,7 +185,7 @@ fn delete_solid() {
         concat!(env!("CARGO_TARGET_TMPDIR"), "/delete_solid/in/"),
         concat!(env!("CARGO_TARGET_TMPDIR"), "/delete_solid/out/"),
     )
-    .unwrap()
+    .unwrap();
 }
 
 #[test]
@@ -247,5 +247,5 @@ fn delete_unsolid() {
         concat!(env!("CARGO_TARGET_TMPDIR"), "/delete_unsolid/in/"),
         concat!(env!("CARGO_TARGET_TMPDIR"), "/delete_unsolid/out/"),
     )
-    .unwrap()
+    .unwrap();
 }

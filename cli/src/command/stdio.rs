@@ -323,19 +323,22 @@ fn run_list_archive(args: StdioCommand) -> io::Result<()> {
         classify: false,
         format: None,
     };
+    let files_globs = GlobPatterns::new(&args.files)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+
     if let Some(path) = args.file {
         let archives = collect_split_archives(&path)?;
         crate::command::list::run_list_archive(
             archives,
             password.as_deref(),
-            &args.files,
+            files_globs,
             list_options,
         )
     } else {
         crate::command::list::run_list_archive(
             std::iter::repeat_with(|| io::stdin().lock()),
             password.as_deref(),
-            &args.files,
+            files_globs,
             list_options,
         )
     }
@@ -372,12 +375,9 @@ fn run_append(args: StdioCommand) -> io::Result<()> {
         files.extend(utils::fs::read_to_lines(path)?);
     }
     let exclude = {
-        let mut exclude = Vec::new();
-        if let Some(e) = args.exclude {
-            exclude.extend(e.into_iter().map(PathBuf::from));
-        }
+        let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
-            exclude.extend(utils::fs::read_to_lines(p)?.into_iter().map(PathBuf::from));
+            exclude.extend(utils::fs::read_to_lines(p)?);
         }
         exclude
     };

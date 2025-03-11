@@ -1,33 +1,17 @@
 use regex::{Regex, RegexBuilder};
-use std::{
-    borrow::Cow,
-    error::Error,
-    fmt::{Display, Formatter},
-    str::FromStr,
-};
+use std::{borrow::Cow, str::FromStr};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(thiserror::Error, Clone, Debug, PartialEq)]
 pub(crate) enum TransformRuleError {
+    #[error("Invalid transform rule format, transform rule must be starts with 's'")]
     StartsWithMustBeS,
+    #[error("Invalid transform rule format")]
     InvalidFormat,
+    #[error("Invalid flag: {0}")]
     InvalidFlag(char),
-    InvalidPattern(regex::Error),
+    #[error(transparent)]
+    InvalidPattern(#[from] regex::Error),
 }
-
-impl Display for TransformRuleError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::StartsWithMustBeS => {
-                f.write_str("Invalid transform rule format, transform rule must be starts with 's'")
-            }
-            Self::InvalidFormat => f.write_str("Invalid transform rule format"),
-            Self::InvalidFlag(flag) => write!(f, "Invalid flag: {}", flag),
-            Self::InvalidPattern(e) => write!(f, "{}", e),
-        }
-    }
-}
-
-impl Error for TransformRuleError {}
 
 #[derive(Clone, Debug)]
 pub(crate) struct TransformRule {
@@ -94,8 +78,7 @@ impl TransformRule {
 
         let pattern = RegexBuilder::new(pattern)
             .case_insensitive(case_insensitive)
-            .build()
-            .map_err(TransformRuleError::InvalidPattern)?;
+            .build()?;
 
         Ok(Self {
             pattern,

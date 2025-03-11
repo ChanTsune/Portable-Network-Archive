@@ -529,43 +529,33 @@ where
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_across_archive_mem<F>(archives: Vec<fs::File>, processor: F) -> io::Result<()>
+pub(crate) fn run_across_archive_mem<F>(archives: Vec<fs::File>, mut processor: F) -> io::Result<()>
 where
     F: FnMut(&mut Archive<&[u8]>) -> io::Result<()>,
 {
-    fn inner<F>(
-        idx: usize,
-        provider: &[utils::mmap::Mmap],
-        mut archive: Archive<&[u8]>,
-        mut processor: F,
-    ) -> io::Result<()>
-    where
-        F: FnMut(&mut Archive<&[u8]>) -> io::Result<()>,
-    {
-        processor(&mut archive)?;
-        if archive.has_next_archive() {
-            let file = provider.get(idx).ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "Archive is split, but no subsequent archives are found",
-                )
-            })?;
-            inner(
-                idx + 1,
-                provider,
-                archive.read_next_archive_from_slice(&file[..])?,
-                processor,
-            )?;
-        }
-        Ok(())
-    }
     let archives = archives
         .into_iter()
         .map(utils::mmap::Mmap::try_from)
         .collect::<io::Result<Vec<_>>>()?;
-    let initial_file = &archives[0];
-    let archive = Archive::read_header_from_slice(initial_file)?;
-    inner(1, &archives, archive, processor)
+
+    let mut idx = 0;
+    let mut archive = Archive::read_header_from_slice(&archives[idx])?;
+
+    loop {
+        processor(&mut archive)?;
+        if !archive.has_next_archive() {
+            break;
+        }
+        idx += 1;
+        if idx >= archives.len() {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "Archive is split, but no subsequent archives are found",
+            ));
+        }
+        archive = archive.read_next_archive_from_slice(&archives[idx][..])?;
+    }
+    Ok(())
 }
 
 #[cfg(feature = "memmap")]

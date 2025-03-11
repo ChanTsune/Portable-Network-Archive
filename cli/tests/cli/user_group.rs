@@ -78,7 +78,7 @@ fn archive_create_uname_gname() {
             "/archive_create_uname_gname/out/"
         ),
     )
-    .unwrap()
+    .unwrap();
 }
 
 #[test]

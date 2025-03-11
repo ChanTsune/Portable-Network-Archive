@@ -121,7 +121,7 @@ fn aes_ctr_argon2_with_params_archive() {
             "/aes_argon2_with_params_ctr/out/"
         ),
     )
-    .unwrap()
+    .unwrap();
 }
 
 #[test]
@@ -171,7 +171,7 @@ fn aes_ctr_pbkdf2_archive() {
         concat!(env!("CARGO_TARGET_TMPDIR"), "/aes_pbkdf2_ctr/in/"),
         concat!(env!("CARGO_TARGET_TMPDIR"), "/aes_pbkdf2_ctr/out/"),
     )
-    .unwrap()
+    .unwrap();
 }
 
 #[test]
@@ -241,5 +241,5 @@ fn aes_ctr_pbkdf2_with_params_archive() {
             "/aes_pbkdf2_with_params_ctr/out/"
         ),
     )
-    .unwrap()
+    .unwrap();
 }

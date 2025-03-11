@@ -146,11 +146,9 @@ impl EntryType {
 struct TableRow {
     encryption: String,
     compression: String,
-    permission_mode: u16,
+    permission: Option<pna::Permission>,
     raw_size: Option<u128>,
     compressed_size: usize,
-    user: Option<Subject>,
-    group: Option<Subject>,
     created: Option<Duration>,
     modified: Option<Duration>,
     accessed: Option<Duration>,
@@ -160,19 +158,10 @@ struct TableRow {
     privates: Vec<RawChunk>,
 }
 
-struct Subject {
-    id: u64,
-    name: String,
-}
-
-impl Subject {
+impl TableRow {
     #[inline]
-    fn value(self, numeric: bool) -> String {
-        if numeric {
-            self.id.to_string()
-        } else {
-            self.name
-        }
+    fn permission_mode(&self) -> u16 {
+        self.permission.as_ref().map_or(0, |it| it.permissions())
     }
 }
 
@@ -209,17 +198,9 @@ where
                 (method, None) => format!("{:?}", method).to_ascii_lowercase(),
                 (method, Some(_)) => format!("{:?}(solid)", method).to_ascii_lowercase(),
             },
-            permission_mode: metadata.permission().map_or(0, |it| it.permissions()),
+            permission: metadata.permission().cloned(),
             raw_size: metadata.raw_file_size(),
             compressed_size: metadata.compressed_size(),
-            user: metadata.permission().map(|p| Subject {
-                id: p.uid(),
-                name: p.uname().into(),
-            }),
-            group: metadata.permission().map(|p| Subject {
-                id: p.gid(),
-                name: p.gname().into(),
-            }),
             created: metadata.created(),
             modified: metadata.modified(),
             accessed: metadata.accessed(),
@@ -273,15 +254,18 @@ fn list_archive(args: ListCommand) -> io::Result<()> {
         classify: args.classify,
         format: args.format,
     };
+    let files_globs = GlobPatterns::new(&args.file.files)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+
     let archives = collect_split_archives(&args.file.archive)?;
 
     #[cfg(not(feature = "memmap"))]
     {
-        run_list_archive(archives, password.as_deref(), &args.file.files, options)
+        run_list_archive(archives, password.as_deref(), files_globs, options)
     }
     #[cfg(feature = "memmap")]
     {
-        run_list_archive_mem(archives, password.as_deref(), &args.file.files, options)
+        run_list_archive_mem(archives, password.as_deref(), files_globs, options)
     }
 }
 
@@ -342,12 +326,9 @@ pub(crate) struct ListOptions {
 pub(crate) fn run_list_archive(
     archive_provider: impl IntoIterator<Item = impl Read>,
     password: Option<&str>,
-    files: &[String],
+    files_globs: GlobPatterns,
     args: ListOptions,
 ) -> io::Result<()> {
-    let globs =
-        GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-
     let mut entries = Vec::new();
 
     run_read_entries(archive_provider, |entry| {
@@ -364,7 +345,7 @@ pub(crate) fn run_list_archive(
         }
         Ok(())
     })?;
-    print_entries(entries, globs, args);
+    print_entries(entries, files_globs, args);
     Ok(())
 }
 
@@ -372,12 +353,9 @@ pub(crate) fn run_list_archive(
 pub(crate) fn run_list_archive_mem(
     archives: Vec<std::fs::File>,
     password: Option<&str>,
-    files: &[String],
+    files_globs: GlobPatterns,
     args: ListOptions,
 ) -> io::Result<()> {
-    let globs =
-        GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-
     let mut entries = Vec::new();
 
     run_read_entries_mem(archives, |entry| {
@@ -394,7 +372,7 @@ pub(crate) fn run_list_archive_mem(
         }
         Ok(())
     })?;
-    print_entries(entries, globs, args);
+    print_entries(entries, files_globs, args);
     Ok(())
 }
 
@@ -413,9 +391,9 @@ fn print_entries(entries: Vec<TableRow>, globs: GlobPatterns, options: ListOptio
     };
     match options.format {
         Some(Format::JsonL) => json_line_entries(entries),
-        Some(Format::Table) => detail_list_entries(entries.into_iter(), options),
+        Some(Format::Table) => detail_list_entries(entries, options),
         Some(Format::Tree) => tree_entries(entries, options),
-        None if options.long => detail_list_entries(entries.into_iter(), options),
+        None if options.long => detail_list_entries(entries, options),
         None => simple_list_entries(entries, options),
     }
 }
@@ -446,7 +424,7 @@ fn simple_list_entries(entries: impl IntoParallelIterator<Item = TableRow>, opti
     }
 }
 
-fn detail_list_entries(entries: impl Iterator<Item = TableRow>, options: ListOptions) {
+fn detail_list_entries(entries: impl IntoIterator<Item = TableRow>, options: ListOptions) {
     let underline = Color::new("\x1B[4m", "\x1B[0m");
     let reset = Color::new("\x1B[8m", "\x1B[0m");
     let header = [
@@ -470,25 +448,25 @@ fn detail_list_entries(entries: impl Iterator<Item = TableRow>, options: ListOpt
     for content in entries {
         let has_acl = !content.acl.is_empty();
         let has_xattr = !content.xattrs.is_empty();
+        let permission_mode = content.permission_mode();
+        let user = content.permission.as_ref().map_or_else(
+            || "-".into(),
+            |it| it.owner_display(options.numeric_owner).to_string(),
+        );
+        let group = content.permission.as_ref().map_or_else(
+            || "-".into(),
+            |it| it.owner_display(options.numeric_owner).to_string(),
+        );
         builder.push_record([
             content.encryption,
             content.compression,
-            paint_permission(
-                &content.entry_type,
-                content.permission_mode,
-                has_xattr,
-                has_acl,
-            ),
+            paint_permission(&content.entry_type, permission_mode, has_xattr, has_acl),
             content
                 .raw_size
                 .map_or_else(|| "-".into(), |size| size.to_string()),
             content.compressed_size.to_string(),
-            content
-                .user
-                .map_or_else(|| "-".into(), |it| it.value(options.numeric_owner)),
-            content
-                .group
-                .map_or_else(|| "-".into(), |it| it.value(options.numeric_owner)),
+            user,
+            group,
             match options.time_field {
                 TimeField::Created => content.created,
                 TimeField::Modified => content.modified,
@@ -747,45 +725,56 @@ struct XAttr {
 fn json_line_entries(entries: impl IntoParallelIterator<Item = TableRow>) {
     let entries = entries
         .into_par_iter()
-        .map(|it| FileInfo {
-            filename: it.entry_type.name().into(),
-            permissions: permission_string(
-                &it.entry_type,
-                it.permission_mode,
-                !it.xattrs.is_empty(),
-                !it.acl.is_empty(),
-            ),
-            owner: it.user.map_or_else(String::new, |it| it.name),
-            group: it.group.map_or_else(String::new, |it| it.name),
-            raw_size: it.raw_size.unwrap_or_default(),
-            size: it.compressed_size,
-            encryption: it.encryption,
-            compression: it.compression,
-            created: it
-                .created
-                .map_or_else(String::new, |d| datetime(TimeFormat::Long, d)),
-            modified: it
-                .modified
-                .map_or_else(String::new, |d| datetime(TimeFormat::Long, d)),
-            accessed: it
-                .accessed
-                .map_or_else(String::new, |d| datetime(TimeFormat::Long, d)),
-            acl: it
-                .acl
-                .into_iter()
-                .map(|(platform, ace)| AclEntry {
-                    platform: platform.to_string(),
-                    entries: ace.into_iter().map(|it| it.to_string()).collect(),
-                })
-                .collect(),
-            xattr: it
-                .xattrs
-                .into_iter()
-                .map(|x| XAttr {
-                    key: x.name().into(),
-                    value: base64::engine::general_purpose::STANDARD.encode(x.value()),
-                })
-                .collect(),
+        .map(|it| {
+            let permission_mode = it.permission_mode();
+            let owner = it
+                .permission
+                .as_ref()
+                .map_or_else(String::new, |it| it.uname().to_string());
+            let group = it
+                .permission
+                .as_ref()
+                .map_or_else(String::new, |it| it.gname().to_string());
+            FileInfo {
+                filename: it.entry_type.name().into(),
+                permissions: permission_string(
+                    &it.entry_type,
+                    permission_mode,
+                    !it.xattrs.is_empty(),
+                    !it.acl.is_empty(),
+                ),
+                owner,
+                group,
+                raw_size: it.raw_size.unwrap_or_default(),
+                size: it.compressed_size,
+                encryption: it.encryption,
+                compression: it.compression,
+                created: it
+                    .created
+                    .map_or_else(String::new, |d| datetime(TimeFormat::Long, d)),
+                modified: it
+                    .modified
+                    .map_or_else(String::new, |d| datetime(TimeFormat::Long, d)),
+                accessed: it
+                    .accessed
+                    .map_or_else(String::new, |d| datetime(TimeFormat::Long, d)),
+                acl: it
+                    .acl
+                    .into_iter()
+                    .map(|(platform, ace)| AclEntry {
+                        platform: platform.to_string(),
+                        entries: ace.into_iter().map(|it| it.to_string()).collect(),
+                    })
+                    .collect(),
+                xattr: it
+                    .xattrs
+                    .into_iter()
+                    .map(|x| XAttr {
+                        key: x.name().into(),
+                        value: base64::engine::general_purpose::STANDARD.encode(x.value()),
+                    })
+                    .collect(),
+            }
         })
         .collect::<Vec<_>>();
 
