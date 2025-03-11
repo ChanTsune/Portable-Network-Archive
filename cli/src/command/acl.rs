@@ -512,10 +512,11 @@ fn parse_acl_dump(reader: impl io::BufRead) -> io::Result<HashMap<String, Acls>>
         let line = line?;
         if let Some(path) = line.strip_prefix("# file: ") {
             current_file = Some(String::from(path));
-        } else if let Some(_) = line.strip_prefix("# owner: ") {
-            // ignore
-        } else if let Some(_) = line.strip_prefix("# group: ") {
-            // ignore
+        // NOTE: ignore `# owner:` and `# group:` lines
+        // } else if line.starts_with("# owner: ") {
+        //     // ignore
+        // } else if line.starts_with("# group: ") {
+        //     // ignore
         } else if let Some(platform) = line.strip_prefix("# platform: ") {
             current_platform = AcePlatform::from_str(platform).expect("Infallible error occurred");
         } else if let Some(file) = &current_file {
