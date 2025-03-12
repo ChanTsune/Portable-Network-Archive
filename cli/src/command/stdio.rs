@@ -4,8 +4,8 @@ use crate::{
         append::{open_archive_then_seek_to_end, run_append_archive},
         ask_password, check_password,
         commons::{
-            collect_items, collect_split_archives, entry_option, CreateOptions, KeepOptions,
-            OwnerOptions, PathTransformers,
+            collect_items, collect_split_archives, entry_option, CreateOptions, Exclude,
+            KeepOptions, OwnerOptions, PathTransformers,
         },
         create::create_archive_file,
         extract::{run_extract_archive_reader, OutputOption},
@@ -209,7 +209,10 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
         if let Some(p) = args.exclude_from {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
-        exclude
+        Exclude {
+            exclude: GlobPatterns::new(exclude)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+        }
     };
     let target_items = collect_items(
         &files,
@@ -269,9 +272,11 @@ fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
         if let Some(p) = args.exclude_from {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
-        GlobPatterns::new(exclude)
-    }
-    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        Exclude {
+            exclude: GlobPatterns::new(exclude)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+        }
+    };
 
     let out_option = OutputOption {
         overwrite: args.overwrite,
@@ -379,7 +384,9 @@ fn run_append(args: StdioCommand) -> io::Result<()> {
         if let Some(p) = args.exclude_from {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
-        exclude
+        Exclude {
+            exclude: GlobPatterns::new(exclude).map_err(io::Error::other)?,
+        }
     };
 
     if let Some(file) = &args.file {

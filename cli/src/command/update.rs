@@ -11,7 +11,7 @@ use crate::{
         ask_password, check_password,
         commons::{
             collect_items, collect_split_archives, create_entry, entry_option, CreateOptions,
-            KeepOptions, OwnerOptions, PathTransformers, TransformStrategy,
+            Exclude, KeepOptions, OwnerOptions, PathTransformers, TransformStrategy,
             TransformStrategyKeepSolid, TransformStrategyUnSolid,
         },
         Command,
@@ -20,7 +20,7 @@ use crate::{
         self,
         env::temp_dir_or_else,
         re::{bsd::SubstitutionRule, gnu::TransformRule},
-        PathPartExt,
+        GlobPatterns, PathPartExt,
     },
 };
 use clap::{ArgGroup, Parser, ValueHint};
@@ -243,7 +243,9 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
         if let Some(p) = args.exclude_from {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
-        exclude
+        Exclude {
+            exclude: GlobPatterns::new(exclude).map_err(io::Error::other)?,
+        }
     };
 
     let archive_path = current_dir.join(args.file.archive);

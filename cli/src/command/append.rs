@@ -5,15 +5,15 @@ use crate::{
     command::{
         ask_password, check_password,
         commons::{
-            collect_items, create_entry, entry_option, CreateOptions, KeepOptions, OwnerOptions,
-            PathTransformers,
+            collect_items, create_entry, entry_option, CreateOptions, Exclude, KeepOptions,
+            OwnerOptions, PathTransformers,
         },
         Command,
     },
     utils::{
         self,
         re::{bsd::SubstitutionRule, gnu::TransformRule},
-        PathPartExt,
+        GlobPatterns, PathPartExt,
     },
 };
 use clap::{ArgGroup, Parser, ValueHint};
@@ -204,7 +204,9 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
         if let Some(p) = args.exclude_from {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
-        exclude
+        Exclude {
+            exclude: GlobPatterns::new(exclude).map_err(io::Error::other)?,
+        }
     };
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
