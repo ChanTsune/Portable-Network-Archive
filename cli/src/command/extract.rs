@@ -7,7 +7,7 @@ use crate::{
     command::{
         ask_password,
         commons::{
-            collect_split_archives, run_process_archive, KeepOptions, OwnerOptions,
+            collect_split_archives, run_process_archive, Exclude, KeepOptions, OwnerOptions,
             PathTransformers,
         },
         Command,
@@ -158,9 +158,11 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
         if let Some(p) = args.exclude_from {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
-        GlobPatterns::new(exclude)
-    }
-    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        Exclude {
+            exclude: GlobPatterns::new(exclude)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+        }
+    };
 
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
@@ -223,7 +225,7 @@ pub(crate) struct OutputOption {
     pub(crate) overwrite: bool,
     pub(crate) strip_components: Option<usize>,
     pub(crate) out_dir: Option<PathBuf>,
-    pub(crate) exclude: GlobPatterns,
+    pub(crate) exclude: Exclude,
     pub(crate) keep_options: KeepOptions,
     pub(crate) owner_options: OwnerOptions,
     pub(crate) same_owner: bool,
@@ -347,7 +349,7 @@ where
     let same_owner = *same_owner;
     let overwrite = *overwrite;
     let item_path = item.header().path().as_path();
-    if exclude.starts_with_matches_any(item_path) {
+    if exclude.excluded(item_path) {
         return Ok(());
     }
     log::debug!("Extract: {}", item_path.display());

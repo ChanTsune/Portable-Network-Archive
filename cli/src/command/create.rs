@@ -5,7 +5,7 @@ use crate::{
     command::{
         ask_password, check_password,
         commons::{
-            collect_items, create_entry, entry_option, write_split_archive, CreateOptions,
+            collect_items, create_entry, entry_option, write_split_archive, CreateOptions, Exclude,
             KeepOptions, OwnerOptions, PathTransformers,
         },
         Command,
@@ -14,6 +14,7 @@ use crate::{
         self,
         fmt::DurationDisplay,
         re::{bsd::SubstitutionRule, gnu::TransformRule},
+        GlobPatterns,
     },
 };
 use bytesize::ByteSize;
@@ -195,7 +196,9 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
         if let Some(p) = args.exclude_from {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
-        exclude
+        Exclude {
+            exclude: GlobPatterns::new(exclude).map_err(io::Error::other)?,
+        }
     };
     let archive_path = current_dir.join(archive);
     if let Some(working_dir) = args.working_dir {
