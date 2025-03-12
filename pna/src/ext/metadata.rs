@@ -1,6 +1,6 @@
 use super::private;
 use libpna::Metadata;
-use std::time::SystemTime;
+use std::{fs, io, time::SystemTime};
 
 /// [Metadata] extension method trait.
 pub trait MetadataTimeExt: private::Sealed {
@@ -132,4 +132,53 @@ impl MetadataTimeExt for Metadata {
                 .expect("accessed time must be after unix epoch")
         }))
     }
+}
+
+/// [Metadata] filesystem related extension trait.
+pub trait MetadataFsExt: private::Sealed {
+    /// Create new [Metadata] from given [fs::Metadata].
+    ///
+    /// # Errors
+    /// Return an error when failed to convert to [fs::Metadata] to [Metadata]
+    fn from_metadata(metadata: &fs::Metadata) -> io::Result<Self>
+    where
+        Self: Sized;
+}
+
+impl MetadataFsExt for Metadata {
+    /// Create new [Metadata] from given [fs::Metadata].
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use pna::{prelude::*, Metadata};
+    /// use std::fs;
+    /// # use std::error::Error;
+    ///
+    /// # fn main() -> Result<(), Box<dyn Error>> {
+    /// Metadata::from_metadata(&fs::metadata("path/to/file")?)?;
+    /// Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    /// Currently never return an error.
+    ///
+    /// # Panic
+    /// When given metadata has any time that before unix epoch, it will be panic.
+    #[inline]
+    fn from_metadata(metadata: &fs::Metadata) -> io::Result<Self>
+    where
+        Self: Sized,
+    {
+        fs_metadata_to_metadata(metadata)
+    }
+}
+
+#[inline]
+fn fs_metadata_to_metadata(meta: &fs::Metadata) -> io::Result<Metadata> {
+    Ok(Metadata::new()
+        .with_accessed_time(meta.accessed().ok())
+        .with_created_time(meta.created().ok())
+        .with_modified_time(meta.modified().ok()))
 }
