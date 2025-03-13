@@ -1,7 +1,7 @@
 #[cfg(feature = "memmap")]
 use crate::command::commons::run_entries;
 #[cfg(any(unix, windows))]
-use crate::utils::fs::{chown, Group, User};
+use crate::utils::fs::chown;
 use crate::{
     cli::{FileArgs, PasswordArgs},
     command::{
@@ -15,6 +15,7 @@ use crate::{
     utils::{
         self,
         fmt::DurationDisplay,
+        fs::{Group, User},
         re::{bsd::SubstitutionRule, gnu::TransformRule},
         GlobPatterns,
     },
@@ -534,15 +535,6 @@ where
     Ok(())
 }
 
-#[cfg(not(any(unix, windows)))]
-fn permissions<'p>(
-    p: &'p Permission,
-    _: &'_ OwnerOptions,
-) -> Option<(&'p Permission, Option<()>, Option<()>)> {
-    Some((p, None, None))
-}
-
-#[cfg(any(unix, windows))]
 fn permissions<'p>(
     permission: &'p Permission,
     owner_options: &'_ OwnerOptions,
@@ -566,7 +558,6 @@ fn permissions<'p>(
     Some((permission, user.ok(), group.ok()))
 }
 
-#[cfg(any(unix, windows))]
 fn search_owner(name: &str, id: u64) -> io::Result<User> {
     let user = User::from_name(name);
     if user.is_ok() {
@@ -575,7 +566,6 @@ fn search_owner(name: &str, id: u64) -> io::Result<User> {
     User::from_uid((id as u32).into())
 }
 
-#[cfg(any(unix, windows))]
 fn search_group(name: &str, id: u64) -> io::Result<Group> {
     let group = Group::from_name(name);
     if group.is_ok() {
