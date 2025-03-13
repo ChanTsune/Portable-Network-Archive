@@ -1,6 +1,6 @@
 use super::private;
 use libpna::Metadata;
-use std::{fs, io, time::SystemTime};
+use std::{fs, io, path::Path, time::SystemTime};
 
 /// [Metadata] extension method trait.
 pub trait MetadataTimeExt: private::Sealed {
@@ -172,6 +172,71 @@ impl MetadataFsExt for Metadata {
         Self: Sized,
     {
         fs_metadata_to_metadata(metadata)
+    }
+}
+
+/// [Metadata] path related extension trait.
+pub trait MetadataPathExt: private::Sealed {
+    /// Create new [Metadata] from a given path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when failed to get [std::fs::Metadata] from a given path.
+    fn from_path<P: AsRef<Path>>(path: P) -> io::Result<Self>
+    where
+        Self: Sized;
+
+    /// Create new [Metadata] from a given path without following symlinks.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when failed to get [std::fs::Metadata] from a given path.
+    fn from_symlink_path<P: AsRef<Path>>(path: P) -> io::Result<Self>
+    where
+        Self: Sized;
+}
+
+impl MetadataPathExt for Metadata {
+    /// Create [Metadata] from a given path.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use pna::{prelude::*, Metadata};
+    ///
+    /// Metadata::from_path("path/to/file");
+    /// ```
+    /// # Errors
+    ///
+    /// Returns an error when [`std::fs::metadata`] called in the method returns an error. For details, see [`std::fs::metadata`].
+    #[inline]
+    fn from_path<P: AsRef<Path>>(path: P) -> io::Result<Self>
+    where
+        Self: Sized,
+    {
+        let meta = fs::metadata(path)?;
+        fs_metadata_to_metadata(&meta)
+    }
+
+    /// Create [Metadata] from a given path without following symlinks.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use pna::{prelude::*, Metadata};
+    ///
+    /// Metadata::from_symlink_path("path/to/file");
+    /// ```
+    /// # Errors
+    ///
+    /// Returns an error when [`std::fs::symlink_metadata`] called in the method returns an error. For details, see [`std::fs::symlink_metadata`].
+    #[inline]
+    fn from_symlink_path<P: AsRef<Path>>(path: P) -> io::Result<Self>
+    where
+        Self: Sized,
+    {
+        let meta = fs::symlink_metadata(path)?;
+        fs_metadata_to_metadata(&meta)
     }
 }
 
