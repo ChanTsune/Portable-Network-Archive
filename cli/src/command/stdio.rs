@@ -385,7 +385,8 @@ fn run_append(args: StdioCommand) -> io::Result<()> {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
         Exclude {
-            exclude: GlobPatterns::new(exclude).map_err(io::Error::other)?,
+            exclude: GlobPatterns::new(exclude)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
         }
     };
 
