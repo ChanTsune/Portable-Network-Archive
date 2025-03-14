@@ -516,10 +516,7 @@ fn parse_acl_dump(reader: impl io::BufRead) -> io::Result<HashMap<String, Acls>>
         }
         if let Some(path) = line.strip_prefix("# file: ") {
             current_file = Some(String::from(path));
-        } else if line.starts_with("# owner: ") {
-            // ignore
-            continue;
-        } else if line.starts_with("# group: ") {
+        } else if line.starts_with("# owner: ") || line.starts_with("# group: ") {
             // ignore
             continue;
         } else if let Some(platform) = line.strip_prefix("# platform: ") {
