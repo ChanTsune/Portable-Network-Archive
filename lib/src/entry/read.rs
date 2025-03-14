@@ -59,7 +59,7 @@ pub(crate) fn decrypt_reader<R: Read>(
     })
 }
 
-/// Decompress reader according to an compression type.
+/// Decompress reader according to a compression type.
 pub(crate) fn decompress_reader<R: Read>(
     reader: R,
     compression: Compression,
