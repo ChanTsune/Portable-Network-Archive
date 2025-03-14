@@ -313,10 +313,7 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
     /// This API is unstable.
     #[inline]
     pub async fn add_entry_async(&mut self, entry: impl Entry) -> io::Result<usize> {
-        let mut bytes = Vec::new();
-        entry.write_in(&mut bytes)?;
-        self.inner.write_all(&bytes).await?;
-        Ok(bytes.len())
+        entry.write_in_async(&mut self.inner).await
     }
 
     /// Write an end marker to finalize the archive.
