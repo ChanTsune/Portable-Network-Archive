@@ -19,6 +19,7 @@ use std::{io, path::PathBuf};
 #[command(
     group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from-stdin").args(["files_from_stdin"]).requires("unstable")),
+    group(ArgGroup::new("unstable-include").args(["include"]).requires("unstable")),
     group(ArgGroup::new("unstable-delete-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
     group(ArgGroup::new("read-files-from").args(["files_from", "files_from_stdin"])),
@@ -30,6 +31,11 @@ pub(crate) struct DeleteCommand {
     files_from: Option<String>,
     #[arg(long, help = "Read deleting files from stdin (unstable)")]
     files_from_stdin: bool,
+    #[arg(
+        long,
+        help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions"
+    )]
+    include: Option<Vec<String>>,
     #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
     exclude: Option<Vec<String>>,
     #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
@@ -65,6 +71,8 @@ fn delete_file_from_archive(args: DeleteCommand) -> io::Result<()> {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
         Exclude {
+            include: GlobPatterns::new(args.include.unwrap_or_default())
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
             exclude: GlobPatterns::new(exclude)
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
         }

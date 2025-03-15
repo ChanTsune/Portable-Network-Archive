@@ -35,6 +35,7 @@ use std::{
 #[derive(Parser, Clone, Debug)]
 #[command(
     group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
+    group(ArgGroup::new("unstable-include").args(["include"]).requires("unstable")),
     group(ArgGroup::new("unstable-update-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from-stdin").args(["files_from_stdin"]).requires("unstable")),
@@ -138,6 +139,11 @@ pub(crate) struct UpdateCommand {
     pub(crate) files_from: Option<String>,
     #[arg(long, help = "Read archiving files from stdin (unstable)")]
     pub(crate) files_from_stdin: bool,
+    #[arg(
+        long,
+        help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions"
+    )]
+    include: Option<Vec<String>>,
     #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
     pub(crate) exclude: Option<Vec<String>>,
     #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
@@ -244,6 +250,8 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
         Exclude {
+            include: GlobPatterns::new(args.include.unwrap_or_default())
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
             exclude: GlobPatterns::new(exclude)
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
         }
