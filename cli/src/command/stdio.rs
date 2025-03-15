@@ -26,6 +26,8 @@ use std::{fs, io, path::PathBuf, time::SystemTime};
 #[command(
     group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
     group(ArgGroup::new("bundled-flags").args(["create", "extract", "list"]).required(true)),
+    group(ArgGroup::new("unstable-include").args(["include"]).requires("unstable")),
+    group(ArgGroup::new("unstable-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-gitignore").args(["gitignore"]).requires("unstable")),
@@ -102,8 +104,15 @@ pub(crate) struct StdioCommand {
     pub(crate) hash: HashAlgorithmArgs,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
+    #[arg(
+        long,
+        help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions"
+    )]
+    include: Option<Vec<String>>,
     #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
     pub(crate) exclude: Option<Vec<String>>,
+    #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
+    exclude_from: Option<String>,
     #[arg(long, help = "Ignore files from .gitignore (unstable)")]
     pub(crate) gitignore: bool,
     #[arg(long, help = "Follow symbolic links")]
@@ -142,8 +151,6 @@ pub(crate) struct StdioCommand {
     pub(crate) numeric_owner: bool,
     #[arg(long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
     pub(crate) files_from: Option<String>,
-    #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
-    pub(crate) exclude_from: Option<String>,
     #[arg(
         short = 's',
         value_name = "PATTERN",
@@ -210,6 +217,8 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
         Exclude {
+            include: GlobPatterns::new(args.include.unwrap_or_default())
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
             exclude: GlobPatterns::new(exclude)
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
         }
@@ -273,6 +282,8 @@ fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
         Exclude {
+            include: GlobPatterns::new(args.include.unwrap_or_default())
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
             exclude: GlobPatterns::new(exclude)
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
         }
@@ -385,6 +396,8 @@ fn run_append(args: StdioCommand) -> io::Result<()> {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
         Exclude {
+            include: GlobPatterns::new(args.include.unwrap_or_default())
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
             exclude: GlobPatterns::new(exclude)
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
         }
