@@ -27,7 +27,7 @@ impl<'d> Archive<&'d [u8]> {
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading header from the bytes.
+    /// Returns an error if an I/O error occurs while reading the header from the bytes.
     #[inline]
     pub fn read_header_from_slice(bytes: &'d [u8]) -> io::Result<Self> {
         Self::read_header_from_slice_with_buffer(bytes, Vec::new())

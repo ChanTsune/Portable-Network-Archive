@@ -46,7 +46,7 @@ impl<R: Read> Archive<R> {
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading header from the reader.
+    /// Returns an error if an I/O error occurs while reading the header from the reader.
     #[inline]
     pub fn read_header(reader: R) -> io::Result<Self> {
         Self::read_header_with_buffer(reader, Default::default())
