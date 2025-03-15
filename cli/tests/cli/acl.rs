@@ -1,3 +1,8 @@
+#[cfg(not(target_family = "wasm"))]
+mod dump;
+#[cfg(not(target_family = "wasm"))]
+mod restore;
+
 use crate::utils::{components_count, diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command};
