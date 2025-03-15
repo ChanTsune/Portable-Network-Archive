@@ -87,8 +87,7 @@ impl<T> Archive<T> {
     }
 }
 
-/// An object providing writing to a solid mode PNA file.
-/// An instance of an [SolidArchive] can be written.
+/// An object that provides write access to solid mode PNA files.
 ///
 /// # Examples
 /// Creates a new solid mode PNA file and adds entry to it.
