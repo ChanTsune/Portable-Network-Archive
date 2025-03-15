@@ -763,13 +763,15 @@ where
 
 #[derive(Clone, Debug)]
 pub(crate) struct Exclude {
+    pub(crate) include: GlobPatterns,
     pub(crate) exclude: GlobPatterns,
 }
 
 impl Exclude {
     #[inline]
     pub(crate) fn excluded(&self, s: impl AsRef<Path>) -> bool {
-        self.exclude.starts_with_matches_any(s)
+        let s = s.as_ref();
+        !self.include.starts_with_matches_any(s) && self.exclude.starts_with_matches_any(s)
     }
 }
 
@@ -780,8 +782,42 @@ mod tests {
 
     fn empty_exclude() -> Exclude {
         Exclude {
+            include: GlobPatterns::new(Vec::<&str>::new()).unwrap(),
             exclude: GlobPatterns::new(Vec::<&str>::new()).unwrap(),
         }
+    }
+
+    #[test]
+    fn exclude_empty() {
+        let exclude = Exclude {
+            include: GlobPatterns::new(Vec::<&str>::new()).unwrap(),
+            exclude: GlobPatterns::new(Vec::<&str>::new()).unwrap(),
+        };
+        assert!(!exclude.excluded("a/b/c"));
+    }
+
+    #[test]
+    fn exclude_exclude() {
+        let exclude = Exclude {
+            include: GlobPatterns::new(Vec::<&str>::new()).unwrap(),
+            exclude: GlobPatterns::new(vec!["a/*"]).unwrap(),
+        };
+        assert!(exclude.excluded("a/b/c"));
+    }
+
+    #[test]
+    fn exclude_include() {
+        let exclude = Exclude {
+            include: GlobPatterns::new(vec!["a/*/c"]).unwrap(),
+            exclude: GlobPatterns::new(vec!["a/*"]).unwrap(),
+        };
+        assert!(!exclude.excluded("a/b/c"));
+
+        let exclude = Exclude {
+            include: GlobPatterns::new(vec!["a/*/c"]).unwrap(),
+            exclude: GlobPatterns::new(vec!["a/*/c"]).unwrap(),
+        };
+        assert!(!exclude.excluded("a/b/c"));
     }
 
     #[test]
