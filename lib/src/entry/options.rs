@@ -24,7 +24,7 @@ mod private {
     }
 
     impl Cipher {
-        /// Create new [Cipher]
+        /// Creates a new [Cipher]
         #[inline]
         pub(crate) const fn new(
             password: Password,
