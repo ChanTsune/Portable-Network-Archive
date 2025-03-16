@@ -27,7 +27,12 @@ use std::io::Read;
 use std::os::macos::fs::FileTimesExt;
 #[cfg(windows)]
 use std::os::windows::fs::FileTimesExt;
-use std::{borrow::Cow, env, fs, io, path::PathBuf, time::Instant};
+use std::{
+    borrow::Cow,
+    env, fs, io,
+    path::{Component, PathBuf},
+    time::Instant,
+};
 
 #[derive(Parser, Clone, Debug)]
 #[command(
@@ -143,6 +148,11 @@ pub(crate) struct ExtractCommand {
         help = "chroot() to the current directory after processing any --cd options and before extracting any files"
     )]
     chroot: bool,
+    #[arg(
+        long,
+        help = "Allow extract symlink and hardlink that contains root path or parent path"
+    )]
+    allow_unsafe_links: bool,
     #[command(flatten)]
     pub(crate) file: FileArgs,
 }
@@ -186,6 +196,7 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
     );
     let output_options = OutputOption {
         overwrite: args.overwrite,
+        allow_unsafe_links: args.allow_unsafe_links,
         strip_components: args.strip_components,
         out_dir: args.out_dir,
         exclude,
@@ -230,6 +241,7 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
 #[derive(Clone, Debug)]
 pub(crate) struct OutputOption {
     pub(crate) overwrite: bool,
+    pub(crate) allow_unsafe_links: bool,
     pub(crate) strip_components: Option<usize>,
     pub(crate) out_dir: Option<PathBuf>,
     pub(crate) exclude: Exclude,
@@ -346,6 +358,7 @@ pub(crate) fn extract_entry<T>(
     password: Option<&str>,
     OutputOption {
         overwrite,
+        allow_unsafe_links,
         strip_components,
         out_dir,
         exclude,
@@ -438,6 +451,10 @@ where
                 original
             };
             let original = EntryReference::from_lossy(original);
+            if !allow_unsafe_links && is_unsafe_link(&original) {
+                log::warn!("Skipped extract symlink that contains unsafe link. if you need to extract it, use with `--allow-unsafe-links`");
+                return Ok(());
+            }
             if overwrite && fs::symlink_metadata(&path).is_ok() {
                 utils::fs::remove_path_all(&path)?;
             }
@@ -452,6 +469,10 @@ where
                 original
             };
             let original = EntryReference::from_lossy(original);
+            if !allow_unsafe_links && is_unsafe_link(&original) {
+                log::warn!("Skipped extract hardlink that contains unsafe link, if you need to extract it, use with `--allow-unsafe-links`");
+                return Ok(());
+            }
             let mut original = Cow::from(original.as_path());
             if let Some(parent) = path.parent() {
                 original = Cow::from(parent.join(original));
@@ -577,4 +598,14 @@ fn search_group(name: &str, id: u64) -> io::Result<Group> {
         return group;
     }
     Group::from_gid((id as u32).into())
+}
+
+#[inline]
+fn is_unsafe_link(reference: &EntryReference) -> bool {
+    reference.as_path().components().any(|it| {
+        matches!(
+            it,
+            Component::ParentDir | Component::RootDir | Component::Prefix(_)
+        )
+    })
 }

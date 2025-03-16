@@ -171,6 +171,11 @@ pub(crate) struct StdioCommand {
     same_owner: bool,
     #[arg(long, help = "Extract files as yourself")]
     no_same_owner: bool,
+    #[arg(
+        long,
+        help = "Allow extract symlink and hardlink that contains root path or parent path"
+    )]
+    allow_unsafe_links: bool,
     #[arg(short, long, help = "Input archive file path")]
     file: Option<PathBuf>,
     #[arg(help = "Files or patterns")]
@@ -287,6 +292,7 @@ fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
 
     let out_option = OutputOption {
         overwrite: args.overwrite,
+        allow_unsafe_links: args.allow_unsafe_links,
         strip_components: args.strip_components,
         out_dir: args.out_dir,
         exclude,

@@ -69,52 +69,32 @@ fn init_resource<P: AsRef<Path>>(path: P) {
 #[test]
 fn hardlink() {
     setup();
-    init_resource(concat!(
-        env!("CARGO_TARGET_TMPDIR"),
-        "/hardlink/hardlink.pna"
-    ));
+    init_resource("hardlink/hardlink.pna");
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "x",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/hardlink/hardlink.pna"),
+        "hardlink/hardlink.pna",
         "--overwrite",
         "--out-dir",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/hardlink/dist"),
+        "hardlink/dist",
     ]))
     .unwrap();
 
     assert_eq!(
         "original text\n",
-        fs::read_to_string(concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/hardlink/dist/linked1.txt",
-        ))
-        .unwrap()
+        fs::read_to_string("hardlink/dist/linked1.txt",).unwrap()
     );
-    assert_eq!(
-        "original text\n",
-        fs::read_to_string(concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/hardlink/dist/dir/linked1.txt",
-        ))
-        .unwrap()
-    );
+
+    // Check skipped extract unsafe link
+    assert!(!fs::exists("hardlink/dist/dir/linked1.txt").unwrap());
 
     assert_eq!(
         "original text text\n",
-        fs::read_to_string(concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/hardlink/dist/dir/linked2.txt",
-        ))
-        .unwrap()
+        fs::read_to_string("hardlink/dist/dir/linked2.txt",).unwrap()
     );
     assert_eq!(
         "original text text\n",
-        fs::read_to_string(concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/hardlink/dist/linked2.txt",
-        ))
-        .unwrap()
+        fs::read_to_string("hardlink/dist/linked2.txt",).unwrap()
     );
 }
