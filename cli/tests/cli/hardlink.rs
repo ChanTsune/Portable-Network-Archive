@@ -98,3 +98,38 @@ fn hardlink() {
         fs::read_to_string("hardlink/dist/linked2.txt",).unwrap()
     );
 }
+
+#[test]
+fn hardlink_allow_unsafe_links() {
+    setup();
+    init_resource("hardlink_allow_unsafe_links/hardlink.pna");
+    command::entry(cli::Cli::parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "hardlink_allow_unsafe_links/hardlink.pna",
+        "--allow-unsafe-links",
+        "--overwrite",
+        "--out-dir",
+        "hardlink_allow_unsafe_links/dist",
+    ]))
+    .unwrap();
+
+    assert_eq!(
+        "original text\n",
+        fs::read_to_string("hardlink_allow_unsafe_links/dist/linked1.txt",).unwrap()
+    );
+    assert_eq!(
+        "original text\n",
+        fs::read_to_string("hardlink_allow_unsafe_links/dist/dir/linked1.txt",).unwrap()
+    );
+
+    assert_eq!(
+        "original text text\n",
+        fs::read_to_string("hardlink_allow_unsafe_links/dist/dir/linked2.txt",).unwrap()
+    );
+    assert_eq!(
+        "original text text\n",
+        fs::read_to_string("hardlink_allow_unsafe_links/dist/linked2.txt",).unwrap()
+    );
+}
