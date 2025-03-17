@@ -11,11 +11,11 @@ const KEEP_OPTIONS: &[Option<&str>] = &[
     Some("--keep-xattr"),
 ];
 
-const COMPRESSION_OPTIONS: &[Option<&str>] = &[
-    Some("--store"),
-    Some("--deflate"),
-    Some("--zstd"),
-    Some("--xz"),
+const COMPRESSION_OPTIONS: &[Option<&[&str]>] = &[
+    Some(&["--store"]),
+    Some(&["--deflate", "1"]),
+    Some(&["--zstd", "1"]),
+    Some(&["--xz", "1"]),
 ];
 
 const ENCRYPTION_OPTIONS: &[Option<[&str; 2]>] = &[
@@ -96,9 +96,10 @@ fn combination_fs() {
         for compress in COMPRESSION_OPTIONS {
             for encrypt in ENCRYPTION_OPTIONS {
                 for solid in SOLID_OPTIONS {
-                    let mut options = [*keep, *compress, *solid]
+                    let mut options = [*keep, *solid]
                         .into_iter()
                         .flatten()
+                        .chain(compress.iter().copied().flatten().copied())
                         .chain(encrypt.iter().flatten().copied())
                         .collect::<Vec<_>>();
                     if encrypt.is_some() {
@@ -184,9 +185,10 @@ fn combination_stdio() {
         for compress in COMPRESSION_OPTIONS {
             for encrypt in ENCRYPTION_OPTIONS {
                 for solid in SOLID_OPTIONS {
-                    let mut options = [*keep, *compress, *solid]
+                    let mut options = [*keep, *solid]
                         .into_iter()
                         .flatten()
+                        .chain(compress.iter().copied().flatten().copied())
                         .chain(encrypt.iter().flatten().copied())
                         .collect::<Vec<_>>();
                     if encrypt.is_some() {
