@@ -15,7 +15,7 @@ use std::io::prelude::*;
 /// An instance of an [Archive] can be read and/or written.
 ///
 /// # Examples
-/// Creates a new PNA file and adds entry to it.
+/// Creates a new PNA file and adds an entry to it.
 /// ```no_run
 /// # use libpna::{Archive, EntryBuilder, WriteOptions};
 /// # use std::fs::File;
@@ -90,7 +90,7 @@ impl<T> Archive<T> {
 /// An object that provides write access to solid mode PNA files.
 ///
 /// # Examples
-/// Creates a new solid mode PNA file and adds entry to it.
+/// Creates a new solid mode PNA file and adds an entry to it.
 /// ```no_run
 /// use libpna::{Archive, EntryBuilder, WriteOptions};
 /// use std::fs::File;
