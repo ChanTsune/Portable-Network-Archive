@@ -266,7 +266,13 @@ impl Iterator for EntryIterator<'_> {
                     }
                     _ => chunks.push(chunk),
                 },
-                Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => return None,
+                Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => {
+                    return if chunks.is_empty() {
+                        None
+                    } else {
+                        Some(Err(e))
+                    }
+                }
                 Err(e) => return Some(Err(e)),
             }
         }
