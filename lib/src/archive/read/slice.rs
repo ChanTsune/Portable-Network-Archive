@@ -15,11 +15,11 @@ pub(crate) fn read_header_from_slice(bytes: &[u8]) -> io::Result<&[u8]> {
 }
 
 impl<'d> Archive<&'d [u8]> {
-    /// Reads the archive header from the provided reader and returns a new [`Archive`].
+    /// Reads the archive header from the provided bytes and returns a new [`Archive`].
     ///
     /// # Arguments
     ///
-    /// * `bytes` - The [`&[u8]`] object to read the header from.
+    /// * `bytes` - The [`&[u8]`] slice to read the header from.
     ///
     /// # Returns
     ///

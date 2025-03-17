@@ -34,7 +34,7 @@ use std::io::prelude::*;
 /// # }
 /// ```
 ///
-/// Read the entries of a pna file.
+/// Reads the entries of a PNA file.
 /// ```no_run
 /// # use libpna::{Archive, ReadOptions};
 /// # use std::fs::File;
@@ -74,7 +74,7 @@ impl<T> Archive<T> {
         }
     }
 
-    /// Returns `true` if [ANXT] chunk is appeared before call this method calling.
+    /// Returns `true` if an [ANXT] chunk has appeared before calling this method.
     ///
     /// # Returns
     ///
