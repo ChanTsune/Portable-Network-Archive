@@ -330,7 +330,7 @@ impl<'r, R> Entries<'r, R> {
         Self { reader }
     }
 
-    /// Returns an iterator that extract solid entries in the archive and returns a normal entry.
+    /// Returns an iterator that extracts solid entries from the archive and returns them as normal entries.
     ///
     /// # Example
     /// ```no_run
