@@ -270,7 +270,12 @@ pub(crate) fn chunk_data_split(
     }
 }
 
-/// Read archive as chunks
+/// Read archive as chunks from given reader.
+///
+/// Reads a PNA archive from the given reader and returns an iterator of chunks.
+///
+/// # Errors
+/// Returns error if it is not PNA file.
 ///
 /// # Example
 ///
@@ -318,7 +323,12 @@ pub fn read_as_chunks<R: Read>(
     })
 }
 
-/// Read chunks from archive slice
+/// Read archive as chunks from given bytes.
+///
+/// Reads a PNA archive from the given byte slice and returns an iterator of chunks.
+///
+/// # Errors
+/// Returns error if it is not PNA file.
 ///
 /// # Example
 ///
