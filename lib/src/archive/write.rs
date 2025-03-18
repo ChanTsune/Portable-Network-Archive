@@ -184,6 +184,10 @@ impl<W: Write> Archive<W> {
     /// #     Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing the entry.
     #[inline]
     pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<usize> {
         entry.write_in(&mut self.inner)
@@ -215,6 +219,10 @@ impl<W: Write> Archive<W> {
     /// #    Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing the entry part.
     #[inline]
     pub fn add_entry_part<T>(&mut self, entry_part: EntryPart<T>) -> io::Result<usize>
     where
@@ -253,6 +261,10 @@ impl<W: Write> Archive<W> {
     /// #    Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while splitting to the next archive.
     #[inline]
     pub fn split_to_next_archive<OW: Write>(mut self, writer: OW) -> io::Result<Archive<OW>> {
         let next_archive_number = self.header.archive_number + 1;
