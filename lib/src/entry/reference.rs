@@ -292,8 +292,8 @@ impl TryFrom<Cow<'_, Path>> for EntryReference {
 
     /// ## Examples
     /// ```
-    /// use std::borrow::Cow;
     /// use libpna::EntryReference;
+    /// use std::borrow::Cow;
     /// use std::path::PathBuf;
     ///
     /// let p = Cow::from(PathBuf::from("path/to/file"));
