@@ -268,6 +268,9 @@ impl<W: Write> Archive<W> {
     /// Normally, a PNA archive reader will continue reading entries in the hope that the entry exists until it encounters this end marker.
     /// This end marker should always be recorded at the end of the file unless there is a special reason to do so.
     ///
+    /// # Errors
+    /// Returns an error if failed to write archive end marker.
+    ///
     /// # Examples
     /// Create an empty archive.
     /// ```no_run
@@ -493,6 +496,9 @@ impl<W: Write> SolidArchive<W> {
     /// Marks that the PNA archive contains no more entries.
     /// Normally, a PNA archive reader will continue reading entries in the hope that the entry exists until it encounters this end marker.
     /// This end marker should always be recorded at the end of the file unless there is a special reason to do so.
+    ///
+    /// # Errors
+    /// Returns an error if failed to write archive end marker.
     ///
     /// # Examples
     /// Create an empty archive.
