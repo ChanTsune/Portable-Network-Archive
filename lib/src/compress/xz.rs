@@ -1,16 +1,31 @@
 use crate::entry::{CompressionLevel, CompressionLevelImpl};
 
-pub type XZCompressionLevel = u32;
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct XZCompressionLevel(u32);
 
 impl From<CompressionLevel> for XZCompressionLevel {
     #[inline]
     fn from(value: CompressionLevel) -> Self {
         match value.0 {
-            CompressionLevelImpl::Min => 0,
-            CompressionLevelImpl::Max => 9,
-            CompressionLevelImpl::Default => 6,
-            CompressionLevelImpl::Custom(value) => (value as Self).clamp(0, 9),
+            CompressionLevelImpl::Min => Self(0),
+            CompressionLevelImpl::Max => Self(9),
+            CompressionLevelImpl::Default => Self(6),
+            CompressionLevelImpl::Custom(value) => Self(value.clamp(0, 9) as _),
         }
+    }
+}
+
+impl From<XZCompressionLevel> for CompressionLevel {
+    #[inline]
+    fn from(value: XZCompressionLevel) -> Self {
+        CompressionLevel(CompressionLevelImpl::Custom(value.0 as _))
+    }
+}
+
+impl From<XZCompressionLevel> for u32 {
+    #[inline]
+    fn from(value: XZCompressionLevel) -> Self {
+        value.0
     }
 }
 
@@ -22,21 +37,33 @@ mod tests {
 
     #[test]
     fn min() {
-        assert_eq!(XZCompressionLevel::from(CompressionLevel::from(0)), 0);
+        assert_eq!(
+            XZCompressionLevel::from(CompressionLevel::from(0)),
+            XZCompressionLevel(0)
+        );
     }
 
     #[test]
     fn max() {
-        assert_eq!(XZCompressionLevel::from(CompressionLevel::from(9)), 9);
+        assert_eq!(
+            XZCompressionLevel::from(CompressionLevel::from(9)),
+            XZCompressionLevel(9)
+        );
     }
 
     #[test]
     fn default() {
-        assert_eq!(XZCompressionLevel::from(CompressionLevel::default()), 6);
+        assert_eq!(
+            XZCompressionLevel::from(CompressionLevel::default()),
+            XZCompressionLevel(6)
+        );
     }
 
     #[test]
     fn out_of_range() {
-        assert_eq!(XZCompressionLevel::from(CompressionLevel::from(100)), 9);
+        assert_eq!(
+            XZCompressionLevel::from(CompressionLevel::from(100)),
+            XZCompressionLevel(9)
+        );
     }
 }
