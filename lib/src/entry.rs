@@ -1104,7 +1104,7 @@ where
     }
 }
 
-impl<'a> EntryPart<&'a [u8]> {
+impl EntryPart<&[u8]> {
     /// Split [EntryPart] into two parts if this entry can be split into smaller than given value.
     ///
     /// ## Errors
