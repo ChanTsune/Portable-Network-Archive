@@ -1,5 +1,4 @@
-use crate::entry::CompressionLevelImpl;
-use crate::CompressionLevel;
+use crate::{entry::CompressionLevelImpl, CompressionLevel};
 use zstd::zstd_safe;
 
 /// Represents a Zstd compression level.

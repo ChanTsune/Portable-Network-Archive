@@ -1,5 +1,4 @@
-use crate::entry::CompressionLevelImpl;
-use crate::CompressionLevel;
+use crate::{entry::CompressionLevelImpl, CompressionLevel};
 use flate2::Compression;
 use std::{
     cmp::Ordering,
