@@ -1,5 +1,6 @@
 use crate::entry::{CompressionLevel, CompressionLevelImpl};
 
+/// Represents a XZ compression level.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct XZCompressionLevel(u32);
 

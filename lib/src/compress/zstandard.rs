@@ -2,6 +2,7 @@ use crate::entry::CompressionLevelImpl;
 use crate::CompressionLevel;
 use zstd::zstd_safe;
 
+/// Represents a Zstd compression level.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct ZstdCompressionLevel(zstd_safe::CompressionLevel);
 
