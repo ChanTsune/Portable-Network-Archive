@@ -6,6 +6,7 @@ use std::{
     hash::{Hash, Hasher},
 };
 
+/// Represents a Deflate compression level.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct DeflateCompressionLevel(Compression);
 
