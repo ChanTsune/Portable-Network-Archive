@@ -5,13 +5,25 @@ use zstd::zstd_safe;
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct ZstdCompressionLevel(zstd_safe::CompressionLevel);
 
+impl ZstdCompressionLevel {
+    /// Default compression level for zstd.
+    const DEFAULT: Self = Self(zstd::DEFAULT_COMPRESSION_LEVEL);
+}
+
+impl Default for ZstdCompressionLevel {
+    #[inline]
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
+
 impl From<CompressionLevel> for ZstdCompressionLevel {
     #[inline]
     fn from(value: CompressionLevel) -> Self {
         match value.0 {
             CompressionLevelImpl::Min => Self(zstd_safe::min_c_level()),
             CompressionLevelImpl::Max => Self(zstd_safe::max_c_level()),
-            CompressionLevelImpl::Default => Self(zstd::DEFAULT_COMPRESSION_LEVEL),
+            CompressionLevelImpl::Default => Self::DEFAULT,
             CompressionLevelImpl::Custom(value) => Self(
                 (value as zstd_safe::CompressionLevel)
                     .clamp(zstd_safe::min_c_level(), zstd_safe::max_c_level()),
