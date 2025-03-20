@@ -1,4 +1,4 @@
-use std::{io, mem};
+use std::{io, mem, str};
 
 /// Entry extended attribute.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -57,7 +57,7 @@ impl ExtendedAttribute {
         let (name, value) = value
             .split_at_checked(len)
             .ok_or(io::ErrorKind::UnexpectedEof)?;
-        let name = String::from_utf8(name.to_vec()).map_err(|_| io::ErrorKind::InvalidData)?;
+        let name = str::from_utf8(name).map_err(|_| io::ErrorKind::InvalidData)?;
 
         let (len, value) = value
             .split_first_chunk::<{ mem::size_of::<u32>() }>()
@@ -65,6 +65,7 @@ impl ExtendedAttribute {
         let len = u32::from_be_bytes(*len) as usize;
         let value = value.get(..len).ok_or(io::ErrorKind::UnexpectedEof)?;
         let value = value.to_vec();
+        let name = name.to_owned();
         Ok(Self { name, value })
     }
 
