@@ -5,17 +5,17 @@ use crate::{
     cli::{FileArgs, PasswordArgs},
     command::{
         ask_password,
-        commons::{collect_split_archives, run_read_entries},
+        commons::{collect_split_archives, run_read_entries, Exclude},
         Command,
     },
     ext::*,
-    utils::GlobPatterns,
+    utils::{self, GlobPatterns},
 };
 use base64::Engine;
 use chrono::{DateTime, Local};
 use clap::{
     builder::styling::{AnsiColor, Color as Colour, Style},
-    ArgGroup, Parser,
+    ArgGroup, Parser, ValueHint,
 };
 use pna::{
     prelude::*, Compression, DataKind, Encryption, ExtendedAttribute, NormalEntry, RawChunk,
@@ -28,6 +28,7 @@ use std::{
     collections::{BTreeSet, HashMap},
     fmt::{self, Display, Formatter},
     io::{self, prelude::*},
+    path::PathBuf,
     str::FromStr,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -87,6 +88,15 @@ pub(crate) struct ListCommand {
     hide_control_chars: bool,
     #[arg(long, help = "Display type indicator by entry kinds")]
     classify: bool,
+    #[arg(
+        long,
+        help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions"
+    )]
+    include: Option<Vec<String>>,
+    #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
+    exclude: Option<Vec<String>>,
+    #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
+    exclude_from: Option<PathBuf>,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
@@ -257,15 +267,26 @@ fn list_archive(args: ListCommand) -> io::Result<()> {
     let files_globs = GlobPatterns::new(&args.file.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
+    let exclude = {
+        let mut exclude = args.exclude.unwrap_or_default();
+        if let Some(p) = args.exclude_from {
+            exclude.extend(utils::fs::read_to_lines(p)?);
+        }
+        Exclude {
+            include: args.include.unwrap_or_default().into(),
+            exclude: exclude.into(),
+        }
+    };
+
     let archives = collect_split_archives(&args.file.archive)?;
 
     #[cfg(not(feature = "memmap"))]
     {
-        run_list_archive(archives, password.as_deref(), files_globs, options)
+        run_list_archive(archives, password.as_deref(), files_globs, exclude, options)
     }
     #[cfg(feature = "memmap")]
     {
-        run_list_archive_mem(archives, password.as_deref(), files_globs, options)
+        run_list_archive_mem(archives, password.as_deref(), files_globs, exclude, options)
     }
 }
 
@@ -327,6 +348,7 @@ pub(crate) fn run_list_archive(
     archive_provider: impl IntoIterator<Item = impl Read>,
     password: Option<&str>,
     files_globs: GlobPatterns,
+    exclude: Exclude,
     args: ListOptions,
 ) -> io::Result<()> {
     let mut entries = Vec::new();
@@ -345,7 +367,7 @@ pub(crate) fn run_list_archive(
         }
         Ok(())
     })?;
-    print_entries(entries, files_globs, args);
+    print_entries(entries, files_globs, exclude, args);
     Ok(())
 }
 
@@ -354,6 +376,7 @@ pub(crate) fn run_list_archive_mem(
     archives: Vec<std::fs::File>,
     password: Option<&str>,
     files_globs: GlobPatterns,
+    exclude: Exclude,
     args: ListOptions,
 ) -> io::Result<()> {
     let mut entries = Vec::new();
@@ -372,23 +395,25 @@ pub(crate) fn run_list_archive_mem(
         }
         Ok(())
     })?;
-    print_entries(entries, files_globs, args);
+    print_entries(entries, files_globs, exclude, args);
     Ok(())
 }
 
-fn print_entries(entries: Vec<TableRow>, globs: GlobPatterns, options: ListOptions) {
+fn print_entries(
+    entries: Vec<TableRow>,
+    globs: GlobPatterns,
+    exclude: Exclude,
+    options: ListOptions,
+) {
     if entries.is_empty() {
         return;
     }
 
-    let entries = if globs.is_empty() {
-        entries
-    } else {
-        entries
-            .into_par_iter()
-            .filter(|r| globs.matches_any(r.entry_type.name()))
-            .collect()
-    };
+    let entries = entries
+        .into_par_iter()
+        .filter(|r| globs.is_empty() || globs.matches_any(r.entry_type.name()))
+        .filter(|r| !exclude.excluded(r.entry_type.name()))
+        .collect::<Vec<_>>();
     match options.format {
         Some(Format::JsonL) => json_line_entries(entries),
         Some(Format::Table) => detail_list_entries(entries, options),
