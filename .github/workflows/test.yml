@@ -18,6 +18,7 @@ jobs:
           - stable
           - beta
           - nightly
+    timeout-minutes: 100
     runs-on: ${{ matrix.os }}
     steps:
       - name: git autocrlf false
