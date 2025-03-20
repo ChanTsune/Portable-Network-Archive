@@ -9,6 +9,13 @@ use std::{
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct DeflateCompressionLevel(Compression);
 
+impl Default for DeflateCompressionLevel {
+    #[inline]
+    fn default() -> Self {
+        Self(Compression::default())
+    }
+}
+
 impl From<DeflateCompressionLevel> for i64 {
     #[inline]
     fn from(value: DeflateCompressionLevel) -> Self {

@@ -4,13 +4,25 @@ use crate::entry::{CompressionLevel, CompressionLevelImpl};
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct XZCompressionLevel(u32);
 
+impl XZCompressionLevel {
+    /// Default compression level for xz.
+    const DEFAULT: Self = Self(6);
+}
+
+impl Default for XZCompressionLevel {
+    #[inline]
+    fn default() -> Self {
+        Self::DEFAULT
+    }
+}
+
 impl From<CompressionLevel> for XZCompressionLevel {
     #[inline]
     fn from(value: CompressionLevel) -> Self {
         match value.0 {
             CompressionLevelImpl::Min => Self(0),
             CompressionLevelImpl::Max => Self(9),
-            CompressionLevelImpl::Default => Self(6),
+            CompressionLevelImpl::Default => Self::DEFAULT,
             CompressionLevelImpl::Custom(value) => Self(value.clamp(0, 9) as _),
         }
     }
