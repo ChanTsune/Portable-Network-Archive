@@ -344,12 +344,24 @@ fn run_list_archive(args: StdioCommand) -> io::Result<()> {
     let files_globs = GlobPatterns::new(&args.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
+    let exclude = {
+        let mut exclude = args.exclude.unwrap_or_default();
+        if let Some(p) = args.exclude_from {
+            exclude.extend(utils::fs::read_to_lines(p)?);
+        }
+        Exclude {
+            include: args.include.unwrap_or_default().into(),
+            exclude: exclude.into(),
+        }
+    };
+
     if let Some(path) = args.file {
         let archives = collect_split_archives(&path)?;
         crate::command::list::run_list_archive(
             archives,
             password.as_deref(),
             files_globs,
+            exclude,
             list_options,
         )
     } else {
@@ -357,6 +369,7 @@ fn run_list_archive(args: StdioCommand) -> io::Result<()> {
             std::iter::repeat_with(|| io::stdin().lock()),
             password.as_deref(),
             files_globs,
+            exclude,
             list_options,
         )
     }
