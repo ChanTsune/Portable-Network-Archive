@@ -1,13 +1,20 @@
-use crate::entry::CompressionLevelImpl;
-use crate::CompressionLevel;
+use crate::{entry::CompressionLevelImpl, CompressionLevel};
 use flate2::Compression;
 use std::{
     cmp::Ordering,
     hash::{Hash, Hasher},
 };
 
+/// Represents a Deflate compression level.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct DeflateCompressionLevel(Compression);
+
+impl Default for DeflateCompressionLevel {
+    #[inline]
+    fn default() -> Self {
+        Self(Compression::default())
+    }
+}
 
 impl From<DeflateCompressionLevel> for i64 {
     #[inline]

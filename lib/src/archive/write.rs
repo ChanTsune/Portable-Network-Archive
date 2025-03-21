@@ -184,6 +184,10 @@ impl<W: Write> Archive<W> {
     /// #     Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing the entry.
     #[inline]
     pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<usize> {
         entry.write_in(&mut self.inner)
@@ -215,6 +219,10 @@ impl<W: Write> Archive<W> {
     /// #    Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing the entry part.
     #[inline]
     pub fn add_entry_part<T>(&mut self, entry_part: EntryPart<T>) -> io::Result<usize>
     where
@@ -253,6 +261,10 @@ impl<W: Write> Archive<W> {
     /// #    Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while splitting to the next archive.
     #[inline]
     pub fn split_to_next_archive<OW: Write>(mut self, writer: OW) -> io::Result<Archive<OW>> {
         let next_archive_number = self.header.archive_number + 1;
@@ -267,6 +279,9 @@ impl<W: Write> Archive<W> {
     /// Marks that the PNA archive contains no more entries.
     /// Normally, a PNA archive reader will continue reading entries in the hope that the entry exists until it encounters this end marker.
     /// This end marker should always be recorded at the end of the file unless there is a special reason to do so.
+    ///
+    /// # Errors
+    /// Returns an error if failed to write archive end marker.
     ///
     /// # Examples
     /// Create an empty archive.
@@ -493,6 +508,9 @@ impl<W: Write> SolidArchive<W> {
     /// Marks that the PNA archive contains no more entries.
     /// Normally, a PNA archive reader will continue reading entries in the hope that the entry exists until it encounters this end marker.
     /// This end marker should always be recorded at the end of the file unless there is a special reason to do so.
+    ///
+    /// # Errors
+    /// Returns an error if failed to write archive end marker.
     ///
     /// # Examples
     /// Create an empty archive.

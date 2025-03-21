@@ -15,7 +15,7 @@ use std::io::prelude::*;
 /// An instance of an [Archive] can be read and/or written.
 ///
 /// # Examples
-/// Creates a new PNA file and adds entry to it.
+/// Creates a new PNA file and adds an entry to it.
 /// ```no_run
 /// # use libpna::{Archive, EntryBuilder, WriteOptions};
 /// # use std::fs::File;
@@ -34,7 +34,7 @@ use std::io::prelude::*;
 /// # }
 /// ```
 ///
-/// Read the entries of a pna file.
+/// Reads the entries of a PNA file.
 /// ```no_run
 /// # use libpna::{Archive, ReadOptions};
 /// # use std::fs::File;
@@ -74,7 +74,7 @@ impl<T> Archive<T> {
         }
     }
 
-    /// Returns `true` if [ANXT] chunk is appeared before call this method calling.
+    /// Returns `true` if an [ANXT] chunk has appeared before calling this method.
     ///
     /// # Returns
     ///
@@ -87,11 +87,10 @@ impl<T> Archive<T> {
     }
 }
 
-/// An object providing writing to a solid mode PNA file.
-/// An instance of an [SolidArchive] can be written.
+/// An object that provides write access to solid mode PNA files.
 ///
 /// # Examples
-/// Creates a new solid mode PNA file and adds entry to it.
+/// Creates a new solid mode PNA file and adds an entry to it.
 /// ```no_run
 /// use libpna::{Archive, EntryBuilder, WriteOptions};
 /// use std::fs::File;

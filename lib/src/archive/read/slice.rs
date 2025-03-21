@@ -6,8 +6,9 @@ use std::borrow::Cow;
 use std::io;
 
 pub(crate) fn read_header_from_slice(bytes: &[u8]) -> io::Result<&[u8]> {
-    // TODO: use split_at_checked instead
-    let (header, body) = bytes.split_at(PNA_HEADER.len());
+    let (header, body) = bytes
+        .split_at_checked(PNA_HEADER.len())
+        .ok_or(io::ErrorKind::UnexpectedEof)?;
     if header != PNA_HEADER {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "It's not PNA"));
     }
@@ -15,11 +16,11 @@ pub(crate) fn read_header_from_slice(bytes: &[u8]) -> io::Result<&[u8]> {
 }
 
 impl<'d> Archive<&'d [u8]> {
-    /// Reads the archive header from the provided reader and returns a new [`Archive`].
+    /// Reads the archive header from the provided bytes and returns a new [`Archive`].
     ///
     /// # Arguments
     ///
-    /// * `bytes` - The [`&[u8]`] object to read the header from.
+    /// * `bytes` - The [`&[u8]`] slice to read the header from.
     ///
     /// # Returns
     ///
@@ -27,7 +28,7 @@ impl<'d> Archive<&'d [u8]> {
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading header from the bytes.
+    /// Returns an error if an I/O error occurs while reading the header from the bytes.
     #[inline]
     pub fn read_header_from_slice(bytes: &'d [u8]) -> io::Result<Self> {
         Self::read_header_from_slice_with_buffer(bytes, Vec::new())
@@ -212,7 +213,7 @@ impl<'a, 'r> Entries<'a, 'r> {
         Self { reader }
     }
 
-    /// Returns an iterator that extract solid entries in the archive and returns a normal entry.
+    /// Returns an iterator that extracts solid entries from the archive and returns them as normal entries.
     ///
     /// # Example
     ///

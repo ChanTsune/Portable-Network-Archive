@@ -245,7 +245,8 @@ impl FromStr for AclEntries {
                         if c.is_empty() {
                             Vec::new()
                         } else {
-                            c.split(',')
+                            let separator = if c.contains(',') { ',' } else { '|' };
+                            c.split(separator)
                                 .flat_map(|it| {
                                     if let Some(cap) = rwx_regex.captures(it) {
                                         cap.iter()
@@ -506,16 +507,19 @@ fn parse_acl_dump(reader: impl io::BufRead) -> io::Result<HashMap<String, Acls>>
     let mut result = HashMap::new();
     let mut current_file = None;
     let mut current_platform = AcePlatform::General;
-    let mut lines = reader.lines();
+    let lines = reader.lines();
 
-    while let Some(line) = lines.next() {
+    for line in lines {
         let line = line?;
+        if line.is_empty() {
+            // ignore
+            continue;
+        }
         if let Some(path) = line.strip_prefix("# file: ") {
             current_file = Some(String::from(path));
-        } else if let Some(_) = line.strip_prefix("# owner: ") {
+        } else if line.starts_with("# owner: ") || line.starts_with("# group: ") {
             // ignore
-        } else if let Some(_) = line.strip_prefix("# group: ") {
-            // ignore
+            continue;
         } else if let Some(platform) = line.strip_prefix("# platform: ") {
             current_platform = AcePlatform::from_str(platform).expect("Infallible error occurred");
         } else if let Some(file) = &current_file {

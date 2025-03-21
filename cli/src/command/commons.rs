@@ -7,10 +7,10 @@ use crate::{
             bsd::{SubstitutionRule, SubstitutionRules},
             gnu::{TransformRule, TransformRules},
         },
-        GlobPatterns, PathPartExt,
+        BsdGlobPatterns, PathPartExt,
     },
 };
-use normalize_path::*;
+use path_slash::*;
 use pna::{
     prelude::*, Archive, EntryBuilder, EntryName, EntryPart, EntryReference, NormalEntry,
     ReadEntry, SolidEntryBuilder, WriteOptions, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
@@ -109,21 +109,15 @@ pub(crate) fn collect_items(
     keep_dir: bool,
     gitignore: bool,
     follow_links: bool,
-    exclude: impl IntoIterator<Item = impl AsRef<Path>>,
+    exclude: Exclude,
 ) -> io::Result<Vec<PathBuf>> {
     let mut files = files.into_iter();
-    let exclude = GlobPatterns::new(
-        exclude
-            .into_iter()
-            .map(|path| path.as_ref().normalize().to_string_lossy().into_owned()),
-    )
-    .map_err(io::Error::other)?;
     if let Some(p) = files.next() {
         let mut builder = ignore::WalkBuilder::new(p);
         for p in files {
             builder.add(p);
         }
-        builder.filter_entry(move |e| !exclude.matches_any(e.path()));
+        builder.filter_entry(move |e| !exclude.excluded(e.path().to_slash_lossy()));
         builder
             .max_depth(if recursive { None } else { Some(0) })
             .hidden(false)
@@ -768,10 +762,64 @@ where
     Ok(())
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct Exclude {
+    pub(crate) include: BsdGlobPatterns,
+    pub(crate) exclude: BsdGlobPatterns,
+}
+
+impl Exclude {
+    #[inline]
+    pub(crate) fn excluded(&self, s: impl AsRef<str>) -> bool {
+        let s = s.as_ref();
+        !self.include.matches_inclusion(s) && self.exclude.matches_exclusion(s)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::collections::HashSet;
+
+    fn empty_exclude() -> Exclude {
+        Exclude {
+            include: Vec::<&str>::new().into(),
+            exclude: Vec::<&str>::new().into(),
+        }
+    }
+
+    #[test]
+    fn exclude_empty() {
+        let exclude = Exclude {
+            include: Vec::<&str>::new().into(),
+            exclude: Vec::<&str>::new().into(),
+        };
+        assert!(!exclude.excluded("a/b/c"));
+    }
+
+    #[test]
+    fn exclude_exclude() {
+        let exclude = Exclude {
+            include: Vec::<&str>::new().into(),
+            exclude: vec!["a/*"].into(),
+        };
+        assert!(exclude.excluded("a/b/c"));
+    }
+
+    #[test]
+    fn exclude_include() {
+        let exclude = Exclude {
+            include: vec!["a/*/c"].into(),
+            exclude: vec!["a/*"].into(),
+        };
+        assert!(!exclude.excluded("a/b/c"));
+
+        let exclude = Exclude {
+            include: vec!["a/*/c"].into(),
+            exclude: vec!["a/*/c"].into(),
+        };
+        assert!(!exclude.excluded("a/b/c"));
+    }
 
     #[test]
     fn collect_items_only_file() {
@@ -779,11 +827,8 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../resources/test/raw",
         )];
-        let items = collect_items(source, false, false, false, false, Vec::<&str>::new()).unwrap();
-        assert_eq!(
-            items.into_iter().collect::<HashSet<_>>(),
-            [].into_iter().collect::<HashSet<_>>()
-        );
+        let items = collect_items(source, false, false, false, false, empty_exclude()).unwrap();
+        assert_eq!(items.into_iter().collect::<HashSet<_>>(), HashSet::new());
     }
 
     #[test]
@@ -792,7 +837,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../resources/test/raw",
         )];
-        let items = collect_items(source, false, true, false, false, Vec::<&str>::new()).unwrap();
+        let items = collect_items(source, false, true, false, false, empty_exclude()).unwrap();
         assert_eq!(
             items.into_iter().collect::<HashSet<_>>(),
             [concat!(
@@ -811,7 +856,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../resources/test/raw",
         )];
-        let items = collect_items(source, true, false, false, false, Vec::<&str>::new()).unwrap();
+        let items = collect_items(source, true, false, false, false, empty_exclude()).unwrap();
         assert_eq!(
             items.into_iter().collect::<HashSet<_>>(),
             [

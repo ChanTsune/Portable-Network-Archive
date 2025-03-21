@@ -1,11 +1,10 @@
-# Portable Network Archive
+# Portable Network Archive (PNA)
 
 <div align="center">
   <img src="./icon.svg" alt="PNA" width="100"/>
 </div>
 
-PNA (Portable Network Archive) is a highly scalable archive format that can be compressed, encrypted, and split.
-Also, its data structure is inspired by the PNG data structure.
+**Portable Network Archive (PNA)** is a flexible, secure, and cross-platform archive format inspired by the PNG data structure. It combines the simplicity of ZIP with the robustness of TAR, providing efficient compression, strong encryption, and seamless splitting and streaming capabilities.
 
 ### Why PNA?
 
@@ -37,18 +36,9 @@ Additionally, the PNA specification includes a rationale appendix to help develo
   - [x] Extended attributes.
   - [x] Access Control Lists (ACLs) (experimental).
 
-## Supported Operating Systems
-
-PNA CLI (Command-Line Interface) is cross-platform and compatible with the following operating systems:
-
-- **Windows**
-- **Linux**
-- **macOS**
-- **FreeBSD**
-
-This compatibility ensures that users can utilize PNA across different environments without any platform-specific limitations.
-
-Support for additional operating systems is planned for future releases.
+## CLI Supported Platform
+- Cross-platform support including Windows, Linux, macOS, and FreeBSD  
+  _(Support for additional platforms planned.)_
 
 ## Installation
 
@@ -64,35 +54,31 @@ cargo install portable-network-archive
 cargo install --git https://github.com/ChanTsune/Portable-Network-Archive.git portable-network-archive
 ```
 
-## Usage
+## Basic Usage
 
-### Creating an Archive
-
+Create an archive:
 ```sh
 pna create <ARCHIVE> [FILES]...
 ```
 
-### Extracting an Archive
-
+Extract an archive:
 ```sh
 pna extract <ARCHIVE>
 ```
 
-### Listing Archived Entries
-
+List archive contents:
 ```sh
 pna list <ARCHIVE>
 ```
 
-Use the following command to get help.
-
+For more commands and options:
 ```sh
 pna --help
 ```
 
 ## Specification
 
-For more detailed information, please refer to the [Specification](https://portable-network-archive.github.io/Portable-Network-Archive-Specification/) document.
+Detailed information is available in the [Specification](https://portable-network-archive.github.io/Portable-Network-Archive-Specification/) document.
 
 # License
 

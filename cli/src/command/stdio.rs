@@ -4,8 +4,8 @@ use crate::{
         append::{open_archive_then_seek_to_end, run_append_archive},
         ask_password, check_password,
         commons::{
-            collect_items, collect_split_archives, entry_option, CreateOptions, KeepOptions,
-            OwnerOptions, PathTransformers,
+            collect_items, collect_split_archives, entry_option, CreateOptions, Exclude,
+            KeepOptions, OwnerOptions, PathTransformers,
         },
         create::create_archive_file,
         extract::{run_extract_archive_reader, OutputOption},
@@ -26,6 +26,8 @@ use std::{fs, io, path::PathBuf, time::SystemTime};
 #[command(
     group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
     group(ArgGroup::new("bundled-flags").args(["create", "extract", "list"]).required(true)),
+    group(ArgGroup::new("unstable-include").args(["include"]).requires("unstable")),
+    group(ArgGroup::new("unstable-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-gitignore").args(["gitignore"]).requires("unstable")),
@@ -102,8 +104,15 @@ pub(crate) struct StdioCommand {
     pub(crate) hash: HashAlgorithmArgs,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
+    #[arg(
+        long,
+        help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions"
+    )]
+    include: Option<Vec<String>>,
     #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
     pub(crate) exclude: Option<Vec<String>>,
+    #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
+    exclude_from: Option<String>,
     #[arg(long, help = "Ignore files from .gitignore (unstable)")]
     pub(crate) gitignore: bool,
     #[arg(long, help = "Follow symbolic links")]
@@ -142,8 +151,6 @@ pub(crate) struct StdioCommand {
     pub(crate) numeric_owner: bool,
     #[arg(long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
     pub(crate) files_from: Option<String>,
-    #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
-    pub(crate) exclude_from: Option<String>,
     #[arg(
         short = 's',
         value_name = "PATTERN",
@@ -164,6 +171,11 @@ pub(crate) struct StdioCommand {
     same_owner: bool,
     #[arg(long, help = "Extract files as yourself")]
     no_same_owner: bool,
+    #[arg(
+        long,
+        help = "Allow extract symlink and hardlink that contains root path or parent path"
+    )]
+    allow_unsafe_links: bool,
     #[arg(short, long, help = "Input archive file path")]
     file: Option<PathBuf>,
     #[arg(help = "Files or patterns")]
@@ -209,7 +221,10 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
         if let Some(p) = args.exclude_from {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
-        exclude
+        Exclude {
+            include: args.include.unwrap_or_default().into(),
+            exclude: exclude.into(),
+        }
     };
     let target_items = collect_items(
         &files,
@@ -269,12 +284,15 @@ fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
         if let Some(p) = args.exclude_from {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
-        GlobPatterns::new(exclude)
-    }
-    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        Exclude {
+            include: args.include.unwrap_or_default().into(),
+            exclude: exclude.into(),
+        }
+    };
 
     let out_option = OutputOption {
         overwrite: args.overwrite,
+        allow_unsafe_links: args.allow_unsafe_links,
         strip_components: args.strip_components,
         out_dir: args.out_dir,
         exclude,
@@ -326,12 +344,24 @@ fn run_list_archive(args: StdioCommand) -> io::Result<()> {
     let files_globs = GlobPatterns::new(&args.files)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
+    let exclude = {
+        let mut exclude = args.exclude.unwrap_or_default();
+        if let Some(p) = args.exclude_from {
+            exclude.extend(utils::fs::read_to_lines(p)?);
+        }
+        Exclude {
+            include: args.include.unwrap_or_default().into(),
+            exclude: exclude.into(),
+        }
+    };
+
     if let Some(path) = args.file {
         let archives = collect_split_archives(&path)?;
         crate::command::list::run_list_archive(
             archives,
             password.as_deref(),
             files_globs,
+            exclude,
             list_options,
         )
     } else {
@@ -339,6 +369,7 @@ fn run_list_archive(args: StdioCommand) -> io::Result<()> {
             std::iter::repeat_with(|| io::stdin().lock()),
             password.as_deref(),
             files_globs,
+            exclude,
             list_options,
         )
     }
@@ -379,7 +410,10 @@ fn run_append(args: StdioCommand) -> io::Result<()> {
         if let Some(p) = args.exclude_from {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
-        exclude
+        Exclude {
+            include: args.include.unwrap_or_default().into(),
+            exclude: exclude.into(),
+        }
     };
 
     if let Some(file) = &args.file {

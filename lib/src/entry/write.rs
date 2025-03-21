@@ -185,8 +185,10 @@ fn compression_writer<W: Write>(
         Compress::Deflate(level) => {
             CompressionWriter::Deflate(ZlibEncoder::new(writer, level.into()))
         }
-        Compress::ZStandard(level) => CompressionWriter::ZStd(ZstdEncoder::new(writer, level)?),
-        Compress::XZ(level) => CompressionWriter::Xz(XzEncoder::new(writer, level)),
+        Compress::ZStandard(level) => {
+            CompressionWriter::ZStd(ZstdEncoder::new(writer, level.into())?)
+        }
+        Compress::XZ(level) => CompressionWriter::Xz(XzEncoder::new(writer, level.into())),
     })
 }
 

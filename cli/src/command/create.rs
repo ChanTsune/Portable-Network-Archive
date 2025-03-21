@@ -5,7 +5,7 @@ use crate::{
     command::{
         ask_password, check_password,
         commons::{
-            collect_items, create_entry, entry_option, write_split_archive, CreateOptions,
+            collect_items, create_entry, entry_option, write_split_archive, CreateOptions, Exclude,
             KeepOptions, OwnerOptions, PathTransformers,
         },
         Command,
@@ -29,6 +29,7 @@ use std::{
 #[derive(Parser, Clone, Debug)]
 #[command(
     group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
+    group(ArgGroup::new("unstable-include").args(["include"]).requires("unstable")),
     group(ArgGroup::new("unstable-create-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from-stdin").args(["files_from_stdin"]).requires("unstable")),
@@ -122,6 +123,11 @@ pub(crate) struct CreateCommand {
     pub(crate) files_from: Option<String>,
     #[arg(long, help = "Read archiving files from stdin (unstable)")]
     pub(crate) files_from_stdin: bool,
+    #[arg(
+        long,
+        help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions"
+    )]
+    include: Option<Vec<String>>,
     #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
     pub(crate) exclude: Option<Vec<String>>,
     #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
@@ -195,7 +201,10 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
         if let Some(p) = args.exclude_from {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
-        exclude
+        Exclude {
+            include: args.include.unwrap_or_default().into(),
+            exclude: exclude.into(),
+        }
     };
     let archive_path = current_dir.join(archive);
     if let Some(working_dir) = args.working_dir {

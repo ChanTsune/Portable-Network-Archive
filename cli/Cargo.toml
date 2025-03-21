@@ -1,6 +1,6 @@
 [package]
 name = "portable-network-archive"
-version = "0.23.6"
+version = "0.24.0"
 edition = "2021"
 license = "Apache-2.0 OR MIT"
 description = "Portable-Network-Archive cli"
@@ -16,8 +16,8 @@ bstr = "1.11.3"
 bugreport = { version =  "0.5.1", default-features = false, features = ["collector_operating_system", "format_markdown"] }
 bytesize = "2.0.1"
 chrono = "0.4.40"
-clap = { version = "4.5.31", features = ["derive"] }
-clap_complete = "4.5.46"
+clap = { version = "4.5.32", features = ["derive"] }
+clap_complete = "4.5.47"
 fern = "0.7.1"
 gix-prompt = "0.9.1"
 globset = "0.4.16"
@@ -26,7 +26,8 @@ itertools = "0.14.0"
 memmap2 = { version = "0.9.5", optional = true }
 nom = "8.0.0"
 normalize-path = "0.2.1"
-pna = { version = "0.23.0", path = "../pna" }
+path-slash = "0.2.1"
+pna = { version = "0.24.0", path = "../pna" }
 rand = "0.9.0"
 rayon = "1.10.0"
 regex = "1.11.1"
@@ -34,7 +35,7 @@ serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 tabled = { version = "0.18.0", default-features = false, features = ["std", "ansi"] }
 thiserror = "2.0.12"
-indexmap = "2.7.1"
+indexmap = "2.8.0"
 log = "0.4.26"
 
 [target.'cfg(unix)'.dependencies]
@@ -45,14 +46,14 @@ xattr = "1.5.0"
 exacl = { version = "0.12.0", optional = true }
 
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.60.0", features = [
+windows = { version = "0.61.1", features = [
   "Win32_Storage_FileSystem",
   "Win32_Security_Authorization",
   "Win32_System_WindowsProgramming",
   "Win32_System_Threading",
 ] }
 field-offset = { version = "0.3.6", optional = true }
-libc = "0.2.170"
+libc = "0.2.171"
 
 [dev-dependencies]
 maplit = "1.0.2"

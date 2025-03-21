@@ -46,7 +46,7 @@ impl<R: Read> Archive<R> {
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading header from the reader.
+    /// Returns an error if an I/O error occurs while reading the header from the reader.
     #[inline]
     pub fn read_header(reader: R) -> io::Result<Self> {
         Self::read_header_with_buffer(reader, Default::default())
@@ -330,7 +330,7 @@ impl<'r, R> Entries<'r, R> {
         Self { reader }
     }
 
-    /// Returns an iterator that extract solid entries in the archive and returns a normal entry.
+    /// Returns an iterator that extracts solid entries from the archive and returns them as normal entries.
     ///
     /// # Example
     /// ```no_run
@@ -426,6 +426,9 @@ impl<R: Read> Iterator for NormalEntries<'_, R> {
 
 impl<R: Read + Seek> Archive<R> {
     /// Seek the cursor to the end of the archive marker.
+    ///
+    /// # Errors
+    /// Returns an error if this function failed to seek or contains broken chunk.
     ///
     /// # Examples
     /// For appending entry to the existing archive.

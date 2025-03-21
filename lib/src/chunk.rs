@@ -256,19 +256,26 @@ pub(crate) fn chunk_data_split(
     data: &[u8],
     mid: usize,
 ) -> (RawChunk<&[u8]>, Option<RawChunk<&[u8]>>) {
-    // TODO: use split_at_checked
-    if data.len() <= mid {
-        (RawChunk::from_slice(ty, data), None)
+    if let Some((first, last)) = data.split_at_checked(mid) {
+        if last.is_empty() {
+            (RawChunk::from_slice(ty, first), None)
+        } else {
+            (
+                RawChunk::from_slice(ty, first),
+                Some(RawChunk::from_slice(ty, last)),
+            )
+        }
     } else {
-        let (first, last) = data.split_at(mid);
-        (
-            RawChunk::from_slice(ty, first),
-            Some(RawChunk::from_slice(ty, last)),
-        )
+        (RawChunk::from_slice(ty, data), None)
     }
 }
 
-/// Read archive as chunks
+/// Read archive as chunks from given reader.
+///
+/// Reads a PNA archive from the given reader and returns an iterator of chunks.
+///
+/// # Errors
+/// Returns error if it is not PNA file.
 ///
 /// # Example
 ///
@@ -316,7 +323,12 @@ pub fn read_as_chunks<R: Read>(
     })
 }
 
-/// Read chunks from archive slice
+/// Read archive as chunks from given bytes.
+///
+/// Reads a PNA archive from the given byte slice and returns an iterator of chunks.
+///
+/// # Errors
+/// Returns error if it is not PNA file.
 ///
 /// # Example
 ///

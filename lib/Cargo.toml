@@ -1,6 +1,6 @@
 [package]
 name = "libpna"
-version = "0.23.0"
+version = "0.24.0"
 edition = "2021"
 license = "Apache-2.0 OR MIT"
 description = "PNA(Portable-Network-Archive) decoding and encoding library"
@@ -44,8 +44,8 @@ pbkdf2 = { version = "0.12.2", features = ["simple", "parallel"] }
 version-sync = "0.9.5"
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
-tokio = { version = "1.44.0", features = ["macros", "rt-multi-thread", "fs", "io-util"] }
-tokio-util = { version = "0.7.13", features = ["compat"] }
+tokio = { version = "1.44.1", features = ["macros", "rt-multi-thread", "fs", "io-util"] }
+tokio-util = { version = "0.7.14", features = ["compat"] }
 
 [target.'cfg(all(target_family = "wasm", target_os = "unknown"))'.dev-dependencies]
 wasm-bindgen-test = "0.3.50"

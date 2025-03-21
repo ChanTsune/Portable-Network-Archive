@@ -1,13 +1,13 @@
 #[cfg(feature = "memmap")]
 use crate::command::commons::run_entries;
 #[cfg(any(unix, windows))]
-use crate::utils::fs::{chown, Group, User};
+use crate::utils::fs::chown;
 use crate::{
     cli::{FileArgs, PasswordArgs},
     command::{
         ask_password,
         commons::{
-            collect_split_archives, run_process_archive, KeepOptions, OwnerOptions,
+            collect_split_archives, run_process_archive, Exclude, KeepOptions, OwnerOptions,
             PathTransformers,
         },
         Command,
@@ -15,6 +15,7 @@ use crate::{
     utils::{
         self,
         fmt::DurationDisplay,
+        fs::{Group, User},
         re::{bsd::SubstitutionRule, gnu::TransformRule},
         GlobPatterns,
     },
@@ -26,10 +27,16 @@ use std::io::Read;
 use std::os::macos::fs::FileTimesExt;
 #[cfg(windows)]
 use std::os::windows::fs::FileTimesExt;
-use std::{borrow::Cow, env, fs, io, path::PathBuf, time::Instant};
+use std::{
+    borrow::Cow,
+    env, fs, io,
+    path::{Component, PathBuf},
+    time::Instant,
+};
 
 #[derive(Parser, Clone, Debug)]
 #[command(
+    group(ArgGroup::new("unstable-include").args(["include"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
@@ -93,6 +100,11 @@ pub(crate) struct ExtractCommand {
         help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names in the archive to be ignored in favor of the numeric user and group ids."
     )]
     pub(crate) numeric_owner: bool,
+    #[arg(
+        long,
+        help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions"
+    )]
+    include: Option<Vec<String>>,
     #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
     exclude: Option<Vec<String>>,
     #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
@@ -136,6 +148,11 @@ pub(crate) struct ExtractCommand {
         help = "chroot() to the current directory after processing any --cd options and before extracting any files"
     )]
     chroot: bool,
+    #[arg(
+        long,
+        help = "Allow extract symlink and hardlink that contains root path or parent path"
+    )]
+    allow_unsafe_links: bool,
     #[command(flatten)]
     pub(crate) file: FileArgs,
 }
@@ -158,9 +175,11 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
         if let Some(p) = args.exclude_from {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
-        GlobPatterns::new(exclude)
-    }
-    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        Exclude {
+            include: args.include.unwrap_or_default().into(),
+            exclude: exclude.into(),
+        }
+    };
 
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
@@ -177,6 +196,7 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
     );
     let output_options = OutputOption {
         overwrite: args.overwrite,
+        allow_unsafe_links: args.allow_unsafe_links,
         strip_components: args.strip_components,
         out_dir: args.out_dir,
         exclude,
@@ -221,9 +241,10 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
 #[derive(Clone, Debug)]
 pub(crate) struct OutputOption {
     pub(crate) overwrite: bool,
+    pub(crate) allow_unsafe_links: bool,
     pub(crate) strip_components: Option<usize>,
     pub(crate) out_dir: Option<PathBuf>,
-    pub(crate) exclude: GlobPatterns,
+    pub(crate) exclude: Exclude,
     pub(crate) keep_options: KeepOptions,
     pub(crate) owner_options: OwnerOptions,
     pub(crate) same_owner: bool,
@@ -243,7 +264,7 @@ where
     let globs =
         GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-    let mut hard_link_entries = Vec::new();
+    let mut link_entries = Vec::new();
 
     let (tx, rx) = std::sync::mpsc::channel();
     run_process_archive(reader, password_provider, |entry| {
@@ -253,8 +274,11 @@ where
             log::debug!("Skip: {}", item.header().path());
             return Ok(());
         }
-        if item.header().data_kind() == DataKind::HardLink {
-            hard_link_entries.push(item);
+        if matches!(
+            item.header().data_kind(),
+            DataKind::SymbolicLink | DataKind::HardLink
+        ) {
+            link_entries.push(item);
             return Ok(());
         }
         let tx = tx.clone();
@@ -271,7 +295,7 @@ where
         result?;
     }
 
-    for item in hard_link_entries {
+    for item in link_entries {
         extract_entry(item, password, &args)?;
     }
     Ok(())
@@ -291,7 +315,7 @@ where
     let globs =
         GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-    let mut hard_link_entries = Vec::<NormalEntry>::new();
+    let mut link_entries = Vec::<NormalEntry>::new();
 
     let (tx, rx) = std::sync::mpsc::channel();
 
@@ -302,8 +326,11 @@ where
             log::debug!("Skip: {}", item.header().path());
             return Ok(());
         }
-        if item.header().data_kind() == DataKind::HardLink {
-            hard_link_entries.push(item.into());
+        if matches!(
+            item.header().data_kind(),
+            DataKind::SymbolicLink | DataKind::HardLink
+        ) {
+            link_entries.push(item.into());
             return Ok(());
         }
         let tx = tx.clone();
@@ -320,7 +347,7 @@ where
         result?;
     }
 
-    for item in hard_link_entries {
+    for item in link_entries {
         extract_entry(item, password, &args)?;
     }
     Ok(())
@@ -331,6 +358,7 @@ pub(crate) fn extract_entry<T>(
     password: Option<&str>,
     OutputOption {
         overwrite,
+        allow_unsafe_links,
         strip_components,
         out_dir,
         exclude,
@@ -346,10 +374,11 @@ where
 {
     let same_owner = *same_owner;
     let overwrite = *overwrite;
-    let item_path = item.header().path().as_path();
-    if exclude.starts_with_matches_any(item_path) {
+    let item_path = item.header().path().as_str();
+    if exclude.excluded(item_path) {
         return Ok(());
     }
+    let item_path = item.header().path().as_path();
     log::debug!("Extract: {}", item_path.display());
     let item_path = if let Some(strip_count) = *strip_components {
         if item_path.components().count() <= strip_count {
@@ -422,6 +451,10 @@ where
                 original
             };
             let original = EntryReference::from_lossy(original);
+            if !allow_unsafe_links && is_unsafe_link(&original) {
+                log::warn!("Skipped extract symlink that contains unsafe link. if you need to extract it, use with `--allow-unsafe-links`");
+                return Ok(());
+            }
             if overwrite && fs::symlink_metadata(&path).is_ok() {
                 utils::fs::remove_path_all(&path)?;
             }
@@ -436,6 +469,10 @@ where
                 original
             };
             let original = EntryReference::from_lossy(original);
+            if !allow_unsafe_links && is_unsafe_link(&original) {
+                log::warn!("Skipped extract hardlink that contains unsafe link, if you need to extract it, use with `--allow-unsafe-links`");
+                return Ok(());
+            }
             let mut original = Cow::from(original.as_path());
             if let Some(parent) = path.parent() {
                 original = Cow::from(parent.join(original));
@@ -524,15 +561,6 @@ where
     Ok(())
 }
 
-#[cfg(not(any(unix, windows)))]
-fn permissions<'p>(
-    p: &'p Permission,
-    _: &'_ OwnerOptions,
-) -> Option<(&'p Permission, Option<()>, Option<()>)> {
-    Some((p, None, None))
-}
-
-#[cfg(any(unix, windows))]
 fn permissions<'p>(
     permission: &'p Permission,
     owner_options: &'_ OwnerOptions,
@@ -556,7 +584,6 @@ fn permissions<'p>(
     Some((permission, user.ok(), group.ok()))
 }
 
-#[cfg(any(unix, windows))]
 fn search_owner(name: &str, id: u64) -> io::Result<User> {
     let user = User::from_name(name);
     if user.is_ok() {
@@ -565,11 +592,20 @@ fn search_owner(name: &str, id: u64) -> io::Result<User> {
     User::from_uid((id as u32).into())
 }
 
-#[cfg(any(unix, windows))]
 fn search_group(name: &str, id: u64) -> io::Result<Group> {
     let group = Group::from_name(name);
     if group.is_ok() {
         return group;
     }
     Group::from_gid((id as u32).into())
+}
+
+#[inline]
+fn is_unsafe_link(reference: &EntryReference) -> bool {
+    reference.as_path().components().any(|it| {
+        matches!(
+            it,
+            Component::ParentDir | Component::RootDir | Component::Prefix(_)
+        )
+    })
 }

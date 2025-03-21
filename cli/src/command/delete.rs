@@ -5,7 +5,7 @@ use crate::{
     command::{
         ask_password,
         commons::{
-            collect_split_archives, run_transform_entry, TransformStrategyKeepSolid,
+            collect_split_archives, run_transform_entry, Exclude, TransformStrategyKeepSolid,
             TransformStrategyUnSolid,
         },
         Command,
@@ -19,6 +19,7 @@ use std::{io, path::PathBuf};
 #[command(
     group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from-stdin").args(["files_from_stdin"]).requires("unstable")),
+    group(ArgGroup::new("unstable-include").args(["include"]).requires("unstable")),
     group(ArgGroup::new("unstable-delete-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
     group(ArgGroup::new("read-files-from").args(["files_from", "files_from_stdin"])),
@@ -30,6 +31,11 @@ pub(crate) struct DeleteCommand {
     files_from: Option<String>,
     #[arg(long, help = "Read deleting files from stdin (unstable)")]
     files_from_stdin: bool,
+    #[arg(
+        long,
+        help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions"
+    )]
+    include: Option<Vec<String>>,
     #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
     exclude: Option<Vec<String>>,
     #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
@@ -59,14 +65,16 @@ fn delete_file_from_archive(args: DeleteCommand) -> io::Result<()> {
     }
     let globs =
         GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-    let exclude_globs = {
+    let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
             exclude.extend(utils::fs::read_to_lines(p)?);
         }
-        GlobPatterns::new(exclude)
-    }
-    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        Exclude {
+            include: args.include.unwrap_or_default().into(),
+            exclude: exclude.into(),
+        }
+    };
 
     let archives = collect_split_archives(&args.file.archive)?;
 
@@ -79,9 +87,7 @@ fn delete_file_from_archive(args: DeleteCommand) -> io::Result<()> {
             |entry| {
                 let entry = entry?;
                 let entry_path = entry.header().path();
-                if globs.matches_any(entry_path)
-                    && !exclude_globs.starts_with_matches_any(entry_path)
-                {
+                if globs.matches_any(entry_path) && !exclude.excluded(entry_path) {
                     return Ok(None);
                 }
                 Ok(Some(entry))
@@ -96,9 +102,7 @@ fn delete_file_from_archive(args: DeleteCommand) -> io::Result<()> {
             |entry| {
                 let entry = entry?;
                 let entry_path = entry.header().path();
-                if globs.matches_any(entry_path)
-                    && !exclude_globs.starts_with_matches_any(entry_path)
-                {
+                if globs.matches_any(entry_path) && !exclude.excluded(entry_path) {
                     return Ok(None);
                 }
                 Ok(Some(entry))
