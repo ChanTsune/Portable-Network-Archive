@@ -1,4 +1,5 @@
 use crate::entry::{CompressionLevel, CompressionLevelImpl};
+use std::{num::ParseIntError, str::FromStr};
 
 /// Represents a XZ compression level.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -7,6 +8,20 @@ pub struct XZCompressionLevel(u32);
 impl XZCompressionLevel {
     /// Default compression level for xz.
     const DEFAULT: Self = Self(6);
+    /// Minimum compression level for xz.
+    const MIN: Self = Self(0);
+    /// Minimum compression level for xz.
+    const MAX: Self = Self(9);
+
+    #[inline]
+    fn new(level: u32) -> Option<Self> {
+        let level = Self(level);
+        if Self::MIN <= level && level <= Self::MAX {
+            Some(level)
+        } else {
+            None
+        }
+    }
 }
 
 impl Default for XZCompressionLevel {
@@ -39,6 +54,25 @@ impl From<XZCompressionLevel> for u32 {
     #[inline]
     fn from(value: XZCompressionLevel) -> Self {
         value.0
+    }
+}
+
+impl FromStr for XZCompressionLevel {
+    type Err = ParseIntError;
+
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.eq_ignore_ascii_case("min") {
+            Ok(Self::MIN)
+        } else if s.eq_ignore_ascii_case("max") {
+            Ok(Self::MAX)
+        } else if s.eq_ignore_ascii_case("default") {
+            Ok(Self::default())
+        } else {
+            Self::new(s.parse()?).ok_or_else(||
+                // NOTE: Hack generate `ParseIntError`.
+                u8::from_str_radix("999", 2).unwrap_err())
+        }
     }
 }
 
@@ -78,5 +112,30 @@ mod tests {
             XZCompressionLevel::from(CompressionLevel::from(100)),
             XZCompressionLevel(9)
         );
+    }
+
+    #[test]
+    fn from_str() {
+        assert_eq!(
+            XZCompressionLevel::from_str("default").unwrap(),
+            XZCompressionLevel::new(6).unwrap()
+        );
+        assert_eq!(
+            XZCompressionLevel::from_str("min").unwrap(),
+            XZCompressionLevel::new(0).unwrap()
+        );
+        assert_eq!(
+            XZCompressionLevel::from_str("max").unwrap(),
+            XZCompressionLevel::new(9).unwrap()
+        );
+        assert_eq!(
+            XZCompressionLevel::from_str("0").unwrap(),
+            XZCompressionLevel::new(0).unwrap()
+        );
+        assert_eq!(
+            XZCompressionLevel::from_str("9").unwrap(),
+            XZCompressionLevel::new(9).unwrap()
+        );
+        assert!(XZCompressionLevel::from_str("10").is_err());
     }
 }
