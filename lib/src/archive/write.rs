@@ -15,8 +15,11 @@ use futures_io::AsyncWrite;
 use futures_util::AsyncWriteExt;
 use std::io::{self, Write};
 
+/// Internal Writer type alias.
+type InternalDataWriter<W> = CompressionWriter<CipherWriter<ChunkStreamWriter<W>>>;
+
 /// Writer that compresses and encrypts according to the given options.
-pub struct EntryDataWriter<W: Write>(CompressionWriter<CipherWriter<ChunkStreamWriter<W>>>);
+pub struct EntryDataWriter<W: Write>(InternalDataWriter<W>);
 
 impl<W: Write> Write for EntryDataWriter<W> {
     #[inline]
@@ -30,13 +33,8 @@ impl<W: Write> Write for EntryDataWriter<W> {
     }
 }
 
-#[allow(clippy::type_complexity)]
 pub struct SolidArchiveEntryDataWriter<'w, W: Write>(
-    CompressionWriter<
-        CipherWriter<
-            ChunkStreamWriter<&'w mut CompressionWriter<CipherWriter<ChunkStreamWriter<W>>>>,
-        >,
-    >,
+    InternalDataWriter<&'w mut InternalDataWriter<W>>,
 );
 
 impl<W: Write> Write for SolidArchiveEntryDataWriter<'_, W> {
