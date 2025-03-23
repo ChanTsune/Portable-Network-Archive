@@ -167,6 +167,10 @@ impl<W: Write> Archive<W> {
     ///
     /// * `entry` - The entry to add to the archive.
     ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing a given entry.
+    ///
     /// # Examples
     ///
     /// ```no_run
@@ -184,10 +188,6 @@ impl<W: Write> Archive<W> {
     /// #     Ok(())
     /// # }
     /// ```
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if an I/O error occurs while writing the entry.
     #[inline]
     pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<usize> {
         entry.write_in(&mut self.inner)
@@ -326,6 +326,10 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
 
     /// Adds a new entry to the archive.
     /// This API is unstable.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing a given entry.
     #[inline]
     pub async fn add_entry_async(&mut self, entry: impl Entry) -> io::Result<usize> {
         let mut bytes = Vec::new();
