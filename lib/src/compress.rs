@@ -57,6 +57,7 @@ pub(crate) enum DecompressReader<R: Read> {
 }
 
 impl<R: Read> Read for DecompressReader<R> {
+    #[inline]
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         match self {
             DecompressReader::No(r) => r.read(buf),
