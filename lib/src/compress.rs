@@ -60,10 +60,10 @@ impl<R: Read> Read for DecompressReader<R> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         match self {
-            DecompressReader::No(r) => r.read(buf),
-            DecompressReader::Deflate(r) => r.read(buf),
-            DecompressReader::ZStd(r) => r.read(buf),
-            DecompressReader::Xz(r) => r.read(buf),
+            Self::No(r) => r.read(buf),
+            Self::Deflate(r) => r.read(buf),
+            Self::ZStd(r) => r.read(buf),
+            Self::Xz(r) => r.read(buf),
         }
     }
 }
