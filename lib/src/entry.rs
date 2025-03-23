@@ -397,9 +397,12 @@ impl<T> SolidEntry<T> {
 impl<T: AsRef<[u8]>> SolidEntry<T> {
     /// Returns an iterator over the entries in the [SolidEntry].
     ///
-    /// # Example
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while reading from the [SolidEntry].
     ///
     /// # Example
+    ///
     /// ```no_run
     /// use libpna::{Archive, ReadEntry, ReadOptions};
     /// use std::fs;
@@ -992,7 +995,12 @@ impl<T: Clone> NormalEntry<T> {
 impl<T: AsRef<[u8]>> NormalEntry<T> {
     /// Return the reader of this [`NormalEntry`].
     ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while reading from the reader.
+    ///
     /// # Examples
+    ///
     /// ```no_run
     /// use libpna::{Archive, ReadOptions};
     /// use std::{fs, io};

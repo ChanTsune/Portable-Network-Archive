@@ -293,6 +293,10 @@ impl EntryBuilder {
     /// # Returns
     ///
     /// A Result containing the new [NormalEntry], or an I/O error if the build fails.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while building entry into buffer.
     #[inline]
     pub fn build(self) -> io::Result<NormalEntry> {
         let mut data = if let Some(data) = self.data {
@@ -462,6 +466,10 @@ impl SolidEntryBuilder {
     }
 
     /// Builds the solid entry as an [Entry].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while building entry into buffer.
     ///
     /// # Examples
     ///
