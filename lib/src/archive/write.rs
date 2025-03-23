@@ -308,6 +308,10 @@ impl<W: Write> Archive<W> {
 impl<W: AsyncWrite + Unpin> Archive<W> {
     /// Writes the archive header to the given object and return a new [Archive].
     /// This API is unstable.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing header to the writer.
     #[inline]
     pub async fn write_header_async(write: W) -> io::Result<Self> {
         let header = ArchiveHeader::new(0, 0, 0);
@@ -336,6 +340,10 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
 
     /// Write an end marker to finalize the archive.
     /// This API is unstable.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if failed to write archive end marker.
     #[inline]
     pub async fn finalize_async(mut self) -> io::Result<W> {
         let mut chunk_writer = crate::chunk::ChunkWriter::new(&mut self.inner);

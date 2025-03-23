@@ -239,6 +239,10 @@ impl<R> Archive<R> {
 impl<R: futures_io::AsyncRead + Unpin> Archive<R> {
     /// Reads the archive header from the provided reader and returns a new [Archive].
     /// This API is unstable.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while reading the header from the reader.
     #[inline]
     pub async fn read_header_async(reader: R) -> io::Result<Self> {
         Self::read_header_with_buffer_async(reader, Default::default()).await
@@ -282,6 +286,10 @@ impl<R: futures_io::AsyncRead + Unpin> Archive<R> {
 
     /// Read a [ReadEntry] from the archive.
     /// This API is unstable.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while reading from the archive.
     #[inline]
     pub async fn read_entry_async(&mut self) -> io::Result<Option<ReadEntry>> {
         let entry = self.next_raw_item_async().await?;
