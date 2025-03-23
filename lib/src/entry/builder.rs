@@ -80,6 +80,10 @@ impl EntryBuilder {
     /// # Returns
     ///
     /// A Result containing the new [EntryBuilder], or an I/O error if creation fails.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if failed to initialize context.
     #[inline]
     pub fn new_file(name: EntryName, option: impl WriteOption) -> io::Result<Self> {
         let header = EntryHeader::for_file(
@@ -112,6 +116,10 @@ impl EntryBuilder {
     /// # Returns
     ///
     /// A new [EntryBuilder].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if failed to initialize context.
     ///
     /// # Examples
     /// ```
@@ -152,6 +160,10 @@ impl EntryBuilder {
     /// # Returns
     ///
     /// A new [EntryBuilder].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if failed to initialize context.
     ///
     /// # Examples
     /// ```
@@ -388,6 +400,10 @@ impl SolidEntryBuilder {
     /// # Returns
     ///
     /// A new [SolidEntryBuilder].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if failed to initialize context.
     #[inline]
     pub fn new(option: impl WriteOption) -> io::Result<Self> {
         let header = SolidHeader::new(
