@@ -93,6 +93,10 @@ impl<W: Write> Archive<W> {
 
     /// Write a regular file as normal entry into archive.
     ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing an entry, or if the given closure returns an error return it.
+    ///
     /// # Example
     /// ```no_run
     /// use libpna::{Archive, Metadata, WriteOptions};
@@ -453,6 +457,10 @@ impl<W: Write> SolidArchive<W> {
     }
 
     /// Write a regular file as solid entry into archive.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing an entry, or if the given closure returns an error return it.
     ///
     /// # Example
     /// ```no_run
