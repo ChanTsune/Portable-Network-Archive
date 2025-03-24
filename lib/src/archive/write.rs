@@ -427,6 +427,10 @@ impl<W: Write> SolidArchive<W> {
     ///
     /// * `entry` - The entry to add to the archive.
     ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing a given entry.
+    ///
     /// # Examples
     ///
     /// ```no_run
