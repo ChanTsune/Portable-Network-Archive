@@ -640,20 +640,12 @@ mod tests {
         use futures_util::AsyncReadExt;
         use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
-        let bytes = {
-            let file = io::Cursor::new(Vec::new()).compat_write();
+        let archive_bytes = {
+            let file = Vec::new().compat_write();
             let writer = Archive::write_header_async(file).await.unwrap();
-            writer
-                .finalize_async()
-                .await
-                .unwrap()
-                .into_inner()
-                .into_inner()
+            writer.finalize_async().await.unwrap().into_inner()
         };
-        let mut file = io::Cursor::new(bytes).compat();
-        let mut buf = Vec::new();
-        file.read_to_end(&mut buf).await.unwrap();
         let expected = include_bytes!("../../../resources/test/empty.pna");
-        assert_eq!(buf.as_slice(), expected.as_slice());
+        assert_eq!(archive_bytes.as_slice(), expected.as_slice());
     }
 }
