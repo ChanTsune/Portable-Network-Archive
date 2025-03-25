@@ -1,3 +1,4 @@
+use crate::util::{path::normalize_path, utf8path::normalize_utf8path};
 use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
 use std::borrow::Cow;
 use std::error::Error;
@@ -33,6 +34,7 @@ impl From<Utf8Error> for EntryNameError {
 
 impl EntryName {
     fn new_from_utf8path(path: &Utf8Path) -> Self {
+        let path = normalize_utf8path(path);
         let buf = path
             .components()
             .filter_map(|c| match c {
@@ -112,6 +114,7 @@ impl EntryName {
     }
 
     fn from_path_lossy(p: &Path) -> Self {
+        let p = normalize_path(p);
         let buf = p
             .components()
             .filter_map(|c| match c {
