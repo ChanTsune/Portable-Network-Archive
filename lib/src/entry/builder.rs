@@ -7,7 +7,7 @@ use crate::{
         EntryName, EntryReference, ExtendedAttribute, Metadata, NormalEntry, Permission,
         SolidEntry, SolidHeader, WriteCipher, WriteOption, WriteOptions,
     },
-    io::TryIntoInner,
+    io::{FlattenWriter, TryIntoInner},
 };
 
 #[cfg(feature = "unstable-async")]
@@ -27,7 +27,7 @@ pub struct EntryBuilder {
     header: EntryHeader,
     phsf: Option<String>,
     iv: Option<Vec<u8>>,
-    data: Option<CompressionWriter<CipherWriter<crate::io::FlattenWriter<MAX_CHUNK_DATA_LENGTH>>>>,
+    data: Option<CompressionWriter<CipherWriter<FlattenWriter<MAX_CHUNK_DATA_LENGTH>>>>,
     created: Option<Duration>,
     last_modified: Option<Duration>,
     accessed: Option<Duration>,
@@ -93,7 +93,7 @@ impl EntryBuilder {
             name,
         );
         let context = get_writer_context(option)?;
-        let writer = get_writer(crate::io::FlattenWriter::new(), &context)?;
+        let writer = get_writer(FlattenWriter::new(), &context)?;
         let (iv, phsf) = match context.cipher {
             None => (None, None),
             Some(WriteCipher { context: c, .. }) => (Some(c.iv), Some(c.phsf)),
@@ -136,7 +136,7 @@ impl EntryBuilder {
     pub fn new_symbolic_link(name: EntryName, source: EntryReference) -> io::Result<Self> {
         let option = WriteOptions::store();
         let context = get_writer_context(option)?;
-        let mut writer = get_writer(crate::io::FlattenWriter::new(), &context)?;
+        let mut writer = get_writer(FlattenWriter::new(), &context)?;
         writer.write_all(source.as_bytes())?;
         let (iv, phsf) = match context.cipher {
             None => (None, None),
@@ -180,7 +180,7 @@ impl EntryBuilder {
     pub fn new_hard_link(name: EntryName, source: EntryReference) -> io::Result<Self> {
         let option = WriteOptions::store();
         let context = get_writer_context(option)?;
-        let mut writer = get_writer(crate::io::FlattenWriter::new(), &context)?;
+        let mut writer = get_writer(FlattenWriter::new(), &context)?;
         writer.write_all(source.as_bytes())?;
         let (iv, phsf) = match context.cipher {
             None => (None, None),
@@ -386,7 +386,7 @@ pub struct SolidEntryBuilder {
     header: SolidHeader,
     phsf: Option<String>,
     iv: Option<Vec<u8>>,
-    data: CompressionWriter<CipherWriter<crate::io::FlattenWriter<MAX_CHUNK_DATA_LENGTH>>>,
+    data: CompressionWriter<CipherWriter<FlattenWriter<MAX_CHUNK_DATA_LENGTH>>>,
     extra: Vec<RawChunk>,
 }
 
@@ -412,7 +412,7 @@ impl SolidEntryBuilder {
             option.cipher_mode(),
         );
         let context = get_writer_context(option)?;
-        let writer = get_writer(crate::io::FlattenWriter::new(), &context)?;
+        let writer = get_writer(FlattenWriter::new(), &context)?;
         let (iv, phsf) = match context.cipher {
             None => (None, None),
             Some(WriteCipher { context: c, .. }) => (Some(c.iv), Some(c.phsf)),
