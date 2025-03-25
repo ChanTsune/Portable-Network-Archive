@@ -631,8 +631,7 @@ mod tests {
     #[cfg(feature = "unstable-async")]
     #[tokio::test]
     async fn encode_async() {
-        use futures_util::AsyncReadExt;
-        use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
+        use tokio_util::compat::TokioAsyncWriteCompatExt;
 
         let archive_bytes = {
             let file = Vec::new().compat_write();
