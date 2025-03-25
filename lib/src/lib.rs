@@ -10,6 +10,7 @@
     missing_docs,
     clippy::missing_inline_in_public_items,
     clippy::missing_panics_doc,
+    clippy::missing_errors_doc,
     clippy::missing_safety_doc
 )]
 pub(crate) mod archive;
