@@ -1,4 +1,5 @@
 use crate::{
+    archive::{write_file_entry, InternalArchiveDataWriter, InternalDataWriter},
     chunk::{RawChunk, MAX_CHUNK_DATA_LENGTH},
     cipher::CipherWriter,
     compress::CompressionWriter,
@@ -13,7 +14,7 @@ use crate::{
 #[cfg(feature = "unstable-async")]
 use futures_io::AsyncWrite;
 use std::{
-    io::{self, Write},
+    io::{self, prelude::*},
     time::Duration,
 };
 #[cfg(feature = "unstable-async")]
@@ -381,6 +382,22 @@ impl AsyncWrite for EntryBuilder {
     }
 }
 
+pub struct SolidEntryDataWriter<'a>(
+    InternalArchiveDataWriter<&'a mut InternalDataWriter<FlattenWriter<MAX_CHUNK_DATA_LENGTH>>>,
+);
+
+impl Write for SolidEntryDataWriter<'_> {
+    #[inline]
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.write(buf)
+    }
+
+    #[inline]
+    fn flush(&mut self) -> io::Result<()> {
+        self.0.flush()
+    }
+}
+
 /// A builder for creating a new solid [Entry].
 pub struct SolidEntryBuilder {
     header: SolidHeader,
@@ -464,6 +481,43 @@ impl SolidEntryBuilder {
         entry.write_in(&mut self.data)
     }
 
+    /// Write a regular file to the solid entry.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing an entry,
+    /// or if the given closure returns an error return it.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use libpna::{SolidEntryBuilder, Metadata, WriteOptions};
+    /// # use std::error::Error;
+    /// use std::io::prelude::*;
+    ///
+    /// # fn main() -> Result<(), Box<dyn Error>> {
+    /// let option = WriteOptions::builder().build();
+    /// let mut builder = SolidEntryBuilder::new(option)?;
+    /// builder.write_file("bar.txt".into(), Metadata::new(), |writer| {
+    ///     writer.write_all(b"text")
+    /// })?;
+    /// builder.build()?;
+    /// #    Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn write_file<F>(&mut self, name: EntryName, metadata: Metadata, mut f: F) -> io::Result<()>
+    where
+        F: FnMut(&mut SolidEntryDataWriter) -> io::Result<()>,
+    {
+        let option = WriteOptions::store();
+        write_file_entry(&mut self.data, name, metadata, option, |w| {
+            let mut writer = SolidEntryDataWriter(w);
+            f(&mut writer)?;
+            Ok(writer.0)
+        })
+    }
+
     /// Adds extra chunk to the solid entry.
     #[inline]
     pub fn add_extra_chunk<T: Into<RawChunk>>(&mut self, chunk: T) {
@@ -512,7 +566,7 @@ impl SolidEntryBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ChunkType;
+    use crate::{ChunkType, ReadOptions};
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
@@ -544,5 +598,24 @@ mod tests {
             &entry.extra[0],
             &RawChunk::from_data(unsafe { ChunkType::from_unchecked(*b"abCd") }, []),
         );
+    }
+
+    #[test]
+    fn solid_entry_builder_write_file() {
+        let mut builder = SolidEntryBuilder::new(WriteOptions::store()).unwrap();
+        builder
+            .write_file("entry".into(), Metadata::new(), |w| {
+                w.write_all("テストデータ".as_bytes())
+            })
+            .unwrap();
+        let mut solid_entry = builder.build_as_entry().unwrap();
+
+        let mut entries = solid_entry.entries(None).unwrap();
+        let entry = entries.next().unwrap().unwrap();
+        let mut reader = entry.reader(ReadOptions::builder().build()).unwrap();
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf).unwrap();
+
+        assert_eq!("テストデータ".as_bytes(), &buf[..]);
     }
 }

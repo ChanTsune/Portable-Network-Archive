@@ -511,7 +511,7 @@ impl<W: Write> SolidArchive<W> {
     }
 }
 
-fn write_file_entry<W, F>(
+pub(crate) fn write_file_entry<W, F>(
     inner: &mut W,
     name: EntryName,
     metadata: Metadata,

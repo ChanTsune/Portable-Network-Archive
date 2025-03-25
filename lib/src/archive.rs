@@ -8,8 +8,8 @@ use crate::{
     compress::CompressionWriter,
 };
 pub use header::*;
-pub(crate) use read::*;
 use std::io::prelude::*;
+pub(crate) use {read::*, write::*};
 
 /// An object providing access to a PNA file.
 /// An instance of an [Archive] can be read and/or written.

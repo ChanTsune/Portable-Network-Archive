@@ -8,7 +8,15 @@ mod read;
 mod reference;
 mod write;
 
-pub use self::{attr::*, builder::*, header::*, meta::*, name::*, options::*, reference::*};
+pub use self::{
+    attr::*,
+    builder::{EntryBuilder, SolidEntryBuilder},
+    header::*,
+    meta::*,
+    name::*,
+    options::*,
+    reference::*,
+};
 pub(crate) use self::{private::*, read::*, write::*};
 use crate::{
     chunk::{
