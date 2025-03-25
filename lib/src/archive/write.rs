@@ -16,10 +16,13 @@ use futures_util::AsyncWriteExt;
 use std::io::{self, Write};
 
 /// Internal Writer type alias.
-type InternalDataWriter<W> = CompressionWriter<CipherWriter<ChunkStreamWriter<W>>>;
+pub(crate) type InternalDataWriter<W> = CompressionWriter<CipherWriter<W>>;
+
+/// Internal Writer type alias.
+pub(crate) type InternalArchiveDataWriter<W> = InternalDataWriter<ChunkStreamWriter<W>>;
 
 /// Writer that compresses and encrypts according to the given options.
-pub struct EntryDataWriter<W: Write>(InternalDataWriter<W>);
+pub struct EntryDataWriter<W: Write>(InternalArchiveDataWriter<W>);
 
 impl<W: Write> Write for EntryDataWriter<W> {
     #[inline]
@@ -34,7 +37,7 @@ impl<W: Write> Write for EntryDataWriter<W> {
 }
 
 pub struct SolidArchiveEntryDataWriter<'w, W: Write>(
-    InternalDataWriter<&'w mut InternalDataWriter<W>>,
+    InternalArchiveDataWriter<&'w mut InternalArchiveDataWriter<W>>,
 );
 
 impl<W: Write> Write for SolidArchiveEntryDataWriter<'_, W> {
@@ -517,7 +520,7 @@ fn write_file_entry<W, F>(
 ) -> io::Result<()>
 where
     W: Write,
-    F: FnMut(InternalDataWriter<&mut W>) -> io::Result<InternalDataWriter<&mut W>>,
+    F: FnMut(InternalArchiveDataWriter<&mut W>) -> io::Result<InternalArchiveDataWriter<&mut W>>,
 {
     let header = EntryHeader::for_file(
         option.compression(),
