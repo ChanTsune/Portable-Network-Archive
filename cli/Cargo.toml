@@ -38,7 +38,7 @@ tabled = { version = "0.18.0", default-features = false, features = ["std", "ans
 thiserror = "2.0.12"
 rand = "0.8.5"
 indexmap = "2.8.0"
-log = "0.4.26"
+log = "0.4.27"
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.29.0", features = ["user"] }
