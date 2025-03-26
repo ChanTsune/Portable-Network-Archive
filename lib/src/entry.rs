@@ -59,31 +59,10 @@ fn chunks_write_in<W: Write>(
     Ok(total)
 }
 
-impl SealedEntryExt for RawEntry<Vec<u8>> {
-    #[inline]
-    fn into_chunks(self) -> Vec<RawChunk> {
-        self.0
-    }
-
-    #[inline]
-    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        chunks_write_in(self.0.iter(), writer)
-    }
-}
-
-impl SealedEntryExt for RawEntry<&[u8]> {
-    #[inline]
-    fn into_chunks(self) -> Vec<RawChunk> {
-        self.0.into_iter().map(Into::into).collect()
-    }
-
-    #[inline]
-    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        chunks_write_in(self.0.iter(), writer)
-    }
-}
-
-impl SealedEntryExt for RawEntry<Cow<'_, [u8]>> {
+impl<T> SealedEntryExt for RawEntry<T>
+where
+    RawChunk<T>: Chunk + Into<RawChunk>,
+{
     #[inline]
     fn into_chunks(self) -> Vec<RawChunk> {
         self.0.into_iter().map(Into::into).collect()
