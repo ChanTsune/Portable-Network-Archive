@@ -491,7 +491,7 @@ impl SolidEntryBuilder {
     /// # Example
     ///
     /// ```
-    /// use libpna::{SolidEntryBuilder, Metadata, WriteOptions};
+    /// use libpna::{Metadata, SolidEntryBuilder, WriteOptions};
     /// # use std::error::Error;
     /// use std::io::prelude::*;
     ///
