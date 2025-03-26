@@ -661,69 +661,11 @@ where
     }
 }
 
-impl SealedEntryExt for NormalEntry<Vec<u8>> {
-    fn into_chunks(self) -> Vec<RawChunk> {
-        let Metadata {
-            raw_file_size,
-            compressed_size: _,
-            created,
-            modified,
-            accessed,
-            permission,
-        } = self.metadata;
-        let mut vec = Vec::new();
-        vec.push(RawChunk::from_data(ChunkType::FHED, self.header.to_bytes()));
-        vec.extend(self.extra);
-        if let Some(raw_file_size) = raw_file_size {
-            vec.push(RawChunk::from_data(
-                ChunkType::fSIZ,
-                skip_while(&raw_file_size.to_be_bytes(), |i| *i == 0),
-            ));
-        }
-
-        if let Some(p) = self.phsf {
-            vec.push(RawChunk::from_data(ChunkType::PHSF, p.into_bytes()));
-        }
-        for data_chunk in self.data {
-            for data_unit in data_chunk.chunks(MAX_CHUNK_DATA_LENGTH) {
-                vec.push(RawChunk::from_data(ChunkType::FDAT, data_unit));
-            }
-        }
-        if let Some(c) = created {
-            vec.push(RawChunk::from_data(
-                ChunkType::cTIM,
-                c.as_secs().to_be_bytes(),
-            ));
-        }
-        if let Some(d) = modified {
-            vec.push(RawChunk::from_data(
-                ChunkType::mTIM,
-                d.as_secs().to_be_bytes(),
-            ));
-        }
-        if let Some(a) = accessed {
-            vec.push(RawChunk::from_data(
-                ChunkType::aTIM,
-                a.as_secs().to_be_bytes(),
-            ));
-        }
-        if let Some(p) = permission {
-            vec.push(RawChunk::from_data(ChunkType::fPRM, p.to_bytes()));
-        }
-        for xattr in self.xattrs {
-            vec.push(RawChunk::from_data(ChunkType::xATR, xattr.to_bytes()));
-        }
-        vec.push(RawChunk::from_data(ChunkType::FEND, Vec::new()));
-        vec
-    }
-
-    #[inline]
-    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        self.chunks_write_in(writer)
-    }
-}
-
-impl SealedEntryExt for NormalEntry<&[u8]> {
+impl<T> SealedEntryExt for NormalEntry<T>
+where
+    T: AsRef<[u8]>,
+    RawChunk<T>: Chunk + Into<RawChunk>,
+{
     fn into_chunks(self) -> Vec<RawChunk> {
         let Metadata {
             raw_file_size,
@@ -747,71 +689,7 @@ impl SealedEntryExt for NormalEntry<&[u8]> {
             vec.push(RawChunk::from_data(ChunkType::PHSF, p.into_bytes()));
         }
         for data_chunk in self.data {
-            for data_unit in data_chunk.chunks(MAX_CHUNK_DATA_LENGTH) {
-                vec.push(RawChunk::from_data(ChunkType::FDAT, data_unit));
-            }
-        }
-        if let Some(c) = created {
-            vec.push(RawChunk::from_data(
-                ChunkType::cTIM,
-                c.as_secs().to_be_bytes(),
-            ));
-        }
-        if let Some(d) = modified {
-            vec.push(RawChunk::from_data(
-                ChunkType::mTIM,
-                d.as_secs().to_be_bytes(),
-            ));
-        }
-        if let Some(a) = accessed {
-            vec.push(RawChunk::from_data(
-                ChunkType::aTIM,
-                a.as_secs().to_be_bytes(),
-            ));
-        }
-        if let Some(p) = permission {
-            vec.push(RawChunk::from_data(ChunkType::fPRM, p.to_bytes()));
-        }
-        for xattr in self.xattrs {
-            vec.push(RawChunk::from_data(ChunkType::xATR, xattr.to_bytes()));
-        }
-        vec.push(RawChunk::from_data(ChunkType::FEND, Vec::new()));
-        vec
-    }
-
-    #[inline]
-    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        self.chunks_write_in(writer)
-    }
-}
-
-impl SealedEntryExt for NormalEntry<Cow<'_, [u8]>> {
-    fn into_chunks(self) -> Vec<RawChunk> {
-        let Metadata {
-            raw_file_size,
-            compressed_size: _,
-            created,
-            modified,
-            accessed,
-            permission,
-        } = self.metadata;
-        let mut vec = Vec::new();
-        vec.push(RawChunk::from_data(ChunkType::FHED, self.header.to_bytes()));
-        vec.extend(self.extra.into_iter().map(Into::into));
-        if let Some(raw_file_size) = raw_file_size {
-            vec.push(RawChunk::from_data(
-                ChunkType::fSIZ,
-                skip_while(&raw_file_size.to_be_bytes(), |i| *i == 0),
-            ));
-        }
-
-        if let Some(p) = self.phsf {
-            vec.push(RawChunk::from_data(ChunkType::PHSF, p.into_bytes()));
-        }
-        for data_chunk in self.data {
-            for data_unit in data_chunk.chunks(MAX_CHUNK_DATA_LENGTH) {
-                vec.push(RawChunk::from_data(ChunkType::FDAT, data_unit));
-            }
+            vec.push(RawChunk::from((ChunkType::FDAT, data_chunk)).into());
         }
         if let Some(c) = created {
             vec.push(RawChunk::from_data(
