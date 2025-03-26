@@ -299,29 +299,11 @@ where
     }
 }
 
-impl SealedEntryExt for SolidEntry<Vec<u8>> {
-    fn into_chunks(self) -> Vec<RawChunk> {
-        let mut chunks = vec![];
-        chunks.push(RawChunk::from_data(ChunkType::SHED, self.header.to_bytes()));
-        chunks.extend(self.extra);
-
-        if let Some(phsf) = self.phsf {
-            chunks.push(RawChunk::from_data(ChunkType::PHSF, phsf.into_bytes()));
-        }
-        for data in self.data {
-            chunks.push(RawChunk::from_data(ChunkType::SDAT, data));
-        }
-        chunks.push(RawChunk::from_data(ChunkType::SEND, Vec::new()));
-        chunks
-    }
-
-    #[inline]
-    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        self.chunks_write_in(writer)
-    }
-}
-
-impl SealedEntryExt for SolidEntry<&[u8]> {
+impl<T> SealedEntryExt for SolidEntry<T>
+where
+    T: AsRef<[u8]>,
+    RawChunk<T>: Chunk + Into<RawChunk>,
+{
     fn into_chunks(self) -> Vec<RawChunk> {
         let mut chunks = vec![];
         chunks.push(RawChunk::from_data(ChunkType::SHED, self.header.to_bytes()));
@@ -331,29 +313,7 @@ impl SealedEntryExt for SolidEntry<&[u8]> {
             chunks.push(RawChunk::from_data(ChunkType::PHSF, phsf.into_bytes()));
         }
         for data in self.data {
-            chunks.push(RawChunk::from_data(ChunkType::SDAT, data));
-        }
-        chunks.push(RawChunk::from_data(ChunkType::SEND, Vec::new()));
-        chunks
-    }
-
-    #[inline]
-    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        self.chunks_write_in(writer)
-    }
-}
-
-impl SealedEntryExt for SolidEntry<Cow<'_, [u8]>> {
-    fn into_chunks(self) -> Vec<RawChunk> {
-        let mut chunks = vec![];
-        chunks.push(RawChunk::from_data(ChunkType::SHED, self.header.to_bytes()));
-        chunks.extend(self.extra.into_iter().map(Into::into));
-
-        if let Some(phsf) = self.phsf {
-            chunks.push(RawChunk::from_data(ChunkType::PHSF, phsf.into_bytes()));
-        }
-        for data in self.data {
-            chunks.push(RawChunk::from_data(ChunkType::SDAT, data));
+            chunks.push(RawChunk::from((ChunkType::SDAT, data)).into());
         }
         chunks.push(RawChunk::from_data(ChunkType::SEND, Vec::new()));
         chunks
