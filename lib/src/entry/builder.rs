@@ -608,7 +608,7 @@ mod tests {
                 w.write_all("テストデータ".as_bytes())
             })
             .unwrap();
-        let mut solid_entry = builder.build_as_entry().unwrap();
+        let solid_entry = builder.build_as_entry().unwrap();
 
         let mut entries = solid_entry.entries(None).unwrap();
         let entry = entries.next().unwrap().unwrap();
