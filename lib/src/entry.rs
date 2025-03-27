@@ -20,8 +20,7 @@ pub use self::{
 pub(crate) use self::{private::*, read::*, write::*};
 use crate::{
     chunk::{
-        chunk_data_split, Chunk, ChunkExt, ChunkReader, ChunkType, RawChunk, MAX_CHUNK_DATA_LENGTH,
-        MIN_CHUNK_BYTES_SIZE,
+        chunk_data_split, Chunk, ChunkExt, ChunkReader, ChunkType, RawChunk, MIN_CHUNK_BYTES_SIZE,
     },
     util::slice::skip_while,
 };
@@ -637,9 +636,7 @@ where
             total += (ChunkType::PHSF, p.as_bytes()).write_chunk_in(writer)?;
         }
         for data_chunk in &self.data {
-            for data_unit in data_chunk.as_ref().chunks(MAX_CHUNK_DATA_LENGTH) {
-                total += (ChunkType::FDAT, data_unit).write_chunk_in(writer)?;
-            }
+            total += (ChunkType::FDAT, data_chunk).write_chunk_in(writer)?;
         }
         if let Some(c) = created {
             total += (ChunkType::cTIM, c.as_secs().to_be_bytes()).write_chunk_in(writer)?;
