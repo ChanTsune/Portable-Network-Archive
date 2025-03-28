@@ -34,7 +34,7 @@ zstd = { version = "0.13.3", default-features = false }
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }
-liblzma = { version = "0.3.6", features = ["wasm"] }
+liblzma = { version = "0.4.0", features = ["wasm"] }
 zstd = { version = "0.13.2", features = ["wasm"] }
 
 [target.'cfg(not(target_os = "emscripten"))'.dependencies]
