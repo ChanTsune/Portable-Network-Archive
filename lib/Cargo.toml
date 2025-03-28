@@ -25,7 +25,7 @@ ctr = { version = "0.9.2", features = ["std"] }
 flate2 = "1.1.0"
 futures-io = { version = "0.3.31", optional = true }
 futures-util = { version = "0.3.31", features = ["io"], optional = true }
-liblzma = { version = "0.3.6", features = ["static"] }
+liblzma = { version = "0.4.0", features = ["static"] }
 password-hash = { version = "0.5.0", default-features = false }
 pbkdf2 = { version = "0.12.2", features = ["simple"] }
 rand = "0.8.5"
