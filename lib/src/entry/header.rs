@@ -1,7 +1,7 @@
 use super::{CipherMode, Compression, DataKind, Encryption, EntryName};
 use std::io;
 
-/// Represents the entry information header that is expressed in the [FHED] chunk.
+/// Represents the entry information header that expressed in the [FHED] chunk.
 ///
 /// [FHED]: crate::ChunkType::FHED
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -145,9 +145,9 @@ impl TryFrom<&[u8]> for EntryHeader {
     }
 }
 
-/// Represents the entry information header that is expressed in the [FHED] chunk.
+/// Represents the entry information header that expressed in the [SHED] chunk.
 ///
-/// [FHED]: crate::ChunkType::FHED
+/// [SHED]: crate::ChunkType::SHED
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct SolidHeader {
     pub(crate) major: u8,
