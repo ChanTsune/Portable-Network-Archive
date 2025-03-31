@@ -281,8 +281,8 @@ mod tests {
         let read_options = ReadOptions::with_password(options.password());
         let archive = create_archive(src, options)?;
         let mut archive_reader = Archive::read_header(archive.as_slice())?;
-        let item = archive_reader.entries_skip_solid().next().unwrap().unwrap();
-        let mut reader = item.reader(read_options).unwrap();
+        let item = archive_reader.entries_skip_solid().next().unwrap()?;
+        let mut reader = item.reader(read_options)?;
         let mut dist = Vec::new();
         io::copy(&mut reader, &mut dist)?;
         assert_eq!(src, dist.as_slice());
