@@ -574,14 +574,14 @@ mod tests {
     fn entry_extra_chunk() {
         let mut builder = EntryBuilder::new_dir("dir".into());
         builder.add_extra_chunk(RawChunk::from_data(
-            unsafe { ChunkType::from_unchecked(*b"abCd") },
+            ChunkType::private(*b"abCd").unwrap(),
             [],
         ));
         let entry = builder.build().unwrap();
 
         assert_eq!(
             &entry.extra[0],
-            &RawChunk::from_data(unsafe { ChunkType::from_unchecked(*b"abCd") }, []),
+            &RawChunk::from_data(ChunkType::private(*b"abCd").unwrap(), []),
         );
     }
 
@@ -589,14 +589,14 @@ mod tests {
     fn solid_entry_extra_chunk() {
         let mut builder = SolidEntryBuilder::new(WriteOptions::store()).unwrap();
         builder.add_extra_chunk(RawChunk::from_data(
-            unsafe { ChunkType::from_unchecked(*b"abCd") },
+            ChunkType::private(*b"abCd").unwrap(),
             [],
         ));
         let entry = builder.build_as_entry().unwrap();
 
         assert_eq!(
             &entry.extra[0],
-            &RawChunk::from_data(unsafe { ChunkType::from_unchecked(*b"abCd") }, []),
+            &RawChunk::from_data(ChunkType::private(*b"abCd").unwrap(), []),
         );
     }
 
