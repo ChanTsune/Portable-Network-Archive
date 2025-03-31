@@ -224,6 +224,7 @@ impl Debug for ChunkType {
 impl Display for ChunkType {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        // SAFETY: A field checked to be ASCII alphabetic in the constructor.
         Display::fmt(unsafe { std::str::from_utf8_unchecked(&self.0) }, f)
     }
 }
