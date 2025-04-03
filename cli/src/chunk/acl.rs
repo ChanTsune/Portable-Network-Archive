@@ -689,7 +689,7 @@ bitflags! {
         /// DELETE_CHILD permission for a directory.
         const DELETE_CHILD = 0b100000;
 
-        /// READ_ATTRIBUTES permission for file or directory.
+        /// READ_ATTRIBUTES permission for a file or directory.
         const READATTR = 0b1000000;
 
         /// WRITE_ATTRIBUTES permission for a file or directory.
