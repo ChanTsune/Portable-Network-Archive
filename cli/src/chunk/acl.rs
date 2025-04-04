@@ -789,7 +789,7 @@ mod tests {
         assert_eq!(Ace::from_str("d|inherited:u::allow:r|w|x"), Ok(ace));
     }
 
-    /// old version compatibility tests
+    /// Old version compatibility tests
     mod compat {
         use super::*;
 
