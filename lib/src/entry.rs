@@ -808,8 +808,8 @@ impl<T: Clone> NormalEntry<T> {
     /// # }
     /// ```
     #[inline]
-    pub fn with_extra_chunks(mut self, chunks: &[RawChunk<T>]) -> Self {
-        self.extra = chunks.to_vec();
+    pub fn with_extra_chunks(mut self, chunks: impl Into<Vec<RawChunk<T>>>) -> Self {
+        self.extra = chunks.into();
         self
     }
 }
