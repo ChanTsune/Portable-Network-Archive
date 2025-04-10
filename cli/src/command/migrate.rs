@@ -80,5 +80,5 @@ where
             .filter(|it| !keep_private_chunks.contains(&it.ty()))
             .cloned(),
     );
-    Ok(entry.with_extra_chunks(&acl))
+    Ok(entry.with_extra_chunks(acl))
 }
