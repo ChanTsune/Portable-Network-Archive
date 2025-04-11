@@ -549,6 +549,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "fastrand"
+version = "2.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
+
+[[package]]
 name = "fern"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -675,21 +681,22 @@ checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
 
 [[package]]
 name = "gix-command"
-version = "0.4.1"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb410b84d6575db45e62025a9118bdbf4d4b099ce7575a76161e898d9ca98df1"
+checksum = "c0378995847773a697f8e157fe2963ecf3462fe64be05b7b3da000b3b472def8"
 dependencies = [
  "bstr",
  "gix-path",
+ "gix-quote",
  "gix-trace",
  "shell-words",
 ]
 
 [[package]]
 name = "gix-config-value"
-version = "0.14.11"
+version = "0.14.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11365144ef93082f3403471dbaa94cfe4b5e72743bdb9560719a251d439f4cee"
+checksum = "8dc2c844c4cf141884678cabef736fd91dd73068b9146e6f004ba1a0457944b6"
 dependencies = [
  "bitflags",
  "bstr",
@@ -700,9 +707,9 @@ dependencies = [
 
 [[package]]
 name = "gix-path"
-version = "0.10.14"
+version = "0.10.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c40f12bb65a8299be0cfb90fe718e3be236b7a94b434877012980863a883a99f"
+checksum = "f910668e2f6b2a55ff35a1f04df88a1a049f7b868507f4cbeeaa220eaba7be87"
 dependencies = [
  "bstr",
  "gix-trace",
@@ -713,9 +720,9 @@ dependencies = [
 
 [[package]]
 name = "gix-prompt"
-version = "0.9.1"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79f2185958e1512b989a007509df8d61dca014aa759a22bee80cfa6c594c3b6d"
+checksum = "fbf9cbf6239fd32f2c2c9c57eeb4e9b28fa1c9b779fa0e3b7c455eb1ca49d5f0"
 dependencies = [
  "gix-command",
  "gix-config-value",
@@ -725,10 +732,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "gix-quote"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b005c550bf84de3b24aa5e540a23e6146a1c01c7d30470e35d75a12f827f969"
+dependencies = [
+ "bstr",
+ "gix-utils",
+ "thiserror",
+]
+
+[[package]]
 name = "gix-trace"
 version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7c396a2036920c69695f760a65e7f2677267ccf483f25046977d87e4cb2665f7"
+
+[[package]]
+name = "gix-utils"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "189f8724cf903e7fd57cfe0b7bc209db255cacdcb22c781a022f52c3a774f8d0"
+dependencies = [
+ "fastrand",
+ "unicode-normalization",
+]
 
 [[package]]
 name = "globset"
@@ -1838,6 +1866,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "tinyvec"
+version = "1.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09b3661f17e86524eccd4371ab0429194e0d7c008abb45f7a7495b1719463c71"
+dependencies = [
+ "tinyvec_macros",
+]
+
+[[package]]
+name = "tinyvec_macros"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
+
+[[package]]
 name = "tokio"
 version = "1.44.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1925,6 +1968,15 @@ name = "unicode-ident"
 version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "adb9e6ca4f869e1180728b7950e35922a7fc6397f7b641499e8f3ef06e50dc83"
+
+[[package]]
+name = "unicode-normalization"
+version = "0.1.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5033c97c4262335cded6d6fc3e5c18ab755e1a3dc96376350f3d8e9f009ad956"
+dependencies = [
+ "tinyvec",
+]
 
 [[package]]
 name = "unicode-width"

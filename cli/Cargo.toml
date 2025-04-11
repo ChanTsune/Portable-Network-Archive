@@ -21,7 +21,7 @@ clap = { version = "4.5.35", features = ["derive"] }
 clap_complete = "4.5.47"
 either = "1.15.0"
 fern = "0.7.1"
-gix-prompt = "0.9.1"
+gix-prompt = "0.10.0"
 globset = "0.4.16"
 ignore = "0.4.23"
 itertools = "0.14.0"
