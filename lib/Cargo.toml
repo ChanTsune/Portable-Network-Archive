@@ -45,7 +45,7 @@ version-sync = "0.9.5"
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
 tokio = { version = "1.44.2", features = ["macros", "rt-multi-thread", "fs", "io-util"] }
-tokio-util = { version = "0.7.14", features = ["compat"] }
+tokio-util = { version = "0.7.15", features = ["compat"] }
 
 [target.'cfg(all(target_family = "wasm", target_os = "unknown"))'.dev-dependencies]
 wasm-bindgen-test = "0.3.50"
