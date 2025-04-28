@@ -76,7 +76,7 @@ fn extract_all(bytes: &[u8], password: Option<&str>) {
                     assert_eq!(size, bytes.len() as u128);
                 }
             }
-            a => panic!("Unexpected entry name {}", a),
+            a => panic!("Unexpected entry name {a}"),
         }
     }
 }
