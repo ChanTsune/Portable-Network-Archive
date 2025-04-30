@@ -119,11 +119,11 @@ jobs:
           - portable-network-archive
         include:
           - crate: libpna
-            rust: '1.80'
+            rust: '1.82'
           - crate: pna
-            rust: '1.80'
+            rust: '1.82'
           - crate: portable-network-archive
-            rust: '1.81'
+            rust: '1.82'
     runs-on: ${{ matrix.os }}
     steps:
       - name: git autocrlf false
