@@ -31,13 +31,13 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y libacl1-dev
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - id: install_rust
         uses: ./.github/actions/setup-rust
         with:
           channel: ${{ matrix.rust }}
       - name: Install cargo-hack from crates.io
-        uses: baptiste0928/cargo-install@v3
+        uses: baptiste0928/cargo-install@91c5da15570085bcde6f4d7aed98cb82d6769fd3 # v3.3.0
         with:
           crate: cargo-hack
           cache-key: ${{ matrix.os }}
@@ -67,7 +67,7 @@ jobs:
     runs-on: ubuntu-latest
     container: ${{ matrix.container }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: run test
         if: startsWith(matrix.target, 'x86_64-unknown-redox')
         run: |
@@ -95,7 +95,7 @@ jobs:
           - x86_64-unknown-fuchsia
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - id: install_rust
         uses: ./.github/actions/setup-rust
         with:
@@ -136,19 +136,19 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y libacl1-dev
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - id: install_rust
         uses: ./.github/actions/setup-rust
         with:
           channel: ${{ matrix.rust }}
       - name: Install cargo-hack from crates.io
-        uses: baptiste0928/cargo-install@v3
+        uses: baptiste0928/cargo-install@91c5da15570085bcde6f4d7aed98cb82d6769fd3 # v3.3.0
         with:
           crate: cargo-hack
           cache-key: ${{ matrix.os }}
       - name: Restore rust build cache
         id: restore-rust-build-cache
-        uses: actions/cache@v4
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: |
             target/*

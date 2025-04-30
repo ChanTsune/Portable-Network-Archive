@@ -15,10 +15,10 @@ jobs:
     timeout-minutes: 100
     name: Test on Solaris
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Test in Solaris
         id: test
-        uses: vmactions/solaris-vm@v1.1.1
+        uses: vmactions/solaris-vm@cc8f82fa1a7cc746153ec3f71bf11f311f16e225 # v1.1.1
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
@@ -42,10 +42,10 @@ jobs:
     timeout-minutes: 100
     name: Test on NetBSD
     steps:
-      - uses: actions/checkout@v4.1.6
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
       - name: Test in NetBSD
         id: test
-        uses: vmactions/NetBSD-vm@v1.1.8
+        uses: vmactions/NetBSD-vm@46a58bbf03682b4cb24142b97fa315ae52bed573 # v1.1.8
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
@@ -69,10 +69,10 @@ jobs:
     timeout-minutes: 100
     name: Test on FreeBSD
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Test in FreeBSD
         id: test
-        uses: vmactions/freebsd-vm@v1.2.0
+        uses: vmactions/freebsd-vm@c3ae29a132c8ef1924775414107a97cac042aad5 # v1.2.0
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
@@ -95,10 +95,10 @@ jobs:
     timeout-minutes: 100
     name: Test on OpenBSD
     steps:
-      - uses: actions/checkout@v4.1.6
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
       - name: Test in OpenBSD
         id: test
-        uses: vmactions/OpenBSD-vm@v1.1.8
+        uses: vmactions/OpenBSD-vm@0d65352eee1508bab7cb12d130536d3a556be487 # v1.1.8
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
@@ -145,10 +145,10 @@ jobs:
     timeout-minutes: 100
     name: Test on OmniOS
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Test in OmniOS
         id: test
-        uses: vmactions/omnios-vm@v1.1.0
+        uses: vmactions/omnios-vm@8eba2a9217262f275d4566751a92d6ef2f433d00 # v1.1.0
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
