@@ -1,7 +1,7 @@
 #[cfg(not(feature = "memmap"))]
 use crate::command::commons::run_across_archive;
 #[cfg(feature = "memmap")]
-use crate::command::commons::run_across_archive_mem;
+use crate::command::commons::run_across_archive_mem as run_across_archive;
 use crate::{
     cli::FileArgs,
     command::{commons::collect_split_archives, Command},
@@ -46,15 +46,12 @@ fn concat_entry(args: ConcatCommand) -> io::Result<()> {
 
     for item in &args.files.files {
         let archives = collect_split_archives(item)?;
-        #[cfg(feature = "memmap")]
-        run_across_archive_mem(archives, |reader| {
+        run_across_archive(archives, |reader| {
+            #[cfg(feature = "memmap")]
             for entry in reader.raw_entries_slice() {
                 archive.add_entry(entry?)?;
             }
-            Ok(())
-        })?;
-        #[cfg(not(feature = "memmap"))]
-        run_across_archive(archives, |reader| {
+            #[cfg(not(feature = "memmap"))]
             for entry in reader.raw_entries() {
                 archive.add_entry(entry?)?;
             }
