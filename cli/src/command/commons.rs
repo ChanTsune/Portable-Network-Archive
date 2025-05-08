@@ -16,6 +16,7 @@ use pna::{
     ReadEntry, SolidEntryBuilder, WriteOptions, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
 };
 use std::{
+    borrow::Cow,
     fs,
     io::{self, prelude::*},
     path::{Path, PathBuf},
@@ -147,11 +148,11 @@ pub(crate) fn collect_items(
 pub(crate) fn collect_split_archives(first: impl AsRef<Path>) -> io::Result<Vec<fs::File>> {
     let mut archives = Vec::new();
     let mut n = 1;
-    let mut target_archive = PathBuf::from(first.as_ref());
+    let mut target_archive = Cow::from(first.as_ref());
     while fs::exists(&target_archive)? {
         archives.push(fs::File::open(&target_archive)?);
         n += 1;
-        target_archive = target_archive.with_part(n).expect("");
+        target_archive = target_archive.with_part(n).expect("").into();
     }
     Ok(archives)
 }
