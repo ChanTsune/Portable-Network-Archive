@@ -311,7 +311,7 @@ impl SetAttrStrategy {
                         .into_iter()
                         .map(|(key, value)| pna::ExtendedAttribute::new(key.into(), value.into()))
                         .collect::<Vec<_>>();
-                    entry.with_xattrs(&xattrs)
+                    entry.with_xattrs(xattrs)
                 } else {
                     entry
                 }
@@ -365,7 +365,7 @@ fn transform_entry<T>(
     remove: Option<&str>,
 ) -> NormalEntry<T> {
     let xattrs = transform_xattr(entry.xattrs(), name, value, remove);
-    entry.with_xattrs(&xattrs)
+    entry.with_xattrs(xattrs)
 }
 
 #[inline]

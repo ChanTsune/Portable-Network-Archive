@@ -784,7 +784,7 @@ impl<T> NormalEntry<T> {
     /// # }
     /// ```
     #[inline]
-    pub fn with_xattrs(mut self, xattrs: &[ExtendedAttribute]) -> Self {
+    pub fn with_xattrs(mut self, xattrs: impl Into<Vec<ExtendedAttribute>>) -> Self {
         self.xattrs = xattrs.into();
         self
     }
