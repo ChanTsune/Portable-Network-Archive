@@ -408,7 +408,7 @@ impl SetAclsStrategy {
                         .into_iter()
                         .chain(extra_without_known)
                         .collect::<Vec<_>>();
-                    entry.with_extra_chunks(&extra_chunks)
+                    entry.with_extra_chunks(extra_chunks)
                 } else {
                     entry
                 }
@@ -467,7 +467,7 @@ where
         .into_iter()
         .chain(extra_without_known)
         .collect::<Vec<_>>();
-    entry.with_extra_chunks(&extra_chunks)
+    entry.with_extra_chunks(extra_chunks)
 }
 
 fn transform_acl(

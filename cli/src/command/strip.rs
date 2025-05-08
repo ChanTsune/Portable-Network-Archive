@@ -129,5 +129,5 @@ where
         .filter(|it| keep_private_all || keep_private_chunks.contains(&it.ty()))
         .cloned()
         .collect::<Vec<_>>();
-    entry.with_extra_chunks(&filtered)
+    entry.with_extra_chunks(filtered)
 }
