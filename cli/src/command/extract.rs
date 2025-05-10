@@ -285,7 +285,7 @@ where
         rayon::scope_fifo(|s| {
             s.spawn_fifo(|_| {
                 tx.send(extract_entry(item, password, &args))
-                    .unwrap_or_else(|e| panic!("{e}: {}", item_path));
+                    .unwrap_or_else(|e| panic!("{e}: {item_path}"));
             })
         });
         Ok(())

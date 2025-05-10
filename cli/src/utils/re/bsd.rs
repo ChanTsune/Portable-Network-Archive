@@ -141,7 +141,7 @@ impl SubstitutionRule {
         };
 
         if self.print {
-            eprintln!("{} >> {}", input, result);
+            eprintln!("{input} >> {result}");
         }
 
         Some(result)

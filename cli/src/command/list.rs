@@ -128,7 +128,7 @@ impl FromStr for Format {
             "table" => Ok(Self::Table),
             "jsonl" => Ok(Self::JsonL),
             "tree" => Ok(Self::Tree),
-            unknown => Err(format!("unknown value: {}", unknown)),
+            unknown => Err(format!("unknown value: {unknown}")),
         }
     }
 }
@@ -196,7 +196,7 @@ where
             ) {
                 (Encryption::No, _) => "-".into(),
                 (encryption, cipher_mode) => {
-                    format!("{:?}({:?})", encryption, cipher_mode).to_ascii_lowercase()
+                    format!("{encryption:?}({cipher_mode:?})").to_ascii_lowercase()
                 }
             },
             compression: match (
@@ -205,8 +205,8 @@ where
             ) {
                 (Compression::No, None) => "-".into(),
                 (Compression::No, Some(_)) => "-(solid)".into(),
-                (method, None) => format!("{:?}", method).to_ascii_lowercase(),
-                (method, Some(_)) => format!("{:?}(solid)", method).to_ascii_lowercase(),
+                (method, None) => format!("{method:?}").to_ascii_lowercase(),
+                (method, Some(_)) => format!("{method:?}(solid)").to_ascii_lowercase(),
             },
             permission: metadata.permission().cloned(),
             raw_size: metadata.raw_file_size(),
@@ -428,9 +428,9 @@ fn simple_list_entries(entries: impl IntoParallelIterator<Item = TableRow>, opti
         .into_par_iter()
         .map(|path| {
             let path = match path.entry_type {
-                EntryType::Directory(name) if options.classify => format!("{}/", name),
+                EntryType::Directory(name) if options.classify => format!("{name}/"),
                 EntryType::SymbolicLink(name, _) if options.classify => {
-                    format!("{}@", name)
+                    format!("{name}@")
                 }
                 EntryType::File(name)
                 | EntryType::Directory(name)
@@ -445,7 +445,7 @@ fn simple_list_entries(entries: impl IntoParallelIterator<Item = TableRow>, opti
         })
         .collect::<Vec<_>>();
     for path in entries {
-        println!("{}", path)
+        println!("{path}")
     }
 }
 
@@ -500,13 +500,13 @@ fn detail_list_entries(entries: impl IntoIterator<Item = TableRow>, options: Lis
             .map_or_else(|| "-".into(), |d| datetime(options.time_format, d)),
             {
                 let name = match content.entry_type {
-                    EntryType::Directory(path) if options.classify => format!("{}/", path),
+                    EntryType::Directory(path) if options.classify => format!("{path}/"),
                     EntryType::SymbolicLink(name, link_to) if options.classify => {
-                        format!("{}@ -> {}", name, link_to)
+                        format!("{name}@ -> {link_to}")
                     }
                     EntryType::File(path) | EntryType::Directory(path) => path,
                     EntryType::SymbolicLink(path, link_to) | EntryType::HardLink(path, link_to) => {
-                        format!("{} -> {}", path, link_to)
+                        format!("{path} -> {link_to}")
                     }
                 };
                 if options.hide_control_chars {
@@ -575,7 +575,7 @@ fn detail_list_entries(entries: impl IntoIterator<Item = TableRow>, options: Lis
         Color::empty(),
         Color::empty(),
     ));
-    println!("{}", table);
+    println!("{table}");
 }
 
 const DURATION_SIX_MONTH: Duration = Duration::from_secs(60 * 60 * 24 * 30 * 6);
@@ -920,27 +920,27 @@ fn display_tree(
             let branch = if is_last { "└── " } else { "├── " };
             match kind {
                 DataKind::Directory if options.classify => {
-                    println!("{}{}{}/", prefix, branch, child)
+                    println!("{prefix}{branch}{child}/")
                 }
                 DataKind::SymbolicLink if options.classify => {
-                    println!("{}{}{}@", prefix, branch, child)
+                    println!("{prefix}{branch}{child}@")
                 }
                 DataKind::File
                 | DataKind::Directory
                 | DataKind::SymbolicLink
-                | DataKind::HardLink => println!("{}{}{}", prefix, branch, child),
+                | DataKind::HardLink => println!("{prefix}{branch}{child}"),
             };
 
             let new_root = if root.is_empty() {
                 Cow::Borrowed(*child)
             } else {
-                Cow::Owned(format!("{}/{}", root, child))
+                Cow::Owned(format!("{root}/{child}"))
             };
 
             let new_prefix = if is_last {
-                format!("{}    ", prefix)
+                format!("{prefix}    ")
             } else {
-                format!("{}│   ", prefix)
+                format!("{prefix}│   ")
             };
 
             display_tree(tree, &new_root, &new_prefix, options);

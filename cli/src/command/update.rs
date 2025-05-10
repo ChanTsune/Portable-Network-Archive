@@ -274,7 +274,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
     let random = rand::random::<usize>();
     let temp_dir_path = temp_dir_or_else(|| archive_path.parent().unwrap_or_else(|| ".".as_ref()));
     fs::create_dir_all(&temp_dir_path)?;
-    let outfile_path = temp_dir_path.join(format!("{}.pna.tmp", random));
+    let outfile_path = temp_dir_path.join(format!("{random}.pna.tmp"));
     let outfile = fs::File::create(&outfile_path)?;
     let mut out_archive = Archive::write_header(outfile)?;
 

@@ -215,7 +215,7 @@ fn archive_get_xattr(args: GetXattrCommand) -> io::Result<()> {
             let entry = entry?;
             let name = entry.header().path();
             if globs.matches_any(name) {
-                println!("# file: {}", name);
+                println!("# file: {name}");
                 for attr in entry
                     .xattrs()
                     .iter()
@@ -488,7 +488,7 @@ impl<'a> DisplayValue<'a> {
     fn fmt_hex(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str("0x")?;
         for i in self.value {
-            write!(f, "{:02x}", i)?;
+            write!(f, "{i:02x}")?;
         }
         Ok(())
     }
@@ -604,19 +604,19 @@ mod tests {
     #[test]
     fn encode_text() {
         let v = DisplayValue::new(b"abc", Some(Encoding::Text));
-        assert_eq!(format!("{}", v), "\"abc\"");
+        assert_eq!(format!("{v}"), "\"abc\"");
     }
 
     #[test]
     fn encode_hex() {
         let v = DisplayValue::new(b"abc", Some(Encoding::Hex));
-        assert_eq!(format!("{}", v), "0x616263");
+        assert_eq!(format!("{v}"), "0x616263");
     }
 
     #[test]
     fn encode_base64() {
         let v = DisplayValue::new(b"abc", Some(Encoding::Base64));
-        assert_eq!(format!("{}", v), "0sYWJj");
+        assert_eq!(format!("{v}"), "0sYWJj");
     }
 
     #[test]

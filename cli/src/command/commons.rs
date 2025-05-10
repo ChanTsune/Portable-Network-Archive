@@ -374,7 +374,7 @@ pub(crate) fn split_to_parts(
             }
             Err(_) => return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
-                format!("A chunk was detected that could not be divided into chunks smaller than the given size {}", max)
+                format!("A chunk was detected that could not be divided into chunks smaller than the given size {max}")
             ))
         }
     }
@@ -649,7 +649,7 @@ where
     let random = rand::random::<usize>();
     let temp_dir_path = temp_dir_or_else(|| output_path.parent().unwrap_or_else(|| ".".as_ref()));
     fs::create_dir_all(&temp_dir_path)?;
-    let temp_path = temp_dir_path.join(format!("{}.pna.tmp", random));
+    let temp_path = temp_dir_path.join(format!("{random}.pna.tmp"));
     let outfile = fs::File::create(&temp_path)?;
     let mut out_archive = Archive::write_header(outfile)?;
 

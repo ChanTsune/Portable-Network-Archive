@@ -33,8 +33,8 @@ impl Cli {
         let stderr = fern::Dispatch::new()
             .level(level)
             .format(|out, msg, rec| match rec.level() {
-                Level::Error => out.finish(format_args!("error: {}", msg)),
-                Level::Warn => out.finish(format_args!("warning: {}", msg)),
+                Level::Error => out.finish(format_args!("error: {msg}")),
+                Level::Warn => out.finish(format_args!("warning: {msg}")),
                 Level::Info | Level::Debug | Level::Trace => out.finish(*msg),
             })
             .chain(io::stderr());

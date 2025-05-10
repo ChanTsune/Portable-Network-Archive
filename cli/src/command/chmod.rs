@@ -169,8 +169,7 @@ impl FromStr for Mode {
                     'r' => mode |= 4,
                     _ => {
                         return Err(format!(
-                            "unexpected character '{}'. excepted one of 'r', 'w' or 'x'",
-                            c
+                            "unexpected character '{c}'. excepted one of 'r', 'w' or 'x'"
                         ))
                     }
                 };
@@ -189,8 +188,7 @@ impl FromStr for Mode {
                 '-' => Ok(Mode::Minus(target, parse_mode(chars)?)),
                 '=' => Ok(Mode::Equal(target, parse_mode(chars)?)),
                 m => Err(format!(
-                    "unexpected character '{}'. excepted one of '+', '-' or '='",
-                    m
+                    "unexpected character '{m}'. excepted one of '+', '-' or '='"
                 )),
             }
         }
@@ -220,7 +218,7 @@ impl FromStr for Mode {
                         if idx == 0 { Target::All } else { target },
                     )
                 }
-                first => return Err(format!("unexpected character '{}'", first)),
+                first => return Err(format!("unexpected character '{first}'")),
             }
         }
         Err("mode must not be empty".into())
