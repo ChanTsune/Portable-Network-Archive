@@ -274,7 +274,7 @@ impl FromStr for AclEntries {
         .parse_complete(s)
         .map_err(|it| it.to_string())?;
         if !p.is_empty() {
-            return Err(format!("unexpected value: {}", p));
+            return Err(format!("unexpected value: {p}"));
         }
         Ok(v)
     }
@@ -300,7 +300,7 @@ fn archive_get_acl(args: GetAclCommand) -> io::Result<()> {
             let name = entry.header().path();
             if globs.matches_any(name) {
                 let permission = entry.metadata().permission();
-                println!("# file: {}", name);
+                println!("# file: {name}");
                 if let Some(permission) = permission {
                     println!("# owner: {}", permission.owner_display(numeric_owner));
                     println!("# group: {}", permission.group_display(numeric_owner));
@@ -313,9 +313,9 @@ fn archive_get_acl(args: GetAclCommand) -> io::Result<()> {
                     .into_iter()
                     .filter(|(p, _)| platforms.is_empty() || platforms.contains(p))
                 {
-                    println!("# platform: {}", platform);
+                    println!("# platform: {platform}");
                     for ace in acl {
-                        println!("{}", ace);
+                        println!("{ace}");
                     }
                 }
                 println!();
@@ -481,7 +481,7 @@ fn transform_acl(
 
     if let Some(set) = set {
         let ace = set.to_ace();
-        log::debug!("Setting ace {}", ace);
+        log::debug!("Setting ace {ace}");
         acl.clear();
         acl.push(ace);
     }
@@ -489,10 +489,10 @@ fn transform_acl(
         let ace = modify.to_ace();
         let item = acl.iter_mut().find(|it| modify.is_match(it));
         if let Some(item) = item {
-            log::debug!("Modifying ace {} to {}", item, ace);
+            log::debug!("Modifying ace {item} to {ace}");
             item.permission = ace.permission;
         } else {
-            log::debug!("Adding ace {} ", ace);
+            log::debug!("Adding ace {ace} ");
             acl.push(ace);
         }
     }

@@ -66,7 +66,7 @@ fn list_archive_chunks(args: ListCommand) -> io::Result<()> {
                 idx.to_string(),
                 chunk.ty().to_string(),
                 chunk.length().to_string(),
-                format!("{:#06x}", offset),
+                format!("{offset:#06x}"),
             ]
             .into_iter()
             .chain(args.long.then(|| {
@@ -79,6 +79,6 @@ fn list_archive_chunks(args: ListCommand) -> io::Result<()> {
     }
     let mut table = builder.build();
     table.with(TableStyle::empty());
-    println!("{}", table);
+    println!("{table}");
     Ok(())
 }

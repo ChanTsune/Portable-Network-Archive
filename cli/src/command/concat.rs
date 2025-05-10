@@ -37,7 +37,7 @@ fn concat_entry(args: ConcatCommand) -> io::Result<()> {
         if !utils::fs::is_pna(item)? {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("{} is not a pna file", item),
+                format!("{item} is not a pna file"),
             ));
         }
     }

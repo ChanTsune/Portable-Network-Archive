@@ -114,9 +114,9 @@ impl Display for OwnerType {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match &self {
             OwnerType::Owner => f.write_str("u:"),
-            OwnerType::User(i) => write!(f, "u:{}", i),
+            OwnerType::User(i) => write!(f, "u:{i}"),
             OwnerType::OwnerGroup => f.write_str("g:"),
-            OwnerType::Group(i) => write!(f, "g:{}", i),
+            OwnerType::Group(i) => write!(f, "g:{i}"),
             OwnerType::Mask => f.write_str("m:"),
             OwnerType::Other => f.write_str("o:"),
         }
