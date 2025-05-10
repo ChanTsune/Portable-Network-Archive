@@ -13,7 +13,7 @@ jobs:
           - ubuntu-22.04-arm # TODO: use ubuntu-24.04-arm if https://github.com/rust-lang/rust/issues/135867 resolved
           - windows-latest
           - macos-latest
-          - freebsd-latest # self-hosted
+#          - freebsd-latest # self-hosted
         rust:
           - stable
           - beta
