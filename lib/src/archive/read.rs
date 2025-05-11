@@ -436,7 +436,7 @@ impl<R: Read + Seek> Archive<R> {
     /// Seek the cursor to the end of the archive marker.
     ///
     /// # Errors
-    /// Returns an error if this function failed to seek or contains broken chunk.
+    /// Returns an error if this function failed to seek or contains a broken chunk.
     ///
     /// # Examples
     /// For appending entry to the existing archive.
