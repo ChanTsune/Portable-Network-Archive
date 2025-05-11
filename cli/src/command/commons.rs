@@ -167,6 +167,30 @@ pub(crate) fn collect_split_archives(first: impl AsRef<Path>) -> io::Result<Vec<
     Ok(archives)
 }
 
+const IN_MEMORY_THRESHOLD: u64 = 50 * 1024 * 1024;
+
+#[inline]
+pub(crate) fn write_from_path(writer: &mut impl Write, path: impl AsRef<Path>) -> io::Result<()> {
+    let path = path.as_ref();
+    let file_size = fs::metadata(path).ok().map(|meta| meta.len());
+    if file_size.is_some_and(|len| len < IN_MEMORY_THRESHOLD) {
+        writer.write_all(&fs::read(path)?)?;
+    } else {
+        #[cfg(feature = "memmap")]
+        {
+            let file = utils::mmap::Mmap::open(path)?;
+            writer.write_all(&file[..])?;
+        }
+        #[cfg(not(feature = "memmap"))]
+        {
+            let file = fs::File::open(path)?;
+            let mut reader = io::BufReader::with_capacity(IN_MEMORY_THRESHOLD as usize, file);
+            io::copy(&mut reader, writer)?;
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn create_entry(
     path: &Path,
     CreateOptions {
@@ -202,21 +226,7 @@ pub(crate) fn create_entry(
         .build();
     } else if path.is_file() {
         let mut entry = EntryBuilder::new_file(entry_name, option)?;
-        #[cfg(feature = "memmap")]
-        {
-            const FILE_SIZE_THRESHOLD: u64 = 50 * 1024 * 1024;
-            let meta = fs::metadata(path)?;
-            if FILE_SIZE_THRESHOLD < meta.len() {
-                let file = utils::mmap::Mmap::open(path)?;
-                entry.write_all(&file[..])?;
-            } else {
-                entry.write_all(&fs::read(path)?)?;
-            }
-        }
-        #[cfg(not(feature = "memmap"))]
-        {
-            entry.write_all(&fs::read(path)?)?;
-        }
+        write_from_path(&mut entry, path)?;
         return apply_metadata(
             entry,
             path,
