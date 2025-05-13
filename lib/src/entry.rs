@@ -384,7 +384,7 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
             self.header.encryption,
             self.header.cipher_mode,
             self.phsf.as_deref(),
-            password.as_ref().map(|it| it.as_bytes()),
+            password.map(|it| it.as_bytes()),
         )?;
         let reader = decompress_reader(reader, self.header.compression)?;
 
