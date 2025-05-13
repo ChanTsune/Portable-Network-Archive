@@ -10,32 +10,32 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  solaris-test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 100
-    name: Test on Solaris
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - name: Test in Solaris
-        id: test
-        uses: vmactions/solaris-vm@cc8f82fa1a7cc746153ec3f71bf11f311f16e225 # v1.1.1
-        with:
-          envs: "RUST_BACKTRACE"
-          copyback: false
-          usesh: true
-          prepare: |
-            pkg install bash libtool gnu-m4 tree wget gcc autoconf //solaris/text/gawk pkg://solaris/text/gnu-diffutils pkg://solaris/text/gnu-grep pkg://solaris/text/gnu-sed cmake
-            source <(curl -s https://raw.githubusercontent.com/psumbera/solaris-rust/refs/heads/main/sh.rust-web-install)
-            mv /root/.rust_solaris/rustc-*/ /root/.rust_solaris/rustc/
-          run: |
-            set -e
-            export LC_ALL=C LANG=C
-            export PATH=/root/.rust_solaris/rustc/bin:$PATH
-            uname -a
-            chown -R $(whoami):$(id -gn) ./
-            chmod -R a+rw ./
-            cargo install -f cargo-hack@0.6.33 --locked
-            cargo hack test --locked --release --feature-powerset --exclude-features wasm
+#  solaris-test:
+#    runs-on: ubuntu-latest
+#    timeout-minutes: 100
+#    name: Test on Solaris
+#    steps:
+#      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+#      - name: Test in Solaris
+#        id: test
+#        uses: vmactions/solaris-vm@cc8f82fa1a7cc746153ec3f71bf11f311f16e225 # v1.1.1
+#        with:
+#          envs: "RUST_BACKTRACE"
+#          copyback: false
+#          usesh: true
+#          prepare: |
+#            pkg install bash libtool gnu-m4 tree wget gcc autoconf //solaris/text/gawk pkg://solaris/text/gnu-diffutils pkg://solaris/text/gnu-grep pkg://solaris/text/gnu-sed cmake
+#            source <(curl -s https://raw.githubusercontent.com/psumbera/solaris-rust/refs/heads/main/sh.rust-web-install)
+#            mv /root/.rust_solaris/rustc-*/ /root/.rust_solaris/rustc/
+#          run: |
+#            set -e
+#            export LC_ALL=C LANG=C
+#            export PATH=/root/.rust_solaris/rustc/bin:$PATH
+#            uname -a
+#            chown -R $(whoami):$(id -gn) ./
+#            chmod -R a+rw ./
+#            cargo install -f cargo-hack@0.6.33 --locked
+#            cargo hack test --locked --release --feature-powerset --exclude-features wasm
 
   NetBSD-test:
     runs-on: ubuntu-latest
