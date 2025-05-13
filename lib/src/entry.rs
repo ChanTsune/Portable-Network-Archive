@@ -935,10 +935,10 @@ where
 }
 
 impl EntryPart<&[u8]> {
-    /// Split [EntryPart] into two parts if this entry can be split into smaller than given value.
+    /// Split [EntryPart] into two parts if this entry can be split into smaller than the given value.
     ///
     /// ## Errors
-    /// If it can't split into smaller than given value,
+    /// If it can't split into smaller than the given value,
     /// it returns an error containing the original value.
     #[inline]
     pub fn try_split(self, max_bytes_len: usize) -> Result<(Self, Option<Self>), Self> {
@@ -949,7 +949,7 @@ impl EntryPart<&[u8]> {
         let mut first = Vec::new();
         let mut total_size = 0;
         while let Some(chunk) = remaining.pop_front() {
-            // NOTE: If over max size, restore to remaining chunk
+            // NOTE: If over max size, restore to the remaining chunk
             if max_bytes_len < total_size + chunk.bytes_len() {
                 if chunk.is_stream_chunk() && total_size + MIN_CHUNK_BYTES_SIZE < max_bytes_len {
                     let available_bytes_len = max_bytes_len - total_size;
