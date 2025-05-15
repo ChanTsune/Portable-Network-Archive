@@ -60,7 +60,7 @@ libc = "0.2.172"
 [dev-dependencies]
 maplit = "1.0.2"
 path-slash = "0.2.1"
-rust-embed = { version = "8.7.1", features = ["debug-embed"] }
+rust-embed = { version = "8.7.2", features = ["debug-embed"] }
 walkdir = "2.5.0"
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
