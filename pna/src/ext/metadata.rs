@@ -40,7 +40,7 @@ impl MetadataTimeExt for Metadata {
 
     /// Returns the modified time.
     ///
-    /// This is the same as [Metadata::created] + [SystemTime::UNIX_EPOCH].
+    /// This is the same as [Metadata::modified] + [SystemTime::UNIX_EPOCH].
     /// ```
     /// use pna::{prelude::*, Metadata};
     /// use std::time::{Duration, UNIX_EPOCH};
