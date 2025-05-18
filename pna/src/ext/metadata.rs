@@ -4,22 +4,22 @@ use std::{fs, io, path::Path, time::SystemTime};
 
 /// [Metadata] extension method trait.
 pub trait MetadataTimeExt: private::Sealed {
-    /// Created time.
+    /// Returns the created time.
     fn created_time(&self) -> Option<SystemTime>;
-    /// Modified time.
+    /// Returns the modified time.
     fn modified_time(&self) -> Option<SystemTime>;
-    /// Accessed time.
+    /// Returns the accessed time.
     fn accessed_time(&self) -> Option<SystemTime>;
-    /// Set created time.
+    /// Sets the created time.
     fn with_created_time(self, created_time: Option<SystemTime>) -> Self;
-    /// Set modified time.
+    /// Sets the modified time.
     fn with_modified_time(self, modified_time: Option<SystemTime>) -> Self;
-    /// Set accessed time.
+    /// Sets the accessed time.
     fn with_accessed_time(self, accessed_time: Option<SystemTime>) -> Self;
 }
 
 impl MetadataTimeExt for Metadata {
-    /// Created time.
+    /// Returns the created time.
     ///
     /// This is the same as [Metadata::created] + [SystemTime::UNIX_EPOCH].
     /// ```
@@ -38,7 +38,7 @@ impl MetadataTimeExt for Metadata {
         self.created().map(|it| SystemTime::UNIX_EPOCH + it)
     }
 
-    /// Modified time.
+    /// Returns the modified time.
     ///
     /// This is the same as [Metadata::created] + [SystemTime::UNIX_EPOCH].
     /// ```
@@ -57,7 +57,7 @@ impl MetadataTimeExt for Metadata {
         self.modified().map(|it| SystemTime::UNIX_EPOCH + it)
     }
 
-    /// Accessed time.
+    /// Returns the accessed time.
     ///
     /// This is the same as [Metadata::accessed] + [SystemTime::UNIX_EPOCH].
     /// ```
@@ -76,7 +76,7 @@ impl MetadataTimeExt for Metadata {
         self.accessed().map(|it| SystemTime::UNIX_EPOCH + it)
     }
 
-    /// Set created time.
+    /// Sets the created time.
     ///
     /// # Examples
     /// ```
@@ -95,7 +95,7 @@ impl MetadataTimeExt for Metadata {
         }))
     }
 
-    /// Set modified time.
+    /// Sets the modified time.
     ///
     /// # Examples
     /// ```
@@ -114,7 +114,7 @@ impl MetadataTimeExt for Metadata {
         }))
     }
 
-    /// Set accessed time.
+    /// Sets the accessed time.
     ///
     /// # Examples
     /// ```
