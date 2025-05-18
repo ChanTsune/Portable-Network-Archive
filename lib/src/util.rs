@@ -1,4 +1,5 @@
 pub(crate) mod path;
+pub(crate) mod str;
 pub(crate) mod utf8path;
 
 pub(crate) mod slice {

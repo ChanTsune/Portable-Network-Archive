@@ -1,4 +1,4 @@
-use crate::util::{path::normalize_path, utf8path::normalize_utf8path};
+use crate::util::{self, path::normalize_path, utf8path::normalize_utf8path};
 use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
 use std::borrow::Cow;
 use std::error::Error;
@@ -35,17 +35,18 @@ impl From<Utf8Error> for EntryNameError {
 impl EntryName {
     fn new_from_utf8path(path: &Utf8Path) -> Self {
         let path = normalize_utf8path(path);
-        let buf = path
-            .components()
-            .filter_map(|c| match c {
-                Utf8Component::Prefix(_)
-                | Utf8Component::RootDir
-                | Utf8Component::CurDir
-                | Utf8Component::ParentDir => None,
-                Utf8Component::Normal(p) => Some(p),
-            })
-            .collect::<Vec<_>>();
-        Self(buf.join("/"))
+        let iter = path.components().filter_map(|c| match c {
+            Utf8Component::Prefix(_)
+            | Utf8Component::RootDir
+            | Utf8Component::CurDir
+            | Utf8Component::ParentDir => None,
+            Utf8Component::Normal(p) => Some(p),
+        });
+        Self(util::str::join_with_capacity(
+            iter,
+            "/",
+            path.as_str().len(),
+        ))
     }
 
     #[inline]
@@ -115,17 +116,18 @@ impl EntryName {
 
     fn from_path_lossy(p: &Path) -> Self {
         let p = normalize_path(p);
-        let buf = p
-            .components()
-            .filter_map(|c| match c {
-                Component::Prefix(_)
-                | Component::RootDir
-                | Component::CurDir
-                | Component::ParentDir => None,
-                Component::Normal(p) => Some(p.to_string_lossy()),
-            })
-            .collect::<Vec<_>>();
-        Self(buf.join("/"))
+        let iter = p.components().filter_map(|c| match c {
+            Component::Prefix(_)
+            | Component::RootDir
+            | Component::CurDir
+            | Component::ParentDir => None,
+            Component::Normal(p) => Some(p.to_string_lossy()),
+        });
+        Self(util::str::join_with_capacity(
+            iter,
+            "/",
+            p.as_os_str().len(),
+        ))
     }
 
     /// Create an [`EntryName`] from a struct impl <code>[Into]<[PathBuf]></code>.
