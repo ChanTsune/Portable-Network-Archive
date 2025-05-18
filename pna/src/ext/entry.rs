@@ -4,7 +4,7 @@ use std::{fs, io, path::Path};
 
 /// [NormalEntry] extension method trait.
 pub trait EntryFsExt: private::Sealed {
-    /// Create Entry from a given path.
+    /// Create an Entry from a given path.
     ///
     /// # Errors
     ///
@@ -23,7 +23,7 @@ pub trait EntryFsExt: private::Sealed {
 }
 
 impl EntryFsExt for NormalEntry {
-    /// Create Entry from a given path.
+    /// Create an Entry from a given path.
     ///
     /// # Errors
     ///
