@@ -4,7 +4,7 @@ use crate::command::{
     extract::ExtractCommand, list::ListCommand, split::SplitCommand, strip::StripCommand,
     xattr::XattrCommand,
 };
-use clap::{value_parser, ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
+use clap::{ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
 use log::{Level, LevelFilter};
 use pna::{ChunkType, ChunkTypeError, HashAlgorithm};
 use std::{io, path::PathBuf, str::FromStr};
@@ -135,6 +135,17 @@ pub(crate) enum SolidEntriesTransformStrategy {
     KeepSolid,
 }
 
+fn parse_compression_level(s: &str) -> Result<String, String> {
+    let s = s.trim();
+    if s.eq_ignore_ascii_case("min") || s.eq_ignore_ascii_case("max") || s.eq_ignore_ascii_case("default") {
+        Ok(s.to_string())
+    } else if s.parse::<u8>().is_ok() {
+        Ok(s.to_string())
+    } else {
+        Err(format!("invalid compression level: {s}"))
+    }
+}
+
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(group(ArgGroup::new("compression_method").args(["store", "deflate", "zstd", "xz"])))]
 pub(crate) struct CompressionAlgorithmArgs {
@@ -143,36 +154,37 @@ pub(crate) struct CompressionAlgorithmArgs {
     #[arg(
         long,
         value_name = "level",
-        value_parser = value_parser!(u8).range(1..=9),
-        help = "Use deflate for compression [possible level: 1-9]"
+        value_parser = parse_compression_level,
+        help = "Use deflate for compression [possible level: 1-9, min, max, default]"
     )]
-    pub(crate) deflate: Option<Option<u8>>,
+    pub(crate) deflate: Option<Option<String>>,
     #[arg(
         long,
         value_name = "level",
-        value_parser = value_parser!(u8).range(1..=21),
-        help = "Use zstd for compression [possible level: 1-21]"
+        value_parser = parse_compression_level,
+        help = "Use zstd for compression [possible level: 1-21, min, max, default]"
     )]
-    pub(crate) zstd: Option<Option<u8>>,
+    pub(crate) zstd: Option<Option<String>>,
     #[arg(
         long,
         value_name = "level",
-        value_parser = value_parser!(u8).range(0..=9),
-        help = "Use xz for compression [possible level: 0-9]"
+        value_parser = parse_compression_level,
+        help = "Use xz for compression [possible level: 0-9, min, max, default]"
     )]
-    pub(crate) xz: Option<Option<u8>>,
+    pub(crate) xz: Option<Option<String>>,
 }
 
 impl CompressionAlgorithmArgs {
     pub(crate) fn algorithm(&self) -> (pna::Compression, Option<pna::CompressionLevel>) {
+        use std::str::FromStr;
         if self.store {
             (pna::Compression::No, None)
-        } else if let Some(level) = self.xz {
-            (pna::Compression::XZ, level.map(Into::into))
-        } else if let Some(level) = self.zstd {
-            (pna::Compression::ZStandard, level.map(Into::into))
-        } else if let Some(level) = self.deflate {
-            (pna::Compression::Deflate, level.map(Into::into))
+        } else if let Some(level) = &self.xz {
+            (pna::Compression::XZ, level.as_ref().map(|s| pna::CompressionLevel::from_str(s).unwrap()))
+        } else if let Some(level) = &self.zstd {
+            (pna::Compression::ZStandard, level.as_ref().map(|s| pna::CompressionLevel::from_str(s).unwrap()))
+        } else if let Some(level) = &self.deflate {
+            (pna::Compression::Deflate, level.as_ref().map(|s| pna::CompressionLevel::from_str(s).unwrap()))
         } else {
             (pna::Compression::ZStandard, None)
         }

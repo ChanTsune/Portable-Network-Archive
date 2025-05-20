@@ -14,8 +14,17 @@ const KEEP_OPTIONS: &[Option<&str>] = &[
 const COMPRESSION_OPTIONS: &[Option<&[&str]>] = &[
     Some(&["--store"]),
     Some(&["--deflate", "1"]),
+    Some(&["--deflate", "min"]),
+    Some(&["--deflate", "max"]),
+    Some(&["--deflate", "default"]),
     Some(&["--zstd", "1"]),
+    Some(&["--zstd", "min"]),
+    Some(&["--zstd", "max"]),
+    Some(&["--zstd", "default"]),
     Some(&["--xz", "1"]),
+    Some(&["--xz", "min"]),
+    Some(&["--xz", "max"]),
+    Some(&["--xz", "default"]),
 ];
 
 const ENCRYPTION_OPTIONS: &[Option<[&str; 2]>] = &[
