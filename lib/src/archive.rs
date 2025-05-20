@@ -14,6 +14,16 @@ pub(crate) use {read::*, write::*};
 /// An object providing access to a PNA file.
 /// An instance of an [Archive] can be read and/or written.
 ///
+/// The [Archive] struct provides two main modes of operation:
+/// - Read mode: Allows reading entries from an existing PNA file
+/// - Write mode: Enables creating new entries and writing data to the archive
+///
+/// The archive supports various features including:
+/// - Multiple compression algorithms
+/// - Encryption options
+/// - Solid and non-solid modes
+/// - Chunk-based storage
+///
 /// # Examples
 /// Creates a new PNA file and adds an entry to it.
 /// ```no_run
@@ -88,6 +98,16 @@ impl<T> Archive<T> {
 }
 
 /// An object that provides write access to solid mode PNA files.
+///
+/// In solid mode, all entries are compressed together as a single unit,
+/// which typically results in better compression ratios compared to
+/// non-solid mode. However, this means that individual entries cannot
+/// be accessed randomly - they must be read sequentially.
+///
+/// Key features of solid mode:
+/// - Improved compression ratio
+/// - Sequential access only
+/// - Single compression/encryption context for all entries
 ///
 /// # Examples
 /// Creates a new solid mode PNA file and adds an entry to it.
