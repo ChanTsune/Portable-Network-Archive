@@ -399,6 +399,8 @@ impl From<Utf8Error> for EntryNameError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    use std::os::unix::ffi::OsStrExt;
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
@@ -419,5 +421,146 @@ mod tests {
     fn remove_prefix() {
         assert_eq!("test.txt", EntryName::from("C:\\test.txt"));
         assert_eq!("test/test.txt", EntryName::from("C:\\test\\test.txt"));
+    }
+
+    #[test]
+    fn basic_string_conversion() {
+        // String conversion
+        assert_eq!("test.txt", EntryName::from(String::from("test.txt")));
+        assert_eq!("test.txt", EntryName::from(&String::from("test.txt")));
+
+        // &str conversion
+        assert_eq!("test.txt", EntryName::from("test.txt"));
+
+        // Cow conversion
+        assert_eq!("test.txt", EntryName::from(Cow::from("test.txt")));
+        assert_eq!("test.txt", EntryName::from(&Cow::from("test.txt")));
+    }
+
+    #[test]
+    fn special_characters() {
+        // Unicode characters
+        assert_eq!("日本語.txt", EntryName::from("日本語.txt"));
+        assert_eq!("test/日本語.txt", EntryName::from("test/日本語.txt"));
+        assert_eq!("日本語/テスト.txt", EntryName::from("日本語/テスト.txt"));
+
+        // Special characters
+        assert_eq!("test@example.com", EntryName::from("test@example.com"));
+        assert_eq!("test#123", EntryName::from("test#123"));
+        assert_eq!("test$123", EntryName::from("test$123"));
+        assert_eq!("test+123", EntryName::from("test+123"));
+        assert_eq!("test-123", EntryName::from("test-123"));
+        assert_eq!("test_123", EntryName::from("test_123"));
+    }
+
+    #[test]
+    fn path_normalization() {
+        // Current directory
+        assert_eq!("test.txt", EntryName::from("./test.txt"));
+        assert_eq!("test/test.txt", EntryName::from("./test/test.txt"));
+
+        // Parent directory
+        assert_eq!("test.txt", EntryName::from("../test.txt"));
+        assert_eq!("test/test.txt", EntryName::from("../test/test.txt"));
+        assert_eq!("test.txt", EntryName::from("test/../test.txt"));
+
+        // Multiple slashes
+        assert_eq!("test/test.txt", EntryName::from("test//test.txt"));
+        assert_eq!("test/test.txt", EntryName::from("test///test.txt"));
+        assert_eq!("test/test.txt", EntryName::from("///test///test.txt"));
+    }
+
+    #[test]
+    fn error_cases() {
+        // Invalid UTF-8
+        let invalid_utf8: &[u8] = &[0x74, 0x65, 0x73, 0x74, 0xFF, 0x2E, 0x74, 0x78, 0x74];
+        assert!(EntryName::try_from(invalid_utf8).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unix_error_cases() {
+        let invalid_bytes = [0x74, 0x65, 0x73, 0x74, 0xFF, 0x2E, 0x74, 0x78, 0x74];
+        let invalid_os_str = OsStr::from_bytes(&invalid_bytes);
+        assert!(EntryName::try_from(invalid_os_str).is_err());
+    }
+
+    #[test]
+    fn type_conversions() {
+        // Path conversions
+        let path = Path::new("test.txt");
+        assert_eq!("test.txt", EntryName::try_from(path).unwrap());
+
+        let path_buf = PathBuf::from("test.txt");
+        assert_eq!("test.txt", EntryName::try_from(&path_buf).unwrap());
+
+        // OsStr conversions
+        let os_str = OsStr::new("test.txt");
+        assert_eq!("test.txt", EntryName::try_from(os_str).unwrap());
+
+        let os_string = OsString::from("test.txt");
+        assert_eq!("test.txt", EntryName::try_from(&os_string).unwrap());
+    }
+
+    #[test]
+    fn comparisons() {
+        let name1 = EntryName::from("test.txt");
+        let name2 = EntryName::from("test.txt");
+        let name3 = EntryName::from("other.txt");
+
+        // Equality
+        assert_eq!(name1, name2);
+        assert_eq!(name1, "test.txt");
+        assert_eq!("test.txt", name1);
+
+        // Inequality
+        assert_ne!(name1, name3);
+        assert_ne!(name1, "other.txt");
+        assert_ne!("other.txt", name1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unix_lossy_conversion() {
+        // Test with invalid UTF-8 sequence
+        let invalid_bytes = [0x74, 0x65, 0x73, 0x74, 0xFF, 0x2E, 0x74, 0x78, 0x74];
+        let invalid_path = PathBuf::from(OsStr::from_bytes(&invalid_bytes));
+        let name = EntryName::from_lossy(invalid_path);
+        assert_eq!("test\u{FFFD}.txt", name.as_str());
+
+        // Test with multiple invalid UTF-8 sequences
+        let invalid_bytes = [0x74, 0x65, 0x73, 0x74, 0xFF, 0xFF, 0x2E, 0x74, 0x78, 0x74];
+        let invalid_path = PathBuf::from(OsStr::from_bytes(&invalid_bytes));
+        let name = EntryName::from_lossy(invalid_path);
+        assert_eq!("test\u{FFFD}\u{FFFD}.txt", name.as_str());
+
+        // Test with invalid UTF-8 sequence at the start
+        let invalid_bytes = [0xFF, 0x74, 0x65, 0x73, 0x74, 0x2E, 0x74, 0x78, 0x74];
+        let invalid_path = PathBuf::from(OsStr::from_bytes(&invalid_bytes));
+        let name = EntryName::from_lossy(invalid_path);
+        assert_eq!("\u{FFFD}test.txt", name.as_str());
+
+        // Test with invalid UTF-8 sequence at the end
+        let invalid_bytes = [0x74, 0x65, 0x73, 0x74, 0x2E, 0x74, 0x78, 0x74, 0xFF];
+        let invalid_path = PathBuf::from(OsStr::from_bytes(&invalid_bytes));
+        let name = EntryName::from_lossy(invalid_path);
+        assert_eq!("test.txt\u{FFFD}", name.as_str());
+    }
+
+    #[test]
+    fn as_ref_implementations() {
+        let name = EntryName::from("test.txt");
+
+        // AsRef<str>
+        let str_ref: &str = name.as_ref();
+        assert_eq!("test.txt", str_ref);
+
+        // AsRef<OsStr>
+        let os_str_ref: &OsStr = name.as_ref();
+        assert_eq!(OsStr::new("test.txt"), os_str_ref);
+
+        // AsRef<Path>
+        let path_ref: &Path = name.as_ref();
+        assert_eq!(Path::new("test.txt"), path_ref);
     }
 }
