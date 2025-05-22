@@ -25,3 +25,6 @@ mod update;
 mod user_group;
 pub mod utils;
 mod xattr;
+
+#[cfg(windows)]
+mod windows_attributes;

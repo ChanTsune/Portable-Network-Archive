@@ -30,11 +30,21 @@ cargo install --git https://github.com/ChanTsune/Portable-Network-Archive.git po
 pna create <ARCHIVE> [FILES]...
 ```
 
+**Options for `create`:**
+- `--store-windows-attributes` (Windows-only): When creating an archive on Windows, this flag stores specific file attributes (such as ReadOnly, Hidden, System) as an extended attribute named `windows.file_attributes`. This allows these attributes to be preserved and restored on other Windows systems.
+
 ### Extracting an Archive
 
 ```sh
 pna extract <ARCHIVE>
 ```
+
+**Options for `extract`:**
+- `--restore-windows-attributes` (Windows-only): When extracting an archive on Windows, this flag restores the Windows-specific file attributes (e.g., ReadOnly, Hidden) to the extracted files, provided they were stored during creation (e.g., with `--store-windows-attributes`).
+
+### Windows File Attributes (xattr)
+
+When using the `--store-windows-attributes` flag on Windows during archive creation, the file attributes are stored as an extended attribute (xattr) with the name `windows.file_attributes`. The value of this xattr is a hexadecimal string representing the Windows file attribute DWORD (e.g., `0x21` for ReadOnly and Hidden). This xattr can be inspected using `pna xattr get <ARCHIVE> <FILE> --name windows.file_attributes --encoding hex`.
 
 ### Listing Archived Entries
 

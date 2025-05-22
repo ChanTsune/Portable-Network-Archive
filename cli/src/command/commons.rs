@@ -28,6 +28,8 @@ pub(crate) struct KeepOptions {
     pub(crate) keep_permission: bool,
     pub(crate) keep_xattr: bool,
     pub(crate) keep_acl: bool,
+    pub(crate) restore_windows_attributes: bool, // For extract command
+    pub(crate) store_windows_attributes: bool,   // For create command
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -328,6 +330,26 @@ pub(crate) fn apply_metadata(
     #[cfg(not(unix))]
     if keep_options.keep_xattr {
         log::warn!("Currently extended attribute is not supported on this platform.");
+    }
+
+    #[cfg(windows)]
+    if keep_options.store_windows_attributes {
+        match crate::utils::os::windows::get_file_attributes(path) {
+            Ok(attributes_dword) => {
+                let hex_value = format!("0x{:x}", attributes_dword);
+                entry.add_xattr(pna::ExtendedAttribute::new(
+                    "windows.file_attributes".into(),
+                    hex_value.into_bytes(),
+                ));
+            }
+            Err(e) => {
+                log::warn!(
+                    "Failed to get Windows file attributes for {}: {}",
+                    path.display(),
+                    e
+                );
+            }
+        }
     }
     Ok(entry)
 }

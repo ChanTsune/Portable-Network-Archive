@@ -118,6 +118,8 @@ pub(crate) struct ExtractCommand {
     transforms: Option<Vec<TransformRule>>,
     #[command(flatten)]
     pub(crate) file: FileArgs,
+    #[arg(long, help = "Windows-only: Restore file attributes (ReadOnly, Hidden, etc.) from the 'windows.file_attributes' xattr, if present.")]
+    pub(crate) restore_windows_attributes: bool,
 }
 
 impl Command for ExtractCommand {
@@ -148,6 +150,7 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
         keep_permission: args.keep_permission,
         keep_xattr: args.keep_xattr,
         keep_acl: args.keep_acl,
+        restore_windows_attributes: args.restore_windows_attributes,
     };
     let owner_options = OwnerOptions::new(
         args.uname,
@@ -479,6 +482,41 @@ where
     #[cfg(not(feature = "acl"))]
     if keep_options.keep_acl {
         log::warn!("Please enable `acl` feature and rebuild and install pna.");
+    }
+
+    #[cfg(windows)]
+    if keep_options.restore_windows_attributes {
+        if let Some(attr_xattr) = item
+            .xattrs()
+            .iter()
+            .find(|xa| xa.name() == "windows.file_attributes")
+        {
+            let value_str = String::from_utf8_lossy(attr_xattr.value());
+            let value_str_trimmed = value_str.strip_prefix("0x").unwrap_or(&value_str);
+            match u32::from_str_radix(value_str_trimmed, 16) {
+                Ok(attributes_dword) => {
+                    match utils::os::windows::set_file_attributes(&path, attributes_dword) {
+                        Ok(_) => log::debug!(
+                            "Successfully restored Windows attributes for {}",
+                            path.display()
+                        ),
+                        Err(e) => log::warn!(
+                            "Failed to restore Windows attributes for {}: {}",
+                            path.display(),
+                            e
+                        ),
+                    }
+                }
+                Err(e) => {
+                    log::warn!(
+                        "Failed to parse 'windows.file_attributes' value '{}' for {}: {}",
+                        value_str,
+                        path.display(),
+                        e
+                    );
+                }
+            }
+        }
     }
     log::debug!("end: {}", path.display());
     Ok(())

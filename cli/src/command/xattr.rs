@@ -80,6 +80,8 @@ pub(crate) struct SetXattrCommand {
     remove: Option<String>,
     #[command(flatten)]
     transform_strategy: SolidEntriesTransformStrategyArgs,
+    #[arg(long, help = "Store Windows file attributes (ReadOnly, Hidden, System, etc.) as an xattr. For `xattr set`, this is a placeholder; manual setting via --name and --value is used.")]
+    store_windows_attributes: bool,
     #[command(flatten)]
     password: PasswordArgs,
 }

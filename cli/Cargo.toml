@@ -54,6 +54,12 @@ windows = { version = "0.59.0", features = [
   "Win32_UI_Shell",
   "Win32_UI_Shell_PropertiesSystem",
 ] }
+[dependencies.windows-sys]
+version = "0.48" # Or a more recent compatible version
+features = [
+    "Win32_Storage_FileSystem",
+    "Win32_Foundation", # For INVALID_FILE_ATTRIBUTES, FALSE, etc.
+]
 field-offset = { version = "0.3.6", optional = true }
 libc = "0.2.169"
 

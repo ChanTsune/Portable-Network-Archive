@@ -140,6 +140,8 @@ pub(crate) struct CreateCommand {
     pub(crate) file: FileArgs,
     #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
     pub(crate) exclude: Option<Vec<PathBuf>>,
+    #[arg(long, help = "Windows-only: Store file attributes (ReadOnly, Hidden, System, etc.) as an xattr named 'windows.file_attributes'.")]
+    pub(crate) store_windows_attributes: bool,
 }
 
 impl Command for CreateCommand {
@@ -198,6 +200,8 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
         keep_permission: args.keep_permission,
         keep_xattr: args.keep_xattr,
         keep_acl: args.keep_acl,
+        restore_windows_attributes: false, // Not used in create, set to default
+        store_windows_attributes: args.store_windows_attributes,
     };
     let owner_options = OwnerOptions::new(
         args.uname,
