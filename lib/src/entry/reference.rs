@@ -240,6 +240,7 @@ impl TryFrom<&Path> for EntryReference {
     type Error = EntryReferenceError;
 
     /// ## Examples
+    ///
     /// ```
     /// use libpna::EntryReference;
     /// use std::path::Path;
@@ -257,6 +258,7 @@ impl TryFrom<PathBuf> for EntryReference {
     type Error = EntryReferenceError;
 
     /// ## Examples
+    ///
     /// ```
     /// use libpna::EntryReference;
     /// use std::path::PathBuf;
@@ -274,6 +276,7 @@ impl TryFrom<&PathBuf> for EntryReference {
     type Error = EntryReferenceError;
 
     /// ## Examples
+    ///
     /// ```
     /// use libpna::EntryReference;
     /// use std::path::PathBuf;
@@ -291,6 +294,7 @@ impl TryFrom<Cow<'_, Path>> for EntryReference {
     type Error = EntryReferenceError;
 
     /// ## Examples
+    ///
     /// ```
     /// use libpna::EntryReference;
     /// use std::borrow::Cow;

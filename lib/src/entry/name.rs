@@ -169,13 +169,14 @@ impl From<&String> for EntryName {
 
 impl From<&str> for EntryName {
     /// # Examples
+    ///
     /// ```
     /// use libpna::EntryName;
     ///
-    /// assert_eq!(EntryName::from("test.txt"), EntryName::from("test.txt"));
-    /// assert_eq!(EntryName::from("/test.txt"), EntryName::from("test.txt"));
-    /// assert_eq!(EntryName::from("./test.txt"), EntryName::from("test.txt"));
-    /// assert_eq!(EntryName::from("../test.txt"), EntryName::from("test.txt"));
+    /// assert_eq!("test.txt", EntryName::from("test.txt"));
+    /// assert_eq!("test.txt", EntryName::from("/test.txt"));
+    /// assert_eq!("test.txt", EntryName::from("./test.txt"));
+    /// assert_eq!("test.txt", EntryName::from("../test.txt"));
     /// ```
     #[inline]
     fn from(value: &str) -> Self {
@@ -243,6 +244,15 @@ impl TryFrom<Cow<'_, OsStr>> for EntryName {
 impl TryFrom<&Path> for EntryName {
     type Error = EntryNameError;
 
+    /// ## Examples
+    ///
+    /// ```
+    /// use libpna::EntryName;
+    /// use std::path::Path;
+    ///
+    /// let p = Path::new("path/to/file");
+    /// assert_eq!("path/to/file", EntryName::try_from(p).unwrap());
+    /// ```
     #[inline]
     fn try_from(value: &Path) -> Result<Self, Self::Error> {
         Self::new_from_path(value)
@@ -252,6 +262,15 @@ impl TryFrom<&Path> for EntryName {
 impl TryFrom<PathBuf> for EntryName {
     type Error = EntryNameError;
 
+    /// ## Examples
+    ///
+    /// ```
+    /// use libpna::EntryName;
+    /// use std::path::PathBuf;
+    ///
+    /// let p = PathBuf::from("path/to/file");
+    /// assert_eq!("path/to/file", EntryName::try_from(p).unwrap());
+    /// ```
     #[inline]
     fn try_from(value: PathBuf) -> Result<Self, Self::Error> {
         Self::new_from_path(&value)
@@ -261,6 +280,15 @@ impl TryFrom<PathBuf> for EntryName {
 impl TryFrom<&PathBuf> for EntryName {
     type Error = EntryNameError;
 
+    /// ## Examples
+    ///
+    /// ```
+    /// use libpna::EntryName;
+    /// use std::path::PathBuf;
+    ///
+    /// let p = PathBuf::from("path/to/file");
+    /// assert_eq!("path/to/file", EntryName::try_from(&p).unwrap());
+    /// ```
     #[inline]
     fn try_from(value: &PathBuf) -> Result<Self, Self::Error> {
         Self::new_from_path(value)
@@ -270,6 +298,16 @@ impl TryFrom<&PathBuf> for EntryName {
 impl TryFrom<Cow<'_, Path>> for EntryName {
     type Error = EntryNameError;
 
+    /// ## Examples
+    ///
+    /// ```
+    /// use libpna::EntryName;
+    /// use std::borrow::Cow;
+    /// use std::path::PathBuf;
+    ///
+    /// let p = Cow::from(PathBuf::from("path/to/file"));
+    /// assert_eq!("path/to/file", EntryName::try_from(p).unwrap());
+    /// ```
     #[inline]
     fn try_from(value: Cow<'_, Path>) -> Result<Self, Self::Error> {
         Self::new_from_path(&value)
