@@ -5,21 +5,14 @@ use portable_network_archive::{cli, command};
 #[test]
 fn archive_strip_metadata() {
     setup();
-    TestResources::extract_in(
-        "raw/",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_strip_metadata/in/"),
-    )
-    .unwrap();
+    TestResources::extract_in("raw/", "archive_strip_metadata/in/").unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_strip_metadata/strip_metadata.pna"
-        ),
+        "archive_strip_metadata/strip_metadata.pna",
         "--overwrite",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_strip_metadata/in/"),
+        "archive_strip_metadata/in/",
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
@@ -32,10 +25,7 @@ fn archive_strip_metadata() {
         "pna",
         "--quiet",
         "strip",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_strip_metadata/strip_metadata.pna"
-        ),
+        "archive_strip_metadata/strip_metadata.pna",
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
@@ -47,31 +37,20 @@ fn archive_strip_metadata() {
         "pna",
         "--quiet",
         "x",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_strip_metadata/strip_metadata.pna"
-        ),
+        "archive_strip_metadata/strip_metadata.pna",
         "--overwrite",
         "--out-dir",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_strip_metadata/out/"),
+        "archive_strip_metadata/out/",
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
         "--strip-components",
-        &components_count(concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_strip_metadata/in/"
-        ))
-        .to_string(),
+        &components_count("archive_strip_metadata/in/").to_string(),
         #[cfg(windows)]
         "--unstable",
     ]))
     .unwrap();
 
-    diff(
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_strip_metadata/in/"),
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_strip_metadata/out/"),
-    )
-    .unwrap();
+    diff("archive_strip_metadata/in/", "archive_strip_metadata/out/").unwrap();
 }

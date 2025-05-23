@@ -7,15 +7,15 @@ use portable_network_archive::{cli, command};
 #[test]
 fn extract_windows_acl() {
     setup();
-    TestResources::extract_in("0.19.1/windows_acl.pna", env!("CARGO_TARGET_TMPDIR")).unwrap();
+    TestResources::extract_in("0.19.1/windows_acl.pna", ".").unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "x",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/0.19.1/windows_acl.pna"),
+        "0.19.1/windows_acl.pna",
         "--overwrite",
         "--out-dir",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/0.19.1/windows_acl/out/"),
+        "0.19.1/windows_acl/out/",
         "--keep-acl",
         "--unstable",
     ]))
@@ -25,15 +25,15 @@ fn extract_windows_acl() {
 #[test]
 fn extract_linux_acl() {
     setup();
-    TestResources::extract_in("0.19.1/linux_acl.pna", env!("CARGO_TARGET_TMPDIR")).unwrap();
+    TestResources::extract_in("0.19.1/linux_acl.pna", ".").unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "x",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/0.19.1/linux_acl.pna"),
+        "0.19.1/linux_acl.pna",
         "--overwrite",
         "--out-dir",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/0.19.1/linux_acl/out/"),
+        "0.19.1/linux_acl/out/",
         "--keep-acl",
         "--unstable",
     ]))
@@ -43,15 +43,15 @@ fn extract_linux_acl() {
 #[test]
 fn extract_macos_acl() {
     setup();
-    TestResources::extract_in("0.19.1/macos_acl.pna", env!("CARGO_TARGET_TMPDIR")).unwrap();
+    TestResources::extract_in("0.19.1/macos_acl.pna", ".").unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "x",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/0.19.1/macos_acl.pna"),
+        "0.19.1/macos_acl.pna",
         "--overwrite",
         "--out-dir",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/0.19.1/macos_acl/out/"),
+        "0.19.1/macos_acl/out/",
         "--keep-acl",
         "--unstable",
     ]))
@@ -61,15 +61,15 @@ fn extract_macos_acl() {
 #[test]
 fn extract_freebsd_acl() {
     setup();
-    TestResources::extract_in("0.19.1/freebsd_acl.pna", env!("CARGO_TARGET_TMPDIR")).unwrap();
+    TestResources::extract_in("0.19.1/freebsd_acl.pna", ".").unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "x",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/0.19.1/freebsd_acl.pna"),
+        "0.19.1/freebsd_acl.pna",
         "--overwrite",
         "--out-dir",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/0.19.1/freebsd_acl/out/"),
+        "0.19.1/freebsd_acl/out/",
         "--keep-acl",
         "--unstable",
     ]))

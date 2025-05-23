@@ -10,27 +10,14 @@ const DURATION_24_HOURS: time::Duration = time::Duration::from_secs(24 * 60 * 60
 #[test]
 fn archive_update_newer_mtime() {
     setup();
-    TestResources::extract_in(
-        "raw/",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime/in/"
-        ),
-    )
-    .unwrap();
+    TestResources::extract_in("raw/", "archive_update_newer_mtime/in/").unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime/update_newer_mtime.pna"
-        ),
+        "archive_update_newer_mtime/update_newer_mtime.pna",
         "--overwrite",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime/in/"
-        ),
+        "archive_update_newer_mtime/in/",
         "--keep-timestamp",
     ]))
     .unwrap();
@@ -38,10 +25,7 @@ fn archive_update_newer_mtime() {
     let mut file = fs::File::options()
         .write(true)
         .truncate(true)
-        .open(concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime/in/raw/empty.txt"
-        ))
+        .open("archive_update_newer_mtime/in/raw/empty.txt")
         .unwrap();
     file.write_all(b"this is updated, but mtime older than now, so this should empty")
         .unwrap();
@@ -51,10 +35,7 @@ fn archive_update_newer_mtime() {
     let mut file = fs::File::options()
         .write(true)
         .truncate(true)
-        .open(concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime/in/raw/text.txt"
-        ))
+        .open("archive_update_newer_mtime/in/raw/text.txt")
         .unwrap();
     file.write_all(b"updated!").unwrap();
     file.set_modified(time::SystemTime::now() + DURATION_24_HOURS)
@@ -66,61 +47,32 @@ fn archive_update_newer_mtime() {
         "experimental",
         "update",
         "--newer-mtime",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime/update_newer_mtime.pna"
-        ),
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime/in/"
-        ),
+        "archive_update_newer_mtime/update_newer_mtime.pna",
+        "archive_update_newer_mtime/in/",
         "--keep-timestamp",
     ]))
     .unwrap();
 
     // restore original empty.txt
-    TestResources::extract_in(
-        "raw/empty.txt",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime/in/"
-        ),
-    )
-    .unwrap();
+    TestResources::extract_in("raw/empty.txt", "archive_update_newer_mtime/in/").unwrap();
 
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "x",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime/update_newer_mtime.pna"
-        ),
+        "archive_update_newer_mtime/update_newer_mtime.pna",
         "--overwrite",
         "--out-dir",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime/out/"
-        ),
+        "archive_update_newer_mtime/out/",
         "--keep-timestamp",
         "--strip-components",
-        &components_count(concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime/in/"
-        ))
-        .to_string(),
+        &components_count("archive_update_newer_mtime/in/").to_string(),
     ]))
     .unwrap();
 
     diff(
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime/in/"
-        ),
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime/out/"
-        ),
+        "archive_update_newer_mtime/in/",
+        "archive_update_newer_mtime/out/",
     )
     .unwrap();
 }
@@ -128,35 +80,15 @@ fn archive_update_newer_mtime() {
 #[test]
 fn archive_update_older_mtime() {
     setup();
-    TestResources::extract_in(
-        "raw/",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_older_mtime/in/"
-        ),
-    )
-    .unwrap();
-    TestResources::extract_in(
-        "raw/",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_older_mtime/in/"
-        ),
-    )
-    .unwrap();
+    TestResources::extract_in("raw/", "archive_update_older_mtime/in/").unwrap();
+    TestResources::extract_in("raw/", "archive_update_older_mtime/in/").unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_older_mtime/update_older_mtime.pna"
-        ),
+        "archive_update_older_mtime/update_older_mtime.pna",
         "--overwrite",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_older_mtime/in/"
-        ),
+        "archive_update_older_mtime/in/",
         "--keep-timestamp",
     ]))
     .unwrap();
@@ -164,10 +96,7 @@ fn archive_update_older_mtime() {
     let mut file = fs::File::options()
         .write(true)
         .truncate(true)
-        .open(concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_older_mtime/in/raw/empty.txt"
-        ))
+        .open("archive_update_older_mtime/in/raw/empty.txt")
         .unwrap();
     file.write_all(b"this is updated, but mtime newer than now, so this should empty")
         .unwrap();
@@ -177,10 +106,7 @@ fn archive_update_older_mtime() {
     let mut file = fs::File::options()
         .write(true)
         .truncate(true)
-        .open(concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_older_mtime/in/raw/text.txt"
-        ))
+        .open("archive_update_older_mtime/in/raw/text.txt")
         .unwrap();
     file.write_all(b"updated!").unwrap();
     file.set_modified(time::SystemTime::now() - DURATION_24_HOURS)
@@ -192,61 +118,32 @@ fn archive_update_older_mtime() {
         "experimental",
         "update",
         "--older-mtime",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_older_mtime/update_older_mtime.pna"
-        ),
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_older_mtime/in/"
-        ),
+        "archive_update_older_mtime/update_older_mtime.pna",
+        "archive_update_older_mtime/in/",
         "--keep-timestamp",
     ]))
     .unwrap();
 
     // restore original empty.txt
-    TestResources::extract_in(
-        "raw/empty.txt",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_older_mtime/in/"
-        ),
-    )
-    .unwrap();
+    TestResources::extract_in("raw/empty.txt", "archive_update_older_mtime/in/").unwrap();
 
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "x",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_older_mtime/update_older_mtime.pna"
-        ),
+        "archive_update_older_mtime/update_older_mtime.pna",
         "--overwrite",
         "--out-dir",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_older_mtime/out/"
-        ),
+        "archive_update_older_mtime/out/",
         "--keep-timestamp",
         "--strip-components",
-        &components_count(concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_older_mtime/in/"
-        ))
-        .to_string(),
+        &components_count("archive_update_older_mtime/in/").to_string(),
     ]))
     .unwrap();
 
     diff(
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_older_mtime/in/"
-        ),
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_older_mtime/out/"
-        ),
+        "archive_update_older_mtime/in/",
+        "archive_update_older_mtime/out/",
     )
     .unwrap();
 }
@@ -254,30 +151,19 @@ fn archive_update_older_mtime() {
 #[test]
 fn archive_update_deletion() {
     setup();
-    TestResources::extract_in(
-        "raw/",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_update_deletion/in/"),
-    )
-    .unwrap();
+    TestResources::extract_in("raw/", "archive_update_deletion/in/").unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_deletion/update_deletion.pna"
-        ),
+        "archive_update_deletion/update_deletion.pna",
         "--overwrite",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_update_deletion/in/"),
+        "archive_update_deletion/in/",
         "--keep-timestamp",
     ]))
     .unwrap();
 
-    fs::remove_file(concat!(
-        env!("CARGO_TARGET_TMPDIR"),
-        "/archive_update_deletion/in/raw/empty.txt"
-    ))
-    .unwrap();
+    fs::remove_file("archive_update_deletion/in/raw/empty.txt").unwrap();
 
     command::entry(cli::Cli::parse_from([
         "pna",
@@ -285,11 +171,8 @@ fn archive_update_deletion() {
         "experimental",
         "update",
         "--newer-mtime",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_deletion/update_deletion.pna"
-        ),
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_update_deletion/in/"),
+        "archive_update_deletion/update_deletion.pna",
+        "archive_update_deletion/in/",
         "--keep-timestamp",
     ]))
     .unwrap();
@@ -298,33 +181,22 @@ fn archive_update_deletion() {
         "pna",
         "--quiet",
         "x",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_deletion/update_deletion.pna"
-        ),
+        "archive_update_deletion/update_deletion.pna",
         "--overwrite",
         "--out-dir",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_update_deletion/out/"),
+        "archive_update_deletion/out/",
         "--keep-timestamp",
         "--strip-components",
-        &components_count(concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_deletion/in/"
-        ))
-        .to_string(),
+        &components_count("archive_update_deletion/in/").to_string(),
     ]))
     .unwrap();
 
     // restore original empty.txt
-    TestResources::extract_in(
-        "raw/empty.txt",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_update_deletion/in/"),
-    )
-    .unwrap();
+    TestResources::extract_in("raw/empty.txt", "archive_update_deletion/in/").unwrap();
 
     diff(
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_update_deletion/in/"),
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/archive_update_deletion/out/"),
+        "archive_update_deletion/in/",
+        "archive_update_deletion/out/",
     )
     .unwrap();
 }
