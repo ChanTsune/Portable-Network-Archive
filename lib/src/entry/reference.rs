@@ -1,3 +1,4 @@
+use crate::util::str::join_with_capacity;
 use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
 use std::borrow::Cow;
 use std::error::Error;
@@ -27,17 +28,14 @@ impl EntryReference {
         let has_prefix = path
             .components()
             .any(|it| matches!(&it, Utf8Component::Prefix(_)));
-        let p = path
-            .components()
-            .filter_map(|it| match it {
-                Utf8Component::Prefix(p) => Some(p.as_str()),
-                Utf8Component::RootDir => None,
-                Utf8Component::CurDir => Some("."),
-                Utf8Component::ParentDir => Some(".."),
-                Utf8Component::Normal(n) => Some(n),
-            })
-            .collect::<Vec<_>>();
-        let mut s = p.join("/");
+        let p = path.components().filter_map(|it| match it {
+            Utf8Component::Prefix(p) => Some(p.as_str()),
+            Utf8Component::RootDir => None,
+            Utf8Component::CurDir => Some("."),
+            Utf8Component::ParentDir => Some(".."),
+            Utf8Component::Normal(n) => Some(n),
+        });
+        let mut s = join_with_capacity(p, "/", path.as_str().len());
         if !has_prefix && has_root {
             s.insert(0, '/');
         };
@@ -82,17 +80,14 @@ impl EntryReference {
         let has_prefix = path
             .components()
             .any(|it| matches!(&it, Component::Prefix(_)));
-        let p = path
-            .components()
-            .filter_map(|it| match it {
-                Component::Prefix(p) => Some(p.as_os_str().to_string_lossy()),
-                Component::RootDir => None,
-                Component::CurDir => Some(Cow::from(".")),
-                Component::ParentDir => Some(Cow::from("..")),
-                Component::Normal(n) => Some(n.to_string_lossy()),
-            })
-            .collect::<Vec<_>>();
-        let mut s = p.join("/");
+        let p = path.components().filter_map(|it| match it {
+            Component::Prefix(p) => Some(p.as_os_str().to_string_lossy()),
+            Component::RootDir => None,
+            Component::CurDir => Some(Cow::from(".")),
+            Component::ParentDir => Some(Cow::from("..")),
+            Component::Normal(n) => Some(n.to_string_lossy()),
+        });
+        let mut s = join_with_capacity(p, "/", path.as_os_str().len());
         if !has_prefix && has_root {
             s.insert(0, '/');
         };

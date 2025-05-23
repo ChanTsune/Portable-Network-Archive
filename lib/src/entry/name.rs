@@ -1,4 +1,4 @@
-use crate::util::{self, path::normalize_path, utf8path::normalize_utf8path};
+use crate::util::{path::normalize_path, str::join_with_capacity, utf8path::normalize_utf8path};
 use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
 use std::borrow::Cow;
 use std::error::Error;
@@ -42,11 +42,7 @@ impl EntryName {
             | Utf8Component::ParentDir => None,
             Utf8Component::Normal(p) => Some(p),
         });
-        Self(util::str::join_with_capacity(
-            iter,
-            "/",
-            path.as_str().len(),
-        ))
+        Self(join_with_capacity(iter, "/", path.as_str().len()))
     }
 
     #[inline]
@@ -69,11 +65,7 @@ impl EntryName {
             | Component::ParentDir => None,
             Component::Normal(p) => Some(p.to_string_lossy()),
         });
-        Self(util::str::join_with_capacity(
-            iter,
-            "/",
-            p.as_os_str().len(),
-        ))
+        Self(join_with_capacity(iter, "/", p.as_os_str().len()))
     }
 
     /// Create an [`EntryName`] from a struct impl <code>[Into]<[PathBuf]></code>.
