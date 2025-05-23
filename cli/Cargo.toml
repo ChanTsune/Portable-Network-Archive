@@ -34,6 +34,8 @@ tabled = { version = "0.17.0", default-features = false, features = ["std", "ans
 rand = "0.8.5"
 indexmap = "2.7.1"
 log = "0.4.25"
+field-offset = { version = "0.3.6", optional = true }
+home = "=0.5.9" # Strictly Pinned to an older version compatible with rustc 1.75.0
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.29.0", features = ["user"] }
@@ -53,6 +55,8 @@ windows = { version = "0.59.0", features = [
   "Win32_System_WindowsProgramming",
   "Win32_UI_Shell",
   "Win32_UI_Shell_PropertiesSystem",
+  "Win32_System_Ole", # For PropVariantToString etc.
+  "Win32_Foundation", # Explicitly add for HRESULT, etc.
 ] }
 [dependencies.windows-sys]
 version = "0.48" # Or a more recent compatible version
@@ -60,7 +64,6 @@ features = [
     "Win32_Storage_FileSystem",
     "Win32_Foundation", # For INVALID_FILE_ATTRIBUTES, FALSE, etc.
 ]
-field-offset = { version = "0.3.6", optional = true }
 libc = "0.2.169"
 
 [dev-dependencies]

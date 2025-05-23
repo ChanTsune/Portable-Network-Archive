@@ -191,6 +191,13 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
         keep_permission: args.keep_permission,
         keep_xattr: args.keep_xattr,
         keep_acl: args.keep_acl,
+        // Defaults for update command (features not directly exposed for update)
+        // Consider if update should have its own flags for these or inherit from archive.
+        // For now, setting to false as they are not explicitly part of `UpdateCommand` args.
+        restore_windows_attributes: false,
+        store_windows_attributes: false, 
+        store_windows_properties: false,
+        restore_windows_properties: false,
     };
     let owner_options = OwnerOptions::new(
         args.uname,

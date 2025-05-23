@@ -207,6 +207,11 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
         keep_permission: args.keep_permission,
         keep_xattr: args.keep_xattr,
         keep_acl: args.keep_acl,
+        // Stdio create does not currently expose flags for these Windows-specific features
+        restore_windows_attributes: false,
+        store_windows_attributes: false,
+        store_windows_properties: false,
+        restore_windows_properties: false,
     };
     let owner_options = OwnerOptions::new(
         args.uname,
@@ -264,6 +269,11 @@ fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
             keep_permission: args.keep_permission,
             keep_xattr: args.keep_xattr,
             keep_acl: args.keep_acl,
+            // Stdio extract does not currently expose flags for these Windows-specific features
+            restore_windows_attributes: false,
+            store_windows_attributes: false,
+            store_windows_properties: false,
+            restore_windows_properties: false,
         },
         owner_options: OwnerOptions::new(
             args.uname,

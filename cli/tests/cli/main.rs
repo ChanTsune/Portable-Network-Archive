@@ -28,3 +28,6 @@ mod xattr;
 
 #[cfg(windows)]
 mod windows_attributes;
+
+#[cfg(windows)]
+mod windows_properties;

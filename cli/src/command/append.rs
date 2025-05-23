@@ -192,6 +192,11 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
         keep_permission: args.keep_permission,
         keep_xattr: args.keep_xattr,
         keep_acl: args.keep_acl,
+        // Defaults for append command (features not directly exposed for append)
+        restore_windows_attributes: false,
+        store_windows_attributes: false, // Or consider if it should inherit from archive or have specific flags
+        store_windows_properties: false, // Or consider if it should inherit from archive or have specific flags
+        restore_windows_properties: false,
     };
     let owner_options = OwnerOptions::new(
         args.uname,

@@ -6,6 +6,8 @@ use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 use std::iter::once; // For null termination in wide strings
 
+pub mod properties; // Added module declaration
+
 use windows_sys::Win32::Storage::FileSystem::{
     GetFileAttributesW, SetFileAttributesW, FILE_ATTRIBUTE_NORMAL, FILE_ATTRIBUTE_READONLY,
     INVALID_FILE_ATTRIBUTES,

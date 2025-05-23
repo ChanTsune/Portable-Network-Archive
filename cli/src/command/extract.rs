@@ -120,6 +120,8 @@ pub(crate) struct ExtractCommand {
     pub(crate) file: FileArgs,
     #[arg(long, help = "Windows-only: Restore file attributes (ReadOnly, Hidden, etc.) from the 'windows.file_attributes' xattr, if present.")]
     pub(crate) restore_windows_attributes: bool,
+    #[arg(long, help = "Windows-only: Restore common file properties (Title, Subject, Author, Keywords, Comment) from xattrs, if present.")]
+    pub(crate) restore_windows_properties: bool,
 }
 
 impl Command for ExtractCommand {
@@ -151,6 +153,9 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
         keep_xattr: args.keep_xattr,
         keep_acl: args.keep_acl,
         restore_windows_attributes: args.restore_windows_attributes,
+        store_windows_attributes: false, // Not used in extract
+        store_windows_properties: false, // Not used in extract
+        restore_windows_properties: args.restore_windows_properties,
     };
     let owner_options = OwnerOptions::new(
         args.uname,
@@ -514,6 +519,52 @@ where
                         path.display(),
                         e
                     );
+                }
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    if keep_options.restore_windows_properties {
+        use crate::utils::os::windows::properties::{
+            ComInitializer, get_property_store, set_windows_file_property_string,
+        };
+        use windows::Win32::UI::Shell::PropertiesSystem::{
+            PKEY_Author, PKEY_Comment, PKEY_Keywords, PKEY_Subject, PKEY_Title, PROPERTYKEY, GPS_READWRITE,
+        };
+        // Check if file type can have these properties (e.g. not for directories)
+        if path.is_file() {
+            match ComInitializer::new() {
+                Ok(_com_guard) => {
+                    match crate::utils::os::windows::properties::get_property_store(&path, GPS_READWRITE) {
+                        Ok(store) => {
+                            let properties_to_set: &[(PROPERTYKEY, &str)] = &[
+                                (PKEY_Title, "pna.windows.property.System.Title"),
+                                (PKEY_Author, "pna.windows.property.System.Author"),
+                                (PKEY_Subject, "pna.windows.property.System.Subject"),
+                                (PKEY_Keywords, "pna.windows.property.System.Keywords"),
+                                (PKEY_Comment, "pna.windows.property.System.Comment"),
+                            ];
+
+                            for (pkey, xattr_name) in properties_to_set {
+                                if let Some(xa) = item.xattrs().iter().find(|attr| attr.name() == *xattr_name) {
+                                    let value_str = String::from_utf8_lossy(xa.value());
+                                    if !value_str.is_empty() {
+                                        match set_windows_file_property_string(&store, pkey, &value_str) {
+                                            Ok(_) => log::debug!("Restored property {} for {}", xattr_name, path.display()),
+                                            Err(e) => log::warn!("Failed to restore property {} for {}: {}", xattr_name, path.display(), e),
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::warn!("Could not get property store for extracted file {}: {}. Ensure it's obtained with write access (GPS_READWRITE).", path.display(), e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::warn!("COM initialization failed for {}: {}", path.display(), e);
                 }
             }
         }

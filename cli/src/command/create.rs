@@ -142,6 +142,8 @@ pub(crate) struct CreateCommand {
     pub(crate) exclude: Option<Vec<PathBuf>>,
     #[arg(long, help = "Windows-only: Store file attributes (ReadOnly, Hidden, System, etc.) as an xattr named 'windows.file_attributes'.")]
     pub(crate) store_windows_attributes: bool,
+    #[arg(long, help = "Windows-only: Store common file properties (Title, Subject, Author, Keywords, Comment) as xattrs.")]
+    pub(crate) store_windows_properties: bool,
 }
 
 impl Command for CreateCommand {
@@ -200,8 +202,10 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
         keep_permission: args.keep_permission,
         keep_xattr: args.keep_xattr,
         keep_acl: args.keep_acl,
-        restore_windows_attributes: false, // Not used in create, set to default
+        restore_windows_attributes: false, // Not used in create
         store_windows_attributes: args.store_windows_attributes,
+        store_windows_properties: args.store_windows_properties,
+        restore_windows_properties: false, // Not used in create
     };
     let owner_options = OwnerOptions::new(
         args.uname,

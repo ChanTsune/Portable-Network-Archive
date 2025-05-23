@@ -28,8 +28,10 @@ pub(crate) struct KeepOptions {
     pub(crate) keep_permission: bool,
     pub(crate) keep_xattr: bool,
     pub(crate) keep_acl: bool,
-    pub(crate) restore_windows_attributes: bool, // For extract command
-    pub(crate) store_windows_attributes: bool,   // For create command
+    pub(crate) restore_windows_attributes: bool, // For extract command (file attributes)
+    pub(crate) store_windows_attributes: bool,   // For create command (file attributes)
+    pub(crate) store_windows_properties: bool,   // For create command (file properties)
+    pub(crate) restore_windows_properties: bool, // For extract command (file properties)
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -345,6 +347,67 @@ pub(crate) fn apply_metadata(
             Err(e) => {
                 log::warn!(
                     "Failed to get Windows file attributes for {}: {}",
+                    path.display(),
+                    e
+                );
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    if keep_options.store_windows_properties {
+        use crate::utils::os::windows::properties::{
+            get_property_store, get_windows_file_property_string, ComInitializer,
+        };
+        use windows::Win32::UI::Shell::PropertiesSystem::{
+            PKEY_Author, PKEY_Comment, PKEY_Keywords, PKEY_Subject, PKEY_Title, PROPERTYKEY, GPS_DEFAULT,
+        };
+
+        match ComInitializer::new() {
+            Ok(_com_guard) => {
+                match get_property_store(path, GPS_DEFAULT) { // Reading properties, so use GPS_DEFAULT
+                    Ok(store) => {
+                        let properties_to_get: &[(PROPERTYKEY, &str)] = &[
+                            (PKEY_Title, "pna.windows.property.System.Title"),
+                            (PKEY_Author, "pna.windows.property.System.Author"),
+                            (PKEY_Subject, "pna.windows.property.System.Subject"),
+                            (PKEY_Keywords, "pna.windows.property.System.Keywords"),
+                            (PKEY_Comment, "pna.windows.property.System.Comment"),
+                        ];
+
+                        for (pkey, xattr_name) in properties_to_get {
+                            match get_windows_file_property_string(&store, pkey) {
+                                Ok(Some(value)) if !value.is_empty() => {
+                                    entry.add_xattr(pna::ExtendedAttribute::new(
+                                        (*xattr_name).to_string(),
+                                        value.into_bytes(),
+                                    ));
+                                }
+                                Ok(Some(_)) => { /* Empty string, do nothing */ }
+                                Ok(None) => { /* Property not found or not string, do nothing */ }
+                                Err(e) => {
+                                    log::warn!(
+                                        "Error reading property {} for {}: {}",
+                                        xattr_name,
+                                        path.display(),
+                                        e
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        log::warn!(
+                            "Could not get property store for {}: {}",
+                            path.display(),
+                            e
+                        );
+                    }
+                }
+            }
+            Err(e) => {
+                log::warn!(
+                    "COM initialization failed for {}, cannot retrieve properties: {}",
                     path.display(),
                     e
                 );
