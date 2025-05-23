@@ -12,26 +12,6 @@ use std::str::Utf8Error;
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct EntryName(String);
 
-/// Error of invalid [EntryName].
-#[derive(Clone, Eq, PartialEq, Debug)]
-pub struct EntryNameError(Utf8Error);
-
-impl Error for EntryNameError {}
-
-impl Display for EntryNameError {
-    #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        Display::fmt(&self.0, f)
-    }
-}
-
-impl From<Utf8Error> for EntryNameError {
-    #[inline]
-    fn from(value: Utf8Error) -> Self {
-        Self(value)
-    }
-}
-
 impl EntryName {
     fn new_from_utf8path(path: &Utf8Path) -> Self {
         let path = normalize_utf8path(path);
@@ -352,6 +332,26 @@ impl PartialEq<EntryName> for &str {
     #[inline]
     fn eq(&self, other: &EntryName) -> bool {
         PartialEq::eq(self, &other.as_str())
+    }
+}
+
+/// Error of invalid [EntryName].
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct EntryNameError(Utf8Error);
+
+impl Error for EntryNameError {}
+
+impl Display for EntryNameError {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        Display::fmt(&self.0, f)
+    }
+}
+
+impl From<Utf8Error> for EntryNameError {
+    #[inline]
+    fn from(value: Utf8Error) -> Self {
+        Self(value)
     }
 }
 
