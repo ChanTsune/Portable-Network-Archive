@@ -5,10 +5,20 @@ use std::error::Error;
 use std::ffi::{OsStr, OsString};
 use std::fmt::{self, Display, Formatter};
 use std::path::{Component, Path, PathBuf};
-use std::str;
-use std::str::Utf8Error;
+use std::str::{self, Utf8Error};
 
 /// A UTF-8 encoded entry name.
+///
+/// ## Examples
+/// ```
+/// use libpna::EntryName;
+///
+/// assert_eq!("uer/bin", EntryName::from("uer/bin"));
+/// assert_eq!("user/bin", EntryName::from("/user/bin"));
+/// assert_eq!("user/bin", EntryName::from("/user/bin/"));
+/// assert_eq!("user/bin", EntryName::from("../user/bin/"));
+/// assert_eq!("", EntryName::from("/"));
+/// ```
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct EntryName(String);
 
