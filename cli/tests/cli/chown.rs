@@ -5,14 +5,14 @@ use portable_network_archive::{cli, command};
 #[test]
 fn archive_chown() {
     setup();
-    TestResources::extract_in("raw/", concat!(env!("CARGO_TARGET_TMPDIR"), "/chown/in/")).unwrap();
+    TestResources::extract_in("raw/", "chown/in/").unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/chown/chown.pna"),
+        "chown/chown.pna",
         "--overwrite",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/chown/in/"),
+        "chown/in/",
         "--keep-permission",
         #[cfg(windows)]
         "--unstable",
@@ -23,9 +23,9 @@ fn archive_chown() {
         "--quiet",
         "experimental",
         "chown",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/chown/chown.pna"),
+        "chown/chown.pna",
         "user:group",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/chown/in/raw/text.txt"),
+        "chown/in/raw/text.txt",
     ]))
     .unwrap();
 }

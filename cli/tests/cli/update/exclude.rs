@@ -7,27 +7,14 @@ use std::{fs, io::prelude::*, time};
 #[test]
 fn archive_update_newer_mtime_with_exclude() {
     setup();
-    TestResources::extract_in(
-        "raw/",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime_with_exclude/in/"
-        ),
-    )
-    .unwrap();
+    TestResources::extract_in("raw/", "archive_update_newer_mtime_with_exclude/in/").unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime_with_exclude/update_newer_mtime.pna"
-        ),
+        "archive_update_newer_mtime_with_exclude/update_newer_mtime.pna",
         "--overwrite",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime_with_exclude/in/"
-        ),
+        "archive_update_newer_mtime_with_exclude/in/",
         "--keep-timestamp",
     ]))
     .unwrap();
@@ -35,10 +22,7 @@ fn archive_update_newer_mtime_with_exclude() {
     let mut file = fs::File::options()
         .write(true)
         .truncate(true)
-        .open(concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime_with_exclude/in/raw/empty.txt"
-        ))
+        .open("archive_update_newer_mtime_with_exclude/in/raw/empty.txt")
         .unwrap();
     file.write_all(b"this is updated, but this is excluded, so this should empty")
         .unwrap();
@@ -48,10 +32,7 @@ fn archive_update_newer_mtime_with_exclude() {
     let mut file = fs::File::options()
         .write(true)
         .truncate(true)
-        .open(concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime_with_exclude/in/raw/text.txt"
-        ))
+        .open("archive_update_newer_mtime_with_exclude/in/raw/text.txt")
         .unwrap();
     file.write_all(b"updated!").unwrap();
     file.set_modified(time::SystemTime::now() + DURATION_24_HOURS)
@@ -63,20 +44,11 @@ fn archive_update_newer_mtime_with_exclude() {
         "experimental",
         "update",
         "--newer-mtime",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime_with_exclude/update_newer_mtime.pna"
-        ),
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime_with_exclude/in/"
-        ),
+        "archive_update_newer_mtime_with_exclude/update_newer_mtime.pna",
+        "archive_update_newer_mtime_with_exclude/in/",
         "--keep-timestamp",
         "--exclude",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime_with_exclude/in/raw/empty.txt"
-        ),
+        "archive_update_newer_mtime_with_exclude/in/raw/empty.txt",
         "--unstable",
     ]))
     .unwrap();
@@ -84,10 +56,7 @@ fn archive_update_newer_mtime_with_exclude() {
     // restore original empty.txt
     TestResources::extract_in(
         "raw/empty.txt",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime_with_exclude/in/"
-        ),
+        "archive_update_newer_mtime_with_exclude/in/",
     )
     .unwrap();
 
@@ -95,35 +64,19 @@ fn archive_update_newer_mtime_with_exclude() {
         "pna",
         "--quiet",
         "x",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime_with_exclude/update_newer_mtime.pna"
-        ),
+        "archive_update_newer_mtime_with_exclude/update_newer_mtime.pna",
         "--overwrite",
         "--out-dir",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime_with_exclude/out/"
-        ),
+        "archive_update_newer_mtime_with_exclude/out/",
         "--keep-timestamp",
         "--strip-components",
-        &components_count(concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime_with_exclude/in/"
-        ))
-        .to_string(),
+        &components_count("archive_update_newer_mtime_with_exclude/in/").to_string(),
     ]))
     .unwrap();
 
     diff(
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime_with_exclude/in/"
-        ),
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/archive_update_newer_mtime_with_exclude/out/"
-        ),
+        "archive_update_newer_mtime_with_exclude/in/",
+        "archive_update_newer_mtime_with_exclude/out/",
     )
     .unwrap();
 }

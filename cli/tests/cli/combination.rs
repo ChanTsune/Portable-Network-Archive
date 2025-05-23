@@ -33,8 +33,7 @@ const SOLID_OPTIONS: &[Option<&str>] = &[None, Some("--solid")];
 #[test]
 fn combination_fs() {
     setup();
-    LibSourceCode::extract_all(concat!(env!("CARGO_TARGET_TMPDIR"), "/combination_fs/in/"))
-        .unwrap();
+    LibSourceCode::extract_all("combination_fs/in/").unwrap();
     fn inner(options: Vec<&str>) {
         let joined_options = options.iter().join("");
 
@@ -43,13 +42,9 @@ fn combination_fs() {
             [
                 "--quiet",
                 "c",
-                &format!(
-                    "{}/combination_fs/{}.pna",
-                    env!("CARGO_TARGET_TMPDIR"),
-                    joined_options
-                ),
+                &format!("combination_fs/{}.pna", joined_options),
                 "--overwrite",
-                concat!(env!("CARGO_TARGET_TMPDIR"), "/combination_fs/in/"),
+                "combination_fs/in/",
                 #[cfg(windows)]
                 "--unstable",
             ]
@@ -61,21 +56,12 @@ fn combination_fs() {
         cmd.args([
             "--quiet",
             "x",
-            &format!(
-                "{}/combination_fs/{}.pna",
-                env!("CARGO_TARGET_TMPDIR"),
-                joined_options
-            ),
+            &format!("combination_fs/{}.pna", joined_options),
             "--overwrite",
             "--out-dir",
-            &format!(
-                "{}/combination_fs/out/{}/",
-                env!("CARGO_TARGET_TMPDIR"),
-                joined_options
-            ),
+            &format!("combination_fs/out/{}/", joined_options),
             "--strip-components",
-            &components_count(concat!(env!("CARGO_TARGET_TMPDIR"), "/combination_fs/in/"))
-                .to_string(),
+            &components_count("combination_fs/in/").to_string(),
             "--password",
             "password",
             #[cfg(windows)]
@@ -83,12 +69,8 @@ fn combination_fs() {
         ]);
         cmd.assert().success();
         diff(
-            concat!(env!("CARGO_TARGET_TMPDIR"), "/combination_fs/in/"),
-            format!(
-                "{}/combination_fs/out/{}",
-                env!("CARGO_TARGET_TMPDIR"),
-                joined_options,
-            ),
+            "combination_fs/in/",
+            format!("combination_fs/out/{}", joined_options),
         )
         .unwrap();
     }
@@ -121,11 +103,7 @@ fn combination_fs() {
 #[test]
 fn combination_stdio() {
     setup();
-    LibSourceCode::extract_all(concat!(
-        env!("CARGO_TARGET_TMPDIR"),
-        "/combination_stdio/in/"
-    ))
-    .unwrap();
+    LibSourceCode::extract_all("combination_stdio/in/").unwrap();
     fn inner(options: Vec<&str>) {
         let joined_options = options.iter().join("");
 
@@ -136,7 +114,7 @@ fn combination_stdio() {
                 "experimental",
                 "stdio",
                 "-c",
-                concat!(env!("CARGO_TARGET_TMPDIR"), "/combination_stdio/in/"),
+                "combination_stdio/in/",
                 #[cfg(windows)]
                 "--unstable",
             ]
@@ -154,17 +132,9 @@ fn combination_stdio() {
             "-x",
             "--overwrite",
             "--out-dir",
-            &format!(
-                "{}/combination_stdio/out/{}/",
-                env!("CARGO_TARGET_TMPDIR"),
-                joined_options
-            ),
+            &format!("combination_stdio/out/{}/", joined_options),
             "--strip-components",
-            &components_count(concat!(
-                env!("CARGO_TARGET_TMPDIR"),
-                "/combination_stdio/in/"
-            ))
-            .to_string(),
+            &components_count("combination_stdio/in/").to_string(),
             "--password",
             "password",
             #[cfg(windows)]
@@ -172,12 +142,8 @@ fn combination_stdio() {
         ]);
         cmd.assert().success();
         diff(
-            concat!(env!("CARGO_TARGET_TMPDIR"), "/combination_stdio/in/"),
-            format!(
-                "{}/combination_stdio/out/{}",
-                env!("CARGO_TARGET_TMPDIR"),
-                joined_options,
-            ),
+            "combination_stdio/in/",
+            format!("combination_stdio/out/{}", joined_options),
         )
         .unwrap();
     }

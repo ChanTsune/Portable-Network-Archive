@@ -5,21 +5,14 @@ use portable_network_archive::{cli, command};
 #[test]
 fn aes_ctr_argon2_archive() {
     setup();
-    TestResources::extract_in(
-        "raw/",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/aes_argon2_ctr/in/"),
-    )
-    .unwrap();
+    TestResources::extract_in("raw/", "aes_argon2_ctr/in/").unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/aes_argon2_ctr/zstd_aes_argon2_ctr.pna"
-        ),
+        "aes_argon2_ctr/zstd_aes_argon2_ctr.pna",
         "--overwrite",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/aes_argon2_ctr/in/"),
+        "aes_argon2_ctr/in/",
         "--password",
         "password",
         "--aes",
@@ -31,53 +24,33 @@ fn aes_ctr_argon2_archive() {
         "pna",
         "--quiet",
         "x",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/aes_argon2_ctr/zstd_aes_argon2_ctr.pna"
-        ),
+        "aes_argon2_ctr/zstd_aes_argon2_ctr.pna",
         "--overwrite",
         "--out-dir",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/aes_argon2_ctr/out/"),
+        "aes_argon2_ctr/out/",
         "--password",
         "password",
         "--strip-components",
-        &components_count(concat!(env!("CARGO_TARGET_TMPDIR"), "/aes_argon2_ctr/in/")).to_string(),
+        &components_count("aes_argon2_ctr/in/").to_string(),
     ]))
     .unwrap();
 
-    diff(
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/aes_argon2_ctr/in/"),
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/aes_argon2_ctr/out/"),
-    )
-    .unwrap();
+    diff("aes_argon2_ctr/in/", "aes_argon2_ctr/out/").unwrap();
 }
 
 #[test]
 fn aes_ctr_argon2_with_params_archive() {
     setup();
 
-    TestResources::extract_in(
-        "raw/",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/aes_argon2_with_params_ctr/in/"
-        ),
-    )
-    .unwrap();
+    TestResources::extract_in("raw/", "aes_argon2_with_params_ctr/in/").unwrap();
 
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/aes_argon2_with_params_ctr/zstd_aes_argon2_with_params_ctr.pna"
-        ),
+        "aes_argon2_with_params_ctr/zstd_aes_argon2_with_params_ctr.pna",
         "--overwrite",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/aes_argon2_with_params_ctr/in/"
-        ),
+        "aes_argon2_with_params_ctr/in/",
         "--password",
         "password",
         "--aes",
@@ -90,36 +63,20 @@ fn aes_ctr_argon2_with_params_archive() {
         "pna",
         "--quiet",
         "x",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/aes_argon2_with_params_ctr/zstd_aes_argon2_with_params_ctr.pna"
-        ),
+        "aes_argon2_with_params_ctr/zstd_aes_argon2_with_params_ctr.pna",
         "--overwrite",
         "--out-dir",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/aes_argon2_with_params_ctr/out/"
-        ),
+        "aes_argon2_with_params_ctr/out/",
         "--password",
         "password",
         "--strip-components",
-        &components_count(concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/aes_argon2_with_params_ctr/in/"
-        ))
-        .to_string(),
+        &components_count("aes_argon2_with_params_ctr/in/").to_string(),
     ]))
     .unwrap();
 
     diff(
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/aes_argon2_with_params_ctr/in/"
-        ),
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/aes_argon2_with_params_ctr/out/"
-        ),
+        "aes_argon2_with_params_ctr/in/",
+        "aes_argon2_with_params_ctr/out/",
     )
     .unwrap();
 }
@@ -127,21 +84,14 @@ fn aes_ctr_argon2_with_params_archive() {
 #[test]
 fn aes_ctr_pbkdf2_archive() {
     setup();
-    TestResources::extract_in(
-        "raw/",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/aes_pbkdf2_ctr/in/"),
-    )
-    .unwrap();
+    TestResources::extract_in("raw/", "aes_pbkdf2_ctr/in/").unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/aes_pbkdf2_ctr/zstd_aes_pbkdf2_ctr.pna"
-        ),
+        "aes_pbkdf2_ctr/zstd_aes_pbkdf2_ctr.pna",
         "--overwrite",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/aes_pbkdf2_ctr/in/"),
+        "aes_pbkdf2_ctr/in/",
         "--password",
         "password",
         "--aes",
@@ -153,51 +103,31 @@ fn aes_ctr_pbkdf2_archive() {
         "pna",
         "--quiet",
         "x",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/aes_pbkdf2_ctr/zstd_aes_pbkdf2_ctr.pna"
-        ),
+        "aes_pbkdf2_ctr/zstd_aes_pbkdf2_ctr.pna",
         "--overwrite",
         "--out-dir",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/aes_pbkdf2_ctr/out/"),
+        "aes_pbkdf2_ctr/out/",
         "--password",
         "password",
         "--strip-components",
-        &components_count(concat!(env!("CARGO_TARGET_TMPDIR"), "/aes_pbkdf2_ctr/in/")).to_string(),
+        &components_count("aes_pbkdf2_ctr/in/").to_string(),
     ]))
     .unwrap();
 
-    diff(
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/aes_pbkdf2_ctr/in/"),
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/aes_pbkdf2_ctr/out/"),
-    )
-    .unwrap();
+    diff("aes_pbkdf2_ctr/in/", "aes_pbkdf2_ctr/out/").unwrap();
 }
 
 #[test]
 fn aes_ctr_pbkdf2_with_params_archive() {
     setup();
-    TestResources::extract_in(
-        "raw/",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/aes_pbkdf2_with_params_ctr/in/"
-        ),
-    )
-    .unwrap();
+    TestResources::extract_in("raw/", "aes_pbkdf2_with_params_ctr/in/").unwrap();
     command::entry(cli::Cli::parse_from([
         "pna",
         "--quiet",
         "c",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/aes_pbkdf2_with_params_ctr/zstd_aes_pbkdf2_with_params_ctr.pna"
-        ),
+        "aes_pbkdf2_with_params_ctr/zstd_aes_pbkdf2_with_params_ctr.pna",
         "--overwrite",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/aes_pbkdf2_with_params_ctr/in/"
-        ),
+        "aes_pbkdf2_with_params_ctr/in/",
         "--password",
         "password",
         "--aes",
@@ -210,36 +140,20 @@ fn aes_ctr_pbkdf2_with_params_archive() {
         "pna",
         "--quiet",
         "x",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/aes_pbkdf2_with_params_ctr/zstd_aes_pbkdf2_with_params_ctr.pna"
-        ),
+        "aes_pbkdf2_with_params_ctr/zstd_aes_pbkdf2_with_params_ctr.pna",
         "--overwrite",
         "--out-dir",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/aes_pbkdf2_with_params_ctr/out/"
-        ),
+        "aes_pbkdf2_with_params_ctr/out/",
         "--password",
         "password",
         "--strip-components",
-        &components_count(concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/aes_pbkdf2_with_params_ctr/in/"
-        ))
-        .to_string(),
+        &components_count("aes_pbkdf2_with_params_ctr/in/").to_string(),
     ]))
     .unwrap();
 
     diff(
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/aes_pbkdf2_with_params_ctr/in/"
-        ),
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/aes_pbkdf2_with_params_ctr/out/"
-        ),
+        "aes_pbkdf2_with_params_ctr/in/",
+        "aes_pbkdf2_with_params_ctr/out/",
     )
     .unwrap();
 }
