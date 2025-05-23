@@ -57,8 +57,45 @@ impl EntryName {
     #[inline]
     fn new_from_path(name: &Path) -> Result<Self, EntryNameError> {
         let name = str::from_utf8(name.as_os_str().as_encoded_bytes())?;
-        let path = Utf8Path::new(name);
-        Ok(Self::new_from_utf8path(path))
+        Ok(Self::new_from_utf8path(Utf8Path::new(name)))
+    }
+
+    fn from_path_lossy(p: &Path) -> Self {
+        let p = normalize_path(p);
+        let iter = p.components().filter_map(|c| match c {
+            Component::Prefix(_)
+            | Component::RootDir
+            | Component::CurDir
+            | Component::ParentDir => None,
+            Component::Normal(p) => Some(p.to_string_lossy()),
+        });
+        Self(util::str::join_with_capacity(
+            iter,
+            "/",
+            p.as_os_str().len(),
+        ))
+    }
+
+    /// Create an [`EntryName`] from a struct impl <code>[Into]<[PathBuf]></code>.
+    ///
+    /// Any non-Unicode sequences are replaced with
+    /// [`U+FFFD REPLACEMENT CHARACTER`][U+FFFD] and
+    /// any path components not match with [Component::Normal] are removed.
+    ///
+    /// [U+FFFD]: core::char::REPLACEMENT_CHARACTER
+    ///
+    /// # Examples
+    /// ```
+    /// use libpna::EntryName;
+    ///
+    /// assert_eq!("foo.txt", EntryName::from_lossy("foo.txt"));
+    /// assert_eq!("foo.txt", EntryName::from_lossy("/foo.txt"));
+    /// assert_eq!("foo.txt", EntryName::from_lossy("./foo.txt"));
+    /// assert_eq!("foo.txt", EntryName::from_lossy("../foo.txt"));
+    /// ```
+    #[inline]
+    pub fn from_lossy<T: Into<PathBuf>>(p: T) -> Self {
+        Self::from_path_lossy(&p.into())
     }
 
     #[inline]
@@ -66,7 +103,7 @@ impl EntryName {
         self.0.as_bytes()
     }
 
-    /// Extracts a string slice containing the entire `EntryName`.
+    /// Extracts a string slice containing the entire [EntryName].
     ///
     /// # Examples
     ///
@@ -112,44 +149,6 @@ impl EntryName {
     #[inline]
     pub fn as_path(&self) -> &Path {
         self.0.as_ref()
-    }
-
-    fn from_path_lossy(p: &Path) -> Self {
-        let p = normalize_path(p);
-        let iter = p.components().filter_map(|c| match c {
-            Component::Prefix(_)
-            | Component::RootDir
-            | Component::CurDir
-            | Component::ParentDir => None,
-            Component::Normal(p) => Some(p.to_string_lossy()),
-        });
-        Self(util::str::join_with_capacity(
-            iter,
-            "/",
-            p.as_os_str().len(),
-        ))
-    }
-
-    /// Create an [`EntryName`] from a struct impl <code>[Into]<[PathBuf]></code>.
-    ///
-    /// Any non-Unicode sequences are replaced with
-    /// [`U+FFFD REPLACEMENT CHARACTER`][U+FFFD] and
-    /// any path components not match with [Component::Normal] are removed.
-    ///
-    /// [U+FFFD]: core::char::REPLACEMENT_CHARACTER
-    ///
-    /// # Examples
-    /// ```
-    /// use libpna::EntryName;
-    ///
-    /// assert_eq!("foo.txt", EntryName::from_lossy("foo.txt"));
-    /// assert_eq!("foo.txt", EntryName::from_lossy("/foo.txt"));
-    /// assert_eq!("foo.txt", EntryName::from_lossy("./foo.txt"));
-    /// assert_eq!("foo.txt", EntryName::from_lossy("../foo.txt"));
-    /// ```
-    #[inline]
-    pub fn from_lossy<T: Into<PathBuf>>(p: T) -> Self {
-        Self::from_path_lossy(&p.into())
     }
 }
 

@@ -55,58 +55,6 @@ impl EntryReference {
         Ok(Self::new_from_utf8path(Utf8Path::new(path)))
     }
 
-    /// Extracts a string slice containing the entire [EntryReference].
-    /// ## Examples
-    /// Basic usage:
-    /// ```
-    /// use libpna::EntryReference;
-    ///
-    /// let r = EntryReference::from("foo");
-    /// assert_eq!("foo", r.as_str());
-    /// ```
-    #[inline]
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-
-    /// Converts to an [`OsStr`] slice.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use libpna::EntryReference;
-    /// use std::ffi::OsStr;
-    ///
-    /// let entry_name = EntryReference::from("foo.txt");
-    /// let os_str = OsStr::new("foo.txt");
-    /// assert_eq!(entry_name.as_os_str(), os_str);
-    /// ```
-    #[inline]
-    pub fn as_os_str(&self) -> &OsStr {
-        self.0.as_ref()
-    }
-
-    /// Coerces to a [`Path`] slice.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use libpna::EntryReference;
-    /// use std::path::Path;
-    ///
-    /// let entry_name = EntryReference::from("test/foo.txt");
-    /// assert_eq!(Path::new("test/foo.txt"), entry_name.as_path());
-    /// ```
-    #[inline]
-    pub fn as_path(&self) -> &Path {
-        self.0.as_ref()
-    }
-
-    #[inline]
-    pub(crate) fn as_bytes(&self) -> &[u8] {
-        self.0.as_bytes()
-    }
-
     /// Create an [`EntryReference`] from a struct impl <code>[Into]<[PathBuf]></code>.
     ///
     /// Any non-Unicode sequences are replaced with
@@ -149,6 +97,59 @@ impl EntryReference {
             s.insert(0, '/');
         };
         Self(s)
+    }
+
+    #[inline]
+    pub(crate) fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+
+    /// Extracts a string slice containing the entire [EntryReference].
+    ///
+    /// ## Examples
+    ///
+    /// ```
+    /// use libpna::EntryReference;
+    ///
+    /// let r = EntryReference::from("foo");
+    /// assert_eq!("foo", r.as_str());
+    /// ```
+    #[inline]
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+
+    /// Converts to an [`OsStr`] slice.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use libpna::EntryReference;
+    /// use std::ffi::OsStr;
+    ///
+    /// let entry_name = EntryReference::from("foo.txt");
+    /// let os_str = OsStr::new("foo.txt");
+    /// assert_eq!(entry_name.as_os_str(), os_str);
+    /// ```
+    #[inline]
+    pub fn as_os_str(&self) -> &OsStr {
+        self.0.as_ref()
+    }
+
+    /// Coerces to a [`Path`] slice.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use libpna::EntryReference;
+    /// use std::path::Path;
+    ///
+    /// let entry_name = EntryReference::from("test/foo.txt");
+    /// assert_eq!(Path::new("test/foo.txt"), entry_name.as_path());
+    /// ```
+    #[inline]
+    pub fn as_path(&self) -> &Path {
+        self.0.as_ref()
     }
 }
 
