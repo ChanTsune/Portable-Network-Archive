@@ -68,7 +68,7 @@ impl<T> ChunkExt for T where T: Chunk {}
 /// - `length`: The length of the chunk data in bytes
 /// - `ty`: The type of the chunk (e.g., FDAT, SDAT, etc.)
 /// - `data`: The actual chunk data
-/// - `crc`: A CRC32 checksum of the chunk data
+/// - `crc`: A CRC32 checksum of the chunk type and data
 ///
 /// # Examples
 /// ```
@@ -92,7 +92,7 @@ pub struct RawChunk<D = Vec<u8>> {
     pub(crate) ty: ChunkType,
     /// The actual chunk data
     pub(crate) data: D,
-    /// The CRC32 checksum of the chunk data
+    /// The CRC32 checksum of the chunk type and data
     pub(crate) crc: u32,
 }
 
