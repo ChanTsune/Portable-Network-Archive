@@ -244,50 +244,6 @@ impl HashAlgorithmArgs {
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct Argon2idParams {
-    time: Option<u32>,
-    memory: Option<u32>,
-    parallelism: Option<u32>,
-}
-
-impl FromStr for Argon2idParams {
-    type Err = String;
-
-    #[inline]
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut time = None;
-        let mut memory = None;
-        let mut parallelism = None;
-        for param in s.split(',') {
-            let kv = param.split_once('=');
-            if let Some(("t", n)) = kv {
-                time = Some(
-                    n.parse()
-                        .map_err(|it: std::num::ParseIntError| it.to_string())?,
-                )
-            } else if let Some(("m", n)) = kv {
-                memory = Some(
-                    n.parse()
-                        .map_err(|it: std::num::ParseIntError| it.to_string())?,
-                )
-            } else if let Some(("p", n)) = kv {
-                parallelism = Some(
-                    n.parse()
-                        .map_err(|it: std::num::ParseIntError| it.to_string())?,
-                )
-            } else {
-                return Err(format!("Unknown parameter `{param}`"));
-            }
-        }
-        Ok(Self {
-            time,
-            memory,
-            parallelism,
-        })
-    }
-}
-
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct Pbkdf2Sha256Params {
     rounds: Option<u32>,
 }
@@ -316,18 +272,6 @@ impl FromStr for Pbkdf2Sha256Params {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn parse_argon2id_params() {
-        assert_eq!(
-            Argon2idParams::from_str("t=1,m=2,p=3"),
-            Ok(Argon2idParams {
-                time: Some(1),
-                memory: Some(2),
-                parallelism: Some(3),
-            })
-        );
-    }
 
     #[test]
     fn parse_pbkdf2_sha256_params() {
