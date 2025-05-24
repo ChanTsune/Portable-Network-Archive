@@ -62,12 +62,37 @@ pub(crate) trait ChunkExt: Chunk {
 
 impl<T> ChunkExt for T where T: Chunk {}
 
-/// Represents a raw chunk
+/// A raw chunk in a PNA archive.
+///
+/// This structure represents a chunk in its most basic form, containing:
+/// - `length`: The length of the chunk data in bytes
+/// - `ty`: The type of the chunk (e.g., FDAT, SDAT, etc.)
+/// - `data`: The actual chunk data
+/// - `crc`: A CRC32 checksum of the chunk data
+///
+/// # Examples
+/// ```
+/// use libpna::{prelude::*, ChunkType, RawChunk};
+///
+/// // Create a new chunk with some data
+/// let data = [0xAA, 0xBB, 0xCC, 0xDD];
+/// let chunk = RawChunk::from_data(ChunkType::FDAT, data);
+///
+/// // Access chunk properties
+/// assert_eq!(chunk.length(), 4);
+/// assert_eq!(chunk.ty(), ChunkType::FDAT);
+/// assert_eq!(chunk.data(), &[0xAA, 0xBB, 0xCC, 0xDD]);
+/// assert_eq!(chunk.crc(), 1207118608);
+/// ```
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct RawChunk<D = Vec<u8>> {
+    /// The length of the chunk data in bytes
     pub(crate) length: u32,
+    /// The type of the chunk
     pub(crate) ty: ChunkType,
+    /// The actual chunk data
     pub(crate) data: D,
+    /// The CRC32 checksum of the chunk data
     pub(crate) crc: u32,
 }
 
