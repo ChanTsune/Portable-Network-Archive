@@ -1,3 +1,5 @@
+pub(crate) mod value;
+
 use crate::command::{
     append::AppendCommand, bugreport::BugReportCommand, complete::CompleteCommand,
     concat::ConcatCommand, create::CreateCommand, experimental::ExperimentalCommand,
@@ -6,8 +8,9 @@ use crate::command::{
 };
 use clap::{value_parser, ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
 use log::{Level, LevelFilter};
-use pna::{ChunkType, ChunkTypeError, HashAlgorithm};
-use std::{io, path::PathBuf, str::FromStr};
+use pna::HashAlgorithm;
+use std::{io, path::PathBuf};
+pub(crate) use value::*;
 
 #[derive(Parser, Clone, Debug)]
 #[command(
@@ -237,116 +240,5 @@ impl HashAlgorithmArgs {
         } else {
             HashAlgorithm::argon2id()
         }
-    }
-}
-
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct Argon2idParams {
-    time: Option<u32>,
-    memory: Option<u32>,
-    parallelism: Option<u32>,
-}
-
-impl FromStr for Argon2idParams {
-    type Err = String;
-
-    #[inline]
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut time = None;
-        let mut memory = None;
-        let mut parallelism = None;
-        for param in s.split(',') {
-            let kv = param.split_once('=');
-            if let Some(("t", n)) = kv {
-                time = Some(
-                    n.parse()
-                        .map_err(|it: std::num::ParseIntError| it.to_string())?,
-                )
-            } else if let Some(("m", n)) = kv {
-                memory = Some(
-                    n.parse()
-                        .map_err(|it: std::num::ParseIntError| it.to_string())?,
-                )
-            } else if let Some(("p", n)) = kv {
-                parallelism = Some(
-                    n.parse()
-                        .map_err(|it: std::num::ParseIntError| it.to_string())?,
-                )
-            } else {
-                return Err(format!("Unknown parameter `{param}`"));
-            }
-        }
-        Ok(Self {
-            time,
-            memory,
-            parallelism,
-        })
-    }
-}
-
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct Pbkdf2Sha256Params {
-    rounds: Option<u32>,
-}
-
-impl FromStr for Pbkdf2Sha256Params {
-    type Err = String;
-
-    #[inline]
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut rounds = None;
-        for param in s.split(',') {
-            let kv = param.split_once('=');
-            if let Some(("r", n)) = kv {
-                rounds = Some(
-                    n.parse()
-                        .map_err(|it: std::num::ParseIntError| it.to_string())?,
-                )
-            } else {
-                return Err(format!("Unknown parameter `{param}`"));
-            }
-        }
-        Ok(Self { rounds })
-    }
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub(crate) struct PrivateChunkType(pub(crate) ChunkType);
-
-impl FromStr for PrivateChunkType {
-    type Err = ChunkTypeError;
-
-    #[inline]
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(ChunkType::private(
-            s.as_bytes()
-                .try_into()
-                .map_err(|_| ChunkTypeError::NonPrivateChunkType)?,
-        )?))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parse_argon2id_params() {
-        assert_eq!(
-            Argon2idParams::from_str("t=1,m=2,p=3"),
-            Ok(Argon2idParams {
-                time: Some(1),
-                memory: Some(2),
-                parallelism: Some(3),
-            })
-        );
-    }
-
-    #[test]
-    fn parse_pbkdf2_sha256_params() {
-        assert_eq!(
-            Pbkdf2Sha256Params::from_str("r=1"),
-            Ok(Pbkdf2Sha256Params { rounds: Some(1) })
-        );
     }
 }
