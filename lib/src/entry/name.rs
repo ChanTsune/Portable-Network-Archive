@@ -9,7 +9,8 @@ use std::str::{self, Utf8Error};
 
 /// A UTF-8 encoded entry name.
 ///
-/// ## Examples
+/// # Examples
+///
 /// ```
 /// use libpna::EntryName;
 ///
@@ -166,7 +167,8 @@ impl From<&str> for EntryName {
 }
 
 impl From<Cow<'_, str>> for EntryName {
-    /// ## Examples
+    /// # Examples
+    ///
     /// ```
     /// use libpna::EntryName;
     /// use std::borrow::Cow;
@@ -225,7 +227,7 @@ impl TryFrom<Cow<'_, OsStr>> for EntryName {
 impl TryFrom<&Path> for EntryName {
     type Error = EntryNameError;
 
-    /// ## Examples
+    /// # Examples
     ///
     /// ```
     /// use libpna::EntryName;
@@ -243,7 +245,7 @@ impl TryFrom<&Path> for EntryName {
 impl TryFrom<PathBuf> for EntryName {
     type Error = EntryNameError;
 
-    /// ## Examples
+    /// # Examples
     ///
     /// ```
     /// use libpna::EntryName;
@@ -261,7 +263,7 @@ impl TryFrom<PathBuf> for EntryName {
 impl TryFrom<&PathBuf> for EntryName {
     type Error = EntryNameError;
 
-    /// ## Examples
+    /// # Examples
     ///
     /// ```
     /// use libpna::EntryName;
@@ -279,7 +281,7 @@ impl TryFrom<&PathBuf> for EntryName {
 impl TryFrom<Cow<'_, Path>> for EntryName {
     type Error = EntryNameError;
 
-    /// ## Examples
+    /// # Examples
     ///
     /// ```
     /// use libpna::EntryName;

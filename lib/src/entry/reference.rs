@@ -9,7 +9,8 @@ use std::str::{self, Utf8Error};
 
 /// A UTF-8 encoded entry reference.
 ///
-/// ## Examples
+/// # Examples
+///
 /// ```
 /// use libpna::EntryReference;
 ///
@@ -101,7 +102,7 @@ impl EntryReference {
 
     /// Extracts a string slice containing the entire [EntryReference].
     ///
-    /// ## Examples
+    /// # Examples
     ///
     /// ```
     /// use libpna::EntryReference;
@@ -163,7 +164,8 @@ impl From<&String> for EntryReference {
 }
 
 impl From<&str> for EntryReference {
-    /// ## Examples
+    /// # Examples
+    ///
     /// ```
     /// use libpna::EntryReference;
     ///
@@ -176,7 +178,8 @@ impl From<&str> for EntryReference {
 }
 
 impl From<Cow<'_, str>> for EntryReference {
-    /// ## Examples
+    /// # Examples
+    ///
     /// ```
     /// use libpna::EntryReference;
     /// use std::borrow::Cow;
@@ -235,7 +238,7 @@ impl TryFrom<Cow<'_, OsStr>> for EntryReference {
 impl TryFrom<&Path> for EntryReference {
     type Error = EntryReferenceError;
 
-    /// ## Examples
+    /// # Examples
     ///
     /// ```
     /// use libpna::EntryReference;
@@ -253,7 +256,7 @@ impl TryFrom<&Path> for EntryReference {
 impl TryFrom<PathBuf> for EntryReference {
     type Error = EntryReferenceError;
 
-    /// ## Examples
+    /// # Examples
     ///
     /// ```
     /// use libpna::EntryReference;
@@ -271,7 +274,7 @@ impl TryFrom<PathBuf> for EntryReference {
 impl TryFrom<&PathBuf> for EntryReference {
     type Error = EntryReferenceError;
 
-    /// ## Examples
+    /// # Examples
     ///
     /// ```
     /// use libpna::EntryReference;
@@ -289,7 +292,7 @@ impl TryFrom<&PathBuf> for EntryReference {
 impl TryFrom<Cow<'_, Path>> for EntryReference {
     type Error = EntryReferenceError;
 
-    /// ## Examples
+    /// # Examples
     ///
     /// ```
     /// use libpna::EntryReference;
