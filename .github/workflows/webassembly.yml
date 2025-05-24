@@ -18,12 +18,15 @@ jobs:
           - wasm32-unknown-emscripten
           - wasm32-unknown-unknown
           - wasm32-wasip1
+          - wasm32-wasip2
         include:
           - target: wasm32-unknown-emscripten
             container: emscripten/emsdk:latest
           - target: wasm32-unknown-unknown
             container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-25
           - target: wasm32-wasip1
+            container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-25
+          - target: wasm32-wasip2
             container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-25
 
     runs-on: ubuntu-latest
@@ -42,11 +45,11 @@ jobs:
         uses: bytecodealliance/actions/wasmtime/setup@3b93676295fd6f7eaa7af2c2785539e052fa8349 # v1.1.1
         with:
           github_token: ${{ github.token }}
-      - if: ${{ startsWith(matrix.target, 'wasm32-wasi') && matrix.rust != 'nightly' }}
+      - if: ${{ startsWith(matrix.target, 'wasm32-wasi') }}
         name: Run test
         run: |
           cargo test -p libpna --target ${{ matrix.target }} -- --nocapture
-      - if: ${{ startsWith(matrix.target, 'wasm32-wasi') && matrix.rust == 'nightly'}}
+      - if: ${{ startsWith(matrix.target, 'wasm32-wasip1') && matrix.rust == 'nightly'}}
         name: Run test
         run: |
           cargo test --target ${{ matrix.target }} -- --nocapture
