@@ -22,7 +22,12 @@ pub const MIN_CHUNK_BYTES_SIZE: usize =
 pub(crate) const MAX_CHUNK_DATA_LENGTH: usize = u32::MAX as usize;
 
 pub(crate) trait ChunkExt: Chunk {
-    /// size of chunk in bytes
+    /// Returns the total size of the chunk in bytes, including the length field,
+    /// chunk type, data, and CRC32 checksum.
+    ///
+    /// # Returns
+    ///
+    /// The total size of the chunk in bytes.
     #[inline]
     fn bytes_len(&self) -> usize {
         MIN_CHUNK_BYTES_SIZE + self.data().len()
@@ -34,6 +39,15 @@ pub(crate) trait ChunkExt: Chunk {
         self.ty() == ChunkType::FDAT || self.ty() == ChunkType::SDAT
     }
 
+    /// Writes the chunk to the provided writer.
+    ///
+    /// # Arguments
+    ///
+    /// * `writer` - The writer to write the chunk to.
+    ///
+    /// # Returns
+    ///
+    /// The number of bytes written.
     #[inline]
     fn write_chunk_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         writer.write_all(&self.length().to_be_bytes())?;
