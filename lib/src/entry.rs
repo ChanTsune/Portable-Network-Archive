@@ -1039,18 +1039,22 @@ mod tests {
         check_impl::<NormalEntry<Vec<u8>>>();
         check_impl::<NormalEntry<Cow<[u8]>>>();
         check_impl::<NormalEntry<&[u8]>>();
+        check_impl::<NormalEntry<[u8; 1]>>();
 
         check_impl::<SolidEntry<Vec<u8>>>();
         check_impl::<SolidEntry<Cow<[u8]>>>();
         check_impl::<SolidEntry<&[u8]>>();
+        check_impl::<SolidEntry<[u8; 1]>>();
 
         check_impl::<ReadEntry<Vec<u8>>>();
         check_impl::<ReadEntry<Cow<[u8]>>>();
         check_impl::<ReadEntry<&[u8]>>();
+        check_impl::<ReadEntry<[u8; 1]>>();
 
         check_impl::<RawEntry<Vec<u8>>>();
         check_impl::<RawEntry<Cow<[u8]>>>();
         check_impl::<RawEntry<&[u8]>>();
+        check_impl::<RawEntry<[u8; 1]>>();
     }
 
     #[test]

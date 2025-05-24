@@ -165,6 +165,18 @@ impl<'a> From<RawChunk<&'a [u8]>> for RawChunk<Vec<u8>> {
     }
 }
 
+impl<const N: usize> From<RawChunk<[u8; N]>> for RawChunk<Vec<u8>> {
+    #[inline]
+    fn from(value: RawChunk<[u8; N]>) -> Self {
+        Self {
+            length: value.length,
+            ty: value.ty,
+            data: value.data.into(),
+            crc: value.crc,
+        }
+    }
+}
+
 impl From<RawChunk<Vec<u8>>> for RawChunk<Cow<'_, [u8]>> {
     #[inline]
     fn from(value: RawChunk<Vec<u8>>) -> Self {
