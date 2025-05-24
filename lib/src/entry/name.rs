@@ -47,18 +47,6 @@ impl EntryName {
         Ok(Self::new_from_utf8path(Utf8Path::new(name)))
     }
 
-    fn from_path_lossy(p: &Path) -> Self {
-        let p = normalize_path(p);
-        let iter = p.components().filter_map(|c| match c {
-            Component::Prefix(_)
-            | Component::RootDir
-            | Component::CurDir
-            | Component::ParentDir => None,
-            Component::Normal(p) => Some(p.to_string_lossy()),
-        });
-        Self(join_with_capacity(iter, "/", p.as_os_str().len()))
-    }
-
     /// Create an [`EntryName`] from a struct impl <code>[Into]<[PathBuf]></code>.
     ///
     /// Any non-Unicode sequences are replaced with
@@ -79,6 +67,18 @@ impl EntryName {
     #[inline]
     pub fn from_lossy<T: Into<PathBuf>>(p: T) -> Self {
         Self::from_path_lossy(&p.into())
+    }
+
+    fn from_path_lossy(p: &Path) -> Self {
+        let p = normalize_path(p);
+        let iter = p.components().filter_map(|c| match c {
+            Component::Prefix(_)
+            | Component::RootDir
+            | Component::CurDir
+            | Component::ParentDir => None,
+            Component::Normal(p) => Some(p.to_string_lossy()),
+        });
+        Self(join_with_capacity(iter, "/", p.as_os_str().len()))
     }
 
     #[inline]
