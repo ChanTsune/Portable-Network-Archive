@@ -39,7 +39,7 @@ mod private {
     }
 }
 
-/// Archive entry.
+/// A trait representing an entry in a PNA archive.
 pub trait Entry: SealedEntryExt {}
 
 /// Chunks from `FHED` to `FEND`, containing `FHED` and `FEND`
@@ -129,9 +129,12 @@ impl futures_io::AsyncRead for EntryDataReader<'_> {
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum ReadEntry<T = Vec<u8>> {
-    /// Solid mode entry
+    /// A solid mode entry that contains multiple files compressed together.
+    /// This type of entry provides better compression ratios but requires
+    /// sequential access to the contained files.
     Solid(SolidEntry<T>),
-    /// Normal entry
+    /// A normal entry that represents a single file in the archive.
+    /// This type of entry allows random access to the file data.
     Normal(NormalEntry<T>),
 }
 
@@ -266,7 +269,12 @@ impl Iterator for EntryIterator<'_> {
     }
 }
 
-/// A solid mode entry.
+/// A solid mode entry in a PNA archive.
+///
+/// Solid entries contain multiple files compressed together as a single unit.
+/// This provides better compression ratios but requires sequential access to
+/// the contained files. The entry includes a header, optional password hash,
+/// data chunks, and any extra chunks.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct SolidEntry<T = Vec<u8>> {
     header: SolidHeader,
@@ -504,7 +512,11 @@ where
     }
 }
 
-/// [Entry] that read from PNA archive.
+/// A normal entry in a PNA archive.
+///
+/// Normal entries represent individual files in the archive, allowing for
+/// random access to the file data. Each entry includes a header, optional
+/// password hash, data chunks, metadata, extended attributes, and any extra chunks.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct NormalEntry<T = Vec<u8>> {
     pub(crate) header: EntryHeader,
