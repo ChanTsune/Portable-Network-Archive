@@ -1,3 +1,5 @@
+pub(crate) mod value;
+
 use crate::command::{
     append::AppendCommand, bugreport::BugReportCommand, complete::CompleteCommand,
     concat::ConcatCommand, create::CreateCommand, experimental::ExperimentalCommand,
@@ -6,8 +8,9 @@ use crate::command::{
 };
 use clap::{value_parser, ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
 use log::{Level, LevelFilter};
-use pna::{ChunkType, ChunkTypeError, HashAlgorithm};
+use pna::HashAlgorithm;
 use std::{io, path::PathBuf, str::FromStr};
+pub(crate) use value::*;
 
 #[derive(Parser, Clone, Debug)]
 #[command(
@@ -307,22 +310,6 @@ impl FromStr for Pbkdf2Sha256Params {
             }
         }
         Ok(Self { rounds })
-    }
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub(crate) struct PrivateChunkType(pub(crate) ChunkType);
-
-impl FromStr for PrivateChunkType {
-    type Err = ChunkTypeError;
-
-    #[inline]
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(ChunkType::private(
-            s.as_bytes()
-                .try_into()
-                .map_err(|_| ChunkTypeError::NonPrivateChunkType)?,
-        )?))
     }
 }
 
