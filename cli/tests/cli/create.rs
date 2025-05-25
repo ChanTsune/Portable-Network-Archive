@@ -5,3 +5,4 @@ mod password_hash;
 mod substitution;
 mod symlink;
 mod transform;
+mod user_group;
