@@ -1,24 +1,26 @@
 use crate::utils::{diff::diff, setup, TestResources};
 use clap::Parser;
-use portable_network_archive::{cli, command};
+use portable_network_archive::{cli, command::Command};
 use std::fs;
 
 #[test]
 fn extract_with_substitution() {
     setup();
     TestResources::extract_in("raw/", "extract_with_substitution/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
         "extract_with_substitution/extract_with_substitution.pna",
         "--overwrite",
         "extract_with_substitution/in/",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
     assert!(fs::exists("extract_with_substitution/extract_with_substitution.pna").unwrap());
 
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -29,7 +31,9 @@ fn extract_with_substitution() {
         "-s",
         "#extract_with_substitution/in/##",
         "--unstable",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     diff(

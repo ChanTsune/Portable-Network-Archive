@@ -1,6 +1,6 @@
 use crate::utils::setup;
 use clap::Parser;
-use portable_network_archive::{cli, command};
+use portable_network_archive::{cli, command::Command};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -25,7 +25,7 @@ fn init_resource<P: AsRef<Path>>(dir: P) {
 fn symlink_no_follow() {
     setup();
     init_resource("symlink_no_follow/source");
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -33,9 +33,11 @@ fn symlink_no_follow() {
         "--overwrite",
         "--keep-dir",
         "symlink_no_follow/source",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -45,7 +47,9 @@ fn symlink_no_follow() {
         "symlink_no_follow/dist",
         "--strip-components",
         "2",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     assert!(PathBuf::from("symlink_no_follow/dist/link.txt").is_symlink());
@@ -62,7 +66,7 @@ fn symlink_no_follow() {
 fn symlink_follow() {
     setup();
     init_resource("symlink_follow/source");
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -71,9 +75,11 @@ fn symlink_follow() {
         "--keep-dir",
         "--follow-links",
         "symlink_follow/source",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -83,7 +89,9 @@ fn symlink_follow() {
         "symlink_follow/dist",
         "--strip-components",
         "2",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     assert!(!PathBuf::from("symlink_follow/dist/link.txt").is_symlink());

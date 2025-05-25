@@ -1,12 +1,12 @@
 use crate::utils::{components_count, diff::diff, setup, TestResources};
 use clap::Parser;
-use portable_network_archive::{cli, command};
+use portable_network_archive::{cli, command::Command};
 
 #[test]
 fn aes_ctr_argon2_archive() {
     setup();
     TestResources::extract_in("raw/", "aes_argon2_ctr/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -18,9 +18,11 @@ fn aes_ctr_argon2_archive() {
         "--aes",
         "ctr",
         "--argon2",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -32,7 +34,9 @@ fn aes_ctr_argon2_archive() {
         "password",
         "--strip-components",
         &components_count("aes_argon2_ctr/in/").to_string(),
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     diff("aes_argon2_ctr/in/", "aes_argon2_ctr/out/").unwrap();
@@ -44,7 +48,7 @@ fn aes_ctr_argon2_with_params_archive() {
 
     TestResources::extract_in("raw/", "aes_argon2_with_params_ctr/in/").unwrap();
 
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -57,9 +61,11 @@ fn aes_ctr_argon2_with_params_archive() {
         "ctr",
         "--argon2",
         "t=100,m=250,p=2",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -71,7 +77,9 @@ fn aes_ctr_argon2_with_params_archive() {
         "password",
         "--strip-components",
         &components_count("aes_argon2_with_params_ctr/in/").to_string(),
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     diff(
@@ -85,7 +93,7 @@ fn aes_ctr_argon2_with_params_archive() {
 fn aes_ctr_pbkdf2_archive() {
     setup();
     TestResources::extract_in("raw/", "aes_pbkdf2_ctr/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -97,9 +105,11 @@ fn aes_ctr_pbkdf2_archive() {
         "--aes",
         "ctr",
         "--pbkdf2",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -111,7 +121,9 @@ fn aes_ctr_pbkdf2_archive() {
         "password",
         "--strip-components",
         &components_count("aes_pbkdf2_ctr/in/").to_string(),
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     diff("aes_pbkdf2_ctr/in/", "aes_pbkdf2_ctr/out/").unwrap();
@@ -121,7 +133,7 @@ fn aes_ctr_pbkdf2_archive() {
 fn aes_ctr_pbkdf2_with_params_archive() {
     setup();
     TestResources::extract_in("raw/", "aes_pbkdf2_with_params_ctr/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -134,9 +146,11 @@ fn aes_ctr_pbkdf2_with_params_archive() {
         "ctr",
         "--pbkdf2",
         "r=1",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -148,7 +162,9 @@ fn aes_ctr_pbkdf2_with_params_archive() {
         "password",
         "--strip-components",
         &components_count("aes_pbkdf2_with_params_ctr/in/").to_string(),
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     diff(

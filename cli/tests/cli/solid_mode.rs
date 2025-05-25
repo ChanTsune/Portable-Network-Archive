@@ -1,12 +1,12 @@
 use crate::utils::{components_count, diff::diff, setup, TestResources};
 use clap::Parser;
-use portable_network_archive::{cli, command};
+use portable_network_archive::{cli, command::Command};
 
 #[test]
 fn solid_store_archive() {
     setup();
     TestResources::extract_in("raw/", "solid_store/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -15,9 +15,11 @@ fn solid_store_archive() {
         "--overwrite",
         "solid_store/in/",
         "--solid",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -27,7 +29,9 @@ fn solid_store_archive() {
         "solid_store/out/",
         "--strip-components",
         &components_count("solid_store/out/").to_string(),
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
     diff("solid_store/in/", "solid_store/out/").unwrap();
 }
@@ -36,7 +40,7 @@ fn solid_store_archive() {
 fn solid_zstd_archive() {
     setup();
     TestResources::extract_in("raw/", "solid_zstd/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -45,9 +49,11 @@ fn solid_zstd_archive() {
         "--overwrite",
         "solid_zstd/in/",
         "--solid",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -57,7 +63,9 @@ fn solid_zstd_archive() {
         "solid_zstd/out/",
         "--strip-components",
         &components_count("solid_zstd/in/").to_string(),
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     diff("solid_zstd/in/", "solid_zstd/out/").unwrap();
@@ -67,7 +75,7 @@ fn solid_zstd_archive() {
 fn solid_xz_archive() {
     setup();
     TestResources::extract_in("raw/", "solid_xz/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -76,9 +84,11 @@ fn solid_xz_archive() {
         "--overwrite",
         "solid_xz/in/",
         "--solid",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -88,7 +98,9 @@ fn solid_xz_archive() {
         "solid_xz/out/",
         "--strip-components",
         &components_count("solid_xz/in/").to_string(),
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     diff("solid_xz/in/", "solid_xz/out/").unwrap();
@@ -98,7 +110,7 @@ fn solid_xz_archive() {
 fn solid_deflate_archive() {
     setup();
     TestResources::extract_in("raw/", "solid_deflate/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -107,9 +119,11 @@ fn solid_deflate_archive() {
         "--overwrite",
         "solid_deflate/in/",
         "--solid",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -119,7 +133,9 @@ fn solid_deflate_archive() {
         "solid_deflate/out/",
         "--strip-components",
         &components_count("solid_deflate/in/").to_string(),
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
     diff("solid_deflate/in/", "solid_deflate/out/").unwrap();
 }

@@ -1,14 +1,14 @@
 use super::DURATION_24_HOURS;
 use crate::utils::{components_count, diff::diff, setup, TestResources};
 use clap::Parser;
-use portable_network_archive::{cli, command};
+use portable_network_archive::{cli, command::Command};
 use std::{fs, io::prelude::*, time};
 
 #[test]
 fn archive_update_newer_mtime_with_exclude() {
     setup();
     TestResources::extract_in("raw/", "archive_update_newer_mtime_with_exclude/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -16,7 +16,9 @@ fn archive_update_newer_mtime_with_exclude() {
         "--overwrite",
         "archive_update_newer_mtime_with_exclude/in/",
         "--keep-timestamp",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     let mut file = fs::File::options()
@@ -38,7 +40,7 @@ fn archive_update_newer_mtime_with_exclude() {
     file.set_modified(time::SystemTime::now() + DURATION_24_HOURS)
         .unwrap();
 
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "experimental",
@@ -50,7 +52,9 @@ fn archive_update_newer_mtime_with_exclude() {
         "--exclude",
         "archive_update_newer_mtime_with_exclude/in/raw/empty.txt",
         "--unstable",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     // restore original empty.txt
@@ -60,7 +64,7 @@ fn archive_update_newer_mtime_with_exclude() {
     )
     .unwrap();
 
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -71,7 +75,9 @@ fn archive_update_newer_mtime_with_exclude() {
         "--keep-timestamp",
         "--strip-components",
         &components_count("archive_update_newer_mtime_with_exclude/in/").to_string(),
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     diff(

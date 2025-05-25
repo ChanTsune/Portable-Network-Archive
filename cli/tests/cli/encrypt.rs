@@ -1,12 +1,12 @@
 use crate::utils::{components_count, diff::diff, setup, TestResources};
 use clap::Parser;
-use portable_network_archive::{cli, command};
+use portable_network_archive::{cli, command::Command};
 
 #[test]
 fn aes_ctr_archive() {
     setup();
     TestResources::extract_in("raw/", "zstd_aes_ctr/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -17,9 +17,11 @@ fn aes_ctr_archive() {
         "password",
         "--aes",
         "ctr",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -31,7 +33,9 @@ fn aes_ctr_archive() {
         "password",
         "--strip-components",
         &components_count("zstd_aes_ctr/in/").to_string(),
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     diff("zstd_aes_ctr/in/", "zstd_aes_ctr/out/").unwrap();
@@ -41,7 +45,7 @@ fn aes_ctr_archive() {
 fn aes_cbc_archive() {
     setup();
     TestResources::extract_in("raw/", "zstd_aes_cbc/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -52,9 +56,11 @@ fn aes_cbc_archive() {
         "password",
         "--aes",
         "cbc",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -66,7 +72,9 @@ fn aes_cbc_archive() {
         "password",
         "--strip-components",
         &components_count("zstd_aes_cbc/in/").to_string(),
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     diff("zstd_aes_cbc/in/", "zstd_aes_cbc/out/").unwrap();
@@ -76,7 +84,7 @@ fn aes_cbc_archive() {
 fn camellia_ctr_archive() {
     setup();
     TestResources::extract_in("raw/", "zstd_camellia_ctr/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -87,9 +95,11 @@ fn camellia_ctr_archive() {
         "password",
         "--camellia",
         "ctr",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -101,7 +111,9 @@ fn camellia_ctr_archive() {
         "password",
         "--strip-components",
         &components_count("zstd_camellia_ctr/in/").to_string(),
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     diff("zstd_camellia_ctr/in/", "zstd_camellia_ctr/out/").unwrap();
@@ -111,7 +123,7 @@ fn camellia_ctr_archive() {
 fn camellia_cbc_archive() {
     setup();
     TestResources::extract_in("raw/", "zstd_camellia_cbc/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -122,9 +134,11 @@ fn camellia_cbc_archive() {
         "password",
         "--aes",
         "cbc",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -136,7 +150,9 @@ fn camellia_cbc_archive() {
         "password",
         "--strip-components",
         &components_count("zstd_camellia_cbc/in/").to_string(),
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     diff("zstd_camellia_cbc/in/", "zstd_camellia_cbc/out/").unwrap();

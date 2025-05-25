@@ -2,7 +2,7 @@ mod exclude;
 
 use crate::utils::{components_count, diff::diff, setup, TestResources};
 use clap::Parser;
-use portable_network_archive::{cli, command};
+use portable_network_archive::{cli, command::Command};
 use std::{fs, io::prelude::*, time};
 
 const DURATION_24_HOURS: time::Duration = time::Duration::from_secs(24 * 60 * 60);
@@ -11,7 +11,7 @@ const DURATION_24_HOURS: time::Duration = time::Duration::from_secs(24 * 60 * 60
 fn archive_update_newer_mtime() {
     setup();
     TestResources::extract_in("raw/", "archive_update_newer_mtime/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -19,7 +19,9 @@ fn archive_update_newer_mtime() {
         "--overwrite",
         "archive_update_newer_mtime/in/",
         "--keep-timestamp",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     let mut file = fs::File::options()
@@ -41,7 +43,7 @@ fn archive_update_newer_mtime() {
     file.set_modified(time::SystemTime::now() + DURATION_24_HOURS)
         .unwrap();
 
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "experimental",
@@ -50,13 +52,15 @@ fn archive_update_newer_mtime() {
         "archive_update_newer_mtime/update_newer_mtime.pna",
         "archive_update_newer_mtime/in/",
         "--keep-timestamp",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     // restore original empty.txt
     TestResources::extract_in("raw/empty.txt", "archive_update_newer_mtime/in/").unwrap();
 
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -67,7 +71,9 @@ fn archive_update_newer_mtime() {
         "--keep-timestamp",
         "--strip-components",
         &components_count("archive_update_newer_mtime/in/").to_string(),
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     diff(
@@ -82,7 +88,7 @@ fn archive_update_older_mtime() {
     setup();
     TestResources::extract_in("raw/", "archive_update_older_mtime/in/").unwrap();
     TestResources::extract_in("raw/", "archive_update_older_mtime/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -90,7 +96,9 @@ fn archive_update_older_mtime() {
         "--overwrite",
         "archive_update_older_mtime/in/",
         "--keep-timestamp",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     let mut file = fs::File::options()
@@ -112,7 +120,7 @@ fn archive_update_older_mtime() {
     file.set_modified(time::SystemTime::now() - DURATION_24_HOURS)
         .unwrap();
 
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "experimental",
@@ -121,13 +129,15 @@ fn archive_update_older_mtime() {
         "archive_update_older_mtime/update_older_mtime.pna",
         "archive_update_older_mtime/in/",
         "--keep-timestamp",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     // restore original empty.txt
     TestResources::extract_in("raw/empty.txt", "archive_update_older_mtime/in/").unwrap();
 
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -138,7 +148,9 @@ fn archive_update_older_mtime() {
         "--keep-timestamp",
         "--strip-components",
         &components_count("archive_update_older_mtime/in/").to_string(),
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     diff(
@@ -152,7 +164,7 @@ fn archive_update_older_mtime() {
 fn archive_update_deletion() {
     setup();
     TestResources::extract_in("raw/", "archive_update_deletion/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -160,12 +172,14 @@ fn archive_update_deletion() {
         "--overwrite",
         "archive_update_deletion/in/",
         "--keep-timestamp",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     fs::remove_file("archive_update_deletion/in/raw/empty.txt").unwrap();
 
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "experimental",
@@ -174,10 +188,12 @@ fn archive_update_deletion() {
         "archive_update_deletion/update_deletion.pna",
         "archive_update_deletion/in/",
         "--keep-timestamp",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -188,7 +204,9 @@ fn archive_update_deletion() {
         "--keep-timestamp",
         "--strip-components",
         &components_count("archive_update_deletion/in/").to_string(),
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     // restore original empty.txt

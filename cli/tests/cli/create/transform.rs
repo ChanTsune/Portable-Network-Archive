@@ -1,13 +1,13 @@
 use crate::utils::{diff::diff, setup, TestResources};
 use clap::Parser;
-use portable_network_archive::{cli, command};
+use portable_network_archive::{cli, command::Command};
 use std::fs;
 
 #[test]
 fn create_with_transform() {
     setup();
     TestResources::extract_in("raw/", "create_with_transform/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -17,11 +17,13 @@ fn create_with_transform() {
         "--transform",
         "s,create_with_transform/in/,,",
         "--unstable",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
     assert!(fs::exists("create_with_transform/create_with_transform.pna").unwrap());
 
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -29,7 +31,9 @@ fn create_with_transform() {
         "--overwrite",
         "--out-dir",
         "create_with_transform/out/",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     diff("create_with_transform/in/", "create_with_transform/out/").unwrap();

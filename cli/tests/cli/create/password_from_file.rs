@@ -1,6 +1,6 @@
 use crate::utils::{diff::diff, setup, TestResources};
 use clap::Parser;
-use portable_network_archive::{cli, command};
+use portable_network_archive::{cli, command::Command};
 use std::fs;
 
 #[test]
@@ -10,7 +10,7 @@ fn create_with_password_file() {
     let password_file_path = "create_with_password_file/password_file";
     let password = "create_with_password_file";
     fs::write(password_file_path, password).unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -23,9 +23,11 @@ fn create_with_password_file() {
         "ctr",
         "--argon2",
         "t=1,m=50",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -37,7 +39,9 @@ fn create_with_password_file() {
         password,
         "--strip-components",
         "2",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     diff(
