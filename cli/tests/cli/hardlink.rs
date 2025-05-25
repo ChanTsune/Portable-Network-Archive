@@ -1,7 +1,7 @@
 use crate::utils::setup;
 use clap::Parser;
 use pna::{Archive, EntryBuilder, WriteOptions};
-use portable_network_archive::{cli, command};
+use portable_network_archive::{cli, command::Command};
 use std::{fs, io::Write, path::Path};
 
 fn init_resource<P: AsRef<Path>>(path: P) {
@@ -70,7 +70,7 @@ fn init_resource<P: AsRef<Path>>(path: P) {
 fn hardlink() {
     setup();
     init_resource("hardlink/hardlink.pna");
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -78,7 +78,9 @@ fn hardlink() {
         "--overwrite",
         "--out-dir",
         "hardlink/dist",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     assert_eq!(
@@ -103,7 +105,7 @@ fn hardlink() {
 fn hardlink_allow_unsafe_links() {
     setup();
     init_resource("hardlink_allow_unsafe_links/hardlink.pna");
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -112,7 +114,9 @@ fn hardlink_allow_unsafe_links() {
         "--overwrite",
         "--out-dir",
         "hardlink_allow_unsafe_links/dist",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     assert_eq!(

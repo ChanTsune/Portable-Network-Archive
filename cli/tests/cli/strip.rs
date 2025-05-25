@@ -1,12 +1,12 @@
 use crate::utils::{components_count, diff::diff, setup, TestResources};
 use clap::Parser;
-use portable_network_archive::{cli, command};
+use portable_network_archive::{cli, command::Command};
 
 #[test]
 fn archive_strip_metadata() {
     setup();
     TestResources::extract_in("raw/", "archive_strip_metadata/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -19,9 +19,11 @@ fn archive_strip_metadata() {
         "--keep-permission",
         #[cfg(windows)]
         "--unstable",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "strip",
@@ -31,9 +33,11 @@ fn archive_strip_metadata() {
         "--keep-permission",
         #[cfg(windows)]
         "--unstable",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -49,7 +53,9 @@ fn archive_strip_metadata() {
         &components_count("archive_strip_metadata/in/").to_string(),
         #[cfg(windows)]
         "--unstable",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     diff("archive_strip_metadata/in/", "archive_strip_metadata/out/").unwrap();

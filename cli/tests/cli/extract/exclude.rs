@@ -1,24 +1,27 @@
 use crate::utils::{self, diff::diff, setup, TestResources};
 use clap::Parser;
-use portable_network_archive::{cli, command};
+use portable_network_archive::cli;
+use portable_network_archive::command::Command;
 use std::fs;
 
 #[test]
 fn extract_with_exclude() {
     setup();
     TestResources::extract_in("raw/", "extract_with_exclude/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
         "extract_with_exclude/extract_with_exclude.pna",
         "--overwrite",
         "extract_with_exclude/in/",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
     assert!(fs::exists("extract_with_exclude/extract_with_exclude.pna").unwrap());
 
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -31,7 +34,9 @@ fn extract_with_exclude() {
         "--exclude",
         "**.txt",
         "--unstable",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     // Remove files that are expected to be excluded from input for comparison

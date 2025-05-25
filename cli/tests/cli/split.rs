@@ -1,22 +1,24 @@
 use crate::utils::{components_count, diff::diff, setup, TestResources};
 use clap::Parser;
-use portable_network_archive::{cli, command};
+use portable_network_archive::{cli, command::Command};
 use std::fs;
 
 #[test]
 fn split_archive() {
     setup();
     TestResources::extract_in("raw/", "split_archive/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "create",
         "split_archive/split.pna",
         "--overwrite",
         "split_archive/in/",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "split",
@@ -26,7 +28,9 @@ fn split_archive() {
         "100kb",
         "--out-dir",
         "split_archive/split/",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     // check split file size
@@ -34,7 +38,7 @@ fn split_archive() {
         assert!(fs::metadata(entry.unwrap().path()).unwrap().len() <= 100 * 1000);
     }
 
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -44,7 +48,9 @@ fn split_archive() {
         "split_archive/out/",
         "--strip-components",
         &components_count("split_archive/in/").to_string(),
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     // check completely extracted

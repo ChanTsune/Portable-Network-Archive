@@ -1,22 +1,24 @@
 use crate::utils::{diff::diff, setup, TestResources};
 use clap::Parser;
-use portable_network_archive::{cli, command};
+use portable_network_archive::{cli, command::Command};
 use std::fs;
 
 #[test]
 fn delete_output_exclude() {
     setup();
     TestResources::extract_in("raw/", "delete_output_exclude/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
         "delete_output_exclude/delete_output_exclude.pna",
         "--overwrite",
         "delete_output_exclude/in/",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "experimental",
@@ -28,10 +30,12 @@ fn delete_output_exclude() {
         "--unstable",
         "--output",
         "delete_output_exclude/delete_excluded.pna",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -41,7 +45,9 @@ fn delete_output_exclude() {
         "delete_output_exclude/out/",
         "--strip-components",
         "2",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     fs::remove_file("delete_output_exclude/in/raw/pna/nest.pna").unwrap();

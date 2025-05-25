@@ -1,28 +1,33 @@
 use crate::utils::{setup, TestResources};
 use clap::Parser;
-use portable_network_archive::{cli, command};
+use portable_network_archive::{cli, command::Command};
 
 #[test]
 fn archive_list() {
     setup();
     TestResources::extract_in("raw/", "list/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
         "list/list.pna",
         "--overwrite",
         "list/in/",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from(["pna", "list", "list/list.pna"])).unwrap();
+    cli::Cli::try_parse_from(["pna", "list", "list/list.pna"])
+        .unwrap()
+        .execute()
+        .unwrap();
 }
 
 #[test]
 fn archive_list_solid() {
     setup();
     TestResources::extract_in("raw/", "list_solid/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -30,22 +35,21 @@ fn archive_list_solid() {
         "--overwrite",
         "list_solid/in/",
         "--solid",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
-        "pna",
-        "list",
-        "list_solid/list_solid.pna",
-        "--solid",
-    ]))
-    .unwrap();
+    cli::Cli::try_parse_from(["pna", "list", "list_solid/list_solid.pna", "--solid"])
+        .unwrap()
+        .execute()
+        .unwrap();
 }
 
 #[test]
 fn archive_list_detail() {
     setup();
     TestResources::extract_in("raw/", "list_detail/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -64,16 +68,20 @@ fn archive_list_detail() {
         "t=1,m=50",
         #[cfg(windows)]
         "--unstable",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "list",
         "-l",
         "list_detail/list_detail.pna",
         "--password",
         "password",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 }
 
@@ -81,7 +89,7 @@ fn archive_list_detail() {
 fn archive_list_solid_detail() {
     setup();
     TestResources::extract_in("raw/", "list_solid_detail/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -100,9 +108,11 @@ fn archive_list_solid_detail() {
         "--argon2",
         "t=1,m=50",
         "--unstable",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "list",
         "-l",
@@ -110,7 +120,9 @@ fn archive_list_solid_detail() {
         "--solid",
         "--password",
         "password",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 }
 
@@ -118,7 +130,7 @@ fn archive_list_solid_detail() {
 fn archive_list_jsonl() {
     setup();
     TestResources::extract_in("raw/", "list_jsonl/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -138,9 +150,11 @@ fn archive_list_jsonl() {
         "--argon2",
         "t=1,m=50",
         "--unstable",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "list",
         "-l",
@@ -150,7 +164,9 @@ fn archive_list_jsonl() {
         "--password",
         "password",
         "--unstable",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 }
 
@@ -158,7 +174,7 @@ fn archive_list_jsonl() {
 fn archive_list_solid_jsonl() {
     setup();
     TestResources::extract_in("raw/", "list_solid_jsonl/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -179,9 +195,11 @@ fn archive_list_solid_jsonl() {
         "--argon2",
         "t=1,m=50",
         "--unstable",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "list",
         "-l",
@@ -192,7 +210,9 @@ fn archive_list_solid_jsonl() {
         "--password",
         "password",
         "--unstable",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 }
 
@@ -200,7 +220,7 @@ fn archive_list_solid_jsonl() {
 fn archive_list_tree() {
     setup();
     TestResources::extract_in("raw/", "list_tree/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -220,9 +240,11 @@ fn archive_list_tree() {
         "--argon2",
         "t=1,m=50",
         "--unstable",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "list",
         "-l",
@@ -232,7 +254,9 @@ fn archive_list_tree() {
         "--password",
         "password",
         "--unstable",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 }
 
@@ -240,7 +264,7 @@ fn archive_list_tree() {
 fn archive_list_solid_tree() {
     setup();
     TestResources::extract_in("raw/", "list_solid_tree/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -261,9 +285,11 @@ fn archive_list_solid_tree() {
         "--argon2",
         "t=1,m=50",
         "--unstable",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "list",
         "-l",
@@ -274,6 +300,8 @@ fn archive_list_solid_tree() {
         "--password",
         "password",
         "--unstable",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 }

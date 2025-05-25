@@ -1,21 +1,23 @@
 use crate::utils::{components_count, diff::diff, setup, TestResources};
 use clap::Parser;
-use portable_network_archive::{cli, command};
+use portable_network_archive::{cli, command::Command};
 
 #[test]
 fn concat_archive() {
     setup();
     TestResources::extract_in("raw/", "concat_archive/in").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "create",
         "concat_archive/concat.pna",
         "--overwrite",
         "concat_archive/in",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "split",
@@ -23,18 +25,22 @@ fn concat_archive() {
         "--overwrite",
         "--max-size",
         "100kb",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "concat",
         "concat_archive/concatenated.pna",
         "concat_archive/concat.part1.pna",
         "--overwrite",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -44,7 +50,9 @@ fn concat_archive() {
         "concat_archive/out",
         "--strip-components",
         &components_count("concat_archive/in").to_string(),
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
     diff("concat_archive/in", "concat_archive/out").unwrap();
 }

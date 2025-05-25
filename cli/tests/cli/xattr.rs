@@ -5,14 +5,15 @@ mod restore;
 
 use crate::utils::{diff::diff, setup, TestResources};
 use clap::Parser;
-use portable_network_archive::{cli, command};
+use portable_network_archive::cli;
+use portable_network_archive::command::Command;
 
 #[test]
 fn archive_xattr_set() {
     setup();
     TestResources::extract_in("raw/", "xattr_set/in/").unwrap();
 
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -21,9 +22,11 @@ fn archive_xattr_set() {
         "xattr_set/in/",
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "experimental",
@@ -35,9 +38,11 @@ fn archive_xattr_set() {
         "--value",
         "pna developers!",
         "xattr_set/in/raw/empty.txt",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "experimental",
@@ -47,9 +52,11 @@ fn archive_xattr_set() {
         "xattr_set/in/raw/empty.txt",
         "--name",
         "user.name",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -61,7 +68,9 @@ fn archive_xattr_set() {
         "--keep-xattr",
         "--strip-components",
         "2",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     diff("xattr_set/in/", "xattr_set/out/").unwrap();
@@ -81,7 +90,7 @@ fn archive_xattr_set() {
 fn archive_xattr_remove() {
     setup();
     TestResources::extract_in("raw/", "xattr_remove/in/").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -90,9 +99,11 @@ fn archive_xattr_remove() {
         "xattr_remove/in/",
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "experimental",
@@ -104,9 +115,11 @@ fn archive_xattr_remove() {
         "--value",
         "pna developers!",
         "xattr_remove/in/raw/empty.txt",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "experimental",
@@ -116,9 +129,11 @@ fn archive_xattr_remove() {
         "--remove",
         "user.name",
         "xattr_remove/in/raw/empty.txt",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "experimental",
@@ -128,9 +143,11 @@ fn archive_xattr_remove() {
         "xattr_remove/in/raw/empty.txt",
         "--name",
         "user.name",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -142,7 +159,9 @@ fn archive_xattr_remove() {
         "--keep-xattr",
         "--strip-components",
         "2",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     diff("xattr_remove/in/", "xattr_remove/out/").unwrap();

@@ -1,13 +1,13 @@
 #![cfg(feature = "acl")]
 use crate::utils::{setup, TestResources};
 use clap::Parser;
-use portable_network_archive::{cli, command};
+use portable_network_archive::{cli, command::Command};
 
 #[test]
 fn extract_windows_acl() {
     setup();
     TestResources::extract_in("windows_acl.pna", ".").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -17,7 +17,9 @@ fn extract_windows_acl() {
         "windows_acl/out/",
         "--keep-acl",
         "--unstable",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 }
 
@@ -25,7 +27,7 @@ fn extract_windows_acl() {
 fn extract_linux_acl() {
     setup();
     TestResources::extract_in("linux_acl.pna", ".").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -35,7 +37,9 @@ fn extract_linux_acl() {
         "linux_acl/out/",
         "--keep-acl",
         "--unstable",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 }
 
@@ -43,7 +47,7 @@ fn extract_linux_acl() {
 fn extract_macos_acl() {
     setup();
     TestResources::extract_in("macos_acl.pna", ".").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -53,7 +57,9 @@ fn extract_macos_acl() {
         "macos_acl/out/",
         "--keep-acl",
         "--unstable",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 }
 
@@ -61,7 +67,7 @@ fn extract_macos_acl() {
 fn extract_freebsd_acl() {
     setup();
     TestResources::extract_in("freebsd_acl.pna", ".").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -71,7 +77,9 @@ fn extract_freebsd_acl() {
         "freebsd_acl/out/",
         "--keep-acl",
         "--unstable",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 }
 
@@ -79,7 +87,7 @@ fn extract_freebsd_acl() {
 fn extract_generic_acl() {
     setup();
     TestResources::extract_in("generic_acl.pna", ".").unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -89,6 +97,8 @@ fn extract_generic_acl() {
         "generic_acl/out/",
         "--keep-acl",
         "--unstable",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 }
