@@ -1,12 +1,13 @@
 use crate::{
     cli::{
-        CipherAlgorithmArgs, CompressionAlgorithmArgs, FileArgs, HashAlgorithmArgs, PasswordArgs,
+        CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileArgs, HashAlgorithmArgs,
+        PasswordArgs,
     },
     command::{
         ask_password, check_password,
         commons::{
             collect_items, create_entry, entry_option, CreateOptions, Exclude, KeepOptions,
-            OwnerOptions, PathTransformers,
+            OwnerOptions, PathTransformers, TimeOptions,
         },
         Command,
     },
@@ -106,6 +107,13 @@ pub(crate) struct AppendCommand {
         help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names to not be stored in the archive"
     )]
     pub(crate) numeric_owner: bool,
+    #[arg(long, help = "Overrides the modification time read from disk")]
+    mtime: Option<DateTime>,
+    #[arg(
+        long,
+        help = "Clamp the modification time of the entries to the specified time by --mtime"
+    )]
+    clamp_mtime: bool,
     #[arg(long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
     pub(crate) files_from: Option<String>,
     #[arg(long, help = "Read archiving files from stdin (unstable)")]
@@ -189,10 +197,15 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
         args.gid,
         args.numeric_owner,
     );
+    let time_options = TimeOptions {
+        mtime: args.mtime.map(|it| it.to_system_time()),
+        clamp_mtime: args.clamp_mtime,
+    };
     let create_options = CreateOptions {
         option,
         keep_options,
         owner_options,
+        time_options,
         follow_links: args.follow_links,
     };
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);

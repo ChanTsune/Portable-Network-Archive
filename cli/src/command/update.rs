@@ -4,14 +4,14 @@ use crate::command::commons::run_read_entries;
 use crate::command::commons::run_read_entries_mem as run_read_entries;
 use crate::{
     cli::{
-        CipherAlgorithmArgs, CompressionAlgorithmArgs, FileArgs, HashAlgorithmArgs, PasswordArgs,
-        SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs,
+        CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileArgs, HashAlgorithmArgs,
+        PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs,
     },
     command::{
         ask_password, check_password,
         commons::{
             collect_items, collect_split_archives, create_entry, entry_option, CreateOptions,
-            Exclude, KeepOptions, OwnerOptions, PathTransformers, TransformStrategy,
+            Exclude, KeepOptions, OwnerOptions, PathTransformers, TimeOptions, TransformStrategy,
             TransformStrategyKeepSolid, TransformStrategyUnSolid,
         },
         Command,
@@ -135,6 +135,13 @@ pub(crate) struct UpdateCommand {
         help = "Only include files and directories newer than the specified date. This compares mtime entries."
     )]
     pub(crate) newer_mtime: bool,
+    #[arg(long, help = "Overrides the modification time read from disk")]
+    mtime: Option<DateTime>,
+    #[arg(
+        long,
+        help = "Clamp the modification time of the entries to the specified time by --mtime"
+    )]
+    clamp_mtime: bool,
     #[arg(long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
     pub(crate) files_from: Option<String>,
     #[arg(long, help = "Read archiving files from stdin (unstable)")]
@@ -228,10 +235,15 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
         args.gid,
         args.numeric_owner,
     );
+    let time_options = TimeOptions {
+        mtime: args.mtime.map(|it| it.to_system_time()),
+        clamp_mtime: args.clamp_mtime,
+    };
     let create_options = CreateOptions {
         option,
         keep_options,
         owner_options,
+        time_options,
         follow_links: args.follow_links,
     };
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);

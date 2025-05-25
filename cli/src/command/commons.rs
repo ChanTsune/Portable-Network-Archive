@@ -20,7 +20,7 @@ use std::{
     fs,
     io::{self, prelude::*},
     path::{Path, PathBuf},
-    time::UNIX_EPOCH,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -70,6 +70,7 @@ pub(crate) struct CreateOptions {
     pub(crate) option: WriteOptions,
     pub(crate) keep_options: KeepOptions,
     pub(crate) owner_options: OwnerOptions,
+    pub(crate) time_options: TimeOptions,
     pub(crate) follow_links: bool,
 }
 
@@ -102,6 +103,12 @@ impl PathTransformers {
             Self::GnuTransforms(t) => t.apply(input, is_symlink, is_hardlink),
         }
     }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub(crate) struct TimeOptions {
+    pub(crate) mtime: Option<SystemTime>,
+    pub(crate) clamp_mtime: bool,
 }
 
 pub(crate) fn collect_items(
@@ -163,6 +170,7 @@ pub(crate) fn create_entry(
         option,
         keep_options,
         owner_options,
+        time_options,
         follow_links,
     }: &CreateOptions,
     substitutions: &Option<PathTransformers>,
@@ -185,6 +193,7 @@ pub(crate) fn create_entry(
             path,
             keep_options,
             owner_options,
+            time_options,
             fs::symlink_metadata,
         )?
         .build();
@@ -205,10 +214,26 @@ pub(crate) fn create_entry(
         {
             entry.write_all(&fs::read(path)?)?;
         }
-        return apply_metadata(entry, path, keep_options, owner_options, fs::metadata)?.build();
+        return apply_metadata(
+            entry,
+            path,
+            keep_options,
+            owner_options,
+            time_options,
+            fs::metadata,
+        )?
+        .build();
     } else if path.is_dir() {
         let entry = EntryBuilder::new_dir(entry_name);
-        return apply_metadata(entry, path, keep_options, owner_options, fs::metadata)?.build();
+        return apply_metadata(
+            entry,
+            path,
+            keep_options,
+            owner_options,
+            time_options,
+            fs::metadata,
+        )?
+        .build();
     }
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
@@ -244,6 +269,7 @@ pub(crate) fn apply_metadata<'p>(
     path: &'p Path,
     keep_options: &KeepOptions,
     owner_options: &OwnerOptions,
+    time_options: &TimeOptions,
     metadata: impl Fn(&'p Path) -> io::Result<fs::Metadata>,
 ) -> io::Result<EntryBuilder> {
     if keep_options.keep_timestamp || keep_options.keep_permission {
@@ -254,7 +280,12 @@ pub(crate) fn apply_metadata<'p>(
                     entry.created(created_since_unix_epoch);
                 }
             }
-            if let Ok(m) = meta.modified() {
+            let mtime = clamped_time(
+                meta.modified().ok(),
+                time_options.mtime,
+                time_options.clamp_mtime,
+            );
+            if let Some(m) = mtime {
                 if let Ok(modified_since_unix_epoch) = m.duration_since(UNIX_EPOCH) {
                     entry.modified(modified_since_unix_epoch);
                 }
@@ -353,6 +384,30 @@ pub(crate) fn apply_metadata<'p>(
         log::warn!("Currently extended attribute is not supported on this platform.");
     }
     Ok(entry)
+}
+
+fn clamped_time(
+    fs_time: Option<SystemTime>,
+    specified_time: Option<SystemTime>,
+    clamp: bool,
+) -> Option<SystemTime> {
+    if let Some(specified_time) = specified_time {
+        if clamp {
+            if let Some(fs_time) = fs_time {
+                if fs_time < specified_time {
+                    Some(fs_time)
+                } else {
+                    Some(specified_time)
+                }
+            } else {
+                Some(specified_time)
+            }
+        } else {
+            Some(specified_time)
+        }
+    } else {
+        fs_time
+    }
 }
 
 pub(crate) fn split_to_parts(
@@ -781,6 +836,7 @@ impl Exclude {
 mod tests {
     use super::*;
     use std::collections::HashSet;
+    use std::time::Duration;
 
     fn empty_exclude() -> Exclude {
         Exclude {
@@ -901,6 +957,55 @@ mod tests {
             .into_iter()
             .map(Into::into)
             .collect::<HashSet<_>>()
+        );
+    }
+
+    #[test]
+    fn time_use_fs() {
+        let result = clamped_time(
+            Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1)),
+            None,
+            false,
+        );
+        assert_eq!(
+            result,
+            Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1))
+        );
+    }
+
+    #[test]
+    fn time_use_specified() {
+        let result = clamped_time(
+            Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1)),
+            Some(SystemTime::UNIX_EPOCH + Duration::from_secs(2)),
+            false,
+        );
+        assert_eq!(
+            result,
+            Some(SystemTime::UNIX_EPOCH + Duration::from_secs(2))
+        );
+    }
+
+    #[test]
+    fn time_use_specified_clamp() {
+        let result = clamped_time(
+            Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1)),
+            Some(SystemTime::UNIX_EPOCH),
+            true,
+        );
+        assert_eq!(result, Some(SystemTime::UNIX_EPOCH));
+    }
+
+    #[test]
+    fn time_use_specified_no_clamp() {
+        let result = clamped_time(
+            Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1)),
+            Some(SystemTime::UNIX_EPOCH + Duration::from_secs(2)),
+            true,
+        );
+        assert_eq!(
+            result,
+            Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1))
         );
     }
 }

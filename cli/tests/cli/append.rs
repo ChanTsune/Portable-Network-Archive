@@ -1,4 +1,5 @@
 mod exclude;
+mod mtime;
 
 use crate::utils::{components_count, diff::diff, setup, TestResources};
 use clap::Parser;

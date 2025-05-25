@@ -1,4 +1,5 @@
 mod exclude;
+mod mtime;
 mod no_recursive;
 mod password_from_file;
 mod password_hash;

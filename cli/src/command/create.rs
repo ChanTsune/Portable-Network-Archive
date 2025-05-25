@@ -1,12 +1,13 @@
 use crate::{
     cli::{
-        CipherAlgorithmArgs, CompressionAlgorithmArgs, FileArgs, HashAlgorithmArgs, PasswordArgs,
+        CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileArgs, HashAlgorithmArgs,
+        PasswordArgs,
     },
     command::{
         ask_password, check_password,
         commons::{
             collect_items, create_entry, entry_option, write_split_archive, CreateOptions, Exclude,
-            KeepOptions, OwnerOptions, PathTransformers,
+            KeepOptions, OwnerOptions, PathTransformers, TimeOptions,
         },
         Command,
     },
@@ -45,6 +46,7 @@ use std::{
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
     group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
+    group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
@@ -119,6 +121,13 @@ pub(crate) struct CreateCommand {
         help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names to not be stored in the archive"
     )]
     pub(crate) numeric_owner: bool,
+    #[arg(long, help = "Overrides the modification time read from disk")]
+    mtime: Option<DateTime>,
+    #[arg(
+        long,
+        help = "Clamp the modification time of the entries to the specified time by --mtime"
+    )]
+    clamp_mtime: bool,
     #[arg(long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
     pub(crate) files_from: Option<String>,
     #[arg(long, help = "Read archiving files from stdin (unstable)")]
@@ -240,12 +249,17 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
         args.numeric_owner,
     );
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
+    let time_options = TimeOptions {
+        mtime: args.mtime.map(|it| it.to_system_time()),
+        clamp_mtime: args.clamp_mtime,
+    };
     let password = password.as_deref();
     let write_option = entry_option(args.compression, args.cipher, args.hash, password);
     let creation_context = CreationContext {
         write_option,
         keep_options,
         owner_options,
+        time_options,
         solid: args.solid,
         follow_links: args.follow_links,
         path_transformers,
@@ -276,6 +290,7 @@ pub(crate) struct CreationContext {
     pub(crate) write_option: WriteOptions,
     pub(crate) keep_options: KeepOptions,
     pub(crate) owner_options: OwnerOptions,
+    pub(crate) time_options: TimeOptions,
     pub(crate) solid: bool,
     pub(crate) follow_links: bool,
     pub(crate) path_transformers: Option<PathTransformers>,
@@ -287,6 +302,7 @@ pub(crate) fn create_archive_file<W, F>(
         write_option,
         keep_options,
         owner_options,
+        time_options,
         solid,
         follow_links,
         path_transformers,
@@ -307,6 +323,7 @@ where
         option,
         keep_options,
         owner_options,
+        time_options,
         follow_links,
     };
     for file in target_items {
@@ -345,6 +362,7 @@ fn create_archive_with_split(
         write_option,
         keep_options,
         owner_options,
+        time_options,
         solid,
         follow_links,
         path_transformers,
@@ -363,6 +381,7 @@ fn create_archive_with_split(
         option,
         keep_options,
         owner_options,
+        time_options,
         follow_links,
     };
     for file in target_items {
