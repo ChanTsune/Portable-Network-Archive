@@ -1,5 +1,5 @@
 #![cfg(unix)]
-use crate::utils::{components_count, diff::diff, setup, TestResources};
+use crate::utils::{archive, diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 
@@ -23,14 +23,14 @@ fn archive_create_uname_gname() {
     .unwrap()
     .execute()
     .unwrap();
-    cli::Cli::try_parse_from([
-        "pna",
-        "ls",
-        "-lh",
+    archive::for_each_entry(
         "archive_create_uname_gname/create_uname_gname.pna",
-    ])
-    .unwrap()
-    .execute()
+        |entry| {
+            let permission = entry.metadata().permission().unwrap();
+            assert_eq!(permission.uname(), "test_user");
+            assert_eq!(permission.gname(), "test_group");
+        },
+    )
     .unwrap();
     cli::Cli::try_parse_from([
         "pna",
@@ -42,7 +42,7 @@ fn archive_create_uname_gname() {
         "archive_create_uname_gname/out/",
         "--keep-permission",
         "--strip-components",
-        &components_count("archive_create_uname_gname/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()
@@ -75,15 +75,11 @@ fn archive_create_uid_gid() {
     .unwrap()
     .execute()
     .unwrap();
-    cli::Cli::try_parse_from([
-        "pna",
-        "ls",
-        "-lh",
-        "--numeric-owner",
-        "archive_create_uid_gid/create_uid_gid.pna",
-    ])
-    .unwrap()
-    .execute()
+    archive::for_each_entry("archive_create_uid_gid/create_uid_gid.pna", |entry| {
+        let permission = entry.metadata().permission().unwrap();
+        assert_eq!(permission.uid(), 0);
+        assert_eq!(permission.gid(), 2);
+    })
     .unwrap();
     cli::Cli::try_parse_from([
         "pna",
@@ -95,7 +91,7 @@ fn archive_create_uid_gid() {
         "archive_create_uid_gid/out/",
         "--keep-permission",
         "--strip-components",
-        &components_count("archive_create_uid_gid/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()

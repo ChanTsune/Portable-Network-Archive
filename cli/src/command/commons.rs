@@ -303,9 +303,9 @@ pub(crate) fn apply_metadata<'p>(
             let user = sd.owner_sid()?;
             let group = sd.group_sid()?;
             entry.permission(pna::Permission::new(
-                u64::MAX,
+                owner_options.uid.map_or(u64::MAX, Into::into),
                 owner_options.uname.clone().unwrap_or(user.name),
-                u64::MAX,
+                owner_options.gid.map_or(u64::MAX, Into::into),
                 owner_options.gname.clone().unwrap_or(group.name),
                 mode,
             ));

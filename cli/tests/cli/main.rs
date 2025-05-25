@@ -23,6 +23,5 @@ mod solid_mode;
 mod split;
 mod strip;
 mod update;
-mod user_group;
 pub mod utils;
 mod xattr;

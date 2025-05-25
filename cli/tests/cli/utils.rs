@@ -1,3 +1,4 @@
+pub mod archive;
 pub mod diff;
 
 use std::{
