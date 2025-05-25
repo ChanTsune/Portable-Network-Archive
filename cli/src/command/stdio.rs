@@ -7,7 +7,7 @@ use crate::{
             collect_items, collect_split_archives, entry_option, CreateOptions, Exclude,
             KeepOptions, OwnerOptions, PathTransformers,
         },
-        create::create_archive_file,
+        create::{create_archive_file, CreationContext},
         extract::{run_extract_archive_reader, OutputOption},
         list::{ListOptions, TimeField, TimeFormat},
         Command,
@@ -251,28 +251,18 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
         args.numeric_owner,
     );
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
+    let creation_context = CreationContext {
+        write_option: cli_option,
+        keep_options,
+        owner_options,
+        solid: args.solid,
+        follow_links: args.follow_links,
+        path_transformers,
+    };
     if let Some(file) = args.file {
-        create_archive_file(
-            || fs::File::open(&file),
-            cli_option,
-            keep_options,
-            owner_options,
-            args.solid,
-            args.follow_links,
-            path_transformers,
-            target_items,
-        )
+        create_archive_file(|| fs::File::open(&file), creation_context, target_items)
     } else {
-        create_archive_file(
-            || Ok(io::stdout().lock()),
-            cli_option,
-            keep_options,
-            owner_options,
-            args.solid,
-            args.follow_links,
-            path_transformers,
-            target_items,
-        )
+        create_archive_file(|| Ok(io::stdout().lock()), creation_context, target_items)
     }
 }
 
