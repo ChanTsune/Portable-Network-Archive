@@ -242,15 +242,18 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
     let password = password.as_deref();
     let write_option = entry_option(args.compression, args.cipher, args.hash, password);
+    let creation_context = CreationContext {
+        write_option,
+        keep_options,
+        owner_options,
+        solid: args.solid,
+        follow_links: args.follow_links,
+        path_transformers,
+    };
     if let Some(size) = max_file_size {
         create_archive_with_split(
             &archive_path,
-            write_option,
-            keep_options,
-            owner_options,
-            args.solid,
-            args.follow_links,
-            path_transformers,
+            creation_context,
             target_items,
             size,
             args.overwrite,
@@ -258,12 +261,7 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
     } else {
         create_archive_file(
             || utils::fs::file_create(&archive_path, args.overwrite),
-            write_option,
-            keep_options,
-            owner_options,
-            args.solid,
-            args.follow_links,
-            path_transformers,
+            creation_context,
             target_items,
         )?;
     }
@@ -274,14 +272,25 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
     Ok(())
 }
 
+pub(crate) struct CreationContext {
+    pub(crate) write_option: WriteOptions,
+    pub(crate) keep_options: KeepOptions,
+    pub(crate) owner_options: OwnerOptions,
+    pub(crate) solid: bool,
+    pub(crate) follow_links: bool,
+    pub(crate) path_transformers: Option<PathTransformers>,
+}
+
 pub(crate) fn create_archive_file<W, F>(
     mut get_writer: F,
-    write_option: WriteOptions,
-    keep_options: KeepOptions,
-    owner_options: OwnerOptions,
-    solid: bool,
-    follow_links: bool,
-    path_transformers: Option<PathTransformers>,
+    CreationContext {
+        write_option,
+        keep_options,
+        owner_options,
+        solid,
+        follow_links,
+        path_transformers,
+    }: CreationContext,
     target_items: Vec<PathBuf>,
 ) -> io::Result<()>
 where
@@ -332,12 +341,14 @@ where
 
 fn create_archive_with_split(
     archive: &Path,
-    write_option: WriteOptions,
-    keep_options: KeepOptions,
-    owner_options: OwnerOptions,
-    solid: bool,
-    follow_links: bool,
-    path_transformers: Option<PathTransformers>,
+    CreationContext {
+        write_option,
+        keep_options,
+        owner_options,
+        solid,
+        follow_links,
+        path_transformers,
+    }: CreationContext,
     target_items: Vec<PathBuf>,
     max_file_size: usize,
     overwrite: bool,
