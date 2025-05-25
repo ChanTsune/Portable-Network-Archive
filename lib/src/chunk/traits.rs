@@ -21,11 +21,14 @@ use super::{ChunkType, Crc32};
 /// }
 /// ```
 pub trait Chunk {
-    /// Returns the length of the chunk in bytes.
+    /// Returns the length of the chunk's data payload in bytes.
+    ///
+    /// This value corresponds to the `length` field stored in the chunk structure
+    /// and indicates the size of the data returned by the `data()` method.
     ///
     /// # Returns
     ///
-    /// The length of the chunk in bytes.
+    /// The length of the chunk's data.
     #[inline]
     fn length(&self) -> u32 {
         self.data().len() as u32
@@ -35,7 +38,7 @@ pub trait Chunk {
     ///
     /// # Returns
     ///
-    /// The type of the chunk.
+    /// The [`ChunkType`] identifying the kind of this chunk.
     fn ty(&self) -> ChunkType;
 
     /// Returns the data of the chunk.
@@ -49,7 +52,7 @@ pub trait Chunk {
     ///
     /// # Returns
     ///
-    /// The CRC32 checksum of the chunk.
+    /// The CRC32 checksum, typically calculated over the chunk's type and data.
     #[inline]
     fn crc(&self) -> u32 {
         let mut crc = Crc32::new();
