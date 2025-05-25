@@ -1,11 +1,13 @@
 use crate::{
-    cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs, PasswordArgs},
+    cli::{
+        CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, HashAlgorithmArgs, PasswordArgs,
+    },
     command::{
         append::{open_archive_then_seek_to_end, run_append_archive},
         ask_password, check_password,
         commons::{
             collect_items, collect_split_archives, entry_option, CreateOptions, Exclude,
-            KeepOptions, OwnerOptions, PathTransformers,
+            KeepOptions, OwnerOptions, PathTransformers, TimeOptions,
         },
         create::{create_archive_file, CreationContext},
         extract::{run_extract_archive_reader, OutputOption},
@@ -39,6 +41,7 @@ use std::{fs, io, path::PathBuf, time::SystemTime};
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
     group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
     group(ArgGroup::new("action-flags").args(["create", "extract", "list", "append"])),
+    group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
@@ -149,6 +152,13 @@ pub(crate) struct StdioCommand {
         help = "This is equivalent to --uname \"\" --gname \"\". On create, it causes user and group names to not be stored in the archive. On extract, it causes user and group names in the archive to be ignored in favor of the numeric user and group ids."
     )]
     pub(crate) numeric_owner: bool,
+    #[arg(long, help = "Overrides the modification time")]
+    mtime: Option<DateTime>,
+    #[arg(
+        long,
+        help = "Clamp the modification time of the entries to the specified time by --mtime"
+    )]
+    clamp_mtime: bool,
     #[arg(long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
     pub(crate) files_from: Option<String>,
     #[arg(
@@ -251,10 +261,15 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
         args.numeric_owner,
     );
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
+    let time_options = TimeOptions {
+        mtime: args.mtime.map(|it| it.to_system_time()),
+        clamp_mtime: args.clamp_mtime,
+    };
     let creation_context = CreationContext {
         write_option: cli_option,
         keep_options,
         owner_options,
+        time_options,
         solid: args.solid,
         follow_links: args.follow_links,
         path_transformers,
@@ -383,10 +398,15 @@ fn run_append(args: StdioCommand) -> io::Result<()> {
         args.gid,
         args.numeric_owner,
     );
+    let time_options = TimeOptions {
+        mtime: args.mtime.map(|it| it.to_system_time()),
+        clamp_mtime: args.clamp_mtime,
+    };
     let create_options = CreateOptions {
         option,
         keep_options,
         owner_options,
+        time_options,
         follow_links: args.follow_links,
     };
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
