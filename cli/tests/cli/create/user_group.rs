@@ -1,4 +1,4 @@
-#![cfg(unix)]
+#![cfg(any(unix, windows))]
 use crate::utils::{archive, diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
@@ -19,6 +19,8 @@ fn archive_create_uname_gname() {
         "test_user",
         "--gname",
         "test_group",
+        #[cfg(windows)]
+        "--unstable",
     ])
     .unwrap()
     .execute()
@@ -40,6 +42,7 @@ fn archive_create_uname_gname() {
         "--overwrite",
         "--out-dir",
         "archive_create_uname_gname/out/",
+        #[cfg(not(windows))]
         "--keep-permission",
         "--strip-components",
         "2",
@@ -71,6 +74,8 @@ fn archive_create_uid_gid() {
         "0",
         "--gid",
         "2",
+        #[cfg(windows)]
+        "--unstable",
     ])
     .unwrap()
     .execute()
@@ -89,6 +94,7 @@ fn archive_create_uid_gid() {
         "--overwrite",
         "--out-dir",
         "archive_create_uid_gid/out/",
+        #[cfg(not(windows))]
         "--keep-permission",
         "--strip-components",
         "2",
