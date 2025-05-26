@@ -48,6 +48,10 @@ pub(crate) trait ChunkExt: Chunk {
     /// # Returns
     ///
     /// The number of bytes written.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an `io::Error` if any write operation to the `writer` fails.
     #[inline]
     fn write_chunk_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         writer.write_all(&self.length().to_be_bytes())?;
