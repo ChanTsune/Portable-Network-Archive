@@ -205,8 +205,8 @@ impl EntryBuilder {
     ///
     /// A mutable reference to the [EntryBuilder] with the creation timestamp set.
     #[inline]
-    pub fn created(&mut self, since_unix_epoch: Duration) -> &mut Self {
-        self.created = Some(since_unix_epoch);
+    pub fn created(&mut self, since_unix_epoch: impl Into<Option<Duration>>) -> &mut Self {
+        self.created = since_unix_epoch.into();
         self
     }
 
@@ -220,8 +220,8 @@ impl EntryBuilder {
     ///
     /// A mutable reference to the [EntryBuilder] with the last modified timestamp set.
     #[inline]
-    pub fn modified(&mut self, since_unix_epoch: Duration) -> &mut Self {
-        self.last_modified = Some(since_unix_epoch);
+    pub fn modified(&mut self, since_unix_epoch: impl Into<Option<Duration>>) -> &mut Self {
+        self.last_modified = since_unix_epoch.into();
         self
     }
 
@@ -235,8 +235,8 @@ impl EntryBuilder {
     ///
     /// A mutable reference to the [EntryBuilder] with the last modified timestamp set.
     #[inline]
-    pub fn accessed(&mut self, since_unix_epoch: Duration) -> &mut Self {
-        self.accessed = Some(since_unix_epoch);
+    pub fn accessed(&mut self, since_unix_epoch: impl Into<Option<Duration>>) -> &mut Self {
+        self.accessed = since_unix_epoch.into();
         self
     }
 
@@ -251,8 +251,8 @@ impl EntryBuilder {
     ///
     /// A mutable reference to the [EntryBuilder] with the permission set.
     #[inline]
-    pub fn permission(&mut self, permission: Permission) -> &mut Self {
-        self.permission = Some(permission);
+    pub fn permission(&mut self, permission: impl Into<Option<Permission>>) -> &mut Self {
+        self.permission = permission.into();
         self
     }
 
