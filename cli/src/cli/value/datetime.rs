@@ -23,6 +23,7 @@ impl DateTime {
         }
         match self {
             Self::Naive(naive) => {
+                // FIXME: Avoid `.unwrap()` call, use match statement with return Result.
                 let seconds = naive.and_local_timezone(chrono::Local).unwrap().timestamp();
                 from_timestamp(seconds)
             }
