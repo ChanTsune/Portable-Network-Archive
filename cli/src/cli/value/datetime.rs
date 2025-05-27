@@ -1,14 +1,24 @@
 use std::{
+    borrow::Cow,
     fmt::{self, Display, Formatter},
     ops::{Add, Sub},
     str::FromStr,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum DateTimeError {
+    #[error("Failed to parse seconds since unix epoch")]
+    ParseError,
+    #[error(transparent)]
+    ChronoParseError(#[from] chrono::ParseError),
+}
+
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) enum DateTime {
     Naive(chrono::NaiveDateTime),
     Zoned(chrono::DateTime<chrono::FixedOffset>),
+    Epoch(i64), // Unix epoch timestamp in seconds
 }
 
 impl DateTime {
@@ -28,6 +38,7 @@ impl DateTime {
                 from_timestamp(seconds)
             }
             Self::Zoned(zoned) => from_timestamp(zoned.timestamp()),
+            Self::Epoch(seconds) => from_timestamp(*seconds),
         }
     }
 }
@@ -38,19 +49,29 @@ impl Display for DateTime {
         match self {
             Self::Naive(naive) => Display::fmt(naive, f),
             Self::Zoned(zoned) => Display::fmt(zoned, f),
+            Self::Epoch(seconds) => write!(f, "@{seconds}"),
         }
     }
 }
 
 impl FromStr for DateTime {
-    type Err = chrono::ParseError;
+    type Err = DateTimeError;
 
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if let Ok(naive) = chrono::NaiveDateTime::from_str(s) {
+        if let Some(seconds) = s.strip_prefix('@') {
+            // GNU tar allows both comma and dot as decimal separators
+            let seconds_str = if seconds.contains(',') {
+                Cow::Owned(seconds.replace(',', "."))
+            } else {
+                Cow::Borrowed(seconds)
+            };
+            let seconds = f64::from_str(&seconds_str).map_err(|_| DateTimeError::ParseError)?;
+            Ok(Self::Epoch(seconds.trunc() as i64))
+        } else if let Ok(naive) = chrono::NaiveDateTime::from_str(s) {
             Ok(Self::Naive(naive))
         } else {
-            chrono::DateTime::<chrono::FixedOffset>::from_str(s).map(Self::Zoned)
+            Ok(chrono::DateTime::<chrono::FixedOffset>::from_str(s).map(Self::Zoned)?)
         }
     }
 }
@@ -97,5 +118,53 @@ mod tests {
         let datetime = DateTime::from_str(negative_dt).unwrap();
         let system_time = datetime.to_system_time();
         assert!(system_time < UNIX_EPOCH);
+    }
+
+    #[test]
+    fn test_relative_time_format_positive() {
+        let datetime = DateTime::from_str("@1234567890").unwrap();
+        assert_eq!(datetime.to_string(), "@1234567890");
+    }
+
+    #[test]
+    fn test_relative_time_format_negative() {
+        let datetime = DateTime::from_str("@-1234567890").unwrap();
+        assert_eq!(datetime.to_string(), "@-1234567890");
+    }
+
+    #[test]
+    fn test_relative_time_format_decimal_dot() {
+        let datetime = DateTime::from_str("@123.456").unwrap();
+        assert_eq!(datetime.to_string(), "@123");
+    }
+
+    #[test]
+    fn test_relative_time_format_decimal_comma() {
+        let datetime = DateTime::from_str("@123,456").unwrap();
+        assert_eq!(datetime.to_string(), "@123");
+    }
+
+    #[test]
+    fn test_relative_time_format_negative_decimal_dot() {
+        let datetime = DateTime::from_str("@-123.456").unwrap();
+        assert_eq!(datetime.to_string(), "@-123");
+    }
+
+    #[test]
+    fn test_relative_time_format_negative_decimal_comma() {
+        let datetime = DateTime::from_str("@-123,456").unwrap();
+        assert_eq!(datetime.to_string(), "@-123");
+    }
+
+    #[test]
+    fn test_relative_time_format_zero() {
+        let datetime = DateTime::from_str("@0").unwrap();
+        assert_eq!(datetime.to_string(), "@0");
+    }
+
+    #[test]
+    fn test_relative_time_format_negative_one() {
+        let datetime = DateTime::from_str("@-1").unwrap();
+        assert_eq!(datetime.to_string(), "@-1");
     }
 }
