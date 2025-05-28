@@ -1,6 +1,12 @@
 mod exclude;
+mod exclude_from;
+mod files_from;
+mod files_from_stdin;
+mod gitignore;
+mod include;
 mod mtime;
 mod no_recursive;
+mod numeric_owner;
 mod password_from_file;
 mod password_hash;
 mod substitution;
