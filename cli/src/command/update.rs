@@ -51,6 +51,7 @@ use std::{
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
     group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
+    group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
