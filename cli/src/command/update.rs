@@ -116,6 +116,13 @@ pub(crate) struct UpdateCommand {
         help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names to not be stored in the archive"
     )]
     pub(crate) numeric_owner: bool,
+    #[arg(long, help = "Overrides the creation time read from disk")]
+    ctime: Option<DateTime>,
+    #[arg(
+        long,
+        help = "Clamp the creation time of the entries to the specified time by --ctime"
+    )]
+    clamp_ctime: bool,
     #[arg(
         long,
         help = "Only include files and directories older than the specified date. This compares ctime entries."
@@ -239,6 +246,8 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
     let time_options = TimeOptions {
         mtime: args.mtime.map(|it| it.to_system_time()),
         clamp_mtime: args.clamp_mtime,
+        ctime: args.ctime.map(|it| it.to_system_time()),
+        clamp_ctime: args.clamp_ctime,
     };
     let create_options = CreateOptions {
         option,

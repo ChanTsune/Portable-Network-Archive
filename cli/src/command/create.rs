@@ -46,6 +46,7 @@ use std::{
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
     group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
+    group(ArgGroup::new("ctime-flag").args(["clamp_ctime"]).requires("ctime")),
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
 )]
 #[cfg_attr(windows, command(
@@ -121,6 +122,13 @@ pub(crate) struct CreateCommand {
         help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names to not be stored in the archive"
     )]
     pub(crate) numeric_owner: bool,
+    #[arg(long, help = "Overrides the creation time read from disk")]
+    ctime: Option<DateTime>,
+    #[arg(
+        long,
+        help = "Clamp the creation time of the entries to the specified time by --ctime"
+    )]
+    clamp_ctime: bool,
     #[arg(long, help = "Overrides the modification time read from disk")]
     mtime: Option<DateTime>,
     #[arg(
@@ -252,6 +260,8 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
     let time_options = TimeOptions {
         mtime: args.mtime.map(|it| it.to_system_time()),
         clamp_mtime: args.clamp_mtime,
+        ctime: args.ctime.map(|it| it.to_system_time()),
+        clamp_ctime: args.clamp_ctime,
     };
     let password = password.as_deref();
     let write_option = entry_option(args.compression, args.cipher, args.hash, password);
