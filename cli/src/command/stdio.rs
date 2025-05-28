@@ -42,6 +42,7 @@ use std::{fs, io, path::PathBuf, time::SystemTime};
     group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
     group(ArgGroup::new("action-flags").args(["create", "extract", "list", "append"])),
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
+    group(ArgGroup::new("ctime-flag").args(["clamp_ctime"]).requires("ctime")),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
@@ -159,6 +160,13 @@ pub(crate) struct StdioCommand {
         help = "Clamp the modification time of the entries to the specified time by --mtime"
     )]
     clamp_mtime: bool,
+    #[arg(long, help = "Overrides the creation time")]
+    ctime: Option<DateTime>,
+    #[arg(
+        long,
+        help = "Clamp the creation time of the entries to the specified time by --ctime"
+    )]
+    clamp_ctime: bool,
     #[arg(long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
     pub(crate) files_from: Option<String>,
     #[arg(
@@ -264,6 +272,8 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
     let time_options = TimeOptions {
         mtime: args.mtime.map(|it| it.to_system_time()),
         clamp_mtime: args.clamp_mtime,
+        ctime: args.ctime.map(|it| it.to_system_time()),
+        clamp_ctime: args.clamp_ctime,
     };
     let creation_context = CreationContext {
         write_option: cli_option,
@@ -401,6 +411,8 @@ fn run_append(args: StdioCommand) -> io::Result<()> {
     let time_options = TimeOptions {
         mtime: args.mtime.map(|it| it.to_system_time()),
         clamp_mtime: args.clamp_mtime,
+        ctime: args.ctime.map(|it| it.to_system_time()),
+        clamp_ctime: args.clamp_ctime,
     };
     let create_options = CreateOptions {
         option,
