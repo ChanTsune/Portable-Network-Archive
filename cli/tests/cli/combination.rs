@@ -42,7 +42,7 @@ fn combination_fs() {
             [
                 "--quiet",
                 "c",
-                &format!("combination_fs/{}.pna", joined_options),
+                &format!("combination_fs/{joined_options}.pna"),
                 "--overwrite",
                 "combination_fs/in/",
                 #[cfg(windows)]
@@ -56,10 +56,10 @@ fn combination_fs() {
         cmd.args([
             "--quiet",
             "x",
-            &format!("combination_fs/{}.pna", joined_options),
+            &format!("combination_fs/{joined_options}.pna"),
             "--overwrite",
             "--out-dir",
-            &format!("combination_fs/out/{}/", joined_options),
+            &format!("combination_fs/out/{joined_options}/"),
             "--strip-components",
             &components_count("combination_fs/in/").to_string(),
             "--password",
@@ -70,7 +70,7 @@ fn combination_fs() {
         cmd.assert().success();
         diff(
             "combination_fs/in/",
-            format!("combination_fs/out/{}", joined_options),
+            format!("combination_fs/out/{joined_options}"),
         )
         .unwrap();
     }
@@ -132,7 +132,7 @@ fn combination_stdio() {
             "-x",
             "--overwrite",
             "--out-dir",
-            &format!("combination_stdio/out/{}/", joined_options),
+            &format!("combination_stdio/out/{joined_options}/"),
             "--strip-components",
             &components_count("combination_stdio/in/").to_string(),
             "--password",
@@ -143,7 +143,7 @@ fn combination_stdio() {
         cmd.assert().success();
         diff(
             "combination_stdio/in/",
-            format!("combination_stdio/out/{}", joined_options),
+            format!("combination_stdio/out/{joined_options}"),
         )
         .unwrap();
     }
