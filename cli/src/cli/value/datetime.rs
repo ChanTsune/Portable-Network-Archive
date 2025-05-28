@@ -18,6 +18,7 @@ pub(crate) enum DateTimeError {
 pub(crate) enum DateTime {
     Naive(chrono::NaiveDateTime),
     Zoned(chrono::DateTime<chrono::FixedOffset>),
+    Date(chrono::NaiveDate),
     Epoch(i64), // Unix epoch timestamp in seconds
 }
 
@@ -38,6 +39,9 @@ impl DateTime {
                 from_timestamp(seconds)
             }
             Self::Zoned(zoned) => from_timestamp(zoned.timestamp()),
+            Self::Date(date) => {
+                from_timestamp(date.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp())
+            }
             Self::Epoch(seconds) => from_timestamp(*seconds),
         }
     }
@@ -49,6 +53,7 @@ impl Display for DateTime {
         match self {
             Self::Naive(naive) => Display::fmt(naive, f),
             Self::Zoned(zoned) => Display::fmt(zoned, f),
+            Self::Date(date) => Display::fmt(date, f),
             Self::Epoch(seconds) => write!(f, "@{seconds}"),
         }
     }
@@ -70,6 +75,8 @@ impl FromStr for DateTime {
             Ok(Self::Epoch(seconds.trunc() as i64))
         } else if let Ok(naive) = chrono::NaiveDateTime::from_str(s) {
             Ok(Self::Naive(naive))
+        } else if let Ok(naive_date) = chrono::NaiveDate::from_str(s) {
+            Ok(Self::Date(naive_date))
         } else {
             Ok(chrono::DateTime::<chrono::FixedOffset>::from_str(s).map(Self::Zoned)?)
         }
@@ -166,5 +173,11 @@ mod tests {
     fn test_relative_time_format_negative_one() {
         let datetime = DateTime::from_str("@-1").unwrap();
         assert_eq!(datetime.to_string(), "@-1");
+    }
+
+    #[test]
+    fn test_datetime_parse_and_display_date() {
+        let datetime = DateTime::from_str("2024-04-01").unwrap();
+        assert_eq!(datetime.to_string(), "2024-04-01");
     }
 }
