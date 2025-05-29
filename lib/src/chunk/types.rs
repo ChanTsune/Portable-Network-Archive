@@ -70,6 +70,15 @@ impl ChunkType {
     /// Last accessed datetime
     #[allow(non_upper_case_globals)]
     pub const aTIM: ChunkType = ChunkType(*b"aTIM");
+    /// Nanoseconds for creation datetime
+    #[allow(non_upper_case_globals)]
+    pub const cTNS: ChunkType = ChunkType(*b"cTNS");
+    /// Nanoseconds for last modified datetime
+    #[allow(non_upper_case_globals)]
+    pub const mTNS: ChunkType = ChunkType(*b"mTNS");
+    /// Nanoseconds for last accessed datetime
+    #[allow(non_upper_case_globals)]
+    pub const aTNS: ChunkType = ChunkType(*b"aTNS");
     /// Entry permissions
     #[allow(non_upper_case_globals)]
     pub const fPRM: ChunkType = ChunkType(*b"fPRM");
