@@ -1,4 +1,4 @@
-use crate::utils::{components_count, diff::diff, setup, TestResources};
+use crate::utils::{diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 use std::fs;
@@ -52,7 +52,7 @@ fn delete_with_files_from() {
         "--out-dir",
         "delete_files_from/out/",
         "--strip-components",
-        &components_count("delete_files_from/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()
