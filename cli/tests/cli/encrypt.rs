@@ -1,4 +1,4 @@
-use crate::utils::{components_count, diff::diff, setup, TestResources};
+use crate::utils::{diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 
@@ -32,7 +32,7 @@ fn aes_ctr_archive() {
         "--password",
         "password",
         "--strip-components",
-        &components_count("zstd_aes_ctr/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()
@@ -71,7 +71,7 @@ fn aes_cbc_archive() {
         "--password",
         "password",
         "--strip-components",
-        &components_count("zstd_aes_cbc/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()
@@ -110,7 +110,7 @@ fn camellia_ctr_archive() {
         "--password",
         "password",
         "--strip-components",
-        &components_count("zstd_camellia_ctr/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()
@@ -149,7 +149,7 @@ fn camellia_cbc_archive() {
         "--password",
         "password",
         "--strip-components",
-        &components_count("zstd_camellia_cbc/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()

@@ -1,6 +1,6 @@
 mod exclude;
 
-use crate::utils::{components_count, diff::diff, setup, TestResources};
+use crate::utils::{diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 use std::fs;
@@ -41,7 +41,7 @@ fn delete_overwrite() {
         "--out-dir",
         "delete_overwrite/out/",
         "--strip-components",
-        &components_count("delete_overwrite/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()
@@ -88,7 +88,7 @@ fn delete_output() {
         "--out-dir",
         "delete_output/out/",
         "--strip-components",
-        &components_count("delete_output/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()
@@ -134,7 +134,7 @@ fn delete_solid() {
         "--out-dir",
         "delete_solid/out/",
         "--strip-components",
-        &components_count("delete_solid/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()
@@ -180,7 +180,7 @@ fn delete_unsolid() {
         "--out-dir",
         "delete_unsolid/out/",
         "--strip-components",
-        &components_count("delete_unsolid/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()

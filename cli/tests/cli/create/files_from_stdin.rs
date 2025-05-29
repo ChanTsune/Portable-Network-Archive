@@ -1,5 +1,5 @@
 #![cfg(not(target_family = "wasm"))]
-use crate::utils::{self, components_count, diff::diff, setup, TestResources};
+use crate::utils::{self, diff::diff, setup, TestResources};
 use assert_cmd::Command;
 
 #[test]
@@ -34,7 +34,7 @@ fn create_with_files_from_stdin() {
         "--out-dir",
         "create_with_files_from_stdin/out/",
         "--strip-components",
-        &components_count("create_with_files_from_stdin/src/").to_string(),
+        "2",
     ]);
     cmd.assert().success();
 

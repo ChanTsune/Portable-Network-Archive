@@ -1,4 +1,4 @@
-use crate::utils::{self, components_count, diff::diff, setup, TestResources};
+use crate::utils::{self, diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 use std::fs;
@@ -42,7 +42,7 @@ fn create_with_files_from() {
         "--out-dir",
         "create_with_files_from/out/",
         "--strip-components",
-        &components_count("create_with_files_from/src/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()

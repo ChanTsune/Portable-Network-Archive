@@ -1,4 +1,4 @@
-use crate::utils::{components_count, diff::diff, setup, LibSourceCode};
+use crate::utils::{diff::diff, setup, LibSourceCode};
 use itertools::Itertools;
 
 // NOTE: Skip `--keep-xattr` option for NetBSD
@@ -61,7 +61,7 @@ fn combination_fs() {
             "--out-dir",
             &format!("combination_fs/out/{joined_options}/"),
             "--strip-components",
-            &components_count("combination_fs/in/").to_string(),
+            "2",
             "--password",
             "password",
             #[cfg(windows)]
@@ -134,7 +134,7 @@ fn combination_stdio() {
             "--out-dir",
             &format!("combination_stdio/out/{joined_options}/"),
             "--strip-components",
-            &components_count("combination_stdio/in/").to_string(),
+            "2",
             "--password",
             "password",
             #[cfg(windows)]

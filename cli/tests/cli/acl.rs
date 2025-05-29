@@ -3,7 +3,7 @@ mod dump;
 #[cfg(not(target_family = "wasm"))]
 mod restore;
 
-use crate::utils::{components_count, diff::diff, setup, TestResources};
+use crate::utils::{diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 
@@ -85,7 +85,7 @@ fn archive_acl_get_set() {
         "--out-dir",
         "acl_get_set/out/",
         "--strip-components",
-        &components_count("acl_get_set/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()

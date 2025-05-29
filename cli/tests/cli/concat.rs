@@ -1,4 +1,4 @@
-use crate::utils::{components_count, diff::diff, setup, TestResources};
+use crate::utils::{diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 
@@ -49,7 +49,7 @@ fn concat_archive() {
         "--out-dir",
         "concat_archive/out",
         "--strip-components",
-        &components_count("concat_archive/in").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()
