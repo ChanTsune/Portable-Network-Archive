@@ -1,4 +1,10 @@
 mod exclude;
+mod exclude_from;
+mod files_from;
+mod files_from_stdin;
+mod include;
+mod password;
+mod password_file;
 
 use crate::utils::{components_count, diff::diff, setup, TestResources};
 use clap::Parser;
