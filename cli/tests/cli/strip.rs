@@ -1,4 +1,4 @@
-use crate::utils::{components_count, diff::diff, setup, TestResources};
+use crate::utils::{diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 
@@ -50,7 +50,7 @@ fn archive_strip_metadata() {
         "--keep-timestamp",
         "--keep-permission",
         "--strip-components",
-        &components_count("archive_strip_metadata/in/").to_string(),
+        "2",
         #[cfg(windows)]
         "--unstable",
     ])

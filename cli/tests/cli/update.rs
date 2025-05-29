@@ -1,7 +1,7 @@
 mod exclude;
 mod mtime;
 
-use crate::utils::{components_count, diff::diff, setup, TestResources};
+use crate::utils::{diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 use std::{fs, io::prelude::*, time};
@@ -71,7 +71,7 @@ fn archive_update_newer_mtime() {
         "archive_update_newer_mtime/out/",
         "--keep-timestamp",
         "--strip-components",
-        &components_count("archive_update_newer_mtime/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()
@@ -148,7 +148,7 @@ fn archive_update_older_mtime() {
         "archive_update_older_mtime/out/",
         "--keep-timestamp",
         "--strip-components",
-        &components_count("archive_update_older_mtime/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()
@@ -204,7 +204,7 @@ fn archive_update_deletion() {
         "archive_update_deletion/out/",
         "--keep-timestamp",
         "--strip-components",
-        &components_count("archive_update_deletion/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()

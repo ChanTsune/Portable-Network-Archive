@@ -1,4 +1,4 @@
-use crate::utils::{components_count, diff::diff, setup, TestResources};
+use crate::utils::{diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 
@@ -28,7 +28,7 @@ fn solid_store_archive() {
         "--out-dir",
         "solid_store/out/",
         "--strip-components",
-        &components_count("solid_store/out/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()
@@ -62,7 +62,7 @@ fn solid_zstd_archive() {
         "--out-dir",
         "solid_zstd/out/",
         "--strip-components",
-        &components_count("solid_zstd/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()
@@ -97,7 +97,7 @@ fn solid_xz_archive() {
         "--out-dir",
         "solid_xz/out/",
         "--strip-components",
-        &components_count("solid_xz/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()
@@ -132,7 +132,7 @@ fn solid_deflate_archive() {
         "--out-dir",
         "solid_deflate/out/",
         "--strip-components",
-        &components_count("solid_deflate/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()

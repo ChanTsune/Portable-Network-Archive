@@ -1,5 +1,5 @@
 use super::DURATION_24_HOURS;
-use crate::utils::{components_count, diff::diff, setup, TestResources};
+use crate::utils::{diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 use std::{fs, io::prelude::*, time};
@@ -74,7 +74,7 @@ fn archive_update_newer_mtime_with_exclude() {
         "archive_update_newer_mtime_with_exclude/out/",
         "--keep-timestamp",
         "--strip-components",
-        &components_count("archive_update_newer_mtime_with_exclude/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()

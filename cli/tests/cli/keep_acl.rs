@@ -1,5 +1,5 @@
 #![cfg(feature = "acl")]
-use crate::utils::{components_count, diff::diff, setup, TestResources};
+use crate::utils::{diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 
@@ -31,7 +31,7 @@ fn archive_keep_acl() {
         "--keep-acl",
         "--unstable",
         "--strip-components",
-        &components_count("keep_acl/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()

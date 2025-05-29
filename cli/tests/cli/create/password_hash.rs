@@ -1,4 +1,4 @@
-use crate::utils::{components_count, diff::diff, setup, TestResources};
+use crate::utils::{diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 
@@ -33,7 +33,7 @@ fn aes_ctr_argon2_archive() {
         "--password",
         "password",
         "--strip-components",
-        &components_count("aes_argon2_ctr/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()
@@ -76,7 +76,7 @@ fn aes_ctr_argon2_with_params_archive() {
         "--password",
         "password",
         "--strip-components",
-        &components_count("aes_argon2_with_params_ctr/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()
@@ -120,7 +120,7 @@ fn aes_ctr_pbkdf2_archive() {
         "--password",
         "password",
         "--strip-components",
-        &components_count("aes_pbkdf2_ctr/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()
@@ -161,7 +161,7 @@ fn aes_ctr_pbkdf2_with_params_archive() {
         "--password",
         "password",
         "--strip-components",
-        &components_count("aes_pbkdf2_with_params_ctr/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()

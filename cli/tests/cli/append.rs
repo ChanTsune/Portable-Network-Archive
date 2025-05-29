@@ -1,7 +1,7 @@
 mod exclude;
 mod mtime;
 
-use crate::utils::{components_count, diff::diff, setup, TestResources};
+use crate::utils::{diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 
@@ -45,7 +45,7 @@ fn archive_append() {
         "--out-dir",
         "archive_append/out/",
         "--strip-components",
-        &components_count("archive_append/in/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()
@@ -96,7 +96,7 @@ fn archive_append_split() {
         "--out-dir",
         "archive_append_split/out/",
         "--strip-components",
-        &components_count("archive_append_split/out/").to_string(),
+        "2",
     ])
     .unwrap()
     .execute()
