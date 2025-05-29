@@ -47,6 +47,7 @@ impl Command for AclCommand {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum XattrCommands {
     #[command(about = "Get acl of entries")]
     Get(GetAclCommand),
