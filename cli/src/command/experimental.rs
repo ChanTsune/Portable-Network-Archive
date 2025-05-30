@@ -32,6 +32,7 @@ impl Command for ExperimentalCommand {
             ExperimentalCommands::Migrate(cmd) => cmd.execute(),
             ExperimentalCommands::Chunk(cmd) => cmd.execute(),
             ExperimentalCommands::Sort(cmd) => cmd.execute(),
+            ExperimentalCommands::Diff(cmd) => cmd.execute(),
         }
     }
 }
@@ -60,4 +61,6 @@ pub(crate) enum ExperimentalCommands {
     Chunk(command::chunk::ChunkCommand),
     #[command(about = "Sort entries in archive")]
     Sort(command::sort::SortCommand),
+    #[command(about = "Compare archive entries with filesystem")]
+    Diff(command::diff::DiffCommand),
 }
