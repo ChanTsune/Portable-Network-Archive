@@ -589,7 +589,7 @@ impl WriteOptionsBuilder {
     ///
     /// ## Panics
     ///
-    /// Panic will occur when encryption is enabled and password is not provided.
+    /// Panic will occur when encryption is enabled and a password is not provided.
     #[inline]
     pub fn build(&self) -> WriteOptions {
         let cipher = if self.encryption != Encryption::No {
@@ -628,7 +628,7 @@ pub struct ReadOptions {
 }
 
 impl ReadOptions {
-    /// Create a new [`ReadOptions`] with optional password.
+    /// Create a new [`ReadOptions`] with an optional password.
     ///
     /// # Examples
     /// ```
