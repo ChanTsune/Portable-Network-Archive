@@ -111,6 +111,8 @@ pub(crate) struct TimeOptions {
     pub(crate) clamp_mtime: bool,
     pub(crate) ctime: Option<SystemTime>,
     pub(crate) clamp_ctime: bool,
+    pub(crate) atime: Option<SystemTime>,
+    pub(crate) clamp_atime: bool,
 }
 
 pub(crate) fn collect_items(
@@ -297,7 +299,12 @@ pub(crate) fn apply_metadata<'p>(
                     entry.modified(modified_since_unix_epoch);
                 }
             }
-            if let Ok(a) = meta.accessed() {
+            let atime = clamped_time(
+                meta.accessed().ok(),
+                time_options.atime,
+                time_options.clamp_atime,
+            );
+            if let Some(a) = atime {
                 if let Ok(accessed_since_unix_epoch) = a.duration_since(UNIX_EPOCH) {
                     entry.accessed(accessed_since_unix_epoch);
                 }

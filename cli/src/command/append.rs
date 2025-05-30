@@ -44,6 +44,7 @@ use std::{
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
     group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
+    group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
@@ -115,6 +116,13 @@ pub(crate) struct AppendCommand {
         help = "Clamp the creation time of the entries to the specified time by --ctime"
     )]
     clamp_ctime: bool,
+    #[arg(long, help = "Overrides the access time read from disk")]
+    atime: Option<DateTime>,
+    #[arg(
+        long,
+        help = "Clamp the access time of the entries to the specified time by --atime"
+    )]
+    clamp_atime: bool,
     #[arg(long, help = "Overrides the modification time read from disk")]
     mtime: Option<DateTime>,
     #[arg(
@@ -210,6 +218,8 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
         clamp_mtime: args.clamp_mtime,
         ctime: args.ctime.map(|it| it.to_system_time()),
         clamp_ctime: args.clamp_ctime,
+        atime: args.atime.map(|it| it.to_system_time()),
+        clamp_atime: args.clamp_atime,
     };
     let create_options = CreateOptions {
         option,

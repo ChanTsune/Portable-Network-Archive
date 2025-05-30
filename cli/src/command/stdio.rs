@@ -43,6 +43,7 @@ use std::{fs, io, path::PathBuf, time::SystemTime};
     group(ArgGroup::new("action-flags").args(["create", "extract", "list", "append"])),
     group(ArgGroup::new("ctime-flag").args(["clamp_ctime"]).requires("ctime")),
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
+    group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
@@ -160,6 +161,13 @@ pub(crate) struct StdioCommand {
         help = "Clamp the creation time of the entries to the specified time by --ctime"
     )]
     clamp_ctime: bool,
+    #[arg(long, help = "Overrides the access time")]
+    atime: Option<DateTime>,
+    #[arg(
+        long,
+        help = "Clamp the access time of the entries to the specified time by --atime"
+    )]
+    clamp_atime: bool,
     #[arg(long, help = "Overrides the modification time")]
     mtime: Option<DateTime>,
     #[arg(
@@ -274,6 +282,8 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
         clamp_mtime: args.clamp_mtime,
         ctime: args.ctime.map(|it| it.to_system_time()),
         clamp_ctime: args.clamp_ctime,
+        atime: args.atime.map(|it| it.to_system_time()),
+        clamp_atime: args.clamp_atime,
     };
     let creation_context = CreationContext {
         write_option: cli_option,
@@ -413,6 +423,8 @@ fn run_append(args: StdioCommand) -> io::Result<()> {
         clamp_mtime: args.clamp_mtime,
         ctime: args.ctime.map(|it| it.to_system_time()),
         clamp_ctime: args.clamp_ctime,
+        atime: args.atime.map(|it| it.to_system_time()),
+        clamp_atime: args.clamp_atime,
     };
     let create_options = CreateOptions {
         option,
