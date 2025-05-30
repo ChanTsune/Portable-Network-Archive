@@ -5,7 +5,7 @@
 //! an archive is never required to be fully resident in memory, and all objects
 //! provide largely a streaming interface to read bytes from.
 
-#![doc(html_root_url = "https://docs.rs/libpna/0.25.0")]
+#![doc(html_root_url = "https://docs.rs/libpna/0.25.1")]
 #![deny(
     missing_docs,
     clippy::missing_inline_in_public_items,
