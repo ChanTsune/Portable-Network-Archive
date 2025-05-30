@@ -405,7 +405,7 @@ where
     if path.exists() && !overwrite {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
-            format!("{} is already exists", path.display()),
+            format!("{} already exists", path.display()),
         ));
     }
     log::debug!("start: {}", path.display());

@@ -203,7 +203,7 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
     if !args.overwrite && archive.exists() {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
-            format!("{} is already exists", archive.display()),
+            format!("{} already exists", archive.display()),
         ));
     }
     log::info!("Create an archive: {}", archive.display());

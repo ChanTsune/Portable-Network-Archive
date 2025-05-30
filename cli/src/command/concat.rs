@@ -30,7 +30,7 @@ fn concat_entry(args: ConcatCommand) -> io::Result<()> {
     if !args.overwrite && args.files.archive.exists() {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
-            format!("{} is already exists", args.files.archive.display()),
+            format!("{} already exists", args.files.archive.display()),
         ));
     }
     for item in &args.files.files {

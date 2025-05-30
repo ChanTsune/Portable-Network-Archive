@@ -53,7 +53,7 @@ fn split_archive(args: SplitCommand) -> io::Result<()> {
     if !args.overwrite && name.exists() {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
-            format!("{} is already exists", name.display()),
+            format!("{} already exists", name.display()),
         ));
     }
     let max_file_size = args.max_size.unwrap_or_else(|| ByteSize::gb(1)).as_u64() as usize;
