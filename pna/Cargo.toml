@@ -1,6 +1,6 @@
 [package]
 name = "pna"
-version = "0.25.0"
+version = "0.25.1"
 edition = "2021"
 license = "Apache-2.0 OR MIT"
 description = "PNA(Portable-Network-Archive) decoding and encoding library"

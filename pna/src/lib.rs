@@ -3,7 +3,7 @@
 //! This library provides filesystem-related utilities in addition to utilities
 //! necessary to manage PNA archives abstracted over a reader or writer hosted by [libpna].
 #![cfg_attr(target_os = "wasi", feature(wasi_ext))]
-#![doc(html_root_url = "https://docs.rs/pna/0.25.0")]
+#![doc(html_root_url = "https://docs.rs/pna/0.25.1")]
 #![deny(
     missing_docs,
     clippy::missing_inline_in_public_items,
