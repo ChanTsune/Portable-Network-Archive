@@ -10,6 +10,8 @@ mod combination;
 mod concat;
 mod create;
 mod delete;
+#[cfg(not(target_family = "wasm"))]
+mod diff;
 mod encrypt;
 mod extract;
 mod hardlink;
