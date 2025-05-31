@@ -10,6 +10,7 @@ mod combination;
 mod concat;
 mod create;
 mod delete;
+mod diff;
 mod encrypt;
 mod extract;
 mod hardlink;
