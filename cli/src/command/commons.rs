@@ -139,7 +139,8 @@ pub(crate) fn collect_items(
             .git_global(false)
             .parents(false)
             .follow_links(follow_links)
-            .ignore_case_insensitive(false);
+            .ignore_case_insensitive(false)
+            .sort_by_file_path(Path::cmp);
         let walker = builder.build();
         walker
             .filter_map(|path| match path {
