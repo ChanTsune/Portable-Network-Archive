@@ -1,9 +1,11 @@
 #[cfg(not(target_family = "wasm"))]
 mod dump;
 #[cfg(not(target_family = "wasm"))]
+mod get;
+#[cfg(not(target_family = "wasm"))]
 mod restore;
 
-use crate::utils::{diff::diff, setup, TestResources};
+use crate::utils::{archive::for_each_entry, diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::cli;
 use portable_network_archive::command::Command;
@@ -74,6 +76,19 @@ fn archive_xattr_set() {
     .unwrap();
 
     diff("xattr_set/in/", "xattr_set/out/").unwrap();
+
+    for_each_entry("xattr_set/xattr_set.pna", |entry| {
+        if entry.header().path().as_str() == "xattr_set/in/raw/empty.txt" {
+            assert_eq!(
+                entry.xattrs(),
+                &[pna::ExtendedAttribute::new(
+                    "user.name".into(),
+                    b"pna developers!".to_vec()
+                )]
+            );
+        }
+    })
+    .unwrap();
 
     #[cfg(all(unix, not(target_os = "netbsd")))]
     if xattr::SUPPORTED_PLATFORM {
@@ -165,6 +180,13 @@ fn archive_xattr_remove() {
     .unwrap();
 
     diff("xattr_remove/in/", "xattr_remove/out/").unwrap();
+
+    for_each_entry("xattr_remove/xattr_remove.pna", |entry| {
+        if entry.header().path().as_str() == "xattr_remove/in/raw/empty.txt" {
+            assert!(entry.xattrs().is_empty());
+        }
+    })
+    .unwrap();
 
     #[cfg(all(unix, not(target_os = "netbsd")))]
     if xattr::SUPPORTED_PLATFORM {
