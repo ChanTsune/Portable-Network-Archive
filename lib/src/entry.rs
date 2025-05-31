@@ -557,6 +557,9 @@ where
         let mut ctime = None;
         let mut mtime = None;
         let mut atime = None;
+        let mut ctime_ns = None;
+        let mut mtime_ns = None;
+        let mut atime_ns = None;
         let mut permission = None;
         for chunk in entry.0 {
             match chunk.ty {
@@ -576,6 +579,9 @@ where
                 ChunkType::cTIM => ctime = Some(timestamp(chunk.data())?),
                 ChunkType::mTIM => mtime = Some(timestamp(chunk.data())?),
                 ChunkType::aTIM => atime = Some(timestamp(chunk.data())?),
+                ChunkType::cTNS => ctime_ns = Some(nanos(chunk.data())?),
+                ChunkType::mTNS => mtime_ns = Some(nanos(chunk.data())?),
+                ChunkType::aTNS => atime_ns = Some(nanos(chunk.data())?),
                 ChunkType::fPRM => permission = Some(Permission::try_from_bytes(chunk.data())?),
                 ChunkType::xATR => xattrs.push(ExtendedAttribute::try_from_bytes(chunk.data())?),
                 _ => extra.push(chunk),
@@ -596,6 +602,10 @@ where
                 ),
             ));
         }
+        let ctime = ctime.map(|t| t + Duration::from_nanos(ctime_ns.unwrap_or(0) as u64));
+        let mtime = mtime.map(|t| t + Duration::from_nanos(mtime_ns.unwrap_or(0) as u64));
+        let atime = atime.map(|t| t + Duration::from_nanos(atime_ns.unwrap_or(0) as u64));
+
         Ok(Self {
             header,
             phsf,
@@ -652,12 +662,24 @@ where
         }
         if let Some(c) = created {
             total += (ChunkType::cTIM, c.as_secs().to_be_bytes()).write_chunk_in(writer)?;
+            if c.subsec_nanos() != 0 {
+                total +=
+                    (ChunkType::cTNS, c.subsec_nanos().to_be_bytes()).write_chunk_in(writer)?;
+            }
         }
         if let Some(d) = modified {
             total += (ChunkType::mTIM, d.as_secs().to_be_bytes()).write_chunk_in(writer)?;
+            if d.subsec_nanos() != 0 {
+                total +=
+                    (ChunkType::mTNS, d.subsec_nanos().to_be_bytes()).write_chunk_in(writer)?;
+            }
         }
         if let Some(a) = accessed {
             total += (ChunkType::aTIM, a.as_secs().to_be_bytes()).write_chunk_in(writer)?;
+            if a.subsec_nanos() != 0 {
+                total +=
+                    (ChunkType::aTNS, a.subsec_nanos().to_be_bytes()).write_chunk_in(writer)?;
+            }
         }
         if let Some(p) = permission {
             total += (ChunkType::fPRM, p.to_bytes()).write_chunk_in(writer)?;
@@ -705,18 +727,36 @@ where
                 ChunkType::cTIM,
                 c.as_secs().to_be_bytes(),
             ));
+            if c.subsec_nanos() != 0 {
+                vec.push(RawChunk::from_data(
+                    ChunkType::cTNS,
+                    c.subsec_nanos().to_be_bytes(),
+                ));
+            }
         }
         if let Some(d) = modified {
             vec.push(RawChunk::from_data(
                 ChunkType::mTIM,
                 d.as_secs().to_be_bytes(),
             ));
+            if d.subsec_nanos() != 0 {
+                vec.push(RawChunk::from_data(
+                    ChunkType::mTNS,
+                    d.subsec_nanos().to_be_bytes(),
+                ));
+            }
         }
         if let Some(a) = accessed {
             vec.push(RawChunk::from_data(
                 ChunkType::aTIM,
                 a.as_secs().to_be_bytes(),
             ));
+            if a.subsec_nanos() != 0 {
+                vec.push(RawChunk::from_data(
+                    ChunkType::aTNS,
+                    a.subsec_nanos().to_be_bytes(),
+                ));
+            }
         }
         if let Some(p) = permission {
             vec.push(RawChunk::from_data(ChunkType::fPRM, p.to_bytes()));
@@ -1015,6 +1055,22 @@ fn timestamp(bytes: &[u8]) -> io::Result<Duration> {
             .try_into()
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
     )))
+}
+
+#[inline]
+fn nanos(bytes: &[u8]) -> io::Result<u32> {
+    let v = u32::from_be_bytes(
+        bytes
+            .try_into()
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+    );
+    if v >= 1_000_000_000 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid nanoseconds",
+        ));
+    }
+    Ok(v)
 }
 
 #[inline]
