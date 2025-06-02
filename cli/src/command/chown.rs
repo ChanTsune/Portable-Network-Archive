@@ -19,7 +19,7 @@ use std::{io, ops::Not, path::PathBuf, str::FromStr};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(
-    group(ArgGroup::new("lookup").args(["numeric_owner", "no_owner_lookup"])),
+    group(ArgGroup::new("lookup").args(["owner_lookup", "no_owner_lookup"])),
 )]
 pub(crate) struct ChownCommand {
     #[arg(value_hint = ValueHint::FilePath)]
