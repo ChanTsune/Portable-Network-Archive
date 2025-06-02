@@ -180,4 +180,30 @@ mod tests {
         let datetime = DateTime::from_str("2024-04-01").unwrap();
         assert_eq!(datetime.to_string(), "2024-04-01");
     }
+
+    #[test]
+    fn test_to_system_time_naive() {
+        let naive = chrono::NaiveDate::from_ymd_opt(2024, 4, 1)
+            .unwrap()
+            .and_hms_opt(12, 0, 0)
+            .unwrap();
+        let datetime = DateTime::Naive(naive);
+        let system_time = datetime.to_system_time();
+        assert!(system_time > UNIX_EPOCH);
+    }
+
+    #[test]
+    fn test_to_system_time_date() {
+        let date = chrono::NaiveDate::from_ymd_opt(2024, 4, 1).unwrap();
+        let datetime = DateTime::Date(date);
+        let system_time = datetime.to_system_time();
+        assert!(system_time > UNIX_EPOCH);
+    }
+
+    #[test]
+    fn test_to_system_time_epoch() {
+        let datetime = DateTime::Epoch(1234567890);
+        let system_time = datetime.to_system_time();
+        assert!(system_time > UNIX_EPOCH);
+    }
 }
