@@ -1,9 +1,3 @@
-mod keep_solid;
-mod numeric;
-mod password;
-mod password_file;
-mod unsolid;
-
 use crate::utils::{diff::diff, setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
@@ -13,20 +7,25 @@ use std::fs;
 use std::os::unix::prelude::*;
 
 #[test]
-fn archive_chmod() {
+fn chmod_unsolid() {
     setup();
-    TestResources::extract_in("raw/", "chmod/in/").unwrap();
+    TestResources::extract_in("raw/", "chmod_unsolid/in/").unwrap();
 
     #[cfg(unix)]
-    fs::set_permissions("chmod/in/raw/text.txt", fs::Permissions::from_mode(0o777)).unwrap();
+    fs::set_permissions(
+        "chmod_unsolid/in/raw/text.txt",
+        fs::Permissions::from_mode(0o777),
+    )
+    .unwrap();
 
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
-        "chmod/chmod.pna",
+        "chmod_unsolid/chmod_unsolid.pna",
         "--overwrite",
-        "chmod/in/",
+        "--solid",
+        "chmod_unsolid/in/",
         "--keep-permission",
         #[cfg(windows)]
         "--unstable",
@@ -39,10 +38,11 @@ fn archive_chmod() {
         "--quiet",
         "experimental",
         "chmod",
-        "chmod/chmod.pna",
+        "--unsolid",
+        "chmod_unsolid/chmod_unsolid.pna",
         "--",
         "-x",
-        "chmod/in/raw/text.txt",
+        "chmod_unsolid/in/raw/text.txt",
     ])
     .unwrap()
     .execute()
@@ -51,10 +51,10 @@ fn archive_chmod() {
         "pna",
         "--quiet",
         "x",
-        "chmod/chmod.pna",
+        "chmod_unsolid/chmod_unsolid.pna",
         "--overwrite",
         "--out-dir",
-        "chmod/out/",
+        "chmod_unsolid/out/",
         "--keep-permission",
         #[cfg(windows)]
         "--unstable",
@@ -66,9 +66,9 @@ fn archive_chmod() {
     .unwrap();
     #[cfg(unix)]
     {
-        let meta = fs::symlink_metadata("chmod/out/raw/text.txt").unwrap();
+        let meta = fs::symlink_metadata("chmod_unsolid/out/raw/text.txt").unwrap();
         assert_eq!(meta.permissions().mode() & 0o777, 0o666);
     }
 
-    diff("chmod/in/", "chmod/out/").unwrap();
+    diff("chmod_unsolid/in/", "chmod_unsolid/out/").unwrap();
 }
