@@ -90,7 +90,7 @@ fn transform_entry<T>(entry: NormalEntry<T>, mode: Mode) -> NormalEntry<T> {
 
 bitflags! {
     #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-    pub(crate) struct Target: u8 {
+    pub(crate) struct Who: u8 {
         const User = 0b001;
         const Group = 0b010;
         const Other = 0b100;
@@ -98,17 +98,17 @@ bitflags! {
     }
 }
 
-impl Target {
+impl Who {
     #[inline]
     const fn apply_to(&self, n: u16) -> u16 {
         let mut result = 0;
-        if self.contains(Target::User) {
+        if self.contains(Who::User) {
             result |= n << 6;
         }
-        if self.contains(Target::Group) {
+        if self.contains(Who::Group) {
             result |= n << 3;
         }
-        if self.contains(Target::Other) {
+        if self.contains(Who::Other) {
             result |= n;
         }
         result
@@ -118,9 +118,9 @@ impl Target {
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) enum Mode {
     Num(u16),
-    Equal(Target, u8),
-    Plus(Target, u8),
-    Minus(Target, u8),
+    Equal(Who, u8),
+    Plus(Who, u8),
+    Minus(Who, u8),
 }
 
 impl Mode {
@@ -132,18 +132,18 @@ impl Mode {
         match self {
             Mode::Num(mode) => *mode,
             Mode::Equal(t, m) => {
-                let owner_mode = if t.contains(Target::User) {
-                    Target::User.apply_to(*m as u16)
+                let owner_mode = if t.contains(Who::User) {
+                    Who::User.apply_to(*m as u16)
                 } else {
                     mode & Self::OWNER_MASK
                 };
-                let group_mode = if t.contains(Target::Group) {
-                    Target::Group.apply_to(*m as u16)
+                let group_mode = if t.contains(Who::Group) {
+                    Who::Group.apply_to(*m as u16)
                 } else {
                     mode & Self::GROUP_MASK
                 };
-                let other_mode = if t.contains(Target::Other) {
-                    Target::Other.apply_to(*m as u16)
+                let other_mode = if t.contains(Who::Other) {
+                    Who::Other.apply_to(*m as u16)
                 } else {
                     mode & Self::OTHER_MASK
                 };
@@ -181,12 +181,12 @@ impl FromStr for Mode {
         fn parse_alphabetic_mode(
             t: char,
             chars: impl Iterator<Item = char>,
-            target: Target,
+            who: Who,
         ) -> Result<Mode, <Mode as FromStr>::Err> {
             match t {
-                '+' => Ok(Mode::Plus(target, parse_mode(chars)?)),
-                '-' => Ok(Mode::Minus(target, parse_mode(chars)?)),
-                '=' => Ok(Mode::Equal(target, parse_mode(chars)?)),
+                '+' => Ok(Mode::Plus(who, parse_mode(chars)?)),
+                '-' => Ok(Mode::Minus(who, parse_mode(chars)?)),
+                '=' => Ok(Mode::Equal(who, parse_mode(chars)?)),
                 m => Err(format!(
                     "unexpected character '{m}'. excepted one of '+', '-' or '='"
                 )),
@@ -204,18 +204,18 @@ impl FromStr for Mode {
                 Err(format!("invalid mode length {}", s.len()))
             };
         }
-        let mut target = Target::empty();
+        let mut who = Who::empty();
         for (idx, c) in s.chars().enumerate() {
             match c {
-                'u' => target |= Target::User,
-                'g' => target |= Target::Group,
-                'o' => target |= Target::Other,
-                'a' => target |= Target::All,
+                'u' => who |= Who::User,
+                'g' => who |= Who::Group,
+                'o' => who |= Who::Other,
+                'a' => who |= Who::All,
                 t @ ('+' | '-' | '=') => {
                     return parse_alphabetic_mode(
                         t,
                         s.chars().skip(idx + 1),
-                        if idx == 0 { Target::All } else { target },
+                        if idx == 0 { Who::All } else { who },
                     )
                 }
                 first => return Err(format!("unexpected character '{first}'")),
@@ -237,85 +237,67 @@ mod tests {
 
     #[test]
     fn parse_alphabetic_mode() {
-        assert_eq!(
-            Mode::from_str("=rwx").unwrap(),
-            Mode::Equal(Target::All, 0o7),
-        );
-        assert_eq!(
-            Mode::from_str("=rw").unwrap(),
-            Mode::Equal(Target::All, 0o6),
-        );
-        assert_eq!(Mode::from_str("+x").unwrap(), Mode::Plus(Target::All, 0o1));
-        assert_eq!(Mode::from_str("-w").unwrap(), Mode::Minus(Target::All, 0o2));
+        assert_eq!(Mode::from_str("=rwx").unwrap(), Mode::Equal(Who::All, 0o7),);
+        assert_eq!(Mode::from_str("=rw").unwrap(), Mode::Equal(Who::All, 0o6),);
+        assert_eq!(Mode::from_str("+x").unwrap(), Mode::Plus(Who::All, 0o1));
+        assert_eq!(Mode::from_str("-w").unwrap(), Mode::Minus(Who::All, 0o2));
     }
 
     #[test]
     fn parse_alphabetic_mode_with_user() {
         assert_eq!(
             Mode::from_str("u=rwx").unwrap(),
-            Mode::Equal(Target::User, 0o7),
+            Mode::Equal(Who::User, 0o7),
         );
         assert_eq!(
             Mode::from_str("g=rw").unwrap(),
-            Mode::Equal(Target::Group, 0o6),
+            Mode::Equal(Who::Group, 0o6),
         );
-        assert_eq!(
-            Mode::from_str("o+x").unwrap(),
-            Mode::Plus(Target::Other, 0o1),
-        );
-        assert_eq!(
-            Mode::from_str("a-w").unwrap(),
-            Mode::Minus(Target::All, 0o2),
-        );
+        assert_eq!(Mode::from_str("o+x").unwrap(), Mode::Plus(Who::Other, 0o1),);
+        assert_eq!(Mode::from_str("a-w").unwrap(), Mode::Minus(Who::All, 0o2),);
         assert_eq!(
             Mode::from_str("ug+x").unwrap(),
-            Mode::Plus(Target::User | Target::Group, 0o1),
+            Mode::Plus(Who::User | Who::Group, 0o1),
         );
     }
 
     #[test]
     fn parse_mode_from_str_symbol_without_mode() {
-        assert_eq!(Mode::from_str("u=").unwrap(), Mode::Equal(Target::User, 0));
-        assert_eq!(Mode::from_str("g+").unwrap(), Mode::Plus(Target::Group, 0));
-        assert_eq!(Mode::from_str("o-").unwrap(), Mode::Minus(Target::Other, 0));
+        assert_eq!(Mode::from_str("u=").unwrap(), Mode::Equal(Who::User, 0));
+        assert_eq!(Mode::from_str("g+").unwrap(), Mode::Plus(Who::Group, 0));
+        assert_eq!(Mode::from_str("o-").unwrap(), Mode::Minus(Who::Other, 0));
     }
 
     #[test]
     fn parse_mode_from_str_multiple_targets_symbol_without_mode() {
         assert_eq!(
             Mode::from_str("ug=").unwrap(),
-            Mode::Equal(Target::User | Target::Group, 0)
+            Mode::Equal(Who::User | Who::Group, 0)
         );
     }
 
     #[test]
     fn parse_mode_from_str_no_target_before_symbol() {
-        assert_eq!(
-            Mode::from_str("=rwx").unwrap(),
-            Mode::Equal(Target::All, 0o7)
-        );
-        assert_eq!(Mode::from_str("+x").unwrap(), Mode::Plus(Target::All, 0o1));
-        assert_eq!(Mode::from_str("-w").unwrap(), Mode::Minus(Target::All, 0o2));
+        assert_eq!(Mode::from_str("=rwx").unwrap(), Mode::Equal(Who::All, 0o7));
+        assert_eq!(Mode::from_str("+x").unwrap(), Mode::Plus(Who::All, 0o1));
+        assert_eq!(Mode::from_str("-w").unwrap(), Mode::Minus(Who::All, 0o2));
     }
 
     #[test]
     fn parse_mode_from_str_multiple_targets() {
         assert_eq!(
             Mode::from_str("ugo=rw").unwrap(),
-            Mode::Equal(Target::User | Target::Group | Target::Other, 0o6)
+            Mode::Equal(Who::User | Who::Group | Who::Other, 0o6)
         );
         assert_eq!(
             Mode::from_str("ug+x").unwrap(),
-            Mode::Plus(Target::User | Target::Group, 0o1)
+            Mode::Plus(Who::User | Who::Group, 0o1)
         );
     }
 
     #[test]
     fn parse_mode_from_str_all_mixed_with_targets() {
-        assert_eq!(
-            Mode::from_str("au=rw").unwrap(),
-            Mode::Equal(Target::All, 0o6)
-        );
+        assert_eq!(Mode::from_str("au=rw").unwrap(), Mode::Equal(Who::All, 0o6));
     }
 
     #[test]
@@ -369,48 +351,48 @@ mod tests {
     }
 
     #[test]
-    fn target_apply_to_user_only() {
-        assert_eq!(Target::User.apply_to(0o7), 0o700);
+    fn who_apply_to_user_only() {
+        assert_eq!(Who::User.apply_to(0o7), 0o700);
     }
 
     #[test]
-    fn target_apply_to_group_only() {
-        assert_eq!(Target::Group.apply_to(0o7), 0o070);
+    fn who_apply_to_group_only() {
+        assert_eq!(Who::Group.apply_to(0o7), 0o070);
     }
 
     #[test]
-    fn target_apply_to_other_only() {
-        assert_eq!(Target::Other.apply_to(0o7), 0o007);
+    fn who_apply_to_other_only() {
+        assert_eq!(Who::Other.apply_to(0o7), 0o007);
     }
 
     #[test]
-    fn target_apply_to_user_group() {
-        assert_eq!((Target::User | Target::Group).apply_to(0o7), 0o770);
+    fn who_apply_to_user_group() {
+        assert_eq!((Who::User | Who::Group).apply_to(0o7), 0o770);
     }
 
     #[test]
-    fn target_apply_to_user_other() {
-        assert_eq!((Target::User | Target::Other).apply_to(0o7), 0o707);
+    fn who_apply_to_user_other() {
+        assert_eq!((Who::User | Who::Other).apply_to(0o7), 0o707);
     }
 
     #[test]
-    fn target_apply_to_group_other() {
-        assert_eq!((Target::Group | Target::Other).apply_to(0o7), 0o077);
+    fn who_apply_to_group_other() {
+        assert_eq!((Who::Group | Who::Other).apply_to(0o7), 0o077);
     }
 
     #[test]
-    fn target_apply_to_all() {
-        assert_eq!(Target::All.apply_to(0o7), 0o777);
+    fn who_apply_to_all() {
+        assert_eq!(Who::All.apply_to(0o7), 0o777);
     }
 
     #[test]
-    fn target_apply_to_empty() {
-        assert_eq!(Target::empty().apply_to(0o7), 0);
+    fn who_apply_to_empty() {
+        assert_eq!(Who::empty().apply_to(0o7), 0);
     }
 
     #[test]
-    fn target_apply_to_zero() {
-        assert_eq!(Target::All.apply_to(0), 0);
+    fn who_apply_to_zero() {
+        assert_eq!(Who::All.apply_to(0), 0);
     }
 
     #[test]
@@ -420,89 +402,89 @@ mod tests {
 
     #[test]
     fn mode_apply_to_equal_user_only() {
-        assert_eq!(Mode::Equal(Target::User, 0o7).apply_to(0o654), 0o754);
+        assert_eq!(Mode::Equal(Who::User, 0o7).apply_to(0o654), 0o754);
     }
 
     #[test]
     fn mode_apply_to_equal_group_only() {
-        assert_eq!(Mode::Equal(Target::Group, 0o6).apply_to(0o754), 0o764);
+        assert_eq!(Mode::Equal(Who::Group, 0o6).apply_to(0o754), 0o764);
     }
 
     #[test]
     fn mode_apply_to_equal_other_only() {
-        assert_eq!(Mode::Equal(Target::Other, 0o5).apply_to(0o764), 0o765);
+        assert_eq!(Mode::Equal(Who::Other, 0o5).apply_to(0o764), 0o765);
     }
 
     #[test]
     fn mode_apply_to_equal_all() {
-        assert_eq!(Mode::Equal(Target::All, 0o0).apply_to(0o777), 0o000);
+        assert_eq!(Mode::Equal(Who::All, 0o0).apply_to(0o777), 0o000);
     }
 
     #[test]
     fn mode_apply_to_equal_multiple_targets() {
         assert_eq!(
-            Mode::Equal(Target::User | Target::Group, 0o4).apply_to(0o777),
+            Mode::Equal(Who::User | Who::Group, 0o4).apply_to(0o777),
             0o447
         );
     }
 
     #[test]
     fn mode_apply_to_plus_user_only() {
-        assert_eq!(Mode::Plus(Target::User, 0o1).apply_to(0o600), 0o700);
+        assert_eq!(Mode::Plus(Who::User, 0o1).apply_to(0o600), 0o700);
     }
 
     #[test]
     fn mode_apply_to_plus_group_only() {
-        assert_eq!(Mode::Plus(Target::Group, 0o2).apply_to(0o640), 0o660);
+        assert_eq!(Mode::Plus(Who::Group, 0o2).apply_to(0o640), 0o660);
     }
 
     #[test]
     fn mode_apply_to_plus_other_only() {
-        assert_eq!(Mode::Plus(Target::Other, 0o4).apply_to(0o600), 0o604);
+        assert_eq!(Mode::Plus(Who::Other, 0o4).apply_to(0o600), 0o604);
     }
 
     #[test]
     fn mode_apply_to_plus_all() {
-        assert_eq!(Mode::Plus(Target::All, 0o1).apply_to(0o660), 0o771);
+        assert_eq!(Mode::Plus(Who::All, 0o1).apply_to(0o660), 0o771);
     }
 
     #[test]
     fn mode_apply_to_plus_zero() {
-        assert_eq!(Mode::Plus(Target::All, 0).apply_to(0o777), 0o777);
+        assert_eq!(Mode::Plus(Who::All, 0).apply_to(0o777), 0o777);
     }
 
     #[test]
     fn mode_apply_to_minus_user_only() {
-        assert_eq!(Mode::Minus(Target::User, 0o4).apply_to(0o744), 0o344);
+        assert_eq!(Mode::Minus(Who::User, 0o4).apply_to(0o744), 0o344);
     }
 
     #[test]
     fn mode_apply_to_minus_group_only() {
-        assert_eq!(Mode::Minus(Target::Group, 0o2).apply_to(0o762), 0o742);
+        assert_eq!(Mode::Minus(Who::Group, 0o2).apply_to(0o762), 0o742);
     }
 
     #[test]
     fn mode_apply_to_minus_other_only() {
-        assert_eq!(Mode::Minus(Target::Other, 0o1).apply_to(0o701), 0o700);
+        assert_eq!(Mode::Minus(Who::Other, 0o1).apply_to(0o701), 0o700);
     }
 
     #[test]
     fn mode_apply_to_minus_all() {
-        assert_eq!(Mode::Minus(Target::All, 0o7).apply_to(0o777), 0o000);
+        assert_eq!(Mode::Minus(Who::All, 0o7).apply_to(0o777), 0o000);
     }
 
     #[test]
     fn mode_apply_to_minus_zero() {
-        assert_eq!(Mode::Minus(Target::All, 0).apply_to(0o777), 0o777);
+        assert_eq!(Mode::Minus(Who::All, 0).apply_to(0o777), 0o777);
     }
 
     #[test]
     fn mode_apply_to_boundary_all_bits_set() {
-        assert_eq!(Mode::Plus(Target::All, 0o7).apply_to(0o777), 0o777);
+        assert_eq!(Mode::Plus(Who::All, 0o7).apply_to(0o777), 0o777);
     }
 
     #[test]
     fn mode_apply_to_boundary_all_bits_cleared() {
-        assert_eq!(Mode::Minus(Target::All, 0o7).apply_to(0o000), 0o000);
+        assert_eq!(Mode::Minus(Who::All, 0o7).apply_to(0o000), 0o000);
     }
 }
