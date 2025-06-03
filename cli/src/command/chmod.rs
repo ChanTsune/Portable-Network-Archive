@@ -367,4 +367,142 @@ mod tests {
         assert_eq!(Mode::from_str("go-x").unwrap().apply_to(0o777), 0o766);
         assert_eq!(Mode::from_str("go=r").unwrap().apply_to(0o777), 0o744);
     }
+
+    #[test]
+    fn target_apply_to_user_only() {
+        assert_eq!(Target::User.apply_to(0o7), 0o700);
+    }
+
+    #[test]
+    fn target_apply_to_group_only() {
+        assert_eq!(Target::Group.apply_to(0o7), 0o070);
+    }
+
+    #[test]
+    fn target_apply_to_other_only() {
+        assert_eq!(Target::Other.apply_to(0o7), 0o007);
+    }
+
+    #[test]
+    fn target_apply_to_user_group() {
+        assert_eq!((Target::User | Target::Group).apply_to(0o7), 0o770);
+    }
+
+    #[test]
+    fn target_apply_to_user_other() {
+        assert_eq!((Target::User | Target::Other).apply_to(0o7), 0o707);
+    }
+
+    #[test]
+    fn target_apply_to_group_other() {
+        assert_eq!((Target::Group | Target::Other).apply_to(0o7), 0o077);
+    }
+
+    #[test]
+    fn target_apply_to_all() {
+        assert_eq!(Target::All.apply_to(0o7), 0o777);
+    }
+
+    #[test]
+    fn target_apply_to_empty() {
+        assert_eq!(Target::empty().apply_to(0o7), 0);
+    }
+
+    #[test]
+    fn target_apply_to_zero() {
+        assert_eq!(Target::All.apply_to(0), 0);
+    }
+
+    #[test]
+    fn mode_apply_to_num() {
+        assert_eq!(Mode::Num(0o123).apply_to(0o777), 0o123);
+    }
+
+    #[test]
+    fn mode_apply_to_equal_user_only() {
+        assert_eq!(Mode::Equal(Target::User, 0o7).apply_to(0o654), 0o754);
+    }
+
+    #[test]
+    fn mode_apply_to_equal_group_only() {
+        assert_eq!(Mode::Equal(Target::Group, 0o6).apply_to(0o754), 0o764);
+    }
+
+    #[test]
+    fn mode_apply_to_equal_other_only() {
+        assert_eq!(Mode::Equal(Target::Other, 0o5).apply_to(0o764), 0o765);
+    }
+
+    #[test]
+    fn mode_apply_to_equal_all() {
+        assert_eq!(Mode::Equal(Target::All, 0o0).apply_to(0o777), 0o000);
+    }
+
+    #[test]
+    fn mode_apply_to_equal_multiple_targets() {
+        assert_eq!(
+            Mode::Equal(Target::User | Target::Group, 0o4).apply_to(0o777),
+            0o447
+        );
+    }
+
+    #[test]
+    fn mode_apply_to_plus_user_only() {
+        assert_eq!(Mode::Plus(Target::User, 0o1).apply_to(0o600), 0o700);
+    }
+
+    #[test]
+    fn mode_apply_to_plus_group_only() {
+        assert_eq!(Mode::Plus(Target::Group, 0o2).apply_to(0o640), 0o660);
+    }
+
+    #[test]
+    fn mode_apply_to_plus_other_only() {
+        assert_eq!(Mode::Plus(Target::Other, 0o4).apply_to(0o600), 0o604);
+    }
+
+    #[test]
+    fn mode_apply_to_plus_all() {
+        assert_eq!(Mode::Plus(Target::All, 0o1).apply_to(0o660), 0o771);
+    }
+
+    #[test]
+    fn mode_apply_to_plus_zero() {
+        assert_eq!(Mode::Plus(Target::All, 0).apply_to(0o777), 0o777);
+    }
+
+    #[test]
+    fn mode_apply_to_minus_user_only() {
+        assert_eq!(Mode::Minus(Target::User, 0o4).apply_to(0o744), 0o344);
+    }
+
+    #[test]
+    fn mode_apply_to_minus_group_only() {
+        assert_eq!(Mode::Minus(Target::Group, 0o2).apply_to(0o762), 0o742);
+    }
+
+    #[test]
+    fn mode_apply_to_minus_other_only() {
+        assert_eq!(Mode::Minus(Target::Other, 0o1).apply_to(0o701), 0o700);
+    }
+
+    #[test]
+    fn mode_apply_to_minus_all() {
+        assert_eq!(Mode::Minus(Target::All, 0o7).apply_to(0o777), 0o000);
+    }
+
+    #[test]
+    fn mode_apply_to_minus_zero() {
+        assert_eq!(Mode::Minus(Target::All, 0).apply_to(0o777), 0o777);
+    }
+
+    #[test]
+    fn mode_apply_to_boundary_all_bits_set() {
+        assert_eq!(Mode::Plus(Target::All, 0o7).apply_to(0o777), 0o777);
+    }
+
+    #[test]
+    fn mode_apply_to_boundary_all_bits_cleared() {
+        assert_eq!(Mode::Minus(Target::All, 0o7).apply_to(0o000), 0o000);
+    }
 }
