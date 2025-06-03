@@ -274,6 +274,89 @@ mod tests {
     }
 
     #[test]
+    fn parse_mode_from_str_symbol_without_mode() {
+        assert_eq!(Mode::from_str("u=").unwrap(), Mode::Equal(Target::User, 0));
+        assert_eq!(Mode::from_str("g+").unwrap(), Mode::Plus(Target::Group, 0));
+        assert_eq!(Mode::from_str("o-").unwrap(), Mode::Minus(Target::Other, 0));
+    }
+
+    #[test]
+    fn parse_mode_from_str_multiple_targets_symbol_without_mode() {
+        assert_eq!(
+            Mode::from_str("ug=").unwrap(),
+            Mode::Equal(Target::User | Target::Group, 0)
+        );
+    }
+
+    #[test]
+    fn parse_mode_from_str_no_target_before_symbol() {
+        assert_eq!(
+            Mode::from_str("=rwx").unwrap(),
+            Mode::Equal(Target::All, 0o7)
+        );
+        assert_eq!(Mode::from_str("+x").unwrap(), Mode::Plus(Target::All, 0o1));
+        assert_eq!(Mode::from_str("-w").unwrap(), Mode::Minus(Target::All, 0o2));
+    }
+
+    #[test]
+    fn parse_mode_from_str_multiple_targets() {
+        assert_eq!(
+            Mode::from_str("ugo=rw").unwrap(),
+            Mode::Equal(Target::User | Target::Group | Target::Other, 0o6)
+        );
+        assert_eq!(
+            Mode::from_str("ug+x").unwrap(),
+            Mode::Plus(Target::User | Target::Group, 0o1)
+        );
+    }
+
+    #[test]
+    fn parse_mode_from_str_all_mixed_with_targets() {
+        assert_eq!(
+            Mode::from_str("au=rw").unwrap(),
+            Mode::Equal(Target::All, 0o6)
+        );
+    }
+
+    #[test]
+    fn parse_mode_from_str_empty_string() {
+        assert!(Mode::from_str("").is_err());
+    }
+
+    #[test]
+    fn parse_mode_from_str_invalid_digit_length() {
+        assert!(Mode::from_str("77").is_err());
+        assert!(Mode::from_str("7777").is_err());
+    }
+
+    #[test]
+    fn parse_mode_from_str_non_digit_string() {
+        assert!(Mode::from_str("abc").is_err());
+    }
+
+    #[test]
+    fn parse_mode_from_str_invalid_symbol() {
+        assert!(Mode::from_str("u?rw").is_err());
+        assert!(Mode::from_str("u@rw").is_err());
+    }
+
+    #[test]
+    fn parse_mode_from_str_invalid_target() {
+        assert!(Mode::from_str("z=rw").is_err());
+    }
+
+    #[test]
+    fn parse_mode_from_str_double_symbol() {
+        assert!(Mode::from_str("u==rw").is_err());
+        assert!(Mode::from_str("u++x").is_err());
+    }
+
+    #[test]
+    fn parse_mode_from_str_invalid_char_after_symbol() {
+        assert!(Mode::from_str("u=rwa").is_err());
+    }
+
+    #[test]
     fn mode_apply_to() {
         assert_eq!(Mode::from_str("755").unwrap().apply_to(0o764), 0o755);
         assert_eq!(Mode::from_str("+x").unwrap().apply_to(0o664), 0o775);
