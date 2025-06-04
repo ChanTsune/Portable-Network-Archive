@@ -54,7 +54,7 @@ fn archive_chmod(args: ChmodCommand) -> io::Result<()> {
             |entry| {
                 let entry = entry?;
                 if globs.matches_any(entry.header().path()) {
-                    Ok(Some(transform_entry(entry, args.mode)))
+                    Ok(Some(transform_entry(entry, &args.mode)))
                 } else {
                     Ok(Some(entry))
                 }
@@ -68,7 +68,7 @@ fn archive_chmod(args: ChmodCommand) -> io::Result<()> {
             |entry| {
                 let entry = entry?;
                 if globs.matches_any(entry.header().path()) {
-                    Ok(Some(transform_entry(entry, args.mode)))
+                    Ok(Some(transform_entry(entry, &args.mode)))
                 } else {
                     Ok(Some(entry))
                 }
@@ -79,7 +79,7 @@ fn archive_chmod(args: ChmodCommand) -> io::Result<()> {
 }
 
 #[inline]
-fn transform_entry<T>(entry: NormalEntry<T>, mode: Mode) -> NormalEntry<T> {
+fn transform_entry<T>(entry: NormalEntry<T>, mode: &Mode) -> NormalEntry<T> {
     let metadata = entry.metadata().clone();
     let permission = metadata.permission().map(|p| {
         let mode = mode.apply_to(p.permissions());
