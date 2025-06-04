@@ -117,7 +117,7 @@ impl Who {
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) enum Mode {
-    Num(u16),
+    Numeric(u16),
     Equal(Who, u8),
     Plus(Who, u8),
     Minus(Who, u8),
@@ -130,7 +130,7 @@ impl Mode {
     #[inline]
     pub(crate) const fn apply_to(&self, mode: u16) -> u16 {
         match self {
-            Mode::Num(mode) => *mode,
+            Mode::Numeric(mode) => *mode,
             Mode::Equal(t, m) => {
                 let owner_mode = if t.contains(Who::User) {
                     Who::User.apply_to(*m as u16)
@@ -198,7 +198,7 @@ impl FromStr for Mode {
         if s.chars().all(|c| c.is_ascii_digit()) {
             return if s.len() == 3 {
                 u16::from_str_radix(s, 8)
-                    .map(Self::Num)
+                    .map(Self::Numeric)
                     .map_err(|e| e.to_string())
             } else {
                 Err(format!("invalid mode length {}", s.len()))
@@ -231,8 +231,8 @@ mod tests {
 
     #[test]
     fn parse_digit_mode() {
-        assert_eq!(Mode::from_str("755").unwrap(), Mode::Num(0o755));
-        assert_eq!(Mode::from_str("000").unwrap(), Mode::Num(0o000));
+        assert_eq!(Mode::from_str("755").unwrap(), Mode::Numeric(0o755));
+        assert_eq!(Mode::from_str("000").unwrap(), Mode::Numeric(0o000));
     }
 
     #[test]
@@ -397,7 +397,7 @@ mod tests {
 
     #[test]
     fn mode_apply_to_num() {
-        assert_eq!(Mode::Num(0o123).apply_to(0o777), 0o123);
+        assert_eq!(Mode::Numeric(0o123).apply_to(0o777), 0o123);
     }
 
     #[test]
