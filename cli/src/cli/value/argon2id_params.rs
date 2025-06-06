@@ -58,5 +58,35 @@ mod tests {
                 parallelism: Some(3),
             })
         );
+        assert_eq!(
+            Argon2idParams::from_str("t=1,p=3"),
+            Ok(Argon2idParams {
+                time: Some(1),
+                memory: None,
+                parallelism: Some(3),
+            })
+        );
+    }
+
+    #[test]
+    fn parse_argon2id_empty_params() {
+        assert!(Argon2idParams::from_str("").is_err());
+    }
+
+    #[test]
+    fn parse_argon2id_unknown_parms() {
+        assert!(Argon2idParams::from_str("a=1").is_err());
+        assert!(Argon2idParams::from_str("t=1,a=1").is_err());
+    }
+
+    #[test]
+    fn parse_argon2id_invalid_parms() {
+        assert!(Argon2idParams::from_str("t").is_err());
+        assert!(Argon2idParams::from_str("t=").is_err());
+        assert!(Argon2idParams::from_str(",").is_err());
+        assert!(Argon2idParams::from_str("t=1,").is_err());
+        assert!(Argon2idParams::from_str("t=x").is_err());
+        assert!(Argon2idParams::from_str("m=x").is_err());
+        assert!(Argon2idParams::from_str("p=x").is_err());
     }
 }
