@@ -34,7 +34,7 @@ rayon = "1.10.0"
 regex = "1.11.1"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
-tabled = { version = "0.19.0", default-features = false, features = ["std", "ansi"] }
+tabled = { version = "0.20.0", default-features = false, features = ["std", "ansi"] }
 thiserror = "2.0.12"
 rand = "0.8.5"
 indexmap = "2.9.0"
