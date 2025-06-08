@@ -1,6 +1,8 @@
 mod atime;
 mod ctime;
+mod error;
 mod exclude;
+mod files_from_stdin;
 mod mtime;
 
 use crate::utils::{diff::diff, setup, TestResources};
