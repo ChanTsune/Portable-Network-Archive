@@ -37,4 +37,24 @@ mod tests {
             Ok(Pbkdf2Sha256Params { rounds: Some(1) })
         );
     }
+
+    #[test]
+    fn parse_pbkdf2_sha256_empty_params() {
+        assert!(Pbkdf2Sha256Params::from_str("").is_err());
+    }
+
+    #[test]
+    fn parse_pbkdf2_sha256_unknown_params() {
+        assert!(Pbkdf2Sha256Params::from_str("a=1").is_err());
+        assert!(Pbkdf2Sha256Params::from_str("r=1,a=1").is_err());
+    }
+
+    #[test]
+    fn parse_pbkdf2_sha256_invalid_params() {
+        assert!(Pbkdf2Sha256Params::from_str("r").is_err());
+        assert!(Pbkdf2Sha256Params::from_str("r=").is_err());
+        assert!(Pbkdf2Sha256Params::from_str(",").is_err());
+        assert!(Pbkdf2Sha256Params::from_str("r=1,").is_err());
+        assert!(Pbkdf2Sha256Params::from_str("r=x").is_err());
+    }
 }
