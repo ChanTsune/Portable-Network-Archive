@@ -853,7 +853,7 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
     /// # }
     /// ```
     #[inline]
-    pub fn reader(&self, option: impl ReadOption) -> io::Result<EntryDataReader> {
+    pub fn reader(&self, option: impl ReadOption) -> io::Result<EntryDataReader<'_>> {
         let raw_data_reader =
             crate::io::FlattenReader::new(self.data.iter().map(|it| it.as_ref()).collect());
         let decrypt_reader = decrypt_reader(
