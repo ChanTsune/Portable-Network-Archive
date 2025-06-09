@@ -45,7 +45,7 @@ impl Replacer for SubstitutionReplacer {
     }
 
     #[inline]
-    fn no_expansion(&mut self) -> Option<Cow<str>> {
+    fn no_expansion(&mut self) -> Option<Cow<'_, str>> {
         if self.0.find('~').is_some() || self.0.find('\\').is_some() {
             None
         } else {
