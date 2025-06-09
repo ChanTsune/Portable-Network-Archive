@@ -144,10 +144,9 @@ pub(crate) fn collect_items(
         let walker = builder.build();
         walker
             .filter_map(|path| match path {
-                Ok(path) => {
-                    let path = path.into_path();
-                    (keep_dir || path.is_file()).then_some(Ok(path))
-                }
+                Ok(path) => path
+                    .file_type()
+                    .and_then(|ty| (keep_dir || !ty.is_dir()).then_some(Ok(path.into_path()))),
                 Err(e) => Some(Err(e)),
             })
             .collect::<Result<Vec<_>, _>>()
