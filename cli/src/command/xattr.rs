@@ -623,6 +623,7 @@ mod tests {
     fn decode_text() {
         assert_eq!(Value(b"abc".into()), Value::from_str("abc").unwrap());
         assert_eq!(Value(b"a\\".into()), Value::from_str("\"a\\\\\"").unwrap());
+        assert_eq!(Value(b"".into()), Value::from_str("").unwrap());
     }
 
     #[test]
@@ -632,11 +633,13 @@ mod tests {
             Value([0, 1, 17].into()),
             Value::from_str("0x000111").unwrap()
         );
+        assert_eq!(Value(b"".into()), Value::from_str("0x").unwrap());
     }
 
     #[test]
     fn decode_base64() {
         assert_eq!(Value(b"abc".into()), Value::from_str("0sYWJj").unwrap());
+        assert_eq!(Value(b"".into()), Value::from_str("0s").unwrap());
     }
 
     #[test]
