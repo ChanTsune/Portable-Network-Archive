@@ -9,7 +9,7 @@ fn bench_normal(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "ls",
-                "../resources/test/zstd.pna",
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/test/zstd.pna"),
             ]))
             .unwrap()
         })
@@ -24,7 +24,10 @@ fn bench_solid(c: &mut Criterion) {
                 "--quiet",
                 "ls",
                 "--solid",
-                "../resources/test/solid_zstd.pna",
+                concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../resources/test/solid_zstd.pna"
+                ),
             ]))
             .unwrap()
         })
