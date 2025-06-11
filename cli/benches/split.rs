@@ -9,15 +9,15 @@ fn bench_create_with_split(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "c",
-                &format!(
-                    "{}/bench/create_with_split/store.pna",
-                    env!("CARGO_TARGET_TMPDIR")
+                concat!(
+                    env!("CARGO_TARGET_TMPDIR"),
+                    "/bench/create_with_split/store.pna"
                 ),
                 "--store",
                 "--split",
                 "3MB",
                 "--overwrite",
-                "../resources/test/raw/",
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/test/raw/"),
             ]))
             .unwrap()
         })
@@ -31,12 +31,12 @@ fn bench_split(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "split",
-                "../resources/test/store.pna",
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/test/store.pna"),
                 "--overwrite",
                 "--max-size",
                 "3MB",
                 "--out-dir",
-                &format!("{}/bench/split/", env!("CARGO_TARGET_TMPDIR")),
+                concat!(env!("CARGO_TARGET_TMPDIR"), "/bench/split/"),
             ]))
             .unwrap()
         })
@@ -50,10 +50,13 @@ fn bench_extract_multipart(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "x",
-                "../resources/test/multipart.part1.pna",
+                concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../resources/test/multipart.part1.pna"
+                ),
                 "--overwrite",
                 "--out-dir",
-                &format!("{}/bench/multipart/", env!("CARGO_TARGET_TMPDIR")),
+                concat!(env!("CARGO_TARGET_TMPDIR"), "/bench/multipart/"),
             ]))
             .unwrap()
         })

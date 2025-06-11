@@ -9,10 +9,10 @@ fn bench_store(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "x",
-                "../resources/test/store.pna",
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/test/store.pna"),
                 "--overwrite",
                 "--out-dir",
-                &format!("{}/bench/store/", env!("CARGO_TARGET_TMPDIR")),
+                concat!(env!("CARGO_TARGET_TMPDIR"), "/bench/store/"),
             ]))
             .unwrap()
         })
@@ -26,10 +26,10 @@ fn bench_zstd(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "x",
-                "../resources/test/zstd.pna",
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/test/zstd.pna"),
                 "--overwrite",
                 "--out-dir",
-                &format!("{}/bench/zstd/", env!("CARGO_TARGET_TMPDIR")),
+                concat!(env!("CARGO_TARGET_TMPDIR"), "/bench/zstd/"),
             ]))
             .unwrap()
         })
@@ -43,10 +43,10 @@ fn bench_deflate(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "x",
-                "../resources/test/deflate.pna",
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/test/deflate.pna"),
                 "--overwrite",
                 "--out-dir",
-                &format!("{}/bench/deflate/", env!("CARGO_TARGET_TMPDIR")),
+                concat!(env!("CARGO_TARGET_TMPDIR"), "/bench/deflate/"),
             ]))
             .unwrap()
         })
@@ -60,10 +60,10 @@ fn bench_xz(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "x",
-                "../resources/test/xz.pna",
+                concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/test/xz.pna"),
                 "--overwrite",
                 "--out-dir",
-                &format!("{}/bench/xz/", env!("CARGO_TARGET_TMPDIR")),
+                concat!(env!("CARGO_TARGET_TMPDIR"), "/bench/xz/"),
             ]))
             .unwrap()
         })
@@ -77,10 +77,13 @@ fn bench_zstd_keep_timestamp(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "x",
-                "../resources/test/zstd_keep_timestamp.pna",
+                concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../resources/test/zstd_keep_timestamp.pna"
+                ),
                 "--overwrite",
                 "--out-dir",
-                &format!("{}/bench/zstd_keep_timestamp/", env!("CARGO_TARGET_TMPDIR")),
+                concat!(env!("CARGO_TARGET_TMPDIR"), "/bench/zstd_keep_timestamp/"),
             ]))
             .unwrap()
         })
@@ -94,14 +97,14 @@ fn bench_zstd_keep_permission(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "x",
-                "../resources/test/zstd_keep_permission.pna",
+                concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../resources/test/zstd_keep_permission.pna"
+                ),
                 "--overwrite",
                 "--keep-permission",
                 "--out-dir",
-                &format!(
-                    "{}/bench/zstd_keep_permission/",
-                    env!("CARGO_TARGET_TMPDIR")
-                ),
+                concat!(env!("CARGO_TARGET_TMPDIR"), "/bench/zstd_keep_permission/"),
             ]))
             .unwrap()
         })
@@ -115,12 +118,15 @@ fn bench_zstd_keep_xattr(c: &mut Criterion) {
                 "pna",
                 "--quiet",
                 "x",
-                "../resources/test/zstd_keep_xattr.pna",
+                concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../resources/test/zstd_keep_xattr.pna"
+                ),
                 "--overwrite",
                 #[cfg(not(target_os = "netbsd"))]
                 "--keep-xattr",
                 "--out-dir",
-                &format!("{}/bench/zstd_keep_xattr/", env!("CARGO_TARGET_TMPDIR")),
+                concat!(env!("CARGO_TARGET_TMPDIR"), "/bench/zstd_keep_xattr/"),
             ]))
             .unwrap()
         })
