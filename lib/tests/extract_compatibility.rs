@@ -8,11 +8,11 @@ fn extract_all(bytes: &[u8], password: Option<&str>) {
         if item.header().data_kind() == DataKind::Directory {
             continue;
         }
-        let path = item.header().path().to_string();
+        let path = item.header().path().as_str();
         let mut dist = Vec::new();
         let mut reader = item.reader(ReadOptions::with_password(password)).unwrap();
         io::copy(&mut reader, &mut dist).unwrap();
-        match &*path {
+        match path {
             "raw/first/second/third/pna.txt" => {
                 let bytes = include_bytes!("../../resources/test/raw/first/second/third/pna.txt");
                 assert_eq!(dist.as_slice(), bytes);
@@ -150,6 +150,14 @@ fn keep_permission() {
 fn keep_timestamp() {
     extract_all(
         include_bytes!("../../resources/test/zstd_keep_timestamp.pna"),
+        None,
+    );
+}
+
+#[test]
+fn keep_timestamp_with_nanos() {
+    extract_all(
+        include_bytes!("../../resources/test/zstd_keep_timestamp_with_nanos.pna"),
         None,
     );
 }
