@@ -462,14 +462,7 @@ impl<'a> DisplayValue<'a> {
     #[inline]
     fn fmt_auto(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match std::str::from_utf8(self.value) {
-            Ok(s) => {
-                f.write_char('"')?;
-                Display::fmt(
-                    &unsafe { String::from_utf8_unchecked(escape_xattr_value_text(s.as_bytes())) },
-                    f,
-                )?;
-                f.write_char('"')
-            }
+            Ok(_) => self.fmt_text(f),
             Err(_e) => self.fmt_base64(f),
         }
     }
