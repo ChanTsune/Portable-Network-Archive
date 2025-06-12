@@ -12,6 +12,7 @@ jobs:
           - ubuntu-latest
           - ubuntu-22.04-arm # TODO: use ubuntu-24.04-arm if https://github.com/rust-lang/rust/issues/135867 resolved
           - windows-latest
+          - windows-11-arm
           - macos-latest
 #          - freebsd-latest # self-hosted
         rust:
@@ -31,6 +32,14 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y libacl1-dev
+      - name: Install Rustup
+        if: ${{ matrix.os == 'windows-11-arm' }}
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://win.rustup.rs/aarch64" -OutFile "$env:TEMP\rustup-init.exe"
+           & "$env:TEMP\rustup-init.exe" --default-toolchain none --profile=minimal -y
+          "$env:USERPROFILE\.cargo\bin" | Out-File -Append -Encoding ascii $env:GITHUB_PATH
+          "CARGO_HOME=$env:USERPROFILE\.cargo" | Out-File -Append -Encoding ascii $env:GITHUB_ENV
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - id: install_rust
         uses: ./.github/actions/setup-rust
