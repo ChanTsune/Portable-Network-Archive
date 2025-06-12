@@ -1,5 +1,11 @@
 # Portable Network Archive (PNA)
 
+[![Crates.io](https://img.shields.io/crates/v/portable-network-archive.svg)](https://crates.io/crates/portable-network-archive)
+[![Downloads](https://img.shields.io/crates/d/portable-network-archive.svg)](https://crates.io/crates/portable-network-archive)
+[![Docs.rs](https://docs.rs/portable-network-archive/badge.svg)](https://docs.rs/portable-network-archive)
+[![Test](https://github.com/ChanTsune/Portable-Network-Archive/actions/workflows/test.yml/badge.svg)](https://github.com/ChanTsune/Portable-Network-Archive/actions/workflows/test.yml)
+![License](https://img.shields.io/crates/l/portable-network-archive.svg)
+
 <div align="center">
   <img src="./icon.svg" alt="PNA" width="100"/>
 </div>
