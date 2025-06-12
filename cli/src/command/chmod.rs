@@ -107,7 +107,7 @@ bitflags! {
 
 impl Who {
     #[inline]
-    const fn apply_to(&self, n: u16) -> u16 {
+    const fn to_permission_bits(self, n: u16) -> u16 {
         let mut result = 0;
         if self.contains(Who::User) {
             result |= n << 6;
@@ -211,24 +211,24 @@ impl Mode {
                         match action {
                             Action::Equal(m) => {
                                 let owner_mode = if who.contains(Who::User) {
-                                    Who::User.apply_to(*m as u16)
+                                    Who::User.to_permission_bits(*m as u16)
                                 } else {
                                     mode & Self::OWNER_MASK
                                 };
                                 let group_mode = if who.contains(Who::Group) {
-                                    Who::Group.apply_to(*m as u16)
+                                    Who::Group.to_permission_bits(*m as u16)
                                 } else {
                                     mode & Self::GROUP_MASK
                                 };
                                 let other_mode = if who.contains(Who::Other) {
-                                    Who::Other.apply_to(*m as u16)
+                                    Who::Other.to_permission_bits(*m as u16)
                                 } else {
                                     mode & Self::OTHER_MASK
                                 };
                                 mode = owner_mode | group_mode | other_mode
                             }
-                            Action::Plus(m) => mode |= who.apply_to(*m as u16),
-                            Action::Minus(m) => mode &= !who.apply_to(*m as u16),
+                            Action::Plus(m) => mode |= who.to_permission_bits(*m as u16),
+                            Action::Minus(m) => mode &= !who.to_permission_bits(*m as u16),
                         }
                     }
                 }
@@ -624,48 +624,48 @@ mod tests {
     }
 
     #[test]
-    fn who_apply_to_user_only() {
-        assert_eq!(Who::User.apply_to(0o7), 0o700);
+    fn who_to_permission_bits_user_only() {
+        assert_eq!(Who::User.to_permission_bits(0o7), 0o700);
     }
 
     #[test]
-    fn who_apply_to_group_only() {
-        assert_eq!(Who::Group.apply_to(0o7), 0o070);
+    fn who_to_permission_bits_group_only() {
+        assert_eq!(Who::Group.to_permission_bits(0o7), 0o070);
     }
 
     #[test]
-    fn who_apply_to_other_only() {
-        assert_eq!(Who::Other.apply_to(0o7), 0o007);
+    fn who_to_permission_bits_other_only() {
+        assert_eq!(Who::Other.to_permission_bits(0o7), 0o007);
     }
 
     #[test]
-    fn who_apply_to_user_group() {
-        assert_eq!((Who::User | Who::Group).apply_to(0o7), 0o770);
+    fn who_to_permission_bits_user_group() {
+        assert_eq!((Who::User | Who::Group).to_permission_bits(0o7), 0o770);
     }
 
     #[test]
-    fn who_apply_to_user_other() {
-        assert_eq!((Who::User | Who::Other).apply_to(0o7), 0o707);
+    fn who_to_permission_bits_user_other() {
+        assert_eq!((Who::User | Who::Other).to_permission_bits(0o7), 0o707);
     }
 
     #[test]
-    fn who_apply_to_group_other() {
-        assert_eq!((Who::Group | Who::Other).apply_to(0o7), 0o077);
+    fn who_to_permission_bits_group_other() {
+        assert_eq!((Who::Group | Who::Other).to_permission_bits(0o7), 0o077);
     }
 
     #[test]
-    fn who_apply_to_all() {
-        assert_eq!(Who::All.apply_to(0o7), 0o777);
+    fn who_to_permission_bits_all() {
+        assert_eq!(Who::All.to_permission_bits(0o7), 0o777);
     }
 
     #[test]
-    fn who_apply_to_empty() {
-        assert_eq!(Who::empty().apply_to(0o7), 0);
+    fn who_to_permission_bits_empty() {
+        assert_eq!(Who::empty().to_permission_bits(0o7), 0);
     }
 
     #[test]
-    fn who_apply_to_zero() {
-        assert_eq!(Who::All.apply_to(0), 0);
+    fn who_to_permission_bits_zero() {
+        assert_eq!(Who::All.to_permission_bits(0), 0);
     }
 
     #[test]
