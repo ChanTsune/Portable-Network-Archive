@@ -576,20 +576,15 @@ mod tests {
                 .as_bytes()
             )
             .unwrap(),
-            {
-                let mut expected = HashMap::<String, Vec<(String, Value)>>::new();
-                expected.insert(
-                    "path/to/file1".into(),
-                    vec![
-                        ("user.a".into(), Value("abc".into())),
-                        ("user.b".into(), Value(vec![1, 2])),
-                    ],
-                );
-                expected.insert(
-                    "path/to/file2".into(),
-                    vec![("user.c".into(), Value("abc".into()))],
-                );
-                expected
+            maplit::hashmap! {
+                "path/to/file1".into() =>
+                vec![
+                    ("user.a".into(), Value("abc".into())),
+                    ("user.b".into(), Value(vec![1, 2])),
+                ],
+                "path/to/file2".into() =>
+                vec![("user.c".into(), Value("abc".into()))],
+
             }
         );
     }
