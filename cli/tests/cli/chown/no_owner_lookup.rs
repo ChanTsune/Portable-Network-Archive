@@ -6,14 +6,14 @@ use std::collections::HashMap;
 #[test]
 fn chown_no_owner_lookup() {
     setup();
-    TestResources::extract_in("raw/", "chown/in/").unwrap();
+    TestResources::extract_in("raw/", "chown_no_owner_lookup/in/").unwrap();
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
-        "chown/no_owner_lookup.pna",
+        "chown_no_owner_lookup/no_owner_lookup.pna",
         "--overwrite",
-        "chown/in/",
+        "chown_no_owner_lookup/in/",
         "--keep-permission",
         #[cfg(windows)]
         "--unstable",
@@ -24,7 +24,7 @@ fn chown_no_owner_lookup() {
 
     let mut original_owners = HashMap::new();
 
-    archive::for_each_entry("chown/no_owner_lookup.pna", |entry| {
+    archive::for_each_entry("chown_no_owner_lookup/no_owner_lookup.pna", |entry| {
         original_owners.insert(
             entry.header().path().to_string(),
             entry.metadata().permission().cloned(),
@@ -37,9 +37,9 @@ fn chown_no_owner_lookup() {
         "--quiet",
         "experimental",
         "chown",
-        "chown/no_owner_lookup.pna",
+        "chown_no_owner_lookup/no_owner_lookup.pna",
         "test_user:test_group",
-        "chown/in/raw/text.txt",
+        "chown_no_owner_lookup/in/raw/text.txt",
         "--no-owner-lookup",
     ])
     .unwrap()
@@ -47,9 +47,10 @@ fn chown_no_owner_lookup() {
     .unwrap();
 
     #[cfg(not(target_family = "wasm"))]
-    archive::for_each_entry("chown/no_owner_lookup.pna", |entry| {
-        match entry.header().path().as_str() {
-            path @ "chown/in/raw/text.txt" => {
+    archive::for_each_entry(
+        "chown_no_owner_lookup/no_owner_lookup.pna",
+        |entry| match entry.header().path().as_str() {
+            path @ "chown_no_owner_lookup/in/raw/text.txt" => {
                 let permission = entry.metadata().permission().unwrap();
                 let original = original_owners.get(path).unwrap().clone().unwrap();
                 assert_eq!(permission.gname(), "test_group");
@@ -59,11 +60,11 @@ fn chown_no_owner_lookup() {
                 assert_eq!(permission.permissions(), original.permissions());
             }
             path => {
-                let permission = entry.metadata().permission().unwrap();
-                let original = original_owners.get(path).unwrap().clone().unwrap();
-                assert_eq!(permission, &original);
+                let permission = entry.metadata().permission();
+                let original = original_owners.get(path).unwrap();
+                assert_eq!(permission, original.as_ref());
             }
-        }
-    })
+        },
+    )
     .unwrap();
 }
