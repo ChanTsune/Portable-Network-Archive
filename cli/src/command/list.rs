@@ -880,12 +880,12 @@ fn tree_entries(entries: impl IntoParallelIterator<Item = TableRow>, options: Li
         .par_iter()
         .map(|(name, kind)| (name.as_str(), *kind))
         .collect::<Vec<_>>();
-    let tree = build_tree(&entries);
-    println!(".");
-    display_tree(&tree, "", "", &options);
+    let map = build_tree_map(&entries);
+    let tree = build_term_tree(&map, Cow::Borrowed(""), None, DataKind::Directory, &options);
+    println!("{tree}");
 }
 
-fn build_tree<'s>(paths: &[(&'s str, DataKind)]) -> HashMap<&'s str, BTreeSet<TreeEntry<'s>>> {
+fn build_tree_map<'s>(paths: &[(&'s str, DataKind)]) -> HashMap<&'s str, BTreeSet<TreeEntry<'s>>> {
     let mut tree: HashMap<_, BTreeSet<_>> = HashMap::new();
 
     for (path, kind) in paths {
@@ -908,42 +908,46 @@ fn build_tree<'s>(paths: &[(&'s str, DataKind)]) -> HashMap<&'s str, BTreeSet<Tr
     tree
 }
 
-fn display_tree(
-    tree: &HashMap<&str, BTreeSet<TreeEntry>>,
-    root: &str,
-    prefix: &str,
+fn build_term_tree<'a>(
+    tree: &HashMap<&'a str, BTreeSet<TreeEntry<'a>>>,
+    root: Cow<'a, str>,
+    name: Option<&'a str>,
+    kind: DataKind,
     options: &ListOptions,
-) {
-    if let Some(children) = tree.get(root) {
-        for (i, TreeEntry { name: child, kind }) in children.iter().enumerate() {
-            let is_last = i == children.len() - 1;
-            let branch = if is_last { "└── " } else { "├── " };
-            match kind {
-                DataKind::Directory if options.classify => {
-                    println!("{prefix}{branch}{child}/")
-                }
-                DataKind::SymbolicLink if options.classify => {
-                    println!("{prefix}{branch}{child}@")
-                }
-                DataKind::File
-                | DataKind::Directory
-                | DataKind::SymbolicLink
-                | DataKind::HardLink => println!("{prefix}{branch}{child}"),
-            };
-
-            let new_root = if root.is_empty() {
-                Cow::Borrowed(*child)
+) -> termtree::Tree<Cow<'a, str>> {
+    let label = match name {
+        None => Cow::Borrowed("."),
+        Some(n) => format_name(n, kind, options),
+    };
+    let mut node = termtree::Tree::new(label);
+    if let Some(children) = tree.get(root.as_ref()) {
+        for entry in children {
+            let child_root = if root.is_empty() {
+                Cow::Borrowed(entry.name)
             } else {
-                Cow::Owned(format!("{root}/{child}"))
+                Cow::Owned(format!("{}/{}", root, entry.name))
             };
-
-            let new_prefix = if is_last {
-                format!("{prefix}    ")
-            } else {
-                format!("{prefix}│   ")
-            };
-
-            display_tree(tree, &new_root, &new_prefix, options);
+            node.push(build_term_tree(
+                tree,
+                child_root,
+                Some(entry.name),
+                entry.kind,
+                options,
+            ));
         }
+    }
+    node
+}
+
+fn format_name<'a>(name: &'a str, kind: DataKind, options: &ListOptions) -> Cow<'a, str> {
+    let name = match kind {
+        DataKind::Directory if options.classify => Cow::Owned(format!("{name}/")),
+        DataKind::SymbolicLink if options.classify => Cow::Owned(format!("{name}@")),
+        _ => Cow::Borrowed(name),
+    };
+    if options.hide_control_chars {
+        Cow::Owned(hide_control_chars(name.as_ref()))
+    } else {
+        name
     }
 }
