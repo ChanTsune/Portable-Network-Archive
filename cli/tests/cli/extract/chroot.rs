@@ -1,4 +1,4 @@
-#![cfg(unix)]
+#![cfg(all(unix, not(target_family = "wasm")))]
 use crate::utils::{diff::diff, setup, TestResources};
 use std::fs;
 
