@@ -856,26 +856,21 @@ impl<'s> TreeEntry<'s> {
     }
 }
 
-fn tree_entries(entries: impl IntoParallelIterator<Item = TableRow>, options: ListOptions) {
-    let entries = entries
-        .into_par_iter()
-        .map(|it| match it.entry_type {
-            EntryType::File(name) => (name, DataKind::File),
-            EntryType::Directory(name) => (name, DataKind::Directory),
-            EntryType::SymbolicLink(name, _) => (name, DataKind::SymbolicLink),
-            EntryType::HardLink(name, _) => (name, DataKind::HardLink),
-        })
-        .collect::<Vec<_>>();
-    let entries = entries
-        .par_iter()
-        .map(|(name, kind)| (name.as_str(), *kind))
-        .collect::<Vec<_>>();
-    let map = build_tree_map(&entries);
+fn tree_entries(entries: Vec<TableRow>, options: ListOptions) {
+    let entries = entries.iter().map(|it| match &it.entry_type {
+        EntryType::File(name) => (name.as_str(), DataKind::File),
+        EntryType::Directory(name) => (name.as_str(), DataKind::Directory),
+        EntryType::SymbolicLink(name, _) => (name.as_str(), DataKind::SymbolicLink),
+        EntryType::HardLink(name, _) => (name.as_str(), DataKind::HardLink),
+    });
+    let map = build_tree_map(entries);
     let tree = build_term_tree(&map, Cow::Borrowed(""), None, DataKind::Directory, &options);
     println!("{tree}");
 }
 
-fn build_tree_map<'s>(paths: &[(&'s str, DataKind)]) -> HashMap<&'s str, BTreeSet<TreeEntry<'s>>> {
+fn build_tree_map<'s>(
+    paths: impl IntoIterator<Item = (&'s str, DataKind)>,
+) -> HashMap<&'s str, BTreeSet<TreeEntry<'s>>> {
     let mut tree: HashMap<_, BTreeSet<_>> = HashMap::new();
 
     for (path, kind) in paths {
@@ -883,7 +878,7 @@ fn build_tree_map<'s>(paths: &[(&'s str, DataKind)]) -> HashMap<&'s str, BTreeSe
             .char_indices()
             .filter(|(_, c)| *c == '/')
             .map(|(idx, _)| (idx, DataKind::Directory))
-            .chain([(path.len(), *kind)]);
+            .chain([(path.len(), kind)]);
         let mut start = 0;
         for (end, k) in indices {
             let key = &path[..start];
