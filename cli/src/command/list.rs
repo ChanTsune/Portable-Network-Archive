@@ -405,10 +405,6 @@ fn print_entries(
     exclude: Exclude,
     options: ListOptions,
 ) {
-    if entries.is_empty() {
-        return;
-    }
-
     let entries = entries
         .into_par_iter()
         .filter(|r| globs.is_empty() || globs.matches_any(r.entry_type.name()))
@@ -423,30 +419,24 @@ fn print_entries(
     }
 }
 
-fn simple_list_entries(entries: impl IntoParallelIterator<Item = TableRow>, options: ListOptions) {
-    let entries = entries
-        .into_par_iter()
-        .map(|path| {
-            let path = match path.entry_type {
-                EntryType::Directory(name) if options.classify => format!("{name}/"),
-                EntryType::SymbolicLink(name, _) if options.classify => {
-                    format!("{name}@")
-                }
-                EntryType::File(name)
-                | EntryType::Directory(name)
-                | EntryType::SymbolicLink(name, _)
-                | EntryType::HardLink(name, _) => name,
-            };
-            if options.hide_control_chars {
-                hide_control_chars(&path)
-            } else {
-                path
+fn simple_list_entries(entries: Vec<TableRow>, options: ListOptions) {
+    entries.into_iter().for_each(|path| {
+        let path = match path.entry_type {
+            EntryType::Directory(name) if options.classify => format!("{name}/"),
+            EntryType::SymbolicLink(name, _) if options.classify => {
+                format!("{name}@")
             }
-        })
-        .collect::<Vec<_>>();
-    for path in entries {
-        println!("{path}")
-    }
+            EntryType::File(name)
+            | EntryType::Directory(name)
+            | EntryType::SymbolicLink(name, _)
+            | EntryType::HardLink(name, _) => name,
+        };
+        if options.hide_control_chars {
+            println!("{path}", path = hide_control_chars(&path))
+        } else {
+            println!("{path}")
+        }
+    });
 }
 
 fn detail_list_entries(entries: impl IntoIterator<Item = TableRow>, options: ListOptions) {
