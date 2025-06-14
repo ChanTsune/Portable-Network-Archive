@@ -22,10 +22,6 @@ pub mod xattr;
 use crate::cli::{CipherAlgorithmArgs, Cli, Commands, PasswordArgs};
 use std::{fs, io};
 
-pub fn entry(cli: Cli) -> io::Result<()> {
-    cli.execute()
-}
-
 fn ask_password(args: PasswordArgs) -> io::Result<Option<String>> {
     if let Some(path) = args.password_file {
         return Ok(Some(fs::read_to_string(path)?));
