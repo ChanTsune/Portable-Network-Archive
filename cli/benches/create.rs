@@ -1,11 +1,11 @@
 use clap::Parser;
 use criterion::{criterion_group, criterion_main, Criterion};
-use portable_network_archive::{cli, command};
+use portable_network_archive::{cli, command::Command};
 
 fn bench_store(c: &mut Criterion) {
-    c.bench_function("store", |b| {
+    c.bench_function("create_store", |b| {
         b.iter(|| {
-            command::entry(cli::Cli::parse_from([
+            cli::Cli::parse_from([
                 "pna",
                 "--quiet",
                 "c",
@@ -13,16 +13,17 @@ fn bench_store(c: &mut Criterion) {
                 "--store",
                 "--overwrite",
                 concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/test/raw/"),
-            ]))
+            ])
+            .execute()
             .unwrap()
         })
     });
 }
 
 fn bench_zstd(c: &mut Criterion) {
-    c.bench_function("zstd", |b| {
+    c.bench_function("create_zstd", |b| {
         b.iter(|| {
-            command::entry(cli::Cli::parse_from([
+            cli::Cli::parse_from([
                 "pna",
                 "--quiet",
                 "c",
@@ -30,16 +31,17 @@ fn bench_zstd(c: &mut Criterion) {
                 "--zstd",
                 "--overwrite",
                 concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/test/raw/"),
-            ]))
+            ])
+            .execute()
             .unwrap()
         })
     });
 }
 
 fn bench_deflate(c: &mut Criterion) {
-    c.bench_function("deflate", |b| {
+    c.bench_function("create_deflate", |b| {
         b.iter(|| {
-            command::entry(cli::Cli::parse_from([
+            cli::Cli::parse_from([
                 "pna",
                 "--quiet",
                 "c",
@@ -47,16 +49,17 @@ fn bench_deflate(c: &mut Criterion) {
                 "--deflate",
                 "--overwrite",
                 concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/test/raw/"),
-            ]))
+            ])
+            .execute()
             .unwrap()
         })
     });
 }
 
 fn bench_xz(c: &mut Criterion) {
-    c.bench_function("xz", |b| {
+    c.bench_function("create_xz", |b| {
         b.iter(|| {
-            command::entry(cli::Cli::parse_from([
+            cli::Cli::parse_from([
                 "pna",
                 "--quiet",
                 "c",
@@ -64,16 +67,17 @@ fn bench_xz(c: &mut Criterion) {
                 "--xz",
                 "--overwrite",
                 concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/test/raw/"),
-            ]))
+            ])
+            .execute()
             .unwrap()
         })
     });
 }
 
 fn bench_zstd_keep_timestamp(c: &mut Criterion) {
-    c.bench_function("zstd_keep_timestamp", |b| {
+    c.bench_function("create_zstd_keep_timestamp", |b| {
         b.iter(|| {
-            command::entry(cli::Cli::parse_from([
+            cli::Cli::parse_from([
                 "pna",
                 "--quiet",
                 "c",
@@ -85,16 +89,17 @@ fn bench_zstd_keep_timestamp(c: &mut Criterion) {
                 "--keep-timestamp",
                 "--overwrite",
                 concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/test/raw/"),
-            ]))
+            ])
+            .execute()
             .unwrap()
         })
     });
 }
 
 fn bench_zstd_keep_permission(c: &mut Criterion) {
-    c.bench_function("zstd_keep_permission", |b| {
+    c.bench_function("create_zstd_keep_permission", |b| {
         b.iter(|| {
-            command::entry(cli::Cli::parse_from([
+            cli::Cli::parse_from([
                 "pna",
                 "--quiet",
                 "c",
@@ -106,7 +111,8 @@ fn bench_zstd_keep_permission(c: &mut Criterion) {
                 "--keep-permission",
                 "--overwrite",
                 concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/test/raw/"),
-            ]))
+            ])
+            .execute()
             .unwrap()
         })
     });
