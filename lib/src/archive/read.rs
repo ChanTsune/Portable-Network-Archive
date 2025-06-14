@@ -2,7 +2,7 @@ mod slice;
 
 use crate::{
     archive::{Archive, ArchiveHeader, PNA_HEADER},
-    chunk::{Chunk, ChunkReader, ChunkType, RawChunk},
+    chunk::{read_chunk, Chunk, ChunkReader, ChunkType, RawChunk},
     entry::{Entry, NormalEntry, RawEntry, ReadEntry},
 };
 #[cfg(feature = "unstable-async")]
@@ -78,9 +78,8 @@ impl<R: Read> Archive<R> {
     fn next_raw_item(&mut self) -> io::Result<Option<RawEntry>> {
         let mut chunks = Vec::new();
         swap(&mut self.buf, &mut chunks);
-        let mut reader = ChunkReader::from(&mut self.inner);
         loop {
-            let chunk = reader.read_chunk()?;
+            let chunk = read_chunk(&mut self.inner)?;
             match chunk.ty {
                 ChunkType::FEND | ChunkType::SEND => {
                     chunks.push(chunk);
