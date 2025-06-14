@@ -456,7 +456,8 @@ where
 
     #[inline]
     fn try_from(entry: RawEntry<T>) -> Result<Self, Self::Error> {
-        if let Some(first_chunk) = entry.0.first() {
+        let mut chunks = entry.0.into_iter();
+        let header = if let Some(first_chunk) = chunks.next() {
             if first_chunk.ty != ChunkType::SHED {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
@@ -466,27 +467,20 @@ where
                         first_chunk.ty
                     ),
                 ));
+            } else {
+                SolidHeader::try_from(first_chunk.data())?
             }
-        }
-        Self::try_from(ChunkSolidEntries(entry.0))
-    }
-}
-
-impl<T> TryFrom<ChunkSolidEntries<T>> for SolidEntry<T>
-where
-    RawChunk<T>: Chunk,
-{
-    type Error = io::Error;
-
-    #[inline]
-    fn try_from(entry: ChunkSolidEntries<T>) -> Result<Self, Self::Error> {
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("{} chunk not found", ChunkType::SHED),
+            ));
+        };
         let mut extra = vec![];
         let mut data = vec![];
-        let mut info = None;
         let mut phsf = None;
-        for chunk in entry.0 {
+        for chunk in chunks {
             match chunk.ty() {
-                ChunkType::SHED => info = Some(SolidHeader::try_from(chunk.data())?),
                 ChunkType::SDAT => data.push(chunk.data),
                 ChunkType::PHSF => {
                     phsf = Some(
@@ -497,12 +491,6 @@ where
                 _ => extra.push(chunk),
             }
         }
-        let header = info.ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("{} chunk not found", ChunkType::SHED),
-            )
-        })?;
         Ok(Self {
             header,
             phsf,
@@ -535,7 +523,8 @@ where
 
     #[inline]
     fn try_from(entry: RawEntry<T>) -> Result<Self, Self::Error> {
-        if let Some(first_chunk) = entry.0.first() {
+        let mut chunks = entry.0.into_iter();
+        let header = if let Some(first_chunk) = chunks.next() {
             if first_chunk.ty != ChunkType::FHED {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
@@ -546,12 +535,26 @@ where
                     ),
                 ));
             }
+            EntryHeader::try_from(first_chunk.data())?
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("{} chunk not found", ChunkType::FHED),
+            ));
+        };
+        if header.major != 0 || header.minor != 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                format!(
+                    "entry version {}.{} is not supported.",
+                    header.major, header.minor
+                ),
+            ));
         }
         let mut compressed_size = 0;
         let mut extra = vec![];
         let mut data = vec![];
         let mut xattrs = vec![];
-        let mut info = None;
         let mut size = None;
         let mut phsf = None;
         let mut ctime = None;
@@ -561,10 +564,9 @@ where
         let mut mtime_ns = None;
         let mut atime_ns = None;
         let mut permission = None;
-        for chunk in entry.0 {
+        for chunk in chunks {
             match chunk.ty {
                 ChunkType::FEND => break,
-                ChunkType::FHED => info = Some(EntryHeader::try_from(chunk.data())?),
                 ChunkType::PHSF => {
                     phsf = Some(
                         String::from_utf8(chunk.data().into())
@@ -586,21 +588,6 @@ where
                 ChunkType::xATR => xattrs.push(ExtendedAttribute::try_from_bytes(chunk.data())?),
                 _ => extra.push(chunk),
             }
-        }
-        let header = info.ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("{} chunk not found", ChunkType::FHED),
-            )
-        })?;
-        if header.major != 0 || header.minor != 0 {
-            return Err(io::Error::new(
-                io::ErrorKind::Unsupported,
-                format!(
-                    "entry version {}.{} is not supported.",
-                    header.major, header.minor
-                ),
-            ));
         }
         let ctime = ctime.map(|t| t + Duration::from_nanos(ctime_ns.unwrap_or(0) as u64));
         let mtime = mtime.map(|t| t + Duration::from_nanos(mtime_ns.unwrap_or(0) as u64));
@@ -1031,20 +1018,6 @@ impl<T: SealedEntryExt> From<T> for EntryPart {
     #[inline]
     fn from(value: T) -> Self {
         Self(value.into_chunks())
-    }
-}
-
-pub(crate) struct ChunkSolidEntries<T = Vec<u8>>(pub(crate) Vec<RawChunk<T>>);
-
-impl SealedEntryExt for ChunkSolidEntries {
-    #[inline]
-    fn into_chunks(self) -> Vec<RawChunk> {
-        self.0
-    }
-
-    #[inline]
-    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        chunks_write_in(self.0.iter(), writer)
     }
 }
 
