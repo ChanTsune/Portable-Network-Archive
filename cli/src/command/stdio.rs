@@ -383,7 +383,9 @@ fn run_list_archive(args: StdioCommand) -> io::Result<()> {
     if let Some(path) = args.file {
         let archives = collect_split_archives(&path)?;
         crate::command::list::run_list_archive(
-            archives,
+            archives
+                .into_iter()
+                .map(|it| io::BufReader::with_capacity(64 * 1024, it)),
             password.as_deref(),
             files_globs,
             exclude,
