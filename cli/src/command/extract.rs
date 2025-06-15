@@ -219,7 +219,9 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
     };
     #[cfg(not(feature = "memmap"))]
     run_extract_archive_reader(
-        archives,
+        archives
+            .into_iter()
+            .map(|it| io::BufReader::with_capacity(64 * 1024, it)),
         args.file.files,
         || password.as_deref(),
         output_options,

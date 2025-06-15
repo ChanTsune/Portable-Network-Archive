@@ -339,7 +339,14 @@ fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
     };
     if let Some(path) = args.file {
         let archives = collect_split_archives(&path)?;
-        run_extract_archive_reader(archives, args.files, || password.as_deref(), out_option)
+        run_extract_archive_reader(
+            archives
+                .into_iter()
+                .map(|it| io::BufReader::with_capacity(64 * 1024, it)),
+            args.files,
+            || password.as_deref(),
+            out_option,
+        )
     } else {
         run_extract_archive_reader(
             std::iter::repeat_with(|| io::stdin().lock()),
