@@ -282,7 +282,15 @@ fn list_archive(args: ListCommand) -> io::Result<()> {
 
     #[cfg(not(feature = "memmap"))]
     {
-        run_list_archive(archives, password.as_deref(), files_globs, exclude, options)
+        run_list_archive(
+            archives
+                .into_iter()
+                .map(|it| io::BufReader::with_capacity(64 * 1024, it)),
+            password.as_deref(),
+            files_globs,
+            exclude,
+            options,
+        )
     }
     #[cfg(feature = "memmap")]
     {
