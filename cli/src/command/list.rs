@@ -427,24 +427,40 @@ fn print_entries(
     }
 }
 
+struct SimpleListDisplay<'a> {
+    entries: &'a [TableRow],
+    options: &'a ListOptions,
+}
+
+impl<'a> Display for SimpleListDisplay<'a> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        use core::fmt::Write;
+        self.entries.iter().try_for_each(|path| {
+            let name = path.entry_type.name();
+            if self.options.hide_control_chars {
+                Display::fmt(&hide_control_chars(name), f)
+            } else {
+                Display::fmt(name, f)
+            }?;
+            match &path.entry_type {
+                EntryType::Directory(_) if self.options.classify => f.write_char('/')?,
+                EntryType::SymbolicLink(_, _) if self.options.classify => f.write_char('@')?,
+                _ => (),
+            };
+            f.write_char('\n')
+        })
+    }
+}
+
 fn simple_list_entries(entries: Vec<TableRow>, options: ListOptions) {
-    entries.into_iter().for_each(|path| {
-        let path = match path.entry_type {
-            EntryType::Directory(name) if options.classify => format!("{name}/"),
-            EntryType::SymbolicLink(name, _) if options.classify => {
-                format!("{name}@")
-            }
-            EntryType::File(name)
-            | EntryType::Directory(name)
-            | EntryType::SymbolicLink(name, _)
-            | EntryType::HardLink(name, _) => name,
-        };
-        if options.hide_control_chars {
-            println!("{path}", path = hide_control_chars(&path))
-        } else {
-            println!("{path}")
+    println!(
+        "{}",
+        SimpleListDisplay {
+            entries: &entries,
+            options: &options,
         }
-    });
+    );
 }
 
 fn detail_list_entries(entries: impl IntoIterator<Item = TableRow>, options: ListOptions) {
@@ -508,7 +524,7 @@ fn detail_list_entries(entries: impl IntoIterator<Item = TableRow>, options: Lis
                     }
                 };
                 if options.hide_control_chars {
-                    hide_control_chars(&name)
+                    hide_control_chars(&name).to_string()
                 } else {
                     name
                 }
@@ -600,10 +616,23 @@ fn datetime(format: TimeFormat, since_unix_epoch: Duration) -> String {
 }
 
 #[inline]
-fn hide_control_chars(s: &str) -> String {
-    s.chars()
-        .map(|c| if c.is_control() { '?' } else { c })
-        .collect()
+fn hide_control_chars<'a>(s: &'a str) -> impl Display + 'a {
+    use core::fmt::Write;
+    struct HideControl<'s>(&'s str);
+
+    impl Display for HideControl<'_> {
+        #[inline]
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+            self.0.chars().try_for_each(|c| {
+                if c.is_control() {
+                    f.write_char('?')
+                } else {
+                    f.write_char(c)
+                }
+            })
+        }
+    }
+    HideControl(s)
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -939,7 +968,7 @@ fn format_name<'a>(name: &'a str, kind: DataKind, options: &ListOptions) -> Cow<
         _ => Cow::Borrowed(name),
     };
     if options.hide_control_chars {
-        Cow::Owned(hide_control_chars(name.as_ref()))
+        Cow::Owned(hide_control_chars(&name).to_string())
     } else {
         name
     }
