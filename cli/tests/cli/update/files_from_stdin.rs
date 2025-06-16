@@ -12,7 +12,7 @@ fn test_update_files_from_stdin() {
     // Create a base archive
     Command::cargo_bin("pna")
         .unwrap()
-        .args(&[
+        .args([
             "--quiet",
             "create",
             "update_files_from_stdin/base.pna",
@@ -28,7 +28,7 @@ fn test_update_files_from_stdin() {
 
     // Run update command with --files-from-stdin
     let mut cmd = Command::cargo_bin("pna").unwrap();
-    cmd.args(&[
+    cmd.args([
         "--quiet",
         "experimental",
         "update",
@@ -43,7 +43,7 @@ fn test_update_files_from_stdin() {
     // Extract the updated archive and verify contents
     Command::cargo_bin("pna")
         .unwrap()
-        .args(&[
+        .args([
             "--quiet",
             "extract",
             "update_files_from_stdin/base.pna",
