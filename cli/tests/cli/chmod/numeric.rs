@@ -52,6 +52,7 @@ fn chmod_numeric_mode() {
         "--overwrite",
         "--out-dir",
         "chmod_numeric/out/",
+        #[cfg(not(windows))]
         "--keep-permission",
         #[cfg(windows)]
         "--unstable",
