@@ -65,6 +65,7 @@ fn chmod_with_password_file() {
         "chmod_password_file/out/",
         "--password-file",
         password_file_path,
+        #[cfg(not(windows))]
         "--keep-permission",
         #[cfg(windows)]
         "--unstable",

@@ -36,6 +36,7 @@ fn create_numeric_owner() {
         "--overwrite",
         "--out-dir",
         "numeric_owner/out/",
+        #[cfg(not(windows))]
         "--keep-permission",
         "--strip-components",
         "2",

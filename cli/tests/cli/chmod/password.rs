@@ -63,6 +63,7 @@ fn chmod_with_password() {
         "chmod_password/out/",
         "--password",
         "password",
+        #[cfg(not(windows))]
         "--keep-permission",
         #[cfg(windows)]
         "--unstable",
