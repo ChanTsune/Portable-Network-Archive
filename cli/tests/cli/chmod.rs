@@ -55,7 +55,6 @@ fn archive_chmod() {
         "--overwrite",
         "--out-dir",
         "chmod/out/",
-        #[cfg(not(windows))]
         "--keep-permission",
         #[cfg(windows)]
         "--unstable",

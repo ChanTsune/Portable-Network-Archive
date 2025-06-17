@@ -55,7 +55,6 @@ fn chmod_unsolid() {
         "--overwrite",
         "--out-dir",
         "chmod_unsolid/out/",
-        #[cfg(not(windows))]
         "--keep-permission",
         #[cfg(windows)]
         "--unstable",
