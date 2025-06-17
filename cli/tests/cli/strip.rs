@@ -48,7 +48,6 @@ fn archive_strip_metadata() {
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
-        #[cfg(not(windows))]
         "--keep-permission",
         "--strip-components",
         "2",
