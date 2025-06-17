@@ -6,7 +6,6 @@ use itertools::Itertools;
 const KEEP_OPTIONS: &[Option<&str>] = &[
     Some("--keep-dir"),
     Some("--keep-timestamp"),
-    #[cfg(not(windows))]
     Some("--keep-permission"),
     #[cfg(not(target_os = "netbsd"))]
     Some("--keep-xattr"),
