@@ -9,6 +9,7 @@ pub mod complete;
 pub(crate) mod concat;
 pub mod create;
 mod delete;
+pub mod diff;
 pub(super) mod experimental;
 pub mod extract;
 pub mod list;
