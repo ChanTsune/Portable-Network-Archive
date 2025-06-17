@@ -36,6 +36,7 @@ fn archive_keep_all() {
         #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
+        #[cfg(not(windows))]
         "--keep-permission",
         "--strip-components",
         "2",

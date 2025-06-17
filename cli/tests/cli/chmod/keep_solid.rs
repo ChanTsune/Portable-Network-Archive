@@ -55,6 +55,7 @@ fn chmod_keep_solid() {
         "--overwrite",
         "--out-dir",
         "chmod_keep_solid/out/",
+        #[cfg(not(windows))]
         "--keep-permission",
         #[cfg(windows)]
         "--unstable",
