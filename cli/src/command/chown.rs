@@ -42,12 +42,12 @@ pub(crate) struct ChownCommand {
 
 impl Command for ChownCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         archive_chown(self)
     }
 }
 
-fn archive_chown(args: ChownCommand) -> io::Result<()> {
+fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     if args.files.is_empty() {
         return Ok(());

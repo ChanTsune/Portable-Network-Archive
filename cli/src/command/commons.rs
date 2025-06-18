@@ -658,7 +658,7 @@ pub(crate) fn run_transform_entry<'p, O, Provider, F, Transform>(
     mut password_provider: Provider,
     mut processor: F,
     _strategy: Transform,
-) -> io::Result<()>
+) -> anyhow::Result<()>
 where
     O: AsRef<Path>,
     Provider: FnMut() -> Option<&'p str>,
@@ -707,7 +707,7 @@ pub(crate) fn run_transform_entry<'p, O, Provider, F, Transform>(
     mut password_provider: Provider,
     mut processor: F,
     _strategy: Transform,
-) -> io::Result<()>
+) -> anyhow::Result<()>
 where
     O: AsRef<Path>,
     Provider: FnMut() -> Option<&'p str>,
@@ -753,7 +753,7 @@ pub(crate) fn write_split_archive(
     entries: impl Iterator<Item = io::Result<impl Entry + Sized>>,
     max_file_size: usize,
     overwrite: bool,
-) -> io::Result<()> {
+) -> anyhow::Result<()> {
     write_split_archive_path(
         archive,
         entries,
@@ -769,7 +769,7 @@ pub(crate) fn write_split_archive_path<F, P>(
     mut get_part_path: F,
     max_file_size: usize,
     overwrite: bool,
-) -> io::Result<()>
+) -> anyhow::Result<()>
 where
     F: FnMut(&Path, usize) -> P,
     P: AsRef<Path>,
@@ -798,7 +798,7 @@ pub(crate) fn write_split_archive_writer<W, F, C>(
     mut get_next_writer: F,
     max_file_size: usize,
     mut on_complete: C,
-) -> io::Result<()>
+) -> anyhow::Result<()>
 where
     W: Write,
     F: FnMut(usize) -> io::Result<W>,

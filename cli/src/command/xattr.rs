@@ -34,7 +34,7 @@ pub(crate) struct XattrCommand {
 
 impl Command for XattrCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         match self.command {
             XattrCommands::Get(cmd) => cmd.execute(),
             XattrCommands::Set(cmd) => cmd.execute(),
@@ -82,7 +82,7 @@ pub(crate) struct GetXattrCommand {
 
 impl Command for GetXattrCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         archive_get_xattr(self)
     }
 }
@@ -113,7 +113,7 @@ pub(crate) struct SetXattrCommand {
 
 impl Command for SetXattrCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         archive_set_xattr(self)
     }
 }
@@ -195,7 +195,7 @@ impl<'a> DumpOption<'a> {
     }
 }
 
-fn archive_get_xattr(args: GetXattrCommand) -> io::Result<()> {
+fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     if args.files.is_empty() {
         return Ok(());
@@ -239,7 +239,7 @@ fn archive_get_xattr(args: GetXattrCommand) -> io::Result<()> {
     Ok(())
 }
 
-fn archive_set_xattr(args: SetXattrCommand) -> io::Result<()> {
+fn archive_set_xattr(args: SetXattrCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let set_strategy = if let Some("-") = args.restore.as_deref() {
         SetAttrStrategy::Restore(parse_dump(io::stdin().lock())?)

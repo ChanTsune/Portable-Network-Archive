@@ -183,12 +183,12 @@ pub(crate) struct AppendCommand {
 
 impl Command for AppendCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         append_to_archive(self)
     }
 }
 
-fn append_to_archive(args: AppendCommand) -> io::Result<()> {
+fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let archive_path = args.file.archive;
@@ -196,7 +196,8 @@ fn append_to_archive(args: AppendCommand) -> io::Result<()> {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
             format!("{} is not exists", archive_path.display()),
-        ));
+        )
+        .into());
     }
     let password = password.as_deref();
     let option = entry_option(args.compression, args.cipher, args.hash, password);
@@ -268,7 +269,7 @@ pub(crate) fn run_append_archive(
     path_transformers: &Option<PathTransformers>,
     mut archive: Archive<impl io::Write>,
     target_items: Vec<PathBuf>,
-) -> io::Result<()> {
+) -> anyhow::Result<()> {
     let (tx, rx) = std::sync::mpsc::channel();
     for file in target_items {
         let tx = tx.clone();
@@ -292,7 +293,7 @@ pub(crate) fn run_append_archive(
 
 pub(crate) fn open_archive_then_seek_to_end(
     path: impl AsRef<Path>,
-) -> io::Result<Archive<fs::File>> {
+) -> anyhow::Result<Archive<fs::File>> {
     let archive_path = path.as_ref();
     let mut num = 1;
     let file = fs::File::options()

@@ -50,12 +50,12 @@ fn check_password(password: &Option<String>, cipher_args: &CipherAlgorithmArgs) 
 }
 
 pub trait Command {
-    fn execute(self) -> io::Result<()>;
+    fn execute(self) -> anyhow::Result<()>;
 }
 
 impl Command for Cli {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         match self.commands {
             Commands::Create(cmd) => cmd.execute(),
             Commands::Append(cmd) => cmd.execute(),

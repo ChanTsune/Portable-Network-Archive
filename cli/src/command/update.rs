@@ -213,7 +213,7 @@ pub(crate) struct UpdateCommand {
 
 impl Command for UpdateCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         match self.transform_strategy.strategy() {
             SolidEntriesTransformStrategy::UnSolid => {
                 update_archive::<TransformStrategyUnSolid>(self)
@@ -225,7 +225,7 @@ impl Command for UpdateCommand {
     }
 }
 
-fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Result<()> {
+fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
@@ -234,7 +234,8 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
             format!("{} is not exists", archive_path.display()),
-        ));
+        )
+        .into());
     }
     let password = password.as_deref();
     let option = entry_option(args.compression, args.cipher, args.hash, password);

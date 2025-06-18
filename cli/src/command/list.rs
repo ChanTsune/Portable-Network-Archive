@@ -107,7 +107,7 @@ pub(crate) struct ListCommand {
 
 impl Command for ListCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         list_archive(self)
     }
 }
@@ -244,7 +244,7 @@ where
     }
 }
 
-fn list_archive(args: ListCommand) -> io::Result<()> {
+fn list_archive(args: ListCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let options = ListOptions {
         long: args.long,
@@ -358,7 +358,7 @@ pub(crate) fn run_list_archive(
     files_globs: GlobPatterns,
     exclude: Exclude,
     args: ListOptions,
-) -> io::Result<()> {
+) -> anyhow::Result<()> {
     let mut entries = Vec::new();
 
     run_read_entries(archive_provider, |entry| {
@@ -386,7 +386,7 @@ pub(crate) fn run_list_archive_mem(
     files_globs: GlobPatterns,
     exclude: Exclude,
     args: ListOptions,
-) -> io::Result<()> {
+) -> anyhow::Result<()> {
     let mut entries = Vec::new();
 
     run_read_entries_mem(archives, |entry| {

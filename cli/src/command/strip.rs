@@ -15,7 +15,7 @@ use crate::{
 };
 use clap::{Args, Parser, ValueHint};
 use pna::{prelude::*, Metadata, NormalEntry, RawChunk};
-use std::{io, path::PathBuf};
+use std::path::PathBuf;
 
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) struct StripOptions {
@@ -63,12 +63,12 @@ pub(crate) struct StripCommand {
 
 impl Command for StripCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         strip_metadata(self)
     }
 }
 
-fn strip_metadata(args: StripCommand) -> io::Result<()> {
+fn strip_metadata(args: StripCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let archives = collect_split_archives(&args.file.archive)?;
 
