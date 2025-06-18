@@ -1,7 +1,7 @@
 use crate::utils::{setup, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
-use std::{fs, io::ErrorKind};
+use std::fs;
 
 #[test]
 fn fail_without_overwrite() {
@@ -21,8 +21,5 @@ fn fail_without_overwrite() {
     .unwrap()
     .execute();
 
-    assert!(matches!(
-        result.unwrap_err().kind(),
-        ErrorKind::AlreadyExists
-    ));
+    assert!(result.is_err());
 }

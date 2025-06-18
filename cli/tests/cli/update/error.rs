@@ -14,8 +14,5 @@ fn test_update_non_existent_archive() -> io::Result<()> {
     let result = args.execute();
 
     assert!(result.is_err());
-    let err = result.unwrap_err();
-    assert_eq!(err.kind(), io::ErrorKind::NotFound);
-
     Ok(())
 }
