@@ -210,7 +210,7 @@ pub(crate) struct StdioCommand {
 
 impl Command for StdioCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         run_stdio(self)
     }
 }
@@ -221,7 +221,7 @@ pub(crate) struct FileArgs {
     pub(crate) files: Vec<PathBuf>,
 }
 
-fn run_stdio(args: StdioCommand) -> io::Result<()> {
+fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     if args.create {
         run_create_archive(args)
     } else if args.extract {
@@ -235,7 +235,7 @@ fn run_stdio(args: StdioCommand) -> io::Result<()> {
     }
 }
 
-fn run_create_archive(args: StdioCommand) -> io::Result<()> {
+fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let mut files = args.files;
@@ -301,7 +301,7 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
     }
 }
 
-fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
+fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
 
     let exclude = {
@@ -357,7 +357,7 @@ fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
     }
 }
 
-fn run_list_archive(args: StdioCommand) -> io::Result<()> {
+fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let list_options = ListOptions {
         long: false,
@@ -409,7 +409,7 @@ fn run_list_archive(args: StdioCommand) -> io::Result<()> {
     }
 }
 
-fn run_append(args: StdioCommand) -> io::Result<()> {
+fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let password = password.as_deref();

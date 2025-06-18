@@ -159,11 +159,11 @@ pub(crate) struct ExtractCommand {
 
 impl Command for ExtractCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         extract_archive(self)
     }
 }
-fn extract_archive(args: ExtractCommand) -> io::Result<()> {
+fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let start = Instant::now();
     log::info!("Extract archive {}", args.file.archive.display());
@@ -258,7 +258,7 @@ pub(crate) fn run_extract_archive_reader<'p, Provider>(
     files: Vec<String>,
     mut password_provider: Provider,
     args: OutputOption,
-) -> io::Result<()>
+) -> anyhow::Result<()>
 where
     Provider: FnMut() -> Option<&'p str>,
 {

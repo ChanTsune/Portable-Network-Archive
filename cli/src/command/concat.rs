@@ -21,24 +21,26 @@ pub(crate) struct ConcatCommand {
 
 impl Command for ConcatCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         concat_entry(self)
     }
 }
 
-fn concat_entry(args: ConcatCommand) -> io::Result<()> {
+fn concat_entry(args: ConcatCommand) -> anyhow::Result<()> {
     if !args.overwrite && args.files.archive.exists() {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
             format!("{} already exists", args.files.archive.display()),
-        ));
+        )
+        .into());
     }
     for item in &args.files.files {
         if !utils::fs::is_pna(item)? {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!("{item} is not a pna file"),
-            ));
+            )
+            .into());
         }
     }
     let file = utils::fs::file_create(&args.files.archive, args.overwrite)?;

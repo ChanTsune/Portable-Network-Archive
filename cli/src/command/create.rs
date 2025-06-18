@@ -197,12 +197,12 @@ pub(crate) struct CreateCommand {
 
 impl Command for CreateCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         create_archive(self)
     }
 }
 
-fn create_archive(args: CreateCommand) -> io::Result<()> {
+fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
@@ -212,7 +212,8 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
             format!("{} already exists", archive.display()),
-        ));
+        )
+        .into());
     }
     log::info!("Create an archive: {}", archive.display());
     let mut files = args.file.files;
@@ -328,7 +329,7 @@ pub(crate) fn create_archive_file<W, F>(
         path_transformers,
     }: CreationContext,
     target_items: Vec<PathBuf>,
-) -> io::Result<()>
+) -> anyhow::Result<()>
 where
     W: Write,
     F: FnMut() -> io::Result<W>,
@@ -390,7 +391,7 @@ fn create_archive_with_split(
     target_items: Vec<PathBuf>,
     max_file_size: usize,
     overwrite: bool,
-) -> io::Result<()> {
+) -> anyhow::Result<()> {
     let (tx, rx) = std::sync::mpsc::channel();
     let option = if solid {
         WriteOptions::store()

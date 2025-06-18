@@ -1,6 +1,5 @@
 use crate::{command, command::Command};
 use clap::{Parser, Subcommand};
-use std::io;
 
 #[derive(Parser, Clone, Debug)]
 #[command(args_conflicts_with_subcommands = true, arg_required_else_help = true)]
@@ -11,7 +10,7 @@ pub(crate) struct ExperimentalCommand {
 
 impl Command for ExperimentalCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         match self.command {
             ExperimentalCommands::Stdio(cmd) => cmd.execute(),
             ExperimentalCommands::Delete(cmd) => cmd.execute(),
