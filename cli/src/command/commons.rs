@@ -2,7 +2,7 @@ use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
     utils::{
         self,
-        env::temp_dir_or_else,
+        env::NamedTempFile,
         re::{
             bsd::{SubstitutionRule, SubstitutionRules},
             gnu::{TransformRule, TransformRules},
@@ -669,22 +669,15 @@ where
 {
     let password = password_provider();
     let output_path = output_path.as_ref();
-    let random = rand::random::<usize>();
-    let temp_dir_path = temp_dir_or_else(|| output_path.parent().unwrap_or_else(|| ".".as_ref()));
-    fs::create_dir_all(&temp_dir_path)?;
-    let temp_path = temp_dir_path.join(format!("{}.pna.tmp", random));
-    let outfile = fs::File::create(&temp_path)?;
-    let mut out_archive = Archive::write_header(outfile)?;
-
+    let mut temp_file =
+        NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
+    let mut out_archive = Archive::write_header(temp_file.as_file_mut())?;
     run_read_entries_mem(archives, |entry| {
         Transform::transform(&mut out_archive, password, entry, &mut processor)
     })?;
-
     out_archive.finalize()?;
-    if let Some(parent) = output_path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    utils::fs::mv(temp_path, output_path)?;
+
+    temp_file.persist(output_path)?;
     Ok(())
 }
 
@@ -716,22 +709,15 @@ where
 {
     let password = password_provider();
     let output_path = output_path.as_ref();
-    let random = rand::random::<usize>();
-    let temp_dir_path = temp_dir_or_else(|| output_path.parent().unwrap_or_else(|| ".".as_ref()));
-    fs::create_dir_all(&temp_dir_path)?;
-    let temp_path = temp_dir_path.join(format!("{random}.pna.tmp"));
-    let outfile = fs::File::create(&temp_path)?;
-    let mut out_archive = Archive::write_header(outfile)?;
-
+    let mut temp_file =
+        NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
+    let mut out_archive = Archive::write_header(temp_file.as_file_mut())?;
     run_read_entries(archives, |entry| {
         Transform::transform(&mut out_archive, password, entry, &mut processor)
     })?;
-
     out_archive.finalize()?;
-    if let Some(parent) = output_path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    utils::fs::mv(temp_path, output_path)?;
+
+    temp_file.persist(output_path)?;
     Ok(())
 }
 
