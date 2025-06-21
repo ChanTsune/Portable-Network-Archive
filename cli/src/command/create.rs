@@ -360,23 +360,23 @@ where
         }
 
         drop(tx);
+    });
 
-        let file = get_writer()?;
-        if solid {
-            let mut writer = Archive::write_solid_header(file, write_option)?;
-            for entry in rx.into_iter() {
-                writer.add_entry(entry?)?;
-            }
-            writer.finalize()?;
-        } else {
-            let mut writer = Archive::write_header(file)?;
-            for entry in rx.into_iter() {
-                writer.add_entry(entry?)?;
-            }
-            writer.finalize()?;
+    let file = get_writer()?;
+    if solid {
+        let mut writer = Archive::write_solid_header(file, write_option)?;
+        for entry in rx.into_iter() {
+            writer.add_entry(entry?)?;
         }
-        Ok(())
-    })
+        writer.finalize()?;
+    } else {
+        let mut writer = Archive::write_header(file)?;
+        for entry in rx.into_iter() {
+            writer.add_entry(entry?)?;
+        }
+        writer.finalize()?;
+    }
+    Ok(())
 }
 
 fn create_archive_with_split(
