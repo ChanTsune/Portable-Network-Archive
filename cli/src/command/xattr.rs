@@ -266,20 +266,14 @@ fn archive_set_xattr(args: SetXattrCommand) -> anyhow::Result<()> {
             args.archive.remove_part().unwrap(),
             archives,
             || password.as_deref(),
-            |entry| {
-                let entry = entry?;
-                Ok(Some(set_strategy.transform_entry(entry)))
-            },
+            |entry| Ok(Some(set_strategy.transform_entry(entry?))),
             TransformStrategyUnSolid,
         ),
         SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
             args.archive.remove_part().unwrap(),
             archives,
             || password.as_deref(),
-            |entry| {
-                let entry = entry?;
-                Ok(Some(set_strategy.transform_entry(entry)))
-            },
+            |entry| Ok(Some(set_strategy.transform_entry(entry?))),
             TransformStrategyKeepSolid,
         ),
     }
