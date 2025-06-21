@@ -2,7 +2,6 @@ use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
     utils::{
         self,
-        env::NamedTempFile,
         re::{
             bsd::{SubstitutionRule, SubstitutionRules},
             gnu::{TransformRule, TransformRules},
@@ -653,15 +652,15 @@ where
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_transform_entry<'d, 'p, O, Provider, F, Transform>(
-    output_path: O,
+pub(crate) fn run_transform_entry<'d, 'p, W, Provider, F, Transform>(
+    writer: W,
     archives: impl IntoIterator<Item = &'d [u8]>,
     mut password_provider: Provider,
     mut processor: F,
     _strategy: Transform,
 ) -> anyhow::Result<()>
 where
-    O: AsRef<Path>,
+    W: Write,
     Provider: FnMut() -> Option<&'p str>,
     F: FnMut(
         io::Result<NormalEntry<Cow<'d, [u8]>>>,
@@ -669,16 +668,11 @@ where
     Transform: TransformStrategy,
 {
     let password = password_provider();
-    let output_path = output_path.as_ref();
-    let mut temp_file =
-        NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
-    let mut out_archive = Archive::write_header(temp_file.as_file_mut())?;
+    let mut out_archive = Archive::write_header(writer)?;
     run_read_entries_mem(archives, |entry| {
         Transform::transform(&mut out_archive, password, entry, &mut processor)
     })?;
     out_archive.finalize()?;
-
-    temp_file.persist(output_path)?;
     Ok(())
 }
 
@@ -695,30 +689,25 @@ where
 }
 
 #[cfg(not(feature = "memmap"))]
-pub(crate) fn run_transform_entry<'p, O, Provider, F, Transform>(
-    output_path: O,
+pub(crate) fn run_transform_entry<'p, W, Provider, F, Transform>(
+    writer: W,
     archives: impl IntoIterator<Item = impl Read>,
     mut password_provider: Provider,
     mut processor: F,
     _strategy: Transform,
 ) -> anyhow::Result<()>
 where
-    O: AsRef<Path>,
+    W: Write,
     Provider: FnMut() -> Option<&'p str>,
     F: FnMut(io::Result<NormalEntry>) -> io::Result<Option<NormalEntry>>,
     Transform: TransformStrategy,
 {
     let password = password_provider();
-    let output_path = output_path.as_ref();
-    let mut temp_file =
-        NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
-    let mut out_archive = Archive::write_header(temp_file.as_file_mut())?;
+    let mut out_archive = Archive::write_header(writer)?;
     run_read_entries(archives, |entry| {
         Transform::transform(&mut out_archive, password, entry, &mut processor)
     })?;
     out_archive.finalize()?;
-
-    temp_file.persist(output_path)?;
     Ok(())
 }
 

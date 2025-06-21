@@ -9,6 +9,7 @@ use crate::{
         Command,
     },
     ext::*,
+    utils::env::NamedTempFile,
 };
 use clap::{Parser, ValueHint};
 use pna::{prelude::*, NormalEntry, RawChunk};
@@ -46,22 +47,32 @@ fn migrate_metadata(args: MigrateCommand) -> anyhow::Result<()> {
     #[cfg(feature = "memmap")]
     let archives = mmaps.iter().map(|m| m.as_ref());
 
+    let output_path = args.output;
+    let mut temp_file =
+        NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
+
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => run_transform_entry(
-            args.output,
+            temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
             |entry| Ok(Some(strip_entry_metadata(entry?)?)),
             TransformStrategyUnSolid,
         ),
         SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
-            args.output,
+            temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
             |entry| Ok(Some(strip_entry_metadata(entry?)?)),
             TransformStrategyKeepSolid,
         ),
-    }
+    }?;
+
+    #[cfg(feature = "memmap")]
+    drop(mmaps);
+
+    temp_file.persist(output_path)?;
+    Ok(())
 }
 
 #[inline]
