@@ -263,13 +263,13 @@ pub(crate) struct OutputOption {
 }
 
 pub(crate) fn run_extract_archive_reader<'p, Provider>(
-    reader: impl IntoIterator<Item = impl Read>,
+    reader: impl IntoIterator<Item = impl Read> + Send,
     files: Vec<String>,
     mut password_provider: Provider,
     args: OutputOption,
 ) -> anyhow::Result<()>
 where
-    Provider: FnMut() -> Option<&'p str>,
+    Provider: FnMut() -> Option<&'p str> + Send,
 {
     let password = password_provider();
     let globs =
@@ -278,34 +278,35 @@ where
     let mut link_entries = Vec::new();
 
     let (tx, rx) = std::sync::mpsc::channel();
-    run_process_archive(reader, password_provider, |entry| {
-        let item = entry?;
-        let item_path = item.header().path().to_string();
-        if !globs.is_empty() && !globs.matches_any(&item_path) {
-            log::debug!("Skip: {}", item.header().path());
-            return Ok(());
-        }
-        if matches!(
-            item.header().data_kind(),
-            DataKind::SymbolicLink | DataKind::HardLink
-        ) {
-            link_entries.push(item);
-            return Ok(());
-        }
-        let tx = tx.clone();
-        rayon::scope_fifo(|s| {
-            s.spawn_fifo(|_| {
+    rayon::scope_fifo(|s| -> anyhow::Result<()> {
+        run_process_archive(reader, password_provider, |entry| {
+            let item = entry?;
+            let item_path = item.header().path().to_string();
+            if !globs.is_empty() && !globs.matches_any(&item_path) {
+                log::debug!("Skip: {}", item.header().path());
+                return Ok(());
+            }
+            if matches!(
+                item.header().data_kind(),
+                DataKind::SymbolicLink | DataKind::HardLink
+            ) {
+                link_entries.push(item);
+                return Ok(());
+            }
+            let tx = tx.clone();
+            let args = args.clone();
+            s.spawn_fifo(move |_| {
                 tx.send(extract_entry(item, password, &args))
                     .unwrap_or_else(|e| panic!("{e}: {item_path}"));
-            })
-        });
+            });
+            Ok(())
+        })?;
+        drop(tx);
         Ok(())
     })?;
-    drop(tx);
     for result in rx {
         result?;
     }
-
     for item in link_entries {
         extract_entry(item, password, &args)?;
     }
@@ -314,54 +315,55 @@ where
 
 #[cfg(feature = "memmap")]
 pub(crate) fn run_extract_archive<'d, 'p, Provider>(
-    archives: impl IntoIterator<Item = &'d [u8]>,
+    archives: impl IntoIterator<Item = &'d [u8]> + Send,
     files: Vec<String>,
     mut password_provider: Provider,
     args: OutputOption,
 ) -> io::Result<()>
 where
-    Provider: FnMut() -> Option<&'p str>,
+    Provider: FnMut() -> Option<&'p str> + Send,
 {
-    let password = password_provider();
-    let globs =
-        GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    rayon::scope_fifo(|s| {
+        let password = password_provider();
+        let globs =
+            GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-    let mut link_entries = Vec::<NormalEntry>::new();
+        let mut link_entries = Vec::<NormalEntry>::new();
 
-    let (tx, rx) = std::sync::mpsc::channel();
+        let (tx, rx) = std::sync::mpsc::channel();
 
-    run_entries(archives, password_provider, |entry| {
-        let item = entry?;
-        let item_path = item.header().path().to_string();
-        if !globs.is_empty() && !globs.matches_any(&item_path) {
-            log::debug!("Skip: {}", item.header().path());
-            return Ok(());
-        }
-        if matches!(
-            item.header().data_kind(),
-            DataKind::SymbolicLink | DataKind::HardLink
-        ) {
-            link_entries.push(item.into());
-            return Ok(());
-        }
-        let tx = tx.clone();
-        rayon::scope_fifo(|s| {
-            s.spawn_fifo(|_| {
+        run_entries(archives, password_provider, |entry| {
+            let item = entry?;
+            let item_path = item.header().path().to_string();
+            if !globs.is_empty() && !globs.matches_any(&item_path) {
+                log::debug!("Skip: {}", item.header().path());
+                return Ok(());
+            }
+            if matches!(
+                item.header().data_kind(),
+                DataKind::SymbolicLink | DataKind::HardLink
+            ) {
+                link_entries.push(item.into());
+                return Ok(());
+            }
+            let tx = tx.clone();
+            let args = args.clone();
+            s.spawn_fifo(move |_| {
                 tx.send(extract_entry(item, password, &args))
                     .unwrap_or_else(|e| panic!("{e}: {}", item_path));
-            })
-        });
-        Ok(())
-    })?;
-    drop(tx);
-    for result in rx {
-        result?;
-    }
+            });
+            Ok(())
+        })?;
+        drop(tx);
+        for result in rx {
+            result?;
+        }
 
-    for item in link_entries {
-        extract_entry(item, password, &args)?;
-    }
-    Ok(())
+        for item in link_entries {
+            extract_entry(item, password, &args)?;
+        }
+        Ok(())
+    })
 }
 
 pub(crate) fn extract_entry<T>(

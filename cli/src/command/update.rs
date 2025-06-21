@@ -353,14 +353,16 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
     #[cfg(feature = "memmap")]
     let archives = mmaps.iter().map(|m| m.as_ref());
 
-    run_read_entries(archives, |entry| {
-        Strategy::transform(&mut out_archive, password, entry, |entry| {
-            let entry = entry?;
-            if let Some(target_path) = target_files_mapping.swap_remove(entry.header().path()) {
-                if need_update_condition(&target_path, entry.metadata()).unwrap_or(true) {
-                    let tx = tx.clone();
-                    rayon::scope_fifo(|s| {
-                        s.spawn_fifo(|_| {
+    rayon::scope_fifo(|s| -> anyhow::Result<()> {
+        run_read_entries(archives, |entry| {
+            Strategy::transform(&mut out_archive, password, entry, |entry| {
+                let entry = entry?;
+                if let Some(target_path) = target_files_mapping.swap_remove(entry.header().path()) {
+                    if need_update_condition(&target_path, entry.metadata()).unwrap_or(true) {
+                        let tx = tx.clone();
+                        let create_options = create_options.clone();
+                        let path_transformers = path_transformers.clone();
+                        s.spawn_fifo(move |_| {
                             log::debug!("Updating: {}", target_path.display());
                             tx.send(create_entry(
                                 &target_path,
@@ -369,36 +371,38 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
                             ))
                             .unwrap_or_else(|e| panic!("{e}: {}", target_path.display()));
                         });
-                    });
-                    Ok(None)
+                        Ok(None)
+                    } else {
+                        Ok(Some(entry))
+                    }
                 } else {
                     Ok(Some(entry))
                 }
-            } else {
-                Ok(Some(entry))
-            }
-        })
-    })?;
+            })
+        })?;
 
-    // NOTE: Add new entries
-    for (_, file) in target_files_mapping {
-        let tx = tx.clone();
-        rayon::scope_fifo(|s| {
-            s.spawn_fifo(|_| {
+        // NOTE: Add new entries
+        for (_, file) in target_files_mapping {
+            let tx = tx.clone();
+            let create_options = create_options.clone();
+            let path_transformers = path_transformers.clone();
+            s.spawn_fifo(move |_| {
                 log::debug!("Adding: {}", file.display());
                 tx.send(create_entry(&file, &create_options, &path_transformers))
                     .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
             });
-        });
-    }
+        }
+        drop(tx);
+        Ok(())
+    })?;
 
-    drop(tx);
     for entry in rx.into_iter() {
         Strategy::transform(&mut out_archive, password, entry.map(Into::into), |entry| {
             entry.map(Some)
         })?;
     }
     out_archive.finalize()?;
+
     #[cfg(feature = "memmap")]
     drop(mmaps);
 
