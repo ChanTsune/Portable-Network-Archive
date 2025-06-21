@@ -271,18 +271,18 @@ pub(crate) fn run_append_archive(
     target_items: Vec<PathBuf>,
 ) -> anyhow::Result<()> {
     let (tx, rx) = std::sync::mpsc::channel();
-    for file in target_items {
-        let tx = tx.clone();
-        rayon::scope_fifo(|s| {
-            s.spawn_fifo(|_| {
+    rayon::scope_fifo(|s| {
+        for file in target_items {
+            let tx = tx.clone();
+            s.spawn_fifo(move |_| {
                 log::debug!("Adding: {}", file.display());
                 tx.send(create_entry(&file, create_options, path_transformers))
                     .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
             })
-        });
-    }
+        }
 
-    drop(tx);
+        drop(tx);
+    });
 
     for entry in rx.into_iter() {
         archive.add_entry(entry?)?;

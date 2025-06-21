@@ -10,7 +10,7 @@ use crate::{
         Command,
     },
     ext::{Acls, NormalEntryExt, PermissionExt},
-    utils::{GlobPatterns, PathPartExt},
+    utils::{env::NamedTempFile, GlobPatterns, PathPartExt},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use nom::{
@@ -293,6 +293,14 @@ fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
 
     let archives = collect_split_archives(&args.archive)?;
 
+    #[cfg(feature = "memmap")]
+    let mmaps = archives
+        .into_iter()
+        .map(crate::utils::mmap::Mmap::try_from)
+        .collect::<io::Result<Vec<_>>>()?;
+    #[cfg(feature = "memmap")]
+    let archives = mmaps.iter().map(|m| m.as_ref());
+
     run_entries(
         archives,
         || password.as_deref(),
@@ -349,22 +357,40 @@ fn archive_set_acl(args: SetAclCommand) -> anyhow::Result<()> {
 
     let archives = collect_split_archives(&args.archive)?;
 
+    #[cfg(feature = "memmap")]
+    let mmaps = archives
+        .into_iter()
+        .map(crate::utils::mmap::Mmap::try_from)
+        .collect::<io::Result<Vec<_>>>()?;
+    #[cfg(feature = "memmap")]
+    let archives = mmaps.iter().map(|m| m.as_ref());
+
+    let output_path = args.archive.remove_part().unwrap();
+    let mut temp_file =
+        NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
+
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => run_transform_entry(
-            args.archive.remove_part().unwrap(),
+            temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
             |entry| Ok(Some(set_strategy.transform_entry(entry?))),
             TransformStrategyUnSolid,
         ),
         SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
-            args.archive.remove_part().unwrap(),
+            temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
             |entry| Ok(Some(set_strategy.transform_entry(entry?))),
             TransformStrategyKeepSolid,
         ),
-    }
+    }?;
+
+    #[cfg(feature = "memmap")]
+    drop(mmaps);
+
+    temp_file.persist(output_path)?;
+    Ok(())
 }
 
 enum SetAclsStrategy {

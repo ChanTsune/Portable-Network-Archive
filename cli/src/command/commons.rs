@@ -2,7 +2,6 @@ use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
     utils::{
         self,
-        env::NamedTempFile,
         re::{
             bsd::{SubstitutionRule, SubstitutionRules},
             gnu::{TransformRule, TransformRules},
@@ -593,39 +592,40 @@ where
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_across_archive_mem<F>(archives: Vec<fs::File>, mut processor: F) -> io::Result<()>
+pub(crate) fn run_across_archive_mem<'d, F>(
+    archives: impl IntoIterator<Item = &'d [u8]>,
+    mut processor: F,
+) -> io::Result<()>
 where
-    F: FnMut(&mut Archive<&[u8]>) -> io::Result<()>,
+    F: FnMut(&mut Archive<&'d [u8]>) -> io::Result<()>,
 {
-    let archives = archives
-        .into_iter()
-        .map(utils::mmap::Mmap::try_from)
-        .collect::<io::Result<Vec<_>>>()?;
-
-    let mut idx = 0;
-    let mut archive = Archive::read_header_from_slice(&archives[idx])?;
+    let mut iter = archives.into_iter();
+    let mut archive = Archive::read_header_from_slice(iter.next().expect(""))?;
 
     loop {
         processor(&mut archive)?;
-        if !archive.has_next_archive() {
+        if archive.has_next_archive() {
+            let next_reader = iter.next().ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "Archive is split, but no subsequent archives are found",
+                )
+            })?;
+            archive = archive.read_next_archive_from_slice(next_reader)?;
+        } else {
             break;
         }
-        idx += 1;
-        if idx >= archives.len() {
-            return Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                "Archive is split, but no subsequent archives are found",
-            ));
-        }
-        archive = archive.read_next_archive_from_slice(&archives[idx][..])?;
     }
     Ok(())
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_read_entries_mem<F>(archives: Vec<fs::File>, mut processor: F) -> io::Result<()>
+pub(crate) fn run_read_entries_mem<'d, F>(
+    archives: impl IntoIterator<Item = &'d [u8]>,
+    mut processor: F,
+) -> io::Result<()>
 where
-    F: FnMut(io::Result<ReadEntry<std::borrow::Cow<[u8]>>>) -> io::Result<()>,
+    F: FnMut(io::Result<ReadEntry<Cow<'d, [u8]>>>) -> io::Result<()>,
 {
     run_across_archive_mem(archives, |archive| {
         archive.entries_slice().try_for_each(&mut processor)
@@ -633,14 +633,14 @@ where
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_entries<'p, Provider, F>(
-    archives: Vec<fs::File>,
+pub(crate) fn run_entries<'d, 'p, Provider, F>(
+    archives: impl IntoIterator<Item = &'d [u8]>,
     mut password_provider: Provider,
     mut processor: F,
 ) -> io::Result<()>
 where
     Provider: FnMut() -> Option<&'p str>,
-    F: FnMut(io::Result<NormalEntry<std::borrow::Cow<[u8]>>>) -> io::Result<()>,
+    F: FnMut(io::Result<NormalEntry<Cow<'d, [u8]>>>) -> io::Result<()>,
 {
     let password = password_provider();
     run_read_entries_mem(archives, |entry| match entry? {
@@ -652,32 +652,27 @@ where
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_transform_entry<'p, O, Provider, F, Transform>(
-    output_path: O,
-    archives: Vec<fs::File>,
+pub(crate) fn run_transform_entry<'d, 'p, W, Provider, F, Transform>(
+    writer: W,
+    archives: impl IntoIterator<Item = &'d [u8]>,
     mut password_provider: Provider,
     mut processor: F,
     _strategy: Transform,
 ) -> anyhow::Result<()>
 where
-    O: AsRef<Path>,
+    W: Write,
     Provider: FnMut() -> Option<&'p str>,
     F: FnMut(
-        io::Result<NormalEntry<std::borrow::Cow<[u8]>>>,
-    ) -> io::Result<Option<NormalEntry<std::borrow::Cow<[u8]>>>>,
+        io::Result<NormalEntry<Cow<'d, [u8]>>>,
+    ) -> io::Result<Option<NormalEntry<Cow<'d, [u8]>>>>,
     Transform: TransformStrategy,
 {
     let password = password_provider();
-    let output_path = output_path.as_ref();
-    let mut temp_file =
-        NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
-    let mut out_archive = Archive::write_header(temp_file.as_file_mut())?;
+    let mut out_archive = Archive::write_header(writer)?;
     run_read_entries_mem(archives, |entry| {
         Transform::transform(&mut out_archive, password, entry, &mut processor)
     })?;
     out_archive.finalize()?;
-
-    temp_file.persist(output_path)?;
     Ok(())
 }
 
@@ -694,30 +689,25 @@ where
 }
 
 #[cfg(not(feature = "memmap"))]
-pub(crate) fn run_transform_entry<'p, O, Provider, F, Transform>(
-    output_path: O,
+pub(crate) fn run_transform_entry<'p, W, Provider, F, Transform>(
+    writer: W,
     archives: impl IntoIterator<Item = impl Read>,
     mut password_provider: Provider,
     mut processor: F,
     _strategy: Transform,
 ) -> anyhow::Result<()>
 where
-    O: AsRef<Path>,
+    W: Write,
     Provider: FnMut() -> Option<&'p str>,
     F: FnMut(io::Result<NormalEntry>) -> io::Result<Option<NormalEntry>>,
     Transform: TransformStrategy,
 {
     let password = password_provider();
-    let output_path = output_path.as_ref();
-    let mut temp_file =
-        NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
-    let mut out_archive = Archive::write_header(temp_file.as_file_mut())?;
+    let mut out_archive = Archive::write_header(writer)?;
     run_read_entries(archives, |entry| {
         Transform::transform(&mut out_archive, password, entry, &mut processor)
     })?;
     out_archive.finalize()?;
-
-    temp_file.persist(output_path)?;
     Ok(())
 }
 

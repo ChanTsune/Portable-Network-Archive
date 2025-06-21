@@ -8,7 +8,7 @@ use crate::{
         },
         Command,
     },
-    utils::{GlobPatterns, PathPartExt},
+    utils::{env::NamedTempFile, GlobPatterns, PathPartExt},
 };
 use base64::Engine;
 use bstr::{io::BufReadExt, ByteSlice};
@@ -208,6 +208,14 @@ fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
 
     let archives = collect_split_archives(&args.archive)?;
 
+    #[cfg(feature = "memmap")]
+    let mmaps = archives
+        .into_iter()
+        .map(crate::utils::mmap::Mmap::try_from)
+        .collect::<io::Result<Vec<_>>>()?;
+    #[cfg(feature = "memmap")]
+    let archives = mmaps.iter().map(|m| m.as_ref());
+
     run_entries(
         archives,
         || password.as_deref(),
@@ -261,22 +269,40 @@ fn archive_set_xattr(args: SetXattrCommand) -> anyhow::Result<()> {
 
     let archives = collect_split_archives(&args.archive)?;
 
+    #[cfg(feature = "memmap")]
+    let mmaps = archives
+        .into_iter()
+        .map(crate::utils::mmap::Mmap::try_from)
+        .collect::<io::Result<Vec<_>>>()?;
+    #[cfg(feature = "memmap")]
+    let archives = mmaps.iter().map(|m| m.as_ref());
+
+    let output_path = args.archive.remove_part().unwrap();
+    let mut temp_file =
+        NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
+
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => run_transform_entry(
-            args.archive.remove_part().unwrap(),
+            temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
             |entry| Ok(Some(set_strategy.transform_entry(entry?))),
             TransformStrategyUnSolid,
         ),
         SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
-            args.archive.remove_part().unwrap(),
+            temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
             |entry| Ok(Some(set_strategy.transform_entry(entry?))),
             TransformStrategyKeepSolid,
         ),
-    }
+    }?;
+
+    #[cfg(feature = "memmap")]
+    drop(mmaps);
+
+    temp_file.persist(output_path)?;
+    Ok(())
 }
 
 enum SetAttrStrategy {

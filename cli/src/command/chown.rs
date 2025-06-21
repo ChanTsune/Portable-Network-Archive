@@ -9,6 +9,7 @@ use crate::{
         Command,
     },
     utils::{
+        env::NamedTempFile,
         fs::{Group, User},
         GlobPatterns, PathPartExt,
     },
@@ -61,9 +62,21 @@ fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
 
     let archives = collect_split_archives(&args.archive)?;
 
+    #[cfg(feature = "memmap")]
+    let mmaps = archives
+        .into_iter()
+        .map(crate::utils::mmap::Mmap::try_from)
+        .collect::<io::Result<Vec<_>>>()?;
+    #[cfg(feature = "memmap")]
+    let archives = mmaps.iter().map(|m| m.as_ref());
+
+    let output_path = args.archive.remove_part().unwrap();
+    let mut temp_file =
+        NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
+
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => run_transform_entry(
-            args.archive.remove_part().unwrap(),
+            temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
             |entry| {
@@ -77,7 +90,7 @@ fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
             TransformStrategyUnSolid,
         ),
         SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
-            args.archive.remove_part().unwrap(),
+            temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
             |entry| {
@@ -90,7 +103,13 @@ fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
             },
             TransformStrategyKeepSolid,
         ),
-    }
+    }?;
+
+    #[cfg(feature = "memmap")]
+    drop(mmaps);
+
+    temp_file.persist(output_path)?;
+    Ok(())
 }
 
 #[inline]

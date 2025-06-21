@@ -48,17 +48,29 @@ fn concat_entry(args: ConcatCommand) -> anyhow::Result<()> {
 
     for item in &args.files.files {
         let archives = collect_split_archives(item)?;
-        run_across_archive(archives, |reader| {
-            #[cfg(feature = "memmap")]
-            for entry in reader.raw_entries_slice() {
-                archive.add_entry(entry?)?;
-            }
-            #[cfg(not(feature = "memmap"))]
-            for entry in reader.raw_entries() {
-                archive.add_entry(entry?)?;
-            }
-            Ok(())
-        })?;
+        #[cfg(feature = "memmap")]
+        {
+            let mmaps = archives
+                .into_iter()
+                .map(utils::mmap::Mmap::try_from)
+                .collect::<io::Result<Vec<_>>>()?;
+            let archives = mmaps.iter().map(|m| m.as_ref());
+            run_across_archive(archives, |reader| {
+                for entry in reader.raw_entries_slice() {
+                    archive.add_entry(entry?)?;
+                }
+                Ok(())
+            })?;
+        }
+        #[cfg(not(feature = "memmap"))]
+        {
+            run_across_archive(archives, |reader| {
+                for entry in reader.raw_entries() {
+                    archive.add_entry(entry?)?;
+                }
+                Ok(())
+            })?;
+        }
     }
     archive.finalize()?;
     Ok(())
