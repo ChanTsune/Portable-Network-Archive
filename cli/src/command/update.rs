@@ -399,6 +399,8 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         })?;
     }
     out_archive.finalize()?;
+    #[cfg(feature = "memmap")]
+    drop(mmaps);
 
     temp_file.persist(archive_path.remove_part().unwrap())?;
 
