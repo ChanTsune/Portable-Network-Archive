@@ -353,7 +353,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
     #[cfg(feature = "memmap")]
     let archives = mmaps.iter().map(|m| m.as_ref());
 
-    rayon::scope_fifo(|s| {
+    rayon::scope_fifo(|s| -> anyhow::Result<()> {
         run_read_entries(archives, |entry| {
             Strategy::transform(&mut out_archive, password, entry, |entry| {
                 let entry = entry?;
@@ -392,15 +392,16 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
                     .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
             });
         }
-
         drop(tx);
-        for entry in rx.into_iter() {
-            Strategy::transform(&mut out_archive, password, entry.map(Into::into), |entry| {
-                entry.map(Some)
-            })?;
-        }
-        out_archive.finalize()
+        Ok(())
     })?;
+
+    for entry in rx.into_iter() {
+        Strategy::transform(&mut out_archive, password, entry.map(Into::into), |entry| {
+            entry.map(Some)
+        })?;
+    }
+    out_archive.finalize()?;
 
     #[cfg(feature = "memmap")]
     drop(mmaps);
