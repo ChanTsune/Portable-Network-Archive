@@ -226,6 +226,15 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         || password.as_deref(),
         output_options,
     )?;
+
+    #[cfg(feature = "memmap")]
+    let mmaps = archives
+        .into_iter()
+        .map(utils::mmap::Mmap::try_from)
+        .collect::<io::Result<Vec<_>>>()?;
+    #[cfg(feature = "memmap")]
+    let archives = mmaps.iter().map(|m| m.as_ref());
+
     #[cfg(feature = "memmap")]
     run_extract_archive(
         archives,
@@ -304,8 +313,8 @@ where
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_extract_archive<'p, Provider>(
-    archives: Vec<fs::File>,
+pub(crate) fn run_extract_archive<'d, 'p, Provider>(
+    archives: impl IntoIterator<Item = &'d [u8]>,
     files: Vec<String>,
     mut password_provider: Provider,
     args: OutputOption,
