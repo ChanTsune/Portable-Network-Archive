@@ -388,6 +388,11 @@ pub(crate) fn run_list_archive_mem(
     args: ListOptions,
 ) -> anyhow::Result<()> {
     let mut entries = Vec::new();
+    let mmaps = archives
+        .into_iter()
+        .map(crate::utils::mmap::Mmap::try_from)
+        .collect::<io::Result<Vec<_>>>()?;
+    let archives = mmaps.iter().map(|m| m.as_ref());
 
     run_read_entries_mem(archives, |entry| {
         match entry? {

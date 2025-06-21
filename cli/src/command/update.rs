@@ -345,6 +345,14 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         .map(|it| (EntryName::from_lossy(&it), it))
         .collect::<IndexMap<_, _>>();
 
+    #[cfg(feature = "memmap")]
+    let mmaps = archives
+        .into_iter()
+        .map(crate::utils::mmap::Mmap::try_from)
+        .collect::<io::Result<Vec<_>>>()?;
+    #[cfg(feature = "memmap")]
+    let archives = mmaps.iter().map(|m| m.as_ref());
+
     run_read_entries(archives, |entry| {
         Strategy::transform(&mut out_archive, password, entry, |entry| {
             let entry = entry?;
