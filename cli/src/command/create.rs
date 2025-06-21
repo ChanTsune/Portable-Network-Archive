@@ -332,7 +332,7 @@ pub(crate) fn create_archive_file<W, F>(
 ) -> anyhow::Result<()>
 where
     W: Write,
-    F: FnMut() -> io::Result<W>,
+    F: FnMut() -> io::Result<W> + Send,
 {
     let (tx, rx) = std::sync::mpsc::channel();
     let option = if solid {
@@ -347,34 +347,36 @@ where
         time_options,
         follow_links,
     };
-    for file in target_items {
-        let tx = tx.clone();
-        rayon::scope_fifo(|s| {
-            s.spawn_fifo(|_| {
+    rayon::scope_fifo(|s| {
+        for file in target_items {
+            let tx = tx.clone();
+            let create_options = create_options.clone();
+            let path_transformers = path_transformers.clone();
+            s.spawn_fifo(move |_| {
                 log::debug!("Adding: {}", file.display());
                 tx.send(create_entry(&file, &create_options, &path_transformers))
                     .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
             })
-        });
-    }
-
-    drop(tx);
-
-    let file = get_writer()?;
-    if solid {
-        let mut writer = Archive::write_solid_header(file, write_option)?;
-        for entry in rx.into_iter() {
-            writer.add_entry(entry?)?;
         }
-        writer.finalize()?;
-    } else {
-        let mut writer = Archive::write_header(file)?;
-        for entry in rx.into_iter() {
-            writer.add_entry(entry?)?;
+
+        drop(tx);
+
+        let file = get_writer()?;
+        if solid {
+            let mut writer = Archive::write_solid_header(file, write_option)?;
+            for entry in rx.into_iter() {
+                writer.add_entry(entry?)?;
+            }
+            writer.finalize()?;
+        } else {
+            let mut writer = Archive::write_header(file)?;
+            for entry in rx.into_iter() {
+                writer.add_entry(entry?)?;
+            }
+            writer.finalize()?;
         }
-        writer.finalize()?;
-    }
-    Ok(())
+        Ok(())
+    })
 }
 
 fn create_archive_with_split(
@@ -405,28 +407,30 @@ fn create_archive_with_split(
         time_options,
         follow_links,
     };
-    for file in target_items {
-        let tx = tx.clone();
-        rayon::scope_fifo(|s| {
-            s.spawn_fifo(|_| {
+    rayon::scope_fifo(|s| {
+        for file in target_items {
+            let tx = tx.clone();
+            let create_options = create_options.clone();
+            let path_transformers = path_transformers.clone();
+            s.spawn_fifo(move |_| {
                 log::debug!("Adding: {}", file.display());
                 tx.send(create_entry(&file, &create_options, &path_transformers))
                     .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
             })
-        });
-    }
-
-    drop(tx);
-
-    if solid {
-        let mut entries_builder = SolidEntryBuilder::new(write_option)?;
-        for entry in rx.into_iter() {
-            entries_builder.add_entry(entry?)?;
         }
-        let entries = entries_builder.build();
-        write_split_archive(archive, [entries].into_iter(), max_file_size, overwrite)?;
-    } else {
-        write_split_archive(archive, rx.into_iter(), max_file_size, overwrite)?;
-    }
-    Ok(())
+
+        drop(tx);
+
+        if solid {
+            let mut entries_builder = SolidEntryBuilder::new(write_option)?;
+            for entry in rx.into_iter() {
+                entries_builder.add_entry(entry?)?;
+            }
+            let entries = entries_builder.build();
+            write_split_archive(archive, [entries].into_iter(), max_file_size, overwrite)?;
+        } else {
+            write_split_archive(archive, rx.into_iter(), max_file_size, overwrite)?;
+        }
+        Ok(())
+    })
 }
