@@ -654,7 +654,7 @@ impl<T: Display> Display for StyledDisplay<'_, T> {
 }
 
 trait StyleExt<T> {
-    fn paint(&self, v: T) -> StyledDisplay<T>;
+    fn paint(&self, v: T) -> StyledDisplay<'_, T>;
 }
 
 impl<T: Display> StyleExt<T> for Style {
