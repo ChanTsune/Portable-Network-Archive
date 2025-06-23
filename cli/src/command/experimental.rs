@@ -31,6 +31,7 @@ impl Command for ExperimentalCommand {
             ExperimentalCommands::Acl(cmd) => cmd.execute(),
             ExperimentalCommands::Migrate(cmd) => cmd.execute(),
             ExperimentalCommands::Chunk(cmd) => cmd.execute(),
+            ExperimentalCommands::Sort(cmd) => cmd.execute(),
         }
     }
 }
@@ -55,4 +56,6 @@ pub(crate) enum ExperimentalCommands {
     Migrate(command::migrate::MigrateCommand),
     #[command(about = "Chunk level operation")]
     Chunk(command::chunk::ChunkCommand),
+    #[command(about = "Sort entries in archive")]
+    Sort(command::sort::SortCommand),
 }
