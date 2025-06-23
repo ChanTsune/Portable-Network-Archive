@@ -20,6 +20,7 @@ mod multipart;
 mod restore_acl;
 mod restore_acl_0_19_1;
 mod solid_mode;
+mod sort;
 mod split;
 mod strip;
 mod update;
