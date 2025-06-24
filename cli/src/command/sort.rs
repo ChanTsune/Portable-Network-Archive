@@ -7,16 +7,116 @@ use crate::{
     },
     utils::{env::NamedTempFile, PathPartExt},
 };
-use clap::{Parser, ValueEnum, ValueHint};
+use clap::{Parser, ValueHint};
 use pna::{Archive, NormalEntry};
-use std::path::PathBuf;
+use std::{
+    fmt::{self, Display, Formatter},
+    path::PathBuf,
+    str::FromStr,
+};
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, ValueEnum)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) enum SortBy {
     Name,
     Ctime,
     Mtime,
     Atime,
+}
+
+impl Display for SortBy {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            SortBy::Name => "name",
+            SortBy::Ctime => "ctime",
+            SortBy::Mtime => "mtime",
+            SortBy::Atime => "atime",
+        })
+    }
+}
+
+impl FromStr for SortBy {
+    type Err = String;
+
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "name" => Ok(Self::Name),
+            "ctime" => Ok(Self::Ctime),
+            "mtime" => Ok(Self::Mtime),
+            "atime" => Ok(Self::Atime),
+            _ => Err("allowed values: name, ctime, mtime, atime".into()),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) enum SortOrder {
+    Asc,
+    Desc,
+}
+
+impl Display for SortOrder {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            SortOrder::Asc => "asc",
+            SortOrder::Desc => "desc",
+        })
+    }
+}
+
+impl FromStr for SortOrder {
+    type Err = String;
+
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "asc" => Ok(Self::Asc),
+            "desc" => Ok(Self::Desc),
+            _ => Err("only allowed `asc` or `desc`".into()),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) struct SortKey {
+    by: SortBy,
+    order: SortOrder,
+}
+
+impl Default for SortKey {
+    fn default() -> Self {
+        Self {
+            by: SortBy::Name,
+            order: SortOrder::Asc,
+        }
+    }
+}
+
+impl Display for SortKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if self.order == SortOrder::Asc {
+            write!(f, "{}", self.by)
+        } else {
+            write!(f, "{}:{}", self.by, self.order)
+        }
+    }
+}
+
+impl FromStr for SortKey {
+    type Err = String;
+
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (by, order) = match s.split_once(':') {
+            None => (s, SortOrder::Asc),
+            Some((b, "")) => (b, SortOrder::Asc),
+            Some((b, o)) => (b, SortOrder::from_str(o)?),
+        };
+        let by = SortBy::from_str(by)?;
+        Ok(Self { by, order })
+    }
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
@@ -25,8 +125,8 @@ pub(crate) struct SortCommand {
     archive: PathBuf,
     #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
     output: Option<PathBuf>,
-    #[arg(long = "by", value_enum, num_args = 1.., default_values_t = [SortBy::Name])]
-    by: Vec<SortBy>,
+    #[arg(long = "by", num_args = 1.., default_values_t = [SortKey::default()])]
+    by: Vec<SortKey>,
     #[command(flatten)]
     password: PasswordArgs,
 }
@@ -59,15 +159,18 @@ fn sort_archive(args: SortCommand) -> anyhow::Result<()> {
     )?;
 
     entries.sort_by(|a, b| {
-        for by in &args.by {
-            let ord = match by {
+        for key in &args.by {
+            let ord = match key.by {
                 SortBy::Name => a.header().path().cmp(b.header().path()),
                 SortBy::Ctime => a.metadata().created().cmp(&b.metadata().created()),
                 SortBy::Mtime => a.metadata().modified().cmp(&b.metadata().modified()),
                 SortBy::Atime => a.metadata().accessed().cmp(&b.metadata().accessed()),
             };
             if ord != std::cmp::Ordering::Equal {
-                return ord;
+                return match key.order {
+                    SortOrder::Asc => ord,
+                    SortOrder::Desc => ord.reverse(),
+                };
             }
         }
         std::cmp::Ordering::Equal
@@ -90,4 +193,51 @@ fn sort_archive(args: SortCommand) -> anyhow::Result<()> {
     temp_file.persist(output)?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_sort_key_default_order() {
+        assert_eq!(
+            SortKey::from_str("name").unwrap(),
+            SortKey {
+                by: SortBy::Name,
+                order: SortOrder::Asc,
+            }
+        );
+        assert_eq!(
+            SortKey::from_str("name:").unwrap(),
+            SortKey {
+                by: SortBy::Name,
+                order: SortOrder::Asc,
+            }
+        );
+    }
+
+    #[test]
+    fn parse_sort_key_explicit_orders() {
+        assert_eq!(
+            SortKey::from_str("name:asc").unwrap(),
+            SortKey {
+                by: SortBy::Name,
+                order: SortOrder::Asc,
+            }
+        );
+        assert_eq!(
+            SortKey::from_str("name:desc").unwrap(),
+            SortKey {
+                by: SortBy::Name,
+                order: SortOrder::Desc,
+            }
+        );
+    }
+
+    #[test]
+    fn parse_sort_key_invalid() {
+        assert!(SortKey::from_str("name:foo").is_err());
+        assert!(SortKey::from_str("foo").is_err());
+    }
 }
