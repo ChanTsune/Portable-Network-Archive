@@ -33,6 +33,17 @@ fn xattr_get_dump() {
         "--keep-xattr",
     ])
     .unwrap();
+
+    // Sort entries for stablize entries order.
+    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    cmd.args([
+        "--quiet",
+        "experimental",
+        "sort",
+        "xattr_get_dump/xattr_get_dump.pna",
+    ])
+    .assert();
+
     let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
     let assert = cmd
         .args([
