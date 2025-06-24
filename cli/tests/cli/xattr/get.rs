@@ -19,6 +19,18 @@ fn xattr_get_name_match_encoding() {
     .execute()
     .unwrap();
 
+    // Sort entries for stablize entries order.
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "experimental",
+        "sort",
+        "xattr_get_opts/archive.pna",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
