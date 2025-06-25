@@ -15,7 +15,7 @@ use base64::Engine;
 use chrono::{DateTime, Local};
 use clap::{
     builder::styling::{AnsiColor, Color as Colour, Style},
-    ArgGroup, Parser, ValueHint,
+    ArgGroup, Parser, ValueEnum, ValueHint,
 };
 use pna::{
     prelude::*, Compression, DataKind, Encryption, ExtendedAttribute, NormalEntry, RawChunk,
@@ -29,7 +29,6 @@ use std::{
     fmt::{self, Display, Formatter},
     io::{self, prelude::*},
     path::PathBuf,
-    str::FromStr,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tabled::{
@@ -112,25 +111,13 @@ impl Command for ListCommand {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, ValueEnum)]
+#[value(rename_all = "lower")]
 pub(crate) enum Format {
     Table,
+    #[value(name = "jsonl")]
     JsonL,
     Tree,
-}
-
-impl FromStr for Format {
-    type Err = String;
-
-    #[inline]
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "table" => Ok(Self::Table),
-            "jsonl" => Ok(Self::JsonL),
-            "tree" => Ok(Self::Tree),
-            unknown => Err(format!("unknown value: {unknown}")),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -304,7 +291,8 @@ pub(crate) enum TimeFormat {
     Long,
 }
 
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, ValueEnum)]
+#[value(rename_all = "lower")]
 pub(crate) enum TimeField {
     Created,
     #[default]
@@ -319,20 +307,6 @@ impl TimeField {
             TimeField::Created => "created",
             TimeField::Modified => "modified",
             TimeField::Accessed => "accessed",
-        }
-    }
-}
-
-impl FromStr for TimeField {
-    type Err = String;
-
-    #[inline]
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "created" => Ok(Self::Created),
-            "modified" => Ok(Self::Modified),
-            "accessed" => Ok(Self::Accessed),
-            _ => Err(s.into()),
         }
     }
 }
