@@ -12,7 +12,7 @@ use crate::{
 };
 use base64::Engine;
 use bstr::{io::BufReadExt, ByteSlice};
-use clap::{ArgGroup, Parser, ValueHint};
+use clap::{ArgGroup, Parser, ValueEnum, ValueHint};
 use indexmap::IndexMap;
 use pna::NormalEntry;
 use regex::Regex;
@@ -118,7 +118,8 @@ impl Command for SetXattrCommand {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default, ValueEnum)]
+#[value(rename_all = "lower")]
 enum Encoding {
     #[default]
     Text,
@@ -134,20 +135,6 @@ impl Display for Encoding {
             Encoding::Hex => "hex",
             Encoding::Base64 => "base64",
         })
-    }
-}
-
-impl FromStr for Encoding {
-    type Err = String;
-
-    #[inline]
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "text" => Ok(Self::Text),
-            "hex" => Ok(Self::Hex),
-            "base64" => Ok(Self::Base64),
-            _ => Err("only allowed `text`, `hex` or `base64`".into()),
-        }
     }
 }
 
