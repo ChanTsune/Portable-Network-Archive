@@ -44,7 +44,7 @@ indexmap = "2.9.0"
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.30.1", features = ["user"] }
-xattr = "1.5.0"
+xattr = "1.5.1"
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "macos"))'.dependencies]
 exacl = { version = "0.12.0", optional = true }
