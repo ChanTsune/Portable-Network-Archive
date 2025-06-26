@@ -6,16 +6,16 @@ use std::{fs, io::prelude::*, time};
 const DURATION_24_HOURS: time::Duration = time::Duration::from_secs(24 * 60 * 60);
 
 #[test]
-fn archive_update_newer_mtime_with_exclude() {
+fn archive_update_older_mtime() {
     setup();
-    TestResources::extract_in("raw/", "archive_update_newer_mtime_with_exclude/in/").unwrap();
+    TestResources::extract_in("raw/", "archive_update_older_mtime/in/").unwrap();
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
-        "archive_update_newer_mtime_with_exclude/update_newer_mtime.pna",
+        "archive_update_older_mtime/update_older_mtime.pna",
         "--overwrite",
-        "archive_update_newer_mtime_with_exclude/in/",
+        "archive_update_older_mtime/in/",
         "--keep-timestamp",
     ])
     .unwrap()
@@ -25,9 +25,9 @@ fn archive_update_newer_mtime_with_exclude() {
     let mut file = fs::File::options()
         .write(true)
         .truncate(true)
-        .open("archive_update_newer_mtime_with_exclude/in/raw/empty.txt")
+        .open("archive_update_older_mtime/in/raw/empty.txt")
         .unwrap();
-    file.write_all(b"this is updated, but this is excluded, so this should empty")
+    file.write_all(b"this is updated, but mtime newer than now, so this should empty")
         .unwrap();
     file.set_modified(time::SystemTime::now() + DURATION_24_HOURS)
         .unwrap();
@@ -35,10 +35,10 @@ fn archive_update_newer_mtime_with_exclude() {
     let mut file = fs::File::options()
         .write(true)
         .truncate(true)
-        .open("archive_update_newer_mtime_with_exclude/in/raw/text.txt")
+        .open("archive_update_older_mtime/in/raw/text.txt")
         .unwrap();
     file.write_all(b"updated!").unwrap();
-    file.set_modified(time::SystemTime::now() + DURATION_24_HOURS)
+    file.set_modified(time::SystemTime::now() - DURATION_24_HOURS)
         .unwrap();
 
     cli::Cli::try_parse_from([
@@ -46,32 +46,33 @@ fn archive_update_newer_mtime_with_exclude() {
         "--quiet",
         "experimental",
         "update",
-        "archive_update_newer_mtime_with_exclude/update_newer_mtime.pna",
-        "archive_update_newer_mtime_with_exclude/in/",
+        "--older-mtime",
+        &format!(
+            "@{}",
+            time::SystemTime::now()
+                .duration_since(time::SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+        ),
+        "archive_update_older_mtime/update_older_mtime.pna",
+        "archive_update_older_mtime/in/",
         "--keep-timestamp",
-        "--exclude",
-        "archive_update_newer_mtime_with_exclude/in/raw/empty.txt",
-        "--unstable",
     ])
     .unwrap()
     .execute()
     .unwrap();
 
     // restore original empty.txt
-    TestResources::extract_in(
-        "raw/empty.txt",
-        "archive_update_newer_mtime_with_exclude/in/",
-    )
-    .unwrap();
+    TestResources::extract_in("raw/empty.txt", "archive_update_older_mtime/in/").unwrap();
 
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
-        "archive_update_newer_mtime_with_exclude/update_newer_mtime.pna",
+        "archive_update_older_mtime/update_older_mtime.pna",
         "--overwrite",
         "--out-dir",
-        "archive_update_newer_mtime_with_exclude/out/",
+        "archive_update_older_mtime/out/",
         "--keep-timestamp",
         "--strip-components",
         "2",
@@ -81,8 +82,8 @@ fn archive_update_newer_mtime_with_exclude() {
     .unwrap();
 
     diff(
-        "archive_update_newer_mtime_with_exclude/in/",
-        "archive_update_newer_mtime_with_exclude/out/",
+        "archive_update_older_mtime/in/",
+        "archive_update_older_mtime/out/",
     )
     .unwrap();
 }

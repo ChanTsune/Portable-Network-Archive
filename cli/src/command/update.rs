@@ -26,11 +26,7 @@ use crate::{
 use clap::{ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;
 use pna::{Archive, EntryName, Metadata};
-use std::{
-    env, fs, io,
-    path::{Path, PathBuf},
-    time::SystemTime,
-};
+use std::{env, fs, io, path::PathBuf, time::SystemTime};
 
 #[derive(Parser, Clone, Debug)]
 #[command(
@@ -131,26 +127,6 @@ pub(crate) struct UpdateCommand {
         help = "Clamp the access time of the entries to the specified time by --atime"
     )]
     clamp_atime: bool,
-    #[arg(
-        long,
-        help = "Only include files and directories older than the specified date. This compares ctime entries."
-    )]
-    pub(crate) older_ctime: bool,
-    #[arg(
-        long,
-        help = "Only include files and directories older than the specified date. This compares mtime entries."
-    )]
-    pub(crate) older_mtime: bool,
-    #[arg(
-        long,
-        help = "Only include files and directories newer than the specified date. This compares ctime entries."
-    )]
-    pub(crate) newer_ctime: bool,
-    #[arg(
-        long,
-        help = "Only include files and directories newer than the specified date. This compares mtime entries."
-    )]
-    pub(crate) newer_mtime: bool,
     #[arg(long, help = "Overrides the modification time read from disk")]
     mtime: Option<DateTime>,
     #[arg(
@@ -158,6 +134,26 @@ pub(crate) struct UpdateCommand {
         help = "Clamp the modification time of the entries to the specified time by --mtime"
     )]
     clamp_mtime: bool,
+    #[arg(
+        long,
+        help = "Only include files and directories older than the specified date. This compares ctime entries."
+    )]
+    older_ctime: Option<DateTime>,
+    #[arg(
+        long,
+        help = "Only include files and directories older than the specified date. This compares mtime entries."
+    )]
+    older_mtime: Option<DateTime>,
+    #[arg(
+        long,
+        help = "Only include files and directories newer than the specified date. This compares ctime entries."
+    )]
+    newer_ctime: Option<DateTime>,
+    #[arg(
+        long,
+        help = "Only include files and directories newer than the specified date. This compares mtime entries."
+    )]
+    newer_mtime: Option<DateTime>,
     #[arg(long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
     pub(crate) files_from: Option<String>,
     #[arg(long, help = "Read archiving files from stdin (unstable)")]
@@ -260,6 +256,16 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         atime: args.atime.map(|it| it.to_system_time()),
         clamp_atime: args.clamp_atime,
     };
+    let time_filters = TimeFilters {
+        ctime: TimeFilter {
+            newer_than: args.newer_ctime.map(|it| it.to_system_time()),
+            older_than: args.older_ctime.map(|it| it.to_system_time()),
+        },
+        mtime: TimeFilter {
+            newer_than: args.newer_mtime.map(|it| it.to_system_time()),
+            older_than: args.older_mtime.map(|it| it.to_system_time()),
+        },
+    };
     let create_options = CreateOptions {
         option,
         keep_options,
@@ -308,38 +314,6 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         NamedTempFile::new(|| archive_path.parent().unwrap_or_else(|| ".".as_ref()))?;
     let mut out_archive = Archive::write_header(temp_file.as_file_mut())?;
 
-    let need_update_condition = if args.newer_ctime {
-        |path: &Path, metadata: &Metadata| -> Option<bool> {
-            let meta = fs::metadata(path).ok()?;
-            let ctime = meta.created().ok()?;
-            let d = metadata.created()?;
-            Some(SystemTime::UNIX_EPOCH + d < ctime)
-        }
-    } else if args.newer_mtime {
-        |path: &Path, metadata: &Metadata| -> Option<bool> {
-            let meta = fs::metadata(path).ok()?;
-            let mtime = meta.modified().ok()?;
-            let d = metadata.modified()?;
-            Some(SystemTime::UNIX_EPOCH + d < mtime)
-        }
-    } else if args.older_ctime {
-        |path: &Path, metadata: &Metadata| -> Option<bool> {
-            let meta = fs::metadata(path).ok()?;
-            let ctime = meta.created().ok()?;
-            let d = metadata.created()?;
-            Some(SystemTime::UNIX_EPOCH + d > ctime)
-        }
-    } else if args.older_mtime {
-        |path: &Path, metadata: &Metadata| -> Option<bool> {
-            let meta = fs::metadata(path).ok()?;
-            let mtime = meta.modified().ok()?;
-            let d = metadata.modified()?;
-            Some(SystemTime::UNIX_EPOCH + d > mtime)
-        }
-    } else {
-        |_: &Path, _: &Metadata| -> Option<bool> { Some(true) }
-    };
-
     let mut target_files_mapping = target_items
         .into_iter()
         .map(|it| (EntryName::from_lossy(&it), it))
@@ -358,7 +332,11 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
             Strategy::transform(&mut out_archive, password, entry, |entry| {
                 let entry = entry?;
                 if let Some(target_path) = target_files_mapping.swap_remove(entry.header().path()) {
-                    if need_update_condition(&target_path, entry.metadata()).unwrap_or(true) {
+                    let fs_meta = fs::symlink_metadata(&target_path)?;
+                    let need_update = is_newer_than_archive(&fs_meta, entry.metadata())
+                        .unwrap_or(true)
+                        && time_filters.is_retain(&fs_meta);
+                    if need_update {
                         let tx = tx.clone();
                         let create_options = create_options.clone();
                         let path_transformers = path_transformers.clone();
@@ -409,4 +387,382 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
     temp_file.persist(archive_path.remove_part().unwrap())?;
 
     Ok(())
+}
+
+fn is_newer_than_archive(fs_meta: &fs::Metadata, metadata: &Metadata) -> Option<bool> {
+    let mtime = fs_meta.modified().ok()?;
+    let d = metadata.modified()?;
+    Some(SystemTime::UNIX_EPOCH + d < mtime)
+}
+
+pub(crate) struct TimeFilter {
+    pub(crate) newer_than: Option<SystemTime>,
+    pub(crate) older_than: Option<SystemTime>,
+}
+
+impl TimeFilter {
+    fn is_retain(&self, time: Option<SystemTime>) -> bool {
+        if let Some(newer) = self.newer_than {
+            if let Some(t) = time {
+                if t < newer {
+                    return false;
+                }
+            }
+        }
+        if let Some(older) = self.older_than {
+            if let Some(t) = time {
+                if t > older {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+}
+
+pub(crate) struct TimeFilters {
+    pub(crate) ctime: TimeFilter,
+    pub(crate) mtime: TimeFilter,
+}
+
+impl TimeFilters {
+    #[inline]
+    pub(crate) fn is_retain(&self, fs_meta: &fs::Metadata) -> bool {
+        self.is_retain_t(fs_meta.created().ok(), fs_meta.modified().ok())
+    }
+
+    fn is_retain_t(&self, fs_ctime: Option<SystemTime>, fs_mtime: Option<SystemTime>) -> bool {
+        self.ctime.is_retain(fs_ctime) && self.mtime.is_retain(fs_mtime)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::time::Duration;
+
+    fn now() -> SystemTime {
+        SystemTime::UNIX_EPOCH + Duration::from_secs(3600)
+    }
+
+    fn past() -> SystemTime {
+        SystemTime::UNIX_EPOCH
+    }
+
+    fn future() -> SystemTime {
+        SystemTime::UNIX_EPOCH + Duration::from_secs(7200)
+    }
+
+    #[test]
+    fn test_is_retain_t_no_filters() {
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+        };
+        assert!(filters.is_retain_t(Some(now()), Some(now())));
+        assert!(filters.is_retain_t(None, None));
+    }
+
+    #[test]
+    fn test_is_retain_t_newer_ctime() {
+        // Case 1: newer_ctime is set, fs_ctime is older -> should not retain
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: Some(now()),
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+        };
+        assert!(!filters.is_retain_t(Some(past()), Some(now())));
+
+        // Case 2: newer_ctime is set, fs_ctime is newer -> should retain
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: Some(past()),
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+        };
+        assert!(filters.is_retain_t(Some(now()), Some(now())));
+
+        // Case 3: newer_ctime is set, fs_ctime is None -> should retain
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: Some(now()),
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+        };
+        assert!(filters.is_retain_t(None, Some(now())));
+    }
+
+    #[test]
+    fn test_is_retain_t_older_ctime() {
+        // Case 1: older_ctime is set, fs_ctime is newer -> should not retain
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: Some(now()),
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+        };
+        assert!(!filters.is_retain_t(Some(future()), Some(now())));
+
+        // Case 2: older_ctime is set, fs_ctime is older -> should retain
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: Some(future()),
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+        };
+        assert!(filters.is_retain_t(Some(now()), Some(now())));
+
+        // Case 3: older_ctime is set, fs_ctime is None -> should retain
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: Some(now()),
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+        };
+        assert!(filters.is_retain_t(None, Some(now())));
+    }
+
+    #[test]
+    fn test_is_retain_t_newer_mtime() {
+        // Case 1: newer_mtime is set, fs_mtime is older -> should not retain
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: Some(now()),
+                older_than: None,
+            },
+        };
+        assert!(!filters.is_retain_t(Some(now()), Some(past())));
+
+        // Case 2: newer_mtime is set, fs_mtime is newer -> should retain
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: Some(past()),
+                older_than: None,
+            },
+        };
+        assert!(filters.is_retain_t(Some(now()), Some(now())));
+
+        // Case 3: newer_mtime is set, fs_mtime is None -> should retain
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: Some(now()),
+                older_than: None,
+            },
+        };
+        assert!(filters.is_retain_t(Some(now()), None));
+    }
+
+    #[test]
+    fn test_is_retain_t_older_mtime() {
+        // Case 1: older_mtime is set, fs_mtime is newer -> should not retain
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: Some(now()),
+            },
+        };
+        assert!(!filters.is_retain_t(Some(now()), Some(future())));
+
+        // Case 2: older_mtime is set, fs_mtime is older -> should retain
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: Some(future()),
+            },
+        };
+        assert!(filters.is_retain_t(Some(now()), Some(now())));
+
+        // Case 3: older_mtime is set, fs_mtime is None -> should retain
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: Some(now()),
+            },
+        };
+        assert!(filters.is_retain_t(Some(now()), None));
+    }
+
+    #[test]
+    fn test_is_retain_t_all_filters_retain() {
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: Some(past()),
+                older_than: Some(future()),
+            },
+            mtime: TimeFilter {
+                newer_than: Some(past()),
+                older_than: Some(future()),
+            },
+        };
+        assert!(filters.is_retain_t(Some(now()), Some(now())));
+    }
+
+    #[test]
+    fn test_is_retain_t_all_filters_not_retain_ctime() {
+        // newer_ctime fails
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: Some(now()),
+                older_than: Some(future()),
+            },
+            mtime: TimeFilter {
+                newer_than: Some(past()),
+                older_than: Some(future()),
+            },
+        };
+        assert!(!filters.is_retain_t(Some(past()), Some(now())));
+
+        // older_ctime fails
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: Some(past()),
+                older_than: Some(now()),
+            },
+            mtime: TimeFilter {
+                newer_than: Some(past()),
+                older_than: Some(future()),
+            },
+        };
+        assert!(!filters.is_retain_t(Some(future()), Some(now())));
+    }
+
+    #[test]
+    fn test_is_retain_t_all_filters_not_retain_mtime() {
+        // newer_mtime fails
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: Some(past()),
+                older_than: Some(future()),
+            },
+            mtime: TimeFilter {
+                newer_than: Some(now()),
+                older_than: Some(future()),
+            },
+        };
+        assert!(!filters.is_retain_t(Some(now()), Some(past())));
+
+        // older_mtime fails
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: Some(past()),
+                older_than: Some(future()),
+            },
+            mtime: TimeFilter {
+                newer_than: Some(past()),
+                older_than: Some(now()),
+            },
+        };
+        assert!(!filters.is_retain_t(Some(now()), Some(future())));
+    }
+
+    #[test]
+    fn test_is_retain_t_mixed_filters_and_none_fs_times() {
+        // newer_ctime set, fs_ctime is None
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: Some(now()),
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+        };
+        assert!(filters.is_retain_t(None, Some(now())));
+
+        // older_ctime set, fs_ctime is None
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: Some(now()),
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+        };
+        assert!(filters.is_retain_t(None, Some(now())));
+
+        // newer_mtime set, fs_mtime is None
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: Some(now()),
+                older_than: None,
+            },
+        };
+        assert!(filters.is_retain_t(Some(now()), None));
+
+        // older_mtime set, fs_mtime is None
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: Some(now()),
+            },
+        };
+        assert!(filters.is_retain_t(Some(now()), None));
+    }
 }

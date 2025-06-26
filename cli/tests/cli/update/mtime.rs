@@ -21,7 +21,6 @@ fn archive_update_with_mtime() {
         "archive_update_with_mtime/update_with_mtime.pna",
         "--overwrite",
         "archive_update_with_mtime/in/",
-        "--keep-timestamp",
     ])
     .unwrap()
     .execute()
@@ -73,7 +72,6 @@ fn archive_update_with_clamp_mtime() {
         "archive_update_with_clamp_mtime/update_with_clamp_mtime.pna",
         "--overwrite",
         "archive_update_with_clamp_mtime/in/",
-        "--keep-timestamp",
     ])
     .unwrap()
     .execute()

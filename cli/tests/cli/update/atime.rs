@@ -21,7 +21,6 @@ fn archive_update_with_atime() {
         "archive_update_with_atime/update_with_atime.pna",
         "--overwrite",
         "archive_update_with_atime/in/",
-        "--keep-timestamp",
     ])
     .unwrap()
     .execute()
@@ -73,7 +72,6 @@ fn archive_update_with_clamp_atime() {
         "archive_update_with_clamp_atime/update_with_clamp_atime.pna",
         "--overwrite",
         "archive_update_with_clamp_atime/in/",
-        "--keep-timestamp",
     ])
     .unwrap()
     .execute()
