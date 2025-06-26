@@ -12,6 +12,8 @@ pub(crate) enum DateTimeError {
     ParseError,
     #[error(transparent)]
     ChronoParseError(#[from] chrono::ParseError),
+    #[error(transparent)]
+    ParseDatetimeError(#[from] parse_datetime::ParseDateTimeError),
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -78,7 +80,9 @@ impl FromStr for DateTime {
         } else if let Ok(naive_date) = chrono::NaiveDate::from_str(s) {
             Ok(Self::Date(naive_date))
         } else {
-            Ok(chrono::DateTime::<chrono::FixedOffset>::from_str(s).map(Self::Zoned)?)
+            parse_datetime::parse_datetime(s)
+                .map_err(Into::into)
+                .map(Self::Zoned)
         }
     }
 }
