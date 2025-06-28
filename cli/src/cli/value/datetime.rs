@@ -9,11 +9,11 @@ use std::{
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum DateTimeError {
     #[error("Failed to parse seconds since unix epoch")]
-    ParseError,
+    InvalidNumber(#[from] std::num::ParseFloatError),
     #[error(transparent)]
-    ChronoParseError(#[from] chrono::ParseError),
+    ChronoParse(#[from] chrono::ParseError),
     #[error(transparent)]
-    ParseDatetimeError(#[from] parse_datetime::ParseDateTimeError),
+    ParseDateTime(#[from] parse_datetime::ParseDateTimeError),
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -73,16 +73,14 @@ impl FromStr for DateTime {
             } else {
                 Cow::Borrowed(seconds)
             };
-            let seconds = f64::from_str(&seconds_str).map_err(|_| DateTimeError::ParseError)?;
+            let seconds = f64::from_str(&seconds_str)?;
             Ok(Self::Epoch(seconds.trunc() as i64))
         } else if let Ok(naive) = chrono::NaiveDateTime::from_str(s) {
             Ok(Self::Naive(naive))
         } else if let Ok(naive_date) = chrono::NaiveDate::from_str(s) {
             Ok(Self::Date(naive_date))
         } else {
-            parse_datetime::parse_datetime(s)
-                .map_err(Into::into)
-                .map(Self::Zoned)
+            Ok(Self::Zoned(parse_datetime::parse_datetime(s)?))
         }
     }
 }
