@@ -6,3 +6,9 @@ members = [
     "pna",
     "fuzz",
 ]
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+codegen-units = 1
+lto = "thin"
