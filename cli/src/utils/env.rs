@@ -24,7 +24,7 @@ impl NamedTempFile {
         let temp_dir = temp_dir_or_else(fallback_dir);
         fs::create_dir_all(&temp_dir)?;
         let random = rand::random::<usize>();
-        let file_path = temp_dir.join(format!("{}.tmp", random));
+        let file_path = temp_dir.join(format!("{random}.tmp"));
         let file = fs::File::create(&file_path)?;
         Ok(Self { file, file_path })
     }
