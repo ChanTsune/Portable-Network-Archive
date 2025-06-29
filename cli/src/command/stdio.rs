@@ -22,7 +22,7 @@ use crate::{
 };
 use clap::{ArgGroup, Args, Parser, ValueHint};
 use pna::Archive;
-use std::{fs, io, path::PathBuf, time::SystemTime};
+use std::{io, path::PathBuf, time::SystemTime};
 
 #[derive(Args, Clone, Debug)]
 #[command(
@@ -295,7 +295,11 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         path_transformers,
     };
     if let Some(file) = args.file {
-        create_archive_file(|| fs::File::open(&file), creation_context, target_items)
+        create_archive_file(
+            || utils::fs::file_create(&file, args.overwrite),
+            creation_context,
+            target_items,
+        )
     } else {
         create_archive_file(|| Ok(io::stdout().lock()), creation_context, target_items)
     }
