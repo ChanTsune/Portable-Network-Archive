@@ -5,12 +5,12 @@ use crate::{
     command::{
         ask_password,
         commons::{
-            collect_split_archives, run_transform_entry, Exclude, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid,
+            collect_split_archives, read_paths, read_paths_stdin, run_transform_entry, Exclude,
+            TransformStrategyKeepSolid, TransformStrategyUnSolid,
         },
         Command,
     },
-    utils::{self, env::NamedTempFile, GlobPatterns, PathPartExt},
+    utils::{env::NamedTempFile, GlobPatterns, PathPartExt},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use std::{io, path::PathBuf};
@@ -23,6 +23,12 @@ use std::{io, path::PathBuf};
     group(ArgGroup::new("unstable-delete-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
     group(ArgGroup::new("read-files-from").args(["files_from", "files_from_stdin"])),
+    group(
+        ArgGroup::new("from-input")
+            .args(["files_from", "files_from_stdin", "exclude_from"])
+            .multiple(true)
+    ),
+    group(ArgGroup::new("null-requires").arg("null").requires("from-input")),
 )]
 pub(crate) struct DeleteCommand {
     #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
@@ -40,6 +46,11 @@ pub(crate) struct DeleteCommand {
     exclude: Option<Vec<String>>,
     #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
     exclude_from: Option<PathBuf>,
+    #[arg(
+        long,
+        help = "Filenames or patterns are separated by null characters, not by newlines"
+    )]
+    null: bool,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
@@ -59,16 +70,16 @@ fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let mut files = args.file.files;
     if args.files_from_stdin {
-        files.extend(io::stdin().lines().collect::<io::Result<Vec<_>>>()?);
+        files.extend(read_paths_stdin(args.null)?);
     } else if let Some(path) = args.files_from {
-        files.extend(utils::fs::read_to_lines(path)?);
+        files.extend(read_paths(path, args.null)?);
     }
     let globs =
         GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
-            exclude.extend(utils::fs::read_to_lines(p)?);
+            exclude.extend(read_paths(p, args.null)?);
         }
         Exclude {
             include: args.include.unwrap_or_default().into(),
