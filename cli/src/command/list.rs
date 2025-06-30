@@ -433,7 +433,7 @@ impl<'a> Display for SimpleListDisplay<'a> {
 }
 
 fn simple_list_entries(entries: Vec<TableRow>, options: ListOptions) {
-    println!(
+    print!(
         "{}",
         SimpleListDisplay {
             entries: &entries,
