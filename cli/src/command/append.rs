@@ -6,13 +6,12 @@ use crate::{
     command::{
         ask_password, check_password,
         commons::{
-            collect_items, create_entry, entry_option, CreateOptions, Exclude, KeepOptions,
-            OwnerOptions, PathTransformers, TimeOptions,
+            collect_items, create_entry, entry_option, read_paths, read_paths_stdin, CreateOptions,
+            Exclude, KeepOptions, OwnerOptions, PathTransformers, TimeOptions,
         },
         Command,
     },
     utils::{
-        self,
         re::{bsd::SubstitutionRule, gnu::TransformRule},
         PathPartExt, VCS_FILES,
     },
@@ -37,6 +36,12 @@ use std::{
     group(ArgGroup::new("unstable-transform").args(["transforms"]).requires("unstable")),
     group(ArgGroup::new("path-transform").args(["substitutions", "transforms"])),
     group(ArgGroup::new("read-files-from").args(["files_from", "files_from_stdin"])),
+    group(
+        ArgGroup::new("from-input")
+            .args(["files_from", "files_from_stdin", "exclude_from"])
+            .multiple(true)
+    ),
+    group(ArgGroup::new("null-requires").arg("null").requires("from-input")),
     group(ArgGroup::new("store-uname").args(["uname"]).requires("keep_permission")),
     group(ArgGroup::new("store-gname").args(["gname"]).requires("keep_permission")),
     group(ArgGroup::new("store-numeric-owner").args(["numeric_owner"]).requires("keep_permission")),
@@ -157,6 +162,11 @@ pub(crate) struct AppendCommand {
     #[arg(long, help = "Follow symbolic links")]
     pub(crate) follow_links: bool,
     #[arg(
+        long,
+        help = "Filenames or patterns are separated by null characters, not by newlines"
+    )]
+    null: bool,
+    #[arg(
         short = 's',
         value_name = "PATTERN",
         help = "Modify file or archive member names according to pattern that like BSD tar -s option"
@@ -244,14 +254,14 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
 
     let mut files = args.file.files;
     if args.files_from_stdin {
-        files.extend(io::stdin().lines().collect::<io::Result<Vec<_>>>()?);
+        files.extend(read_paths_stdin(args.null)?);
     } else if let Some(path) = args.files_from {
-        files.extend(utils::fs::read_to_lines(path)?);
+        files.extend(read_paths(path, args.null)?);
     }
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
-            exclude.extend(utils::fs::read_to_lines(p)?);
+            exclude.extend(read_paths(p, args.null)?);
         }
         if args.exclude_vcs {
             exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
