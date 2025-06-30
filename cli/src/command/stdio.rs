@@ -254,7 +254,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     };
     let target_items = collect_items(
         &files,
-        args.recursive,
+        !args.no_recursive,
         args.keep_dir,
         args.gitignore,
         args.follow_links,
