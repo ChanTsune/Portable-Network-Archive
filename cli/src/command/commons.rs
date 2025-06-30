@@ -822,6 +822,27 @@ impl Exclude {
     }
 }
 
+#[inline]
+fn read_paths_reader(reader: impl BufRead, nul: bool) -> io::Result<Vec<String>> {
+    if nul {
+        utils::io::read_to_nul(reader)
+    } else {
+        utils::io::read_to_lines(reader)
+    }
+}
+
+#[inline]
+pub(crate) fn read_paths<P: AsRef<Path>>(path: P, nul: bool) -> io::Result<Vec<String>> {
+    let file = fs::File::open(path)?;
+    let reader = io::BufReader::new(file);
+    read_paths_reader(reader, nul)
+}
+
+#[inline]
+pub(crate) fn read_paths_stdin(nul: bool) -> io::Result<Vec<String>> {
+    read_paths_reader(io::stdin().lock(), nul)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
