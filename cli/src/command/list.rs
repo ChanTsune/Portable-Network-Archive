@@ -5,11 +5,11 @@ use crate::{
     cli::{FileArgs, PasswordArgs},
     command::{
         ask_password,
-        commons::{collect_split_archives, run_read_entries, Exclude},
+        commons::{collect_split_archives, read_paths, run_read_entries, Exclude},
         Command,
     },
     ext::*,
-    utils::{self, GlobPatterns, VCS_FILES},
+    utils::{GlobPatterns, VCS_FILES},
 };
 use base64::Engine;
 use chrono::{DateTime, Local};
@@ -47,6 +47,7 @@ use tabled::{
     group(ArgGroup::new("unstable-private-chunk").args(["show_private"]).requires("unstable")),
     group(ArgGroup::new("unstable-format").args(["format"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
+    group(ArgGroup::new("null-requires").arg("null").requires("exclude_from")),
 )]
 pub(crate) struct ListCommand {
     #[arg(short, long, help = "Display extended file metadata as a table")]
@@ -99,6 +100,11 @@ pub(crate) struct ListCommand {
     exclude_from: Option<PathBuf>,
     #[arg(long, help = "Exclude vcs files (unstable)")]
     exclude_vcs: bool,
+    #[arg(
+        long,
+        help = "Filenames or patterns are separated by null characters, not by newlines"
+    )]
+    null: bool,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
@@ -260,7 +266,7 @@ fn list_archive(args: ListCommand) -> anyhow::Result<()> {
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
-            exclude.extend(utils::fs::read_to_lines(p)?);
+            exclude.extend(read_paths(p, args.null)?);
         }
         if args.exclude_vcs {
             exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
