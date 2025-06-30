@@ -4,7 +4,7 @@ pub(crate) mod env;
 pub(crate) mod fmt;
 pub(crate) mod fs;
 mod globs;
-mod io;
+pub(crate) mod io;
 #[cfg(feature = "memmap")]
 pub(crate) mod mmap;
 pub(crate) mod os;
