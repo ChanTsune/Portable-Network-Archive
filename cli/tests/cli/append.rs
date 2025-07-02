@@ -1,6 +1,7 @@
 mod atime;
 mod ctime;
 mod exclude;
+mod exclude_vcs;
 mod mtime;
 
 use crate::utils::{diff::diff, setup, TestResources};
