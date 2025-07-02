@@ -14,7 +14,7 @@ use crate::{
     utils::{
         self,
         re::{bsd::SubstitutionRule, gnu::TransformRule},
-        PathPartExt,
+        PathPartExt, VCS_FILES,
     },
 };
 use clap::{ArgGroup, Parser, ValueHint};
@@ -46,6 +46,7 @@ use std::{
     group(ArgGroup::new("keep-dir-flag").args(["keep_dir", "no_keep_dir"])),
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
     group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
+    group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
@@ -148,7 +149,9 @@ pub(crate) struct AppendCommand {
     #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
     exclude: Option<Vec<String>>,
     #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
-    pub(crate) exclude_from: Option<String>,
+    exclude_from: Option<String>,
+    #[arg(long, help = "Exclude vcs files (unstable)")]
+    exclude_vcs: bool,
     #[arg(long, help = "Ignore files from .gitignore (unstable)")]
     pub(crate) gitignore: bool,
     #[arg(long, help = "Follow symbolic links")]
@@ -249,6 +252,9 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
             exclude.extend(utils::fs::read_to_lines(p)?);
+        }
+        if args.exclude_vcs {
+            exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
         }
         Exclude {
             include: args.include.unwrap_or_default().into(),
