@@ -1,4 +1,6 @@
 #[cfg(not(target_family = "wasm"))]
+mod exclude_vcs;
+#[cfg(not(target_family = "wasm"))]
 mod simple;
 
 use crate::utils::{setup, TestResources};

@@ -2,6 +2,7 @@ mod atime;
 mod ctime;
 mod exclude;
 mod exclude_from;
+mod exclude_vcs;
 mod files_from;
 mod files_from_stdin;
 mod gitignore;

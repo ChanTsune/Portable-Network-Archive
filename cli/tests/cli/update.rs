@@ -3,6 +3,7 @@ mod ctime;
 mod deletion;
 mod error;
 mod exclude;
+mod exclude_vcs;
 mod files_from_stdin;
 mod mtime;
 mod newer_mtime;
