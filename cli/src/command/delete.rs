@@ -10,7 +10,7 @@ use crate::{
         },
         Command,
     },
-    utils::{self, env::NamedTempFile, GlobPatterns, PathPartExt},
+    utils::{self, env::NamedTempFile, GlobPatterns, PathPartExt, VCS_FILES},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use std::{io, path::PathBuf};
@@ -23,6 +23,7 @@ use std::{io, path::PathBuf};
     group(ArgGroup::new("unstable-delete-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
     group(ArgGroup::new("read-files-from").args(["files_from", "files_from_stdin"])),
+    group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
 )]
 pub(crate) struct DeleteCommand {
     #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
@@ -40,6 +41,8 @@ pub(crate) struct DeleteCommand {
     exclude: Option<Vec<String>>,
     #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
     exclude_from: Option<PathBuf>,
+    #[arg(long, help = "Exclude vcs files (unstable)")]
+    exclude_vcs: bool,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
@@ -69,6 +72,9 @@ fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
             exclude.extend(utils::fs::read_to_lines(p)?);
+        }
+        if args.exclude_vcs {
+            exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
         }
         Exclude {
             include: args.include.unwrap_or_default().into(),

@@ -9,7 +9,7 @@ use crate::{
         Command,
     },
     ext::*,
-    utils::{self, GlobPatterns},
+    utils::{self, GlobPatterns, VCS_FILES},
 };
 use base64::Engine;
 use chrono::{DateTime, Local};
@@ -46,6 +46,7 @@ use tabled::{
     group(ArgGroup::new("unstable-acl").args(["show_acl"]).requires("unstable")),
     group(ArgGroup::new("unstable-private-chunk").args(["show_private"]).requires("unstable")),
     group(ArgGroup::new("unstable-format").args(["format"]).requires("unstable")),
+    group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
 )]
 pub(crate) struct ListCommand {
     #[arg(short, long, help = "Display extended file metadata as a table")]
@@ -96,6 +97,8 @@ pub(crate) struct ListCommand {
     exclude: Option<Vec<String>>,
     #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
     exclude_from: Option<PathBuf>,
+    #[arg(long, help = "Exclude vcs files (unstable)")]
+    exclude_vcs: bool,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
@@ -258,6 +261,9 @@ fn list_archive(args: ListCommand) -> anyhow::Result<()> {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
             exclude.extend(utils::fs::read_to_lines(p)?);
+        }
+        if args.exclude_vcs {
+            exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
         }
         Exclude {
             include: args.include.unwrap_or_default().into(),
