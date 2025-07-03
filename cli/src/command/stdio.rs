@@ -22,7 +22,7 @@ use crate::{
 };
 use clap::{ArgGroup, Args, Parser, ValueHint};
 use pna::Archive;
-use std::{io, path::PathBuf, time::SystemTime};
+use std::{env, io, path::PathBuf, time::SystemTime};
 
 #[derive(Args, Clone, Debug)]
 #[command(
@@ -198,6 +198,15 @@ pub(crate) struct StdioCommand {
     #[arg(long, help = "Extract files as yourself")]
     no_same_owner: bool,
     #[arg(
+        short = 'C',
+        long = "cd",
+        aliases = ["directory"],
+        value_name = "DIRECTORY",
+        help = "changes the directory before adding the following files",
+        value_hint = ValueHint::DirPath
+    )]
+    working_dir: Option<PathBuf>,
+    #[arg(
         long,
         help = "Allow extract symlink and hardlink that contains root path or parent path"
     )]
@@ -235,9 +244,11 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     }
 }
 
-fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
+fn run_create_archive(mut args: StdioCommand) -> anyhow::Result<()> {
+    let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
+    let archive_file = args.file.take().map(|p| current_dir.join(p));
     let mut files = args.files;
     if let Some(path) = args.files_from {
         files.extend(utils::fs::read_to_lines(path)?);
@@ -252,6 +263,9 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
             exclude: exclude.into(),
         }
     };
+    if let Some(working_dir) = args.working_dir {
+        env::set_current_dir(working_dir)?;
+    }
     let target_items = collect_items(
         &files,
         !args.no_recursive,
@@ -294,7 +308,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         follow_links: args.follow_links,
         path_transformers,
     };
-    if let Some(file) = args.file {
+    if let Some(file) = archive_file {
         create_archive_file(
             || utils::fs::file_create(&file, args.overwrite),
             creation_context,
@@ -305,7 +319,8 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     }
 }
 
-fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
+fn run_extract_archive(mut args: StdioCommand) -> anyhow::Result<()> {
+    let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
 
     let exclude = {
@@ -341,7 +356,11 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         same_owner: !args.no_same_owner,
         path_transformers: PathTransformers::new(args.substitutions, args.transforms),
     };
-    if let Some(path) = args.file {
+    let archive_path = args.file.take().map(|p| current_dir.join(p));
+    if let Some(working_dir) = args.working_dir {
+        env::set_current_dir(working_dir)?;
+    }
+    if let Some(path) = archive_path {
         let archives = collect_split_archives(&path)?;
         run_extract_archive_reader(
             archives
@@ -413,7 +432,8 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
     }
 }
 
-fn run_append(args: StdioCommand) -> anyhow::Result<()> {
+fn run_append(mut args: StdioCommand) -> anyhow::Result<()> {
+    let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let password = password.as_deref();
@@ -448,6 +468,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     };
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
 
+    let archive_path = args.file.take().map(|p| current_dir.join(p));
     let mut files = args.files;
     if let Some(path) = args.files_from {
         files.extend(utils::fs::read_to_lines(path)?);
@@ -463,7 +484,10 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         }
     };
 
-    if let Some(file) = &args.file {
+    if let Some(working_dir) = args.working_dir {
+        env::set_current_dir(working_dir)?;
+    }
+    if let Some(file) = &archive_path {
         let archive = open_archive_then_seek_to_end(file)?;
         let target_items = collect_items(
             &files,
