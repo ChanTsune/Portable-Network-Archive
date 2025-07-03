@@ -177,7 +177,7 @@ pub(crate) struct CreateCommand {
     #[arg(
         short = 'C',
         long = "cd",
-        aliases = ["directory"],
+        visible_aliases = ["directory"],
         value_name = "DIRECTORY",
         help = "changes the directory before adding the following files",
         value_hint = ValueHint::DirPath

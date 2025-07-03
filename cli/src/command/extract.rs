@@ -137,7 +137,7 @@ pub(crate) struct ExtractCommand {
     #[arg(
         short = 'C',
         long = "cd",
-        aliases = ["directory"],
+        visible_aliases = ["directory"],
         value_name = "DIRECTORY",
         help = "Change directories after opening the archive but before extracting entries from the archive",
         value_hint = ValueHint::DirPath
