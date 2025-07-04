@@ -202,8 +202,12 @@ pub(crate) struct StdioCommand {
         help = "Allow extract symlink and hardlink that contains root path or parent path"
     )]
     allow_unsafe_links: bool,
-    #[arg(short, long, help = "Input archive file path")]
-    file: Option<PathBuf>,
+    #[arg(
+        short,
+        long,
+        help = "Read the archive from or write the archive to the specified file. The filename can be - for standard input or standard output."
+    )]
+    file: Option<String>,
     #[arg(help = "Files or patterns")]
     files: Vec<String>,
 }
@@ -288,7 +292,10 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         follow_links: args.follow_links,
         path_transformers,
     };
-    if let Some(file) = args.file {
+    // NOTE: "-" will use stdout
+    let mut file = args.file;
+    file.take_if(|it| it == "-");
+    if let Some(file) = file {
         create_archive_file(
             || utils::fs::file_create(&file, args.overwrite),
             creation_context,
@@ -335,7 +342,10 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         same_owner: !args.no_same_owner,
         path_transformers: PathTransformers::new(args.substitutions, args.transforms),
     };
-    if let Some(path) = args.file {
+    // NOTE: "-" will use stdin
+    let mut file = args.file;
+    file.take_if(|it| it == "-");
+    if let Some(path) = file {
         let archives = collect_split_archives(&path)?;
         run_extract_archive_reader(
             archives
@@ -384,8 +394,10 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
             exclude: exclude.into(),
         }
     };
-
-    if let Some(path) = args.file {
+    // NOTE: "-" will use stdout
+    let mut file = args.file;
+    file.take_if(|it| it == "-");
+    if let Some(path) = &file {
         let archives = collect_split_archives(&path)?;
         crate::command::list::run_list_archive(
             archives
@@ -457,7 +469,10 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         }
     };
 
-    if let Some(file) = &args.file {
+    // NOTE: "-" will use stdin/out
+    let mut file = args.file;
+    file.take_if(|it| it == "-");
+    if let Some(file) = file {
         let archive = open_archive_then_seek_to_end(file)?;
         let target_items = collect_items(
             &files,
