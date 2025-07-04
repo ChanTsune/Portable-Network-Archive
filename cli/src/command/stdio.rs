@@ -226,8 +226,12 @@ pub(crate) struct StdioCommand {
         help = "Allow extract symlink and hardlink that contains root path or parent path"
     )]
     allow_unsafe_links: bool,
-    #[arg(short, long, help = "Input archive file path")]
-    file: Option<PathBuf>,
+    #[arg(
+        short,
+        long,
+        help = "Read the archive from or write the archive to the specified file. The filename can be - for standard input or standard output."
+    )]
+    file: Option<String>,
     #[arg(help = "Files or patterns")]
     files: Vec<String>,
     #[arg(
@@ -258,11 +262,14 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     }
 }
 
-fn run_create_archive(mut args: StdioCommand) -> anyhow::Result<()> {
+fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
-    let archive_file = args.file.take().map(|p| current_dir.join(p));
+    // NOTE: "-" will use stdout
+    let mut file = args.file;
+    file.take_if(|it| it == "-");
+    let archive_file = file.take().map(|p| current_dir.join(p));
     let mut files = args.files;
     if let Some(path) = args.files_from {
         files.extend(read_paths(path, args.null)?);
@@ -336,7 +343,7 @@ fn run_create_archive(mut args: StdioCommand) -> anyhow::Result<()> {
     }
 }
 
-fn run_extract_archive(mut args: StdioCommand) -> anyhow::Result<()> {
+fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
 
@@ -376,7 +383,10 @@ fn run_extract_archive(mut args: StdioCommand) -> anyhow::Result<()> {
         same_owner: !args.no_same_owner,
         path_transformers: PathTransformers::new(args.substitutions, args.transforms),
     };
-    let archive_path = args.file.take().map(|p| current_dir.join(p));
+    // NOTE: "-" will use stdin
+    let mut file = args.file;
+    file.take_if(|it| it == "-");
+    let archive_path = file.take().map(|p| current_dir.join(p));
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
     }
@@ -432,8 +442,10 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
             exclude: exclude.into(),
         }
     };
-
-    if let Some(path) = args.file {
+    // NOTE: "-" will use stdout
+    let mut file = args.file;
+    file.take_if(|it| it == "-");
+    if let Some(path) = &file {
         let archives = collect_split_archives(&path)?;
         crate::command::list::run_list_archive(
             archives
@@ -455,7 +467,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
     }
 }
 
-fn run_append(mut args: StdioCommand) -> anyhow::Result<()> {
+fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
@@ -491,7 +503,10 @@ fn run_append(mut args: StdioCommand) -> anyhow::Result<()> {
     };
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
 
-    let archive_path = args.file.take().map(|p| current_dir.join(p));
+    // NOTE: "-" will use stdin/out
+    let mut file = args.file;
+    file.take_if(|it| it == "-");
+    let archive_path = file.take().map(|p| current_dir.join(p));
     let mut files = args.files;
     if let Some(path) = args.files_from {
         files.extend(read_paths(path, args.null)?);
