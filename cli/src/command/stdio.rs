@@ -20,7 +20,7 @@ use crate::{
         GlobPatterns, VCS_FILES,
     },
 };
-use clap::{ArgGroup, Args, Parser, ValueHint};
+use clap::{ArgGroup, Args, ValueHint};
 use pna::Archive;
 use std::{env, io, path::PathBuf, time::SystemTime};
 
@@ -242,12 +242,6 @@ impl Command for StdioCommand {
     fn execute(self) -> anyhow::Result<()> {
         run_stdio(self)
     }
-}
-
-#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct FileArgs {
-    #[arg(value_hint = ValueHint::FilePath)]
-    pub(crate) files: Vec<PathBuf>,
 }
 
 fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
