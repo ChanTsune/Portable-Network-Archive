@@ -7,8 +7,8 @@ use crate::{
     command::{
         ask_password,
         commons::{
-            collect_split_archives, run_process_archive, Exclude, KeepOptions, OwnerOptions,
-            PathTransformers,
+            collect_split_archives, read_paths, run_process_archive, Exclude, KeepOptions,
+            OwnerOptions, PathTransformers,
         },
         Command,
     },
@@ -39,6 +39,7 @@ use std::{
     group(ArgGroup::new("unstable-include").args(["include"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
+    group(ArgGroup::new("null-requires").arg("null").requires("exclude_from")),
     group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
     group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
     group(ArgGroup::new("unstable-transform").args(["transforms"]).requires("unstable")),
@@ -111,6 +112,11 @@ pub(crate) struct ExtractCommand {
     exclude_from: Option<PathBuf>,
     #[arg(
         long,
+        help = "Filenames or patterns are separated by null characters, not by newlines"
+    )]
+    null: bool,
+    #[arg(
+        long,
         help = "Remove the specified number of leading path elements. Path names with fewer elements will be silently skipped"
     )]
     strip_components: Option<usize>,
@@ -173,7 +179,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
-            exclude.extend(utils::fs::read_to_lines(p)?);
+            exclude.extend(read_paths(p, args.null)?);
         }
         Exclude {
             include: args.include.unwrap_or_default().into(),

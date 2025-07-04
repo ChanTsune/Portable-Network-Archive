@@ -4,11 +4,7 @@ mod owner;
 use crate::utils::os::windows::{self, fs::*};
 pub(crate) use owner::*;
 pub(crate) use pna::fs::*;
-use std::{
-    fs,
-    io::{self, prelude::*},
-    path::Path,
-};
+use std::{fs, io, path::Path};
 
 pub(crate) fn is_pna<P: AsRef<Path>>(path: P) -> io::Result<bool> {
     let file = fs::File::open(path)?;
@@ -43,15 +39,6 @@ pub(crate) fn mv<Src: AsRef<Path>, Dist: AsRef<Path>>(src: Src, dist: Dist) -> i
         fs::remove_file(src)
     }
     inner(src.as_ref(), dist.as_ref())
-}
-
-pub(crate) fn read_to_lines<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> {
-    fn inner(path: &Path) -> io::Result<Vec<String>> {
-        let file = fs::File::open(path)?;
-        let reader = io::BufReader::new(file);
-        reader.lines().collect::<io::Result<Vec<_>>>()
-    }
-    inner(path.as_ref())
 }
 
 #[cfg(any(windows, unix))]

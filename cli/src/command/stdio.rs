@@ -6,8 +6,8 @@ use crate::{
         append::{open_archive_then_seek_to_end, run_append_archive},
         ask_password, check_password,
         commons::{
-            collect_items, collect_split_archives, entry_option, CreateOptions, Exclude,
-            KeepOptions, OwnerOptions, PathTransformers, TimeOptions,
+            collect_items, collect_split_archives, entry_option, read_paths, CreateOptions,
+            Exclude, KeepOptions, OwnerOptions, PathTransformers, TimeOptions,
         },
         create::{create_archive_file, CreationContext},
         extract::{run_extract_archive_reader, OutputOption},
@@ -32,6 +32,12 @@ use std::{io, path::PathBuf, time::SystemTime};
     group(ArgGroup::new("unstable-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
+    group(
+        ArgGroup::new("from-input")
+            .args(["files_from", "exclude_from"])
+            .multiple(true)
+    ),
+    group(ArgGroup::new("null-requires").arg("null").requires("from-input")),
     group(ArgGroup::new("unstable-gitignore").args(["gitignore"]).requires("unstable")),
     group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
     group(ArgGroup::new("unstable-transform").args(["transforms"]).requires("unstable")),
@@ -206,6 +212,11 @@ pub(crate) struct StdioCommand {
     file: Option<PathBuf>,
     #[arg(help = "Files or patterns")]
     files: Vec<String>,
+    #[arg(
+        long,
+        help = "Filenames or patterns are separated by null characters, not by newlines"
+    )]
+    null: bool,
 }
 
 impl Command for StdioCommand {
@@ -240,12 +251,12 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     check_password(&password, &args.cipher);
     let mut files = args.files;
     if let Some(path) = args.files_from {
-        files.extend(utils::fs::read_to_lines(path)?);
+        files.extend(read_paths(path, args.null)?);
     }
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
-            exclude.extend(utils::fs::read_to_lines(p)?);
+            exclude.extend(read_paths(p, args.null)?);
         }
         Exclude {
             include: args.include.unwrap_or_default().into(),
@@ -311,7 +322,7 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
-            exclude.extend(utils::fs::read_to_lines(p)?);
+            exclude.extend(read_paths(p, args.null)?);
         }
         Exclude {
             include: args.include.unwrap_or_default().into(),
@@ -383,7 +394,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
-            exclude.extend(utils::fs::read_to_lines(p)?);
+            exclude.extend(read_paths(p, args.null)?);
         }
         Exclude {
             include: args.include.unwrap_or_default().into(),
@@ -450,12 +461,12 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
 
     let mut files = args.files;
     if let Some(path) = args.files_from {
-        files.extend(utils::fs::read_to_lines(path)?);
+        files.extend(read_paths(path, args.null)?);
     }
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
-            exclude.extend(utils::fs::read_to_lines(p)?);
+            exclude.extend(read_paths(p, args.null)?);
         }
         Exclude {
             include: args.include.unwrap_or_default().into(),
