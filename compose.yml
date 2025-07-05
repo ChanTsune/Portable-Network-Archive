@@ -10,3 +10,15 @@ services:
       - .:/workspace
     working_dir: /workspace
     command: 'sleep infinity'
+
+  wasi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: wasi
+    restart: always
+    tty: true
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    command: 'sleep infinity'
