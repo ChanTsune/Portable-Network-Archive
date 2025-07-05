@@ -684,7 +684,7 @@ fn paint_permission(kind: &EntryType, permission: u16, has_xattr: bool, has_acl:
     )
 }
 
-fn kind_char(kind: &EntryType) -> char {
+const fn kind_char(kind: &EntryType) -> char {
     match kind {
         EntryType::File(_) | EntryType::HardLink(_, _) => '.',
         EntryType::Directory(_) => 'd',
@@ -694,7 +694,7 @@ fn kind_char(kind: &EntryType) -> char {
 
 fn permission_string(kind: &EntryType, permission: u16, has_xattr: bool, has_acl: bool) -> String {
     #[inline(always)]
-    fn paint(permission: u16, c: char, bit: u16) -> char {
+    const fn paint(permission: u16, c: char, bit: u16) -> char {
         if permission & bit != 0 {
             c
         } else {
