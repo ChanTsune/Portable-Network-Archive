@@ -148,7 +148,7 @@ pub(crate) struct TransformRules(Vec<TransformRule>);
 
 impl TransformRules {
     #[inline]
-    pub(crate) fn new(rules: Vec<TransformRule>) -> TransformRules {
+    pub(crate) const fn new(rules: Vec<TransformRule>) -> TransformRules {
         Self(rules)
     }
 

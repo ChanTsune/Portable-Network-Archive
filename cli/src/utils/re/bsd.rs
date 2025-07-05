@@ -153,9 +153,10 @@ pub(crate) struct SubstitutionRules(Vec<SubstitutionRule>);
 
 impl SubstitutionRules {
     #[inline]
-    pub(crate) fn new(rules: Vec<SubstitutionRule>) -> Self {
+    pub(crate) const fn new(rules: Vec<SubstitutionRule>) -> Self {
         Self(rules)
     }
+
     #[inline]
     pub(crate) fn apply(
         &self,
