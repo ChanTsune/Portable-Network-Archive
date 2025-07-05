@@ -49,7 +49,7 @@ pub(crate) struct ChunkStreamWriter<W> {
 
 impl<W> ChunkStreamWriter<W> {
     #[inline]
-    pub(crate) fn new(ty: ChunkType, inner: W) -> Self {
+    pub(crate) const fn new(ty: ChunkType, inner: W) -> Self {
         Self {
             ty,
             w: ChunkWriter::new(inner),
