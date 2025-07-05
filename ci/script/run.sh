@@ -6,7 +6,7 @@ TEST_FILE="test_data.txt"
 TEST_FILE_PATH="${RESOURCE_DIR}${TEST_FILE}"
 
 setup() {
-  head -c $((6 * 1024 * 1024 * 1024)) < /dev/urandom > "${TEST_FILE_PATH}"
+  head -c $((6 * 1024 * 1024 * 1024)) </dev/urandom >"${TEST_FILE_PATH}"
 }
 
 teardown() {
