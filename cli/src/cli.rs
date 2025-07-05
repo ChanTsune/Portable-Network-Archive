@@ -57,7 +57,7 @@ pub(crate) struct VerbosityArgs {
 impl VerbosityArgs {
     #[inline]
     #[allow(dead_code)]
-    pub(crate) fn log_level_filter(&self) -> LevelFilter {
+    pub(crate) const fn log_level_filter(&self) -> LevelFilter {
         match (self.quiet, self.verbose) {
             (true, false) => LevelFilter::Off,
             (false, true) => LevelFilter::Debug,
@@ -123,7 +123,7 @@ pub(crate) struct SolidEntriesTransformStrategyArgs {
 
 impl SolidEntriesTransformStrategyArgs {
     #[inline]
-    pub(crate) fn strategy(&self) -> SolidEntriesTransformStrategy {
+    pub(crate) const fn strategy(&self) -> SolidEntriesTransformStrategy {
         if self.unsolid {
             SolidEntriesTransformStrategy::UnSolid
         } else {
@@ -192,7 +192,7 @@ pub(crate) struct CipherAlgorithmArgs {
 }
 
 impl CipherAlgorithmArgs {
-    pub(crate) fn algorithm(&self) -> pna::Encryption {
+    pub(crate) const fn algorithm(&self) -> pna::Encryption {
         if self.aes.is_some() {
             pna::Encryption::Aes
         } else if self.camellia.is_some() {
