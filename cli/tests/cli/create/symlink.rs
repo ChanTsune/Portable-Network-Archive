@@ -1,4 +1,4 @@
-use crate::utils::setup;
+use crate::utils::{archive, setup};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 use std::{
@@ -37,6 +37,33 @@ fn symlink_no_follow() {
     .unwrap()
     .execute()
     .unwrap();
+
+    archive::for_each_entry(
+        "symlink_no_follow/symlink_no_follow.pna",
+        |entry| match entry.header().path().as_str() {
+            "symlink_no_follow/source" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
+            }
+            "symlink_no_follow/source/text.txt" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
+            }
+            "symlink_no_follow/source/dir" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
+            }
+            "symlink_no_follow/source/dir/in_dir_text.txt" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
+            }
+            "symlink_no_follow/source/link_dir" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink)
+            }
+            "symlink_no_follow/source/link.txt" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink)
+            }
+            path => unreachable!("unexpected entry found: {path}"),
+        },
+    )
+    .unwrap();
+
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -78,6 +105,33 @@ fn symlink_follow() {
     ])
     .unwrap()
     .execute()
+    .unwrap();
+    archive::for_each_entry("symlink_follow/symlink_follow.pna", |entry| {
+        match entry.header().path().as_str() {
+            "symlink_follow/source" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
+            }
+            "symlink_follow/source/text.txt" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
+            }
+            "symlink_follow/source/dir" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
+            }
+            "symlink_follow/source/dir/in_dir_text.txt" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
+            }
+            "symlink_follow/source/link_dir" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
+            }
+            "symlink_follow/source/link_dir/in_dir_text.txt" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
+            }
+            "symlink_follow/source/link.txt" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
+            }
+            path => unreachable!("unexpected entry found: {path}"),
+        }
+    })
     .unwrap();
     cli::Cli::try_parse_from([
         "pna",
