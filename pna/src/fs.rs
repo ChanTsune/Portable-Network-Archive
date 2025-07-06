@@ -19,7 +19,7 @@ use std::{fs, io, os, path::Path};
 /// ```
 ///
 /// # Errors
-/// Returns an error if it fails to create the symlink.
+/// Return an error if it fails to create the symlink.
 #[inline]
 pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Result<()> {
     #[cfg(unix)]
