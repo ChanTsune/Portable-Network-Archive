@@ -1559,6 +1559,7 @@ dependencies = [
  "rayon",
  "regex",
  "rust-embed",
+ "scopeguard",
  "serde",
  "serde_json",
  "tabled",
