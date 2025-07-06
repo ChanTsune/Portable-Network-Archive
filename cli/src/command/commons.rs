@@ -186,7 +186,7 @@ pub(crate) fn create_entry(
     if !follow_links && path.is_symlink() {
         let source = fs::read_link(path)?;
         let reference = if let Some(substitutions) = substitutions {
-            EntryReference::from(substitutions.apply(path.to_string_lossy(), true, false))
+            EntryReference::from(substitutions.apply(source.to_string_lossy(), true, false))
         } else {
             EntryReference::from_lossy(source)
         };
