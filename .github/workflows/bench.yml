@@ -38,10 +38,10 @@ jobs:
       - name: install dependencies
         run: |
           sudo apt update
-          sudo apt install -y libacl1-dev
+          sudo apt install -y libacl1-dev bats
       - name: Install cli
         run: |
           cargo install --locked --all-features --path cli
       - name: Run rust-bench
         run: |
-          bash ./ci/script/run.sh
+          bats tests/bats/
