@@ -20,7 +20,6 @@ bytesize = "2.0.1"
 chrono = "0.4.41"
 clap = { version = "4.5.40", features = ["derive"] }
 clap_complete = "4.5.54"
-either = "1.15.0"
 fern = "0.7.1"
 gix-prompt = "0.11.0"
 globset = "0.4.16"
