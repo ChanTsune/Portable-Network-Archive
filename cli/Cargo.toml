@@ -28,7 +28,6 @@ itertools = "0.14.0"
 log = "0.4.27"
 memmap2 = { version = "0.9.5", optional = true }
 nom = "8.0.0"
-normalize-path = "0.2.1"
 parse_datetime = "0.10.0"
 path-slash = "0.2.1"
 pna = { version = "0.26.0", path = "../pna" }
