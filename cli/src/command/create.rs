@@ -328,7 +328,7 @@ pub(crate) fn create_archive_file<W, F>(
         follow_links,
         path_transformers,
     }: CreationContext,
-    target_items: Vec<PathBuf>,
+    target_items: Vec<(PathBuf, Option<PathBuf>)>,
 ) -> anyhow::Result<()>
 where
     W: Write,
@@ -353,9 +353,9 @@ where
             let create_options = create_options.clone();
             let path_transformers = path_transformers.clone();
             s.spawn_fifo(move |_| {
-                log::debug!("Adding: {}", file.display());
+                log::debug!("Adding: {}", file.0.display());
                 tx.send(create_entry(&file, &create_options, &path_transformers))
-                    .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
+                    .unwrap_or_else(|e| panic!("{e}: {}", file.0.display()));
             })
         }
 
@@ -390,7 +390,7 @@ fn create_archive_with_split(
         follow_links,
         path_transformers,
     }: CreationContext,
-    target_items: Vec<PathBuf>,
+    target_items: Vec<(PathBuf, Option<PathBuf>)>,
     max_file_size: usize,
     overwrite: bool,
 ) -> anyhow::Result<()> {
@@ -413,9 +413,9 @@ fn create_archive_with_split(
             let create_options = create_options.clone();
             let path_transformers = path_transformers.clone();
             s.spawn_fifo(move |_| {
-                log::debug!("Adding: {}", file.display());
+                log::debug!("Adding: {}", file.0.display());
                 tx.send(create_entry(&file, &create_options, &path_transformers))
-                    .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
+                    .unwrap_or_else(|e| panic!("{e}: {}", file.0.display()));
             })
         }
 
