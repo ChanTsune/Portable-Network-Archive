@@ -43,6 +43,7 @@ use std::{
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
     group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
+    group(ArgGroup::new("keep-dir-flag").args(["keep_dir", "no_keep_dir"])),
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
     group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
 )]
@@ -65,7 +66,12 @@ pub(crate) struct AppendCommand {
     )]
     no_recursive: bool,
     #[arg(long, help = "Archiving the directories")]
-    pub(crate) keep_dir: bool,
+    keep_dir: bool,
+    #[arg(
+        long,
+        help = "Do not archive directories. This is the inverse option of --keep-dir"
+    )]
+    no_keep_dir: bool,
     #[arg(
         long,
         visible_alias = "preserve-timestamps",
