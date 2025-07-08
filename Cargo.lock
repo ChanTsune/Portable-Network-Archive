@@ -1525,7 +1525,7 @@ dependencies = [
 
 [[package]]
 name = "portable-network-archive"
-version = "0.26.1"
+version = "0.26.2"
 dependencies = [
  "anyhow",
  "assert_cmd",
