@@ -990,13 +990,17 @@ impl EntryPart<&[u8]> {
         while let Some(chunk) = remaining.pop_front() {
             // NOTE: If over max size, restore to the remaining chunk
             if max_bytes_len < total_size + chunk.bytes_len() {
-                if chunk.is_stream_chunk() && total_size + MIN_CHUNK_BYTES_SIZE < max_bytes_len {
+                if chunk.is_stream_chunk() {
                     let available_bytes_len = max_bytes_len - total_size;
-                    let chunk_split_index = available_bytes_len - MIN_CHUNK_BYTES_SIZE;
-                    let (x, y) = chunk_data_split(chunk.ty, chunk.data, chunk_split_index);
-                    first.push(x);
-                    if let Some(y) = y {
-                        remaining.push_front(y);
+                    if available_bytes_len >= MIN_CHUNK_BYTES_SIZE {
+                        let chunk_split_index = available_bytes_len - MIN_CHUNK_BYTES_SIZE;
+                        let (x, y) = chunk_data_split(chunk.ty, chunk.data, chunk_split_index);
+                        first.push(x);
+                        if let Some(y) = y {
+                            remaining.push_front(y);
+                        }
+                    } else {
+                        remaining.push_front(chunk);
                     }
                 } else {
                     remaining.push_front(chunk);
