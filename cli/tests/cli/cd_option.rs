@@ -140,3 +140,38 @@ fn update_with_cd() {
     // check completely extracted
     diff("update_with_cd/in/", "update_with_cd/out/").unwrap();
 }
+
+#[test]
+fn stdio_with_cd() {
+    setup();
+    TestResources::extract_in("raw/", "stdio_with_cd/in/").unwrap();
+
+    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    cmd.args([
+        "--quiet",
+        "experimental",
+        "stdio",
+        "-c",
+        "-C",
+        "stdio_with_cd/in/",
+        ".",
+    ]);
+    let assert = cmd.assert().success();
+
+    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    cmd.write_stdin(assert.get_output().stdout.as_slice());
+    cmd.args([
+        "--quiet",
+        "experimental",
+        "stdio",
+        "-x",
+        "--overwrite",
+        "-C",
+        ".",
+        "--out-dir",
+        "stdio_with_cd/out/",
+    ]);
+    cmd.assert().success();
+
+    diff("stdio_with_cd/in/", "stdio_with_cd/out/").unwrap();
+}
