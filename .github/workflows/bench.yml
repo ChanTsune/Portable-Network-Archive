@@ -35,10 +35,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: ./.github/actions/setup-rust
-      - name: install dependencies
+      - name: Install dependencies
         run: |
           sudo apt update
           sudo apt install -y libacl1-dev bats
+      - name: Install bats extensions
+        run: |
+          chmod +x tests/bats/setup.sh
+          ./tests/bats/setup.sh
       - name: Install cli
         run: |
           cargo install --locked --all-features --path cli
