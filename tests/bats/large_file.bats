@@ -1,5 +1,7 @@
 #!/usr/bin/env bats
 
+load 'test_helper.bash'
+
 setup() {
   export PNA_EXECUTABLE=${PNA_EXECUTABLE:-"pna"}
   export RESOURCE_DIR=${RESOURCE_DIR:-"/tmp/"}
