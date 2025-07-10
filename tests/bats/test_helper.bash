@@ -1,10 +1,12 @@
-load 'lib/bats-support/load'
-load 'lib/bats-assert/load'
-load 'lib/bats-file/load'
+BASE_DIR=$(dirname "${BASH_SOURCE[0]}")
+load "$BASE_DIR/lib/bats-support/load"
+load "$BASE_DIR/lib/bats-assert/load"
+load "$BASE_DIR/lib/bats-file/load"
 
 # Link count function (Linux, macOS, FreeBSD)
 file_link_count() {
   local file=$1
+
   if [ ! -e "$file" ]; then
     echo "0"
     return
@@ -24,6 +26,28 @@ assert_link_count() {
   local expected=$1
   local file=$2
   local actual
+
   actual=$(file_link_count "$file")
   assert_equal "$actual" "$expected" "Expected $file to have $expected hard links, but got $actual"
+}
+
+# Create file and assert that exists
+assert_make_file() {
+  local path=$1
+  local mode=$2
+  local contents=$3
+
+  echo "$contents" >>"$path"
+  chmod "$mode" "$path"
+  assert_file_exists "$path"
+}
+
+# Create directory and assert that exists
+assert_make_dir() {
+  local path=$1
+  local mode=$2
+  local contents=$3
+
+  mkdir -m "$mode" "$path"
+  assert_dir_exists "$path"
 }
