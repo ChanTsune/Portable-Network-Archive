@@ -20,7 +20,7 @@ use nom::{
     Parser as _,
 };
 use pna::NormalEntry;
-use std::{io, ops::BitOr, path::PathBuf, str::FromStr};
+use std::{ops::BitOr, path::PathBuf, str::FromStr};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ChmodCommand {
@@ -48,8 +48,7 @@ fn archive_chmod(args: ChmodCommand) -> anyhow::Result<()> {
     if args.files.is_empty() {
         return Ok(());
     }
-    let globs = GlobPatterns::new(args.files)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let mut globs = GlobPatterns::new(args.files.iter().map(|p| p.as_str()))?;
 
     let archives = collect_split_archives(&args.archive)?;
 
@@ -57,7 +56,7 @@ fn archive_chmod(args: ChmodCommand) -> anyhow::Result<()> {
     let mmaps = archives
         .into_iter()
         .map(crate::utils::mmap::Mmap::try_from)
-        .collect::<io::Result<Vec<_>>>()?;
+        .collect::<std::io::Result<Vec<_>>>()?;
     #[cfg(feature = "memmap")]
     let archives = mmaps.iter().map(|m| m.as_ref());
 
