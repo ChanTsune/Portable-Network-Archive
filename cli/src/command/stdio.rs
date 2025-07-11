@@ -422,8 +422,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
         classify: false,
         format: None,
     };
-    let files_globs = GlobPatterns::new(&args.files)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let files_globs = GlobPatterns::new(args.files.iter().map(|it| it.as_str()))?;
 
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();

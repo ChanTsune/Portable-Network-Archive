@@ -13,7 +13,7 @@ use crate::{
     utils::{env::NamedTempFile, GlobPatterns, PathPartExt, VCS_FILES},
 };
 use clap::{ArgGroup, Parser, ValueHint};
-use std::{io, path::PathBuf};
+use std::path::PathBuf;
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(
@@ -77,8 +77,7 @@ fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
     } else if let Some(path) = args.files_from {
         files.extend(read_paths(path, args.null)?);
     }
-    let globs =
-        GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let mut globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))?;
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
@@ -99,7 +98,7 @@ fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
     let mmaps = archives
         .into_iter()
         .map(crate::utils::mmap::Mmap::try_from)
-        .collect::<io::Result<Vec<_>>>()?;
+        .collect::<std::io::Result<Vec<_>>>()?;
     #[cfg(feature = "memmap")]
     let archives = mmaps.iter().map(|m| m.as_ref());
 
