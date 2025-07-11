@@ -2,41 +2,57 @@ use bitflags::bitflags;
 use std::path::Path;
 
 #[derive(Clone, Debug)]
-pub(crate) struct GlobPatterns(globset::GlobSet);
+pub(crate) struct GlobPatterns<'s> {
+    globs: globset::GlobSet,
+    raw_patterns: Vec<&'s str>,
+    matched: Vec<bool>,
+}
 
-impl GlobPatterns {
+impl<'s> GlobPatterns<'s> {
     #[inline]
-    pub(crate) fn new<I: IntoIterator<Item = S>, S: AsRef<str>>(
+    pub(crate) fn new<I: IntoIterator<Item = &'s str>>(
         patterns: I,
     ) -> Result<Self, globset::Error> {
         let mut builder = globset::GlobSet::builder();
+        let mut raw_patterns = Vec::new();
         for pattern in patterns {
-            builder.add(globset::Glob::new(pattern.as_ref())?);
+            let glob = globset::Glob::new(pattern)?;
+            raw_patterns.push(pattern);
+            builder.add(glob);
         }
-        Ok(Self(builder.build()?))
+        let globs = builder.build()?;
+        Ok(Self {
+            matched: vec![false; globs.len()],
+            raw_patterns,
+            globs,
+        })
     }
 
     #[inline]
     pub(crate) fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.globs.is_empty()
     }
 
     #[inline]
-    pub(crate) fn matches_any<P: AsRef<Path>>(&self, s: P) -> bool {
-        self.0.is_match(s)
-    }
-}
-
-impl TryFrom<Vec<globset::Glob>> for GlobPatterns {
-    type Error = globset::Error;
-
-    #[inline]
-    fn try_from(patterns: Vec<globset::Glob>) -> Result<Self, Self::Error> {
-        let mut builder = globset::GlobSet::builder();
-        for pattern in patterns {
-            builder.add(pattern);
+    pub(crate) fn matches_any<P: AsRef<Path>>(&mut self, s: P) -> bool {
+        let indices = self.globs.matches(s);
+        for idx in indices.iter() {
+            if let Some(found) = self.matched.get_mut(*idx) {
+                *found = true;
+            }
         }
-        Ok(Self(builder.build()?))
+        !indices.is_empty()
+    }
+
+    #[inline]
+    pub(crate) fn unmatched_patterns(&self) -> Vec<&str> {
+        let mut unmatched = Vec::new();
+        for (idx, matched) in self.matched.iter().enumerate() {
+            if !matched {
+                unmatched.push(self.raw_patterns[idx]);
+            }
+        }
+        unmatched
     }
 }
 
@@ -404,26 +420,26 @@ mod tests {
     use super::*;
     #[test]
     fn glob_any_empty() {
-        let globs = GlobPatterns::try_from(Vec::new()).unwrap();
+        let mut globs = GlobPatterns::new([]).unwrap();
         assert!(!globs.matches_any("some"));
     }
 
     #[test]
     fn glob_suffix() {
-        let globs = GlobPatterns::new(vec!["path/**"]).unwrap();
+        let mut globs = GlobPatterns::new(vec!["path/**"]).unwrap();
         assert!(globs.matches_any("path/foo.pna"));
     }
 
     #[test]
     fn glob_prefix() {
-        let globs = GlobPatterns::new(vec!["**/foo.pna"]).unwrap();
+        let mut globs = GlobPatterns::new(vec!["**/foo.pna"]).unwrap();
         assert!(globs.matches_any("path/foo.pna"));
         assert!(globs.matches_any("path/path/foo.pna"));
     }
 
     #[test]
     fn glob_middle_component() {
-        let globs = GlobPatterns::new(vec!["usr/**/bin"]).unwrap();
+        let mut globs = GlobPatterns::new(vec!["usr/**/bin"]).unwrap();
         assert!(globs.matches_any("usr/local/bin"));
         assert!(globs.matches_any("usr/share/bin"));
     }

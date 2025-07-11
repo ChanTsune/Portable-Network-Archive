@@ -284,8 +284,8 @@ where
     Provider: FnMut() -> Option<&'p str> + Send,
 {
     let password = password_provider();
-    let globs =
-        GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let patterns = files;
+    let mut globs = GlobPatterns::new(patterns.iter().map(|it| it.as_str()))?;
 
     let mut link_entries = Vec::new();
 
@@ -322,6 +322,14 @@ where
     for item in link_entries {
         extract_entry(item, password, &args)?;
     }
+
+    let unmatched_patterns = globs.unmatched_patterns();
+    if !unmatched_patterns.is_empty() {
+        for p in unmatched_patterns {
+            log::error!("{p} not found in archive");
+        }
+        anyhow::bail!("from previous errors");
+    }
     Ok(())
 }
 
@@ -331,14 +339,13 @@ pub(crate) fn run_extract_archive<'d, 'p, Provider>(
     files: Vec<String>,
     mut password_provider: Provider,
     args: OutputOption,
-) -> io::Result<()>
+) -> anyhow::Result<()>
 where
     Provider: FnMut() -> Option<&'p str> + Send,
 {
     rayon::scope_fifo(|s| {
         let password = password_provider();
-        let globs =
-            GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        let mut globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))?;
 
         let mut link_entries = Vec::<NormalEntry>::new();
 
@@ -373,6 +380,13 @@ where
 
         for item in link_entries {
             extract_entry(item, password, &args)?;
+        }
+        let unmatched_patterns = globs.unmatched_patterns();
+        if !unmatched_patterns.is_empty() {
+            for p in unmatched_patterns {
+                log::error!("{p} not found in archive");
+            }
+            anyhow::bail!("from previous errors");
         }
         Ok(())
     })

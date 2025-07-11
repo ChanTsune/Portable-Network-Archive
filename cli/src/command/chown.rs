@@ -53,8 +53,7 @@ fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
     if args.files.is_empty() {
         return Ok(());
     }
-    let globs = GlobPatterns::new(args.files)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let mut globs = GlobPatterns::new(args.files.iter().map(|p| p.as_ref()))?;
 
     let owner = args
         .owner
