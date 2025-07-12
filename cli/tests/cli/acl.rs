@@ -1,5 +1,6 @@
 #[cfg(not(target_family = "wasm"))]
 mod dump;
+mod missing_file;
 #[cfg(not(target_family = "wasm"))]
 mod restore;
 
