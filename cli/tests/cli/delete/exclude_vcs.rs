@@ -46,6 +46,7 @@ fn delete_with_exclude_vcs() {
     .unwrap()
     .execute()
     .unwrap();
+    let delete_file = "delete_with_exclude_vcs/in/raw/regular.txt";
     // delete with exclude-vcs
     cli::Cli::try_parse_from([
         "pna",
@@ -53,7 +54,7 @@ fn delete_with_exclude_vcs() {
         "experimental",
         "delete",
         "delete_with_exclude_vcs/delete_with_exclude_vcs.pna",
-        "raw/",
+        delete_file,
         "--unstable",
         "--exclude-vcs",
     ])
@@ -74,7 +75,7 @@ fn delete_with_exclude_vcs() {
     .unwrap()
     .execute()
     .unwrap();
-    for file in vcs_files {
+    for file in vcs_files.into_iter().chain([delete_file]) {
         utils::remove_with_empty_parents(file).unwrap();
     }
     diff(
@@ -127,6 +128,7 @@ fn delete_without_exclude_vcs() {
     .unwrap()
     .execute()
     .unwrap();
+    let delete_file = "delete_without_exclude_vcs/in/raw/regular.txt";
     // delete without exclude-vcs
     cli::Cli::try_parse_from([
         "pna",
@@ -134,7 +136,7 @@ fn delete_without_exclude_vcs() {
         "experimental",
         "delete",
         "delete_without_exclude_vcs/delete_without_exclude_vcs.pna",
-        "raw/",
+        delete_file,
         "--unstable",
     ])
     .unwrap()
@@ -154,6 +156,8 @@ fn delete_without_exclude_vcs() {
     .unwrap()
     .execute()
     .unwrap();
+
+    utils::remove_with_empty_parents(delete_file).unwrap();
     diff(
         "delete_without_exclude_vcs/in/",
         "delete_without_exclude_vcs/out/",
