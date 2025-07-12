@@ -54,6 +54,17 @@ impl<'s> GlobPatterns<'s> {
         }
         unmatched
     }
+
+    pub(crate) fn ensure_all_matched(&self) -> anyhow::Result<()> {
+        let unmatched = self.unmatched_patterns();
+        if !unmatched.is_empty() {
+            for p in unmatched {
+                log::error!("'{}' not found in archive", p);
+            }
+            anyhow::bail!("from previous errors");
+        }
+        Ok(())
+    }
 }
 
 /// BSD tar command like globs.
