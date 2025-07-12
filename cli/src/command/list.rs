@@ -408,13 +408,7 @@ fn print_entries(
                 && !exclude.excluded(r.entry_type.name())
         })
         .collect::<Vec<_>>();
-    let unmatched_patterns = globs.unmatched_patterns();
-    if !unmatched_patterns.is_empty() {
-        for p in unmatched_patterns {
-            log::error!("{p} not found in archive");
-        }
-        anyhow::bail!("from previous errors");
-    }
+    globs.ensure_all_matched()?;
     match options.format {
         Some(Format::JsonL) => json_line_entries(entries),
         Some(Format::Table) => detail_list_entries(entries, options),
