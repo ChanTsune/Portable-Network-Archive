@@ -144,12 +144,6 @@ fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
 
     temp_file.persist(output_path)?;
 
-    let unmatched_patterns = globs.unmatched_patterns();
-    if !unmatched_patterns.is_empty() {
-        for p in unmatched_patterns {
-            log::error!("{p} not found in archive");
-        }
-        anyhow::bail!("from previous errors");
-    }
+    globs.ensure_all_matched()?;
     Ok(())
 }

@@ -331,13 +331,7 @@ fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
             Ok(())
         },
     )?;
-    let unmatched_patterns = globs.unmatched_patterns();
-    if !unmatched_patterns.is_empty() {
-        for p in unmatched_patterns {
-            log::error!("{p} not found in archive");
-        }
-        anyhow::bail!("from previous errors");
-    }
+    globs.ensure_all_matched()?;
     Ok(())
 }
 
@@ -397,17 +391,12 @@ fn archive_set_acl(args: SetAclCommand) -> anyhow::Result<()> {
     temp_file.persist(output_path)?;
 
     if let SetAclsStrategy::Apply { globs, .. } = set_strategy {
-        let unmatched_patterns = globs.unmatched_patterns();
-        if !unmatched_patterns.is_empty() {
-            for p in unmatched_patterns {
-                log::error!("{p} not found in archive");
-            }
-            anyhow::bail!("from previous errors");
-        }
+        globs.ensure_all_matched()?;
     }
     Ok(())
 }
 
+#[allow(clippy::large_enum_variant)]
 enum SetAclsStrategy<'s> {
     Restore(HashMap<String, Acls>),
     Apply {

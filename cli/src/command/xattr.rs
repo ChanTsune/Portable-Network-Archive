@@ -230,13 +230,7 @@ fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
             Ok(())
         },
     )?;
-    let unmatched_patterns = globs.unmatched_patterns();
-    if !unmatched_patterns.is_empty() {
-        for p in unmatched_patterns {
-            log::error!("{p} not found in archive");
-        }
-        anyhow::bail!("from previous errors");
-    }
+    globs.ensure_all_matched()?;
     Ok(())
 }
 
@@ -296,13 +290,7 @@ fn archive_set_xattr(args: SetXattrCommand) -> anyhow::Result<()> {
     temp_file.persist(output_path)?;
 
     if let SetAttrStrategy::Apply { globs, .. } = set_strategy {
-        let unmatched_patterns = globs.unmatched_patterns();
-        if !unmatched_patterns.is_empty() {
-            for p in unmatched_patterns {
-                log::error!("{p} not found in archive");
-            }
-            anyhow::bail!("from previous errors");
-        }
+        globs.ensure_all_matched()?;
     }
     Ok(())
 }
