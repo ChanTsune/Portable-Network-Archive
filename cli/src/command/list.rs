@@ -360,8 +360,7 @@ pub(crate) fn run_list_archive(
         }
         Ok(())
     })?;
-    print_entries(entries, files_globs, exclude, args);
-    Ok(())
+    print_entries(entries, files_globs, exclude, args)
 }
 
 #[cfg(feature = "memmap")]
@@ -393,8 +392,7 @@ pub(crate) fn run_list_archive_mem(
         }
         Ok(())
     })?;
-    print_entries(entries, files_globs, exclude, args);
-    Ok(())
+    print_entries(entries, files_globs, exclude, args)
 }
 
 fn print_entries(
@@ -402,7 +400,7 @@ fn print_entries(
     mut globs: GlobPatterns,
     exclude: Exclude,
     options: ListOptions,
-) {
+) -> anyhow::Result<()> {
     let entries = entries
         .into_iter()
         .filter(|r| {
@@ -410,6 +408,13 @@ fn print_entries(
                 && !exclude.excluded(r.entry_type.name())
         })
         .collect::<Vec<_>>();
+    let unmatched_patterns = globs.unmatched_patterns();
+    if !unmatched_patterns.is_empty() {
+        for p in unmatched_patterns {
+            log::error!("{p} not found in archive");
+        }
+        anyhow::bail!("from previous errors");
+    }
     match options.format {
         Some(Format::JsonL) => json_line_entries(entries),
         Some(Format::Table) => detail_list_entries(entries, options),
@@ -417,6 +422,7 @@ fn print_entries(
         None if options.long => detail_list_entries(entries, options),
         None => simple_list_entries(entries, options),
     }
+    Ok(())
 }
 
 struct SimpleListDisplay<'a> {
