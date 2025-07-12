@@ -1,5 +1,6 @@
 #[cfg(not(target_family = "wasm"))]
 mod exclude_vcs;
+mod missing_file;
 #[cfg(not(target_family = "wasm"))]
 mod simple;
 

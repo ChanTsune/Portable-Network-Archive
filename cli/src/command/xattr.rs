@@ -187,8 +187,7 @@ fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
     if args.files.is_empty() {
         return Ok(());
     }
-    let globs = GlobPatterns::new(args.files)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let mut globs = GlobPatterns::new(args.files.iter().map(|p| p.as_str()))?;
     let encoding = args.encoding;
     let dump_option = DumpOption::new(args.dump, args.name.as_deref(), args.regex_match.as_deref())
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
@@ -231,20 +230,20 @@ fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
             Ok(())
         },
     )?;
+    globs.ensure_all_matched()?;
     Ok(())
 }
 
 fn archive_set_xattr(args: SetXattrCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    let set_strategy = if let Some("-") = args.restore.as_deref() {
+    let mut set_strategy = if let Some("-") = args.restore.as_deref() {
         SetAttrStrategy::Restore(parse_dump(io::stdin().lock())?)
     } else if let Some(path) = args.restore.as_deref() {
         SetAttrStrategy::Restore(parse_dump(io::BufReader::new(fs::File::open(path)?))?)
     } else if args.files.is_empty() {
         return Ok(());
     } else {
-        let globs = GlobPatterns::new(args.files)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        let globs = GlobPatterns::new(args.files.iter().map(|p| p.as_str()))?;
         let value = args.value.unwrap_or_default();
         SetAttrStrategy::Apply {
             globs,
@@ -289,22 +288,26 @@ fn archive_set_xattr(args: SetXattrCommand) -> anyhow::Result<()> {
     drop(mmaps);
 
     temp_file.persist(output_path)?;
+
+    if let SetAttrStrategy::Apply { globs, .. } = set_strategy {
+        globs.ensure_all_matched()?;
+    }
     Ok(())
 }
 
-enum SetAttrStrategy {
+enum SetAttrStrategy<'s> {
     Restore(HashMap<String, Vec<(String, Value)>>),
     Apply {
-        globs: GlobPatterns,
+        globs: GlobPatterns<'s>,
         name: Option<String>,
         value: Value,
         remove: Option<String>,
     },
 }
 
-impl SetAttrStrategy {
+impl SetAttrStrategy<'_> {
     #[inline]
-    fn transform_entry<T>(&self, entry: NormalEntry<T>) -> NormalEntry<T> {
+    fn transform_entry<T>(&mut self, entry: NormalEntry<T>) -> NormalEntry<T> {
         match self {
             SetAttrStrategy::Restore(restore) => {
                 if let Some(attrs) = restore.get(entry.header().path().as_str()) {
