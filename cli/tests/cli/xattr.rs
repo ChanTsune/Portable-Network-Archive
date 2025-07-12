@@ -2,6 +2,7 @@
 mod dump;
 #[cfg(not(target_family = "wasm"))]
 mod get;
+mod missing_file;
 mod remove;
 #[cfg(not(target_family = "wasm"))]
 mod restore;
