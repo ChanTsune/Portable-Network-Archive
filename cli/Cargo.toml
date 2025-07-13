@@ -1,6 +1,6 @@
 [package]
 name = "portable-network-archive"
-version = "0.26.2"
+version = "0.26.3"
 edition = "2021"
 license = "Apache-2.0 OR MIT"
 description = "Portable-Network-Archive cli"
