@@ -72,6 +72,7 @@ pub(crate) struct CreateOptions {
     pub(crate) owner_options: OwnerOptions,
     pub(crate) time_options: TimeOptions,
     pub(crate) follow_links: bool,
+    pub(crate) hard_dereference: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -192,14 +193,20 @@ pub(crate) fn create_entry(
         owner_options,
         time_options,
         follow_links,
+        hard_dereference,
     }: &CreateOptions,
     substitutions: &Option<PathTransformers>,
 ) -> io::Result<NormalEntry> {
+    let mut link = link.clone();
     let entry_name = if let Some(substitutions) = substitutions {
         EntryName::from(substitutions.apply(path.to_string_lossy(), false, false))
     } else {
         EntryName::from_lossy(path)
     };
+    if *hard_dereference {
+        // If hard_dereference is enabled, ignore hardlink information and treat as a regular file.
+        link.take();
+    }
     if let Some(source) = link {
         let reference = if let Some(substitutions) = substitutions {
             EntryReference::from(substitutions.apply(source.to_string_lossy(), false, true))

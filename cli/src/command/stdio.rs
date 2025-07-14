@@ -137,6 +137,8 @@ pub(crate) struct StdioCommand {
     pub(crate) gitignore: bool,
     #[arg(long, visible_aliases = ["dereference"], help = "Follow symbolic links")]
     follow_links: bool,
+    #[arg(long, help = "Follow hard links")]
+    hard_dereference: bool,
     #[arg(long, help = "Output directory of extracted files", value_hint = ValueHint::DirPath)]
     pub(crate) out_dir: Option<PathBuf>,
     #[arg(
@@ -329,6 +331,7 @@ fn run_create_archive(mut args: StdioCommand) -> anyhow::Result<()> {
         time_options,
         solid: args.solid,
         follow_links: args.follow_links,
+        hard_dereference: args.hard_dereference,
         path_transformers,
     };
     if let Some(file) = archive_file {
@@ -494,6 +497,7 @@ fn run_append(mut args: StdioCommand) -> anyhow::Result<()> {
         owner_options,
         time_options,
         follow_links: args.follow_links,
+        hard_dereference: args.hard_dereference,
     };
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
 

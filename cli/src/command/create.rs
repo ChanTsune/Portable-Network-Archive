@@ -178,6 +178,8 @@ pub(crate) struct CreateCommand {
     pub(crate) gitignore: bool,
     #[arg(long, visible_aliases = ["dereference"], help = "Follow symbolic links")]
     follow_links: bool,
+    #[arg(long, help = "Follow hard links")]
+    hard_dereference: bool,
     #[arg(
         long,
         help = "Filenames or patterns are separated by null characters, not by newlines"
@@ -308,6 +310,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         time_options,
         solid: args.solid,
         follow_links: args.follow_links,
+        hard_dereference: args.hard_dereference,
         path_transformers,
     };
     if let Some(size) = max_file_size {
@@ -339,6 +342,7 @@ pub(crate) struct CreationContext {
     pub(crate) time_options: TimeOptions,
     pub(crate) solid: bool,
     pub(crate) follow_links: bool,
+    pub(crate) hard_dereference: bool,
     pub(crate) path_transformers: Option<PathTransformers>,
 }
 
@@ -351,6 +355,7 @@ pub(crate) fn create_archive_file<W, F>(
         time_options,
         solid,
         follow_links,
+        hard_dereference,
         path_transformers,
     }: CreationContext,
     target_items: Vec<(PathBuf, Option<PathBuf>)>,
@@ -371,6 +376,7 @@ where
         owner_options,
         time_options,
         follow_links,
+        hard_dereference,
     };
     rayon::scope_fifo(|s| {
         for file in target_items {
@@ -413,6 +419,7 @@ fn create_archive_with_split(
         time_options,
         solid,
         follow_links,
+        hard_dereference,
         path_transformers,
     }: CreationContext,
     target_items: Vec<(PathBuf, Option<PathBuf>)>,
@@ -431,6 +438,7 @@ fn create_archive_with_split(
         owner_options,
         time_options,
         follow_links,
+        hard_dereference,
     };
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
         for file in target_items {

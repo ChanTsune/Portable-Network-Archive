@@ -12,7 +12,6 @@ mod create;
 mod delete;
 mod encrypt;
 mod extract;
-mod hardlink;
 mod keep_acl;
 mod keep_all;
 mod list;

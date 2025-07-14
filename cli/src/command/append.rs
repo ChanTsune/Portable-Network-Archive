@@ -161,6 +161,8 @@ pub(crate) struct AppendCommand {
     pub(crate) gitignore: bool,
     #[arg(long, visible_aliases = ["dereference"], help = "Follow symbolic links")]
     follow_links: bool,
+    #[arg(long, help = "Follow hard links")]
+    hard_dereference: bool,
     #[arg(
         long,
         help = "Filenames or patterns are separated by null characters, not by newlines"
@@ -247,6 +249,7 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         owner_options,
         time_options,
         follow_links: args.follow_links,
+        hard_dereference: args.hard_dereference,
     };
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
 

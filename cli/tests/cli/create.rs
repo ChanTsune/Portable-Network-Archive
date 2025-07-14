@@ -6,6 +6,7 @@ mod exclude_vcs;
 mod files_from;
 mod files_from_stdin;
 mod gitignore;
+mod hardlink;
 mod include;
 mod mtime;
 mod no_recursive;
