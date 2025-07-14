@@ -29,22 +29,35 @@ fn create_hardlink() {
     .unwrap();
 
     // NOTE: The same file that is encountered the second time or later becomes a hard link in the archive.
+    let mut file_count = 0;
     let mut hard_link_count = 0;
     archive::for_each_entry("create_hardlink/create_hardlink.pna", |entry| {
         match entry.header().path().as_str() {
             "create_hardlink/source" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory);
             }
             "create_hardlink/source/linked1.txt" | "create_hardlink/source/origin1.txt" => {
-                if entry.header().data_kind() == pna::DataKind::HardLink {
-                    hard_link_count += 1;
+                match entry.header().data_kind() {
+                    pna::DataKind::File => file_count += 1,
+                    pna::DataKind::HardLink => hard_link_count += 1,
+                    kind => panic!("Unexpected data kind {:?} for file entry", kind),
                 }
             }
             p => panic!("Unexpected entry: {p}"),
         }
     })
     .unwrap();
-    assert_eq!(hard_link_count, 1);
+    #[cfg(not(target_family = "wasm"))]
+    {
+        assert_eq!(file_count, 1);
+        assert_eq!(hard_link_count, 1);
+    };
+    #[cfg(target_family = "wasm")]
+    {
+        // Wasm not supported hardlink detection
+        assert_eq!(file_count, 2);
+        assert_eq!(hard_link_count, 0);
+    };
 }
 
 #[test]
