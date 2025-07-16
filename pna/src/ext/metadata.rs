@@ -11,11 +11,11 @@ pub trait MetadataTimeExt: private::Sealed {
     /// Returns the accessed time.
     fn accessed_time(&self) -> Option<SystemTime>;
     /// Sets the created time.
-    fn with_created_time(self, created_time: Option<SystemTime>) -> Self;
+    fn with_created_time(self, time: impl Into<Option<SystemTime>>) -> Self;
     /// Sets the modified time.
-    fn with_modified_time(self, modified_time: Option<SystemTime>) -> Self;
+    fn with_modified_time(self, time: impl Into<Option<SystemTime>>) -> Self;
     /// Sets the accessed time.
-    fn with_accessed_time(self, accessed_time: Option<SystemTime>) -> Self;
+    fn with_accessed_time(self, time: impl Into<Option<SystemTime>>) -> Self;
 }
 
 impl MetadataTimeExt for Metadata {
@@ -99,8 +99,8 @@ impl MetadataTimeExt for Metadata {
     /// # }
     /// ```
     #[inline]
-    fn with_created_time(self, created_time: Option<SystemTime>) -> Self {
-        self.with_created(created_time.map(|it| {
+    fn with_created_time(self, time: impl Into<Option<SystemTime>>) -> Self {
+        self.with_created(time.into().map(|it| {
             it.duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap_or_default()
         }))
@@ -129,8 +129,8 @@ impl MetadataTimeExt for Metadata {
     /// # }
     /// ```
     #[inline]
-    fn with_modified_time(self, modified_time: Option<SystemTime>) -> Self {
-        self.with_modified(modified_time.map(|it| {
+    fn with_modified_time(self, time: impl Into<Option<SystemTime>>) -> Self {
+        self.with_modified(time.into().map(|it| {
             it.duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap_or_default()
         }))
@@ -159,8 +159,8 @@ impl MetadataTimeExt for Metadata {
     /// # }
     /// ```
     #[inline]
-    fn with_accessed_time(self, accessed_time: Option<SystemTime>) -> Self {
-        self.with_accessed(accessed_time.map(|it| {
+    fn with_accessed_time(self, time: impl Into<Option<SystemTime>>) -> Self {
+        self.with_accessed(time.into().map(|it| {
             it.duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap_or_default()
         }))
