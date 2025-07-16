@@ -29,7 +29,7 @@ use std::{
     fmt::{self, Display, Formatter},
     io::{self, prelude::*},
     path::PathBuf,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime},
 };
 use tabled::{
     builder::Builder as TableBuilder,
@@ -155,9 +155,9 @@ struct TableRow {
     permission: Option<pna::Permission>,
     raw_size: Option<u128>,
     compressed_size: usize,
-    created: Option<Duration>,
-    modified: Option<Duration>,
-    accessed: Option<Duration>,
+    created: Option<SystemTime>,
+    modified: Option<SystemTime>,
+    accessed: Option<SystemTime>,
     entry_type: EntryType,
     xattrs: Vec<ExtendedAttribute>,
     acl: HashMap<chunk::AcePlatform, Vec<chunk::Ace>>,
@@ -207,9 +207,9 @@ where
             permission: metadata.permission().cloned(),
             raw_size: metadata.raw_file_size(),
             compressed_size: metadata.compressed_size(),
-            created: metadata.created(),
-            modified: metadata.modified(),
-            accessed: metadata.accessed(),
+            created: metadata.created_time(),
+            modified: metadata.modified_time(),
+            accessed: metadata.accessed_time(),
             entry_type: match header.data_kind() {
                 DataKind::SymbolicLink => EntryType::SymbolicLink(
                     header.path().to_string(),
@@ -590,8 +590,7 @@ fn within_six_months(now: SystemTime, x: SystemTime) -> bool {
     six_months_ago <= x
 }
 
-fn datetime(format: TimeFormat, since_unix_epoch: Duration) -> String {
-    let time = UNIX_EPOCH + since_unix_epoch;
+fn datetime(format: TimeFormat, time: SystemTime) -> String {
     let datetime = DateTime::<Local>::from(time);
     match format {
         TimeFormat::Auto(now) => {
