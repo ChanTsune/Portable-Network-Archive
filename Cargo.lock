@@ -1203,6 +1203,7 @@ dependencies = [
  "tokio-util",
  "version-sync",
  "wasm-bindgen-test",
+ "windows 0.61.3",
  "zstd",
 ]
 

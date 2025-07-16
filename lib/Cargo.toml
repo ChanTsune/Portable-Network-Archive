@@ -50,6 +50,15 @@ criterion = { version = "0.7.0", default-features = false, features = ["cargo_be
 tokio = { version = "1.47.1", features = ["macros", "rt-multi-thread", "fs", "io-util"] }
 tokio-util = { version = "0.7.16", features = ["compat"] }
 
+[target.'cfg(windows)'.dev-dependencies]
+windows = { version = "0.61.3", features = [
+    "Win32_Storage_FileSystem",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_System_WindowsProgramming",
+    "Win32_System_SystemServices",
+] }
+
 [target.'cfg(all(target_family = "wasm", target_os = "unknown"))'.dev-dependencies]
 wasm-bindgen-test = "0.3.51"
 
