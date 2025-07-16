@@ -23,6 +23,7 @@ pub(crate) mod io;
 pub mod prelude;
 pub(crate) mod random;
 pub(crate) mod util;
+pub(crate) mod acl;
 
 pub use archive::*;
 pub use chunk::*;
