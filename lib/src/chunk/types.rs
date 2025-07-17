@@ -85,6 +85,12 @@ impl ChunkType {
     /// Extended attribute
     #[allow(non_upper_case_globals)]
     pub const xATR: ChunkType = ChunkType(*b"xATR");
+    /// Access control list header
+    #[allow(non_upper_case_globals)]
+    pub const fACL: ChunkType = ChunkType(*b"fACL");
+    /// Access control entry
+    #[allow(non_upper_case_globals)]
+    pub const fACE: ChunkType = ChunkType(*b"fACE");
 
     /// Returns the length of the chunk type code.
     ///
