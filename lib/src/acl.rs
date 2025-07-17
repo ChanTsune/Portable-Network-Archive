@@ -1,4 +1,6 @@
+use crate::UnknownValueError;
 use bitflags::bitflags;
+use std::io;
 
 #[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
@@ -6,12 +8,39 @@ pub enum AclPlatform {
     Posix = 0,
     Mac = 1,
     Windows = 2,
+    NFSv4 = 3,
+}
+
+impl TryFrom<u8> for AclPlatform {
+    type Error = UnknownValueError;
+
+    #[inline]
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::Posix),
+            1 => Ok(Self::Mac),
+            2 => Ok(Self::Windows),
+            3 => Ok(Self::NFSv4),
+            v => Err(UnknownValueError(v)),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
 pub(crate) enum AclType {
-    Dacl,
+    Dacl = 0,
+}
+
+impl TryFrom<u8> for AclType {
+    type Error = UnknownValueError;
+    #[inline]
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::Dacl),
+            v => Err(UnknownValueError(v)),
+        }
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -21,11 +50,46 @@ pub struct AclHeader {
     acl_type: AclType,
     bit_flags: u16,
     entry_count: u16,
+    reserved: u8,
+}
+
+impl AclHeader {
+    #[inline]
+    pub(crate) const fn to_bytes(&self) -> [u8; 8] {
+        let bit_flags = self.bit_flags.to_be_bytes();
+        let entry_count = self.entry_count.to_be_bytes();
+        [
+            self.version,
+            self.platform as u8,
+            self.acl_type as u8,
+            bit_flags[0],
+            bit_flags[1],
+            entry_count[0],
+            entry_count[1],
+            0,
+        ]
+    }
+
+    pub(crate) fn try_from_bytes(bytes: &[u8]) -> io::Result<Self> {
+        let bytes: [u8; 8] = bytes
+            .try_into()
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        Ok(Self {
+            version: bytes[0],
+            platform: AclPlatform::try_from(bytes[1])
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+            acl_type: AclType::try_from(bytes[2])
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+            bit_flags: u16::from_be_bytes([bytes[3], bytes[4]]),
+            entry_count: u16::from_be_bytes([bytes[5], bytes[6]]),
+            reserved: bytes[7],
+        })
+    }
 }
 
 bitflags! {
     #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-    pub struct AcePermission: u16 {
+    pub struct AcePermission: u32 {
         /// READ_DATA permission for a file.
         /// Same as LIST_DIRECTORY permission for a directory.
         const READ = 0b001;
@@ -103,4 +167,24 @@ pub struct Ace {
 pub struct Acl {
     header: AclHeader,
     entries: Vec<Ace>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn acl_header_from_to_bytes() {
+        let acl_header = AclHeader {
+            version: 0,
+            platform: AclPlatform::Posix,
+            acl_type: AclType::Dacl,
+            bit_flags: 0,
+            entry_count: 0,
+            reserved: 0,
+        };
+        assert_eq!(
+            acl_header,
+            AclHeader::try_from_bytes(acl_header.to_bytes().as_ref()).unwrap()
+        );
+    }
 }

@@ -134,7 +134,7 @@ mod private {
 
 /// Unknown value error.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct UnknownValueError(u8);
+pub struct UnknownValueError(pub(crate) u8);
 
 impl Display for UnknownValueError {
     #[inline]
