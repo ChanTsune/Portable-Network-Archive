@@ -19,7 +19,7 @@ use std::{
     fs,
     io::{self, prelude::*},
     path::{Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
+    time::SystemTime,
 };
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -294,9 +294,7 @@ pub(crate) fn apply_metadata<'p>(
                 time_options.clamp_ctime,
             );
             if let Some(c) = ctime {
-                if let Ok(created_since_unix_epoch) = c.duration_since(UNIX_EPOCH) {
-                    entry.created(created_since_unix_epoch);
-                }
+                entry.created_time(c);
             }
             let mtime = clamped_time(
                 meta.modified().ok(),
@@ -304,9 +302,7 @@ pub(crate) fn apply_metadata<'p>(
                 time_options.clamp_mtime,
             );
             if let Some(m) = mtime {
-                if let Ok(modified_since_unix_epoch) = m.duration_since(UNIX_EPOCH) {
-                    entry.modified(modified_since_unix_epoch);
-                }
+                entry.modified_time(m);
             }
             let atime = clamped_time(
                 meta.accessed().ok(),
@@ -314,9 +310,7 @@ pub(crate) fn apply_metadata<'p>(
                 time_options.clamp_atime,
             );
             if let Some(a) = atime {
-                if let Ok(accessed_since_unix_epoch) = a.duration_since(UNIX_EPOCH) {
-                    entry.accessed(accessed_since_unix_epoch);
-                }
+                entry.accessed_time(a);
             }
         }
         #[cfg(unix)]
