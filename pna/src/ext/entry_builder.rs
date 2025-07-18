@@ -4,8 +4,8 @@ use std::time::SystemTime;
 
 /// [`EntryBuilder`] extension trait.
 pub trait EntryBuilderExt: private::Sealed {
-    /// Set metadata for the entry.
-    fn add_metadata(&mut self, metadata: &Metadata);
+    /// Sets metadata.
+    fn add_metadata(&mut self, metadata: &Metadata) -> &mut Self;
     /// Sets the created time.
     fn created_time(&mut self, time: impl Into<Option<SystemTime>>) -> &mut Self;
     /// Sets the modified time.
@@ -15,21 +15,13 @@ pub trait EntryBuilderExt: private::Sealed {
 }
 
 impl EntryBuilderExt for EntryBuilder {
-    /// Set metadata for the entry.
+    /// Sets metadata.
     #[inline]
-    fn add_metadata(&mut self, metadata: &Metadata) {
-        if let Some(created) = metadata.created() {
-            self.created(created);
-        }
-        if let Some(modified) = metadata.modified() {
-            self.modified(modified);
-        }
-        if let Some(accessed) = metadata.accessed() {
-            self.accessed(accessed);
-        }
-        if let Some(permission) = metadata.permission() {
-            self.permission(permission.clone());
-        }
+    fn add_metadata(&mut self, metadata: &Metadata) -> &mut Self {
+        self.created(metadata.created())
+            .modified(metadata.modified())
+            .accessed(metadata.accessed())
+            .permission(metadata.permission().cloned())
     }
 
     /// Sets the created time.
