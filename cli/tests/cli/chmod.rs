@@ -1,4 +1,5 @@
 mod keep_solid;
+mod missing_file;
 mod numeric;
 mod password;
 mod password_file;

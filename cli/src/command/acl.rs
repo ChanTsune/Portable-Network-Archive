@@ -286,8 +286,7 @@ fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
     if args.files.is_empty() {
         return Ok(());
     }
-    let globs = GlobPatterns::new(args.files)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let mut globs = GlobPatterns::new(args.files.iter().map(|it| it.as_str()))?;
     let platforms = args.platform.into_iter().collect::<HashSet<_>>();
     let numeric_owner = args.numeric;
 
@@ -332,20 +331,20 @@ fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
             Ok(())
         },
     )?;
+    globs.ensure_all_matched()?;
     Ok(())
 }
 
 fn archive_set_acl(args: SetAclCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    let set_strategy = if let Some("-") = args.restore.as_deref() {
+    let mut set_strategy = if let Some("-") = args.restore.as_deref() {
         SetAclsStrategy::Restore(parse_acl_dump(io::stdin().lock())?)
     } else if let Some(path) = args.restore.as_deref() {
         SetAclsStrategy::Restore(parse_acl_dump(io::BufReader::new(fs::File::open(path)?))?)
     } else if args.files.is_empty() {
         return Ok(());
     } else {
-        let globs = GlobPatterns::new(args.files)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        let globs = GlobPatterns::new(args.files.iter().map(|it| it.as_str()))?;
         SetAclsStrategy::Apply {
             globs,
             set: args.set,
@@ -390,13 +389,18 @@ fn archive_set_acl(args: SetAclCommand) -> anyhow::Result<()> {
     drop(mmaps);
 
     temp_file.persist(output_path)?;
+
+    if let SetAclsStrategy::Apply { globs, .. } = set_strategy {
+        globs.ensure_all_matched()?;
+    }
     Ok(())
 }
 
-enum SetAclsStrategy {
+#[allow(clippy::large_enum_variant)]
+enum SetAclsStrategy<'s> {
     Restore(HashMap<String, Acls>),
     Apply {
-        globs: GlobPatterns,
+        globs: GlobPatterns<'s>,
         set: Option<AclEntries>,
         modify: Option<AclEntries>,
         remove: Option<AclEntries>,
@@ -404,9 +408,9 @@ enum SetAclsStrategy {
     },
 }
 
-impl SetAclsStrategy {
+impl SetAclsStrategy<'_> {
     #[inline]
-    fn transform_entry<T>(&self, entry: NormalEntry<T>) -> NormalEntry<T>
+    fn transform_entry<T>(&mut self, entry: NormalEntry<T>) -> NormalEntry<T>
     where
         T: Clone,
         RawChunk<T>: Chunk,

@@ -260,8 +260,7 @@ fn list_archive(args: ListCommand) -> anyhow::Result<()> {
         classify: args.classify,
         format: args.format,
     };
-    let files_globs = GlobPatterns::new(&args.file.files)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let files_globs = GlobPatterns::new(args.file.files.iter().map(|it| it.as_str()))?;
 
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
@@ -361,8 +360,7 @@ pub(crate) fn run_list_archive(
         }
         Ok(())
     })?;
-    print_entries(entries, files_globs, exclude, args);
-    Ok(())
+    print_entries(entries, files_globs, exclude, args)
 }
 
 #[cfg(feature = "memmap")]
@@ -394,21 +392,23 @@ pub(crate) fn run_list_archive_mem(
         }
         Ok(())
     })?;
-    print_entries(entries, files_globs, exclude, args);
-    Ok(())
+    print_entries(entries, files_globs, exclude, args)
 }
 
 fn print_entries(
     entries: Vec<TableRow>,
-    globs: GlobPatterns,
+    mut globs: GlobPatterns,
     exclude: Exclude,
     options: ListOptions,
-) {
+) -> anyhow::Result<()> {
     let entries = entries
-        .into_par_iter()
-        .filter(|r| globs.is_empty() || globs.matches_any(r.entry_type.name()))
-        .filter(|r| !exclude.excluded(r.entry_type.name()))
+        .into_iter()
+        .filter(|r| {
+            (globs.is_empty() || globs.matches_any(r.entry_type.name()))
+                && !exclude.excluded(r.entry_type.name())
+        })
         .collect::<Vec<_>>();
+    globs.ensure_all_matched()?;
     match options.format {
         Some(Format::JsonL) => json_line_entries(entries),
         Some(Format::Table) => detail_list_entries(entries, options),
@@ -416,6 +416,7 @@ fn print_entries(
         None if options.long => detail_list_entries(entries, options),
         None => simple_list_entries(entries, options),
     }
+    Ok(())
 }
 
 struct SimpleListDisplay<'a> {
