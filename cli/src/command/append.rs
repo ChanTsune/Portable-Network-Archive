@@ -290,16 +290,16 @@ pub(crate) fn run_append_archive(
     create_options: &CreateOptions,
     path_transformers: &Option<PathTransformers>,
     mut archive: Archive<impl io::Write>,
-    target_items: Vec<PathBuf>,
+    target_items: Vec<(PathBuf, Option<PathBuf>)>,
 ) -> anyhow::Result<()> {
     let (tx, rx) = std::sync::mpsc::channel();
     rayon::scope_fifo(|s| {
         for file in target_items {
             let tx = tx.clone();
             s.spawn_fifo(move |_| {
-                log::debug!("Adding: {}", file.display());
+                log::debug!("Adding: {}", file.0.display());
                 tx.send(create_entry(&file, create_options, path_transformers))
-                    .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
+                    .unwrap_or_else(|e| panic!("{e}: {}", file.0.display()));
             })
         }
 

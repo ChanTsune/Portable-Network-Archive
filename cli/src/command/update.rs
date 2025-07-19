@@ -338,7 +338,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
 
     let mut target_files_mapping = target_items
         .into_iter()
-        .map(|it| (EntryName::from_lossy(&it), it))
+        .map(|(it, _)| (EntryName::from_lossy(&it), it))
         .collect::<IndexMap<_, _>>();
 
     #[cfg(feature = "memmap")]
@@ -364,12 +364,13 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
                         let path_transformers = path_transformers.clone();
                         s.spawn_fifo(move |_| {
                             log::debug!("Updating: {}", target_path.display());
+                            let target_path = (target_path, None);
                             tx.send(create_entry(
                                 &target_path,
                                 &create_options,
                                 &path_transformers,
                             ))
-                            .unwrap_or_else(|e| panic!("{e}: {}", target_path.display()));
+                            .unwrap_or_else(|e| panic!("{e}: {}", target_path.0.display()));
                         });
                         Ok(None)
                     } else {
@@ -388,8 +389,9 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
             let path_transformers = path_transformers.clone();
             s.spawn_fifo(move |_| {
                 log::debug!("Adding: {}", file.display());
+                let file = (file, None);
                 tx.send(create_entry(&file, &create_options, &path_transformers))
-                    .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
+                    .unwrap_or_else(|e| panic!("{e}: {}", file.0.display()));
             });
         }
         drop(tx);

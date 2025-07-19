@@ -1,7 +1,9 @@
+mod file_id;
 mod owner;
 
 #[cfg(windows)]
 use crate::utils::os::windows::{self, fs::*};
+pub(crate) use file_id::HardlinkResolver;
 pub(crate) use owner::*;
 pub(crate) use pna::fs::*;
 use std::{fs, io, path::Path};

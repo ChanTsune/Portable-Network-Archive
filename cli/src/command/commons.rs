@@ -2,6 +2,7 @@ use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
     utils::{
         self,
+        fs::HardlinkResolver,
         re::{
             bsd::{SubstitutionRule, SubstitutionRules},
             gnu::{TransformRule, TransformRules},
@@ -121,9 +122,10 @@ pub(crate) fn collect_items(
     gitignore: bool,
     follow_links: bool,
     exclude: Exclude,
-) -> io::Result<Vec<PathBuf>> {
+) -> io::Result<Vec<(PathBuf, Option<PathBuf>)>> {
     let mut files = files.into_iter();
     if let Some(p) = files.next() {
+        let mut hardlink_resolver = HardlinkResolver::new(follow_links);
         let mut builder = ignore::WalkBuilder::new(p);
         for p in files {
             builder.add(p);
@@ -143,9 +145,24 @@ pub(crate) fn collect_items(
         let walker = builder.build();
         walker
             .filter_map(|path| match path {
-                Ok(path) => path
-                    .file_type()
-                    .and_then(|ty| (keep_dir || !ty.is_dir()).then_some(Ok(path.into_path()))),
+                Ok(path) => {
+                    let file_type = path.file_type();
+                    match file_type {
+                        None => None,
+                        Some(ty) => {
+                            if !keep_dir && ty.is_dir() {
+                                return None;
+                            }
+                            let path = path.into_path();
+                            let linked = if ty.is_file() {
+                                hardlink_resolver.resolve(&path).ok().flatten()
+                            } else {
+                                None
+                            };
+                            Some(Ok((path, linked)))
+                        }
+                    }
+                }
                 Err(e) => Some(Err(e)),
             })
             .collect::<Result<Vec<_>, _>>()
@@ -192,7 +209,7 @@ pub(crate) fn write_from_path(writer: &mut impl Write, path: impl AsRef<Path>) -
 }
 
 pub(crate) fn create_entry(
-    path: &Path,
+    (path, link): &(PathBuf, Option<PathBuf>),
     CreateOptions {
         option,
         keep_options,
@@ -207,7 +224,23 @@ pub(crate) fn create_entry(
     } else {
         EntryName::from_lossy(path)
     };
-    if !follow_links && path.is_symlink() {
+    if let Some(source) = link {
+        let reference = if let Some(substitutions) = substitutions {
+            EntryReference::from(substitutions.apply(source.to_string_lossy(), false, true))
+        } else {
+            EntryReference::from_lossy(source)
+        };
+        let entry = EntryBuilder::new_hard_link(entry_name, reference)?;
+        return apply_metadata(
+            entry,
+            path,
+            keep_options,
+            owner_options,
+            time_options,
+            fs::symlink_metadata,
+        )?
+        .build();
+    } else if !follow_links && path.is_symlink() {
         let source = fs::read_link(path)?;
         let reference = if let Some(substitutions) = substitutions {
             EntryReference::from(substitutions.apply(source.to_string_lossy(), true, false))
@@ -906,7 +939,10 @@ mod tests {
             "/../resources/test/raw",
         )];
         let items = collect_items(source, false, false, false, false, empty_exclude()).unwrap();
-        assert_eq!(items.into_iter().collect::<HashSet<_>>(), HashSet::new());
+        assert_eq!(
+            items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
+            HashSet::new()
+        );
     }
 
     #[test]
@@ -917,7 +953,7 @@ mod tests {
         )];
         let items = collect_items(source, false, true, false, false, empty_exclude()).unwrap();
         assert_eq!(
-            items.into_iter().collect::<HashSet<_>>(),
+            items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
             [concat!(
                 env!("CARGO_MANIFEST_DIR"),
                 "/../resources/test/raw",
@@ -936,7 +972,7 @@ mod tests {
         )];
         let items = collect_items(source, true, false, false, false, empty_exclude()).unwrap();
         assert_eq!(
-            items.into_iter().collect::<HashSet<_>>(),
+            items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
             [
                 concat!(
                     env!("CARGO_MANIFEST_DIR"),
