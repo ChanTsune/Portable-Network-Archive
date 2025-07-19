@@ -1563,7 +1563,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tabled",
- "termtree 0.5.1",
+ "termtree",
  "thiserror",
  "walkdir",
  "windows 0.61.3",
@@ -1615,12 +1615,12 @@ checksum = "ae8177bee8e75d6846599c6b9ff679ed51e882816914eec639944d7c9aa11931"
 
 [[package]]
 name = "predicates-tree"
-version = "1.0.11"
+version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41b740d195ed3166cd147c8047ec98db0e22ec019eb8eeb76d343b795304fb13"
+checksum = "72dd2d6d381dfb73a193c7fca536518d7caee39fc8503f74e7dc0be0531b425c"
 dependencies = [
  "predicates-core",
- "termtree 0.4.1",
+ "termtree",
 ]
 
 [[package]]
@@ -1979,12 +1979,6 @@ dependencies = [
  "papergrid",
  "testing_table",
 ]
-
-[[package]]
-name = "termtree"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3369f5ac52d5eb6ab48c6b4ffdc8efbcad6b89c765749064ba298f2c68a16a76"
 
 [[package]]
 name = "termtree"
