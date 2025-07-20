@@ -26,7 +26,7 @@ jobs:
         run: |
           cargo bench --locked --all-features
 
-  bench-cli:
+  cli-tests:
     name: Run cli bench
     runs-on: ubuntu-latest
     permissions:
@@ -46,6 +46,6 @@ jobs:
       - name: Install cli
         run: |
           cargo install --locked --all-features --path cli
-      - name: Run rust-bench
+      - name: Run CLI tests
         run: |
-          bats tests/bats/
+          bats tests/bats/ tests/bats/bsdtar_compat/
