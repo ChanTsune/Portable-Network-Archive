@@ -136,9 +136,8 @@ pub struct SolidArchive<T: Write> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::entry::*;
+    use crate::{entry::*, Duration};
     use std::io::{self, Cursor};
-    use std::time::Duration;
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
@@ -448,9 +447,9 @@ mod tests {
         let original_entry = {
             let mut builder =
                 EntryBuilder::new_file("name".into(), WriteOptions::builder().build()).unwrap();
-            builder.created(Duration::from_secs(31));
-            builder.modified(Duration::from_secs(32));
-            builder.accessed(Duration::from_secs(33));
+            builder.created(Duration::seconds(31));
+            builder.modified(Duration::seconds(32));
+            builder.accessed(Duration::seconds(33));
             builder.permission(Permission::new(1, "uname".into(), 2, "gname".into(), 0o775));
             builder.write_all(b"entry data").unwrap();
             builder.build().unwrap()

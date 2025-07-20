@@ -530,21 +530,21 @@ where
     );
     (ChunkType::FHED, header.to_bytes()).write_chunk_in(inner)?;
     if let Some(c) = metadata.created {
-        (ChunkType::cTIM, c.as_secs().to_be_bytes()).write_chunk_in(inner)?;
-        if c.subsec_nanos() != 0 {
-            (ChunkType::cTNS, c.subsec_nanos().to_be_bytes()).write_chunk_in(inner)?;
+        (ChunkType::cTIM, c.whole_seconds().to_be_bytes()).write_chunk_in(inner)?;
+        if c.subsec_nanoseconds() != 0 {
+            (ChunkType::cTNS, c.subsec_nanoseconds().to_be_bytes()).write_chunk_in(inner)?;
         }
     }
     if let Some(m) = metadata.modified {
-        (ChunkType::mTIM, m.as_secs().to_be_bytes()).write_chunk_in(inner)?;
-        if m.subsec_nanos() != 0 {
-            (ChunkType::mTNS, m.subsec_nanos().to_be_bytes()).write_chunk_in(inner)?;
+        (ChunkType::mTIM, m.whole_seconds().to_be_bytes()).write_chunk_in(inner)?;
+        if m.subsec_nanoseconds() != 0 {
+            (ChunkType::mTNS, m.subsec_nanoseconds().to_be_bytes()).write_chunk_in(inner)?;
         }
     }
     if let Some(a) = metadata.accessed {
-        (ChunkType::aTIM, a.as_secs().to_be_bytes()).write_chunk_in(inner)?;
-        if a.subsec_nanos() != 0 {
-            (ChunkType::aTNS, a.subsec_nanos().to_be_bytes()).write_chunk_in(inner)?;
+        (ChunkType::aTIM, a.whole_seconds().to_be_bytes()).write_chunk_in(inner)?;
+        if a.subsec_nanoseconds() != 0 {
+            (ChunkType::aTNS, a.subsec_nanoseconds().to_be_bytes()).write_chunk_in(inner)?;
         }
     }
     if let Some(p) = metadata.permission {

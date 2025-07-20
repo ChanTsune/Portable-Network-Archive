@@ -1,8 +1,8 @@
 use crate::utils::{archive::for_each_entry, setup};
 use clap::Parser;
-use pna::{Archive, EntryBuilder, WriteOptions};
+use pna::{Archive, Duration, EntryBuilder, WriteOptions};
 use portable_network_archive::{cli, command::Command};
-use std::{fs, time::Duration};
+use std::fs;
 
 #[test]
 fn sort_by_all_keys() {
@@ -13,25 +13,25 @@ fn sort_by_all_keys() {
     // a.txt: ctime=1000, mtime=3000, atime=2000
     let entry1 = {
         let mut b = EntryBuilder::new_file("a.txt".into(), WriteOptions::store()).unwrap();
-        b.created(Duration::from_secs(1000));
-        b.modified(Duration::from_secs(3000));
-        b.accessed(Duration::from_secs(2000));
+        b.created(Duration::seconds(1000));
+        b.modified(Duration::seconds(3000));
+        b.accessed(Duration::seconds(2000));
         b.build().unwrap()
     };
     // b.txt: ctime=1000, mtime=2000, atime=3000
     let entry2 = {
         let mut b = EntryBuilder::new_file("b.txt".into(), WriteOptions::store()).unwrap();
-        b.created(Duration::from_secs(1000));
-        b.modified(Duration::from_secs(2000));
-        b.accessed(Duration::from_secs(3000));
+        b.created(Duration::seconds(1000));
+        b.modified(Duration::seconds(2000));
+        b.accessed(Duration::seconds(3000));
         b.build().unwrap()
     };
     // c.txt: ctime=2000, mtime=1000, atime=1000
     let entry3 = {
         let mut b = EntryBuilder::new_file("c.txt".into(), WriteOptions::store()).unwrap();
-        b.created(Duration::from_secs(2000));
-        b.modified(Duration::from_secs(1000));
-        b.accessed(Duration::from_secs(1000));
+        b.created(Duration::seconds(2000));
+        b.modified(Duration::seconds(1000));
+        b.accessed(Duration::seconds(1000));
         b.build().unwrap()
     };
     archive.add_entry(entry1).unwrap();
