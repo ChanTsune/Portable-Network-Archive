@@ -445,7 +445,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
     let mut file = args.file;
     file.take_if(|it| it == "-");
     if let Some(path) = &file {
-        let archives = collect_split_archives(&path)?;
+        let archives = collect_split_archives(path)?;
         crate::command::list::run_list_archive(
             archives
                 .into_iter()
