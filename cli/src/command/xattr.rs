@@ -8,11 +8,11 @@ use crate::{
         },
         Command,
     },
-    utils::{GlobPatterns, PathPartExt},
+    utils::{env::NamedTempFile, GlobPatterns, PathPartExt},
 };
 use base64::Engine;
 use bstr::{io::BufReadExt, ByteSlice};
-use clap::{ArgGroup, Parser, ValueHint};
+use clap::{ArgGroup, Parser, ValueEnum, ValueHint};
 use indexmap::IndexMap;
 use pna::NormalEntry;
 use regex::Regex;
@@ -34,7 +34,7 @@ pub(crate) struct XattrCommand {
 
 impl Command for XattrCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         match self.command {
             XattrCommands::Get(cmd) => cmd.execute(),
             XattrCommands::Set(cmd) => cmd.execute(),
@@ -82,7 +82,7 @@ pub(crate) struct GetXattrCommand {
 
 impl Command for GetXattrCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         archive_get_xattr(self)
     }
 }
@@ -113,12 +113,13 @@ pub(crate) struct SetXattrCommand {
 
 impl Command for SetXattrCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         archive_set_xattr(self)
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug, Default, ValueEnum)]
+#[value(rename_all = "lower")]
 enum Encoding {
     #[default]
     Text,
@@ -134,20 +135,6 @@ impl Display for Encoding {
             Encoding::Hex => "hex",
             Encoding::Base64 => "base64",
         })
-    }
-}
-
-impl FromStr for Encoding {
-    type Err = String;
-
-    #[inline]
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "text" => Ok(Self::Text),
-            "hex" => Ok(Self::Hex),
-            "base64" => Ok(Self::Base64),
-            _ => Err("only allowed `text`, `hex` or `base64`".into()),
-        }
     }
 }
 
@@ -195,18 +182,25 @@ impl<'a> DumpOption<'a> {
     }
 }
 
-fn archive_get_xattr(args: GetXattrCommand) -> io::Result<()> {
+fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     if args.files.is_empty() {
         return Ok(());
     }
-    let globs = GlobPatterns::new(args.files)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let mut globs = GlobPatterns::new(args.files.iter().map(|p| p.as_str()))?;
     let encoding = args.encoding;
     let dump_option = DumpOption::new(args.dump, args.name.as_deref(), args.regex_match.as_deref())
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
     let archives = collect_split_archives(&args.archive)?;
+
+    #[cfg(feature = "memmap")]
+    let mmaps = archives
+        .into_iter()
+        .map(crate::utils::mmap::Mmap::try_from)
+        .collect::<io::Result<Vec<_>>>()?;
+    #[cfg(feature = "memmap")]
+    let archives = mmaps.iter().map(|m| m.as_ref());
 
     run_entries(
         archives,
@@ -215,7 +209,7 @@ fn archive_get_xattr(args: GetXattrCommand) -> io::Result<()> {
             let entry = entry?;
             let name = entry.header().path();
             if globs.matches_any(name) {
-                println!("# file: {}", name);
+                println!("# file: {name}");
                 for attr in entry
                     .xattrs()
                     .iter()
@@ -236,20 +230,20 @@ fn archive_get_xattr(args: GetXattrCommand) -> io::Result<()> {
             Ok(())
         },
     )?;
+    globs.ensure_all_matched()?;
     Ok(())
 }
 
-fn archive_set_xattr(args: SetXattrCommand) -> io::Result<()> {
+fn archive_set_xattr(args: SetXattrCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    let set_strategy = if let Some("-") = args.restore.as_deref() {
+    let mut set_strategy = if let Some("-") = args.restore.as_deref() {
         SetAttrStrategy::Restore(parse_dump(io::stdin().lock())?)
     } else if let Some(path) = args.restore.as_deref() {
         SetAttrStrategy::Restore(parse_dump(io::BufReader::new(fs::File::open(path)?))?)
     } else if args.files.is_empty() {
         return Ok(());
     } else {
-        let globs = GlobPatterns::new(args.files)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        let globs = GlobPatterns::new(args.files.iter().map(|p| p.as_str()))?;
         let value = args.value.unwrap_or_default();
         SetAttrStrategy::Apply {
             globs,
@@ -261,43 +255,59 @@ fn archive_set_xattr(args: SetXattrCommand) -> io::Result<()> {
 
     let archives = collect_split_archives(&args.archive)?;
 
+    #[cfg(feature = "memmap")]
+    let mmaps = archives
+        .into_iter()
+        .map(crate::utils::mmap::Mmap::try_from)
+        .collect::<io::Result<Vec<_>>>()?;
+    #[cfg(feature = "memmap")]
+    let archives = mmaps.iter().map(|m| m.as_ref());
+
+    let output_path = args.archive.remove_part().unwrap();
+    let mut temp_file =
+        NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
+
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => run_transform_entry(
-            args.archive.remove_part().unwrap(),
+            temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
-            |entry| {
-                let entry = entry?;
-                Ok(Some(set_strategy.transform_entry(entry)))
-            },
+            |entry| Ok(Some(set_strategy.transform_entry(entry?))),
             TransformStrategyUnSolid,
         ),
         SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
-            args.archive.remove_part().unwrap(),
+            temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
-            |entry| {
-                let entry = entry?;
-                Ok(Some(set_strategy.transform_entry(entry)))
-            },
+            |entry| Ok(Some(set_strategy.transform_entry(entry?))),
             TransformStrategyKeepSolid,
         ),
+    }?;
+
+    #[cfg(feature = "memmap")]
+    drop(mmaps);
+
+    temp_file.persist(output_path)?;
+
+    if let SetAttrStrategy::Apply { globs, .. } = set_strategy {
+        globs.ensure_all_matched()?;
     }
+    Ok(())
 }
 
-enum SetAttrStrategy {
+enum SetAttrStrategy<'s> {
     Restore(HashMap<String, Vec<(String, Value)>>),
     Apply {
-        globs: GlobPatterns,
+        globs: GlobPatterns<'s>,
         name: Option<String>,
         value: Value,
         remove: Option<String>,
     },
 }
 
-impl SetAttrStrategy {
+impl SetAttrStrategy<'_> {
     #[inline]
-    fn transform_entry<T>(&self, entry: NormalEntry<T>) -> NormalEntry<T> {
+    fn transform_entry<T>(&mut self, entry: NormalEntry<T>) -> NormalEntry<T> {
         match self {
             SetAttrStrategy::Restore(restore) => {
                 if let Some(attrs) = restore.get(entry.header().path().as_str()) {
@@ -311,7 +321,7 @@ impl SetAttrStrategy {
                         .into_iter()
                         .map(|(key, value)| pna::ExtendedAttribute::new(key.into(), value.into()))
                         .collect::<Vec<_>>();
-                    entry.with_xattrs(&xattrs)
+                    entry.with_xattrs(xattrs)
                 } else {
                     entry
                 }
@@ -365,7 +375,7 @@ fn transform_entry<T>(
     remove: Option<&str>,
 ) -> NormalEntry<T> {
     let xattrs = transform_xattr(entry.xattrs(), name, value, remove);
-    entry.with_xattrs(&xattrs)
+    entry.with_xattrs(xattrs)
 }
 
 #[inline]
@@ -462,14 +472,7 @@ impl<'a> DisplayValue<'a> {
     #[inline]
     fn fmt_auto(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match std::str::from_utf8(self.value) {
-            Ok(s) => {
-                f.write_char('"')?;
-                Display::fmt(
-                    &unsafe { String::from_utf8_unchecked(escape_xattr_value_text(s.as_bytes())) },
-                    f,
-                )?;
-                f.write_char('"')
-            }
+            Ok(_) => self.fmt_text(f),
             Err(_e) => self.fmt_base64(f),
         }
     }
@@ -488,7 +491,7 @@ impl<'a> DisplayValue<'a> {
     fn fmt_hex(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str("0x")?;
         for i in self.value {
-            write!(f, "{:02x}", i)?;
+            write!(f, "{i:02x}")?;
         }
         Ok(())
     }
@@ -583,20 +586,15 @@ mod tests {
                 .as_bytes()
             )
             .unwrap(),
-            {
-                let mut expected = HashMap::<String, Vec<(String, Value)>>::new();
-                expected.insert(
-                    "path/to/file1".into(),
-                    vec![
-                        ("user.a".into(), Value("abc".into())),
-                        ("user.b".into(), Value(vec![1, 2])),
-                    ],
-                );
-                expected.insert(
-                    "path/to/file2".into(),
-                    vec![("user.c".into(), Value("abc".into()))],
-                );
-                expected
+            maplit::hashmap! {
+                "path/to/file1".into() =>
+                vec![
+                    ("user.a".into(), Value("abc".into())),
+                    ("user.b".into(), Value(vec![1, 2])),
+                ],
+                "path/to/file2".into() =>
+                vec![("user.c".into(), Value("abc".into()))],
+
             }
         );
     }
@@ -604,25 +602,26 @@ mod tests {
     #[test]
     fn encode_text() {
         let v = DisplayValue::new(b"abc", Some(Encoding::Text));
-        assert_eq!(format!("{}", v), "\"abc\"");
+        assert_eq!(format!("{v}"), "\"abc\"");
     }
 
     #[test]
     fn encode_hex() {
         let v = DisplayValue::new(b"abc", Some(Encoding::Hex));
-        assert_eq!(format!("{}", v), "0x616263");
+        assert_eq!(format!("{v}"), "0x616263");
     }
 
     #[test]
     fn encode_base64() {
         let v = DisplayValue::new(b"abc", Some(Encoding::Base64));
-        assert_eq!(format!("{}", v), "0sYWJj");
+        assert_eq!(format!("{v}"), "0sYWJj");
     }
 
     #[test]
     fn decode_text() {
         assert_eq!(Value(b"abc".into()), Value::from_str("abc").unwrap());
         assert_eq!(Value(b"a\\".into()), Value::from_str("\"a\\\\\"").unwrap());
+        assert_eq!(Value(b"".into()), Value::from_str("").unwrap());
     }
 
     #[test]
@@ -632,11 +631,13 @@ mod tests {
             Value([0, 1, 17].into()),
             Value::from_str("0x000111").unwrap()
         );
+        assert_eq!(Value(b"".into()), Value::from_str("0x").unwrap());
     }
 
     #[test]
     fn decode_base64() {
         assert_eq!(Value(b"abc".into()), Value::from_str("0sYWJj").unwrap());
+        assert_eq!(Value(b"".into()), Value::from_str("0s").unwrap());
     }
 
     #[test]

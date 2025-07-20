@@ -15,8 +15,14 @@ use futures_io::AsyncWrite;
 use futures_util::AsyncWriteExt;
 use std::io::{self, Write};
 
+/// Internal Writer type alias.
+pub(crate) type InternalDataWriter<W> = CompressionWriter<CipherWriter<W>>;
+
+/// Internal Writer type alias.
+pub(crate) type InternalArchiveDataWriter<W> = InternalDataWriter<ChunkStreamWriter<W>>;
+
 /// Writer that compresses and encrypts according to the given options.
-pub struct EntryDataWriter<W: Write>(CompressionWriter<CipherWriter<ChunkStreamWriter<W>>>);
+pub struct EntryDataWriter<W: Write>(InternalArchiveDataWriter<W>);
 
 impl<W: Write> Write for EntryDataWriter<W> {
     #[inline]
@@ -30,13 +36,8 @@ impl<W: Write> Write for EntryDataWriter<W> {
     }
 }
 
-#[allow(clippy::type_complexity)]
 pub struct SolidArchiveEntryDataWriter<'w, W: Write>(
-    CompressionWriter<
-        CipherWriter<
-            ChunkStreamWriter<&'w mut CompressionWriter<CipherWriter<ChunkStreamWriter<W>>>>,
-        >,
-    >,
+    InternalArchiveDataWriter<&'w mut InternalArchiveDataWriter<W>>,
 );
 
 impl<W: Write> Write for SolidArchiveEntryDataWriter<'_, W> {
@@ -95,6 +96,10 @@ impl<W: Write> Archive<W> {
 
     /// Write a regular file as normal entry into archive.
     ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing an entry, or if the given closure returns an error return it.
+    ///
     /// # Example
     /// ```no_run
     /// use libpna::{Archive, Metadata, WriteOptions};
@@ -126,39 +131,11 @@ impl<W: Write> Archive<W> {
     where
         F: FnMut(&mut EntryDataWriter<&mut W>) -> io::Result<()>,
     {
-        let header = EntryHeader::for_file(
-            option.compression(),
-            option.encryption(),
-            option.cipher_mode(),
-            name,
-        );
-        (ChunkType::FHED, header.to_bytes()).write_chunk_in(&mut self.inner)?;
-        if let Some(c) = metadata.created {
-            (ChunkType::cTIM, c.as_secs().to_be_bytes()).write_chunk_in(&mut self.inner)?;
-        }
-        if let Some(m) = metadata.modified {
-            (ChunkType::mTIM, m.as_secs().to_be_bytes()).write_chunk_in(&mut self.inner)?;
-        }
-        if let Some(a) = metadata.accessed {
-            (ChunkType::aTIM, a.as_secs().to_be_bytes()).write_chunk_in(&mut self.inner)?;
-        }
-        if let Some(p) = metadata.permission {
-            (ChunkType::fPRM, p.to_bytes()).write_chunk_in(&mut self.inner)?;
-        }
-        let context = get_writer_context(option)?;
-        if let Some(WriteCipher { context: c, .. }) = &context.cipher {
-            (ChunkType::PHSF, c.phsf.as_bytes()).write_chunk_in(&mut self.inner)?;
-            (ChunkType::FDAT, &c.iv[..]).write_chunk_in(&mut self.inner)?;
-        }
-        {
-            let writer = ChunkStreamWriter::new(ChunkType::FDAT, &mut self.inner);
-            let writer = get_writer(writer, &context)?;
-            let mut writer = EntryDataWriter(writer);
-            f(&mut writer)?;
-            writer.flush()?;
-        }
-        (ChunkType::FEND, Vec::<u8>::new()).write_chunk_in(&mut self.inner)?;
-        Ok(())
+        write_file_entry(&mut self.inner, name, metadata, option, |w| {
+            let mut w = EntryDataWriter(w);
+            f(&mut w)?;
+            Ok(w.0)
+        })
     }
 
     /// Adds a new entry to the archive.
@@ -166,6 +143,10 @@ impl<W: Write> Archive<W> {
     /// # Arguments
     ///
     /// * `entry` - The entry to add to the archive.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing a given entry.
     ///
     /// # Examples
     ///
@@ -184,10 +165,6 @@ impl<W: Write> Archive<W> {
     /// #     Ok(())
     /// # }
     /// ```
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if an I/O error occurs while writing the entry.
     #[inline]
     pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<usize> {
         entry.write_in(&mut self.inner)
@@ -308,6 +285,10 @@ impl<W: Write> Archive<W> {
 impl<W: AsyncWrite + Unpin> Archive<W> {
     /// Writes the archive header to the given object and return a new [Archive].
     /// This API is unstable.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing header to the writer.
     #[inline]
     pub async fn write_header_async(write: W) -> io::Result<Self> {
         let header = ArchiveHeader::new(0, 0, 0);
@@ -326,6 +307,10 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
 
     /// Adds a new entry to the archive.
     /// This API is unstable.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing a given entry.
     #[inline]
     pub async fn add_entry_async(&mut self, entry: impl Entry) -> io::Result<usize> {
         let mut bytes = Vec::new();
@@ -336,6 +321,10 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
 
     /// Write an end marker to finalize the archive.
     /// This API is unstable.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if failed to write archive end marker.
     #[inline]
     pub async fn finalize_async(mut self) -> io::Result<W> {
         let mut chunk_writer = crate::chunk::ChunkWriter::new(&mut self.inner);
@@ -417,6 +406,10 @@ impl<W: Write> SolidArchive<W> {
     ///
     /// * `entry` - The entry to add to the archive.
     ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing a given entry.
+    ///
     /// # Examples
     ///
     /// ```no_run
@@ -444,6 +437,10 @@ impl<W: Write> SolidArchive<W> {
 
     /// Write a regular file as solid entry into archive.
     ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing an entry, or if the given closure returns an error return it.
+    ///
     /// # Example
     /// ```no_run
     /// use libpna::{Archive, Metadata, WriteOptions};
@@ -468,39 +465,11 @@ impl<W: Write> SolidArchive<W> {
         F: FnMut(&mut SolidArchiveEntryDataWriter<W>) -> io::Result<()>,
     {
         let option = WriteOptions::store();
-        let header = EntryHeader::for_file(
-            option.compression(),
-            option.encryption(),
-            option.cipher_mode(),
-            name,
-        );
-        (ChunkType::FHED, header.to_bytes()).write_chunk_in(&mut self.inner)?;
-        if let Some(c) = metadata.created {
-            (ChunkType::cTIM, c.as_secs().to_be_bytes()).write_chunk_in(&mut self.inner)?;
-        }
-        if let Some(m) = metadata.modified {
-            (ChunkType::mTIM, m.as_secs().to_be_bytes()).write_chunk_in(&mut self.inner)?;
-        }
-        if let Some(a) = metadata.accessed {
-            (ChunkType::aTIM, a.as_secs().to_be_bytes()).write_chunk_in(&mut self.inner)?;
-        }
-        if let Some(p) = metadata.permission {
-            (ChunkType::fPRM, p.to_bytes()).write_chunk_in(&mut self.inner)?;
-        }
-        let context = get_writer_context(option)?;
-        if let Some(WriteCipher { context: c, .. }) = &context.cipher {
-            (ChunkType::PHSF, c.phsf.as_bytes()).write_chunk_in(&mut self.inner)?;
-            (ChunkType::FDAT, &c.iv[..]).write_chunk_in(&mut self.inner)?;
-        }
-        {
-            let writer = ChunkStreamWriter::new(ChunkType::FDAT, &mut self.inner);
-            let writer = get_writer(writer, &context)?;
-            let mut writer = SolidArchiveEntryDataWriter(writer);
-            f(&mut writer)?;
-            writer.flush()?;
-        }
-        (ChunkType::FEND, Vec::<u8>::new()).write_chunk_in(&mut self.inner)?;
-        Ok(())
+        write_file_entry(&mut self.inner, name, metadata, option, |w| {
+            let mut w = SolidArchiveEntryDataWriter(w);
+            f(&mut w)?;
+            Ok(w.0)
+        })
     }
 
     /// Write an end marker to finalize the archive.
@@ -540,6 +509,61 @@ impl<W: Write> SolidArchive<W> {
         (ChunkType::SEND, []).write_chunk_in(&mut inner)?;
         Ok(Archive::new(inner, self.archive_header))
     }
+}
+
+pub(crate) fn write_file_entry<W, F>(
+    inner: &mut W,
+    name: EntryName,
+    metadata: Metadata,
+    option: impl WriteOption,
+    mut f: F,
+) -> io::Result<()>
+where
+    W: Write,
+    F: FnMut(InternalArchiveDataWriter<&mut W>) -> io::Result<InternalArchiveDataWriter<&mut W>>,
+{
+    let header = EntryHeader::for_file(
+        option.compression(),
+        option.encryption(),
+        option.cipher_mode(),
+        name,
+    );
+    (ChunkType::FHED, header.to_bytes()).write_chunk_in(inner)?;
+    if let Some(c) = metadata.created {
+        (ChunkType::cTIM, c.as_secs().to_be_bytes()).write_chunk_in(inner)?;
+        if c.subsec_nanos() != 0 {
+            (ChunkType::cTNS, c.subsec_nanos().to_be_bytes()).write_chunk_in(inner)?;
+        }
+    }
+    if let Some(m) = metadata.modified {
+        (ChunkType::mTIM, m.as_secs().to_be_bytes()).write_chunk_in(inner)?;
+        if m.subsec_nanos() != 0 {
+            (ChunkType::mTNS, m.subsec_nanos().to_be_bytes()).write_chunk_in(inner)?;
+        }
+    }
+    if let Some(a) = metadata.accessed {
+        (ChunkType::aTIM, a.as_secs().to_be_bytes()).write_chunk_in(inner)?;
+        if a.subsec_nanos() != 0 {
+            (ChunkType::aTNS, a.subsec_nanos().to_be_bytes()).write_chunk_in(inner)?;
+        }
+    }
+    if let Some(p) = metadata.permission {
+        (ChunkType::fPRM, p.to_bytes()).write_chunk_in(inner)?;
+    }
+    let context = get_writer_context(option)?;
+    if let Some(WriteCipher { context: c, .. }) = &context.cipher {
+        (ChunkType::PHSF, c.phsf.as_bytes()).write_chunk_in(inner)?;
+        (ChunkType::FDAT, &c.iv[..]).write_chunk_in(inner)?;
+    }
+    let inner = {
+        let writer = ChunkStreamWriter::new(ChunkType::FDAT, inner);
+        let writer = get_writer(writer, &context)?;
+        let mut writer = f(writer)?;
+        writer.flush()?;
+        writer.try_into_inner()?.try_into_inner()?.into_inner()
+    };
+    (ChunkType::FEND, Vec::<u8>::new()).write_chunk_in(inner)?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -619,23 +643,14 @@ mod tests {
     #[cfg(feature = "unstable-async")]
     #[tokio::test]
     async fn encode_async() {
-        use futures_util::AsyncReadExt;
-        use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
+        use tokio_util::compat::TokioAsyncWriteCompatExt;
 
-        let bytes = {
-            let file = io::Cursor::new(Vec::new()).compat_write();
+        let archive_bytes = {
+            let file = Vec::new().compat_write();
             let writer = Archive::write_header_async(file).await.unwrap();
-            writer
-                .finalize_async()
-                .await
-                .unwrap()
-                .into_inner()
-                .into_inner()
+            writer.finalize_async().await.unwrap().into_inner()
         };
-        let mut file = io::Cursor::new(bytes).compat();
-        let mut buf = Vec::new();
-        file.read_to_end(&mut buf).await.unwrap();
         let expected = include_bytes!("../../../resources/test/empty.pna");
-        assert_eq!(buf.as_slice(), expected.as_slice());
+        assert_eq!(archive_bytes.as_slice(), expected.as_slice());
     }
 }

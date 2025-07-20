@@ -5,17 +5,17 @@ use crate::{
     cli::{FileArgs, PasswordArgs},
     command::{
         ask_password,
-        commons::{collect_split_archives, run_read_entries, Exclude},
+        commons::{collect_split_archives, read_paths, run_read_entries, Exclude},
         Command,
     },
     ext::*,
-    utils::{self, GlobPatterns},
+    utils::{GlobPatterns, VCS_FILES},
 };
 use base64::Engine;
 use chrono::{DateTime, Local};
 use clap::{
     builder::styling::{AnsiColor, Color as Colour, Style},
-    ArgGroup, Parser, ValueHint,
+    ArgGroup, Parser, ValueEnum, ValueHint,
 };
 use pna::{
     prelude::*, Compression, DataKind, Encryption, ExtendedAttribute, NormalEntry, RawChunk,
@@ -29,8 +29,7 @@ use std::{
     fmt::{self, Display, Formatter},
     io::{self, prelude::*},
     path::PathBuf,
-    str::FromStr,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime},
 };
 use tabled::{
     builder::Builder as TableBuilder,
@@ -47,6 +46,8 @@ use tabled::{
     group(ArgGroup::new("unstable-acl").args(["show_acl"]).requires("unstable")),
     group(ArgGroup::new("unstable-private-chunk").args(["show_private"]).requires("unstable")),
     group(ArgGroup::new("unstable-format").args(["format"]).requires("unstable")),
+    group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
+    group(ArgGroup::new("null-requires").arg("null").requires("exclude_from")),
 )]
 pub(crate) struct ListCommand {
     #[arg(short, long, help = "Display extended file metadata as a table")]
@@ -97,6 +98,13 @@ pub(crate) struct ListCommand {
     exclude: Option<Vec<String>>,
     #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
     exclude_from: Option<PathBuf>,
+    #[arg(long, help = "Exclude vcs files (unstable)")]
+    exclude_vcs: bool,
+    #[arg(
+        long,
+        help = "Filenames or patterns are separated by null characters, not by newlines"
+    )]
+    null: bool,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
@@ -107,30 +115,18 @@ pub(crate) struct ListCommand {
 
 impl Command for ListCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         list_archive(self)
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, ValueEnum)]
+#[value(rename_all = "lower")]
 pub(crate) enum Format {
     Table,
+    #[value(name = "jsonl")]
     JsonL,
     Tree,
-}
-
-impl FromStr for Format {
-    type Err = String;
-
-    #[inline]
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "table" => Ok(Self::Table),
-            "jsonl" => Ok(Self::JsonL),
-            "tree" => Ok(Self::Tree),
-            unknown => Err(format!("unknown value: {}", unknown)),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -159,9 +155,9 @@ struct TableRow {
     permission: Option<pna::Permission>,
     raw_size: Option<u128>,
     compressed_size: usize,
-    created: Option<Duration>,
-    modified: Option<Duration>,
-    accessed: Option<Duration>,
+    created: Option<SystemTime>,
+    modified: Option<SystemTime>,
+    accessed: Option<SystemTime>,
     entry_type: EntryType,
     xattrs: Vec<ExtendedAttribute>,
     acl: HashMap<chunk::AcePlatform, Vec<chunk::Ace>>,
@@ -196,7 +192,7 @@ where
             ) {
                 (Encryption::No, _) => "-".into(),
                 (encryption, cipher_mode) => {
-                    format!("{:?}({:?})", encryption, cipher_mode).to_ascii_lowercase()
+                    format!("{encryption:?}({cipher_mode:?})").to_ascii_lowercase()
                 }
             },
             compression: match (
@@ -205,15 +201,15 @@ where
             ) {
                 (Compression::No, None) => "-".into(),
                 (Compression::No, Some(_)) => "-(solid)".into(),
-                (method, None) => format!("{:?}", method).to_ascii_lowercase(),
-                (method, Some(_)) => format!("{:?}(solid)", method).to_ascii_lowercase(),
+                (method, None) => format!("{method:?}").to_ascii_lowercase(),
+                (method, Some(_)) => format!("{method:?}(solid)").to_ascii_lowercase(),
             },
             permission: metadata.permission().cloned(),
             raw_size: metadata.raw_file_size(),
             compressed_size: metadata.compressed_size(),
-            created: metadata.created(),
-            modified: metadata.modified(),
-            accessed: metadata.accessed(),
+            created: metadata.created_time(),
+            modified: metadata.modified_time(),
+            accessed: metadata.accessed_time(),
             entry_type: match header.data_kind() {
                 DataKind::SymbolicLink => EntryType::SymbolicLink(
                     header.path().to_string(),
@@ -244,7 +240,7 @@ where
     }
 }
 
-fn list_archive(args: ListCommand) -> io::Result<()> {
+fn list_archive(args: ListCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let options = ListOptions {
         long: args.long,
@@ -264,13 +260,15 @@ fn list_archive(args: ListCommand) -> io::Result<()> {
         classify: args.classify,
         format: args.format,
     };
-    let files_globs = GlobPatterns::new(&args.file.files)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let files_globs = GlobPatterns::new(args.file.files.iter().map(|it| it.as_str()))?;
 
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
-            exclude.extend(utils::fs::read_to_lines(p)?);
+            exclude.extend(read_paths(p, args.null)?);
+        }
+        if args.exclude_vcs {
+            exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
         }
         Exclude {
             include: args.include.unwrap_or_default().into(),
@@ -282,7 +280,15 @@ fn list_archive(args: ListCommand) -> io::Result<()> {
 
     #[cfg(not(feature = "memmap"))]
     {
-        run_list_archive(archives, password.as_deref(), files_globs, exclude, options)
+        run_list_archive(
+            archives
+                .into_iter()
+                .map(|it| io::BufReader::with_capacity(64 * 1024, it)),
+            password.as_deref(),
+            files_globs,
+            exclude,
+            options,
+        )
     }
     #[cfg(feature = "memmap")]
     {
@@ -296,7 +302,8 @@ pub(crate) enum TimeFormat {
     Long,
 }
 
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, ValueEnum)]
+#[value(rename_all = "lower")]
 pub(crate) enum TimeField {
     Created,
     #[default]
@@ -311,20 +318,6 @@ impl TimeField {
             TimeField::Created => "created",
             TimeField::Modified => "modified",
             TimeField::Accessed => "accessed",
-        }
-    }
-}
-
-impl FromStr for TimeField {
-    type Err = String;
-
-    #[inline]
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "created" => Ok(Self::Created),
-            "modified" => Ok(Self::Modified),
-            "accessed" => Ok(Self::Accessed),
-            _ => Err(s.into()),
         }
     }
 }
@@ -350,7 +343,7 @@ pub(crate) fn run_list_archive(
     files_globs: GlobPatterns,
     exclude: Exclude,
     args: ListOptions,
-) -> io::Result<()> {
+) -> anyhow::Result<()> {
     let mut entries = Vec::new();
 
     run_read_entries(archive_provider, |entry| {
@@ -367,8 +360,7 @@ pub(crate) fn run_list_archive(
         }
         Ok(())
     })?;
-    print_entries(entries, files_globs, exclude, args);
-    Ok(())
+    print_entries(entries, files_globs, exclude, args)
 }
 
 #[cfg(feature = "memmap")]
@@ -378,8 +370,13 @@ pub(crate) fn run_list_archive_mem(
     files_globs: GlobPatterns,
     exclude: Exclude,
     args: ListOptions,
-) -> io::Result<()> {
+) -> anyhow::Result<()> {
     let mut entries = Vec::new();
+    let mmaps = archives
+        .into_iter()
+        .map(crate::utils::mmap::Mmap::try_from)
+        .collect::<io::Result<Vec<_>>>()?;
+    let archives = mmaps.iter().map(|m| m.as_ref());
 
     run_read_entries_mem(archives, |entry| {
         match entry? {
@@ -395,25 +392,23 @@ pub(crate) fn run_list_archive_mem(
         }
         Ok(())
     })?;
-    print_entries(entries, files_globs, exclude, args);
-    Ok(())
+    print_entries(entries, files_globs, exclude, args)
 }
 
 fn print_entries(
     entries: Vec<TableRow>,
-    globs: GlobPatterns,
+    mut globs: GlobPatterns,
     exclude: Exclude,
     options: ListOptions,
-) {
-    if entries.is_empty() {
-        return;
-    }
-
+) -> anyhow::Result<()> {
     let entries = entries
-        .into_par_iter()
-        .filter(|r| globs.is_empty() || globs.matches_any(r.entry_type.name()))
-        .filter(|r| !exclude.excluded(r.entry_type.name()))
+        .into_iter()
+        .filter(|r| {
+            (globs.is_empty() || globs.matches_any(r.entry_type.name()))
+                && !exclude.excluded(r.entry_type.name())
+        })
         .collect::<Vec<_>>();
+    globs.ensure_all_matched()?;
     match options.format {
         Some(Format::JsonL) => json_line_entries(entries),
         Some(Format::Table) => detail_list_entries(entries, options),
@@ -421,32 +416,43 @@ fn print_entries(
         None if options.long => detail_list_entries(entries, options),
         None => simple_list_entries(entries, options),
     }
+    Ok(())
 }
 
-fn simple_list_entries(entries: impl IntoParallelIterator<Item = TableRow>, options: ListOptions) {
-    let entries = entries
-        .into_par_iter()
-        .map(|path| {
-            let path = match path.entry_type {
-                EntryType::Directory(name) if options.classify => format!("{}/", name),
-                EntryType::SymbolicLink(name, _) if options.classify => {
-                    format!("{}@", name)
-                }
-                EntryType::File(name)
-                | EntryType::Directory(name)
-                | EntryType::SymbolicLink(name, _)
-                | EntryType::HardLink(name, _) => name,
-            };
-            if options.hide_control_chars {
-                hide_control_chars(&path)
+struct SimpleListDisplay<'a> {
+    entries: &'a [TableRow],
+    options: &'a ListOptions,
+}
+
+impl<'a> Display for SimpleListDisplay<'a> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        use core::fmt::Write;
+        self.entries.iter().try_for_each(|path| {
+            let name = path.entry_type.name();
+            if self.options.hide_control_chars {
+                Display::fmt(&hide_control_chars(name), f)
             } else {
-                path
-            }
+                Display::fmt(name, f)
+            }?;
+            match &path.entry_type {
+                EntryType::Directory(_) if self.options.classify => f.write_char('/')?,
+                EntryType::SymbolicLink(_, _) if self.options.classify => f.write_char('@')?,
+                _ => (),
+            };
+            f.write_char('\n')
         })
-        .collect::<Vec<_>>();
-    for path in entries {
-        println!("{}", path)
     }
+}
+
+fn simple_list_entries(entries: Vec<TableRow>, options: ListOptions) {
+    print!(
+        "{}",
+        SimpleListDisplay {
+            entries: &entries,
+            options: &options,
+        }
+    );
 }
 
 fn detail_list_entries(entries: impl IntoIterator<Item = TableRow>, options: ListOptions) {
@@ -500,17 +506,17 @@ fn detail_list_entries(entries: impl IntoIterator<Item = TableRow>, options: Lis
             .map_or_else(|| "-".into(), |d| datetime(options.time_format, d)),
             {
                 let name = match content.entry_type {
-                    EntryType::Directory(path) if options.classify => format!("{}/", path),
+                    EntryType::Directory(path) if options.classify => format!("{path}/"),
                     EntryType::SymbolicLink(name, link_to) if options.classify => {
-                        format!("{}@ -> {}", name, link_to)
+                        format!("{name}@ -> {link_to}")
                     }
                     EntryType::File(path) | EntryType::Directory(path) => path,
                     EntryType::SymbolicLink(path, link_to) | EntryType::HardLink(path, link_to) => {
-                        format!("{} -> {}", path, link_to)
+                        format!("{path} -> {link_to}")
                     }
                 };
                 if options.hide_control_chars {
-                    hide_control_chars(&name)
+                    hide_control_chars(&name).to_string()
                 } else {
                     name
                 }
@@ -575,7 +581,7 @@ fn detail_list_entries(entries: impl IntoIterator<Item = TableRow>, options: Lis
         Color::empty(),
         Color::empty(),
     ));
-    println!("{}", table);
+    println!("{table}");
 }
 
 const DURATION_SIX_MONTH: Duration = Duration::from_secs(60 * 60 * 24 * 30 * 6);
@@ -585,8 +591,7 @@ fn within_six_months(now: SystemTime, x: SystemTime) -> bool {
     six_months_ago <= x
 }
 
-fn datetime(format: TimeFormat, since_unix_epoch: Duration) -> String {
-    let time = UNIX_EPOCH + since_unix_epoch;
+fn datetime(format: TimeFormat, time: SystemTime) -> String {
     let datetime = DateTime::<Local>::from(time);
     match format {
         TimeFormat::Auto(now) => {
@@ -602,10 +607,23 @@ fn datetime(format: TimeFormat, since_unix_epoch: Duration) -> String {
 }
 
 #[inline]
-fn hide_control_chars(s: &str) -> String {
-    s.chars()
-        .map(|c| if c.is_control() { '?' } else { c })
-        .collect()
+fn hide_control_chars<'a>(s: &'a str) -> impl Display + 'a {
+    use core::fmt::Write;
+    struct HideControl<'s>(&'s str);
+
+    impl Display for HideControl<'_> {
+        #[inline]
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+            self.0.chars().try_for_each(|c| {
+                if c.is_control() {
+                    f.write_char('?')
+                } else {
+                    f.write_char(c)
+                }
+            })
+        }
+    }
+    HideControl(s)
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -622,12 +640,12 @@ impl<T: Display> Display for StyledDisplay<'_, T> {
 }
 
 trait StyleExt<T> {
-    fn paint(&self, v: T) -> StyledDisplay<T>;
+    fn paint(&self, v: T) -> StyledDisplay<'_, T>;
 }
 
 impl<T: Display> StyleExt<T> for Style {
     #[inline]
-    fn paint(&self, v: T) -> StyledDisplay<T> {
+    fn paint(&self, v: T) -> StyledDisplay<'_, T> {
         StyledDisplay { style: self, v }
     }
 }
@@ -678,7 +696,7 @@ fn paint_permission(kind: &EntryType, permission: u16, has_xattr: bool, has_acl:
     )
 }
 
-fn kind_char(kind: &EntryType) -> char {
+const fn kind_char(kind: &EntryType) -> char {
     match kind {
         EntryType::File(_) | EntryType::HardLink(_, _) => '.',
         EntryType::Directory(_) => 'd',
@@ -688,7 +706,7 @@ fn kind_char(kind: &EntryType) -> char {
 
 fn permission_string(kind: &EntryType, permission: u16, has_xattr: bool, has_acl: bool) -> String {
     #[inline(always)]
-    fn paint(permission: u16, c: char, bit: u16) -> char {
+    const fn paint(permission: u16, c: char, bit: u16) -> char {
         if permission & bit != 0 {
             c
         } else {
@@ -866,26 +884,21 @@ impl<'s> TreeEntry<'s> {
     }
 }
 
-fn tree_entries(entries: impl IntoParallelIterator<Item = TableRow>, options: ListOptions) {
-    let entries = entries
-        .into_par_iter()
-        .map(|it| match it.entry_type {
-            EntryType::File(name) => (name, DataKind::File),
-            EntryType::Directory(name) => (name, DataKind::Directory),
-            EntryType::SymbolicLink(name, _) => (name, DataKind::SymbolicLink),
-            EntryType::HardLink(name, _) => (name, DataKind::HardLink),
-        })
-        .collect::<Vec<_>>();
-    let entries = entries
-        .par_iter()
-        .map(|(name, kind)| (name.as_str(), *kind))
-        .collect::<Vec<_>>();
-    let tree = build_tree(&entries);
-    println!(".");
-    display_tree(&tree, "", "", &options);
+fn tree_entries(entries: Vec<TableRow>, options: ListOptions) {
+    let entries = entries.iter().map(|it| match &it.entry_type {
+        EntryType::File(name) => (name.as_str(), DataKind::File),
+        EntryType::Directory(name) => (name.as_str(), DataKind::Directory),
+        EntryType::SymbolicLink(name, _) => (name.as_str(), DataKind::SymbolicLink),
+        EntryType::HardLink(name, _) => (name.as_str(), DataKind::HardLink),
+    });
+    let map = build_tree_map(entries);
+    let tree = build_term_tree(&map, Cow::Borrowed(""), None, DataKind::Directory, &options);
+    println!("{tree}");
 }
 
-fn build_tree<'s>(paths: &[(&'s str, DataKind)]) -> HashMap<&'s str, BTreeSet<TreeEntry<'s>>> {
+fn build_tree_map<'s>(
+    paths: impl IntoIterator<Item = (&'s str, DataKind)>,
+) -> HashMap<&'s str, BTreeSet<TreeEntry<'s>>> {
     let mut tree: HashMap<_, BTreeSet<_>> = HashMap::new();
 
     for (path, kind) in paths {
@@ -893,7 +906,7 @@ fn build_tree<'s>(paths: &[(&'s str, DataKind)]) -> HashMap<&'s str, BTreeSet<Tr
             .char_indices()
             .filter(|(_, c)| *c == '/')
             .map(|(idx, _)| (idx, DataKind::Directory))
-            .chain([(path.len(), *kind)]);
+            .chain([(path.len(), kind)]);
         let mut start = 0;
         for (end, k) in indices {
             let key = &path[..start];
@@ -908,42 +921,46 @@ fn build_tree<'s>(paths: &[(&'s str, DataKind)]) -> HashMap<&'s str, BTreeSet<Tr
     tree
 }
 
-fn display_tree(
-    tree: &HashMap<&str, BTreeSet<TreeEntry>>,
-    root: &str,
-    prefix: &str,
+fn build_term_tree<'a>(
+    tree: &HashMap<&'a str, BTreeSet<TreeEntry<'a>>>,
+    root: Cow<'a, str>,
+    name: Option<&'a str>,
+    kind: DataKind,
     options: &ListOptions,
-) {
-    if let Some(children) = tree.get(root) {
-        for (i, TreeEntry { name: child, kind }) in children.iter().enumerate() {
-            let is_last = i == children.len() - 1;
-            let branch = if is_last { "└── " } else { "├── " };
-            match kind {
-                DataKind::Directory if options.classify => {
-                    println!("{}{}{}/", prefix, branch, child)
-                }
-                DataKind::SymbolicLink if options.classify => {
-                    println!("{}{}{}@", prefix, branch, child)
-                }
-                DataKind::File
-                | DataKind::Directory
-                | DataKind::SymbolicLink
-                | DataKind::HardLink => println!("{}{}{}", prefix, branch, child),
-            };
-
-            let new_root = if root.is_empty() {
-                Cow::Borrowed(*child)
+) -> termtree::Tree<Cow<'a, str>> {
+    let label = match name {
+        None => Cow::Borrowed("."),
+        Some(n) => format_name(n, kind, options),
+    };
+    let mut node = termtree::Tree::new(label);
+    if let Some(children) = tree.get(root.as_ref()) {
+        for entry in children {
+            let child_root = if root.is_empty() {
+                Cow::Borrowed(entry.name)
             } else {
-                Cow::Owned(format!("{}/{}", root, child))
+                Cow::Owned(format!("{}/{}", root, entry.name))
             };
-
-            let new_prefix = if is_last {
-                format!("{}    ", prefix)
-            } else {
-                format!("{}│   ", prefix)
-            };
-
-            display_tree(tree, &new_root, &new_prefix, options);
+            node.push(build_term_tree(
+                tree,
+                child_root,
+                Some(entry.name),
+                entry.kind,
+                options,
+            ));
         }
+    }
+    node
+}
+
+fn format_name<'a>(name: &'a str, kind: DataKind, options: &ListOptions) -> Cow<'a, str> {
+    let name = match kind {
+        DataKind::Directory if options.classify => Cow::Owned(format!("{name}/")),
+        DataKind::SymbolicLink if options.classify => Cow::Owned(format!("{name}@")),
+        _ => Cow::Borrowed(name),
+    };
+    if options.hide_control_chars {
+        Cow::Owned(hide_control_chars(&name).to_string())
+    } else {
+        name
     }
 }

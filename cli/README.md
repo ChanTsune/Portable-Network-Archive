@@ -10,6 +10,20 @@ Also, its data structure is inspired by the PNG data structure.
 
 ## Installation
 
+### Via Shell (Prebuilt Binary)
+
+#### On Linux or MacOS
+
+```sh
+curl --proto '=https' --tlsv1.2 -LsSf 'https://github.com/ChanTsune/Portable-Network-Archive/releases/latest/download/portable-network-archive-installer.sh' | sh
+```
+
+#### On Windows
+
+```sh
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/ChanTsune/Portable-Network-Archive/releases/latest/download/portable-network-archive-installer.ps1 | iex"
+```
+
 ### Via Cargo
 
 ```sh

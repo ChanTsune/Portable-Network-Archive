@@ -1,4 +1,5 @@
 use crate::{
+    archive::{write_file_entry, InternalArchiveDataWriter, InternalDataWriter},
     chunk::{RawChunk, MAX_CHUNK_DATA_LENGTH},
     cipher::CipherWriter,
     compress::CompressionWriter,
@@ -7,13 +8,13 @@ use crate::{
         EntryName, EntryReference, ExtendedAttribute, Metadata, NormalEntry, Permission,
         SolidEntry, SolidHeader, WriteCipher, WriteOption, WriteOptions,
     },
-    io::TryIntoInner,
+    io::{FlattenWriter, TryIntoInner},
 };
 
 #[cfg(feature = "unstable-async")]
 use futures_io::AsyncWrite;
 use std::{
-    io::{self, Write},
+    io::{self, prelude::*},
     time::Duration,
 };
 #[cfg(feature = "unstable-async")]
@@ -27,7 +28,7 @@ pub struct EntryBuilder {
     header: EntryHeader,
     phsf: Option<String>,
     iv: Option<Vec<u8>>,
-    data: Option<CompressionWriter<CipherWriter<crate::io::FlattenWriter<MAX_CHUNK_DATA_LENGTH>>>>,
+    data: Option<CompressionWriter<CipherWriter<FlattenWriter<MAX_CHUNK_DATA_LENGTH>>>>,
     created: Option<Duration>,
     last_modified: Option<Duration>,
     accessed: Option<Duration>,
@@ -80,6 +81,10 @@ impl EntryBuilder {
     /// # Returns
     ///
     /// A Result containing the new [EntryBuilder], or an I/O error if creation fails.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if failed to initialize context.
     #[inline]
     pub fn new_file(name: EntryName, option: impl WriteOption) -> io::Result<Self> {
         let header = EntryHeader::for_file(
@@ -89,7 +94,7 @@ impl EntryBuilder {
             name,
         );
         let context = get_writer_context(option)?;
-        let writer = get_writer(crate::io::FlattenWriter::new(), &context)?;
+        let writer = get_writer(FlattenWriter::new(), &context)?;
         let (iv, phsf) = match context.cipher {
             None => (None, None),
             Some(WriteCipher { context: c, .. }) => (Some(c.iv), Some(c.phsf)),
@@ -113,6 +118,10 @@ impl EntryBuilder {
     ///
     /// A new [EntryBuilder].
     ///
+    /// # Errors
+    ///
+    /// Returns an error if failed to initialize context.
+    ///
     /// # Examples
     /// ```
     /// use libpna::{EntryBuilder, EntryName, EntryReference};
@@ -128,7 +137,7 @@ impl EntryBuilder {
     pub fn new_symbolic_link(name: EntryName, source: EntryReference) -> io::Result<Self> {
         let option = WriteOptions::store();
         let context = get_writer_context(option)?;
-        let mut writer = get_writer(crate::io::FlattenWriter::new(), &context)?;
+        let mut writer = get_writer(FlattenWriter::new(), &context)?;
         writer.write_all(source.as_bytes())?;
         let (iv, phsf) = match context.cipher {
             None => (None, None),
@@ -153,6 +162,10 @@ impl EntryBuilder {
     ///
     /// A new [EntryBuilder].
     ///
+    /// # Errors
+    ///
+    /// Returns an error if failed to initialize context.
+    ///
     /// # Examples
     /// ```
     /// use libpna::{EntryBuilder, EntryName, EntryReference};
@@ -168,7 +181,7 @@ impl EntryBuilder {
     pub fn new_hard_link(name: EntryName, source: EntryReference) -> io::Result<Self> {
         let option = WriteOptions::store();
         let context = get_writer_context(option)?;
-        let mut writer = get_writer(crate::io::FlattenWriter::new(), &context)?;
+        let mut writer = get_writer(FlattenWriter::new(), &context)?;
         writer.write_all(source.as_bytes())?;
         let (iv, phsf) = match context.cipher {
             None => (None, None),
@@ -192,8 +205,8 @@ impl EntryBuilder {
     ///
     /// A mutable reference to the [EntryBuilder] with the creation timestamp set.
     #[inline]
-    pub fn created(&mut self, since_unix_epoch: Duration) -> &mut Self {
-        self.created = Some(since_unix_epoch);
+    pub fn created(&mut self, since_unix_epoch: impl Into<Option<Duration>>) -> &mut Self {
+        self.created = since_unix_epoch.into();
         self
     }
 
@@ -207,8 +220,8 @@ impl EntryBuilder {
     ///
     /// A mutable reference to the [EntryBuilder] with the last modified timestamp set.
     #[inline]
-    pub fn modified(&mut self, since_unix_epoch: Duration) -> &mut Self {
-        self.last_modified = Some(since_unix_epoch);
+    pub fn modified(&mut self, since_unix_epoch: impl Into<Option<Duration>>) -> &mut Self {
+        self.last_modified = since_unix_epoch.into();
         self
     }
 
@@ -222,8 +235,8 @@ impl EntryBuilder {
     ///
     /// A mutable reference to the [EntryBuilder] with the last modified timestamp set.
     #[inline]
-    pub fn accessed(&mut self, since_unix_epoch: Duration) -> &mut Self {
-        self.accessed = Some(since_unix_epoch);
+    pub fn accessed(&mut self, since_unix_epoch: impl Into<Option<Duration>>) -> &mut Self {
+        self.accessed = since_unix_epoch.into();
         self
     }
 
@@ -238,8 +251,8 @@ impl EntryBuilder {
     ///
     /// A mutable reference to the [EntryBuilder] with the permission set.
     #[inline]
-    pub fn permission(&mut self, permission: Permission) -> &mut Self {
-        self.permission = Some(permission);
+    pub fn permission(&mut self, permission: impl Into<Option<Permission>>) -> &mut Self {
+        self.permission = permission.into();
         self
     }
 
@@ -293,6 +306,10 @@ impl EntryBuilder {
     /// # Returns
     ///
     /// A Result containing the new [NormalEntry], or an I/O error if the build fails.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while building entry into buffer.
     #[inline]
     pub fn build(self) -> io::Result<NormalEntry> {
         let mut data = if let Some(data) = self.data {
@@ -365,12 +382,28 @@ impl AsyncWrite for EntryBuilder {
     }
 }
 
+pub struct SolidEntryDataWriter<'a>(
+    InternalArchiveDataWriter<&'a mut InternalDataWriter<FlattenWriter<MAX_CHUNK_DATA_LENGTH>>>,
+);
+
+impl Write for SolidEntryDataWriter<'_> {
+    #[inline]
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.write(buf)
+    }
+
+    #[inline]
+    fn flush(&mut self) -> io::Result<()> {
+        self.0.flush()
+    }
+}
+
 /// A builder for creating a new solid [Entry].
 pub struct SolidEntryBuilder {
     header: SolidHeader,
     phsf: Option<String>,
     iv: Option<Vec<u8>>,
-    data: CompressionWriter<CipherWriter<crate::io::FlattenWriter<MAX_CHUNK_DATA_LENGTH>>>,
+    data: CompressionWriter<CipherWriter<FlattenWriter<MAX_CHUNK_DATA_LENGTH>>>,
     extra: Vec<RawChunk>,
 }
 
@@ -384,6 +417,10 @@ impl SolidEntryBuilder {
     /// # Returns
     ///
     /// A new [SolidEntryBuilder].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if failed to initialize context.
     #[inline]
     pub fn new(option: impl WriteOption) -> io::Result<Self> {
         let header = SolidHeader::new(
@@ -392,7 +429,7 @@ impl SolidEntryBuilder {
             option.cipher_mode(),
         );
         let context = get_writer_context(option)?;
-        let writer = get_writer(crate::io::FlattenWriter::new(), &context)?;
+        let writer = get_writer(FlattenWriter::new(), &context)?;
         let (iv, phsf) = match context.cipher {
             None => (None, None),
             Some(WriteCipher { context: c, .. }) => (Some(c.iv), Some(c.phsf)),
@@ -411,6 +448,10 @@ impl SolidEntryBuilder {
     /// # Arguments
     ///
     /// * `entry` - The entry to add to the archive.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing a given entry.
     ///
     /// # Examples
     ///
@@ -440,6 +481,43 @@ impl SolidEntryBuilder {
         entry.write_in(&mut self.data)
     }
 
+    /// Write a regular file to the solid entry.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing an entry,
+    /// or if the given closure returns an error return it.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use libpna::{Metadata, SolidEntryBuilder, WriteOptions};
+    /// # use std::error::Error;
+    /// use std::io::prelude::*;
+    ///
+    /// # fn main() -> Result<(), Box<dyn Error>> {
+    /// let option = WriteOptions::builder().build();
+    /// let mut builder = SolidEntryBuilder::new(option)?;
+    /// builder.write_file("bar.txt".into(), Metadata::new(), |writer| {
+    ///     writer.write_all(b"text")
+    /// })?;
+    /// builder.build()?;
+    /// #    Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn write_file<F>(&mut self, name: EntryName, metadata: Metadata, mut f: F) -> io::Result<()>
+    where
+        F: FnMut(&mut SolidEntryDataWriter) -> io::Result<()>,
+    {
+        let option = WriteOptions::store();
+        write_file_entry(&mut self.data, name, metadata, option, |w| {
+            let mut writer = SolidEntryDataWriter(w);
+            f(&mut writer)?;
+            Ok(writer.0)
+        })
+    }
+
     /// Adds extra chunk to the solid entry.
     #[inline]
     pub fn add_extra_chunk<T: Into<RawChunk>>(&mut self, chunk: T) {
@@ -463,6 +541,10 @@ impl SolidEntryBuilder {
 
     /// Builds the solid entry as an [Entry].
     ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while building entry into buffer.
+    ///
     /// # Examples
     ///
     /// ```no_run
@@ -484,7 +566,7 @@ impl SolidEntryBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ChunkType;
+    use crate::{ChunkType, ReadOptions};
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
@@ -492,14 +574,14 @@ mod tests {
     fn entry_extra_chunk() {
         let mut builder = EntryBuilder::new_dir("dir".into());
         builder.add_extra_chunk(RawChunk::from_data(
-            unsafe { ChunkType::from_unchecked(*b"abCd") },
+            ChunkType::private(*b"abCd").unwrap(),
             [],
         ));
         let entry = builder.build().unwrap();
 
         assert_eq!(
             &entry.extra[0],
-            &RawChunk::from_data(unsafe { ChunkType::from_unchecked(*b"abCd") }, []),
+            &RawChunk::from_data(ChunkType::private(*b"abCd").unwrap(), []),
         );
     }
 
@@ -507,14 +589,33 @@ mod tests {
     fn solid_entry_extra_chunk() {
         let mut builder = SolidEntryBuilder::new(WriteOptions::store()).unwrap();
         builder.add_extra_chunk(RawChunk::from_data(
-            unsafe { ChunkType::from_unchecked(*b"abCd") },
+            ChunkType::private(*b"abCd").unwrap(),
             [],
         ));
         let entry = builder.build_as_entry().unwrap();
 
         assert_eq!(
             &entry.extra[0],
-            &RawChunk::from_data(unsafe { ChunkType::from_unchecked(*b"abCd") }, []),
+            &RawChunk::from_data(ChunkType::private(*b"abCd").unwrap(), []),
         );
+    }
+
+    #[test]
+    fn solid_entry_builder_write_file() {
+        let mut builder = SolidEntryBuilder::new(WriteOptions::store()).unwrap();
+        builder
+            .write_file("entry".into(), Metadata::new(), |w| {
+                w.write_all("テストデータ".as_bytes())
+            })
+            .unwrap();
+        let solid_entry = builder.build_as_entry().unwrap();
+
+        let mut entries = solid_entry.entries(None).unwrap();
+        let entry = entries.next().unwrap().unwrap();
+        let mut reader = entry.reader(ReadOptions::builder().build()).unwrap();
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf).unwrap();
+
+        assert_eq!("テストデータ".as_bytes(), &buf[..]);
     }
 }

@@ -4,33 +4,28 @@ use crate::command::commons::run_read_entries;
 use crate::command::commons::run_read_entries_mem as run_read_entries;
 use crate::{
     cli::{
-        CipherAlgorithmArgs, CompressionAlgorithmArgs, FileArgs, HashAlgorithmArgs, PasswordArgs,
-        SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs,
+        CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileArgs, HashAlgorithmArgs,
+        PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs,
     },
     command::{
         ask_password, check_password,
         commons::{
-            collect_items, collect_split_archives, create_entry, entry_option, CreateOptions,
-            Exclude, KeepOptions, OwnerOptions, PathTransformers, TransformStrategy,
-            TransformStrategyKeepSolid, TransformStrategyUnSolid,
+            collect_items, collect_split_archives, create_entry, entry_option, read_paths,
+            read_paths_stdin, CreateOptions, Exclude, KeepOptions, OwnerOptions, PathTransformers,
+            TimeOptions, TransformStrategy, TransformStrategyKeepSolid, TransformStrategyUnSolid,
         },
         Command,
     },
     utils::{
-        self,
-        env::temp_dir_or_else,
+        env::NamedTempFile,
         re::{bsd::SubstitutionRule, gnu::TransformRule},
-        PathPartExt,
+        PathPartExt, VCS_FILES,
     },
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;
 use pna::{Archive, EntryName, Metadata};
-use std::{
-    env, fs, io,
-    path::{Path, PathBuf},
-    time::SystemTime,
-};
+use std::{env, fs, io, path::PathBuf, time::SystemTime};
 
 #[derive(Parser, Clone, Debug)]
 #[command(
@@ -45,12 +40,22 @@ use std::{
     group(ArgGroup::new("unstable-transform").args(["transforms"]).requires("unstable")),
     group(ArgGroup::new("path-transform").args(["substitutions", "transforms"])),
     group(ArgGroup::new("read-files-from").args(["files_from", "files_from_stdin"])),
+    group(
+        ArgGroup::new("from-input")
+            .args(["files_from", "files_from_stdin", "exclude_from"])
+            .multiple(true)
+    ),
+    group(ArgGroup::new("null-requires").arg("null").requires("from-input")),
     group(ArgGroup::new("store-uname").args(["uname"]).requires("keep_permission")),
     group(ArgGroup::new("store-gname").args(["gname"]).requires("keep_permission")),
     group(ArgGroup::new("store-numeric-owner").args(["numeric_owner"]).requires("keep_permission")),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
     group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
+    group(ArgGroup::new("keep-dir-flag").args(["keep_dir", "no_keep_dir"])),
+    group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
+    group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
+    group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
@@ -71,7 +76,12 @@ pub(crate) struct UpdateCommand {
     )]
     no_recursive: bool,
     #[arg(long, help = "Archiving the directories")]
-    pub(crate) keep_dir: bool,
+    keep_dir: bool,
+    #[arg(
+        long,
+        help = "Do not archive directories. This is the inverse option of --keep-dir"
+    )]
+    no_keep_dir: bool,
     #[arg(
         long,
         visible_alias = "preserve-timestamps",
@@ -115,26 +125,47 @@ pub(crate) struct UpdateCommand {
         help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names to not be stored in the archive"
     )]
     pub(crate) numeric_owner: bool,
+    #[arg(long, help = "Overrides the creation time read from disk")]
+    ctime: Option<DateTime>,
+    #[arg(
+        long,
+        help = "Clamp the creation time of the entries to the specified time by --ctime"
+    )]
+    clamp_ctime: bool,
+    #[arg(long, help = "Overrides the access time read from disk")]
+    atime: Option<DateTime>,
+    #[arg(
+        long,
+        help = "Clamp the access time of the entries to the specified time by --atime"
+    )]
+    clamp_atime: bool,
+    #[arg(long, help = "Overrides the modification time read from disk")]
+    mtime: Option<DateTime>,
+    #[arg(
+        long,
+        help = "Clamp the modification time of the entries to the specified time by --mtime"
+    )]
+    clamp_mtime: bool,
     #[arg(
         long,
         help = "Only include files and directories older than the specified date. This compares ctime entries."
     )]
-    pub(crate) older_ctime: bool,
+    older_ctime: Option<DateTime>,
     #[arg(
         long,
         help = "Only include files and directories older than the specified date. This compares mtime entries."
     )]
-    pub(crate) older_mtime: bool,
+    older_mtime: Option<DateTime>,
     #[arg(
         long,
         help = "Only include files and directories newer than the specified date. This compares ctime entries."
     )]
-    pub(crate) newer_ctime: bool,
+    newer_ctime: Option<DateTime>,
     #[arg(
         long,
         help = "Only include files and directories newer than the specified date. This compares mtime entries."
     )]
-    pub(crate) newer_mtime: bool,
+    newer_mtime: Option<DateTime>,
     #[arg(long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
     pub(crate) files_from: Option<String>,
     #[arg(long, help = "Read archiving files from stdin (unstable)")]
@@ -145,9 +176,11 @@ pub(crate) struct UpdateCommand {
     )]
     include: Option<Vec<String>>,
     #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
-    pub(crate) exclude: Option<Vec<String>>,
+    exclude: Option<Vec<String>>,
     #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
-    pub(crate) exclude_from: Option<String>,
+    exclude_from: Option<String>,
+    #[arg(long, help = "Exclude vcs files (unstable)")]
+    exclude_vcs: bool,
     #[arg(
         short = 's',
         value_name = "PATTERN",
@@ -164,7 +197,7 @@ pub(crate) struct UpdateCommand {
     #[arg(
         short = 'C',
         long = "cd",
-        aliases = ["directory"],
+        visible_aliases = ["directory"],
         value_name = "DIRECTORY",
         help = "changes the directory before adding the following files",
         value_hint = ValueHint::DirPath
@@ -182,15 +215,20 @@ pub(crate) struct UpdateCommand {
     pub(crate) transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
     pub(crate) file: FileArgs,
+    #[arg(
+        long,
+        help = "Filenames or patterns are separated by null characters, not by newlines"
+    )]
+    null: bool,
     #[arg(long, help = "Ignore files from .gitignore (unstable)")]
     pub(crate) gitignore: bool,
-    #[arg(long, help = "Follow symbolic links")]
-    pub(crate) follow_links: bool,
+    #[arg(long, visible_aliases = ["dereference"], help = "Follow symbolic links")]
+    follow_links: bool,
 }
 
 impl Command for UpdateCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         match self.transform_strategy.strategy() {
             SolidEntriesTransformStrategy::UnSolid => {
                 update_archive::<TransformStrategyUnSolid>(self)
@@ -202,7 +240,7 @@ impl Command for UpdateCommand {
     }
 }
 
-fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Result<()> {
+fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
@@ -211,7 +249,8 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
             format!("{} is not exists", archive_path.display()),
-        ));
+        )
+        .into());
     }
     let password = password.as_deref();
     let option = entry_option(args.compression, args.cipher, args.hash, password);
@@ -228,10 +267,29 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
         args.gid,
         args.numeric_owner,
     );
+    let time_options = TimeOptions {
+        mtime: args.mtime.map(|it| it.to_system_time()),
+        clamp_mtime: args.clamp_mtime,
+        ctime: args.ctime.map(|it| it.to_system_time()),
+        clamp_ctime: args.clamp_ctime,
+        atime: args.atime.map(|it| it.to_system_time()),
+        clamp_atime: args.clamp_atime,
+    };
+    let time_filters = TimeFilters {
+        ctime: TimeFilter {
+            newer_than: args.newer_ctime.map(|it| it.to_system_time()),
+            older_than: args.older_ctime.map(|it| it.to_system_time()),
+        },
+        mtime: TimeFilter {
+            newer_than: args.newer_mtime.map(|it| it.to_system_time()),
+            older_than: args.older_mtime.map(|it| it.to_system_time()),
+        },
+    };
     let create_options = CreateOptions {
         option,
         keep_options,
         owner_options,
+        time_options,
         follow_links: args.follow_links,
     };
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
@@ -240,14 +298,17 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
 
     let mut files = args.file.files;
     if args.files_from_stdin {
-        files.extend(io::stdin().lines().collect::<io::Result<Vec<_>>>()?);
+        files.extend(read_paths_stdin(args.null)?);
     } else if let Some(path) = args.files_from {
-        files.extend(utils::fs::read_to_lines(path)?);
+        files.extend(read_paths(path, args.null)?);
     }
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
-            exclude.extend(utils::fs::read_to_lines(p)?);
+            exclude.extend(read_paths(p, args.null)?);
+        }
+        if args.exclude_vcs {
+            exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
         }
         Exclude {
             include: args.include.unwrap_or_default().into(),
@@ -271,90 +332,72 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
 
     let (tx, rx) = std::sync::mpsc::channel();
 
-    let random = rand::random::<u64>();
-    let temp_dir_path = temp_dir_or_else(|| archive_path.parent().unwrap_or_else(|| ".".as_ref()));
-    fs::create_dir_all(&temp_dir_path)?;
-    let outfile_path = temp_dir_path.join(format!("{}.pna.tmp", random));
-    let outfile = fs::File::create(&outfile_path)?;
-    let mut out_archive = Archive::write_header(outfile)?;
-
-    let need_update_condition = if args.newer_ctime {
-        |path: &Path, metadata: &Metadata| -> Option<bool> {
-            let meta = fs::metadata(path).ok()?;
-            let ctime = meta.created().ok()?;
-            let d = metadata.created()?;
-            Some(SystemTime::UNIX_EPOCH + d < ctime)
-        }
-    } else if args.newer_mtime {
-        |path: &Path, metadata: &Metadata| -> Option<bool> {
-            let meta = fs::metadata(path).ok()?;
-            let mtime = meta.modified().ok()?;
-            let d = metadata.modified()?;
-            Some(SystemTime::UNIX_EPOCH + d < mtime)
-        }
-    } else if args.older_ctime {
-        |path: &Path, metadata: &Metadata| -> Option<bool> {
-            let meta = fs::metadata(path).ok()?;
-            let ctime = meta.created().ok()?;
-            let d = metadata.created()?;
-            Some(SystemTime::UNIX_EPOCH + d > ctime)
-        }
-    } else if args.older_mtime {
-        |path: &Path, metadata: &Metadata| -> Option<bool> {
-            let meta = fs::metadata(path).ok()?;
-            let mtime = meta.modified().ok()?;
-            let d = metadata.modified()?;
-            Some(SystemTime::UNIX_EPOCH + d > mtime)
-        }
-    } else {
-        |_: &Path, _: &Metadata| -> Option<bool> { Some(true) }
-    };
+    let mut temp_file =
+        NamedTempFile::new(|| archive_path.parent().unwrap_or_else(|| ".".as_ref()))?;
+    let mut out_archive = Archive::write_header(temp_file.as_file_mut())?;
 
     let mut target_files_mapping = target_items
         .into_iter()
-        .map(|it| (EntryName::from_lossy(&it), it))
+        .map(|(it, _)| (EntryName::from_lossy(&it), it))
         .collect::<IndexMap<_, _>>();
 
-    run_read_entries(archives, |entry| {
-        Strategy::transform(&mut out_archive, password, entry, |entry| {
-            let entry = entry?;
-            if let Some(target_path) = target_files_mapping.swap_remove(entry.header().path()) {
-                if need_update_condition(&target_path, entry.metadata()).unwrap_or(true) {
-                    let tx = tx.clone();
-                    rayon::scope_fifo(|s| {
-                        s.spawn_fifo(|_| {
+    #[cfg(feature = "memmap")]
+    let mmaps = archives
+        .into_iter()
+        .map(crate::utils::mmap::Mmap::try_from)
+        .collect::<io::Result<Vec<_>>>()?;
+    #[cfg(feature = "memmap")]
+    let archives = mmaps.iter().map(|m| m.as_ref());
+
+    rayon::scope_fifo(|s| -> anyhow::Result<()> {
+        run_read_entries(archives, |entry| {
+            Strategy::transform(&mut out_archive, password, entry, |entry| {
+                let entry = entry?;
+                if let Some(target_path) = target_files_mapping.swap_remove(entry.header().path()) {
+                    let fs_meta = fs::symlink_metadata(&target_path)?;
+                    let need_update = is_newer_than_archive(&fs_meta, entry.metadata())
+                        .unwrap_or(true)
+                        && time_filters.is_retain(&fs_meta);
+                    if need_update {
+                        let tx = tx.clone();
+                        let create_options = create_options.clone();
+                        let path_transformers = path_transformers.clone();
+                        s.spawn_fifo(move |_| {
                             log::debug!("Updating: {}", target_path.display());
+                            let target_path = (target_path, None);
                             tx.send(create_entry(
                                 &target_path,
                                 &create_options,
                                 &path_transformers,
                             ))
-                            .unwrap_or_else(|e| panic!("{e}: {}", target_path.display()));
+                            .unwrap_or_else(|e| panic!("{e}: {}", target_path.0.display()));
                         });
-                    });
-                    Ok(None)
+                        Ok(None)
+                    } else {
+                        Ok(Some(entry))
+                    }
                 } else {
                     Ok(Some(entry))
                 }
-            } else {
-                Ok(Some(entry))
-            }
-        })
+            })
+        })?;
+
+        // NOTE: Add new entries
+        for (_, file) in target_files_mapping {
+            let tx = tx.clone();
+            let create_options = create_options.clone();
+            let path_transformers = path_transformers.clone();
+            s.spawn_fifo(move |_| {
+                log::debug!("Adding: {}", file.display());
+                let file = (file, None);
+                tx.send(create_entry(&file, &create_options, &path_transformers))
+                    .unwrap_or_else(|e| panic!("{e}: {}", file.0.display()));
+            });
+        }
+        drop(tx);
+        Ok(())
     })?;
 
-    // NOTE: Add new entries
-    for (_, file) in target_files_mapping {
-        let tx = tx.clone();
-        rayon::scope_fifo(|s| {
-            s.spawn_fifo(|_| {
-                log::debug!("Adding: {}", file.display());
-                tx.send(create_entry(&file, &create_options, &path_transformers))
-                    .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
-            });
-        });
-    }
-
-    drop(tx);
     for entry in rx.into_iter() {
         Strategy::transform(&mut out_archive, password, entry.map(Into::into), |entry| {
             entry.map(Some)
@@ -362,7 +405,388 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> io::Resul
     }
     out_archive.finalize()?;
 
-    utils::fs::mv(outfile_path, archive_path.remove_part().unwrap())?;
+    #[cfg(feature = "memmap")]
+    drop(mmaps);
+
+    temp_file.persist(archive_path.remove_part().unwrap())?;
 
     Ok(())
+}
+
+fn is_newer_than_archive(fs_meta: &fs::Metadata, metadata: &Metadata) -> Option<bool> {
+    let mtime = fs_meta.modified().ok()?;
+    let d = metadata.modified()?;
+    Some(SystemTime::UNIX_EPOCH + d < mtime)
+}
+
+pub(crate) struct TimeFilter {
+    pub(crate) newer_than: Option<SystemTime>,
+    pub(crate) older_than: Option<SystemTime>,
+}
+
+impl TimeFilter {
+    fn is_retain(&self, time: Option<SystemTime>) -> bool {
+        if let Some(newer) = self.newer_than {
+            if let Some(t) = time {
+                if t < newer {
+                    return false;
+                }
+            }
+        }
+        if let Some(older) = self.older_than {
+            if let Some(t) = time {
+                if t > older {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+}
+
+pub(crate) struct TimeFilters {
+    pub(crate) ctime: TimeFilter,
+    pub(crate) mtime: TimeFilter,
+}
+
+impl TimeFilters {
+    #[inline]
+    pub(crate) fn is_retain(&self, fs_meta: &fs::Metadata) -> bool {
+        self.is_retain_t(fs_meta.created().ok(), fs_meta.modified().ok())
+    }
+
+    fn is_retain_t(&self, fs_ctime: Option<SystemTime>, fs_mtime: Option<SystemTime>) -> bool {
+        self.ctime.is_retain(fs_ctime) && self.mtime.is_retain(fs_mtime)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::time::Duration;
+
+    fn now() -> SystemTime {
+        SystemTime::UNIX_EPOCH + Duration::from_secs(3600)
+    }
+
+    fn past() -> SystemTime {
+        SystemTime::UNIX_EPOCH
+    }
+
+    fn future() -> SystemTime {
+        SystemTime::UNIX_EPOCH + Duration::from_secs(7200)
+    }
+
+    #[test]
+    fn test_is_retain_t_no_filters() {
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+        };
+        assert!(filters.is_retain_t(Some(now()), Some(now())));
+        assert!(filters.is_retain_t(None, None));
+    }
+
+    #[test]
+    fn test_is_retain_t_newer_ctime() {
+        // Case 1: newer_ctime is set, fs_ctime is older -> should not retain
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: Some(now()),
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+        };
+        assert!(!filters.is_retain_t(Some(past()), Some(now())));
+
+        // Case 2: newer_ctime is set, fs_ctime is newer -> should retain
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: Some(past()),
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+        };
+        assert!(filters.is_retain_t(Some(now()), Some(now())));
+
+        // Case 3: newer_ctime is set, fs_ctime is None -> should retain
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: Some(now()),
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+        };
+        assert!(filters.is_retain_t(None, Some(now())));
+    }
+
+    #[test]
+    fn test_is_retain_t_older_ctime() {
+        // Case 1: older_ctime is set, fs_ctime is newer -> should not retain
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: Some(now()),
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+        };
+        assert!(!filters.is_retain_t(Some(future()), Some(now())));
+
+        // Case 2: older_ctime is set, fs_ctime is older -> should retain
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: Some(future()),
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+        };
+        assert!(filters.is_retain_t(Some(now()), Some(now())));
+
+        // Case 3: older_ctime is set, fs_ctime is None -> should retain
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: Some(now()),
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+        };
+        assert!(filters.is_retain_t(None, Some(now())));
+    }
+
+    #[test]
+    fn test_is_retain_t_newer_mtime() {
+        // Case 1: newer_mtime is set, fs_mtime is older -> should not retain
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: Some(now()),
+                older_than: None,
+            },
+        };
+        assert!(!filters.is_retain_t(Some(now()), Some(past())));
+
+        // Case 2: newer_mtime is set, fs_mtime is newer -> should retain
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: Some(past()),
+                older_than: None,
+            },
+        };
+        assert!(filters.is_retain_t(Some(now()), Some(now())));
+
+        // Case 3: newer_mtime is set, fs_mtime is None -> should retain
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: Some(now()),
+                older_than: None,
+            },
+        };
+        assert!(filters.is_retain_t(Some(now()), None));
+    }
+
+    #[test]
+    fn test_is_retain_t_older_mtime() {
+        // Case 1: older_mtime is set, fs_mtime is newer -> should not retain
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: Some(now()),
+            },
+        };
+        assert!(!filters.is_retain_t(Some(now()), Some(future())));
+
+        // Case 2: older_mtime is set, fs_mtime is older -> should retain
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: Some(future()),
+            },
+        };
+        assert!(filters.is_retain_t(Some(now()), Some(now())));
+
+        // Case 3: older_mtime is set, fs_mtime is None -> should retain
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: Some(now()),
+            },
+        };
+        assert!(filters.is_retain_t(Some(now()), None));
+    }
+
+    #[test]
+    fn test_is_retain_t_all_filters_retain() {
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: Some(past()),
+                older_than: Some(future()),
+            },
+            mtime: TimeFilter {
+                newer_than: Some(past()),
+                older_than: Some(future()),
+            },
+        };
+        assert!(filters.is_retain_t(Some(now()), Some(now())));
+    }
+
+    #[test]
+    fn test_is_retain_t_all_filters_not_retain_ctime() {
+        // newer_ctime fails
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: Some(now()),
+                older_than: Some(future()),
+            },
+            mtime: TimeFilter {
+                newer_than: Some(past()),
+                older_than: Some(future()),
+            },
+        };
+        assert!(!filters.is_retain_t(Some(past()), Some(now())));
+
+        // older_ctime fails
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: Some(past()),
+                older_than: Some(now()),
+            },
+            mtime: TimeFilter {
+                newer_than: Some(past()),
+                older_than: Some(future()),
+            },
+        };
+        assert!(!filters.is_retain_t(Some(future()), Some(now())));
+    }
+
+    #[test]
+    fn test_is_retain_t_all_filters_not_retain_mtime() {
+        // newer_mtime fails
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: Some(past()),
+                older_than: Some(future()),
+            },
+            mtime: TimeFilter {
+                newer_than: Some(now()),
+                older_than: Some(future()),
+            },
+        };
+        assert!(!filters.is_retain_t(Some(now()), Some(past())));
+
+        // older_mtime fails
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: Some(past()),
+                older_than: Some(future()),
+            },
+            mtime: TimeFilter {
+                newer_than: Some(past()),
+                older_than: Some(now()),
+            },
+        };
+        assert!(!filters.is_retain_t(Some(now()), Some(future())));
+    }
+
+    #[test]
+    fn test_is_retain_t_mixed_filters_and_none_fs_times() {
+        // newer_ctime set, fs_ctime is None
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: Some(now()),
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+        };
+        assert!(filters.is_retain_t(None, Some(now())));
+
+        // older_ctime set, fs_ctime is None
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: Some(now()),
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+        };
+        assert!(filters.is_retain_t(None, Some(now())));
+
+        // newer_mtime set, fs_mtime is None
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: Some(now()),
+                older_than: None,
+            },
+        };
+        assert!(filters.is_retain_t(Some(now()), None));
+
+        // older_mtime set, fs_mtime is None
+        let filters = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: Some(now()),
+            },
+        };
+        assert!(filters.is_retain_t(Some(now()), None));
+    }
 }

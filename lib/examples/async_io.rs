@@ -12,7 +12,7 @@ async fn main() -> io::Result<()> {
     match (args.next().as_deref(), args.next()) {
         (Some("create"), Some(s)) => create(s, &args.collect::<Vec<_>>()).await,
         (Some("extract"), Some(s)) => extract(s).await,
-        (f, s) => Err(io::Error::other(format!("{:?}{:?}", f, s))),
+        (f, s) => Err(io::Error::other(format!("{f:?}{s:?}"))),
     }
 }
 

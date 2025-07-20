@@ -1,7 +1,7 @@
 use crate::command::Command;
 use clap::Parser;
 use pna::prelude::*;
-use std::{fs, io, path::PathBuf};
+use std::{fs, path::PathBuf};
 use tabled::{builder::Builder as TableBuilder, settings::Style as TableStyle};
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
@@ -13,7 +13,7 @@ pub(crate) struct ChunkCommand {
 
 impl Command for ChunkCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         match self.command {
             ChunkCommands::List(cmd) => cmd.execute(),
         }
@@ -41,12 +41,12 @@ pub(crate) struct ListCommand {
 
 impl Command for ListCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         list_archive_chunks(self)
     }
 }
 
-fn list_archive_chunks(args: ListCommand) -> io::Result<()> {
+fn list_archive_chunks(args: ListCommand) -> anyhow::Result<()> {
     let archive = fs::File::open(args.archive)?;
     let mut builder = TableBuilder::new();
     if args.header {
@@ -66,7 +66,7 @@ fn list_archive_chunks(args: ListCommand) -> io::Result<()> {
                 idx.to_string(),
                 chunk.ty().to_string(),
                 chunk.length().to_string(),
-                format!("{:#06x}", offset),
+                format!("{offset:#06x}"),
             ]
             .into_iter()
             .chain(args.long.then(|| {
@@ -79,6 +79,6 @@ fn list_archive_chunks(args: ListCommand) -> io::Result<()> {
     }
     let mut table = builder.build();
     table.with(TableStyle::empty());
-    println!("{}", table);
+    println!("{table}");
     Ok(())
 }

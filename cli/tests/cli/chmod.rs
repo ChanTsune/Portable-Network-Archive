@@ -1,6 +1,13 @@
+mod keep_solid;
+mod missing_file;
+mod numeric;
+mod password;
+mod password_file;
+mod unsolid;
+
 use crate::utils::{diff::diff, setup, TestResources};
 use clap::Parser;
-use portable_network_archive::{cli, command};
+use portable_network_archive::{cli, command::Command};
 #[cfg(unix)]
 use std::fs;
 #[cfg(unix)]
@@ -14,7 +21,7 @@ fn archive_chmod() {
     #[cfg(unix)]
     fs::set_permissions("chmod/in/raw/text.txt", fs::Permissions::from_mode(0o777)).unwrap();
 
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -24,9 +31,11 @@ fn archive_chmod() {
         "--keep-permission",
         #[cfg(windows)]
         "--unstable",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "experimental",
@@ -35,9 +44,11 @@ fn archive_chmod() {
         "--",
         "-x",
         "chmod/in/raw/text.txt",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -50,7 +61,9 @@ fn archive_chmod() {
         "--unstable",
         "--strip-components",
         "2",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
     #[cfg(unix)]
     {

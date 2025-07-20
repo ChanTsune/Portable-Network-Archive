@@ -12,8 +12,9 @@ jobs:
           - ubuntu-latest
           - ubuntu-22.04-arm # TODO: use ubuntu-24.04-arm if https://github.com/rust-lang/rust/issues/135867 resolved
           - windows-latest
+          - windows-11-arm
           - macos-latest
-          - freebsd-latest # self-hosted
+#          - freebsd-latest # self-hosted
         rust:
           - stable
           - beta
@@ -31,13 +32,21 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y libacl1-dev
-      - uses: actions/checkout@v4
+      - name: Install Rustup
+        if: ${{ matrix.os == 'windows-11-arm' }}
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://win.rustup.rs/aarch64" -OutFile "$env:TEMP\rustup-init.exe"
+           & "$env:TEMP\rustup-init.exe" --default-toolchain none --profile=minimal -y
+          "$env:USERPROFILE\.cargo\bin" | Out-File -Append -Encoding ascii $env:GITHUB_PATH
+          "CARGO_HOME=$env:USERPROFILE\.cargo" | Out-File -Append -Encoding ascii $env:GITHUB_ENV
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - id: install_rust
         uses: ./.github/actions/setup-rust
         with:
           channel: ${{ matrix.rust }}
       - name: Install cargo-hack from crates.io
-        uses: baptiste0928/cargo-install@v3
+        uses: baptiste0928/cargo-install@e38323ef017552d7f7af73a3f4db467f278310ed # v3.3.1
         with:
           crate: cargo-hack
           cache-key: ${{ matrix.os }}
@@ -53,9 +62,8 @@ jobs:
       - name: run test
         run: |
           cargo hack test --locked --release --feature-powerset --exclude-features wasm
-# FIXME: https://github.com/ChanTsune/Portable-Network-Archive/issues/1477
-#        env:
-#          RUST_BACKTRACE: 1
+        env:
+          RUST_BACKTRACE: 1
 
   tier3_cross:
     strategy:
@@ -67,7 +75,7 @@ jobs:
     runs-on: ubuntu-latest
     container: ${{ matrix.container }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: run test
         if: startsWith(matrix.target, 'x86_64-unknown-redox')
         run: |
@@ -95,7 +103,7 @@ jobs:
           - x86_64-unknown-fuchsia
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - id: install_rust
         uses: ./.github/actions/setup-rust
         with:
@@ -104,5 +112,59 @@ jobs:
       - name: run test
         run: |
           cargo check --locked --target ${{ matrix.target }}
+        env:
+          RUST_BACKTRACE: 1
+
+  msrv:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+        crate:
+          - libpna
+          - pna
+          - portable-network-archive
+        include:
+          - crate: libpna
+            rust: '1.82'
+          - crate: pna
+            rust: '1.82'
+          - crate: portable-network-archive
+            rust: '1.82'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: git autocrlf false
+        if: startsWith(matrix.os, 'windows')
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+      - name: install dependencies
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt update
+          sudo apt install -y libacl1-dev
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - id: install_rust
+        uses: ./.github/actions/setup-rust
+        with:
+          channel: ${{ matrix.rust }}
+      - name: Install cargo-hack from crates.io
+        uses: baptiste0928/cargo-install@e38323ef017552d7f7af73a3f4db467f278310ed # v3.3.1
+        with:
+          crate: cargo-hack
+          cache-key: ${{ matrix.os }}
+      - name: Restore rust build cache
+        id: restore-rust-build-cache
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: |
+            target/*
+            !target/tmp
+          key: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}-${{ hashFiles('**/Cargo.lock') }}"
+          restore-keys: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}"
+      - name: run test
+        run: |
+          cargo hack test --locked --release --feature-powerset --exclude-features wasm -p ${{ matrix.crate }}
         env:
           RUST_BACKTRACE: 1

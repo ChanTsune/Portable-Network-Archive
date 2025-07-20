@@ -1,13 +1,15 @@
 use crate::{
-    cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs, PasswordArgs},
+    cli::{
+        CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, HashAlgorithmArgs, PasswordArgs,
+    },
     command::{
         append::{open_archive_then_seek_to_end, run_append_archive},
         ask_password, check_password,
         commons::{
-            collect_items, collect_split_archives, entry_option, CreateOptions, Exclude,
-            KeepOptions, OwnerOptions, PathTransformers,
+            collect_items, collect_split_archives, entry_option, read_paths, CreateOptions,
+            Exclude, KeepOptions, OwnerOptions, PathTransformers, TimeOptions,
         },
-        create::create_archive_file,
+        create::{create_archive_file, CreationContext},
         extract::{run_extract_archive_reader, OutputOption},
         list::{ListOptions, TimeField, TimeFormat},
         Command,
@@ -15,12 +17,12 @@ use crate::{
     utils::{
         self,
         re::{bsd::SubstitutionRule, gnu::TransformRule},
-        GlobPatterns,
+        GlobPatterns, VCS_FILES,
     },
 };
-use clap::{ArgGroup, Args, Parser, ValueHint};
+use clap::{ArgGroup, Args, ValueHint};
 use pna::Archive;
-use std::{fs, io, path::PathBuf, time::SystemTime};
+use std::{env, io, path::PathBuf, time::SystemTime};
 
 #[derive(Args, Clone, Debug)]
 #[command(
@@ -30,6 +32,12 @@ use std::{fs, io, path::PathBuf, time::SystemTime};
     group(ArgGroup::new("unstable-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
+    group(
+        ArgGroup::new("from-input")
+            .args(["files_from", "exclude_from"])
+            .multiple(true)
+    ),
+    group(ArgGroup::new("null-requires").arg("null").requires("from-input")),
     group(ArgGroup::new("unstable-gitignore").args(["gitignore"]).requires("unstable")),
     group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
     group(ArgGroup::new("unstable-transform").args(["transforms"]).requires("unstable")),
@@ -38,7 +46,12 @@ use std::{fs, io, path::PathBuf, time::SystemTime};
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
     group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
+    group(ArgGroup::new("keep-dir-flag").args(["keep_dir", "no_keep_dir"])),
     group(ArgGroup::new("action-flags").args(["create", "extract", "list", "append"])),
+    group(ArgGroup::new("ctime-flag").args(["clamp_ctime"]).requires("ctime")),
+    group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
+    group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
+    group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
@@ -70,6 +83,11 @@ pub(crate) struct StdioCommand {
     overwrite: bool,
     #[arg(long, help = "Archiving the directories")]
     keep_dir: bool,
+    #[arg(
+        long,
+        help = "Do not archive directories. This is the inverse option of --keep-dir"
+    )]
+    no_keep_dir: bool,
     #[arg(
         long,
         visible_alias = "preserve-timestamps",
@@ -113,10 +131,12 @@ pub(crate) struct StdioCommand {
     pub(crate) exclude: Option<Vec<String>>,
     #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
     exclude_from: Option<String>,
+    #[arg(long, help = "Exclude vcs files (unstable)")]
+    exclude_vcs: bool,
     #[arg(long, help = "Ignore files from .gitignore (unstable)")]
     pub(crate) gitignore: bool,
-    #[arg(long, help = "Follow symbolic links")]
-    pub(crate) follow_links: bool,
+    #[arg(long, visible_aliases = ["dereference"], help = "Follow symbolic links")]
+    follow_links: bool,
     #[arg(long, help = "Output directory of extracted files", value_hint = ValueHint::DirPath)]
     pub(crate) out_dir: Option<PathBuf>,
     #[arg(
@@ -149,6 +169,27 @@ pub(crate) struct StdioCommand {
         help = "This is equivalent to --uname \"\" --gname \"\". On create, it causes user and group names to not be stored in the archive. On extract, it causes user and group names in the archive to be ignored in favor of the numeric user and group ids."
     )]
     pub(crate) numeric_owner: bool,
+    #[arg(long, help = "Overrides the creation time")]
+    ctime: Option<DateTime>,
+    #[arg(
+        long,
+        help = "Clamp the creation time of the entries to the specified time by --ctime"
+    )]
+    clamp_ctime: bool,
+    #[arg(long, help = "Overrides the access time")]
+    atime: Option<DateTime>,
+    #[arg(
+        long,
+        help = "Clamp the access time of the entries to the specified time by --atime"
+    )]
+    clamp_atime: bool,
+    #[arg(long, help = "Overrides the modification time")]
+    mtime: Option<DateTime>,
+    #[arg(
+        long,
+        help = "Clamp the modification time of the entries to the specified time by --mtime"
+    )]
+    clamp_mtime: bool,
     #[arg(long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
     pub(crate) files_from: Option<String>,
     #[arg(
@@ -172,30 +213,42 @@ pub(crate) struct StdioCommand {
     #[arg(long, help = "Extract files as yourself")]
     no_same_owner: bool,
     #[arg(
+        short = 'C',
+        long = "cd",
+        visible_aliases = ["directory"],
+        value_name = "DIRECTORY",
+        help = "changes the directory before adding the following files",
+        value_hint = ValueHint::DirPath
+    )]
+    working_dir: Option<PathBuf>,
+    #[arg(
         long,
         help = "Allow extract symlink and hardlink that contains root path or parent path"
     )]
     allow_unsafe_links: bool,
-    #[arg(short, long, help = "Input archive file path")]
-    file: Option<PathBuf>,
+    #[arg(
+        short,
+        long,
+        help = "Read the archive from or write the archive to the specified file. The filename can be - for standard input or standard output."
+    )]
+    file: Option<String>,
     #[arg(help = "Files or patterns")]
     files: Vec<String>,
+    #[arg(
+        long,
+        help = "Filenames or patterns are separated by null characters, not by newlines"
+    )]
+    null: bool,
 }
 
 impl Command for StdioCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         run_stdio(self)
     }
 }
 
-#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct FileArgs {
-    #[arg(value_hint = ValueHint::FilePath)]
-    pub(crate) files: Vec<PathBuf>,
-}
-
-fn run_stdio(args: StdioCommand) -> io::Result<()> {
+fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     if args.create {
         run_create_archive(args)
     } else if args.extract {
@@ -209,26 +262,37 @@ fn run_stdio(args: StdioCommand) -> io::Result<()> {
     }
 }
 
-fn run_create_archive(args: StdioCommand) -> io::Result<()> {
+fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
+    let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
+    // NOTE: "-" will use stdout
+    let mut file = args.file;
+    file.take_if(|it| it == "-");
+    let archive_file = file.take().map(|p| current_dir.join(p));
     let mut files = args.files;
     if let Some(path) = args.files_from {
-        files.extend(utils::fs::read_to_lines(path)?);
+        files.extend(read_paths(path, args.null)?);
     }
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
-            exclude.extend(utils::fs::read_to_lines(p)?);
+            exclude.extend(read_paths(p, args.null)?);
+        }
+        if args.exclude_vcs {
+            exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
         }
         Exclude {
             include: args.include.unwrap_or_default().into(),
             exclude: exclude.into(),
         }
     };
+    if let Some(working_dir) = args.working_dir {
+        env::set_current_dir(working_dir)?;
+    }
     let target_items = collect_items(
         &files,
-        args.recursive,
+        !args.no_recursive,
         args.keep_dir,
         args.gitignore,
         args.follow_links,
@@ -251,38 +315,45 @@ fn run_create_archive(args: StdioCommand) -> io::Result<()> {
         args.numeric_owner,
     );
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
-    if let Some(file) = args.file {
+    let time_options = TimeOptions {
+        mtime: args.mtime.map(|it| it.to_system_time()),
+        clamp_mtime: args.clamp_mtime,
+        ctime: args.ctime.map(|it| it.to_system_time()),
+        clamp_ctime: args.clamp_ctime,
+        atime: args.atime.map(|it| it.to_system_time()),
+        clamp_atime: args.clamp_atime,
+    };
+    let creation_context = CreationContext {
+        write_option: cli_option,
+        keep_options,
+        owner_options,
+        time_options,
+        solid: args.solid,
+        follow_links: args.follow_links,
+        path_transformers,
+    };
+    if let Some(file) = archive_file {
         create_archive_file(
-            || fs::File::open(&file),
-            cli_option,
-            keep_options,
-            owner_options,
-            args.solid,
-            args.follow_links,
-            path_transformers,
+            || utils::fs::file_create(&file, args.overwrite),
+            creation_context,
             target_items,
         )
     } else {
-        create_archive_file(
-            || Ok(io::stdout().lock()),
-            cli_option,
-            keep_options,
-            owner_options,
-            args.solid,
-            args.follow_links,
-            path_transformers,
-            target_items,
-        )
+        create_archive_file(|| Ok(io::stdout().lock()), creation_context, target_items)
     }
 }
 
-fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
+fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
+    let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
 
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
-            exclude.extend(utils::fs::read_to_lines(p)?);
+            exclude.extend(read_paths(p, args.null)?);
+        }
+        if args.exclude_vcs {
+            exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
         }
         Exclude {
             include: args.include.unwrap_or_default().into(),
@@ -312,9 +383,23 @@ fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
         same_owner: !args.no_same_owner,
         path_transformers: PathTransformers::new(args.substitutions, args.transforms),
     };
-    if let Some(path) = args.file {
+    // NOTE: "-" will use stdin
+    let mut file = args.file;
+    file.take_if(|it| it == "-");
+    let archive_path = file.take().map(|p| current_dir.join(p));
+    if let Some(working_dir) = args.working_dir {
+        env::set_current_dir(working_dir)?;
+    }
+    if let Some(path) = archive_path {
         let archives = collect_split_archives(&path)?;
-        run_extract_archive_reader(archives, args.files, || password.as_deref(), out_option)
+        run_extract_archive_reader(
+            archives
+                .into_iter()
+                .map(|it| io::BufReader::with_capacity(64 * 1024, it)),
+            args.files,
+            || password.as_deref(),
+            out_option,
+        )
     } else {
         run_extract_archive_reader(
             std::iter::repeat_with(|| io::stdin().lock()),
@@ -325,7 +410,7 @@ fn run_extract_archive(args: StdioCommand) -> io::Result<()> {
     }
 }
 
-fn run_list_archive(args: StdioCommand) -> io::Result<()> {
+fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let list_options = ListOptions {
         long: false,
@@ -341,24 +426,30 @@ fn run_list_archive(args: StdioCommand) -> io::Result<()> {
         classify: false,
         format: None,
     };
-    let files_globs = GlobPatterns::new(&args.files)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let files_globs = GlobPatterns::new(args.files.iter().map(|it| it.as_str()))?;
 
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
-            exclude.extend(utils::fs::read_to_lines(p)?);
+            exclude.extend(read_paths(p, args.null)?);
+        }
+        if args.exclude_vcs {
+            exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
         }
         Exclude {
             include: args.include.unwrap_or_default().into(),
             exclude: exclude.into(),
         }
     };
-
-    if let Some(path) = args.file {
-        let archives = collect_split_archives(&path)?;
+    // NOTE: "-" will use stdout
+    let mut file = args.file;
+    file.take_if(|it| it == "-");
+    if let Some(path) = &file {
+        let archives = collect_split_archives(path)?;
         crate::command::list::run_list_archive(
-            archives,
+            archives
+                .into_iter()
+                .map(|it| io::BufReader::with_capacity(64 * 1024, it)),
             password.as_deref(),
             files_globs,
             exclude,
@@ -375,7 +466,8 @@ fn run_list_archive(args: StdioCommand) -> io::Result<()> {
     }
 }
 
-fn run_append(args: StdioCommand) -> io::Result<()> {
+fn run_append(args: StdioCommand) -> anyhow::Result<()> {
+    let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let password = password.as_deref();
@@ -393,22 +485,38 @@ fn run_append(args: StdioCommand) -> io::Result<()> {
         args.gid,
         args.numeric_owner,
     );
+    let time_options = TimeOptions {
+        mtime: args.mtime.map(|it| it.to_system_time()),
+        clamp_mtime: args.clamp_mtime,
+        ctime: args.ctime.map(|it| it.to_system_time()),
+        clamp_ctime: args.clamp_ctime,
+        atime: args.atime.map(|it| it.to_system_time()),
+        clamp_atime: args.clamp_atime,
+    };
     let create_options = CreateOptions {
         option,
         keep_options,
         owner_options,
+        time_options,
         follow_links: args.follow_links,
     };
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
 
+    // NOTE: "-" will use stdin/out
+    let mut file = args.file;
+    file.take_if(|it| it == "-");
+    let archive_path = file.take().map(|p| current_dir.join(p));
     let mut files = args.files;
     if let Some(path) = args.files_from {
-        files.extend(utils::fs::read_to_lines(path)?);
+        files.extend(read_paths(path, args.null)?);
     }
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
-            exclude.extend(utils::fs::read_to_lines(p)?);
+            exclude.extend(read_paths(p, args.null)?);
+        }
+        if args.exclude_vcs {
+            exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
         }
         Exclude {
             include: args.include.unwrap_or_default().into(),
@@ -416,7 +524,10 @@ fn run_append(args: StdioCommand) -> io::Result<()> {
         }
     };
 
-    if let Some(file) = &args.file {
+    if let Some(working_dir) = args.working_dir {
+        env::set_current_dir(working_dir)?;
+    }
+    if let Some(file) = &archive_path {
         let archive = open_archive_then_seek_to_end(file)?;
         let target_items = collect_items(
             &files,

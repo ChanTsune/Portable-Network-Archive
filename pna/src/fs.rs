@@ -19,7 +19,7 @@ use std::{fs, io, os, path::Path};
 /// ```
 ///
 /// # Errors
-/// Returns error when failed to create symlink.
+/// Returns an error if it fails to create the symlink.
 #[inline]
 pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Result<()> {
     #[cfg(unix)]
@@ -63,10 +63,10 @@ pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Resu
 /// ```no_run
 /// use pna::fs;
 ///
-/// fn main() -> std::io::Result<()> {
-///     fs::remove_path_all("/some/dir_or_file")?;
-///     Ok(())
-/// }
+/// # fn main() -> std::io::Result<()> {
+/// fs::remove_path_all("/some/dir_or_file")?;
+/// #    Ok(())
+/// # }
 /// ```
 #[inline]
 pub fn remove_path_all<P: AsRef<Path>>(path: P) -> io::Result<()> {

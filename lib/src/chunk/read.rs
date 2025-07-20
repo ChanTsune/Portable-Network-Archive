@@ -13,40 +13,9 @@ pub(crate) struct ChunkReader<R> {
 }
 
 impl<R: Read> ChunkReader<R> {
+    #[inline]
     pub(crate) fn read_chunk(&mut self) -> io::Result<RawChunk> {
-        let mut crc_hasher = Crc32::new();
-
-        // read chunk length
-        let mut length = [0u8; mem::size_of::<u32>()];
-        self.r.read_exact(&mut length)?;
-        let length = u32::from_be_bytes(length);
-
-        // read a chunk type
-        let mut ty = [0u8; mem::size_of::<ChunkType>()];
-        self.r.read_exact(&mut ty)?;
-
-        crc_hasher.update(&ty);
-
-        // read chunk data
-        let mut data = vec![0; length as usize];
-        self.r.read_exact(&mut data)?;
-
-        crc_hasher.update(&data);
-
-        // read crc sum
-        let mut crc = [0u8; mem::size_of::<u32>()];
-        self.r.read_exact(&mut crc)?;
-        let crc = u32::from_be_bytes(crc);
-
-        if crc != crc_hasher.finalize() {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "Broken chunk"));
-        }
-        Ok(RawChunk {
-            length,
-            ty: ChunkType(ty),
-            data,
-            crc,
-        })
+        read_chunk(&mut self.r)
     }
 }
 
@@ -116,6 +85,42 @@ impl<R> From<R> for ChunkReader<R> {
     fn from(reader: R) -> Self {
         Self { r: reader }
     }
+}
+
+pub(crate) fn read_chunk<R: Read>(mut r: R) -> io::Result<RawChunk> {
+    let mut crc_hasher = Crc32::new();
+
+    // read chunk length
+    let mut length = [0u8; mem::size_of::<u32>()];
+    r.read_exact(&mut length)?;
+    let length = u32::from_be_bytes(length);
+
+    // read a chunk type
+    let mut ty = [0u8; mem::size_of::<ChunkType>()];
+    r.read_exact(&mut ty)?;
+
+    crc_hasher.update(&ty);
+
+    // read chunk data
+    let mut data = vec![0; length as usize];
+    r.read_exact(&mut data)?;
+
+    crc_hasher.update(&data);
+
+    // read crc sum
+    let mut crc = [0u8; mem::size_of::<u32>()];
+    r.read_exact(&mut crc)?;
+    let crc = u32::from_be_bytes(crc);
+
+    if crc != crc_hasher.finalize() {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "Broken chunk"));
+    }
+    Ok(RawChunk {
+        length,
+        ty: ChunkType(ty),
+        data,
+        crc,
+    })
 }
 
 pub(crate) fn read_chunk_from_slice(bytes: &[u8]) -> io::Result<(RawChunk<&[u8]>, &[u8])> {

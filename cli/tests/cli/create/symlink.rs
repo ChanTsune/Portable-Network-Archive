@@ -1,6 +1,6 @@
-use crate::utils::setup;
+use crate::utils::{archive, setup};
 use clap::Parser;
-use portable_network_archive::{cli, command};
+use portable_network_archive::{cli, command::Command};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -25,7 +25,7 @@ fn init_resource<P: AsRef<Path>>(dir: P) {
 fn symlink_no_follow() {
     setup();
     init_resource("symlink_no_follow/source");
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -33,9 +33,38 @@ fn symlink_no_follow() {
         "--overwrite",
         "--keep-dir",
         "symlink_no_follow/source",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+
+    archive::for_each_entry(
+        "symlink_no_follow/symlink_no_follow.pna",
+        |entry| match entry.header().path().as_str() {
+            "symlink_no_follow/source" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
+            }
+            "symlink_no_follow/source/text.txt" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
+            }
+            "symlink_no_follow/source/dir" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
+            }
+            "symlink_no_follow/source/dir/in_dir_text.txt" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
+            }
+            "symlink_no_follow/source/link_dir" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink)
+            }
+            "symlink_no_follow/source/link.txt" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink)
+            }
+            path => unreachable!("unexpected entry found: {path}"),
+        },
+    )
+    .unwrap();
+
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -45,7 +74,9 @@ fn symlink_no_follow() {
         "symlink_no_follow/dist",
         "--strip-components",
         "2",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     assert!(PathBuf::from("symlink_no_follow/dist/link.txt").is_symlink());
@@ -62,7 +93,7 @@ fn symlink_no_follow() {
 fn symlink_follow() {
     setup();
     init_resource("symlink_follow/source");
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
@@ -71,9 +102,38 @@ fn symlink_follow() {
         "--keep-dir",
         "--follow-links",
         "symlink_follow/source",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    archive::for_each_entry("symlink_follow/symlink_follow.pna", |entry| {
+        match entry.header().path().as_str() {
+            "symlink_follow/source" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
+            }
+            "symlink_follow/source/text.txt" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
+            }
+            "symlink_follow/source/dir" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
+            }
+            "symlink_follow/source/dir/in_dir_text.txt" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
+            }
+            "symlink_follow/source/link_dir" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
+            }
+            "symlink_follow/source/link_dir/in_dir_text.txt" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
+            }
+            "symlink_follow/source/link.txt" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
+            }
+            path => unreachable!("unexpected entry found: {path}"),
+        }
+    })
+    .unwrap();
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
@@ -83,7 +143,9 @@ fn symlink_follow() {
         "symlink_follow/dist",
         "--strip-components",
         "2",
-    ]))
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     assert!(!PathBuf::from("symlink_follow/dist/link.txt").is_symlink());

@@ -5,15 +5,15 @@ use crate::{
     command::{
         ask_password,
         commons::{
-            collect_split_archives, run_transform_entry, Exclude, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid,
+            collect_split_archives, read_paths, read_paths_stdin, run_transform_entry, Exclude,
+            TransformStrategyKeepSolid, TransformStrategyUnSolid,
         },
         Command,
     },
-    utils::{self, GlobPatterns, PathPartExt},
+    utils::{env::NamedTempFile, GlobPatterns, PathPartExt, VCS_FILES},
 };
 use clap::{ArgGroup, Parser, ValueHint};
-use std::{io, path::PathBuf};
+use std::path::PathBuf;
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(
@@ -23,6 +23,13 @@ use std::{io, path::PathBuf};
     group(ArgGroup::new("unstable-delete-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
     group(ArgGroup::new("read-files-from").args(["files_from", "files_from_stdin"])),
+    group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
+    group(
+        ArgGroup::new("from-input")
+            .args(["files_from", "files_from_stdin", "exclude_from"])
+            .multiple(true)
+    ),
+    group(ArgGroup::new("null-requires").arg("null").requires("from-input")),
 )]
 pub(crate) struct DeleteCommand {
     #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
@@ -40,6 +47,13 @@ pub(crate) struct DeleteCommand {
     exclude: Option<Vec<String>>,
     #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
     exclude_from: Option<PathBuf>,
+    #[arg(long, help = "Exclude vcs files (unstable)")]
+    exclude_vcs: bool,
+    #[arg(
+        long,
+        help = "Filenames or patterns are separated by null characters, not by newlines"
+    )]
+    null: bool,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
@@ -50,25 +64,27 @@ pub(crate) struct DeleteCommand {
 
 impl Command for DeleteCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         delete_file_from_archive(self)
     }
 }
 
-fn delete_file_from_archive(args: DeleteCommand) -> io::Result<()> {
+fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let mut files = args.file.files;
     if args.files_from_stdin {
-        files.extend(io::stdin().lines().collect::<io::Result<Vec<_>>>()?);
+        files.extend(read_paths_stdin(args.null)?);
     } else if let Some(path) = args.files_from {
-        files.extend(utils::fs::read_to_lines(path)?);
+        files.extend(read_paths(path, args.null)?);
     }
-    let globs =
-        GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let mut globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))?;
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
-            exclude.extend(utils::fs::read_to_lines(p)?);
+            exclude.extend(read_paths(p, args.null)?);
+        }
+        if args.exclude_vcs {
+            exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
         }
         Exclude {
             include: args.include.unwrap_or_default().into(),
@@ -78,10 +94,23 @@ fn delete_file_from_archive(args: DeleteCommand) -> io::Result<()> {
 
     let archives = collect_split_archives(&args.file.archive)?;
 
+    #[cfg(feature = "memmap")]
+    let mmaps = archives
+        .into_iter()
+        .map(crate::utils::mmap::Mmap::try_from)
+        .collect::<std::io::Result<Vec<_>>>()?;
+    #[cfg(feature = "memmap")]
+    let archives = mmaps.iter().map(|m| m.as_ref());
+
+    let output_path = args
+        .output
+        .unwrap_or_else(|| args.file.archive.remove_part().unwrap());
+    let mut temp_file =
+        NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
+
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => run_transform_entry(
-            args.output
-                .unwrap_or_else(|| args.file.archive.remove_part().unwrap()),
+            temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
             |entry| {
@@ -95,8 +124,7 @@ fn delete_file_from_archive(args: DeleteCommand) -> io::Result<()> {
             TransformStrategyUnSolid,
         ),
         SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
-            args.output
-                .unwrap_or_else(|| args.file.archive.remove_part().unwrap()),
+            temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
             |entry| {
@@ -109,5 +137,13 @@ fn delete_file_from_archive(args: DeleteCommand) -> io::Result<()> {
             },
             TransformStrategyKeepSolid,
         ),
-    }
+    }?;
+
+    #[cfg(feature = "memmap")]
+    drop(mmaps);
+
+    temp_file.persist(output_path)?;
+
+    globs.ensure_all_matched()?;
+    Ok(())
 }

@@ -8,10 +8,22 @@ pub(crate) mod deflate;
 pub(crate) mod xz;
 pub(crate) mod zstandard;
 
+/// An enum representing different compression writers for PNA archives.
+///
+/// This enum provides different compression implementations for writing data to a PNA archive.
+/// It supports multiple compression algorithms:
+/// - No compression (raw data)
+/// - Deflate (zlib)
+/// - Zstandard
+/// - XZ (LZMA2)
 pub(crate) enum CompressionWriter<W: Write> {
+    /// No compression, data is written as-is
     No(W),
+    /// Deflate compression using zlib
     Deflate(ZlibEncoder<W>),
+    /// Zstandard compression
     ZStd(ZstdEncoder<'static, W>),
+    /// XZ compression using LZMA2
     Xz(XzEncoder<W>),
 }
 
@@ -49,20 +61,33 @@ impl<W: Write> TryIntoInner<W> for CompressionWriter<W> {
     }
 }
 
+/// An enum representing different decompression readers for PNA archives.
+///
+/// This enum provides different decompression implementations for reading data from a PNA archive.
+/// It supports multiple compression algorithms:
+/// - No compression (raw data)
+/// - Deflate (zlib)
+/// - Zstandard
+/// - XZ (LZMA2)
 pub(crate) enum DecompressReader<R: Read> {
+    /// No decompression, data is read as-is
     No(R),
+    /// Deflate decompression using zlib
     Deflate(ZlibDecoder<R>),
+    /// Zstandard decompression
     ZStd(ZStdDecoder<'static, BufReader<R>>),
+    /// XZ decompression using LZMA2
     Xz(XzDecoder<R>),
 }
 
 impl<R: Read> Read for DecompressReader<R> {
+    #[inline]
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
         match self {
-            DecompressReader::No(r) => r.read(buf),
-            DecompressReader::Deflate(r) => r.read(buf),
-            DecompressReader::ZStd(r) => r.read(buf),
-            DecompressReader::Xz(r) => r.read(buf),
+            Self::No(r) => r.read(buf),
+            Self::Deflate(r) => r.read(buf),
+            Self::ZStd(r) => r.read(buf),
+            Self::Xz(r) => r.read(buf),
         }
     }
 }

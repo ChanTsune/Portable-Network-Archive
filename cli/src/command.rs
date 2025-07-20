@@ -13,29 +13,15 @@ pub(super) mod experimental;
 pub mod extract;
 pub mod list;
 mod migrate;
+mod sort;
 pub mod split;
 pub(crate) mod stdio;
 pub(crate) mod strip;
 pub mod update;
-mod xattr;
+pub mod xattr;
 
 use crate::cli::{CipherAlgorithmArgs, Cli, Commands, PasswordArgs};
 use std::{fs, io};
-
-pub fn entry(cli: Cli) -> io::Result<()> {
-    match cli.commands {
-        Commands::Create(cmd) => cmd.execute(),
-        Commands::Append(cmd) => cmd.execute(),
-        Commands::Extract(cmd) => cmd.execute(),
-        Commands::List(cmd) => cmd.execute(),
-        Commands::Split(cmd) => cmd.execute(),
-        Commands::Concat(cmd) => cmd.execute(),
-        Commands::Strip(cmd) => cmd.execute(),
-        Commands::Complete(cmd) => cmd.execute(),
-        Commands::BugReport(cmd) => cmd.execute(),
-        Commands::Experimental(cmd) => cmd.execute(),
-    }
-}
 
 fn ask_password(args: PasswordArgs) -> io::Result<Option<String>> {
     if let Some(path) = args.password_file {
@@ -65,12 +51,24 @@ fn check_password(password: &Option<String>, cipher_args: &CipherAlgorithmArgs) 
 }
 
 pub trait Command {
-    fn execute(self) -> io::Result<()>;
+    fn execute(self) -> anyhow::Result<()>;
 }
 
 impl Command for Cli {
     #[inline]
-    fn execute(self) -> io::Result<()> {
-        entry(self)
+    fn execute(self) -> anyhow::Result<()> {
+        match self.commands {
+            Commands::Create(cmd) => cmd.execute(),
+            Commands::Append(cmd) => cmd.execute(),
+            Commands::Extract(cmd) => cmd.execute(),
+            Commands::List(cmd) => cmd.execute(),
+            Commands::Split(cmd) => cmd.execute(),
+            Commands::Concat(cmd) => cmd.execute(),
+            Commands::Strip(cmd) => cmd.execute(),
+            Commands::Xattr(cmd) => cmd.execute(),
+            Commands::Complete(cmd) => cmd.execute(),
+            Commands::BugReport(cmd) => cmd.execute(),
+            Commands::Experimental(cmd) => cmd.execute(),
+        }
     }
 }

@@ -11,7 +11,7 @@ impl User {
         }
         Err(io::Error::new(
             io::ErrorKind::NotFound,
-            format!("uid {} not found", uid),
+            format!("uid {uid} not found"),
         ))
     }
 
@@ -22,7 +22,7 @@ impl User {
         }
         Err(io::Error::new(
             io::ErrorKind::NotFound,
-            format!("username {} not found", name),
+            format!("username {name} not found"),
         ))
     }
 
@@ -46,7 +46,7 @@ impl Group {
         }
         Err(io::Error::new(
             io::ErrorKind::NotFound,
-            format!("gid {} not found", gid),
+            format!("gid {gid} not found"),
         ))
     }
 
@@ -57,7 +57,7 @@ impl Group {
         }
         Err(io::Error::new(
             io::ErrorKind::NotFound,
-            format!("gname {} not found", name),
+            format!("gname {name} not found"),
         ))
     }
 

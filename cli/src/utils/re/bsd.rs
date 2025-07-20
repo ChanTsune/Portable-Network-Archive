@@ -45,7 +45,7 @@ impl Replacer for SubstitutionReplacer {
     }
 
     #[inline]
-    fn no_expansion(&mut self) -> Option<Cow<str>> {
+    fn no_expansion(&mut self) -> Option<Cow<'_, str>> {
         if self.0.find('~').is_some() || self.0.find('\\').is_some() {
             None
         } else {
@@ -141,7 +141,7 @@ impl SubstitutionRule {
         };
 
         if self.print {
-            eprintln!("{} >> {}", input, result);
+            eprintln!("{input} >> {result}");
         }
 
         Some(result)
@@ -153,9 +153,10 @@ pub(crate) struct SubstitutionRules(Vec<SubstitutionRule>);
 
 impl SubstitutionRules {
     #[inline]
-    pub(crate) fn new(rules: Vec<SubstitutionRule>) -> Self {
+    pub(crate) const fn new(rules: Vec<SubstitutionRule>) -> Self {
         Self(rules)
     }
+
     #[inline]
     pub(crate) fn apply(
         &self,

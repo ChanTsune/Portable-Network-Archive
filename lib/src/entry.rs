@@ -8,12 +8,19 @@ mod read;
 mod reference;
 mod write;
 
-pub use self::{attr::*, builder::*, header::*, meta::*, name::*, options::*, reference::*};
+pub use self::{
+    attr::*,
+    builder::{EntryBuilder, SolidEntryBuilder},
+    header::*,
+    meta::*,
+    name::*,
+    options::*,
+    reference::*,
+};
 pub(crate) use self::{private::*, read::*, write::*};
 use crate::{
     chunk::{
-        chunk_data_split, Chunk, ChunkExt, ChunkReader, ChunkType, RawChunk, MAX_CHUNK_DATA_LENGTH,
-        MIN_CHUNK_BYTES_SIZE,
+        chunk_data_split, Chunk, ChunkExt, ChunkReader, ChunkType, RawChunk, MIN_CHUNK_BYTES_SIZE,
     },
     util::slice::skip_while,
 };
@@ -32,7 +39,7 @@ mod private {
     }
 }
 
-/// Archive entry.
+/// A trait representing an entry in a PNA archive.
 pub trait Entry: SealedEntryExt {}
 
 /// Chunks from `FHED` to `FEND`, containing `FHED` and `FEND`
@@ -51,31 +58,10 @@ fn chunks_write_in<W: Write>(
     Ok(total)
 }
 
-impl SealedEntryExt for RawEntry<Vec<u8>> {
-    #[inline]
-    fn into_chunks(self) -> Vec<RawChunk> {
-        self.0
-    }
-
-    #[inline]
-    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        chunks_write_in(self.0.iter(), writer)
-    }
-}
-
-impl SealedEntryExt for RawEntry<&[u8]> {
-    #[inline]
-    fn into_chunks(self) -> Vec<RawChunk> {
-        self.0.into_iter().map(Into::into).collect()
-    }
-
-    #[inline]
-    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        chunks_write_in(self.0.iter(), writer)
-    }
-}
-
-impl SealedEntryExt for RawEntry<Cow<'_, [u8]>> {
+impl<T> SealedEntryExt for RawEntry<T>
+where
+    RawChunk<T>: Chunk + Into<RawChunk>,
+{
     #[inline]
     fn into_chunks(self) -> Vec<RawChunk> {
         self.0.into_iter().map(Into::into).collect()
@@ -143,9 +129,12 @@ impl futures_io::AsyncRead for EntryDataReader<'_> {
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum ReadEntry<T = Vec<u8>> {
-    /// Solid mode entry
+    /// A solid mode entry that contains multiple files compressed together.
+    /// This type of entry provides better compression ratios but requires
+    /// sequential access to the contained files.
     Solid(SolidEntry<T>),
-    /// Normal entry
+    /// A normal entry that represents a single file in the archive.
+    /// This type of entry allows random access to the file data.
     Normal(NormalEntry<T>),
 }
 
@@ -280,7 +269,12 @@ impl Iterator for EntryIterator<'_> {
     }
 }
 
-/// A solid mode entry.
+/// A solid mode entry in a PNA archive.
+///
+/// Solid entries contain multiple files compressed together as a single unit.
+/// This provides better compression ratios but requires sequential access to
+/// the contained files. The entry includes a header, optional password hash,
+/// data chunks, and any extra chunks.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct SolidEntry<T = Vec<u8>> {
     header: SolidHeader,
@@ -312,29 +306,11 @@ where
     }
 }
 
-impl SealedEntryExt for SolidEntry<Vec<u8>> {
-    fn into_chunks(self) -> Vec<RawChunk> {
-        let mut chunks = vec![];
-        chunks.push(RawChunk::from_data(ChunkType::SHED, self.header.to_bytes()));
-        chunks.extend(self.extra);
-
-        if let Some(phsf) = self.phsf {
-            chunks.push(RawChunk::from_data(ChunkType::PHSF, phsf.into_bytes()));
-        }
-        for data in self.data {
-            chunks.push(RawChunk::from_data(ChunkType::SDAT, data));
-        }
-        chunks.push(RawChunk::from_data(ChunkType::SEND, Vec::new()));
-        chunks
-    }
-
-    #[inline]
-    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        self.chunks_write_in(writer)
-    }
-}
-
-impl SealedEntryExt for SolidEntry<&[u8]> {
+impl<T> SealedEntryExt for SolidEntry<T>
+where
+    T: AsRef<[u8]>,
+    RawChunk<T>: Chunk + Into<RawChunk>,
+{
     fn into_chunks(self) -> Vec<RawChunk> {
         let mut chunks = vec![];
         chunks.push(RawChunk::from_data(ChunkType::SHED, self.header.to_bytes()));
@@ -344,29 +320,7 @@ impl SealedEntryExt for SolidEntry<&[u8]> {
             chunks.push(RawChunk::from_data(ChunkType::PHSF, phsf.into_bytes()));
         }
         for data in self.data {
-            chunks.push(RawChunk::from_data(ChunkType::SDAT, data));
-        }
-        chunks.push(RawChunk::from_data(ChunkType::SEND, Vec::new()));
-        chunks
-    }
-
-    #[inline]
-    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        self.chunks_write_in(writer)
-    }
-}
-
-impl SealedEntryExt for SolidEntry<Cow<'_, [u8]>> {
-    fn into_chunks(self) -> Vec<RawChunk> {
-        let mut chunks = vec![];
-        chunks.push(RawChunk::from_data(ChunkType::SHED, self.header.to_bytes()));
-        chunks.extend(self.extra.into_iter().map(Into::into));
-
-        if let Some(phsf) = self.phsf {
-            chunks.push(RawChunk::from_data(ChunkType::PHSF, phsf.into_bytes()));
-        }
-        for data in self.data {
-            chunks.push(RawChunk::from_data(ChunkType::SDAT, data));
+            chunks.push(RawChunk::from((ChunkType::SDAT, data)).into());
         }
         chunks.push(RawChunk::from_data(ChunkType::SEND, Vec::new()));
         chunks
@@ -397,9 +351,12 @@ impl<T> SolidEntry<T> {
 impl<T: AsRef<[u8]>> SolidEntry<T> {
     /// Returns an iterator over the entries in the [SolidEntry].
     ///
-    /// # Example
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while reading from the [SolidEntry].
     ///
     /// # Example
+    ///
     /// ```no_run
     /// use libpna::{Archive, ReadEntry, ReadOptions};
     /// use std::fs;
@@ -435,7 +392,7 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
             self.header.encryption,
             self.header.cipher_mode,
             self.phsf.as_deref(),
-            password.as_ref().map(|it| it.as_bytes()),
+            password.map(|it| it.as_bytes()),
         )?;
         let reader = decompress_reader(reader, self.header.compression)?;
 
@@ -499,7 +456,8 @@ where
 
     #[inline]
     fn try_from(entry: RawEntry<T>) -> Result<Self, Self::Error> {
-        if let Some(first_chunk) = entry.0.first() {
+        let mut chunks = entry.0.into_iter();
+        let header = if let Some(first_chunk) = chunks.next() {
             if first_chunk.ty != ChunkType::SHED {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
@@ -509,27 +467,20 @@ where
                         first_chunk.ty
                     ),
                 ));
+            } else {
+                SolidHeader::try_from(first_chunk.data())?
             }
-        }
-        Self::try_from(ChunkSolidEntries(entry.0))
-    }
-}
-
-impl<T> TryFrom<ChunkSolidEntries<T>> for SolidEntry<T>
-where
-    RawChunk<T>: Chunk,
-{
-    type Error = io::Error;
-
-    #[inline]
-    fn try_from(entry: ChunkSolidEntries<T>) -> Result<Self, Self::Error> {
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("{} chunk not found", ChunkType::SHED),
+            ));
+        };
         let mut extra = vec![];
         let mut data = vec![];
-        let mut info = None;
         let mut phsf = None;
-        for chunk in entry.0 {
+        for chunk in chunks {
             match chunk.ty() {
-                ChunkType::SHED => info = Some(SolidHeader::try_from(chunk.data())?),
                 ChunkType::SDAT => data.push(chunk.data),
                 ChunkType::PHSF => {
                     phsf = Some(
@@ -540,12 +491,6 @@ where
                 _ => extra.push(chunk),
             }
         }
-        let header = info.ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("{} chunk not found", ChunkType::SHED),
-            )
-        })?;
         Ok(Self {
             header,
             phsf,
@@ -555,7 +500,11 @@ where
     }
 }
 
-/// [Entry] that read from PNA archive.
+/// A normal entry in a PNA archive.
+///
+/// Normal entries represent individual files in the archive, allowing for
+/// random access to the file data. Each entry includes a header, optional
+/// password hash, data chunks, metadata, extended attributes, and any extra chunks.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct NormalEntry<T = Vec<u8>> {
     pub(crate) header: EntryHeader,
@@ -574,7 +523,8 @@ where
 
     #[inline]
     fn try_from(entry: RawEntry<T>) -> Result<Self, Self::Error> {
-        if let Some(first_chunk) = entry.0.first() {
+        let mut chunks = entry.0.into_iter();
+        let header = if let Some(first_chunk) = chunks.next() {
             if first_chunk.ty != ChunkType::FHED {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
@@ -585,22 +535,38 @@ where
                     ),
                 ));
             }
+            EntryHeader::try_from(first_chunk.data())?
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("{} chunk not found", ChunkType::FHED),
+            ));
+        };
+        if header.major != 0 || header.minor != 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                format!(
+                    "entry version {}.{} is not supported.",
+                    header.major, header.minor
+                ),
+            ));
         }
         let mut compressed_size = 0;
         let mut extra = vec![];
         let mut data = vec![];
         let mut xattrs = vec![];
-        let mut info = None;
         let mut size = None;
         let mut phsf = None;
         let mut ctime = None;
         let mut mtime = None;
         let mut atime = None;
+        let mut ctime_ns = None;
+        let mut mtime_ns = None;
+        let mut atime_ns = None;
         let mut permission = None;
-        for chunk in entry.0 {
+        for chunk in chunks {
             match chunk.ty {
                 ChunkType::FEND => break,
-                ChunkType::FHED => info = Some(EntryHeader::try_from(chunk.data())?),
                 ChunkType::PHSF => {
                     phsf = Some(
                         String::from_utf8(chunk.data().into())
@@ -615,26 +581,18 @@ where
                 ChunkType::cTIM => ctime = Some(timestamp(chunk.data())?),
                 ChunkType::mTIM => mtime = Some(timestamp(chunk.data())?),
                 ChunkType::aTIM => atime = Some(timestamp(chunk.data())?),
+                ChunkType::cTNS => ctime_ns = Some(nanos(chunk.data())?),
+                ChunkType::mTNS => mtime_ns = Some(nanos(chunk.data())?),
+                ChunkType::aTNS => atime_ns = Some(nanos(chunk.data())?),
                 ChunkType::fPRM => permission = Some(Permission::try_from_bytes(chunk.data())?),
                 ChunkType::xATR => xattrs.push(ExtendedAttribute::try_from_bytes(chunk.data())?),
                 _ => extra.push(chunk),
             }
         }
-        let header = info.ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("{} chunk not found", ChunkType::FHED),
-            )
-        })?;
-        if header.major != 0 || header.minor != 0 {
-            return Err(io::Error::new(
-                io::ErrorKind::Unsupported,
-                format!(
-                    "entry version {}.{} is not supported.",
-                    header.major, header.minor
-                ),
-            ));
-        }
+        let ctime = ctime.map(|t| t + Duration::from_nanos(ctime_ns.unwrap_or(0) as u64));
+        let mtime = mtime.map(|t| t + Duration::from_nanos(mtime_ns.unwrap_or(0) as u64));
+        let atime = atime.map(|t| t + Duration::from_nanos(atime_ns.unwrap_or(0) as u64));
+
         Ok(Self {
             header,
             phsf,
@@ -687,18 +645,28 @@ where
             total += (ChunkType::PHSF, p.as_bytes()).write_chunk_in(writer)?;
         }
         for data_chunk in &self.data {
-            for data_unit in data_chunk.as_ref().chunks(MAX_CHUNK_DATA_LENGTH) {
-                total += (ChunkType::FDAT, data_unit).write_chunk_in(writer)?;
-            }
+            total += (ChunkType::FDAT, data_chunk).write_chunk_in(writer)?;
         }
         if let Some(c) = created {
             total += (ChunkType::cTIM, c.as_secs().to_be_bytes()).write_chunk_in(writer)?;
+            if c.subsec_nanos() != 0 {
+                total +=
+                    (ChunkType::cTNS, c.subsec_nanos().to_be_bytes()).write_chunk_in(writer)?;
+            }
         }
         if let Some(d) = modified {
             total += (ChunkType::mTIM, d.as_secs().to_be_bytes()).write_chunk_in(writer)?;
+            if d.subsec_nanos() != 0 {
+                total +=
+                    (ChunkType::mTNS, d.subsec_nanos().to_be_bytes()).write_chunk_in(writer)?;
+            }
         }
         if let Some(a) = accessed {
             total += (ChunkType::aTIM, a.as_secs().to_be_bytes()).write_chunk_in(writer)?;
+            if a.subsec_nanos() != 0 {
+                total +=
+                    (ChunkType::aTNS, a.subsec_nanos().to_be_bytes()).write_chunk_in(writer)?;
+            }
         }
         if let Some(p) = permission {
             total += (ChunkType::fPRM, p.to_bytes()).write_chunk_in(writer)?;
@@ -711,69 +679,11 @@ where
     }
 }
 
-impl SealedEntryExt for NormalEntry<Vec<u8>> {
-    fn into_chunks(self) -> Vec<RawChunk> {
-        let Metadata {
-            raw_file_size,
-            compressed_size: _,
-            created,
-            modified,
-            accessed,
-            permission,
-        } = self.metadata;
-        let mut vec = Vec::new();
-        vec.push(RawChunk::from_data(ChunkType::FHED, self.header.to_bytes()));
-        vec.extend(self.extra);
-        if let Some(raw_file_size) = raw_file_size {
-            vec.push(RawChunk::from_data(
-                ChunkType::fSIZ,
-                skip_while(&raw_file_size.to_be_bytes(), |i| *i == 0),
-            ));
-        }
-
-        if let Some(p) = self.phsf {
-            vec.push(RawChunk::from_data(ChunkType::PHSF, p.into_bytes()));
-        }
-        for data_chunk in self.data {
-            for data_unit in data_chunk.chunks(MAX_CHUNK_DATA_LENGTH) {
-                vec.push(RawChunk::from_data(ChunkType::FDAT, data_unit));
-            }
-        }
-        if let Some(c) = created {
-            vec.push(RawChunk::from_data(
-                ChunkType::cTIM,
-                c.as_secs().to_be_bytes(),
-            ));
-        }
-        if let Some(d) = modified {
-            vec.push(RawChunk::from_data(
-                ChunkType::mTIM,
-                d.as_secs().to_be_bytes(),
-            ));
-        }
-        if let Some(a) = accessed {
-            vec.push(RawChunk::from_data(
-                ChunkType::aTIM,
-                a.as_secs().to_be_bytes(),
-            ));
-        }
-        if let Some(p) = permission {
-            vec.push(RawChunk::from_data(ChunkType::fPRM, p.to_bytes()));
-        }
-        for xattr in self.xattrs {
-            vec.push(RawChunk::from_data(ChunkType::xATR, xattr.to_bytes()));
-        }
-        vec.push(RawChunk::from_data(ChunkType::FEND, Vec::new()));
-        vec
-    }
-
-    #[inline]
-    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        self.chunks_write_in(writer)
-    }
-}
-
-impl SealedEntryExt for NormalEntry<&[u8]> {
+impl<T> SealedEntryExt for NormalEntry<T>
+where
+    T: AsRef<[u8]>,
+    RawChunk<T>: Chunk + Into<RawChunk>,
+{
     fn into_chunks(self) -> Vec<RawChunk> {
         let Metadata {
             raw_file_size,
@@ -797,89 +707,43 @@ impl SealedEntryExt for NormalEntry<&[u8]> {
             vec.push(RawChunk::from_data(ChunkType::PHSF, p.into_bytes()));
         }
         for data_chunk in self.data {
-            for data_unit in data_chunk.chunks(MAX_CHUNK_DATA_LENGTH) {
-                vec.push(RawChunk::from_data(ChunkType::FDAT, data_unit));
-            }
+            vec.push(RawChunk::from((ChunkType::FDAT, data_chunk)).into());
         }
         if let Some(c) = created {
             vec.push(RawChunk::from_data(
                 ChunkType::cTIM,
                 c.as_secs().to_be_bytes(),
             ));
-        }
-        if let Some(d) = modified {
-            vec.push(RawChunk::from_data(
-                ChunkType::mTIM,
-                d.as_secs().to_be_bytes(),
-            ));
-        }
-        if let Some(a) = accessed {
-            vec.push(RawChunk::from_data(
-                ChunkType::aTIM,
-                a.as_secs().to_be_bytes(),
-            ));
-        }
-        if let Some(p) = permission {
-            vec.push(RawChunk::from_data(ChunkType::fPRM, p.to_bytes()));
-        }
-        for xattr in self.xattrs {
-            vec.push(RawChunk::from_data(ChunkType::xATR, xattr.to_bytes()));
-        }
-        vec.push(RawChunk::from_data(ChunkType::FEND, Vec::new()));
-        vec
-    }
-
-    #[inline]
-    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        self.chunks_write_in(writer)
-    }
-}
-
-impl SealedEntryExt for NormalEntry<Cow<'_, [u8]>> {
-    fn into_chunks(self) -> Vec<RawChunk> {
-        let Metadata {
-            raw_file_size,
-            compressed_size: _,
-            created,
-            modified,
-            accessed,
-            permission,
-        } = self.metadata;
-        let mut vec = Vec::new();
-        vec.push(RawChunk::from_data(ChunkType::FHED, self.header.to_bytes()));
-        vec.extend(self.extra.into_iter().map(Into::into));
-        if let Some(raw_file_size) = raw_file_size {
-            vec.push(RawChunk::from_data(
-                ChunkType::fSIZ,
-                skip_while(&raw_file_size.to_be_bytes(), |i| *i == 0),
-            ));
-        }
-
-        if let Some(p) = self.phsf {
-            vec.push(RawChunk::from_data(ChunkType::PHSF, p.into_bytes()));
-        }
-        for data_chunk in self.data {
-            for data_unit in data_chunk.chunks(MAX_CHUNK_DATA_LENGTH) {
-                vec.push(RawChunk::from_data(ChunkType::FDAT, data_unit));
+            if c.subsec_nanos() != 0 {
+                vec.push(RawChunk::from_data(
+                    ChunkType::cTNS,
+                    c.subsec_nanos().to_be_bytes(),
+                ));
             }
         }
-        if let Some(c) = created {
-            vec.push(RawChunk::from_data(
-                ChunkType::cTIM,
-                c.as_secs().to_be_bytes(),
-            ));
-        }
         if let Some(d) = modified {
             vec.push(RawChunk::from_data(
                 ChunkType::mTIM,
                 d.as_secs().to_be_bytes(),
             ));
+            if d.subsec_nanos() != 0 {
+                vec.push(RawChunk::from_data(
+                    ChunkType::mTNS,
+                    d.subsec_nanos().to_be_bytes(),
+                ));
+            }
         }
         if let Some(a) = accessed {
             vec.push(RawChunk::from_data(
                 ChunkType::aTIM,
                 a.as_secs().to_be_bytes(),
             ));
+            if a.subsec_nanos() != 0 {
+                vec.push(RawChunk::from_data(
+                    ChunkType::aTNS,
+                    a.subsec_nanos().to_be_bytes(),
+                ));
+            }
         }
         if let Some(p) = permission {
             vec.push(RawChunk::from_data(ChunkType::fPRM, p.to_bytes()));
@@ -959,7 +823,7 @@ impl<T> NormalEntry<T> {
     /// # }
     /// ```
     #[inline]
-    pub fn with_xattrs(mut self, xattrs: &[ExtendedAttribute]) -> Self {
+    pub fn with_xattrs(mut self, xattrs: impl Into<Vec<ExtendedAttribute>>) -> Self {
         self.xattrs = xattrs.into();
         self
     }
@@ -983,8 +847,8 @@ impl<T: Clone> NormalEntry<T> {
     /// # }
     /// ```
     #[inline]
-    pub fn with_extra_chunks(mut self, chunks: &[RawChunk<T>]) -> Self {
-        self.extra = chunks.to_vec();
+    pub fn with_extra_chunks(mut self, chunks: impl Into<Vec<RawChunk<T>>>) -> Self {
+        self.extra = chunks.into();
         self
     }
 }
@@ -992,7 +856,12 @@ impl<T: Clone> NormalEntry<T> {
 impl<T: AsRef<[u8]>> NormalEntry<T> {
     /// Return the reader of this [`NormalEntry`].
     ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while reading from the reader.
+    ///
     /// # Examples
+    ///
     /// ```no_run
     /// use libpna::{Archive, ReadOptions};
     /// use std::{fs, io};
@@ -1011,7 +880,7 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
     /// # }
     /// ```
     #[inline]
-    pub fn reader(&self, option: impl ReadOption) -> io::Result<EntryDataReader> {
+    pub fn reader(&self, option: impl ReadOption) -> io::Result<EntryDataReader<'_>> {
         let raw_data_reader =
             crate::io::FlattenReader::new(self.data.iter().map(|it| it.as_ref()).collect());
         let decrypt_reader = decrypt_reader(
@@ -1105,10 +974,10 @@ where
 }
 
 impl EntryPart<&[u8]> {
-    /// Split [EntryPart] into two parts if this entry can be split into smaller than given value.
+    /// Split [EntryPart] into two parts if this entry can be split into smaller than the given value.
     ///
     /// ## Errors
-    /// If it can't split into smaller than given value,
+    /// If it can't split into smaller than the given value,
     /// it returns an error containing the original value.
     #[inline]
     pub fn try_split(self, max_bytes_len: usize) -> Result<(Self, Option<Self>), Self> {
@@ -1119,7 +988,7 @@ impl EntryPart<&[u8]> {
         let mut first = Vec::new();
         let mut total_size = 0;
         while let Some(chunk) = remaining.pop_front() {
-            // NOTE: If over max size, restore to remaining chunk
+            // NOTE: If over max size, restore to the remaining chunk
             if max_bytes_len < total_size + chunk.bytes_len() {
                 if chunk.is_stream_chunk() && total_size + MIN_CHUNK_BYTES_SIZE < max_bytes_len {
                     let available_bytes_len = max_bytes_len - total_size;
@@ -1152,20 +1021,6 @@ impl<T: SealedEntryExt> From<T> for EntryPart {
     }
 }
 
-pub(crate) struct ChunkSolidEntries<T = Vec<u8>>(pub(crate) Vec<RawChunk<T>>);
-
-impl SealedEntryExt for ChunkSolidEntries {
-    #[inline]
-    fn into_chunks(self) -> Vec<RawChunk> {
-        self.0
-    }
-
-    #[inline]
-    fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        chunks_write_in(self.0.iter(), writer)
-    }
-}
-
 #[inline]
 fn timestamp(bytes: &[u8]) -> io::Result<Duration> {
     Ok(Duration::from_secs(u64::from_be_bytes(
@@ -1173,6 +1028,22 @@ fn timestamp(bytes: &[u8]) -> io::Result<Duration> {
             .try_into()
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
     )))
+}
+
+#[inline]
+fn nanos(bytes: &[u8]) -> io::Result<u32> {
+    let v = u32::from_be_bytes(
+        bytes
+            .try_into()
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+    );
+    if v >= 1_000_000_000 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid nanoseconds",
+        ));
+    }
+    Ok(v)
 }
 
 #[inline]
@@ -1197,18 +1068,22 @@ mod tests {
         check_impl::<NormalEntry<Vec<u8>>>();
         check_impl::<NormalEntry<Cow<[u8]>>>();
         check_impl::<NormalEntry<&[u8]>>();
+        check_impl::<NormalEntry<[u8; 1]>>();
 
         check_impl::<SolidEntry<Vec<u8>>>();
         check_impl::<SolidEntry<Cow<[u8]>>>();
         check_impl::<SolidEntry<&[u8]>>();
+        check_impl::<SolidEntry<[u8; 1]>>();
 
         check_impl::<ReadEntry<Vec<u8>>>();
         check_impl::<ReadEntry<Cow<[u8]>>>();
         check_impl::<ReadEntry<&[u8]>>();
+        check_impl::<ReadEntry<[u8; 1]>>();
 
         check_impl::<RawEntry<Vec<u8>>>();
         check_impl::<RawEntry<Cow<[u8]>>>();
         check_impl::<RawEntry<&[u8]>>();
+        check_impl::<RawEntry<[u8; 1]>>();
     }
 
     #[test]

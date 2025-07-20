@@ -5,11 +5,12 @@
 //! an archive is never required to be fully resident in memory, and all objects
 //! provide largely a streaming interface to read bytes from.
 
-#![doc(html_root_url = "https://docs.rs/libpna/0.24.0")]
+#![doc(html_root_url = "https://docs.rs/libpna/0.26.1")]
 #![deny(
     missing_docs,
     clippy::missing_inline_in_public_items,
     clippy::missing_panics_doc,
+    clippy::missing_errors_doc,
     clippy::missing_safety_doc
 )]
 pub(crate) mod archive;

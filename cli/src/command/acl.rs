@@ -10,7 +10,7 @@ use crate::{
         Command,
     },
     ext::{Acls, NormalEntryExt, PermissionExt},
-    utils::{GlobPatterns, PathPartExt},
+    utils::{env::NamedTempFile, GlobPatterns, PathPartExt},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use nom::{
@@ -38,7 +38,7 @@ pub(crate) struct AclCommand {
 
 impl Command for AclCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         match self.command {
             XattrCommands::Get(cmd) => cmd.execute(),
             XattrCommands::Set(cmd) => cmd.execute(),
@@ -47,6 +47,7 @@ impl Command for AclCommand {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum XattrCommands {
     #[command(about = "Get acl of entries")]
     Get(GetAclCommand),
@@ -70,7 +71,7 @@ pub(crate) struct GetAclCommand {
 
 impl Command for GetAclCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         archive_get_acl(self)
     }
 }
@@ -118,7 +119,7 @@ pub(crate) struct SetAclCommand {
 
 impl Command for SetAclCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         archive_set_acl(self)
     }
 }
@@ -274,23 +275,30 @@ impl FromStr for AclEntries {
         .parse_complete(s)
         .map_err(|it| it.to_string())?;
         if !p.is_empty() {
-            return Err(format!("unexpected value: {}", p));
+            return Err(format!("unexpected value: {p}"));
         }
         Ok(v)
     }
 }
 
-fn archive_get_acl(args: GetAclCommand) -> io::Result<()> {
+fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     if args.files.is_empty() {
         return Ok(());
     }
-    let globs = GlobPatterns::new(args.files)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let mut globs = GlobPatterns::new(args.files.iter().map(|it| it.as_str()))?;
     let platforms = args.platform.into_iter().collect::<HashSet<_>>();
     let numeric_owner = args.numeric;
 
     let archives = collect_split_archives(&args.archive)?;
+
+    #[cfg(feature = "memmap")]
+    let mmaps = archives
+        .into_iter()
+        .map(crate::utils::mmap::Mmap::try_from)
+        .collect::<io::Result<Vec<_>>>()?;
+    #[cfg(feature = "memmap")]
+    let archives = mmaps.iter().map(|m| m.as_ref());
 
     run_entries(
         archives,
@@ -300,7 +308,7 @@ fn archive_get_acl(args: GetAclCommand) -> io::Result<()> {
             let name = entry.header().path();
             if globs.matches_any(name) {
                 let permission = entry.metadata().permission();
-                println!("# file: {}", name);
+                println!("# file: {name}");
                 if let Some(permission) = permission {
                     println!("# owner: {}", permission.owner_display(numeric_owner));
                     println!("# group: {}", permission.group_display(numeric_owner));
@@ -313,9 +321,9 @@ fn archive_get_acl(args: GetAclCommand) -> io::Result<()> {
                     .into_iter()
                     .filter(|(p, _)| platforms.is_empty() || platforms.contains(p))
                 {
-                    println!("# platform: {}", platform);
+                    println!("# platform: {platform}");
                     for ace in acl {
-                        println!("{}", ace);
+                        println!("{ace}");
                     }
                 }
                 println!();
@@ -323,20 +331,20 @@ fn archive_get_acl(args: GetAclCommand) -> io::Result<()> {
             Ok(())
         },
     )?;
+    globs.ensure_all_matched()?;
     Ok(())
 }
 
-fn archive_set_acl(args: SetAclCommand) -> io::Result<()> {
+fn archive_set_acl(args: SetAclCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    let set_strategy = if let Some("-") = args.restore.as_deref() {
+    let mut set_strategy = if let Some("-") = args.restore.as_deref() {
         SetAclsStrategy::Restore(parse_acl_dump(io::stdin().lock())?)
     } else if let Some(path) = args.restore.as_deref() {
         SetAclsStrategy::Restore(parse_acl_dump(io::BufReader::new(fs::File::open(path)?))?)
     } else if args.files.is_empty() {
         return Ok(());
     } else {
-        let globs = GlobPatterns::new(args.files)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        let globs = GlobPatterns::new(args.files.iter().map(|it| it.as_str()))?;
         SetAclsStrategy::Apply {
             globs,
             set: args.set,
@@ -348,28 +356,51 @@ fn archive_set_acl(args: SetAclCommand) -> io::Result<()> {
 
     let archives = collect_split_archives(&args.archive)?;
 
+    #[cfg(feature = "memmap")]
+    let mmaps = archives
+        .into_iter()
+        .map(crate::utils::mmap::Mmap::try_from)
+        .collect::<io::Result<Vec<_>>>()?;
+    #[cfg(feature = "memmap")]
+    let archives = mmaps.iter().map(|m| m.as_ref());
+
+    let output_path = args.archive.remove_part().unwrap();
+    let mut temp_file =
+        NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
+
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => run_transform_entry(
-            args.archive.remove_part().unwrap(),
+            temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
             |entry| Ok(Some(set_strategy.transform_entry(entry?))),
             TransformStrategyUnSolid,
         ),
         SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
-            args.archive.remove_part().unwrap(),
+            temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
             |entry| Ok(Some(set_strategy.transform_entry(entry?))),
             TransformStrategyKeepSolid,
         ),
+    }?;
+
+    #[cfg(feature = "memmap")]
+    drop(mmaps);
+
+    temp_file.persist(output_path)?;
+
+    if let SetAclsStrategy::Apply { globs, .. } = set_strategy {
+        globs.ensure_all_matched()?;
     }
+    Ok(())
 }
 
-enum SetAclsStrategy {
+#[allow(clippy::large_enum_variant)]
+enum SetAclsStrategy<'s> {
     Restore(HashMap<String, Acls>),
     Apply {
-        globs: GlobPatterns,
+        globs: GlobPatterns<'s>,
         set: Option<AclEntries>,
         modify: Option<AclEntries>,
         remove: Option<AclEntries>,
@@ -377,9 +408,9 @@ enum SetAclsStrategy {
     },
 }
 
-impl SetAclsStrategy {
+impl SetAclsStrategy<'_> {
     #[inline]
-    fn transform_entry<T>(&self, entry: NormalEntry<T>) -> NormalEntry<T>
+    fn transform_entry<T>(&mut self, entry: NormalEntry<T>) -> NormalEntry<T>
     where
         T: Clone,
         RawChunk<T>: Chunk,
@@ -408,7 +439,7 @@ impl SetAclsStrategy {
                         .into_iter()
                         .chain(extra_without_known)
                         .collect::<Vec<_>>();
-                    entry.with_extra_chunks(&extra_chunks)
+                    entry.with_extra_chunks(extra_chunks)
                 } else {
                     entry
                 }
@@ -467,7 +498,7 @@ where
         .into_iter()
         .chain(extra_without_known)
         .collect::<Vec<_>>();
-    entry.with_extra_chunks(&extra_chunks)
+    entry.with_extra_chunks(extra_chunks)
 }
 
 fn transform_acl(
@@ -481,7 +512,7 @@ fn transform_acl(
 
     if let Some(set) = set {
         let ace = set.to_ace();
-        log::debug!("Setting ace {}", ace);
+        log::debug!("Setting ace {ace}");
         acl.clear();
         acl.push(ace);
     }
@@ -489,10 +520,10 @@ fn transform_acl(
         let ace = modify.to_ace();
         let item = acl.iter_mut().find(|it| modify.is_match(it));
         if let Some(item) = item {
-            log::debug!("Modifying ace {} to {}", item, ace);
+            log::debug!("Modifying ace {item} to {ace}");
             item.permission = ace.permission;
         } else {
-            log::debug!("Adding ace {} ", ace);
+            log::debug!("Adding ace {ace} ");
             acl.push(ace);
         }
     }

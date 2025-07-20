@@ -1,3 +1,7 @@
+pub(crate) mod path;
+pub(crate) mod str;
+pub(crate) mod utf8path;
+
 pub(crate) mod slice {
     #[inline]
     pub(crate) fn skip_while<E, P>(s: &[E], mut predicate: P) -> &[E]

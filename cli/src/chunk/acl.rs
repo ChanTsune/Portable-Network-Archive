@@ -114,9 +114,9 @@ impl Display for OwnerType {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match &self {
             OwnerType::Owner => f.write_str("u:"),
-            OwnerType::User(i) => write!(f, "u:{}", i),
+            OwnerType::User(i) => write!(f, "u:{i}"),
             OwnerType::OwnerGroup => f.write_str("g:"),
-            OwnerType::Group(i) => write!(f, "g:{}", i),
+            OwnerType::Group(i) => write!(f, "g:{i}"),
             OwnerType::Mask => f.write_str("m:"),
             OwnerType::Other => f.write_str("o:"),
         }
@@ -689,7 +689,7 @@ bitflags! {
         /// DELETE_CHILD permission for a directory.
         const DELETE_CHILD = 0b100000;
 
-        /// READ_ATTRIBUTES permission for file or directory.
+        /// READ_ATTRIBUTES permission for a file or directory.
         const READATTR = 0b1000000;
 
         /// WRITE_ATTRIBUTES permission for a file or directory.
@@ -789,7 +789,7 @@ mod tests {
         assert_eq!(Ace::from_str("d|inherited:u::allow:r|w|x"), Ok(ace));
     }
 
-    /// old version compatibility tests
+    /// Old version compatibility tests
     mod compat {
         use super::*;
 

@@ -1,12 +1,14 @@
 use crate::{
     cli::{
-        CipherAlgorithmArgs, CompressionAlgorithmArgs, FileArgs, HashAlgorithmArgs, PasswordArgs,
+        CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileArgs, HashAlgorithmArgs,
+        PasswordArgs,
     },
     command::{
         ask_password, check_password,
         commons::{
-            collect_items, create_entry, entry_option, write_split_archive, CreateOptions, Exclude,
-            KeepOptions, OwnerOptions, PathTransformers,
+            collect_items, create_entry, entry_option, read_paths, read_paths_stdin,
+            write_split_archive, CreateOptions, Exclude, KeepOptions, OwnerOptions,
+            PathTransformers, TimeOptions,
         },
         Command,
     },
@@ -14,6 +16,7 @@ use crate::{
         self,
         fmt::DurationDisplay,
         re::{bsd::SubstitutionRule, gnu::TransformRule},
+        VCS_FILES,
     },
 };
 use bytesize::ByteSize;
@@ -39,12 +42,23 @@ use std::{
     group(ArgGroup::new("unstable-transform").args(["transforms"]).requires("unstable")),
     group(ArgGroup::new("path-transform").args(["substitutions", "transforms"])),
     group(ArgGroup::new("read-files-from").args(["files_from", "files_from_stdin"])),
+    group(
+        ArgGroup::new("from-input")
+            .args(["files_from", "files_from_stdin", "exclude_from"])
+            .multiple(true)
+    ),
+    group(ArgGroup::new("null-requires").arg("null").requires("from-input")),
     group(ArgGroup::new("store-uname").args(["uname"]).requires("keep_permission")),
     group(ArgGroup::new("store-gname").args(["gname"]).requires("keep_permission")),
     group(ArgGroup::new("store-numeric-owner").args(["numeric_owner"]).requires("keep_permission")),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
     group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
+    group(ArgGroup::new("keep-dir-flag").args(["keep_dir", "no_keep_dir"])),
+    group(ArgGroup::new("ctime-flag").args(["clamp_ctime"]).requires("ctime")),
+    group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
+    group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
+    group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
@@ -67,7 +81,12 @@ pub(crate) struct CreateCommand {
     #[arg(long, help = "Overwrite file")]
     pub(crate) overwrite: bool,
     #[arg(long, help = "Archiving the directories")]
-    pub(crate) keep_dir: bool,
+    keep_dir: bool,
+    #[arg(
+        long,
+        help = "Do not archive directories. This is the inverse option of --keep-dir"
+    )]
+    no_keep_dir: bool,
     #[arg(
         long,
         visible_alias = "preserve-timestamps",
@@ -119,6 +138,27 @@ pub(crate) struct CreateCommand {
         help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names to not be stored in the archive"
     )]
     pub(crate) numeric_owner: bool,
+    #[arg(long, help = "Overrides the creation time read from disk")]
+    ctime: Option<DateTime>,
+    #[arg(
+        long,
+        help = "Clamp the creation time of the entries to the specified time by --ctime"
+    )]
+    clamp_ctime: bool,
+    #[arg(long, help = "Overrides the access time read from disk")]
+    atime: Option<DateTime>,
+    #[arg(
+        long,
+        help = "Clamp the access time of the entries to the specified time by --atime"
+    )]
+    clamp_atime: bool,
+    #[arg(long, help = "Overrides the modification time read from disk")]
+    mtime: Option<DateTime>,
+    #[arg(
+        long,
+        help = "Clamp the modification time of the entries to the specified time by --mtime"
+    )]
+    clamp_mtime: bool,
     #[arg(long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
     pub(crate) files_from: Option<String>,
     #[arg(long, help = "Read archiving files from stdin (unstable)")]
@@ -129,13 +169,20 @@ pub(crate) struct CreateCommand {
     )]
     include: Option<Vec<String>>,
     #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
-    pub(crate) exclude: Option<Vec<String>>,
+    exclude: Option<Vec<String>>,
     #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
-    pub(crate) exclude_from: Option<String>,
+    exclude_from: Option<String>,
+    #[arg(long, help = "Exclude vcs files (unstable)")]
+    exclude_vcs: bool,
     #[arg(long, help = "Ignore files from .gitignore (unstable)")]
     pub(crate) gitignore: bool,
-    #[arg(long, help = "Follow symbolic links")]
-    pub(crate) follow_links: bool,
+    #[arg(long, visible_aliases = ["dereference"], help = "Follow symbolic links")]
+    follow_links: bool,
+    #[arg(
+        long,
+        help = "Filenames or patterns are separated by null characters, not by newlines"
+    )]
+    null: bool,
     #[arg(
         short = 's',
         value_name = "PATTERN",
@@ -152,7 +199,7 @@ pub(crate) struct CreateCommand {
     #[arg(
         short = 'C',
         long = "cd",
-        aliases = ["directory"],
+        visible_aliases = ["directory"],
         value_name = "DIRECTORY",
         help = "changes the directory before adding the following files",
         value_hint = ValueHint::DirPath
@@ -172,12 +219,12 @@ pub(crate) struct CreateCommand {
 
 impl Command for CreateCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         create_archive(self)
     }
 }
 
-fn create_archive(args: CreateCommand) -> io::Result<()> {
+fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
@@ -186,20 +233,24 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
     if !args.overwrite && archive.exists() {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
-            format!("{} is already exists", archive.display()),
-        ));
+            format!("{} already exists", archive.display()),
+        )
+        .into());
     }
     log::info!("Create an archive: {}", archive.display());
     let mut files = args.file.files;
     if args.files_from_stdin {
-        files.extend(io::stdin().lines().collect::<io::Result<Vec<_>>>()?);
+        files.extend(read_paths_stdin(args.null)?);
     } else if let Some(path) = args.files_from {
-        files.extend(utils::fs::read_to_lines(path)?);
+        files.extend(read_paths(path, args.null)?);
     }
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
-            exclude.extend(utils::fs::read_to_lines(p)?);
+            exclude.extend(read_paths(p, args.null)?);
+        }
+        if args.exclude_vcs {
+            exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
         }
         Exclude {
             include: args.include.unwrap_or_default().into(),
@@ -240,17 +291,29 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
         args.numeric_owner,
     );
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
+    let time_options = TimeOptions {
+        mtime: args.mtime.map(|it| it.to_system_time()),
+        clamp_mtime: args.clamp_mtime,
+        ctime: args.ctime.map(|it| it.to_system_time()),
+        clamp_ctime: args.clamp_ctime,
+        atime: args.atime.map(|it| it.to_system_time()),
+        clamp_atime: args.clamp_atime,
+    };
     let password = password.as_deref();
     let write_option = entry_option(args.compression, args.cipher, args.hash, password);
+    let creation_context = CreationContext {
+        write_option,
+        keep_options,
+        owner_options,
+        time_options,
+        solid: args.solid,
+        follow_links: args.follow_links,
+        path_transformers,
+    };
     if let Some(size) = max_file_size {
         create_archive_with_split(
             &archive_path,
-            write_option,
-            keep_options,
-            owner_options,
-            args.solid,
-            args.follow_links,
-            path_transformers,
+            creation_context,
             target_items,
             size,
             args.overwrite,
@@ -258,12 +321,7 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
     } else {
         create_archive_file(
             || utils::fs::file_create(&archive_path, args.overwrite),
-            write_option,
-            keep_options,
-            owner_options,
-            args.solid,
-            args.follow_links,
-            path_transformers,
+            creation_context,
             target_items,
         )?;
     }
@@ -274,19 +332,32 @@ fn create_archive(args: CreateCommand) -> io::Result<()> {
     Ok(())
 }
 
+pub(crate) struct CreationContext {
+    pub(crate) write_option: WriteOptions,
+    pub(crate) keep_options: KeepOptions,
+    pub(crate) owner_options: OwnerOptions,
+    pub(crate) time_options: TimeOptions,
+    pub(crate) solid: bool,
+    pub(crate) follow_links: bool,
+    pub(crate) path_transformers: Option<PathTransformers>,
+}
+
 pub(crate) fn create_archive_file<W, F>(
     mut get_writer: F,
-    write_option: WriteOptions,
-    keep_options: KeepOptions,
-    owner_options: OwnerOptions,
-    solid: bool,
-    follow_links: bool,
-    path_transformers: Option<PathTransformers>,
-    target_items: Vec<PathBuf>,
-) -> io::Result<()>
+    CreationContext {
+        write_option,
+        keep_options,
+        owner_options,
+        time_options,
+        solid,
+        follow_links,
+        path_transformers,
+    }: CreationContext,
+    target_items: Vec<(PathBuf, Option<PathBuf>)>,
+) -> anyhow::Result<()>
 where
     W: Write,
-    F: FnMut() -> io::Result<W>,
+    F: FnMut() -> io::Result<W> + Send,
 {
     let (tx, rx) = std::sync::mpsc::channel();
     let option = if solid {
@@ -298,20 +369,23 @@ where
         option,
         keep_options,
         owner_options,
+        time_options,
         follow_links,
     };
-    for file in target_items {
-        let tx = tx.clone();
-        rayon::scope_fifo(|s| {
-            s.spawn_fifo(|_| {
-                log::debug!("Adding: {}", file.display());
+    rayon::scope_fifo(|s| {
+        for file in target_items {
+            let tx = tx.clone();
+            let create_options = create_options.clone();
+            let path_transformers = path_transformers.clone();
+            s.spawn_fifo(move |_| {
+                log::debug!("Adding: {}", file.0.display());
                 tx.send(create_entry(&file, &create_options, &path_transformers))
-                    .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
+                    .unwrap_or_else(|e| panic!("{e}: {}", file.0.display()));
             })
-        });
-    }
+        }
 
-    drop(tx);
+        drop(tx);
+    });
 
     let file = get_writer()?;
     if solid {
@@ -332,16 +406,19 @@ where
 
 fn create_archive_with_split(
     archive: &Path,
-    write_option: WriteOptions,
-    keep_options: KeepOptions,
-    owner_options: OwnerOptions,
-    solid: bool,
-    follow_links: bool,
-    path_transformers: Option<PathTransformers>,
-    target_items: Vec<PathBuf>,
+    CreationContext {
+        write_option,
+        keep_options,
+        owner_options,
+        time_options,
+        solid,
+        follow_links,
+        path_transformers,
+    }: CreationContext,
+    target_items: Vec<(PathBuf, Option<PathBuf>)>,
     max_file_size: usize,
     overwrite: bool,
-) -> io::Result<()> {
+) -> anyhow::Result<()> {
     let (tx, rx) = std::sync::mpsc::channel();
     let option = if solid {
         WriteOptions::store()
@@ -352,21 +429,24 @@ fn create_archive_with_split(
         option,
         keep_options,
         owner_options,
+        time_options,
         follow_links,
     };
-    for file in target_items {
-        let tx = tx.clone();
-        rayon::scope_fifo(|s| {
-            s.spawn_fifo(|_| {
-                log::debug!("Adding: {}", file.display());
+    rayon::scope_fifo(|s| -> anyhow::Result<()> {
+        for file in target_items {
+            let tx = tx.clone();
+            let create_options = create_options.clone();
+            let path_transformers = path_transformers.clone();
+            s.spawn_fifo(move |_| {
+                log::debug!("Adding: {}", file.0.display());
                 tx.send(create_entry(&file, &create_options, &path_transformers))
-                    .unwrap_or_else(|e| panic!("{e}: {}", file.display()));
+                    .unwrap_or_else(|e| panic!("{e}: {}", file.0.display()));
             })
-        });
-    }
+        }
 
-    drop(tx);
-
+        drop(tx);
+        Ok(())
+    })?;
     if solid {
         let mut entries_builder = SolidEntryBuilder::new(write_option)?;
         for entry in rx.into_iter() {

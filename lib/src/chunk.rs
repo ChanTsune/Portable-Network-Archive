@@ -22,7 +22,12 @@ pub const MIN_CHUNK_BYTES_SIZE: usize =
 pub(crate) const MAX_CHUNK_DATA_LENGTH: usize = u32::MAX as usize;
 
 pub(crate) trait ChunkExt: Chunk {
-    /// size of chunk in bytes
+    /// Returns the total size of the chunk in bytes, including the length field,
+    /// chunk type, data, and CRC32 checksum.
+    ///
+    /// # Returns
+    ///
+    /// The total size of the chunk in bytes.
     #[inline]
     fn bytes_len(&self) -> usize {
         MIN_CHUNK_BYTES_SIZE + self.data().len()
@@ -34,6 +39,19 @@ pub(crate) trait ChunkExt: Chunk {
         self.ty() == ChunkType::FDAT || self.ty() == ChunkType::SDAT
     }
 
+    /// Writes the chunk to the provided writer.
+    ///
+    /// # Arguments
+    ///
+    /// * `writer` - The writer to write the chunk to.
+    ///
+    /// # Returns
+    ///
+    /// The number of bytes written.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an `io::Error` if any write operation to the `writer` fails.
     #[inline]
     fn write_chunk_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         writer.write_all(&self.length().to_be_bytes())?;
@@ -62,12 +80,37 @@ pub(crate) trait ChunkExt: Chunk {
 
 impl<T> ChunkExt for T where T: Chunk {}
 
-/// Represents a raw chunk
+/// A raw chunk in a PNA archive.
+///
+/// This structure represents a chunk in its most basic form, containing:
+/// - `length`: The length of the chunk data in bytes
+/// - `ty`: The type of the chunk (e.g., FDAT, SDAT, etc.)
+/// - `data`: The actual chunk data
+/// - `crc`: A CRC32 checksum of the chunk type and data
+///
+/// # Examples
+/// ```
+/// use libpna::{prelude::*, ChunkType, RawChunk};
+///
+/// // Create a new chunk with some data
+/// let data = [0xAA, 0xBB, 0xCC, 0xDD];
+/// let chunk = RawChunk::from_data(ChunkType::FDAT, data);
+///
+/// // Access chunk properties
+/// assert_eq!(chunk.length(), 4);
+/// assert_eq!(chunk.ty(), ChunkType::FDAT);
+/// assert_eq!(chunk.data(), &[0xAA, 0xBB, 0xCC, 0xDD]);
+/// assert_eq!(chunk.crc(), 1207118608);
+/// ```
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct RawChunk<D = Vec<u8>> {
+    /// The length of the chunk data in bytes
     pub(crate) length: u32,
+    /// The type of the chunk
     pub(crate) ty: ChunkType,
+    /// The actual chunk data
     pub(crate) data: D,
+    /// The CRC32 checksum of the chunk type and data
     pub(crate) crc: u32,
 }
 
@@ -113,6 +156,18 @@ impl<'a> From<RawChunk<Cow<'a, [u8]>>> for RawChunk<Vec<u8>> {
 impl<'a> From<RawChunk<&'a [u8]>> for RawChunk<Vec<u8>> {
     #[inline]
     fn from(value: RawChunk<&'a [u8]>) -> Self {
+        Self {
+            length: value.length,
+            ty: value.ty,
+            data: value.data.into(),
+            crc: value.crc,
+        }
+    }
+}
+
+impl<const N: usize> From<RawChunk<[u8; N]>> for RawChunk<Vec<u8>> {
+    #[inline]
+    fn from(value: RawChunk<[u8; N]>) -> Self {
         Self {
             length: value.length,
             ty: value.ty,
@@ -272,10 +327,10 @@ pub(crate) fn chunk_data_split(
 
 /// Read archive as chunks from given reader.
 ///
-/// Reads a PNA archive from the given reader and returns an iterator of chunks.
+/// Reads a PNA archive from the given reader and return an iterator of chunks.
 ///
 /// # Errors
-/// Returns error if it is not PNA file.
+/// Returns error if it is not a PNA file.
 ///
 /// # Example
 ///
@@ -325,10 +380,10 @@ pub fn read_as_chunks<R: Read>(
 
 /// Read archive as chunks from given bytes.
 ///
-/// Reads a PNA archive from the given byte slice and returns an iterator of chunks.
+/// Reads a PNA archive from the given byte slice and return an iterator of chunks.
 ///
 /// # Errors
-/// Returns error if it is not PNA file.
+/// Returns error if it is not a PNA file.
 ///
 /// # Example
 ///

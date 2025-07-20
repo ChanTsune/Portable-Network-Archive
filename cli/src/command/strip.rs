@@ -11,11 +11,11 @@ use crate::{
         },
         Command,
     },
-    utils::PathPartExt,
+    utils::{env::NamedTempFile, PathPartExt},
 };
 use clap::{Args, Parser, ValueHint};
 use pna::{prelude::*, Metadata, NormalEntry, RawChunk};
-use std::{io, path::PathBuf};
+use std::path::PathBuf;
 
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) struct StripOptions {
@@ -63,33 +63,51 @@ pub(crate) struct StripCommand {
 
 impl Command for StripCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         strip_metadata(self)
     }
 }
 
-fn strip_metadata(args: StripCommand) -> io::Result<()> {
+fn strip_metadata(args: StripCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let archives = collect_split_archives(&args.file.archive)?;
 
+    #[cfg(feature = "memmap")]
+    let mmaps = archives
+        .into_iter()
+        .map(crate::utils::mmap::Mmap::try_from)
+        .collect::<std::io::Result<Vec<_>>>()?;
+    #[cfg(feature = "memmap")]
+    let archives = mmaps.iter().map(|m| m.as_ref());
+
+    let output_path = args
+        .output
+        .unwrap_or_else(|| args.file.archive.remove_part().unwrap());
+    let mut temp_file =
+        NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
+
     match args.transform_strategy.strategy() {
         SolidEntriesTransformStrategy::UnSolid => run_transform_entry(
-            args.output
-                .unwrap_or_else(|| args.file.archive.remove_part().unwrap()),
+            temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
             |entry| Ok(Some(strip_entry_metadata(entry?, &args.strip_options))),
             TransformStrategyUnSolid,
         ),
         SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
-            args.output
-                .unwrap_or_else(|| args.file.archive.remove_part().unwrap()),
+            temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
             |entry| Ok(Some(strip_entry_metadata(entry?, &args.strip_options))),
             TransformStrategyKeepSolid,
         ),
-    }
+    }?;
+
+    #[cfg(feature = "memmap")]
+    drop(mmaps);
+
+    temp_file.persist(output_path)?;
+    Ok(())
 }
 
 #[inline]
@@ -129,5 +147,5 @@ where
         .filter(|it| keep_private_all || keep_private_chunks.contains(&it.ty()))
         .cloned()
         .collect::<Vec<_>>();
-    entry.with_extra_chunks(&filtered)
+    entry.with_extra_chunks(filtered)
 }

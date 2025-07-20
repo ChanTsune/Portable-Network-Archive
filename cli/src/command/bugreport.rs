@@ -7,7 +7,7 @@ pub(crate) struct BugReportCommand;
 
 impl Command for BugReportCommand {
     #[inline]
-    fn execute(self) -> std::io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         bugreport!()
             .info(SoftwareVersion::default())
             .info(OperatingSystem::default())

@@ -15,16 +15,16 @@ jobs:
     timeout-minutes: 100
     name: Test on Solaris
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Test in Solaris
         id: test
-        uses: vmactions/solaris-vm@v1.1.1
+        uses: vmactions/solaris-vm@170f1f96f376cf7467cc41627e0c7590932fccaa # v1.1.4
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
           usesh: true
           prepare: |
-            pkg install bash libtool automake gnu-m4 tree wget gcc autoconf //solaris/text/gawk pkg://solaris/text/gnu-diffutils pkg://solaris/text/gnu-grep pkg://solaris/text/gnu-sed cmake
+            pkg install bash libtool gnu-m4 tree wget gcc autoconf //solaris/text/gawk pkg://solaris/text/gnu-diffutils pkg://solaris/text/gnu-grep pkg://solaris/text/gnu-sed cmake
             source <(curl -s https://raw.githubusercontent.com/psumbera/solaris-rust/refs/heads/main/sh.rust-web-install)
             mv /root/.rust_solaris/rustc-*/ /root/.rust_solaris/rustc/
           run: |
@@ -42,16 +42,16 @@ jobs:
     timeout-minutes: 100
     name: Test on NetBSD
     steps:
-      - uses: actions/checkout@v4.1.6
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Test in NetBSD
         id: test
-        uses: vmactions/NetBSD-vm@v1.1.8
+        uses: vmactions/NetBSD-vm@46a58bbf03682b4cb24142b97fa315ae52bed573 # v1.1.8
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
           usesh: true
           prepare: |
-            /usr/sbin/pkg_add -v autoconf automake gmake gettext-tools gtar-base libtool-base m4 po4a curl cmake
+            /usr/sbin/pkg_add -v autoconf gmake gettext-tools gtar-base libtool-base m4 po4a curl cmake
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           run: |
             set -e
@@ -69,10 +69,10 @@ jobs:
     timeout-minutes: 100
     name: Test on FreeBSD
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Test in FreeBSD
         id: test
-        uses: vmactions/freebsd-vm@v1.1.9
+        uses: vmactions/freebsd-vm@966989c456d41351f095a421f60e71342d3bce41 # v1.2.1
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
@@ -95,16 +95,16 @@ jobs:
     timeout-minutes: 100
     name: Test on OpenBSD
     steps:
-      - uses: actions/checkout@v4.1.6
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Test in OpenBSD
         id: test
-        uses: vmactions/OpenBSD-vm@v1.1.6
+        uses: vmactions/OpenBSD-vm@0d65352eee1508bab7cb12d130536d3a556be487 # v1.1.8
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
           usesh: true
           prepare: |
-            /usr/sbin/pkg_add -I -v autoconf-2.71 automake-1.16.5 gmake gettext-tools gtar libtool m4 cmake
+            /usr/sbin/pkg_add -I -v gmake gettext-tools gtar libtool m4 cmake
             /usr/sbin/pkg_add -I -v rust
           run: |
             set -e
@@ -145,10 +145,10 @@ jobs:
     timeout-minutes: 100
     name: Test on OmniOS
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - name: Test in OmniOS
         id: test
-        uses: vmactions/omnios-vm@v1.1.0
+        uses: vmactions/omnios-vm@8eba2a9217262f275d4566751a92d6ef2f433d00 # v1.1.0
         with:
           envs: "RUST_BACKTRACE"
           copyback: false

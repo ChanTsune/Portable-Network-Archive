@@ -1,6 +1,6 @@
 [package]
 name = "pna"
-version = "0.24.0"
+version = "0.26.0"
 edition = "2021"
 license = "Apache-2.0 OR MIT"
 description = "PNA(Portable-Network-Archive) decoding and encoding library"
@@ -8,10 +8,11 @@ repository = "https://github.com/ChanTsune/Portable-Network-Archive.git"
 readme = "README.md"
 categories = ["data-structures", "filesystem"]
 keywords = ["pna", "archive", "crypto", "data"]
+rust-version = "1.82"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-libpna = { version = "0.24.0", path = "../lib" }
+libpna = { version = "0.26.0", path = "../lib" }
 
 [dev-dependencies]
 version-sync = "0.9.5"

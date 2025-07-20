@@ -1,68 +1,58 @@
-use crate::utils::{components_count, diff::diff, setup, TestResources};
+use crate::utils::{diff::diff, setup, TestResources};
 use clap::Parser;
-use portable_network_archive::{cli, command};
+use portable_network_archive::{cli, command::Command};
 use std::fs;
 
 #[test]
 fn split_archive() {
     setup();
-    TestResources::extract_in(
-        "raw/",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/split_archive/in/"),
-    )
-    .unwrap();
-    command::entry(cli::Cli::parse_from([
+    TestResources::extract_in("raw/", "split_archive/in/").unwrap();
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "create",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/split_archive/split.pna"),
+        "split_archive/split.pna",
         "--overwrite",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/split_archive/in/"),
-    ]))
+        "split_archive/in/",
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "split",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/split_archive/split.pna"),
+        "split_archive/split.pna",
         "--overwrite",
         "--max-size",
         "100kb",
         "--out-dir",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/split_archive/split/"),
-    ]))
+        "split_archive/split/",
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     // check split file size
-    for entry in fs::read_dir(concat!(
-        env!("CARGO_TARGET_TMPDIR"),
-        "/split_archive/split/"
-    ))
-    .unwrap()
-    {
+    for entry in fs::read_dir("split_archive/split/").unwrap() {
         assert!(fs::metadata(entry.unwrap().path()).unwrap().len() <= 100 * 1000);
     }
 
-    command::entry(cli::Cli::parse_from([
+    cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "x",
-        concat!(
-            env!("CARGO_TARGET_TMPDIR"),
-            "/split_archive/split/split.part1.pna"
-        ),
+        "split_archive/split/split.part1.pna",
         "--overwrite",
         "--out-dir",
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/split_archive/out/"),
+        "split_archive/out/",
         "--strip-components",
-        &components_count(concat!(env!("CARGO_TARGET_TMPDIR"), "/split_archive/in/")).to_string(),
-    ]))
+        "2",
+    ])
+    .unwrap()
+    .execute()
     .unwrap();
 
     // check completely extracted
-    diff(
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/split_archive/in/"),
-        concat!(env!("CARGO_TARGET_TMPDIR"), "/split_archive/out/"),
-    )
-    .unwrap();
+    diff("split_archive/in/", "split_archive/out/").unwrap();
 }

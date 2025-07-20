@@ -4,22 +4,22 @@ use std::{fs, io, path::Path, time::SystemTime};
 
 /// [Metadata] extension method trait.
 pub trait MetadataTimeExt: private::Sealed {
-    /// Created time.
+    /// Returns the created time.
     fn created_time(&self) -> Option<SystemTime>;
-    /// Modified time.
+    /// Returns the modified time.
     fn modified_time(&self) -> Option<SystemTime>;
-    /// Accessed time.
+    /// Returns the accessed time.
     fn accessed_time(&self) -> Option<SystemTime>;
-    /// Set created time.
-    fn with_created_time(self, created_time: Option<SystemTime>) -> Self;
-    /// Set modified time.
-    fn with_modified_time(self, modified_time: Option<SystemTime>) -> Self;
-    /// Set accessed time.
-    fn with_accessed_time(self, accessed_time: Option<SystemTime>) -> Self;
+    /// Sets the created time.
+    fn with_created_time(self, time: impl Into<Option<SystemTime>>) -> Self;
+    /// Sets the modified time.
+    fn with_modified_time(self, time: impl Into<Option<SystemTime>>) -> Self;
+    /// Sets the accessed time.
+    fn with_accessed_time(self, time: impl Into<Option<SystemTime>>) -> Self;
 }
 
 impl MetadataTimeExt for Metadata {
-    /// Created time.
+    /// Returns the created time.
     ///
     /// This is the same as [Metadata::created] + [SystemTime::UNIX_EPOCH].
     /// ```
@@ -38,9 +38,9 @@ impl MetadataTimeExt for Metadata {
         self.created().map(|it| SystemTime::UNIX_EPOCH + it)
     }
 
-    /// Modified time.
+    /// Returns the modified time.
     ///
-    /// This is the same as [Metadata::created] + [SystemTime::UNIX_EPOCH].
+    /// This is the same as [Metadata::modified] + [SystemTime::UNIX_EPOCH].
     /// ```
     /// use pna::{prelude::*, Metadata};
     /// use std::time::{Duration, UNIX_EPOCH};
@@ -57,7 +57,7 @@ impl MetadataTimeExt for Metadata {
         self.modified().map(|it| SystemTime::UNIX_EPOCH + it)
     }
 
-    /// Accessed time.
+    /// Returns the accessed time.
     ///
     /// This is the same as [Metadata::accessed] + [SystemTime::UNIX_EPOCH].
     /// ```
@@ -76,60 +76,93 @@ impl MetadataTimeExt for Metadata {
         self.accessed().map(|it| SystemTime::UNIX_EPOCH + it)
     }
 
-    /// Set created time.
+    /// Sets the created time.
+    /// If the given created time is earlier than the Unix epoch, it will be clamped to the Unix epoch (1970-01-01T00:00:00Z).
     ///
     /// # Examples
     /// ```
     /// use pna::{prelude::*, Metadata};
-    /// use std::time::SystemTime;
+    /// use std::time::{Duration, SystemTime, UNIX_EPOCH};
     ///
-    /// let metadata = Metadata::new().with_created_time(Some(SystemTime::now()));
+    /// # fn main() {
+    /// // Time after Unix epoch will be preserved
+    /// let after_epoch = UNIX_EPOCH + Duration::from_secs(1000);
+    /// let metadata = Metadata::new().with_created_time(Some(after_epoch));
+    /// assert_eq!(metadata.created_time(), Some(after_epoch));
+    ///
+    /// # #[cfg(target_family = "wasm")]
+    /// # return;
+    /// // Time before Unix epoch will be clamped
+    /// let before_epoch = UNIX_EPOCH - Duration::from_secs(1);
+    /// let metadata = Metadata::new().with_created_time(Some(before_epoch));
+    /// assert_eq!(metadata.created_time(), Some(UNIX_EPOCH));
+    /// # }
     /// ```
-    /// # Panic
-    /// When given created time is before unix epoch, it will be panic.
     #[inline]
-    fn with_created_time(self, created_time: Option<SystemTime>) -> Self {
-        self.with_created(created_time.map(|it| {
+    fn with_created_time(self, time: impl Into<Option<SystemTime>>) -> Self {
+        self.with_created(time.into().map(|it| {
             it.duration_since(SystemTime::UNIX_EPOCH)
-                .expect("created time must be after unix epoch")
+                .unwrap_or_default()
         }))
     }
 
-    /// Set modified time.
+    /// Sets the modified time.
+    /// If the given modified time is earlier than the Unix epoch, it will be clamped to the Unix epoch (1970-01-01T00:00:00Z).
     ///
     /// # Examples
     /// ```
     /// use pna::{prelude::*, Metadata};
-    /// use std::time::SystemTime;
+    /// use std::time::{Duration, SystemTime, UNIX_EPOCH};
     ///
-    /// let metadata = Metadata::new().with_modified_time(Some(SystemTime::now()));
+    /// # fn main() {
+    /// // Time after Unix epoch will be preserved
+    /// let after_epoch = UNIX_EPOCH + Duration::from_secs(1000);
+    /// let metadata = Metadata::new().with_modified_time(Some(after_epoch));
+    /// assert_eq!(metadata.modified_time(), Some(after_epoch));
+    ///
+    /// # #[cfg(target_family = "wasm")]
+    /// # return;
+    /// // Time before Unix epoch will be clamped
+    /// let before_epoch = UNIX_EPOCH - Duration::from_secs(1);
+    /// let metadata = Metadata::new().with_modified_time(Some(before_epoch));
+    /// assert_eq!(metadata.modified_time(), Some(UNIX_EPOCH));
+    /// # }
     /// ```
-    /// # Panic
-    /// When given modified time is before unix epoch, it will be panic.
     #[inline]
-    fn with_modified_time(self, modified_time: Option<SystemTime>) -> Self {
-        self.with_modified(modified_time.map(|it| {
+    fn with_modified_time(self, time: impl Into<Option<SystemTime>>) -> Self {
+        self.with_modified(time.into().map(|it| {
             it.duration_since(SystemTime::UNIX_EPOCH)
-                .expect("modified time must be after unix epoch")
+                .unwrap_or_default()
         }))
     }
 
-    /// Set accessed time.
+    /// Sets the accessed time.
+    /// If the given accessed time is earlier than the Unix epoch, it will be clamped to the Unix epoch (1970-01-01T00:00:00Z).
     ///
     /// # Examples
     /// ```
     /// use pna::{prelude::*, Metadata};
-    /// use std::time::SystemTime;
+    /// use std::time::{Duration, SystemTime, UNIX_EPOCH};
     ///
-    /// let metadata = Metadata::new().with_accessed_time(Some(SystemTime::now()));
+    /// # fn main() {
+    /// // Time after Unix epoch will be preserved
+    /// let after_epoch = UNIX_EPOCH + Duration::from_secs(1000);
+    /// let metadata = Metadata::new().with_accessed_time(Some(after_epoch));
+    /// assert_eq!(metadata.accessed_time(), Some(after_epoch));
+    ///
+    /// # #[cfg(target_family = "wasm")]
+    /// # return;
+    /// // Time before Unix epoch will be clamped
+    /// let before_epoch = UNIX_EPOCH - Duration::from_secs(1);
+    /// let metadata = Metadata::new().with_accessed_time(Some(before_epoch));
+    /// assert_eq!(metadata.accessed_time(), Some(UNIX_EPOCH));
+    /// # }
     /// ```
-    /// # Panic
-    /// When given accessed time is before unix epoch, it will be panic.
     #[inline]
-    fn with_accessed_time(self, accessed_time: Option<SystemTime>) -> Self {
-        self.with_accessed(accessed_time.map(|it| {
+    fn with_accessed_time(self, time: impl Into<Option<SystemTime>>) -> Self {
+        self.with_accessed(time.into().map(|it| {
             it.duration_since(SystemTime::UNIX_EPOCH)
-                .expect("accessed time must be after unix epoch")
+                .unwrap_or_default()
         }))
     }
 }
@@ -147,6 +180,7 @@ pub trait MetadataFsExt: private::Sealed {
 
 impl MetadataFsExt for Metadata {
     /// Create new [Metadata] from given [fs::Metadata].
+    /// If any time in the given metadata is earlier than the Unix epoch, it will be clamped to the Unix epoch (1970-01-01T00:00:00Z).
     ///
     /// # Examples
     ///
@@ -163,9 +197,6 @@ impl MetadataFsExt for Metadata {
     ///
     /// # Errors
     /// Currently never return an error.
-    ///
-    /// # Panic
-    /// When given metadata has any time that before unix epoch, it will be panic.
     #[inline]
     fn from_metadata(metadata: &fs::Metadata) -> io::Result<Self>
     where
@@ -177,7 +208,7 @@ impl MetadataFsExt for Metadata {
 
 /// [Metadata] path related extension trait.
 pub trait MetadataPathExt: private::Sealed {
-    /// Create new [Metadata] from a given path.
+    /// Create a new [Metadata] from a given path.
     ///
     /// # Errors
     ///
@@ -186,7 +217,7 @@ pub trait MetadataPathExt: private::Sealed {
     where
         Self: Sized;
 
-    /// Create new [Metadata] from a given path without following symlinks.
+    /// Create a new [Metadata] from a given path without following symlinks.
     ///
     /// # Errors
     ///
@@ -197,7 +228,7 @@ pub trait MetadataPathExt: private::Sealed {
 }
 
 impl MetadataPathExt for Metadata {
-    /// Create [Metadata] from a given path.
+    /// Create a new [Metadata] from a given path.
     ///
     /// # Examples
     ///
@@ -218,7 +249,7 @@ impl MetadataPathExt for Metadata {
         fs_metadata_to_metadata(&meta)
     }
 
-    /// Create [Metadata] from a given path without following symlinks.
+    /// Create a new [Metadata] from a given path without following symlinks.
     ///
     /// # Examples
     ///

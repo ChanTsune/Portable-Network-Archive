@@ -2,7 +2,7 @@ mod slice;
 
 use crate::{
     archive::{Archive, ArchiveHeader, PNA_HEADER},
-    chunk::{Chunk, ChunkReader, ChunkType, RawChunk},
+    chunk::{read_chunk, Chunk, ChunkReader, ChunkType, RawChunk},
     entry::{Entry, NormalEntry, RawEntry, ReadEntry},
 };
 #[cfg(feature = "unstable-async")]
@@ -78,9 +78,8 @@ impl<R: Read> Archive<R> {
     fn next_raw_item(&mut self) -> io::Result<Option<RawEntry>> {
         let mut chunks = Vec::new();
         swap(&mut self.buf, &mut chunks);
-        let mut reader = ChunkReader::from(&mut self.inner);
         loop {
-            let chunk = reader.read_chunk()?;
+            let chunk = read_chunk(&mut self.inner)?;
             match chunk.ty {
                 ChunkType::FEND | ChunkType::SEND => {
                     chunks.push(chunk);
@@ -230,7 +229,7 @@ impl<R> Archive<R> {
     /// # }
     /// ```
     #[inline]
-    pub fn entries(&mut self) -> Entries<R> {
+    pub fn entries(&mut self) -> Entries<'_, R> {
         Entries::new(self)
     }
 }
@@ -239,6 +238,10 @@ impl<R> Archive<R> {
 impl<R: futures_io::AsyncRead + Unpin> Archive<R> {
     /// Reads the archive header from the provided reader and returns a new [Archive].
     /// This API is unstable.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while reading the header from the reader.
     #[inline]
     pub async fn read_header_async(reader: R) -> io::Result<Self> {
         Self::read_header_with_buffer_async(reader, Default::default()).await
@@ -282,6 +285,10 @@ impl<R: futures_io::AsyncRead + Unpin> Archive<R> {
 
     /// Read a [ReadEntry] from the archive.
     /// This API is unstable.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while reading from the archive.
     #[inline]
     pub async fn read_entry_async(&mut self) -> io::Result<Option<ReadEntry>> {
         let entry = self.next_raw_item_async().await?;
@@ -428,7 +435,7 @@ impl<R: Read + Seek> Archive<R> {
     /// Seek the cursor to the end of the archive marker.
     ///
     /// # Errors
-    /// Returns an error if this function failed to seek or contains broken chunk.
+    /// Returns an error if this function failed to seek or contains a broken chunk.
     ///
     /// # Examples
     /// For appending entry to the existing archive.

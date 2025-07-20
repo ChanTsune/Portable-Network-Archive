@@ -1,6 +1,10 @@
 use crate::compress;
 pub(crate) use private::*;
-use std::str::FromStr;
+use std::{
+    error::Error,
+    fmt::{Display, Formatter},
+    str::FromStr,
+};
 
 mod private {
     use super::*;
@@ -128,6 +132,19 @@ mod private {
     }
 }
 
+/// Unknown value error.
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct UnknownValueError(u8);
+
+impl Display for UnknownValueError {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "unknown value {}", self.0)
+    }
+}
+
+impl Error for UnknownValueError {}
+
 /// Compression method.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
@@ -143,7 +160,7 @@ pub enum Compression {
 }
 
 impl TryFrom<u8> for Compression {
-    type Error = String;
+    type Error = UnknownValueError;
 
     #[inline]
     fn try_from(value: u8) -> Result<Self, Self::Error> {
@@ -152,7 +169,7 @@ impl TryFrom<u8> for Compression {
             1 => Ok(Self::Deflate),
             2 => Ok(Self::ZStandard),
             4 => Ok(Self::XZ),
-            value => Err(format!("unknown value {value}")),
+            value => Err(UnknownValueError(value)),
         }
     }
 }
@@ -307,7 +324,7 @@ pub enum Encryption {
 }
 
 impl TryFrom<u8> for Encryption {
-    type Error = String;
+    type Error = UnknownValueError;
 
     #[inline]
     fn try_from(value: u8) -> Result<Self, Self::Error> {
@@ -315,7 +332,7 @@ impl TryFrom<u8> for Encryption {
             0 => Ok(Self::No),
             1 => Ok(Self::Aes),
             2 => Ok(Self::Camellia),
-            value => Err(format!("unknown value {value}")),
+            value => Err(UnknownValueError(value)),
         }
     }
 }
@@ -331,14 +348,14 @@ pub enum CipherMode {
 }
 
 impl TryFrom<u8> for CipherMode {
-    type Error = String;
+    type Error = UnknownValueError;
 
     #[inline]
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         match value {
             0 => Ok(Self::CBC),
             1 => Ok(Self::CTR),
-            value => Err(format!("unknown value {value}")),
+            value => Err(UnknownValueError(value)),
         }
     }
 }
@@ -415,7 +432,7 @@ pub enum DataKind {
 }
 
 impl TryFrom<u8> for DataKind {
-    type Error = String;
+    type Error = UnknownValueError;
 
     #[inline]
     fn try_from(value: u8) -> Result<Self, Self::Error> {
@@ -424,7 +441,7 @@ impl TryFrom<u8> for DataKind {
             1 => Ok(Self::Directory),
             2 => Ok(Self::SymbolicLink),
             3 => Ok(Self::HardLink),
-            value => Err(format!("unknown value {value}")),
+            value => Err(UnknownValueError(value)),
         }
     }
 }
@@ -589,7 +606,7 @@ impl WriteOptionsBuilder {
     ///
     /// ## Panics
     ///
-    /// Panic will occur when encryption is enabled and password is not provided.
+    /// Panic will occur when encryption is enabled and a password is not provided.
     #[inline]
     pub fn build(&self) -> WriteOptions {
         let cipher = if self.encryption != Encryption::No {
@@ -628,7 +645,7 @@ pub struct ReadOptions {
 }
 
 impl ReadOptions {
-    /// Create a new [`ReadOptions`] with optional password.
+    /// Create a new [`ReadOptions`] with an optional password.
     ///
     /// # Examples
     /// ```

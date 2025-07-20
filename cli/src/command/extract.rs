@@ -7,8 +7,8 @@ use crate::{
     command::{
         ask_password,
         commons::{
-            collect_split_archives, run_process_archive, Exclude, KeepOptions, OwnerOptions,
-            PathTransformers,
+            collect_split_archives, read_paths, run_process_archive, Exclude, KeepOptions,
+            OwnerOptions, PathTransformers,
         },
         Command,
     },
@@ -17,7 +17,7 @@ use crate::{
         fmt::DurationDisplay,
         fs::{Group, User},
         re::{bsd::SubstitutionRule, gnu::TransformRule},
-        GlobPatterns,
+        GlobPatterns, VCS_FILES,
     },
 };
 use clap::{ArgGroup, Parser, ValueHint};
@@ -39,6 +39,7 @@ use std::{
     group(ArgGroup::new("unstable-include").args(["include"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
+    group(ArgGroup::new("null-requires").arg("null").requires("exclude_from")),
     group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
     group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
     group(ArgGroup::new("unstable-transform").args(["transforms"]).requires("unstable")),
@@ -46,6 +47,7 @@ use std::{
     group(ArgGroup::new("owner-flag").args(["same_owner", "no_same_owner"])),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
+    group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
@@ -109,6 +111,13 @@ pub(crate) struct ExtractCommand {
     exclude: Option<Vec<String>>,
     #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
     exclude_from: Option<PathBuf>,
+    #[arg(long, help = "Exclude vcs files (unstable)")]
+    exclude_vcs: bool,
+    #[arg(
+        long,
+        help = "Filenames or patterns are separated by null characters, not by newlines"
+    )]
+    null: bool,
     #[arg(
         long,
         help = "Remove the specified number of leading path elements. Path names with fewer elements will be silently skipped"
@@ -137,7 +146,7 @@ pub(crate) struct ExtractCommand {
     #[arg(
         short = 'C',
         long = "cd",
-        aliases = ["directory"],
+        visible_aliases = ["directory"],
         value_name = "DIRECTORY",
         help = "Change directories after opening the archive but before extracting entries from the archive",
         value_hint = ValueHint::DirPath
@@ -159,11 +168,11 @@ pub(crate) struct ExtractCommand {
 
 impl Command for ExtractCommand {
     #[inline]
-    fn execute(self) -> io::Result<()> {
+    fn execute(self) -> anyhow::Result<()> {
         extract_archive(self)
     }
 }
-fn extract_archive(args: ExtractCommand) -> io::Result<()> {
+fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let start = Instant::now();
     log::info!("Extract archive {}", args.file.archive.display());
@@ -173,7 +182,10 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
-            exclude.extend(utils::fs::read_to_lines(p)?);
+            exclude.extend(read_paths(p, args.null)?);
+        }
+        if args.exclude_vcs {
+            exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
         }
         Exclude {
             include: args.include.unwrap_or_default().into(),
@@ -219,11 +231,22 @@ fn extract_archive(args: ExtractCommand) -> io::Result<()> {
     };
     #[cfg(not(feature = "memmap"))]
     run_extract_archive_reader(
-        archives,
+        archives
+            .into_iter()
+            .map(|it| io::BufReader::with_capacity(64 * 1024, it)),
         args.file.files,
         || password.as_deref(),
         output_options,
     )?;
+
+    #[cfg(feature = "memmap")]
+    let mmaps = archives
+        .into_iter()
+        .map(utils::mmap::Mmap::try_from)
+        .collect::<io::Result<Vec<_>>>()?;
+    #[cfg(feature = "memmap")]
+    let archives = mmaps.iter().map(|m| m.as_ref());
+
     #[cfg(feature = "memmap")]
     run_extract_archive(
         archives,
@@ -252,105 +275,109 @@ pub(crate) struct OutputOption {
 }
 
 pub(crate) fn run_extract_archive_reader<'p, Provider>(
-    reader: impl IntoIterator<Item = impl Read>,
+    reader: impl IntoIterator<Item = impl Read> + Send,
     files: Vec<String>,
     mut password_provider: Provider,
     args: OutputOption,
-) -> io::Result<()>
+) -> anyhow::Result<()>
 where
-    Provider: FnMut() -> Option<&'p str>,
+    Provider: FnMut() -> Option<&'p str> + Send,
 {
     let password = password_provider();
-    let globs =
-        GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let patterns = files;
+    let mut globs = GlobPatterns::new(patterns.iter().map(|it| it.as_str()))?;
 
     let mut link_entries = Vec::new();
 
     let (tx, rx) = std::sync::mpsc::channel();
-    run_process_archive(reader, password_provider, |entry| {
-        let item = entry?;
-        let item_path = item.header().path().to_string();
-        if !globs.is_empty() && !globs.matches_any(&item_path) {
-            log::debug!("Skip: {}", item.header().path());
-            return Ok(());
-        }
-        if matches!(
-            item.header().data_kind(),
-            DataKind::SymbolicLink | DataKind::HardLink
-        ) {
-            link_entries.push(item);
-            return Ok(());
-        }
-        let tx = tx.clone();
-        rayon::scope_fifo(|s| {
-            s.spawn_fifo(|_| {
+    rayon::scope_fifo(|s| -> anyhow::Result<()> {
+        run_process_archive(reader, password_provider, |entry| {
+            let item = entry?;
+            let item_path = item.header().path().to_string();
+            if !globs.is_empty() && !globs.matches_any(&item_path) {
+                log::debug!("Skip: {}", item.header().path());
+                return Ok(());
+            }
+            if matches!(
+                item.header().data_kind(),
+                DataKind::SymbolicLink | DataKind::HardLink
+            ) {
+                link_entries.push(item);
+                return Ok(());
+            }
+            let tx = tx.clone();
+            let args = args.clone();
+            s.spawn_fifo(move |_| {
                 tx.send(extract_entry(item, password, &args))
-                    .unwrap_or_else(|e| panic!("{e}: {}", item_path));
-            })
-        });
+                    .unwrap_or_else(|e| panic!("{e}: {item_path}"));
+            });
+            Ok(())
+        })?;
+        drop(tx);
         Ok(())
     })?;
-    drop(tx);
     for result in rx {
         result?;
     }
-
     for item in link_entries {
         extract_entry(item, password, &args)?;
     }
+
+    globs.ensure_all_matched()?;
     Ok(())
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_extract_archive<'p, Provider>(
-    archives: Vec<fs::File>,
+pub(crate) fn run_extract_archive<'d, 'p, Provider>(
+    archives: impl IntoIterator<Item = &'d [u8]> + Send,
     files: Vec<String>,
     mut password_provider: Provider,
     args: OutputOption,
-) -> io::Result<()>
+) -> anyhow::Result<()>
 where
-    Provider: FnMut() -> Option<&'p str>,
+    Provider: FnMut() -> Option<&'p str> + Send,
 {
-    let password = password_provider();
-    let globs =
-        GlobPatterns::new(files).map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    rayon::scope_fifo(|s| {
+        let password = password_provider();
+        let mut globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))?;
 
-    let mut link_entries = Vec::<NormalEntry>::new();
+        let mut link_entries = Vec::<NormalEntry>::new();
 
-    let (tx, rx) = std::sync::mpsc::channel();
+        let (tx, rx) = std::sync::mpsc::channel();
 
-    run_entries(archives, password_provider, |entry| {
-        let item = entry?;
-        let item_path = item.header().path().to_string();
-        if !globs.is_empty() && !globs.matches_any(&item_path) {
-            log::debug!("Skip: {}", item.header().path());
-            return Ok(());
-        }
-        if matches!(
-            item.header().data_kind(),
-            DataKind::SymbolicLink | DataKind::HardLink
-        ) {
-            link_entries.push(item.into());
-            return Ok(());
-        }
-        let tx = tx.clone();
-        rayon::scope_fifo(|s| {
-            s.spawn_fifo(|_| {
+        run_entries(archives, password_provider, |entry| {
+            let item = entry?;
+            let item_path = item.header().path().to_string();
+            if !globs.is_empty() && !globs.matches_any(&item_path) {
+                log::debug!("Skip: {}", item.header().path());
+                return Ok(());
+            }
+            if matches!(
+                item.header().data_kind(),
+                DataKind::SymbolicLink | DataKind::HardLink
+            ) {
+                link_entries.push(item.into());
+                return Ok(());
+            }
+            let tx = tx.clone();
+            let args = args.clone();
+            s.spawn_fifo(move |_| {
                 tx.send(extract_entry(item, password, &args))
-                    .unwrap_or_else(|e| panic!("{e}: {}", item_path));
-            })
-        });
-        Ok(())
-    })?;
-    drop(tx);
-    for result in rx {
-        result?;
-    }
+                    .unwrap_or_else(|e| panic!("{e}: {item_path}"));
+            });
+            Ok(())
+        })?;
+        drop(tx);
+        for result in rx {
+            result?;
+        }
 
-    for item in link_entries {
-        extract_entry(item, password, &args)?;
-    }
-    Ok(())
+        for item in link_entries {
+            extract_entry(item, password, &args)?;
+        }
+        globs.ensure_all_matched()?;
+        Ok(())
+    })
 }
 
 pub(crate) fn extract_entry<T>(
@@ -405,7 +432,7 @@ where
     if path.exists() && !overwrite {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
-            format!("{} is already exists", path.display()),
+            format!("{} already exists", path.display()),
         ));
     }
     log::debug!("start: {}", path.display());

@@ -1,12 +1,16 @@
+pub(crate) mod value;
+
 use crate::command::{
     append::AppendCommand, bugreport::BugReportCommand, complete::CompleteCommand,
     concat::ConcatCommand, create::CreateCommand, experimental::ExperimentalCommand,
     extract::ExtractCommand, list::ListCommand, split::SplitCommand, strip::StripCommand,
+    xattr::XattrCommand,
 };
 use clap::{value_parser, ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
 use log::{Level, LevelFilter};
-use pna::{ChunkType, ChunkTypeError, HashAlgorithm};
-use std::{io, path::PathBuf, str::FromStr};
+use pna::HashAlgorithm;
+use std::{io, path::PathBuf};
+pub(crate) use value::*;
 
 #[derive(Parser, Clone, Debug)]
 #[command(
@@ -32,8 +36,8 @@ impl Cli {
         let stderr = fern::Dispatch::new()
             .level(level)
             .format(|out, msg, rec| match rec.level() {
-                Level::Error => out.finish(format_args!("error: {}", msg)),
-                Level::Warn => out.finish(format_args!("warning: {}", msg)),
+                Level::Error => out.finish(format_args!("error: {msg}")),
+                Level::Warn => out.finish(format_args!("warning: {msg}")),
                 Level::Info | Level::Debug | Level::Trace => out.finish(*msg),
             })
             .chain(io::stderr());
@@ -53,7 +57,7 @@ pub(crate) struct VerbosityArgs {
 impl VerbosityArgs {
     #[inline]
     #[allow(dead_code)]
-    pub(crate) fn log_level_filter(&self) -> LevelFilter {
+    pub(crate) const fn log_level_filter(&self) -> LevelFilter {
         match (self.quiet, self.verbose) {
             (true, false) => LevelFilter::Off,
             (false, true) => LevelFilter::Debug,
@@ -78,6 +82,8 @@ pub(crate) enum Commands {
     Concat(ConcatCommand),
     #[command(about = "Strip entries metadata")]
     Strip(StripCommand),
+    #[command(about = "Manipulate extended attributes")]
+    Xattr(XattrCommand),
     #[command(about = "Generate shell auto complete")]
     Complete(CompleteCommand),
     #[command(about = "Generate bug report template")]
@@ -117,7 +123,7 @@ pub(crate) struct SolidEntriesTransformStrategyArgs {
 
 impl SolidEntriesTransformStrategyArgs {
     #[inline]
-    pub(crate) fn strategy(&self) -> SolidEntriesTransformStrategy {
+    pub(crate) const fn strategy(&self) -> SolidEntriesTransformStrategy {
         if self.unsolid {
             SolidEntriesTransformStrategy::UnSolid
         } else {
@@ -186,7 +192,7 @@ pub(crate) struct CipherAlgorithmArgs {
 }
 
 impl CipherAlgorithmArgs {
-    pub(crate) fn algorithm(&self) -> pna::Encryption {
+    pub(crate) const fn algorithm(&self) -> pna::Encryption {
         if self.aes.is_some() {
             pna::Encryption::Aes
         } else if self.camellia.is_some() {
@@ -234,116 +240,5 @@ impl HashAlgorithmArgs {
         } else {
             HashAlgorithm::argon2id()
         }
-    }
-}
-
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct Argon2idParams {
-    time: Option<u32>,
-    memory: Option<u32>,
-    parallelism: Option<u32>,
-}
-
-impl FromStr for Argon2idParams {
-    type Err = String;
-
-    #[inline]
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut time = None;
-        let mut memory = None;
-        let mut parallelism = None;
-        for param in s.split(',') {
-            let kv = param.split_once('=');
-            if let Some(("t", n)) = kv {
-                time = Some(
-                    n.parse()
-                        .map_err(|it: std::num::ParseIntError| it.to_string())?,
-                )
-            } else if let Some(("m", n)) = kv {
-                memory = Some(
-                    n.parse()
-                        .map_err(|it: std::num::ParseIntError| it.to_string())?,
-                )
-            } else if let Some(("p", n)) = kv {
-                parallelism = Some(
-                    n.parse()
-                        .map_err(|it: std::num::ParseIntError| it.to_string())?,
-                )
-            } else {
-                return Err(format!("Unknown parameter `{param}`"));
-            }
-        }
-        Ok(Self {
-            time,
-            memory,
-            parallelism,
-        })
-    }
-}
-
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct Pbkdf2Sha256Params {
-    rounds: Option<u32>,
-}
-
-impl FromStr for Pbkdf2Sha256Params {
-    type Err = String;
-
-    #[inline]
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut rounds = None;
-        for param in s.split(',') {
-            let kv = param.split_once('=');
-            if let Some(("r", n)) = kv {
-                rounds = Some(
-                    n.parse()
-                        .map_err(|it: std::num::ParseIntError| it.to_string())?,
-                )
-            } else {
-                return Err(format!("Unknown parameter `{param}`"));
-            }
-        }
-        Ok(Self { rounds })
-    }
-}
-
-#[derive(Clone, Eq, PartialEq, Hash, Debug)]
-pub(crate) struct PrivateChunkType(pub(crate) ChunkType);
-
-impl FromStr for PrivateChunkType {
-    type Err = ChunkTypeError;
-
-    #[inline]
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(ChunkType::private(
-            s.as_bytes()
-                .try_into()
-                .map_err(|_| ChunkTypeError::NonPrivateChunkType)?,
-        )?))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parse_argon2id_params() {
-        assert_eq!(
-            Argon2idParams::from_str("t=1,m=2,p=3"),
-            Ok(Argon2idParams {
-                time: Some(1),
-                memory: Some(2),
-                parallelism: Some(3),
-            })
-        );
-    }
-
-    #[test]
-    fn parse_pbkdf2_sha256_params() {
-        assert_eq!(
-            Pbkdf2Sha256Params::from_str("r=1"),
-            Ok(Pbkdf2Sha256Params { rounds: Some(1) })
-        );
     }
 }

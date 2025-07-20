@@ -8,11 +8,21 @@ use crate::{
     compress::CompressionWriter,
 };
 pub use header::*;
-pub(crate) use read::*;
 use std::io::prelude::*;
+pub(crate) use {read::*, write::*};
 
 /// An object providing access to a PNA file.
 /// An instance of an [Archive] can be read and/or written.
+///
+/// The [Archive] struct provides two main modes of operation:
+/// - Read mode: Allows reading entries from an existing PNA file
+/// - Write mode: Enables creating new entries and writing data to the archive
+///
+/// The archive supports various features including:
+/// - Multiple compression algorithms
+/// - Encryption options
+/// - Solid and non-solid modes
+/// - Chunk-based storage
 ///
 /// # Examples
 /// Creates a new PNA file and adds an entry to it.
@@ -88,6 +98,16 @@ impl<T> Archive<T> {
 }
 
 /// An object that provides write access to solid mode PNA files.
+///
+/// In solid mode, all entries are compressed together as a single unit,
+/// which typically results in better compression ratios compared to
+/// non-solid mode. However, this means that individual entries cannot
+/// be accessed randomly - they must be read sequentially.
+///
+/// Key features of solid mode:
+/// - Improved compression ratio
+/// - Sequential access only
+/// - Single compression/encryption context for all entries
 ///
 /// # Examples
 /// Creates a new solid mode PNA file and adds an entry to it.
@@ -281,8 +301,8 @@ mod tests {
         let read_options = ReadOptions::with_password(options.password());
         let archive = create_archive(src, options)?;
         let mut archive_reader = Archive::read_header(archive.as_slice())?;
-        let item = archive_reader.entries_skip_solid().next().unwrap().unwrap();
-        let mut reader = item.reader(read_options).unwrap();
+        let item = archive_reader.entries_skip_solid().next().unwrap()?;
+        let mut reader = item.reader(read_options)?;
         let mut dist = Vec::new();
         io::copy(&mut reader, &mut dist)?;
         assert_eq!(src, dist.as_slice());
