@@ -1,8 +1,8 @@
 use crate::utils::{archive::for_each_entry, setup};
 use clap::Parser;
-use pna::{Archive, EntryBuilder, WriteOptions};
+use pna::{Archive, Duration, EntryBuilder, WriteOptions};
 use portable_network_archive::{cli, command::Command};
-use std::{fs, time::Duration};
+use std::fs;
 
 #[test]
 fn sort_by_mtime() {
@@ -12,17 +12,17 @@ fn sort_by_mtime() {
     let mut archive = Archive::write_header(file).unwrap();
     let entry1 = {
         let mut b = EntryBuilder::new_file("c.txt".into(), WriteOptions::store()).unwrap();
-        b.modified(Duration::from_secs(3000));
+        b.modified(Duration::seconds(3000));
         b.build().unwrap()
     };
     let entry2 = {
         let mut b = EntryBuilder::new_file("a.txt".into(), WriteOptions::store()).unwrap();
-        b.modified(Duration::from_secs(1000));
+        b.modified(Duration::seconds(1000));
         b.build().unwrap()
     };
     let entry3 = {
         let mut b = EntryBuilder::new_file("b.txt".into(), WriteOptions::store()).unwrap();
-        b.modified(Duration::from_secs(2000));
+        b.modified(Duration::seconds(2000));
         b.build().unwrap()
     };
     archive.add_entry(entry1).unwrap();

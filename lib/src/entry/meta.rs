@@ -1,15 +1,14 @@
+use crate::Duration;
 use std::io::{self, Read};
-use std::time::Duration;
 
 /// Metadata information about an entry.
 /// # Examples
 /// ```
 /// # use std::time::SystemTimeError;
 /// # fn main() -> Result<(), SystemTimeError> {
-/// use libpna::Metadata;
-/// use std::time::SystemTime;
+/// use libpna::{Duration, Metadata};
 ///
-/// let since_unix_epoch = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?;
+/// let since_unix_epoch = Duration::seconds(1000);
 /// let metadata = Metadata::new()
 ///     .with_accessed(Some(since_unix_epoch))
 ///     .with_created(Some(since_unix_epoch))
@@ -47,10 +46,9 @@ impl Metadata {
     /// ```
     /// # use std::time::SystemTimeError;
     /// # fn main() -> Result<(), SystemTimeError> {
-    /// use libpna::Metadata;
-    /// use std::time::SystemTime;
+    /// use libpna::{Duration, Metadata};
     ///
-    /// let since_unix_epoch = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?;
+    /// let since_unix_epoch = Duration::seconds(1000);
     /// let metadata = Metadata::new().with_created(Some(since_unix_epoch));
     /// # Ok(())
     /// # }
@@ -67,10 +65,9 @@ impl Metadata {
     /// ```
     /// # use std::time::SystemTimeError;
     /// # fn main() -> Result<(), SystemTimeError> {
-    /// use libpna::Metadata;
-    /// use std::time::SystemTime;
+    /// use libpna::{Duration, Metadata};
     ///
-    /// let since_unix_epoch = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?;
+    /// let since_unix_epoch = Duration::seconds(1000);
     /// let metadata = Metadata::new().with_modified(Some(since_unix_epoch));
     /// # Ok(())
     /// # }
@@ -87,10 +84,9 @@ impl Metadata {
     /// ```
     /// # use std::time::SystemTimeError;
     /// # fn main() -> Result<(), SystemTimeError> {
-    /// use libpna::Metadata;
-    /// use std::time::SystemTime;
+    /// use libpna::{Duration, Metadata};
     ///
-    /// let since_unix_epoch = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?;
+    /// let since_unix_epoch = Duration::seconds(1000);
     /// let metadata = Metadata::new().with_accessed(Some(since_unix_epoch));
     /// # Ok(())
     /// # }

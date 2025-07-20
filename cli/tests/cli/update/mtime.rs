@@ -1,13 +1,10 @@
 use crate::utils::{archive::for_each_entry, setup, TestResources};
 use clap::Parser;
+use pna::Duration;
 use portable_network_archive::{cli, command::Command};
-use std::{
-    fs,
-    io::prelude::*,
-    time::{Duration, SystemTime},
-};
+use std::{fs, io::prelude::*, time::SystemTime};
 
-const DURATION_24_HOURS: Duration = Duration::from_secs(24 * 60 * 60);
+const DURATION_24_HOURS: Duration = Duration::seconds(24 * 60 * 60);
 
 #[test]
 fn archive_update_with_mtime() {
@@ -53,7 +50,7 @@ fn archive_update_with_mtime() {
     .unwrap();
 
     // Verify mtime is set correctly in the archive
-    let expected = Duration::from_secs(1704067200);
+    let expected = Duration::seconds(1704067200);
     for_each_entry("archive_update_with_mtime/update_with_mtime.pna", |entry| {
         assert_eq!(entry.metadata().modified(), Some(expected));
     })
@@ -105,7 +102,7 @@ fn archive_update_with_clamp_mtime() {
     .unwrap();
 
     // Verify mtime is clamped correctly in the archive
-    let expected = Duration::from_secs(1704067200);
+    let expected = Duration::seconds(1704067200);
     for_each_entry(
         "archive_update_with_clamp_mtime/update_with_clamp_mtime.pna",
         |entry| {

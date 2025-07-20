@@ -1,12 +1,10 @@
 use crate::utils::{archive::for_each_entry, setup, TestResources};
 use clap::Parser;
+use pna::Duration;
 use portable_network_archive::{cli, command::Command};
-use std::{
-    fs,
-    time::{Duration, SystemTime},
-};
+use std::{fs, time::SystemTime};
 
-const DURATION_24_HOURS: Duration = Duration::from_secs(24 * 60 * 60);
+const DURATION_24_HOURS: Duration = Duration::seconds(24 * 60 * 60);
 
 #[test]
 fn archive_append_with_mtime() {
@@ -66,7 +64,7 @@ fn archive_append_with_mtime() {
     .unwrap();
 
     // Verify mtime is set correctly in the archive
-    let expected = Duration::from_secs(1704067200);
+    let expected = Duration::seconds(1704067200);
     for_each_entry(
         "archive_append_with_mtime/append_with_mtime.pna",
         |entry| match entry.header().path().as_str() {
@@ -138,7 +136,7 @@ fn archive_append_with_clamp_mtime() {
     .unwrap();
 
     // Verify mtime is clamped correctly in the archive
-    let expected = Duration::from_secs(1704067200);
+    let expected = Duration::seconds(1704067200);
     for_each_entry(
         "archive_append_with_clamp_mtime/append_with_clamp_mtime.pna",
         |entry| match entry.header().path().as_str() {
