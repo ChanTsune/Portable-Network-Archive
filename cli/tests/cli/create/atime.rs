@@ -1,13 +1,14 @@
 use crate::utils::{archive::for_each_entry, setup, TestResources};
 use clap::Parser;
+use pna::Duration;
 use portable_network_archive::{cli, command::Command};
 use std::{
     fs::{self, FileTimes},
     io::prelude::*,
-    time::{Duration, SystemTime},
+    time::SystemTime,
 };
 
-const DURATION_24_HOURS: Duration = Duration::from_secs(24 * 60 * 60);
+const DURATION_24_HOURS: Duration = Duration::seconds(24 * 60 * 60);
 
 #[test]
 fn archive_create_with_atime() {
@@ -41,7 +42,7 @@ fn archive_create_with_atime() {
     .unwrap();
 
     // Verify atime is set correctly in the archive
-    let expected = Duration::from_secs(1704067200);
+    let expected = Duration::seconds(1704067200);
     for_each_entry("archive_create_with_atime/create_with_atime.pna", |entry| {
         assert_eq!(entry.metadata().accessed(), Some(expected));
     })
@@ -81,7 +82,7 @@ fn archive_create_with_clamp_atime() {
     .unwrap();
 
     // Verify atime is clamped correctly in the archive
-    let expected = Duration::from_secs(1704067200);
+    let expected = Duration::seconds(1704067200);
     for_each_entry(
         "archive_create_with_clamp_atime/create_with_clamp_atime.pna",
         |entry| {

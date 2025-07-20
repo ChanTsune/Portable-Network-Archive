@@ -23,12 +23,12 @@ use crate::{
         chunk_data_split, Chunk, ChunkExt, ChunkReader, ChunkType, RawChunk, MIN_CHUNK_BYTES_SIZE,
     },
     util::slice::skip_while,
+    Duration,
 };
 use std::{
     borrow::Cow,
     collections::VecDeque,
     io::{self, Read, Write},
-    time::Duration,
 };
 
 mod private {
@@ -589,9 +589,9 @@ where
                 _ => extra.push(chunk),
             }
         }
-        let ctime = ctime.map(|t| t + Duration::from_nanos(ctime_ns.unwrap_or(0) as u64));
-        let mtime = mtime.map(|t| t + Duration::from_nanos(mtime_ns.unwrap_or(0) as u64));
-        let atime = atime.map(|t| t + Duration::from_nanos(atime_ns.unwrap_or(0) as u64));
+        let ctime = ctime.map(|t| t + Duration::nanoseconds(ctime_ns.unwrap_or(0) as _));
+        let mtime = mtime.map(|t| t + Duration::nanoseconds(mtime_ns.unwrap_or(0) as _));
+        let atime = atime.map(|t| t + Duration::nanoseconds(atime_ns.unwrap_or(0) as _));
 
         Ok(Self {
             header,
@@ -648,24 +648,24 @@ where
             total += (ChunkType::FDAT, data_chunk).write_chunk_in(writer)?;
         }
         if let Some(c) = created {
-            total += (ChunkType::cTIM, c.as_secs().to_be_bytes()).write_chunk_in(writer)?;
-            if c.subsec_nanos() != 0 {
-                total +=
-                    (ChunkType::cTNS, c.subsec_nanos().to_be_bytes()).write_chunk_in(writer)?;
+            total += (ChunkType::cTIM, c.whole_seconds().to_be_bytes()).write_chunk_in(writer)?;
+            if c.subsec_nanoseconds() != 0 {
+                total += (ChunkType::cTNS, c.subsec_nanoseconds().to_be_bytes())
+                    .write_chunk_in(writer)?;
             }
         }
         if let Some(d) = modified {
-            total += (ChunkType::mTIM, d.as_secs().to_be_bytes()).write_chunk_in(writer)?;
-            if d.subsec_nanos() != 0 {
-                total +=
-                    (ChunkType::mTNS, d.subsec_nanos().to_be_bytes()).write_chunk_in(writer)?;
+            total += (ChunkType::mTIM, d.whole_seconds().to_be_bytes()).write_chunk_in(writer)?;
+            if d.subsec_nanoseconds() != 0 {
+                total += (ChunkType::mTNS, d.subsec_nanoseconds().to_be_bytes())
+                    .write_chunk_in(writer)?;
             }
         }
         if let Some(a) = accessed {
-            total += (ChunkType::aTIM, a.as_secs().to_be_bytes()).write_chunk_in(writer)?;
-            if a.subsec_nanos() != 0 {
-                total +=
-                    (ChunkType::aTNS, a.subsec_nanos().to_be_bytes()).write_chunk_in(writer)?;
+            total += (ChunkType::aTIM, a.whole_seconds().to_be_bytes()).write_chunk_in(writer)?;
+            if a.subsec_nanoseconds() != 0 {
+                total += (ChunkType::aTNS, a.subsec_nanoseconds().to_be_bytes())
+                    .write_chunk_in(writer)?;
             }
         }
         if let Some(p) = permission {
@@ -712,36 +712,36 @@ where
         if let Some(c) = created {
             vec.push(RawChunk::from_data(
                 ChunkType::cTIM,
-                c.as_secs().to_be_bytes(),
+                c.whole_seconds().to_be_bytes(),
             ));
-            if c.subsec_nanos() != 0 {
+            if c.subsec_nanoseconds() != 0 {
                 vec.push(RawChunk::from_data(
                     ChunkType::cTNS,
-                    c.subsec_nanos().to_be_bytes(),
+                    c.subsec_nanoseconds().to_be_bytes(),
                 ));
             }
         }
         if let Some(d) = modified {
             vec.push(RawChunk::from_data(
                 ChunkType::mTIM,
-                d.as_secs().to_be_bytes(),
+                d.whole_seconds().to_be_bytes(),
             ));
-            if d.subsec_nanos() != 0 {
+            if d.subsec_nanoseconds() != 0 {
                 vec.push(RawChunk::from_data(
                     ChunkType::mTNS,
-                    d.subsec_nanos().to_be_bytes(),
+                    d.subsec_nanoseconds().to_be_bytes(),
                 ));
             }
         }
         if let Some(a) = accessed {
             vec.push(RawChunk::from_data(
                 ChunkType::aTIM,
-                a.as_secs().to_be_bytes(),
+                a.whole_seconds().to_be_bytes(),
             ));
-            if a.subsec_nanos() != 0 {
+            if a.subsec_nanoseconds() != 0 {
                 vec.push(RawChunk::from_data(
                     ChunkType::aTNS,
-                    a.subsec_nanos().to_be_bytes(),
+                    a.subsec_nanoseconds().to_be_bytes(),
                 ));
             }
         }
@@ -1023,7 +1023,7 @@ impl<T: SealedEntryExt> From<T> for EntryPart {
 
 #[inline]
 fn timestamp(bytes: &[u8]) -> io::Result<Duration> {
-    Ok(Duration::from_secs(u64::from_be_bytes(
+    Ok(Duration::seconds(i64::from_be_bytes(
         bytes
             .try_into()
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,

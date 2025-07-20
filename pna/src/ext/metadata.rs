@@ -1,4 +1,5 @@
 use super::private;
+use crate::prelude::*;
 use libpna::Metadata;
 use std::{fs, io, path::Path, time::SystemTime};
 
@@ -23,10 +24,10 @@ impl MetadataTimeExt for Metadata {
     ///
     /// This is the same as [Metadata::created] + [SystemTime::UNIX_EPOCH].
     /// ```
-    /// use pna::{prelude::*, Metadata};
-    /// use std::time::{Duration, UNIX_EPOCH};
+    /// use pna::{prelude::*, Metadata, Duration};
+    /// use std::time::{UNIX_EPOCH};
     ///
-    /// let metadata = Metadata::new().with_created(Some(Duration::from_secs(1000)));
+    /// let metadata = Metadata::new().with_created(Some(Duration::seconds(1000)));
     ///
     /// assert_eq!(
     ///     metadata.created().map(|d| UNIX_EPOCH + d),
@@ -42,10 +43,10 @@ impl MetadataTimeExt for Metadata {
     ///
     /// This is the same as [Metadata::modified] + [SystemTime::UNIX_EPOCH].
     /// ```
-    /// use pna::{prelude::*, Metadata};
-    /// use std::time::{Duration, UNIX_EPOCH};
+    /// use pna::{prelude::*, Metadata, Duration};
+    /// use std::time::{UNIX_EPOCH};
     ///
-    /// let metadata = Metadata::new().with_modified(Some(Duration::from_secs(1000)));
+    /// let metadata = Metadata::new().with_modified(Some(Duration::seconds(1000)));
     ///
     /// assert_eq!(
     ///     metadata.modified().map(|d| UNIX_EPOCH + d),
@@ -61,10 +62,10 @@ impl MetadataTimeExt for Metadata {
     ///
     /// This is the same as [Metadata::accessed] + [SystemTime::UNIX_EPOCH].
     /// ```
-    /// use pna::{prelude::*, Metadata};
-    /// use std::time::{Duration, UNIX_EPOCH};
+    /// use pna::{prelude::*, Metadata, Duration};
+    /// use std::time::{UNIX_EPOCH};
     ///
-    /// let metadata = Metadata::new().with_accessed(Some(Duration::from_secs(1000)));
+    /// let metadata = Metadata::new().with_accessed(Some(Duration::seconds(1000)));
     ///
     /// assert_eq!(
     ///     metadata.accessed().map(|d| UNIX_EPOCH + d),
@@ -77,7 +78,6 @@ impl MetadataTimeExt for Metadata {
     }
 
     /// Sets the created time.
-    /// If the given created time is earlier than the Unix epoch, it will be clamped to the Unix epoch (1970-01-01T00:00:00Z).
     ///
     /// # Examples
     /// ```
@@ -92,22 +92,17 @@ impl MetadataTimeExt for Metadata {
     ///
     /// # #[cfg(target_family = "wasm")]
     /// # return;
-    /// // Time before Unix epoch will be clamped
     /// let before_epoch = UNIX_EPOCH - Duration::from_secs(1);
     /// let metadata = Metadata::new().with_created_time(Some(before_epoch));
-    /// assert_eq!(metadata.created_time(), Some(UNIX_EPOCH));
+    /// assert_eq!(metadata.created_time(), Some(before_epoch));
     /// # }
     /// ```
     #[inline]
     fn with_created_time(self, time: impl Into<Option<SystemTime>>) -> Self {
-        self.with_created(time.into().map(|it| {
-            it.duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap_or_default()
-        }))
+        self.with_created(time.into().map(|it| it.duration_since_unix_epoch_signed()))
     }
 
     /// Sets the modified time.
-    /// If the given modified time is earlier than the Unix epoch, it will be clamped to the Unix epoch (1970-01-01T00:00:00Z).
     ///
     /// # Examples
     /// ```
@@ -122,22 +117,17 @@ impl MetadataTimeExt for Metadata {
     ///
     /// # #[cfg(target_family = "wasm")]
     /// # return;
-    /// // Time before Unix epoch will be clamped
     /// let before_epoch = UNIX_EPOCH - Duration::from_secs(1);
     /// let metadata = Metadata::new().with_modified_time(Some(before_epoch));
-    /// assert_eq!(metadata.modified_time(), Some(UNIX_EPOCH));
+    /// assert_eq!(metadata.modified_time(), Some(before_epoch));
     /// # }
     /// ```
     #[inline]
     fn with_modified_time(self, time: impl Into<Option<SystemTime>>) -> Self {
-        self.with_modified(time.into().map(|it| {
-            it.duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap_or_default()
-        }))
+        self.with_modified(time.into().map(|it| it.duration_since_unix_epoch_signed()))
     }
 
     /// Sets the accessed time.
-    /// If the given accessed time is earlier than the Unix epoch, it will be clamped to the Unix epoch (1970-01-01T00:00:00Z).
     ///
     /// # Examples
     /// ```
@@ -152,18 +142,14 @@ impl MetadataTimeExt for Metadata {
     ///
     /// # #[cfg(target_family = "wasm")]
     /// # return;
-    /// // Time before Unix epoch will be clamped
     /// let before_epoch = UNIX_EPOCH - Duration::from_secs(1);
     /// let metadata = Metadata::new().with_accessed_time(Some(before_epoch));
-    /// assert_eq!(metadata.accessed_time(), Some(UNIX_EPOCH));
+    /// assert_eq!(metadata.accessed_time(), Some(before_epoch));
     /// # }
     /// ```
     #[inline]
     fn with_accessed_time(self, time: impl Into<Option<SystemTime>>) -> Self {
-        self.with_accessed(time.into().map(|it| {
-            it.duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap_or_default()
-        }))
+        self.with_accessed(time.into().map(|it| it.duration_since_unix_epoch_signed()))
     }
 }
 
@@ -180,7 +166,6 @@ pub trait MetadataFsExt: private::Sealed {
 
 impl MetadataFsExt for Metadata {
     /// Create new [Metadata] from given [fs::Metadata].
-    /// If any time in the given metadata is earlier than the Unix epoch, it will be clamped to the Unix epoch (1970-01-01T00:00:00Z).
     ///
     /// # Examples
     ///

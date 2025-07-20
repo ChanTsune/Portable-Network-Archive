@@ -9,14 +9,12 @@ use crate::{
         SolidEntry, SolidHeader, WriteCipher, WriteOption, WriteOptions,
     },
     io::{FlattenWriter, TryIntoInner},
+    Duration,
 };
 
 #[cfg(feature = "unstable-async")]
 use futures_io::AsyncWrite;
-use std::{
-    io::{self, prelude::*},
-    time::Duration,
-};
+use std::io::{self, prelude::*};
 #[cfg(feature = "unstable-async")]
 use std::{
     pin::Pin,

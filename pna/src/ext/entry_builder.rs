@@ -1,4 +1,4 @@
-use crate::ext::private;
+use crate::{ext::private, prelude::*};
 use libpna::{EntryBuilder, Metadata};
 use std::time::SystemTime;
 
@@ -25,35 +25,23 @@ impl EntryBuilderExt for EntryBuilder {
     }
 
     /// Sets the created time.
-    /// If the given created time is earlier than the Unix epoch, it will be clamped to the Unix epoch (1970-01-01T00:00:00Z).
     #[inline]
     fn created_time(&mut self, time: impl Into<Option<SystemTime>>) -> &mut Self {
         let time = time.into();
-        self.created(time.map(|it| {
-            it.duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap_or_default()
-        }))
+        self.created(time.map(|it| it.duration_since_unix_epoch_signed()))
     }
 
     /// Sets the modified time.
-    /// If the given modified time is earlier than the Unix epoch, it will be clamped to the Unix epoch (1970-01-01T00:00:00Z).
     #[inline]
     fn modified_time(&mut self, time: impl Into<Option<SystemTime>>) -> &mut Self {
         let time = time.into();
-        self.modified(time.map(|it| {
-            it.duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap_or_default()
-        }))
+        self.modified(time.map(|it| it.duration_since_unix_epoch_signed()))
     }
 
     /// Sets the accessed time.
-    /// If the given accessed time is earlier than the Unix epoch, it will be clamped to the Unix epoch (1970-01-01T00:00:00Z).
     #[inline]
     fn accessed_time(&mut self, time: impl Into<Option<SystemTime>>) -> &mut Self {
         let time = time.into();
-        self.accessed(time.map(|it| {
-            it.duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap_or_default()
-        }))
+        self.accessed(time.map(|it| it.duration_since_unix_epoch_signed()))
     }
 }
