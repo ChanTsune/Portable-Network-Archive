@@ -1,7 +1,6 @@
 #[cfg(windows)]
 use scopeguard;
 use std::collections::HashMap;
-use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -28,6 +27,8 @@ struct FileId(u64, u64); // (device, inode)
 fn get_file_id_and_nlinks(path: &Path, follow_symlink: bool) -> io::Result<(FileId, u64)> {
     #[cfg(unix)]
     {
+        use std::fs;
+
         let meta = if follow_symlink {
             fs::metadata(path)
         } else {
@@ -74,6 +75,7 @@ fn get_file_id_and_nlinks(path: &Path, follow_symlink: bool) -> io::Result<(File
     }
 }
 
+#[cfg_attr(not(any(unix, windows)), allow(unused_variables))]
 pub(crate) struct HardlinkResolver {
     follow_symlink: bool,
     seen: HashMap<FileId, PathBuf>,
