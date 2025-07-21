@@ -2,7 +2,7 @@
 
 load '../test_helper.bash'
 
-EXECUTABLE="pna experimental stdio --unstable --keep-dir"
+EXECUTABLE="pna experimental stdio --unstable --keep-dir --overwrite"
 
 setup_file() {
   pushd "$BATS_FILE_TMPDIR" || exit 1
