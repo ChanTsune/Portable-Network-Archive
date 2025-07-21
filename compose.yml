@@ -10,3 +10,17 @@ services:
       - .:/workspace
     working_dir: /workspace
     command: 'sleep infinity'
+
+  wasi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: wasi
+    restart: always
+    tty: true
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    command: 'sleep infinity'
+    environment:
+      CARGO_BUILD_TARGET: wasm32-wasip1
