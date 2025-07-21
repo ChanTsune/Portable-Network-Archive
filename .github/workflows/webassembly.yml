@@ -79,6 +79,8 @@ jobs:
         name: Install wasm-bindgen-cli from crates.io
         run: |
           cargo binstall --no-confirm --force wasm-bindgen-cli --version ${{ steps.get_version.outputs.version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # For ease GitHub API rate limits
       - if: ${{ endsWith(matrix.target, 'unknown') }}
         name: Run test
         run: |
