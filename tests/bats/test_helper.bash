@@ -37,7 +37,7 @@ assert_make_file() {
   local mode=$2
   local contents=$3
 
-  echo "$contents" >>"$path"
+  echo -n "$contents" >"$path"
   chmod "$mode" "$path"
   assert_file_exists "$path"
 }
@@ -50,4 +50,21 @@ assert_make_dir() {
 
   mkdir -m "$mode" "$path"
   assert_dir_exists "$path"
+}
+
+# Create hardlink and assert that exists
+assert_make_hardlink() {
+  local link_path=$1
+  local target_path=$2
+  ln "$target_path" "$link_path"
+  assert_file_exists "$link_path"
+}
+
+# Create symlink and assert that exists
+assert_make_symlink() {
+  local link_path=$1
+  local target_path=$2
+  local is_dir=$3 # use this on windows # TODO: Support windows
+  ln -s "$target_path" "$link_path"
+  assert_symlink_to "$target_path" "$link_path"
 }
