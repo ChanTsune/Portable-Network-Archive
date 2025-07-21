@@ -6,6 +6,22 @@ RUN rustup component add clippy rustfmt
 
 RUN apt update && apt install -y libacl1-dev g++ cmake git bats shfmt shellcheck
 
+FROM ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-25 as wasi
+
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH \
+    CARGO_TARGET_DIR=/tmp/target/
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain none --profile minimal -y
+
+
+RUN curl https://wasmtime.dev/install.sh -sSf | bash
+
+RUN rustup default nightly && \
+    rustup component add clippy rustfmt && \
+    rustup target add wasm32-unknown-unknown wasm32-wasip1 wasm32-wasip2
+
 FROM rust:slim as builder
 
 RUN rustup target add "$(uname -m)"-unknown-linux-musl
