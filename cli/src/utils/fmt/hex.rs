@@ -1,4 +1,4 @@
-use std::fmt;
+use std::fmt::{self, Write};
 
 #[inline]
 pub(crate) fn display(value: &[u8]) -> HexDisplay<'_> {

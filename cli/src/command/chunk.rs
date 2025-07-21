@@ -1,4 +1,4 @@
-use crate::command::Command;
+use crate::{command::Command, utils::fmt::hex};
 use clap::Parser;
 use pna::prelude::*;
 use std::{fs, path::PathBuf};
@@ -70,9 +70,11 @@ fn list_archive_chunks(args: ListCommand) -> anyhow::Result<()> {
             ]
             .into_iter()
             .chain(args.long.then(|| {
-                std::str::from_utf8(chunk.data())
-                    .unwrap_or_default()
-                    .to_string()
+                let data = chunk.data();
+                match std::str::from_utf8(data) {
+                    Ok(s) => s.to_string(),
+                    Err(_) => format!("0x{}", hex::display(data)),
+                }
             })),
         );
         offset += chunk.length() as usize + std::mem::size_of::<u32>() * 3;
