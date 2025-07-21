@@ -1,3 +1,5 @@
+pub(crate) mod hex;
+
 use std::fmt;
 use std::time::Duration;
 

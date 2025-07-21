@@ -8,7 +8,7 @@ use crate::{
         },
         Command,
     },
-    utils::{env::NamedTempFile, GlobPatterns, PathPartExt},
+    utils::{env::NamedTempFile, fmt::hex, GlobPatterns, PathPartExt},
 };
 use base64::Engine;
 use bstr::{io::BufReadExt, ByteSlice};
@@ -490,10 +490,7 @@ impl<'a> DisplayValue<'a> {
     #[inline]
     fn fmt_hex(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str("0x")?;
-        for i in self.value {
-            write!(f, "{i:02x}")?;
-        }
-        Ok(())
+        Display::fmt(&hex::display(self.value), f)
     }
 
     #[inline]
