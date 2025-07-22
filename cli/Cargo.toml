@@ -1,6 +1,6 @@
 [package]
 name = "portable-network-archive"
-version = "0.26.3"
+version = "0.27.0"
 edition = "2021"
 license = "Apache-2.0 OR MIT"
 description = "Portable-Network-Archive cli"
@@ -30,7 +30,7 @@ memmap2 = { version = "0.9.7", optional = true }
 nom = "8.0.0"
 parse_datetime = "0.10.0"
 path-slash = "0.2.1"
-pna = { version = "0.26.0", path = "../pna" }
+pna = { version = "0.27.0", path = "../pna" }
 rayon = "1.10.0"
 regex = "1.11.1"
 serde = { version = "1.0.219", features = ["derive"] }

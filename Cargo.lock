@@ -1191,7 +1191,7 @@ dependencies = [
 
 [[package]]
 name = "libpna"
-version = "0.26.1"
+version = "0.27.0"
 dependencies = [
  "aes",
  "argon2",
@@ -1533,7 +1533,7 @@ dependencies = [
 
 [[package]]
 name = "pna"
-version = "0.26.0"
+version = "0.27.0"
 dependencies = [
  "libpna",
  "version-sync",
@@ -1541,7 +1541,7 @@ dependencies = [
 
 [[package]]
 name = "portable-network-archive"
-version = "0.26.3"
+version = "0.27.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
