@@ -123,6 +123,7 @@ impl Command for ListCommand {
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, ValueEnum)]
 #[value(rename_all = "lower")]
 pub(crate) enum Format {
+    Line,
     Table,
     #[value(name = "jsonl")]
     JsonL,
@@ -410,6 +411,7 @@ fn print_entries(
         .collect::<Vec<_>>();
     globs.ensure_all_matched()?;
     match options.format {
+        Some(Format::Line) => simple_list_entries(entries, options),
         Some(Format::JsonL) => json_line_entries(entries),
         Some(Format::Table) => detail_list_entries(entries, options),
         Some(Format::Tree) => tree_entries(entries, options),
