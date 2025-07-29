@@ -46,7 +46,7 @@ version-sync = "0.9.5"
 criterion = { version = "0.7.0", default-features = false, features = ["cargo_bench_support", "plotters"] }
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
-tokio = { version = "1.46.1", features = ["macros", "rt-multi-thread", "fs", "io-util"] }
+tokio = { version = "1.47.0", features = ["macros", "rt-multi-thread", "fs", "io-util"] }
 tokio-util = { version = "0.7.15", features = ["compat"] }
 
 [target.'cfg(all(target_family = "wasm", target_os = "unknown"))'.dev-dependencies]
