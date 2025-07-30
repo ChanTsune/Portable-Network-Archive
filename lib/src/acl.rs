@@ -1,6 +1,6 @@
 use crate::UnknownValueError;
 use bitflags::bitflags;
-use std::io;
+use std::{io, mem};
 
 #[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
@@ -87,72 +87,88 @@ impl AclHeader {
     }
 }
 
+#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[repr(u8)]
+#[non_exhaustive]
+pub enum AceType {
+    Allowed = 0,
+    Denied = 1,
+    // Audit = 2,
+    // Alarm = 3,
+}
+
 bitflags! {
     #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
     pub struct AcePermission: u32 {
-        /// READ_DATA permission for a file.
-        /// Same as LIST_DIRECTORY permission for a directory.
-        const READ = 0b001;
+        /// Permission to read the data of the file.
+        const READ_DATA            = 0x00000001;
+        /// Permission to list the contents of a directory.
+        const LIST_DIRECTORY       = 0x00000001;
+        /// Permission to modify a file's data.
+        const WRITE_DATA           = 0x00000002;
+        /// Permission to add a new file in a directory.
+        const ADD_FILE             = 0x00000002;
+        /// The ability to modify a file's data, but only starting at EOF.
+        const APPEND_DATA          = 0x00000004;
+        /// Permission to create a subdirectory in a directory.
+        const ADD_SUBDIRECTORY     = 0x00000004;
+        /// Permission to read the named attributes of a file or to look up the named attribute directory.
+        const READ_NAMED_ATTRS     = 0x00000008;
+        /// Permission to write the named attributes of a file or to create a named attribute directory.
+        const WRITE_NAMED_ATTRS    = 0x00000010;
+        /// Permission to execute a file.
+        /// Permission to traverse/search a directory.
+        const EXECUTE              = 0x00000020;
+        /// Permission to delete a file or directory within a directory.
+        const DELETE_CHILD         = 0x00000040;
+        /// The ability to read basic attributes (non-ACLs) of a file.
+        const READ_ATTRIBUTES      = 0x00000080;
+        /// Permission to change the times associated with a file or directory to an arbitrary value.
+        const WRITE_ATTRIBUTES     = 0x00000100;
+        /// Permission to modify the durations of event and non-event-based retention.
+        const WRITE_RETENTION      = 0x00000200;
+        /// Permission to modify the administration retention holds.
+        const WRITE_RETENTION_HOLD = 0x00000400;
 
-        /// WRITE_DATA permission for a file.
-        /// Same as ADD_FILE permission for a directory.
-        const WRITE = 0b010;
-
-        /// EXECUTE permission for a file.
-        /// Same as SEARCH permission for a directory.
-        const EXECUTE = 0b100;
-
-        /// DELETE permission for a file.
-        const DELETE = 0b1000;
-
-        /// APPEND_DATA permission for a file.
-        /// Same as ADD_SUBDIRECTORY permission for a directory.
-        const APPEND = 0b10000;
-
-        /// DELETE_CHILD permission for a directory.
-        const DELETE_CHILD = 0b100000;
-
-        /// READ_ATTRIBUTES permission for a file or directory.
-        const READATTR = 0b1000000;
-
-        /// WRITE_ATTRIBUTES permission for a file or directory.
-        const WRITEATTR = 0b10000000;
-
-        /// READ_EXTATTRIBUTES permission for a file or directory.
-        const READEXTATTR = 0b100000000;
-
-        /// WRITE_EXTATTRIBUTES permission for a file or directory.
-        const WRITEEXTATTR = 0b1000000000;
-
-        /// READ_SECURITY permission for a file or directory.
-        const READSECURITY = 0b10000000000;
-
-        /// WRITE_SECURITY permission for a file or directory.
-        const WRITESECURITY = 0b100000000000;
-
-        /// CHANGE_OWNER permission for a file or directory.
-        const CHOWN = 0b1000000000000;
-
-        /// SYNCHRONIZE permission (unsupported).
-        const SYNC = 0b10000000000000;
-
-        /// NFSv4 READ_DATA permission.
-        const READ_DATA = 0b100000000000000;
-
-        /// NFSv4 WRITE_DATA permission.
-        const WRITE_DATA = 0b1000000000000000;
+        /// Permission to delete the file or directory.
+        const DELETE               = 0x00010000;
+        /// Permission to read the ACL.
+        const READ_ACL             = 0x00020000;
+        /// Permission to write the acl and mode attributes.
+        const WRITE_ACL            = 0x00040000;
+        /// Permission to write the owner and owner_group attributes.
+        const WRITE_OWNER          = 0x00080000;
+        /// Permission to use the file object as a synchronization primitive for interprocess communication.
+        const SYNCHRONIZE          = 0x00100000;
     }
 }
 
 bitflags! {
     #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-    pub struct AceFlag: u8 {
-        const DEFAULT = 0b1;
-        const INHERITED = 0b10;
-        const FILE_INHERIT = 0b100;
-        const DIRECTORY_INHERIT = 0b1000;
-        const LIMIT_INHERIT = 0b10000;
-        const ONLY_INHERIT = 0b100000;
+    pub struct AceFlag: u32 {
+        // POSIX
+        /// Indicates that this ACE is a POSIX "default ACL", which applies only to directories.
+        /// Default ACLs are inherited by newly created files and sub-directories, but do not
+        /// affect access to the directory itself. They serve as templates for initializing
+        /// the access ACLs of new children.
+        const DEFAULT_ACL                  = 0x00000001;
+
+        // macOS
+        // NFSv4
+        /// Any non-directory file in any sub-directory will get this ACE inherited.
+        const FILE_INHERIT_ACE             = 0x00000001;
+        /// Can be placed on a directory and indicates that this ACE should be added to each new directory created.
+        const DIRECTORY_INHERIT_ACE        = 0x00000002;
+        /// Can be placed on a directory. This flag tells inheritance of this ACE should stop at newly created child directories.
+        const NO_PROPAGATE_INHERIT_ACE     = 0x00000004;
+        /// Can be placed on a directory but does not apply to the directory.
+        const INHERIT_ONLY_ACE             = 0x00000008;
+        const SUCCESSFUL_ACCESS_ACE_FLAG   = 0x00000010;
+        const FAILED_ACCESS_ACE_FLAG       = 0x00000020;
+        /// Indicates that the "who" refers to a GROUP as defined under UNIX or a GROUP ACCOUNT as defined under Windows.
+        const IDENTIFIER_GROUP             = 0x00000040;
+        /// Indicates that this ACE is inherited from a parent directory.
+        const INHERITED_ACE                = 0x00000080;
     }
 }
 
@@ -161,6 +177,63 @@ pub struct Ace {
     version: u8,
     permission: AcePermission,
     flags: AceFlag,
+    reserved1: u8,
+    reserved2: u8,
+    identifier: String,
+}
+
+impl Ace {
+    pub(crate) fn to_bytes(&self) -> Vec<u8> {
+        let identifier_bytes = self.identifier.as_bytes();
+        let identifier_bytes_len = (identifier_bytes.len() as u16).to_be_bytes();
+        let permission_bytes = self.permission.bits().to_be_bytes();
+        let flags = self.flags.bits().to_be_bytes();
+        let mut bytes = Vec::with_capacity(24);
+        bytes.push(self.version);
+        bytes.extend_from_slice(&permission_bytes);
+        bytes.extend_from_slice(&flags);
+        bytes.push(self.reserved1);
+        bytes.push(self.reserved2);
+        bytes.extend_from_slice(&identifier_bytes_len);
+        bytes.extend_from_slice(identifier_bytes);
+        bytes
+    }
+
+    pub(crate) fn try_from_bytes(bytes: &[u8]) -> io::Result<Self> {
+        let (version, r) = bytes
+            .split_first_chunk::<{ mem::size_of::<u8>() }>()
+            .ok_or(io::ErrorKind::UnexpectedEof)?;
+        let version = version[0];
+        let (permission, r) = r
+            .split_first_chunk::<{ mem::size_of::<u32>() }>()
+            .ok_or(io::ErrorKind::UnexpectedEof)?;
+        let permission = u32::from_be_bytes(*permission);
+        let (flags, r) = r
+            .split_first_chunk::<{ mem::size_of::<u32>() }>()
+            .ok_or(io::ErrorKind::UnexpectedEof)?;
+        let flags = u32::from_be_bytes(*flags);
+        let (reserved1, r) = r
+            .split_first_chunk::<{ mem::size_of::<u8>() }>()
+            .ok_or(io::ErrorKind::UnexpectedEof)?;
+        let (reserved2, r) = r
+            .split_first_chunk::<{ mem::size_of::<u8>() }>()
+            .ok_or(io::ErrorKind::UnexpectedEof)?;
+        let (identifier_len, r) = r
+            .split_first_chunk::<{ mem::size_of::<u16>() }>()
+            .ok_or(io::ErrorKind::UnexpectedEof)?;
+        let identifier_len = u16::from_be_bytes(*identifier_len);
+        let (identifier, _) = r.split_at(identifier_len as usize);
+        let identifier = str::from_utf8(identifier)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        Ok(Self {
+            version,
+            permission: AcePermission::from_bits_retain(permission),
+            flags: AceFlag::from_bits_retain(flags),
+            reserved1: reserved1[0],
+            reserved2: reserved2[0],
+            identifier: identifier.to_string(),
+        })
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -186,5 +259,18 @@ mod tests {
             acl_header,
             AclHeader::try_from_bytes(acl_header.to_bytes().as_ref()).unwrap()
         );
+    }
+
+    #[test]
+    fn ace_from_to_bytes() {
+        let ace = Ace {
+            version: 0,
+            permission: AcePermission::READ_DATA,
+            flags: AceFlag::DEFAULT_ACL,
+            reserved1: 0,
+            reserved2: 0,
+            identifier: "user".to_string(),
+        };
+        assert_eq!(ace, Ace::try_from_bytes(ace.to_bytes().as_ref()).unwrap());
     }
 }
