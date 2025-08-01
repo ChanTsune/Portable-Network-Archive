@@ -23,11 +23,11 @@ jobs:
           - target: wasm32-unknown-emscripten
             container: emscripten/emsdk:latest
           - target: wasm32-unknown-unknown
-            container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-25
+            container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-26
           - target: wasm32-wasip1
-            container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-25
+            container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-26
           - target: wasm32-wasip2
-            container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-25
+            container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-26
 
     runs-on: ubuntu-latest
     container: ${{ matrix.container }}
