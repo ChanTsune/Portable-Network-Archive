@@ -244,6 +244,55 @@ pub struct Acl {
     entries: Vec<Ace>,
 }
 
+impl Acl {
+    #[inline]
+    pub(crate) fn to_bytes(&self) -> Vec<u8> {
+        // Create a copy of the header with the correct entry_count
+        let mut header = self.header.clone();
+        header.entry_count = self.entries.len() as u16;
+        
+        let mut bytes =
+            Vec::with_capacity(mem::size_of::<Self>() + self.entries.len() * mem::size_of::<Ace>());
+        bytes.extend_from_slice(&header.to_bytes());
+        for entry in &self.entries {
+            bytes.extend_from_slice(&entry.to_bytes())
+        }
+        bytes
+    }
+
+    #[inline]
+    pub(crate) fn try_from_bytes(bytes: &[u8]) -> io::Result<Self> {
+        // Parse the header from the first 8 bytes
+        let header = AclHeader::try_from_bytes(&bytes[..8])?;
+        
+        // Get the number of entries from the header
+        let entry_count = header.entry_count;
+        
+        // Initialize a vector to store the parsed entries
+        let mut entries = Vec::with_capacity(entry_count as usize);
+        
+        // Start parsing entries from after the header
+        let mut remaining_bytes = &bytes[8..];
+        
+        // Parse each entry
+        for _ in 0..entry_count {
+            // Parse an entry from the remaining bytes
+            let entry = Ace::try_from_bytes(remaining_bytes)?;
+            
+            // Calculate the size of the entry in bytes
+            let entry_size = entry.to_bytes().len();
+            
+            // Move the remaining_bytes pointer forward
+            remaining_bytes = &remaining_bytes[entry_size..];
+            
+            // Add the entry to the entries vector
+            entries.push(entry);
+        }
+        
+        Ok(Self { header, entries })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -251,11 +300,11 @@ mod tests {
     fn acl_header_from_to_bytes() {
         let acl_header = AclHeader {
             version: 0,
+            reserved: 0,
             platform: AclPlatform::Posix,
             acl_type: AclType::Dacl,
             bit_flags: 0,
             entry_count: 0,
-            reserved: 0,
         };
         assert_eq!(
             acl_header,
@@ -274,5 +323,38 @@ mod tests {
             identifier: "u:user".to_string(),
         };
         assert_eq!(ace, Ace::try_from_bytes(ace.to_bytes().as_ref()).unwrap());
+    }
+
+    #[test]
+    fn acl_from_to_bytes() {
+        let acl = Acl {
+            header: AclHeader {
+                version: 0,
+                reserved: 0,
+                platform: AclPlatform::Posix,
+                acl_type: AclType::Dacl,
+                bit_flags: 0,
+                entry_count: 2,
+            },
+            entries: vec![
+                Ace {
+                    reserved1: 0,
+                    reserved2: 0,
+                    reserved3: 0,
+                    permission: AcePermission::READ_DATA,
+                    flags: AceFlag::DEFAULT_ACL,
+                    identifier: "u:user".to_string(),
+                },
+                Ace {
+                    reserved1: 0,
+                    reserved2: 0,
+                    reserved3: 0,
+                    permission: AcePermission::WRITE_DATA,
+                    flags: AceFlag::empty(),
+                    identifier: "g:user".to_string(),
+                },
+            ],
+        };
+        assert_eq!(acl, Acl::try_from_bytes(acl.to_bytes().as_ref()).unwrap());
     }
 }
