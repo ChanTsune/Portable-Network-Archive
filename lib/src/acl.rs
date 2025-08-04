@@ -46,11 +46,11 @@ impl TryFrom<u8> for AclType {
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct AclHeader {
     version: u8,
+    reserved: u8,
     platform: AclPlatform,
     acl_type: AclType,
     bit_flags: u16,
     entry_count: u16,
-    reserved: u8,
 }
 
 impl AclHeader {
@@ -60,13 +60,13 @@ impl AclHeader {
         let entry_count = self.entry_count.to_be_bytes();
         [
             self.version,
+            self.reserved,
             self.platform as u8,
             self.acl_type as u8,
             bit_flags[0],
             bit_flags[1],
             entry_count[0],
             entry_count[1],
-            0,
         ]
     }
 
@@ -76,13 +76,13 @@ impl AclHeader {
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
         Ok(Self {
             version: bytes[0],
-            platform: AclPlatform::try_from(bytes[1])
+            reserved: bytes[1],
+            platform: AclPlatform::try_from(bytes[2])
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-            acl_type: AclType::try_from(bytes[2])
+            acl_type: AclType::try_from(bytes[3])
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-            bit_flags: u16::from_be_bytes([bytes[3], bytes[4]]),
-            entry_count: u16::from_be_bytes([bytes[5], bytes[6]]),
-            reserved: bytes[7],
+            bit_flags: u16::from_be_bytes([bytes[4], bytes[5]]),
+            entry_count: u16::from_be_bytes([bytes[6], bytes[7]]),
         })
     }
 }
@@ -174,11 +174,11 @@ bitflags! {
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Ace {
-    version: u8,
+    reserved1: u16,
+    reserved2: u16,
+    reserved3: u16,
     permission: AcePermission,
     flags: AceFlag,
-    reserved1: u8,
-    reserved2: u8,
     identifier: String,
 }
 
@@ -188,22 +188,30 @@ impl Ace {
         let identifier_bytes_len = (identifier_bytes.len() as u16).to_be_bytes();
         let permission_bytes = self.permission.bits().to_be_bytes();
         let flags = self.flags.bits().to_be_bytes();
-        let mut bytes = Vec::with_capacity(24);
-        bytes.push(self.version);
+        let mut bytes = Vec::with_capacity(mem::size_of::<Self>() + identifier_bytes.len());
+        bytes.extend_from_slice(&self.reserved1.to_be_bytes());
+        bytes.extend_from_slice(&self.reserved2.to_be_bytes());
+        bytes.extend_from_slice(&self.reserved3.to_be_bytes());
         bytes.extend_from_slice(&permission_bytes);
         bytes.extend_from_slice(&flags);
-        bytes.push(self.reserved1);
-        bytes.push(self.reserved2);
         bytes.extend_from_slice(&identifier_bytes_len);
         bytes.extend_from_slice(identifier_bytes);
         bytes
     }
 
     pub(crate) fn try_from_bytes(bytes: &[u8]) -> io::Result<Self> {
-        let (version, r) = bytes
-            .split_first_chunk::<{ mem::size_of::<u8>() }>()
+        let (reserved, r) = bytes
+            .split_first_chunk::<{ mem::size_of::<u16>() }>()
             .ok_or(io::ErrorKind::UnexpectedEof)?;
-        let version = version[0];
+        let reserved1 = u16::from_be_bytes(*reserved);
+        let (reserved, r) = r
+            .split_first_chunk::<{ mem::size_of::<u16>() }>()
+            .ok_or(io::ErrorKind::UnexpectedEof)?;
+        let reserved2 = u16::from_be_bytes(*reserved);
+        let (reserved, r) = r
+            .split_first_chunk::<{ mem::size_of::<u16>() }>()
+            .ok_or(io::ErrorKind::UnexpectedEof)?;
+        let reserved3 = u16::from_be_bytes(*reserved);
         let (permission, r) = r
             .split_first_chunk::<{ mem::size_of::<u32>() }>()
             .ok_or(io::ErrorKind::UnexpectedEof)?;
@@ -212,12 +220,6 @@ impl Ace {
             .split_first_chunk::<{ mem::size_of::<u32>() }>()
             .ok_or(io::ErrorKind::UnexpectedEof)?;
         let flags = u32::from_be_bytes(*flags);
-        let (reserved1, r) = r
-            .split_first_chunk::<{ mem::size_of::<u8>() }>()
-            .ok_or(io::ErrorKind::UnexpectedEof)?;
-        let (reserved2, r) = r
-            .split_first_chunk::<{ mem::size_of::<u8>() }>()
-            .ok_or(io::ErrorKind::UnexpectedEof)?;
         let (identifier_len, r) = r
             .split_first_chunk::<{ mem::size_of::<u16>() }>()
             .ok_or(io::ErrorKind::UnexpectedEof)?;
@@ -226,11 +228,11 @@ impl Ace {
         let identifier = str::from_utf8(identifier)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         Ok(Self {
-            version,
+            reserved1,
+            reserved2,
+            reserved3,
             permission: AcePermission::from_bits_retain(permission),
             flags: AceFlag::from_bits_retain(flags),
-            reserved1: reserved1[0],
-            reserved2: reserved2[0],
             identifier: identifier.to_string(),
         })
     }
@@ -264,12 +266,12 @@ mod tests {
     #[test]
     fn ace_from_to_bytes() {
         let ace = Ace {
-            version: 0,
-            permission: AcePermission::READ_DATA,
-            flags: AceFlag::DEFAULT_ACL,
             reserved1: 0,
             reserved2: 0,
-            identifier: "user".to_string(),
+            reserved3: 0,
+            permission: AcePermission::READ_DATA,
+            flags: AceFlag::DEFAULT_ACL,
+            identifier: "u:user".to_string(),
         };
         assert_eq!(ace, Ace::try_from_bytes(ace.to_bytes().as_ref()).unwrap());
     }
