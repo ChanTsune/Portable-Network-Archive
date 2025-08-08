@@ -1,15 +1,17 @@
+use pna::Duration;
 use std::{
     borrow::Cow,
     fmt::{self, Display, Formatter},
-    ops::{Add, Sub},
     str::FromStr,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum DateTimeError {
     #[error("Failed to parse seconds since unix epoch")]
-    InvalidNumber(#[from] std::num::ParseFloatError),
+    InvalidNumber,
+    #[error("Failed to parse seconds since unix epoch")]
+    ParseInt(#[from] std::num::ParseIntError),
     #[error(transparent)]
     ChronoParse(#[from] chrono::ParseError),
     #[error(transparent)]
@@ -21,30 +23,28 @@ pub(crate) enum DateTime {
     Naive(chrono::NaiveDateTime),
     Zoned(chrono::DateTime<chrono::FixedOffset>),
     Date(chrono::NaiveDate),
-    Epoch(i64), // Unix epoch timestamp in seconds
+    Epoch(i64, u32), // Unix epoch timestamp in seconds and subsec nanos
 }
 
 impl DateTime {
     #[inline]
     pub(crate) fn to_system_time(&self) -> SystemTime {
-        fn from_timestamp(seconds: i64) -> SystemTime {
-            if seconds < 0 {
-                UNIX_EPOCH.sub(Duration::from_secs(seconds.unsigned_abs()))
-            } else {
-                UNIX_EPOCH.add(Duration::from_secs(seconds.unsigned_abs()))
-            }
+        #[inline]
+        fn from_timestamp(seconds: i64, nanoseconds: u32) -> SystemTime {
+            UNIX_EPOCH + Duration::new(seconds, nanoseconds as _)
         }
         match self {
             Self::Naive(naive) => {
                 // FIXME: Avoid `.unwrap()` call, use match statement with return Result.
-                let seconds = naive.and_local_timezone(chrono::Local).unwrap().timestamp();
-                from_timestamp(seconds)
+                let local = naive.and_local_timezone(chrono::Local).unwrap();
+                from_timestamp(local.timestamp(), local.timestamp_subsec_nanos())
             }
-            Self::Zoned(zoned) => from_timestamp(zoned.timestamp()),
+            Self::Zoned(zoned) => from_timestamp(zoned.timestamp(), zoned.timestamp_subsec_nanos()),
             Self::Date(date) => {
-                from_timestamp(date.and_hms_opt(0, 0, 0).unwrap().and_utc().timestamp())
+                let utc = date.and_hms_opt(0, 0, 0).unwrap().and_utc();
+                from_timestamp(utc.timestamp(), utc.timestamp_subsec_nanos())
             }
-            Self::Epoch(seconds) => from_timestamp(*seconds),
+            Self::Epoch(seconds, nanos) => from_timestamp(*seconds, *nanos),
         }
     }
 }
@@ -56,7 +56,7 @@ impl Display for DateTime {
             Self::Naive(naive) => Display::fmt(naive, f),
             Self::Zoned(zoned) => Display::fmt(zoned, f),
             Self::Date(date) => Display::fmt(date, f),
-            Self::Epoch(seconds) => write!(f, "@{seconds}"),
+            Self::Epoch(seconds, nanos) => write!(f, "@{seconds}.{nanos:09}"),
         }
     }
 }
@@ -73,8 +73,32 @@ impl FromStr for DateTime {
             } else {
                 Cow::Borrowed(seconds)
             };
-            let seconds = f64::from_str(&seconds_str)?;
-            Ok(Self::Epoch(seconds.trunc() as i64))
+            // split integer and fractional parts
+            let mut split = seconds_str.splitn(2, '.');
+            let int_part = split.next().expect("split always has at least one part");
+            let frac_part = split.next();
+
+            // parse seconds
+            let secs = i64::from_str(int_part)?;
+
+            // parse fractional (nanoseconds)
+            let nanos: u32 = if let Some(frac) = frac_part {
+                // allow only digits
+                if !frac.bytes().all(|c| c.is_ascii_digit()) {
+                    return Err(Self::Err::InvalidNumber);
+                }
+                // take up to 9 digits (nanoseconds); pad right with zeros
+                let digits = frac.as_bytes();
+                let mut ns: u32 = 0;
+                // pad with zeros to reach 9 digits and truncate beyond ns
+                for &b in digits.iter().chain(std::iter::repeat(&b'0')).take(9) {
+                    ns = (ns * 10) + (b - b'0') as u32;
+                }
+                ns
+            } else {
+                0
+            };
+            Ok(Self::Epoch(secs, nanos))
         } else if let Ok(naive) = chrono::NaiveDateTime::from_str(s) {
             Ok(Self::Naive(naive))
         } else if let Ok(naive_date) = chrono::NaiveDate::from_str(s) {
@@ -132,49 +156,67 @@ mod tests {
     #[test]
     fn test_relative_time_format_positive() {
         let datetime = DateTime::from_str("@1234567890").unwrap();
-        assert_eq!(datetime.to_string(), "@1234567890");
+        assert_eq!(datetime.to_string(), "@1234567890.000000000");
     }
 
     #[test]
     fn test_relative_time_format_negative() {
         let datetime = DateTime::from_str("@-1234567890").unwrap();
-        assert_eq!(datetime.to_string(), "@-1234567890");
+        assert_eq!(datetime.to_string(), "@-1234567890.000000000");
+    }
+
+    #[test]
+    fn test_relative_time_format_tailing_decimal_dot() {
+        let datetime = DateTime::from_str("@123.").unwrap();
+        assert_eq!(datetime.to_string(), "@123.000000000");
+    }
+
+    #[test]
+    fn test_relative_time_format_decimal_dot_zeros() {
+        let datetime = DateTime::from_str("@123.0").unwrap();
+        assert_eq!(datetime.to_string(), "@123.000000000");
+    }
+
+    #[test]
+    fn test_relative_time_format_decimal_dot_zero_one() {
+        let datetime = DateTime::from_str("@123.01").unwrap();
+        assert_eq!(datetime.to_string(), "@123.010000000");
     }
 
     #[test]
     fn test_relative_time_format_decimal_dot() {
         let datetime = DateTime::from_str("@123.456").unwrap();
-        assert_eq!(datetime.to_string(), "@123");
+        assert_eq!(datetime.to_string(), "@123.456000000");
     }
 
     #[test]
     fn test_relative_time_format_decimal_comma() {
         let datetime = DateTime::from_str("@123,456").unwrap();
-        assert_eq!(datetime.to_string(), "@123");
+        assert_eq!(datetime.to_string(), "@123.456000000");
     }
 
     #[test]
     fn test_relative_time_format_negative_decimal_dot() {
         let datetime = DateTime::from_str("@-123.456").unwrap();
-        assert_eq!(datetime.to_string(), "@-123");
+        assert_eq!(datetime.to_string(), "@-123.456000000");
     }
 
     #[test]
     fn test_relative_time_format_negative_decimal_comma() {
         let datetime = DateTime::from_str("@-123,456").unwrap();
-        assert_eq!(datetime.to_string(), "@-123");
+        assert_eq!(datetime.to_string(), "@-123.456000000");
     }
 
     #[test]
     fn test_relative_time_format_zero() {
         let datetime = DateTime::from_str("@0").unwrap();
-        assert_eq!(datetime.to_string(), "@0");
+        assert_eq!(datetime.to_string(), "@0.000000000");
     }
 
     #[test]
     fn test_relative_time_format_negative_one() {
         let datetime = DateTime::from_str("@-1").unwrap();
-        assert_eq!(datetime.to_string(), "@-1");
+        assert_eq!(datetime.to_string(), "@-1.000000000");
     }
 
     #[test]
@@ -204,7 +246,7 @@ mod tests {
 
     #[test]
     fn test_to_system_time_epoch() {
-        let datetime = DateTime::Epoch(1234567890);
+        let datetime = DateTime::Epoch(1234567890, 0);
         let system_time = datetime.to_system_time();
         assert!(system_time > UNIX_EPOCH);
     }
