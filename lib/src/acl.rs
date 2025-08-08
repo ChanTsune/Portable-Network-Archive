@@ -183,7 +183,7 @@ impl Ace {
         let (identifier, _) = r
             .split_at_checked(identifier_len as usize)
             .ok_or(io::ErrorKind::UnexpectedEof)?;
-        let identifier = str::from_utf8(identifier)
+        let identifier = std::str::from_utf8(identifier)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         Ok(Self {
             reserved1,
