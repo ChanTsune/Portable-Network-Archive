@@ -180,7 +180,9 @@ impl Ace {
             .split_first_chunk::<{ mem::size_of::<u16>() }>()
             .ok_or(io::ErrorKind::UnexpectedEof)?;
         let identifier_len = u16::from_be_bytes(*identifier_len);
-        let (identifier, _) = r.split_at(identifier_len as usize);
+        let (identifier, _) = r
+            .split_at_checked(identifier_len as usize)
+            .ok_or(io::ErrorKind::UnexpectedEof)?;
         let identifier = str::from_utf8(identifier)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         Ok(Self {
@@ -229,14 +231,9 @@ impl Acl {
     #[inline]
     pub(crate) fn try_from_bytes(bytes: &[u8]) -> io::Result<Self> {
         // Parse the first 8 bytes as header fields
-        let header_bytes: [u8; 8] = bytes
-            .get(..8)
-            .ok_or(io::Error::new(
-                io::ErrorKind::UnexpectedEof,
-                "ACL header too short",
-            ))?
-            .try_into()
-            .unwrap();
+        let (header_bytes, mut remaining_bytes) = bytes.split_first_chunk::<8>().ok_or(
+            io::Error::new(io::ErrorKind::UnexpectedEof, "ACL header too short"),
+        )?;
         let version = header_bytes[0];
         let reserved = header_bytes[1];
         let platform = AclPlatform::try_from(header_bytes[2])
@@ -248,11 +245,15 @@ impl Acl {
 
         // Parse entries
         let mut entries = Vec::with_capacity(entry_count as usize);
-        let mut remaining_bytes = &bytes[8..];
         for _ in 0..entry_count {
             let entry = Ace::try_from_bytes(remaining_bytes)?;
             let entry_size = entry.to_bytes().len();
-            remaining_bytes = &remaining_bytes[entry_size..];
+            remaining_bytes = remaining_bytes.get(entry_size..).ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "ACE entry exceeds remaining bytes",
+                )
+            })?;
             entries.push(entry);
         }
 
