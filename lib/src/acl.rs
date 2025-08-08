@@ -56,46 +56,48 @@ pub enum AceType {
 bitflags! {
     #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
     pub struct AcePermission: u32 {
+        // NFSv4 ACL: https://datatracker.ietf.org/doc/html/rfc7530
         /// Permission to read the data of the file.
-        const READ_DATA            = 0x00000001;
+        const NFSv4_READ_DATA            = 0x00000001;
         /// Permission to list the contents of a directory.
-        const LIST_DIRECTORY       = 0x00000001;
+        const NFSv4_LIST_DIRECTORY       = 0x00000001;
         /// Permission to modify a file's data.
-        const WRITE_DATA           = 0x00000002;
+        const NFSv4_WRITE_DATA           = 0x00000002;
         /// Permission to add a new file in a directory.
-        const ADD_FILE             = 0x00000002;
+        const NFSv4_ADD_FILE             = 0x00000002;
         /// The ability to modify a file's data, but only starting at EOF.
-        const APPEND_DATA          = 0x00000004;
+        const NFSv4_APPEND_DATA          = 0x00000004;
         /// Permission to create a subdirectory in a directory.
-        const ADD_SUBDIRECTORY     = 0x00000004;
+        const NFSv4_ADD_SUBDIRECTORY     = 0x00000004;
         /// Permission to read the named attributes of a file or to look up the named attribute directory.
-        const READ_NAMED_ATTRS     = 0x00000008;
+        const NFSv4_READ_NAMED_ATTRS     = 0x00000008;
         /// Permission to write the named attributes of a file or to create a named attribute directory.
-        const WRITE_NAMED_ATTRS    = 0x00000010;
+        const NFSv4_WRITE_NAMED_ATTRS    = 0x00000010;
         /// Permission to execute a file.
         /// Permission to traverse/search a directory.
-        const EXECUTE              = 0x00000020;
+        const NFSv4_EXECUTE              = 0x00000020;
         /// Permission to delete a file or directory within a directory.
-        const DELETE_CHILD         = 0x00000040;
+        const NFSv4_DELETE_CHILD         = 0x00000040;
         /// The ability to read basic attributes (non-ACLs) of a file.
-        const READ_ATTRIBUTES      = 0x00000080;
+        const NFSv4_READ_ATTRIBUTES      = 0x00000080;
         /// Permission to change the times associated with a file or directory to an arbitrary value.
-        const WRITE_ATTRIBUTES     = 0x00000100;
+        const NFSv4_WRITE_ATTRIBUTES     = 0x00000100;
+        /// Permission to delete the file or directory.
+        const NFSv4_DELETE               = 0x00010000;
+        /// Permission to read the ACL.
+        const NFSv4_READ_ACL             = 0x00020000;
+        /// Permission to write the acl and mode attributes.
+        const NFSv4_WRITE_ACL            = 0x00040000;
+        /// Permission to write the owner and owner_group attributes.
+        const NFSv4_WRITE_OWNER          = 0x00080000;
+        /// Permission to use the file object as a synchronization primitive for interprocess communication.
+        const NFSv4_SYNCHRONIZE          = 0x00100000;
+
         /// Permission to modify the durations of event and non-event-based retention.
         const WRITE_RETENTION      = 0x00000200;
         /// Permission to modify the administration retention holds.
         const WRITE_RETENTION_HOLD = 0x00000400;
 
-        /// Permission to delete the file or directory.
-        const DELETE               = 0x00010000;
-        /// Permission to read the ACL.
-        const READ_ACL             = 0x00020000;
-        /// Permission to write the acl and mode attributes.
-        const WRITE_ACL            = 0x00040000;
-        /// Permission to write the owner and owner_group attributes.
-        const WRITE_OWNER          = 0x00080000;
-        /// Permission to use the file object as a synchronization primitive for interprocess communication.
-        const SYNCHRONIZE          = 0x00100000;
     }
 }
 
@@ -278,7 +280,7 @@ mod tests {
             reserved1: 0,
             reserved2: 0,
             reserved3: 0,
-            permission: AcePermission::READ_DATA,
+            permission: AcePermission::NFSv4_READ_DATA,
             flags: AceFlag::DEFAULT_ACL,
             identifier: "u:user".to_string(),
         };
@@ -298,7 +300,7 @@ mod tests {
                     reserved1: 0,
                     reserved2: 0,
                     reserved3: 0,
-                    permission: AcePermission::READ_DATA,
+                    permission: AcePermission::NFSv4_READ_DATA,
                     flags: AceFlag::DEFAULT_ACL,
                     identifier: "u:user".to_string(),
                 },
@@ -306,7 +308,7 @@ mod tests {
                     reserved1: 0,
                     reserved2: 0,
                     reserved3: 0,
-                    permission: AcePermission::WRITE_DATA,
+                    permission: AcePermission::NFSv4_WRITE_DATA,
                     flags: AceFlag::empty(),
                     identifier: "g:user".to_string(),
                 },
