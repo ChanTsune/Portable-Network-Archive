@@ -42,17 +42,16 @@ impl<'r> FlattenReader<'r> {
 impl io::Read for FlattenReader<'_> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        if let Some(c) = self.inner.get_mut(self.index) {
-            let s = c.read(buf);
-            if let Ok(0) = s {
-                self.index += 1;
-                self.read(buf)
-            } else {
-                s
+        while let Some(c) = self.inner.get_mut(self.index) {
+            match c.read(buf) {
+                Ok(0) => {
+                    self.index += 1;
+                    continue;
+                }
+                other => return other,
             }
-        } else {
-            Ok(0)
         }
+        Ok(0)
     }
 }
 
@@ -76,6 +75,12 @@ mod tests {
     #[test]
     fn flat_contain_empty() {
         let reader = FlattenReader::new(vec![b"abc", b"", b"def"]);
+        assert_eq!("abcdef", io::read_to_string(reader).unwrap());
+    }
+
+    #[test]
+    fn flat_consecutive_empty() {
+        let reader = FlattenReader::new(vec![b"abc", b"", b"", b"def"]);
         assert_eq!("abcdef", io::read_to_string(reader).unwrap());
     }
 }
