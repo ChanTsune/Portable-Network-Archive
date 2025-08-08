@@ -43,50 +43,6 @@ impl TryFrom<u8> for AclType {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct AclHeader {
-    version: u8,
-    reserved: u8,
-    platform: AclPlatform,
-    acl_type: AclType,
-    bit_flags: u16,
-    entry_count: u16,
-}
-
-impl AclHeader {
-    #[inline]
-    pub(crate) const fn to_bytes(&self) -> [u8; 8] {
-        let bit_flags = self.bit_flags.to_be_bytes();
-        let entry_count = self.entry_count.to_be_bytes();
-        [
-            self.version,
-            self.reserved,
-            self.platform as u8,
-            self.acl_type as u8,
-            bit_flags[0],
-            bit_flags[1],
-            entry_count[0],
-            entry_count[1],
-        ]
-    }
-
-    pub(crate) fn try_from_bytes(bytes: &[u8]) -> io::Result<Self> {
-        let bytes: [u8; 8] = bytes
-            .try_into()
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-        Ok(Self {
-            version: bytes[0],
-            reserved: bytes[1],
-            platform: AclPlatform::try_from(bytes[2])
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-            acl_type: AclType::try_from(bytes[3])
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-            bit_flags: u16::from_be_bytes([bytes[4], bytes[5]]),
-            entry_count: u16::from_be_bytes([bytes[6], bytes[7]]),
-        })
-    }
-}
-
 #[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
 #[non_exhaustive]
@@ -240,20 +196,30 @@ impl Ace {
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Acl {
-    header: AclHeader,
+    version: u8,
+    reserved: u8,
+    platform: AclPlatform,
+    acl_type: AclType,
+    bit_flags: u16,
     entries: Vec<Ace>,
 }
 
 impl Acl {
     #[inline]
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
-        // Create a copy of the header with the correct entry_count
-        let mut header = self.header.clone();
-        header.entry_count = self.entries.len() as u16;
-        
+        let entry_count = self.entries.len() as u16;
+        let bit_flags = self.bit_flags.to_be_bytes();
+        let entry_count_bytes = entry_count.to_be_bytes();
         let mut bytes =
             Vec::with_capacity(mem::size_of::<Self>() + self.entries.len() * mem::size_of::<Ace>());
-        bytes.extend_from_slice(&header.to_bytes());
+        // header (8 bytes)
+        bytes.push(self.version);
+        bytes.push(self.reserved);
+        bytes.push(self.platform as u8);
+        bytes.push(self.acl_type as u8);
+        bytes.extend_from_slice(&bit_flags);
+        bytes.extend_from_slice(&entry_count_bytes);
+        // entries
         for entry in &self.entries {
             bytes.extend_from_slice(&entry.to_bytes())
         }
@@ -262,55 +228,48 @@ impl Acl {
 
     #[inline]
     pub(crate) fn try_from_bytes(bytes: &[u8]) -> io::Result<Self> {
-        // Parse the header from the first 8 bytes
-        let header = AclHeader::try_from_bytes(&bytes[..8])?;
-        
-        // Get the number of entries from the header
-        let entry_count = header.entry_count;
-        
-        // Initialize a vector to store the parsed entries
+        // Parse the first 8 bytes as header fields
+        let header_bytes: [u8; 8] = bytes
+            .get(..8)
+            .ok_or(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "ACL header too short",
+            ))?
+            .try_into()
+            .unwrap();
+        let version = header_bytes[0];
+        let reserved = header_bytes[1];
+        let platform = AclPlatform::try_from(header_bytes[2])
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        let acl_type = AclType::try_from(header_bytes[3])
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        let bit_flags = u16::from_be_bytes([header_bytes[4], header_bytes[5]]);
+        let entry_count = u16::from_be_bytes([header_bytes[6], header_bytes[7]]);
+
+        // Parse entries
         let mut entries = Vec::with_capacity(entry_count as usize);
-        
-        // Start parsing entries from after the header
         let mut remaining_bytes = &bytes[8..];
-        
-        // Parse each entry
         for _ in 0..entry_count {
-            // Parse an entry from the remaining bytes
             let entry = Ace::try_from_bytes(remaining_bytes)?;
-            
-            // Calculate the size of the entry in bytes
             let entry_size = entry.to_bytes().len();
-            
-            // Move the remaining_bytes pointer forward
             remaining_bytes = &remaining_bytes[entry_size..];
-            
-            // Add the entry to the entries vector
             entries.push(entry);
         }
-        
-        Ok(Self { header, entries })
+
+        Ok(Self {
+            version,
+            reserved,
+            platform,
+            acl_type,
+            bit_flags,
+            entries,
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn acl_header_from_to_bytes() {
-        let acl_header = AclHeader {
-            version: 0,
-            reserved: 0,
-            platform: AclPlatform::Posix,
-            acl_type: AclType::Dacl,
-            bit_flags: 0,
-            entry_count: 0,
-        };
-        assert_eq!(
-            acl_header,
-            AclHeader::try_from_bytes(acl_header.to_bytes().as_ref()).unwrap()
-        );
-    }
 
     #[test]
     fn ace_from_to_bytes() {
@@ -328,14 +287,11 @@ mod tests {
     #[test]
     fn acl_from_to_bytes() {
         let acl = Acl {
-            header: AclHeader {
-                version: 0,
-                reserved: 0,
-                platform: AclPlatform::Posix,
-                acl_type: AclType::Dacl,
-                bit_flags: 0,
-                entry_count: 2,
-            },
+            version: 0,
+            reserved: 0,
+            platform: AclPlatform::Posix,
+            acl_type: AclType::Dacl,
+            bit_flags: 0,
             entries: vec![
                 Ace {
                     reserved1: 0,
