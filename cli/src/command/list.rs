@@ -12,7 +12,10 @@ use crate::{
     utils::{GlobPatterns, VCS_FILES},
 };
 use base64::Engine;
-use chrono::{DateTime, Local};
+use chrono::{
+    format::{DelayedFormat, StrftimeItems},
+    DateTime, Local,
+};
 use clap::{
     builder::styling::{AnsiColor, Color as Colour, Style},
     ArgGroup, Parser, ValueEnum, ValueHint,
@@ -125,9 +128,9 @@ impl Command for ListCommand {
 pub(crate) enum Format {
     Line,
     Table,
-    #[value(name = "jsonl")]
     JsonL,
     Tree,
+    BsdTar,
 }
 
 #[derive(Debug)]
@@ -415,10 +418,107 @@ fn print_entries(
         Some(Format::JsonL) => json_line_entries(entries),
         Some(Format::Table) => detail_list_entries(entries, options),
         Some(Format::Tree) => tree_entries(entries, options),
+        Some(Format::BsdTar) => bsd_tar_list_entries(entries, options),
         None if options.long => detail_list_entries(entries, options),
         None => simple_list_entries(entries, options),
     }
     Ok(())
+}
+
+fn bsd_tar_list_entries(entries: Vec<TableRow>, options: ListOptions) {
+    let now = SystemTime::now();
+    let mut uname_width = 6;
+    let mut gname_width = 6;
+    for row in entries {
+        let (perm, nlink, uname, gname, size, mtime, name, link) = {
+            let permission = row.permission_mode();
+            let has_xattr = !row.xattrs.is_empty();
+            let has_acl = !row.acl.is_empty();
+            let perm_str = permission_string(&row.entry_type, permission, has_xattr, has_acl);
+            let nlink = 0; // BSD tar show always 0
+            let (uname, gname) = match &row.permission {
+                Some(p) if options.numeric_owner => (p.uid().to_string(), p.gid().to_string()),
+                Some(p) => (
+                    if p.uname().is_empty() {
+                        p.uid().to_string()
+                    } else {
+                        p.uname().to_string()
+                    },
+                    if p.gname().is_empty() {
+                        p.gid().to_string()
+                    } else {
+                        p.gname().to_string()
+                    },
+                ),
+                None => (String::new(), String::new()),
+            };
+            let size = row.raw_size.unwrap_or(0);
+            let mtime = bsd_tar_time(now, row.modified.unwrap_or(now));
+            match &row.entry_type {
+                EntryType::File(name) => (
+                    perm_str,
+                    nlink,
+                    uname,
+                    gname,
+                    size,
+                    mtime,
+                    name.clone(),
+                    None,
+                ),
+                EntryType::Directory(name) => (
+                    perm_str,
+                    nlink,
+                    uname,
+                    gname,
+                    size,
+                    mtime,
+                    format!("{name}/"),
+                    None,
+                ),
+                EntryType::SymbolicLink(name, link_to) => (
+                    perm_str,
+                    nlink,
+                    uname,
+                    gname,
+                    size,
+                    mtime,
+                    name.clone(),
+                    Some(format!("-> {link_to}")),
+                ),
+                EntryType::HardLink(name, link_to) => (
+                    perm_str,
+                    nlink,
+                    uname,
+                    gname,
+                    size,
+                    mtime,
+                    name.clone(),
+                    Some(format!("link to {link_to}")),
+                ),
+            }
+        };
+        uname_width = uname_width.max(uname.len());
+        gname_width = gname_width.max(gname.len());
+
+        // permission nlink uname gname size mtime name link
+        // ex: -rw-r--r--  0 1000   1000        0 Jan  1  1980 f
+        print!(
+            "{perm}  {nlink} {uname:<uname_width$} {gname:<gname_width$} {size:8} {mtime} {name}"
+        );
+        if let Some(link) = link {
+            print!(" {link}");
+        }
+        println!();
+    }
+}
+
+fn bsd_tar_time(now: SystemTime, time: SystemTime) -> DelayedFormat<StrftimeItems<'static>> {
+    let datetime = DateTime::<Local>::from(time);
+    if within_six_months(now, time) {
+        datetime.format("%b %e %H:%M")
+    } else {
+        datetime.format("%b %e  %Y")
+    }
 }
 
 struct SimpleListDisplay<'a> {
@@ -700,7 +800,7 @@ fn paint_permission(kind: &EntryType, permission: u16, has_xattr: bool, has_acl:
 
 const fn kind_char(kind: &EntryType) -> char {
     match kind {
-        EntryType::File(_) | EntryType::HardLink(_, _) => '.',
+        EntryType::File(_) | EntryType::HardLink(_, _) => '-',
         EntryType::Directory(_) => 'd',
         EntryType::SymbolicLink(_, _) => 'l',
     }
