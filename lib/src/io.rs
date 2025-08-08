@@ -42,23 +42,26 @@ impl<'r> FlattenReader<'r> {
 impl io::Read for FlattenReader<'_> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        if let Some(c) = self.inner.get_mut(self.index) {
-            let s = c.read(buf);
-            if let Ok(0) = s {
-                self.index += 1;
-                self.read(buf)
-            } else {
-                s
-            }
-        } else {
-            Ok(0)
+        if buf.is_empty() {
+            return Ok(0);
         }
+        while let Some(c) = self.inner.get_mut(self.index) {
+            match c.read(buf) {
+                Ok(0) => {
+                    self.index += 1;
+                    continue;
+                }
+                other => return other,
+            }
+        }
+        Ok(0)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::prelude::*;
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
@@ -77,5 +80,32 @@ mod tests {
     fn flat_contain_empty() {
         let reader = FlattenReader::new(vec![b"abc", b"", b"def"]);
         assert_eq!("abcdef", io::read_to_string(reader).unwrap());
+    }
+
+    #[test]
+    fn flat_consecutive_empty() {
+        let reader = FlattenReader::new(vec![b"abc", b"", b"", b"def"]);
+        assert_eq!("abcdef", io::read_to_string(reader).unwrap());
+    }
+
+    #[test]
+    fn flat_cross_boundary_small_buf() {
+        let mut reader = FlattenReader::new(vec![b"ab", b"", b"cde"]);
+        let mut out = [0u8; 2];
+
+        // 1st read: fills with "ab"
+        assert_eq!(reader.read(&mut out).unwrap(), 2);
+        assert_eq!(&out, b"ab");
+
+        // 2nd read: next chunk, gets "cd"
+        assert_eq!(reader.read(&mut out).unwrap(), 2);
+        assert_eq!(&out, b"cd");
+
+        // 3rd read: remaining "e"
+        assert_eq!(reader.read(&mut out).unwrap(), 1);
+        assert_eq!(&out[..1], b"e");
+
+        // 4th read: EOF
+        assert_eq!(reader.read(&mut out).unwrap(), 0);
     }
 }
