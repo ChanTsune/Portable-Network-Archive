@@ -18,7 +18,7 @@ bstr = "1.12.0"
 bugreport = { version = "0.5.1", default-features = false, features = ["collector_operating_system", "format_markdown"] }
 bytesize = "2.0.1"
 chrono = "0.4.41"
-clap = { version = "4.5.42", features = ["derive"] }
+clap = { version = "4.5.44", features = ["derive"] }
 clap_complete = "4.5.55"
 fern = "0.7.1"
 gix-prompt = "0.11.1"
