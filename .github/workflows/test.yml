@@ -40,7 +40,7 @@ jobs:
            & "$env:TEMP\rustup-init.exe" --default-toolchain none --profile=minimal -y
           "$env:USERPROFILE\.cargo\bin" | Out-File -Append -Encoding ascii $env:GITHUB_PATH
           "CARGO_HOME=$env:USERPROFILE\.cargo" | Out-File -Append -Encoding ascii $env:GITHUB_ENV
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - id: install_rust
         uses: ./.github/actions/setup-rust
         with:
@@ -75,7 +75,7 @@ jobs:
     runs-on: ubuntu-latest
     container: ${{ matrix.container }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: run test
         if: startsWith(matrix.target, 'x86_64-unknown-redox')
         run: |
@@ -103,7 +103,7 @@ jobs:
           - x86_64-unknown-fuchsia
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - id: install_rust
         uses: ./.github/actions/setup-rust
         with:
@@ -144,7 +144,7 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y libacl1-dev
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - id: install_rust
         uses: ./.github/actions/setup-rust
         with:
