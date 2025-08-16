@@ -121,16 +121,26 @@ pub(crate) fn collect_items(
     keep_dir: bool,
     gitignore: bool,
     follow_links: bool,
+    follow_command_links: bool,
     exclude: Exclude,
-) -> io::Result<Vec<(PathBuf, Option<PathBuf>)>> {
-    let mut files = files.into_iter();
-    if let Some(p) = files.next() {
-        let mut hardlink_resolver = HardlinkResolver::new(follow_links);
-        let mut builder = ignore::WalkBuilder::new(p);
-        for p in files {
-            builder.add(p);
-        }
-        builder.filter_entry(move |e| !exclude.excluded(e.path().to_slash_lossy()));
+) -> io::Result<Vec<(PathBuf, Option<PathBuf>, bool)>> {
+    let mut files = files.into_iter().peekable();
+    if files.peek().is_none() {
+        return Ok(Vec::new());
+    }
+
+    let mut hardlink_resolver = HardlinkResolver::new(follow_links || follow_command_links);
+    let mut results = Vec::new();
+
+    for file in files {
+        let path = file.as_ref();
+        let is_symlink = fs::symlink_metadata(path)
+            .map(|m| m.file_type().is_symlink())
+            .unwrap_or(false);
+        let follow_root = follow_links || (follow_command_links && is_symlink);
+
+        let mut builder = ignore::WalkBuilder::new(path);
+        let exclude = exclude.clone();
         builder
             .max_depth(if recursive { None } else { Some(0) })
             .hidden(false)
@@ -139,37 +149,38 @@ pub(crate) fn collect_items(
             .git_exclude(false)
             .git_global(false)
             .parents(false)
-            .follow_links(follow_links)
+            .follow_links(follow_root)
             .ignore_case_insensitive(false)
-            .sort_by_file_path(Path::cmp);
-        let walker = builder.build();
-        walker
-            .filter_map(|path| match path {
-                Ok(path) => {
-                    let file_type = path.file_type();
-                    match file_type {
-                        None => None,
-                        Some(ty) => {
-                            if !keep_dir && ty.is_dir() {
-                                return None;
-                            }
-                            let path = path.into_path();
-                            let linked = if ty.is_file() {
-                                hardlink_resolver.resolve(&path).ok().flatten()
-                            } else {
-                                None
-                            };
-                            Some(Ok((path, linked)))
+            .sort_by_file_path(Path::cmp)
+            .filter_entry(move |e| !exclude.excluded(e.path().to_slash_lossy()));
+
+        for entry in builder.build() {
+            match entry {
+                Ok(entry) => {
+                    if let Some(ty) = entry.file_type() {
+                        if !keep_dir && ty.is_dir() {
+                            continue;
                         }
+                        let entry_path = entry.into_path();
+                        let linked = if ty.is_file() {
+                            hardlink_resolver.resolve(&entry_path).ok().flatten()
+                        } else {
+                            None
+                        };
+                        let follow = if follow_links {
+                            true
+                        } else {
+                            follow_root && entry_path == path
+                        };
+                        results.push((entry_path, linked, follow));
                     }
                 }
-                Err(e) => Some(Err(e)),
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(io::Error::other)
-    } else {
-        Ok(Vec::new())
+                Err(e) => return Err(io::Error::other(e)),
+            }
+        }
     }
+
+    Ok(results)
 }
 
 pub(crate) fn collect_split_archives(first: impl AsRef<Path>) -> io::Result<Vec<fs::File>> {
@@ -209,7 +220,7 @@ pub(crate) fn write_from_path(writer: &mut impl Write, path: impl AsRef<Path>) -
 }
 
 pub(crate) fn create_entry(
-    (path, link): &(PathBuf, Option<PathBuf>),
+    (path, link, follow_item): &(PathBuf, Option<PathBuf>, bool),
     CreateOptions {
         option,
         keep_options,
@@ -240,7 +251,7 @@ pub(crate) fn create_entry(
             fs::symlink_metadata,
         )?
         .build();
-    } else if !follow_links && path.is_symlink() {
+    } else if !(*follow_links || *follow_item) && path.is_symlink() {
         let source = fs::read_link(path)?;
         let reference = if let Some(substitutions) = substitutions {
             EntryReference::from(substitutions.apply(source.to_string_lossy(), true, false))
@@ -932,9 +943,13 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../resources/test/raw",
         )];
-        let items = collect_items(source, false, false, false, false, empty_exclude()).unwrap();
+        let items =
+            collect_items(source, false, false, false, false, false, empty_exclude()).unwrap();
         assert_eq!(
-            items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
+            items
+                .into_iter()
+                .map(|(it, _, _)| it)
+                .collect::<HashSet<_>>(),
             HashSet::new()
         );
     }
@@ -945,9 +960,13 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../resources/test/raw",
         )];
-        let items = collect_items(source, false, true, false, false, empty_exclude()).unwrap();
+        let items =
+            collect_items(source, false, true, false, false, false, empty_exclude()).unwrap();
         assert_eq!(
-            items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
+            items
+                .into_iter()
+                .map(|(it, _, _)| it)
+                .collect::<HashSet<_>>(),
             [concat!(
                 env!("CARGO_MANIFEST_DIR"),
                 "/../resources/test/raw",
@@ -964,9 +983,13 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../resources/test/raw",
         )];
-        let items = collect_items(source, true, false, false, false, empty_exclude()).unwrap();
+        let items =
+            collect_items(source, true, false, false, false, false, empty_exclude()).unwrap();
         assert_eq!(
-            items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
+            items
+                .into_iter()
+                .map(|(it, _, _)| it)
+                .collect::<HashSet<_>>(),
             [
                 concat!(
                     env!("CARGO_MANIFEST_DIR"),
