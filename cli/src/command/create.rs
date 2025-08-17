@@ -96,7 +96,7 @@ pub(crate) struct CreateCommand {
     #[arg(
         long,
         visible_alias = "preserve-permissions",
-        help = "Archiving the permissions of the files"
+        help = "Archiving the permissions of the files (unstable on Windows)"
     )]
     pub(crate) keep_permission: bool,
     #[arg(
@@ -108,7 +108,7 @@ pub(crate) struct CreateCommand {
     #[arg(
         long,
         visible_alias = "preserve-acls",
-        help = "Archiving the acl of the files"
+        help = "Archiving the acl of the files (unstable)"
     )]
     pub(crate) keep_acl: bool,
     #[arg(
@@ -165,7 +165,7 @@ pub(crate) struct CreateCommand {
     pub(crate) files_from_stdin: bool,
     #[arg(
         long,
-        help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions"
+        help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)"
     )]
     include: Option<Vec<String>>,
     #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
@@ -186,14 +186,14 @@ pub(crate) struct CreateCommand {
     #[arg(
         short = 's',
         value_name = "PATTERN",
-        help = "Modify file or archive member names according to pattern that like BSD tar -s option"
+        help = "Modify file or archive member names according to pattern that like BSD tar -s option (unstable)"
     )]
     substitutions: Option<Vec<SubstitutionRule>>,
     #[arg(
         long = "transform",
         visible_alias = "xform",
         value_name = "PATTERN",
-        help = "Modify file or archive member names according to pattern that like GNU tar -transform option"
+        help = "Modify file or archive member names according to pattern that like GNU tar -transform option (unstable)"
     )]
     transforms: Option<Vec<TransformRule>>,
     #[arg(
