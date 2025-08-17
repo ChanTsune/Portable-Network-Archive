@@ -25,7 +25,11 @@ pub struct Cli {
     pub(crate) commands: Commands,
     #[command(flatten)]
     pub(crate) verbosity: VerbosityArgs,
-    #[arg(long, global = true, help = "Declare to use unstable features")]
+    #[arg(
+        long,
+        global = true,
+        help = "Enable experimental options. Required for flags marked as unstable; behavior may change or be removed."
+    )]
     pub(crate) unstable: bool,
 }
 

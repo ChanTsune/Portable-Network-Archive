@@ -75,7 +75,7 @@ pub(crate) struct ListCommand {
         help = "When used with the -l option, display complete time information for the entry, including month, day, hour, minute, second, and year"
     )]
     pub(crate) long_time: bool,
-    #[arg(long, help = "Display format")]
+    #[arg(long, help = "Display format (unstable)")]
     format: Option<Format>,
     #[arg(
         long,
