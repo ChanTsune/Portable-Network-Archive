@@ -27,6 +27,11 @@ impl<const N: usize> io::Write for FlattenWriter<N> {
     }
 }
 
+/// A reader that chains an iterator of readers.
+///
+/// This is similar to [`std::io::Chain`] but for an arbitrary number
+/// of readers from an iterator. It reads from the current reader until it
+/// is exhausted and then moves to the next one.
 pub(crate) struct ChainReader<I, R> {
     inner: I,
     current: Option<R>,
@@ -109,7 +114,7 @@ mod tests {
         assert_eq!(reader.read(&mut out).unwrap(), 2);
         assert_eq!(&out, b"ab");
 
-        // 2nd read: next chunk, gets "cd"
+        // 2nd read: next chunk gets "cd"
         assert_eq!(reader.read(&mut out).unwrap(), 2);
         assert_eq!(&out, b"cd");
 
