@@ -23,9 +23,18 @@ jobs:
           package: pna,libpna
           feature-group: all-features
       - name: Add label if contains break
-        if: failure()
+        if: failure() && github.event_name == 'pull_request'
         shell: bash
         run: |
+          # Add break label when semver checks not pass (has breaking changes)
           gh pr edit ${{ github.event.pull_request.number }} --add-label 'break'
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Remove break label on success
+        if: success() && github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          # Remove the label when semver checks pass (no breaking changes)
+          gh pr edit ${{ github.event.pull_request.number }} --remove-label 'break' || true
         env:
           GH_TOKEN: ${{ github.token }}
