@@ -107,9 +107,9 @@ impl<'a> From<RawEntry<&'a [u8]>> for RawEntry<Cow<'a, [u8]>> {
 type InternalIterMap<'r, T> = std::iter::Map<std::slice::Iter<'r, T>, fn(&T) -> &[u8]>;
 
 /// Reader for Entry data.
-pub struct EntryDataReader<'r, T>(EntryReader<ChainReader<InternalIterMap<'r, T>, &'r [u8]>>);
+pub struct EntryDataReader<'r>(EntryReader<ChainReader<std::vec::IntoIter<&'r [u8]>, &'r [u8]>>);
 
-impl<'r, T> Read for EntryDataReader<'r, T> {
+impl<'r> Read for EntryDataReader<'r> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
@@ -117,7 +117,7 @@ impl<'r, T> Read for EntryDataReader<'r, T> {
 }
 
 #[cfg(feature = "unstable-async")]
-impl<'r, T> futures_io::AsyncRead for EntryDataReader<'r, T> {
+impl<'r> futures_io::AsyncRead for EntryDataReader<'r> {
     #[inline]
     fn poll_read(
         self: std::pin::Pin<&mut Self>,
@@ -883,9 +883,13 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
     /// # }
     /// ```
     #[inline]
-    pub fn reader(&self, option: impl ReadOption) -> io::Result<EntryDataReader<'_, T>> {
-        let raw_data_reader =
-            ChainReader::new(self.data.iter().map(AsRef::as_ref as fn(&T) -> &[u8]));
+    pub fn reader(&self, option: impl ReadOption) -> io::Result<EntryDataReader<'_>> {
+        let raw_data_reader = ChainReader::new(
+            self.data
+                .iter()
+                .map(AsRef::as_ref as fn(&T) -> &[u8])
+                .collect::<Vec<_>>(),
+        );
         let decrypt_reader = decrypt_reader(
             raw_data_reader,
             self.header.encryption,
