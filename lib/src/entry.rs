@@ -22,6 +22,7 @@ use crate::{
     chunk::{
         chunk_data_split, Chunk, ChunkExt, ChunkReader, ChunkType, RawChunk, MIN_CHUNK_BYTES_SIZE,
     },
+    io::ChainReader,
     util::slice::skip_while,
     Duration,
 };
@@ -103,10 +104,12 @@ impl<'a> From<RawEntry<&'a [u8]>> for RawEntry<Cow<'a, [u8]>> {
     }
 }
 
-/// Reader for Entry data.
-pub struct EntryDataReader<'r>(EntryReader<crate::io::FlattenReader<'r>>);
+type InternalIterMap<'r, T> = std::iter::Map<std::slice::Iter<'r, T>, fn(&T) -> &[u8]>;
 
-impl Read for EntryDataReader<'_> {
+/// Reader for Entry data.
+pub struct EntryDataReader<'r, T>(EntryReader<ChainReader<InternalIterMap<'r, T>, &'r [u8]>>);
+
+impl<'r, T> Read for EntryDataReader<'r, T> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.0.read(buf)
@@ -114,7 +117,7 @@ impl Read for EntryDataReader<'_> {
 }
 
 #[cfg(feature = "unstable-async")]
-impl futures_io::AsyncRead for EntryDataReader<'_> {
+impl<'r, T> futures_io::AsyncRead for EntryDataReader<'r, T> {
     #[inline]
     fn poll_read(
         self: std::pin::Pin<&mut Self>,
@@ -236,9 +239,9 @@ impl<'a> From<ReadEntry<&'a [u8]>> for ReadEntry<Cow<'a, [u8]>> {
     }
 }
 
-pub(crate) struct EntryIterator<'s>(EntryReader<crate::io::FlattenReader<'s>>);
+pub(crate) struct EntryIterator<'s, T>(EntryReader<ChainReader<InternalIterMap<'s, T>, &'s [u8]>>);
 
-impl Iterator for EntryIterator<'_> {
+impl<T> Iterator for EntryIterator<'_, T> {
     type Item = io::Result<NormalEntry>;
 
     #[inline]
@@ -388,7 +391,7 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
         password: Option<&str>,
     ) -> io::Result<impl Iterator<Item = io::Result<NormalEntry>> + '_> {
         let reader = decrypt_reader(
-            crate::io::FlattenReader::new(self.data.iter().map(|it| it.as_ref()).collect()),
+            ChainReader::new(self.data.iter().map(AsRef::as_ref as fn(&T) -> &[u8])),
             self.header.encryption,
             self.header.cipher_mode,
             self.phsf.as_deref(),
@@ -880,9 +883,9 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
     /// # }
     /// ```
     #[inline]
-    pub fn reader(&self, option: impl ReadOption) -> io::Result<EntryDataReader<'_>> {
+    pub fn reader(&self, option: impl ReadOption) -> io::Result<EntryDataReader<'_, T>> {
         let raw_data_reader =
-            crate::io::FlattenReader::new(self.data.iter().map(|it| it.as_ref()).collect());
+            ChainReader::new(self.data.iter().map(AsRef::as_ref as fn(&T) -> &[u8]));
         let decrypt_reader = decrypt_reader(
             raw_data_reader,
             self.header.encryption,
