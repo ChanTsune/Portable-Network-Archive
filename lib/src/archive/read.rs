@@ -408,33 +408,23 @@ impl<R: Read> Iterator for NormalEntries<'_, R> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        // If we are in the middle of extracting a solid entry, continue streaming.
-        if let Some(iter) = &mut self.solid_iter {
-            if let Some(item) = iter.next() {
-                return Some(item);
-            }
-            self.solid_iter = None;
-        }
-
         loop {
+            if let Some(iter) = &mut self.solid_iter {
+                if let Some(item) = iter.next() {
+                    return Some(item);
+                }
+                self.solid_iter = None;
+            }
+
             match self.reader.read_entry() {
                 Ok(Some(ReadEntry::Normal(entry))) => return Some(Ok(entry)),
-                Ok(Some(ReadEntry::Solid(entry))) => {
-                    match entry.into_entries(self.password) {
-                        Ok(iter) => {
-                            self.solid_iter = Some(iter);
-                            // attempt to yield first item now
-                            if let Some(item) = self.solid_iter.as_mut().and_then(|it| it.next()) {
-                                return Some(item);
-                            } else {
-                                // empty solid content; continue to next archive entry
-                                self.solid_iter = None;
-                                continue;
-                            }
-                        }
-                        Err(e) => return Some(Err(e)),
+                Ok(Some(ReadEntry::Solid(entry))) => match entry.into_entries(self.password) {
+                    Ok(iter) => {
+                        self.solid_iter = Some(iter);
+                        continue;
                     }
-                }
+                    Err(e) => return Some(Err(e)),
+                },
                 Ok(None) => return None,
                 Err(e) => return Some(Err(e)),
             }
