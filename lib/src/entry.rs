@@ -241,34 +241,39 @@ impl<'a> From<ReadEntry<&'a [u8]>> for ReadEntry<Cow<'a, [u8]>> {
 
 pub(crate) struct EntryIterator<'s, T>(EntryReader<ChainReader<InternalIterMap<'s, T>, &'s [u8]>>);
 
+#[inline]
+fn read_next_normal_entry_from_stream<R: Read>(reader: &mut R) -> Option<io::Result<NormalEntry>> {
+    let mut chunk_reader = ChunkReader::from(reader);
+    let mut chunks = Vec::new();
+    loop {
+        let chunk = chunk_reader.read_chunk();
+        match chunk {
+            Ok(chunk) => match chunk.ty {
+                ChunkType::FEND => {
+                    chunks.push(chunk);
+                    break;
+                }
+                _ => chunks.push(chunk),
+            },
+            Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => {
+                return if chunks.is_empty() {
+                    None
+                } else {
+                    Some(Err(e))
+                }
+            }
+            Err(e) => return Some(Err(e)),
+        }
+    }
+    Some(RawEntry(chunks).try_into())
+}
+
 impl<T> Iterator for EntryIterator<'_, T> {
     type Item = io::Result<NormalEntry>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let mut chunk_reader = ChunkReader::from(&mut self.0);
-        let mut chunks = Vec::new();
-        loop {
-            let chunk = chunk_reader.read_chunk();
-            match chunk {
-                Ok(chunk) => match chunk.ty {
-                    ChunkType::FEND => {
-                        chunks.push(chunk);
-                        break;
-                    }
-                    _ => chunks.push(chunk),
-                },
-                Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => {
-                    return if chunks.is_empty() {
-                        None
-                    } else {
-                        Some(Err(e))
-                    }
-                }
-                Err(e) => return Some(Err(e)),
-            }
-        }
-        Some(RawEntry(chunks).try_into())
+        read_next_normal_entry_from_stream(&mut self.0)
     }
 }
 
@@ -284,29 +289,7 @@ impl Iterator for IntoEntries {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let mut chunk_reader = ChunkReader::from(&mut self.0);
-        let mut chunks = Vec::new();
-        loop {
-            let chunk = chunk_reader.read_chunk();
-            match chunk {
-                Ok(chunk) => match chunk.ty {
-                    ChunkType::FEND => {
-                        chunks.push(chunk);
-                        break;
-                    }
-                    _ => chunks.push(chunk),
-                },
-                Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => {
-                    return if chunks.is_empty() {
-                        None
-                    } else {
-                        Some(Err(e))
-                    }
-                }
-                Err(e) => return Some(Err(e)),
-            }
-        }
-        Some(RawEntry(chunks).try_into())
+        read_next_normal_entry_from_stream(&mut self.0)
     }
 }
 
