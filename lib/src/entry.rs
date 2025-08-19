@@ -272,6 +272,44 @@ impl<T> Iterator for EntryIterator<'_, T> {
     }
 }
 
+/// An iterator that moves out of a solid entry.
+///
+/// This struct is created by the `into_entries` method on [`SolidEntry`].
+pub(crate) struct IntoEntries(
+    EntryReader<ChainReader<std::vec::IntoIter<io::Cursor<Vec<u8>>>, io::Cursor<Vec<u8>>>>,
+);
+
+impl Iterator for IntoEntries {
+    type Item = io::Result<NormalEntry>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut chunk_reader = ChunkReader::from(&mut self.0);
+        let mut chunks = Vec::new();
+        loop {
+            let chunk = chunk_reader.read_chunk();
+            match chunk {
+                Ok(chunk) => match chunk.ty {
+                    ChunkType::FEND => {
+                        chunks.push(chunk);
+                        break;
+                    }
+                    _ => chunks.push(chunk),
+                },
+                Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => {
+                    return if chunks.is_empty() {
+                        None
+                    } else {
+                        Some(Err(e))
+                    }
+                }
+                Err(e) => return Some(Err(e)),
+            }
+        }
+        Some(RawEntry(chunks).try_into())
+    }
+}
+
 /// A solid mode entry in a PNA archive.
 ///
 /// Solid entries contain multiple files compressed together as a single unit.
@@ -400,6 +438,33 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
         let reader = decompress_reader(reader, self.header.compression)?;
 
         Ok(EntryIterator(EntryReader(reader)))
+    }
+}
+
+impl<T> SolidEntry<T>
+where
+    T: Into<Vec<u8>>,
+{
+    /// Consumes this solid entry and returns a streaming iterator of normal entries.
+    ///
+    /// This variant owns the underlying buffers, enabling streaming without borrowing from `self`.
+    #[inline]
+    pub(crate) fn into_entries(self, password: Option<&str>) -> io::Result<IntoEntries> {
+        let bufs = self
+            .data
+            .into_iter()
+            .map(|v| io::Cursor::new(v.into()))
+            .collect::<Vec<_>>();
+        let chain = ChainReader::new(bufs);
+        let reader = decrypt_reader(
+            chain,
+            self.header.encryption,
+            self.header.cipher_mode,
+            self.phsf.as_deref(),
+            password.map(|it| it.as_bytes()),
+        )?;
+        let reader = decompress_reader(reader, self.header.compression)?;
+        Ok(IntoEntries(EntryReader(reader)))
     }
 }
 

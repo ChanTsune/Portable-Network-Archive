@@ -9,7 +9,6 @@ use crate::{
 use futures_util::AsyncReadExt;
 pub(crate) use slice::read_header_from_slice;
 use std::{
-    collections::VecDeque,
     io::{self, Read, Seek, SeekFrom},
     mem::swap,
 };
@@ -390,7 +389,7 @@ impl<R: futures_io::AsyncRead + Unpin> futures_util::Stream for Entries<'_, R> {
 pub struct NormalEntries<'r, R> {
     reader: &'r mut Archive<R>,
     password: Option<&'r str>,
-    buf: VecDeque<io::Result<NormalEntry>>,
+    solid_iter: Option<crate::entry::IntoEntries>,
 }
 
 impl<'r, R> NormalEntries<'r, R> {
@@ -399,7 +398,7 @@ impl<'r, R> NormalEntries<'r, R> {
         Self {
             reader,
             password,
-            buf: Default::default(),
+            solid_iter: None,
         }
     }
 }
@@ -409,24 +408,36 @@ impl<R: Read> Iterator for NormalEntries<'_, R> {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(entry) = self.buf.pop_front() {
-            return Some(entry);
-        }
-        let entry = self.reader.read_entry();
-        match entry {
-            Ok(Some(ReadEntry::Normal(entry))) => Some(Ok(entry)),
-            Ok(Some(ReadEntry::Solid(entry))) => {
-                let entries = entry.entries(self.password);
-                match entries {
-                    Ok(entries) => {
-                        self.buf.extend(entries);
-                        self.next()
-                    }
-                    Err(e) => Some(Err(e)),
-                }
+        // If we are in the middle of extracting a solid entry, continue streaming.
+        if let Some(iter) = &mut self.solid_iter {
+            if let Some(item) = iter.next() {
+                return Some(item);
             }
-            Ok(None) => None,
-            Err(e) => Some(Err(e)),
+            self.solid_iter = None;
+        }
+
+        loop {
+            match self.reader.read_entry() {
+                Ok(Some(ReadEntry::Normal(entry))) => return Some(Ok(entry)),
+                Ok(Some(ReadEntry::Solid(entry))) => {
+                    match entry.into_entries(self.password) {
+                        Ok(iter) => {
+                            self.solid_iter = Some(iter);
+                            // attempt to yield first item now
+                            if let Some(item) = self.solid_iter.as_mut().and_then(|it| it.next()) {
+                                return Some(item);
+                            } else {
+                                // empty solid content; continue to next archive entry
+                                self.solid_iter = None;
+                                continue;
+                            }
+                        }
+                        Err(e) => return Some(Err(e)),
+                    }
+                }
+                Ok(None) => return None,
+                Err(e) => return Some(Err(e)),
+            }
         }
     }
 }
