@@ -71,7 +71,6 @@ pub(crate) struct CreateOptions {
     pub(crate) keep_options: KeepOptions,
     pub(crate) owner_options: OwnerOptions,
     pub(crate) time_options: TimeOptions,
-    pub(crate) follow_links: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -115,6 +114,13 @@ pub(crate) struct TimeOptions {
     pub(crate) clamp_atime: bool,
 }
 
+pub(crate) enum StoreAs {
+    File,
+    Dir,
+    Symlink,
+    Hardlink(PathBuf),
+}
+
 pub(crate) fn collect_items(
     files: impl IntoIterator<Item = impl AsRef<Path>>,
     recursive: bool,
@@ -122,7 +128,7 @@ pub(crate) fn collect_items(
     gitignore: bool,
     follow_links: bool,
     exclude: Exclude,
-) -> io::Result<Vec<(PathBuf, Option<PathBuf>)>> {
+) -> io::Result<Vec<(PathBuf, StoreAs)>> {
     let mut files = files.into_iter();
     if let Some(p) = files.next() {
         let mut hardlink_resolver = HardlinkResolver::new(follow_links);
@@ -144,32 +150,47 @@ pub(crate) fn collect_items(
             .sort_by_file_path(Path::cmp);
         let walker = builder.build();
         walker
-            .filter_map(|path| match path {
-                Ok(path) => {
-                    let file_type = path.file_type();
-                    match file_type {
-                        None => None,
-                        Some(ty) => {
-                            if !keep_dir && ty.is_dir() {
-                                return None;
-                            }
-                            let path = path.into_path();
-                            let linked = if ty.is_file() {
-                                hardlink_resolver.resolve(&path).ok().flatten()
-                            } else {
-                                None
-                            };
-                            Some(Ok((path, linked)))
+            .filter_map(|maybe_dir_entry| match maybe_dir_entry {
+                Ok(dir_entry) => {
+                    let ty = dir_entry.file_type()?;
+                    if !keep_dir && ty.is_dir() {
+                        return None;
+                    }
+                    let path = dir_entry.into_path();
+                    if ty.is_symlink() {
+                        Some(Ok((path, StoreAs::Symlink)))
+                    } else if ty.is_file() {
+                        if let Some(linked) = hardlink_resolver.resolve(&path).ok().flatten() {
+                            Some(Ok((path, StoreAs::Hardlink(linked))))
+                        } else {
+                            Some(Ok((path, StoreAs::File)))
                         }
+                    } else if ty.is_dir() {
+                        Some(Ok((path, StoreAs::Dir)))
+                    } else {
+                        Some(Err(io::Error::new(
+                            io::ErrorKind::Unsupported,
+                            format!("Unsupported file type: {}", path.display()),
+                        )))
                     }
                 }
-                Err(e) => Some(Err(e)),
+                Err(e) => match &e {
+                    ignore::Error::WithPath { path, err } if is_broken_symlink_error(path, err) => {
+                        Some(Ok((path.to_path_buf(), StoreAs::Symlink)))
+                    }
+                    _ => Some(Err(io::Error::other(e))),
+                },
             })
             .collect::<Result<Vec<_>, _>>()
-            .map_err(io::Error::other)
     } else {
         Ok(Vec::new())
     }
+}
+
+#[inline]
+fn is_broken_symlink_error(path: &Path, err: &ignore::Error) -> bool {
+    path.is_symlink()
+        && matches!(err, ignore::Error::Io(ioe) if ioe.kind() == io::ErrorKind::NotFound)
 }
 
 pub(crate) fn collect_split_archives(first: impl AsRef<Path>) -> io::Result<Vec<fs::File>> {
@@ -209,13 +230,12 @@ pub(crate) fn write_from_path(writer: &mut impl Write, path: impl AsRef<Path>) -
 }
 
 pub(crate) fn create_entry(
-    (path, link): &(PathBuf, Option<PathBuf>),
+    (path, link): &(PathBuf, StoreAs),
     CreateOptions {
         option,
         keep_options,
         owner_options,
         time_options,
-        follow_links,
     }: &CreateOptions,
     substitutions: &Option<PathTransformers>,
 ) -> io::Result<NormalEntry> {
@@ -224,67 +244,68 @@ pub(crate) fn create_entry(
     } else {
         EntryName::from_lossy(path)
     };
-    if let Some(source) = link {
-        let reference = if let Some(substitutions) = substitutions {
-            EntryReference::from(substitutions.apply(source.to_string_lossy(), false, true))
-        } else {
-            EntryReference::from_lossy(source)
-        };
-        let entry = EntryBuilder::new_hard_link(entry_name, reference)?;
-        return apply_metadata(
-            entry,
-            path,
-            keep_options,
-            owner_options,
-            time_options,
-            fs::symlink_metadata,
-        )?
-        .build();
-    } else if !follow_links && path.is_symlink() {
-        let source = fs::read_link(path)?;
-        let reference = if let Some(substitutions) = substitutions {
-            EntryReference::from(substitutions.apply(source.to_string_lossy(), true, false))
-        } else {
-            EntryReference::from_lossy(source)
-        };
-        let entry = EntryBuilder::new_symbolic_link(entry_name, reference)?;
-        return apply_metadata(
-            entry,
-            path,
-            keep_options,
-            owner_options,
-            time_options,
-            fs::symlink_metadata,
-        )?
-        .build();
-    } else if path.is_file() {
-        let mut entry = EntryBuilder::new_file(entry_name, option)?;
-        write_from_path(&mut entry, path)?;
-        return apply_metadata(
-            entry,
-            path,
-            keep_options,
-            owner_options,
-            time_options,
-            fs::metadata,
-        )?
-        .build();
-    } else if path.is_dir() {
-        let entry = EntryBuilder::new_dir(entry_name);
-        return apply_metadata(
-            entry,
-            path,
-            keep_options,
-            owner_options,
-            time_options,
-            fs::metadata,
-        )?
-        .build();
+    match link {
+        StoreAs::Hardlink(source) => {
+            let reference = if let Some(substitutions) = substitutions {
+                EntryReference::from(substitutions.apply(source.to_string_lossy(), false, true))
+            } else {
+                EntryReference::from_lossy(source)
+            };
+            let entry = EntryBuilder::new_hard_link(entry_name, reference)?;
+            apply_metadata(
+                entry,
+                path,
+                keep_options,
+                owner_options,
+                time_options,
+                fs::symlink_metadata,
+            )?
+            .build()
+        }
+        StoreAs::Symlink => {
+            let source = fs::read_link(path)?;
+            let reference = if let Some(substitutions) = substitutions {
+                EntryReference::from(substitutions.apply(source.to_string_lossy(), true, false))
+            } else {
+                EntryReference::from_lossy(source)
+            };
+            let entry = EntryBuilder::new_symbolic_link(entry_name, reference)?;
+            apply_metadata(
+                entry,
+                path,
+                keep_options,
+                owner_options,
+                time_options,
+                fs::symlink_metadata,
+            )?
+            .build()
+        }
+        StoreAs::File => {
+            let mut entry = EntryBuilder::new_file(entry_name, option)?;
+            write_from_path(&mut entry, path)?;
+            apply_metadata(
+                entry,
+                path,
+                keep_options,
+                owner_options,
+                time_options,
+                fs::metadata,
+            )?
+            .build()
+        }
+        StoreAs::Dir => {
+            let entry = EntryBuilder::new_dir(entry_name);
+            apply_metadata(
+                entry,
+                path,
+                keep_options,
+                owner_options,
+                time_options,
+                fs::metadata,
+            )?
+            .build()
+        }
     }
-    Err(io::Error::new(
-        io::ErrorKind::Unsupported,
-        "Currently not a regular file is not supported.",
-    ))
 }
 
 pub(crate) fn entry_option(

@@ -290,7 +290,6 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         keep_options,
         owner_options,
         time_options,
-        follow_links: args.follow_links,
     };
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
 
@@ -338,7 +337,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
 
     let mut target_files_mapping = target_items
         .into_iter()
-        .map(|(it, _)| (EntryName::from_lossy(&it), it))
+        .map(|(it, store)| (EntryName::from_lossy(&it), (it, store)))
         .collect::<IndexMap<_, _>>();
 
     #[cfg(feature = "memmap")]
@@ -353,7 +352,9 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         run_read_entries(archives, |entry| {
             Strategy::transform(&mut out_archive, password, entry, |entry| {
                 let entry = entry?;
-                if let Some(target_path) = target_files_mapping.swap_remove(entry.header().path()) {
+                if let Some((target_path, store)) =
+                    target_files_mapping.swap_remove(entry.header().path())
+                {
                     let fs_meta = fs::symlink_metadata(&target_path)?;
                     let need_update = is_newer_than_archive(&fs_meta, entry.metadata())
                         .unwrap_or(true)
@@ -364,7 +365,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
                         let path_transformers = path_transformers.clone();
                         s.spawn_fifo(move |_| {
                             log::debug!("Updating: {}", target_path.display());
-                            let target_path = (target_path, None);
+                            let target_path = (target_path, store);
                             tx.send(create_entry(
                                 &target_path,
                                 &create_options,
@@ -383,13 +384,13 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         })?;
 
         // NOTE: Add new entries
-        for (_, file) in target_files_mapping {
+        for (_, (file, store)) in target_files_mapping {
             let tx = tx.clone();
             let create_options = create_options.clone();
             let path_transformers = path_transformers.clone();
             s.spawn_fifo(move |_| {
                 log::debug!("Adding: {}", file.display());
-                let file = (file, None);
+                let file = (file, store);
                 tx.send(create_entry(&file, &create_options, &path_transformers))
                     .unwrap_or_else(|e| panic!("{e}: {}", file.0.display()));
             });

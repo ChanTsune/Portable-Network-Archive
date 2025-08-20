@@ -21,6 +21,18 @@ fn init_resource<P: AsRef<Path>>(dir: P) {
     pna::fs::symlink(Path::new("dir"), dir.join("link_dir")).unwrap();
 }
 
+fn init_broken_resource<P: AsRef<Path>>(dir: P) {
+    let dir = dir.as_ref();
+    if dir.exists() {
+        fs::remove_dir_all(dir).unwrap();
+    }
+    fs::create_dir_all(dir).unwrap();
+
+    // Create broken symlinks that point to non-existent targets
+    pna::fs::symlink(Path::new("missing.txt"), dir.join("broken.txt")).unwrap();
+    pna::fs::symlink(Path::new("missing_dir"), dir.join("broken_dir")).unwrap();
+}
+
 #[test]
 fn symlink_no_follow() {
     setup();
@@ -154,4 +166,115 @@ fn symlink_follow() {
         fs::read_to_string("symlink_follow/dist/dir/in_dir_text.txt").unwrap(),
         fs::read_to_string("symlink_follow/dist/link_dir/in_dir_text.txt").unwrap(),
     );
+}
+
+#[test]
+fn broken_symlink_no_follow() {
+    setup();
+    init_broken_resource("broken_symlink_no_follow/source");
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "broken_symlink_no_follow/broken_symlink_no_follow.pna",
+        "--overwrite",
+        "--keep-dir",
+        "broken_symlink_no_follow/source",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    archive::for_each_entry(
+        "broken_symlink_no_follow/broken_symlink_no_follow.pna",
+        |entry| match entry.header().path().as_str() {
+            "broken_symlink_no_follow/source" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
+            }
+            "broken_symlink_no_follow/source/broken.txt" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink)
+            }
+            "broken_symlink_no_follow/source/broken_dir" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink)
+            }
+            path => unreachable!("unexpected entry found: {path}"),
+        },
+    )
+    .unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "broken_symlink_no_follow/broken_symlink_no_follow.pna",
+        "--overwrite",
+        "--out-dir",
+        "broken_symlink_no_follow/dist",
+        "--strip-components",
+        "2",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    assert!(PathBuf::from("broken_symlink_no_follow/dist/broken.txt").is_symlink());
+    assert!(PathBuf::from("broken_symlink_no_follow/dist/broken_dir").is_symlink());
+}
+
+// FIXME: On Github Actions Windows runner disabled due to insufficient privileges for execution
+#[cfg(unix)]
+#[test]
+fn broken_symlink_follow() {
+    setup();
+    init_broken_resource("broken_symlink_follow/source");
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "broken_symlink_follow/broken_symlink_follow.pna",
+        "--overwrite",
+        "--keep-dir",
+        "--follow-links",
+        "broken_symlink_follow/source",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    archive::for_each_entry(
+        "broken_symlink_follow/broken_symlink_follow.pna",
+        |entry| match entry.header().path().as_str() {
+            "broken_symlink_follow/source" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
+            }
+            "broken_symlink_follow/source/broken.txt" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink)
+            }
+            "broken_symlink_follow/source/broken_dir" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink)
+            }
+            path => unreachable!("unexpected entry found: {path}"),
+        },
+    )
+    .unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "broken_symlink_follow/broken_symlink_follow.pna",
+        "--overwrite",
+        "--out-dir",
+        "broken_symlink_follow/dist",
+        "--strip-components",
+        "2",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    assert!(PathBuf::from("broken_symlink_follow/dist/broken.txt").is_symlink());
+    assert!(PathBuf::from("broken_symlink_follow/dist/broken_dir").is_symlink());
 }
