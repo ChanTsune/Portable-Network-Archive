@@ -8,7 +8,7 @@ use crate::{
         commons::{
             collect_items, create_entry, entry_option, read_paths, read_paths_stdin,
             write_split_archive, CreateOptions, Exclude, KeepOptions, OwnerOptions,
-            PathTransformers, TimeOptions,
+            PathTransformers, StoreAs, TimeOptions,
         },
         Command,
     },
@@ -307,7 +307,6 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         owner_options,
         time_options,
         solid: args.solid,
-        follow_links: args.follow_links,
         path_transformers,
     };
     if let Some(size) = max_file_size {
@@ -338,7 +337,6 @@ pub(crate) struct CreationContext {
     pub(crate) owner_options: OwnerOptions,
     pub(crate) time_options: TimeOptions,
     pub(crate) solid: bool,
-    pub(crate) follow_links: bool,
     pub(crate) path_transformers: Option<PathTransformers>,
 }
 
@@ -350,10 +348,9 @@ pub(crate) fn create_archive_file<W, F>(
         owner_options,
         time_options,
         solid,
-        follow_links,
         path_transformers,
     }: CreationContext,
-    target_items: Vec<(PathBuf, Option<PathBuf>)>,
+    target_items: Vec<(PathBuf, StoreAs)>,
 ) -> anyhow::Result<()>
 where
     W: Write,
@@ -370,7 +367,6 @@ where
         keep_options,
         owner_options,
         time_options,
-        follow_links,
     };
     rayon::scope_fifo(|s| {
         for file in target_items {
@@ -412,10 +408,9 @@ fn create_archive_with_split(
         owner_options,
         time_options,
         solid,
-        follow_links,
         path_transformers,
     }: CreationContext,
-    target_items: Vec<(PathBuf, Option<PathBuf>)>,
+    target_items: Vec<(PathBuf, StoreAs)>,
     max_file_size: usize,
     overwrite: bool,
 ) -> anyhow::Result<()> {
@@ -430,7 +425,6 @@ fn create_archive_with_split(
         keep_options,
         owner_options,
         time_options,
-        follow_links,
     };
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
         for file in target_items {

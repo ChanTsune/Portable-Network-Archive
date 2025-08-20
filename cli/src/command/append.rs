@@ -7,7 +7,7 @@ use crate::{
         ask_password, check_password,
         commons::{
             collect_items, create_entry, entry_option, read_paths, read_paths_stdin, CreateOptions,
-            Exclude, KeepOptions, OwnerOptions, PathTransformers, TimeOptions,
+            Exclude, KeepOptions, OwnerOptions, PathTransformers, StoreAs, TimeOptions,
         },
         Command,
     },
@@ -246,7 +246,6 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         keep_options,
         owner_options,
         time_options,
-        follow_links: args.follow_links,
     };
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
 
@@ -290,7 +289,7 @@ pub(crate) fn run_append_archive(
     create_options: &CreateOptions,
     path_transformers: &Option<PathTransformers>,
     mut archive: Archive<impl io::Write>,
-    target_items: Vec<(PathBuf, Option<PathBuf>)>,
+    target_items: Vec<(PathBuf, StoreAs)>,
 ) -> anyhow::Result<()> {
     let (tx, rx) = std::sync::mpsc::channel();
     rayon::scope_fifo(|s| {

@@ -329,7 +329,6 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         owner_options,
         time_options,
         solid: args.solid,
-        follow_links: args.follow_links,
         path_transformers,
     };
     if let Some(file) = archive_file {
@@ -498,7 +497,6 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         keep_options,
         owner_options,
         time_options,
-        follow_links: args.follow_links,
     };
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
 
