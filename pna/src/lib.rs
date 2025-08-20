@@ -20,19 +20,15 @@ pub use libpna::*;
 
 #[cfg(test)]
 mod tests {
+    use version_sync::*;
+
     #[test]
     fn test_readme_deps() {
-        version_sync::assert_markdown_deps_updated!(&format!(
-            "{}/README.md",
-            env!("CARGO_MANIFEST_DIR")
-        ));
+        assert_markdown_deps_updated!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.md",));
     }
 
     #[test]
     fn test_html_root_url() {
-        version_sync::assert_html_root_url_updated!(&format!(
-            "{}/src/lib.rs",
-            env!("CARGO_MANIFEST_DIR")
-        ));
+        assert_html_root_url_updated!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/lib.rs",));
     }
 }
