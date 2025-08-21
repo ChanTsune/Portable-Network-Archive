@@ -45,7 +45,7 @@ mod private {
         }
     }
 
-    /// Write option getter trait.
+    /// Accessors for write options.
     pub trait WriteOption {
         fn compress(&self) -> Compress;
         fn cipher(&self) -> Option<&Cipher>;
@@ -560,49 +560,49 @@ impl WriteOptionsBuilder {
         }
     }
 
-    /// Set [Compression] to this builder.
+    /// Sets the [`Compression`].
     #[inline]
     pub fn compression(&mut self, compression: Compression) -> &mut Self {
         self.compression = compression;
         self
     }
 
-    /// Set [CompressionLevel] to this builder.
+    /// Sets the [`CompressionLevel`].
     #[inline]
     pub fn compression_level(&mut self, compression_level: CompressionLevel) -> &mut Self {
         self.compression_level = compression_level;
         self
     }
 
-    /// Set [Encryption] to this builder.
+    /// Sets the [`Encryption`].
     #[inline]
     pub fn encryption(&mut self, encryption: Encryption) -> &mut Self {
         self.encryption = encryption;
         self
     }
 
-    /// Set [CipherMode] to this builder.
+    /// Sets the [`CipherMode`].
     #[inline]
     pub fn cipher_mode(&mut self, cipher_mode: CipherMode) -> &mut Self {
         self.cipher_mode = cipher_mode;
         self
     }
 
-    /// Set [HashAlgorithm] to this builder.
+    /// Sets the [`HashAlgorithm`].
     #[inline]
     pub fn hash_algorithm(&mut self, algorithm: HashAlgorithm) -> &mut Self {
         self.hash_algorithm = algorithm;
         self
     }
 
-    /// Set the password to this builder.
+    /// Sets the password.
     #[inline]
     pub fn password<S: AsRef<str>>(&mut self, password: Option<S>) -> &mut Self {
         self.password = password.map(|it| it.as_ref().into());
         self
     }
 
-    /// Create new [WriteOptions] parameters set from this builder.
+    /// Creates a new [`WriteOptions`] from this builder.
     ///
     /// ## Panics
     ///
@@ -645,7 +645,7 @@ pub struct ReadOptions {
 }
 
 impl ReadOptions {
-    /// Create a new [`ReadOptions`] with an optional password.
+    /// Creates a new [`ReadOptions`] with an optional password.
     ///
     /// # Examples
     /// ```
@@ -717,7 +717,7 @@ impl ReadOptionsBuilder {
         Self { password: None }
     }
 
-    /// Create a new [`ReadOptions`]
+    /// Creates a new [`ReadOptions`].
     #[inline]
     pub fn build(&self) -> ReadOptions {
         ReadOptions {

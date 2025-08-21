@@ -27,7 +27,7 @@ pub struct Metadata {
 }
 
 impl Metadata {
-    /// Create a new [Metadata].
+    /// Creates a new [`Metadata`].
     #[inline]
     pub const fn new() -> Self {
         Self {
@@ -40,7 +40,7 @@ impl Metadata {
         }
     }
 
-    /// Set created time that as duration since unix epoch time.
+    /// Sets the created time as the duration since the Unix epoch.
     ///
     /// # Examples
     /// ```
@@ -59,7 +59,7 @@ impl Metadata {
         self
     }
 
-    /// Set modified time that as duration since unix epoch time.
+    /// Sets the modified time as the duration since the Unix epoch.
     ///
     /// # Examples
     /// ```
@@ -78,7 +78,7 @@ impl Metadata {
         self
     }
 
-    /// Set accessed time that as duration since unix epoch time.
+    /// Sets the accessed time as the duration since the Unix epoch.
     ///
     /// # Examples
     /// ```
@@ -97,7 +97,7 @@ impl Metadata {
         self
     }
 
-    /// Set permission of entry.
+    /// Sets the permission of the entry.
     #[inline]
     pub fn with_permission(mut self, permission: Option<Permission>) -> Self {
         self.permission = permission;
@@ -114,17 +114,17 @@ impl Metadata {
     pub const fn compressed_size(&self) -> usize {
         self.compressed_size
     }
-    /// Created time since unix epoch time of entry
+    /// Returns the created time since the Unix epoch for the entry.
     #[inline]
     pub const fn created(&self) -> Option<Duration> {
         self.created
     }
-    /// Modified time since unix epoch time of entry
+    /// Returns the modified time since the Unix epoch for the entry.
     #[inline]
     pub const fn modified(&self) -> Option<Duration> {
         self.modified
     }
-    /// Accessed time since unix epoch time of entry
+    /// Returns the accessed time since the Unix epoch for the entry.
     #[inline]
     pub const fn accessed(&self) -> Option<Duration> {
         self.accessed
@@ -154,7 +154,7 @@ pub struct Permission {
 }
 
 impl Permission {
-    /// Create a new permission instance with the given values.
+    /// Creates a new permission instance with the given values.
     ///
     /// # Arguments
     ///

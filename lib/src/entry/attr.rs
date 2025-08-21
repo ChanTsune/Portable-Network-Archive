@@ -8,9 +8,9 @@ pub struct ExtendedAttribute {
 }
 
 impl ExtendedAttribute {
-    /// Create new [ExtendedAttribute].
+    /// Creates a new [`ExtendedAttribute`].
     ///
-    /// # Example
+    /// # Examples
     /// ```
     /// use libpna::ExtendedAttribute;
     ///
@@ -23,7 +23,7 @@ impl ExtendedAttribute {
 
     /// Attribute name
     ///
-    /// # Example
+    /// # Examples
     /// ```
     /// use libpna::ExtendedAttribute;
     ///
@@ -37,7 +37,7 @@ impl ExtendedAttribute {
 
     /// Attribute value
     ///
-    /// # Example
+    /// # Examples
     /// ```
     /// use libpna::ExtendedAttribute;
     ///

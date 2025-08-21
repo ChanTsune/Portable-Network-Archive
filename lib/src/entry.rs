@@ -381,7 +381,7 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
     ///
     /// Returns an error if an I/O error occurs while reading from the [SolidEntry].
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```no_run
     /// use libpna::{Archive, ReadEntry, ReadOptions};
@@ -397,11 +397,11 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
     ///             for entry in solid_entry.entries(Some("password"))? {
     ///                 let entry = entry?;
     ///                 let mut reader = entry.reader(ReadOptions::builder().build());
-    ///                 // fill your code
+    ///                 // process the entry
     ///             }
     ///         }
-    ///         ReadEntry::Normal(entry) => {
-    ///             // fill your code
+    ///         ReadEntry::Normal(_entry) => {
+    ///             // process the entry
     ///         }
     ///     }
     /// }
@@ -841,9 +841,9 @@ impl<T> NormalEntry<T> {
         &self.extra
     }
 
-    /// Apply metadata to the entry.
+    /// Applies metadata to the entry.
     ///
-    /// # Example
+    /// # Examples
     /// ```
     /// # use std::io;
     /// use libpna::{EntryBuilder, Metadata};
@@ -862,9 +862,9 @@ impl<T> NormalEntry<T> {
         self
     }
 
-    /// Apply extended attributes to the entry.
+    /// Applies extended attributes to the entry.
     ///
-    /// # Example
+    /// # Examples
     /// ```
     /// # use std::io;
     /// use libpna::{EntryBuilder, ExtendedAttribute};
@@ -883,9 +883,9 @@ impl<T> NormalEntry<T> {
 }
 
 impl<T: Clone> NormalEntry<T> {
-    /// Apply extra chunks to the entry.
+    /// Applies extra chunks to the entry.
     ///
-    /// # Example
+    /// # Examples
     /// ```
     /// # use std::io;
     /// use libpna::{ChunkType, EntryBuilder, RawChunk};
@@ -907,7 +907,7 @@ impl<T: Clone> NormalEntry<T> {
 }
 
 impl<T: AsRef<[u8]>> NormalEntry<T> {
-    /// Return the reader of this [`NormalEntry`].
+    /// Returns the reader of this [`NormalEntry`].
     ///
     /// # Errors
     ///

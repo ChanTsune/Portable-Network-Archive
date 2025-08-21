@@ -82,7 +82,7 @@ impl EntryBuilder {
     ///
     /// # Errors
     ///
-    /// Returns an error if failed to initialize context.
+    /// Returns an error if initialization fails.
     #[inline]
     pub fn new_file(name: EntryName, option: impl WriteOption) -> io::Result<Self> {
         let header = EntryHeader::for_file(
@@ -118,7 +118,7 @@ impl EntryBuilder {
     ///
     /// # Errors
     ///
-    /// Returns an error if failed to initialize context.
+    /// Returns an error if initialization fails.
     ///
     /// # Examples
     /// ```
@@ -162,7 +162,7 @@ impl EntryBuilder {
     ///
     /// # Errors
     ///
-    /// Returns an error if failed to initialize context.
+    /// Returns an error if initialization fails.
     ///
     /// # Examples
     /// ```
@@ -418,7 +418,7 @@ impl SolidEntryBuilder {
     ///
     /// # Errors
     ///
-    /// Returns an error if failed to initialize context.
+    /// Returns an error if initialization fails.
     #[inline]
     pub fn new(option: impl WriteOption) -> io::Result<Self> {
         let header = SolidHeader::new(
@@ -479,14 +479,14 @@ impl SolidEntryBuilder {
         entry.write_in(&mut self.data)
     }
 
-    /// Write a regular file to the solid entry.
+    /// Writes a regular file to the solid entry.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while writing an entry,
-    /// or if the given closure returns an error return it.
+    /// Returns an error if an I/O error occurs while writing the entry,
+    /// or if the closure returns an error.
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```
     /// use libpna::{Metadata, SolidEntryBuilder, WriteOptions};

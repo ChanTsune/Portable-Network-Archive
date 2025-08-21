@@ -103,7 +103,7 @@ impl<'d> Archive<&'d [u8]> {
     ///
     /// An iterator over the entries in the archive.
     ///
-    /// # Example
+    /// # Examples
     /// ```no_run
     /// use libpna::{Archive, ReadEntry};
     /// use std::fs;
@@ -115,10 +115,10 @@ impl<'d> Archive<&'d [u8]> {
     /// for entry in archive.entries_slice() {
     ///     match entry? {
     ///         ReadEntry::Solid(solid_entry) => {
-    ///             // fill your code
+    ///             // handle solid entry
     ///         }
     ///         ReadEntry::Normal(entry) => {
-    ///             // fill your code
+    ///             // handle normal entry
     ///         }
     ///     }
     /// }
@@ -215,7 +215,7 @@ impl<'a, 'r> Entries<'a, 'r> {
 
     /// Returns an iterator that extracts solid entries from the archive and returns them as normal entries.
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```no_run
     /// use libpna::{Archive, ReadEntry, ReadOptions};
@@ -230,7 +230,7 @@ impl<'a, 'r> Entries<'a, 'r> {
     ///     .extract_solid_entries(Some("password"))
     /// {
     ///     let mut reader = entry?.reader(ReadOptions::builder().build());
-    ///     // fill your code
+    ///     // process the entry
     /// }
     /// #    Ok(())
     /// # }
@@ -272,7 +272,7 @@ mod tests {
     #[test]
     fn read_header() {
         let result = read_header_from_slice(PNA_HEADER).unwrap();
-        assert_eq!(result, &[]);
+        assert!(result.is_empty());
     }
 
     #[test]
