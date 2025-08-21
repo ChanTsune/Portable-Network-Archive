@@ -33,7 +33,7 @@ pub(crate) trait ChunkExt: Chunk {
         MIN_CHUNK_BYTES_SIZE + self.data().len()
     }
 
-    /// check the chunk type is stream chunk
+    /// Returns `true` if this is a stream chunk.
     #[inline]
     fn is_stream_chunk(&self) -> bool {
         self.ty() == ChunkType::FDAT || self.ty() == ChunkType::SDAT
@@ -61,7 +61,7 @@ pub(crate) trait ChunkExt: Chunk {
         Ok(self.bytes_len())
     }
 
-    /// Convert the provided `Chunk` instance into a `Vec<u8>`.
+    /// Converts the provided `Chunk` instance into a `Vec<u8>`.
     ///
     /// # Returns
     ///
@@ -239,7 +239,7 @@ impl<T: AsRef<[u8]>> Chunk for RawChunk<T> {
 }
 
 impl RawChunk {
-    /// Create a new [`RawChunk`] from given [`ChunkType`] and bytes.
+    /// Creates a new [`RawChunk`] from the given [`ChunkType`] and bytes.
     ///
     /// # Examples
     /// ```
@@ -325,14 +325,14 @@ pub(crate) fn chunk_data_split(
     }
 }
 
-/// Read archive as chunks from given reader.
+/// Reads an archive as chunks from the given reader.
 ///
-/// Reads a PNA archive from the given reader and return an iterator of chunks.
+/// Reads a PNA archive from the given reader and returns an iterator of chunks.
 ///
 /// # Errors
-/// Returns error if it is not a PNA file.
+/// Returns an error if the input is not a PNA archive.
 ///
-/// # Example
+/// # Examples
 ///
 /// ```no_run
 /// # use std::{io, fs};
@@ -378,14 +378,14 @@ pub fn read_as_chunks<R: Read>(
     })
 }
 
-/// Read archive as chunks from given bytes.
+/// Reads an archive as chunks from the given bytes.
 ///
-/// Reads a PNA archive from the given byte slice and return an iterator of chunks.
+/// Reads a PNA archive from the given byte slice and returns an iterator of chunks.
 ///
 /// # Errors
-/// Returns error if it is not a PNA file.
+/// Returns an error if the input is not a PNA archive.
 ///
-/// # Example
+/// # Examples
 ///
 /// ```
 /// # use std::{io, fs};

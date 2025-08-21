@@ -47,7 +47,7 @@ impl EntryName {
         Ok(Self::new_from_utf8path(Utf8Path::new(name)))
     }
 
-    /// Create an [`EntryName`] from a struct impl <code>[Into]<[PathBuf]></code>.
+    /// Creates an [`EntryName`] from a struct impl <code>[Into]<[PathBuf]></code>.
     ///
     /// Any non-Unicode sequences are replaced with
     /// [`U+FFFD REPLACEMENT CHARACTER`][U+FFFD] and

@@ -209,7 +209,7 @@ impl<R> Archive<R> {
     ///
     /// An iterator over the entries in the archive.
     ///
-    /// # Example
+    /// # Examples
     /// ```no_run
     /// use libpna::{Archive, ReadEntry};
     /// use std::fs;
@@ -220,8 +220,12 @@ impl<R> Archive<R> {
     /// let mut archive = Archive::read_header(file)?;
     /// for entry in archive.entries() {
     ///     match entry? {
-    ///         ReadEntry::Solid(solid_entry) => todo!("fill your code"),
-    ///         ReadEntry::Normal(entry) => todo!("fill your code"),
+    ///         ReadEntry::Solid(_solid_entry) => {
+    ///             // handle solid entry
+    ///         }
+    ///         ReadEntry::Normal(_entry) => {
+    ///             // handle normal entry
+    ///         }
     ///     }
     /// }
     /// #    Ok(())
@@ -282,7 +286,7 @@ impl<R: futures_io::AsyncRead + Unpin> Archive<R> {
         Ok(Some(RawEntry(chunks)))
     }
 
-    /// Read a [ReadEntry] from the archive.
+    /// Reads a [`ReadEntry`] from the archive.
     /// This API is unstable.
     ///
     /// # Errors
@@ -338,7 +342,7 @@ impl<'r, R> Entries<'r, R> {
 
     /// Returns an iterator that extracts solid entries from the archive and returns them as normal entries.
     ///
-    /// # Example
+    /// # Examples
     /// ```no_run
     /// use libpna::{Archive, ReadEntry, ReadOptions};
     /// use std::fs;
@@ -349,7 +353,7 @@ impl<'r, R> Entries<'r, R> {
     /// let mut archive = Archive::read_header(file)?;
     /// for entry in archive.entries().extract_solid_entries(Some("password")) {
     ///     let mut reader = entry?.reader(ReadOptions::builder().build());
-    ///     // fill your code
+    ///     // process the entry
     /// }
     /// #    Ok(())
     /// # }

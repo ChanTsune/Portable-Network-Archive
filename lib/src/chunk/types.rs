@@ -92,7 +92,7 @@ impl ChunkType {
     ///
     /// An integer value representing the length of the chunk type code.
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```
     /// use libpna::ChunkType;
@@ -153,7 +153,7 @@ impl ChunkType {
         Ok(Self(ty))
     }
 
-    /// Creates custom [ChunkType] without any check.
+    /// Creates a custom [`ChunkType`] without validation.
     ///
     /// # Panic
     /// Printing ChunkType that contains non-utf8 characters will be panicked.

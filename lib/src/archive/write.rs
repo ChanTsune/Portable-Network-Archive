@@ -94,13 +94,13 @@ impl<W: Write> Archive<W> {
         Ok(Self::new(write, header))
     }
 
-    /// Write a regular file as normal entry into archive.
+    /// Writes a regular file as a normal entry into the archive.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while writing an entry, or if the given closure returns an error return it.
+    /// Returns an error if an I/O error occurs while writing the entry, or if the closure returns an error.
     ///
-    /// # Example
+    /// # Examples
     /// ```no_run
     /// use libpna::{Archive, Metadata, WriteOptions};
     /// # use std::error::Error;
@@ -251,17 +251,17 @@ impl<W: Write> Archive<W> {
         Archive::write_header_with(writer, header)
     }
 
-    /// Write an end marker to finalize the archive.
+    /// Writes the end-of-archive marker and finalizes the archive.
     ///
     /// Marks that the PNA archive contains no more entries.
     /// Normally, a PNA archive reader will continue reading entries in the hope that the entry exists until it encounters this end marker.
     /// This end marker should always be recorded at the end of the file unless there is a special reason to do so.
     ///
     /// # Errors
-    /// Returns an error if failed to write archive end marker.
+    /// Returns an error if writing the end-of-archive marker fails.
     ///
     /// # Examples
-    /// Create an empty archive.
+    /// Creates an empty archive.
     /// ```no_run
     /// # use std::io;
     /// # use std::fs::File;
@@ -319,12 +319,12 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
         Ok(bytes.len())
     }
 
-    /// Write an end marker to finalize the archive.
+    /// Writes the end-of-archive marker and finalizes the archive.
     /// This API is unstable.
     ///
     /// # Errors
     ///
-    /// Returns an error if failed to write archive end marker.
+    /// Returns an error if writing the end-of-archive marker fails.
     #[inline]
     pub async fn finalize_async(mut self) -> io::Result<W> {
         let mut chunk_writer = crate::chunk::ChunkWriter::new(&mut self.inner);
@@ -435,13 +435,13 @@ impl<W: Write> SolidArchive<W> {
         entry.write_in(&mut self.inner)
     }
 
-    /// Write a regular file as solid entry into archive.
+    /// Writes a regular file as a solid entry into the archive.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while writing an entry, or if the given closure returns an error return it.
+    /// Returns an error if an I/O error occurs while writing the entry, or if the closure returns an error.
     ///
-    /// # Example
+    /// # Examples
     /// ```no_run
     /// use libpna::{Archive, Metadata, WriteOptions};
     /// # use std::error::Error;
@@ -472,17 +472,17 @@ impl<W: Write> SolidArchive<W> {
         })
     }
 
-    /// Write an end marker to finalize the archive.
+    /// Writes the end-of-archive marker and finalizes the archive.
     ///
     /// Marks that the PNA archive contains no more entries.
     /// Normally, a PNA archive reader will continue reading entries in the hope that the entry exists until it encounters this end marker.
     /// This end marker should always be recorded at the end of the file unless there is a special reason to do so.
     ///
     /// # Errors
-    /// Returns an error if failed to write archive end marker.
+    /// Returns an error if writing the end-of-archive marker fails.
     ///
     /// # Examples
-    /// Create an empty archive.
+    /// Creates an empty archive.
     /// ```no_run
     /// use libpna::{Archive, WriteOptions};
     /// use std::fs::File;
