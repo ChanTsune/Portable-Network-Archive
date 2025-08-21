@@ -1,6 +1,6 @@
-//! PNA file system utilities
+//! PNA filesystem utilities
 //!
-//! The purpose of this module is to provide file system utilities for PNA
+//! The purpose of this module is to provide filesystem utilities for PNA.
 use std::{fs, io, os, path::Path};
 
 /// Creates a new symbolic link on the filesystem.
@@ -19,7 +19,7 @@ use std::{fs, io, os, path::Path};
 /// ```
 ///
 /// # Errors
-/// Returns an error if it fails to create the symlink.
+/// Returns an error if creating the symlink fails.
 #[inline]
 pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Result<()> {
     #[cfg(unix)]
@@ -41,8 +41,8 @@ pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Resu
     inner(original.as_ref(), link.as_ref())
 }
 
-/// Removes an entry from the filesystem. if given path is a directory,
-/// call [`fs::remove_dir_all`] otherwise call [`fs::remove_file`]. Use carefully!
+/// Removes an entry from the filesystem. If the given path is a directory,
+/// calls [`fs::remove_dir_all`], otherwise calls [`fs::remove_file`]. Use carefully!
 ///
 /// This function does **not** follow symbolic links and it will simply remove the
 /// symbolic link itself.

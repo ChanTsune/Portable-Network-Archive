@@ -2,32 +2,32 @@ use super::private;
 use libpna::{EntryBuilder, NormalEntry, WriteOptions};
 use std::{fs, io, path::Path};
 
-/// [NormalEntry] extension method trait.
+/// [`NormalEntry`] filesystem extension methods.
 pub trait EntryFsExt: private::Sealed {
-    /// Create an Entry from a given path.
+    /// Creates an entry from the given path.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while creating entry.
+    /// Returns an error if an I/O error occurs while creating the entry.
     fn from_path<P: AsRef<Path>>(path: P) -> io::Result<Self>
     where
         Self: Sized;
-    /// Create Entry from a given path with option.
+    /// Creates an entry from the given path with options.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while creating entry.
+    /// Returns an error if an I/O error occurs while creating the entry.
     fn from_path_with<P: AsRef<Path>>(path: P, options: WriteOptions) -> io::Result<Self>
     where
         Self: Sized;
 }
 
 impl EntryFsExt for NormalEntry {
-    /// Create an Entry from a given path.
+    /// Creates an entry from the given path.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while creating entry.
+    /// Returns an error if an I/O error occurs while creating the entry.
     ///
     /// # Examples
     ///
@@ -46,11 +46,11 @@ impl EntryFsExt for NormalEntry {
         Self::from_path_with(path.as_ref(), WriteOptions::builder().build())
     }
 
-    /// Create Entry from a given path with option.
+    /// Creates an entry from the given path with options.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while creating entry.
+    /// Returns an error if an I/O error occurs while creating the entry.
     ///
     /// # Examples
     ///

@@ -3,22 +3,22 @@ use libpna::Archive;
 use std::path::Path;
 use std::{fs, io};
 
-/// [Archive] fs extension trait.
+/// [`Archive`] filesystem extension trait.
 pub trait ArchiveFsExt: private::Sealed {
-    /// Create PNA file.
+    /// Creates a PNA file.
     ///
     /// # Errors
     ///
-    /// Returns error when failed to create archive.
+    /// Returns an error if creating the archive fails.
     fn create<P: AsRef<Path>>(path: P) -> io::Result<Self>
     where
         Self: Sized;
 
-    /// Open existing PNA file.
+    /// Opens an existing PNA file.
     ///
     /// # Errors
     ///
-    /// Returns error when failed to open archive.
+    /// Returns an error if opening the archive fails.
     fn open<P: AsRef<Path>>(path: P) -> io::Result<Self>
     where
         Self: Sized;

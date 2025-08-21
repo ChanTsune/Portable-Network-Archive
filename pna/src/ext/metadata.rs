@@ -3,7 +3,7 @@ use crate::prelude::*;
 use libpna::Metadata;
 use std::{fs, io, path::Path, time::SystemTime};
 
-/// [Metadata] extension method trait.
+/// [`Metadata`] time-related extension methods.
 pub trait MetadataTimeExt: private::Sealed {
     /// Returns the created time.
     fn created_time(&self) -> Option<SystemTime>;
@@ -153,19 +153,19 @@ impl MetadataTimeExt for Metadata {
     }
 }
 
-/// [Metadata] filesystem related extension trait.
+/// [`Metadata`] filesystem-related extension methods.
 pub trait MetadataFsExt: private::Sealed {
-    /// Create new [Metadata] from given [fs::Metadata].
+    /// Creates a new [`Metadata`] from the given [`fs::Metadata`].
     ///
     /// # Errors
-    /// Return an error when failed to convert to [fs::Metadata] to [Metadata]
+    /// Returns an error if converting from [`fs::Metadata`] fails.
     fn from_metadata(metadata: &fs::Metadata) -> io::Result<Self>
     where
         Self: Sized;
 }
 
 impl MetadataFsExt for Metadata {
-    /// Create new [Metadata] from given [fs::Metadata].
+    /// Creates a new [`Metadata`] from the given [`fs::Metadata`].
     ///
     /// # Examples
     ///
@@ -181,7 +181,7 @@ impl MetadataFsExt for Metadata {
     /// ```
     ///
     /// # Errors
-    /// Currently never return an error.
+    /// Currently never returns an error.
     #[inline]
     fn from_metadata(metadata: &fs::Metadata) -> io::Result<Self>
     where
@@ -191,29 +191,29 @@ impl MetadataFsExt for Metadata {
     }
 }
 
-/// [Metadata] path related extension trait.
+/// [`Metadata`] path-related extension methods.
 pub trait MetadataPathExt: private::Sealed {
-    /// Create a new [Metadata] from a given path.
+    /// Creates a new [`Metadata`] from the given path.
     ///
     /// # Errors
     ///
-    /// Returns an error when failed to get [std::fs::Metadata] from a given path.
+    /// Returns an error if retrieving [`std::fs::Metadata`] from the path fails.
     fn from_path<P: AsRef<Path>>(path: P) -> io::Result<Self>
     where
         Self: Sized;
 
-    /// Create a new [Metadata] from a given path without following symlinks.
+    /// Creates a new [`Metadata`] from the given path without following symlinks.
     ///
     /// # Errors
     ///
-    /// Returns an error when failed to get [std::fs::Metadata] from a given path.
+    /// Returns an error if retrieving [`std::fs::Metadata`] from the path fails.
     fn from_symlink_path<P: AsRef<Path>>(path: P) -> io::Result<Self>
     where
         Self: Sized;
 }
 
 impl MetadataPathExt for Metadata {
-    /// Create a new [Metadata] from a given path.
+    /// Creates a new [`Metadata`] from the given path.
     ///
     /// # Examples
     ///
@@ -224,7 +224,7 @@ impl MetadataPathExt for Metadata {
     /// ```
     /// # Errors
     ///
-    /// Returns an error when [`std::fs::metadata`] called in the method returns an error. For details, see [`std::fs::metadata`].
+    /// Returns an error if [`std::fs::metadata`] returns an error.
     #[inline]
     fn from_path<P: AsRef<Path>>(path: P) -> io::Result<Self>
     where
@@ -234,7 +234,7 @@ impl MetadataPathExt for Metadata {
         fs_metadata_to_metadata(&meta)
     }
 
-    /// Create a new [Metadata] from a given path without following symlinks.
+    /// Creates a new [`Metadata`] from the given path without following symlinks.
     ///
     /// # Examples
     ///
@@ -245,7 +245,7 @@ impl MetadataPathExt for Metadata {
     /// ```
     /// # Errors
     ///
-    /// Returns an error when [`std::fs::symlink_metadata`] called in the method returns an error. For details, see [`std::fs::symlink_metadata`].
+    /// Returns an error if [`std::fs::symlink_metadata`] returns an error.
     #[inline]
     fn from_symlink_path<P: AsRef<Path>>(path: P) -> io::Result<Self>
     where
