@@ -122,14 +122,27 @@ pub(crate) enum StoreAs {
 }
 
 pub(crate) fn collect_items(
-    files: impl IntoIterator<Item = impl AsRef<Path>>,
+    files: impl IntoIterator<Item = impl Into<PathBuf>>,
     recursive: bool,
     keep_dir: bool,
     gitignore: bool,
     follow_links: bool,
     exclude: Exclude,
 ) -> io::Result<Vec<(PathBuf, StoreAs)>> {
+    // NOTE: dirty hack: `ignore` always follow symlinks at depth 0, so manualy check it.
+    let (symlinks, files): (Vec<PathBuf>, Vec<_>) = if follow_links {
+        (
+            Vec::new(),
+            files.into_iter().map(Into::into).collect::<Vec<_>>(),
+        )
+    } else {
+        files
+            .into_iter()
+            .map(Into::into)
+            .partition(|it| it.is_symlink())
+    };
     let mut files = files.into_iter();
+    let symlinks = symlinks.into_iter().map(|p| (p, StoreAs::Symlink));
     if let Some(p) = files.next() {
         let mut hardlink_resolver = HardlinkResolver::new(follow_links);
         let mut builder = ignore::WalkBuilder::new(p);
@@ -153,9 +166,6 @@ pub(crate) fn collect_items(
             .filter_map(|maybe_dir_entry| match maybe_dir_entry {
                 Ok(dir_entry) => {
                     let ty = dir_entry.file_type()?;
-                    if !keep_dir && ty.is_dir() {
-                        return None;
-                    }
                     let path = dir_entry.into_path();
                     if ty.is_symlink() {
                         Some(Ok((path, StoreAs::Symlink)))
@@ -166,7 +176,11 @@ pub(crate) fn collect_items(
                             Some(Ok((path, StoreAs::File)))
                         }
                     } else if ty.is_dir() {
-                        Some(Ok((path, StoreAs::Dir)))
+                        if keep_dir {
+                            Some(Ok((path, StoreAs::Dir)))
+                        } else {
+                            None
+                        }
                     } else {
                         Some(Err(io::Error::new(
                             io::ErrorKind::Unsupported,
@@ -182,8 +196,12 @@ pub(crate) fn collect_items(
                 },
             })
             .collect::<Result<Vec<_>, _>>()
+            .map(|mut it| {
+                it.extend(symlinks);
+                it
+            })
     } else {
-        Ok(Vec::new())
+        Ok(symlinks.collect())
     }
 }
 
