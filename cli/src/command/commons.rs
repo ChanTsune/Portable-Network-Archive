@@ -188,9 +188,11 @@ pub(crate) fn collect_items(
                         )))
                     }
                 }
-                Err(e) => match &e {
-                    ignore::Error::WithPath { path, err } if is_broken_symlink_error(path, err) => {
-                        Some(Ok((path.to_path_buf(), StoreAs::Symlink)))
+                Err(e) => match e {
+                    ignore::Error::WithPath { path, err }
+                        if is_broken_symlink_error(&path, &err) =>
+                    {
+                        Some(Ok((path, StoreAs::Symlink)))
                     }
                     _ => Some(Err(io::Error::other(e))),
                 },
