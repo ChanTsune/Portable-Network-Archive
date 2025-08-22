@@ -278,3 +278,115 @@ fn broken_symlink_follow() {
     assert!(PathBuf::from("broken_symlink_follow/dist/broken.txt").is_symlink());
     assert!(PathBuf::from("broken_symlink_follow/dist/broken_dir").is_symlink());
 }
+
+#[test]
+fn symlink_depth0_no_follow_file() {
+    // Ensure a symlink passed directly (depth 0) is stored as a symlink when not following links
+    setup();
+    let base = PathBuf::from("symlink_depth0_no_follow_file");
+    if base.exists() {
+        fs::remove_dir_all(&base).unwrap();
+    }
+    fs::create_dir_all(&base).unwrap();
+
+    fs::write(base.join("target.txt"), b"content").unwrap();
+    pna::fs::symlink(Path::new("target.txt"), base.join("link.txt")).unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "symlink_depth0_no_follow_file/symlink_depth0_no_follow_file.pna",
+        "--overwrite",
+        // pass the symlink itself (depth 0)
+        "symlink_depth0_no_follow_file/link.txt",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    archive::for_each_entry(
+        "symlink_depth0_no_follow_file/symlink_depth0_no_follow_file.pna",
+        |entry| match entry.header().path().as_str() {
+            "symlink_depth0_no_follow_file/link.txt" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink)
+            }
+            path => unreachable!("unexpected entry found: {path}"),
+        },
+    )
+    .unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "symlink_depth0_no_follow_file/symlink_depth0_no_follow_file.pna",
+        "--overwrite",
+        "--out-dir",
+        "symlink_depth0_no_follow_file/dist",
+        "--strip-components",
+        "1",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    assert!(PathBuf::from("symlink_depth0_no_follow_file/dist/link.txt").is_symlink());
+}
+
+#[test]
+fn symlink_depth0_no_follow_dir() {
+    // Ensure a directory symlink passed directly (depth 0) is stored as a symlink when not following links
+    setup();
+    let base = PathBuf::from("symlink_depth0_no_follow_dir");
+    if base.exists() {
+        fs::remove_dir_all(&base).unwrap();
+    }
+    fs::create_dir_all(&base).unwrap();
+
+    fs::create_dir_all(base.join("dir")).unwrap();
+    fs::write(base.join("dir/in_dir_text.txt"), b"dir_content").unwrap();
+    pna::fs::symlink(Path::new("dir"), base.join("link_dir")).unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "symlink_depth0_no_follow_dir/symlink_depth0_no_follow_dir.pna",
+        "--overwrite",
+        "--no-keep-dir",
+        // pass the symlink itself (depth 0)
+        "symlink_depth0_no_follow_dir/link_dir",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    archive::for_each_entry(
+        "symlink_depth0_no_follow_dir/symlink_depth0_no_follow_dir.pna",
+        |entry| match entry.header().path().as_str() {
+            "symlink_depth0_no_follow_dir/link_dir" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink)
+            }
+            path => unreachable!("unexpected entry found: {path}"),
+        },
+    )
+    .unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "symlink_depth0_no_follow_dir/symlink_depth0_no_follow_dir.pna",
+        "--overwrite",
+        "--out-dir",
+        "symlink_depth0_no_follow_dir/dist",
+        "--strip-components",
+        "1",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    assert!(PathBuf::from("symlink_depth0_no_follow_dir/dist/link_dir").is_symlink());
+}
