@@ -1,5 +1,5 @@
 use crate::{
-    Duration,
+    Acl, Duration,
     archive::{InternalArchiveDataWriter, InternalDataWriter, write_file_entry},
     chunk::{MAX_CHUNK_DATA_LENGTH, RawChunk},
     cipher::CipherWriter,
@@ -143,6 +143,7 @@ pub struct EntryBuilder {
     store_file_size: bool,
     file_size: u128,
     xattrs: Vec<ExtendedAttribute>,
+    acls: Vec<Acl>,
     extra_chunks: Vec<RawChunk>,
 }
 
@@ -160,6 +161,7 @@ impl EntryBuilder {
             store_file_size: true,
             file_size: 0,
             xattrs: Vec::new(),
+            acls: Vec::new(),
             extra_chunks: Vec::new(),
         }
     }
@@ -465,6 +467,7 @@ impl EntryBuilder {
             data,
             metadata,
             xattrs: self.xattrs,
+            acls: self.acls,
         })
     }
 }
