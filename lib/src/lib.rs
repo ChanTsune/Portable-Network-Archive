@@ -18,6 +18,7 @@ pub(crate) mod chunk;
 pub(crate) mod cipher;
 pub(crate) mod compress;
 pub(crate) mod entry;
+mod error;
 mod ext;
 pub(crate) mod hash;
 pub(crate) mod io;
@@ -28,6 +29,7 @@ pub(crate) mod util;
 pub use archive::*;
 pub use chunk::*;
 pub use entry::*;
+pub use error::UnknownValueError;
 pub use time::Duration;
 
 #[cfg(test)]
