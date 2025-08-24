@@ -1,10 +1,6 @@
-use crate::compress;
+use crate::{compress, error::UnknownValueError};
 pub(crate) use private::*;
-use std::{
-    error::Error,
-    fmt::{Display, Formatter},
-    str::FromStr,
-};
+use std::str::FromStr;
 
 mod private {
     use super::*;
@@ -131,19 +127,6 @@ mod private {
         }
     }
 }
-
-/// Unknown value error.
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct UnknownValueError(u8);
-
-impl Display for UnknownValueError {
-    #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "unknown value {}", self.0)
-    }
-}
-
-impl Error for UnknownValueError {}
 
 /// Compression method.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
