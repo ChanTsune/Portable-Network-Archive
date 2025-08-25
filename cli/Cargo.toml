@@ -38,7 +38,7 @@ serde_json = "1.0.143"
 tabled = { version = "0.20.0", default-features = false, features = ["std", "ansi"] }
 termtree = "0.5"
 thiserror = "2.0.15"
-rand = "0.8.5"
+rand = "0.9.2"
 indexmap = "2.10.0"
 
 [target.'cfg(unix)'.dependencies]
