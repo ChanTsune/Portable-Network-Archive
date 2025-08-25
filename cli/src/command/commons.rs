@@ -121,96 +121,136 @@ pub(crate) enum StoreAs {
     Hardlink(PathBuf),
 }
 
+/// Walks the given paths and collects filesystem items to archive.
+///
+/// This function traverses the input `files` and returns a list of paths paired
+/// with how each should be stored in an archive (`StoreAs`). It supports
+/// recursion, filtering, and link handling (symbolic links and hard links).
+///
+/// Behavior summary:
+/// - Recursion: when `recursive` is true, contents under directories are walked
+///   recursively. Otherwise, only the given paths themselves are inspected.
+/// - Directory entries: when `keep_dir` is true, directory entries are included
+///   in the result as `StoreAs::Dir`. When `keep_dir` is false, directories are
+///   used only as containers during recursive traversal and are not returned.
+/// - Exclusion: entries whose slash-separated path matches `exclude` are
+///   pruned from the traversal and are not returned.
+/// - Symbolic links: by default, symlinks are returned as `StoreAs::Symlink`.
+///   If `follow_links` is true, symlinks are resolved and classified by their
+///   target (file => `StoreAs::File`, dir => `StoreAs::Dir`). If
+///   `follow_command_links` is true, only the top-level input paths (depth 0)
+///   are followed and classified by their target; nested symlinks are not
+///   followed unless `follow_links` is also true. Broken symlinks are still
+///   returned as `StoreAs::Symlink`.
+/// - Hard links: regular files that are detected to be hard links to a
+///   previously seen file are returned as `StoreAs::Hardlink(<target>)`, where
+///   `<target>` is the previously seen canonical path. Otherwise they are
+///   returned as `StoreAs::File`.
+/// - Unsupported types: special files that are neither regular files, dirs, nor
+///   symlinks result in an `io::ErrorKind::Unsupported` error.
+///
+/// Notes:
+/// - The `gitignore` parameter is accepted for future compatibility but is not
+///   currently used by this function.
+///
+/// Returns a vector of `(PathBuf, StoreAs)` pairs on success.
+///
+/// # Errors
+/// Propagates I/O errors encountered during traversal, except that broken
+/// symlinks are tolerated and returned as `StoreAs::Symlink` instead of an
+/// error. Returns `io::ErrorKind::Unsupported` for entries with unsupported
+/// types.
 pub(crate) fn collect_items(
-    files: impl IntoIterator<Item = impl Into<PathBuf>>,
+    files: impl IntoIterator<Item = impl AsRef<Path>>,
     recursive: bool,
     keep_dir: bool,
     gitignore: bool,
     follow_links: bool,
-    exclude: Exclude,
+    follow_command_links: bool,
+    exclude: &Exclude,
 ) -> io::Result<Vec<(PathBuf, StoreAs)>> {
-    // NOTE: dirty hack: `ignore` always follow symlinks at depth 0, so manualy check it.
-    let (symlinks, files): (Vec<PathBuf>, Vec<_>) = if follow_links {
-        (
-            Vec::new(),
-            files.into_iter().map(Into::into).collect::<Vec<_>>(),
-        )
-    } else {
-        files
-            .into_iter()
-            .map(Into::into)
-            .partition(|it| it.is_symlink())
-    };
-    let mut files = files.into_iter();
-    let symlinks = symlinks.into_iter().map(|p| (p, StoreAs::Symlink));
-    if let Some(p) = files.next() {
-        let mut hardlink_resolver = HardlinkResolver::new(follow_links);
-        let mut builder = ignore::WalkBuilder::new(p);
-        for p in files {
-            builder.add(p);
+    let mut hardlink_resolver = HardlinkResolver::new(follow_links);
+    let walker = files.into_iter().flat_map(|p| {
+        if recursive {
+            walkdir::WalkDir::new(p)
+        } else {
+            walkdir::WalkDir::new(p).max_depth(0)
         }
-        builder.filter_entry(move |e| !exclude.excluded(e.path().to_slash_lossy()));
-        builder
-            .max_depth(if recursive { None } else { Some(0) })
-            .hidden(false)
-            .ignore(false)
-            .git_ignore(gitignore)
-            .git_exclude(false)
-            .git_global(false)
-            .parents(false)
-            .follow_links(follow_links)
-            .ignore_case_insensitive(false)
-            .sort_by_file_path(Path::cmp);
-        let walker = builder.build();
-        walker
-            .filter_map(|maybe_dir_entry| match maybe_dir_entry {
-                Ok(dir_entry) => {
-                    let ty = dir_entry.file_type()?;
-                    let path = dir_entry.into_path();
-                    if ty.is_symlink() {
-                        Some(Ok((path, StoreAs::Symlink)))
-                    } else if ty.is_file() {
-                        if let Some(linked) = hardlink_resolver.resolve(&path).ok().flatten() {
-                            Some(Ok((path, StoreAs::Hardlink(linked))))
+        .follow_links(follow_links)
+        .follow_root_links(follow_command_links)
+        .into_iter()
+        .filter_entry(|e| !exclude.excluded(e.path().to_slash_lossy()))
+    });
+
+    walker
+        .filter_map(|maybe_dir_entry| match maybe_dir_entry {
+            Ok(dir_entry) => {
+                let ty = dir_entry.file_type();
+                let depth = dir_entry.depth();
+                let path = dir_entry.into_path();
+                if ty.is_symlink() {
+                    if follow_links || (depth == 0 && follow_command_links) {
+                        if let Ok(meta) = fs::metadata(&path) {
+                            let ty = meta.file_type();
+                            if ty.is_dir() {
+                                if keep_dir {
+                                    Some(Ok((path, StoreAs::Dir)))
+                                } else {
+                                    None
+                                }
+                            } else if ty.is_file() {
+                                if let Some(linked) =
+                                    hardlink_resolver.resolve(&path).ok().flatten()
+                                {
+                                    Some(Ok((path, StoreAs::Hardlink(linked))))
+                                } else {
+                                    Some(Ok((path, StoreAs::File)))
+                                }
+                            } else {
+                                Some(Ok((path, StoreAs::Symlink)))
+                            }
                         } else {
-                            Some(Ok((path, StoreAs::File)))
-                        }
-                    } else if ty.is_dir() {
-                        if keep_dir {
-                            Some(Ok((path, StoreAs::Dir)))
-                        } else {
-                            None
+                            Some(Ok((path, StoreAs::Symlink)))
                         }
                     } else {
-                        Some(Err(io::Error::new(
-                            io::ErrorKind::Unsupported,
-                            format!("Unsupported file type: {}", path.display()),
-                        )))
-                    }
-                }
-                Err(e) => match e {
-                    ignore::Error::WithPath { path, err }
-                        if is_broken_symlink_error(&path, &err) =>
-                    {
                         Some(Ok((path, StoreAs::Symlink)))
                     }
-                    _ => Some(Err(io::Error::other(e))),
-                },
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .map(|mut it| {
-                it.extend(symlinks);
-                it
-            })
-    } else {
-        Ok(symlinks.collect())
-    }
+                } else if ty.is_file() {
+                    if let Some(linked) = hardlink_resolver.resolve(&path).ok().flatten() {
+                        Some(Ok((path, StoreAs::Hardlink(linked))))
+                    } else {
+                        Some(Ok((path, StoreAs::File)))
+                    }
+                } else if ty.is_dir() {
+                    if keep_dir {
+                        Some(Ok((path, StoreAs::Dir)))
+                    } else {
+                        None
+                    }
+                } else {
+                    Some(Err(io::Error::new(
+                        io::ErrorKind::Unsupported,
+                        format!("Unsupported file type: {}", path.display()),
+                    )))
+                }
+            }
+            Err(e) => {
+                if let Some(ioe) = e.io_error() {
+                    if let Some(path) = e.path() {
+                        if is_broken_symlink_error(path, ioe) {
+                            return Some(Ok((path.to_path_buf(), StoreAs::Symlink)));
+                        }
+                    }
+                };
+                Some(Err(io::Error::other(e)))
+            }
+        })
+        .collect::<Result<Vec<_>, _>>()
 }
 
 #[inline]
-fn is_broken_symlink_error(path: &Path, err: &ignore::Error) -> bool {
-    path.is_symlink()
-        && matches!(err, ignore::Error::Io(ioe) if ioe.kind() == io::ErrorKind::NotFound)
+fn is_broken_symlink_error(path: &Path, err: &io::Error) -> bool {
+    path.is_symlink() && err.kind() == io::ErrorKind::NotFound
 }
 
 pub(crate) fn collect_split_archives(first: impl AsRef<Path>) -> io::Result<Vec<fs::File>> {
@@ -973,7 +1013,8 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../resources/test/raw",
         )];
-        let items = collect_items(source, false, false, false, false, empty_exclude()).unwrap();
+        let items =
+            collect_items(source, false, false, false, false, false, &empty_exclude()).unwrap();
         assert_eq!(
             items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
             HashSet::new()
@@ -986,7 +1027,8 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../resources/test/raw",
         )];
-        let items = collect_items(source, false, true, false, false, empty_exclude()).unwrap();
+        let items =
+            collect_items(source, false, true, false, false, false, &empty_exclude()).unwrap();
         assert_eq!(
             items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
             [concat!(
@@ -1005,7 +1047,8 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../resources/test/raw",
         )];
-        let items = collect_items(source, true, false, false, false, empty_exclude()).unwrap();
+        let items =
+            collect_items(source, true, false, false, false, false, &empty_exclude()).unwrap();
         assert_eq!(
             items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
             [
