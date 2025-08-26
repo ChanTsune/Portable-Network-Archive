@@ -404,9 +404,9 @@ pub fn read_as_chunks<R: Read>(
 /// # }
 /// ```
 #[inline]
-pub fn read_chunks_from_slice(
-    archive: &[u8],
-) -> io::Result<impl Iterator<Item = io::Result<impl Chunk + '_>>> {
+pub fn read_chunks_from_slice<'a>(
+    archive: &'a [u8],
+) -> io::Result<impl Iterator<Item = io::Result<impl Chunk + 'a>>> {
     struct Chunks<'a> {
         reader: &'a [u8],
         eoa: bool,
