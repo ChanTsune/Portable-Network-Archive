@@ -17,7 +17,7 @@ use crate::{
     utils::{
         self,
         re::{bsd::SubstitutionRule, gnu::TransformRule},
-        GlobPatterns, VCS_FILES,
+        PrefixGlobPatterns, VCS_FILES,
     },
 };
 use clap::{ArgGroup, Args, ValueHint};
@@ -433,7 +433,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
         classify: false,
         format: None,
     };
-    let files_globs = GlobPatterns::new(args.files.iter().map(|it| it.as_str()))?;
+    let files_globs = PrefixGlobPatterns::new(args.files.iter().map(|it| it.as_str()))?;
 
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();

@@ -9,7 +9,7 @@ use crate::{
         Command,
     },
     ext::*,
-    utils::{GlobPatterns, VCS_FILES},
+    utils::{PrefixGlobPatterns, VCS_FILES},
 };
 use base64::Engine;
 use chrono::{
@@ -264,7 +264,7 @@ fn list_archive(args: ListCommand) -> anyhow::Result<()> {
         classify: args.classify,
         format: args.format,
     };
-    let files_globs = GlobPatterns::new(args.file.files.iter().map(|it| it.as_str()))?;
+    let files_globs = PrefixGlobPatterns::new(args.file.files.iter().map(|it| it.as_str()))?;
 
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
@@ -344,7 +344,7 @@ pub(crate) struct ListOptions {
 pub(crate) fn run_list_archive(
     archive_provider: impl IntoIterator<Item = impl Read>,
     password: Option<&str>,
-    files_globs: GlobPatterns,
+    files_globs: PrefixGlobPatterns,
     exclude: Exclude,
     args: ListOptions,
 ) -> anyhow::Result<()> {
@@ -371,7 +371,7 @@ pub(crate) fn run_list_archive(
 pub(crate) fn run_list_archive_mem(
     archives: Vec<std::fs::File>,
     password: Option<&str>,
-    files_globs: GlobPatterns,
+    files_globs: PrefixGlobPatterns,
     exclude: Exclude,
     args: ListOptions,
 ) -> anyhow::Result<()> {
@@ -401,7 +401,7 @@ pub(crate) fn run_list_archive_mem(
 
 fn print_entries(
     entries: Vec<TableRow>,
-    mut globs: GlobPatterns,
+    mut globs: PrefixGlobPatterns,
     exclude: Exclude,
     options: ListOptions,
 ) -> anyhow::Result<()> {

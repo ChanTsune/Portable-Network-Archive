@@ -67,6 +67,80 @@ impl<'s> GlobPatterns<'s> {
     }
 }
 
+/// Prefix-anchored glob patterns: matches when the start of the path matches
+/// the pattern, but does not require an exact/full-path match.
+#[derive(Clone, Debug)]
+pub(crate) struct PrefixGlobPatterns<'s> {
+    raw_patterns: Vec<&'s str>,
+    matched: Vec<bool>,
+}
+
+impl<'s> PrefixGlobPatterns<'s> {
+    #[inline]
+    pub(crate) fn new<I: IntoIterator<Item = &'s str>>(
+        patterns: I,
+    ) -> Result<Self, globset::Error> {
+        // Reuse globset to validate patterns early for consistent error types,
+        // but we don't store the compiled set because we want prefix semantics.
+        let mut builder = globset::GlobSet::builder();
+        let mut raw_patterns = Vec::new();
+        for pattern in patterns {
+            let glob = globset::Glob::new(pattern)?;
+            raw_patterns.push(pattern);
+            builder.add(glob);
+        }
+        let globs = builder.build()?;
+        Ok(Self {
+            matched: vec![false; globs.len()],
+            raw_patterns,
+        })
+    }
+
+    #[inline]
+    pub(crate) fn is_empty(&self) -> bool {
+        self.raw_patterns.is_empty()
+    }
+
+    #[inline]
+    pub(crate) fn matches_any<P: AsRef<Path>>(&mut self, s: P) -> bool {
+        let s = s.as_ref();
+        let s = s.to_string_lossy();
+        let mut any = false;
+        for (idx, pat) in self.raw_patterns.iter().enumerate() {
+            // Anchor at start, but not at end: prefix match semantics.
+            if archive_pathmatch(pat, &s, PathMatch::NO_ANCHOR_END) {
+                if let Some(m) = self.matched.get_mut(idx) {
+                    *m = true;
+                }
+                any = true;
+            }
+        }
+        any
+    }
+
+    #[inline]
+    pub(crate) fn unmatched_patterns(&self) -> Vec<&str> {
+        let mut unmatched = Vec::new();
+        for (idx, matched) in self.matched.iter().enumerate() {
+            if !matched {
+                unmatched.push(self.raw_patterns[idx]);
+            }
+        }
+        unmatched
+    }
+
+    pub(crate) fn ensure_all_matched(&self) -> anyhow::Result<()> {
+        let unmatched = self.unmatched_patterns();
+        if !unmatched.is_empty() {
+            for p in unmatched {
+                log::error!("'{p}' not found in archive");
+            }
+            anyhow::bail!("from previous errors");
+        }
+        Ok(())
+    }
+}
+
 /// BSD tar command like globs.
 #[derive(Clone, Debug)]
 pub(crate) struct BsdGlobPatterns(Vec<BsdGlobPattern>);
