@@ -99,7 +99,7 @@ fn symlink_no_follow() {
     );
 }
 
-// FIXME: On Github Actions Windows runner disabled due to insufficient privileges for execution
+// FIXME: On GitHub Actions Windows runner disabled due to insufficient privileges for execution
 #[cfg(unix)]
 #[test]
 fn symlink_follow() {
@@ -222,7 +222,7 @@ fn broken_symlink_no_follow() {
     assert!(PathBuf::from("broken_symlink_no_follow/dist/broken_dir").is_symlink());
 }
 
-// FIXME: On Github Actions Windows runner disabled due to insufficient privileges for execution
+// FIXME: On GitHub Actions Windows runner disabled due to insufficient privileges for execution
 #[cfg(unix)]
 #[test]
 fn broken_symlink_follow() {
