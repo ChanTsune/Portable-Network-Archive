@@ -50,7 +50,7 @@ Additionally, the PNA specification includes a rationale appendix to help develo
 
 ### Via Shell (Prebuilt Binary)
 
-#### On Linux or MacOS
+#### On Linux or macOS
 
 ```sh
 curl --proto '=https' --tlsv1.2 -LsSf 'https://github.com/ChanTsune/Portable-Network-Archive/releases/latest/download/portable-network-archive-installer.sh' | sh
