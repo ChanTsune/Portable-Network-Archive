@@ -56,7 +56,7 @@ fn main() -> io::Result<()> {
 ```
 
 # CLI
-A command-line interface (CLI) is [available](https://crates.io/crates/portable-network-archive). You can install it via Cargo or build from source.
+A [command-line interface (CLI)](https://crates.io/crates/portable-network-archive) is available. You can install it via Cargo or build from source.
 
 ### Via Cargo
 
