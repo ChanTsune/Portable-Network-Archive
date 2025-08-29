@@ -159,7 +159,7 @@ pub(crate) struct ExtractCommand {
     chroot: bool,
     #[arg(
         long,
-        help = "Allow extract symlink and hardlink that contains root path or parent path"
+        help = "Allow extracting symbolic links and hard links that contain root or parent paths"
     )]
     allow_unsafe_links: bool,
     #[command(flatten)]
@@ -479,7 +479,7 @@ where
             };
             let original = EntryReference::from_lossy(original);
             if !allow_unsafe_links && is_unsafe_link(&original) {
-                log::warn!("Skipped extract symlink that contains unsafe link. if you need to extract it, use with `--allow-unsafe-links`");
+                log::warn!("Skipped extracting a symbolic link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`.");
                 return Ok(());
             }
             if overwrite && fs::symlink_metadata(&path).is_ok() {
@@ -497,7 +497,7 @@ where
             };
             let original = EntryReference::from_lossy(original);
             if !allow_unsafe_links && is_unsafe_link(&original) {
-                log::warn!("Skipped extract hardlink that contains unsafe link, if you need to extract it, use with `--allow-unsafe-links`");
+                log::warn!("Skipped extracting a hard link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`.");
                 return Ok(());
             }
             let mut original = Cow::from(original.as_path());
