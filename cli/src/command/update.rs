@@ -222,7 +222,7 @@ pub(crate) struct UpdateCommand {
     null: bool,
     #[arg(long, help = "Ignore files from .gitignore (unstable)")]
     pub(crate) gitignore: bool,
-    #[arg(long, visible_aliases = ["dereference"], help = "Follow symbolic links")]
+    #[arg(long, visible_aliases = ["dereference"], help = "Follow symbolic links (symlinks)")]
     follow_links: bool,
 }
 
