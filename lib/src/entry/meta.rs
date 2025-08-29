@@ -3,7 +3,7 @@ use std::io::{self, Read};
 
 /// Metadata information about an entry.
 /// # Examples
-/// ```
+/// ```rust
 /// # use std::time::SystemTimeError;
 /// # fn main() -> Result<(), SystemTimeError> {
 /// use libpna::{Duration, Metadata};
@@ -43,7 +43,7 @@ impl Metadata {
     /// Sets the created time as the duration since the Unix epoch.
     ///
     /// # Examples
-    /// ```
+    /// ```rust
     /// # use std::time::SystemTimeError;
     /// # fn main() -> Result<(), SystemTimeError> {
     /// use libpna::{Duration, Metadata};
@@ -62,7 +62,7 @@ impl Metadata {
     /// Sets the modified time as the duration since the Unix epoch.
     ///
     /// # Examples
-    /// ```
+    /// ```rust
     /// # use std::time::SystemTimeError;
     /// # fn main() -> Result<(), SystemTimeError> {
     /// use libpna::{Duration, Metadata};
@@ -81,7 +81,7 @@ impl Metadata {
     /// Sets the accessed time as the duration since the Unix epoch.
     ///
     /// # Examples
-    /// ```
+    /// ```rust
     /// # use std::time::SystemTimeError;
     /// # fn main() -> Result<(), SystemTimeError> {
     /// use libpna::{Duration, Metadata};

@@ -11,7 +11,7 @@ use std::str::{self, Utf8Error};
 ///
 /// # Examples
 ///
-/// ```
+/// ```rust
 /// use libpna::EntryName;
 ///
 /// assert_eq!("uer/bin", EntryName::from("uer/bin"));
@@ -56,7 +56,7 @@ impl EntryName {
     /// [U+FFFD]: core::char::REPLACEMENT_CHARACTER
     ///
     /// # Examples
-    /// ```
+    /// ```rust
     /// use libpna::EntryName;
     ///
     /// assert_eq!("foo.txt", EntryName::from_lossy("foo.txt"));

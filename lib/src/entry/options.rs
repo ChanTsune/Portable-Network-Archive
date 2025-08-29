@@ -250,7 +250,7 @@ impl FromStr for CompressionLevel {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rust
     /// use libpna::CompressionLevel;
     /// use std::str::FromStr;
     ///
@@ -458,7 +458,7 @@ impl WriteOptions {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rust
     /// use libpna::{EntryBuilder, WriteOptions};
     ///
     /// EntryBuilder::new_file("example.txt".into(), WriteOptions::store()).unwrap();
@@ -481,7 +481,7 @@ impl WriteOptions {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rust
     /// use libpna::WriteOptions;
     ///
     /// let builder = WriteOptions::builder();
@@ -498,7 +498,7 @@ impl WriteOptions {
     /// [WriteOptionsBuilder]: Builder object for [WriteOptions].
     ///
     /// # Examples
-    /// ```
+    /// ```rust
     /// use libpna::WriteOptions;
     ///
     /// let write_option = WriteOptions::builder().build();
@@ -648,7 +648,7 @@ impl ReadOptions {
     /// Creates a new [`ReadOptions`] with an optional password.
     ///
     /// # Examples
-    /// ```
+    /// ```rust
     /// use libpna::ReadOptions;
     ///
     /// let read_option = ReadOptions::with_password(Some("password"));
@@ -667,7 +667,7 @@ impl ReadOptions {
     /// [ReadOptionsBuilder]: Builder object for [ReadOptions].
     ///
     /// # Examples
-    /// ```
+    /// ```rust
     /// use libpna::ReadOptions;
     ///
     /// let builder = ReadOptions::builder();
@@ -684,7 +684,7 @@ impl ReadOptions {
     /// [ReadOptionsBuilder]: Builder object for [ReadOptions].
     ///
     /// # Examples
-    /// ```
+    /// ```rust
     /// use libpna::ReadOptions;
     ///
     /// let read_option = ReadOptions::builder().build();
