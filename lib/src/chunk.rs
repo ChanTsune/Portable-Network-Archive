@@ -95,7 +95,7 @@ impl<T> ChunkExt for T where T: Chunk {}
 /// - `crc`: A CRC32 checksum of the chunk type and data
 ///
 /// # Examples
-/// ```
+/// ```rust
 /// use libpna::{prelude::*, ChunkType, RawChunk};
 ///
 /// // Create a new chunk with some data
@@ -248,7 +248,7 @@ impl RawChunk {
     /// Creates a new [`RawChunk`] from the given [`ChunkType`] and bytes.
     ///
     /// # Examples
-    /// ```
+    /// ```rust
     /// use libpna::{prelude::*, ChunkType, RawChunk};
     ///
     /// let data = [0xAA, 0xBB, 0xCC, 0xDD];
@@ -335,9 +335,6 @@ pub(crate) fn chunk_data_split(
 ///
 /// Reads a PNA archive from the given reader and returns an iterator of chunks.
 ///
-/// # Errors
-/// Returns an error if the input is not a PNA archive.
-///
 /// # Examples
 ///
 /// ```no_run
@@ -356,6 +353,9 @@ pub(crate) fn chunk_data_split(
 /// # Ok(())
 /// # }
 /// ```
+///
+/// # Errors
+/// Returns an error if the input is not a PNA archive.
 #[inline]
 pub fn read_as_chunks<R: Read>(
     mut archive: R,
@@ -388,12 +388,9 @@ pub fn read_as_chunks<R: Read>(
 ///
 /// Reads a PNA archive from the given byte slice and returns an iterator of chunks.
 ///
-/// # Errors
-/// Returns an error if the input is not a PNA archive.
-///
 /// # Examples
 ///
-/// ```
+/// ```rust
 /// # use std::{io, fs};
 /// use libpna::{prelude::*, read_chunks_from_slice};
 /// # fn main() -> io::Result<()> {
@@ -409,6 +406,9 @@ pub fn read_as_chunks<R: Read>(
 /// # Ok(())
 /// # }
 /// ```
+///
+/// # Errors
+/// Returns an error if the input is not a PNA archive.
 #[inline]
 pub fn read_chunks_from_slice<'a>(
     archive: &'a [u8],

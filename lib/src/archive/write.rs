@@ -63,10 +63,6 @@ impl<W: Write> Archive<W> {
     ///
     /// A new [`io::Result<Archive<W>>`]
     ///
-    /// # Errors
-    ///
-    /// Returns an error if an I/O error occurs while writing header to the writer.
-    ///
     /// # Examples
     ///
     /// ```no_run
@@ -81,6 +77,10 @@ impl<W: Write> Archive<W> {
     /// #    Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing header to the writer.
     #[inline]
     pub fn write_header(write: W) -> io::Result<Self> {
         let header = ArchiveHeader::new(0, 0, 0);
@@ -95,10 +95,6 @@ impl<W: Write> Archive<W> {
     }
 
     /// Writes a regular file as a normal entry into the archive.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if an I/O error occurs while writing the entry, or if the closure returns an error.
     ///
     /// # Examples
     /// ```no_run
@@ -120,6 +116,10 @@ impl<W: Write> Archive<W> {
     /// #    Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing the entry, or if the closure returns an error.
     #[inline]
     pub fn write_file<F>(
         &mut self,
@@ -144,10 +144,6 @@ impl<W: Write> Archive<W> {
     ///
     /// * `entry` - The entry to add to the archive.
     ///
-    /// # Errors
-    ///
-    /// Returns an error if an I/O error occurs while writing a given entry.
-    ///
     /// # Examples
     ///
     /// ```no_run
@@ -165,6 +161,10 @@ impl<W: Write> Archive<W> {
     /// #     Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing a given entry.
     #[inline]
     pub fn add_entry(&mut self, entry: impl Entry) -> io::Result<usize> {
         entry.write_in(&mut self.inner)
@@ -257,9 +257,6 @@ impl<W: Write> Archive<W> {
     /// Normally, a PNA archive reader will continue reading entries in the hope that the entry exists until it encounters this end marker.
     /// This end marker should always be recorded at the end of the file unless there is a special reason to do so.
     ///
-    /// # Errors
-    /// Returns an error if writing the end-of-archive marker fails.
-    ///
     /// # Examples
     /// Creates an empty archive.
     /// ```no_run
@@ -274,6 +271,9 @@ impl<W: Write> Archive<W> {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    /// Returns an error if writing the end-of-archive marker fails.
     #[inline]
     pub fn finalize(mut self) -> io::Result<W> {
         (ChunkType::AEND, []).write_chunk_in(&mut self.inner)?;
@@ -347,10 +347,6 @@ impl<W: Write> Archive<W> {
     ///
     /// A new [`io::Result<SolidArchive<W>>`]
     ///
-    /// # Errors
-    ///
-    /// Returns an error if an I/O error occurs while writing header to the writer.
-    ///
     /// # Examples
     ///
     /// ```no_run
@@ -366,6 +362,10 @@ impl<W: Write> Archive<W> {
     /// #    Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing header to the writer.
     #[inline]
     pub fn write_solid_header(write: W, option: impl WriteOption) -> io::Result<SolidArchive<W>> {
         let archive = Self::write_header(write)?;
@@ -406,10 +406,6 @@ impl<W: Write> SolidArchive<W> {
     ///
     /// * `entry` - The entry to add to the archive.
     ///
-    /// # Errors
-    ///
-    /// Returns an error if an I/O error occurs while writing a given entry.
-    ///
     /// # Examples
     ///
     /// ```no_run
@@ -427,6 +423,10 @@ impl<W: Write> SolidArchive<W> {
     /// #     Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while writing a given entry.
     #[inline]
     pub fn add_entry<T>(&mut self, entry: NormalEntry<T>) -> io::Result<usize>
     where

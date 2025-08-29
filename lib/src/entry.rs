@@ -377,10 +377,6 @@ impl<T> SolidEntry<T> {
 impl<T: AsRef<[u8]>> SolidEntry<T> {
     /// Returns an iterator over the entries in the [SolidEntry].
     ///
-    /// # Errors
-    ///
-    /// Returns an error if an I/O error occurs while reading from the [SolidEntry].
-    ///
     /// # Examples
     ///
     /// ```no_run
@@ -408,6 +404,10 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
     /// #    Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while reading from the [SolidEntry].
     #[inline]
     pub fn entries(
         &self,
@@ -844,7 +844,7 @@ impl<T> NormalEntry<T> {
     /// Applies metadata to the entry.
     ///
     /// # Examples
-    /// ```
+    /// ```rust
     /// # use std::io;
     /// use libpna::{EntryBuilder, Metadata};
     ///
@@ -865,7 +865,7 @@ impl<T> NormalEntry<T> {
     /// Applies extended attributes to the entry.
     ///
     /// # Examples
-    /// ```
+    /// ```rust
     /// # use std::io;
     /// use libpna::{EntryBuilder, ExtendedAttribute};
     ///
@@ -886,7 +886,7 @@ impl<T: Clone> NormalEntry<T> {
     /// Applies extra chunks to the entry.
     ///
     /// # Examples
-    /// ```
+    /// ```rust
     /// # use std::io;
     /// use libpna::{ChunkType, EntryBuilder, RawChunk};
     ///
@@ -909,10 +909,6 @@ impl<T: Clone> NormalEntry<T> {
 impl<T: AsRef<[u8]>> NormalEntry<T> {
     /// Returns the reader of this [`NormalEntry`].
     ///
-    /// # Errors
-    ///
-    /// Returns an error if an I/O error occurs while reading from the reader.
-    ///
     /// # Examples
     ///
     /// ```no_run
@@ -932,6 +928,10 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while reading from the reader.
     #[inline]
     pub fn reader(&self, option: impl ReadOption) -> io::Result<EntryDataReader<'_>> {
         let raw_data_reader = ChainReader::new(

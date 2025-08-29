@@ -94,7 +94,7 @@ impl ChunkType {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rust
     /// use libpna::ChunkType;
     ///
     /// let chunk_type = ChunkType::AHED;
@@ -118,7 +118,7 @@ impl ChunkType {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```rust
     /// # use libpna::{ChunkType, ChunkTypeError};
     /// assert!(ChunkType::private(*b"myTy").is_ok());
     /// assert_eq!(
@@ -155,8 +155,9 @@ impl ChunkType {
 
     /// Creates a custom [`ChunkType`] without validation.
     ///
-    /// # Panic
-    /// Printing ChunkType that contains non-utf8 characters will be panicked.
+    /// # Panics
+    /// Panics if the chunk type contains non-UTF-8 characters and it is
+    /// formatted with `Display`.
     /// ```no_run
     /// # use libpna::ChunkType;
     ///
@@ -165,8 +166,9 @@ impl ChunkType {
     /// ```
     ///
     /// # Safety
-    /// Safe when value consists only of ascii alphabetic characters ('a'...'z' and 'A'...'Z').
-    /// ```
+    /// Callers must ensure the value consists only of ASCII alphabetic
+    /// characters ('a'..'z' and 'A'..'Z').
+    /// ```rust
     /// # use libpna::ChunkType;
     ///
     /// let custom_chunk_type = unsafe { ChunkType::from_unchecked(*b"myTy") };

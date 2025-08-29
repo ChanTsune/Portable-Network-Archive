@@ -1,3 +1,4 @@
+//! Password hashing helpers.
 use argon2::{Argon2, ParamsBuilder, Version};
 use password_hash::{PasswordHash, PasswordHasher, SaltString};
 use std::io;

@@ -11,7 +11,7 @@ impl ExtendedAttribute {
     /// Creates a new [`ExtendedAttribute`].
     ///
     /// # Examples
-    /// ```
+    /// ```rust
     /// use libpna::ExtendedAttribute;
     ///
     /// let xattr = ExtendedAttribute::new("name".into(), b"value".into());
@@ -24,7 +24,7 @@ impl ExtendedAttribute {
     /// Attribute name
     ///
     /// # Examples
-    /// ```
+    /// ```rust
     /// use libpna::ExtendedAttribute;
     ///
     /// let xattr = ExtendedAttribute::new("name".into(), b"value".into());
@@ -38,7 +38,7 @@ impl ExtendedAttribute {
     /// Attribute value
     ///
     /// # Examples
-    /// ```
+    /// ```rust
     /// use libpna::ExtendedAttribute;
     ///
     /// let xattr = ExtendedAttribute::new("name".into(), b"value".into());
