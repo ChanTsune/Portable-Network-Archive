@@ -176,7 +176,7 @@ pub(crate) struct CreateCommand {
     exclude_vcs: bool,
     #[arg(long, help = "Ignore files from .gitignore (unstable)")]
     pub(crate) gitignore: bool,
-    #[arg(long, visible_aliases = ["dereference"], help = "Follow symbolic links")]
+    #[arg(long, visible_aliases = ["dereference"], help = "Follow symbolic links (symlinks)")]
     follow_links: bool,
     #[arg(
         long,

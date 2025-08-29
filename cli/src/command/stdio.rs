@@ -135,7 +135,7 @@ pub(crate) struct StdioCommand {
     exclude_vcs: bool,
     #[arg(long, help = "Ignore files from .gitignore (unstable)")]
     pub(crate) gitignore: bool,
-    #[arg(long, visible_aliases = ["dereference"], help = "Follow symbolic links")]
+    #[arg(long, visible_aliases = ["dereference"], help = "Follow symbolic links (symlinks)")]
     follow_links: bool,
     #[arg(long, help = "Output directory of extracted files", value_hint = ValueHint::DirPath)]
     pub(crate) out_dir: Option<PathBuf>,
@@ -223,7 +223,7 @@ pub(crate) struct StdioCommand {
     working_dir: Option<PathBuf>,
     #[arg(
         long,
-        help = "Allow extract symlink and hardlink that contains root path or parent path"
+        help = "Allow extracting symlinks and hard links that contain root or parent paths"
     )]
     allow_unsafe_links: bool,
     #[arg(
