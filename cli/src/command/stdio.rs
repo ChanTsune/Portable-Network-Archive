@@ -223,7 +223,7 @@ pub(crate) struct StdioCommand {
     working_dir: Option<PathBuf>,
     #[arg(
         long,
-        help = "Allow extract symlink and hardlink that contains root path or parent path"
+        help = "Allow extracting symbolic links and hard links that contain root or parent paths"
     )]
     allow_unsafe_links: bool,
     #[arg(
