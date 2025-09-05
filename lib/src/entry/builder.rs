@@ -110,7 +110,7 @@ impl EntryBuilder {
     /// # Arguments
     ///
     /// * `name` - The name of the entry to create.
-    /// * `link` - The entry reference the symlink points to.
+    /// * `source` - The entry reference the symlink points to.
     ///
     /// # Returns
     ///
@@ -151,7 +151,18 @@ impl EntryBuilder {
 
     /// Creates a new symbolic link with the given name and link.
     ///
-    /// Deprecated: Use [`EntryBuilder::new_symlink`] instead.
+    /// # Deprecated
+    ///
+    /// Use [`EntryBuilder::new_symlink`] instead.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name of the entry to create.
+    /// * `source` - The entry reference the symlink points to.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if initialization fails.
     #[inline]
     #[deprecated(since = "0.27.3", note = "Use `EntryBuilder::new_symlink` instead")]
     pub fn new_symbolic_link(name: EntryName, source: EntryReference) -> io::Result<Self> {
