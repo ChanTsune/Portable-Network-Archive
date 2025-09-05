@@ -59,8 +59,9 @@ impl EntryHeader {
         Self::new(DataKind::Directory, path)
     }
 
+    /// Creates a header for a symbolic link (symlink).
     #[inline]
-    pub(crate) const fn for_symbolic_link(path: EntryName) -> Self {
+    pub(crate) const fn for_symlink(path: EntryName) -> Self {
         Self::new(DataKind::SymbolicLink, path)
     }
 

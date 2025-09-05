@@ -289,7 +289,7 @@ pub(crate) fn create_entry(
             } else {
                 EntryReference::from_lossy(source)
             };
-            let entry = EntryBuilder::new_symbolic_link(entry_name, reference)?;
+            let entry = EntryBuilder::new_symlink(entry_name, reference)?;
             apply_metadata(
                 entry,
                 path,
