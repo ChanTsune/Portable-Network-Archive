@@ -110,7 +110,7 @@ impl EntryBuilder {
     /// # Arguments
     ///
     /// * `name` - The name of the entry to create.
-    /// * `link` - The name of the entry reference.
+    /// * `link` - The entry reference the symlink points to.
     ///
     /// # Returns
     ///
@@ -124,7 +124,7 @@ impl EntryBuilder {
     /// ```
     /// use libpna::{EntryBuilder, EntryName, EntryReference};
     ///
-    /// let builder = EntryBuilder::new_symbolic_link(
+    /// let builder = EntryBuilder::new_symlink(
     ///     EntryName::try_from("path/of/target").unwrap(),
     ///     EntryReference::try_from("path/of/source").unwrap(),
     /// )
@@ -132,7 +132,7 @@ impl EntryBuilder {
     /// let entry = builder.build().unwrap();
     /// ```
     #[inline]
-    pub fn new_symbolic_link(name: EntryName, source: EntryReference) -> io::Result<Self> {
+    pub fn new_symlink(name: EntryName, source: EntryReference) -> io::Result<Self> {
         let option = WriteOptions::store();
         let context = get_writer_context(option)?;
         let mut writer = get_writer(FlattenWriter::new(), &context)?;
@@ -145,8 +145,17 @@ impl EntryBuilder {
             data: Some(writer),
             iv,
             phsf,
-            ..Self::new(EntryHeader::for_symbolic_link(name))
+            ..Self::new(EntryHeader::for_symlink(name))
         })
+    }
+
+    /// Creates a new symbolic link with the given name and link.
+    ///
+    /// Deprecated: Use [`EntryBuilder::new_symlink`] instead.
+    #[inline]
+    #[deprecated(since = "0.27.3", note = "Use `EntryBuilder::new_symlink` instead")]
+    pub fn new_symbolic_link(name: EntryName, source: EntryReference) -> io::Result<Self> {
+        Self::new_symlink(name, source)
     }
 
     /// Creates a new hard link with the given name and link.
