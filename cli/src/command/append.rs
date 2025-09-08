@@ -279,7 +279,7 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         args.keep_dir,
         args.gitignore,
         args.follow_links,
-        exclude,
+        &exclude,
     )?;
 
     run_append_archive(&create_options, &path_transformers, archive, target_items)

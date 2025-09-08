@@ -326,7 +326,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         args.keep_dir,
         args.gitignore,
         args.follow_links,
-        exclude,
+        &exclude,
     )?;
 
     let (tx, rx) = std::sync::mpsc::channel();
