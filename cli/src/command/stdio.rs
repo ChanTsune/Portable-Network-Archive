@@ -52,6 +52,7 @@ use std::{env, io, path::PathBuf, time::SystemTime};
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
     group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
     group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
+    group(ArgGroup::new("unstable-follow_command_links").args(["follow_command_links"]).requires("unstable")),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
@@ -137,6 +138,12 @@ pub(crate) struct StdioCommand {
     pub(crate) gitignore: bool,
     #[arg(long, visible_aliases = ["dereference"], help = "Follow symbolic links")]
     follow_links: bool,
+    #[arg(
+        short = 'H',
+        long,
+        help = "Follow symbolic links named on the command line"
+    )]
+    follow_command_links: bool,
     #[arg(long, help = "Output directory of extracted files", value_hint = ValueHint::DirPath)]
     pub(crate) out_dir: Option<PathBuf>,
     #[arg(
@@ -296,6 +303,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         args.keep_dir,
         args.gitignore,
         args.follow_links,
+        args.follow_command_links,
         &exclude,
     )?;
 
@@ -533,6 +541,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.keep_dir,
             args.gitignore,
             args.follow_links,
+            args.follow_command_links,
             &exclude,
         )?;
         run_append_archive(&create_options, &path_transformers, archive, target_items)
@@ -543,6 +552,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.keep_dir,
             args.gitignore,
             args.follow_links,
+            args.follow_command_links,
             &exclude,
         )?;
         let mut output_archive = Archive::write_header(io::stdout().lock())?;
