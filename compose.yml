@@ -24,3 +24,5 @@ services:
     command: 'sleep infinity'
     environment:
       CARGO_BUILD_TARGET: wasm32-wasip1
+    profiles:
+      - wasi
