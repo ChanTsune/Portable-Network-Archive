@@ -267,7 +267,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         args.keep_dir,
         args.gitignore,
         args.follow_links,
-        exclude,
+        &exclude,
     )?;
 
     if let Some(parent) = archive_path.parent() {

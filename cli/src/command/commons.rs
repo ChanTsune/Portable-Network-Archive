@@ -17,6 +17,7 @@ use pna::{
 };
 use std::{
     borrow::Cow,
+    collections::HashMap,
     fs,
     io::{self, prelude::*},
     path::{Path, PathBuf},
@@ -114,6 +115,64 @@ pub(crate) struct TimeOptions {
     pub(crate) clamp_atime: bool,
 }
 
+/// Gitignore-style exclusion rules.
+struct Ignore {
+    // Map of directory path -> compiled .gitignore matcher for that directory
+    by_dir: HashMap<PathBuf, ignore::gitignore::Gitignore>,
+}
+
+impl Ignore {
+    #[inline]
+    pub(crate) fn empty() -> Self {
+        Self {
+            by_dir: HashMap::new(),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn is_ignore(&self, path: impl AsRef<Path>, is_dir: bool) -> bool {
+        let path = path.as_ref();
+        // Start from the directory containing the path (or the path itself if it is a dir),
+        // walk up to root, and apply the nearest .gitignore last (closest wins).
+        let mut decision: Option<bool> = None; // Some(true)=ignore, Some(false)=allow
+
+        // Determine the first directory to check for a .gitignore
+        let mut cur_dir_opt = if is_dir { Some(path) } else { path.parent() };
+
+        while let Some(dir) = cur_dir_opt {
+            if let Some(gi) = self.by_dir.get(dir) {
+                // Match relative to the directory of the .gitignore
+                let rel = path.strip_prefix(dir).unwrap_or(path);
+                let m = gi.matched(rel, is_dir);
+                // If this matcher provides a decision, record it; closest directory wins
+                if m.is_ignore() {
+                    decision = Some(true);
+                    break;
+                }
+                if m.is_whitelist() {
+                    decision = Some(false);
+                    break;
+                }
+            }
+            cur_dir_opt = dir.parent();
+        }
+
+        decision.unwrap_or(false)
+    }
+
+    #[inline]
+    pub(crate) fn add_path(&mut self, path: impl AsRef<Path>) {
+        let gitignore_path = path.as_ref().join(".gitignore");
+        if gitignore_path.exists() {
+            let (ig, _) = ignore::gitignore::Gitignore::new(&gitignore_path);
+            // Key by the directory that owns this .gitignore
+            if let Some(dir) = gitignore_path.parent() {
+                self.by_dir.insert(dir.to_path_buf(), ig);
+            }
+        }
+    }
+}
+
 pub(crate) enum StoreAs {
     File,
     Dir,
@@ -122,95 +181,101 @@ pub(crate) enum StoreAs {
 }
 
 pub(crate) fn collect_items(
-    files: impl IntoIterator<Item = impl Into<PathBuf>>,
+    files: impl IntoIterator<Item = impl AsRef<Path>>,
     recursive: bool,
     keep_dir: bool,
     gitignore: bool,
     follow_links: bool,
-    exclude: Exclude,
+    exclude: &Exclude,
 ) -> io::Result<Vec<(PathBuf, StoreAs)>> {
-    // NOTE: dirty hack: `ignore` always follow symlinks at depth 0, so manualy check it.
-    let (symlinks, files): (Vec<PathBuf>, Vec<_>) = if follow_links {
-        (
-            Vec::new(),
-            files.into_iter().map(Into::into).collect::<Vec<_>>(),
-        )
-    } else {
-        files
-            .into_iter()
-            .map(Into::into)
-            .partition(|it| it.is_symlink())
-    };
-    let mut files = files.into_iter();
-    let symlinks = symlinks.into_iter().map(|p| (p, StoreAs::Symlink));
-    if let Some(p) = files.next() {
-        let mut hardlink_resolver = HardlinkResolver::new(follow_links);
-        let mut builder = ignore::WalkBuilder::new(p);
-        for p in files {
-            builder.add(p);
+    let mut ig = Ignore::empty();
+    let mut hardlink_resolver = HardlinkResolver::new(follow_links);
+    let mut out = Vec::new();
+
+    for p in files {
+        let mut iter = if recursive {
+            walkdir::WalkDir::new(p)
+        } else {
+            walkdir::WalkDir::new(p).max_depth(0)
         }
-        builder.filter_entry(move |e| !exclude.excluded(e.path().to_slash_lossy()));
-        builder
-            .max_depth(if recursive { None } else { Some(0) })
-            .hidden(false)
-            .ignore(false)
-            .git_ignore(gitignore)
-            .git_exclude(false)
-            .git_global(false)
-            .parents(false)
-            .follow_links(follow_links)
-            .ignore_case_insensitive(false)
-            .sort_by_file_path(Path::cmp);
-        let walker = builder.build();
-        walker
-            .filter_map(|maybe_dir_entry| match maybe_dir_entry {
-                Ok(dir_entry) => {
-                    let ty = dir_entry.file_type()?;
-                    let path = dir_entry.into_path();
-                    if ty.is_symlink() {
-                        Some(Ok((path, StoreAs::Symlink)))
-                    } else if ty.is_file() {
-                        if let Some(linked) = hardlink_resolver.resolve(&path).ok().flatten() {
-                            Some(Ok((path, StoreAs::Hardlink(linked))))
-                        } else {
-                            Some(Ok((path, StoreAs::File)))
+        .follow_root_links(false)
+        .follow_links(follow_links)
+        .into_iter();
+
+        while let Some(res) = iter.next() {
+            match res {
+                Ok(entry) => {
+                    let path = entry.path().to_path_buf();
+                    let ty = entry.file_type();
+                    let is_dir = ty.is_dir() || (ty.is_symlink() && follow_links && path.is_dir());
+                    let is_file =
+                        ty.is_file() || (ty.is_symlink() && follow_links && path.is_file());
+                    let is_symlink = ty.is_symlink() && !follow_links;
+
+                    // Exclude (prunes descent when directory)
+                    if exclude.excluded(path.to_slash_lossy()) {
+                        if is_dir {
+                            iter.skip_current_dir();
                         }
-                    } else if ty.is_dir() {
-                        if keep_dir {
-                            Some(Ok((path, StoreAs::Dir)))
+                        continue;
+                    }
+
+                    // Gitignore pruning before reading this dir's .gitignore
+                    if gitignore && ig.is_ignore(&path, is_dir) {
+                        if is_dir {
+                            iter.skip_current_dir();
+                        }
+                        continue;
+                    }
+
+                    // After confirming not ignored, load .gitignore from this directory
+                    if gitignore {
+                        if is_dir {
+                            ig.add_path(&path);
+                        }
+                    }
+
+                    // Classify entry
+                    if is_symlink {
+                        out.push((path, StoreAs::Symlink));
+                    } else if is_file {
+                        if let Some(linked) = hardlink_resolver.resolve(&path).ok().flatten() {
+                            out.push((path, StoreAs::Hardlink(linked)));
                         } else {
-                            None
+                            out.push((path, StoreAs::File));
+                        }
+                    } else if is_dir {
+                        if keep_dir {
+                            out.push((path, StoreAs::Dir));
                         }
                     } else {
-                        Some(Err(io::Error::new(
+                        return Err(io::Error::new(
                             io::ErrorKind::Unsupported,
                             format!("Unsupported file type: {}", path.display()),
-                        )))
+                        ));
                     }
                 }
-                Err(e) => match e {
-                    ignore::Error::WithPath { path, err }
-                        if is_broken_symlink_error(&path, &err) =>
-                    {
-                        Some(Ok((path, StoreAs::Symlink)))
+                Err(e) => {
+                    if let Some(ioe) = e.io_error() {
+                        if let Some(path) = e.path() {
+                            if is_broken_symlink_error(path, ioe) {
+                                out.push((path.to_path_buf(), StoreAs::Symlink));
+                                continue;
+                            }
+                        }
                     }
-                    _ => Some(Err(io::Error::other(e))),
-                },
-            })
-            .collect::<Result<Vec<_>, _>>()
-            .map(|mut it| {
-                it.extend(symlinks);
-                it
-            })
-    } else {
-        Ok(symlinks.collect())
+                    return Err(io::Error::other(e));
+                }
+            }
+        }
     }
+
+    Ok(out)
 }
 
 #[inline]
-fn is_broken_symlink_error(path: &Path, err: &ignore::Error) -> bool {
-    path.is_symlink()
-        && matches!(err, ignore::Error::Io(ioe) if ioe.kind() == io::ErrorKind::NotFound)
+fn is_broken_symlink_error(path: &Path, err: &io::Error) -> bool {
+    path.is_symlink() && err.kind() == io::ErrorKind::NotFound
 }
 
 pub(crate) fn collect_split_archives(first: impl AsRef<Path>) -> io::Result<Vec<fs::File>> {
@@ -623,9 +688,6 @@ impl TransformStrategy for TransformStrategyKeepSolid {
     }
 }
 
-// TODO:
-// pub(crate) struct TransformStrategyToSolid;
-
 pub(crate) fn run_across_archive<R, F>(
     provider: impl IntoIterator<Item = R>,
     mut processor: F,
@@ -973,7 +1035,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../resources/test/raw",
         )];
-        let items = collect_items(source, false, false, false, false, empty_exclude()).unwrap();
+        let items = collect_items(source, false, false, false, false, &empty_exclude()).unwrap();
         assert_eq!(
             items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
             HashSet::new()
@@ -986,7 +1048,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../resources/test/raw",
         )];
-        let items = collect_items(source, false, true, false, false, empty_exclude()).unwrap();
+        let items = collect_items(source, false, true, false, false, &empty_exclude()).unwrap();
         assert_eq!(
             items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
             [concat!(
@@ -1005,7 +1067,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../resources/test/raw",
         )];
-        let items = collect_items(source, true, false, false, false, empty_exclude()).unwrap();
+        let items = collect_items(source, true, false, false, false, &empty_exclude()).unwrap();
         assert_eq!(
             items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
             [

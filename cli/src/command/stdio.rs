@@ -296,7 +296,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         args.keep_dir,
         args.gitignore,
         args.follow_links,
-        exclude,
+        &exclude,
     )?;
 
     let password = password.as_deref();
@@ -533,7 +533,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.keep_dir,
             args.gitignore,
             args.follow_links,
-            exclude,
+            &exclude,
         )?;
         run_append_archive(&create_options, &path_transformers, archive, target_items)
     } else {
@@ -543,7 +543,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.keep_dir,
             args.gitignore,
             args.follow_links,
-            exclude,
+            &exclude,
         )?;
         let mut output_archive = Archive::write_header(io::stdout().lock())?;
         {
