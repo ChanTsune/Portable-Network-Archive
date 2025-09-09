@@ -220,21 +220,19 @@ pub(crate) fn collect_items(
                         continue;
                     }
 
-                    // Gitignore pruning before reading this dir's .gitignore
-                    if gitignore && ig.is_ignore(&path, is_dir) {
-                        if is_dir {
-                            iter.skip_current_dir();
-                        }
-                        continue;
-                    }
-
-                    // After confirming not ignored, load .gitignore from this directory
                     if gitignore {
+                        // Gitignore pruning before reading this dir's .gitignore
+                        if ig.is_ignore(&path, is_dir) {
+                            if is_dir {
+                                iter.skip_current_dir();
+                            }
+                            continue;
+                        }
+                        // After confirming not ignored, load .gitignore from this directory
                         if is_dir {
                             ig.add_path(&path);
                         }
                     }
-
                     // Classify entry
                     if is_symlink {
                         out.push((path, StoreAs::Symlink));
