@@ -51,7 +51,7 @@ jobs:
           copyback: false
           usesh: true
           prepare: |
-            /usr/sbin/pkg_add -v autoconf gmake gettext-tools gtar-base libtool-base m4 po4a curl cmake
+            /usr/sbin/pkg_add -v curl cmake
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           run: |
             set -e
