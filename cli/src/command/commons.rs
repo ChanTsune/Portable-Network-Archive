@@ -162,13 +162,13 @@ impl Ignore {
 
     #[inline]
     pub(crate) fn add_path(&mut self, path: impl AsRef<Path>) {
-        let gitignore_path = path.as_ref().join(".gitignore");
+        let path = path.as_ref();
+        debug_assert!(path.is_dir());
+        let gitignore_path = path.join(".gitignore");
         if gitignore_path.exists() {
             let (ig, _) = ignore::gitignore::Gitignore::new(&gitignore_path);
             // Key by the directory that owns this .gitignore
-            if let Some(dir) = gitignore_path.parent() {
-                self.by_dir.insert(dir.to_path_buf(), ig);
-            }
+            self.by_dir.insert(path.to_path_buf(), ig);
         }
     }
 }
