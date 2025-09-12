@@ -2,6 +2,8 @@ name: format
 on:
   pull_request:
   push:
+permissions:
+  contents: read
 jobs:
   rust_check_format:
     runs-on: ubuntu-latest
