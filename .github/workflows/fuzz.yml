@@ -1,5 +1,8 @@
 name: Fuzzing with cargo fuzz
 
+permissions:
+  contents: read
+
 on:
   push:
     branches:
