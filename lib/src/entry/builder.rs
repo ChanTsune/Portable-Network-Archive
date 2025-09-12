@@ -164,7 +164,7 @@ impl EntryBuilder {
     ///
     /// Returns an error if initialization fails.
     #[inline]
-    #[deprecated(since = "0.27.3", note = "Use `EntryBuilder::new_symlink` instead")]
+    #[deprecated(since = "0.27.2", note = "Use `EntryBuilder::new_symlink` instead")]
     pub fn new_symbolic_link(name: EntryName, source: EntryReference) -> io::Result<Self> {
         Self::new_symlink(name, source)
     }
