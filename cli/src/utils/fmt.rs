@@ -4,6 +4,7 @@ use std::fmt;
 use std::time::Duration;
 
 #[derive(Debug)]
+/// Displays a human‑friendly duration.
 pub(crate) struct DurationDisplay(pub(crate) Duration);
 
 impl fmt::Display for DurationDisplay {
