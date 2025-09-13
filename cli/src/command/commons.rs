@@ -182,43 +182,43 @@ pub(crate) enum StoreAs {
 
 /// Walks the given paths and collects filesystem items to archive.
 ///
-/// This function traverses the input `files` and returns a list of paths paired
-/// with how each should be stored in an archive (`StoreAs`). It supports
-/// recursion, filtering, and link handling (symbolic links and hard links).
+/// Returns a list of path/strategy pairs indicating how each discovered item
+/// should be stored in the archive (`StoreAs`). Traversal supports recursion,
+/// exclusion filters, and correct handling of symbolic and hard links.
 ///
 /// Behavior summary:
-/// - Recursion: when `recursive` is true, contents under directories are walked
-///   recursively. Otherwise, only the given paths themselves are inspected.
-/// - Directory entries: when `keep_dir` is true, directory entries are included
-///   in the result as `StoreAs::Dir`. When `keep_dir` is false, directories are
-///   used only as containers during recursive traversal and are not returned.
+/// - Recursion: when `recursive` is true, subdirectories are walked
+///   recursively; otherwise only the provided paths are inspected.
+/// - Directory entries: when `keep_dir` is true, directories are included as
+///   `StoreAs::Dir`. When false, directories act only as containers during
+///   traversal and are not returned themselves.
 /// - Exclusion: entries whose slash-separated path matches `exclude` are
-///   pruned from the traversal and are not returned.
+///   pruned from the traversal and not returned.
+/// - Gitignore pruning: when `gitignore` is true, `.gitignore` files found in
+///   encountered directories are loaded and applied using closest-precedence
+///   rules. Ignored files are skipped; ignored directories are pruned from
+///   descent. Patterns are evaluated relative to the directory that owns the
+///   `.gitignore`.
 /// - Symbolic links: by default, symlinks are returned as `StoreAs::Symlink`.
 ///   If `follow_links` is true, symlinks are resolved and classified by their
-///   target (file => `StoreAs::File`, dir => `StoreAs::Dir`). If
+///   targets (file => `StoreAs::File`, dir => `StoreAs::Dir`). If
 ///   `follow_command_links` is true, only the top-level input paths (depth 0)
-///   are followed and classified by their target; nested symlinks are not
-///   followed unless `follow_links` is also true. Broken symlinks are still
-///   returned as `StoreAs::Symlink`.
-/// - Hard links: regular files that are detected to be hard links to a
-///   previously seen file are returned as `StoreAs::Hardlink(<target>)`, where
-///   `<target>` is the previously seen canonical path. Otherwise they are
-///   returned as `StoreAs::File`.
+///   are followed; nested symlinks require `follow_links`. Broken symlinks are
+///   still returned as `StoreAs::Symlink`.
+/// - Hard links: regular files detected as hard links to a previously seen
+///   file are returned as `StoreAs::Hardlink(<target>)`, where `<target>` is the
+///   canonical path of the first occurrence; otherwise they are returned as
+///   `StoreAs::File`.
 /// - Unsupported types: special files that are neither regular files, dirs, nor
-///   symlinks result in an `io::ErrorKind::Unsupported` error.
-///
-/// Notes:
-/// - The `gitignore` parameter is accepted for future compatibility but is not
-///   currently used by this function.
+///   symlinks produce an `io::ErrorKind::Unsupported` error.
 ///
 /// Returns a vector of `(PathBuf, StoreAs)` pairs on success.
 ///
 /// # Errors
-/// Propagates I/O errors encountered during traversal, except that broken
-/// symlinks are tolerated and returned as `StoreAs::Symlink` instead of an
-/// error. Returns `io::ErrorKind::Unsupported` for entries with unsupported
-/// types.
+/// Propagates I/O errors encountered during traversal. Broken symlinks are
+/// tolerated and returned as `StoreAs::Symlink` instead of an error. Returns
+/// `io::ErrorKind::Unsupported` for entries with unsupported types. Other walk
+/// errors are wrapped using `io::Error::other`.
 pub(crate) fn collect_items(
     files: impl IntoIterator<Item = impl AsRef<Path>>,
     recursive: bool,
