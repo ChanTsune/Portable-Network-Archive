@@ -9,7 +9,7 @@
 //! - Working with creation/modified/accessed times as `std::time::SystemTime`.
 //!
 //! These are provided as traits implemented for the corresponding types and are
-//! re-exported through the crate’s prelude. Most users should import the prelude
+//! re-exported through the crate's prelude. Most users should import the `prelude`
 //! to make the extension methods available:
 //!
 //! ```
