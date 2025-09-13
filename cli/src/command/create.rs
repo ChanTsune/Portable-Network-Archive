@@ -59,6 +59,7 @@ use std::{
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
     group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
     group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
+    group(ArgGroup::new("unstable-follow_command_links").args(["follow_command_links"]).requires("unstable")),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
@@ -179,6 +180,12 @@ pub(crate) struct CreateCommand {
     #[arg(long, visible_aliases = ["dereference"], help = "Follow symbolic links")]
     follow_links: bool,
     #[arg(
+        short = 'H',
+        long,
+        help = "Follow symbolic links named on the command line"
+    )]
+    follow_command_links: bool,
+    #[arg(
         long,
         help = "Filenames or patterns are separated by null characters, not by newlines"
     )]
@@ -267,6 +274,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         args.keep_dir,
         args.gitignore,
         args.follow_links,
+        args.follow_command_links,
         &exclude,
     )?;
 

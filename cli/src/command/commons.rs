@@ -180,12 +180,52 @@ pub(crate) enum StoreAs {
     Hardlink(PathBuf),
 }
 
+/// Walks the given paths and collects filesystem items to archive.
+///
+/// Returns a list of path/strategy pairs indicating how each discovered item
+/// should be stored in the archive (`StoreAs`). Traversal supports recursion,
+/// exclusion filters, and correct handling of symbolic and hard links.
+///
+/// Behavior summary:
+/// - Recursion: when `recursive` is true, subdirectories are walked
+///   recursively; otherwise only the provided paths are inspected.
+/// - Directory entries: when `keep_dir` is true, directories are included as
+///   `StoreAs::Dir`. When false, directories act only as containers during
+///   traversal and are not returned themselves.
+/// - Exclusion: entries whose slash-separated path matches `exclude` are
+///   pruned from the traversal and not returned.
+/// - Gitignore pruning: when `gitignore` is true, `.gitignore` files found in
+///   encountered directories are loaded and applied using closest-precedence
+///   rules. Ignored files are skipped; ignored directories are pruned from
+///   descent. Patterns are evaluated relative to the directory that owns the
+///   `.gitignore`.
+/// - Symbolic links: by default, symlinks are returned as `StoreAs::Symlink`.
+///   If `follow_links` is true, symlinks are resolved and classified by their
+///   targets (file => `StoreAs::File`, dir => `StoreAs::Dir`). If
+///   `follow_command_links` is true, only the top-level input paths (depth 0)
+///   are followed; nested symlinks require `follow_links`. Broken symlinks are
+///   still returned as `StoreAs::Symlink`.
+/// - Hard links: regular files detected as hard links to a previously seen
+///   file are returned as `StoreAs::Hardlink(<target>)`, where `<target>` is the
+///   canonical path of the first occurrence; otherwise they are returned as
+///   `StoreAs::File`.
+/// - Unsupported types: special files that are neither regular files, dirs, nor
+///   symlinks produce an `io::ErrorKind::Unsupported` error.
+///
+/// Returns a vector of `(PathBuf, StoreAs)` pairs on success.
+///
+/// # Errors
+/// Propagates I/O errors encountered during traversal. Broken symlinks are
+/// tolerated and returned as `StoreAs::Symlink` instead of an error. Returns
+/// `io::ErrorKind::Unsupported` for entries with unsupported types. Other walk
+/// errors are wrapped using `io::Error::other`.
 pub(crate) fn collect_items(
     files: impl IntoIterator<Item = impl AsRef<Path>>,
     recursive: bool,
     keep_dir: bool,
     gitignore: bool,
     follow_links: bool,
+    follow_command_links: bool,
     exclude: &Exclude,
 ) -> io::Result<Vec<(PathBuf, StoreAs)>> {
     let mut ig = Ignore::empty();
@@ -198,8 +238,8 @@ pub(crate) fn collect_items(
         } else {
             walkdir::WalkDir::new(p).max_depth(0)
         }
-        .follow_root_links(false)
         .follow_links(follow_links)
+        .follow_root_links(follow_command_links)
         .into_iter();
 
         while let Some(res) = iter.next() {
@@ -207,10 +247,12 @@ pub(crate) fn collect_items(
                 Ok(entry) => {
                     let path = entry.path().to_path_buf();
                     let ty = entry.file_type();
-                    let is_dir = ty.is_dir() || (ty.is_symlink() && follow_links && path.is_dir());
+                    let depth = entry.depth();
+                    let should_follow = follow_links || (depth == 0 && follow_command_links);
+                    let is_dir = ty.is_dir() || (ty.is_symlink() && should_follow && path.is_dir());
                     let is_file =
-                        ty.is_file() || (ty.is_symlink() && follow_links && path.is_file());
-                    let is_symlink = ty.is_symlink() && !follow_links;
+                        ty.is_file() || (ty.is_symlink() && should_follow && path.is_file());
+                    let is_symlink = ty.is_symlink() && !should_follow;
 
                     // Exclude (prunes descent when directory)
                     if exclude.excluded(path.to_slash_lossy()) {
@@ -1033,7 +1075,8 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../resources/test/raw",
         )];
-        let items = collect_items(source, false, false, false, false, &empty_exclude()).unwrap();
+        let items =
+            collect_items(source, false, false, false, false, false, &empty_exclude()).unwrap();
         assert_eq!(
             items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
             HashSet::new()
@@ -1046,7 +1089,8 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../resources/test/raw",
         )];
-        let items = collect_items(source, false, true, false, false, &empty_exclude()).unwrap();
+        let items =
+            collect_items(source, false, true, false, false, false, &empty_exclude()).unwrap();
         assert_eq!(
             items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
             [concat!(
@@ -1065,7 +1109,8 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../resources/test/raw",
         )];
-        let items = collect_items(source, true, false, false, false, &empty_exclude()).unwrap();
+        let items =
+            collect_items(source, true, false, false, false, false, &empty_exclude()).unwrap();
         assert_eq!(
             items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
             [
