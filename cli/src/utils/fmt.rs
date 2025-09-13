@@ -19,9 +19,7 @@ impl fmt::Display for DurationDisplay {
         }
 
         let (unit, name, alt) = UNITS[idx];
-        // TODO: use `div_duration_f64` when msrv be come 1.80
-        // let mut t = self.0.div_duration_f64(unit).round() as usize;
-        let mut t = (self.0.as_secs_f64() / unit.as_secs_f64()).round() as usize;
+        let mut t = self.0.div_duration_f64(unit).round() as usize;
         if idx < UNITS.len() - 1 {
             t = Ord::max(t, 2);
         }
