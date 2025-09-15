@@ -134,8 +134,6 @@ impl Ignore {
         let path = path.as_ref();
         // Start from the directory containing the path (or the path itself if it is a dir),
         // walk up to root, and apply the nearest .gitignore last (closest wins).
-        let mut decision: Option<bool> = None; // Some(true)=ignore, Some(false)=allow
-
         // Determine the first directory to check for a .gitignore
         let mut cur_dir_opt = if is_dir { Some(path) } else { path.parent() };
 
@@ -144,20 +142,17 @@ impl Ignore {
                 // Match relative to the directory of the .gitignore
                 let rel = path.strip_prefix(dir).unwrap_or(path);
                 let m = gi.matched(rel, is_dir);
-                // If this matcher provides a decision, record it; closest directory wins
+                // If this matcher provides a decision, return immediately; closest wins
                 if m.is_ignore() {
-                    decision = Some(true);
-                    break;
+                    return true;
                 }
                 if m.is_whitelist() {
-                    decision = Some(false);
-                    break;
+                    return false;
                 }
             }
             cur_dir_opt = dir.parent();
         }
-
-        decision.unwrap_or(false)
+        false
     }
 
     #[inline]
