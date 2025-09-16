@@ -39,6 +39,7 @@ fn chmod_unsolid() {
         "experimental",
         "chmod",
         "--unsolid",
+        "-f",
         "chmod_unsolid/chmod_unsolid.pna",
         "--",
         "-x",

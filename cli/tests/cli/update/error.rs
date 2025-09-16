@@ -7,9 +7,14 @@ use std::io;
 fn test_update_non_existent_archive() -> io::Result<()> {
     setup();
 
-    let args =
-        cli::Cli::try_parse_from(["pna", "experimental", "update", "non_existent_archive.pna"])
-            .unwrap();
+    let args = cli::Cli::try_parse_from([
+        "pna",
+        "experimental",
+        "update",
+        "-f",
+        "non_existent_archive.pna",
+    ])
+    .unwrap();
 
     let result = args.execute();
 

@@ -1,5 +1,8 @@
 use crate::{
-    cli::{PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs},
+    cli::{
+        FileArgsCompat, PasswordArgs, SolidEntriesTransformStrategy,
+        SolidEntriesTransformStrategyArgs,
+    },
     command::{
         ask_password,
         commons::{
@@ -21,7 +24,6 @@ use std::{
     fmt::{self, Display, Formatter, Write},
     fs, io,
     num::ParseIntError,
-    path::PathBuf,
     str::FromStr,
 };
 
@@ -55,10 +57,8 @@ pub(crate) enum XattrCommands {
     group(ArgGroup::new("dump-flags").args(["name", "dump"])),
 )]
 pub(crate) struct GetXattrCommand {
-    #[arg(value_hint = ValueHint::FilePath)]
-    archive: PathBuf,
-    #[arg(value_hint = ValueHint::AnyPath)]
-    files: Vec<String>,
+    #[command(flatten)]
+    file: FileArgsCompat,
     #[arg(short, long, help = "Dump the value of the named extended attribute")]
     name: Option<String>,
     #[arg(
@@ -89,10 +89,8 @@ impl Command for GetXattrCommand {
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) struct SetXattrCommand {
-    #[arg(value_hint = ValueHint::FilePath)]
-    archive: PathBuf,
-    #[arg(value_hint = ValueHint::AnyPath)]
-    files: Vec<String>,
+    #[command(flatten)]
+    file: FileArgsCompat,
     #[arg(short, long, help = "Name of extended attribute")]
     name: Option<String>,
     #[arg(short, long, help = "Value of extended attribute")]
@@ -184,15 +182,16 @@ impl<'a> DumpOption<'a> {
 
 fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    if args.files.is_empty() {
+    if args.file.files().is_empty() {
         return Ok(());
     }
-    let mut globs = GlobPatterns::new(args.files.iter().map(|p| p.as_str()))?;
+    let files = args.file.files();
+    let mut globs = GlobPatterns::new(files.iter().map(|p| p.as_str()))?;
     let encoding = args.encoding;
     let dump_option = DumpOption::new(args.dump, args.name.as_deref(), args.regex_match.as_deref())
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-    let archives = collect_split_archives(&args.archive)?;
+    let archives = collect_split_archives(args.file.archive())?;
 
     #[cfg(feature = "memmap")]
     let mmaps = archives
@@ -236,14 +235,15 @@ fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
 
 fn archive_set_xattr(args: SetXattrCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
+    let files = args.file.files();
     let mut set_strategy = if let Some("-") = args.restore.as_deref() {
         SetAttrStrategy::Restore(parse_dump(io::stdin().lock())?)
     } else if let Some(path) = args.restore.as_deref() {
         SetAttrStrategy::Restore(parse_dump(io::BufReader::new(fs::File::open(path)?))?)
-    } else if args.files.is_empty() {
+    } else if files.is_empty() {
         return Ok(());
     } else {
-        let globs = GlobPatterns::new(args.files.iter().map(|p| p.as_str()))?;
+        let globs = GlobPatterns::new(files.iter().map(|p| p.as_str()))?;
         let value = args.value.unwrap_or_default();
         SetAttrStrategy::Apply {
             globs,
@@ -253,7 +253,7 @@ fn archive_set_xattr(args: SetXattrCommand) -> anyhow::Result<()> {
         }
     };
 
-    let archives = collect_split_archives(&args.archive)?;
+    let archives = collect_split_archives(args.file.archive())?;
 
     #[cfg(feature = "memmap")]
     let mmaps = archives
@@ -263,7 +263,7 @@ fn archive_set_xattr(args: SetXattrCommand) -> anyhow::Result<()> {
     #[cfg(feature = "memmap")]
     let archives = mmaps.iter().map(|m| m.as_ref());
 
-    let output_path = args.archive.remove_part().unwrap();
+    let output_path = args.file.archive().remove_part().unwrap();
     let mut temp_file =
         NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
 

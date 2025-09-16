@@ -32,6 +32,7 @@ fn test_update_files_from_stdin() {
         "--quiet",
         "experimental",
         "update",
+        "-f",
         "update_files_from_stdin/base.pna",
         "--files-from-stdin",
         "--unstable",

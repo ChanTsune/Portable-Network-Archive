@@ -33,6 +33,7 @@ fn delete_overwrite() {
         "--quiet",
         "experimental",
         "delete",
+        "-f",
         "delete_overwrite/delete_overwrite.pna",
         "**/raw/empty.txt",
     ])
@@ -78,6 +79,7 @@ fn delete_output() {
         "--quiet",
         "experimental",
         "delete",
+        "-f",
         "delete_output/delete_output.pna",
         "**/raw/text.txt",
         "--output",
@@ -126,6 +128,7 @@ fn delete_solid() {
         "--quiet",
         "experimental",
         "delete",
+        "-f",
         "delete_solid/delete_solid.pna",
         "**/raw/text.txt",
     ])
@@ -172,6 +175,7 @@ fn delete_unsolid() {
         "experimental",
         "delete",
         "--unsolid",
+        "-f",
         "delete_unsolid/delete_unsolid.pna",
         "**/raw/text.txt",
     ])

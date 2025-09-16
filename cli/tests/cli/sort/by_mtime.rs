@@ -35,6 +35,7 @@ fn sort_by_mtime() {
         "--quiet",
         "experimental",
         "sort",
+        "-f",
         "sort_by_mtime/unsorted.pna",
         "--by",
         "mtime",

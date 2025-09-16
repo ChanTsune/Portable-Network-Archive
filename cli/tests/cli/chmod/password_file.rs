@@ -45,6 +45,7 @@ fn chmod_with_password_file() {
         "--quiet",
         "experimental",
         "chmod",
+        "-f",
         "chmod_password_file/chmod_password_file.pna",
         "--password-file",
         password_file_path,

@@ -23,6 +23,7 @@ fn delete_with_include() {
         "--quiet",
         "experimental",
         "delete",
+        "-f",
         "delete_with_include/include.pna",
         "**/*.txt",
         "--include",

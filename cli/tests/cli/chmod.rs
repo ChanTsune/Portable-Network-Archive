@@ -40,6 +40,7 @@ fn archive_chmod() {
         "--quiet",
         "experimental",
         "chmod",
+        "-f",
         "chmod/chmod.pna",
         "--",
         "-x",

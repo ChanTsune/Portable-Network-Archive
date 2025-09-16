@@ -21,6 +21,7 @@ fn sort_by_name_desc() {
         "--quiet",
         "experimental",
         "sort",
+        "-f",
         "sort_by_name_desc/unsorted.pna",
         "--by",
         "name:desc",

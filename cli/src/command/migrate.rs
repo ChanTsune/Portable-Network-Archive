@@ -21,7 +21,7 @@ pub(crate) struct MigrateCommand {
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
     password: PasswordArgs,
-    #[arg(value_hint = ValueHint::FilePath)]
+    #[arg(short = 'f', long = "file", value_hint = ValueHint::FilePath)]
     archive: PathBuf,
     #[arg(long, help = "Output file path", value_hint = ValueHint::AnyPath)]
     output: PathBuf,

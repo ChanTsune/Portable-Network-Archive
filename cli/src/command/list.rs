@@ -2,7 +2,7 @@
 use crate::command::commons::run_read_entries_mem;
 use crate::{
     chunk,
-    cli::{FileArgs, PasswordArgs},
+    cli::{FileArgsCompat, PasswordArgs},
     command::{
         ask_password,
         commons::{collect_split_archives, read_paths, run_read_entries, Exclude},
@@ -111,7 +111,7 @@ pub(crate) struct ListCommand {
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
-    pub(crate) file: FileArgs,
+    pub(crate) file: FileArgsCompat,
     #[arg(long, action = clap::ArgAction::Help)]
     help: Option<bool>,
 }
@@ -264,7 +264,9 @@ fn list_archive(args: ListCommand) -> anyhow::Result<()> {
         classify: args.classify,
         format: args.format,
     };
-    let files_globs = GlobPatterns::new(args.file.files.iter().map(|it| it.as_str()))?;
+    let archive = args.file.archive();
+    let files = args.file.files();
+    let files_globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))?;
 
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
@@ -280,7 +282,7 @@ fn list_archive(args: ListCommand) -> anyhow::Result<()> {
         }
     };
 
-    let archives = collect_split_archives(&args.file.archive)?;
+    let archives = collect_split_archives(&archive)?;
 
     #[cfg(not(feature = "memmap"))]
     {

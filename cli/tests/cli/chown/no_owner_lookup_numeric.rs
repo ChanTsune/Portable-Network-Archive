@@ -37,6 +37,7 @@ fn chown_no_owner_lookup_numeric() {
         "--quiet",
         "experimental",
         "chown",
+        "-f",
         "chown_no_owner_lookup_numeric/numeric_owner.pna",
         "1000:2000",
         "chown_no_owner_lookup_numeric/in/raw/text.txt",

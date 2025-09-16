@@ -18,9 +18,15 @@ fn simple_list_output() {
 
     // Sort entries for stablize entries order.
     let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
-    cmd.args(["--quiet", "experimental", "sort", "list_simple/list.pna"])
-        .assert()
-        .success();
+    cmd.args([
+        "--quiet",
+        "experimental",
+        "sort",
+        "-f",
+        "list_simple/list.pna",
+    ])
+    .assert()
+    .success();
 
     let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
     let assert = cmd.args(["list", "list_simple/list.pna"]).assert();

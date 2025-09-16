@@ -46,6 +46,7 @@ fn archive_update_newer_mtime_with_exclude() {
         "--quiet",
         "experimental",
         "update",
+        "-f",
         "archive_update_newer_mtime_with_exclude/update_newer_mtime.pna",
         "archive_update_newer_mtime_with_exclude/in/",
         "--keep-timestamp",

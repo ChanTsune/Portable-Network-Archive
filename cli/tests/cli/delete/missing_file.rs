@@ -23,6 +23,7 @@ fn fail_with_missing_file() {
         "--quiet",
         "experimental",
         "delete",
+        "-f",
         "delete_missing/archive.pna",
         "delete_missing/in/raw/empty.txt",
         "delete_missing/in/raw/not_found.txt",

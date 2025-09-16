@@ -23,6 +23,7 @@ fn delete_output_exclude() {
         "--quiet",
         "experimental",
         "delete",
+        "-f",
         "delete_output_exclude/delete_output_exclude.pna",
         "**.pna",
         "--exclude",

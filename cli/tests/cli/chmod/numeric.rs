@@ -37,6 +37,7 @@ fn chmod_numeric_mode() {
         "--quiet",
         "experimental",
         "chmod",
+        "-f",
         "chmod_numeric/chmod_numeric.pna",
         "644",
         "chmod_numeric/in/raw/text.txt",

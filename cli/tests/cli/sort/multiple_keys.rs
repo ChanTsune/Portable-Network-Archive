@@ -42,6 +42,7 @@ fn sort_by_multiple_keys() {
         "--quiet",
         "experimental",
         "sort",
+        "-f",
         "sort_by_multi/unsorted.pna",
         "--by",
         "ctime",

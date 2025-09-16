@@ -64,6 +64,7 @@ fn list_with_exclude_vcs() {
         "--quiet",
         "experimental",
         "sort",
+        "-f",
         "list_with_exclude_vcs/list_with_exclude_vcs.pna",
     ])
     .assert()
@@ -159,6 +160,7 @@ fn list_without_exclude_vcs() {
         "--quiet",
         "experimental",
         "sort",
+        "-f",
         "list_without_exclude_vcs/list_without_exclude_vcs.pna",
     ])
     .assert()
