@@ -27,6 +27,7 @@ fn archive_update_deletion() {
         "--quiet",
         "experimental",
         "update",
+        "-f",
         "archive_update_deletion/update_deletion.pna",
         "archive_update_deletion/in/",
         "--keep-timestamp",

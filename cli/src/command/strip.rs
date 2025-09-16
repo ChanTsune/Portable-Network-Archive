@@ -1,6 +1,6 @@
 use crate::{
     cli::{
-        FileArgs, PasswordArgs, PrivateChunkType, SolidEntriesTransformStrategy,
+        FileArgsCompat, PasswordArgs, PrivateChunkType, SolidEntriesTransformStrategy,
         SolidEntriesTransformStrategyArgs,
     },
     command::{
@@ -58,7 +58,7 @@ pub(crate) struct StripCommand {
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
-    pub(crate) file: FileArgs,
+    pub(crate) file: FileArgsCompat,
 }
 
 impl Command for StripCommand {
@@ -70,7 +70,8 @@ impl Command for StripCommand {
 
 fn strip_metadata(args: StripCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    let archives = collect_split_archives(&args.file.archive)?;
+    let archive = args.file.archive();
+    let archives = collect_split_archives(&archive)?;
 
     #[cfg(feature = "memmap")]
     let mmaps = archives
@@ -82,7 +83,7 @@ fn strip_metadata(args: StripCommand) -> anyhow::Result<()> {
 
     let output_path = args
         .output
-        .unwrap_or_else(|| args.file.archive.remove_part().unwrap());
+        .unwrap_or_else(|| archive.remove_part().unwrap());
     let mut temp_file =
         NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
 

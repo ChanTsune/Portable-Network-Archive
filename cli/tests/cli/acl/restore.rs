@@ -13,6 +13,7 @@ fn acl_set_restore() {
             "experimental",
             "acl",
             "get",
+            "-f",
             "acl_set_restore/mixed_acl.pna",
             "*",
         ])
@@ -75,6 +76,7 @@ fn acl_set_restore() {
             "experimental",
             "acl",
             "get",
+            "-f",
             "acl_set_restore/mixed_acl.pna",
             "*",
         ])
@@ -110,6 +112,7 @@ fn acl_set_restore() {
             "experimental",
             "acl",
             "set",
+            "-f",
             "acl_set_restore/mixed_acl.pna",
             "--restore",
             "acl_set_restore/acl_dump.txt",
@@ -124,6 +127,7 @@ fn acl_set_restore() {
             "experimental",
             "acl",
             "get",
+            "-f",
             "acl_set_restore/mixed_acl.pna",
             "*",
         ])
@@ -192,6 +196,7 @@ fn acl_set_restore_compat() {
             "experimental",
             "acl",
             "get",
+            "-f",
             "acl_set_restore_compat/mixed_acl.pna",
             "*",
         ])
@@ -227,6 +232,7 @@ fn acl_set_restore_compat() {
             "experimental",
             "acl",
             "set",
+            "-f",
             "acl_set_restore_compat/mixed_acl.pna",
             "--restore",
             "acl_set_restore_compat/acl_dump.txt",
@@ -241,6 +247,7 @@ fn acl_set_restore_compat() {
             "experimental",
             "acl",
             "get",
+            "-f",
             "acl_set_restore_compat/mixed_acl.pna",
             "*",
         ])

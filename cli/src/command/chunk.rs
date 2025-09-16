@@ -1,5 +1,5 @@
 use crate::{command::Command, utils::fmt::hex};
-use clap::Parser;
+use clap::{Parser, ValueHint};
 use pna::prelude::*;
 use std::{fs, path::PathBuf};
 use tabled::{builder::Builder as TableBuilder, settings::Style as TableStyle};
@@ -33,8 +33,8 @@ pub(crate) struct ListCommand {
     pub(crate) long: bool,
     #[arg(short, long, help = "Add a header row to each column")]
     pub(crate) header: bool,
-    #[arg()]
-    pub(crate) archive: PathBuf,
+    #[arg(short = 'f', long = "file", value_hint = ValueHint::FilePath)]
+    archive: PathBuf,
     #[arg(long, action = clap::ArgAction::Help)]
     help: Option<bool>,
 }

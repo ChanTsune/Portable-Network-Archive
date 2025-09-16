@@ -21,6 +21,7 @@ fn sort_by_name() {
         "--quiet",
         "experimental",
         "sort",
+        "-f",
         "sort_by_name/unsorted.pna",
     ])
     .unwrap()

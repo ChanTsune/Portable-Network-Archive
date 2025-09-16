@@ -3,7 +3,7 @@ use crate::command::commons::run_entries;
 #[cfg(any(unix, windows))]
 use crate::utils::fs::chown;
 use crate::{
-    cli::{FileArgs, PasswordArgs},
+    cli::{FileArgsCompat, PasswordArgs},
     command::{
         ask_password,
         commons::{
@@ -163,7 +163,7 @@ pub(crate) struct ExtractCommand {
     )]
     allow_unsafe_links: bool,
     #[command(flatten)]
-    pub(crate) file: FileArgs,
+    pub(crate) file: FileArgsCompat,
 }
 
 impl Command for ExtractCommand {
@@ -175,9 +175,10 @@ impl Command for ExtractCommand {
 fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let start = Instant::now();
-    log::info!("Extract archive {}", args.file.archive.display());
+    let archive = args.file.archive();
+    log::info!("Extract archive {}", archive.display());
 
-    let archives = collect_split_archives(&args.file.archive)?;
+    let archives = collect_split_archives(&archive)?;
 
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
@@ -234,7 +235,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         archives
             .into_iter()
             .map(|it| io::BufReader::with_capacity(64 * 1024, it)),
-        args.file.files,
+        args.file.files(),
         || password.as_deref(),
         output_options,
     )?;
@@ -250,7 +251,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     #[cfg(feature = "memmap")]
     run_extract_archive(
         archives,
-        args.file.files,
+        args.file.files(),
         || password.as_deref(),
         output_options,
     )?;

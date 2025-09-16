@@ -43,6 +43,7 @@ fn chmod_with_password() {
         "--quiet",
         "experimental",
         "chmod",
+        "-f",
         "chmod_password/chmod_password.pna",
         "--password",
         "password",

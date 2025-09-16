@@ -26,6 +26,7 @@ fn fail_with_missing_file() {
         "--quiet",
         "experimental",
         "chown",
+        "-f",
         "chown_missing/archive.pna",
         "test_user:test_group",
         "chown_missing/in/raw/empty.txt",

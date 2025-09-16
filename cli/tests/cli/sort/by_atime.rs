@@ -35,6 +35,7 @@ fn sort_by_atime() {
         "--quiet",
         "experimental",
         "sort",
+        "-f",
         "sort_by_atime/unsorted.pna",
         "--by",
         "atime",

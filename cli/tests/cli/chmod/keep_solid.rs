@@ -39,6 +39,7 @@ fn chmod_keep_solid() {
         "experimental",
         "chmod",
         "--keep-solid",
+        "-f",
         "chmod_keep_solid/chmod_keep_solid.pna",
         "--",
         "-x",

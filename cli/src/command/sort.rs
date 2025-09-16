@@ -121,7 +121,7 @@ impl FromStr for SortKey {
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) struct SortCommand {
-    #[arg(value_hint = ValueHint::FilePath)]
+    #[arg(short = 'f', long = "file", value_hint = ValueHint::FilePath)]
     archive: PathBuf,
     #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
     output: Option<PathBuf>,

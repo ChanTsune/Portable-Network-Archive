@@ -27,6 +27,7 @@ fn delete_with_password() {
         "--quiet",
         "experimental",
         "delete",
+        "-f",
         "delete_password/delete_password.pna",
         "**/raw/empty.txt",
         "--password",

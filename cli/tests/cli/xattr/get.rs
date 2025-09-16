@@ -25,6 +25,7 @@ fn xattr_get_name_match_encoding() {
         "--quiet",
         "experimental",
         "sort",
+        "-f",
         "xattr_get_opts/archive.pna",
     ])
     .unwrap()

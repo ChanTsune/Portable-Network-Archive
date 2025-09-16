@@ -38,22 +38,25 @@ cargo install --git https://github.com/ChanTsune/Portable-Network-Archive.git po
 
 ## Usage
 
+Note on archive argument style
+- The positional archive argument `<ARCHIVE>` is deprecated since version 0.28.0. Use `-f/--file <ARCHIVE>` instead. The positional form is still accepted for backward compatibility and will emit a warning. It may be removed in a future release.
+
 ### Creating an Archive
 
 ```sh
-pna create <ARCHIVE> [FILES]...
+pna create -f <ARCHIVE> [FILES]...
 ```
 
 ### Extracting an Archive
 
 ```sh
-pna extract <ARCHIVE>
+pna extract -f <ARCHIVE>
 ```
 
 ### Listing Archived Entries
 
 ```sh
-pna list <ARCHIVE>
+pna list -f <ARCHIVE>
 ```
 
 Use the following command to get help.

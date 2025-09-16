@@ -12,6 +12,7 @@ fn acl_get_dump() {
             "experimental",
             "acl",
             "get",
+            "-f",
             "acl_get_dump/mixed_acl.pna",
             "*",
         ])

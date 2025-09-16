@@ -23,7 +23,7 @@ use std::{io, ops::Not, path::PathBuf, str::FromStr};
     group(ArgGroup::new("lookup").args(["owner_lookup", "no_owner_lookup"])),
 )]
 pub(crate) struct ChownCommand {
-    #[arg(value_hint = ValueHint::FilePath)]
+    #[arg(short = 'f', long = "file", value_hint = ValueHint::FilePath)]
     archive: PathBuf,
     #[arg(help = "owner[:group]|:group")]
     owner: RawOwnership,

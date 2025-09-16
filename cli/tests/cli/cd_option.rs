@@ -117,6 +117,7 @@ fn update_with_cd() {
         "--quiet",
         "experimental",
         "update",
+        "-f",
         "update_with_cd/update_with_cd.pna",
         "-C",
         "update_with_cd/in/",

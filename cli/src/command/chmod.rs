@@ -24,7 +24,7 @@ use std::{ops::BitOr, path::PathBuf, str::FromStr};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ChmodCommand {
-    #[arg(value_hint = ValueHint::FilePath)]
+    #[arg(short = 'f', long = "file", value_hint = ValueHint::FilePath)]
     archive: PathBuf,
     #[arg(help = "mode")]
     mode: Mode,

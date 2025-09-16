@@ -98,10 +98,59 @@ pub(crate) enum Commands {
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct FileArgs {
-    #[arg(value_hint = ValueHint::FilePath)]
+    #[arg(short = 'f', long = "file", value_hint = ValueHint::FilePath)]
     pub(crate) archive: PathBuf,
     #[arg(value_hint = ValueHint::FilePath)]
     pub(crate) files: Vec<String>,
+}
+
+/// Archive related args for compatibility with optional and positional arguments.
+///
+/// This is a temporary measure while the compatibility feature is available,
+/// and will be removed once the compatibility feature is no longer available.
+#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[command(
+    group(
+        ArgGroup::new("archive-args")
+            .args(["file", "archive"])
+            .multiple(true)
+            .required(true)
+    )
+)]
+pub(crate) struct FileArgsCompat {
+    #[arg(short, long, value_hint = ValueHint::FilePath)]
+    file: Option<PathBuf>,
+    #[arg(value_hint = ValueHint::FilePath)]
+    archive: Option<PathBuf>,
+    #[arg(value_hint = ValueHint::FilePath)]
+    files: Vec<String>,
+}
+
+impl FileArgsCompat {
+    #[inline]
+    pub(crate) fn archive(&self) -> PathBuf {
+        if let Some(file) = &self.file {
+            file.clone()
+        } else if let Some(archive) = &self.archive {
+            log::warn!("positional `archive` is deprecated, use `--file` instead");
+            archive.clone()
+        } else {
+            unreachable!()
+        }
+    }
+
+    #[inline]
+    pub(crate) fn files(&self) -> Vec<String> {
+        if self.file.is_none() {
+            self.files.clone()
+        } else {
+            let mut files = self.files.clone();
+            if let Some(archive) = &self.archive {
+                files.insert(0, archive.to_string_lossy().to_string());
+            }
+            files
+        }
+    }
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]

@@ -26,6 +26,7 @@ fn fail_with_missing_file() {
         "--quiet",
         "experimental",
         "chmod",
+        "-f",
         "chmod_missing/archive.pna",
         "644",
         "chmod_missing/in/raw/empty.txt",

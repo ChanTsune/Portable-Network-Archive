@@ -37,6 +37,7 @@ fn chown_no_owner_lookup() {
         "--quiet",
         "experimental",
         "chown",
+        "-f",
         "chown_no_owner_lookup/no_owner_lookup.pna",
         "test_user:test_group",
         "chown_no_owner_lookup/in/raw/text.txt",

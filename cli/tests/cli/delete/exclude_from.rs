@@ -27,6 +27,7 @@ fn delete_with_exclude_from() {
         "--quiet",
         "experimental",
         "delete",
+        "-f",
         "delete_exclude_from/exclude_from.pna",
         "**/*.txt",
         "--exclude-from",

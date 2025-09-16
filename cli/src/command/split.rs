@@ -3,14 +3,17 @@ use crate::{
     utils::PathPartExt,
 };
 use bytesize::ByteSize;
-use clap::{Parser, ValueHint};
+use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
 use std::{fs, io, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[command(group(ArgGroup::new("archive_arg").args(["file", "archive"]).required(true)))]
 pub(crate) struct SplitCommand {
-    #[arg(value_hint = ValueHint::FilePath)]
-    pub(crate) archive: PathBuf,
+    #[arg(short = 'f', long = "file", value_hint = ValueHint::FilePath)]
+    pub(crate) file: Option<PathBuf>,
+    #[arg(value_hint = ValueHint::FilePath, hide = true)]
+    pub(crate) archive: Option<PathBuf>,
     #[arg(long, value_hint = ValueHint::DirPath)]
     pub(crate) out_dir: Option<PathBuf>,
     #[arg(long, help = "Overwrite file")]
@@ -31,7 +34,15 @@ impl Command for SplitCommand {
 }
 
 fn split_archive(args: SplitCommand) -> anyhow::Result<()> {
-    let read_file = fs::File::open(&args.archive)?;
+    let archive_path = match (args.file, args.archive) {
+        (Some(f), _) => f,
+        (None, Some(a)) => {
+            log::warn!("positional `archive` is deprecated, use `--file` instead");
+            a
+        }
+        _ => unreachable!("required by ArgGroup"),
+    };
+    let read_file = fs::File::open(&archive_path)?;
     #[cfg(not(feature = "memmap"))]
     let mut read_archive = Archive::read_header(read_file)?;
     #[cfg(not(feature = "memmap"))]
@@ -45,9 +56,9 @@ fn split_archive(args: SplitCommand) -> anyhow::Result<()> {
 
     let base_out_file_name = if let Some(out_dir) = args.out_dir {
         fs::create_dir_all(&out_dir)?;
-        out_dir.join(args.archive.file_name().unwrap_or_default())
+        out_dir.join(archive_path.file_name().unwrap_or_default())
     } else {
-        args.archive.clone()
+        archive_path.clone()
     };
     let name = base_out_file_name.with_part(1).unwrap();
     if !args.overwrite && name.exists() {

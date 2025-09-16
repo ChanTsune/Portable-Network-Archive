@@ -54,6 +54,7 @@ fn archive_update_older_mtime() {
                 .unwrap()
                 .as_secs()
         ),
+        "-f",
         "archive_update_older_mtime/update_older_mtime.pna",
         "archive_update_older_mtime/in/",
         "--keep-timestamp",

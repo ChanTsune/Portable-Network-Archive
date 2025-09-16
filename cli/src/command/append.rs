@@ -1,6 +1,6 @@
 use crate::{
     cli::{
-        CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileArgs, HashAlgorithmArgs,
+        CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileArgsCompat, HashAlgorithmArgs,
         PasswordArgs,
     },
     command::{
@@ -204,7 +204,7 @@ pub(crate) struct AppendCommand {
     #[command(flatten)]
     pub(crate) hash: HashAlgorithmArgs,
     #[command(flatten)]
-    pub(crate) file: FileArgs,
+    pub(crate) file: FileArgsCompat,
 }
 
 impl Command for AppendCommand {
@@ -217,7 +217,7 @@ impl Command for AppendCommand {
 fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
-    let archive_path = args.file.archive;
+    let archive_path = args.file.archive();
     if !archive_path.exists() {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
@@ -258,7 +258,7 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
 
     let archive = open_archive_then_seek_to_end(&archive_path)?;
 
-    let mut files = args.file.files;
+    let mut files = args.file.files();
     if args.files_from_stdin {
         files.extend(read_paths_stdin(args.null)?);
     } else if let Some(path) = args.files_from {

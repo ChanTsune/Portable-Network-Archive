@@ -29,6 +29,7 @@ fn delete_with_files_from_stdin() {
         "--quiet",
         "experimental",
         "delete",
+        "-f",
         "delete_files_from_stdin/delete_files_from_stdin.pna",
         "--files-from-stdin",
         "--unstable",
