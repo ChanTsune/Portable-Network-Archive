@@ -24,7 +24,7 @@ fern = "0.7.1"
 gix-prompt = "0.11.1"
 globset = "0.4.16"
 ignore = "0.4.23"
-indexmap = "2.11.1"
+indexmap = "2.11.3"
 itertools = "0.14.0"
 log = "0.4.28"
 memmap2 = { version = "0.9.8", optional = true }
