@@ -24,11 +24,13 @@ use std::{ops::BitOr, path::PathBuf, str::FromStr};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct ChmodCommand {
-    #[arg(value_hint = ValueHint::FilePath)]
-    archive: PathBuf,
-    #[arg(help = "mode")]
-    mode: Mode,
-    #[arg(value_hint = ValueHint::AnyPath)]
+    #[arg(short = 'f', long = "file", value_hint = ValueHint::FilePath, conflicts_with = "archive")]
+    file: Option<PathBuf>,
+    #[arg(value_hint = ValueHint::FilePath, index = 1, required_unless_present = "file")]
+    archive: Option<PathBuf>,
+    #[arg(help = "mode", index = 2)]
+    mode: Option<Mode>,
+    #[arg(value_hint = ValueHint::AnyPath, index = 3, num_args = 0..)]
     files: Vec<String>,
     #[command(flatten)]
     transform_strategy: SolidEntriesTransformStrategyArgs,
@@ -48,9 +50,19 @@ fn archive_chmod(args: ChmodCommand) -> anyhow::Result<()> {
     if args.files.is_empty() {
         return Ok(());
     }
+    let mode = args
+        .mode
+        .ok_or_else(|| anyhow::anyhow!("missing required argument: mode"))?;
+
     let mut globs = GlobPatterns::new(args.files.iter().map(|p| p.as_str()))?;
 
-    let archives = collect_split_archives(&args.archive)?;
+    let archive_path = if let Some(path) = args.file.as_ref() {
+        path
+    } else {
+        log::warn!("positional `archive` is deprecated, use `--file` instead");
+        args.archive.as_ref().expect("archive required")
+    };
+    let archives = collect_split_archives(archive_path)?;
 
     #[cfg(feature = "memmap")]
     let mmaps = archives
@@ -60,7 +72,7 @@ fn archive_chmod(args: ChmodCommand) -> anyhow::Result<()> {
     #[cfg(feature = "memmap")]
     let archives = mmaps.iter().map(|m| m.as_ref());
 
-    let output_path = args.archive.remove_part().unwrap();
+    let output_path = archive_path.clone().remove_part().unwrap();
     let mut temp_file =
         NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
 
@@ -72,7 +84,7 @@ fn archive_chmod(args: ChmodCommand) -> anyhow::Result<()> {
             |entry| {
                 let entry = entry?;
                 if globs.matches_any(entry.header().path()) {
-                    Ok(Some(transform_entry(entry, &args.mode)))
+                    Ok(Some(transform_entry(entry, &mode)))
                 } else {
                     Ok(Some(entry))
                 }
@@ -86,7 +98,7 @@ fn archive_chmod(args: ChmodCommand) -> anyhow::Result<()> {
             |entry| {
                 let entry = entry?;
                 if globs.matches_any(entry.header().path()) {
-                    Ok(Some(transform_entry(entry, &args.mode)))
+                    Ok(Some(transform_entry(entry, &mode)))
                 } else {
                     Ok(Some(entry))
                 }

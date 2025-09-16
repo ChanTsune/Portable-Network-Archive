@@ -7,7 +7,7 @@ use crate::{
     },
     utils::{env::NamedTempFile, PathPartExt},
 };
-use clap::{Parser, ValueHint};
+use clap::{ArgGroup, Parser, ValueHint};
 use pna::{Archive, NormalEntry};
 use std::{
     fmt::{self, Display, Formatter},
@@ -120,9 +120,12 @@ impl FromStr for SortKey {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
+#[command(group(ArgGroup::new("archive_arg").args(["file", "archive"]).required(true)))]
 pub(crate) struct SortCommand {
-    #[arg(value_hint = ValueHint::FilePath)]
-    archive: PathBuf,
+    #[arg(short = 'f', long = "file", value_hint = ValueHint::FilePath)]
+    file: Option<PathBuf>,
+    #[arg(value_hint = ValueHint::FilePath, hide = true)]
+    archive: Option<PathBuf>,
     #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
     output: Option<PathBuf>,
     #[arg(long = "by", num_args = 1.., default_values_t = [SortKey::default()])]
@@ -140,7 +143,15 @@ impl Command for SortCommand {
 
 fn sort_archive(args: SortCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    let archives = collect_split_archives(&args.archive)?;
+    let archive_path = match (args.file, args.archive) {
+        (Some(f), _) => f,
+        (None, Some(a)) => {
+            log::warn!("positional `archive` is deprecated, use `--file` instead");
+            a
+        }
+        _ => unreachable!("required by ArgGroup"),
+    };
+    let archives = collect_split_archives(&archive_path)?;
     #[cfg(feature = "memmap")]
     let mmaps = archives
         .into_iter()
@@ -177,7 +188,7 @@ fn sort_archive(args: SortCommand) -> anyhow::Result<()> {
     });
 
     let mut temp_file =
-        NamedTempFile::new(|| args.archive.parent().unwrap_or_else(|| ".".as_ref()))?;
+        NamedTempFile::new(|| archive_path.parent().unwrap_or_else(|| ".".as_ref()))?;
     let mut archive = Archive::write_header(temp_file.as_file_mut())?;
     for entry in entries {
         archive.add_entry(entry)?;
@@ -189,7 +200,7 @@ fn sort_archive(args: SortCommand) -> anyhow::Result<()> {
 
     let output = args
         .output
-        .unwrap_or_else(|| args.archive.remove_part().unwrap());
+        .unwrap_or_else(|| archive_path.remove_part().unwrap());
     temp_file.persist(output)?;
 
     Ok(())

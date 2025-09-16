@@ -251,7 +251,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
-    let archive_path = &args.file.archive;
+    let archive_path = &args.file.archive();
     if !archive_path.exists() {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
@@ -300,9 +300,9 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
     };
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
 
-    let archives = collect_split_archives(&args.file.archive)?;
+    let archives = collect_split_archives(archive_path)?;
 
-    let mut files = args.file.files;
+    let mut files = args.file.files();
     if args.files_from_stdin {
         files.extend(read_paths_stdin(args.null)?);
     } else if let Some(path) = args.files_from {
@@ -322,7 +322,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         }
     };
 
-    let archive_path = current_dir.join(args.file.archive);
+    let archive_path = current_dir.join(archive_path);
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
     }

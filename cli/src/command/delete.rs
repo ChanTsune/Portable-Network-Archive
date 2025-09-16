@@ -71,7 +71,8 @@ impl Command for DeleteCommand {
 
 fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    let mut files = args.file.files;
+    let archive_path = args.file.archive();
+    let mut files = args.file.files();
     if args.files_from_stdin {
         files.extend(read_paths_stdin(args.null)?);
     } else if let Some(path) = args.files_from {
@@ -92,7 +93,7 @@ fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
         }
     };
 
-    let archives = collect_split_archives(&args.file.archive)?;
+    let archives = collect_split_archives(&archive_path)?;
 
     #[cfg(feature = "memmap")]
     let mmaps = archives
@@ -104,7 +105,7 @@ fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
 
     let output_path = args
         .output
-        .unwrap_or_else(|| args.file.archive.remove_part().unwrap());
+        .unwrap_or_else(|| archive_path.remove_part().unwrap());
     let mut temp_file =
         NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
 

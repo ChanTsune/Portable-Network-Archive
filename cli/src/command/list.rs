@@ -264,7 +264,9 @@ fn list_archive(args: ListCommand) -> anyhow::Result<()> {
         classify: args.classify,
         format: args.format,
     };
-    let files_globs = GlobPatterns::new(args.file.files.iter().map(|it| it.as_str()))?;
+    let archive = args.file.archive();
+    let files = args.file.files();
+    let files_globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))?;
 
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
@@ -280,7 +282,7 @@ fn list_archive(args: ListCommand) -> anyhow::Result<()> {
         }
     };
 
-    let archives = collect_split_archives(&args.file.archive)?;
+    let archives = collect_split_archives(&archive)?;
 
     #[cfg(not(feature = "memmap"))]
     {

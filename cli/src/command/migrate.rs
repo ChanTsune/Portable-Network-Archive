@@ -11,18 +11,21 @@ use crate::{
     ext::*,
     utils::env::NamedTempFile,
 };
-use clap::{Parser, ValueHint};
+use clap::{ArgGroup, Parser, ValueHint};
 use pna::{prelude::*, NormalEntry, RawChunk};
 use std::{io, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
+#[command(group(ArgGroup::new("archive_arg").args(["file", "archive"]).required(true)))]
 pub(crate) struct MigrateCommand {
     #[command(flatten)]
     transform_strategy: SolidEntriesTransformStrategyArgs,
     #[command(flatten)]
     password: PasswordArgs,
-    #[arg(value_hint = ValueHint::FilePath)]
-    archive: PathBuf,
+    #[arg(short = 'f', long = "file", value_hint = ValueHint::FilePath)]
+    file: Option<PathBuf>,
+    #[arg(value_hint = ValueHint::FilePath, hide = true)]
+    archive: Option<PathBuf>,
     #[arg(long, help = "Output file path", value_hint = ValueHint::AnyPath)]
     output: PathBuf,
 }
@@ -37,7 +40,15 @@ impl Command for MigrateCommand {
 fn migrate_metadata(args: MigrateCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
 
-    let archives = collect_split_archives(&args.archive)?;
+    let archive_path = match (args.file, args.archive) {
+        (Some(f), _) => f,
+        (None, Some(a)) => {
+            log::warn!("positional `archive` is deprecated, use `--file` instead");
+            a
+        }
+        _ => unreachable!("required by ArgGroup"),
+    };
+    let archives = collect_split_archives(&archive_path)?;
 
     #[cfg(feature = "memmap")]
     let mmaps = archives

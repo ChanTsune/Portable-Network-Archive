@@ -1,5 +1,5 @@
 use crate::{command::Command, utils::fmt::hex};
-use clap::Parser;
+use clap::{ArgGroup, Parser};
 use pna::prelude::*;
 use std::{fs, path::PathBuf};
 use tabled::{builder::Builder as TableBuilder, settings::Style as TableStyle};
@@ -28,13 +28,16 @@ pub(crate) enum ChunkCommands {
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[clap(disable_help_flag = true)]
+#[command(group(ArgGroup::new("archive_arg").args(["file", "archive"]).required(true)))]
 pub(crate) struct ListCommand {
     #[arg(short, long, help = "Display chunk body")]
     pub(crate) long: bool,
     #[arg(short, long, help = "Add a header row to each column")]
     pub(crate) header: bool,
-    #[arg()]
-    pub(crate) archive: PathBuf,
+    #[arg(short = 'f', long = "file", help = "Archive file path")]
+    pub(crate) file: Option<PathBuf>,
+    #[arg(hide = true)]
+    pub(crate) archive: Option<PathBuf>,
     #[arg(long, action = clap::ArgAction::Help)]
     help: Option<bool>,
 }
@@ -47,7 +50,15 @@ impl Command for ListCommand {
 }
 
 fn list_archive_chunks(args: ListCommand) -> anyhow::Result<()> {
-    let archive = fs::File::open(args.archive)?;
+    let path = match (args.file, args.archive) {
+        (Some(f), _) => f,
+        (None, Some(a)) => {
+            log::warn!("positional `archive` is deprecated, use `--file` instead");
+            a
+        }
+        _ => unreachable!("required by ArgGroup"),
+    };
+    let archive = fs::File::open(path)?;
     let mut builder = TableBuilder::new();
     if args.header {
         builder.push_record(

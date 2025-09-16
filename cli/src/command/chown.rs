@@ -23,17 +23,19 @@ use std::{io, ops::Not, path::PathBuf, str::FromStr};
     group(ArgGroup::new("lookup").args(["owner_lookup", "no_owner_lookup"])),
 )]
 pub(crate) struct ChownCommand {
-    #[arg(value_hint = ValueHint::FilePath)]
-    archive: PathBuf,
-    #[arg(help = "owner[:group]|:group")]
-    owner: RawOwnership,
+    #[arg(short = 'f', long = "file", value_hint = ValueHint::FilePath, conflicts_with = "archive")]
+    file: Option<PathBuf>,
+    #[arg(value_hint = ValueHint::FilePath, index = 1, required_unless_present = "file")]
+    archive: Option<PathBuf>,
+    #[arg(help = "owner[:group]|:group", index = 2)]
+    owner: Option<RawOwnership>,
     #[arg(long, help = "force numeric owner and group IDs (no name resolution)")]
     numeric_owner: bool,
     #[arg(long, help = "resolve user and group (default)")]
     owner_lookup: bool,
     #[arg(long, help = "do not resolve user and group")]
     no_owner_lookup: bool,
-    #[arg(value_hint = ValueHint::AnyPath)]
+    #[arg(value_hint = ValueHint::AnyPath, index = 3, num_args = 0..)]
     files: Vec<String>,
     #[command(flatten)]
     transform_strategy: SolidEntriesTransformStrategyArgs,
@@ -57,9 +59,16 @@ fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
 
     let owner = args
         .owner
+        .ok_or_else(|| anyhow::anyhow!("missing required argument: owner"))?
         .lookup_platform_owner(args.numeric_owner, !args.no_owner_lookup)?;
 
-    let archives = collect_split_archives(&args.archive)?;
+    let archive_path = if let Some(path) = args.file.as_ref() {
+        path
+    } else {
+        log::warn!("positional `archive` is deprecated, use `--file` instead");
+        args.archive.as_ref().expect("archive required")
+    };
+    let archives = collect_split_archives(archive_path)?;
 
     #[cfg(feature = "memmap")]
     let mmaps = archives
@@ -69,7 +78,7 @@ fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
     #[cfg(feature = "memmap")]
     let archives = mmaps.iter().map(|m| m.as_ref());
 
-    let output_path = args.archive.remove_part().unwrap();
+    let output_path = archive_path.clone().remove_part().unwrap();
     let mut temp_file =
         NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
 
