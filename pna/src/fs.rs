@@ -71,7 +71,15 @@ pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Resu
 #[inline]
 pub fn remove_path_all<P: AsRef<Path>>(path: P) -> io::Result<()> {
     fn inner(path: &Path) -> io::Result<()> {
-        if path.is_dir() {
+        let metadata = fs::symlink_metadata(path)?;
+        let file_type = metadata.file_type();
+        if file_type.is_symlink() {
+            match fs::remove_file(path) {
+                #[cfg(windows)]
+                Err(e) => fs::remove_dir(path),
+                other => other,
+            }
+        } else if file_type.is_dir() {
             fs::remove_dir_all(path)
         } else {
             fs::remove_file(path)
