@@ -309,7 +309,7 @@ where
             let args = args.clone();
             s.spawn_fifo(move |_| {
                 tx.send(extract_entry(item, password, &args))
-                    .unwrap_or_else(|e| panic!("{e}: {item_path}"));
+                    .unwrap_or_else(|e| log::error!("{e}: {item_path}"));
             });
             Ok(())
         })?;
@@ -363,7 +363,7 @@ where
             let args = args.clone();
             s.spawn_fifo(move |_| {
                 tx.send(extract_entry(item, password, &args))
-                    .unwrap_or_else(|e| panic!("{e}: {item_path}"));
+                    .unwrap_or_else(|e| log::error!("{e}: {item_path}"));
             });
             Ok(())
         })?;

@@ -379,7 +379,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
                                 &create_options,
                                 &path_transformers,
                             ))
-                            .unwrap_or_else(|e| panic!("{e}: {}", target_path.0.display()));
+                            .unwrap_or_else(|e| log::error!("{e}: {}", target_path.0.display()));
                         });
                         Ok(None)
                     } else {
@@ -400,7 +400,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
                 log::debug!("Adding: {}", file.display());
                 let file = (file, store);
                 tx.send(create_entry(&file, &create_options, &path_transformers))
-                    .unwrap_or_else(|e| panic!("{e}: {}", file.0.display()));
+                    .unwrap_or_else(|e| log::error!("{e}: {}", file.0.display()));
             });
         }
         drop(tx);
