@@ -306,7 +306,7 @@ pub(crate) fn run_append_archive(
             s.spawn_fifo(move |_| {
                 log::debug!("Adding: {}", file.0.display());
                 tx.send(create_entry(&file, create_options, path_transformers))
-                    .unwrap_or_else(|e| panic!("{e}: {}", file.0.display()));
+                    .unwrap_or_else(|e| log::error!("{e}: {}", file.0.display()));
             })
         }
 
