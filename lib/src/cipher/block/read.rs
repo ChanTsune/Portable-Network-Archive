@@ -29,13 +29,7 @@ where
         let mut buf = ArrayVec::new();
         debug_assert_eq!(block_size, buf.capacity());
         unsafe { buf.set_len(buf.capacity()) };
-        let prev_len = r.read(&mut buf)?;
-        if prev_len != block_size {
-            return Err(io::Error::new(
-                io::ErrorKind::UnexpectedEof,
-                format!("Expected buffer size {block_size} but {prev_len}"),
-            ));
-        }
+        r.read_exact(&mut buf)?;
         Ok(Self {
             r,
             c: cbc::Decryptor::<C>::new_from_slices(key, iv).unwrap(),
@@ -76,8 +70,26 @@ where
         for chunk in buf[total_written..].chunks_mut(block_size) {
             let in_block = Block::<cbc::Decryptor<C>>::from_slice(&self.buf);
             self.c.decrypt_block_b2b_mut(in_block, &mut out_block);
-            let next_len = self.r.read(&mut self.buf)?;
-            self.eof = next_len == 0;
+
+            let buf_slice = self.buf.as_mut_slice();
+            let mut filled = 0;
+            while filled < block_size {
+                let read_len = self.r.read(&mut buf_slice[filled..block_size])?;
+                if read_len == 0 {
+                    if filled == 0 {
+                        self.eof = true;
+                        break;
+                    }
+                    return Err(io::Error::new(
+                        io::ErrorKind::UnexpectedEof,
+                        format!("Expected block size {block_size} but {filled}"),
+                    ));
+                }
+                filled += read_len;
+            }
+            if filled == block_size {
+                self.eof = false;
+            }
             let blk = if self.eof {
                 P::unpad(&out_block).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
             } else {
