@@ -75,11 +75,50 @@ where
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::io::prelude::*;
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
+
+    pub(crate) struct PartialReader {
+        data: Vec<u8>,
+        pos: usize,
+        chunk_sizes: Vec<usize>,
+        call: usize,
+    }
+
+    impl PartialReader {
+        pub(crate) fn new(data: Vec<u8>, chunk_sizes: Vec<usize>) -> Self {
+            Self {
+                data,
+                pos: 0,
+                chunk_sizes,
+                call: 0,
+            }
+        }
+    }
+
+    impl Read for PartialReader {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            if self.pos >= self.data.len() {
+                return Ok(0);
+            }
+            let requested = self
+                .chunk_sizes
+                .get(self.call)
+                .copied()
+                .unwrap_or(buf.len());
+            let remaining = self.data.len() - self.pos;
+            let written = requested.min(remaining).min(buf.len());
+            let start = self.pos;
+            let end = start + written;
+            buf[..written].copy_from_slice(&self.data[start..end]);
+            self.pos = end;
+            self.call += 1;
+            Ok(written)
+        }
+    }
 
     #[test]
     fn chain_empty() {
