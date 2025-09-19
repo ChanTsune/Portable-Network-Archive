@@ -44,9 +44,13 @@ where
     StreamCipherCoreWrapper<T>: StreamCipher,
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        if buf.is_empty() {
+            return Ok(0);
+        }
         let mut buf = buf.to_vec();
         self.cipher.apply_keystream(&mut buf);
-        self.w.write(&buf)
+        self.w.write_all(&buf)?;
+        Ok(buf.len())
     }
 
     fn flush(&mut self) -> io::Result<()> {
@@ -87,5 +91,54 @@ mod tests {
             cipher.write_all(chunk).unwrap();
         }
         assert_eq!(out_buf[..], plaintext[..]);
+    }
+
+    struct ShortWriter<W> {
+        inner: W,
+        limit: usize,
+    }
+
+    impl<W> ShortWriter<W> {
+        fn new(inner: W, limit: usize) -> Self {
+            Self { inner, limit }
+        }
+
+        fn into_inner(self) -> W {
+            self.inner
+        }
+    }
+
+    impl<W> Write for ShortWriter<W>
+    where
+        W: Write,
+    {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            if buf.is_empty() {
+                return Ok(0);
+            }
+            let written = buf.len().min(self.limit.max(1));
+            self.inner.write(&buf[..written])
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            self.inner.flush()
+        }
+    }
+
+    #[test]
+    fn write_handles_short_writes() {
+        let key = [0x42u8; 16];
+        let iv = [0x24u8; 16];
+        let plaintext = *b"hello world! this is my plaintext.";
+        let ciphertext = [
+            51, 87, 18, 30, 187, 90, 41, 70, 139, 216, 97, 70, 117, 150, 206, 61, 165, 155, 222,
+            228, 45, 204, 6, 20, 222, 169, 85, 54, 141, 138, 93, 192, 202, 212,
+        ];
+
+        let writer = ShortWriter::new(Vec::new(), 5);
+        let mut cipher = Aes128Ctr64LEWriter::new(writer, &key, &iv).unwrap();
+        cipher.write_all(&plaintext).unwrap();
+        let writer = cipher.finish().unwrap();
+        assert_eq!(writer.into_inner(), ciphertext);
     }
 }
