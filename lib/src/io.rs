@@ -75,11 +75,57 @@ where
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::io::prelude::*;
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
+
+    /// Test helper that simulates a source which only yields a few bytes per read call.
+    pub(crate) struct PartialReader<I>
+    where
+        I: IntoIterator<Item = u8>,
+    {
+        data: Vec<u8>,
+        pos: usize,
+        chunk_sizes: I::IntoIter,
+    }
+
+    impl<I> PartialReader<I>
+    where
+        I: IntoIterator<Item = u8>,
+    {
+        pub(crate) fn new(data: Vec<u8>, chunk_sizes: I) -> Self {
+            Self {
+                data,
+                pos: 0,
+                chunk_sizes: chunk_sizes.into_iter(),
+            }
+        }
+
+        fn next_chunk_len(&mut self, fallback: usize) -> usize {
+            self.chunk_sizes.next().map_or(fallback, usize::from)
+        }
+    }
+
+    impl<I> Read for PartialReader<I>
+    where
+        I: IntoIterator<Item = u8>,
+    {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            if self.pos >= self.data.len() {
+                return Ok(0);
+            }
+            let requested = self.next_chunk_len(buf.len());
+            let remaining = self.data.len() - self.pos;
+            let written = requested.min(remaining).min(buf.len());
+            let start = self.pos;
+            let end = start + written;
+            buf[..written].copy_from_slice(&self.data[start..end]);
+            self.pos = end;
+            Ok(written)
+        }
+    }
 
     #[test]
     fn chain_empty() {
