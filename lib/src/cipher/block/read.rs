@@ -29,13 +29,7 @@ where
         let mut buf = ArrayVec::new();
         debug_assert_eq!(block_size, buf.capacity());
         unsafe { buf.set_len(buf.capacity()) };
-        let prev_len = r.read(&mut buf)?;
-        if prev_len != block_size {
-            return Err(io::Error::new(
-                io::ErrorKind::UnexpectedEof,
-                format!("Expected buffer size {block_size} but {prev_len}"),
-            ));
-        }
+        r.read_exact(&mut buf)?;
         Ok(Self {
             r,
             c: cbc::Decryptor::<C>::new_from_slices(key, iv).unwrap(),
