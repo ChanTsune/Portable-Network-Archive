@@ -112,6 +112,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::io::tests::PartialReader;
     use cipher::block_padding::Pkcs7;
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
@@ -135,6 +136,65 @@ mod tests {
         )
         .unwrap();
         for d in buf.chunks_mut(28) {
+            dec.read_exact(d).unwrap();
+        }
+        assert_eq!(buf, plaintext);
+    }
+
+    #[test]
+    fn read_decrypt_errors_on_partial_block() {
+        let key = [0x42; 16];
+        let iv = [0x24; 16];
+        let ciphertext = [
+            199u8, 254, 36, 126, 249, 123, 33, 240, 124, 189, 210, 108, 181, 211, 70, 191, 210,
+            120, 103, 203, 0, 217, 72, 103, 35, 225, 89, 151, 143, 185, 165, 249, 20, 207, 178, 40,
+            167, 16, 222, 65, 113, 227, 150, 231, 182, 207, 133, 158,
+        ];
+        let truncated = ciphertext[..24].to_vec();
+        let reader = PartialReader::new(truncated, [16u8, 8]);
+        let mut dec =
+            CbcBlockCipherDecryptReader::<_, aes::Aes128, Pkcs7>::new(reader, &key, &iv).unwrap();
+        let mut buf = [0u8; 34];
+        let err = dec.read(&mut buf).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
+    }
+
+    #[test]
+    fn read_decrypt_partial_reads() {
+        let key = [0x42; 16];
+        let iv = [0x24; 16];
+        let ciphertext = [
+            199u8, 254, 36, 126, 249, 123, 33, 240, 124, 189, 210, 108, 181, 211, 70, 191, 210,
+            120, 103, 203, 0, 217, 72, 103, 35, 225, 89, 151, 143, 185, 165, 249, 20, 207, 178, 40,
+            167, 16, 222, 65, 113, 227, 150, 231, 182, 207, 133, 158,
+        ];
+        let plaintext = *b"hello world! this is my plaintext.";
+        let chunk_sizes = [5u8, 3, 8, 4, 6, 7, 6, 9];
+        let reader = PartialReader::new(ciphertext.to_vec(), chunk_sizes);
+        let mut dec =
+            CbcBlockCipherDecryptReader::<_, aes::Aes128, Pkcs7>::new(reader, &key, &iv).unwrap();
+
+        let mut buf = Vec::new();
+        dec.read_to_end(&mut buf).unwrap();
+        assert_eq!(buf, plaintext);
+    }
+
+    #[test]
+    fn read_decrypt_par_1byte() {
+        let key = [0x42; 16];
+        let iv = [0x24; 16];
+        let ciphertext = [
+            199u8, 254, 36, 126, 249, 123, 33, 240, 124, 189, 210, 108, 181, 211, 70, 191, 210,
+            120, 103, 203, 0, 217, 72, 103, 35, 225, 89, 151, 143, 185, 165, 249, 20, 207, 178, 40,
+            167, 16, 222, 65, 113, 227, 150, 231, 182, 207, 133, 158,
+        ];
+        let plaintext = *b"hello world! this is my plaintext.";
+        let reader = PartialReader::new(ciphertext.to_vec(), std::iter::repeat(1));
+        let mut dec =
+            CbcBlockCipherDecryptReader::<_, aes::Aes128, Pkcs7>::new(reader, &key, &iv).unwrap();
+
+        let mut buf = [0u8; 34];
+        for d in buf.chunks_mut(1) {
             dec.read_exact(d).unwrap();
         }
         assert_eq!(buf, plaintext);
