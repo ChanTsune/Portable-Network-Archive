@@ -35,9 +35,20 @@ impl DateTime {
         }
         match self {
             Self::Naive(naive) => {
-                // FIXME: Avoid `.unwrap()` call, use match statement with return Result.
-                let local = naive.and_local_timezone(chrono::Local).unwrap();
-                from_timestamp(local.timestamp(), local.timestamp_subsec_nanos())
+                let (seconds, nanos) = match naive.and_local_timezone(chrono::Local) {
+                    chrono::LocalResult::Single(local) => {
+                        (local.timestamp(), local.timestamp_subsec_nanos())
+                    }
+                    chrono::LocalResult::Ambiguous(earlier, _) => {
+                        (earlier.timestamp(), earlier.timestamp_subsec_nanos())
+                    }
+                    chrono::LocalResult::None => {
+                        // Fallback to interpreting the naive value as UTC rather than panic.
+                        let utc = naive.and_utc();
+                        (utc.timestamp(), utc.timestamp_subsec_nanos())
+                    }
+                };
+                from_timestamp(seconds, nanos)
             }
             Self::Zoned(zoned) => from_timestamp(zoned.timestamp(), zoned.timestamp_subsec_nanos()),
             Self::Date(date) => {
