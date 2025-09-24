@@ -588,7 +588,7 @@ fn detail_list_entries(entries: impl IntoIterator<Item = TableRow>, options: Lis
         );
         let group = content.permission.as_ref().map_or_else(
             || "-".into(),
-            |it| it.owner_display(options.numeric_owner).to_string(),
+            |it| it.group_display(options.numeric_owner).to_string(),
         );
         builder.push_record([
             content.encryption,
