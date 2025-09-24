@@ -19,7 +19,7 @@ fn extract_with_exclude() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(fs::try_exists("extract_with_exclude/extract_with_exclude.pna").unwrap());
+    assert!(fs::exists("extract_with_exclude/extract_with_exclude.pna").unwrap());
 
     cli::Cli::try_parse_from([
         "pna",

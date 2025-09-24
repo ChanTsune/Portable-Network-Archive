@@ -23,7 +23,7 @@ fn archive_extract_chroot() {
     ]);
     cmd.assert().success();
 
-    assert!(fs::try_exists("extract_chroot/extract_chroot.pna").unwrap());
+    assert!(fs::exists("extract_chroot/extract_chroot.pna").unwrap());
 
     let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
     cmd.args([

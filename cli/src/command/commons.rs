@@ -317,7 +317,7 @@ pub(crate) fn collect_split_archives(first: impl AsRef<Path>) -> io::Result<Vec<
     let mut archives = Vec::new();
     let mut n = 1;
     let mut target_archive = Cow::from(first.as_ref());
-    while fs::try_exists(&target_archive)? {
+    while fs::exists(&target_archive)? {
         archives.push(fs::File::open(&target_archive)?);
         n += 1;
         target_archive = target_archive.with_part(n).expect("").into();

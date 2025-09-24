@@ -21,7 +21,7 @@ fn create_with_exclude() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(fs::try_exists("create_with_exclude/create_with_exclude.pna").unwrap());
+    assert!(fs::exists("create_with_exclude/create_with_exclude.pna").unwrap());
 
     cli::Cli::try_parse_from([
         "pna",
