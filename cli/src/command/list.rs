@@ -709,7 +709,7 @@ fn datetime(format: TimeFormat, time: SystemTime) -> String {
 }
 
 #[inline]
-fn hide_control_chars<'a>(s: &'a str) -> impl Display + 'a {
+fn hide_control_chars(s: &str) -> impl Display + '_ {
     use core::fmt::Write;
     struct HideControl<'s>(&'s str);
 

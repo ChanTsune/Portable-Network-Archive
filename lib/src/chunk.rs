@@ -410,9 +410,9 @@ pub fn read_as_chunks<R: Read>(
 /// # Errors
 /// Returns an error if the input is not a PNA archive.
 #[inline]
-pub fn read_chunks_from_slice<'a>(
-    archive: &'a [u8],
-) -> io::Result<impl Iterator<Item = io::Result<impl Chunk + 'a>>> {
+pub fn read_chunks_from_slice(
+    archive: &[u8],
+) -> io::Result<impl Iterator<Item = io::Result<impl Chunk + '_>>> {
     struct Chunks<'a> {
         reader: &'a [u8],
         eoa: bool,

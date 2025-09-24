@@ -71,6 +71,7 @@ impl VerbosityArgs {
 }
 
 #[derive(Subcommand, Clone, Debug)]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum Commands {
     #[command(visible_alias = "c", about = "Create archive")]
     Create(CreateCommand),

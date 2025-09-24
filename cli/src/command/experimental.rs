@@ -37,6 +37,7 @@ impl Command for ExperimentalCommand {
 }
 
 #[derive(Subcommand, Clone, Debug)]
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum ExperimentalCommands {
     #[command(about = "Archive manipulation via stdio")]
     Stdio(command::stdio::StdioCommand),
