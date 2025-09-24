@@ -18,7 +18,7 @@ fn create_extract_with_cd() {
     ]);
     cmd.assert().success();
 
-    assert!(fs::exists("create_extract_with_cd/create_extract_with_cd.pna").unwrap());
+    assert!(fs::try_exists("create_extract_with_cd/create_extract_with_cd.pna").unwrap());
 
     let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
     cmd.args([
@@ -54,7 +54,7 @@ fn append_with_cd() {
     ]);
     cmd.assert().success();
 
-    assert!(fs::exists("append_with_cd/append_with_cd.pna").unwrap());
+    assert!(fs::try_exists("append_with_cd/append_with_cd.pna").unwrap());
 
     // Copy extra input
     TestResources::extract_in("store.pna", "append_with_cd/in/").unwrap();
@@ -106,7 +106,7 @@ fn update_with_cd() {
     ]);
     cmd.assert().success();
 
-    assert!(fs::exists("update_with_cd/update_with_cd.pna").unwrap());
+    assert!(fs::try_exists("update_with_cd/update_with_cd.pna").unwrap());
 
     // Copy extra input
     TestResources::extract_in("store.pna", "update_with_cd/in/").unwrap();

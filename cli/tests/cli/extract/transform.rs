@@ -18,7 +18,7 @@ fn extract_with_transform() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(fs::exists("extract_with_transform/extract_with_transform.pna").unwrap());
+    assert!(fs::try_exists("extract_with_transform/extract_with_transform.pna").unwrap());
 
     cli::Cli::try_parse_from([
         "pna",

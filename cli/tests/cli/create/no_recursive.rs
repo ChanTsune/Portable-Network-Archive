@@ -19,7 +19,7 @@ fn no_recursive() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(fs::exists("no_recursive/no_recursive.pna").unwrap());
+    assert!(fs::try_exists("no_recursive/no_recursive.pna").unwrap());
 
     cli::Cli::try_parse_from([
         "pna",

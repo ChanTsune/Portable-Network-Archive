@@ -21,7 +21,7 @@ fn create_with_substitution() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(fs::exists("create_with_substitution/create_with_substitution.pna").unwrap());
+    assert!(fs::try_exists("create_with_substitution/create_with_substitution.pna").unwrap());
 
     cli::Cli::try_parse_from([
         "pna",

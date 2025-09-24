@@ -89,7 +89,7 @@ fn hardlink() {
     );
 
     // Check skipped extract unsafe link
-    assert!(!fs::exists("hardlink/dist/dir/linked1.txt").unwrap());
+    assert!(!fs::try_exists("hardlink/dist/dir/linked1.txt").unwrap());
 
     assert_eq!(
         "original text text\n",

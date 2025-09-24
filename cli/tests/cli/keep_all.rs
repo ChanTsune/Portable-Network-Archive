@@ -24,7 +24,7 @@ fn archive_keep_all() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(fs::exists("archive_keep_all/keep_all.pna").unwrap());
+    assert!(fs::try_exists("archive_keep_all/keep_all.pna").unwrap());
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",

@@ -54,7 +54,7 @@ fn create_with_exclude_vcs() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(fs::exists("create_with_exclude_vcs/create_with_exclude_vcs.pna").unwrap());
+    assert!(fs::try_exists("create_with_exclude_vcs/create_with_exclude_vcs.pna").unwrap());
 
     cli::Cli::try_parse_from([
         "pna",
@@ -133,7 +133,7 @@ fn create_without_exclude_vcs() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(fs::exists("create_without_exclude_vcs/create_without_exclude_vcs.pna").unwrap());
+    assert!(fs::try_exists("create_without_exclude_vcs/create_without_exclude_vcs.pna").unwrap());
 
     cli::Cli::try_parse_from([
         "pna",
