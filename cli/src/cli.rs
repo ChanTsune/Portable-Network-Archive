@@ -117,7 +117,7 @@ pub(crate) struct PasswordArgs {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-#[command(group(ArgGroup::new("transform_strategy").args(["password", "password_file"])))]
+#[command(group(ArgGroup::new("transform_strategy").args(["unsolid", "keep_solid"])))]
 pub(crate) struct SolidEntriesTransformStrategyArgs {
     #[arg(long, help = "Unsolid input solid entries.")]
     pub(crate) unsolid: bool,
