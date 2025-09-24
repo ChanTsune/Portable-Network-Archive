@@ -462,7 +462,7 @@ fn bsd_tar_list_entries(entries: Vec<TableRow>, options: ListOptions) {
                     gname,
                     size,
                     mtime,
-                    name.clone(),
+                    Cow::from(name.as_str()),
                     None,
                 ),
                 EntryType::Directory(name) => (
@@ -472,7 +472,7 @@ fn bsd_tar_list_entries(entries: Vec<TableRow>, options: ListOptions) {
                     gname,
                     size,
                     mtime,
-                    format!("{name}/"),
+                    Cow::from(format!("{name}/")),
                     None,
                 ),
                 EntryType::SymbolicLink(name, link_to) => (
@@ -482,7 +482,7 @@ fn bsd_tar_list_entries(entries: Vec<TableRow>, options: ListOptions) {
                     gname,
                     size,
                     mtime,
-                    name.clone(),
+                    Cow::from(name.as_str()),
                     Some(format!("-> {link_to}")),
                 ),
                 EntryType::HardLink(name, link_to) => (
@@ -492,7 +492,7 @@ fn bsd_tar_list_entries(entries: Vec<TableRow>, options: ListOptions) {
                     gname,
                     size,
                     mtime,
-                    name.clone(),
+                    Cow::from(name.as_str()),
                     Some(format!("link to {link_to}")),
                 ),
             }
