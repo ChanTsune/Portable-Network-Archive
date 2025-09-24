@@ -29,7 +29,7 @@ itertools = "0.14.0"
 log = "0.4.28"
 memmap2 = { version = "0.9.8", optional = true }
 nom = "8.0.0"
-parse_datetime = "0.11.0"
+parse_datetime = "0.12.0"
 path-slash = "0.2.1"
 pna = { version = "0.27.0", path = "../pna" }
 rayon = "1.11.0"
