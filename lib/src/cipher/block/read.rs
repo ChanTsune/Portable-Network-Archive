@@ -64,7 +64,7 @@ where
             }
         }
         if self.eof {
-            return Ok(0);
+            return Ok(total_written);
         }
         let block_size = cbc::Decryptor::<C>::block_size();
         let mut out_block = Block::<cbc::Decryptor<C>>::default();
