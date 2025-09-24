@@ -21,7 +21,7 @@ pub(crate) enum DateTimeError {
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) enum DateTime {
     Naive(chrono::NaiveDateTime),
-    Zoned(chrono::DateTime<chrono::FixedOffset>),
+    Zoned(jiff::Zoned),
     Date(chrono::NaiveDate),
     Epoch(i64, u32), // Unix epoch timestamp in seconds and subsec nanos
 }
@@ -50,7 +50,10 @@ impl DateTime {
                 };
                 from_timestamp(seconds, nanos)
             }
-            Self::Zoned(zoned) => from_timestamp(zoned.timestamp(), zoned.timestamp_subsec_nanos()),
+            Self::Zoned(zoned) => {
+                let ts = zoned.timestamp();
+                from_timestamp(ts.as_second(), zoned.subsec_nanosecond() as u32)
+            }
             Self::Date(date) => {
                 let utc = date.and_hms_opt(0, 0, 0).unwrap().and_utc();
                 from_timestamp(utc.timestamp(), utc.timestamp_subsec_nanos())
@@ -135,10 +138,10 @@ mod tests {
     fn test_datetime_parse_with_timezone() {
         let zoned_dt = "2024-03-20T12:34:56+09:00";
         let datetime = DateTime::from_str(zoned_dt).unwrap();
-        assert_eq!(datetime.to_string(), "2024-03-20 12:34:56 +09:00");
+        assert_eq!(datetime.to_string(), "2024-03-20T12:34:56+09:00[+09:00]");
         let zoned_dt = "2024-03-20T12:34:56Z";
         let datetime = DateTime::from_str(zoned_dt).unwrap();
-        assert_eq!(datetime.to_string(), "2024-03-20 12:34:56 +00:00");
+        assert_eq!(datetime.to_string(), "2024-03-20T12:34:56+00:00[UTC]");
     }
 
     #[test]
