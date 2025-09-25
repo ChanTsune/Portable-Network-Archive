@@ -26,7 +26,8 @@ where
         debug_assert_eq!(cbc::Encryptor::<C>::block_size(), 16);
         Ok(Self {
             w,
-            c: cbc::Encryptor::<C>::new_from_slices(key, iv).unwrap(),
+            c: cbc::Encryptor::<C>::new_from_slices(key, iv)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
             padding: PhantomData,
             buf: ArrayVec::new(),
         })
