@@ -1,6 +1,8 @@
 use crate::{
     chunk::{Ace, AcePlatform, Flag, Identifier, OwnerType, Permission},
-    cli::{PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs},
+    cli::{
+        FileArgs, PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs,
+    },
     command::{
         ask_password,
         commons::{
@@ -25,7 +27,6 @@ use regex::Regex;
 use std::{
     collections::{HashMap, HashSet},
     fs, io,
-    path::PathBuf,
     str::FromStr,
 };
 
@@ -61,10 +62,8 @@ pub(crate) struct GetAclCommand {
     platform: Vec<AcePlatform>,
     #[arg(short, long, help = "List numeric user and group IDs")]
     numeric: bool,
-    #[arg(value_hint = ValueHint::FilePath)]
-    archive: PathBuf,
-    #[arg(value_hint = ValueHint::AnyPath)]
-    files: Vec<String>,
+    #[command(flatten)]
+    file: FileArgs,
     #[command(flatten)]
     password: PasswordArgs,
 }
@@ -81,10 +80,8 @@ impl Command for GetAclCommand {
     group(ArgGroup::new("set-flags").args(["set", "modify"])),
 )]
 pub(crate) struct SetAclCommand {
-    #[arg(value_hint = ValueHint::FilePath)]
-    archive: PathBuf,
-    #[arg(value_hint = ValueHint::AnyPath)]
-    files: Vec<String>,
+    #[command(flatten)]
+    file: FileArgs,
     #[arg(long, help = "Set the ACL on the specified file.")]
     set: Option<AclEntries>,
     #[arg(
@@ -283,14 +280,15 @@ impl FromStr for AclEntries {
 
 fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    if args.files.is_empty() {
+    if args.file.files.is_empty() {
         return Ok(());
     }
-    let mut globs = GlobPatterns::new(args.files.iter().map(|it| it.as_str()))?;
+    let files = args.file.files;
+    let mut globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))?;
     let platforms = args.platform.into_iter().collect::<HashSet<_>>();
     let numeric_owner = args.numeric;
 
-    let archives = collect_split_archives(&args.archive)?;
+    let archives = collect_split_archives(args.file.archive)?;
 
     #[cfg(feature = "memmap")]
     let mmaps = archives
@@ -337,14 +335,15 @@ fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
 
 fn archive_set_acl(args: SetAclCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
+    let files = args.file.files;
     let mut set_strategy = if let Some("-") = args.restore.as_deref() {
         SetAclsStrategy::Restore(parse_acl_dump(io::stdin().lock())?)
     } else if let Some(path) = args.restore.as_deref() {
         SetAclsStrategy::Restore(parse_acl_dump(io::BufReader::new(fs::File::open(path)?))?)
-    } else if args.files.is_empty() {
+    } else if files.is_empty() {
         return Ok(());
     } else {
-        let globs = GlobPatterns::new(args.files.iter().map(|it| it.as_str()))?;
+        let globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))?;
         SetAclsStrategy::Apply {
             globs,
             set: args.set,
@@ -354,7 +353,7 @@ fn archive_set_acl(args: SetAclCommand) -> anyhow::Result<()> {
         }
     };
 
-    let archives = collect_split_archives(&args.archive)?;
+    let archives = collect_split_archives(&args.file.archive)?;
 
     #[cfg(feature = "memmap")]
     let mmaps = archives
@@ -364,7 +363,7 @@ fn archive_set_acl(args: SetAclCommand) -> anyhow::Result<()> {
     #[cfg(feature = "memmap")]
     let archives = mmaps.iter().map(|m| m.as_ref());
 
-    let output_path = args.archive.remove_part().unwrap();
+    let output_path = args.file.archive.remove_part().unwrap();
     let mut temp_file =
         NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
 
