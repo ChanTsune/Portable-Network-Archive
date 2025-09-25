@@ -33,22 +33,22 @@ use std::{
 #[command(args_conflicts_with_subcommands = true, arg_required_else_help = true)]
 pub(crate) struct AclCommand {
     #[command(subcommand)]
-    command: XattrCommands,
+    command: AclCommands,
 }
 
 impl Command for AclCommand {
     #[inline]
     fn execute(self) -> anyhow::Result<()> {
         match self.command {
-            XattrCommands::Get(cmd) => cmd.execute(),
-            XattrCommands::Set(cmd) => cmd.execute(),
+            AclCommands::Get(cmd) => cmd.execute(),
+            AclCommands::Set(cmd) => cmd.execute(),
         }
     }
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 #[allow(clippy::large_enum_variant)]
-pub(crate) enum XattrCommands {
+pub(crate) enum AclCommands {
     #[command(about = "Get acl of entries")]
     Get(GetAclCommand),
     #[command(about = "Set acl of entries")]
