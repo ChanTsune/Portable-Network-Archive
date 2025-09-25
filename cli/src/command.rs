@@ -25,7 +25,12 @@ use std::{fs, io};
 
 fn ask_password(args: PasswordArgs) -> io::Result<Option<String>> {
     if let Some(path) = args.password_file {
-        return Ok(Some(fs::read_to_string(path)?));
+        let mut password = fs::read_to_string(path)?;
+        // Trim common line terminators to avoid accidental newline in passwords read from files
+        while password.ends_with('\n') || password.ends_with('\r') {
+            password.pop();
+        }
+        return Ok(Some(password));
     };
     Ok(match args.password {
         Some(password @ Some(_)) => {
