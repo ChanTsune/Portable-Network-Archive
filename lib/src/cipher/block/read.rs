@@ -38,7 +38,8 @@ where
         }
         Ok(Self {
             r,
-            c: cbc::Decryptor::<C>::new_from_slices(key, iv).unwrap(),
+            c: cbc::Decryptor::<C>::new_from_slices(key, iv)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
             padding: PhantomData,
             remaining: ArrayVec::new(),
             buf,
