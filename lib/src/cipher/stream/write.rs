@@ -26,7 +26,7 @@ where
         Ok(Self {
             w,
             cipher: StreamCipherCoreWrapper::<T>::new_from_slices(key, iv)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
         })
     }
 
