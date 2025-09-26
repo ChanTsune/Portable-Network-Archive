@@ -163,7 +163,10 @@ pub(crate) struct PasswordArgs {
         help = "Password of archive. If password is not given it's asked from the tty"
     )]
     pub(crate) password: Option<Option<String>>,
-    #[arg(long, help = "Read password from specified file")]
+    #[arg(
+        long,
+        help = "Read the password from the specified file. Only the first non-empty line is used, and trailing newlines are ignored."
+    )]
     pub(crate) password_file: Option<PathBuf>,
 }
 
