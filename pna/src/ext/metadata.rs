@@ -25,7 +25,7 @@ impl MetadataTimeExt for Metadata {
     /// This is the same as [Metadata::created] + [SystemTime::UNIX_EPOCH].
     /// ```
     /// use pna::{prelude::*, Metadata, Duration};
-    /// use std::time::{UNIX_EPOCH};
+    /// use std::time::UNIX_EPOCH;
     ///
     /// let metadata = Metadata::new().with_created(Some(Duration::seconds(1000)));
     ///
@@ -44,7 +44,7 @@ impl MetadataTimeExt for Metadata {
     /// This is the same as [Metadata::modified] + [SystemTime::UNIX_EPOCH].
     /// ```
     /// use pna::{prelude::*, Metadata, Duration};
-    /// use std::time::{UNIX_EPOCH};
+    /// use std::time::UNIX_EPOCH;
     ///
     /// let metadata = Metadata::new().with_modified(Some(Duration::seconds(1000)));
     ///
@@ -63,7 +63,7 @@ impl MetadataTimeExt for Metadata {
     /// This is the same as [Metadata::accessed] + [SystemTime::UNIX_EPOCH].
     /// ```
     /// use pna::{prelude::*, Metadata, Duration};
-    /// use std::time::{UNIX_EPOCH};
+    /// use std::time::UNIX_EPOCH;
     ///
     /// let metadata = Metadata::new().with_accessed(Some(Duration::seconds(1000)));
     ///
