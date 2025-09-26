@@ -1,3 +1,4 @@
+//! Provides extension traits for [`EntryBuilder`].
 use crate::{ext::private, prelude::*};
 use libpna::{EntryBuilder, Metadata};
 use std::time::SystemTime;

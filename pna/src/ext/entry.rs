@@ -1,3 +1,4 @@
+//! Provides extension traits for [`NormalEntry`].
 use super::private;
 use libpna::{EntryBuilder, NormalEntry, WriteOptions};
 use std::{fs, io, path::Path};
