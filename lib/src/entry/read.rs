@@ -1,7 +1,7 @@
 use crate::{
     cipher::{Ctr128BEReader, DecryptCbcAes256Reader, DecryptCbcCamellia256Reader, DecryptReader},
     compress::DecompressReader,
-    hash::verify_password,
+    hash::derive_password_hash,
     CipherMode, Compression, Encryption,
 };
 use aes::Aes256;
@@ -23,7 +23,7 @@ pub(crate) fn decrypt_reader<R: Read>(
             let s = phsf.ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidData, "`PHSF` chunk not found")
             })?;
-            let phsf = verify_password(
+            let phsf = derive_password_hash(
                 s,
                 password.ok_or_else(|| {
                     io::Error::new(io::ErrorKind::InvalidInput, "Password was not provided")
