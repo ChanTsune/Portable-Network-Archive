@@ -1,4 +1,4 @@
-use crate::utils::{archive, setup, TestResources};
+use crate::utils::{archive, setup, EmbedExt, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 use std::collections::HashMap;

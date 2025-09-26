@@ -1,4 +1,4 @@
-use crate::utils::{setup, TestResources};
+use crate::utils::{setup, EmbedExt, TestResources};
 
 #[test]
 fn acl_get_dump() {

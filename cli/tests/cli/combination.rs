@@ -1,4 +1,4 @@
-use crate::utils::{diff::diff, setup, LibSourceCode};
+use crate::utils::{diff::diff, setup, EmbedExt, LibSourceCode};
 use itertools::Itertools;
 
 // NOTE: Skip `--keep-xattr` option for NetBSD

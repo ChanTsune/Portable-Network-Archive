@@ -1,4 +1,4 @@
-use crate::utils::{setup, TestResources};
+use crate::utils::{setup, EmbedExt, TestResources};
 use std::fs;
 
 #[test]

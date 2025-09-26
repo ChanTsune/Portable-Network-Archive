@@ -1,5 +1,5 @@
 #![cfg(not(target_family = "wasm"))]
-use crate::utils::{diff::diff, setup, TestResources};
+use crate::utils::{diff::diff, setup, EmbedExt, TestResources};
 use assert_cmd::Command as Cmd;
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
