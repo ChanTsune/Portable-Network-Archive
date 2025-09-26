@@ -42,7 +42,7 @@ pub(crate) fn pbkdf2_with_salt<'a>(
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
 }
 
-pub(crate) fn verify_password<'a>(
+pub(crate) fn derive_password_hash<'a>(
     phsf: &'a str,
     password: &'a [u8],
 ) -> io::Result<PasswordHash<'a>> {
@@ -89,7 +89,7 @@ mod tests {
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
     #[test]
-    fn verify_argon2() {
+    fn derive_argon2() {
         let salt = random::salt_string();
         let mut ph = argon2_with_salt(
             b"pass",
@@ -104,12 +104,12 @@ mod tests {
         ph.hash.take();
         assert_eq!(ph.hash, None);
         let ps = ph.to_string();
-        let ph = verify_password(&ps, b"pass").unwrap();
+        let ph = derive_password_hash(&ps, b"pass").unwrap();
         assert!(ph.hash.is_some());
     }
 
     #[test]
-    fn verify_pbkdf2() {
+    fn derive_pbkdf2() {
         let salt = random::salt_string();
         let mut ph = pbkdf2_with_salt(
             b"pass",
@@ -121,7 +121,7 @@ mod tests {
         ph.hash.take();
         assert_eq!(ph.hash, None);
         let ps = ph.to_string();
-        let ph = verify_password(&ps, b"pass").unwrap();
+        let ph = derive_password_hash(&ps, b"pass").unwrap();
         assert!(ph.hash.is_some());
     }
 }
