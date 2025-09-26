@@ -1,3 +1,4 @@
+//! Provides extension traits for [`Metadata`].
 use super::private;
 use crate::prelude::*;
 use libpna::Metadata;

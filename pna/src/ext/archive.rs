@@ -1,3 +1,4 @@
+//! Provides extension traits for [`Archive<fs::File>`].
 use super::private;
 use libpna::Archive;
 use std::path::Path;
