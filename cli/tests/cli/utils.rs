@@ -2,6 +2,7 @@ pub mod archive;
 pub mod diff;
 
 use std::{
+    borrow::Cow,
     fs, io,
     path::{Component, Path},
 };
@@ -17,6 +18,7 @@ pub struct LibSourceCode;
 pub trait EmbedExt {
     fn extract_all(into: impl AsRef<Path>) -> io::Result<()>;
     fn extract_in(item: &str, into: impl AsRef<Path>) -> io::Result<()>;
+    fn item_iter() -> impl Iterator<Item = (Cow<'static, str>, rust_embed::EmbeddedFile)>;
 }
 
 impl<T: rust_embed::Embed> EmbedExt for T {
@@ -26,6 +28,14 @@ impl<T: rust_embed::Embed> EmbedExt for T {
     fn extract_in(item: &str, into: impl AsRef<Path>) -> io::Result<()> {
         extract_in::<Self>(item, into)
     }
+    fn item_iter() -> impl Iterator<Item = (Cow<'static, str>, rust_embed::EmbeddedFile)> {
+        item_iter::<Self>()
+    }
+}
+
+pub fn item_iter<T: rust_embed::Embed>(
+) -> impl Iterator<Item = (Cow<'static, str>, rust_embed::EmbeddedFile)> {
+    T::iter().flat_map(|i| T::get(&i).map(|embedded| (i, embedded)))
 }
 
 pub fn extract_all<T: rust_embed::Embed>(into: impl AsRef<Path>) -> io::Result<()> {
