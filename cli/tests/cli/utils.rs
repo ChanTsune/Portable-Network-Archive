@@ -10,24 +10,20 @@ use std::{
 #[folder = "../resources/test"]
 pub struct TestResources;
 
-impl TestResources {
-    pub fn extract_all(into: impl AsRef<Path>) -> io::Result<()> {
-        extract_all::<Self>(into)
-    }
-    pub fn extract_in(item: &str, into: impl AsRef<Path>) -> io::Result<()> {
-        extract_in::<Self>(item, into)
-    }
-}
-
 #[derive(rust_embed::Embed)]
 #[folder = "../lib"]
 pub struct LibSourceCode;
 
-impl LibSourceCode {
-    pub fn extract_all(into: impl AsRef<Path>) -> io::Result<()> {
+pub trait EmbedExt {
+    fn extract_all(into: impl AsRef<Path>) -> io::Result<()>;
+    fn extract_in(item: &str, into: impl AsRef<Path>) -> io::Result<()>;
+}
+
+impl<T: rust_embed::Embed> EmbedExt for T {
+    fn extract_all(into: impl AsRef<Path>) -> io::Result<()> {
         extract_all::<Self>(into)
     }
-    pub fn extract_in(item: &str, into: impl AsRef<Path>) -> io::Result<()> {
+    fn extract_in(item: &str, into: impl AsRef<Path>) -> io::Result<()> {
         extract_in::<Self>(item, into)
     }
 }

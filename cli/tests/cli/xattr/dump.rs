@@ -1,4 +1,4 @@
-use crate::utils::{setup, TestResources};
+use crate::utils::{setup, EmbedExt, TestResources};
 
 #[test]
 fn xattr_get_dump() {

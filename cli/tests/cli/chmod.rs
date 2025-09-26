@@ -5,7 +5,7 @@ mod password;
 mod password_file;
 mod unsolid;
 
-use crate::utils::{diff::diff, setup, TestResources};
+use crate::utils::{diff::diff, setup, EmbedExt, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 #[cfg(unix)]
