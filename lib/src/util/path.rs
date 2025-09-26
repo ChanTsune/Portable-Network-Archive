@@ -16,13 +16,17 @@ pub(crate) fn normalize_path(path: impl AsRef<Path>) -> PathBuf {
             Component::Prefix(_) => unreachable!(),
             Component::RootDir => buf.push(c),
             Component::CurDir => (),
-            Component::ParentDir => {
-                if buf.parent().is_some() {
+            Component::ParentDir => match buf.components().next_back() {
+                Some(Component::Normal(_)) => {
                     buf.pop();
-                } else {
+                }
+                Some(Component::ParentDir) | None => buf.push(c),
+                Some(Component::RootDir | Component::Prefix(_)) => {}
+                Some(Component::CurDir) => {
+                    buf.pop();
                     buf.push(c);
                 }
-            }
+            },
             Component::Normal(_) => buf.push(c),
         }
     }
@@ -41,6 +45,19 @@ mod tests {
         assert_eq!(OsStr::new("/a.txt"), normalize_path("/a.txt"));
         assert_eq!(OsStr::new("a.txt"), normalize_path("./a.txt"));
         assert_eq!(OsStr::new("a.txt"), normalize_path("a/../a.txt"));
+        assert_eq!(OsStr::new("a.txt"), normalize_path("a/b/../../a.txt"));
         assert_eq!(OsStr::new("../a.txt"), normalize_path("../a.txt"));
+        assert_eq!(OsStr::new("../.."), normalize_path("../.."));
+        assert_eq!(OsStr::new("../../a.txt"), normalize_path("../../a.txt"));
+        assert_eq!(OsStr::new("../a.txt"), normalize_path("a/../../a.txt"));
+        assert_eq!(OsStr::new("a/a.txt"), normalize_path("a/b/./../a.txt"));
+        assert_eq!(OsStr::new("/"), normalize_path("/"));
+        assert_eq!(OsStr::new("/a/b"), normalize_path("/a//b///"));
+        assert_eq!(OsStr::new("a/b"), normalize_path("a//b///"));
+        assert_eq!(OsStr::new("a/b"), normalize_path("a/b/"));
+        assert_eq!(OsStr::new("a"), normalize_path("a/."));
+        assert_eq!(OsStr::new(""), normalize_path("."));
+        assert_eq!(OsStr::new(".."), normalize_path(".."));
+        assert_eq!(OsStr::new("/"), normalize_path("/.."));
     }
 }
