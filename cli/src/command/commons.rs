@@ -24,11 +24,11 @@ use std::{
     time::SystemTime,
 };
 
-/// Split archive overhead in bytes (PNA header + three minimum chunks + PNA end marker).
+/// Overhead for a split archive part in bytes, including PNA header, AHED, ANXT, and AEND chunks.
 pub(crate) const SPLIT_ARCHIVE_OVERHEAD_BYTES: usize =
     PNA_HEADER.len() + MIN_CHUNK_BYTES_SIZE * 3 + 8;
 
-/// Minimum bytes required for a split archive part (overhead + one minimal chunk payload).
+/// Minimum bytes required for a split archive part (overhead + one minimal chunk).
 pub(crate) const MIN_SPLIT_PART_BYTES: usize = SPLIT_ARCHIVE_OVERHEAD_BYTES + MIN_CHUNK_BYTES_SIZE;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
