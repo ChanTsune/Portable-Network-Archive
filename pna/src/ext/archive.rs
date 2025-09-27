@@ -6,7 +6,7 @@ use std::{fs, io};
 
 /// [`Archive`] filesystem extension trait.
 pub trait ArchiveFsExt: private::Sealed {
-    /// Creates a PNA file.
+    /// Creates a new archive file at `path` and writes the archive header.
     ///
     /// # Errors
     ///
@@ -15,7 +15,7 @@ pub trait ArchiveFsExt: private::Sealed {
     where
         Self: Sized;
 
-    /// Opens an existing PNA file.
+    /// Opens an existing archive file at `path` and reads the header.
     ///
     /// # Errors
     ///
@@ -26,9 +26,16 @@ pub trait ArchiveFsExt: private::Sealed {
 }
 
 impl ArchiveFsExt for Archive<fs::File> {
+    /// Creates a new archive file at `path` and writes the archive header.
+    ///
+    /// Equivalent to calling [`Archive::write_header`] with a newly
+    /// created [`fs::File`].
+    ///
+    /// Returns an `Archive<fs::File>` ready for writing entries.
+    ///
     /// # Examples
     /// ```no_run
-    /// # use std::io::{self, prelude::*};
+    /// # use std::io;
     /// use pna::prelude::*;
     /// use pna::Archive;
     ///
@@ -38,24 +45,38 @@ impl ArchiveFsExt for Archive<fs::File> {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns any error from [`fs::File::create`] or any error from [`Archive::write_header`].
     #[inline]
     fn create<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let file = fs::File::create(path)?;
         Archive::write_header(file)
     }
 
+    /// Opens an existing archive file at `path` and reads the header.
+    ///
+    /// Equivalent to calling [`Archive::read_header`] with a file
+    /// opened via [`fs::File::open`].
+    ///
+    /// Returns an `Archive<fs::File>` ready for reading entries.
+    ///
     /// # Examples
     /// ```no_run
-    /// # use std::io::{self, prelude::*};
+    /// # use std::io;
     /// use pna::prelude::*;
     /// use pna::Archive;
     ///
     /// # fn main() -> io::Result<()> {
     /// let mut archive = Archive::open("archive.pna")?;
-    /// archive.finalize()?;
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns any error from [`fs::File::open`] or any error from [`Archive::read_header`].
     #[inline]
     fn open<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         let file = fs::File::open(path)?;
