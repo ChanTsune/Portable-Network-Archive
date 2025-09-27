@@ -26,22 +26,29 @@ pub trait EntryFsExt: private::Sealed {
 impl EntryFsExt for NormalEntry {
     /// Creates an entry from the given path.
     ///
-    /// # Errors
-    ///
-    /// Returns an error if an I/O error occurs while creating the entry.
+    /// The path may refer to a regular file or a directory. For files, the
+    /// file contents are read and embedded into the resulting entry using
+    /// default [`WriteOptions`] (equivalent to
+    /// `WriteOptions::builder().build()`). For directories, an empty directory
+    /// entry is created. Symlinks are followed (uses [`std::fs::metadata`]). If
+    /// the intention is to archive a symbolic link itself, use
+    /// [`EntryBuilder::new_symlink`].
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// # use std::io::{self, prelude::*};
     /// use pna::prelude::*;
     /// use pna::NormalEntry;
     ///
-    /// # fn main() -> io::Result<()> {
+    /// # fn main() -> std::io::Result<()> {
     /// NormalEntry::from_path("path/to/file")?;
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while creating the entry.
     #[inline]
     fn from_path<P: AsRef<Path>>(path: P) -> io::Result<Self> {
         Self::from_path_with(path.as_ref(), WriteOptions::builder().build())
@@ -49,22 +56,24 @@ impl EntryFsExt for NormalEntry {
 
     /// Creates an entry from the given path with options.
     ///
-    /// # Errors
-    ///
-    /// Returns an error if an I/O error occurs while creating the entry.
+    /// Behaves like [`EntryFsExt::from_path`], but uses the provided
+    /// [`WriteOptions`] when constructing a file entry.
     ///
     /// # Examples
     ///
     /// ```no_run
-    /// # use std::io::{self, prelude::*};
     /// use pna::prelude::*;
     /// use pna::{NormalEntry, WriteOptions};
     ///
-    /// # fn main() -> io::Result<()> {
+    /// # fn main() -> std::io::Result<()> {
     /// NormalEntry::from_path_with("path/to/file", WriteOptions::store())?;
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while creating the entry.
     #[inline]
     fn from_path_with<P: AsRef<Path>>(path: P, options: WriteOptions) -> io::Result<Self>
     where
