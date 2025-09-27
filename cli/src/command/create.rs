@@ -8,7 +8,7 @@ use crate::{
         commons::{
             collect_items, create_entry, entry_option, read_paths, read_paths_stdin,
             write_split_archive, CreateOptions, Exclude, KeepOptions, OwnerOptions,
-            PathTransformers, StoreAs, TimeOptions,
+            PathTransformers, StoreAs, TimeOptions, MIN_SPLIT_PART_BYTES,
         },
         Command,
     },
@@ -19,6 +19,7 @@ use crate::{
         VCS_FILES,
     },
 };
+use anyhow::ensure;
 use bytesize::ByteSize;
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::{Archive, SolidEntryBuilder, WriteOptions};
@@ -115,7 +116,7 @@ pub(crate) struct CreateCommand {
     #[arg(
         long,
         value_name = "size",
-        help = "Splits archive by given size in bytes"
+        help = "Splits archive by given size in bytes (minimum 64B)"
     )]
     pub(crate) split: Option<Option<ByteSize>>,
     #[arg(long, help = "Create an archive in solid mode")]
@@ -237,6 +238,16 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     check_password(&password, &args.cipher);
     let start = Instant::now();
     let archive = &args.file.archive();
+    let max_file_size = args
+        .split
+        .map(|opt| opt.unwrap_or(ByteSize::gb(1)).as_u64() as usize);
+    if let Some(size) = max_file_size {
+        ensure!(
+            size >= MIN_SPLIT_PART_BYTES,
+            "The value for --split must be at least {MIN_SPLIT_PART_BYTES} bytes ({}).",
+            ByteSize::b(MIN_SPLIT_PART_BYTES as u64)
+        );
+    }
     if !args.overwrite && archive.exists() {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
@@ -281,10 +292,6 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     if let Some(parent) = archive_path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let max_file_size = args
-        .split
-        .map(|it| it.unwrap_or(ByteSize::gb(1)).0 as usize);
-
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
         keep_permission: args.keep_permission,

@@ -1,7 +1,11 @@
 use crate::{
-    command::{commons::write_split_archive, Command},
+    command::{
+        commons::{write_split_archive, MIN_SPLIT_PART_BYTES},
+        Command,
+    },
     utils::PathPartExt,
 };
+use anyhow::ensure;
 use bytesize::ByteSize;
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
@@ -21,7 +25,7 @@ pub(crate) struct SplitCommand {
     #[arg(
         long,
         value_name = "size",
-        help = "Maximum size in bytes of split archive"
+        help = "Maximum size in bytes of split archive (minimum 64B)"
     )]
     pub(crate) max_size: Option<ByteSize>,
 }
@@ -42,6 +46,12 @@ fn split_archive(args: SplitCommand) -> anyhow::Result<()> {
         }
         _ => unreachable!("required by ArgGroup"),
     };
+    let max_file_size = args.max_size.unwrap_or_else(|| ByteSize::gb(1)).as_u64() as usize;
+    ensure!(
+        max_file_size >= MIN_SPLIT_PART_BYTES,
+        "The value for --max-size must be at least {MIN_SPLIT_PART_BYTES} bytes ({}).",
+        ByteSize::b(MIN_SPLIT_PART_BYTES as u64)
+    );
     let read_file = fs::File::open(&archive_path)?;
     #[cfg(not(feature = "memmap"))]
     let mut read_archive = Archive::read_header(read_file)?;
@@ -68,7 +78,5 @@ fn split_archive(args: SplitCommand) -> anyhow::Result<()> {
         )
         .into());
     }
-    let max_file_size = args.max_size.unwrap_or_else(|| ByteSize::gb(1)).as_u64() as usize;
-
     write_split_archive(base_out_file_name, entries, max_file_size, args.overwrite)
 }

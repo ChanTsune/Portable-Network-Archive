@@ -24,6 +24,13 @@ use std::{
     time::SystemTime,
 };
 
+/// Split archive overhead in bytes (PNA header + three minimum chunks + PNA end marker).
+pub(crate) const SPLIT_ARCHIVE_OVERHEAD_BYTES: usize =
+    PNA_HEADER.len() + MIN_CHUNK_BYTES_SIZE * 3 + 8;
+
+/// Minimum bytes required for a split archive part (overhead + one minimal chunk payload).
+pub(crate) const MIN_SPLIT_PART_BYTES: usize = SPLIT_ARCHIVE_OVERHEAD_BYTES + MIN_CHUNK_BYTES_SIZE;
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) struct KeepOptions {
     pub(crate) keep_timestamp: bool,
@@ -955,11 +962,20 @@ where
     F: FnMut(usize) -> io::Result<W>,
     C: FnMut(usize) -> io::Result<()>,
 {
+    if max_file_size < MIN_SPLIT_PART_BYTES {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "Split size must be at least {MIN_SPLIT_PART_BYTES} bytes to accommodate headers"
+            ),
+        )
+        .into());
+    }
     let mut part_num = 1;
     let mut writer = Archive::write_header(initial_writer)?;
 
     // NOTE: max_file_size - (PNA_HEADER + AHED + ANXT + AEND)
-    let max_file_size = max_file_size - (PNA_HEADER.len() + MIN_CHUNK_BYTES_SIZE * 3 + 8);
+    let max_file_size = max_file_size - SPLIT_ARCHIVE_OVERHEAD_BYTES;
     let mut written_entry_size = 0;
     for entry in entries {
         let p = EntryPart::from(entry?);
