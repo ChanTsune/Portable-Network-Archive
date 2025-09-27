@@ -92,7 +92,9 @@ pub(crate) enum Commands {
     Complete(CompleteCommand),
     #[command(about = "Generate bug report template")]
     BugReport(BugReportCommand),
-    #[command(about = "Unstable experimental commands")]
+    #[command(
+        about = "Unstable experimental commands; behavior and interface may change or be removed"
+    )]
     Experimental(ExperimentalCommand),
 }
 
