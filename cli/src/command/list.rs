@@ -25,7 +25,7 @@ use pna::{
     ReadEntry, ReadOptions, SolidHeader,
 };
 use rayon::prelude::*;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::{
     borrow::Cow,
     collections::{BTreeSet, HashMap},
@@ -840,16 +840,16 @@ fn permission_string(kind: &EntryType, permission: u16, has_xattr: bool, has_acl
     )
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct FileInfo {
-    filename: String,
+#[derive(Serialize, Debug)]
+struct FileInfo<'a> {
+    filename: &'a str,
     permissions: String,
     owner: String,
     group: String,
     raw_size: u128,
     size: usize,
-    encryption: String,
-    compression: String,
+    encryption: &'a str,
+    compression: &'a str,
     created: String,
     modified: String,
     accessed: String,
@@ -857,21 +857,21 @@ struct FileInfo {
     xattr: Vec<XAttr>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Debug)]
 struct AclEntry {
     platform: String,
     entries: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Debug)]
 struct XAttr {
     key: String,
     value: String,
 }
 
-fn json_line_entries(entries: impl IntoParallelIterator<Item = TableRow>) {
+fn json_line_entries(entries: Vec<TableRow>) {
     let entries = entries
-        .into_par_iter()
+        .par_iter()
         .map(|it| {
             let permission_mode = it.permission_mode();
             let owner = it
@@ -883,7 +883,7 @@ fn json_line_entries(entries: impl IntoParallelIterator<Item = TableRow>) {
                 .as_ref()
                 .map_or_else(String::new, |it| it.gname().to_string());
             FileInfo {
-                filename: it.entry_type.name().into(),
+                filename: it.entry_type.name(),
                 permissions: permission_string(
                     &it.entry_type,
                     permission_mode,
@@ -894,8 +894,8 @@ fn json_line_entries(entries: impl IntoParallelIterator<Item = TableRow>) {
                 group,
                 raw_size: it.raw_size.unwrap_or_default(),
                 size: it.compressed_size,
-                encryption: it.encryption,
-                compression: it.compression,
+                encryption: &it.encryption,
+                compression: &it.compression,
                 created: it
                     .created
                     .map_or_else(String::new, |d| datetime(TimeFormat::Long, d)),
@@ -907,7 +907,7 @@ fn json_line_entries(entries: impl IntoParallelIterator<Item = TableRow>) {
                     .map_or_else(String::new, |d| datetime(TimeFormat::Long, d)),
                 acl: it
                     .acl
-                    .into_iter()
+                    .iter()
                     .map(|(platform, ace)| AclEntry {
                         platform: platform.to_string(),
                         entries: ace.into_iter().map(|it| it.to_string()).collect(),
@@ -915,7 +915,7 @@ fn json_line_entries(entries: impl IntoParallelIterator<Item = TableRow>) {
                     .collect(),
                 xattr: it
                     .xattrs
-                    .into_iter()
+                    .iter()
                     .map(|x| XAttr {
                         key: x.name().into(),
                         value: base64::engine::general_purpose::STANDARD.encode(x.value()),
