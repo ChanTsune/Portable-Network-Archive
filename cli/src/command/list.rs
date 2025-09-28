@@ -463,20 +463,19 @@ fn bsd_tar_list_entries(entries: Vec<TableRow>, options: ListOptions) {
         let size = row.raw_size.unwrap_or(0);
         let mtime = bsd_tar_time(now, row.modified.unwrap_or(now));
         let (uname, gname) = match &row.permission {
-            Some(p) if options.numeric_owner => (p.uid().to_string(), p.gid().to_string()),
             Some(p) => (
-                if p.uname().is_empty() {
-                    p.uid().to_string()
+                if options.numeric_owner || p.uname().is_empty() {
+                    Cow::Owned(p.uid().to_string())
                 } else {
-                    p.uname().to_string()
+                    Cow::Borrowed(p.uname())
                 },
-                if p.gname().is_empty() {
-                    p.gid().to_string()
+                if options.numeric_owner || p.gname().is_empty() {
+                    Cow::Owned(p.gid().to_string())
                 } else {
-                    p.gname().to_string()
+                    Cow::Borrowed(p.gname())
                 },
             ),
-            None => (String::new(), String::new()),
+            None => (Cow::default(), Cow::default()),
         };
         let name = row.entry_type.bsd_long_style_display();
         uname_width = uname_width.max(uname.len());
