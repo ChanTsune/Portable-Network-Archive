@@ -151,6 +151,29 @@ impl EntryType {
             | EntryType::HardLink(name, _) => name,
         }
     }
+
+    #[inline]
+    fn bsd_long_style_display(&self) -> EntryTypeBsdLongStyleDisplay<'_> {
+        EntryTypeBsdLongStyleDisplay(self)
+    }
+}
+
+struct EntryTypeBsdLongStyleDisplay<'a>(&'a EntryType);
+
+impl Display for EntryTypeBsdLongStyleDisplay<'_> {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            EntryType::File(name) => Display::fmt(&name, f),
+            EntryType::Directory(name) => write!(f, "{name}/"),
+            EntryType::SymbolicLink(name, link_to) => {
+                write!(f, "{name} -> {link_to}")
+            }
+            EntryType::HardLink(name, link_to) => {
+                write!(f, "{name} link to {link_to}")
+            }
+        }
+    }
 }
 
 struct TableRow {
@@ -455,30 +478,15 @@ fn bsd_tar_list_entries(entries: Vec<TableRow>, options: ListOptions) {
             ),
             None => (String::new(), String::new()),
         };
-        let (name, link) = {
-            match &row.entry_type {
-                EntryType::File(name) => (Cow::from(name.as_str()), None),
-                EntryType::Directory(name) => (Cow::from(format!("{name}/")), None),
-                EntryType::SymbolicLink(name, link_to) => {
-                    (Cow::from(name.as_str()), Some(format!("-> {link_to}")))
-                }
-                EntryType::HardLink(name, link_to) => {
-                    (Cow::from(name.as_str()), Some(format!("link to {link_to}")))
-                }
-            }
-        };
+        let name = row.entry_type.bsd_long_style_display();
         uname_width = uname_width.max(uname.len());
         gname_width = gname_width.max(gname.len());
 
         // permission nlink uname gname size mtime name link
         // ex: -rw-r--r--  0 1000   1000        0 Jan  1  1980 f
-        print!(
+        println!(
             "{perm}  {nlink} {uname:<uname_width$} {gname:<gname_width$} {size:8} {mtime} {name}"
         );
-        if let Some(link) = link {
-            print!(" {link}");
-        }
-        println!();
     }
 }
 
