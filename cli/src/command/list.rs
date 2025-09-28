@@ -829,7 +829,7 @@ struct FileInfo<'a> {
     modified: String,
     accessed: String,
     acl: Vec<AclEntry>,
-    xattr: Vec<XAttr>,
+    xattr: Vec<XAttr<'a>>,
 }
 
 #[derive(Serialize, Debug)]
@@ -839,8 +839,8 @@ struct AclEntry {
 }
 
 #[derive(Serialize, Debug)]
-struct XAttr {
-    key: String,
+struct XAttr<'a> {
+    key: &'a str,
     value: String,
 }
 
@@ -892,7 +892,7 @@ fn json_line_entries(entries: Vec<TableRow>) {
                     .xattrs
                     .iter()
                     .map(|x| XAttr {
-                        key: x.name().into(),
+                        key: x.name(),
                         value: base64::engine::general_purpose::STANDARD.encode(x.value()),
                     })
                     .collect(),
