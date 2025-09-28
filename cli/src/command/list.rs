@@ -321,9 +321,9 @@ impl TimeField {
     #[inline]
     const fn as_str(&self) -> &'static str {
         match self {
-            TimeField::Created => "created",
-            TimeField::Modified => "modified",
-            TimeField::Accessed => "accessed",
+            TimeField::Created => "Created",
+            TimeField::Modified => "Modified",
+            TimeField::Accessed => "Accessed",
         }
     }
 }
