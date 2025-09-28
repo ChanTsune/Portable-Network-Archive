@@ -432,71 +432,39 @@ fn bsd_tar_list_entries(entries: Vec<TableRow>, options: ListOptions) {
     let mut uname_width = 6;
     let mut gname_width = 6;
     for row in entries {
-        let (perm, nlink, uname, gname, size, mtime, name, link) = {
-            let permission = row.permission_mode();
-            let has_xattr = !row.xattrs.is_empty();
-            let has_acl = !row.acl.is_empty();
-            let perm_str = permission_string(&row.entry_type, permission, has_xattr, has_acl);
-            let nlink = 0; // BSD tar show always 0
-            let (uname, gname) = match &row.permission {
-                Some(p) if options.numeric_owner => (p.uid().to_string(), p.gid().to_string()),
-                Some(p) => (
-                    if p.uname().is_empty() {
-                        p.uid().to_string()
-                    } else {
-                        p.uname().to_string()
-                    },
-                    if p.gname().is_empty() {
-                        p.gid().to_string()
-                    } else {
-                        p.gname().to_string()
-                    },
-                ),
-                None => (String::new(), String::new()),
-            };
-            let size = row.raw_size.unwrap_or(0);
-            let mtime = bsd_tar_time(now, row.modified.unwrap_or(now));
+        let nlink = 0; // BSD tar show always 0
+        let permission = row.permission_mode();
+        let has_xattr = !row.xattrs.is_empty();
+        let has_acl = !row.acl.is_empty();
+        let perm = permission_string(&row.entry_type, permission, has_xattr, has_acl);
+        let size = row.raw_size.unwrap_or(0);
+        let mtime = bsd_tar_time(now, row.modified.unwrap_or(now));
+        let (uname, gname) = match &row.permission {
+            Some(p) if options.numeric_owner => (p.uid().to_string(), p.gid().to_string()),
+            Some(p) => (
+                if p.uname().is_empty() {
+                    p.uid().to_string()
+                } else {
+                    p.uname().to_string()
+                },
+                if p.gname().is_empty() {
+                    p.gid().to_string()
+                } else {
+                    p.gname().to_string()
+                },
+            ),
+            None => (String::new(), String::new()),
+        };
+        let (name, link) = {
             match &row.entry_type {
-                EntryType::File(name) => (
-                    perm_str,
-                    nlink,
-                    uname,
-                    gname,
-                    size,
-                    mtime,
-                    Cow::from(name.as_str()),
-                    None,
-                ),
-                EntryType::Directory(name) => (
-                    perm_str,
-                    nlink,
-                    uname,
-                    gname,
-                    size,
-                    mtime,
-                    Cow::from(format!("{name}/")),
-                    None,
-                ),
-                EntryType::SymbolicLink(name, link_to) => (
-                    perm_str,
-                    nlink,
-                    uname,
-                    gname,
-                    size,
-                    mtime,
-                    Cow::from(name.as_str()),
-                    Some(format!("-> {link_to}")),
-                ),
-                EntryType::HardLink(name, link_to) => (
-                    perm_str,
-                    nlink,
-                    uname,
-                    gname,
-                    size,
-                    mtime,
-                    Cow::from(name.as_str()),
-                    Some(format!("link to {link_to}")),
-                ),
+                EntryType::File(name) => (Cow::from(name.as_str()), None),
+                EntryType::Directory(name) => (Cow::from(format!("{name}/")), None),
+                EntryType::SymbolicLink(name, link_to) => {
+                    (Cow::from(name.as_str()), Some(format!("-> {link_to}")))
+                }
+                EntryType::HardLink(name, link_to) => {
+                    (Cow::from(name.as_str()), Some(format!("link to {link_to}")))
+                }
             }
         };
         uname_width = uname_width.max(uname.len());
