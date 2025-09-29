@@ -1464,9 +1464,9 @@ dependencies = [
 
 [[package]]
 name = "parse_datetime"
-version = "0.12.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20b96c7a138d79d7a6530979459b1f6bcd69163d956bd8029ffeff865f3aa0d3"
+checksum = "f0f83bf646386359db88030a10fe477d0946b0838101cddf259729eeb8c572ff"
 dependencies = [
  "jiff",
  "num-traits",
