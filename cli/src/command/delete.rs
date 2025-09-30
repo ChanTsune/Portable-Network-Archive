@@ -13,6 +13,7 @@ use crate::{
     utils::{env::NamedTempFile, GlobPatterns, PathPartExt, VCS_FILES},
 };
 use clap::{ArgGroup, Parser, ValueHint};
+use pna::NormalEntry;
 use std::path::PathBuf;
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
@@ -113,28 +114,14 @@ fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
             temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
-            |entry| {
-                let entry = entry?;
-                let entry_path = entry.header().path();
-                if globs.matches_any(entry_path) && !exclude.excluded(entry_path) {
-                    return Ok(None);
-                }
-                Ok(Some(entry))
-            },
+            |entry| Ok(filter_entry(&mut globs, &exclude, entry?)),
             TransformStrategyUnSolid,
         ),
         SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
             temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
-            |entry| {
-                let entry = entry?;
-                let entry_path = entry.header().path();
-                if globs.matches_any(entry_path) && !exclude.excluded(entry_path) {
-                    return Ok(None);
-                }
-                Ok(Some(entry))
-            },
+            |entry| Ok(filter_entry(&mut globs, &exclude, entry?)),
             TransformStrategyKeepSolid,
         ),
     }?;
@@ -146,4 +133,17 @@ fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
 
     globs.ensure_all_matched()?;
     Ok(())
+}
+
+#[inline]
+fn filter_entry<T>(
+    globs: &mut GlobPatterns<'_>,
+    exclude: &Exclude,
+    entry: NormalEntry<T>,
+) -> Option<NormalEntry<T>> {
+    let entry_path = entry.header().path();
+    if globs.matches_any(entry_path) && !exclude.excluded(entry_path) {
+        return None;
+    }
+    Some(entry)
 }
