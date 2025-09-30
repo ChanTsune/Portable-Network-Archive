@@ -25,15 +25,7 @@ pub struct EntryName(String);
 
 impl EntryName {
     fn new_from_utf8path(path: &Utf8Path) -> Self {
-        let path = normalize_utf8path(path);
-        let iter = path.components().filter_map(|c| match c {
-            Utf8Component::Prefix(_)
-            | Utf8Component::RootDir
-            | Utf8Component::CurDir
-            | Utf8Component::ParentDir => None,
-            Utf8Component::Normal(p) => Some(p),
-        });
-        Self(join_with_capacity(iter, "/", path.as_str().len()))
+        Self(path.as_str().to_owned()).sanitize()
     }
 
     #[inline]
@@ -71,7 +63,101 @@ impl EntryName {
 
     #[inline]
     fn from_path_lossy(p: &Path) -> Self {
-        Self::new_from_utf8(&p.to_string_lossy())
+        Self::from_path_lossy_preserve_root(p).sanitize()
+    }
+
+    /// Creates an [EntryName] from a path, preserving absolute path components.
+    ///
+    /// This method is similar to the `From` implementations for path-like types, but preserves absolute path components.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use libpna::EntryName;
+    ///
+    /// assert_eq!("foo.txt", EntryName::from_utf8_preserve_root("foo.txt"));
+    /// assert_eq!("/foo.txt", EntryName::from_utf8_preserve_root("/foo.txt"));
+    /// assert_eq!("./foo.txt", EntryName::from_utf8_preserve_root("./foo.txt"));
+    /// assert_eq!("../foo.txt", EntryName::from_utf8_preserve_root("../foo.txt"));
+    /// assert_eq!("bar/../foo.txt", EntryName::from_utf8_preserve_root("bar/../foo.txt"));
+    /// ```
+    #[inline]
+    pub fn from_utf8_preserve_root(path: &str) -> Self {
+        Self::new_from_utf8path_preserve_root(Utf8Path::new(path))
+    }
+
+    #[inline]
+    fn new_from_utf8path_preserve_root(path: &Utf8Path) -> Self {
+        Self(path.as_str().to_owned())
+    }
+
+    /// Creates an [EntryName] from a path, preserving absolute path components.
+    ///
+    /// This method is similar to the `From` implementations for path-like types, but preserves absolute path components.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use libpna::EntryName;
+    ///
+    /// assert_eq!("foo.txt", EntryName::from_path_preserve_root("foo.txt".as_ref()).unwrap());
+    /// assert_eq!("./foo.txt", EntryName::from_path_preserve_root("./foo.txt".as_ref()).unwrap());
+    /// assert_eq!("bar/../foo.txt", EntryName::from_path_preserve_root("bar/../foo.txt".as_ref()).unwrap());
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EntryNameError`] if the path cannot be represented as valid UTF-8.
+    #[inline]
+    pub fn from_path_preserve_root(name: &Path) -> Result<Self, EntryNameError> {
+        let path = str::from_utf8(name.as_os_str().as_encoded_bytes())?;
+        Ok(Self::new_from_utf8path_preserve_root(Utf8Path::new(path)))
+    }
+
+    /// Creates an [EntryName] from a path, preserving absolute path components.
+    ///
+    /// This method is similar to the `From` implementations for path-like types, but preserves absolute path components.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`EntryNameError`] if it cannot be represented as valid UTF-8.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use libpna::EntryName;
+    ///
+    /// assert_eq!("foo.txt", EntryName::from_path_lossy_preserve_root("foo.txt".as_ref()));
+    /// assert_eq!("./foo.txt", EntryName::from_path_lossy_preserve_root("./foo.txt".as_ref()));
+    /// assert_eq!("bar/../foo.txt", EntryName::from_path_lossy_preserve_root("bar/../foo.txt".as_ref()));
+    /// ```
+    #[inline]
+    pub fn from_path_lossy_preserve_root(name: &Path) -> Self {
+        Self::new_from_utf8path_preserve_root(Utf8Path::new(&name.to_string_lossy()))
+    }
+
+    /// Returns a sanitized copy of this entry name that contains only normal components.
+    ///
+    /// Sanitization discards prefixes, root separators, `.` and `..` segments so the
+    /// resulting entry name is always relative and safe to embed in an archive.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use libpna::EntryName;
+    ///
+    /// let name = EntryName::from_utf8_preserve_root("/var/../tmp/./log");
+    /// assert_eq!("tmp/log", name.sanitize());
+    /// ```
+    #[inline]
+    pub fn sanitize(&self) -> Self {
+        let path = normalize_utf8path(Utf8Path::new(&self.0));
+        Self(join_with_capacity(
+            path.components()
+                .filter(|c| matches!(c, Utf8Component::Normal(_))),
+            "/",
+            path.as_str().len(),
+        ))
     }
 
     #[inline]
@@ -476,6 +562,62 @@ mod tests {
         let invalid_bytes = [0x74, 0x65, 0x73, 0x74, 0xFF, 0x2E, 0x74, 0x78, 0x74];
         let invalid_os_str = OsStr::from_bytes(&invalid_bytes);
         assert!(EntryName::try_from(invalid_os_str).is_err());
+    }
+
+    #[test]
+    fn preserve_root_keeps_unsafe_components() {
+        assert_eq!(
+            "/../foo",
+            EntryName::from_utf8_preserve_root("/../foo").as_str()
+        );
+        assert_eq!(
+            "bar/../foo",
+            EntryName::from_utf8_preserve_root("bar/../foo").as_str()
+        );
+        assert_eq!(
+            "../foo",
+            EntryName::from_utf8_preserve_root("../foo").as_str()
+        );
+    }
+
+    #[test]
+    fn preserve_root_edge_cases() {
+        // Empty string
+        assert_eq!("", EntryName::from_utf8_preserve_root(""));
+        // Only parent dir
+        assert_eq!("..", EntryName::from_utf8_preserve_root(".."));
+        // Only current dir
+        assert_eq!(".", EntryName::from_utf8_preserve_root("."));
+        // Only root
+        assert_eq!("/", EntryName::from_utf8_preserve_root("/"));
+        // Multiple parent dirs
+        assert_eq!("../../..", EntryName::from_utf8_preserve_root("../../.."));
+    }
+
+    #[test]
+    fn sanitize_edge_cases() {
+        // Empty string remains empty
+        assert_eq!("", EntryName::from_utf8_preserve_root("").sanitize());
+        // Only parent dir becomes empty
+        assert_eq!("", EntryName::from_utf8_preserve_root("..").sanitize());
+        // Only current dir becomes empty
+        assert_eq!("", EntryName::from_utf8_preserve_root(".").sanitize());
+        // Only root becomes empty
+        assert_eq!("", EntryName::from_utf8_preserve_root("/").sanitize());
+        // Multiple parent dirs become empty
+        assert_eq!(
+            "",
+            EntryName::from_utf8_preserve_root("../../..").sanitize()
+        );
+        // Mixed with normal component
+        assert_eq!(
+            "foo",
+            EntryName::from_utf8_preserve_root("/../foo").sanitize()
+        );
+        assert_eq!(
+            "foo",
+            EntryName::from_utf8_preserve_root("./foo").sanitize()
+        );
     }
 
     #[test]
