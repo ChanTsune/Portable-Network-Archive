@@ -14,33 +14,33 @@ pub(crate) fn is_pna<P: AsRef<Path>>(path: P) -> io::Result<bool> {
 }
 
 #[inline]
-pub(crate) fn mv<Src: AsRef<Path>, Dist: AsRef<Path>>(src: Src, dist: Dist) -> io::Result<()> {
+pub(crate) fn mv<Src: AsRef<Path>, Dest: AsRef<Path>>(src: Src, dest: Dest) -> io::Result<()> {
     #[cfg(unix)]
-    fn inner(src: &Path, dist: &Path) -> io::Result<()> {
+    fn inner(src: &Path, dest: &Path) -> io::Result<()> {
         use std::os::unix::fs::MetadataExt;
         let src_meta = fs::metadata(src)?;
-        if dist
+        if dest
             .parent()
             .and_then(|parent| fs::metadata(parent).ok())
-            .is_some_and(|dist_meta| src_meta.dev() == dist_meta.dev())
+            .is_some_and(|dest_meta| src_meta.dev() == dest_meta.dev())
         {
-            fs::rename(src, dist)
+            fs::rename(src, dest)
         } else {
-            fs::copy(src, dist)?;
+            fs::copy(src, dest)?;
             fs::remove_file(src)
         }
     }
     #[cfg(windows)]
     #[inline]
-    fn inner(src: &Path, dist: &Path) -> io::Result<()> {
-        move_file(src.as_os_str(), dist.as_os_str())
+    fn inner(src: &Path, dest: &Path) -> io::Result<()> {
+        move_file(src.as_os_str(), dest.as_os_str())
     }
     #[cfg(target_os = "wasi")]
-    fn inner(src: &Path, dist: &Path) -> io::Result<()> {
-        fs::copy(src, dist)?;
+    fn inner(src: &Path, dest: &Path) -> io::Result<()> {
+        fs::copy(src, dest)?;
         fs::remove_file(src)
     }
-    inner(src.as_ref(), dist.as_ref())
+    inner(src.as_ref(), dest.as_ref())
 }
 
 #[cfg(any(windows, unix))]
