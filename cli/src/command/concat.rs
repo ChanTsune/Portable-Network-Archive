@@ -10,6 +10,13 @@ use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
 use std::{io, path::PathBuf};
 
+#[derive(Debug)]
+pub(crate) struct ConcatFromStdioArgs {
+    pub(crate) overwrite: bool,
+    pub(crate) target: PathBuf,
+    pub(crate) sources: Vec<PathBuf>,
+}
+
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(group(ArgGroup::new("archive-args").args(["files", "archives"]).required(true)))]
 pub(crate) struct ConcatCommand {
@@ -26,6 +33,25 @@ impl Command for ConcatCommand {
     fn execute(self) -> anyhow::Result<()> {
         concat_entry(self)
     }
+}
+
+pub(crate) fn run_concat_from_stdio(args: ConcatFromStdioArgs) -> anyhow::Result<()> {
+    let ConcatFromStdioArgs {
+        overwrite,
+        target,
+        sources,
+    } = args;
+
+    let mut files = Vec::with_capacity(1 + sources.len());
+    files.push(target);
+    files.extend(sources);
+
+    ConcatCommand {
+        overwrite,
+        archives: Vec::new(),
+        files,
+    }
+    .execute()
 }
 
 fn concat_entry(args: ConcatCommand) -> anyhow::Result<()> {

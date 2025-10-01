@@ -10,6 +10,7 @@ use crate::{
             collect_items, collect_split_archives, entry_option, read_paths, CreateOptions,
             Exclude, KeepOptions, OwnerOptions, PathTransformers, TimeOptions,
         },
+        concat::{run_concat_from_stdio, ConcatFromStdioArgs},
         create::{create_archive_file, CreationContext},
         delete::{run_delete_from_stdio, DeleteFromStdioArgs},
         extract::{run_extract_archive_reader, OutputOption},
@@ -74,6 +75,12 @@ pub(crate) struct StdioCommand {
         help = "Append files to archive (bsdtar -r equivalent; compression flags are unsupported)"
     )]
     append: bool,
+    #[arg(
+        short = 'A',
+        long = "append-to",
+        help = "Concatenate archives into the target archive (bsdtar -A equivalent)"
+    )]
+    append_to: bool,
     #[arg(
         short = 'u',
         long,
@@ -282,6 +289,8 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
         run_extract_archive(args)
     } else if args.list {
         run_list_archive(args)
+    } else if args.append_to {
+        run_append_to(args)
     } else if args.delete {
         run_delete(args)
     } else if args.update {
@@ -507,12 +516,89 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
     }
 }
 
+fn run_append_to(args: StdioCommand) -> anyhow::Result<()> {
+    let StdioCommand {
+        create: _,
+        extract: _,
+        list: _,
+        append: _,
+        append_to: _,
+        update: _,
+        delete: _,
+        recursive: _,
+        no_recursive: _,
+        overwrite,
+        keep_dir: _,
+        no_keep_dir: _,
+        keep_timestamp: _,
+        keep_permission: _,
+        keep_xattr: _,
+        keep_acl: _,
+        solid: _,
+        compression: _,
+        cipher: _,
+        hash: _,
+        password: _,
+        include: _,
+        exclude: _,
+        exclude_from: _,
+        exclude_vcs: _,
+        gitignore: _,
+        follow_links: _,
+        follow_command_links: _,
+        out_dir: _,
+        strip_components: _,
+        uname: _,
+        gname: _,
+        uid: _,
+        gid: _,
+        numeric_owner: _,
+        ctime: _,
+        clamp_ctime: _,
+        atime: _,
+        clamp_atime: _,
+        mtime: _,
+        clamp_mtime: _,
+        files_from: _,
+        substitutions: _,
+        transforms: _,
+        same_owner: _,
+        no_same_owner: _,
+        working_dir: _,
+        allow_unsafe_links: _,
+        file,
+        files,
+        null: _,
+    } = args;
+
+    let target = match file {
+        Some(name) if name != "-" => PathBuf::from(name),
+        Some(_) => {
+            bail!("--append-to/-A requires a real archive file; stdin/stdout is not supported")
+        }
+        None => bail!("--append-to/-A requires --file <ARCHIVE> to be specified"),
+    };
+
+    if files.is_empty() {
+        bail!("--append-to/-A expects at least one source archive to concatenate");
+    }
+
+    let sources = files.into_iter().map(PathBuf::from).collect();
+
+    run_concat_from_stdio(ConcatFromStdioArgs {
+        overwrite,
+        target,
+        sources,
+    })
+}
+
 fn run_delete(args: StdioCommand) -> anyhow::Result<()> {
     let StdioCommand {
         create: _,
         extract: _,
         list: _,
         append: _,
+        append_to: _,
         update: _,
         delete: _,
         recursive: _,
@@ -640,6 +726,7 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
         file,
         files,
         null,
+        ..
     } = args;
 
     let archive = match file {

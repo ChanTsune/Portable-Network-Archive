@@ -20,7 +20,7 @@
 - [x] 1-3 `-d/--delete`
   - 実装: `StdioCommand` に `delete` フラグを追加し、`command::delete::DeleteCommand` を呼び出す。
   - テスト: Bats でエントリ削除、`bsdtar -df` との差分無しを確認。
-- [ ] 1-4 `-A/--append-to`
+- [x] 1-4 `-A/--append-to`
   - 実装: `concat` コマンドを stdio から利用できるブリッジを追加し、`-A` alias を登録。
   - テスト: 2 つのアーカイブを `-Af` で連結した結果を bsdtar と比較。
 - [ ] 1-5 `@archive` 入力
