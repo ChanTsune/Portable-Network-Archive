@@ -11,8 +11,9 @@ use crate::{
         ask_password, check_password,
         commons::{
             collect_items, collect_split_archives, create_entry, entry_option, read_paths,
-            read_paths_stdin, CreateOptions, Exclude, KeepOptions, OwnerOptions, PathTransformers,
-            TimeOptions, TransformStrategy, TransformStrategyKeepSolid, TransformStrategyUnSolid,
+            read_paths_stdin, CreateOptions, KeepOptions, OwnerOptions, PathFilter,
+            PathTransformers, TimeOptions, TransformStrategy, TransformStrategyKeepSolid,
+            TransformStrategyUnSolid,
         },
         Command,
     },
@@ -314,7 +315,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
     } else if let Some(path) = args.files_from {
         files.extend(read_paths(path, args.null)?);
     }
-    let exclude = {
+    let filter = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
             exclude.extend(read_paths(p, args.null)?);
@@ -322,7 +323,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         if args.exclude_vcs {
             exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
         }
-        Exclude {
+        PathFilter {
             include: args.include.unwrap_or_default().into(),
             exclude: exclude.into(),
         }
@@ -341,7 +342,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         args.follow_links,
         args.follow_command_links,
         args.one_file_system,
-        &exclude,
+        &filter,
     )?;
 
     let (tx, rx) = std::sync::mpsc::channel();
