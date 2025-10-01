@@ -65,7 +65,7 @@ use std::{env, io, path::PathBuf, time::SystemTime};
 pub(crate) struct StdioCommand {
     #[arg(short, long, help = "Create archive")]
     create: bool,
-    #[arg(short = 'x', long, help = "Extract archive")]
+    #[arg(short = 'x', long, visible_alias = "get", help = "Extract archive")]
     extract: bool,
     #[arg(short = 't', long, help = "List files in archive")]
     list: bool,
