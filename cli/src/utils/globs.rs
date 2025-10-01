@@ -138,10 +138,12 @@ bitflags! {
  * If s is pointing to "./", ".//", "./././" or the like, skip it.
  */
 fn pm_slashskip(mut s: &str) -> &str {
-    while (s.starts_with('/')) || (s.starts_with("./")) || (s == ".") {
-        let mut chars = s.chars();
-        let _ = chars.next();
-        s = chars.as_str();
+    s = s.trim_start_matches('/');
+    while let Some(rest) = s.strip_prefix("./") {
+        s = rest.trim_start_matches('/');
+    }
+    if s == "." {
+        s = &s[1..];
     }
     s
 }
