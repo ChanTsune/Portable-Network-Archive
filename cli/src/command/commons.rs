@@ -211,6 +211,8 @@ pub(crate) enum StoreAs {
 ///   file are returned as `StoreAs::Hardlink(<target>)`, where `<target>` is the
 ///   canonical path of the first occurrence; otherwise they are returned as
 ///   `StoreAs::File`.
+/// - One File System: when `one_file_system` is true, the traversal will not
+///   cross filesystem boundaries.
 /// - Unsupported types: special files that are neither regular files, dirs, nor
 ///   symlinks produce an `io::ErrorKind::Unsupported` error.
 ///
@@ -221,6 +223,7 @@ pub(crate) enum StoreAs {
 /// tolerated and returned as `StoreAs::Symlink` instead of an error. Returns
 /// `io::ErrorKind::Unsupported` for entries with unsupported types. Other walk
 /// errors are wrapped using `io::Error::other`.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn collect_items(
     files: impl IntoIterator<Item = impl AsRef<Path>>,
     recursive: bool,
@@ -228,6 +231,7 @@ pub(crate) fn collect_items(
     gitignore: bool,
     follow_links: bool,
     follow_command_links: bool,
+    one_file_system: bool,
     exclude: &Exclude,
 ) -> io::Result<Vec<(PathBuf, StoreAs)>> {
     let mut ig = Ignore::empty();
@@ -242,6 +246,7 @@ pub(crate) fn collect_items(
         }
         .follow_links(follow_links)
         .follow_root_links(follow_command_links)
+        .same_file_system(one_file_system)
         .into_iter();
 
         while let Some(res) = iter.next() {
@@ -1086,8 +1091,17 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../resources/test/raw",
         )];
-        let items =
-            collect_items(source, false, false, false, false, false, &empty_exclude()).unwrap();
+        let items = collect_items(
+            source,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            &empty_exclude(),
+        )
+        .unwrap();
         assert_eq!(
             items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
             HashSet::new()
@@ -1100,8 +1114,17 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../resources/test/raw",
         )];
-        let items =
-            collect_items(source, false, true, false, false, false, &empty_exclude()).unwrap();
+        let items = collect_items(
+            source,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            &empty_exclude(),
+        )
+        .unwrap();
         assert_eq!(
             items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
             [concat!(
@@ -1120,8 +1143,17 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../resources/test/raw",
         )];
-        let items =
-            collect_items(source, true, false, false, false, false, &empty_exclude()).unwrap();
+        let items = collect_items(
+            source,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            &empty_exclude(),
+        )
+        .unwrap();
         assert_eq!(
             items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
             [

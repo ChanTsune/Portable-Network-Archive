@@ -53,11 +53,17 @@ use std::{env, io, path::PathBuf, time::SystemTime};
     group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
     group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
     group(ArgGroup::new("unstable-follow_command_links").args(["follow_command_links"]).requires("unstable")),
+    group(ArgGroup::new("unstable-one-file-system").args(["one_file_system"]).requires("unstable")),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
 ))]
 pub(crate) struct StdioCommand {
+    #[arg(
+        long,
+        help = "Stay in the same file system when collecting files (unstable)"
+    )]
+    one_file_system: bool,
     #[arg(short, long, help = "Create archive")]
     create: bool,
     #[arg(short = 'x', long, help = "Extract archive")]
@@ -304,6 +310,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         args.gitignore,
         args.follow_links,
         args.follow_command_links,
+        args.one_file_system,
         &exclude,
     )?;
 
@@ -542,6 +549,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.gitignore,
             args.follow_links,
             args.follow_command_links,
+            args.one_file_system,
             &exclude,
         )?;
         run_append_archive(&create_options, &path_transformers, archive, target_items)
@@ -553,6 +561,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.gitignore,
             args.follow_links,
             args.follow_command_links,
+            args.one_file_system,
             &exclude,
         )?;
         let mut output_archive = Archive::write_header(io::stdout().lock())?;
