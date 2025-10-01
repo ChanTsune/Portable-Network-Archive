@@ -242,12 +242,8 @@ fn archive_pathmatch(mut p: &str, mut s: &str, mut flags: PathMatch) -> bool {
 
     /* Certain patterns anchor implicitly. */
     if p.starts_with('*') || p.starts_with('/') {
-        while let Some(_p) = p.strip_prefix('/') {
-            p = _p;
-        }
-        while let Some(_s) = s.strip_prefix('/') {
-            s = _s;
-        }
+        p = p.trim_start_matches('/');
+        s = s.trim_start_matches('/');
         return pm(p, s, flags);
     }
 
@@ -297,9 +293,7 @@ fn pm(mut p: &str, mut s: &str, flags: PathMatch) -> bool {
             }
             '*' => {
                 /* "*" == "**" == "***" ... */
-                while let Some(_p) = p.strip_prefix('*') {
-                    p = _p;
-                }
+                p = p.trim_start_matches('*');
                 /* Trailing '*' always succeeds. */
                 if p.is_empty() {
                     return true;
