@@ -10,7 +10,7 @@ use crate::{
             collect_items, collect_split_archives, entry_option, read_paths, CreateOptions,
             Exclude, KeepOptions, OwnerOptions, PathTransformers, TimeOptions,
         },
-        concat::{run_concat_from_stdio, ConcatFromStdioArgs},
+        concat::{append_archives_into_existing, run_concat_from_stdio, ConcatFromStdioArgs},
         create::{create_archive_file, CreationContext},
         delete::{run_delete_from_stdio, DeleteFromStdioArgs},
         extract::{run_extract_archive_reader, OutputOption},
@@ -324,6 +324,15 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     if let Some(path) = args.files_from {
         files.extend(read_paths(path, args.null)?);
     }
+    let mut archive_sources_raw = Vec::new();
+    files.retain(|entry| {
+        if let Some(rest) = entry.strip_prefix('@') {
+            archive_sources_raw.push(rest.to_string());
+            false
+        } else {
+            true
+        }
+    });
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
@@ -340,6 +349,18 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
     }
+    let base_dir = env::current_dir()?;
+    let archive_sources = archive_sources_raw
+        .into_iter()
+        .map(PathBuf::from)
+        .map(|src| {
+            if src.is_absolute() {
+                src
+            } else {
+                base_dir.join(src)
+            }
+        })
+        .collect::<Vec<_>>();
     let target_items = collect_items(
         &files,
         !args.no_recursive,
@@ -382,14 +403,24 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         solid: args.solid,
         path_transformers,
     };
-    if let Some(file) = archive_file {
-        create_archive_file(
-            || utils::fs::file_create(&file, args.overwrite),
-            creation_context,
-            target_items,
-        )
-    } else {
-        create_archive_file(|| Ok(io::stdout().lock()), creation_context, target_items)
+    match archive_file {
+        Some(file) => {
+            create_archive_file(
+                || utils::fs::file_create(&file, args.overwrite),
+                creation_context,
+                target_items,
+            )?;
+            if !archive_sources.is_empty() {
+                append_archives_into_existing(&file, &archive_sources)?;
+            }
+            Ok(())
+        }
+        None => {
+            if !archive_sources.is_empty() {
+                bail!("@archive inputs are not supported when writing to stdout");
+            }
+            create_archive_file(|| Ok(io::stdout().lock()), creation_context, target_items)
+        }
     }
 }
 
@@ -829,6 +860,15 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     if let Some(path) = args.files_from {
         files.extend(read_paths(path, args.null)?);
     }
+    let mut archive_sources_raw = Vec::new();
+    files.retain(|entry| {
+        if let Some(rest) = entry.strip_prefix('@') {
+            archive_sources_raw.push(rest.to_string());
+            false
+        } else {
+            true
+        }
+    });
     let exclude = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
@@ -846,6 +886,18 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
     }
+    let base_dir = env::current_dir()?;
+    let archive_sources = archive_sources_raw
+        .into_iter()
+        .map(PathBuf::from)
+        .map(|src| {
+            if src.is_absolute() {
+                src
+            } else {
+                base_dir.join(src)
+            }
+        })
+        .collect::<Vec<_>>();
     if let Some(file) = &archive_path {
         let archive = open_archive_then_seek_to_end(file)?;
         let target_items = collect_items(
@@ -857,8 +909,15 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.follow_command_links,
             &exclude,
         )?;
-        run_append_archive(&create_options, &path_transformers, archive, target_items)
+        run_append_archive(&create_options, &path_transformers, archive, target_items)?;
+        if !archive_sources.is_empty() {
+            append_archives_into_existing(file, &archive_sources)?;
+        }
+        Ok(())
     } else {
+        if !archive_sources.is_empty() {
+            bail!("@archive inputs are not supported when using stdin/stdout append mode");
+        }
         let target_items = collect_items(
             &files,
             args.recursive,

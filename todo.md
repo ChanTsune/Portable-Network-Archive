@@ -23,7 +23,7 @@
 - [x] 1-4 `-A/--append-to`
   - 実装: `concat` コマンドを stdio から利用できるブリッジを追加し、`-A` alias を登録。
   - テスト: 2 つのアーカイブを `-Af` で連結した結果を bsdtar と比較。
-- [ ] 1-5 `@archive` 入力
+- [x] 1-5 `@archive` 入力
   - 実装: `StdioCommand.files` 解析時に `@` から始まる要素を処理し、`collect_split_archives` に委譲。
   - テスト: `-c -f - file @archive.tar` の挙動をゴールデン比較。
 - [ ] 1-6 `--get`

@@ -3,12 +3,15 @@ use crate::command::commons::run_across_archive;
 #[cfg(feature = "memmap")]
 use crate::command::commons::run_across_archive_mem as run_across_archive;
 use crate::{
-    command::{commons::collect_split_archives, Command},
+    command::{append::open_archive_then_seek_to_end, commons::collect_split_archives, Command},
     utils,
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
-use std::{io, path::PathBuf};
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
 
 #[derive(Debug)]
 pub(crate) struct ConcatFromStdioArgs {
@@ -52,6 +55,41 @@ pub(crate) fn run_concat_from_stdio(args: ConcatFromStdioArgs) -> anyhow::Result
         files,
     }
     .execute()
+}
+
+pub(crate) fn append_archives_into_existing(
+    archive_path: &Path,
+    sources: &[PathBuf],
+) -> anyhow::Result<()> {
+    for source in sources {
+        let archives = collect_split_archives(source)?;
+        let mut archive = open_archive_then_seek_to_end(archive_path)?;
+        #[cfg(feature = "memmap")]
+        {
+            let mmaps = archives
+                .into_iter()
+                .map(utils::mmap::Mmap::try_from)
+                .collect::<io::Result<Vec<_>>>()?;
+            let iter = mmaps.iter().map(|m| m.as_ref());
+            run_across_archive(iter, |reader| {
+                for entry in reader.raw_entries_slice() {
+                    archive.add_entry(entry?)?;
+                }
+                Ok(())
+            })?;
+        }
+        #[cfg(not(feature = "memmap"))]
+        {
+            run_across_archive(archives, |reader| {
+                for entry in reader.raw_entries() {
+                    archive.add_entry(entry?)?;
+                }
+                Ok(())
+            })?;
+        }
+        archive.finalize()?;
+    }
+    Ok(())
 }
 
 fn concat_entry(args: ConcatCommand) -> anyhow::Result<()> {
