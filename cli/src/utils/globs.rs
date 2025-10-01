@@ -285,15 +285,15 @@ fn pm(mut p: &str, mut s: &str, flags: PathMatch) -> bool {
         p = pm_slashskip(&p[1..]);
     }
 
-    while let Some(c) = str_peek(p) {
+    while let Some(c) = p.chars().next() {
         match c {
             '?' => {
                 /* ? always succeeds, unless we hit end of 's' */
                 if s.is_empty() {
                     return false;
                 }
-                p = str_skip_n(p, 1);
-                s = str_skip_n(s, 1);
+                p = skip_first_char(p);
+                s = skip_first_char(s);
             }
             '*' => {
                 /* "*" == "**" == "***" ... */
@@ -306,7 +306,7 @@ fn pm(mut p: &str, mut s: &str, flags: PathMatch) -> bool {
                     if archive_pathmatch(p, s, flags) {
                         return true;
                     }
-                    s = str_skip_n(s, 1);
+                    s = skip_first_char(s);
                 }
                 return false;
             }
@@ -317,37 +317,37 @@ fn pm(mut p: &str, mut s: &str, flags: PathMatch) -> bool {
                  */
                 if let Some((l, r)) = split_once_unescaped(&p[1..]) {
                     /* We found [...], try to match it. */
-                    if str_peek(s).is_some_and(|c| !pm_list(l, c, flags)) {
+                    if s.chars().next().is_some_and(|c| !pm_list(l, c, flags)) {
                         return false;
                     }
                     p = r;
-                    s = str_skip_n(s, 1);
+                    s = skip_first_char(s);
                 } else {
                     /* No final ']', so just match '['. */
-                    if str_peek(p) != str_peek(s) {
+                    if p.chars().next() != s.chars().next() {
                         return false;
                     }
-                    p = str_skip_n(p, 1);
-                    s = str_skip_n(s, 1);
+                    p = skip_first_char(p);
+                    s = skip_first_char(s);
                 }
             }
             '\\' => {
                 /* Trailing '\\' matches itself. */
                 if p.len() == 1 {
-                    if str_peek(s).is_some_and(|c| c != '\\') {
+                    if s.chars().next().is_some_and(|c| c != '\\') {
                         return false;
                     }
                 } else {
-                    p = str_skip_n(p, 1);
-                    if str_peek(p) != str_peek(s) {
+                    p = skip_first_char(p);
+                    if p.chars().next() != s.chars().next() {
                         return false;
                     }
                 }
-                p = str_skip_n(p, 1);
-                s = str_skip_n(s, 1);
+                p = skip_first_char(p);
+                s = skip_first_char(s);
             }
             '/' => {
-                if str_peek(s).is_some_and(|c| c != '/') {
+                if s.chars().next().is_some_and(|c| c != '/') {
                     return false;
                 }
                 /* Note: pattern "/\./" won't match "/";
@@ -366,18 +366,18 @@ fn pm(mut p: &str, mut s: &str, flags: PathMatch) -> bool {
                     return pm_slashskip(s).is_empty();
                 }
                 /* Otherwise, '$' is not special. */
-                if str_peek(p) != str_peek(s) {
+                if p.chars().next() != s.chars().next() {
                     return false;
                 }
-                p = str_skip_n(p, 1);
-                s = str_skip_n(s, 1);
+                p = skip_first_char(p);
+                s = skip_first_char(s);
             }
             _ => {
-                if str_peek(p) != str_peek(s) {
+                if p.chars().next() != s.chars().next() {
                     return false;
                 }
-                p = str_skip_n(p, 1);
-                s = str_skip_n(s, 1);
+                p = skip_first_char(p);
+                s = skip_first_char(s);
             }
         }
     }
@@ -412,16 +412,10 @@ fn split_once_unescaped(input: &str) -> Option<(&str, &str)> {
     None
 }
 
-fn str_skip_n(s: &str, n: usize) -> &str {
-    let mut _s = s.chars();
-    for _ in 0..n {
-        let _ = _s.next();
-    }
-    _s.as_str()
-}
-
-fn str_peek(s: &str) -> Option<char> {
-    s.chars().next()
+fn skip_first_char(s: &str) -> &str {
+    let mut chars = s.chars();
+    let _ = chars.next();
+    chars.as_str()
 }
 
 #[cfg(test)]
