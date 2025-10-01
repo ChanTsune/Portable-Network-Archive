@@ -302,7 +302,7 @@ fn pm(mut p: &str, mut s: &str, flags: PathMatch) -> bool {
                 if p.is_empty() {
                     return true;
                 }
-                while str_peek(s).is_some() {
+                while !s.is_empty() {
                     if archive_pathmatch(p, s, flags) {
                         return true;
                     }
