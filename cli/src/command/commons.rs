@@ -1011,10 +1011,17 @@ pub(crate) struct Exclude {
 }
 
 impl Exclude {
+    /// Returns `true` if the given path should be excluded.
+    ///
+    /// A path is excluded if:
+    /// 1. It matches any of the `exclude` patterns.
+    /// 2. It does not match any of the `include` patterns (if any are provided).
+    ///
+    /// Note that exclusion patterns take precedence over inclusion patterns.
     #[inline]
     pub(crate) fn excluded(&self, s: impl AsRef<str>) -> bool {
         let s = s.as_ref();
-        !self.include.matches_inclusion(s) && self.exclude.matches_exclusion(s)
+        self.exclude.matches_exclusion(s) || !self.include.matches_inclusion(s)
     }
 }
 
@@ -1071,18 +1078,18 @@ mod tests {
     }
 
     #[test]
-    fn exclude_include() {
+    fn exclude_include_precedence() {
         let exclude = Exclude {
             include: vec!["a/*/c"].into(),
             exclude: vec!["a/*"].into(),
         };
-        assert!(!exclude.excluded("a/b/c"));
+        assert!(exclude.excluded("a/b/c"));
 
         let exclude = Exclude {
             include: vec!["a/*/c"].into(),
             exclude: vec!["a/*/c"].into(),
         };
-        assert!(!exclude.excluded("a/b/c"));
+        assert!(exclude.excluded("a/b/c"));
     }
 
     #[test]
