@@ -436,9 +436,17 @@ mod tests {
     }
 
     #[test]
+    fn glob_asterisk() {
+        let mut globs = GlobPatterns::new(["*"]).unwrap();
+        assert!(globs.matches_any("same"));
+        assert!(globs.matches_any("same/path"));
+    }
+
+    #[test]
     fn glob_suffix() {
         let mut globs = GlobPatterns::new(vec!["path/**"]).unwrap();
         assert!(globs.matches_any("path/foo.pna"));
+        assert!(!globs.matches_any("foo/path"));
     }
 
     #[test]
@@ -446,6 +454,7 @@ mod tests {
         let mut globs = GlobPatterns::new(vec!["**/foo.pna"]).unwrap();
         assert!(globs.matches_any("path/foo.pna"));
         assert!(globs.matches_any("path/path/foo.pna"));
+        assert!(!globs.matches_any("path/foo.pna/path"));
     }
 
     #[test]
