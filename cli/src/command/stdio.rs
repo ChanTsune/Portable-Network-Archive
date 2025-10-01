@@ -1,6 +1,7 @@
 use crate::{
     cli::{
-        CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, HashAlgorithmArgs, PasswordArgs,
+        CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileArgs, HashAlgorithmArgs,
+        PasswordArgs, SolidEntriesTransformStrategyArgs,
     },
     command::{
         append::{open_archive_then_seek_to_end, run_append_archive},
@@ -12,6 +13,7 @@ use crate::{
         create::{create_archive_file, CreationContext},
         extract::{run_extract_archive_reader, OutputOption},
         list::{ListOptions, TimeField, TimeFormat},
+        update::{run_update_from_stdio, UpdateFromStdioArgs},
         Command,
     },
     utils::{
@@ -48,7 +50,7 @@ use std::{env, io, path::PathBuf, time::SystemTime};
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
     group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
     group(ArgGroup::new("keep-dir-flag").args(["keep_dir", "no_keep_dir"])),
-    group(ArgGroup::new("action-flags").args(["create", "extract", "list", "append"])),
+    group(ArgGroup::new("action-flags").args(["create", "extract", "list", "append", "update"])),
     group(ArgGroup::new("ctime-flag").args(["clamp_ctime"]).requires("ctime")),
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
     group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
@@ -71,6 +73,12 @@ pub(crate) struct StdioCommand {
         help = "Append files to archive (bsdtar -r equivalent; compression flags are unsupported)"
     )]
     append: bool,
+    #[arg(
+        short = 'u',
+        long,
+        help = "Update existing archive entries if sources are newer (bsdtar -u equivalent)"
+    )]
+    update: bool,
     #[arg(
         short,
         long,
@@ -267,6 +275,13 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
         run_extract_archive(args)
     } else if args.list {
         run_list_archive(args)
+    } else if args.update {
+        if args.compression.explicitly_set() {
+            bail!(
+                "compression flags cannot be combined with update/-u; the archive's existing compression is preserved"
+            );
+        }
+        run_update(args)
     } else if args.append {
         if args.compression.explicitly_set() {
             bail!(
@@ -481,6 +496,116 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
             list_options,
         )
     }
+}
+
+fn run_update(args: StdioCommand) -> anyhow::Result<()> {
+    let StdioCommand {
+        create: _,
+        extract: _,
+        list: _,
+        append: _,
+        update: _,
+        recursive,
+        no_recursive,
+        overwrite: _,
+        keep_dir,
+        no_keep_dir,
+        keep_timestamp,
+        keep_permission,
+        keep_xattr,
+        keep_acl,
+        solid: _,
+        compression,
+        cipher,
+        hash,
+        password,
+        include,
+        exclude,
+        exclude_from,
+        exclude_vcs,
+        gitignore,
+        follow_links,
+        follow_command_links,
+        out_dir: _,
+        strip_components: _,
+        uname,
+        gname,
+        uid,
+        gid,
+        numeric_owner,
+        ctime,
+        clamp_ctime,
+        atime,
+        clamp_atime,
+        mtime,
+        clamp_mtime,
+        files_from,
+        substitutions,
+        transforms,
+        same_owner: _,
+        no_same_owner: _,
+        working_dir,
+        allow_unsafe_links: _,
+        file,
+        files,
+        null,
+    } = args;
+
+    let archive = match file {
+        Some(name) if name != "-" => PathBuf::from(name),
+        Some(_) => {
+            bail!("--update/-u requires a real archive file; stdin/stdout is not supported")
+        }
+        None => bail!("--update/-u requires --file <ARCHIVE> to be specified"),
+    };
+
+    run_update_from_stdio(UpdateFromStdioArgs {
+        recursive,
+        no_recursive,
+        keep_dir,
+        no_keep_dir,
+        keep_timestamp,
+        keep_permission,
+        keep_xattr,
+        keep_acl,
+        uname,
+        gname,
+        uid,
+        gid,
+        numeric_owner,
+        ctime,
+        clamp_ctime,
+        atime,
+        clamp_atime,
+        mtime,
+        clamp_mtime,
+        older_ctime: None,
+        older_mtime: None,
+        newer_ctime: None,
+        newer_mtime: None,
+        files_from,
+        files_from_stdin: false,
+        include,
+        exclude,
+        exclude_from,
+        exclude_vcs,
+        substitutions,
+        transforms,
+        working_dir,
+        compression,
+        password,
+        cipher,
+        hash,
+        transform_strategy: SolidEntriesTransformStrategyArgs {
+            unsolid: false,
+            keep_solid: false,
+        },
+        file: FileArgs { archive, files },
+        null,
+        gitignore,
+        follow_links,
+        follow_command_links,
+    })
 }
 
 fn run_append(args: StdioCommand) -> anyhow::Result<()> {

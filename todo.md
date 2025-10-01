@@ -14,7 +14,7 @@
 - [x] 1-1 `-r/--append` 互換
   - 実装: `cli/src/command/stdio.rs` に `short = 'r'` を追加し、圧縮指定時はエラーにするガードを実装。
   - テスト: Bats で `-rf archive` と gzip 圧縮アーカイブへのエラーを比較。
-- [ ] 1-2 `-u/--update`
+- [x] 1-2 `-u/--update`
   - 実装: `StdioCommand` に `short = 'u'`; `run_stdio` から `command::update::UpdateCommand` を呼ぶラッパを追加。
   - テスト: Bats で `-uf` シナリオ（新旧ファイル）を作り、bsdtar と比較。
 - [ ] 1-3 `-d/--delete`
