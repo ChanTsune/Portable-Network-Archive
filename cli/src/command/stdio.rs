@@ -20,6 +20,7 @@ use crate::{
         GlobPatterns, VCS_FILES,
     },
 };
+use anyhow::bail;
 use clap::{ArgGroup, Args, ValueHint};
 use pna::Archive;
 use std::{env, io, path::PathBuf, time::SystemTime};
@@ -64,7 +65,11 @@ pub(crate) struct StdioCommand {
     extract: bool,
     #[arg(short = 't', long, help = "List files in archive")]
     list: bool,
-    #[arg(long, help = "Append files to archive")]
+    #[arg(
+        short = 'r',
+        long,
+        help = "Append files to archive (bsdtar -r equivalent; compression flags are unsupported)"
+    )]
     append: bool,
     #[arg(
         short,
@@ -263,6 +268,11 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     } else if args.list {
         run_list_archive(args)
     } else if args.append {
+        if args.compression.explicitly_set() {
+            bail!(
+                "compression flags cannot be combined with append/-r; the archive's existing compression is preserved"
+            );
+        }
         run_append(args)
     } else {
         unreachable!()

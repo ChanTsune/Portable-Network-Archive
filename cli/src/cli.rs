@@ -235,6 +235,11 @@ impl CompressionAlgorithmArgs {
             (pna::Compression::ZStandard, None)
         }
     }
+
+    #[inline]
+    pub(crate) const fn explicitly_set(&self) -> bool {
+        self.store || self.deflate.is_some() || self.zstd.is_some() || self.xz.is_some()
+    }
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]

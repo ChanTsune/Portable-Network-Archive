@@ -11,7 +11,7 @@
 
 ---
 ## 1. モード系オプション（ロードマップ §1.1）
-- [ ] 1-1 `-r/--append` 互換
+- [x] 1-1 `-r/--append` 互換
   - 実装: `cli/src/command/stdio.rs` に `short = 'r'` を追加し、圧縮指定時はエラーにするガードを実装。
   - テスト: Bats で `-rf archive` と gzip 圧縮アーカイブへのエラーを比較。
 - [ ] 1-2 `-u/--update`
@@ -204,7 +204,7 @@
   - [x] 0-3 libarchive テスト同期
   - [x] 0-4 ゴールデン比較環境整備
 - [ ] 1.モード互換
-  - [ ] 1-1 `-r/--append`
+  - [x] 1-1 `-r/--append`
   - [ ] 1-2 `-u/--update`
   - [ ] 1-3 `-d/--delete`
   - [ ] 1-4 `-A/--append-to`
