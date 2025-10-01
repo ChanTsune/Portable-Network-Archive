@@ -15,6 +15,21 @@ use crate::{
 use clap::{ArgGroup, Parser, ValueHint};
 use std::path::PathBuf;
 
+#[derive(Debug)]
+pub(crate) struct DeleteFromStdioArgs {
+    pub(crate) output: Option<PathBuf>,
+    pub(crate) files_from: Option<String>,
+    pub(crate) files_from_stdin: bool,
+    pub(crate) include: Option<Vec<String>>,
+    pub(crate) exclude: Option<Vec<String>>,
+    pub(crate) exclude_from: Option<PathBuf>,
+    pub(crate) exclude_vcs: bool,
+    pub(crate) null: bool,
+    pub(crate) password: PasswordArgs,
+    pub(crate) transform_strategy: SolidEntriesTransformStrategyArgs,
+    pub(crate) file: FileArgs,
+}
+
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(
     group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
@@ -67,6 +82,37 @@ impl Command for DeleteCommand {
     fn execute(self) -> anyhow::Result<()> {
         delete_file_from_archive(self)
     }
+}
+
+pub(crate) fn run_delete_from_stdio(args: DeleteFromStdioArgs) -> anyhow::Result<()> {
+    let DeleteFromStdioArgs {
+        output,
+        files_from,
+        files_from_stdin,
+        include,
+        exclude,
+        exclude_from,
+        exclude_vcs,
+        null,
+        password,
+        transform_strategy,
+        file,
+    } = args;
+
+    DeleteCommand {
+        output,
+        files_from,
+        files_from_stdin,
+        include,
+        exclude,
+        exclude_from,
+        exclude_vcs,
+        null,
+        password,
+        transform_strategy,
+        file,
+    }
+    .execute()
 }
 
 fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {

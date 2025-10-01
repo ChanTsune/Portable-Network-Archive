@@ -17,7 +17,7 @@
 - [x] 1-2 `-u/--update`
   - 実装: `StdioCommand` に `short = 'u'`; `run_stdio` から `command::update::UpdateCommand` を呼ぶラッパを追加。
   - テスト: Bats で `-uf` シナリオ（新旧ファイル）を作り、bsdtar と比較。
-- [ ] 1-3 `-d/--delete`
+- [x] 1-3 `-d/--delete`
   - 実装: `StdioCommand` に `delete` フラグを追加し、`command::delete::DeleteCommand` を呼び出す。
   - テスト: Bats でエントリ削除、`bsdtar -df` との差分無しを確認。
 - [ ] 1-4 `-A/--append-to`

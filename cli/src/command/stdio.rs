@@ -11,6 +11,7 @@ use crate::{
             Exclude, KeepOptions, OwnerOptions, PathTransformers, TimeOptions,
         },
         create::{create_archive_file, CreationContext},
+        delete::{run_delete_from_stdio, DeleteFromStdioArgs},
         extract::{run_extract_archive_reader, OutputOption},
         list::{ListOptions, TimeField, TimeFormat},
         update::{run_update_from_stdio, UpdateFromStdioArgs},
@@ -50,7 +51,7 @@ use std::{env, io, path::PathBuf, time::SystemTime};
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
     group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
     group(ArgGroup::new("keep-dir-flag").args(["keep_dir", "no_keep_dir"])),
-    group(ArgGroup::new("action-flags").args(["create", "extract", "list", "append", "update"])),
+    group(ArgGroup::new("action-flags").args(["create", "extract", "list", "append", "update", "delete"])),
     group(ArgGroup::new("ctime-flag").args(["clamp_ctime"]).requires("ctime")),
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
     group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
@@ -79,6 +80,12 @@ pub(crate) struct StdioCommand {
         help = "Update existing archive entries if sources are newer (bsdtar -u equivalent)"
     )]
     update: bool,
+    #[arg(
+        short = 'd',
+        long,
+        help = "Delete entries from an archive (bsdtar -d equivalent)"
+    )]
+    delete: bool,
     #[arg(
         short,
         long,
@@ -275,6 +282,8 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
         run_extract_archive(args)
     } else if args.list {
         run_list_archive(args)
+    } else if args.delete {
+        run_delete(args)
     } else if args.update {
         if args.compression.explicitly_set() {
             bail!(
@@ -498,6 +507,87 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
     }
 }
 
+fn run_delete(args: StdioCommand) -> anyhow::Result<()> {
+    let StdioCommand {
+        create: _,
+        extract: _,
+        list: _,
+        append: _,
+        update: _,
+        delete: _,
+        recursive: _,
+        no_recursive: _,
+        overwrite: _,
+        keep_dir: _,
+        no_keep_dir: _,
+        keep_timestamp: _,
+        keep_permission: _,
+        keep_xattr: _,
+        keep_acl: _,
+        solid: _,
+        compression: _,
+        cipher: _,
+        hash: _,
+        password,
+        include,
+        exclude,
+        exclude_from,
+        exclude_vcs,
+        gitignore: _,
+        follow_links: _,
+        follow_command_links: _,
+        out_dir: _,
+        strip_components: _,
+        uname: _,
+        gname: _,
+        uid: _,
+        gid: _,
+        numeric_owner: _,
+        ctime: _,
+        clamp_ctime: _,
+        atime: _,
+        clamp_atime: _,
+        mtime: _,
+        clamp_mtime: _,
+        files_from,
+        substitutions: _,
+        transforms: _,
+        same_owner: _,
+        no_same_owner: _,
+        working_dir: _,
+        allow_unsafe_links: _,
+        file,
+        files,
+        null,
+        ..
+    } = args;
+
+    let archive = match file {
+        Some(name) if name != "-" => PathBuf::from(name),
+        Some(_) => bail!("--delete/-d requires a real archive file; stdin/stdout is not supported"),
+        None => bail!("--delete/-d requires --file <ARCHIVE> to be specified"),
+    };
+
+    let delete_args = DeleteFromStdioArgs {
+        output: None,
+        files_from,
+        files_from_stdin: false,
+        include,
+        exclude,
+        exclude_from: exclude_from.map(PathBuf::from),
+        exclude_vcs,
+        null,
+        password,
+        transform_strategy: SolidEntriesTransformStrategyArgs {
+            unsolid: false,
+            keep_solid: false,
+        },
+        file: FileArgs { archive, files },
+    };
+
+    run_delete_from_stdio(delete_args)
+}
+
 fn run_update(args: StdioCommand) -> anyhow::Result<()> {
     let StdioCommand {
         create: _,
@@ -505,6 +595,7 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
         list: _,
         append: _,
         update: _,
+        delete: _,
         recursive,
         no_recursive,
         overwrite: _,
