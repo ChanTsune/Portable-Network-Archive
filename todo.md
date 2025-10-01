@@ -7,7 +7,7 @@
 - [x] 0-1 `bsdtar` 利用可否確認 (`bsdtar --version` を macOS/Linux で実行)。存在しない場合は libarchive をインストール。
 - [x] 0-2 開発環境基準整備: `cargo fmt --check`, `cargo clippy --all-targets`, `cargo test --all` を実行し、ベースラインを保存。
 - [x] 0-3 `tests/bats/libarchive/` を作成し、libarchive upstream (`https://github.com/libarchive/libarchive`) から `tar/test` スイートを同期する `scripts/sync-libarchive-tests.sh` を実装。submodule を導入するか README に取得手順を明記.
-- [ ] 0-4 ゴールデン比較用テンポラリディレクトリ（例: `tests/tmp/compat`）とクリーンアップルールを定義。
+- [x] 0-4 ゴールデン比較用テンポラリディレクトリ（例: `tests/tmp/compat`）とクリーンアップルールを定義。
 
 ---
 ## 1. モード系オプション（ロードマップ §1.1）
@@ -202,7 +202,7 @@
   - [x] 0-1 `bsdtar` 動作確認
   - [x] 0-2 テスト基準整備
   - [x] 0-3 libarchive テスト同期
-  - [ ] 0-4 ゴールデン比較環境整備
+  - [x] 0-4 ゴールデン比較環境整備
 - [ ] 1.モード互換
   - [ ] 1-1 `-r/--append`
   - [ ] 1-2 `-u/--update`
