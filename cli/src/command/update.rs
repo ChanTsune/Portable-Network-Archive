@@ -57,11 +57,17 @@ use std::{env, fs, io, path::PathBuf, time::SystemTime};
     group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
     group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
     group(ArgGroup::new("unstable-follow_command_links").args(["follow_command_links"]).requires("unstable")),
+    group(ArgGroup::new("unstable-one-file-system").args(["one_file_system"]).requires("unstable")),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
 ))]
 pub(crate) struct UpdateCommand {
+    #[arg(
+        long,
+        help = "Stay in the same file system when collecting files (unstable)"
+    )]
+    one_file_system: bool,
     #[arg(
         short,
         long,
@@ -334,6 +340,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         args.gitignore,
         args.follow_links,
         args.follow_command_links,
+        args.one_file_system,
         &exclude,
     )?;
 
