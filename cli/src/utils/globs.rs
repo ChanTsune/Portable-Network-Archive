@@ -278,11 +278,11 @@ fn pm(mut p: &str, mut s: &str, flags: PathMatch) -> bool {
     // 	/*
     // 	 * Ignore leading './', './/', '././', etc.
     // 	 */
-    if s.starts_with("./") {
-        s = pm_slashskip(&s[1..]);
+    if let Some(_s) = s.strip_prefix("./") {
+        s = pm_slashskip(_s);
     }
-    if p.starts_with("./") {
-        p = pm_slashskip(&p[1..]);
+    if let Some(_p) = p.strip_prefix("./") {
+        p = pm_slashskip(_p);
     }
 
     while let Some(c) = p.chars().next() {
