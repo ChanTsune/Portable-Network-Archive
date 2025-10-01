@@ -381,7 +381,7 @@ fn pm(mut p: &str, mut s: &str, flags: PathMatch) -> bool {
             }
         }
     }
-    if str_peek(s) == Some('/') {
+    if s.starts_with('/') {
         if flags.contains(PathMatch::NO_ANCHOR_END) {
             return true;
         }
