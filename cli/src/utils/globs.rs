@@ -188,7 +188,7 @@ fn pm_list(mut class: &str, c: char, _flags: PathMatch) -> bool {
         match p {
             '-' => {
                 /* Trailing or initial '-' is not special. */
-                if range_start.is_none() || (chars.clone().count() == 0) {
+                if range_start.is_none() || chars.as_str().is_empty() {
                     if p == c {
                         return r#match;
                     }
