@@ -7,7 +7,7 @@ use crate::{
         ask_password, check_password,
         commons::{
             collect_items, create_entry, entry_option, read_paths, read_paths_stdin,
-            write_split_archive, CreateOptions, Exclude, KeepOptions, OwnerOptions,
+            write_split_archive, CreateOptions, KeepOptions, OwnerOptions, PathFilter,
             PathTransformers, StoreAs, TimeOptions, MIN_SPLIT_PART_BYTES,
         },
         Command,
@@ -268,7 +268,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     } else if let Some(path) = args.files_from {
         files.extend(read_paths(path, args.null)?);
     }
-    let exclude = {
+    let filter = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
             exclude.extend(read_paths(p, args.null)?);
@@ -276,7 +276,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         if args.exclude_vcs {
             exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
         }
-        Exclude {
+        PathFilter {
             include: args.include.unwrap_or_default().into(),
             exclude: exclude.into(),
         }
@@ -293,7 +293,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         args.follow_links,
         args.follow_command_links,
         args.one_file_system,
-        &exclude,
+        &filter,
     )?;
 
     if let Some(parent) = archive_path.parent() {

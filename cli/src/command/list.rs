@@ -5,7 +5,7 @@ use crate::{
     cli::{FileArgsCompat, PasswordArgs},
     command::{
         ask_password,
-        commons::{collect_split_archives, read_paths, run_read_entries, Exclude},
+        commons::{collect_split_archives, read_paths, run_read_entries, PathFilter},
         Command,
     },
     ext::*,
@@ -291,7 +291,7 @@ fn list_archive(args: ListCommand) -> anyhow::Result<()> {
     let files = args.file.files();
     let files_globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))?;
 
-    let exclude = {
+    let filter = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
             exclude.extend(read_paths(p, args.null)?);
@@ -299,7 +299,7 @@ fn list_archive(args: ListCommand) -> anyhow::Result<()> {
         if args.exclude_vcs {
             exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
         }
-        Exclude {
+        PathFilter {
             include: args.include.unwrap_or_default().into(),
             exclude: exclude.into(),
         }
@@ -315,13 +315,13 @@ fn list_archive(args: ListCommand) -> anyhow::Result<()> {
                 .map(|it| io::BufReader::with_capacity(64 * 1024, it)),
             password.as_deref(),
             files_globs,
-            exclude,
+            filter,
             options,
         )
     }
     #[cfg(feature = "memmap")]
     {
-        run_list_archive_mem(archives, password.as_deref(), files_globs, exclude, options)
+        run_list_archive_mem(archives, password.as_deref(), files_globs, filter, options)
     }
 }
 
@@ -370,7 +370,7 @@ pub(crate) fn run_list_archive(
     archive_provider: impl IntoIterator<Item = impl Read>,
     password: Option<&str>,
     files_globs: GlobPatterns,
-    exclude: Exclude,
+    filter: PathFilter,
     args: ListOptions,
 ) -> anyhow::Result<()> {
     let mut entries = Vec::new();
@@ -389,7 +389,7 @@ pub(crate) fn run_list_archive(
         }
         Ok(())
     })?;
-    print_entries(entries, files_globs, exclude, args)
+    print_entries(entries, files_globs, filter, args)
 }
 
 #[cfg(feature = "memmap")]
@@ -397,7 +397,7 @@ pub(crate) fn run_list_archive_mem(
     archives: Vec<std::fs::File>,
     password: Option<&str>,
     files_globs: GlobPatterns,
-    exclude: Exclude,
+    filter: PathFilter,
     args: ListOptions,
 ) -> anyhow::Result<()> {
     let mut entries = Vec::new();
@@ -421,20 +421,20 @@ pub(crate) fn run_list_archive_mem(
         }
         Ok(())
     })?;
-    print_entries(entries, files_globs, exclude, args)
+    print_entries(entries, files_globs, filter, args)
 }
 
 fn print_entries(
     entries: Vec<TableRow>,
     mut globs: GlobPatterns,
-    exclude: Exclude,
+    filter: PathFilter,
     options: ListOptions,
 ) -> anyhow::Result<()> {
     let entries = entries
         .into_iter()
         .filter(|r| {
             (globs.is_empty() || globs.matches_any(r.entry_type.name()))
-                && !exclude.excluded(r.entry_type.name())
+                && !filter.excluded(r.entry_type.name())
         })
         .collect::<Vec<_>>();
     globs.ensure_all_matched()?;
