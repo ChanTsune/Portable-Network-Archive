@@ -83,8 +83,12 @@ impl BsdGlobPatterns {
     }
 
     #[inline]
+    /// Returns `true` if the path should be included.
+    ///
+    /// A path is considered for inclusion if it matches any of the provided glob patterns.
+    /// If no patterns are provided, all paths are considered included (the function returns `true`).
     pub fn matches_inclusion(&self, s: impl AsRef<str>) -> bool {
-        self.0.iter().any(|it| it.match_inclusion(s.as_ref()))
+        self.0.is_empty() || self.0.iter().any(|it| it.match_inclusion(s.as_ref()))
     }
 }
 
