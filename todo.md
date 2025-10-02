@@ -70,7 +70,7 @@
 - [ ] 2-12 `--exclude-vcs`
   - 実装: `--unstable` 制約を外し、VCS リストを最新に保守。
   - テスト: 既存 Bats (`test_option_exclude_vcs.bats`) をゴールデン比較に移行。
-- [ ] 2-13 `--null`
+- [x] 2-13 `--null`
   - 実装: `read_paths` の NUL 区切り入力を bsdtar と同じ挙動に。
   - テスト: `printf 'a\0b\0'` などを `-T - --null` で比較。
 - [ ] 2-14 `-T/--files-from`
