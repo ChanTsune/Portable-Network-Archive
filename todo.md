@@ -51,7 +51,7 @@
 - [x] 2-6 `--fflags`
   - 実装: `KeepOptions` に file flags 保存を追加。
   - テスト: BSD 系 OS で `ls -lO` の結果比較。
-- [ ] 2-7 `--format`
+- [x] 2-7 `--format`
   - 実装: Clap で受理し、内部では PNA 固有フォーマットへマッピング。警告文を表示してドキュメント更新。
   - テスト: 受理後に互換警告が出るかを確認。
 - [ ] 2-8 `--options key=val`

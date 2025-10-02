@@ -166,6 +166,8 @@ pub(crate) struct StdioCommand {
     clear_nochange_fflags: bool,
     #[arg(long, help = "Compatibility option; accepted but ignored")]
     fflags: bool,
+    #[arg(long, help = "Requested archive format (compatibility only)")]
+    format: Option<String>,
     #[arg(
         short = 'a',
         long = "auto-compress",
@@ -331,6 +333,12 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     }
     if args.fflags {
         log::warn!("--fflags is accepted for compatibility but has no effect");
+    }
+    if let Some(fmt) = &args.format {
+        log::warn!(
+            "--format={} is accepted for compatibility but PNA format is always used",
+            fmt
+        );
     }
 
     if args.create {
