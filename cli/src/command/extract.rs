@@ -36,18 +36,18 @@ use std::{
 
 #[derive(Parser, Clone, Debug)]
 #[command(
-    group(ArgGroup::new("unstable-include").args(["include"]).requires("unstable")),
-    group(ArgGroup::new("unstable-exclude").args(["exclude"]).requires("unstable")),
-    group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
+    group(ArgGroup::new("include-group").args(["include"])),
+    group(ArgGroup::new("extract-exclude-group").args(["exclude"])),
+    group(ArgGroup::new("exclude-from-group").args(["exclude_from"])),
     group(ArgGroup::new("null-requires").arg("null").requires("exclude_from")),
     group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
-    group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
-    group(ArgGroup::new("unstable-transform").args(["transforms"]).requires("unstable")),
+    group(ArgGroup::new("substitution-group").args(["substitutions"])),
+    group(ArgGroup::new("transform-group").args(["transforms"])),
     group(ArgGroup::new("path-transform").args(["substitutions", "transforms"])),
     group(ArgGroup::new("owner-flag").args(["same_owner", "no_same_owner"])),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
-    group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
+    group(ArgGroup::new("exclude-vcs-group").args(["exclude_vcs"])),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),

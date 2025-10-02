@@ -26,14 +26,14 @@ use std::{
 #[derive(Parser, Clone, Debug)]
 #[command(
     group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
-    group(ArgGroup::new("unstable-include").args(["include"]).requires("unstable")),
-    group(ArgGroup::new("unstable-append-exclude").args(["exclude"]).requires("unstable")),
-    group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
-    group(ArgGroup::new("unstable-files-from-stdin").args(["files_from_stdin"]).requires("unstable")),
-    group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
-    group(ArgGroup::new("unstable-gitignore").args(["gitignore"]).requires("unstable")),
-    group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
-    group(ArgGroup::new("unstable-transform").args(["transforms"]).requires("unstable")),
+    group(ArgGroup::new("include-group").args(["include"])),
+    group(ArgGroup::new("append-exclude-group").args(["exclude"])),
+    group(ArgGroup::new("files-from-group").args(["files_from"])),
+    group(ArgGroup::new("files-from-stdin-group").args(["files_from_stdin"])),
+    group(ArgGroup::new("exclude-from-group").args(["exclude_from"])),
+    group(ArgGroup::new("gitignore-group").args(["gitignore"])),
+    group(ArgGroup::new("substitution-group").args(["substitutions"])),
+    group(ArgGroup::new("transform-group").args(["transforms"])),
     group(ArgGroup::new("path-transform").args(["substitutions", "transforms"])),
     group(ArgGroup::new("read-files-from").args(["files_from", "files_from_stdin"])),
     group(
@@ -51,7 +51,7 @@ use std::{
     group(ArgGroup::new("keep-dir-flag").args(["keep_dir", "no_keep_dir"])),
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
     group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
-    group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
+    group(ArgGroup::new("exclude-vcs-group").args(["exclude_vcs"])),
     group(ArgGroup::new("unstable-follow_command_links").args(["follow_command_links"]).requires("unstable")),
 )]
 #[cfg_attr(windows, command(

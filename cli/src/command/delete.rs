@@ -32,13 +32,13 @@ pub(crate) struct DeleteFromStdioArgs {
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(
-    group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
-    group(ArgGroup::new("unstable-files-from-stdin").args(["files_from_stdin"]).requires("unstable")),
-    group(ArgGroup::new("unstable-include").args(["include"]).requires("unstable")),
-    group(ArgGroup::new("unstable-delete-exclude").args(["exclude"]).requires("unstable")),
-    group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
+    group(ArgGroup::new("files-from-group").args(["files_from"])),
+    group(ArgGroup::new("files-from-stdin-group").args(["files_from_stdin"])),
+    group(ArgGroup::new("include-group").args(["include"])),
+    group(ArgGroup::new("delete-exclude-group").args(["exclude"])),
+    group(ArgGroup::new("exclude-from-group").args(["exclude_from"])),
     group(ArgGroup::new("read-files-from").args(["files_from", "files_from_stdin"])),
-    group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
+    group(ArgGroup::new("exclude-vcs-group").args(["exclude_vcs"])),
     group(
         ArgGroup::new("from-input")
             .args(["files_from", "files_from_stdin", "exclude_from"])
