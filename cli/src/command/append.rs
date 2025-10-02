@@ -143,22 +143,36 @@ pub(crate) struct AppendCommand {
         help = "Clamp the modification time of the entries to the specified time by --mtime"
     )]
     clamp_mtime: bool,
-    #[arg(long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
+    #[arg(
+        short = 'T',
+        long,
+        help = "Read archive entries from file",
+        value_hint = ValueHint::FilePath
+    )]
     pub(crate) files_from: Option<String>,
     #[arg(long, help = "Read archiving files from stdin (unstable)")]
     pub(crate) files_from_stdin: bool,
     #[arg(
         long,
-        help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)"
+        help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions"
     )]
     include: Option<Vec<String>>,
-    #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
+    #[arg(
+        long,
+        help = "Exclude path glob",
+        value_hint = ValueHint::AnyPath
+    )]
     exclude: Option<Vec<String>>,
-    #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
+    #[arg(
+        short = 'X',
+        long,
+        help = "Read exclude patterns from file",
+        value_hint = ValueHint::FilePath
+    )]
     exclude_from: Option<String>,
-    #[arg(long, help = "Exclude vcs files (unstable)")]
+    #[arg(long, help = "Exclude vcs files")]
     exclude_vcs: bool,
-    #[arg(long, help = "Ignore files from .gitignore (unstable)")]
+    #[arg(long, help = "Ignore files from .gitignore")]
     pub(crate) gitignore: bool,
     #[arg(long, visible_aliases = ["dereference"], help = "Follow symbolic links")]
     follow_links: bool,

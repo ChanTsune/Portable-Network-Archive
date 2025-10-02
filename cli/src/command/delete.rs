@@ -49,20 +49,34 @@ pub(crate) struct DeleteFromStdioArgs {
 pub(crate) struct DeleteCommand {
     #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
     output: Option<PathBuf>,
-    #[arg(long, help = "Read deleting files from given path (unstable)", value_hint = ValueHint::FilePath)]
+    #[arg(
+        short = 'T',
+        long,
+        help = "Read deleting files from given path",
+        value_hint = ValueHint::FilePath
+    )]
     files_from: Option<String>,
     #[arg(long, help = "Read deleting files from stdin (unstable)")]
     files_from_stdin: bool,
     #[arg(
         long,
-        help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)"
+        help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions"
     )]
     include: Option<Vec<String>>,
-    #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
+    #[arg(
+        long,
+        help = "Exclude path glob",
+        value_hint = ValueHint::AnyPath
+    )]
     exclude: Option<Vec<String>>,
-    #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
+    #[arg(
+        short = 'X',
+        long,
+        help = "Read exclude patterns from given path",
+        value_hint = ValueHint::FilePath
+    )]
     exclude_from: Option<PathBuf>,
-    #[arg(long, help = "Exclude vcs files (unstable)")]
+    #[arg(long, help = "Exclude vcs files")]
     exclude_vcs: bool,
     #[arg(
         long,

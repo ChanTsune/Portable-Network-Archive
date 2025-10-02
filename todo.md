@@ -73,10 +73,10 @@
 - [x] 2-13 `--null`
   - 実装: `read_paths` の NUL 区切り入力を bsdtar と同じ挙動に。
   - テスト: `printf 'a\0b\0'` などを `-T - --null` で比較。
-- [ ] 2-14 `-T/--files-from`
+- [x] 2-14 `-T/--files-from`
   - 実装: `short = 'T'` を追加し、`--files-from=-` をサポート。
   - テスト: NUL 有無を含む複数ケースをゴールデン比較。
-- [ ] 2-15 `-X/--exclude-from`
+- [x] 2-15 `-X/--exclude-from`
   - 実装: `short = 'X'`, `--unstable`制約解除。
   - テスト: exclude ファイルの正/誤判定を比較。
 - [ ] 2-16 `-k/--keep-old-files`
