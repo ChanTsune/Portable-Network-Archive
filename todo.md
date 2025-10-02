@@ -60,7 +60,6 @@
 - [x] 2-9 `--use-compress-program`
   - 実装: 子プロセス (例: `gzip`) を起動して入出力パイプを接続。
   - テスト: `--use-compress-program gzip` と `bsdtar` の比較。
-- [ ] 2-10 `--help`
   - 実装: Clap 自動生成に加え、互換メッセージの追記を確認。
   - テスト: `pna experimental stdio --help` と `bsdtar --help` の差分レビュー。
 
