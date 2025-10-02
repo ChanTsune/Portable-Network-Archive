@@ -811,18 +811,35 @@ where
 
 pub(crate) fn run_process_archive<'p, Provider, F>(
     archive_provider: impl IntoIterator<Item = impl Read>,
+    password_provider: Provider,
+    processor: F,
+) -> io::Result<()>
+where
+    Provider: FnMut() -> Option<&'p str>,
+    F: FnMut(io::Result<NormalEntry>) -> io::Result<()>,
+{
+    run_process_archive_with_options(archive_provider, password_provider, processor, false)
+}
+
+pub(crate) fn run_process_archive_with_options<'p, Provider, F>(
+    archive_provider: impl IntoIterator<Item = impl Read>,
     mut password_provider: Provider,
     mut processor: F,
+    ignore_zero_padding: bool,
 ) -> io::Result<()>
 where
     Provider: FnMut() -> Option<&'p str>,
     F: FnMut(io::Result<NormalEntry>) -> io::Result<()>,
 {
     let password = password_provider();
-    run_read_entries(archive_provider, |entry| match entry? {
-        ReadEntry::Solid(solid) => solid.entries(password)?.try_for_each(&mut processor),
-        ReadEntry::Normal(regular) => processor(Ok(regular)),
-    })
+    run_read_entries_with_options(
+        archive_provider,
+        ignore_zero_padding,
+        |entry| match entry? {
+            ReadEntry::Solid(solid) => solid.entries(password)?.try_for_each(&mut processor),
+            ReadEntry::Normal(regular) => processor(Ok(regular)),
+        },
+    )
 }
 
 #[cfg(feature = "memmap")]
@@ -876,6 +893,20 @@ where
     Provider: FnMut() -> Option<&'p str>,
     F: FnMut(io::Result<NormalEntry<Cow<'d, [u8]>>>) -> io::Result<()>,
 {
+    run_entries_with_options(archives, password_provider, processor, false)
+}
+
+#[cfg(feature = "memmap")]
+pub(crate) fn run_entries_with_options<'d, 'p, Provider, F>(
+    archives: impl IntoIterator<Item = &'d [u8]>,
+    mut password_provider: Provider,
+    mut processor: F,
+    _ignore_zero_padding: bool,
+) -> io::Result<()>
+where
+    Provider: FnMut() -> Option<&'p str>,
+    F: FnMut(io::Result<NormalEntry<Cow<'d, [u8]>>>) -> io::Result<()>,
+{
     let password = password_provider();
     run_read_entries_mem(archives, |entry| match entry? {
         ReadEntry::Solid(s) => s
@@ -912,12 +943,24 @@ where
 
 pub(crate) fn run_read_entries<F>(
     archive_provider: impl IntoIterator<Item = impl Read>,
+    processor: F,
+) -> io::Result<()>
+where
+    F: FnMut(io::Result<ReadEntry>) -> io::Result<()>,
+{
+    run_read_entries_with_options(archive_provider, false, processor)
+}
+
+pub(crate) fn run_read_entries_with_options<F>(
+    archive_provider: impl IntoIterator<Item = impl Read>,
+    ignore_zero_padding: bool,
     mut processor: F,
 ) -> io::Result<()>
 where
     F: FnMut(io::Result<ReadEntry>) -> io::Result<()>,
 {
     run_across_archive(archive_provider, |archive| {
+        archive.set_ignore_zero_padding(ignore_zero_padding);
         archive.entries().try_for_each(&mut processor)
     })
 }
@@ -1112,7 +1155,7 @@ mod tests {
 
         use nix::sys::stat::lstat;
 
-        let metadata = lstat(path).map_err(|err| io::Error::from_raw_os_error(err as i32))?;
+        let metadata = lstat(path).map_err(io::Error::from)?;
         let new_flags = metadata.st_flags as libc::c_uint | libc::UF_NODUMP as libc::c_uint;
         let path_c = CString::new(path.as_os_str().as_bytes()).map_err(|_| {
             io::Error::new(io::ErrorKind::InvalidInput, "path contains interior NUL")
@@ -1366,6 +1409,62 @@ mod tests {
         )
         .unwrap();
         assert!(!with_flag.iter().any(|(p, _)| p == &file));
+    }
+
+    #[test]
+    fn run_process_archive_ignore_zeros_skips_padding() {
+        use pna::{Archive, EntryBuilder, WriteOptions};
+        use tempfile::tempdir;
+
+        let tmp = tempdir().unwrap();
+        let archive_path = tmp.path().join("padding.pna");
+        {
+            let file = fs::File::create(&archive_path).unwrap();
+            let mut archive = Archive::write_header(file).unwrap();
+            let mut first =
+                EntryBuilder::new_file("first.txt".into(), WriteOptions::store()).unwrap();
+            first.write_all(b"first").unwrap();
+            archive.add_entry(first.build().unwrap()).unwrap();
+            let mut second =
+                EntryBuilder::new_file("second.txt".into(), WriteOptions::store()).unwrap();
+            second.write_all(b"second").unwrap();
+            archive.add_entry(second.build().unwrap()).unwrap();
+            archive.finalize().unwrap();
+        }
+
+        let mut bytes = fs::read(&archive_path).unwrap();
+        let aend_index = bytes
+            .windows(4)
+            .position(|window| window == b"AEND")
+            .unwrap();
+        bytes.splice(aend_index..aend_index, vec![0u8; 1024]);
+        fs::write(&archive_path, &bytes).unwrap();
+
+        let file = fs::File::open(&archive_path).unwrap();
+        let result = run_process_archive(
+            std::iter::once(io::BufReader::with_capacity(64 * 1024, file)),
+            || None,
+            |entry| {
+                let _ = entry?;
+                Ok(())
+            },
+        );
+        assert!(result.is_err());
+
+        let file = fs::File::open(&archive_path).unwrap();
+        let mut count = 0usize;
+        run_process_archive_with_options(
+            std::iter::once(io::BufReader::with_capacity(64 * 1024, file)),
+            || None,
+            |entry| {
+                entry?;
+                count += 1;
+                Ok(())
+            },
+            true,
+        )
+        .unwrap();
+        assert_eq!(count, 2);
     }
 
     #[test]

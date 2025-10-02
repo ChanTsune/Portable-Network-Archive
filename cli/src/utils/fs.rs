@@ -55,9 +55,9 @@ pub(crate) fn has_nodump_flag(path: &Path, follow_symlink: bool) -> io::Result<b
         use nix::sys::stat::{lstat, stat};
 
         let metadata = if follow_symlink {
-            stat(path).map_err(|err| io::Error::from_raw_os_error(err as i32))?
+            stat(path).map_err(io::Error::from)?
         } else {
-            lstat(path).map_err(|err| io::Error::from_raw_os_error(err as i32))?
+            lstat(path).map_err(io::Error::from)?
         };
         Ok((metadata.st_flags as libc::c_uint & libc::UF_NODUMP as libc::c_uint) != 0)
     }

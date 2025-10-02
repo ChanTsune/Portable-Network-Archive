@@ -2,7 +2,7 @@ mod slice;
 
 use crate::{
     archive::{Archive, ArchiveHeader, PNA_HEADER},
-    chunk::{read_chunk, Chunk, ChunkReader, ChunkType, RawChunk},
+    chunk::{read_chunk, read_chunk_with_options, Chunk, ChunkReader, ChunkType, RawChunk},
     entry::{Entry, NormalEntry, RawEntry, ReadEntry},
 };
 #[cfg(feature = "unstable-async")]
@@ -78,7 +78,22 @@ impl<R: Read> Archive<R> {
         let mut chunks = Vec::new();
         swap(&mut self.buf, &mut chunks);
         loop {
-            let chunk = read_chunk(&mut self.inner)?;
+            let chunk = match if self.ignore_zero_padding {
+                read_chunk_with_options(&mut self.inner, true)
+            } else {
+                read_chunk(&mut self.inner)
+            } {
+                Ok(chunk) => chunk,
+                Err(err)
+                    if self.ignore_zero_padding
+                        && err.kind() == io::ErrorKind::UnexpectedEof
+                        && chunks.is_empty() =>
+                {
+                    self.buf = chunks;
+                    return Ok(None);
+                }
+                Err(err) => return Err(err),
+            };
             match chunk.ty {
                 ChunkType::FEND | ChunkType::SEND => {
                     chunks.push(chunk);
@@ -188,7 +203,8 @@ impl<R: Read> Archive<R> {
     #[inline]
     pub fn read_next_archive<OR: Read>(self, reader: OR) -> io::Result<Archive<OR>> {
         let current_header = self.header;
-        let next = Archive::<OR>::read_header_with_buffer(reader, self.buf)?;
+        let mut next = Archive::<OR>::read_header_with_buffer(reader, self.buf)?;
+        next.ignore_zero_padding = self.ignore_zero_padding;
         if current_header.archive_number + 1 != next.header.archive_number {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,

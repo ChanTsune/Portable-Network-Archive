@@ -1,5 +1,5 @@
 #[cfg(feature = "memmap")]
-use crate::command::commons::run_entries;
+use crate::command::commons::run_entries_with_options;
 #[cfg(any(unix, windows))]
 use crate::utils::fs::chown;
 use crate::{
@@ -7,8 +7,8 @@ use crate::{
     command::{
         ask_password,
         commons::{
-            collect_split_archives, read_paths, run_process_archive, Exclude, KeepOptions,
-            OwnerOptions, PathTransformers,
+            collect_split_archives, read_paths, run_process_archive_with_options, Exclude,
+            KeepOptions, OwnerOptions, PathTransformers,
         },
         Command,
     },
@@ -132,6 +132,12 @@ pub(crate) struct ExtractCommand {
     )]
     null: bool,
     #[arg(
+        long = "ignore-zeros",
+        visible_alias = "ignore-zeroes",
+        help = "Continue processing after zero-filled padding blocks"
+    )]
+    ignore_zeros: bool,
+    #[arg(
         long,
         help = "Remove the specified number of leading path elements. Path names with fewer elements will be silently skipped"
     )]
@@ -232,6 +238,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         owner_options,
         same_owner: !args.no_same_owner,
         path_transformers: PathTransformers::new(args.substitutions, args.transforms),
+        ignore_zeros: args.ignore_zeros,
     };
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
@@ -290,6 +297,7 @@ pub(crate) struct OutputOption {
     pub(crate) owner_options: OwnerOptions,
     pub(crate) same_owner: bool,
     pub(crate) path_transformers: Option<PathTransformers>,
+    pub(crate) ignore_zeros: bool,
 }
 
 pub(crate) fn run_extract_archive_reader<'p, Provider>(
@@ -308,29 +316,35 @@ where
     let mut link_entries = Vec::new();
 
     let (tx, rx) = std::sync::mpsc::channel();
+    let ignore_zeros = args.ignore_zeros;
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
-        run_process_archive(reader, password_provider, |entry| {
-            let item = entry?;
-            let item_path = item.header().path().to_string();
-            if !globs.is_empty() && !globs.matches_any(&item_path) {
-                log::debug!("Skip: {}", item.header().path());
-                return Ok(());
-            }
-            if matches!(
-                item.header().data_kind(),
-                DataKind::SymbolicLink | DataKind::HardLink
-            ) {
-                link_entries.push(item);
-                return Ok(());
-            }
-            let tx = tx.clone();
-            let args = args.clone();
-            s.spawn_fifo(move |_| {
-                tx.send(extract_entry(item, password, &args))
-                    .unwrap_or_else(|e| log::error!("{e}: {item_path}"));
-            });
-            Ok(())
-        })?;
+        run_process_archive_with_options(
+            reader,
+            password_provider,
+            |entry| {
+                let item = entry?;
+                let item_path = item.header().path().to_string();
+                if !globs.is_empty() && !globs.matches_any(&item_path) {
+                    log::debug!("Skip: {}", item.header().path());
+                    return Ok(());
+                }
+                if matches!(
+                    item.header().data_kind(),
+                    DataKind::SymbolicLink | DataKind::HardLink
+                ) {
+                    link_entries.push(item);
+                    return Ok(());
+                }
+                let tx = tx.clone();
+                let args = args.clone();
+                s.spawn_fifo(move |_| {
+                    tx.send(extract_entry(item, password, &args))
+                        .unwrap_or_else(|e| log::error!("{e}: {item_path}"));
+                });
+                Ok(())
+            },
+            ignore_zeros,
+        )?;
         drop(tx);
         Ok(())
     })?;
@@ -355,6 +369,7 @@ pub(crate) fn run_extract_archive<'d, 'p, Provider>(
 where
     Provider: FnMut() -> Option<&'p str> + Send,
 {
+    let ignore_zeros = args.ignore_zeros;
     rayon::scope_fifo(|s| {
         let password = password_provider();
         let mut globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))?;
@@ -363,28 +378,33 @@ where
 
         let (tx, rx) = std::sync::mpsc::channel();
 
-        run_entries(archives, password_provider, |entry| {
-            let item = entry?;
-            let item_path = item.header().path().to_string();
-            if !globs.is_empty() && !globs.matches_any(&item_path) {
-                log::debug!("Skip: {}", item.header().path());
-                return Ok(());
-            }
-            if matches!(
-                item.header().data_kind(),
-                DataKind::SymbolicLink | DataKind::HardLink
-            ) {
-                link_entries.push(item.into());
-                return Ok(());
-            }
-            let tx = tx.clone();
-            let args = args.clone();
-            s.spawn_fifo(move |_| {
-                tx.send(extract_entry(item, password, &args))
-                    .unwrap_or_else(|e| log::error!("{e}: {item_path}"));
-            });
-            Ok(())
-        })?;
+        run_entries_with_options(
+            archives,
+            password_provider,
+            |entry| {
+                let item = entry?;
+                let item_path = item.header().path().to_string();
+                if !globs.is_empty() && !globs.matches_any(&item_path) {
+                    log::debug!("Skip: {}", item.header().path());
+                    return Ok(());
+                }
+                if matches!(
+                    item.header().data_kind(),
+                    DataKind::SymbolicLink | DataKind::HardLink
+                ) {
+                    link_entries.push(item.into());
+                    return Ok(());
+                }
+                let tx = tx.clone();
+                let args = args.clone();
+                s.spawn_fifo(move |_| {
+                    tx.send(extract_entry(item, password, &args))
+                        .unwrap_or_else(|e| log::error!("{e}: {item_path}"));
+                });
+                Ok(())
+            },
+            ignore_zeros,
+        )?;
         drop(tx);
         for result in rx {
             result?;
@@ -413,6 +433,7 @@ pub(crate) fn extract_entry<T>(
         owner_options,
         same_owner,
         path_transformers,
+        ignore_zeros: _,
     }: &OutputOption,
 ) -> io::Result<()>
 where

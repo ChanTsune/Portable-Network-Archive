@@ -133,6 +133,12 @@ pub(crate) struct StdioCommand {
         help = "Exclude files or directories marked with the nodump flag"
     )]
     nodump: bool,
+    #[arg(
+        long = "ignore-zeros",
+        visible_alias = "ignore-zeroes",
+        help = "Continue processing after zero-filled padding blocks"
+    )]
+    ignore_zeros: bool,
     #[arg(long, help = "Do not overwrite existing files when extracting")]
     keep_old_files: bool,
     #[arg(
@@ -602,6 +608,7 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         ),
         same_owner: !args.no_same_owner,
         path_transformers: PathTransformers::new(args.substitutions, args.transforms),
+        ignore_zeros: args.ignore_zeros,
     };
     // NOTE: "-" will use stdin
     let mut file = args.file;
@@ -674,6 +681,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
             files_globs,
             exclude,
             list_options,
+            args.ignore_zeros,
         )
     } else {
         crate::command::list::run_list_archive(
@@ -682,6 +690,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
             files_globs,
             exclude,
             list_options,
+            args.ignore_zeros,
         )
     }
 }

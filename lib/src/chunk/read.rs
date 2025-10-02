@@ -88,39 +88,87 @@ impl<R> From<R> for ChunkReader<R> {
 }
 
 pub(crate) fn read_chunk<R: Read>(mut r: R) -> io::Result<RawChunk> {
-    let mut crc_hasher = Crc32::new();
+    read_chunk_with_options(&mut r, false)
+}
 
-    // read chunk length
-    let mut length = [0u8; mem::size_of::<u32>()];
-    r.read_exact(&mut length)?;
-    let length = u32::from_be_bytes(length);
+pub(crate) fn read_chunk_with_options<R: Read>(
+    r: &mut R,
+    ignore_zero_padding: bool,
+) -> io::Result<RawChunk> {
+    loop {
+        let mut crc_hasher = Crc32::new();
 
-    // read a chunk type
-    let mut ty = [0u8; mem::size_of::<ChunkType>()];
-    r.read_exact(&mut ty)?;
+        // read chunk length
+        let mut length = [0u8; mem::size_of::<u32>()];
+        r.read_exact(&mut length)?;
+        let length = u32::from_be_bytes(length);
 
-    crc_hasher.update(&ty);
+        // read a chunk type
+        let mut ty = [0u8; mem::size_of::<ChunkType>()];
+        r.read_exact(&mut ty)?;
 
-    // read chunk data
-    let mut data = vec![0; length as usize];
-    r.read_exact(&mut data)?;
+        if ignore_zero_padding && length == 0 && ty.iter().all(|&b| b == 0) {
+            // read crc (should also be zero)
+            let mut crc = [0u8; mem::size_of::<u32>()];
+            match r.read_exact(&mut crc) {
+                Ok(()) => {}
+                Err(err) => return Err(err),
+            }
+            if crc.iter().any(|&b| b != 0) {
+                return Err(io::Error::new(io::ErrorKind::InvalidData, "Broken chunk"));
+            }
 
-    crc_hasher.update(&data);
+            const TAR_BLOCK_SIZE: usize = 512;
+            const HEADER_AND_CRC: usize = mem::size_of::<u32>() * 2 + mem::size_of::<ChunkType>();
+            const REMAINING_PADDING: usize = TAR_BLOCK_SIZE - HEADER_AND_CRC;
+            let mut padding = [0u8; REMAINING_PADDING];
+            let mut read_bytes = 0;
+            while read_bytes < padding.len() {
+                match r.read(&mut padding[read_bytes..]) {
+                    Ok(0) => {
+                        return Err(io::Error::new(
+                            io::ErrorKind::UnexpectedEof,
+                            "Unexpected EOF while skipping zero padding",
+                        ))
+                    }
+                    Ok(n) => {
+                        if padding[read_bytes..read_bytes + n].iter().any(|&b| b != 0) {
+                            return Err(io::Error::new(
+                                io::ErrorKind::InvalidData,
+                                "Non-zero data inside zero padding",
+                            ));
+                        }
+                        read_bytes += n;
+                    }
+                    Err(err) => return Err(err),
+                }
+            }
+            continue;
+        }
 
-    // read crc sum
-    let mut crc = [0u8; mem::size_of::<u32>()];
-    r.read_exact(&mut crc)?;
-    let crc = u32::from_be_bytes(crc);
+        crc_hasher.update(&ty);
 
-    if crc != crc_hasher.finalize() {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "Broken chunk"));
+        // read chunk data
+        let mut data = vec![0; length as usize];
+        r.read_exact(&mut data)?;
+
+        crc_hasher.update(&data);
+
+        // read crc sum
+        let mut crc = [0u8; mem::size_of::<u32>()];
+        r.read_exact(&mut crc)?;
+        let crc = u32::from_be_bytes(crc);
+
+        if crc != crc_hasher.finalize() {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "Broken chunk"));
+        }
+        return Ok(RawChunk {
+            length,
+            ty: ChunkType(ty),
+            data,
+            crc,
+        });
     }
-    Ok(RawChunk {
-        length,
-        ty: ChunkType(ty),
-        data,
-        crc,
-    })
 }
 
 pub(crate) fn read_chunk_from_slice(bytes: &[u8]) -> io::Result<(RawChunk<&[u8]>, &[u8])> {

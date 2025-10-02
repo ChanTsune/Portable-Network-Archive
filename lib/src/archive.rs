@@ -68,6 +68,7 @@ pub struct Archive<T> {
     // following fields are only use in reader mode
     next_archive: bool,
     buf: Vec<RawChunk>,
+    ignore_zero_padding: bool,
 }
 
 impl<T> Archive<T> {
@@ -81,6 +82,7 @@ impl<T> Archive<T> {
             header,
             next_archive: false,
             buf,
+            ignore_zero_padding: false,
         }
     }
 
@@ -94,6 +96,12 @@ impl<T> Archive<T> {
     #[inline]
     pub const fn has_next_archive(&self) -> bool {
         self.next_archive
+    }
+
+    /// Configures whether zero-filled padding blocks should be ignored when reading entries.
+    #[inline]
+    pub fn set_ignore_zero_padding(&mut self, ignore: bool) {
+        self.ignore_zero_padding = ignore;
     }
 }
 

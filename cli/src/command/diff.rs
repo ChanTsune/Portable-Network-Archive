@@ -1,7 +1,7 @@
 #[cfg(feature = "memmap")]
 use crate::command::commons::run_entries;
 #[cfg(not(feature = "memmap"))]
-use crate::command::commons::run_process_archive as run_entries;
+use crate::command::commons::run_process_archive_with_options as run_entries;
 use crate::{
     cli::{FileArgs, PasswordArgs},
     command::{ask_password, commons::collect_split_archives, Command},
@@ -44,6 +44,7 @@ fn diff_archive(args: DiffCommand) -> anyhow::Result<()> {
         archives,
         || password.as_deref(),
         |entry| compare_entry(entry?, password.as_deref()),
+        false,
     )?;
     Ok(())
 }

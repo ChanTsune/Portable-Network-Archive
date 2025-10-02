@@ -5,7 +5,7 @@ use crate::{
     cli::{FileArgsCompat, PasswordArgs},
     command::{
         ask_password,
-        commons::{collect_split_archives, read_paths, run_read_entries, Exclude},
+        commons::{collect_split_archives, read_paths, run_read_entries_with_options, Exclude},
         Command,
     },
     ext::*,
@@ -108,6 +108,12 @@ pub(crate) struct ListCommand {
         help = "Filenames or patterns are separated by null characters, not by newlines"
     )]
     null: bool,
+    #[arg(
+        long = "ignore-zeros",
+        visible_alias = "ignore-zeroes",
+        help = "Continue processing after zero-filled padding blocks"
+    )]
+    ignore_zeros: bool,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
@@ -317,11 +323,19 @@ fn list_archive(args: ListCommand) -> anyhow::Result<()> {
             files_globs,
             exclude,
             options,
+            args.ignore_zeros,
         )
     }
     #[cfg(feature = "memmap")]
     {
-        run_list_archive_mem(archives, password.as_deref(), files_globs, exclude, options)
+        run_list_archive_mem(
+            archives,
+            password.as_deref(),
+            files_globs,
+            exclude,
+            options,
+            args.ignore_zeros,
+        )
     }
 }
 
@@ -372,10 +386,11 @@ pub(crate) fn run_list_archive(
     files_globs: GlobPatterns,
     exclude: Exclude,
     args: ListOptions,
+    ignore_zero_padding: bool,
 ) -> anyhow::Result<()> {
     let mut entries = Vec::new();
 
-    run_read_entries(archive_provider, |entry| {
+    run_read_entries_with_options(archive_provider, ignore_zero_padding, |entry| {
         match entry? {
             ReadEntry::Solid(solid) if args.solid => {
                 for entry in solid.entries(password)? {
@@ -399,6 +414,7 @@ pub(crate) fn run_list_archive_mem(
     files_globs: GlobPatterns,
     exclude: Exclude,
     args: ListOptions,
+    _ignore_zero_padding: bool,
 ) -> anyhow::Result<()> {
     let mut entries = Vec::new();
     let mmaps = archives

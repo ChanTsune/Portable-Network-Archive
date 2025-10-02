@@ -97,9 +97,9 @@
 - [x] 2-21 `--nodump`
   - 実装: `collect_items` で `has_nodump_flag` を用いて nodump フラグ付きのパスを除外し、全パスから CLI に引き渡すよう対応。
   - テスト: `collect_items_skips_nodump_entries` で nodump フラグを付与したファイルが除外されることを確認。
-- [ ] 2-22 `--ignore-zeros`
-  - 実装: ストリームリーダへ「ゼロブロック連続時は終了扱いしない」オプションを追加。
-  - テスト: 0 ブロックを途中に挿入したアーカイブで比較。
+- [x] 2-22 `--ignore-zeros`
+  - 実装: アーカイブリーダーにゼロブロック跳過ロジックを導入し、`run_process_archive_with_options` から制御できるようにした。
+  - テスト: 人為的にゼロパディングを挿入した PNA を用意し、`--ignore-zeros` 指定時のみ後続エントリを処理できることを検証。
 - [ ] 2-23 `-C/--cd`, `-H`, `--help`, `-f`, `--gid`, `--gname`
   - 実装状態の再確認とテストケース追加。`-H` は `--unstable` を外す。
   - テスト: libarchive スイート + Bats で既存動作を再検証。
@@ -231,7 +231,7 @@
   - [x] 2-19 `-l`
   - [x] 2-20 `--one-file-system`
   - [x] 2-21 `--nodump`
-  - [ ] 2-22 `--ignore-zeros`
+  - [x] 2-22 `--ignore-zeros`
   - [ ] 2-23 `-C/-H/-f/--gid/--gname`
   - [ ] 2-24 その他圧縮フラグ
 - [ ] 3.時間・所有権・メタデータ
