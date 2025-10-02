@@ -42,7 +42,7 @@
 - [x] 2-3 `-b/--block-size`
   - 実装: `StdioCommand` に `block_size` (u16) を追加し、リーダ/ライタに 512-byte レコード数を渡す。
   - テスト: 20/32/64 ブロックサイズで tar を作成し、`bsdtar` の `--list --verbose` でヘッダ一致を確認。
-- [ ] 2-4 `--chroot`
+- [x] 2-4 `--chroot`
   - 実装: `chroot` 実行 (Unix 限定)。ルート切替後にアーカイブ操作。
   - テスト: Bats で fakeroot/chroot 環境を作り、bsdtar との結果一致。
 - [ ] 2-5 `--clear-nochange-fflags`

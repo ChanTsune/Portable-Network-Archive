@@ -160,6 +160,8 @@ pub(crate) struct StdioCommand {
         num_args = 1
     )]
     block_size: Option<u16>,
+    #[arg(long, help = "Run operations inside a chroot (currently unsupported)")]
+    chroot: Option<PathBuf>,
     #[arg(
         short = 'a',
         long = "auto-compress",
@@ -312,6 +314,12 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     }
     if args.block_size.is_some() {
         log::warn!("--block-size/-b is accepted for compatibility but has no effect");
+    }
+    if let Some(path) = &args.chroot {
+        bail!(
+            "--chroot is not supported yet: requested root {}",
+            path.display()
+        );
     }
 
     if args.create {
