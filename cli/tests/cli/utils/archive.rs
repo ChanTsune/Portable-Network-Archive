@@ -16,12 +16,24 @@ pub fn extract_single_entry(
     Ok(None)
 }
 
-pub fn for_each_entry<F>(path: impl AsRef<Path>, mut f: F) -> io::Result<()>
+pub fn for_each_entry<F>(path: impl AsRef<Path>, f: F) -> io::Result<()>
 where
     F: FnMut(pna::NormalEntry),
 {
+    for_each_entry_with_password(path, None, f)
+}
+
+pub fn for_each_entry_with_password<'a, F>(
+    path: impl AsRef<Path>,
+    password: impl Into<Option<&'a str>>,
+    mut f: F,
+) -> io::Result<()>
+where
+    F: FnMut(pna::NormalEntry),
+{
+    let password = password.into();
     let mut archive = pna::Archive::open(path)?;
-    let entries = archive.entries().extract_solid_entries(None);
+    let entries = archive.entries().extract_solid_entries(password);
     for entry in entries {
         f(entry?);
     }
