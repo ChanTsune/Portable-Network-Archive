@@ -106,7 +106,6 @@ pub(crate) struct UpdateFromStdioArgs {
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
     group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
     group(ArgGroup::new("exclude-vcs-group").args(["exclude_vcs"])),
-    group(ArgGroup::new("unstable-follow_command_links").args(["follow_command_links"]).requires("unstable")),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),

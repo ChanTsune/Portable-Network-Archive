@@ -188,6 +188,29 @@ fn symlink_follow() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn follow_command_links_short_alias_without_unstable() {
+    setup();
+    init_resource("follow_command_links_short/source");
+
+    let archive_path = "follow_command_links_short/archive.pna";
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        archive_path,
+        "--overwrite",
+        "-H",
+        "follow_command_links_short/source/link_dir",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    assert!(Path::new(archive_path).exists());
+}
+
 #[test]
 fn broken_symlink_no_follow() {
     setup();
