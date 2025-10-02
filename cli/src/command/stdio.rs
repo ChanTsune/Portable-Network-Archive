@@ -162,6 +162,8 @@ pub(crate) struct StdioCommand {
     block_size: Option<u16>,
     #[arg(long, help = "Run operations inside a chroot (currently unsupported)")]
     chroot: Option<PathBuf>,
+    #[arg(long, help = "Compatibility option; accepted but ignored")]
+    clear_nochange_fflags: bool,
     #[arg(
         short = 'a',
         long = "auto-compress",
@@ -316,10 +318,14 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
         log::warn!("--block-size/-b is accepted for compatibility but has no effect");
     }
     if let Some(path) = &args.chroot {
+        log::warn!("--chroot is currently unsupported and will return an error");
         bail!(
             "--chroot is not supported yet: requested root {}",
             path.display()
         );
+    }
+    if args.clear_nochange_fflags {
+        log::warn!("--clear-nochange-fflags is accepted for compatibility but has no effect");
     }
 
     if args.create {

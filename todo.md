@@ -45,7 +45,7 @@
 - [x] 2-4 `--chroot`
   - 実装: `chroot` 実行 (Unix 限定)。ルート切替後にアーカイブ操作。
   - テスト: Bats で fakeroot/chroot 環境を作り、bsdtar との結果一致。
-- [ ] 2-5 `--clear-nochange-fflags`
+- [x] 2-5 `--clear-nochange-fflags`
   - 実装: macOS 用に `chflags` を呼び出す処理を実装。
   - テスト: macOS 上で VCS フラグつきファイルをアーカイブ→展開し比較。
 - [ ] 2-6 `--fflags`
