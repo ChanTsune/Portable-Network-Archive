@@ -147,6 +147,12 @@ pub(crate) struct StdioCommand {
     #[arg(long, help = "Solid mode archive")]
     pub(crate) solid: bool,
     #[arg(
+        short = 'B',
+        long = "read-full-blocks",
+        help = "Compatibility flag; accepted but ignored"
+    )]
+    read_full_blocks: bool,
+    #[arg(
         short = 'a',
         long = "auto-compress",
         help = "Choose compression based on archive filename (bsdtar -a equivalent)"
@@ -293,6 +299,10 @@ impl Command for StdioCommand {
 }
 
 fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
+    if args.read_full_blocks {
+        log::warn!("--read-full-blocks/-B is accepted for compatibility but has no effect");
+    }
+
     if args.create {
         run_create_archive(args)
     } else if args.extract {

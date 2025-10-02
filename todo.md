@@ -36,7 +36,7 @@
 - [x] 2-1 `-a/--auto-compress`
   - 実装: 出力ファイル名の拡張子から `CompressionAlgorithmArgs` を推定するユーティリティを実装。
   - テスト: `.tgz`, `.tar.gz`, `.tar.bz2`, `.tar.xz`, `.zip` などを比較。
-- [ ] 2-2 `-B/--read-full-blocks`
+- [x] 2-2 `-B/--read-full-blocks`
   - 実装: 読み込みループでブロックサイズ不足時に再読込するモードを追加（テープ I/O 用）。非対応の場合は「実装予定」の Issue を残さない。
   - テスト: 小さな `dd` で作成したテープファイルを利用し、bsdtar との挙動比較。
 - [ ] 2-3 `-b/--block-size`
