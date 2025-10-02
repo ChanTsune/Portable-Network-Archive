@@ -41,7 +41,7 @@ fn bench_read_archive(b: &mut Bencher, mut options: WriteOptionsBuilder) {
 
     b.iter(|| {
         let mut reader = Archive::read_header(vec.as_slice()).unwrap();
-        for item in reader.entries_skip_solid() {
+        for item in reader.entries().skip_solid() {
             let mut buf = Vec::with_capacity(1000);
             item.unwrap()
                 .reader(ReadOptions::with_password(Some("password")))
@@ -305,7 +305,7 @@ fn bench_read_empty_archive(c: &mut Criterion) {
 
         b.iter(|| {
             let mut reader = Archive::read_header(vec.as_slice()).expect("failed to read header");
-            for entry in reader.entries_skip_solid() {
+            for entry in reader.entries().skip_solid() {
                 let item = entry.expect("failed to read entry");
                 io::read_to_string(
                     item.reader(ReadOptions::builder().build())

@@ -918,7 +918,7 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
     /// # fn main() -> io::Result<()> {
     /// let file = fs::File::open("foo.pna")?;
     /// let mut archive = Archive::read_header(file)?;
-    /// for entry in archive.entries_skip_solid() {
+    /// for entry in archive.entries().skip_solid() {
     ///     let entry = entry?;
     ///     let mut reader = entry.reader(ReadOptions::builder().build())?;
     ///     let name = entry.header().path();

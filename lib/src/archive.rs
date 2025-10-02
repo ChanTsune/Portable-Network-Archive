@@ -53,7 +53,7 @@ pub(crate) use {read::*, write::*};
 /// # fn main() -> io::Result<()> {
 /// let file = File::open("foo.pna")?;
 /// let mut archive = Archive::read_header(file)?;
-/// for entry in archive.entries_skip_solid() {
+/// for entry in archive.entries().skip_solid() {
 ///     let entry = entry?;
 ///     let mut file = File::create(entry.header().path().as_path())?;
 ///     let mut reader = entry.reader(ReadOptions::builder().build())?;
@@ -300,7 +300,7 @@ mod tests {
         let read_options = ReadOptions::with_password(options.password());
         let archive = create_archive(src, options)?;
         let mut archive_reader = Archive::read_header(archive.as_slice())?;
-        let item = archive_reader.entries_skip_solid().next().unwrap()?;
+        let item = archive_reader.entries().skip_solid().next().unwrap()?;
         let mut reader = item.reader(read_options)?;
         let mut dist = Vec::new();
         io::copy(&mut reader, &mut dist)?;
@@ -436,7 +436,7 @@ mod tests {
 
         let mut reader = Archive::read_header(appended.as_slice()).unwrap();
 
-        let mut entries = reader.entries_skip_solid();
+        let mut entries = reader.entries();
         assert!(entries.next().is_some());
         assert!(entries.next().is_some());
         assert!(entries.next().is_none());

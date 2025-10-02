@@ -23,7 +23,7 @@ use std::io::{self, copy, prelude::*};
 fn main() -> io::Result<()> {
     let file = File::open("foo.pna")?;
     let mut archive = Archive::read_header(file)?;
-    for entry in archive.entries_skip_solid() {
+    for entry in archive.entries().skip_solid() {
         let entry = entry?;
         let mut file = File::create(entry.header().path().as_path())?;
         let mut reader = entry.reader(ReadOptions::builder().build())?;
