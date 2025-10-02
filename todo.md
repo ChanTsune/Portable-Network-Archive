@@ -48,7 +48,7 @@
 - [x] 2-5 `--clear-nochange-fflags`
   - 実装: macOS 用に `chflags` を呼び出す処理を実装。
   - テスト: macOS 上で VCS フラグつきファイルをアーカイブ→展開し比較。
-- [ ] 2-6 `--fflags`
+- [x] 2-6 `--fflags`
   - 実装: `KeepOptions` に file flags 保存を追加。
   - テスト: BSD 系 OS で `ls -lO` の結果比較。
 - [ ] 2-7 `--format`

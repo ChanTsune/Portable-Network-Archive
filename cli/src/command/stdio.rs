@@ -164,6 +164,8 @@ pub(crate) struct StdioCommand {
     chroot: Option<PathBuf>,
     #[arg(long, help = "Compatibility option; accepted but ignored")]
     clear_nochange_fflags: bool,
+    #[arg(long, help = "Compatibility option; accepted but ignored")]
+    fflags: bool,
     #[arg(
         short = 'a',
         long = "auto-compress",
@@ -326,6 +328,9 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     }
     if args.clear_nochange_fflags {
         log::warn!("--clear-nochange-fflags is accepted for compatibility but has no effect");
+    }
+    if args.fflags {
+        log::warn!("--fflags is accepted for compatibility but has no effect");
     }
 
     if args.create {
