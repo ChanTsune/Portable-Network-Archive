@@ -153,6 +153,14 @@ pub(crate) struct StdioCommand {
     )]
     read_full_blocks: bool,
     #[arg(
+        short = 'b',
+        long = "block-size",
+        value_hint = ValueHint::Other,
+        help = "Compatibility option; accepted but ignored",
+        num_args = 1
+    )]
+    block_size: Option<u16>,
+    #[arg(
         short = 'a',
         long = "auto-compress",
         help = "Choose compression based on archive filename (bsdtar -a equivalent)"
@@ -301,6 +309,9 @@ impl Command for StdioCommand {
 fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     if args.read_full_blocks {
         log::warn!("--read-full-blocks/-B is accepted for compatibility but has no effect");
+    }
+    if args.block_size.is_some() {
+        log::warn!("--block-size/-b is accepted for compatibility but has no effect");
     }
 
     if args.create {
