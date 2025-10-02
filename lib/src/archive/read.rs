@@ -146,13 +146,7 @@ impl<R: Read> Archive<R> {
     /// An iterator over the entries in the archive.
     #[inline]
     pub fn entries_skip_solid(&mut self) -> impl Iterator<Item = io::Result<NormalEntry>> + '_ {
-        self.entries().filter_map(|it| match it {
-            Ok(e) => match e {
-                ReadEntry::Solid(_) => None,
-                ReadEntry::Normal(r) => Some(Ok(r)),
-            },
-            Err(e) => Some(Err(e)),
-        })
+        self.entries().skip_solid()
     }
 
     /// Returns an iterator over the entries in the archive, including entries in solid mode.
@@ -361,6 +355,24 @@ impl<'r, R> Entries<'r, R> {
     #[inline]
     pub fn extract_solid_entries(self, password: Option<&'r str>) -> NormalEntries<'r, R> {
         NormalEntries::new(self.reader, password)
+    }
+}
+
+impl<'r, R: Read> Entries<'r, R> {
+    /// Returns an iterator over the entries in the archive, excluding entries in solid mode.
+    ///
+    /// # Returns
+    ///
+    /// An iterator over the entries in the archive.
+    #[inline]
+    pub fn skip_solid(self) -> impl Iterator<Item = io::Result<NormalEntry>> + 'r {
+        self.filter_map(|it| match it {
+            Ok(e) => match e {
+                ReadEntry::Solid(_) => None,
+                ReadEntry::Normal(r) => Some(Ok(r)),
+            },
+            Err(e) => Some(Err(e)),
+        })
     }
 }
 
