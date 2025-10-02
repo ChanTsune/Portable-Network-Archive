@@ -16,7 +16,6 @@ fn create_with_transform() {
         "create_with_transform/in/",
         "--transform",
         "s,create_with_transform/in/,,",
-        "--unstable",
     ])
     .unwrap()
     .execute()

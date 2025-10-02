@@ -30,7 +30,6 @@ fn extract_with_substitution() {
         "extract_with_substitution/out/",
         "-s",
         "#extract_with_substitution/in/##",
-        "--unstable",
     ])
     .unwrap()
     .execute()

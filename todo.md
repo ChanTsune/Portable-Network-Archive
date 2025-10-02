@@ -112,9 +112,9 @@
 - [x] 3-1 `--newer* / --older*` 系
   - 実装: `build_time_filters` でフィルタを構築し、`collect_items` と `update` 経路へ適用。
   - テスト: `collect_items_respects_mtime_filters` と `DateTime::from_system_time` の単体テストを追加。
-- [ ] 3-2 `-s` / `--transform`
-  - 実装: 既存 `SubstitutionRule` を `--unstable` なしで使えるよう整理し、BSD tar と同じ正規表現/置換仕様に合わせる。
-  - テスト: 代表的なパターンをゴールデン比較。
+- [x] 3-2 `-s` / `--transform`
+  - 実装: `-s`/`--transform` のヘルプを安定化し、experimental stdio/create/append/update/extract 経路が共通の `PathTransformers` を利用。
+  - テスト: `create/extract` 既存シナリオを安定化させ、`stdio` 用 substitution/transform 回帰テストを追加。
 - [ ] 3-3 `-p/--preserve-permissions` & `--no-same-permissions`
   - 実装: 抽出時に `chmod`/`chown` の適用有無を制御するフラグ整備。
   - テスト: 各フラグ有無での permission 差を比較。
@@ -236,7 +236,7 @@
   - [ ] 2-24 その他圧縮フラグ
 - [ ] 3.時間・所有権・メタデータ
   - [x] 3-1 `--newer*/--older*`
-  - [ ] 3-2 `-s/--transform`
+  - [x] 3-2 `-s/--transform`
   - [ ] 3-3 `-p/--preserve-permissions`
   - [ ] 3-4 `-m`
   - [ ] 3-5 `-o`

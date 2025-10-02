@@ -199,14 +199,14 @@ pub(crate) struct AppendCommand {
     #[arg(
         short = 's',
         value_name = "PATTERN",
-        help = "Modify file or archive member names according to pattern that like BSD tar -s option (unstable)"
+        help = "Modify file or archive member names according to the BSD tar -s pattern rules"
     )]
     substitutions: Option<Vec<SubstitutionRule>>,
     #[arg(
         long = "transform",
         visible_alias = "xform",
         value_name = "PATTERN",
-        help = "Modify file or archive member names according to pattern that like GNU tar -transform option (unstable)"
+        help = "Modify file or archive member names using GNU tar --transform pattern rules"
     )]
     transforms: Option<Vec<TransformRule>>,
     #[arg(

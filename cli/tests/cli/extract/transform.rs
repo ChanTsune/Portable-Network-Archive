@@ -30,7 +30,6 @@ fn extract_with_transform() {
         "extract_with_transform/out/",
         "--transform",
         "s,extract_with_transform/in/,,",
-        "--unstable",
     ])
     .unwrap()
     .execute()

@@ -16,7 +16,6 @@ fn create_with_substitution() {
         "create_with_substitution/in/",
         "-s",
         "#create_with_substitution/in/##",
-        "--unstable",
     ])
     .unwrap()
     .execute()
