@@ -57,6 +57,10 @@ pub(crate) struct ExtractCommand {
     pub(crate) overwrite: bool,
     #[arg(long, help = "Output directory of extracted files", value_hint = ValueHint::DirPath)]
     pub(crate) out_dir: Option<PathBuf>,
+    #[arg(long, help = "Do not overwrite existing files when extracting")]
+    pub(crate) keep_old_files: bool,
+    #[arg(long, help = "Keep newer files on disk (skip older archive entries)")]
+    pub(crate) keep_newer_files: bool,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[arg(
@@ -217,7 +221,9 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         args.numeric_owner,
     );
     let output_options = OutputOption {
-        overwrite: args.overwrite,
+        overwrite: args.overwrite && !args.keep_old_files,
+        keep_old_files: args.keep_old_files,
+        keep_newer_files: args.keep_newer_files,
         allow_unsafe_links: args.allow_unsafe_links,
         strip_components: args.strip_components,
         out_dir: args.out_dir,
@@ -274,6 +280,8 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
 #[derive(Clone, Debug)]
 pub(crate) struct OutputOption {
     pub(crate) overwrite: bool,
+    pub(crate) keep_old_files: bool,
+    pub(crate) keep_newer_files: bool,
     pub(crate) allow_unsafe_links: bool,
     pub(crate) strip_components: Option<usize>,
     pub(crate) out_dir: Option<PathBuf>,
@@ -395,6 +403,8 @@ pub(crate) fn extract_entry<T>(
     password: Option<&str>,
     OutputOption {
         overwrite,
+        keep_old_files,
+        keep_newer_files,
         allow_unsafe_links,
         strip_components,
         out_dir,
@@ -411,6 +421,8 @@ where
 {
     let same_owner = *same_owner;
     let overwrite = *overwrite;
+    let keep_old_files = *keep_old_files;
+    let keep_newer_files = *keep_newer_files;
     let item_path = item.header().path().as_str();
     if exclude.excluded(item_path) {
         return Ok(());
@@ -439,11 +451,29 @@ where
     } else {
         item_path
     };
-    if path.exists() && !overwrite {
-        return Err(io::Error::new(
-            io::ErrorKind::AlreadyExists,
-            format!("{} already exists", path.display()),
-        ));
+    if path.exists() {
+        if keep_old_files {
+            log::debug!("Skip {} due to --keep-old-files", path.display());
+            return Ok(());
+        }
+        if keep_newer_files {
+            if let Some(entry_mtime) = item.metadata().modified_time() {
+                if let Ok(existing_meta) = fs::metadata(&path) {
+                    if let Ok(existing_mtime) = existing_meta.modified() {
+                        if existing_mtime >= entry_mtime {
+                            log::debug!("Skip {} due to --keep-newer-files", path.display());
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+        }
+        if !overwrite {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                format!("{} already exists", path.display()),
+            ));
+        }
     }
     log::debug!("start: {}", path.display());
     if let Some(parent) = path.parent() {

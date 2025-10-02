@@ -79,10 +79,10 @@
 - [x] 2-15 `-X/--exclude-from`
   - 実装: `short = 'X'`, `--unstable`制約解除。
   - テスト: exclude ファイルの正/誤判定を比較。
-- [ ] 2-16 `-k/--keep-old-files`
+- [x] 2-16 `-k/--keep-old-files`
   - 実装: `OutputOption` に `keep_existing` を追加し、存在ファイルを保存。
   - テスト: 同名ファイルがある場合の挙動比較。
-- [ ] 2-17 `--keep-newer-files`
+- [x] 2-17 `--keep-newer-files`
   - 実装: `OutputOption` にタイムスタンプ比較ロジック追加。
   - テスト: 古い/新しいファイルを用意し、上書き有無を比較。
 - [ ] 2-18 `-L/--dereference` & `-h`
@@ -225,8 +225,8 @@
   - [ ] 2-13 `--null`
   - [ ] 2-14 `-T/--files-from`
   - [ ] 2-15 `-X/--exclude-from`
-  - [ ] 2-16 `-k`
-  - [ ] 2-17 `--keep-newer-files`
+  - [x] 2-16 `-k`
+  - [x] 2-17 `--keep-newer-files`
   - [ ] 2-18 `-L/-h`
   - [ ] 2-19 `-l`
   - [ ] 2-20 `--one-file-system`

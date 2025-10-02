@@ -36,6 +36,8 @@ use std::{
 #[derive(Args, Clone, Debug)]
 #[command(
     group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
+    group(ArgGroup::new("keep-old-files-group").args(["keep_old_files"])),
+    group(ArgGroup::new("keep-newer-files-group").args(["keep_newer_files"])),
     group(ArgGroup::new("bundled-flags").args(["create", "extract", "list"]).required(true)),
     group(ArgGroup::new("include-group").args(["include"])),
     group(ArgGroup::new("exclude-group").args(["exclude"])),
@@ -120,6 +122,13 @@ pub(crate) struct StdioCommand {
         help = "Do not archive directories. This is the inverse option of --keep-dir"
     )]
     no_keep_dir: bool,
+    #[arg(long, help = "Do not overwrite existing files when extracting")]
+    keep_old_files: bool,
+    #[arg(
+        long,
+        help = "Only overwrite if archive entry is newer than existing file"
+    )]
+    keep_newer_files: bool,
     #[arg(
         long,
         visible_alias = "preserve-timestamps",
@@ -548,7 +557,9 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
     };
 
     let out_option = OutputOption {
-        overwrite: args.overwrite,
+        overwrite: args.overwrite && !args.keep_old_files,
+        keep_old_files: args.keep_old_files,
+        keep_newer_files: args.keep_newer_files,
         allow_unsafe_links: args.allow_unsafe_links,
         strip_components: args.strip_components,
         out_dir: args.out_dir,
