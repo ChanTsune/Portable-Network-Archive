@@ -74,6 +74,7 @@ pub(crate) struct UpdateFromStdioArgs {
     pub(crate) follow_command_links: bool,
     pub(crate) check_links: bool,
     pub(crate) one_file_system: bool,
+    pub(crate) nodump: bool,
 }
 
 #[derive(Parser, Clone, Debug)]
@@ -305,6 +306,11 @@ pub(crate) struct UpdateCommand {
         help = "When recursing, stay on the same file system as the source path"
     )]
     one_file_system: bool,
+    #[arg(
+        long = "nodump",
+        help = "Exclude files or directories marked with the nodump flag"
+    )]
+    nodump: bool,
 }
 
 impl Command for UpdateCommand {
@@ -367,6 +373,7 @@ pub(crate) fn run_update_from_stdio(args: UpdateFromStdioArgs) -> anyhow::Result
         follow_command_links,
         check_links,
         one_file_system,
+        nodump,
     } = args;
 
     UpdateCommand {
@@ -413,6 +420,7 @@ pub(crate) fn run_update_from_stdio(args: UpdateFromStdioArgs) -> anyhow::Result
         follow_links,
         follow_command_links,
         one_file_system,
+        nodump,
         check_links,
     }
     .execute()
@@ -506,6 +514,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         args.follow_links,
         args.follow_command_links,
         args.one_file_system,
+        args.nodump,
         &exclude,
     )?;
 

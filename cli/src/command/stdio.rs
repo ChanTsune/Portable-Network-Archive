@@ -128,6 +128,11 @@ pub(crate) struct StdioCommand {
         help = "When recursing, stay on the same file system as the source path"
     )]
     one_file_system: bool,
+    #[arg(
+        long = "nodump",
+        help = "Exclude files or directories marked with the nodump flag"
+    )]
+    nodump: bool,
     #[arg(long, help = "Do not overwrite existing files when extracting")]
     keep_old_files: bool,
     #[arg(
@@ -486,6 +491,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         args.follow_links,
         args.follow_command_links,
         args.one_file_system,
+        args.nodump,
         &exclude,
     )?;
 
@@ -870,6 +876,7 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
         follow_command_links,
         check_links,
         one_file_system,
+        nodump,
         out_dir: _,
         strip_components: _,
         uname,
@@ -952,6 +959,7 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
         follow_command_links,
         check_links,
         one_file_system,
+        nodump,
     })
 }
 
@@ -1046,6 +1054,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.follow_links,
             args.follow_command_links,
             args.one_file_system,
+            args.nodump,
             &exclude,
         )?;
         if args.check_links {
@@ -1068,6 +1077,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.follow_links,
             args.follow_command_links,
             args.one_file_system,
+            args.nodump,
             &exclude,
         )?;
         if args.check_links {

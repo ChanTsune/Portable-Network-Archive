@@ -42,9 +42,10 @@ termtree = "0.5"
 thiserror = "2.0.16"
 rand = "0.8.5"
 walkdir = "2.5.0"
+libc = "0.2.176"
 
 [target.'cfg(unix)'.dependencies]
-nix = { version = "0.30.1", features = ["user"] }
+nix = { version = "0.30.1", features = ["user", "fs"] }
 xattr = "1.6.1"
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "macos"))'.dependencies]
@@ -59,7 +60,6 @@ windows = { version = "0.62.1", features = [
   "Win32_System_Threading",
 ] }
 field-offset = { version = "0.3.6", optional = true }
-libc = "0.2.176"
 
 [dev-dependencies]
 maplit = "1.0.2"

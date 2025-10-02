@@ -94,9 +94,9 @@
 - [x] 2-20 `--one-file-system`
   - 実装: `collect_items` で `WalkDir::same_file_system(true)` を有効化し、CLI 各モードからフラグを受け取るよう統合。
   - テスト: unit テストでフラグを指定した収集が成功することを確認 (`collect_items_one_file_system_flag`).
-- [ ] 2-21 `--nodump`
-  - 実装: BSD `UF_NODUMP` フラグを参照し、無視する。
-  - テスト: macOS/BSD で `chflags nodump` を用いた比較。
+- [x] 2-21 `--nodump`
+  - 実装: `collect_items` で `has_nodump_flag` を用いて nodump フラグ付きのパスを除外し、全パスから CLI に引き渡すよう対応。
+  - テスト: `collect_items_skips_nodump_entries` で nodump フラグを付与したファイルが除外されることを確認。
 - [ ] 2-22 `--ignore-zeros`
   - 実装: ストリームリーダへ「ゼロブロック連続時は終了扱いしない」オプションを追加。
   - テスト: 0 ブロックを途中に挿入したアーカイブで比較。
@@ -230,7 +230,7 @@
   - [ ] 2-18 `-L/-h`
   - [x] 2-19 `-l`
   - [x] 2-20 `--one-file-system`
-  - [ ] 2-21 `--nodump`
+  - [x] 2-21 `--nodump`
   - [ ] 2-22 `--ignore-zeros`
   - [ ] 2-23 `-C/-H/-f/--gid/--gname`
   - [ ] 2-24 その他圧縮フラグ

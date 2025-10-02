@@ -43,6 +43,38 @@ pub(crate) fn mv<Src: AsRef<Path>, Dest: AsRef<Path>>(src: Src, dest: Dest) -> i
     inner(src.as_ref(), dest.as_ref())
 }
 
+pub(crate) fn has_nodump_flag(path: &Path, follow_symlink: bool) -> io::Result<bool> {
+    #[cfg(any(
+        target_os = "macos",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    ))]
+    {
+        use nix::sys::stat::{lstat, stat};
+
+        let metadata = if follow_symlink {
+            stat(path).map_err(|err| io::Error::from_raw_os_error(err as i32))?
+        } else {
+            lstat(path).map_err(|err| io::Error::from_raw_os_error(err as i32))?
+        };
+        Ok((metadata.st_flags as libc::c_uint & libc::UF_NODUMP as libc::c_uint) != 0)
+    }
+
+    #[cfg(not(any(
+        target_os = "macos",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    )))]
+    {
+        let _ = (path, follow_symlink);
+        Ok(false)
+    }
+}
+
 #[cfg(any(windows, unix))]
 pub(crate) fn chown<P: AsRef<Path>>(
     path: P,

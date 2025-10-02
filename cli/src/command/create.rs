@@ -211,6 +211,11 @@ pub(crate) struct CreateCommand {
     )]
     null: bool,
     #[arg(
+        long = "nodump",
+        help = "Exclude files or directories marked with the nodump flag"
+    )]
+    nodump: bool,
+    #[arg(
         short = 's',
         value_name = "PATTERN",
         help = "Modify file or archive member names according to pattern that like BSD tar -s option (unstable)"
@@ -306,6 +311,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         args.follow_links,
         args.follow_command_links,
         args.one_file_system,
+        args.nodump,
         &exclude,
     )?;
 

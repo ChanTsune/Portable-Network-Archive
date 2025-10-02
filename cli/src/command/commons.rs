@@ -231,6 +231,7 @@ pub(crate) fn collect_items(
     follow_links: bool,
     follow_command_links: bool,
     one_file_system: bool,
+    nodump: bool,
     exclude: &Exclude,
 ) -> io::Result<Vec<(PathBuf, StoreAs)>> {
     let mut ig = Ignore::empty();
@@ -264,6 +265,13 @@ pub(crate) fn collect_items(
 
                     // Exclude (prunes descent when directory)
                     if exclude.excluded(path.to_slash_lossy()) {
+                        if is_dir {
+                            iter.skip_current_dir();
+                        }
+                        continue;
+                    }
+
+                    if nodump && utils::fs::has_nodump_flag(&path, should_follow)? {
                         if is_dir {
                             iter.skip_current_dir();
                         }
@@ -1091,6 +1099,32 @@ mod tests {
         }
     }
 
+    #[cfg(any(
+        target_os = "macos",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    ))]
+    fn set_nodump(path: &Path) -> io::Result<()> {
+        use std::ffi::CString;
+        use std::os::unix::ffi::OsStrExt;
+
+        use nix::sys::stat::lstat;
+
+        let metadata = lstat(path).map_err(|err| io::Error::from_raw_os_error(err as i32))?;
+        let new_flags = metadata.st_flags as libc::c_uint | libc::UF_NODUMP as libc::c_uint;
+        let path_c = CString::new(path.as_os_str().as_bytes()).map_err(|_| {
+            io::Error::new(io::ErrorKind::InvalidInput, "path contains interior NUL")
+        })?;
+        let res = unsafe { libc::chflags(path_c.as_ptr(), new_flags) };
+        if res == 0 {
+            Ok(())
+        } else {
+            Err(io::Error::last_os_error())
+        }
+    }
+
     #[test]
     fn exclude_empty() {
         let exclude = Exclude {
@@ -1138,6 +1172,7 @@ mod tests {
             false,
             false,
             false,
+            false,
             &empty_exclude(),
         )
         .unwrap();
@@ -1157,6 +1192,7 @@ mod tests {
             source,
             false,
             true,
+            false,
             false,
             false,
             false,
@@ -1185,6 +1221,7 @@ mod tests {
         let items = collect_items(
             source,
             true,
+            false,
             false,
             false,
             false,
@@ -1253,6 +1290,7 @@ mod tests {
             false,
             false,
             true,
+            false,
             &empty_exclude(),
         )
         .unwrap();
@@ -1281,6 +1319,53 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("source.txt"), "unexpected message: {msg}");
         assert!(msg.contains("hard link"), "unexpected message: {msg}");
+    }
+
+    #[cfg(any(
+        target_os = "macos",
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd",
+        target_os = "dragonfly"
+    ))]
+    #[test]
+    fn collect_items_skips_nodump_entries() {
+        use tempfile::tempdir;
+
+        let tmp = tempdir().unwrap();
+        let dir = tmp.path().join("data");
+        fs::create_dir(&dir).unwrap();
+        let file = dir.join("file.txt");
+        fs::write(&file, b"payload").unwrap();
+        set_nodump(&file).unwrap();
+
+        let without_flag = collect_items(
+            [dir.as_path()],
+            true,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            &empty_exclude(),
+        )
+        .unwrap();
+        assert!(without_flag.iter().any(|(p, _)| p == &file));
+
+        let with_flag = collect_items(
+            [dir.as_path()],
+            true,
+            false,
+            false,
+            false,
+            false,
+            true,
+            true,
+            &empty_exclude(),
+        )
+        .unwrap();
+        assert!(!with_flag.iter().any(|(p, _)| p == &file));
     }
 
     #[test]
