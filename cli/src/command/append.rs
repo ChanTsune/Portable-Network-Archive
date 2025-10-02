@@ -183,6 +183,11 @@ pub(crate) struct AppendCommand {
     )]
     follow_command_links: bool,
     #[arg(
+        long = "one-file-system",
+        help = "When recursing, stay on the same file system as the source path"
+    )]
+    one_file_system: bool,
+    #[arg(
         long,
         help = "Filenames or patterns are separated by null characters, not by newlines"
     )]
@@ -301,6 +306,7 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         args.gitignore,
         args.follow_links,
         args.follow_command_links,
+        args.one_file_system,
         &exclude,
     )?;
 

@@ -123,6 +123,11 @@ pub(crate) struct StdioCommand {
         help = "Do not archive directories. This is the inverse option of --keep-dir"
     )]
     no_keep_dir: bool,
+    #[arg(
+        long = "one-file-system",
+        help = "When recursing, stay on the same file system as the source path"
+    )]
+    one_file_system: bool,
     #[arg(long, help = "Do not overwrite existing files when extracting")]
     keep_old_files: bool,
     #[arg(
@@ -480,6 +485,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         args.gitignore,
         args.follow_links,
         args.follow_command_links,
+        args.one_file_system,
         &exclude,
     )?;
 
@@ -863,6 +869,7 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
         follow_links,
         follow_command_links,
         check_links,
+        one_file_system,
         out_dir: _,
         strip_components: _,
         uname,
@@ -944,6 +951,7 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
         follow_links,
         follow_command_links,
         check_links,
+        one_file_system,
     })
 }
 
@@ -1037,6 +1045,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.gitignore,
             args.follow_links,
             args.follow_command_links,
+            args.one_file_system,
             &exclude,
         )?;
         if args.check_links {
@@ -1058,6 +1067,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.gitignore,
             args.follow_links,
             args.follow_command_links,
+            args.one_file_system,
             &exclude,
         )?;
         if args.check_links {

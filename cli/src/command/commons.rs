@@ -230,6 +230,7 @@ pub(crate) fn collect_items(
     gitignore: bool,
     follow_links: bool,
     follow_command_links: bool,
+    one_file_system: bool,
     exclude: &Exclude,
 ) -> io::Result<Vec<(PathBuf, StoreAs)>> {
     let mut ig = Ignore::empty();
@@ -237,14 +238,17 @@ pub(crate) fn collect_items(
     let mut out = Vec::new();
 
     for p in files {
-        let mut iter = if recursive {
-            walkdir::WalkDir::new(p)
-        } else {
-            walkdir::WalkDir::new(p).max_depth(0)
+        let mut builder = walkdir::WalkDir::new(p);
+        if !recursive {
+            builder = builder.max_depth(0);
         }
-        .follow_links(follow_links)
-        .follow_root_links(follow_command_links)
-        .into_iter();
+        if one_file_system {
+            builder = builder.same_file_system(true);
+        }
+        let mut iter = builder
+            .follow_links(follow_links)
+            .follow_root_links(follow_command_links)
+            .into_iter();
 
         while let Some(res) = iter.next() {
             match res {
@@ -1126,8 +1130,17 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../resources/test/raw",
         )];
-        let items =
-            collect_items(source, false, false, false, false, false, &empty_exclude()).unwrap();
+        let items = collect_items(
+            source,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            &empty_exclude(),
+        )
+        .unwrap();
         assert_eq!(
             items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
             HashSet::new()
@@ -1140,8 +1153,17 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../resources/test/raw",
         )];
-        let items =
-            collect_items(source, false, true, false, false, false, &empty_exclude()).unwrap();
+        let items = collect_items(
+            source,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            &empty_exclude(),
+        )
+        .unwrap();
         assert_eq!(
             items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
             [concat!(
@@ -1160,8 +1182,17 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../resources/test/raw",
         )];
-        let items =
-            collect_items(source, true, false, false, false, false, &empty_exclude()).unwrap();
+        let items = collect_items(
+            source,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            &empty_exclude(),
+        )
+        .unwrap();
         assert_eq!(
             items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
             [
@@ -1206,6 +1237,26 @@ mod tests {
             .map(Into::into)
             .collect::<HashSet<_>>()
         );
+    }
+
+    #[test]
+    fn collect_items_one_file_system_flag() {
+        let source = [concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../resources/test/raw",
+        )];
+        let items = collect_items(
+            source,
+            true,
+            false,
+            false,
+            false,
+            false,
+            true,
+            &empty_exclude(),
+        )
+        .unwrap();
+        assert!(!items.is_empty());
     }
 
     #[cfg(any(unix, windows))]

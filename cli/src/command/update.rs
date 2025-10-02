@@ -73,6 +73,7 @@ pub(crate) struct UpdateFromStdioArgs {
     pub(crate) follow_links: bool,
     pub(crate) follow_command_links: bool,
     pub(crate) check_links: bool,
+    pub(crate) one_file_system: bool,
 }
 
 #[derive(Parser, Clone, Debug)]
@@ -299,6 +300,11 @@ pub(crate) struct UpdateCommand {
         help = "Follow symbolic links named on the command line"
     )]
     follow_command_links: bool,
+    #[arg(
+        long = "one-file-system",
+        help = "When recursing, stay on the same file system as the source path"
+    )]
+    one_file_system: bool,
 }
 
 impl Command for UpdateCommand {
@@ -360,6 +366,7 @@ pub(crate) fn run_update_from_stdio(args: UpdateFromStdioArgs) -> anyhow::Result
         follow_links,
         follow_command_links,
         check_links,
+        one_file_system,
     } = args;
 
     UpdateCommand {
@@ -405,6 +412,7 @@ pub(crate) fn run_update_from_stdio(args: UpdateFromStdioArgs) -> anyhow::Result
         gitignore,
         follow_links,
         follow_command_links,
+        one_file_system,
         check_links,
     }
     .execute()
@@ -497,6 +505,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         args.gitignore,
         args.follow_links,
         args.follow_command_links,
+        args.one_file_system,
         &exclude,
     )?;
 
