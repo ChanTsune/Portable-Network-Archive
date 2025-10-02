@@ -311,6 +311,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         args.follow_command_links,
         args.one_file_system,
         args.nodump,
+        None,
         &exclude,
     )?;
 

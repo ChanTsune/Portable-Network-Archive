@@ -312,6 +312,7 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         args.follow_command_links,
         args.one_file_system,
         args.nodump,
+        None,
         &exclude,
     )?;
 

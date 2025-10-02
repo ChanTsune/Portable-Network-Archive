@@ -12,8 +12,8 @@ use crate::{
         commons::{
             collect_items, collect_split_archives, create_entry, ensure_hardlinks_complete,
             entry_option, read_paths, read_paths_stdin, CreateOptions, Exclude, KeepOptions,
-            OwnerOptions, PathTransformers, TimeOptions, TransformStrategy,
-            TransformStrategyKeepSolid, TransformStrategyUnSolid,
+            OwnerOptions, PathTransformers, TimeFilter, TimeFilters, TimeOptions,
+            TransformStrategy, TransformStrategyKeepSolid, TransformStrategyUnSolid,
         },
         Command,
     },
@@ -514,6 +514,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         args.follow_command_links,
         args.one_file_system,
         args.nodump,
+        Some(&time_filters),
         &exclude,
     )?;
 
@@ -550,7 +551,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
                     let fs_meta = fs::symlink_metadata(&target_path)?;
                     let need_update = is_newer_than_archive(&fs_meta, entry.metadata())
                         .unwrap_or(true)
-                        && time_filters.is_retain(&fs_meta);
+                        && time_filters.matches_metadata(&fs_meta);
                     if need_update {
                         let tx = tx.clone();
                         let create_options = create_options.clone();
@@ -612,50 +613,10 @@ fn is_newer_than_archive(fs_meta: &fs::Metadata, metadata: &Metadata) -> Option<
     Some(SystemTime::UNIX_EPOCH + d < mtime)
 }
 
-pub(crate) struct TimeFilter {
-    pub(crate) newer_than: Option<SystemTime>,
-    pub(crate) older_than: Option<SystemTime>,
-}
-
-impl TimeFilter {
-    fn is_retain(&self, time: Option<SystemTime>) -> bool {
-        if let Some(newer) = self.newer_than {
-            if let Some(t) = time {
-                if t < newer {
-                    return false;
-                }
-            }
-        }
-        if let Some(older) = self.older_than {
-            if let Some(t) = time {
-                if t > older {
-                    return false;
-                }
-            }
-        }
-        true
-    }
-}
-
-pub(crate) struct TimeFilters {
-    pub(crate) ctime: TimeFilter,
-    pub(crate) mtime: TimeFilter,
-}
-
-impl TimeFilters {
-    #[inline]
-    pub(crate) fn is_retain(&self, fs_meta: &fs::Metadata) -> bool {
-        self.is_retain_t(fs_meta.created().ok(), fs_meta.modified().ok())
-    }
-
-    fn is_retain_t(&self, fs_ctime: Option<SystemTime>, fs_mtime: Option<SystemTime>) -> bool {
-        self.ctime.is_retain(fs_ctime) && self.mtime.is_retain(fs_mtime)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::command::commons::{TimeFilter, TimeFilters};
 
     use std::time::Duration;
 
@@ -672,7 +633,7 @@ mod tests {
     }
 
     #[test]
-    fn test_is_retain_t_no_filters() {
+    fn test_matches_times_no_filters() {
         let filters = TimeFilters {
             ctime: TimeFilter {
                 newer_than: None,
@@ -683,12 +644,12 @@ mod tests {
                 older_than: None,
             },
         };
-        assert!(filters.is_retain_t(Some(now()), Some(now())));
-        assert!(filters.is_retain_t(None, None));
+        assert!(filters.matches_times(Some(now()), Some(now())));
+        assert!(filters.matches_times(None, None));
     }
 
     #[test]
-    fn test_is_retain_t_newer_ctime() {
+    fn test_matches_times_newer_ctime() {
         // Case 1: newer_ctime is set, fs_ctime is older -> should not retain
         let filters = TimeFilters {
             ctime: TimeFilter {
@@ -700,7 +661,7 @@ mod tests {
                 older_than: None,
             },
         };
-        assert!(!filters.is_retain_t(Some(past()), Some(now())));
+        assert!(!filters.matches_times(Some(past()), Some(now())));
 
         // Case 2: newer_ctime is set, fs_ctime is newer -> should retain
         let filters = TimeFilters {
@@ -713,7 +674,7 @@ mod tests {
                 older_than: None,
             },
         };
-        assert!(filters.is_retain_t(Some(now()), Some(now())));
+        assert!(filters.matches_times(Some(now()), Some(now())));
 
         // Case 3: newer_ctime is set, fs_ctime is None -> should retain
         let filters = TimeFilters {
@@ -726,11 +687,11 @@ mod tests {
                 older_than: None,
             },
         };
-        assert!(filters.is_retain_t(None, Some(now())));
+        assert!(filters.matches_times(None, Some(now())));
     }
 
     #[test]
-    fn test_is_retain_t_older_ctime() {
+    fn test_matches_times_older_ctime() {
         // Case 1: older_ctime is set, fs_ctime is newer -> should not retain
         let filters = TimeFilters {
             ctime: TimeFilter {
@@ -742,7 +703,7 @@ mod tests {
                 older_than: None,
             },
         };
-        assert!(!filters.is_retain_t(Some(future()), Some(now())));
+        assert!(!filters.matches_times(Some(future()), Some(now())));
 
         // Case 2: older_ctime is set, fs_ctime is older -> should retain
         let filters = TimeFilters {
@@ -755,7 +716,7 @@ mod tests {
                 older_than: None,
             },
         };
-        assert!(filters.is_retain_t(Some(now()), Some(now())));
+        assert!(filters.matches_times(Some(now()), Some(now())));
 
         // Case 3: older_ctime is set, fs_ctime is None -> should retain
         let filters = TimeFilters {
@@ -768,11 +729,11 @@ mod tests {
                 older_than: None,
             },
         };
-        assert!(filters.is_retain_t(None, Some(now())));
+        assert!(filters.matches_times(None, Some(now())));
     }
 
     #[test]
-    fn test_is_retain_t_newer_mtime() {
+    fn test_matches_times_newer_mtime() {
         // Case 1: newer_mtime is set, fs_mtime is older -> should not retain
         let filters = TimeFilters {
             ctime: TimeFilter {
@@ -784,7 +745,7 @@ mod tests {
                 older_than: None,
             },
         };
-        assert!(!filters.is_retain_t(Some(now()), Some(past())));
+        assert!(!filters.matches_times(Some(now()), Some(past())));
 
         // Case 2: newer_mtime is set, fs_mtime is newer -> should retain
         let filters = TimeFilters {
@@ -797,7 +758,7 @@ mod tests {
                 older_than: None,
             },
         };
-        assert!(filters.is_retain_t(Some(now()), Some(now())));
+        assert!(filters.matches_times(Some(now()), Some(now())));
 
         // Case 3: newer_mtime is set, fs_mtime is None -> should retain
         let filters = TimeFilters {
@@ -810,11 +771,11 @@ mod tests {
                 older_than: None,
             },
         };
-        assert!(filters.is_retain_t(Some(now()), None));
+        assert!(filters.matches_times(Some(now()), None));
     }
 
     #[test]
-    fn test_is_retain_t_older_mtime() {
+    fn test_matches_times_older_mtime() {
         // Case 1: older_mtime is set, fs_mtime is newer -> should not retain
         let filters = TimeFilters {
             ctime: TimeFilter {
@@ -826,7 +787,7 @@ mod tests {
                 older_than: Some(now()),
             },
         };
-        assert!(!filters.is_retain_t(Some(now()), Some(future())));
+        assert!(!filters.matches_times(Some(now()), Some(future())));
 
         // Case 2: older_mtime is set, fs_mtime is older -> should retain
         let filters = TimeFilters {
@@ -839,7 +800,7 @@ mod tests {
                 older_than: Some(future()),
             },
         };
-        assert!(filters.is_retain_t(Some(now()), Some(now())));
+        assert!(filters.matches_times(Some(now()), Some(now())));
 
         // Case 3: older_mtime is set, fs_mtime is None -> should retain
         let filters = TimeFilters {
@@ -852,11 +813,11 @@ mod tests {
                 older_than: Some(now()),
             },
         };
-        assert!(filters.is_retain_t(Some(now()), None));
+        assert!(filters.matches_times(Some(now()), None));
     }
 
     #[test]
-    fn test_is_retain_t_all_filters_retain() {
+    fn test_matches_times_all_filters_retain() {
         let filters = TimeFilters {
             ctime: TimeFilter {
                 newer_than: Some(past()),
@@ -867,11 +828,11 @@ mod tests {
                 older_than: Some(future()),
             },
         };
-        assert!(filters.is_retain_t(Some(now()), Some(now())));
+        assert!(filters.matches_times(Some(now()), Some(now())));
     }
 
     #[test]
-    fn test_is_retain_t_all_filters_not_retain_ctime() {
+    fn test_matches_times_all_filters_not_retain_ctime() {
         // newer_ctime fails
         let filters = TimeFilters {
             ctime: TimeFilter {
@@ -883,7 +844,7 @@ mod tests {
                 older_than: Some(future()),
             },
         };
-        assert!(!filters.is_retain_t(Some(past()), Some(now())));
+        assert!(!filters.matches_times(Some(past()), Some(now())));
 
         // older_ctime fails
         let filters = TimeFilters {
@@ -896,11 +857,11 @@ mod tests {
                 older_than: Some(future()),
             },
         };
-        assert!(!filters.is_retain_t(Some(future()), Some(now())));
+        assert!(!filters.matches_times(Some(future()), Some(now())));
     }
 
     #[test]
-    fn test_is_retain_t_all_filters_not_retain_mtime() {
+    fn test_matches_times_all_filters_not_retain_mtime() {
         // newer_mtime fails
         let filters = TimeFilters {
             ctime: TimeFilter {
@@ -912,7 +873,7 @@ mod tests {
                 older_than: Some(future()),
             },
         };
-        assert!(!filters.is_retain_t(Some(now()), Some(past())));
+        assert!(!filters.matches_times(Some(now()), Some(past())));
 
         // older_mtime fails
         let filters = TimeFilters {
@@ -925,11 +886,11 @@ mod tests {
                 older_than: Some(now()),
             },
         };
-        assert!(!filters.is_retain_t(Some(now()), Some(future())));
+        assert!(!filters.matches_times(Some(now()), Some(future())));
     }
 
     #[test]
-    fn test_is_retain_t_mixed_filters_and_none_fs_times() {
+    fn test_matches_times_mixed_filters_and_none_fs_times() {
         // newer_ctime set, fs_ctime is None
         let filters = TimeFilters {
             ctime: TimeFilter {
@@ -941,7 +902,7 @@ mod tests {
                 older_than: None,
             },
         };
-        assert!(filters.is_retain_t(None, Some(now())));
+        assert!(filters.matches_times(None, Some(now())));
 
         // older_ctime set, fs_ctime is None
         let filters = TimeFilters {
@@ -954,7 +915,7 @@ mod tests {
                 older_than: None,
             },
         };
-        assert!(filters.is_retain_t(None, Some(now())));
+        assert!(filters.matches_times(None, Some(now())));
 
         // newer_mtime set, fs_mtime is None
         let filters = TimeFilters {
@@ -967,7 +928,7 @@ mod tests {
                 older_than: None,
             },
         };
-        assert!(filters.is_retain_t(Some(now()), None));
+        assert!(filters.matches_times(Some(now()), None));
 
         // older_mtime set, fs_mtime is None
         let filters = TimeFilters {
@@ -980,6 +941,6 @@ mod tests {
                 older_than: Some(now()),
             },
         };
-        assert!(filters.is_retain_t(Some(now()), None));
+        assert!(filters.matches_times(Some(now()), None));
     }
 }

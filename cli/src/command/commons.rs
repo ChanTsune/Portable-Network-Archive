@@ -23,7 +23,7 @@ use std::{
     fs,
     io::{self, prelude::*},
     path::{Path, PathBuf},
-    time::SystemTime,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 /// Overhead for a split archive part in bytes, including PNA header, AHED, ANXT, and AEND chunks.
@@ -122,6 +122,115 @@ pub(crate) struct TimeOptions {
     pub(crate) clamp_ctime: bool,
     pub(crate) atime: Option<SystemTime>,
     pub(crate) clamp_atime: bool,
+}
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct TimeFilter {
+    pub(crate) newer_than: Option<SystemTime>,
+    pub(crate) older_than: Option<SystemTime>,
+}
+
+impl TimeFilter {
+    #[inline]
+    pub(crate) const fn is_empty(&self) -> bool {
+        self.newer_than.is_none() && self.older_than.is_none()
+    }
+
+    #[inline]
+    pub(crate) fn matches(&self, time: Option<SystemTime>) -> bool {
+        if let Some(newer) = self.newer_than {
+            if let Some(t) = time {
+                if t < newer {
+                    return false;
+                }
+            }
+        }
+        if let Some(older) = self.older_than {
+            if let Some(t) = time {
+                if t > older {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct TimeFilters {
+    pub(crate) ctime: TimeFilter,
+    pub(crate) mtime: TimeFilter,
+}
+
+impl TimeFilters {
+    #[inline]
+    pub(crate) const fn is_empty(&self) -> bool {
+        self.ctime.is_empty() && self.mtime.is_empty()
+    }
+
+    #[inline]
+    pub(crate) fn matches_metadata(&self, metadata: &fs::Metadata) -> bool {
+        self.matches_times(metadata_ctime(metadata), metadata.modified().ok())
+    }
+
+    #[inline]
+    pub(crate) fn matches_times(
+        &self,
+        fs_ctime: Option<SystemTime>,
+        fs_mtime: Option<SystemTime>,
+    ) -> bool {
+        self.ctime.matches(fs_ctime) && self.mtime.matches(fs_mtime)
+    }
+}
+
+#[inline]
+pub(crate) fn metadata_ctime(metadata: &fs::Metadata) -> Option<SystemTime> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+
+        let secs = metadata.ctime();
+        let nanos = metadata.ctime_nsec();
+        let nanos = u32::try_from(nanos).ok()?;
+        unix_timestamp_to_system_time(secs, nanos)
+    }
+
+    #[cfg(not(unix))]
+    {
+        metadata.created().ok()
+    }
+}
+
+#[inline]
+fn unix_timestamp_to_system_time(secs: i64, nanos: u32) -> Option<SystemTime> {
+    if secs >= 0 {
+        Some(UNIX_EPOCH + Duration::new(secs as u64, nanos))
+    } else {
+        let secs_abs = secs.unsigned_abs();
+        let (adj_secs, adj_nanos) = if nanos == 0 {
+            (secs_abs, 0)
+        } else {
+            (secs_abs.checked_sub(1)?, 1_000_000_000 - nanos)
+        };
+        UNIX_EPOCH.checked_sub(Duration::new(adj_secs, adj_nanos))
+    }
+}
+
+#[inline]
+fn load_metadata<'a>(
+    cache: &'a mut Option<fs::Metadata>,
+    path: &Path,
+    follow: bool,
+) -> io::Result<&'a fs::Metadata> {
+    if cache.is_none() {
+        let metadata = if follow {
+            fs::metadata(path)?
+        } else {
+            fs::symlink_metadata(path)?
+        };
+        *cache = Some(metadata);
+    }
+    Ok(cache.as_ref().unwrap())
 }
 
 /// Gitignore-style exclusion rules.
@@ -232,6 +341,7 @@ pub(crate) fn collect_items(
     follow_command_links: bool,
     one_file_system: bool,
     nodump: bool,
+    time_filters: Option<&TimeFilters>,
     exclude: &Exclude,
 ) -> io::Result<Vec<(PathBuf, StoreAs)>> {
     let mut ig = Ignore::empty();
@@ -263,12 +373,24 @@ pub(crate) fn collect_items(
                         ty.is_file() || (ty.is_symlink() && should_follow && path.is_file());
                     let is_symlink = ty.is_symlink() && !should_follow;
 
+                    let mut metadata_cache: Option<fs::Metadata> = None;
+
                     // Exclude (prunes descent when directory)
                     if exclude.excluded(path.to_slash_lossy()) {
                         if is_dir {
                             iter.skip_current_dir();
                         }
                         continue;
+                    }
+
+                    if let Some(filters) = time_filters {
+                        let meta = load_metadata(&mut metadata_cache, &path, should_follow)?;
+                        if !filters.matches_metadata(meta) {
+                            if is_dir {
+                                iter.skip_current_dir();
+                            }
+                            continue;
+                        }
                     }
 
                     if nodump && utils::fs::has_nodump_flag(&path, should_follow)? {
@@ -1132,8 +1254,7 @@ pub(crate) fn read_paths_stdin(nul: bool) -> io::Result<Vec<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashSet;
-    use std::time::Duration;
+    use std::{collections::HashSet, thread, time::Duration};
 
     fn empty_exclude() -> Exclude {
         Exclude {
@@ -1216,6 +1337,7 @@ mod tests {
             false,
             false,
             false,
+            None,
             &empty_exclude(),
         )
         .unwrap();
@@ -1240,6 +1362,7 @@ mod tests {
             false,
             false,
             false,
+            None,
             &empty_exclude(),
         )
         .unwrap();
@@ -1270,6 +1393,7 @@ mod tests {
             false,
             false,
             false,
+            None,
             &empty_exclude(),
         )
         .unwrap();
@@ -1334,6 +1458,7 @@ mod tests {
             false,
             true,
             false,
+            None,
             &empty_exclude(),
         )
         .unwrap();
@@ -1391,6 +1516,7 @@ mod tests {
             false,
             true,
             false,
+            None,
             &empty_exclude(),
         )
         .unwrap();
@@ -1405,10 +1531,57 @@ mod tests {
             false,
             true,
             true,
+            None,
             &empty_exclude(),
         )
         .unwrap();
         assert!(!with_flag.iter().any(|(p, _)| p == &file));
+    }
+
+    #[test]
+    fn collect_items_respects_mtime_filters() {
+        use tempfile::tempdir;
+
+        let tmp = tempdir().unwrap();
+        let dir = tmp.path();
+        let old_path = dir.join("old.txt");
+        fs::write(&old_path, b"old").unwrap();
+        let old_meta = fs::metadata(&old_path).unwrap();
+        let old_mtime = old_meta.modified().unwrap();
+
+        // Ensure the second file receives a newer timestamp on file systems with
+        // coarse timestamp resolution (e.g. 1 second).
+        thread::sleep(Duration::from_secs(2));
+
+        let new_path = dir.join("new.txt");
+        fs::write(&new_path, b"new").unwrap();
+
+        let threshold = old_mtime + Duration::from_secs(1);
+        let filters = TimeFilters {
+            ctime: TimeFilter::default(),
+            mtime: TimeFilter {
+                newer_than: Some(threshold),
+                older_than: None,
+            },
+        };
+
+        let items = collect_items(
+            [dir],
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            Some(&filters),
+            &empty_exclude(),
+        )
+        .unwrap();
+
+        let mut paths = items.into_iter().map(|(p, _)| p).collect::<HashSet<_>>();
+        assert!(paths.remove(&new_path), "expected to retain {:?}", new_path);
+        assert!(paths.is_empty(), "unexpected extra items: {paths:?}");
     }
 
     #[test]

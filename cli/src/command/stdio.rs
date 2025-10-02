@@ -8,8 +8,8 @@ use crate::{
         ask_password, check_password,
         commons::{
             collect_items, collect_split_archives, ensure_hardlinks_complete, entry_option,
-            read_paths, CreateOptions, Exclude, KeepOptions, OwnerOptions, PathTransformers,
-            TimeOptions,
+            metadata_ctime, read_paths, CreateOptions, Exclude, KeepOptions, OwnerOptions,
+            PathTransformers, TimeFilters, TimeOptions,
         },
         concat::{append_archives_into_existing, run_concat_from_stdio, ConcatFromStdioArgs},
         create::{create_archive_file, CreationContext},
@@ -25,11 +25,11 @@ use crate::{
         GlobPatterns, VCS_FILES,
     },
 };
-use anyhow::bail;
+use anyhow::{bail, Context};
 use clap::{ArgGroup, Args, ValueHint};
 use pna::Archive;
 use std::{
-    env, io,
+    env, fs, io,
     path::{Path, PathBuf},
     time::SystemTime,
 };
@@ -100,7 +100,6 @@ pub(crate) struct StdioCommand {
     )]
     delete: bool,
     #[arg(
-        short,
         long,
         visible_alias = "recursion",
         help = "Add the directory to the archive recursively",
@@ -138,6 +137,54 @@ pub(crate) struct StdioCommand {
         help = "Continue processing after zero-filled padding blocks"
     )]
     ignore_zeros: bool,
+    #[arg(
+        long = "newer",
+        value_name = "DATE",
+        help = "Only include files newer than DATE (mtime)"
+    )]
+    newer: Option<DateTime>,
+    #[arg(
+        long = "older",
+        value_name = "DATE",
+        help = "Only include files older than DATE (mtime)"
+    )]
+    older: Option<DateTime>,
+    #[arg(
+        long = "newer-mtime",
+        value_name = "DATE",
+        help = "Only include files newer than DATE (mtime)"
+    )]
+    newer_mtime: Option<DateTime>,
+    #[arg(
+        long = "older-mtime",
+        value_name = "DATE",
+        help = "Only include files older than DATE (mtime)"
+    )]
+    older_mtime: Option<DateTime>,
+    #[arg(
+        long = "newer-ctime",
+        value_name = "DATE",
+        help = "Only include files newer than DATE (ctime)"
+    )]
+    newer_ctime: Option<DateTime>,
+    #[arg(
+        long = "older-ctime",
+        value_name = "DATE",
+        help = "Only include files older than DATE (ctime)"
+    )]
+    older_ctime: Option<DateTime>,
+    #[arg(long = "newer-than", value_hint = ValueHint::FilePath, help = "Only include files newer than the specified reference file (mtime)")]
+    newer_than: Option<PathBuf>,
+    #[arg(long = "older-than", value_hint = ValueHint::FilePath, help = "Only include files older than the specified reference file (mtime)")]
+    older_than: Option<PathBuf>,
+    #[arg(long = "newer-mtime-than", value_hint = ValueHint::FilePath, help = "Only include files newer than the specified reference file (mtime)")]
+    newer_mtime_than: Option<PathBuf>,
+    #[arg(long = "older-mtime-than", value_hint = ValueHint::FilePath, help = "Only include files older than the specified reference file (mtime)")]
+    older_mtime_than: Option<PathBuf>,
+    #[arg(long = "newer-ctime-than", value_hint = ValueHint::FilePath, help = "Only include files newer than the specified reference file (ctime)")]
+    newer_ctime_than: Option<PathBuf>,
+    #[arg(long = "older-ctime-than", value_hint = ValueHint::FilePath, help = "Only include files older than the specified reference file (ctime)")]
+    older_ctime_than: Option<PathBuf>,
     #[arg(long, help = "Do not overwrite existing files when extracting")]
     keep_old_files: bool,
     #[arg(
@@ -439,7 +486,105 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     }
 }
 
+fn build_time_filters(args: &StdioCommand) -> anyhow::Result<Option<TimeFilters>> {
+    let mut filters = TimeFilters::default();
+
+    if let Some(dt) = &args.newer {
+        merge_newer(&mut filters.mtime.newer_than, dt.to_system_time());
+    }
+    if let Some(dt) = &args.newer_mtime {
+        merge_newer(&mut filters.mtime.newer_than, dt.to_system_time());
+    }
+    if let Some(dt) = &args.older {
+        merge_older(&mut filters.mtime.older_than, dt.to_system_time());
+    }
+    if let Some(dt) = &args.older_mtime {
+        merge_older(&mut filters.mtime.older_than, dt.to_system_time());
+    }
+    if let Some(dt) = &args.newer_ctime {
+        merge_newer(&mut filters.ctime.newer_than, dt.to_system_time());
+    }
+    if let Some(dt) = &args.older_ctime {
+        merge_older(&mut filters.ctime.older_than, dt.to_system_time());
+    }
+
+    if let Some(path) = &args.newer_than {
+        merge_newer(&mut filters.mtime.newer_than, file_mtime(path)?);
+    }
+    if let Some(path) = &args.newer_mtime_than {
+        merge_newer(&mut filters.mtime.newer_than, file_mtime(path)?);
+    }
+    if let Some(path) = &args.newer_ctime_than {
+        merge_newer(&mut filters.ctime.newer_than, file_ctime(path)?);
+    }
+    if let Some(path) = &args.older_than {
+        merge_older(&mut filters.mtime.older_than, file_mtime(path)?);
+    }
+    if let Some(path) = &args.older_mtime_than {
+        merge_older(&mut filters.mtime.older_than, file_mtime(path)?);
+    }
+    if let Some(path) = &args.older_ctime_than {
+        merge_older(&mut filters.ctime.older_than, file_ctime(path)?);
+    }
+
+    if filters.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(filters))
+    }
+}
+
+#[inline]
+fn merge_newer(slot: &mut Option<SystemTime>, candidate: SystemTime) {
+    if let Some(current) = slot {
+        if candidate > *current {
+            *current = candidate;
+        }
+    } else {
+        *slot = Some(candidate);
+    }
+}
+
+#[inline]
+fn merge_older(slot: &mut Option<SystemTime>, candidate: SystemTime) {
+    if let Some(current) = slot {
+        if candidate < *current {
+            *current = candidate;
+        }
+    } else {
+        *slot = Some(candidate);
+    }
+}
+
+fn file_mtime(path: &Path) -> anyhow::Result<SystemTime> {
+    let metadata = fs::metadata(path).with_context(|| {
+        format!(
+            "failed to read metadata for reference file {}",
+            path.display()
+        )
+    })?;
+    metadata
+        .modified()
+        .with_context(|| format!("failed to obtain modification time from {}", path.display()))
+}
+
+fn file_ctime(path: &Path) -> anyhow::Result<SystemTime> {
+    let metadata = fs::metadata(path).with_context(|| {
+        format!(
+            "failed to read metadata for reference file {}",
+            path.display()
+        )
+    })?;
+    metadata_ctime(&metadata).with_context(|| {
+        format!(
+            "reference file {} does not expose a change (ctime) timestamp",
+            path.display()
+        )
+    })
+}
+
 fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
+    let time_filters = build_time_filters(&args)?;
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
@@ -497,6 +642,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         args.follow_command_links,
         args.one_file_system,
         args.nodump,
+        time_filters.as_ref(),
         &exclude,
     )?;
 
@@ -854,6 +1000,24 @@ fn run_delete(args: StdioCommand) -> anyhow::Result<()> {
 }
 
 fn run_update(args: StdioCommand) -> anyhow::Result<()> {
+    let time_filters = build_time_filters(&args)?;
+    let newer_ctime = time_filters
+        .as_ref()
+        .and_then(|filters| filters.ctime.newer_than)
+        .map(DateTime::from_system_time);
+    let older_ctime = time_filters
+        .as_ref()
+        .and_then(|filters| filters.ctime.older_than)
+        .map(DateTime::from_system_time);
+    let newer_mtime = time_filters
+        .as_ref()
+        .and_then(|filters| filters.mtime.newer_than)
+        .map(DateTime::from_system_time);
+    let older_mtime = time_filters
+        .as_ref()
+        .and_then(|filters| filters.mtime.older_than)
+        .map(DateTime::from_system_time);
+
     let StdioCommand {
         create: _,
         extract: _,
@@ -939,10 +1103,10 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
         clamp_atime,
         mtime,
         clamp_mtime,
-        older_ctime: None,
-        older_mtime: None,
-        newer_ctime: None,
-        newer_mtime: None,
+        older_ctime,
+        older_mtime,
+        newer_ctime,
+        newer_mtime,
         files_from,
         files_from_stdin: false,
         include,
@@ -972,6 +1136,7 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
 }
 
 fn run_append(args: StdioCommand) -> anyhow::Result<()> {
+    let time_filters = build_time_filters(&args)?;
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
@@ -1063,6 +1228,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.follow_command_links,
             args.one_file_system,
             args.nodump,
+            time_filters.as_ref(),
             &exclude,
         )?;
         if args.check_links {
@@ -1086,6 +1252,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.follow_command_links,
             args.one_file_system,
             args.nodump,
+            time_filters.as_ref(),
             &exclude,
         )?;
         if args.check_links {

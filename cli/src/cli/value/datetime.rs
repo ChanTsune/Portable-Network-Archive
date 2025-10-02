@@ -61,6 +61,23 @@ impl DateTime {
             Self::Epoch(seconds, nanos) => from_timestamp(*seconds, *nanos),
         }
     }
+
+    #[inline]
+    pub(crate) fn from_system_time(time: SystemTime) -> Self {
+        match time.duration_since(UNIX_EPOCH) {
+            Ok(duration) => Self::Epoch(duration.as_secs() as i64, duration.subsec_nanos()),
+            Err(err) => {
+                let duration = err.duration();
+                let secs = duration.as_secs() as i64;
+                let nanos = duration.subsec_nanos();
+                if nanos == 0 {
+                    Self::Epoch(-secs, 0)
+                } else {
+                    Self::Epoch(-secs - 1, 1_000_000_000 - nanos)
+                }
+            }
+        }
+    }
 }
 
 impl Display for DateTime {
@@ -219,6 +236,21 @@ mod tests {
     fn test_relative_time_format_negative_decimal_comma() {
         let datetime = DateTime::from_str("@-123,456").unwrap();
         assert_eq!(datetime.to_string(), "@-123.456000000");
+    }
+
+    #[test]
+    fn test_from_system_time_positive() {
+        let system_time = UNIX_EPOCH + Duration::new(5, 0);
+        let datetime = DateTime::from_system_time(system_time);
+        assert_eq!(datetime.to_system_time(), system_time);
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    #[test]
+    fn test_from_system_time_negative() {
+        let system_time = UNIX_EPOCH - Duration::new(5, 0);
+        let datetime = DateTime::from_system_time(system_time);
+        assert_eq!(datetime.to_system_time(), system_time);
     }
 
     #[test]

@@ -109,9 +109,9 @@
 
 ---
 ## 3. 時刻・所有権・メタデータ（ロードマップ §1.4, §1.5）
-- [ ] 3-1 `--newer* / --older*` 系
-  - 実装: `StdioCommand` に `newer/older` オプションを追加し、`collect_items` で ctime/mtime を比較。
-  - テスト: 各バリエーションを Bats で比較。
+- [x] 3-1 `--newer* / --older*` 系
+  - 実装: `build_time_filters` でフィルタを構築し、`collect_items` と `update` 経路へ適用。
+  - テスト: `collect_items_respects_mtime_filters` と `DateTime::from_system_time` の単体テストを追加。
 - [ ] 3-2 `-s` / `--transform`
   - 実装: 既存 `SubstitutionRule` を `--unstable` なしで使えるよう整理し、BSD tar と同じ正規表現/置換仕様に合わせる。
   - テスト: 代表的なパターンをゴールデン比較。
@@ -235,7 +235,7 @@
   - [x] 2-23 `-C/-H/-f/--gid/--gname`
   - [ ] 2-24 その他圧縮フラグ
 - [ ] 3.時間・所有権・メタデータ
-  - [ ] 3-1 `--newer*/--older*`
+  - [x] 3-1 `--newer*/--older*`
   - [ ] 3-2 `-s/--transform`
   - [ ] 3-3 `-p/--preserve-permissions`
   - [ ] 3-4 `-m`
