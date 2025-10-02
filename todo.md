@@ -57,7 +57,7 @@
 - [x] 2-8 `--options key=val`
   - 実装: key/value パーサを作り、`CompressionAlgorithmArgs` や `TimeOptions` へ適用。未知キーは警告。
   - テスト: known/unknown key のログをチェック。
-- [ ] 2-9 `--use-compress-program`
+- [x] 2-9 `--use-compress-program`
   - 実装: 子プロセス (例: `gzip`) を起動して入出力パイプを接続。
   - テスト: `--use-compress-program gzip` と `bsdtar` の比較。
 - [ ] 2-10 `--help`

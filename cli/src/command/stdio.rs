@@ -175,6 +175,12 @@ pub(crate) struct StdioCommand {
     )]
     format_options: Vec<String>,
     #[arg(
+        long = "use-compress-program",
+        value_hint = ValueHint::CommandString,
+        help = "Use external compressor (compatibility only; ignored)"
+    )]
+    use_compress_program: Option<String>,
+    #[arg(
         short = 'a',
         long = "auto-compress",
         help = "Choose compression based on archive filename (bsdtar -a equivalent)"
@@ -350,6 +356,12 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
         log::warn!(
             "--options is accepted for compatibility but ignored: {:?}",
             args.format_options
+        );
+    }
+    if let Some(program) = &args.use_compress_program {
+        log::warn!(
+            "--use-compress-program={} is accepted for compatibility but ignored",
+            program
         );
     }
 
