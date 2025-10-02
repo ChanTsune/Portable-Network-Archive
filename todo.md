@@ -85,7 +85,7 @@
 - [x] 2-17 `--keep-newer-files`
   - 実装: `OutputOption` にタイムスタンプ比較ロジック追加。
   - テスト: 古い/新しいファイルを用意し、上書き有無を比較。
-- [ ] 2-18 `-L/--dereference` & `-h`
+- [x] 2-18 `-L/--dereference` & `-h`
   - 実装: `short = 'L'`, `short = 'h'` alias (後者は `L` と同義)。
   - テスト: symlink を含むディレクトリで `-L` の挙動比較。
 - [ ] 2-19 `-l/--check-links`
