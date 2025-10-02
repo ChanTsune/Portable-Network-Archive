@@ -1,4 +1,5 @@
 mod atime;
+mod compression;
 mod ctime;
 mod exclude;
 mod exclude_from;

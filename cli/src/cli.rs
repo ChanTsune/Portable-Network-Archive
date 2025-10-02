@@ -214,6 +214,26 @@ pub(crate) struct CompressionAlgorithmArgs {
     pub(crate) zstd: Option<Option<u8>>,
     #[arg(
         long,
+        help = "Use lz4 for compression (accepted for compatibility; not supported yet)"
+    )]
+    pub(crate) lz4: bool,
+    #[arg(
+        long,
+        help = "Use lzma for compression (accepted for compatibility; not supported yet)"
+    )]
+    pub(crate) lzma: bool,
+    #[arg(
+        long,
+        help = "Use lzop for compression (accepted for compatibility; not supported yet)"
+    )]
+    pub(crate) lzop: bool,
+    #[arg(
+        long,
+        help = "Use lrzip for compression (accepted for compatibility; not supported yet)"
+    )]
+    pub(crate) lrzip: bool,
+    #[arg(
+        long,
         value_name = "level",
         value_parser = value_parser!(u8).range(0..=9),
         help = "Use xz for compression [possible level: 0-9]"
@@ -232,13 +252,34 @@ impl CompressionAlgorithmArgs {
         } else if let Some(level) = self.deflate {
             (pna::Compression::Deflate, level.map(Into::into))
         } else {
+            for (flag, name) in [
+                (self.lz4, "--lz4"),
+                (self.lzma, "--lzma"),
+                (self.lzop, "--lzop"),
+                (self.lrzip, "--lrzip"),
+            ] {
+                if flag {
+                    log::warn!(
+                        "{} is accepted for compatibility but not yet supported; falling back to zstd",
+                        name
+                    );
+                    return (pna::Compression::ZStandard, None);
+                }
+            }
             (pna::Compression::ZStandard, None)
         }
     }
 
     #[inline]
     pub(crate) const fn explicitly_set(&self) -> bool {
-        self.store || self.deflate.is_some() || self.zstd.is_some() || self.xz.is_some()
+        self.store
+            || self.deflate.is_some()
+            || self.zstd.is_some()
+            || self.xz.is_some()
+            || self.lz4
+            || self.lzma
+            || self.lzop
+            || self.lrzip
     }
 }
 
