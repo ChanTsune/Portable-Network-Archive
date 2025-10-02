@@ -7,8 +7,9 @@ use crate::{
         append::{open_archive_then_seek_to_end, run_append_archive},
         ask_password, check_password,
         commons::{
-            collect_items, collect_split_archives, entry_option, read_paths, CreateOptions,
-            Exclude, KeepOptions, OwnerOptions, PathTransformers, TimeOptions,
+            collect_items, collect_split_archives, ensure_hardlinks_complete, entry_option,
+            read_paths, CreateOptions, Exclude, KeepOptions, OwnerOptions, PathTransformers,
+            TimeOptions,
         },
         concat::{append_archives_into_existing, run_concat_from_stdio, ConcatFromStdioArgs},
         create::{create_archive_file, CreationContext},
@@ -129,6 +130,12 @@ pub(crate) struct StdioCommand {
         help = "Only overwrite if archive entry is newer than existing file"
     )]
     keep_newer_files: bool,
+    #[arg(
+        short = 'l',
+        long = "check-links",
+        help = "Fail if any hard link targets referenced on disk are missing from the archive input set"
+    )]
+    check_links: bool,
     #[arg(
         long,
         visible_alias = "preserve-timestamps",
@@ -475,6 +482,10 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         args.follow_command_links,
         &exclude,
     )?;
+
+    if args.check_links {
+        ensure_hardlinks_complete(&target_items, args.follow_links)?;
+    }
 
     let mut compression = args.compression.clone();
     if args.auto_compress {
@@ -851,6 +862,7 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
         gitignore,
         follow_links,
         follow_command_links,
+        check_links,
         out_dir: _,
         strip_components: _,
         uname,
@@ -931,6 +943,7 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
         gitignore,
         follow_links,
         follow_command_links,
+        check_links,
     })
 }
 
@@ -1026,6 +1039,9 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.follow_command_links,
             &exclude,
         )?;
+        if args.check_links {
+            ensure_hardlinks_complete(&target_items, args.follow_links)?;
+        }
         run_append_archive(&create_options, &path_transformers, archive, target_items)?;
         if !archive_sources.is_empty() {
             append_archives_into_existing(file, &archive_sources)?;
@@ -1044,6 +1060,9 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.follow_command_links,
             &exclude,
         )?;
+        if args.check_links {
+            ensure_hardlinks_complete(&target_items, args.follow_links)?;
+        }
         let mut output_archive = Archive::write_header(io::stdout().lock())?;
         {
             let mut input_archive = Archive::read_header(io::stdin().lock())?;

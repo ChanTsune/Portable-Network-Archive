@@ -75,37 +75,99 @@ fn get_file_id_and_nlinks(path: &Path, follow_symlink: bool) -> io::Result<(File
     }
 }
 
+#[derive(Debug, Clone)]
+struct HardlinkGroup {
+    first_path: PathBuf,
+    expected: u64,
+    seen: u64,
+}
+
+/// Tracks hardlink groups encountered during filesystem traversal.
+#[cfg_attr(not(any(unix, windows)), allow(unused_variables))]
+#[derive(Debug, Default, Clone)]
+pub(crate) struct HardlinkTracker {
+    follow_symlink: bool,
+    groups: HashMap<FileId, HardlinkGroup>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MissingHardlink {
+    pub(crate) representative: PathBuf,
+    pub(crate) expected: u64,
+    pub(crate) seen: u64,
+}
+
+impl HardlinkTracker {
+    #[inline]
+    pub(crate) fn new(follow_symlink: bool) -> Self {
+        Self {
+            follow_symlink,
+            groups: HashMap::new(),
+        }
+    }
+
+    #[cfg(any(unix, windows))]
+    #[inline]
+    pub(crate) fn observe(&mut self, path: &Path) -> io::Result<Option<PathBuf>> {
+        let (id, nlinks) = get_file_id_and_nlinks(path, self.follow_symlink)?;
+        if nlinks <= 1 {
+            return Ok(None);
+        }
+
+        let entry = self.groups.entry(id).or_insert_with(|| HardlinkGroup {
+            first_path: path.to_path_buf(),
+            expected: nlinks,
+            seen: 0,
+        });
+        entry.seen += 1;
+        if entry.seen == 1 {
+            Ok(None)
+        } else {
+            Ok(Some(entry.first_path.clone()))
+        }
+    }
+
+    #[cfg(any(unix, windows))]
+    pub(crate) fn missing(&self) -> Vec<MissingHardlink> {
+        self.groups
+            .values()
+            .filter(|entry| entry.expected > entry.seen)
+            .map(|entry| MissingHardlink {
+                representative: entry.first_path.clone(),
+                expected: entry.expected,
+                seen: entry.seen,
+            })
+            .collect()
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    #[inline]
+    pub(crate) fn observe(&mut self, _path: &Path) -> io::Result<Option<PathBuf>> {
+        Ok(None)
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    #[inline]
+    pub(crate) fn missing(&self) -> Vec<MissingHardlink> {
+        Vec::new()
+    }
+}
+
 #[cfg_attr(not(any(unix, windows)), allow(unused_variables))]
 pub(crate) struct HardlinkResolver {
-    follow_symlink: bool,
-    seen: HashMap<FileId, PathBuf>,
+    tracker: HardlinkTracker,
 }
 
 impl HardlinkResolver {
     #[inline]
     pub(crate) fn new(follow_symlink: bool) -> Self {
         Self {
-            follow_symlink,
-            seen: HashMap::new(),
+            tracker: HardlinkTracker::new(follow_symlink),
         }
     }
 
-    #[cfg(any(unix, windows))]
     #[inline]
     pub(crate) fn resolve(&mut self, path: &Path) -> io::Result<Option<PathBuf>> {
-        let (id, nlinks) = get_file_id_and_nlinks(path, self.follow_symlink)?;
-        if 1 < nlinks {
-            if let Some(path) = self.seen.get(&id) {
-                return Ok(Some(path.to_path_buf()));
-            }
-            self.seen.insert(id, path.to_path_buf());
-        }
-        Ok(None)
-    }
-
-    #[cfg(not(any(unix, windows)))]
-    #[inline]
-    pub(crate) fn resolve(&mut self, _path: &Path) -> io::Result<Option<PathBuf>> {
-        Ok(None)
+        self.tracker.observe(path)
     }
 }

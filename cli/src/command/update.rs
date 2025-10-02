@@ -10,9 +10,10 @@ use crate::{
     command::{
         ask_password, check_password,
         commons::{
-            collect_items, collect_split_archives, create_entry, entry_option, read_paths,
-            read_paths_stdin, CreateOptions, Exclude, KeepOptions, OwnerOptions, PathTransformers,
-            TimeOptions, TransformStrategy, TransformStrategyKeepSolid, TransformStrategyUnSolid,
+            collect_items, collect_split_archives, create_entry, ensure_hardlinks_complete,
+            entry_option, read_paths, read_paths_stdin, CreateOptions, Exclude, KeepOptions,
+            OwnerOptions, PathTransformers, TimeOptions, TransformStrategy,
+            TransformStrategyKeepSolid, TransformStrategyUnSolid,
         },
         Command,
     },
@@ -71,6 +72,7 @@ pub(crate) struct UpdateFromStdioArgs {
     pub(crate) gitignore: bool,
     pub(crate) follow_links: bool,
     pub(crate) follow_command_links: bool,
+    pub(crate) check_links: bool,
 }
 
 #[derive(Parser, Clone, Debug)]
@@ -153,6 +155,12 @@ pub(crate) struct UpdateCommand {
         help = "Archiving the acl of the files (unstable)"
     )]
     pub(crate) keep_acl: bool,
+    #[arg(
+        short = 'l',
+        long = "check-links",
+        help = "Check that all hard link targets are included in the update set"
+    )]
+    pub(crate) check_links: bool,
     #[arg(long, help = "Archiving user to the entries from given name")]
     pub(crate) uname: Option<String>,
     #[arg(long, help = "Archiving group to the entries from given name")]
@@ -351,6 +359,7 @@ pub(crate) fn run_update_from_stdio(args: UpdateFromStdioArgs) -> anyhow::Result
         gitignore,
         follow_links,
         follow_command_links,
+        check_links,
     } = args;
 
     UpdateCommand {
@@ -396,6 +405,7 @@ pub(crate) fn run_update_from_stdio(args: UpdateFromStdioArgs) -> anyhow::Result
         gitignore,
         follow_links,
         follow_command_links,
+        check_links,
     }
     .execute()
 }
@@ -489,6 +499,10 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         args.follow_command_links,
         &exclude,
     )?;
+
+    if args.check_links {
+        ensure_hardlinks_complete(&target_items, args.follow_links)?;
+    }
 
     let (tx, rx) = std::sync::mpsc::channel();
 

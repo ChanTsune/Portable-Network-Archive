@@ -2,7 +2,7 @@ use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
     utils::{
         self,
-        fs::HardlinkResolver,
+        fs::{HardlinkResolver, HardlinkTracker, MissingHardlink},
         re::{
             bsd::{SubstitutionRule, SubstitutionRules},
             gnu::{TransformRule, TransformRules},
@@ -10,6 +10,7 @@ use crate::{
         BsdGlobPatterns, PathPartExt,
     },
 };
+use anyhow::bail;
 use path_slash::*;
 use pna::{
     prelude::*, Archive, EntryBuilder, EntryName, EntryPart, EntryReference, NormalEntry,
@@ -18,6 +19,7 @@ use pna::{
 use std::{
     borrow::Cow,
     collections::HashMap,
+    fmt::Write as _,
     fs,
     io::{self, prelude::*},
     path::{Path, PathBuf},
@@ -313,6 +315,44 @@ pub(crate) fn collect_items(
     }
 
     Ok(out)
+}
+
+pub(crate) fn ensure_hardlinks_complete(
+    items: &[(PathBuf, StoreAs)],
+    follow_links: bool,
+) -> anyhow::Result<()> {
+    let mut tracker = HardlinkTracker::new(follow_links);
+    for (path, store_as) in items {
+        match store_as {
+            StoreAs::File | StoreAs::Hardlink(_) => {
+                tracker.observe(path)?;
+            }
+            _ => {}
+        }
+    }
+
+    let missing = tracker.missing();
+    if missing.is_empty() {
+        return Ok(());
+    }
+
+    let mut message = String::new();
+    for MissingHardlink {
+        representative,
+        expected,
+        seen,
+    } in missing
+    {
+        let _ = writeln!(
+            message,
+            "{} has {} hard link(s) on disk but only {} were queued for archiving",
+            representative.display(),
+            expected,
+            seen
+        );
+    }
+
+    bail!(message.trim().to_owned())
 }
 
 #[inline]
@@ -1166,6 +1206,30 @@ mod tests {
             .map(Into::into)
             .collect::<HashSet<_>>()
         );
+    }
+
+    #[cfg(any(unix, windows))]
+    #[test]
+    fn ensure_hardlinks_complete_checks_group() {
+        use tempfile::tempdir;
+
+        let tmp = tempdir().unwrap();
+        let original = tmp.path().join("source.txt");
+        std::fs::write(&original, b"data").unwrap();
+        let second = tmp.path().join("linked.txt");
+        std::fs::hard_link(&original, &second).unwrap();
+
+        let ok_items = vec![
+            (original.clone(), StoreAs::File),
+            (second.clone(), StoreAs::Hardlink(original.clone())),
+        ];
+        ensure_hardlinks_complete(&ok_items, false).unwrap();
+
+        let missing_items = vec![(original.clone(), StoreAs::File)];
+        let err = ensure_hardlinks_complete(&missing_items, false).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("source.txt"), "unexpected message: {msg}");
+        assert!(msg.contains("hard link"), "unexpected message: {msg}");
     }
 
     #[test]

@@ -88,9 +88,9 @@
 - [x] 2-18 `-L/--dereference` & `-h`
   - 実装: `short = 'L'`, `short = 'h'` alias (後者は `L` と同義)。
   - テスト: symlink を含むディレクトリで `-L` の挙動比較。
-- [ ] 2-19 `-l/--check-links`
-  - 実装: アーカイブ化後に未収集のハードリンクを検出しエラーを出す。
-  - テスト: ハードリンクの欠落ケースを再現。
+- [x] 2-19 `-l/--check-links`
+  - 実装: `HardlinkTracker` でハードリンク参照数を追跡し、`ensure_hardlinks_complete` を `create`/`append`/`update` 経路に組み込み不足分を検出。
+  - テスト: `ensure_hardlinks_complete` の単体テストで欠落ケースを再現しエラーとなることを確認。
 - [ ] 2-20 `--one-file-system`
   - 実装: `collect_items` で `st_dev` を記録し、異なるデバイスを除外。
   - テスト: `mount` した tmpfs をまたぐアーカイブで比較。
@@ -228,7 +228,7 @@
   - [x] 2-16 `-k`
   - [x] 2-17 `--keep-newer-files`
   - [ ] 2-18 `-L/-h`
-  - [ ] 2-19 `-l`
+  - [x] 2-19 `-l`
   - [ ] 2-20 `--one-file-system`
   - [ ] 2-21 `--nodump`
   - [ ] 2-22 `--ignore-zeros`
