@@ -27,7 +27,11 @@ use crate::{
 use anyhow::bail;
 use clap::{ArgGroup, Args, ValueHint};
 use pna::Archive;
-use std::{env, io, path::PathBuf, time::SystemTime};
+use std::{
+    env, io,
+    path::{Path, PathBuf},
+    time::SystemTime,
+};
 
 #[derive(Args, Clone, Debug)]
 #[command(
@@ -142,6 +146,12 @@ pub(crate) struct StdioCommand {
     keep_acl: bool,
     #[arg(long, help = "Solid mode archive")]
     pub(crate) solid: bool,
+    #[arg(
+        short = 'a',
+        long = "auto-compress",
+        help = "Choose compression based on archive filename (bsdtar -a equivalent)"
+    )]
+    auto_compress: bool,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -294,14 +304,14 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     } else if args.delete {
         run_delete(args)
     } else if args.update {
-        if args.compression.explicitly_set() {
+        if args.compression.explicitly_set() || args.auto_compress {
             bail!(
                 "compression flags cannot be combined with update/-u; the archive's existing compression is preserved"
             );
         }
         run_update(args)
     } else if args.append {
-        if args.compression.explicitly_set() {
+        if args.compression.explicitly_set() || args.auto_compress {
             bail!(
                 "compression flags cannot be combined with append/-r; the archive's existing compression is preserved"
             );
@@ -371,8 +381,17 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         &exclude,
     )?;
 
+    let mut compression = args.compression.clone();
+    if args.auto_compress {
+        if let Some(ref path) = archive_file {
+            apply_auto_compress(&mut compression, path);
+        } else {
+            log::warn!("--auto-compress ignored when writing to stdout");
+        }
+    }
+
     let password = password.as_deref();
-    let cli_option = entry_option(args.compression, args.cipher, args.hash, password);
+    let cli_option = entry_option(compression, args.cipher, args.hash, password);
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
         keep_permission: args.keep_permission,
@@ -600,6 +619,7 @@ fn run_append_to(args: StdioCommand) -> anyhow::Result<()> {
         file,
         files,
         null: _,
+        ..
     } = args;
 
     let target = match file {
@@ -940,5 +960,25 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             output_archive,
             target_items,
         )
+    }
+}
+
+fn apply_auto_compress(compression: &mut CompressionAlgorithmArgs, archive_path: &Path) {
+    let name = archive_path.to_string_lossy().to_ascii_lowercase();
+    compression.store = false;
+    compression.deflate = None;
+    compression.zstd = None;
+    compression.xz = None;
+
+    if name.ends_with(".tar.gz") || name.ends_with(".tgz") || name.ends_with(".taz") {
+        compression.deflate = Some(None);
+    } else if name.ends_with(".tar.xz") || name.ends_with(".txz") {
+        compression.xz = Some(None);
+    } else if name.ends_with(".tar.zst") || name.ends_with(".tzst") {
+        compression.zstd = Some(None);
+    } else if name.ends_with(".tar") {
+        compression.store = true;
+    } else {
+        compression.zstd = Some(None);
     }
 }

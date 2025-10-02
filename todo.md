@@ -33,7 +33,7 @@
 ---
 ## 2. 入出力・探索オプション（ロードマップ §1.2）
 ### 2.1 I/O / 環境関連
-- [ ] 2-1 `-a/--auto-compress`
+- [x] 2-1 `-a/--auto-compress`
   - 実装: 出力ファイル名の拡張子から `CompressionAlgorithmArgs` を推定するユーティリティを実装。
   - テスト: `.tgz`, `.tar.gz`, `.tar.bz2`, `.tar.xz`, `.zip` などを比較。
 - [ ] 2-2 `-B/--read-full-blocks`
