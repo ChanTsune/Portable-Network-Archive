@@ -54,7 +54,7 @@
 - [x] 2-7 `--format`
   - 実装: Clap で受理し、内部では PNA 固有フォーマットへマッピング。警告文を表示してドキュメント更新。
   - テスト: 受理後に互換警告が出るかを確認。
-- [ ] 2-8 `--options key=val`
+- [x] 2-8 `--options key=val`
   - 実装: key/value パーサを作り、`CompressionAlgorithmArgs` や `TimeOptions` へ適用。未知キーは警告。
   - テスト: known/unknown key のログをチェック。
 - [ ] 2-9 `--use-compress-program`

@@ -169,6 +169,12 @@ pub(crate) struct StdioCommand {
     #[arg(long, help = "Requested archive format (compatibility only)")]
     format: Option<String>,
     #[arg(
+        long = "options",
+        value_delimiter = ',',
+        help = "Format-specific options (compatibility only)"
+    )]
+    format_options: Vec<String>,
+    #[arg(
         short = 'a',
         long = "auto-compress",
         help = "Choose compression based on archive filename (bsdtar -a equivalent)"
@@ -338,6 +344,12 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
         log::warn!(
             "--format={} is accepted for compatibility but PNA format is always used",
             fmt
+        );
+    }
+    if !args.format_options.is_empty() {
+        log::warn!(
+            "--options is accepted for compatibility but ignored: {:?}",
+            args.format_options
         );
     }
 
