@@ -53,7 +53,6 @@ fn list_with_exclude_vcs() {
         "list_with_exclude_vcs/list_with_exclude_vcs.pna",
         "--overwrite",
         "list_with_exclude_vcs/in/",
-        "--unstable",
     ])
     .assert()
     .success();
@@ -77,7 +76,6 @@ fn list_with_exclude_vcs() {
             "list",
             "list_with_exclude_vcs/list_with_exclude_vcs.pna",
             "--exclude-vcs",
-            "--unstable",
         ])
         .assert();
 
@@ -149,7 +147,6 @@ fn list_without_exclude_vcs() {
         "list_without_exclude_vcs/list_without_exclude_vcs.pna",
         "--overwrite",
         "list_without_exclude_vcs/in/",
-        "--unstable",
     ])
     .assert()
     .success();
@@ -172,7 +169,6 @@ fn list_without_exclude_vcs() {
         .args([
             "list",
             "list_without_exclude_vcs/list_without_exclude_vcs.pna",
-            "--unstable",
         ])
         .assert();
 

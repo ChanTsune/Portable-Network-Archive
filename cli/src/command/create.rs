@@ -21,7 +21,7 @@ use crate::{
 };
 use anyhow::ensure;
 use bytesize::ByteSize;
-use clap::{ArgGroup, Parser, ValueHint};
+use clap::{ArgAction, ArgGroup, Parser, ValueHint};
 use pna::{Archive, SolidEntryBuilder, WriteOptions};
 use std::{
     env, fs,
@@ -32,6 +32,7 @@ use std::{
 
 #[derive(Parser, Clone, Debug)]
 #[command(
+    disable_help_flag = true,
     group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
     group(ArgGroup::new("include-group").args(["include"])),
     group(ArgGroup::new("create-exclude-group").args(["exclude"])),
@@ -198,7 +199,13 @@ pub(crate) struct CreateCommand {
     exclude_vcs: bool,
     #[arg(long, help = "Ignore files from .gitignore")]
     pub(crate) gitignore: bool,
-    #[arg(long, visible_aliases = ["dereference"], help = "Follow symbolic links")]
+    #[arg(
+        short = 'L',
+        visible_short_alias = 'h',
+        long,
+        visible_aliases = ["dereference"],
+        help = "Follow symbolic links"
+    )]
     follow_links: bool,
     #[arg(
         short = 'H',
@@ -253,6 +260,8 @@ pub(crate) struct CreateCommand {
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
     pub(crate) file: FileArgsCompat,
+    #[arg(long, action = ArgAction::Help)]
+    help: Option<bool>,
 }
 
 impl Command for CreateCommand {

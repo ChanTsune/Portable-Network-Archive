@@ -23,7 +23,7 @@ use crate::{
         PathPartExt, VCS_FILES,
     },
 };
-use clap::{ArgGroup, Parser, ValueHint};
+use clap::{ArgAction, ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;
 use pna::{Archive, EntryName, Metadata};
 use std::{env, fs, io, path::PathBuf, time::SystemTime};
@@ -80,6 +80,7 @@ pub(crate) struct UpdateFromStdioArgs {
 
 #[derive(Parser, Clone, Debug)]
 #[command(
+    disable_help_flag = true,
     group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
     group(ArgGroup::new("include-group").args(["include"])),
     group(ArgGroup::new("update-exclude-group").args(["exclude"])),
@@ -300,7 +301,13 @@ pub(crate) struct UpdateCommand {
     null: bool,
     #[arg(long, help = "Ignore files from .gitignore (unstable)")]
     pub(crate) gitignore: bool,
-    #[arg(long, visible_aliases = ["dereference"], help = "Follow symbolic links")]
+    #[arg(
+        short = 'L',
+        visible_short_alias = 'h',
+        long,
+        visible_aliases = ["dereference"],
+        help = "Follow symbolic links"
+    )]
     follow_links: bool,
     #[arg(
         short = 'H',
@@ -318,6 +325,8 @@ pub(crate) struct UpdateCommand {
         help = "Exclude files or directories marked with the nodump flag"
     )]
     nodump: bool,
+    #[arg(long, action = ArgAction::Help)]
+    help: Option<bool>,
 }
 
 impl Command for UpdateCommand {
@@ -431,6 +440,7 @@ pub(crate) fn run_update_from_stdio(args: UpdateFromStdioArgs) -> anyhow::Result
         one_file_system,
         nodump,
         check_links,
+        help: None,
     }
     .execute()
 }

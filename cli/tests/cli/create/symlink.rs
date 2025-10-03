@@ -38,6 +38,90 @@ fn init_broken_resource<P: AsRef<Path>>(dir: P) {
     pna::fs::symlink(Path::new("missing_dir"), dir.join("broken_dir")).unwrap();
 }
 
+#[cfg(unix)]
+fn assert_symlink_follow(base: &str, follow_flag: &str) {
+    let source_dir = format!("{base}/source");
+    init_resource(&source_dir);
+
+    let archive_path = format!("{base}/{base}.pna");
+    cli::Cli::try_parse_from(vec![
+        "pna".into(),
+        "--quiet".into(),
+        "c".into(),
+        archive_path.clone(),
+        "--overwrite".into(),
+        "--keep-dir".into(),
+        follow_flag.into(),
+        source_dir.clone(),
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let prefix = format!("{base}/");
+    archive::for_each_entry(&archive_path, |entry| {
+        let path = entry.header().path().as_str();
+        assert!(path.starts_with(&prefix), "unexpected entry path: {path}");
+        let rel = &path[prefix.len()..];
+        match rel {
+            "source" => assert_eq!(entry.header().data_kind(), pna::DataKind::Directory),
+            "source/text.txt" => assert_eq!(entry.header().data_kind(), pna::DataKind::File),
+            "source/dir" => assert_eq!(entry.header().data_kind(), pna::DataKind::Directory),
+            "source/dir/in_dir_text.txt" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
+            }
+            "source/dir/in_dir_link.txt" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
+            }
+            "source/link_dir" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
+            }
+            "source/link_dir/in_dir_link.txt" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
+            }
+            "source/link_dir/in_dir_text.txt" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
+            }
+            "source/link.txt" => assert_eq!(entry.header().data_kind(), pna::DataKind::File),
+            other => panic!("unexpected entry found: {other}"),
+        }
+    })
+    .unwrap();
+
+    let dist_dir = format!("{base}/dist");
+    cli::Cli::try_parse_from(vec![
+        "pna".into(),
+        "--quiet".into(),
+        "x".into(),
+        archive_path,
+        "--overwrite".into(),
+        "--out-dir".into(),
+        dist_dir.clone(),
+        "--strip-components".into(),
+        "2".into(),
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let link_txt = PathBuf::from(format!("{dist_dir}/link.txt"));
+    let link_dir = PathBuf::from(format!("{dist_dir}/link_dir"));
+    let nested_link = PathBuf::from(format!("{dist_dir}/dir/in_dir_link.txt"));
+
+    assert!(!link_txt.is_symlink());
+    assert!(!link_dir.is_symlink());
+    assert!(!nested_link.is_symlink());
+
+    assert_eq!(
+        fs::read_to_string(nested_link).unwrap(),
+        fs::read_to_string(format!("{dist_dir}/dir/in_dir_text.txt")).unwrap()
+    );
+    assert_eq!(
+        fs::read_to_string(format!("{dist_dir}/dir/in_dir_text.txt")).unwrap(),
+        fs::read_to_string(format!("{dist_dir}/link_dir/in_dir_text.txt")).unwrap(),
+    );
+}
+
 #[test]
 fn symlink_no_follow() {
     setup();
@@ -113,79 +197,15 @@ fn symlink_no_follow() {
 #[test]
 fn symlink_follow() {
     setup();
-    init_resource("symlink_follow/source");
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "c",
-        "symlink_follow/symlink_follow.pna",
-        "--overwrite",
-        "--keep-dir",
-        "--follow-links",
-        "symlink_follow/source",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
-    archive::for_each_entry("symlink_follow/symlink_follow.pna", |entry| {
-        match entry.header().path().as_str() {
-            "symlink_follow/source" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
-            }
-            "symlink_follow/source/text.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
-            }
-            "symlink_follow/source/dir" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
-            }
-            "symlink_follow/source/dir/in_dir_text.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
-            }
-            "symlink_follow/source/dir/in_dir_link.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
-            }
-            "symlink_follow/source/link_dir" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
-            }
-            "symlink_follow/source/link_dir/in_dir_link.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
-            }
-            "symlink_follow/source/link_dir/in_dir_text.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
-            }
-            "symlink_follow/source/link.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::File)
-            }
-            path => unreachable!("unexpected entry found: {path}"),
-        }
-    })
-    .unwrap();
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "x",
-        "symlink_follow/symlink_follow.pna",
-        "--overwrite",
-        "--out-dir",
-        "symlink_follow/dist",
-        "--strip-components",
-        "2",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
+    assert_symlink_follow("symlink_follow", "--follow-links");
+}
 
-    assert!(!PathBuf::from("symlink_follow/dist/link.txt").is_symlink());
-    assert!(!PathBuf::from("symlink_follow/dist/link_dir").is_symlink());
-    assert!(!PathBuf::from("symlink_follow/dist/dir/in_dir_link.txt").is_symlink());
-    assert_eq!(
-        fs::read_to_string("symlink_follow/dist/dir/in_dir_link.txt").unwrap(),
-        fs::read_to_string("symlink_follow/dist/dir/in_dir_text.txt").unwrap()
-    );
-    assert_eq!(
-        fs::read_to_string("symlink_follow/dist/dir/in_dir_text.txt").unwrap(),
-        fs::read_to_string("symlink_follow/dist/link_dir/in_dir_text.txt").unwrap(),
-    );
+#[cfg(unix)]
+#[test]
+fn symlink_follow_short_aliases() {
+    setup();
+    assert_symlink_follow("symlink_follow_short_L", "-L");
+    assert_symlink_follow("symlink_follow_short_h", "-h");
 }
 
 #[cfg(unix)]

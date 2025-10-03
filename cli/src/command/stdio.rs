@@ -26,7 +26,7 @@ use crate::{
     },
 };
 use anyhow::{bail, Context};
-use clap::{ArgGroup, Args, ValueHint};
+use clap::{ArgAction, ArgGroup, Args, ValueHint};
 use pna::Archive;
 use std::{
     env, fs, io,
@@ -36,6 +36,7 @@ use std::{
 
 #[derive(Args, Clone, Debug)]
 #[command(
+    disable_help_flag = true,
     group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
     group(ArgGroup::new("keep-old-files-group").args(["keep_old_files"])),
     group(ArgGroup::new("keep-newer-files-group").args(["keep_newer_files"])),
@@ -205,6 +206,13 @@ pub(crate) struct StdioCommand {
     )]
     keep_timestamp: bool,
     #[arg(
+        short = 'm',
+        long = "modification-time",
+        help = "Do not retain archived modification times when extracting; set them to the current time",
+        conflicts_with = "keep_timestamp"
+    )]
+    modification_time: bool,
+    #[arg(
         short = 'p',
         long = "keep-permission",
         visible_alias = "preserve-permissions",
@@ -301,7 +309,13 @@ pub(crate) struct StdioCommand {
     exclude_vcs: bool,
     #[arg(long, help = "Ignore files from .gitignore")]
     pub(crate) gitignore: bool,
-    #[arg(long, visible_aliases = ["dereference"], help = "Follow symbolic links")]
+    #[arg(
+        short = 'L',
+        visible_short_alias = 'h',
+        long,
+        visible_aliases = ["dereference"],
+        help = "Follow symbolic links"
+    )]
     follow_links: bool,
     #[arg(
         short = 'H',
@@ -416,6 +430,8 @@ pub(crate) struct StdioCommand {
         help = "Filenames or patterns are separated by null characters, not by newlines"
     )]
     null: bool,
+    #[arg(long, action = ArgAction::Help)]
+    help: Option<bool>,
 }
 
 impl Command for StdioCommand {
@@ -641,6 +657,11 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         })
         .collect::<Vec<_>>();
     let keep_permission = args.keep_permission && !args.no_same_permissions;
+    let keep_timestamp = if args.modification_time {
+        false
+    } else {
+        args.keep_timestamp
+    };
     let target_items = collect_items(
         &files,
         !args.no_recursive,
@@ -670,7 +691,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     let password = password.as_deref();
     let cli_option = entry_option(compression, args.cipher, args.hash, password);
     let keep_options = KeepOptions {
-        keep_timestamp: args.keep_timestamp,
+        keep_timestamp,
         keep_permission,
         keep_xattr: args.keep_xattr,
         keep_acl: args.keep_acl,
@@ -747,7 +768,11 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         out_dir: args.out_dir,
         exclude,
         keep_options: KeepOptions {
-            keep_timestamp: args.keep_timestamp,
+            keep_timestamp: if args.modification_time {
+                false
+            } else {
+                args.keep_timestamp
+            },
             keep_permission: args.keep_permission && !args.no_same_permissions,
             keep_xattr: args.keep_xattr,
             keep_acl: args.keep_acl,
@@ -762,6 +787,7 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         same_owner: !args.no_same_owner,
         path_transformers: PathTransformers::new(args.substitutions, args.transforms),
         ignore_zeros: args.ignore_zeros,
+        touch_modification_time: args.modification_time,
     };
     // NOTE: "-" will use stdin
     let mut file = args.file;

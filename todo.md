@@ -66,10 +66,9 @@
 - [ ] 2-11 `--exclude` / `--include`
   - 実装: `GlobPatterns` を BSD glob と fnmatch のルールに合わせる。ワイルドカード、否定、大小文字指定を対応。
   - テスト: libarchive テスト群でのフィルタケースや独自 Bats で比較。
-- [ ] 2-12 `--exclude-vcs`
-  - 現状: stdio / create / extract では `--unstable` なしで利用済みだが、`list` サブコマンドのみ ArgGroup で `--unstable` を要求。
-  - TODO: list 側の `--unstable` 依存を解消し、VCS リストの最新化を継続。
-  - テスト: 既存 Bats (`test_option_exclude_vcs.bats`) をゴールデン比較に移行し、list ケースも追加。
+- [x] 2-12 `--exclude-vcs`
+  - 実装: list サブコマンドの `--unstable` 依存を解除し、全モードで安定オプション化。
+  - テスト: `cli/tests/cli/list/exclude_vcs.rs` を更新し、`--unstable` 無しでの比較を確認。
 - [x] 2-13 `--null`
   - 実装: `read_paths` の NUL 区切り入力を bsdtar と同じ挙動に。
   - テスト: `printf 'a\0b\0'` などを `-T - --null` で比較。
@@ -85,9 +84,9 @@
 - [x] 2-17 `--keep-newer-files`
   - 実装: `OutputOption` にタイムスタンプ比較ロジック追加。
   - テスト: 古い/新しいファイルを用意し、上書き有無を比較。
-- [ ] 2-18 `-L/--dereference` & `-h`
-  - 現状: `--follow-links` 長オプションのみ提供。短縮 alias `-L`/`-h` は Clap 定義未追加。
-  - TODO: Clap へ `short = 'L'` と `short = 'h'` を登録し、ヘルプ/テストを更新。
+- [x] 2-18 `-L/--dereference` & `-h`
+  - 実装: `follow_links` に `short = 'L'` と `visible_short_alias = 'h'` を追加し、ヘルプへ反映。
+  - テスト: `cli/tests/cli/create/symlink.rs` に短縮フラグ検証を追加。
 - [x] 2-19 `-l/--check-links`
   - 実装: `HardlinkTracker` でハードリンク参照数を追跡し、`ensure_hardlinks_complete` を `create`/`append`/`update` 経路に組み込み不足分を検出。
   - テスト: `ensure_hardlinks_complete` の単体テストで欠落ケースを再現しエラーとなることを確認。
@@ -202,7 +201,7 @@
 ## 進捗チェックリスト
 - [x] 0.準備完了 — 0-1〜0-4 まで完了済み。
 - [x] 1.モード互換 — 1-1〜1-6 を実装済み（`@archive` は stdout 出力時のみ未対応という既知制限あり）。
-- [ ] 2.入出力・探索 — 残タスク: 2-4 `--chroot`, 2-11 `--include/--exclude` の互換 glob, 2-12 `list` での `--exclude-vcs`, 2-18 `-L/-h` など。
+- [ ] 2.入出力・探索 — 残タスク: 2-4 `--chroot`, 2-11 `--include/--exclude` の互換 glob、2-24 追加圧縮フラグの整備など。
 - [ ] 3.時間・所有権・メタデータ — 残タスク: 3-5 `-o`, 3-9〜3-13 の属性トグル・デフォルト確認。
 - [ ] 4.出力・UX — 残タスク: 4-1〜4-9 全體。
 - [ ] 5.テスト体制 — ゴールデン比較/CI 強化未着手。
