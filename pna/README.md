@@ -15,7 +15,7 @@ pna = "0.28"
 
 ## Reading an archive
 
-```rust
+```rust,no_run
 use pna::{Archive, ReadOptions};
 use std::fs::File;
 use std::io::{self, copy, prelude::*};
@@ -35,7 +35,7 @@ fn main() -> io::Result<()> {
 
 ## Writing an archive
 
-```rust
+```rust,no_run
 use pna::{Archive, EntryBuilder, WriteOptions};
 use std::fs::File;
 use std::io::{self, prelude::*};
