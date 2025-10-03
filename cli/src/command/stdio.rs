@@ -27,7 +27,6 @@ use std::{env, io, path::PathBuf, time::SystemTime};
 #[derive(Args, Clone, Debug)]
 #[command(
     group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
-    group(ArgGroup::new("bundled-flags").args(["create", "extract", "list"]).required(true)),
     group(ArgGroup::new("unstable-include").args(["include"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
