@@ -1,5 +1,9 @@
-use crate::util::{path::normalize_path, str::join_with_capacity, utf8path::normalize_utf8path};
-use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
+use crate::util::{
+    path::normalize_path,
+    str::join_with_capacity,
+    utf8path::{normalize_utf8path, sanitize_utf8path},
+};
+use camino::{Utf8Path, Utf8PathBuf};
 use std::borrow::Cow;
 use std::error::Error;
 use std::ffi::{OsStr, OsString};
@@ -26,14 +30,12 @@ pub struct EntryName(String);
 impl EntryName {
     fn new_from_utf8path(path: &Utf8Path) -> Self {
         let path = normalize_utf8path(path);
-        let iter = path.components().filter_map(|c| match c {
-            Utf8Component::Prefix(_)
-            | Utf8Component::RootDir
-            | Utf8Component::CurDir
-            | Utf8Component::ParentDir => None,
-            Utf8Component::Normal(p) => Some(p),
-        });
-        Self(join_with_capacity(iter, "/", path.as_str().len()))
+        let path = sanitize_utf8path(path);
+        Self(join_with_capacity(
+            path.components(),
+            "/",
+            path.as_str().len(),
+        ))
     }
 
     #[inline]
@@ -45,6 +47,25 @@ impl EntryName {
     fn new_from_path(name: &Path) -> Result<Self, EntryNameError> {
         let name = str::from_utf8(name.as_os_str().as_encoded_bytes())?;
         Ok(Self::new_from_utf8path(Utf8Path::new(name)))
+    }
+
+    /// Creates an [EntryName] from a path, preserving absolute path components.
+    ///
+    /// This method is similar to the `From` implementations for path-like types, but preserves absolute path components.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use libpna::EntryName;
+    ///
+    /// assert_eq!("foo.txt", EntryName::from_utf8path_preserve_root("foo.txt".as_ref()));
+    /// assert_eq!("/foo.txt", EntryName::from_utf8path_preserve_root("/foo.txt".as_ref()));
+    /// assert_eq!("foo.txt", EntryName::from_utf8path_preserve_root("./foo.txt".as_ref()));
+    /// ```
+    #[inline]
+    pub fn from_utf8path_preserve_root(path: &Utf8Path) -> Self {
+        let path = normalize_utf8path(path);
+        Self(path.into_string())
     }
 
     /// Creates an [`EntryName`] from a struct impl <code>[Into]<[PathBuf]></code>.
