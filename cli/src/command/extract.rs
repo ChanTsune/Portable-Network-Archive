@@ -7,8 +7,8 @@ use crate::{
     command::{
         ask_password,
         commons::{
-            collect_split_archives, read_paths, run_process_archive, Exclude, KeepOptions,
-            OwnerOptions, PathTransformers,
+            collect_split_archives, read_paths, run_process_archive, KeepOptions, OwnerOptions,
+            PathFilter, PathTransformers,
         },
         Command,
     },
@@ -180,7 +180,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
 
     let archives = collect_split_archives(&archive)?;
 
-    let exclude = {
+    let filter = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
             exclude.extend(read_paths(p, args.null)?);
@@ -188,7 +188,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         if args.exclude_vcs {
             exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
         }
-        Exclude {
+        PathFilter {
             include: args.include.unwrap_or_default().into(),
             exclude: exclude.into(),
         }
@@ -212,7 +212,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         allow_unsafe_links: args.allow_unsafe_links,
         strip_components: args.strip_components,
         out_dir: args.out_dir,
-        exclude,
+        filter,
         keep_options,
         owner_options,
         same_owner: !args.no_same_owner,
@@ -268,7 +268,7 @@ pub(crate) struct OutputOption {
     pub(crate) allow_unsafe_links: bool,
     pub(crate) strip_components: Option<usize>,
     pub(crate) out_dir: Option<PathBuf>,
-    pub(crate) exclude: Exclude,
+    pub(crate) filter: PathFilter,
     pub(crate) keep_options: KeepOptions,
     pub(crate) owner_options: OwnerOptions,
     pub(crate) same_owner: bool,
@@ -389,7 +389,7 @@ pub(crate) fn extract_entry<T>(
         allow_unsafe_links,
         strip_components,
         out_dir,
-        exclude,
+        filter,
         keep_options,
         owner_options,
         same_owner,
@@ -403,7 +403,7 @@ where
     let same_owner = *same_owner;
     let overwrite = *overwrite;
     let item_path = item.header().path().as_str();
-    if exclude.excluded(item_path) {
+    if filter.excluded(item_path) {
         return Ok(());
     }
     let item_path = item.header().path().as_path();

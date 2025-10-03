@@ -5,7 +5,7 @@ use crate::{
     command::{
         ask_password,
         commons::{
-            collect_split_archives, read_paths, read_paths_stdin, run_transform_entry, Exclude,
+            collect_split_archives, read_paths, read_paths_stdin, run_transform_entry, PathFilter,
             TransformStrategyKeepSolid, TransformStrategyUnSolid,
         },
         Command,
@@ -79,7 +79,7 @@ fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
         files.extend(read_paths(path, args.null)?);
     }
     let mut globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))?;
-    let exclude = {
+    let filter = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
             exclude.extend(read_paths(p, args.null)?);
@@ -87,7 +87,7 @@ fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
         if args.exclude_vcs {
             exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
         }
-        Exclude {
+        PathFilter {
             include: args.include.unwrap_or_default().into(),
             exclude: exclude.into(),
         }
@@ -114,14 +114,14 @@ fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
             temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
-            |entry| Ok(filter_entry(&mut globs, &exclude, entry?)),
+            |entry| Ok(filter_entry(&mut globs, &filter, entry?)),
             TransformStrategyUnSolid,
         ),
         SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
             temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
-            |entry| Ok(filter_entry(&mut globs, &exclude, entry?)),
+            |entry| Ok(filter_entry(&mut globs, &filter, entry?)),
             TransformStrategyKeepSolid,
         ),
     }?;
@@ -138,11 +138,11 @@ fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
 #[inline]
 fn filter_entry<T>(
     globs: &mut GlobPatterns<'_>,
-    exclude: &Exclude,
+    filter: &PathFilter,
     entry: NormalEntry<T>,
 ) -> Option<NormalEntry<T>> {
     let entry_path = entry.header().path();
-    if globs.matches_any(entry_path) && !exclude.excluded(entry_path) {
+    if globs.matches_any(entry_path) && !filter.excluded(entry_path) {
         return None;
     }
     Some(entry)

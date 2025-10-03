@@ -232,7 +232,7 @@ pub(crate) fn collect_items(
     follow_links: bool,
     follow_command_links: bool,
     one_file_system: bool,
-    exclude: &Exclude,
+    filter: &PathFilter,
 ) -> io::Result<Vec<(PathBuf, StoreAs)>> {
     let mut ig = Ignore::empty();
     let mut hardlink_resolver = HardlinkResolver::new(follow_links);
@@ -262,7 +262,7 @@ pub(crate) fn collect_items(
                     let is_symlink = ty.is_symlink() && !should_follow;
 
                     // Exclude (prunes descent when directory)
-                    if exclude.excluded(path.to_slash_lossy()) {
+                    if filter.excluded(path.to_slash_lossy()) {
                         if is_dir {
                             iter.skip_current_dir();
                         }
@@ -1004,20 +1004,19 @@ where
     Ok(())
 }
 
+/// A filter for paths based on include and exclude glob patterns.
 #[derive(Clone, Debug)]
-pub(crate) struct Exclude {
+pub(crate) struct PathFilter {
     pub(crate) include: BsdGlobPatterns,
     pub(crate) exclude: BsdGlobPatterns,
 }
 
-impl Exclude {
+impl PathFilter {
     /// Returns `true` if the given path should be excluded.
     ///
-    /// A path is excluded if:
-    /// 1. It matches any of the `exclude` patterns.
-    /// 2. It does not match any of the `include` patterns (if any are provided).
-    ///
-    /// Note that exclusion patterns take precedence over inclusion patterns.
+    /// A path is excluded if it matches any of the `exclude` patterns,
+    /// or if `include` patterns are provided and the path does not match any of them.
+    /// Exclusion patterns take precedence over inclusion patterns.
     #[inline]
     pub(crate) fn excluded(&self, s: impl AsRef<str>) -> bool {
         let s = s.as_ref();
@@ -1052,44 +1051,44 @@ mod tests {
     use std::collections::HashSet;
     use std::time::Duration;
 
-    fn empty_exclude() -> Exclude {
-        Exclude {
+    fn empty_filter() -> PathFilter {
+        PathFilter {
             include: Vec::<&str>::new().into(),
             exclude: Vec::<&str>::new().into(),
         }
     }
 
     #[test]
-    fn exclude_empty() {
-        let exclude = Exclude {
+    fn path_filter_empty() {
+        let filter = PathFilter {
             include: Vec::<&str>::new().into(),
             exclude: Vec::<&str>::new().into(),
         };
-        assert!(!exclude.excluded("a/b/c"));
+        assert!(!filter.excluded("a/b/c"));
     }
 
     #[test]
-    fn exclude_exclude() {
-        let exclude = Exclude {
+    fn path_filter_exclude() {
+        let filter = PathFilter {
             include: Vec::<&str>::new().into(),
             exclude: vec!["a/*"].into(),
         };
-        assert!(exclude.excluded("a/b/c"));
+        assert!(filter.excluded("a/b/c"));
     }
 
     #[test]
-    fn exclude_include_precedence() {
-        let exclude = Exclude {
+    fn path_filter_include_precedence() {
+        let filter = PathFilter {
             include: vec!["a/*/c"].into(),
             exclude: vec!["a/*"].into(),
         };
-        assert!(exclude.excluded("a/b/c"));
+        assert!(filter.excluded("a/b/c"));
 
-        let exclude = Exclude {
+        let filter = PathFilter {
             include: vec!["a/*/c"].into(),
             exclude: vec!["a/*/c"].into(),
         };
-        assert!(exclude.excluded("a/b/c"));
+        assert!(filter.excluded("a/b/c"));
     }
 
     #[test]
@@ -1106,7 +1105,7 @@ mod tests {
             false,
             false,
             false,
-            &empty_exclude(),
+            &empty_filter(),
         )
         .unwrap();
         assert_eq!(
@@ -1129,7 +1128,7 @@ mod tests {
             false,
             false,
             false,
-            &empty_exclude(),
+            &empty_filter(),
         )
         .unwrap();
         assert_eq!(
@@ -1158,7 +1157,7 @@ mod tests {
             false,
             false,
             false,
-            &empty_exclude(),
+            &empty_filter(),
         )
         .unwrap();
         assert_eq!(

@@ -7,7 +7,7 @@ use crate::{
         ask_password, check_password,
         commons::{
             collect_items, collect_split_archives, entry_option, read_paths, CreateOptions,
-            Exclude, KeepOptions, OwnerOptions, PathTransformers, TimeOptions,
+            KeepOptions, OwnerOptions, PathFilter, PathTransformers, TimeOptions,
         },
         create::{create_archive_file, CreationContext},
         extract::{run_extract_archive_reader, OutputOption},
@@ -287,7 +287,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     if let Some(path) = args.files_from {
         files.extend(read_paths(path, args.null)?);
     }
-    let exclude = {
+    let filter = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
             exclude.extend(read_paths(p, args.null)?);
@@ -295,7 +295,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         if args.exclude_vcs {
             exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
         }
-        Exclude {
+        PathFilter {
             include: args.include.unwrap_or_default().into(),
             exclude: exclude.into(),
         }
@@ -311,7 +311,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         args.follow_links,
         args.follow_command_links,
         args.one_file_system,
-        &exclude,
+        &filter,
     )?;
 
     let password = password.as_deref();
@@ -361,7 +361,7 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
 
-    let exclude = {
+    let filter = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
             exclude.extend(read_paths(p, args.null)?);
@@ -369,7 +369,7 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         if args.exclude_vcs {
             exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
         }
-        Exclude {
+        PathFilter {
             include: args.include.unwrap_or_default().into(),
             exclude: exclude.into(),
         }
@@ -380,7 +380,7 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         allow_unsafe_links: args.allow_unsafe_links,
         strip_components: args.strip_components,
         out_dir: args.out_dir,
-        exclude,
+        filter,
         keep_options: KeepOptions {
             keep_timestamp: args.keep_timestamp,
             keep_permission: args.keep_permission,
@@ -442,7 +442,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
     };
     let files_globs = GlobPatterns::new(args.files.iter().map(|it| it.as_str()))?;
 
-    let exclude = {
+    let filter = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
             exclude.extend(read_paths(p, args.null)?);
@@ -450,7 +450,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
         if args.exclude_vcs {
             exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
         }
-        Exclude {
+        PathFilter {
             include: args.include.unwrap_or_default().into(),
             exclude: exclude.into(),
         }
@@ -466,7 +466,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
                 .map(|it| io::BufReader::with_capacity(64 * 1024, it)),
             password.as_deref(),
             files_globs,
-            exclude,
+            filter,
             list_options,
         )
     } else {
@@ -474,7 +474,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
             std::iter::repeat_with(|| io::stdin().lock()),
             password.as_deref(),
             files_globs,
-            exclude,
+            filter,
             list_options,
         )
     }
@@ -523,7 +523,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     if let Some(path) = args.files_from {
         files.extend(read_paths(path, args.null)?);
     }
-    let exclude = {
+    let filter = {
         let mut exclude = args.exclude.unwrap_or_default();
         if let Some(p) = args.exclude_from {
             exclude.extend(read_paths(p, args.null)?);
@@ -531,7 +531,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         if args.exclude_vcs {
             exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
         }
-        Exclude {
+        PathFilter {
             include: args.include.unwrap_or_default().into(),
             exclude: exclude.into(),
         }
@@ -550,7 +550,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.follow_links,
             args.follow_command_links,
             args.one_file_system,
-            &exclude,
+            &filter,
         )?;
         run_append_archive(&create_options, &path_transformers, archive, target_items)
     } else {
@@ -562,7 +562,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.follow_links,
             args.follow_command_links,
             args.one_file_system,
-            &exclude,
+            &filter,
         )?;
         let mut output_archive = Archive::write_header(io::stdout().lock())?;
         {
