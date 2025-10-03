@@ -36,6 +36,7 @@ pub(crate) struct UpdateFromStdioArgs {
     pub(crate) no_keep_dir: bool,
     pub(crate) keep_timestamp: bool,
     pub(crate) keep_permission: bool,
+    pub(crate) no_same_permissions: bool,
     pub(crate) keep_xattr: bool,
     pub(crate) keep_acl: bool,
     pub(crate) uname: Option<String>,
@@ -108,7 +109,7 @@ pub(crate) struct UpdateFromStdioArgs {
     group(ArgGroup::new("exclude-vcs-group").args(["exclude_vcs"])),
 )]
 #[cfg_attr(windows, command(
-    group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
+    group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"])),
 ))]
 pub(crate) struct UpdateCommand {
     #[arg(
@@ -139,11 +140,18 @@ pub(crate) struct UpdateCommand {
     )]
     pub(crate) keep_timestamp: bool,
     #[arg(
-        long,
+        short = 'p',
+        long = "keep-permission",
         visible_alias = "preserve-permissions",
-        help = "Archiving the permissions of the files (unstable on Windows)"
+        help = "Preserve file permissions (bsdtar -p equivalent)."
     )]
     pub(crate) keep_permission: bool,
+    #[arg(
+        long = "no-same-permissions",
+        help = "Do not retain stored permissions when extracting (bsdtar --no-same-permissions equivalent)",
+        conflicts_with = "keep_permission"
+    )]
+    pub(crate) no_same_permissions: bool,
     #[arg(
         long,
         visible_alias = "preserve-xattrs",
@@ -334,6 +342,7 @@ pub(crate) fn run_update_from_stdio(args: UpdateFromStdioArgs) -> anyhow::Result
         no_keep_dir,
         keep_timestamp,
         keep_permission,
+        no_same_permissions,
         keep_xattr,
         keep_acl,
         uname,
@@ -382,6 +391,7 @@ pub(crate) fn run_update_from_stdio(args: UpdateFromStdioArgs) -> anyhow::Result
         no_keep_dir,
         keep_timestamp,
         keep_permission,
+        no_same_permissions,
         keep_xattr,
         keep_acl,
         uname,
@@ -441,7 +451,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
     let option = entry_option(args.compression, args.cipher, args.hash, password);
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
-        keep_permission: args.keep_permission,
+        keep_permission: args.keep_permission && !args.no_same_permissions,
         keep_xattr: args.keep_xattr,
         keep_acl: args.keep_acl,
     };

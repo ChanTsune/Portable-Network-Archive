@@ -66,7 +66,7 @@ use std::{
     group(ArgGroup::new("exclude-vcs-group").args(["exclude_vcs"])),
 )]
 #[cfg_attr(windows, command(
-    group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
+    group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"])),
 ))]
 pub(crate) struct StdioCommand {
     #[arg(short, long, help = "Create archive")]
@@ -205,11 +205,18 @@ pub(crate) struct StdioCommand {
     )]
     keep_timestamp: bool,
     #[arg(
-        long,
+        short = 'p',
+        long = "keep-permission",
         visible_alias = "preserve-permissions",
-        help = "Archiving the permissions of the files (unstable on Windows)"
+        help = "Preserve file permissions (bsdtar -p equivalent)."
     )]
     keep_permission: bool,
+    #[arg(
+        long = "no-same-permissions",
+        help = "Do not retain stored permissions when extracting (bsdtar --no-same-permissions equivalent)",
+        conflicts_with = "keep_permission"
+    )]
+    no_same_permissions: bool,
     #[arg(
         long,
         visible_alias = "preserve-xattrs",
@@ -633,6 +640,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
             }
         })
         .collect::<Vec<_>>();
+    let keep_permission = args.keep_permission && !args.no_same_permissions;
     let target_items = collect_items(
         &files,
         !args.no_recursive,
@@ -663,7 +671,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     let cli_option = entry_option(compression, args.cipher, args.hash, password);
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
-        keep_permission: args.keep_permission,
+        keep_permission,
         keep_xattr: args.keep_xattr,
         keep_acl: args.keep_acl,
     };
@@ -740,7 +748,7 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         exclude,
         keep_options: KeepOptions {
             keep_timestamp: args.keep_timestamp,
-            keep_permission: args.keep_permission,
+            keep_permission: args.keep_permission && !args.no_same_permissions,
             keep_xattr: args.keep_xattr,
             keep_acl: args.keep_acl,
         },
@@ -1032,6 +1040,7 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
         no_keep_dir,
         keep_timestamp,
         keep_permission,
+        no_same_permissions,
         keep_xattr,
         keep_acl,
         solid: _,
@@ -1083,6 +1092,8 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
         None => bail!("--update/-u requires --file <ARCHIVE> to be specified"),
     };
 
+    let keep_permission = keep_permission && !no_same_permissions;
+
     run_update_from_stdio(UpdateFromStdioArgs {
         recursive,
         no_recursive,
@@ -1090,6 +1101,7 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
         no_keep_dir,
         keep_timestamp,
         keep_permission,
+        no_same_permissions,
         keep_xattr,
         keep_acl,
         uname,
@@ -1142,9 +1154,10 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     check_password(&password, &args.cipher);
     let password = password.as_deref();
     let option = entry_option(args.compression, args.cipher, args.hash, password);
+    let keep_permission = args.keep_permission && !args.no_same_permissions;
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
-        keep_permission: args.keep_permission,
+        keep_permission,
         keep_xattr: args.keep_xattr,
         keep_acl: args.keep_acl,
     };

@@ -115,9 +115,9 @@
 - [x] 3-2 `-s` / `--transform`
   - 実装: `-s`/`--transform` のヘルプを安定化し、experimental stdio/create/append/update/extract 経路が共通の `PathTransformers` を利用。
   - テスト: `create/extract` 既存シナリオを安定化させ、`stdio` 用 substitution/transform 回帰テストを追加。
-- [ ] 3-3 `-p/--preserve-permissions` & `--no-same-permissions`
-  - 実装: 抽出時に `chmod`/`chown` の適用有無を制御するフラグ整備。
-  - テスト: 各フラグ有無での permission 差を比較。
+- [x] 3-3 `-p/--preserve-permissions` & `--no-same-permissions`
+  - 実装: `-p` を各 CLI で安定化し、`--no-same-permissions` を追加して `KeepOptions` の `keep_permission` 計算に反映。
+  - テスト: 既存 keep-permission 系テストの `--unstable` 依存を解消し、stdio 向けに `no_same_permissions` 回帰テストを追加。
 - [ ] 3-4 `-m/--modification-time`
   - 実装: 抽出時にファイルの mtime を現在時刻に更新する処理を追加。
   - テスト: `stat` の結果比較。

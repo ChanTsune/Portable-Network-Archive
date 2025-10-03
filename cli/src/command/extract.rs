@@ -50,7 +50,7 @@ use std::{
     group(ArgGroup::new("exclude-vcs-group").args(["exclude_vcs"])),
 )]
 #[cfg_attr(windows, command(
-    group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
+    group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"])),
 ))]
 pub(crate) struct ExtractCommand {
     #[arg(long, help = "Overwrite file")]
@@ -70,11 +70,18 @@ pub(crate) struct ExtractCommand {
     )]
     pub(crate) keep_timestamp: bool,
     #[arg(
-        long,
+        short = 'p',
+        long = "keep-permission",
         visible_alias = "preserve-permissions",
-        help = "Restore the permissions of the files (unstable on Windows)"
+        help = "Preserve file permissions (bsdtar -p equivalent)."
     )]
     pub(crate) keep_permission: bool,
+    #[arg(
+        long = "no-same-permissions",
+        help = "Do not retain stored permissions when extracting (bsdtar --no-same-permissions equivalent)",
+        conflicts_with = "keep_permission"
+    )]
+    pub(crate) no_same_permissions: bool,
     #[arg(
         long,
         visible_alias = "preserve-xattrs",
@@ -213,9 +220,10 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         }
     };
 
+    let keep_permission = args.keep_permission && !args.no_same_permissions;
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
-        keep_permission: args.keep_permission,
+        keep_permission,
         keep_xattr: args.keep_xattr,
         keep_acl: args.keep_acl,
     };
