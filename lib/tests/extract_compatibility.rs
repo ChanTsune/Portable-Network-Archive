@@ -3,7 +3,7 @@ use std::io;
 
 fn extract_all(bytes: &[u8], password: Option<&str>) {
     let mut archive_reader = Archive::read_header(bytes).unwrap();
-    for entry in archive_reader.entries_skip_solid() {
+    for entry in archive_reader.entries().skip_solid() {
         let item = entry.unwrap();
         if item.header().data_kind() == DataKind::Directory {
             continue;

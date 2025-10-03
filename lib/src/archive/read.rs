@@ -141,18 +141,20 @@ impl<R: Read> Archive<R> {
 
     /// Returns an iterator over the entries in the archive, excluding entries in solid mode.
     ///
+    /// # Deprecated
+    ///
+    /// Use [`Archive::entries().skip_solid()`] instead.
+    ///
     /// # Returns
     ///
     /// An iterator over the entries in the archive.
     #[inline]
+    #[deprecated(
+        since = "0.28.1",
+        note = "Use `Archive::entries().skip_solid()` chain instead"
+    )]
     pub fn entries_skip_solid(&mut self) -> impl Iterator<Item = io::Result<NormalEntry>> + '_ {
-        self.entries().filter_map(|it| match it {
-            Ok(e) => match e {
-                ReadEntry::Solid(_) => None,
-                ReadEntry::Normal(r) => Some(Ok(r)),
-            },
-            Err(e) => Some(Err(e)),
-        })
+        self.entries().skip_solid()
     }
 
     /// Returns an iterator over the entries in the archive, including entries in solid mode.
@@ -364,6 +366,24 @@ impl<'r, R> Entries<'r, R> {
     }
 }
 
+impl<'r, R: Read> Entries<'r, R> {
+    /// Returns an iterator over the entries in the archive, excluding entries in solid mode.
+    ///
+    /// # Returns
+    ///
+    /// An iterator over the entries in the archive.
+    #[inline]
+    pub fn skip_solid(self) -> impl Iterator<Item = io::Result<NormalEntry>> + 'r {
+        self.filter_map(|it| match it {
+            Ok(e) => match e {
+                ReadEntry::Solid(_) => None,
+                ReadEntry::Normal(r) => Some(Ok(r)),
+            },
+            Err(e) => Some(Err(e)),
+        })
+    }
+}
+
 impl<R: Read> Iterator for Entries<'_, R> {
     type Item = io::Result<ReadEntry>;
 
@@ -487,7 +507,7 @@ mod tests {
     fn decode() {
         let file_bytes = include_bytes!("../../../resources/test/empty.pna");
         let mut reader = Archive::read_header(&file_bytes[..]).unwrap();
-        let mut entries = reader.entries_skip_solid();
+        let mut entries = reader.entries();
         assert!(entries.next().is_none());
     }
 
