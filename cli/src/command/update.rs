@@ -81,7 +81,7 @@ pub(crate) struct UpdateFromStdioArgs {
 #[derive(Parser, Clone, Debug)]
 #[command(
     disable_help_flag = true,
-    group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
+    group(ArgGroup::new("unstable-acl").args(["keep_acl", "no_keep_acl"]).requires("unstable")),
     group(ArgGroup::new("include-group").args(["include"])),
     group(ArgGroup::new("update-exclude-group").args(["exclude"])),
     group(ArgGroup::new("files-from-group").args(["files_from"])),
@@ -154,17 +154,29 @@ pub(crate) struct UpdateCommand {
     )]
     pub(crate) no_same_permissions: bool,
     #[arg(
-        long,
-        visible_alias = "preserve-xattrs",
-        help = "Archiving the extended attributes of the files"
+        long = "xattrs",
+        visible_aliases = ["keep-xattr", "preserve-xattrs"],
+        help = "Archive extended attributes (bsdtar --xattrs equivalent)"
     )]
     pub(crate) keep_xattr: bool,
     #[arg(
-        long,
-        visible_alias = "preserve-acls",
-        help = "Archiving the acl of the files (unstable)"
+        long = "no-xattrs",
+        help = "Do not archive extended attributes (bsdtar --no-xattrs equivalent)",
+        conflicts_with = "keep_xattr"
+    )]
+    pub(crate) no_keep_xattr: bool,
+    #[arg(
+        long = "acls",
+        visible_aliases = ["keep-acl", "preserve-acls"],
+        help = "Archive ACLs (bsdtar --acls equivalent)"
     )]
     pub(crate) keep_acl: bool,
+    #[arg(
+        long = "no-acls",
+        help = "Do not archive ACLs (bsdtar --no-acls equivalent)",
+        conflicts_with = "keep_acl"
+    )]
+    pub(crate) no_keep_acl: bool,
     #[arg(
         short = 'l',
         long = "check-links",
@@ -459,11 +471,14 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
     }
     let password = password.as_deref();
     let option = entry_option(args.compression, args.cipher, args.hash, password);
+    let keep_permission = args.keep_permission && !args.no_same_permissions;
+    let keep_xattr = if args.no_keep_xattr { false } else { args.keep_xattr };
+    let keep_acl = if args.no_keep_acl { false } else { args.keep_acl };
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
-        keep_permission: args.keep_permission && !args.no_same_permissions,
-        keep_xattr: args.keep_xattr,
-        keep_acl: args.keep_acl,
+        keep_permission,
+        keep_xattr,
+        keep_acl,
     };
     let owner_options = OwnerOptions::new(
         args.uname,

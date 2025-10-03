@@ -21,6 +21,10 @@ use crate::{
     },
 };
 use clap::{ArgGroup, Parser, ValueHint};
+#[cfg(unix)]
+use nix::unistd::geteuid;
+#[cfg(unix)]
+use std::os::unix::prelude::UidExt;
 use pna::{prelude::*, DataKind, EntryReference, NormalEntry, Permission, ReadOptions};
 use std::io::Read;
 #[cfg(target_os = "macos")]
@@ -31,7 +35,7 @@ use std::{
     borrow::Cow,
     env, fs, io,
     path::{Component, PathBuf},
-    time::Instant,
+    time::{Instant, SystemTime},
 };
 
 #[derive(Parser, Clone, Debug)]
@@ -40,7 +44,7 @@ use std::{
     group(ArgGroup::new("extract-exclude-group").args(["exclude"])),
     group(ArgGroup::new("exclude-from-group").args(["exclude_from"])),
     group(ArgGroup::new("null-requires").arg("null").requires("exclude_from")),
-    group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
+    group(ArgGroup::new("unstable-acl").args(["keep_acl", "no_keep_acl"]).requires("unstable")),
     group(ArgGroup::new("substitution-group").args(["substitutions"])),
     group(ArgGroup::new("transform-group").args(["transforms"])),
     group(ArgGroup::new("path-transform").args(["substitutions", "transforms"])),
@@ -70,6 +74,13 @@ pub(crate) struct ExtractCommand {
     )]
     pub(crate) keep_timestamp: bool,
     #[arg(
+        short = 'm',
+        long = "modification-time",
+        help = "Do not retain archived modification times; set extracted files to the current time",
+        conflicts_with = "keep_timestamp"
+    )]
+    pub(crate) modification_time: bool,
+    #[arg(
         short = 'p',
         long = "keep-permission",
         visible_alias = "preserve-permissions",
@@ -83,17 +94,29 @@ pub(crate) struct ExtractCommand {
     )]
     pub(crate) no_same_permissions: bool,
     #[arg(
-        long,
-        visible_alias = "preserve-xattrs",
-        help = "Restore the extended attributes of the files"
+        long = "xattrs",
+        visible_aliases = ["keep-xattr", "preserve-xattrs"],
+        help = "Restore extended attributes (bsdtar --xattrs equivalent)"
     )]
     pub(crate) keep_xattr: bool,
     #[arg(
-        long,
-        visible_alias = "preserve-acls",
-        help = "Restore the acl of the files (unstable)"
+        long = "no-xattrs",
+        help = "Do not restore extended attributes (bsdtar --no-xattrs equivalent)",
+        conflicts_with = "keep_xattr"
+    )]
+    pub(crate) no_keep_xattr: bool,
+    #[arg(
+        long = "acls",
+        visible_aliases = ["keep-acl", "preserve-acls"],
+        help = "Restore ACLs (bsdtar --acls equivalent)"
     )]
     pub(crate) keep_acl: bool,
+    #[arg(
+        long = "no-acls",
+        help = "Do not restore ACLs (bsdtar --no-acls equivalent)",
+        conflicts_with = "keep_acl"
+    )]
+    pub(crate) no_keep_acl: bool,
     #[arg(long, help = "Restore user from given name")]
     pub(crate) uname: Option<String>,
     #[arg(long, help = "Restore group from given name")]
@@ -170,6 +193,13 @@ pub(crate) struct ExtractCommand {
     #[arg(long, help = "Extract files as yourself")]
     no_same_owner: bool,
     #[arg(
+        short = 'o',
+        long = "extract-as-self",
+        help = "Extract entries as the current user (bsdtar -o equivalent)",
+        conflicts_with = "same_owner"
+    )]
+    extract_as_self: bool,
+    #[arg(
         short = 'C',
         long = "cd",
         visible_aliases = ["directory"],
@@ -221,11 +251,18 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     };
 
     let keep_permission = args.keep_permission && !args.no_same_permissions;
+    let keep_timestamp = if args.modification_time {
+        false
+    } else {
+        args.keep_timestamp
+    };
+    let keep_xattr = if args.no_keep_xattr { false } else { args.keep_xattr };
+    let keep_acl = if args.no_keep_acl { false } else { args.keep_acl };
     let keep_options = KeepOptions {
-        keep_timestamp: args.keep_timestamp,
+        keep_timestamp,
         keep_permission,
-        keep_xattr: args.keep_xattr,
-        keep_acl: args.keep_acl,
+        keep_xattr,
+        keep_acl,
     };
     let owner_options = OwnerOptions::new(
         args.uname,
@@ -234,6 +271,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         args.gid,
         args.numeric_owner,
     );
+    let same_owner = resolve_same_owner(&args);
     let output_options = OutputOption {
         overwrite: args.overwrite && !args.keep_old_files,
         keep_old_files: args.keep_old_files,
@@ -244,9 +282,10 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         exclude,
         keep_options,
         owner_options,
-        same_owner: !args.no_same_owner,
+        same_owner,
         path_transformers: PathTransformers::new(args.substitutions, args.transforms),
         ignore_zeros: args.ignore_zeros,
+        touch_modification_time: args.modification_time,
     };
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
@@ -306,6 +345,7 @@ pub(crate) struct OutputOption {
     pub(crate) same_owner: bool,
     pub(crate) path_transformers: Option<PathTransformers>,
     pub(crate) ignore_zeros: bool,
+    pub(crate) touch_modification_time: bool,
 }
 
 pub(crate) fn run_extract_archive_reader<'p, Provider>(
@@ -442,6 +482,7 @@ pub(crate) fn extract_entry<T>(
         same_owner,
         path_transformers,
         ignore_zeros: _,
+        touch_modification_time,
     }: &OutputOption,
 ) -> io::Result<()>
 where
@@ -518,6 +559,8 @@ where
     match item.header().data_kind() {
         DataKind::File => {
             let mut file = utils::fs::file_create(&path, overwrite)?;
+            let mut reader = item.reader(ReadOptions::with_password(password))?;
+            io::copy(&mut reader, &mut file)?;
             if keep_options.keep_timestamp {
                 let mut times = fs::FileTimes::new();
                 if let Some(accessed) = item.metadata().accessed_time() {
@@ -531,9 +574,15 @@ where
                     times = times.set_created(created);
                 }
                 file.set_times(times)?;
+            } else if *touch_modification_time {
+                let now = SystemTime::now();
+                let mut times = fs::FileTimes::new().set_modified(now);
+                #[cfg(any(windows, target_os = "macos"))]
+                {
+                    times = times.set_created(now);
+                }
+                file.set_times(times)?;
             }
-            let mut reader = item.reader(ReadOptions::with_password(password))?;
-            io::copy(&mut reader, &mut file)?;
         }
         DataKind::Directory => {
             fs::create_dir_all(&path)?;
@@ -694,6 +743,31 @@ fn search_group(name: &str, id: u64) -> io::Result<Group> {
         return group;
     }
     Group::from_gid((id as u32).into())
+}
+
+fn resolve_same_owner(args: &ExtractCommand) -> bool {
+    if args.same_owner {
+        true
+    } else if args.no_same_owner || args.extract_as_self {
+        false
+    } else {
+        default_same_owner()
+    }
+}
+
+#[cfg(unix)]
+fn default_same_owner() -> bool {
+    geteuid().as_raw() == 0
+}
+
+#[cfg(windows)]
+const fn default_same_owner() -> bool {
+    false
+}
+
+#[cfg(not(any(unix, windows)))]
+const fn default_same_owner() -> bool {
+    false
 }
 
 #[inline]

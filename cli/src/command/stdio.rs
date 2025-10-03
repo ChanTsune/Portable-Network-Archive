@@ -27,6 +27,10 @@ use crate::{
 };
 use anyhow::{bail, Context};
 use clap::{ArgAction, ArgGroup, Args, ValueHint};
+#[cfg(unix)]
+use nix::unistd::geteuid;
+#[cfg(unix)]
+use std::os::unix::prelude::UidExt;
 use pna::Archive;
 use std::{
     env, fs, io,
@@ -37,7 +41,7 @@ use std::{
 #[derive(Args, Clone, Debug)]
 #[command(
     disable_help_flag = true,
-    group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
+    group(ArgGroup::new("unstable-acl").args(["keep_acl", "no_keep_acl"]).requires("unstable")),
     group(ArgGroup::new("keep-old-files-group").args(["keep_old_files"])),
     group(ArgGroup::new("keep-newer-files-group").args(["keep_newer_files"])),
     group(ArgGroup::new("bundled-flags").args(["create", "extract", "list"]).required(true)),
@@ -226,17 +230,29 @@ pub(crate) struct StdioCommand {
     )]
     no_same_permissions: bool,
     #[arg(
-        long,
-        visible_alias = "preserve-xattrs",
-        help = "Archiving the extended attributes of the files"
+        long = "xattrs",
+        visible_aliases = ["keep-xattr", "preserve-xattrs"],
+        help = "Archive extended attributes (bsdtar --xattrs equivalent)"
     )]
     keep_xattr: bool,
     #[arg(
-        long,
-        visible_alias = "preserve-acls",
-        help = "Archiving the acl of the files (unstable)"
+        long = "no-xattrs",
+        help = "Do not archive extended attributes (bsdtar --no-xattrs equivalent)",
+        conflicts_with = "keep_xattr"
+    )]
+    no_keep_xattr: bool,
+    #[arg(
+        long = "acls",
+        visible_aliases = ["keep-acl", "preserve-acls"],
+        help = "Archive ACLs (bsdtar --acls equivalent)"
     )]
     keep_acl: bool,
+    #[arg(
+        long = "no-acls",
+        help = "Do not archive ACLs (bsdtar --no-acls equivalent)",
+        conflicts_with = "keep_acl"
+    )]
+    no_keep_acl: bool,
     #[arg(long, help = "Solid mode archive")]
     pub(crate) solid: bool,
     #[arg(
@@ -259,6 +275,17 @@ pub(crate) struct StdioCommand {
     clear_nochange_fflags: bool,
     #[arg(long, help = "Compatibility option; accepted but ignored")]
     fflags: bool,
+    #[arg(long = "no-fflags", help = "Compatibility option; accepted but ignored")]
+    no_fflags: bool,
+    #[arg(long = "hfsCompression", help = "Compatibility option; accepted but ignored")]
+    hfs_compression: bool,
+    #[arg(long = "mac-metadata", help = "Compatibility option; accepted but ignored")]
+    mac_metadata: bool,
+    #[arg(
+        long = "nopreserveHFSCompression",
+        help = "Compatibility option; accepted but ignored"
+    )]
+    nopreserve_hfs_compression: bool,
     #[arg(long, help = "Requested archive format (compatibility only)")]
     format: Option<String>,
     #[arg(
@@ -404,6 +431,13 @@ pub(crate) struct StdioCommand {
     #[arg(long, help = "Extract files as yourself")]
     no_same_owner: bool,
     #[arg(
+        short = 'o',
+        long = "extract-as-self",
+        help = "Extract entries as the current user (bsdtar -o equivalent)",
+        conflicts_with = "same_owner"
+    )]
+    extract_as_self: bool,
+    #[arg(
         short = 'C',
         long = "cd",
         visible_aliases = ["directory"],
@@ -460,6 +494,18 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     }
     if args.fflags {
         log::warn!("--fflags is accepted for compatibility but has no effect");
+    }
+    if args.no_fflags {
+        log::warn!("--no-fflags is accepted for compatibility but has no effect");
+    }
+    if args.hfs_compression {
+        log::warn!("--hfsCompression is accepted for compatibility but has no effect");
+    }
+    if args.mac_metadata {
+        log::warn!("--mac-metadata is accepted for compatibility but has no effect");
+    }
+    if args.nopreserve_hfs_compression {
+        log::warn!("--nopreserveHFSCompression is accepted for compatibility but has no effect");
     }
     if let Some(fmt) = &args.format {
         log::warn!(
@@ -690,11 +736,13 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
 
     let password = password.as_deref();
     let cli_option = entry_option(compression, args.cipher, args.hash, password);
+    let keep_xattr = if args.no_keep_xattr { false } else { args.keep_xattr };
+    let keep_acl = if args.no_keep_acl { false } else { args.keep_acl };
     let keep_options = KeepOptions {
         keep_timestamp,
         keep_permission,
-        keep_xattr: args.keep_xattr,
-        keep_acl: args.keep_acl,
+        keep_xattr,
+        keep_acl,
     };
     let owner_options = OwnerOptions::new(
         args.uname,
@@ -759,6 +807,16 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         }
     };
 
+    let keep_timestamp = if args.modification_time {
+        false
+    } else {
+        args.keep_timestamp
+    };
+    let keep_permission = args.keep_permission && !args.no_same_permissions;
+    let keep_xattr = if args.no_keep_xattr { false } else { args.keep_xattr };
+    let keep_acl = if args.no_keep_acl { false } else { args.keep_acl };
+    let same_owner = resolve_same_owner(&args);
+
     let out_option = OutputOption {
         overwrite: args.overwrite && !args.keep_old_files,
         keep_old_files: args.keep_old_files,
@@ -768,14 +826,10 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         out_dir: args.out_dir,
         exclude,
         keep_options: KeepOptions {
-            keep_timestamp: if args.modification_time {
-                false
-            } else {
-                args.keep_timestamp
-            },
-            keep_permission: args.keep_permission && !args.no_same_permissions,
-            keep_xattr: args.keep_xattr,
-            keep_acl: args.keep_acl,
+            keep_timestamp,
+            keep_permission,
+            keep_xattr,
+            keep_acl,
         },
         owner_options: OwnerOptions::new(
             args.uname,
@@ -784,7 +838,7 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
             args.gid,
             args.numeric_owner,
         ),
-        same_owner: !args.no_same_owner,
+        same_owner,
         path_transformers: PathTransformers::new(args.substitutions, args.transforms),
         ignore_zeros: args.ignore_zeros,
         touch_modification_time: args.modification_time,
@@ -1181,11 +1235,13 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     let password = password.as_deref();
     let option = entry_option(args.compression, args.cipher, args.hash, password);
     let keep_permission = args.keep_permission && !args.no_same_permissions;
+    let keep_xattr = if args.no_keep_xattr { false } else { args.keep_xattr };
+    let keep_acl = if args.no_keep_acl { false } else { args.keep_acl };
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
         keep_permission,
-        keep_xattr: args.keep_xattr,
-        keep_acl: args.keep_acl,
+        keep_xattr,
+        keep_acl,
     };
     let owner_options = OwnerOptions::new(
         args.uname,
@@ -1331,4 +1387,29 @@ fn apply_auto_compress(compression: &mut CompressionAlgorithmArgs, archive_path:
     } else {
         compression.zstd = Some(None);
     }
+}
+
+fn resolve_same_owner(args: &StdioCommand) -> bool {
+    if args.same_owner {
+        true
+    } else if args.no_same_owner || args.extract_as_self {
+        false
+    } else {
+        default_same_owner()
+    }
+}
+
+#[cfg(unix)]
+fn default_same_owner() -> bool {
+    geteuid().as_raw() == 0
+}
+
+#[cfg(windows)]
+const fn default_same_owner() -> bool {
+    false
+}
+
+#[cfg(not(any(unix, windows)))]
+const fn default_same_owner() -> bool {
+    false
 }

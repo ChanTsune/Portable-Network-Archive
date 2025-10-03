@@ -1,6 +1,7 @@
 mod chroot;
 mod exclude;
 mod exclude_vcs;
+mod extract_as_self;
 mod hardlink;
 mod missing_file;
 mod overwrite_symlink;
