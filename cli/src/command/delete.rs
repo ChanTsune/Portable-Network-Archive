@@ -114,14 +114,14 @@ fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
             temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
-            |entry| Ok(filter_entry_with(&mut globs, &filter, entry?)),
+            |entry| Ok(filter_entry(&mut globs, &filter, entry?)),
             TransformStrategyUnSolid,
         ),
         SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
             temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
-            |entry| Ok(filter_entry_with(&mut globs, &filter, entry?)),
+            |entry| Ok(filter_entry(&mut globs, &filter, entry?)),
             TransformStrategyKeepSolid,
         ),
     }?;
@@ -136,7 +136,7 @@ fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
 }
 
 #[inline]
-fn filter_entry_with<T>(
+fn filter_entry<T>(
     globs: &mut GlobPatterns<'_>,
     filter: &PathFilter,
     entry: NormalEntry<T>,
