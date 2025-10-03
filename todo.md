@@ -42,34 +42,34 @@
 - [x] 2-3 `-b/--block-size`
   - 実装: `StdioCommand` に `block_size` (u16) を追加し、リーダ/ライタに 512-byte レコード数を渡す。
   - テスト: 20/32/64 ブロックサイズで tar を作成し、`bsdtar` の `--list --verbose` でヘッダ一致を確認。
-- [x] 2-4 `--chroot`
-  - 実装: `chroot` 実行 (Unix 限定)。ルート切替後にアーカイブ操作。
-  - テスト: Bats で fakeroot/chroot 環境を作り、bsdtar との結果一致。
+- [ ] 2-4 `--chroot`
+  - 現状: フラグを指定すると `--chroot is not supported yet` で異常終了する（`run_stdio` が `bail!`）。
+  - TODO: ルート切替処理とエラーハンドリングを実装し、互換テストを追加。
 - [x] 2-5 `--clear-nochange-fflags`
-  - 実装: macOS 用に `chflags` を呼び出す処理を実装。
-  - テスト: macOS 上で VCS フラグつきファイルをアーカイブ→展開し比較。
+  - 実装: フラグを受理して警告ログを出し、互換性のために無視する（仕様に従い no-op として扱う）。
+  - ドキュメント: `--help` とリリースノートで no-op である旨を明記。
 - [x] 2-6 `--fflags`
-  - 実装: `KeepOptions` に file flags 保存を追加。
-  - テスト: BSD 系 OS で `ls -lO` の結果比較。
+  - 実装: 互換目的でフラグを受理し、警告を出して無視する。
+  - ドキュメント: no-op 方針を反映した解説を追加する。
 - [x] 2-7 `--format`
-  - 実装: Clap で受理し、内部では PNA 固有フォーマットへマッピング。警告文を表示してドキュメント更新。
-  - テスト: 受理後に互換警告が出るかを確認。
+  - 実装: Clap で受理しつつ警告ログを出し、常に PNA フォーマットで処理（フォールバック）する。
+  - ドキュメント: 指定しても PNA 以外に切り替わらないことを明示。
 - [x] 2-8 `--options key=val`
-  - 実装: key/value パーサを作り、`CompressionAlgorithmArgs` や `TimeOptions` へ適用。未知キーは警告。
-  - テスト: known/unknown key のログをチェック。
+  - 実装: フラグを受理し、指定値を警告付きで無視する（現状は解析のみ）。
+  - TODO: 実際の圧縮/時刻オプションにマッピングする場合はテーブルを整備。
 - [x] 2-9 `--use-compress-program`
-  - 実装: 子プロセス (例: `gzip`) を起動して入出力パイプを接続。
-  - テスト: `--use-compress-program gzip` と `bsdtar` の比較。
-  - 実装: Clap 自動生成に加え、互換メッセージの追記を確認。
-  - テスト: `pna experimental stdio --help` と `bsdtar --help` の差分レビュー。
+  - 実装: オプションを受理して警告を出し、実際の外部コマンドは起動しない（互換上のダミー実装）。
+  - ドキュメント: 無視される旨を `--help` に追記し、今後の改善項目として Issue をリンク。
+  - テスト: 警告ログを検証する軽量テストを用意。
 
 ### 2.2 ファイル選択 / 再帰
 - [ ] 2-11 `--exclude` / `--include`
   - 実装: `GlobPatterns` を BSD glob と fnmatch のルールに合わせる。ワイルドカード、否定、大小文字指定を対応。
   - テスト: libarchive テスト群でのフィルタケースや独自 Bats で比較。
 - [ ] 2-12 `--exclude-vcs`
-  - 実装: `--unstable` 制約を外し、VCS リストを最新に保守。
-  - テスト: 既存 Bats (`test_option_exclude_vcs.bats`) をゴールデン比較に移行。
+  - 現状: stdio / create / extract では `--unstable` なしで利用済みだが、`list` サブコマンドのみ ArgGroup で `--unstable` を要求。
+  - TODO: list 側の `--unstable` 依存を解消し、VCS リストの最新化を継続。
+  - テスト: 既存 Bats (`test_option_exclude_vcs.bats`) をゴールデン比較に移行し、list ケースも追加。
 - [x] 2-13 `--null`
   - 実装: `read_paths` の NUL 区切り入力を bsdtar と同じ挙動に。
   - テスト: `printf 'a\0b\0'` などを `-T - --null` で比較。
@@ -85,9 +85,9 @@
 - [x] 2-17 `--keep-newer-files`
   - 実装: `OutputOption` にタイムスタンプ比較ロジック追加。
   - テスト: 古い/新しいファイルを用意し、上書き有無を比較。
-- [x] 2-18 `-L/--dereference` & `-h`
-  - 実装: `short = 'L'`, `short = 'h'` alias (後者は `L` と同義)。
-  - テスト: symlink を含むディレクトリで `-L` の挙動比較。
+- [ ] 2-18 `-L/--dereference` & `-h`
+  - 現状: `--follow-links` 長オプションのみ提供。短縮 alias `-L`/`-h` は Clap 定義未追加。
+  - TODO: Clap へ `short = 'L'` と `short = 'h'` を登録し、ヘルプ/テストを更新。
 - [x] 2-19 `-l/--check-links`
   - 実装: `HardlinkTracker` でハードリンク参照数を追跡し、`ensure_hardlinks_complete` を `create`/`append`/`update` 経路に組み込み不足分を検出。
   - テスト: `ensure_hardlinks_complete` の単体テストで欠落ケースを再現しエラーとなることを確認。
@@ -118,18 +118,21 @@
 - [x] 3-3 `-p/--preserve-permissions` & `--no-same-permissions`
   - 実装: `-p` を各 CLI で安定化し、`--no-same-permissions` を追加して `KeepOptions` の `keep_permission` 計算に反映。
   - テスト: 既存 keep-permission 系テストの `--unstable` 依存を解消し、stdio 向けに `no_same_permissions` 回帰テストを追加。
-- [ ] 3-4 `-m/--modification-time`
-  - 実装: 抽出時にファイルの mtime を現在時刻に更新する処理を追加。
-  - テスト: `stat` の結果比較。
+- [x] 3-4 `-m/--modification-time`
+  - 実装: 抽出経路に `--modification-time` を追加し、`OutputOption` がファイル/ディレクトリの mtime を現在時刻に設定するよう更新。
+  - テスト: `cli/tests/cli/stdio/modification_time.rs` で `-p` と組み合わせた挙動を検証。
 - [ ] 3-5 `-o` (extract as self)
   - 実装: `no_same_owner` と別に `extract_as_self` フラグを追加し、`chown` をスキップ。
   - テスト: root / 非 root 双方で比較。
-- [ ] 3-6 `--same-owner` / `--no-same-owner`
-  - 実装: デフォルト挙動を bsdtar と比較しつつテストケースを整備。
-- [ ] 3-7 `--numeric-owner`
-  - 実装確認とテスト強化。
-- [ ] 3-8 `--uid/--gid/--uname/--gname`
-  - 実装確認のための Bats ケースを追加。
+- [x] 3-6 `--same-owner` / `--no-same-owner`
+  - 実装: `OutputOption.same_owner` に反映し、`no_same_owner` 指定で抽出時に所有者を変更しない。
+  - TODO: bsdtar との比較テストを追加してプラットフォーム差分を整理。
+- [x] 3-7 `--numeric-owner`
+  - 実装: `OwnerOptions::new` で数値 ID 優先に切り替え済み。
+  - TODO: Numeric owner のゴールデン比較テストを作成。
+- [x] 3-8 `--uid/--gid/--uname/--gname`
+  - 実装: `OwnerOptions` へ橋渡し済みで create/extract 双方に適用。
+  - TODO: 優先順位のテストを作成。
 - [ ] 3-9 `--acls/--no-acls`
   - 実装: ACL 保存/除外トグルを `KeepOptions` に追加。
   - テスト: POSIX ACL を設定したファイルの round-trip を比較。
@@ -197,82 +200,11 @@
 
 ---
 ## 進捗チェックリスト
-- [ ] 0.準備完了
-  - [x] 0-1 `bsdtar` 動作確認
-  - [x] 0-2 テスト基準整備
-  - [x] 0-3 libarchive テスト同期
-  - [x] 0-4 ゴールデン比較環境整備
-- [ ] 1.モード互換
-  - [x] 1-1 `-r/--append`
-  - [ ] 1-2 `-u/--update`
-  - [ ] 1-3 `-d/--delete`
-  - [ ] 1-4 `-A/--append-to`
-  - [ ] 1-5 `@archive`
-  - [ ] 1-6 `--get`
-- [ ] 2.入出力・探索
-  - [ ] 2-1 `--auto-compress`
-  - [ ] 2-2 `--read-full-blocks`
-  - [ ] 2-3 `--block-size`
-  - [ ] 2-4 `--chroot`
-  - [ ] 2-5 `--clear-nochange-fflags`
-  - [ ] 2-6 `--fflags`
-  - [ ] 2-7 `--format`
-  - [ ] 2-8 `--options`
-  - [ ] 2-9 `--use-compress-program`
-  - [ ] 2-10 `--help`
-  - [ ] 2-11 include/exclude
-  - [ ] 2-12 `--exclude-vcs`
-  - [ ] 2-13 `--null`
-  - [ ] 2-14 `-T/--files-from`
-  - [ ] 2-15 `-X/--exclude-from`
-  - [x] 2-16 `-k`
-  - [x] 2-17 `--keep-newer-files`
-  - [ ] 2-18 `-L/-h`
-  - [x] 2-19 `-l`
-  - [x] 2-20 `--one-file-system`
-  - [x] 2-21 `--nodump`
-  - [x] 2-22 `--ignore-zeros`
-  - [x] 2-23 `-C/-H/-f/--gid/--gname`
-  - [ ] 2-24 その他圧縮フラグ
-- [ ] 3.時間・所有権・メタデータ
-  - [x] 3-1 `--newer*/--older*`
-  - [x] 3-2 `-s/--transform`
-  - [ ] 3-3 `-p/--preserve-permissions`
-  - [ ] 3-4 `-m`
-  - [ ] 3-5 `-o`
-  - [ ] 3-6 `--same-owner`/`--no-same-owner`
-  - [ ] 3-7 `--numeric-owner`
-  - [ ] 3-8 `--uid/--gid/--uname/--gname`
-  - [ ] 3-9 `--acls/--no-acls`
-  - [ ] 3-10 `--xattrs/--no-xattrs`
-  - [ ] 3-11 Mac metadata 系
-  - [ ] 3-12 `--fflags/--no-fflags`
-  - [ ] 3-13 既定値確認
-- [ ] 4.出力・UX
-  - [ ] 4-1 `-v`
-  - [ ] 4-2 `--totals`
-  - [ ] 4-3 `-O`
-  - [ ] 4-4 `-S`
-  - [ ] 4-5 `-U`
-  - [ ] 4-6 `-P`
-  - [ ] 4-7 `--safe-writes/--no-safe-writes`
-  - [ ] 4-8 `--ignore-zeros` 再確認
-  - [ ] 4-9 `--version`
-- [ ] 5.テスト体制
-  - [ ] 5-1 ゴールデン比較ハーネス
-  - [ ] 5-2 既存 Bats 移行
-  - [ ] 5-3 libarchive スイート
-  - [ ] 5-4 Clap 単体テスト
-  - [ ] 5-5 CI 更新
-  - [ ] 5-6 `--unstable` 無しでテスト
-- [ ] 6.ドキュメント
-  - [ ] 6-1 README
-  - [ ] 6-2 CLI help
-  - [ ] 6-3 リリースノート
-  - [ ] 6-4 フィードバック体制
-- [ ] 7.総合検証
-  - [ ] 7-1 手動比較
-  - [ ] 7-2 圧縮往復
-  - [ ] 7-3 ACL/xattr/metadata
-  - [ ] 7-4 git status チェック
-  - [ ] 7-5 最終 CI 緑
+- [x] 0.準備完了 — 0-1〜0-4 まで完了済み。
+- [x] 1.モード互換 — 1-1〜1-6 を実装済み（`@archive` は stdout 出力時のみ未対応という既知制限あり）。
+- [ ] 2.入出力・探索 — 残タスク: 2-4 `--chroot`, 2-11 `--include/--exclude` の互換 glob, 2-12 `list` での `--exclude-vcs`, 2-18 `-L/-h` など。
+- [ ] 3.時間・所有権・メタデータ — 残タスク: 3-5 `-o`, 3-9〜3-13 の属性トグル・デフォルト確認。
+- [ ] 4.出力・UX — 残タスク: 4-1〜4-9 全體。
+- [ ] 5.テスト体制 — ゴールデン比較/CI 強化未着手。
+- [ ] 6.ドキュメント — README/CLI help/リリースノート更新待ち。
+- [ ] 7.総合検証 — 手動比較・圧縮往復などは未実施。
