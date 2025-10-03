@@ -2,6 +2,7 @@
 //!
 //! Provides filesystem-related utilities in addition to the utilities
 //! necessary to manage PNA archives abstracted over a reader or writer hosted by [`libpna`].
+#![doc = include_str!("../README.md")]
 #![cfg_attr(target_os = "wasi", feature(wasi_ext))]
 #![doc(html_root_url = "https://docs.rs/pna/0.28.0")]
 #![deny(
