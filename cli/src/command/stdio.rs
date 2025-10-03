@@ -252,6 +252,8 @@ pub(crate) struct StdioCommand {
         help = "Filenames or patterns are separated by null characters, not by newlines"
     )]
     null: bool,
+    #[arg(long, hide = true)]
+    format: Option<String>,
 }
 
 impl Command for StdioCommand {
@@ -262,6 +264,9 @@ impl Command for StdioCommand {
 }
 
 fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
+    if let Some(format) = &args.format {
+        log::debug!("Warning: Option '--format {format}' is accepted for compatibility but will be ignored.");
+    }
     if args.create {
         run_create_archive(args)
     } else if args.extract {
