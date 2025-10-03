@@ -2,8 +2,11 @@ use crate::utils::{setup, EmbedExt, TestResources};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 
+/// Precondition: The source tree contains both files and directories.
+/// Action: Run `pna experimental delete` targeting an existing entry and a missing entry.
+/// Expectation: The command returns an error because at least one requested path is absent.
 #[test]
-fn fail_with_missing_file() {
+fn delete_fail_with_missing_file() {
     setup();
     TestResources::extract_in("raw/", "delete_missing/in/").unwrap();
     cli::Cli::try_parse_from([
