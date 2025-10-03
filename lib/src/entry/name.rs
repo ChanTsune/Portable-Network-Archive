@@ -51,19 +51,19 @@ impl EntryName {
 
     /// Creates an [EntryName] from a path, preserving absolute path components.
     ///
-    /// This method is similar to `new_from_utf8path` but preserves absolute path components.
+    /// This method is similar to the `From` implementations for path-like types, but preserves absolute path components.
     ///
     /// # Examples
     ///
     /// ```rust
     /// use libpna::EntryName;
     ///
-    /// assert_eq!("foo.txt", EntryName::from_absolute_utf8path("foo.txt".as_ref()));
-    /// assert_eq!("/foo.txt", EntryName::from_absolute_utf8path("/foo.txt".as_ref()));
-    /// assert_eq!("foo.txt", EntryName::from_absolute_utf8path("./foo.txt".as_ref()));
+    /// assert_eq!("foo.txt", EntryName::from_utf8path_preserve_root("foo.txt".as_ref()));
+    /// assert_eq!("/foo.txt", EntryName::from_utf8path_preserve_root("/foo.txt".as_ref()));
+    /// assert_eq!("foo.txt", EntryName::from_utf8path_preserve_root("./foo.txt".as_ref()));
     /// ```
     #[inline]
-    pub fn from_absolute_utf8path(path: &Utf8Path) -> Self {
+    pub fn from_utf8path_preserve_root(path: &Utf8Path) -> Self {
         let path = normalize_utf8path(path);
         Self(path.into_string())
     }
