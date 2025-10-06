@@ -362,7 +362,6 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
 }
 
 fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
-    let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
 
     let exclude = {
@@ -404,12 +403,15 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
     // NOTE: "-" will use stdin
     let mut file = args.file;
     file.take_if(|it| it == "-");
-    let archive_path = file.take().map(|p| current_dir.join(p));
+    let archives = if let Some(path) = &file {
+        Some(collect_split_archives(path)?)
+    } else {
+        None
+    };
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
     }
-    if let Some(path) = archive_path {
-        let archives = collect_split_archives(&path)?;
+    if let Some(archives) = archives {
         run_extract_archive_reader(
             archives
                 .into_iter()
