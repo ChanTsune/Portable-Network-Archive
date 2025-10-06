@@ -885,7 +885,7 @@ fn json_line_entries(entries: Vec<TableRow>) {
                     .iter()
                     .map(|(platform, ace)| AclEntry {
                         platform: platform.to_string(),
-                        entries: ace.into_iter().map(|it| it.to_string()).collect(),
+                        entries: ace.iter().map(|it| it.to_string()).collect(),
                     })
                     .collect(),
                 xattr: it
