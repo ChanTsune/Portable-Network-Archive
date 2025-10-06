@@ -501,10 +501,21 @@ where
                 log::warn!("Skipped extracting a hard link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`.");
                 return Ok(());
             }
-            let mut original = Cow::from(original.as_path());
-            if let Some(parent) = path.parent() {
-                original = Cow::from(parent.join(original));
+            let mut original_path = Cow::from(original.as_path());
+            if let Some(strip_count) = *strip_components {
+                if original_path.components().count() <= strip_count {
+                    log::warn!("Skipped extracting a hard link that pointed at a file which was skipped.: {}", original_path.display());
+                    return Ok(());
+                }
+                original_path = Cow::from(PathBuf::from_iter(
+                    original_path.components().skip(strip_count),
+                ));
             }
+            let original = if let Some(out_dir) = out_dir {
+                Cow::from(out_dir.join(original_path))
+            } else {
+                original_path
+            };
             if overwrite && path.exists() {
                 utils::fs::remove_path_all(&path)?;
             }
