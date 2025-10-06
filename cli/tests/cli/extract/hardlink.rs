@@ -31,7 +31,7 @@ fn init_resource<P: AsRef<Path>>(path: P) {
     writer
         .add_entry({
             let builder =
-                EntryBuilder::new_hard_link("dir/linked1.txt".into(), "../origin1.txt".into())
+                EntryBuilder::new_hard_link("dir/linked1.txt".into(), "origin1.txt".into())
                     .unwrap();
             builder.build().unwrap()
         })
@@ -49,7 +49,7 @@ fn init_resource<P: AsRef<Path>>(path: P) {
     writer
         .add_entry({
             let builder =
-                EntryBuilder::new_hard_link("dir/linked2.txt".into(), "origin2.txt".into())
+                EntryBuilder::new_hard_link("dir/linked2.txt".into(), "dir/origin2.txt".into())
                     .unwrap();
             builder.build().unwrap()
         })
@@ -88,8 +88,16 @@ fn hardlink_extract() {
         fs::read_to_string("hardlink_extract/dist/linked1.txt").unwrap()
     );
 
-    // Check skipped extract unsafe link
-    assert!(!fs::exists("hardlink_extract/dist/dir/linked1.txt").unwrap());
+    assert_eq!(
+        "original text\n",
+        fs::read_to_string("hardlink_extract/dist/dir/linked1.txt",).unwrap()
+    );
+    #[cfg(not(target_family = "wasm"))]
+    assert!(same_file::is_same_file(
+        "hardlink_extract/dist/linked1.txt",
+        "hardlink_extract/dist/dir/linked1.txt"
+    )
+    .unwrap());
 
     assert_eq!(
         "original text text\n",
