@@ -326,13 +326,20 @@ fn is_broken_symlink_error(path: &Path, err: &io::Error) -> bool {
 }
 
 pub(crate) fn collect_split_archives(first: impl AsRef<Path>) -> io::Result<Vec<fs::File>> {
+    let first = first.as_ref();
     let mut archives = Vec::new();
     let mut n = 1;
-    let mut target_archive = Cow::from(first.as_ref());
+    let mut target_archive = Cow::from(first);
     while fs::exists(&target_archive)? {
         archives.push(fs::File::open(&target_archive)?);
         n += 1;
         target_archive = target_archive.with_part(n).expect("").into();
+    }
+    if archives.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("No archive found at {}", first.display()),
+        ));
     }
     Ok(archives)
 }
