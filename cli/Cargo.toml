@@ -30,7 +30,7 @@ jiff = "0.2.15"
 log = "0.4.28"
 memmap2 = { version = "0.9.8", optional = true }
 nom = "8.0.0"
-parse_datetime = "0.13.0"
+parse_datetime = "0.13.1"
 path-slash = "0.2.1"
 pna = { version = "0.28.0", path = "../pna" }
 rayon = "1.11.0"
