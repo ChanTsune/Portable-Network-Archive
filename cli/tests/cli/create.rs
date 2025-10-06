@@ -17,3 +17,4 @@ mod symlink;
 mod transform;
 mod user_group;
 mod without_overwrite;
+mod self_add;
