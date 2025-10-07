@@ -524,7 +524,6 @@ where
     }
     #[cfg(unix)]
     if let Some((p, u, g)) = permissions {
-        use std::os::unix::fs::PermissionsExt;
         if same_owner {
             match chown(&path, u, g) {
                 Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
@@ -533,7 +532,7 @@ where
                 r => r?,
             }
         }
-        fs::set_permissions(&path, fs::Permissions::from_mode(p.permissions().into()))?;
+        utils::os::unix::fs::chmod(&path, p.permissions())?;
     };
     #[cfg(windows)]
     if let Some((p, u, g)) = permissions {
