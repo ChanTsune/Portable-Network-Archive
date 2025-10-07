@@ -5,7 +5,7 @@ use crate::{
     },
     command::{
         ask_password, check_password,
-        commons::{
+        core::{
             collect_items, create_entry, entry_option, read_paths, read_paths_stdin, CreateOptions,
             KeepOptions, OwnerOptions, PathFilter, PathTransformers, StoreAs, TimeOptions,
         },

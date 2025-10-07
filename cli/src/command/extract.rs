@@ -1,12 +1,12 @@
 #[cfg(feature = "memmap")]
-use crate::command::commons::run_entries;
+use crate::command::core::run_entries;
 #[cfg(any(unix, windows))]
 use crate::utils::fs::chown;
 use crate::{
     cli::{FileArgsCompat, PasswordArgs},
     command::{
         ask_password,
-        commons::{
+        core::{
             collect_split_archives, read_paths, run_process_archive, KeepOptions, OwnerOptions,
             PathFilter, PathTransformers,
         },

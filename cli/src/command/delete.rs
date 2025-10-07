@@ -4,7 +4,7 @@ use crate::{
     },
     command::{
         ask_password,
-        commons::{
+        core::{
             collect_split_archives, read_paths, read_paths_stdin, run_transform_entry, PathFilter,
             TransformStrategyKeepSolid, TransformStrategyUnSolid,
         },

@@ -1,11 +1,11 @@
 #[cfg(feature = "memmap")]
-use crate::command::commons::run_read_entries_mem;
+use crate::command::core::run_read_entries_mem;
 use crate::{
     chunk,
     cli::{FileArgsCompat, PasswordArgs},
     command::{
         ask_password,
-        commons::{collect_split_archives, read_paths, run_read_entries, PathFilter},
+        core::{collect_split_archives, read_paths, run_read_entries, PathFilter},
         Command,
     },
     ext::*,

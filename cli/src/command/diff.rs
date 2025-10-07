@@ -1,10 +1,10 @@
 #[cfg(feature = "memmap")]
-use crate::command::commons::run_entries;
+use crate::command::core::run_entries;
 #[cfg(not(feature = "memmap"))]
-use crate::command::commons::run_process_archive as run_entries;
+use crate::command::core::run_process_archive as run_entries;
 use crate::{
     cli::{FileArgs, PasswordArgs},
-    command::{ask_password, commons::collect_split_archives, Command},
+    command::{ask_password, core::collect_split_archives, Command},
 };
 
 use clap::Parser;
