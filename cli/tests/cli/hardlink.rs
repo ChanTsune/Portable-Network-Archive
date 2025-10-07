@@ -31,7 +31,7 @@ fn init_resource<P: AsRef<Path>>(path: P) {
     writer
         .add_entry({
             let builder =
-                EntryBuilder::new_hard_link("dir/linked1.txt".into(), "../origin1.txt".into())
+                EntryBuilder::new_hard_link("dir/linked1.txt".into(), "origin1.txt".into())
                     .unwrap();
             builder.build().unwrap()
         })
@@ -49,7 +49,7 @@ fn init_resource<P: AsRef<Path>>(path: P) {
     writer
         .add_entry({
             let builder =
-                EntryBuilder::new_hard_link("dir/linked2.txt".into(), "origin2.txt".into())
+                EntryBuilder::new_hard_link("dir/linked2.txt".into(), "dir/origin2.txt".into())
                     .unwrap();
             builder.build().unwrap()
         })
@@ -88,8 +88,10 @@ fn hardlink() {
         fs::read_to_string("hardlink/dist/linked1.txt",).unwrap()
     );
 
-    // Check skipped extract unsafe link
-    assert!(!fs::exists("hardlink/dist/dir/linked1.txt").unwrap());
+    assert_eq!(
+        "original text\n",
+        fs::read_to_string("hardlink/dist/dir/linked1.txt",).unwrap()
+    );
 
     assert_eq!(
         "original text text\n",
@@ -99,6 +101,47 @@ fn hardlink() {
         "original text text\n",
         fs::read_to_string("hardlink/dist/linked2.txt",).unwrap()
     );
+}
+
+#[test]
+fn hardlink_unsafe_link() {
+    setup();
+    let archive_path = "hardlink_unsafe_link/hardlink.pna";
+    let dist_dir = "hardlink_unsafe_link/dist";
+    let file = fs::File::create(archive_path).unwrap();
+    let mut writer = Archive::write_header(file).unwrap();
+    writer
+        .add_entry({
+            let mut builder =
+                EntryBuilder::new_file("origin1.txt".into(), WriteOptions::builder().build())
+                    .unwrap();
+            builder.write_all(b"original text\n").unwrap();
+            builder.build().unwrap()
+        })
+        .unwrap();
+    writer
+        .add_entry(
+            EntryBuilder::new_hard_link("dir/linked1.txt".into(), "../origin1.txt".into())
+                .unwrap()
+                .build()
+                .unwrap(),
+        )
+        .unwrap();
+    writer.finalize().unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        archive_path,
+        "--overwrite",
+        "--out-dir",
+        dist_dir,
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+    assert!(!Path::new(dist_dir).join("dir/linked1.txt").exists());
 }
 
 #[test]

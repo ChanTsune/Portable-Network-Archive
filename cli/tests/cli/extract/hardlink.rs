@@ -49,7 +49,7 @@ fn init_resource<P: AsRef<Path>>(path: P) {
     writer
         .add_entry({
             let builder =
-                EntryBuilder::new_hard_link("dir/linked2.txt".into(), "origin2.txt".into())
+                EntryBuilder::new_hard_link("dir/linked2.txt".into(), "dir/origin2.txt".into())
                     .unwrap();
             builder.build().unwrap()
         })
