@@ -67,6 +67,47 @@ fn init_resource<P: AsRef<Path>>(path: P) {
 }
 
 #[test]
+fn hardlink_extract() {
+    setup();
+    init_resource("hardlink_extract/hardlink.pna");
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "hardlink_extract/hardlink.pna",
+        "--overwrite",
+        "--out-dir",
+        "hardlink_extract/dist",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    assert_eq!(
+        "original text\n",
+        fs::read_to_string("hardlink_extract/dist/linked1.txt").unwrap()
+    );
+
+    // Check skipped extract unsafe link
+    assert!(!fs::exists("hardlink_extract/dist/dir/linked1.txt").unwrap());
+
+    assert_eq!(
+        "original text text\n",
+        fs::read_to_string("hardlink_extract/dist/dir/linked2.txt").unwrap()
+    );
+    assert_eq!(
+        "original text text\n",
+        fs::read_to_string("hardlink_extract/dist/linked2.txt").unwrap()
+    );
+    #[cfg(not(target_family = "wasm"))]
+    assert!(same_file::is_same_file(
+        "hardlink_extract/dist/dir/linked2.txt",
+        "hardlink_extract/dist/linked2.txt",
+    )
+    .unwrap());
+}
+
+#[test]
 fn hardlink_extract_allow_unsafe_links() {
     setup();
     init_resource("hardlink_extract_allow_unsafe_links/hardlink.pna");
