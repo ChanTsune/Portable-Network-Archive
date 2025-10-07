@@ -440,13 +440,6 @@ where
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let permissions = if keep_options.keep_permission {
-        item.metadata()
-            .permission()
-            .and_then(|p| permissions(p, owner_options))
-    } else {
-        None
-    };
     match item.header().data_kind() {
         DataKind::File => {
             let mut file = utils::fs::file_create(&path, overwrite)?;
@@ -522,6 +515,13 @@ where
             fs::hard_link(original, &path)?;
         }
     }
+    let permissions = if keep_options.keep_permission {
+        item.metadata()
+            .permission()
+            .and_then(|p| permissions(p, owner_options))
+    } else {
+        None
+    };
     #[cfg(unix)]
     if let Some((p, u, g)) = permissions {
         use std::os::unix::fs::PermissionsExt;
