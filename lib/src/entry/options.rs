@@ -128,17 +128,17 @@ mod private {
     }
 }
 
-/// Compression method.
+/// Specifies the compression algorithm to be used for an entry.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
 pub enum Compression {
-    /// Do not apply any compression.
+    /// No compression is applied; the data is stored as-is.
     No = 0,
-    /// Zlib format.
+    /// The Deflate algorithm, as implemented by the zlib library.
     Deflate = 1,
-    /// ZStandard format.
+    /// The Zstandard algorithm, a fast and efficient compression method.
     ZStandard = 2,
-    /// Xz format.
+    /// The XZ algorithm, which uses LZMA2 for high-ratio compression.
     XZ = 4,
 }
 
@@ -186,7 +186,11 @@ impl FromStr for CompressionLevelImpl {
     }
 }
 
-/// Compression level of each algorithm.
+/// Defines the compression level for a given compression algorithm.
+///
+/// This struct allows for specifying the desired trade-off between compression
+/// speed and ratio. It can be created from an integer value or by using one of
+/// the predefined constants: `min()`, `max()`, or `default()`.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct CompressionLevel(pub(crate) CompressionLevelImpl);
 
@@ -260,12 +264,12 @@ impl FromStr for CompressionLevel {
     }
 }
 
-/// Cipher algorithm.
+/// Specifies the symmetric encryption algorithm to be used.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum CipherAlgorithm {
-    /// Aes algorithm.
+    /// The Advanced Encryption Standard (AES) algorithm.
     Aes,
-    /// Camellia algorithm.
+    /// The Camellia block cipher.
     Camellia,
 }
 
@@ -294,15 +298,18 @@ impl From<&str> for Password {
     }
 }
 
-/// Encryption algorithm.
+/// Specifies the encryption algorithm for an entry.
+///
+/// This enum is used to indicate whether an entry is encrypted, and if so,
+/// with which algorithm.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
 pub enum Encryption {
-    /// Do not apply any encryption.
+    /// No encryption is applied.
     No = 0,
-    /// Aes algorithm.
+    /// The Advanced Encryption Standard (AES) algorithm.
     Aes = 1,
-    /// Camellia algorithm.
+    /// The Camellia block cipher.
     Camellia = 2,
 }
 
@@ -320,13 +327,13 @@ impl TryFrom<u8> for Encryption {
     }
 }
 
-/// Cipher mode of encryption algorithm.
+/// Defines the mode of operation for a block cipher.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
 pub enum CipherMode {
-    /// Cipher Block Chaining Mode
+    /// Cipher Block Chaining (CBC) mode, which provides good security for most applications.
     CBC = 0,
-    /// Counter Mode
+    /// Counter (CTR) mode, which turns a block cipher into a stream cipher.
     CTR = 1,
 }
 
@@ -362,7 +369,9 @@ pub(crate) enum HashAlgorithmParams {
     },
 }
 
-/// Password hash algorithm.
+/// Specifies the password-based key derivation function (PBKDF) to be used.
+///
+/// This is used to derive a secure encryption key from a user-provided password.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct HashAlgorithm(pub(crate) HashAlgorithmParams);
 
@@ -400,17 +409,17 @@ impl HashAlgorithm {
     }
 }
 
-/// Type of entry.
+/// Represents the type of an entry in the archive.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
 pub enum DataKind {
-    /// Regular file
+    /// A regular file with content.
     File = 0,
-    /// Directory
+    /// A directory.
     Directory = 1,
-    /// Symbolic link
+    /// A symbolic link to another path.
     SymbolicLink = 2,
-    /// Hard link
+    /// A hard link to another entry in the archive.
     HardLink = 3,
 }
 
@@ -429,7 +438,11 @@ impl TryFrom<u8> for DataKind {
     }
 }
 
-/// Options for writing an entry.
+/// A set of options for configuring how an entry is written to an archive.
+///
+/// This struct is used to specify the compression and encryption settings for a
+/// new entry. It can be created using [`WriteOptions::store()`] for no compression
+/// or encryption, or with a [`WriteOptionsBuilder`] for more advanced configurations.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct WriteOptions {
     compress: Compress,
@@ -493,7 +506,22 @@ impl WriteOptions {
     }
 }
 
-/// Builder for [`WriteOptions`].
+/// A builder for creating [`WriteOptions`].
+///
+/// This builder provides a fluent interface for configuring compression and
+/// encryption settings.
+///
+/// # Examples
+///
+/// ```
+/// use libpna::{Compression, Encryption, WriteOptions};
+///
+/// let write_options = WriteOptions::builder()
+///     .compression(Compression::ZStandard)
+///     .encryption(Encryption::Aes)
+///     .password(Some("secret"))
+///     .build();
+/// ```
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct WriteOptionsBuilder {
     compression: Compression,
@@ -621,7 +649,10 @@ impl WriteOptionsBuilder {
     }
 }
 
-/// Options for reading an entry.
+/// A set of options for configuring how an entry is read from an archive.
+///
+/// This struct is primarily used to provide a password for decrypting an
+/// encrypted entry.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct ReadOptions {
     password: Option<String>,
@@ -679,7 +710,20 @@ impl ReadOptions {
     }
 }
 
-/// Builder for [`ReadOptions`].
+/// A builder for creating [`ReadOptions`].
+///
+/// This builder is used to configure options for reading an entry, such as
+/// providing a password for decryption.
+///
+/// # Examples
+///
+/// ```
+/// use libpna::ReadOptions;
+///
+/// let read_options = ReadOptions::builder()
+///     .password(Some("secret"))
+///     .build();
+/// ```
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct ReadOptionsBuilder {
     password: Option<String>,
@@ -698,6 +742,16 @@ impl ReadOptionsBuilder {
     #[inline]
     const fn new() -> Self {
         Self { password: None }
+    }
+
+    /// Sets the password for decryption.
+    ///
+    /// # Arguments
+    ///
+    /// * `password` - An `Option` containing the password string.
+    pub fn password<T: Into<String>>(&mut self, password: Option<T>) -> &mut Self {
+        self.password = password.map(|it| it.into());
+        self
     }
 
     /// Creates a new [`ReadOptions`].

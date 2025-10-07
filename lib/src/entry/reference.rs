@@ -7,17 +7,27 @@ use std::fmt::{self, Display, Formatter};
 use std::path::{Component, Path, PathBuf};
 use std::str::{self, Utf8Error};
 
-/// A UTF-8 encoded entry reference.
+/// Represents a UTF-8 encoded reference to another entry, used for symbolic and hard links.
+///
+/// Unlike [`EntryName`], an `EntryReference` preserves the original path structure,
+/// including `.` and `..` components, as well as root and prefix information. This
+/// is crucial for accurately representing the target of a symbolic or hard link.
 ///
 /// # Examples
 ///
 /// ```
 /// use libpna::EntryReference;
 ///
+/// // Relative paths are preserved
 /// assert_eq!("uer/bin", EntryReference::from("uer/bin"));
+///
+/// // Absolute paths are preserved
 /// assert_eq!("/user/bin", EntryReference::from("/user/bin"));
-/// assert_eq!("/user/bin", EntryReference::from("/user/bin/"));
+///
+/// // Parent directory components are kept
 /// assert_eq!("../user/bin", EntryReference::from("../user/bin/"));
+///
+/// // Root is preserved
 /// assert_eq!("/", EntryReference::from("/"));
 /// ```
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -378,7 +388,9 @@ impl PartialEq<EntryReference> for &str {
     }
 }
 
-/// Error of invalid [EntryReference].
+/// An error indicating that a path could not be converted to an [`EntryReference`].
+///
+/// This error typically occurs when the input path is not valid UTF-8.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct EntryReferenceError(Utf8Error);
 

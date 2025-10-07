@@ -11,53 +11,67 @@ pub use header::*;
 use std::io::prelude::*;
 pub(crate) use {read::*, write::*};
 
-/// An object providing access to a PNA file.
-/// An instance of an [Archive] can be read and/or written.
+/// Provides a high-level interface for reading and writing PNA archives.
 ///
-/// The [Archive] struct provides two main modes of operation:
-/// - Read mode: Allows reading entries from an existing PNA file
-/// - Write mode: Enables creating new entries and writing data to the archive
+/// The `Archive` struct is the primary entry point for interacting with PNA files.
+/// It supports both reading from existing archives and creating new ones. It is
+/// designed to work with any reader or writer that implements the `Read` or
+/// `Write` traits, making it flexible for use with files, memory buffers, or
+/// network streams.
 ///
-/// The archive supports various features including:
-/// - Multiple compression algorithms
-/// - Encryption options
-/// - Solid and non-solid modes
-/// - Chunk-based storage
+/// ## Key Features
+///
+/// - **Streaming API**: Operations are designed to be stream-based, minimizing
+///   memory usage by avoiding the need to load the entire archive into memory.
+/// - **Read and Write Modes**: Can be used to both create and extract PNA archives.
+/// - **Feature-rich**: Supports various compression algorithms, encryption methods,
+///   and both solid and non-solid archiving modes.
 ///
 /// # Examples
-/// Creates a new PNA file and adds an entry to it.
+///
+/// ## Creating a new archive and adding a file
+///
 /// ```no_run
 /// # use libpna::{Archive, EntryBuilder, WriteOptions};
 /// # use std::fs::File;
 /// # use std::io::{self, prelude::*};
 ///
 /// # fn main() -> io::Result<()> {
-/// let file = File::create("foo.pna")?;
+/// let file = File::create("my_archive.pna")?;
 /// let mut archive = Archive::write_header(file)?;
+///
+/// // Create an entry with default options
 /// let mut entry_builder =
-///     EntryBuilder::new_file("bar.txt".into(), WriteOptions::builder().build())?;
-/// entry_builder.write_all(b"content")?;
-/// let entry = entry_builder.build()?;
-/// archive.add_entry(entry)?;
+///     EntryBuilder::new_file("my_file.txt".into(), WriteOptions::store())?;
+/// entry_builder.write_all(b"This is the content of my file.")?;
+///
+/// // Add the entry to the archive
+/// archive.add_entry(entry_builder.build()?)?;
+///
+/// // Finalize the archive to write the end-of-archive marker
 /// archive.finalize()?;
 /// #     Ok(())
 /// # }
 /// ```
 ///
-/// Reads the entries of a PNA file.
+/// ## Reading entries from an existing archive
+///
 /// ```no_run
-/// # use libpna::{Archive, ReadOptions};
+/// # use libpna::{Archive, ReadEntry, ReadOptions};
 /// # use std::fs::File;
-/// # use std::io::{self, copy, prelude::*};
+/// # use std::io::{self, copy};
 ///
 /// # fn main() -> io::Result<()> {
-/// let file = File::open("foo.pna")?;
+/// let file = File::open("my_archive.pna")?;
 /// let mut archive = Archive::read_header(file)?;
-/// for entry in archive.entries_skip_solid() {
+///
+/// for entry in archive.entries() {
 ///     let entry = entry?;
-///     let mut file = File::create(entry.header().path().as_path())?;
-///     let mut reader = entry.reader(ReadOptions::builder().build())?;
-///     copy(&mut reader, &mut file)?;
+///     if let ReadEntry::Normal(entry) = entry {
+///         let mut reader = entry.reader(ReadOptions::with_password(None::<String>))?;
+///         // Copy the entry's content to stdout
+///         copy(&mut reader, &mut io::stdout())?;
+///     }
 /// }
 /// #     Ok(())
 /// # }
@@ -97,34 +111,51 @@ impl<T> Archive<T> {
     }
 }
 
-/// An object that provides write access to solid mode PNA files.
+/// Provides write access to a solid PNA archive.
 ///
-/// In solid mode, all entries are compressed together as a single unit,
-/// which typically results in better compression ratios compared to
-/// non-solid mode. However, this means that individual entries cannot
-/// be accessed randomly - they must be read sequentially.
+/// A solid archive compresses all its entries together as a single continuous
+/// data stream, which can significantly improve the compression ratio, especially
+/// when there are many small, similar files. The trade-off is that individual
+/// entries cannot be extracted without decompressing the entire solid block.
 ///
-/// Key features of solid mode:
-/// - Improved compression ratio
-/// - Sequential access only
-/// - Single compression/encryption context for all entries
+/// ## Key Characteristics
+///
+/// - **Higher Compression Ratio**: Achieves better compression by treating all
+///   files as a single data stream.
+/// - **Sequential Access**: Individual entries can only be accessed by reading
+///   the archive from the beginning.
+/// - **Write-Only**: This struct is designed for creating solid archives; reading
+///   is handled by the standard `Archive` struct.
 ///
 /// # Examples
-/// Creates a new solid mode PNA file and adds an entry to it.
+///
+/// ## Creating a new solid archive
+///
 /// ```no_run
-/// use libpna::{Archive, EntryBuilder, WriteOptions};
+/// use libpna::{Archive, EntryBuilder, WriteOptions, Compression};
 /// use std::fs::File;
 /// # use std::io::{self, prelude::*};
 ///
 /// # fn main() -> io::Result<()> {
-/// let option = WriteOptions::builder().build();
-/// let file = File::create("foo.pna")?;
-/// let mut archive = Archive::write_solid_header(file, option)?;
-/// let mut entry_builder = EntryBuilder::new_file("bar.txt".into(), WriteOptions::store())?;
-/// entry_builder.write_all(b"content")?;
-/// let entry = entry_builder.build()?;
-/// archive.add_entry(entry)?;
-/// archive.finalize()?;
+/// let write_options = WriteOptions::builder()
+///     .compression(Compression::ZStandard)
+///     .build();
+/// let file = File::create("solid_archive.pna")?;
+///
+/// // Create a solid archive writer
+/// let mut solid_archive = Archive::write_solid_header(file, write_options)?;
+///
+/// // Add entries to the solid archive
+/// let entry1 = EntryBuilder::new_file("file1.txt".into(), WriteOptions::store())?
+///     .build()?;
+/// solid_archive.add_entry(entry1)?;
+///
+/// let entry2 = EntryBuilder::new_file("file2.txt".into(), WriteOptions::store())?
+///     .build()?;
+/// solid_archive.add_entry(entry2)?;
+///
+/// // Finalize the archive
+/// solid_archive.finalize()?;
 /// #     Ok(())
 /// # }
 /// ```

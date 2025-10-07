@@ -8,22 +8,27 @@ pub(crate) mod deflate;
 pub(crate) mod xz;
 pub(crate) mod zstandard;
 
-/// An enum representing different compression writers for PNA archives.
+/// An abstraction over various compression writers for PNA archives.
 ///
-/// This enum provides different compression implementations for writing data to a PNA archive.
-/// It supports multiple compression algorithms:
-/// - No compression (raw data)
-/// - Deflate (zlib)
-/// - Zstandard
-/// - XZ (LZMA2)
+/// This enum encapsulates the different compression algorithms supported by the PNA
+/// format, providing a unified interface for writing compressed data. It wraps a
+/// writer and transparently compresses the data before passing it to the
+/// underlying writer.
+///
+/// # Variants
+///
+/// - `No`: A pass-through writer that does not perform any compression.
+/// - `Deflate`: Compresses data using the Deflate algorithm (via zlib).
+/// - `ZStd`: Compresses data using the Zstandard algorithm.
+/// - `Xz`: Compresses data using the XZ algorithm (LZMA2).
 pub(crate) enum CompressionWriter<W: Write> {
-    /// No compression, data is written as-is
+    /// No compression, data is written as-is.
     No(W),
-    /// Deflate compression using zlib
+    /// Deflate compression using zlib.
     Deflate(ZlibEncoder<W>),
-    /// Zstandard compression
+    /// Zstandard compression.
     ZStd(ZstdEncoder<'static, W>),
-    /// XZ compression using LZMA2
+    /// XZ compression using LZMA2.
     Xz(XzEncoder<W>),
 }
 
@@ -61,22 +66,26 @@ impl<W: Write> TryIntoInner<W> for CompressionWriter<W> {
     }
 }
 
-/// An enum representing different decompression readers for PNA archives.
+/// An abstraction over various decompression readers for PNA archives.
 ///
-/// This enum provides different decompression implementations for reading data from a PNA archive.
-/// It supports multiple compression algorithms:
-/// - No compression (raw data)
-/// - Deflate (zlib)
-/// - Zstandard
-/// - XZ (LZMA2)
+/// This enum mirrors the functionality of [`CompressionWriter`], providing a
+/// unified interface for reading and decompressing data from a PNA archive. It
+/// wraps a reader and transparently decompresses the data as it is read.
+///
+/// # Variants
+///
+/// - `No`: A pass-through reader that does not perform any decompression.
+/// - `Deflate`: Decompresses data using the Deflate algorithm (via zlib).
+/// - `ZStd`: Decompresses data using the Zstandard algorithm.
+/// - `Xz`: Decompresses data using the XZ algorithm (LZMA2).
 pub(crate) enum DecompressReader<R: Read> {
-    /// No decompression, data is read as-is
+    /// No decompression, data is read as-is.
     No(R),
-    /// Deflate decompression using zlib
+    /// Deflate decompression using zlib.
     Deflate(ZlibDecoder<R>),
-    /// Zstandard decompression
+    /// Zstandard decompression.
     ZStd(ZStdDecoder<'static, BufReader<R>>),
-    /// XZ decompression using LZMA2
+    /// XZ decompression using LZMA2.
     Xz(XzDecoder<R>),
 }
 

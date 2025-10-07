@@ -40,21 +40,30 @@ pub(crate) type EncryptCbcCamellia256Writer<W> =
 pub(crate) type DecryptCbcCamellia256Reader<R> =
     block::CbcBlockCipherDecryptReader<R, Camellia256, Pkcs7>;
 
-/// An enum representing different encryption writers for PNA archives.
+/// An abstraction over various encryption writers for PNA archives.
 ///
-/// This enum provides different encryption implementations for writing data to a PNA archive.
-/// It supports both block ciphers (AES-256 and Camellia-256 in CBC mode) and stream ciphers
-/// (AES-256 and Camellia-256 in CTR mode).
+/// This enum encapsulates the different encryption strategies supported by the PNA
+/// format, allowing for a unified interface for writing encrypted data. It acts as
+/// a wrapper around a writer, transparently encrypting the data before it's
+/// passed to the underlying writer.
+///
+/// # Variants
+///
+/// - `No`: A pass-through writer that does not perform any encryption.
+/// - `CbcAes`: Encrypts data using AES-256 in CBC mode.
+/// - `CbcCamellia`: Encrypts data using Camellia-256 in CBC mode.
+/// - `CtrAes`: Encrypts data using AES-256 in CTR mode.
+/// - `CtrCamellia`: Encrypts data using Camellia-256 in CTR mode.
 pub(crate) enum CipherWriter<W: Write> {
-    /// No encryption, data is written as-is
+    /// No encryption, data is written as-is.
     No(W),
-    /// AES-256 encryption in CBC mode
+    /// AES-256 encryption in CBC mode.
     CbcAes(EncryptCbcAes256Writer<W>),
-    /// Camellia-256 encryption in CBC mode
+    /// Camellia-256 encryption in CBC mode.
     CbcCamellia(EncryptCbcCamellia256Writer<W>),
-    /// AES-256 encryption in CTR mode
+    /// AES-256 encryption in CTR mode.
     CtrAes(Ctr128BEWriter<W, Aes256>),
-    /// Camellia-256 encryption in CTR mode
+    /// Camellia-256 encryption in CTR mode.
     CtrCamellia(Ctr128BEWriter<W, Camellia256>),
 }
 
@@ -95,21 +104,29 @@ impl<W: Write> TryIntoInner<W> for CipherWriter<W> {
     }
 }
 
-/// An enum representing different decryption readers for PNA archives.
+/// An abstraction over various decryption readers for PNA archives.
 ///
-/// This enum provides different decryption implementations for reading data from a PNA archive.
-/// It supports both block ciphers (AES-256 and Camellia-256 in CBC mode) and stream ciphers
-/// (AES-256 and Camellia-256 in CTR mode).
+/// This enum mirrors the functionality of [`CipherWriter`], providing a unified
+/// interface for reading and decrypting data from a PNA archive. It wraps a
+/// reader and transparently decrypts the data as it is read.
+///
+/// # Variants
+///
+/// - `No`: A pass-through reader that does not perform any decryption.
+/// - `CbcAes`: Decrypts data using AES-256 in CBC mode.
+/// - `CbcCamellia`: Decrypts data using Camellia-256 in CBC mode.
+/// - `CtrAes`: Decrypts data using AES-256 in CTR mode.
+/// - `CtrCamellia`: Decrypts data using Camellia-256 in CTR mode.
 pub(crate) enum DecryptReader<R: Read> {
-    /// No decryption, data is read as-is
+    /// No decryption, data is read as-is.
     No(R),
-    /// AES-256 decryption in CBC mode
+    /// AES-256 decryption in CBC mode.
     CbcAes(DecryptCbcAes256Reader<R>),
-    /// Camellia-256 decryption in CBC mode
+    /// Camellia-256 decryption in CBC mode.
     CbcCamellia(DecryptCbcCamellia256Reader<R>),
-    /// AES-256 decryption in CTR mode
+    /// AES-256 decryption in CTR mode.
     CtrAes(Ctr128BEReader<R, Aes256>),
-    /// Camellia-256 decryption in CTR mode
+    /// Camellia-256 decryption in CTR mode.
     CtrCamellia(Ctr128BEReader<R, Camellia256>),
 }
 

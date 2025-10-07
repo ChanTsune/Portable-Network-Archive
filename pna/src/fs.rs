@@ -3,9 +3,15 @@
 //! The purpose of this module is to provide filesystem utilities for PNA.
 use std::{fs, io, os, path::Path};
 
-/// Creates a new symbolic link on the filesystem.
+/// Creates a new symbolic link on the filesystem that points to `original`.
 ///
-/// The `link` path will be a symbolic link pointing to the `original` path.
+/// This function is a cross-platform wrapper that handles the creation of symbolic
+/// links for both files and directories.
+///
+/// # Arguments
+///
+/// * `original` - The path that the new symbolic link will point to.
+/// * `link` - The path where the new symbolic link will be created.
 ///
 /// # Examples
 ///
@@ -19,7 +25,10 @@ use std::{fs, io, os, path::Path};
 /// ```
 ///
 /// # Errors
-/// Returns an error if creating the symlink fails.
+///
+/// Returns an `io::Error` if the symbolic link cannot be created. This can happen
+/// for various reasons, such as insufficient permissions or if the parent directory
+/// of `link` does not exist.
 #[inline]
 pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Result<()> {
     #[cfg(unix)]
@@ -41,15 +50,24 @@ pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Resu
     inner(original.as_ref(), link.as_ref())
 }
 
-/// Removes an entry from the filesystem. If the given path is a directory,
-/// calls [`fs::remove_dir_all`], otherwise calls [`fs::remove_file`]. Use carefully!
+/// Recursively removes a file, directory, or symbolic link from the filesystem.
 ///
-/// This function does **not** follow symbolic links and it will simply remove the
-/// symbolic link itself.
+/// This function serves as a unified way to delete filesystem entries, regardless
+/// of their type. If the provided path points to a directory, it will be removed
+/// along with all its contents. If it's a file or a symbolic link, it will be
+/// deleted directly.
+///
+/// **Warning:** This operation is destructive and should be used with caution.
+///
+/// # Arguments
+///
+/// * `path` - The path to the filesystem entry to be removed.
 ///
 /// # Errors
 ///
-/// See [`fs::remove_file`] and [`fs::remove_dir_all`].
+/// This function will return an `io::Error` if any of the underlying filesystem
+/// operations fail. See the error documentation for [`fs::remove_file`] and
+/// [`fs::remove_dir_all`] for more details.
 ///
 /// `remove_path_all` will fail if `remove_dir_all` or `remove_file` fail on any constituent paths, including the root path.
 /// As a result, the entry you are deleting must exist, meaning that this function is not idempotent.

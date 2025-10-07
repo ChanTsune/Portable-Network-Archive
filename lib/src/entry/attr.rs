@@ -1,6 +1,12 @@
 use std::{io, mem, str};
 
-/// Entry extended attribute.
+/// Represents a single extended attribute of a file entry.
+///
+/// Extended attributes are used to store additional, platform-specific metadata
+/// that doesn't fit into the standard file permission model. They consist of a
+/// key-value pair, where the key is a string and the value is a byte slice.
+///
+/// In a PNA archive, extended attributes are stored in `xATR` chunks.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct ExtendedAttribute {
     name: String,
@@ -8,41 +14,49 @@ pub struct ExtendedAttribute {
 }
 
 impl ExtendedAttribute {
-    /// Creates a new [`ExtendedAttribute`].
+    /// Creates a new `ExtendedAttribute` with the given name and value.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name of the attribute, as a `String`.
+    /// * `value` - The value of the attribute, as a `Vec<u8>`.
     ///
     /// # Examples
+    ///
     /// ```rust
     /// use libpna::ExtendedAttribute;
     ///
-    /// let xattr = ExtendedAttribute::new("name".into(), b"value".into());
+    /// let xattr = ExtendedAttribute::new("user.comment".to_string(), b"This is a comment".to_vec());
     /// ```
     #[inline]
     pub const fn new(name: String, value: Vec<u8>) -> Self {
         Self { name, value }
     }
 
-    /// Attribute name
+    /// Returns the name of the extended attribute.
     ///
     /// # Examples
+    ///
     /// ```rust
     /// use libpna::ExtendedAttribute;
     ///
-    /// let xattr = ExtendedAttribute::new("name".into(), b"value".into());
-    /// assert_eq!("name", xattr.name());
+    /// let xattr = ExtendedAttribute::new("user.comment".to_string(), b"This is a comment".to_vec());
+    /// assert_eq!(xattr.name(), "user.comment");
     /// ```
     #[inline]
     pub fn name(&self) -> &str {
         &self.name
     }
 
-    /// Attribute value
+    /// Returns the value of the extended attribute as a byte slice.
     ///
     /// # Examples
+    ///
     /// ```rust
     /// use libpna::ExtendedAttribute;
     ///
-    /// let xattr = ExtendedAttribute::new("name".into(), b"value".into());
-    /// assert_eq!(b"value", xattr.value());
+    /// let xattr = ExtendedAttribute::new("user.comment".to_string(), b"This is a comment".to_vec());
+    /// assert_eq!(xattr.value(), b"This is a comment");
     /// ```
     #[inline]
     pub fn value(&self) -> &[u8] {

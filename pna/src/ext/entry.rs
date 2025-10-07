@@ -3,40 +3,78 @@ use super::private;
 use libpna::{EntryBuilder, NormalEntry, WriteOptions};
 use std::{fs, io, path::Path};
 
-/// [`NormalEntry`] filesystem extension methods.
+/// Extends [`NormalEntry`] with methods for creating entries directly from the filesystem.
+///
+/// This trait simplifies the process of creating PNA entries from files, directories,
+/// and symbolic links.
 pub trait EntryFsExt: private::Sealed {
-    /// Creates an entry from the given path.
+    /// Creates a new archive entry from a filesystem path.
+    ///
+    /// This function reads the metadata of the file or directory at the given path and
+    /// constructs a corresponding [`NormalEntry`]. For regular files, the content is
+    /// also read and included in the entry.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The filesystem path to create the entry from.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while creating the entry.
+    /// Returns an `io::Result` containing the new [`NormalEntry`] if successful,
+    /// or an `io::Error` if the path cannot be accessed or read.
     fn from_path<P: AsRef<Path>>(path: P) -> io::Result<Self>
     where
         Self: Sized;
 
-    /// Creates an entry from the given path with options.
+    /// Creates a new archive entry from a filesystem path with custom write options.
+    ///
+    /// Similar to [`from_path`], but allows specifying [`WriteOptions`] to control
+    /// compression and encryption settings for the entry's content.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The filesystem path to create the entry from.
+    /// * `options` - The [`WriteOptions`] to apply to the entry.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while creating the entry.
+    /// Returns an `io::Result` containing the new [`NormalEntry`] if successful,
+    /// or an `io::Error` if the path cannot be accessed or read.
     fn from_path_with<P: AsRef<Path>>(path: P, options: WriteOptions) -> io::Result<Self>
     where
         Self: Sized;
 
-    /// Creates an entry from the given path without following symlinks.
+    /// Creates a new archive entry from a filesystem path, without following symbolic links.
+    ///
+    /// If the given path is a symbolic link, this function creates a symlink entry in
+    /// the archive that points to the same target as the original.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The filesystem path to create the entry from.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while creating the entry.
+    /// Returns an `io::Result` containing the new [`NormalEntry`] if successful,
+    /// or an `io::Error` if the path cannot be accessed or read.
     fn from_path_symlink<P: AsRef<Path>>(path: P) -> io::Result<Self>
     where
         Self: Sized;
 
-    /// Creates an entry from the given path with options, without following symlinks.
+    /// Creates a new archive entry from a path, with options, without following symbolic links.
+    ///
+    /// Combines the functionality of [`from_path_symlink`] and [`from_path_with`],
+    /// allowing for custom [`WriteOptions`] while also correctly handling symbolic links.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The filesystem path to create the entry from.
+    /// * `options` - The [`WriteOptions`] to apply to the entry.
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while creating the entry.
+    /// Returns an `io::Result` containing the new [`NormalEntry`] if successful,
+    /// or an `io::Error` if the path cannot be accessed or read.
     fn from_path_symlink_with<P: AsRef<Path>>(path: P, options: WriteOptions) -> io::Result<Self>
     where
         Self: Sized;

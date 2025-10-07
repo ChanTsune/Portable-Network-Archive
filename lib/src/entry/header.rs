@@ -1,7 +1,11 @@
 use super::{CipherMode, Compression, DataKind, Encryption, EntryName};
 use std::io;
 
-/// Represents the entry information header that expressed in the [FHED] chunk.
+/// The header for a normal (non-solid) entry.
+///
+/// This struct contains essential metadata about an entry, such as its name,
+/// type (file, directory, etc.), and the compression and encryption methods
+/// used. It is stored in the `FHED` chunk of an entry.
 ///
 /// [FHED]: crate::ChunkType::FHED
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -70,31 +74,34 @@ impl EntryHeader {
         Self::new(DataKind::HardLink, path)
     }
 
-    /// Path of the entry.
+    /// Returns the path of the entry.
+    ///
+    /// The path is stored as an [`EntryName`], which handles the validation and
+    /// normalization of the path string.
     #[inline]
     pub fn path(&self) -> &EntryName {
         &self.path
     }
 
-    /// Type of the entry.
+    /// Returns the type of data this entry represents (e.g., file, directory).
     #[inline]
     pub const fn data_kind(&self) -> DataKind {
         self.data_kind
     }
 
-    /// Compression method of the entry.
+    /// Returns the compression method used for this entry's data.
     #[inline]
     pub const fn compression(&self) -> Compression {
         self.compression
     }
 
-    /// Encryption method of the entry.
+    /// Returns the encryption algorithm used for this entry.
     #[inline]
     pub const fn encryption(&self) -> Encryption {
         self.encryption
     }
 
-    /// Cipher mode of the entry's encryption method.
+    /// Returns the cipher mode used for this entry's encryption.
     #[inline]
     pub const fn cipher_mode(&self) -> CipherMode {
         self.cipher_mode
@@ -146,7 +153,11 @@ impl TryFrom<&[u8]> for EntryHeader {
     }
 }
 
-/// Represents the entry information header that expressed in the [SHED] chunk.
+/// The header for a solid entry.
+///
+/// This struct defines the compression and encryption settings that apply to
+/// an entire solid entry. It is stored in the `SHED` chunk and governs how the
+/// combined data of all files within the solid entry is processed.
 ///
 /// [SHED]: crate::ChunkType::SHED
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -173,19 +184,19 @@ impl SolidHeader {
         }
     }
 
-    /// Compression method of the solid entry.
+    /// Returns the compression method used for the solid entry.
     #[inline]
     pub const fn compression(&self) -> Compression {
         self.compression
     }
 
-    /// Encryption method of the solid entry.
+    /// Returns the encryption algorithm used for the solid entry.
     #[inline]
     pub const fn encryption(&self) -> Encryption {
         self.encryption
     }
 
-    /// Cipher mode of the solid entry's encryption method.
+    /// Returns the cipher mode used for the solid entry's encryption.
     #[inline]
     pub const fn cipher_mode(&self) -> CipherMode {
         self.cipher_mode

@@ -4,19 +4,63 @@ use crate::prelude::*;
 use libpna::Metadata;
 use std::{fs, io, path::Path, time::SystemTime};
 
-/// [`Metadata`] time-related extension methods.
+/// Extends [`Metadata`] with methods for handling time-related information.
+///
+/// This trait provides a convenient way to work with timestamps as [`SystemTime`]
+/// instances, abstracting the underlying duration-based storage.
 pub trait MetadataTimeExt: private::Sealed {
-    /// Returns the created time.
+    /// Retrieves the creation time as a [`SystemTime`].
+    ///
+    /// # Returns
+    ///
+    /// An `Option<SystemTime>` representing the creation time, or `None` if not set.
     fn created_time(&self) -> Option<SystemTime>;
-    /// Returns the modified time.
+
+    /// Retrieves the modification time as a [`SystemTime`].
+    ///
+    /// # Returns
+    ///
+    /// An `Option<SystemTime>` representing the modification time, or `None` if not set.
     fn modified_time(&self) -> Option<SystemTime>;
-    /// Returns the accessed time.
+
+    /// Retrieves the last access time as a [`SystemTime`].
+    ///
+    /// # Returns
+    ///
+    /// An `Option<SystemTime>` representing the last access time, or `None` if not set.
     fn accessed_time(&self) -> Option<SystemTime>;
-    /// Sets the created time.
+
+    /// Sets the creation time using a [`SystemTime`] instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `time` - The creation time to set, wrapped in an `Option`.
+    ///
+    /// # Returns
+    ///
+    /// The `Metadata` instance with the new creation time.
     fn with_created_time(self, time: impl Into<Option<SystemTime>>) -> Self;
-    /// Sets the modified time.
+
+    /// Sets the modification time using a [`SystemTime`] instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `time` - The modification time to set, wrapped in an `Option`.
+    ///
+    /// # Returns
+    ///
+    /// The `Metadata` instance with the new modification time.
     fn with_modified_time(self, time: impl Into<Option<SystemTime>>) -> Self;
-    /// Sets the accessed time.
+
+    /// Sets the last access time using a [`SystemTime`] instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `time` - The last access time to set, wrapped in an `Option`.
+    ///
+    /// # Returns
+    ///
+    /// The `Metadata` instance with the new access time.
     fn with_accessed_time(self, time: impl Into<Option<SystemTime>>) -> Self;
 }
 
@@ -154,12 +198,24 @@ impl MetadataTimeExt for Metadata {
     }
 }
 
-/// [`Metadata`] filesystem-related extension methods.
+/// Extends [`Metadata`] with methods for creating instances from [`fs::Metadata`].
+///
+/// This trait allows for direct conversion from the standard library's filesystem
+/// metadata representation to a PNA `Metadata` object.
 pub trait MetadataFsExt: private::Sealed {
-    /// Creates a new [`Metadata`] from the given [`fs::Metadata`].
+    /// Creates a new [`Metadata`] instance from a [`fs::Metadata`] reference.
+    ///
+    /// This is useful for capturing the metadata of a file that has already been
+    /// inspected using the standard `fs` module.
+    ///
+    /// # Arguments
+    ///
+    /// * `metadata` - A reference to the [`fs::Metadata`] to convert.
     ///
     /// # Errors
-    /// Returns an error if converting from [`fs::Metadata`] fails.
+    ///
+    /// Returns an `io::Result` containing the new [`Metadata`] instance, or an
+    /// `io::Error` if the conversion fails.
     fn from_metadata(metadata: &fs::Metadata) -> io::Result<Self>
     where
         Self: Sized;
@@ -192,22 +248,40 @@ impl MetadataFsExt for Metadata {
     }
 }
 
-/// [`Metadata`] path-related extension methods.
+/// Extends [`Metadata`] with methods for creating instances directly from filesystem paths.
+///
+/// This trait simplifies the process of gathering file metadata by combining path-based
+/// lookup and `Metadata` creation into single method calls.
 pub trait MetadataPathExt: private::Sealed {
-    /// Creates a new [`Metadata`] from the given path.
+    /// Creates a new [`Metadata`] instance from a filesystem path.
+    ///
+    /// This method follows symbolic links to retrieve the metadata of the target file.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path to the file or directory.
     ///
     /// # Errors
     ///
-    /// Returns an error if retrieving [`std::fs::Metadata`] from the path fails.
+    /// Returns an `io::Result` containing the new [`Metadata`] instance, or an
+    /// `io::Error` if the path does not exist or cannot be accessed.
     fn from_path<P: AsRef<Path>>(path: P) -> io::Result<Self>
     where
         Self: Sized;
 
-    /// Creates a new [`Metadata`] from the given path without following symlinks.
+    /// Creates a new [`Metadata`] instance from a path, without following symbolic links.
+    ///
+    /// If the path points to a symbolic link, the metadata of the link itself will be
+    /// retrieved, not the target.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path to the file, directory, or symbolic link.
     ///
     /// # Errors
     ///
-    /// Returns an error if retrieving [`std::fs::Metadata`] from the path fails.
+    /// Returns an `io::Result` containing the new [`Metadata`] instance, or an
+    /// `io::Error` if the path does not exist or cannot be accessed.
     fn from_symlink_path<P: AsRef<Path>>(path: P) -> io::Result<Self>
     where
         Self: Sized;

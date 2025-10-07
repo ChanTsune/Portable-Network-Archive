@@ -4,40 +4,75 @@ use libpna::Archive;
 use std::path::Path;
 use std::{fs, io};
 
-/// [`Archive`] filesystem extension trait.
+/// Extends the [`Archive`] type with methods for interacting with the filesystem.
+///
+/// This trait provides convenient shortcuts for creating, opening, and appending to
+/// PNA archives that are backed by [`fs::File`].
 pub trait ArchiveFsExt: private::Sealed {
-    /// Creates a new archive file at `path` and writes the archive header.
+    /// Creates a new archive file at the specified `path` and writes the archive header.
+    ///
+    /// This is a convenience method that combines creating a file and initializing it as a
+    /// PNA archive.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path where the new archive file will be created.
     ///
     /// # Errors
     ///
-    /// Returns an error if creating the archive fails.
+    /// Returns an `io::Result` containing the new [`Archive`] instance if successful,
+    /// or an `io::Error` if the file cannot be created or the header cannot be written.
     fn create<P: AsRef<Path>>(path: P) -> io::Result<Self>
     where
         Self: Sized;
 
-    /// Opens an existing archive file at `path` and reads the header.
+    /// Opens an existing archive file at the specified `path` and reads its header.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path to the existing archive file.
     ///
     /// # Errors
     ///
-    /// Returns an error if opening the archive fails.
+    /// Returns an `io::Result` containing the [`Archive`] instance if successful,
+    /// or an `io::Error` if the file cannot be opened or the header is invalid.
     fn open<P: AsRef<Path>>(path: P) -> io::Result<Self>
     where
         Self: Sized;
 
-    /// Opens an existing archive for appending entries.
+    /// Opens an existing archive file for appending new entries.
+    ///
+    /// The file is opened with read and write access, and the archive is positioned
+    /// at the end, ready for new entries to be added.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path to the archive file to be opened for appending.
     ///
     /// # Errors
     ///
-    /// Returns an error if opening the archive fails.
+    /// Returns an `io::Result` containing the [`Archive`] instance if successful,
+    /// or an `io::Error` if the file cannot be opened or the archive is corrupt.
     fn open_for_append<P: AsRef<Path>>(path: P) -> io::Result<Self>
     where
         Self: Sized;
 
-    /// Opens all parts of a split archive, leaving the last part ready for appending entries.
+    /// Opens all parts of a multipart archive, preparing the last part for appending.
+    ///
+    /// This function iterates through a series of archive parts, as determined by the
+    /// `next_part_path` closure, and opens them sequentially. The final part is left
+    /// open and ready for new entries to be appended.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path to the first part of the archive.
+    /// * `next_part_path` - A closure that, given the path of the current part and its
+    ///   index, returns the path to the next part.
     ///
     /// # Errors
     ///
-    /// Returns an error if opening any archive part fails or if reading archive headers fails.
+    /// Returns an `io::Result` containing the [`Archive`] instance if successful,
+    /// or an `io::Error` if any part of the archive cannot be opened or is invalid.
     fn open_multipart_for_append<P, F, N>(path: P, next_part_path: F) -> io::Result<Self>
     where
         Self: Sized,
