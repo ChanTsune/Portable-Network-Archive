@@ -1,7 +1,7 @@
 #[cfg(feature = "memmap")]
 use crate::command::core::run_entries;
 #[cfg(any(unix, windows))]
-use crate::utils::fs::chown;
+use crate::utils::fs::lchown;
 use crate::{
     cli::{FileArgsCompat, PasswordArgs},
     command::{
@@ -526,7 +526,7 @@ where
     if let Some((p, u, g)) = permissions {
         use std::os::unix::fs::PermissionsExt;
         if same_owner {
-            match chown(&path, u, g) {
+            match lchown(&path, u, g) {
                 Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
                     log::warn!("failed to restore owner of {}: {}", path.display(), e)
                 }
@@ -538,7 +538,7 @@ where
     #[cfg(windows)]
     if let Some((p, u, g)) = permissions {
         if same_owner {
-            chown(&path, u, g)?;
+            lchown(&path, u, g)?;
         }
         utils::os::windows::fs::chmod(&path, p.permissions())?;
     }
