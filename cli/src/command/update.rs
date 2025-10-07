@@ -1,7 +1,7 @@
 #[cfg(not(feature = "memmap"))]
-use crate::command::commons::run_read_entries;
+use crate::command::core::run_read_entries;
 #[cfg(feature = "memmap")]
-use crate::command::commons::run_read_entries_mem as run_read_entries;
+use crate::command::core::run_read_entries_mem as run_read_entries;
 use crate::{
     cli::{
         CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileArgs, HashAlgorithmArgs,
@@ -9,7 +9,7 @@ use crate::{
     },
     command::{
         ask_password, check_password,
-        commons::{
+        core::{
             collect_items, collect_split_archives, create_entry, entry_option, read_paths,
             read_paths_stdin, CreateOptions, KeepOptions, OwnerOptions, PathFilter,
             PathTransformers, TimeOptions, TransformStrategy, TransformStrategyKeepSolid,

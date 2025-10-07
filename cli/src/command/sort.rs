@@ -2,7 +2,7 @@ use crate::{
     cli::PasswordArgs,
     command::{
         ask_password,
-        commons::{collect_split_archives, run_entries},
+        core::{collect_split_archives, run_entries},
         Command,
     },
     utils::{env::NamedTempFile, PathPartExt},

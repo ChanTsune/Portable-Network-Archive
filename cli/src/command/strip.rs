@@ -5,7 +5,7 @@ use crate::{
     },
     command::{
         ask_password,
-        commons::{
+        core::{
             collect_split_archives, run_transform_entry, TransformStrategyKeepSolid,
             TransformStrategyUnSolid,
         },

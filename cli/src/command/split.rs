@@ -1,6 +1,6 @@
 use crate::{
     command::{
-        commons::{write_split_archive, MIN_SPLIT_PART_BYTES},
+        core::{write_split_archive, MIN_SPLIT_PART_BYTES},
         Command,
     },
     utils::PathPartExt,

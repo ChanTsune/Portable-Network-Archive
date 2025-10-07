@@ -5,7 +5,7 @@ use crate::{
     command::{
         append::{open_archive_then_seek_to_end, run_append_archive},
         ask_password, check_password,
-        commons::{
+        core::{
             collect_items, collect_split_archives, entry_option, read_paths, CreateOptions,
             KeepOptions, OwnerOptions, PathFilter, PathTransformers, TimeOptions,
         },

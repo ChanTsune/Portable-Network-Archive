@@ -1,9 +1,9 @@
 #[cfg(not(feature = "memmap"))]
-use crate::command::commons::run_across_archive;
+use crate::command::core::run_across_archive;
 #[cfg(feature = "memmap")]
-use crate::command::commons::run_across_archive_mem as run_across_archive;
+use crate::command::core::run_across_archive_mem as run_across_archive;
 use crate::{
-    command::{commons::collect_split_archives, Command},
+    command::{core::collect_split_archives, Command},
     utils,
 };
 use clap::{ArgGroup, Parser, ValueHint};
