@@ -3,15 +3,57 @@ use crate::{ext::private, prelude::*};
 use libpna::{EntryBuilder, Metadata};
 use std::time::SystemTime;
 
-/// [`EntryBuilder`] extension trait.
+/// Extends [`EntryBuilder`] with convenient methods for setting metadata and timestamps.
+///
+/// This trait allows for a more fluent and intuitive way to configure an [`EntryBuilder`]
+/// by chaining method calls.
 pub trait EntryBuilderExt: private::Sealed {
-    /// Sets metadata.
+    /// Applies a comprehensive set of metadata to the entry builder.
+    ///
+    /// This method configures the creation, modification, and access times, as well
+    /// as permissions, based on the provided [`Metadata`] object.
+    ///
+    /// # Arguments
+    ///
+    /// * `metadata` - A reference to the [`Metadata`] object to apply.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the `EntryBuilder` for further chaining.
     fn add_metadata(&mut self, metadata: &Metadata) -> &mut Self;
-    /// Sets the created time.
+
+    /// Sets the creation timestamp of the entry.
+    ///
+    /// # Arguments
+    ///
+    /// * `time` - A [`SystemTime`] instance representing the creation time. This can be
+    ///   passed as an `Option` to handle cases where the time is not available.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the `EntryBuilder` for further chaining.
     fn created_time(&mut self, time: impl Into<Option<SystemTime>>) -> &mut Self;
-    /// Sets the modified time.
+
+    /// Sets the modification timestamp of the entry.
+    ///
+    /// # Arguments
+    ///
+    /// * `time` - A [`SystemTime`] instance representing the modification time.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the `EntryBuilder` for further chaining.
     fn modified_time(&mut self, time: impl Into<Option<SystemTime>>) -> &mut Self;
-    /// Sets the accessed time.
+
+    /// Sets the access timestamp of the entry.
+    ///
+    /// # Arguments
+    ///
+    /// * `time` - A [`SystemTime`] instance representing the last access time.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the `EntryBuilder` for further chaining.
     fn accessed_time(&mut self, time: impl Into<Option<SystemTime>>) -> &mut Self;
 }
 

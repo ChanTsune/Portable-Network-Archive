@@ -19,17 +19,28 @@ use std::{
     mem,
 };
 
-/// Minimum required size in bytes to represent [`Chunk`].
-/// length: 4 bytes + chunk type: 4 bytes + data: 0 bytes + crc: 4 bytes
+/// The minimum size of a PNA chunk in bytes.
+///
+/// A chunk consists of a 4-byte length field, a 4-byte chunk type, a variable-size
+/// data field, and a 4-byte CRC checksum. This constant represents the size of a
+/// chunk with an empty data field.
 pub const MIN_CHUNK_BYTES_SIZE: usize =
     mem::size_of::<u32>() + mem::size_of::<ChunkType>() + mem::size_of::<u32>();
 
 /// Maximum length of chunk body in bytes.
 pub(crate) const MAX_CHUNK_DATA_LENGTH: usize = u32::MAX as usize;
 
+/// An extension trait for [`Chunk`] that provides common operations.
+///
+/// This trait is automatically implemented for any type that implements [`Chunk`],
+/// offering a set of convenient methods for working with chunks, such as
+/// calculating their total byte length, writing them to a writer, and converting
+/// them to a byte vector.
 pub(crate) trait ChunkExt: Chunk {
-    /// Returns the total size of the chunk in bytes, including the length field,
-    /// chunk type, data, and CRC32 checksum.
+    /// Calculates the total size of the chunk in bytes.
+    ///
+    /// This includes the length of the data field plus the fixed sizes of the
+    /// length, type, and CRC fields.
     ///
     /// # Returns
     ///
@@ -39,25 +50,35 @@ pub(crate) trait ChunkExt: Chunk {
         MIN_CHUNK_BYTES_SIZE + self.data().len()
     }
 
-    /// Returns `true` if this is a stream chunk.
+    /// Checks if the chunk is a stream chunk.
+    ///
+    /// Stream chunks, such as `FDAT` (File Data) and `SDAT` (Solid Data),
+    /// contain file content data.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the chunk is a stream chunk, `false` otherwise.
     #[inline]
     fn is_stream_chunk(&self) -> bool {
         self.ty() == ChunkType::FDAT || self.ty() == ChunkType::SDAT
     }
 
-    /// Writes the chunk to the provided writer.
+    /// Writes the entire chunk to a given writer.
+    ///
+    /// This method serializes the chunk, including its length, type, data, and
+    /// CRC, and writes the resulting bytes to the specified writer.
     ///
     /// # Arguments
     ///
-    /// * `writer` - The writer to write the chunk to.
+    /// * `writer` - The writer to which the chunk will be written.
     ///
     /// # Returns
     ///
-    /// The number of bytes written.
+    /// The total number of bytes written to the writer.
     ///
     /// # Errors
     ///
-    /// This function will return an `io::Error` if any write operation to the `writer` fails.
+    /// Returns an `io::Error` if any part of the write operation fails.
     #[inline]
     fn write_chunk_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         writer.write_all(&self.length().to_be_bytes())?;
@@ -67,11 +88,14 @@ pub(crate) trait ChunkExt: Chunk {
         Ok(self.bytes_len())
     }
 
-    /// Converts the provided `Chunk` instance into a `Vec<u8>`.
+    /// Converts the chunk into a `Vec<u8>`.
+    ///
+    /// This method serializes the entire chunk into a byte vector, which can be
+    /// useful for buffering or network transmission.
     ///
     /// # Returns
     ///
-    /// A `Vec<u8>` containing the converted `Chunk` data.
+    /// A `Vec<u8>` containing the serialized chunk data.
     #[allow(dead_code)]
     #[inline]
     fn to_bytes(&self) -> Vec<u8> {
@@ -86,27 +110,39 @@ pub(crate) trait ChunkExt: Chunk {
 
 impl<T> ChunkExt for T where T: Chunk {}
 
-/// A raw chunk in a PNA archive.
+/// Represents a raw, unprocessed chunk from a PNA archive.
 ///
-/// This structure represents a chunk in its most basic form, containing:
-/// - `length`: The length of the chunk data in bytes
-/// - `ty`: The type of the chunk (e.g., FDAT, SDAT, etc.)
-/// - `data`: The actual chunk data
-/// - `crc`: A CRC32 checksum of the chunk type and data
+/// A `RawChunk` is the fundamental building block of a PNA file, consisting of
+/// a type, a data payload, and a CRC checksum for integrity. This struct provides
+/// a low-level representation of a chunk, which higher-level APIs use to
+/// construct archive entries.
+///
+/// The generic type `D` allows for flexibility in how the chunk data is stored,
+/// whether it's an owned `Vec<u8>`, a borrowed `&[u8]`, or another buffer type.
+///
+/// # Fields
+///
+/// - `length`: The length of the `data` field in bytes.
+/// - `ty`: The [`ChunkType`], which identifies the purpose of the chunk.
+/// - `data`: The raw byte payload of the chunk.
+/// - `crc`: A 32-bit CRC checksum calculated over the `ty` and `data` fields.
 ///
 /// # Examples
+///
 /// ```rust
 /// use libpna::{prelude::*, ChunkType, RawChunk};
 ///
-/// // Create a new chunk with some data
-/// let data = [0xAA, 0xBB, 0xCC, 0xDD];
+/// // Create a new chunk from a byte slice
+/// let data = [0xDE, 0xAD, 0xBE, 0xEF];
 /// let chunk = RawChunk::from_data(ChunkType::FDAT, data);
 ///
-/// // Access chunk properties
+/// // Verify the chunk's properties
 /// assert_eq!(chunk.length(), 4);
 /// assert_eq!(chunk.ty(), ChunkType::FDAT);
-/// assert_eq!(chunk.data(), &[0xAA, 0xBB, 0xCC, 0xDD]);
-/// assert_eq!(chunk.crc(), 1207118608);
+/// assert_eq!(chunk.data(), &[0xDE, 0xAD, 0xBE, 0xEF]);
+///
+/// // The CRC is automatically calculated
+/// assert_eq!(chunk.crc(), 1859881453);
 /// ```
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct RawChunk<D = Vec<u8>> {
@@ -331,31 +367,44 @@ pub(crate) fn chunk_data_split(
     }
 }
 
-/// Reads an archive as chunks from the given reader.
+/// Parses a PNA archive from a reader and returns an iterator over its chunks.
 ///
-/// Reads a PNA archive from the given reader and returns an iterator of chunks.
+/// This function reads the PNA header to verify the archive format and then
+/// provides an iterator that yields each subsequent chunk. It's a convenient
+/// way to process an archive in a streaming fashion without loading the entire
+/// file into memory.
+///
+/// # Arguments
+///
+/// * `archive` - A reader that implements the [`Read`] trait, such as a [`File`]
+///   or a network stream.
+///
+/// # Returns
+///
+/// A `Result` containing an iterator over the chunks in the archive. Each item
+/// in the iterator is also a `Result`, allowing for I/O errors to be handled
+/// during iteration.
 ///
 /// # Examples
 ///
 /// ```no_run
 /// # use std::{io, fs};
 /// use libpna::{prelude::*, read_as_chunks};
+///
 /// # fn main() -> io::Result<()> {
-/// let archive = fs::File::open("foo.pna")?;
-/// for chunk in read_as_chunks(archive)? {
-///     let chunk = chunk?;
-///     println!(
-///         "chunk type: {}, chunk data size: {}",
-///         chunk.ty(),
-///         chunk.length()
-///     );
+/// let archive_file = fs::File::open("my_archive.pna")?;
+/// for chunk_result in read_as_chunks(archive_file)? {
+///     let chunk = chunk_result?;
+///     println!("Read chunk: Type = {}, Size = {}", chunk.ty(), chunk.length());
 /// }
 /// # Ok(())
 /// # }
 /// ```
 ///
 /// # Errors
-/// Returns an error if the input is not a PNA archive.
+///
+/// Returns an `io::Error` if the reader does not contain a valid PNA header or
+/// if any other I/O error occurs.
 #[inline]
 pub fn read_as_chunks<R: Read>(
     mut archive: R,
@@ -384,31 +433,43 @@ pub fn read_as_chunks<R: Read>(
     })
 }
 
-/// Reads an archive as chunks from the given bytes.
+/// Parses a PNA archive from a byte slice and returns an iterator over its chunks.
 ///
-/// Reads a PNA archive from the given byte slice and returns an iterator of chunks.
+/// This function is a variant of [`read_as_chunks`] that operates on an in-memory
+/// byte slice. It's useful when the entire archive is already loaded into memory.
+///
+/// # Arguments
+///
+/// * `archive` - A byte slice (`&[u8]`) containing the PNA archive data.
+///
+/// # Returns
+///
+/// A `Result` containing an iterator over the chunks in the slice. Each item in
+/// the iterator is a `Result` that holds a chunk or an `io::Error` if parsing
+/// fails.
 ///
 /// # Examples
 ///
 /// ```rust
-/// # use std::{io, fs};
+/// # use std::io;
 /// use libpna::{prelude::*, read_chunks_from_slice};
+///
 /// # fn main() -> io::Result<()> {
-/// let bytes = include_bytes!("../../resources/test/zstd.pna");
-/// for chunk in read_chunks_from_slice(bytes)? {
-///     let chunk = chunk?;
-///     println!(
-///         "chunk type: {}, chunk data size: {}",
-///         chunk.ty(),
-///         chunk.length()
-///     );
+/// // The `include_bytes!` macro is a convenient way to load a file at compile time.
+/// let archive_bytes = include_bytes!("../../resources/test/zstd.pna");
+///
+/// for chunk_result in read_chunks_from_slice(archive_bytes)? {
+///     let chunk = chunk_result?;
+///     println!("Read chunk: Type = {}, Size = {}", chunk.ty(), chunk.length());
 /// }
 /// # Ok(())
 /// # }
 /// ```
 ///
 /// # Errors
-/// Returns an error if the input is not a PNA archive.
+///
+/// Returns an `io::Error` if the byte slice does not represent a valid PNA
+/// archive, for example, if the header is missing or corrupt.
 #[inline]
 pub fn read_chunks_from_slice<'a>(
     archive: &'a [u8],

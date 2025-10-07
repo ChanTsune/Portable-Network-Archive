@@ -1,20 +1,23 @@
 use crate::Duration;
 use std::io::{self, Read};
 
-/// Metadata information about an entry.
-/// # Examples
-/// ```rust
-/// # use std::time::SystemTimeError;
-/// # fn main() -> Result<(), SystemTimeError> {
-/// use libpna::{Duration, Metadata};
+/// Contains metadata about an entry in a PNA archive.
 ///
-/// let since_unix_epoch = Duration::seconds(1000);
+/// This struct holds information such as file sizes, timestamps, and permissions.
+/// It is used to store and retrieve metadata associated with a [`NormalEntry`].
+///
+/// # Examples
+///
+/// ```rust
+/// use libpna::{Duration, Metadata, Permission};
+///
+/// // Create a new Metadata instance
 /// let metadata = Metadata::new()
-///     .with_accessed(Some(since_unix_epoch))
-///     .with_created(Some(since_unix_epoch))
-///     .with_modified(Some(since_unix_epoch));
-/// # Ok(())
-/// # }
+///     .with_created(Some(Duration::seconds(1672531200))) // Jan 1, 2023
+///     .with_modified(Some(Duration::seconds(1672617600))) // Jan 2, 2023
+///     .with_permission(Some(Permission::new(1001, "user".into(), 1001, "user".into(), 0o644)));
+///
+/// assert_eq!(metadata.created(), Some(Duration::seconds(1672531200)));
 /// ```
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Metadata {
@@ -40,96 +43,81 @@ impl Metadata {
         }
     }
 
-    /// Sets the created time as the duration since the Unix epoch.
+    /// Sets the creation timestamp.
     ///
-    /// # Examples
-    /// ```rust
-    /// # use std::time::SystemTimeError;
-    /// # fn main() -> Result<(), SystemTimeError> {
-    /// use libpna::{Duration, Metadata};
+    /// # Arguments
     ///
-    /// let since_unix_epoch = Duration::seconds(1000);
-    /// let metadata = Metadata::new().with_created(Some(since_unix_epoch));
-    /// # Ok(())
-    /// # }
-    /// ```
+    /// * `created` - An `Option<Duration>` representing the time since the Unix epoch.
     #[inline]
     pub const fn with_created(mut self, created: Option<Duration>) -> Self {
         self.created = created;
         self
     }
 
-    /// Sets the modified time as the duration since the Unix epoch.
+    /// Sets the modification timestamp.
     ///
-    /// # Examples
-    /// ```rust
-    /// # use std::time::SystemTimeError;
-    /// # fn main() -> Result<(), SystemTimeError> {
-    /// use libpna::{Duration, Metadata};
+    /// # Arguments
     ///
-    /// let since_unix_epoch = Duration::seconds(1000);
-    /// let metadata = Metadata::new().with_modified(Some(since_unix_epoch));
-    /// # Ok(())
-    /// # }
-    /// ```
+    /// * `modified` - An `Option<Duration>` representing the time since the Unix epoch.
     #[inline]
     pub const fn with_modified(mut self, modified: Option<Duration>) -> Self {
         self.modified = modified;
         self
     }
 
-    /// Sets the accessed time as the duration since the Unix epoch.
+    /// Sets the last access timestamp.
     ///
-    /// # Examples
-    /// ```rust
-    /// # use std::time::SystemTimeError;
-    /// # fn main() -> Result<(), SystemTimeError> {
-    /// use libpna::{Duration, Metadata};
+    /// # Arguments
     ///
-    /// let since_unix_epoch = Duration::seconds(1000);
-    /// let metadata = Metadata::new().with_accessed(Some(since_unix_epoch));
-    /// # Ok(())
-    /// # }
-    /// ```
+    /// * `accessed` - An `Option<Duration>` representing the time since the Unix epoch.
     #[inline]
     pub const fn with_accessed(mut self, accessed: Option<Duration>) -> Self {
         self.accessed = accessed;
         self
     }
 
-    /// Sets the permission of the entry.
+    /// Sets the permissions and ownership for the entry.
+    ///
+    /// # Arguments
+    ///
+    /// * `permission` - An `Option<Permission>` containing the permission details.
     #[inline]
     pub fn with_permission(mut self, permission: Option<Permission>) -> Self {
         self.permission = permission;
         self
     }
 
-    /// Raw file size of entry data in bytes
+    /// Returns the original, uncompressed size of the file.
     #[inline]
     pub const fn raw_file_size(&self) -> Option<u128> {
         self.raw_file_size
     }
-    /// Compressed size of entry data in bytes
+
+    /// Returns the compressed size of the entry's data in the archive.
     #[inline]
     pub const fn compressed_size(&self) -> usize {
         self.compressed_size
     }
-    /// Returns the created time since the Unix epoch for the entry.
+
+    /// Returns the creation timestamp as a `Duration` since the Unix epoch.
     #[inline]
     pub const fn created(&self) -> Option<Duration> {
         self.created
     }
-    /// Returns the modified time since the Unix epoch for the entry.
+
+    /// Returns the modification timestamp as a `Duration` since the Unix epoch.
     #[inline]
     pub const fn modified(&self) -> Option<Duration> {
         self.modified
     }
-    /// Returns the accessed time since the Unix epoch for the entry.
+
+    /// Returns the last access timestamp as a `Duration` since the Unix epoch.
     #[inline]
     pub const fn accessed(&self) -> Option<Duration> {
         self.accessed
     }
-    /// An owner, group, and permissions for an entry
+
+    /// Returns a reference to the entry's permissions and ownership information.
     #[inline]
     pub const fn permission(&self) -> Option<&Permission> {
         self.permission.as_ref()
@@ -143,7 +131,11 @@ impl Default for Metadata {
     }
 }
 
-/// Permission struct represents an owner, group, and permissions for an entry.
+/// Represents the permissions and ownership of a file entry.
+///
+/// This struct stores the user ID (UID), group ID (GID), user name, group name,
+/// and the permission bits (mode) for an entry, similar to a Unix-like
+/// filesystem.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Permission {
     uid: u64,
@@ -181,76 +173,33 @@ impl Permission {
             permission,
         }
     }
-    /// Returns the user ID associated with this permission.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use libpna::Permission;
-    ///
-    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
-    /// assert_eq!(perm.uid(), 1000);
-    /// ```
+    /// Returns the user ID (UID) of the owner.
     #[inline]
     pub const fn uid(&self) -> u64 {
         self.uid
     }
 
-    /// Returns the user name associated with this permission.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use libpna::Permission;
-    ///
-    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
-    /// assert_eq!(perm.uname(), "user1");
-    /// ```
+    /// Returns the name of the owner.
     #[inline]
     pub fn uname(&self) -> &str {
         &self.uname
     }
 
-    /// Returns the group ID associated with this permission.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use libpna::Permission;
-    ///
-    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
-    /// assert_eq!(perm.gid(), 100);
-    /// ```
+    /// Returns the group ID (GID) of the owning group.
     #[inline]
     pub const fn gid(&self) -> u64 {
         self.gid
     }
 
-    /// Returns the group name associated with this permission.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use libpna::Permission;
-    ///
-    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
-    /// assert_eq!(perm.gname(), "group1");
-    /// ```
+    /// Returns the name of the owning group.
     #[inline]
     pub fn gname(&self) -> &str {
         &self.gname
     }
 
-    /// Returns the permission bits associated with this permission.
+    /// Returns the permission bits (mode) for the entry.
     ///
-    /// # Examples
-    ///
-    /// ```
-    /// use libpna::Permission;
-    ///
-    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
-    /// assert_eq!(perm.permissions(), 0o644);
-    /// ```
+    /// This is typically represented in octal format (e.g., `0o755`).
     #[inline]
     pub const fn permissions(&self) -> u16 {
         self.permission

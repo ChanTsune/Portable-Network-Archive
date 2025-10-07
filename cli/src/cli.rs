@@ -12,6 +12,10 @@ use pna::HashAlgorithm;
 use std::{io, path::PathBuf};
 pub(crate) use value::*;
 
+/// Represents the command-line interface for the PNA tool.
+///
+/// This struct uses `clap` to define the CLI's structure, including subcommands,
+/// global flags for verbosity, and an option to enable unstable features.
 #[derive(Parser, Clone, Debug)]
 #[command(
     name = env!("CARGO_PKG_NAME"),
@@ -49,6 +53,11 @@ impl Cli {
     }
 }
 
+/// Manages the verbosity level of the application's output.
+///
+/// This struct defines the `--quiet` and `--verbose` flags, which are mutually
+/// exclusive, allowing the user to control the amount of information logged to
+/// the console.
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(group(ArgGroup::new("verbosity").args(["quiet", "verbose"])))]
 pub(crate) struct VerbosityArgs {
@@ -70,6 +79,10 @@ impl VerbosityArgs {
     }
 }
 
+/// Defines the set of available subcommands for the PNA tool.
+///
+/// Each variant of this enum corresponds to a specific action that the user
+/// can perform, such as creating, extracting, or listing archive contents.
 #[derive(Subcommand, Clone, Debug)]
 pub(crate) enum Commands {
     #[command(visible_alias = "c", about = "Create archive")]
@@ -98,6 +111,10 @@ pub(crate) enum Commands {
     Experimental(ExperimentalCommand),
 }
 
+/// A set of arguments for commands that operate on an archive and a list of files.
+///
+/// This struct is used by commands like `create` and `append` to specify the
+/// target archive and the files to be included.
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct FileArgs {
     #[arg(short = 'f', long = "file", value_hint = ValueHint::FilePath)]
@@ -106,10 +123,13 @@ pub(crate) struct FileArgs {
     pub(crate) files: Vec<String>,
 }
 
-/// Archive related args for compatibility with optional and positional arguments.
+/// A compatibility layer for archive-related arguments.
 ///
-/// This is a temporary measure while the compatibility feature is available,
-/// and will be removed once the compatibility feature is no longer available.
+/// This struct handles both the new `--file` flag and the deprecated positional
+/// argument for specifying the archive path. It ensures backward compatibility
+/// during the transition period.
+///
+/// This is a temporary measure and will be removed in a future release.
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(
     group(
@@ -155,6 +175,10 @@ impl FileArgsCompat {
     }
 }
 
+/// Arguments for providing a password for encryption or decryption.
+///
+/// This struct allows the user to supply a password either directly on the
+/// command line, through a file, or interactively via the tty.
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(group(ArgGroup::new("password_provider").args(["password", "password_file"])))]
 pub(crate) struct PasswordArgs {
@@ -167,6 +191,10 @@ pub(crate) struct PasswordArgs {
     pub(crate) password_file: Option<PathBuf>,
 }
 
+/// Arguments for controlling the transformation of solid entries.
+///
+/// This struct provides flags to either "unsolid" (decompress and separate)
+/// solid entries or keep them as they are.
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(group(ArgGroup::new("transform_strategy").args(["unsolid", "keep_solid"])))]
 pub(crate) struct SolidEntriesTransformStrategyArgs {
@@ -187,12 +215,20 @@ impl SolidEntriesTransformStrategyArgs {
     }
 }
 
+/// Defines the strategy for handling solid entries during transformations.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) enum SolidEntriesTransformStrategy {
+    /// Decompresses and separates the files within a solid entry.
     UnSolid,
+    /// Preserves the solid entry as a single, compressed unit.
     KeepSolid,
 }
 
+/// Arguments for selecting a compression algorithm and its level.
+///
+/// This struct provides flags for choosing between different compression
+/// methods (`store`, `deflate`, `zstd`, `xz`) and specifying the desired
+/// compression level for each.
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(group(ArgGroup::new("compression_method").args(["store", "deflate", "zstd", "xz"])))]
 pub(crate) struct CompressionAlgorithmArgs {
@@ -237,6 +273,10 @@ impl CompressionAlgorithmArgs {
     }
 }
 
+/// Arguments for selecting a cipher algorithm and its mode of operation.
+///
+/// This struct provides flags for choosing between AES and Camellia encryption
+/// and specifying the cipher mode (CBC or CTR).
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(group(ArgGroup::new("cipher_algorithm").args(["aes", "camellia"])))]
 pub(crate) struct CipherAlgorithmArgs {
@@ -268,13 +308,20 @@ impl CipherAlgorithmArgs {
     }
 }
 
+/// Defines the available cipher modes for encryption.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, ValueEnum)]
 pub(crate) enum CipherMode {
+    /// Cipher Block Chaining mode.
     Cbc,
+    /// Counter mode, which is the default.
     #[default]
     Ctr,
 }
 
+/// Arguments for selecting a password hashing algorithm.
+///
+/// This struct provides flags for choosing between Argon2 and PBKDF2 for
+/// deriving an encryption key from a password.
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(group(ArgGroup::new("hash_algorithm").args(["argon2", "pbkdf2"])))]
 pub(crate) struct HashAlgorithmArgs {

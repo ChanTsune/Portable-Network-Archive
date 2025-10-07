@@ -40,7 +40,12 @@ mod private {
     }
 }
 
-/// A trait representing an entry in a PNA archive.
+/// A sealed trait representing an entry in a PNA archive.
+///
+/// This trait is implemented by all entry types, such as [`NormalEntry`] and
+/// [`SolidEntry`]. It provides a common interface for entry-related operations.
+///
+/// **Note:** This trait is sealed and cannot be implemented by external types.
 pub trait Entry: SealedEntryExt {}
 
 /// Chunks from `FHED` to `FEND`, containing `FHED` and `FEND`
@@ -106,7 +111,11 @@ impl<'a> From<RawEntry<&'a [u8]>> for RawEntry<Cow<'a, [u8]>> {
 
 type InternalIterMap<'r, T> = std::iter::Map<std::slice::Iter<'r, T>, fn(&T) -> &[u8]>;
 
-/// Reader for Entry data.
+/// A reader for accessing the data of an archive entry.
+///
+/// This struct provides a `Read` interface for consuming the decompressed and
+/// decrypted content of an entry. It is created by the `reader` method on
+/// [`NormalEntry`].
 pub struct EntryDataReader<'r>(EntryReader<ChainReader<std::vec::IntoIter<&'r [u8]>, &'r [u8]>>);
 
 impl<'r> Read for EntryDataReader<'r> {
@@ -128,16 +137,24 @@ impl<'r> futures_io::AsyncRead for EntryDataReader<'r> {
     }
 }
 
-/// A [NormalEntry] or [SolidEntry] read from an archive.
+/// Represents an entry read from a PNA archive, which can be either a normal
+/// or a solid entry.
+///
+/// When iterating over the entries in an archive, this enum is used to handle
+/// the two main types of entries that can be encountered.
+///
+/// # Variants
+///
+/// - `Solid`: A [`SolidEntry`], which contains multiple files compressed together
+///   as a single unit. This improves compression but requires sequential access.
+/// - `Normal`: A [`NormalEntry`], which represents a single, individually
+///   compressed file, allowing for random access.
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum ReadEntry<T = Vec<u8>> {
-    /// A solid mode entry that contains multiple files compressed together.
-    /// This type of entry provides better compression ratios but requires
-    /// sequential access to the contained files.
+    /// A solid entry that contains multiple files compressed together.
     Solid(SolidEntry<T>),
-    /// A normal entry that represents a single file in the archive.
-    /// This type of entry allows random access to the file data.
+    /// A normal entry that represents a single file.
     Normal(NormalEntry<T>),
 }
 
@@ -295,12 +312,21 @@ impl Iterator for IntoEntries {
     }
 }
 
-/// A solid mode entry in a PNA archive.
+/// Represents a solid entry in a PNA archive.
 ///
-/// Solid entries contain multiple files compressed together as a single unit.
-/// This provides better compression ratios but requires sequential access to
-/// the contained files. The entry includes a header, optional password hash,
-/// data chunks, and any extra chunks.
+/// A solid entry is a special type of entry that contains multiple files
+/// compressed together as a single block. This approach can lead to significantly
+/// better compression ratios, especially for archives with many small, similar
+/// files. However, it comes at the cost of random access; to extract a single
+/// file from a solid entry, the entire entry must be decompressed.
+///
+/// # Structure
+///
+/// A `SolidEntry` is composed of:
+/// - A [`SolidHeader`] that specifies the compression and encryption methods used.
+/// - A series of data chunks (`SDAT`) that hold the compressed content.
+/// - An optional password hash (`PHSF`) if the entry is encrypted.
+/// - Any number of extra, non-critical chunks.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct SolidEntry<T = Vec<u8>> {
     header: SolidHeader,
@@ -553,11 +579,22 @@ where
     }
 }
 
-/// A normal entry in a PNA archive.
+/// Represents a normal, non-solid entry in a PNA archive.
 ///
-/// Normal entries represent individual files in the archive, allowing for
-/// random access to the file data. Each entry includes a header, optional
-/// password hash, data chunks, metadata, extended attributes, and any extra chunks.
+/// A `NormalEntry` corresponds to a single file, directory, or symbolic link
+/// within the archive. Unlike [`SolidEntry`], each `NormalEntry` is compressed
+/// and encrypted independently, which allows for random access to its content
+/// without needing to process other entries.
+///
+/// # Structure
+///
+/// A `NormalEntry` consists of several parts:
+/// - An [`EntryHeader`] containing basic information like the entry's path and
+///   compression/encryption settings.
+/// - A series of data chunks (`FDAT`) that hold the file's content.
+/// - [`Metadata`] such as timestamps, permissions, and file size.
+/// - A list of [`ExtendedAttribute`]s for platform-specific metadata.
+/// - An optional password hash (`PHSF`) if the entry is encrypted.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct NormalEntry<T = Vec<u8>> {
     pub(crate) header: EntryHeader,
@@ -1008,7 +1045,12 @@ impl<'a> From<NormalEntry<&'a [u8]>> for NormalEntry<Cow<'a, [u8]>> {
     }
 }
 
-/// A structure representing the split [Entry] for archive splitting.
+/// Represents a portion of an entry, used for splitting archives into multiple parts.
+///
+/// When creating a multi-part archive, an `Entry` may need to be divided across
+/// two or more archive files. An `EntryPart` is a sequence of chunks that can be
+/// written to a single archive part. The `try_split` method provides the logic
+/// for safely splitting an entry at a chunk boundary.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct EntryPart<T = Vec<u8>>(pub(crate) Vec<RawChunk<T>>);
 

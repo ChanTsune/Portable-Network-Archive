@@ -7,18 +7,35 @@ use std::fmt::{self, Display, Formatter};
 use std::path::{Component, Path, PathBuf};
 use std::str::{self, Utf8Error};
 
-/// A UTF-8 encoded entry name.
+/// Represents a normalized, UTF-8 encoded path for an entry in a PNA archive.
+///
+/// An `EntryName` is a sanitized version of a path, designed to be secure and
+/// cross-platform compatible. When an `EntryName` is created from a string or
+/// path, it undergoes a normalization process:
+///
+/// - It is always a relative path. Any root or prefix components (like `/` or `C:\`) are stripped.
+/// - Path components like `.` (current directory) and `..` (parent directory) are resolved and removed.
+/// - Redundant path separators are collapsed.
+///
+/// This ensures that paths within the archive are clean and relative, preventing
+/// path traversal vulnerabilities.
 ///
 /// # Examples
 ///
 /// ```rust
 /// use libpna::EntryName;
 ///
-/// assert_eq!("uer/bin", EntryName::from("uer/bin"));
+/// // Absolute paths are made relative
 /// assert_eq!("user/bin", EntryName::from("/user/bin"));
+///
+/// // Trailing slashes are removed
 /// assert_eq!("user/bin", EntryName::from("/user/bin/"));
-/// assert_eq!("user/bin", EntryName::from("../user/bin/"));
-/// assert_eq!("", EntryName::from("/"));
+///
+/// // Parent directory components are resolved
+/// assert_eq!("bin", EntryName::from("user/../bin"));
+///
+/// // Current directory components are removed
+/// assert_eq!("user/bin", EntryName::from("./user/bin/"));
 /// ```
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct EntryName(String);
@@ -376,7 +393,9 @@ impl PartialEq<EntryName> for &str {
     }
 }
 
-/// Error of invalid [EntryName].
+/// An error indicating that a path could not be converted to an [`EntryName`].
+///
+/// This error typically occurs when the input path is not valid UTF-8.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct EntryNameError(Utf8Error);
 
