@@ -12,6 +12,7 @@ CI covers Linux, macOS, Windows, and a few cross targets — so portable changes
 ## Getting Set Up
 - Install Rust via `rustup` (MSRV 1.82; latest stable recommended).
 - On Linux, add `libacl1-dev` for ACL support.
+- The optional checks use `cargo-hack`, which you can install with `cargo install cargo-hack`.
 
 ## Before You Commit or Push
 Running these before you push helps keep reviews quick and easy:
