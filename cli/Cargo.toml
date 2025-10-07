@@ -65,6 +65,7 @@ libc = "0.2.176"
 maplit = "1.0.2"
 path-slash = "0.2.1"
 rust-embed = { version = "8.7.2", features = ["debug-embed"] }
+same-file = "1.0.6"
 walkdir = "2.5.0"
 criterion = { version = "0.7.0", default-features = false, features = ["cargo_bench_support", "plotters"] }
 

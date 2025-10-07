@@ -1616,6 +1616,7 @@ dependencies = [
  "rayon",
  "regex",
  "rust-embed",
+ "same-file",
  "scopeguard",
  "serde",
  "serde_json",
