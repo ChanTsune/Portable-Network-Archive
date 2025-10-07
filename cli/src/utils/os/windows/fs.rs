@@ -22,7 +22,7 @@ pub(crate) fn move_file(src: &std::ffi::OsStr, dist: &std::ffi::OsStr) -> io::Re
 }
 
 #[inline]
-pub(crate) fn chown<U: Into<Sid>, G: Into<Sid>>(
+pub(crate) fn lchown<U: Into<Sid>, G: Into<Sid>>(
     path: &Path,
     owner: Option<U>,
     group: Option<G>,
@@ -35,6 +35,7 @@ pub(crate) fn chown<U: Into<Sid>, G: Into<Sid>>(
     )
 }
 
+#[inline]
 pub(crate) fn chmod(path: &Path, mode: u16) -> io::Result<()> {
     let s = encode_wide(path.as_os_str())?;
     let code = unsafe { libc::wchmod(s.as_ptr() as _, mode as _) };
@@ -64,9 +65,9 @@ mod tests {
         let path = "chown.txt";
         std::fs::write(&path, "chown").unwrap();
         let sd = SecurityDescriptor::try_from(path.as_ref()).unwrap();
-        chown::<_, Sid>(path.as_ref(), Some(sd.owner_sid().unwrap()), None).unwrap();
-        chown::<Sid, _>(path.as_ref(), None, Some(sd.group_sid().unwrap())).unwrap();
-        chown(
+        lchown::<_, Sid>(path.as_ref(), Some(sd.owner_sid().unwrap()), None).unwrap();
+        lchown::<Sid, _>(path.as_ref(), None, Some(sd.group_sid().unwrap())).unwrap();
+        lchown(
             path.as_ref(),
             Some(sd.owner_sid().unwrap()),
             Some(sd.group_sid().unwrap()),

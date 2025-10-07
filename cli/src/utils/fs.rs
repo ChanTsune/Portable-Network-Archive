@@ -44,18 +44,18 @@ pub(crate) fn mv<Src: AsRef<Path>, Dest: AsRef<Path>>(src: Src, dest: Dest) -> i
 }
 
 #[cfg(any(windows, unix))]
-pub(crate) fn chown<P: AsRef<Path>>(
+pub(crate) fn lchown<P: AsRef<Path>>(
     path: P,
     owner: Option<User>,
     group: Option<Group>,
 ) -> io::Result<()> {
     #[cfg(windows)]
     fn inner(path: &Path, owner: Option<User>, group: Option<Group>) -> io::Result<()> {
-        windows::fs::chown(path.as_ref(), owner.map(|it| it.0), group.map(|it| it.0))
+        windows::fs::lchown(path.as_ref(), owner.map(|it| it.0), group.map(|it| it.0))
     }
     #[cfg(unix)]
     fn inner(path: &Path, owner: Option<User>, group: Option<Group>) -> io::Result<()> {
-        std::os::unix::fs::chown(
+        std::os::unix::fs::lchown(
             path,
             owner.map(|it| it.0.as_raw()),
             group.map(|it| it.0.as_raw()),
