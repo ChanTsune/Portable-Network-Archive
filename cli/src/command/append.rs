@@ -7,7 +7,8 @@ use crate::{
         ask_password, check_password,
         core::{
             collect_items, create_entry, entry_option, read_paths, read_paths_stdin, CreateOptions,
-            KeepOptions, OwnerOptions, PathFilter, PathTransformers, StoreAs, TimeOptions,
+            KeepOptions, OwnerOptions, PathFilter, PathTransformers, StoreAs, TimeFilter,
+            TimeFilters, TimeOptions,
         },
         Command,
     },
@@ -16,6 +17,7 @@ use crate::{
         PathPartExt, VCS_FILES,
     },
 };
+use anyhow::Context;
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
 use std::{
@@ -149,6 +151,30 @@ pub(crate) struct AppendCommand {
         help = "Clamp the modification time of the entries to the specified time by --mtime"
     )]
     clamp_mtime: bool,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Only include files and directories older than the specified date (unstable). This compares ctime entries."
+    )]
+    older_ctime: Option<DateTime>,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Only include files and directories older than the specified date (unstable). This compares mtime entries."
+    )]
+    older_mtime: Option<DateTime>,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Only include files and directories newer than the specified date (unstable). This compares ctime entries."
+    )]
+    newer_ctime: Option<DateTime>,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Only include files and directories newer than the specified date (unstable). This compares mtime entries."
+    )]
+    newer_mtime: Option<DateTime>,
     #[arg(long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
     pub(crate) files_from: Option<String>,
     #[arg(long, help = "Read archiving files from stdin (unstable)")]
@@ -254,6 +280,16 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         atime: args.atime.map(|it| it.to_system_time()),
         clamp_atime: args.clamp_atime,
     };
+    let time_filters = TimeFilters {
+        ctime: TimeFilter {
+            newer_than: args.newer_ctime.map(|it| it.to_system_time()),
+            older_than: args.older_ctime.map(|it| it.to_system_time()),
+        },
+        mtime: TimeFilter {
+            newer_than: args.newer_mtime.map(|it| it.to_system_time()),
+            older_than: args.older_mtime.map(|it| it.to_system_time()),
+        },
+    };
     let create_options = CreateOptions {
         option,
         keep_options,
@@ -286,7 +322,7 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
     }
-    let target_items = collect_items(
+    let mut target_items = collect_items(
         &files,
         !args.no_recursive,
         args.keep_dir,
@@ -296,6 +332,17 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         args.one_file_system,
         &filter,
     )?;
+    if time_filters.is_active() {
+        let mut filtered = Vec::new();
+        for item in target_items.into_iter() {
+            let metadata = fs::symlink_metadata(&item.0)
+                .with_context(|| format!("failed to read metadata for {}", item.0.display()))?;
+            if time_filters.is_retain(&metadata) {
+                filtered.push(item);
+            }
+        }
+        target_items = filtered;
+    }
 
     run_append_archive(&create_options, &path_transformers, archive, target_items)
 }

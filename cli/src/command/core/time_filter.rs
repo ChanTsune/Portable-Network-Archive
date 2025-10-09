@@ -11,6 +11,16 @@ pub(crate) struct TimeFilter {
 }
 
 impl TimeFilter {
+    /// Checks if the time filter is active (i.e., if either `newer_than` or `older_than` is `Some`).
+    ///
+    /// # Returns
+    ///
+    /// `true` if the filter is active, `false` otherwise.
+    #[inline]
+    pub(crate) fn is_active(&self) -> bool {
+        self.newer_than.is_some() || self.older_than.is_some()
+    }
+
     /// Determines whether a file should be retained based on its modification time.
     ///
     /// # Arguments
@@ -60,6 +70,16 @@ impl TimeFilters {
     #[inline]
     pub(crate) fn is_retain(&self, fs_meta: &fs::Metadata) -> bool {
         self.is_retain_t(fs_meta.created().ok(), fs_meta.modified().ok())
+    }
+
+    /// Checks if any of the time filters are active.
+    ///
+    /// # Returns
+    ///
+    /// `true` if either `ctime` or `mtime` filters are active, `false` otherwise.
+    #[inline]
+    pub(crate) fn is_active(&self) -> bool {
+        self.ctime.is_active() || self.mtime.is_active()
     }
 
     /// Determines whether a file should be retained based on its creation and modification times.
@@ -404,5 +424,34 @@ mod tests {
             },
         };
         assert!(filters.is_retain_t(Some(now()), None));
+    }
+
+    #[test]
+    fn test_is_active() {
+        let active = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: Some(now()),
+                older_than: None,
+            },
+        };
+        assert!(active.is_active());
+        assert!(active.mtime.is_active());
+        assert!(!active.ctime.is_active());
+
+        let inactive = TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+        };
+        assert!(!inactive.is_active());
     }
 }
