@@ -35,7 +35,6 @@ setup() {
 
 teardown() {
   popd || exit 1
-  cp -r "$TEST_DIR" /tmp/bats/
 }
 
 @test "Test 1: Without -H" {
