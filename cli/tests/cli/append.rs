@@ -3,6 +3,10 @@ mod ctime;
 mod exclude;
 mod exclude_vcs;
 mod mtime;
+mod option_newer_ctime;
+mod option_newer_mtime;
+mod option_older_ctime;
+mod option_older_mtime;
 
 use crate::utils::{diff::diff, setup, EmbedExt, TestResources};
 use clap::Parser;
