@@ -430,6 +430,11 @@ where
     } else {
         item_path
     };
+    let path = if path.as_os_str().is_empty() {
+        Cow::Borrowed(".".as_ref())
+    } else {
+        path
+    };
     if path.exists() && !overwrite {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
