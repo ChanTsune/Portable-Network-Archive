@@ -7,7 +7,7 @@ use std::{
 };
 
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum DateTimeError {
+pub enum DateTimeError {
     #[error("Failed to parse seconds since unix epoch")]
     InvalidNumber,
     #[error("Failed to parse seconds since unix epoch")]
@@ -19,7 +19,7 @@ pub(crate) enum DateTimeError {
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) enum DateTime {
+pub enum DateTime {
     Naive(chrono::NaiveDateTime),
     Zoned(jiff::Zoned),
     Date(chrono::NaiveDate),
@@ -28,7 +28,7 @@ pub(crate) enum DateTime {
 
 impl DateTime {
     #[inline]
-    pub(crate) fn to_system_time(&self) -> SystemTime {
+    pub fn to_system_time(&self) -> SystemTime {
         #[inline]
         fn from_timestamp(seconds: i64, nanoseconds: u32) -> SystemTime {
             UNIX_EPOCH + Duration::new(seconds, nanoseconds as _)

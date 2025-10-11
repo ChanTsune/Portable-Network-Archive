@@ -1,3 +1,5 @@
+pub(crate) mod time_filter;
+
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
     utils::{
@@ -23,6 +25,7 @@ use std::{
     path::{Path, PathBuf},
     time::SystemTime,
 };
+pub(crate) use time_filter::{TimeFilter, TimeFilters};
 
 /// Overhead for a split archive part in bytes, including PNA header, AHED, ANXT, and AEND chunks.
 pub(crate) const SPLIT_ARCHIVE_OVERHEAD_BYTES: usize =
