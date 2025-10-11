@@ -1,4 +1,4 @@
-pub(crate) mod value;
+pub mod value;
 
 use crate::command::{
     append::AppendCommand, bugreport::BugReportCommand, complete::CompleteCommand,
