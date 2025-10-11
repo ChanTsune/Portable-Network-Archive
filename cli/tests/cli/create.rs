@@ -10,8 +10,10 @@ mod include;
 mod mtime;
 mod no_recursive;
 mod numeric_owner;
+#[cfg(any(windows, target_os = "macos"))]
 mod option_newer_ctime;
 mod option_newer_mtime;
+#[cfg(any(windows, target_os = "macos"))]
 mod option_older_ctime;
 mod option_older_mtime;
 mod password_from_file;
