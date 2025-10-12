@@ -40,22 +40,29 @@ use std::{
     group(ArgGroup::new("unstable-include").args(["include"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
+    group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
     group(ArgGroup::new("null-requires").arg("null").requires("exclude_from")),
     group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
     group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
     group(ArgGroup::new("unstable-transform").args(["transforms"]).requires("unstable")),
+    group(ArgGroup::new("unstable-keep-old-files").args(["keep_old_files"]).requires("unstable")),
+    group(ArgGroup::new("unstable-keep-newer-files").args(["keep_newer_files"]).requires("unstable")),
     group(ArgGroup::new("path-transform").args(["substitutions", "transforms"])),
     group(ArgGroup::new("owner-flag").args(["same_owner", "no_same_owner"])),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
-    group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
+    group(ArgGroup::new("overwrite-flag").args(["overwrite", "keep_newer_files", "keep_old_files"])),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
 ))]
 pub(crate) struct ExtractCommand {
     #[arg(long, help = "Overwrite file")]
-    pub(crate) overwrite: bool,
+    overwrite: bool,
+    #[arg(long, help = "Skip extracting files if a newer version already exists")]
+    keep_newer_files: bool,
+    #[arg(long, help = "Skip extracting files if they already exist")]
+    keep_old_files: bool,
     #[arg(long, help = "Output directory of extracted files", value_hint = ValueHint::DirPath)]
     pub(crate) out_dir: Option<PathBuf>,
     #[command(flatten)]
@@ -195,6 +202,8 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         }
     };
 
+    let overwrite_strategy =
+        OverwriteStrategy::from_flags(args.overwrite, args.keep_newer_files, args.keep_old_files);
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
         keep_permission: args.keep_permission,
@@ -209,7 +218,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         args.numeric_owner,
     );
     let output_options = OutputOption {
-        overwrite: args.overwrite,
+        overwrite_strategy,
         allow_unsafe_links: args.allow_unsafe_links,
         strip_components: args.strip_components,
         out_dir: args.out_dir,
@@ -264,9 +273,31 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum OverwriteStrategy {
+    Never,
+    Always,
+    KeepNewer,
+    KeepOlder,
+}
+
+impl OverwriteStrategy {
+    pub(crate) const fn from_flags(overwrite: bool, keep_newer: bool, keep_older: bool) -> Self {
+        if overwrite {
+            Self::Always
+        } else if keep_newer {
+            Self::KeepNewer
+        } else if keep_older {
+            Self::KeepOlder
+        } else {
+            Self::Never
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct OutputOption {
-    pub(crate) overwrite: bool,
+    pub(crate) overwrite_strategy: OverwriteStrategy,
     pub(crate) allow_unsafe_links: bool,
     pub(crate) strip_components: Option<usize>,
     pub(crate) out_dir: Option<PathBuf>,
@@ -388,7 +419,7 @@ pub(crate) fn extract_entry<T>(
     item: NormalEntry<T>,
     password: Option<&str>,
     OutputOption {
-        overwrite,
+        overwrite_strategy,
         allow_unsafe_links,
         strip_components,
         out_dir,
@@ -405,7 +436,6 @@ where
     pna::RawChunk<T>: Chunk,
 {
     let same_owner = *same_owner;
-    let overwrite = *overwrite;
     let item_path = item.header().path().as_str();
     if filter.excluded(item_path) {
         return Ok(());
@@ -439,12 +469,6 @@ where
     } else {
         path
     };
-    if path.exists() && !overwrite {
-        return Err(io::Error::new(
-            io::ErrorKind::AlreadyExists,
-            format!("{} already exists", path.display()),
-        ));
-    }
 
     let path_lock = path_locks.get(path.as_ref());
     let path_guard = path_lock.lock().expect("path lock mutex poisoned");
@@ -453,9 +477,41 @@ where
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
+    // NOTE: Performs file existence checks by attempting to retrieve metadata,
+    //       following the behavior of `std::path::Path::exists`.
+    let remove_existing = if let Ok(metadata) = fs::symlink_metadata(&path) {
+        match overwrite_strategy {
+            OverwriteStrategy::Always => true,
+            OverwriteStrategy::Never => {
+                return Err(io::Error::new(
+                    io::ErrorKind::AlreadyExists,
+                    format!("{} already exists", path.display()),
+                ));
+            }
+            OverwriteStrategy::KeepOlder => {
+                log::debug!(
+                    "Skipped extracting {}: existing one kept by --keep-older",
+                    path.display()
+                );
+                return Ok(());
+            }
+            OverwriteStrategy::KeepNewer => {
+                if is_existing_newer(&metadata, &item) {
+                    log::debug!(
+                        "Skipped extracting {}: newer one already exists (--keep-newer)",
+                        path.display()
+                    );
+                    return Ok(());
+                }
+                true
+            }
+        }
+    } else {
+        false
+    };
     match item.header().data_kind() {
         DataKind::File => {
-            let mut file = utils::fs::file_create(&path, overwrite)?;
+            let mut file = utils::fs::file_create(&path, remove_existing)?;
             if keep_options.keep_timestamp {
                 let mut times = fs::FileTimes::new();
                 if let Some(accessed) = item.metadata().accessed_time() {
@@ -489,7 +545,7 @@ where
                 log::warn!("Skipped extracting a symbolic link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`.");
                 return Ok(());
             }
-            if overwrite && fs::symlink_metadata(&path).is_ok() {
+            if remove_existing {
                 utils::fs::remove_path_all(&path)?;
             }
             utils::fs::symlink(original, &path)?;
@@ -522,7 +578,7 @@ where
             } else {
                 original_path
             };
-            if overwrite && path.exists() {
+            if remove_existing {
                 utils::fs::remove_path_all(&path)?;
             }
             fs::hard_link(original, &path)?;
@@ -611,6 +667,19 @@ where
     drop(path_guard);
     log::debug!("end: {}", path.display());
     Ok(())
+}
+
+fn is_existing_newer<T>(metadata: &fs::Metadata, item: &NormalEntry<T>) -> bool
+where
+    T: AsRef<[u8]>,
+{
+    if let (Ok(existing_modified), Some(entry_modified)) =
+        (metadata.modified(), item.metadata().modified_time())
+    {
+        existing_modified >= entry_modified
+    } else {
+        false
+    }
 }
 
 fn permissions<'p>(
