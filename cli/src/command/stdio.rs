@@ -10,7 +10,7 @@ use crate::{
             CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers, TimeOptions,
         },
         create::{create_archive_file, CreationContext},
-        extract::{run_extract_archive_reader, OutputOption},
+        extract::{run_extract_archive_reader, OutputOption, OverwriteStrategy},
         list::{ListOptions, TimeField, TimeFormat},
         Command,
     },
@@ -30,6 +30,7 @@ use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
     group(ArgGroup::new("unstable-include").args(["include"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
+    group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
     group(
         ArgGroup::new("from-input")
@@ -40,6 +41,10 @@ use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
     group(ArgGroup::new("unstable-gitignore").args(["gitignore"]).requires("unstable")),
     group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
     group(ArgGroup::new("unstable-transform").args(["transforms"]).requires("unstable")),
+    group(ArgGroup::new("unstable-follow_command_links").args(["follow_command_links"]).requires("unstable")),
+    group(ArgGroup::new("unstable-one-file-system").args(["one_file_system"]).requires("unstable")),
+    group(ArgGroup::new("unstable-keep-old-files").args(["keep_old_files"]).requires("unstable")),
+    group(ArgGroup::new("unstable-keep-newer-files").args(["keep_newer_files"]).requires("unstable")),
     group(ArgGroup::new("path-transform").args(["substitutions", "transforms"])),
     group(ArgGroup::new("owner-flag").args(["same_owner", "no_same_owner"])),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
@@ -50,9 +55,7 @@ use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
     group(ArgGroup::new("ctime-flag").args(["clamp_ctime"]).requires("ctime")),
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
     group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
-    group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
-    group(ArgGroup::new("unstable-follow_command_links").args(["follow_command_links"]).requires("unstable")),
-    group(ArgGroup::new("unstable-one-file-system").args(["one_file_system"]).requires("unstable")),
+    group(ArgGroup::new("overwrite-flag").args(["overwrite", "keep_newer_files", "keep_old_files"])),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
@@ -87,6 +90,14 @@ pub(crate) struct StdioCommand {
     no_recursive: bool,
     #[arg(long, help = "Overwrite file")]
     overwrite: bool,
+    #[arg(long, help = "Skip extracting files if a newer version already exists")]
+    keep_newer_files: bool,
+    #[arg(
+        short = 'k',
+        long,
+        help = "Skip extracting files if they already exist"
+    )]
+    keep_old_files: bool,
     #[arg(long, help = "Archiving the directories")]
     keep_dir: bool,
     #[arg(
@@ -378,8 +389,10 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         }
     };
 
+    let overwrite_strategy =
+        OverwriteStrategy::from_flags(args.overwrite, args.keep_newer_files, args.keep_old_files);
     let out_option = OutputOption {
-        overwrite: args.overwrite,
+        overwrite_strategy,
         allow_unsafe_links: args.allow_unsafe_links,
         strip_components: args.strip_components,
         out_dir: args.out_dir,
