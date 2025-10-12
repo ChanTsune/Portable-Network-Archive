@@ -7,8 +7,8 @@ use crate::{
     command::{
         ask_password,
         core::{
-            collect_split_archives, read_paths, run_process_archive, KeepOptions, OwnerOptions,
-            PathFilter, PathTransformers,
+            collect_split_archives, path_lock::PathLocks, read_paths, run_process_archive,
+            KeepOptions, OwnerOptions, PathFilter, PathTransformers,
         },
         Command,
     },
@@ -31,6 +31,7 @@ use std::{
     borrow::Cow,
     env, fs, io,
     path::{Component, PathBuf},
+    sync::Arc,
     time::Instant,
 };
 
@@ -217,6 +218,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         owner_options,
         same_owner: !args.no_same_owner,
         path_transformers: PathTransformers::new(args.substitutions, args.transforms),
+        path_locks: Arc::new(PathLocks::default()),
     };
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
@@ -273,6 +275,7 @@ pub(crate) struct OutputOption {
     pub(crate) owner_options: OwnerOptions,
     pub(crate) same_owner: bool,
     pub(crate) path_transformers: Option<PathTransformers>,
+    pub(crate) path_locks: Arc<PathLocks>,
 }
 
 pub(crate) fn run_extract_archive_reader<'p, Provider>(
@@ -394,6 +397,7 @@ pub(crate) fn extract_entry<T>(
         owner_options,
         same_owner,
         path_transformers,
+        path_locks,
     }: &OutputOption,
 ) -> io::Result<()>
 where
@@ -441,6 +445,10 @@ where
             format!("{} already exists", path.display()),
         ));
     }
+
+    let path_lock = path_locks.get(path.as_ref());
+    let path_guard = path_lock.lock().expect("path lock mutex poisoned");
+
     log::debug!("start: {}", path.display());
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
@@ -600,6 +608,7 @@ where
     if keep_options.keep_acl {
         log::warn!("Please enable `acl` feature and rebuild and install pna.");
     }
+    drop(path_guard);
     log::debug!("end: {}", path.display());
     Ok(())
 }

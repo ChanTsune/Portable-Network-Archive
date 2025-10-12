@@ -6,8 +6,8 @@ use crate::{
         append::{open_archive_then_seek_to_end, run_append_archive},
         ask_password, check_password,
         core::{
-            collect_items, collect_split_archives, entry_option, read_paths, CreateOptions,
-            KeepOptions, OwnerOptions, PathFilter, PathTransformers, TimeOptions,
+            collect_items, collect_split_archives, entry_option, path_lock::PathLocks, read_paths,
+            CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers, TimeOptions,
         },
         create::{create_archive_file, CreationContext},
         extract::{run_extract_archive_reader, OutputOption},
@@ -22,7 +22,7 @@ use crate::{
 };
 use clap::{ArgGroup, Args, ValueHint};
 use pna::Archive;
-use std::{env, io, path::PathBuf, time::SystemTime};
+use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
 
 #[derive(Args, Clone, Debug)]
 #[command(
@@ -399,6 +399,7 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         ),
         same_owner: !args.no_same_owner,
         path_transformers: PathTransformers::new(args.substitutions, args.transforms),
+        path_locks: Arc::new(PathLocks::default()),
     };
     // NOTE: "-" will use stdin
     let mut file = args.file;
