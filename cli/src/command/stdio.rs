@@ -11,7 +11,7 @@ use crate::{
         },
         create::{create_archive_file, CreationContext},
         extract::{run_extract_archive_reader, OutputOption, OverwriteStrategy},
-        list::{ListOptions, TimeField, TimeFormat},
+        list::{Format, ListOptions, TimeField, TimeFormat},
         Command,
     },
     utils::{
@@ -262,6 +262,8 @@ pub(crate) struct StdioCommand {
         help = "Filenames or patterns are separated by null characters, not by newlines"
     )]
     null: bool,
+    #[arg(short, help = "Verbose")]
+    verbose: bool,
     #[arg(long, hide = true)]
     format: Option<String>,
 }
@@ -458,7 +460,11 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
         numeric_owner: args.numeric_owner,
         hide_control_chars: false,
         classify: false,
-        format: None,
+        format: Some(if args.verbose {
+            Format::BsdTar
+        } else {
+            Format::Line
+        }),
     };
     let files_globs = GlobPatterns::new(args.files.iter().map(|it| it.as_str()))?;
 
