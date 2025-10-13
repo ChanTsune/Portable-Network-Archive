@@ -19,17 +19,28 @@ use std::{
     mem,
 };
 
-/// Minimum required size in bytes to represent [`Chunk`].
-/// length: 4 bytes + chunk type: 4 bytes + data: 0 bytes + crc: 4 bytes
+/// The minimum size of a PNA chunk in bytes.
+///
+/// A chunk consists of a 4-byte length field, a 4-byte chunk type, a variable-size
+/// data field, and a 4-byte CRC checksum. This constant represents the size of a
+/// chunk with an empty data field.
 pub const MIN_CHUNK_BYTES_SIZE: usize =
     mem::size_of::<u32>() + mem::size_of::<ChunkType>() + mem::size_of::<u32>();
 
 /// Maximum length of chunk body in bytes.
 pub(crate) const MAX_CHUNK_DATA_LENGTH: usize = u32::MAX as usize;
 
+/// An extension trait for [`Chunk`] that provides common operations.
+///
+/// This trait is automatically implemented for any type that implements [`Chunk`],
+/// offering a set of convenient methods for working with chunks, such as
+/// calculating their total byte length, writing them to a writer, and converting
+/// them to a byte vector.
 pub(crate) trait ChunkExt: Chunk {
-    /// Returns the total size of the chunk in bytes, including the length field,
-    /// chunk type, data, and CRC32 checksum.
+    /// Calculates the total size of the chunk in bytes.
+    ///
+    /// This includes the length of the data field plus the fixed sizes of the
+    /// length, type, and CRC fields.
     ///
     /// # Returns
     ///
@@ -39,25 +50,35 @@ pub(crate) trait ChunkExt: Chunk {
         MIN_CHUNK_BYTES_SIZE + self.data().len()
     }
 
-    /// Returns `true` if this is a stream chunk.
+    /// Checks if the chunk is a stream chunk.
+    ///
+    /// Stream chunks, such as `FDAT` (File Data) and `SDAT` (Solid Data),
+    /// contain file content data.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the chunk is a stream chunk, `false` otherwise.
     #[inline]
     fn is_stream_chunk(&self) -> bool {
         self.ty() == ChunkType::FDAT || self.ty() == ChunkType::SDAT
     }
 
-    /// Writes the chunk to the provided writer.
+    /// Writes the entire chunk to a given writer.
+    ///
+    /// This method serializes the chunk, including its length, type, data, and
+    /// CRC, and writes the resulting bytes to the specified writer.
     ///
     /// # Arguments
     ///
-    /// * `writer` - The writer to write the chunk to.
+    /// * `writer` - The writer to which the chunk will be written.
     ///
     /// # Returns
     ///
-    /// The number of bytes written.
+    /// The total number of bytes written to the writer.
     ///
     /// # Errors
     ///
-    /// This function will return an `io::Error` if any write operation to the `writer` fails.
+    /// Returns an error if any part of the write operation fails.
     #[inline]
     fn write_chunk_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         writer.write_all(&self.length().to_be_bytes())?;
@@ -67,11 +88,14 @@ pub(crate) trait ChunkExt: Chunk {
         Ok(self.bytes_len())
     }
 
-    /// Converts the provided `Chunk` instance into a `Vec<u8>`.
+    /// Converts the chunk into a `Vec<u8>`.
+    ///
+    /// This method serializes the entire chunk into a byte vector, which can be
+    /// useful for buffering or network transmission.
     ///
     /// # Returns
     ///
-    /// A `Vec<u8>` containing the converted `Chunk` data.
+    /// A `Vec<u8>` containing the serialized chunk data.
     #[allow(dead_code)]
     #[inline]
     fn to_bytes(&self) -> Vec<u8> {
@@ -95,6 +119,7 @@ impl<T> ChunkExt for T where T: Chunk {}
 /// - `crc`: A CRC32 checksum of the chunk type and data
 ///
 /// # Examples
+///
 /// ```rust
 /// use libpna::{prelude::*, ChunkType, RawChunk};
 ///
@@ -340,6 +365,7 @@ pub(crate) fn chunk_data_split(
 /// ```no_run
 /// # use std::{io, fs};
 /// use libpna::{prelude::*, read_as_chunks};
+///
 /// # fn main() -> io::Result<()> {
 /// let archive = fs::File::open("foo.pna")?;
 /// for chunk in read_as_chunks(archive)? {
@@ -393,6 +419,7 @@ pub fn read_as_chunks<R: Read>(
 /// ```rust
 /// # use std::{io, fs};
 /// use libpna::{prelude::*, read_chunks_from_slice};
+///
 /// # fn main() -> io::Result<()> {
 /// let bytes = include_bytes!("../../resources/test/zstd.pna");
 /// for chunk in read_chunks_from_slice(bytes)? {
