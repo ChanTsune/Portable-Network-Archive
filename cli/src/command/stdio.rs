@@ -27,6 +27,7 @@ use pna::Archive;
 use std::{env, fs, io, path::PathBuf, sync::Arc, time::SystemTime};
 
 #[derive(Args, Clone, Debug)]
+#[clap(disable_help_flag = true)]
 #[command(
     version,
     disable_version_flag = true,
@@ -384,6 +385,8 @@ pub(crate) struct StdioCommand {
     ignore_zeros: bool,
     #[arg(long, action = clap::ArgAction::Version, help = "Print version")]
     version: (),
+    #[arg(long, action = clap::ArgAction::Help)]
+    help: Option<bool>,
 }
 
 impl Command for StdioCommand {
