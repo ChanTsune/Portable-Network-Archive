@@ -21,7 +21,40 @@ use std::{
     task::{Context, Poll},
 };
 
-/// A builder for creating a new [NormalEntry].
+/// A builder for creating a [`NormalEntry`].
+///
+/// This builder provides a flexible way to construct a `NormalEntry` by specifying
+/// its type (file, directory, symlink), content, and metadata. It handles the
+/// underlying complexity of compression and encryption.
+///
+/// # Examples
+///
+/// ## Creating a file entry
+///
+/// ```
+/// # use std::io::{self, Write};
+/// use libpna::{EntryBuilder, WriteOptions};
+///
+/// # fn main() -> io::Result<()> {
+/// let mut builder = EntryBuilder::new_file("my_file.txt".into(), WriteOptions::store())?;
+/// builder.write_all(b"This is the file content.")?;
+/// let entry = builder.build()?;
+/// # Ok(())
+/// # }
+/// ```
+///
+/// ## Creating a directory entry
+///
+/// ```
+/// # use std::io;
+/// use libpna::EntryBuilder;
+///
+/// # fn main() -> io::Result<()> {
+/// let builder = EntryBuilder::new_dir("my_dir/".into());
+/// let entry = builder.build()?;
+/// # Ok(())
+/// # }
+/// ```
 pub struct EntryBuilder {
     header: EntryHeader,
     phsf: Option<String>,
@@ -400,6 +433,11 @@ impl AsyncWrite for EntryBuilder {
     }
 }
 
+/// A writer for adding data to a file within a [`SolidEntryBuilder`].
+///
+/// This struct provides a `Write` interface for adding content to a file that is
+/// being created within a solid entry. It is passed to the closure in the
+/// [`SolidEntryBuilder::write_file`] method.
 pub struct SolidEntryDataWriter<'a>(
     InternalArchiveDataWriter<&'a mut InternalDataWriter<FlattenWriter<MAX_CHUNK_DATA_LENGTH>>>,
 );
@@ -416,7 +454,34 @@ impl Write for SolidEntryDataWriter<'_> {
     }
 }
 
-/// A builder for creating a new solid [Entry].
+/// A builder for creating a [`SolidEntry`].
+///
+/// This builder is used to construct a solid entry, which can contain multiple
+/// files compressed together as a single unit. This is particularly effective
+/// for achieving high compression ratios with many small, similar files.
+///
+/// # Examples
+///
+/// ```
+/// # use std::io::{self, Write};
+/// use libpna::{EntryBuilder, SolidEntryBuilder, WriteOptions};
+///
+/// # fn main() -> io::Result<()> {
+/// let mut solid_builder = SolidEntryBuilder::new(WriteOptions::store())?;
+///
+/// // Add a directory to the solid entry
+/// let dir_entry = EntryBuilder::new_dir("my_dir/".into()).build()?;
+/// solid_builder.add_entry(dir_entry)?;
+///
+/// // Add a file to the solid entry
+/// let mut file_builder = EntryBuilder::new_file("my_dir/file.txt".into(), WriteOptions::store())?;
+/// file_builder.write_all(b"This is a file inside a solid entry.")?;
+/// solid_builder.add_entry(file_builder.build()?)?;
+///
+/// let solid_entry = solid_builder.build()?;
+/// # Ok(())
+/// # }
+/// ```
 pub struct SolidEntryBuilder {
     header: SolidHeader,
     phsf: Option<String>,
