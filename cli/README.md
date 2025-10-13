@@ -20,7 +20,7 @@ curl --proto '=https' --tlsv1.2 -LsSf 'https://github.com/ChanTsune/Portable-Net
 
 #### On Windows
 
-```sh
+```powershell
 powershell -ExecutionPolicy Bypass -c "irm https://github.com/ChanTsune/Portable-Network-Archive/releases/latest/download/portable-network-archive-installer.ps1 | iex"
 ```
 
