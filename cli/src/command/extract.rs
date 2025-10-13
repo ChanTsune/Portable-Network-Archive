@@ -30,7 +30,7 @@ use std::os::windows::fs::FileTimesExt;
 use std::{
     borrow::Cow,
     env, fs, io,
-    path::{Component, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::Arc,
     time::Instant,
 };
@@ -435,7 +435,6 @@ where
     T: AsRef<[u8]>,
     pna::RawChunk<T>: Chunk,
 {
-    let same_owner = *same_owner;
     let item_path = item.header().path().as_str();
     if filter.excluded(item_path) {
         return Ok(());
@@ -584,35 +583,10 @@ where
             fs::hard_link(original, &path)?;
         }
     }
-    let permissions = if keep_options.keep_permission {
-        item.metadata()
-            .permission()
-            .and_then(|p| permissions(p, owner_options))
-    } else {
-        None
-    };
-    #[cfg(unix)]
-    if let Some((p, u, g)) = permissions {
-        if same_owner {
-            match lchown(&path, u, g) {
-                Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
-                    log::warn!("failed to restore owner of {}: {}", path.display(), e)
-                }
-                r => r?,
-            }
+    if keep_options.keep_permission {
+        if let Some(p) = item.metadata().permission() {
+            restore_permissions(*same_owner, &path, p, owner_options)?;
         }
-        utils::os::unix::fs::chmod(&path, p.permissions())?;
-    };
-    #[cfg(windows)]
-    if let Some((p, u, g)) = permissions {
-        if same_owner {
-            lchown(&path, u, g)?;
-        }
-        utils::os::windows::fs::chmod(&path, p.permissions())?;
-    }
-    #[cfg(not(any(unix, windows)))]
-    if let Some(_) = permissions {
-        log::warn!("Currently permission is not supported on this platform.");
     }
     #[cfg(unix)]
     if keep_options.keep_xattr {
@@ -666,6 +640,40 @@ where
     }
     drop(path_guard);
     log::debug!("end: {}", path.display());
+    Ok(())
+}
+
+#[inline]
+fn restore_permissions(
+    same_owner: bool,
+    path: &Path,
+    p: &Permission,
+    options: &OwnerOptions,
+) -> io::Result<()> {
+    let permissions = permissions(p, options);
+    #[cfg(unix)]
+    if let Some((p, u, g)) = permissions {
+        if same_owner {
+            match lchown(path, u, g) {
+                Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
+                    log::warn!("failed to restore owner of {}: {}", path.display(), e)
+                }
+                r => r?,
+            }
+        }
+        utils::os::unix::fs::chmod(path, p.permissions())?;
+    };
+    #[cfg(windows)]
+    if let Some((p, u, g)) = permissions {
+        if same_owner {
+            lchown(path, u, g)?;
+        }
+        utils::os::windows::fs::chmod(path, p.permissions())?;
+    }
+    #[cfg(not(any(unix, windows)))]
+    if let Some(_) = permissions {
+        log::warn!("Currently permission is not supported on this platform.");
+    }
     Ok(())
 }
 
