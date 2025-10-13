@@ -1,6 +1,6 @@
 use std::{io, mem, str};
 
-/// Entry extended attribute.
+/// Represents a single extended attribute of a file entry.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct ExtendedAttribute {
     name: String,
@@ -11,6 +11,7 @@ impl ExtendedAttribute {
     /// Creates a new [`ExtendedAttribute`].
     ///
     /// # Examples
+    ///
     /// ```rust
     /// use libpna::ExtendedAttribute;
     ///
@@ -21,9 +22,10 @@ impl ExtendedAttribute {
         Self { name, value }
     }
 
-    /// Attribute name
+    /// Returns the name of the extended attribute.
     ///
     /// # Examples
+    ///
     /// ```rust
     /// use libpna::ExtendedAttribute;
     ///
@@ -35,9 +37,10 @@ impl ExtendedAttribute {
         &self.name
     }
 
-    /// Attribute value
+    /// Returns the value of the extended attribute as a byte slice.
     ///
     /// # Examples
+    ///
     /// ```rust
     /// use libpna::ExtendedAttribute;
     ///
