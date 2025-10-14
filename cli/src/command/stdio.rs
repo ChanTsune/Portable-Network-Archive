@@ -152,7 +152,7 @@ pub(crate) struct StdioCommand {
     exclude_vcs: bool,
     #[arg(long, help = "Ignore files from .gitignore (unstable)")]
     pub(crate) gitignore: bool,
-    #[arg(long, visible_aliases = ["dereference"], help = "Follow symbolic links")]
+    #[arg(short = 'L', long, visible_aliases = ["dereference"], help = "Follow symbolic links")]
     follow_links: bool,
     #[arg(
         short = 'H',
