@@ -213,8 +213,8 @@ pub(crate) struct StdioCommand {
         help = "Clamp the modification time of the entries to the specified time by --mtime"
     )]
     clamp_mtime: bool,
-    #[arg(long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
-    pub(crate) files_from: Option<String>,
+    #[arg(short = 'T', visible_short_aliases = ['I'], long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
+    files_from: Option<String>,
     #[arg(
         short = 's',
         value_name = "PATTERN",
