@@ -145,8 +145,8 @@ pub(crate) struct StdioCommand {
     )]
     include: Option<Vec<String>>,
     #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
-    pub(crate) exclude: Option<Vec<String>>,
-    #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
+    exclude: Option<Vec<String>>,
+    #[arg(short = 'X', long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
     exclude_from: Option<String>,
     #[arg(long, help = "Exclude vcs files (unstable)")]
     exclude_vcs: bool,
