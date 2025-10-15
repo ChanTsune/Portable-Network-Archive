@@ -83,8 +83,9 @@ pub(crate) struct StdioCommand {
     )]
     recursive: bool,
     #[arg(
+        short = 'n',
         long,
-        visible_alias = "no-recursion",
+        visible_aliases = ["norecurse", "no-recursion"],
         help = "Do not recursively add directories to the archives. This is the inverse option of --recursive"
     )]
     no_recursive: bool,
