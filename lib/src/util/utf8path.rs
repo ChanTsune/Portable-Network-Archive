@@ -33,6 +33,13 @@ pub(crate) fn normalize_utf8path(path: impl AsRef<Utf8Path>) -> Utf8PathBuf {
     buf
 }
 
+pub(crate) fn sanitize_utf8path(path: impl AsRef<Utf8Path>) -> Utf8PathBuf {
+    let path = path.as_ref();
+    path.components()
+        .filter(|c| matches!(c, Utf8Component::Normal(_)))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
