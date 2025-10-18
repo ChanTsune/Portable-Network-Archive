@@ -120,7 +120,7 @@ pub(crate) struct StdioCommand {
     keep_permission: bool,
     #[arg(
         long,
-        visible_alias = "preserve-xattrs",
+        visible_aliases = ["preserve-xattrs", "xattrs"],
         help = "Archiving the extended attributes of the files"
     )]
     keep_xattr: bool,
