@@ -51,7 +51,7 @@ use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
     group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
     group(ArgGroup::new("keep-dir-flag").args(["keep_dir", "no_keep_dir"])),
-    group(ArgGroup::new("action-flags").args(["create", "extract", "list", "append"])),
+    group(ArgGroup::new("action-flags").args(["create", "extract", "list", "append"]).required(true)),
     group(ArgGroup::new("ctime-flag").args(["clamp_ctime"]).requires("ctime")),
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
     group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
