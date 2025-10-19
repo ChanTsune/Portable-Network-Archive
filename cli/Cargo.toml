@@ -1,7 +1,7 @@
 [package]
 name = "portable-network-archive"
 version = "0.28.4"
-edition = "2021"
+edition = "2024"
 license = "Apache-2.0 OR MIT"
 description = "Portable-Network-Archive cli"
 repository = "https://github.com/ChanTsune/Portable-Network-Archive.git"
