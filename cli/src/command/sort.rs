@@ -1,11 +1,10 @@
 use crate::{
     cli::PasswordArgs,
     command::{
-        ask_password,
+        Command, ask_password,
         core::{collect_split_archives, run_entries},
-        Command,
     },
-    utils::{env::NamedTempFile, PathPartExt},
+    utils::{PathPartExt, env::NamedTempFile},
 };
 use clap::{Parser, ValueHint};
 use pna::{Archive, NormalEntry};

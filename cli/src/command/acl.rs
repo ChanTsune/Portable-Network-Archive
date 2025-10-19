@@ -4,23 +4,22 @@ use crate::{
         FileArgs, PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs,
     },
     command::{
-        ask_password,
+        Command, ask_password,
         core::{
-            collect_split_archives, run_entries, run_transform_entry, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid,
+            TransformStrategyKeepSolid, TransformStrategyUnSolid, collect_split_archives,
+            run_entries, run_transform_entry,
         },
-        Command,
     },
     ext::{Acls, NormalEntryExt, PermissionExt},
-    utils::{env::NamedTempFile, GlobPatterns, PathPartExt},
+    utils::{GlobPatterns, PathPartExt, env::NamedTempFile},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use nom::{
+    Parser as _,
     branch::alt,
     bytes::complete::{tag, take_while},
     character::complete::char,
     combinator::{map, opt},
-    Parser as _,
 };
 use pna::{Chunk, NormalEntry, RawChunk};
 use regex::Regex;

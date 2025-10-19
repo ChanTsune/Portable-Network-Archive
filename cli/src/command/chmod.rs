@@ -1,23 +1,22 @@
 use crate::{
     cli::{PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs},
     command::{
-        ask_password,
+        Command, ask_password,
         core::{
-            collect_split_archives, run_transform_entry, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid,
+            TransformStrategyKeepSolid, TransformStrategyUnSolid, collect_split_archives,
+            run_transform_entry,
         },
-        Command,
     },
-    utils::{env::NamedTempFile, GlobPatterns, PathPartExt},
+    utils::{GlobPatterns, PathPartExt, env::NamedTempFile},
 };
 use bitflags::bitflags;
 use clap::{Parser, ValueHint};
 use nom::{
+    Parser as _,
     branch::alt,
     character::complete::char,
     combinator::{map, opt},
     multi::{many0, many1, separated_list1},
-    Parser as _,
 };
 use pna::NormalEntry;
 use std::{ops::BitOr, path::PathBuf, str::FromStr};

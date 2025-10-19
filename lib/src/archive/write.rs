@@ -1,11 +1,11 @@
 use crate::{
-    archive::{Archive, ArchiveHeader, SolidArchive, PNA_HEADER},
+    archive::{Archive, ArchiveHeader, PNA_HEADER, SolidArchive},
     chunk::{Chunk, ChunkExt, ChunkStreamWriter, ChunkType, RawChunk},
     cipher::CipherWriter,
     compress::CompressionWriter,
     entry::{
-        get_writer, get_writer_context, Entry, EntryHeader, EntryName, EntryPart, Metadata,
-        NormalEntry, SealedEntryExt, SolidHeader, WriteCipher, WriteOption, WriteOptions,
+        Entry, EntryHeader, EntryName, EntryPart, Metadata, NormalEntry, SealedEntryExt,
+        SolidHeader, WriteCipher, WriteOption, WriteOptions, get_writer, get_writer_context,
     },
     io::TryIntoInner,
 };

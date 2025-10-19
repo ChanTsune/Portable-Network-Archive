@@ -1,4 +1,4 @@
-use crate::chunk::{crc::Crc32, ChunkType, RawChunk, MIN_CHUNK_BYTES_SIZE};
+use crate::chunk::{ChunkType, MIN_CHUNK_BYTES_SIZE, RawChunk, crc::Crc32};
 #[cfg(feature = "unstable-async")]
 use futures_io::AsyncRead;
 #[cfg(feature = "unstable-async")]

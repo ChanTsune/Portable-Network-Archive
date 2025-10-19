@@ -1,4 +1,4 @@
-use crate::utils::{setup, EmbedExt, TestResources};
+use crate::utils::{EmbedExt, TestResources, setup};
 
 /// Precondition: the source tree contains file and directory.
 /// Action: run `pna create` to build an archive, then compare by `pna experimental diff`.

@@ -19,12 +19,12 @@ pub use self::{
 };
 pub(crate) use self::{private::*, read::*, write::*};
 use crate::{
+    Duration,
     chunk::{
-        chunk_data_split, Chunk, ChunkExt, ChunkReader, ChunkType, RawChunk, MIN_CHUNK_BYTES_SIZE,
+        Chunk, ChunkExt, ChunkReader, ChunkType, MIN_CHUNK_BYTES_SIZE, RawChunk, chunk_data_split,
     },
     io::ChainReader,
     util::slice::skip_while,
-    Duration,
 };
 use std::{
     borrow::Cow,
@@ -260,7 +260,7 @@ fn read_next_normal_entry_from_stream<R: Read>(reader: &mut R) -> Option<io::Res
                     None
                 } else {
                     Some(Err(e))
-                }
+                };
             }
             Err(e) => return Some(Err(e)),
         }
