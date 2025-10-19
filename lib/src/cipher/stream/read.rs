@@ -1,6 +1,6 @@
 use cipher::{
-    typenum::{IsLess, Le, NonZero, U256},
     BlockSizeUser, KeyIvInit, StreamCipher, StreamCipherCoreWrapper,
+    typenum::{IsLess, Le, NonZero, U256},
 };
 use std::io::{self, Read};
 

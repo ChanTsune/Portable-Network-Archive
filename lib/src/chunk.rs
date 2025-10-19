@@ -121,7 +121,7 @@ impl<T> ChunkExt for T where T: Chunk {}
 /// # Examples
 ///
 /// ```rust
-/// use libpna::{prelude::*, ChunkType, RawChunk};
+/// use libpna::{ChunkType, RawChunk, prelude::*};
 ///
 /// // Create a new chunk with some data
 /// let data = [0xAA, 0xBB, 0xCC, 0xDD];
@@ -274,7 +274,7 @@ impl RawChunk {
     ///
     /// # Examples
     /// ```rust
-    /// use libpna::{prelude::*, ChunkType, RawChunk};
+    /// use libpna::{ChunkType, RawChunk, prelude::*};
     ///
     /// let data = [0xAA, 0xBB, 0xCC, 0xDD];
     /// let chunk = RawChunk::from_data(ChunkType::FDAT, data);

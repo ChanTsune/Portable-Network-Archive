@@ -4,20 +4,18 @@ use crate::{
         PasswordArgs,
     },
     command::{
-        ask_password, check_password,
+        Command, ask_password, check_password,
         core::{
-            collect_items, create_entry, entry_option, read_paths, read_paths_stdin,
-            write_split_archive, AclStrategy, CreateOptions, KeepOptions, OwnerOptions, PathFilter,
-            PathTransformers, PermissionStrategy, StoreAs, TimeFilter, TimeFilters, TimeOptions,
-            TimestampStrategy, XattrStrategy, MIN_SPLIT_PART_BYTES,
+            AclStrategy, CreateOptions, KeepOptions, MIN_SPLIT_PART_BYTES, OwnerOptions,
+            PathFilter, PathTransformers, PermissionStrategy, StoreAs, TimeFilter, TimeFilters,
+            TimeOptions, TimestampStrategy, XattrStrategy, collect_items, create_entry,
+            entry_option, read_paths, read_paths_stdin, write_split_archive,
         },
-        Command,
     },
     utils::{
-        self,
+        self, VCS_FILES,
         fmt::DurationDisplay,
         re::{bsd::SubstitutionRule, gnu::TransformRule},
-        VCS_FILES,
     },
 };
 use anyhow::ensure;

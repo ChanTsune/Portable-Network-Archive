@@ -1,7 +1,7 @@
 #[cfg(any(target_os = "linux", target_os = "android"))]
 mod platform {
     use nix::{
-        fcntl::{open, OFlag},
+        fcntl::{OFlag, open},
         ioctl_read_bad,
         sys::stat::Mode,
     };

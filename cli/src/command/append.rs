@@ -4,22 +4,20 @@ use crate::{
         PasswordArgs,
     },
     command::{
-        ask_password, check_password,
+        Command, ask_password, check_password,
         core::{
-            collect_items, create_entry, entry_option, read_paths, read_paths_stdin, AclStrategy,
-            CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
+            AclStrategy, CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
             PermissionStrategy, StoreAs, TimeFilter, TimeFilters, TimeOptions, TimestampStrategy,
-            XattrStrategy,
+            XattrStrategy, collect_items, create_entry, entry_option, read_paths, read_paths_stdin,
         },
-        Command,
     },
     utils::{
-        re::{bsd::SubstitutionRule, gnu::TransformRule},
         PathPartExt, VCS_FILES,
+        re::{bsd::SubstitutionRule, gnu::TransformRule},
     },
 };
 use clap::{ArgGroup, Parser, ValueHint};
-use pna::{prelude::*, Archive};
+use pna::{Archive, prelude::*};
 use std::{
     env, fs, io,
     path::{Path, PathBuf},

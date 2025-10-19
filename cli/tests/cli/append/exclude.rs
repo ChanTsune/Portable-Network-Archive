@@ -1,6 +1,7 @@
 use crate::utils::{
-    diff::{diff, DiffError},
-    setup, EmbedExt, TestResources,
+    EmbedExt, TestResources,
+    diff::{DiffError, diff},
+    setup,
 };
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};

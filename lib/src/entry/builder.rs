@@ -1,15 +1,15 @@
 use crate::{
-    archive::{write_file_entry, InternalArchiveDataWriter, InternalDataWriter},
-    chunk::{RawChunk, MAX_CHUNK_DATA_LENGTH},
+    Duration,
+    archive::{InternalArchiveDataWriter, InternalDataWriter, write_file_entry},
+    chunk::{MAX_CHUNK_DATA_LENGTH, RawChunk},
     cipher::CipherWriter,
     compress::CompressionWriter,
     entry::{
-        get_writer, get_writer_context, private::SealedEntryExt, DataKind, Entry, EntryHeader,
-        EntryName, EntryReference, ExtendedAttribute, Metadata, NormalEntry, Permission,
-        SolidEntry, SolidHeader, WriteCipher, WriteOption, WriteOptions,
+        DataKind, Entry, EntryHeader, EntryName, EntryReference, ExtendedAttribute, Metadata,
+        NormalEntry, Permission, SolidEntry, SolidHeader, WriteCipher, WriteOption, WriteOptions,
+        get_writer, get_writer_context, private::SealedEntryExt,
     },
     io::{FlattenWriter, TryIntoInner},
-    Duration,
 };
 
 #[cfg(feature = "unstable-async")]

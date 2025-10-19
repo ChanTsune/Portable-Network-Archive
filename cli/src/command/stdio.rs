@@ -3,23 +3,22 @@ use crate::{
         CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, HashAlgorithmArgs, PasswordArgs,
     },
     command::{
+        Command,
         append::{open_archive_then_seek_to_end, run_append_archive},
         ask_password, check_password,
         core::{
-            collect_items, collect_split_archives, entry_option, path_lock::PathLocks, read_paths,
             AclStrategy, CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
             PermissionStrategy, TimeFilter, TimeFilters, TimeOptions, TimestampStrategy,
-            XattrStrategy,
+            XattrStrategy, collect_items, collect_split_archives, entry_option,
+            path_lock::PathLocks, read_paths,
         },
-        create::{create_archive_file, CreationContext},
-        extract::{run_extract_archive_reader, OutputOption, OverwriteStrategy},
+        create::{CreationContext, create_archive_file},
+        extract::{OutputOption, OverwriteStrategy, run_extract_archive_reader},
         list::{Format, ListOptions, TimeField, TimeFormat},
-        Command,
     },
     utils::{
-        self,
+        self, GlobPatterns, VCS_FILES,
         re::{bsd::SubstitutionRule, gnu::TransformRule},
-        GlobPatterns, VCS_FILES,
     },
 };
 use clap::{ArgGroup, Args, ValueHint};
@@ -398,10 +397,14 @@ impl Command for StdioCommand {
 
 fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     if let Some(format) = &args.format {
-        log::debug!("Warning: Option '--format {format}' is accepted for compatibility but will be ignored.");
+        log::debug!(
+            "Warning: Option '--format {format}' is accepted for compatibility but will be ignored."
+        );
     }
     if args.read_full_blocks {
-        log::debug!("Warning: Option '--read-full-blocks' is accepted for compatibility but will be ignored.");
+        log::debug!(
+            "Warning: Option '--read-full-blocks' is accepted for compatibility but will be ignored."
+        );
     }
     if args.ignore_zeros {
         log::debug!(

@@ -25,7 +25,7 @@ impl MetadataTimeExt for Metadata {
     ///
     /// This is the same as [Metadata::created] + [SystemTime::UNIX_EPOCH].
     /// ```
-    /// use pna::{prelude::*, Metadata, Duration};
+    /// use pna::{Duration, Metadata, prelude::*};
     /// use std::time::UNIX_EPOCH;
     ///
     /// let metadata = Metadata::new().with_created(Some(Duration::seconds(1000)));
@@ -44,7 +44,7 @@ impl MetadataTimeExt for Metadata {
     ///
     /// This is the same as [Metadata::modified] + [SystemTime::UNIX_EPOCH].
     /// ```
-    /// use pna::{prelude::*, Metadata, Duration};
+    /// use pna::{Duration, Metadata, prelude::*};
     /// use std::time::UNIX_EPOCH;
     ///
     /// let metadata = Metadata::new().with_modified(Some(Duration::seconds(1000)));
@@ -63,7 +63,7 @@ impl MetadataTimeExt for Metadata {
     ///
     /// This is the same as [Metadata::accessed] + [SystemTime::UNIX_EPOCH].
     /// ```
-    /// use pna::{prelude::*, Metadata, Duration};
+    /// use pna::{Duration, Metadata, prelude::*};
     /// use std::time::UNIX_EPOCH;
     ///
     /// let metadata = Metadata::new().with_accessed(Some(Duration::seconds(1000)));
@@ -82,7 +82,7 @@ impl MetadataTimeExt for Metadata {
     ///
     /// # Examples
     /// ```
-    /// use pna::{prelude::*, Metadata};
+    /// use pna::{Metadata, prelude::*};
     /// use std::time::{Duration, SystemTime, UNIX_EPOCH};
     ///
     /// # fn main() {
@@ -107,7 +107,7 @@ impl MetadataTimeExt for Metadata {
     ///
     /// # Examples
     /// ```
-    /// use pna::{prelude::*, Metadata};
+    /// use pna::{Metadata, prelude::*};
     /// use std::time::{Duration, SystemTime, UNIX_EPOCH};
     ///
     /// # fn main() {
@@ -132,7 +132,7 @@ impl MetadataTimeExt for Metadata {
     ///
     /// # Examples
     /// ```
-    /// use pna::{prelude::*, Metadata};
+    /// use pna::{Metadata, prelude::*};
     /// use std::time::{Duration, SystemTime, UNIX_EPOCH};
     ///
     /// # fn main() {
@@ -171,7 +171,7 @@ impl MetadataFsExt for Metadata {
     /// # Examples
     ///
     /// ```no_run
-    /// use pna::{prelude::*, Metadata};
+    /// use pna::{Metadata, prelude::*};
     /// use std::fs;
     /// # use std::error::Error;
     ///
@@ -219,7 +219,7 @@ impl MetadataPathExt for Metadata {
     /// # Examples
     ///
     /// ```no_run
-    /// use pna::{prelude::*, Metadata};
+    /// use pna::{Metadata, prelude::*};
     ///
     /// Metadata::from_path("path/to/file");
     /// ```
@@ -240,7 +240,7 @@ impl MetadataPathExt for Metadata {
     /// # Examples
     ///
     /// ```no_run
-    /// use pna::{prelude::*, Metadata};
+    /// use pna::{Metadata, prelude::*};
     ///
     /// Metadata::from_symlink_path("path/to/file");
     /// ```

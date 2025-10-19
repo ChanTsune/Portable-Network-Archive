@@ -56,8 +56,8 @@ impl EntryFsExt for NormalEntry {
     /// # Examples
     ///
     /// ```no_run
-    /// use pna::prelude::*;
     /// use pna::NormalEntry;
+    /// use pna::prelude::*;
     ///
     /// # fn main() -> std::io::Result<()> {
     /// NormalEntry::from_path("path/to/file")?;
@@ -124,8 +124,8 @@ impl EntryFsExt for NormalEntry {
     /// # Examples
     ///
     /// ```no_run
-    /// use pna::prelude::*;
     /// use pna::NormalEntry;
+    /// use pna::prelude::*;
     ///
     /// # fn main() -> std::io::Result<()> {
     /// NormalEntry::from_path_symlink("path/to/file")?;

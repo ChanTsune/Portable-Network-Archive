@@ -1,4 +1,4 @@
-use crate::utils::{archive::for_each_entry, setup, EmbedExt, TestResources};
+use crate::utils::{EmbedExt, TestResources, archive::for_each_entry, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};

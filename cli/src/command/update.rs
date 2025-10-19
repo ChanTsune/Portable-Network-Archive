@@ -8,20 +8,19 @@ use crate::{
         PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs,
     },
     command::{
-        ask_password, check_password,
+        Command, ask_password, check_password,
         core::{
+            AclStrategy, CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
+            PermissionStrategy, TimeFilter, TimeFilters, TimeOptions, TimestampStrategy,
+            TransformStrategy, TransformStrategyKeepSolid, TransformStrategyUnSolid, XattrStrategy,
             collect_items, collect_split_archives, create_entry, entry_option, read_paths,
-            read_paths_stdin, AclStrategy, CreateOptions, KeepOptions, OwnerOptions, PathFilter,
-            PathTransformers, PermissionStrategy, TimeFilter, TimeFilters, TimeOptions,
-            TimestampStrategy, TransformStrategy, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid, XattrStrategy,
+            read_paths_stdin,
         },
-        Command,
     },
     utils::{
+        PathPartExt, VCS_FILES,
         env::NamedTempFile,
         re::{bsd::SubstitutionRule, gnu::TransformRule},
-        PathPartExt, VCS_FILES,
     },
 };
 use clap::{ArgGroup, Parser, ValueHint};

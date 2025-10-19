@@ -4,25 +4,24 @@ use crate::{
     chunk,
     cli::{FileArgsCompat, PasswordArgs},
     command::{
-        ask_password,
-        core::{collect_split_archives, read_paths, run_read_entries, PathFilter},
-        Command,
+        Command, ask_password,
+        core::{PathFilter, collect_split_archives, read_paths, run_read_entries},
     },
     ext::*,
     utils::{GlobPatterns, VCS_FILES},
 };
 use base64::Engine;
 use chrono::{
-    format::{DelayedFormat, StrftimeItems},
     DateTime, Local,
+    format::{DelayedFormat, StrftimeItems},
 };
 use clap::{
-    builder::styling::{AnsiColor, Color as Colour, Style},
     ArgGroup, Parser, ValueEnum, ValueHint,
+    builder::styling::{AnsiColor, Color as Colour, Style},
 };
 use pna::{
-    prelude::*, Compression, DataKind, Encryption, ExtendedAttribute, NormalEntry, RawChunk,
-    ReadEntry, ReadOptions, SolidHeader,
+    Compression, DataKind, Encryption, ExtendedAttribute, NormalEntry, RawChunk, ReadEntry,
+    ReadOptions, SolidHeader, prelude::*,
 };
 use rayon::prelude::*;
 use serde::Serialize;
@@ -37,9 +36,9 @@ use std::{
 use tabled::{
     builder::Builder as TableBuilder,
     settings::{
+        Alignment, Color, Modify, Padding, PaddingColor, Style as TableStyle,
         object::{Rows, Segment},
         themes::Colorization,
-        Alignment, Color, Modify, Padding, PaddingColor, Style as TableStyle,
     },
 };
 
@@ -383,7 +382,9 @@ pub(crate) fn run_list_archive<'a>(
                 }
             }
             ReadEntry::Solid(_) => {
-                log::warn!("This archive contain solid mode entry. if you need to show it use --solid option.");
+                log::warn!(
+                    "This archive contain solid mode entry. if you need to show it use --solid option."
+                );
             }
             ReadEntry::Normal(item) => entries.push((&item, password, None).try_into()?),
         }
@@ -415,7 +416,9 @@ pub(crate) fn run_list_archive_mem<'a>(
                 }
             }
             ReadEntry::Solid(_) => {
-                log::warn!("This archive contain solid mode entry. if you need to show it use --solid option.");
+                log::warn!(
+                    "This archive contain solid mode entry. if you need to show it use --solid option."
+                );
             }
             ReadEntry::Normal(item) => entries.push((&item, password, None).try_into()?),
         }
@@ -786,11 +789,7 @@ const fn kind_char(kind: &EntryType) -> char {
 fn permission_string(kind: &EntryType, permission: u16, has_xattr: bool, has_acl: bool) -> String {
     #[inline(always)]
     const fn paint(permission: u16, c: char, bit: u16) -> char {
-        if permission & bit != 0 {
-            c
-        } else {
-            '-'
-        }
+        if permission & bit != 0 { c } else { '-' }
     }
 
     format!(
