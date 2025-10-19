@@ -42,6 +42,7 @@ use std::{env, fs, io, path::PathBuf, sync::Arc, time::SystemTime};
             .args(["files_from", "exclude_from"])
             .multiple(true)
     ),
+    group(ArgGroup::new("unstable-unlink-first").args(["unlink_first"]).requires("unstable")),
     group(ArgGroup::new("null-requires").arg("null").requires("from-input")),
     group(ArgGroup::new("unstable-gitignore").args(["gitignore"]).requires("unstable")),
     group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
@@ -118,6 +119,14 @@ pub(crate) struct StdioCommand {
     no_overwrite: bool,
     #[arg(long, help = "Skip extracting files if a newer version already exists")]
     keep_newer_files: bool,
+    #[arg(
+        short = 'U',
+        long = "unlink-first",
+        visible_alias = "unlink",
+        requires = "extract",
+        help = "Unlink files before creating them; also removes intervening directory symlinks (extract mode only)"
+    )]
+    unlink_first: bool,
     #[arg(
         short = 'k',
         long,
@@ -590,6 +599,7 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         same_owner: !args.no_same_owner,
         path_transformers: PathTransformers::new(args.substitutions, args.transforms),
         path_locks: Arc::new(PathLocks::default()),
+        unlink_first: args.unlink_first,
     };
     let mut files = args.files;
     if let Some(path) = &args.files_from {

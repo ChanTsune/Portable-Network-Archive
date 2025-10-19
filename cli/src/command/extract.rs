@@ -289,6 +289,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         same_owner: !args.no_same_owner,
         path_transformers: PathTransformers::new(args.substitutions, args.transforms),
         path_locks: Arc::new(PathLocks::default()),
+        unlink_first: false,
     };
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
@@ -371,6 +372,7 @@ pub(crate) struct OutputOption<'a> {
     pub(crate) same_owner: bool,
     pub(crate) path_transformers: Option<PathTransformers>,
     pub(crate) path_locks: Arc<PathLocks>,
+    pub(crate) unlink_first: bool,
 }
 
 pub(crate) fn run_extract_archive_reader<'a, 'p, Provider>(
@@ -493,6 +495,7 @@ pub(crate) fn extract_entry<'a, T>(
         same_owner,
         path_transformers,
         path_locks,
+        unlink_first,
     }: &OutputOption<'a>,
 ) -> io::Result<()>
 where
@@ -533,19 +536,20 @@ where
         path
     };
 
+    let entry_kind = item.header().data_kind();
+
     let path_lock = path_locks.get(path.as_ref());
     let path_guard = path_lock.lock().expect("path lock mutex poisoned");
 
     log::debug!("start: {}", path.display());
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    // NOTE: Performs file existence checks by attempting to retrieve metadata,
-    //       following the behavior of `std::path::Path::exists`.
-    let remove_existing = if let Ok(metadata) = fs::symlink_metadata(&path) {
+    let metadata = match fs::symlink_metadata(&path) {
+        Ok(meta) => Some(meta),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(err) => return Err(err),
+    };
+    if let Some(existing) = metadata.as_ref() {
         match overwrite_strategy {
-            OverwriteStrategy::Always => true,
-            OverwriteStrategy::Never => {
+            OverwriteStrategy::Never if !*unlink_first => {
                 return Err(io::Error::new(
                     io::ErrorKind::AlreadyExists,
                     format!("{} already exists", path.display()),
@@ -559,20 +563,39 @@ where
                 return Ok(());
             }
             OverwriteStrategy::KeepNewer => {
-                if is_existing_newer(&metadata, &item) {
+                if is_existing_newer(existing, &item) {
                     log::debug!(
                         "Skipped extracting {}: newer one already exists (--keep-newer)",
                         path.display()
                     );
                     return Ok(());
                 }
-                true
             }
+            OverwriteStrategy::Always | OverwriteStrategy::Never => (),
         }
-    } else {
-        false
-    };
-    match item.header().data_kind() {
+    }
+
+    let (had_existing, existing_is_dir) = metadata
+        .as_ref()
+        .map(|meta| (true, meta.is_dir()))
+        .unwrap_or((false, false));
+    let unlink_existing =
+        *unlink_first && had_existing && (entry_kind != DataKind::Directory || !existing_is_dir);
+    let should_overwrite_existing = matches!(
+        overwrite_strategy,
+        OverwriteStrategy::Always | OverwriteStrategy::KeepNewer
+    ) && had_existing;
+    if unlink_existing {
+        utils::fs::remove_path_all(&path)?;
+    }
+
+    if let Some(parent) = path.parent() {
+        ensure_directory_components(parent, *unlink_first)?;
+    }
+
+    let remove_existing = should_overwrite_existing && !unlink_existing;
+
+    match entry_kind {
         DataKind::File => {
             let mut file = utils::fs::file_create(&path, remove_existing)?;
             if let TimestampStrategy::Always = keep_options.timestamp_strategy {
@@ -593,7 +616,7 @@ where
             io::copy(&mut reader, &mut file)?;
         }
         DataKind::Directory => {
-            fs::create_dir_all(&path)?;
+            ensure_directory_components(&path, *unlink_first)?;
         }
         DataKind::SymbolicLink => {
             let reader = item.reader(ReadOptions::with_password(password))?;
@@ -762,6 +785,47 @@ where
     } else {
         false
     }
+}
+
+fn ensure_directory_components(path: &Path, unlink_first: bool) -> io::Result<()> {
+    if path.as_os_str().is_empty() {
+        return Ok(());
+    }
+    if !unlink_first {
+        return fs::create_dir_all(path);
+    }
+    let mut current = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => continue,
+            Component::ParentDir => {
+                current.pop();
+                continue;
+            }
+            Component::RootDir | Component::Prefix(_) | Component::Normal(_) => {
+                current.push(component.as_os_str());
+            }
+        }
+        if current.as_os_str().is_empty() {
+            continue;
+        }
+        match fs::symlink_metadata(&current) {
+            Ok(meta) => {
+                if meta.is_dir() {
+                    continue;
+                }
+                utils::fs::remove_path_all(&current)?;
+            }
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+            Err(err) => return Err(err),
+        }
+        if let Err(err) = fs::create_dir(&current) {
+            if err.kind() != io::ErrorKind::AlreadyExists {
+                return Err(err);
+            }
+        }
+    }
+    Ok(())
 }
 
 fn permissions<'p>(
