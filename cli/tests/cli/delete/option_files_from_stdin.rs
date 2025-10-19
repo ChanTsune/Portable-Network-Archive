@@ -1,5 +1,5 @@
 #![cfg(not(target_family = "wasm"))]
-use crate::utils::{archive, setup, EmbedExt, TestResources};
+use crate::utils::{EmbedExt, TestResources, archive, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};

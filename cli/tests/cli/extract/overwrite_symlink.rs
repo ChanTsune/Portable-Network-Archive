@@ -1,6 +1,6 @@
 use crate::utils::setup;
 use clap::Parser;
-use pna::{fs as pna_fs, Archive, EntryBuilder, WriteOptions};
+use pna::{Archive, EntryBuilder, WriteOptions, fs as pna_fs};
 use portable_network_archive::{cli, command::Command};
 use std::{
     fs,
@@ -75,10 +75,12 @@ fn overwrite_symlink_does_not_remove_target_directory() {
     assert!(outside.join("marker.txt").exists());
 
     // Verify the extracted symlink now points to the expected target.
-    assert!(fs::symlink_metadata(dist.join("link"))
-        .unwrap()
-        .file_type()
-        .is_symlink());
+    assert!(
+        fs::symlink_metadata(dist.join("link"))
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
     assert_eq!(
         fs::read_to_string(dist.join("new_target.txt")).unwrap(),
         "updated"

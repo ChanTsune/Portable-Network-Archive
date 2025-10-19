@@ -1,4 +1,4 @@
-use crate::utils::{archive, setup, EmbedExt, TestResources};
+use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
 use pna::prelude::*;
 use portable_network_archive::{cli, command::Command};
@@ -53,9 +53,11 @@ fn delete_with_keep_solid() {
         pna::Archive::open("delete_with_keep_solid/delete_with_keep_solid.pna").unwrap();
     let entries = archive.entries().collect::<Result<Vec<_>, _>>().unwrap();
 
-    assert!(entries
-        .iter()
-        .all(|entry| matches!(entry, pna::ReadEntry::Solid(_))));
+    assert!(
+        entries
+            .iter()
+            .all(|entry| matches!(entry, pna::ReadEntry::Solid(_)))
+    );
     assert_eq!(entries.len(), 1);
 
     for required in [

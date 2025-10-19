@@ -5,10 +5,9 @@ use crate::{
 use field_offset::offset_of;
 use std::{io, mem, path::Path, ptr::null_mut};
 use windows::Win32::Security::{
-    AddAccessAllowedAceEx, AddAccessDeniedAceEx, GetAce, InitializeAcl, ACCESS_ALLOWED_ACE,
-    ACCESS_DENIED_ACE, ACE_FLAGS, ACE_HEADER, ACL as Win32ACL, ACL_REVISION_DS,
-    CONTAINER_INHERIT_ACE, INHERITED_ACE, INHERIT_ONLY_ACE, NO_PROPAGATE_INHERIT_ACE,
-    OBJECT_INHERIT_ACE, PSID,
+    ACCESS_ALLOWED_ACE, ACCESS_DENIED_ACE, ACE_FLAGS, ACE_HEADER, ACL as Win32ACL, ACL_REVISION_DS,
+    AddAccessAllowedAceEx, AddAccessDeniedAceEx, CONTAINER_INHERIT_ACE, GetAce, INHERIT_ONLY_ACE,
+    INHERITED_ACE, InitializeAcl, NO_PROPAGATE_INHERIT_ACE, OBJECT_INHERIT_ACE, PSID,
 };
 use windows::Win32::Storage::FileSystem::{
     DELETE, FILE_ACCESS_RIGHTS, FILE_APPEND_DATA, FILE_DELETE_CHILD, FILE_EXECUTE,
@@ -278,7 +277,7 @@ impl Into<chunk::Ace> for ACLEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chunk::{acl_convert_current_platform, Ace, Acl};
+    use crate::chunk::{Ace, Acl, acl_convert_current_platform};
 
     struct AutoRemoveFile<'s> {
         path: &'s str,

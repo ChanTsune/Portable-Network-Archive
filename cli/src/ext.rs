@@ -1,7 +1,7 @@
 mod read_buf;
 
 use crate::chunk::{self, Ace, AcePlatform, AceWithPlatform};
-use pna::{prelude::*, NormalEntry, RawChunk};
+use pna::{NormalEntry, RawChunk, prelude::*};
 pub(crate) use read_buf::*;
 use std::{
     collections::HashMap,

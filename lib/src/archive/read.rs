@@ -2,7 +2,7 @@ mod slice;
 
 use crate::{
     archive::{Archive, ArchiveHeader, PNA_HEADER},
-    chunk::{read_chunk, Chunk, ChunkReader, ChunkType, RawChunk},
+    chunk::{Chunk, ChunkReader, ChunkType, RawChunk, read_chunk},
     entry::{Entry, NormalEntry, RawEntry, ReadEntry},
 };
 #[cfg(feature = "unstable-async")]

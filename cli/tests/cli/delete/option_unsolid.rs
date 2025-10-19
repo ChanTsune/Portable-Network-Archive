@@ -1,4 +1,4 @@
-use crate::utils::{archive, setup, EmbedExt, TestResources};
+use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
 use pna::prelude::*;
 use portable_network_archive::{cli, command::Command};
@@ -49,9 +49,11 @@ fn delete_with_unsolid() {
     let mut archive = pna::Archive::open("delete_with_unsolid/delete_with_unsolid.pna").unwrap();
     let entries = archive.entries().collect::<Result<Vec<_>, _>>().unwrap();
 
-    assert!(entries
-        .iter()
-        .all(|entry| matches!(entry, pna::ReadEntry::Normal(_))));
+    assert!(
+        entries
+            .iter()
+            .all(|entry| matches!(entry, pna::ReadEntry::Normal(_)))
+    );
     assert_eq!(entries.len(), 8);
 
     for required in [

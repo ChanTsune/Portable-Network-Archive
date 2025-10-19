@@ -1,4 +1,4 @@
-use crate::utils::{diff::diff, setup, EmbedExt, LibSourceCode};
+use crate::utils::{EmbedExt, LibSourceCode, diff::diff, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use itertools::Itertools;
 

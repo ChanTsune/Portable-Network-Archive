@@ -1,5 +1,5 @@
 #![cfg(not(target_family = "wasm"))]
-use crate::utils::{diff::diff, setup, EmbedExt, TestResources};
+use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 
 #[test]

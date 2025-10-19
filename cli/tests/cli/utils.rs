@@ -33,8 +33,8 @@ impl<T: rust_embed::Embed> EmbedExt for T {
     }
 }
 
-pub fn item_iter<T: rust_embed::Embed>(
-) -> impl Iterator<Item = (Cow<'static, str>, rust_embed::EmbeddedFile)> {
+pub fn item_iter<T: rust_embed::Embed>()
+-> impl Iterator<Item = (Cow<'static, str>, rust_embed::EmbeddedFile)> {
     T::iter().flat_map(|i| T::get(&i).map(|embedded| (i, embedded)))
 }
 

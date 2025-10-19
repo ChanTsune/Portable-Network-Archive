@@ -6,7 +6,7 @@ use crate::command::{
     extract::ExtractCommand, list::ListCommand, split::SplitCommand, strip::StripCommand,
     xattr::XattrCommand,
 };
-use clap::{value_parser, ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
+use clap::{ArgGroup, Parser, Subcommand, ValueEnum, ValueHint, value_parser};
 use log::{Level, LevelFilter};
 use pna::HashAlgorithm;
 use std::{io, path::PathBuf};

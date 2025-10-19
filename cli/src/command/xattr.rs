@@ -4,17 +4,16 @@ use crate::{
         SolidEntriesTransformStrategyArgs,
     },
     command::{
-        ask_password,
+        Command, ask_password,
         core::{
-            collect_split_archives, run_entries, run_transform_entry, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid,
+            TransformStrategyKeepSolid, TransformStrategyUnSolid, collect_split_archives,
+            run_entries, run_transform_entry,
         },
-        Command,
     },
-    utils::{env::NamedTempFile, fmt::hex, GlobPatterns, PathPartExt},
+    utils::{GlobPatterns, PathPartExt, env::NamedTempFile, fmt::hex},
 };
 use base64::Engine;
-use bstr::{io::BufReadExt, ByteSlice};
+use bstr::{ByteSlice, io::BufReadExt};
 use clap::{ArgGroup, Parser, ValueEnum, ValueHint};
 use indexmap::IndexMap;
 use pna::NormalEntry;

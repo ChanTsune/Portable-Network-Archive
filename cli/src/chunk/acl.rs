@@ -5,7 +5,7 @@ use std::{
     collections::HashSet,
     error::Error,
     fmt::{self, Display, Formatter},
-    str::{from_utf8, FromStr, Utf8Error},
+    str::{FromStr, Utf8Error, from_utf8},
 };
 
 /// [ChunkType] File Access Control Entry

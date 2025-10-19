@@ -136,7 +136,7 @@ pub struct SolidArchive<T: Write> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{entry::*, Duration};
+    use crate::{Duration, entry::*};
     use std::io::{self, Cursor};
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;

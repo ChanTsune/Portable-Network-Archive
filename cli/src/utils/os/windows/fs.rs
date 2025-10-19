@@ -4,10 +4,10 @@ use super::security::{SecurityDescriptor, Sid};
 use crate::utils::str::encode_wide;
 use std::io;
 use std::path::Path;
-use windows::core::PCWSTR;
 use windows::Win32::Storage::FileSystem::{
-    MoveFileExW, MOVEFILE_COPY_ALLOWED, MOVEFILE_REPLACE_EXISTING,
+    MOVEFILE_COPY_ALLOWED, MOVEFILE_REPLACE_EXISTING, MoveFileExW,
 };
+use windows::core::PCWSTR;
 
 #[inline]
 pub(crate) fn move_file(src: &std::ffi::OsStr, dist: &std::ffi::OsStr) -> io::Result<()> {

@@ -5,24 +5,22 @@ use crate::utils::fs::lchown;
 use crate::{
     cli::{FileArgsCompat, PasswordArgs},
     command::{
-        ask_password,
+        Command, ask_password,
         core::{
-            collect_split_archives, path_lock::PathLocks, read_paths, run_process_archive,
             AclStrategy, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
-            PermissionStrategy, TimestampStrategy, XattrStrategy,
+            PermissionStrategy, TimestampStrategy, XattrStrategy, collect_split_archives,
+            path_lock::PathLocks, read_paths, run_process_archive,
         },
-        Command,
     },
     utils::{
-        self,
+        self, GlobPatterns, VCS_FILES,
         fmt::DurationDisplay,
         fs::{Group, User},
         re::{bsd::SubstitutionRule, gnu::TransformRule},
-        GlobPatterns, VCS_FILES,
     },
 };
 use clap::{ArgGroup, Parser, ValueHint};
-use pna::{prelude::*, DataKind, EntryReference, NormalEntry, Permission, ReadOptions};
+use pna::{DataKind, EntryReference, NormalEntry, Permission, ReadOptions, prelude::*};
 use std::io::Read;
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::FileTimesExt;
@@ -592,7 +590,9 @@ where
             };
             let original = EntryReference::from_lossy(original);
             if !allow_unsafe_links && is_unsafe_link(&original) {
-                log::warn!("Skipped extracting a symbolic link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`.");
+                log::warn!(
+                    "Skipped extracting a symbolic link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
+                );
                 return Ok(());
             }
             if remove_existing {
@@ -610,13 +610,18 @@ where
             };
             let original = EntryReference::from_lossy(original);
             if !allow_unsafe_links && is_unsafe_link(&original) {
-                log::warn!("Skipped extracting a hard link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`.");
+                log::warn!(
+                    "Skipped extracting a hard link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
+                );
                 return Ok(());
             }
             let mut original_path = Cow::from(original.as_path());
             if let Some(strip_count) = *strip_components {
                 if original_path.components().count() <= strip_count {
-                    log::warn!("Skipped extracting a hard link that pointed at a file which was skipped.: {}", original_path.display());
+                    log::warn!(
+                        "Skipped extracting a hard link that pointed at a file which was skipped.: {}",
+                        original_path.display()
+                    );
                     return Ok(());
                 }
                 original_path = Cow::from(PathBuf::from_iter(
@@ -666,7 +671,7 @@ where
             windows
         ))]
         if let AclStrategy::Always = keep_options.acl_strategy {
-            use crate::chunk::{acl_convert_current_platform, AcePlatform, Acl};
+            use crate::chunk::{AcePlatform, Acl, acl_convert_current_platform};
             use crate::ext::*;
             use itertools::Itertools;
 

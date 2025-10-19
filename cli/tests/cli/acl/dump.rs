@@ -1,4 +1,4 @@
-use crate::utils::{setup, EmbedExt, TestResources};
+use crate::utils::{EmbedExt, TestResources, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 
 #[test]
