@@ -15,6 +15,11 @@ use std::{io, path::PathBuf};
 pub(crate) struct ConcatCommand {
     #[arg(long, help = "Overwrite file")]
     overwrite: bool,
+    #[arg(
+        long,
+        help = "Do not overwrite files. This is the inverse option of --overwrite"
+    )]
+    no_overwrite: bool,
     #[arg(value_hint = ValueHint::FilePath)]
     archives: Vec<PathBuf>,
     #[arg(short, long, value_hint = ValueHint::FilePath)]

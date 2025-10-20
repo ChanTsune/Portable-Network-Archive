@@ -51,7 +51,10 @@ use std::{
     group(ArgGroup::new("owner-flag").args(["same_owner", "no_same_owner"])),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
-    group(ArgGroup::new("overwrite-flag").args(["overwrite", "keep_newer_files", "keep_old_files"])),
+    group(
+        ArgGroup::new("overwrite-flag")
+            .args(["overwrite", "no_overwrite", "keep_newer_files", "keep_old_files"])
+    ),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
@@ -59,6 +62,11 @@ use std::{
 pub(crate) struct ExtractCommand {
     #[arg(long, help = "Overwrite file")]
     overwrite: bool,
+    #[arg(
+        long,
+        help = "Do not overwrite files. This is the inverse option of --overwrite"
+    )]
+    no_overwrite: bool,
     #[arg(long, help = "Skip extracting files if a newer version already exists")]
     keep_newer_files: bool,
     #[arg(long, help = "Skip extracting files if they already exist")]

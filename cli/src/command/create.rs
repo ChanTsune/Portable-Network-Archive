@@ -62,6 +62,7 @@ use std::{
     group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
     group(ArgGroup::new("unstable-follow_command_links").args(["follow_command_links"]).requires("unstable")),
     group(ArgGroup::new("unstable-one-file-system").args(["one_file_system"]).requires("unstable")),
+    group(ArgGroup::new("overwrite-flag").args(["overwrite", "no_overwrite"])),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
@@ -87,7 +88,12 @@ pub(crate) struct CreateCommand {
     )]
     no_recursive: bool,
     #[arg(long, help = "Overwrite file")]
-    pub(crate) overwrite: bool,
+    overwrite: bool,
+    #[arg(
+        long,
+        help = "Do not overwrite files. This is the inverse option of --overwrite"
+    )]
+    no_overwrite: bool,
     #[arg(long, help = "Archiving the directories")]
     keep_dir: bool,
     #[arg(

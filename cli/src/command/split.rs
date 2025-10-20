@@ -12,7 +12,10 @@ use pna::Archive;
 use std::{fs, io, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-#[command(group(ArgGroup::new("archive_arg").args(["file", "archive"]).required(true)))]
+#[command(
+    group(ArgGroup::new("archive_arg").args(["file", "archive"]).required(true)),
+    group(ArgGroup::new("overwrite-flag").args(["overwrite", "no_overwrite"]))
+)]
 pub(crate) struct SplitCommand {
     #[arg(short = 'f', long = "file", value_hint = ValueHint::FilePath)]
     pub(crate) file: Option<PathBuf>,
@@ -21,7 +24,12 @@ pub(crate) struct SplitCommand {
     #[arg(long, value_hint = ValueHint::DirPath)]
     pub(crate) out_dir: Option<PathBuf>,
     #[arg(long, help = "Overwrite file")]
-    pub(crate) overwrite: bool,
+    overwrite: bool,
+    #[arg(
+        long,
+        help = "Do not overwrite files. This is the inverse option of --overwrite"
+    )]
+    no_overwrite: bool,
     #[arg(
         long,
         value_name = "size",
