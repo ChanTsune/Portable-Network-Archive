@@ -126,7 +126,7 @@ pub(crate) struct StdioCommand {
     keep_xattr: bool,
     #[arg(
         long,
-        visible_alias = "preserve-acls",
+        visible_aliases = ["preserve-acls", "acls"],
         help = "Archiving the acl of the files (unstable)"
     )]
     keep_acl: bool,
