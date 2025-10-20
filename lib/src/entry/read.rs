@@ -1,8 +1,8 @@
 use crate::{
+    CipherMode, Compression, Encryption,
     cipher::{Ctr128BEReader, DecryptCbcAes256Reader, DecryptCbcCamellia256Reader, DecryptReader},
     compress::DecompressReader,
     hash::derive_password_hash,
-    CipherMode, Compression, Encryption,
 };
 use aes::Aes256;
 use camellia::Camellia256;

@@ -1,17 +1,16 @@
 use crate::{
     cli::{PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs},
     command::{
-        ask_password,
+        Command, ask_password,
         core::{
-            collect_split_archives, run_transform_entry, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid,
+            TransformStrategyKeepSolid, TransformStrategyUnSolid, collect_split_archives,
+            run_transform_entry,
         },
-        Command,
     },
     utils::{
+        GlobPatterns, PathPartExt,
         env::NamedTempFile,
         fs::{Group, User},
-        GlobPatterns, PathPartExt,
     },
 };
 use clap::{ArgGroup, Parser, ValueHint};

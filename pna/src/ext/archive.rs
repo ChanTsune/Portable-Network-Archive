@@ -57,8 +57,8 @@ impl ArchiveFsExt for Archive<fs::File> {
     /// # Examples
     /// ```no_run
     /// # use std::io;
-    /// use pna::prelude::*;
     /// use pna::Archive;
+    /// use pna::prelude::*;
     ///
     /// # fn main() -> io::Result<()> {
     /// let mut archive = Archive::create("archive.pna")?;
@@ -86,8 +86,8 @@ impl ArchiveFsExt for Archive<fs::File> {
     /// # Examples
     /// ```no_run
     /// # use std::io;
-    /// use pna::prelude::*;
     /// use pna::Archive;
+    /// use pna::prelude::*;
     ///
     /// # fn main() -> io::Result<()> {
     /// let mut archive = Archive::open("archive.pna")?;
@@ -113,8 +113,8 @@ impl ArchiveFsExt for Archive<fs::File> {
     /// # Examples
     /// ```no_run
     /// # use std::io;
-    /// use pna::prelude::*;
     /// use pna::Archive;
+    /// use pna::prelude::*;
     ///
     /// # fn main() -> io::Result<()> {
     /// let mut archive = Archive::open_for_append("archive.pna")?;

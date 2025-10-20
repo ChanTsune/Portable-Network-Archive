@@ -4,7 +4,7 @@ use crate::command::core::run_entries;
 use crate::command::core::run_process_archive as run_entries;
 use crate::{
     cli::{FileArgs, PasswordArgs},
-    command::{ask_password, core::collect_split_archives, Command},
+    command::{Command, ask_password, core::collect_split_archives},
 };
 
 use clap::Parser;

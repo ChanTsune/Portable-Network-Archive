@@ -4,19 +4,18 @@ pub(crate) mod time_filter;
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
     utils::{
-        self,
+        self, BsdGlobPatterns, PathPartExt,
         fs::HardlinkResolver,
         re::{
             bsd::{SubstitutionRule, SubstitutionRules},
             gnu::{TransformRule, TransformRules},
         },
-        BsdGlobPatterns, PathPartExt,
     },
 };
 use path_slash::*;
 use pna::{
-    prelude::*, Archive, EntryBuilder, EntryName, EntryPart, EntryReference, NormalEntry,
-    ReadEntry, SolidEntryBuilder, WriteOptions, MIN_CHUNK_BYTES_SIZE, PNA_HEADER,
+    Archive, EntryBuilder, EntryName, EntryPart, EntryReference, MIN_CHUNK_BYTES_SIZE, NormalEntry,
+    PNA_HEADER, ReadEntry, SolidEntryBuilder, WriteOptions, prelude::*,
 };
 use std::{
     borrow::Cow,
@@ -642,10 +641,14 @@ pub(crate) fn split_to_parts(
                 parts.push(write_part);
                 break;
             }
-            Err(_) => return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!("A chunk was detected that could not be divided into chunks smaller than the given size {max}")
-            ))
+            Err(_) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!(
+                        "A chunk was detected that could not be divided into chunks smaller than the given size {max}"
+                    ),
+                ));
+            }
         }
     }
     Ok(parts)

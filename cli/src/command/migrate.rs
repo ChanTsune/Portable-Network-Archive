@@ -1,18 +1,17 @@
 use crate::{
     cli::{PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs},
     command::{
-        ask_password,
+        Command, ask_password,
         core::{
-            collect_split_archives, run_transform_entry, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid,
+            TransformStrategyKeepSolid, TransformStrategyUnSolid, collect_split_archives,
+            run_transform_entry,
         },
-        Command,
     },
     ext::*,
     utils::env::NamedTempFile,
 };
 use clap::{Parser, ValueHint};
-use pna::{prelude::*, NormalEntry, RawChunk};
+use pna::{NormalEntry, RawChunk, prelude::*};
 use std::{io, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]

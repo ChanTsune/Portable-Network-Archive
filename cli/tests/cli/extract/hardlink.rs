@@ -93,11 +93,13 @@ fn hardlink_extract() {
         fs::read_to_string("hardlink_extract/dist/dir/linked1.txt",).unwrap()
     );
     #[cfg(not(target_family = "wasm"))]
-    assert!(same_file::is_same_file(
-        "hardlink_extract/dist/linked1.txt",
-        "hardlink_extract/dist/dir/linked1.txt"
-    )
-    .unwrap());
+    assert!(
+        same_file::is_same_file(
+            "hardlink_extract/dist/linked1.txt",
+            "hardlink_extract/dist/dir/linked1.txt"
+        )
+        .unwrap()
+    );
 
     assert_eq!(
         "original text text\n",
@@ -108,11 +110,13 @@ fn hardlink_extract() {
         fs::read_to_string("hardlink_extract/dist/linked2.txt").unwrap()
     );
     #[cfg(not(target_family = "wasm"))]
-    assert!(same_file::is_same_file(
-        "hardlink_extract/dist/dir/linked2.txt",
-        "hardlink_extract/dist/linked2.txt",
-    )
-    .unwrap());
+    assert!(
+        same_file::is_same_file(
+            "hardlink_extract/dist/dir/linked2.txt",
+            "hardlink_extract/dist/linked2.txt",
+        )
+        .unwrap()
+    );
 }
 
 #[test]
@@ -142,11 +146,13 @@ fn hardlink_extract_allow_unsafe_links() {
         fs::read_to_string("hardlink_extract_allow_unsafe_links/dist/dir/linked1.txt",).unwrap()
     );
     #[cfg(not(target_family = "wasm"))]
-    assert!(same_file::is_same_file(
-        "hardlink_extract_allow_unsafe_links/dist/linked1.txt",
-        "hardlink_extract_allow_unsafe_links/dist/dir/linked1.txt"
-    )
-    .unwrap());
+    assert!(
+        same_file::is_same_file(
+            "hardlink_extract_allow_unsafe_links/dist/linked1.txt",
+            "hardlink_extract_allow_unsafe_links/dist/dir/linked1.txt"
+        )
+        .unwrap()
+    );
 
     assert_eq!(
         "original text text\n",
@@ -157,9 +163,11 @@ fn hardlink_extract_allow_unsafe_links() {
         fs::read_to_string("hardlink_extract_allow_unsafe_links/dist/linked2.txt",).unwrap()
     );
     #[cfg(not(target_family = "wasm"))]
-    assert!(same_file::is_same_file(
-        "hardlink_extract_allow_unsafe_links/dist/dir/linked2.txt",
-        "hardlink_extract_allow_unsafe_links/dist/linked2.txt",
-    )
-    .unwrap());
+    assert!(
+        same_file::is_same_file(
+            "hardlink_extract_allow_unsafe_links/dist/dir/linked2.txt",
+            "hardlink_extract_allow_unsafe_links/dist/linked2.txt",
+        )
+        .unwrap()
+    );
 }

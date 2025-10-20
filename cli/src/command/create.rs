@@ -4,22 +4,20 @@ use crate::{
         PasswordArgs,
     },
     command::{
-        ask_password, check_password,
+        Command, ask_password, check_password,
         core::{
-            collect_items, create_entry, entry_option, read_paths, read_paths_stdin,
-            write_split_archive, CreateOptions, KeepOptions, OwnerOptions, PathFilter,
-            PathTransformers, StoreAs, TimeFilter, TimeFilters, TimeOptions, MIN_SPLIT_PART_BYTES,
+            CreateOptions, KeepOptions, MIN_SPLIT_PART_BYTES, OwnerOptions, PathFilter,
+            PathTransformers, StoreAs, TimeFilter, TimeFilters, TimeOptions, collect_items,
+            create_entry, entry_option, read_paths, read_paths_stdin, write_split_archive,
         },
-        Command,
     },
     utils::{
-        self,
+        self, VCS_FILES,
         fmt::DurationDisplay,
         re::{bsd::SubstitutionRule, gnu::TransformRule},
-        VCS_FILES,
     },
 };
-use anyhow::{ensure, Context};
+use anyhow::{Context, ensure};
 use bytesize::ByteSize;
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::{Archive, SolidEntryBuilder, WriteOptions};

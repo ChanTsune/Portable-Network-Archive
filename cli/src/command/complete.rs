@@ -1,6 +1,6 @@
 use crate::{cli::Cli, command::Command};
 use clap::{Args, CommandFactory};
-use clap_complete::{generate, Generator, Shell};
+use clap_complete::{Generator, Shell, generate};
 use std::{env, io, path::PathBuf};
 
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]

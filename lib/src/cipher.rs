@@ -5,7 +5,7 @@ use crate::io::TryIntoInner;
 use aes::Aes256;
 use camellia::Camellia256;
 use cipher::block_padding::Pkcs7;
-use ctr::{flavors::Ctr128BE, CtrCore};
+use ctr::{CtrCore, flavors::Ctr128BE};
 use std::io::{self, Read, Write};
 
 /// A type alias for a CTR mode stream cipher reader.

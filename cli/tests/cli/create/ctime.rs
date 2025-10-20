@@ -1,4 +1,4 @@
-use crate::utils::{archive::for_each_entry, setup, EmbedExt, TestResources};
+use crate::utils::{EmbedExt, TestResources, archive::for_each_entry, setup};
 use clap::Parser;
 use pna::Duration;
 use portable_network_archive::{cli, command::Command};
