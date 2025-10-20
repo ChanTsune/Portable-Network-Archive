@@ -55,7 +55,10 @@ use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
     group(ArgGroup::new("ctime-flag").args(["clamp_ctime"]).requires("ctime")),
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
     group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
-    group(ArgGroup::new("overwrite-flag").args(["overwrite", "keep_newer_files", "keep_old_files"])),
+    group(
+        ArgGroup::new("overwrite-flag")
+            .args(["overwrite", "no_overwrite", "keep_newer_files", "keep_old_files"])
+    ),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
@@ -91,6 +94,11 @@ pub(crate) struct StdioCommand {
     no_recursive: bool,
     #[arg(long, help = "Overwrite file")]
     overwrite: bool,
+    #[arg(
+        long,
+        help = "Do not overwrite files. This is the inverse option of --overwrite"
+    )]
+    no_overwrite: bool,
     #[arg(long, help = "Skip extracting files if a newer version already exists")]
     keep_newer_files: bool,
     #[arg(
