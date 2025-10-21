@@ -210,8 +210,13 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         }
     };
 
-    let overwrite_strategy =
-        OverwriteStrategy::from_flags(args.overwrite, args.keep_newer_files, args.keep_old_files);
+    let overwrite_strategy = OverwriteStrategy::from_flags(
+        args.overwrite,
+        args.no_overwrite,
+        args.keep_newer_files,
+        args.keep_old_files,
+        OverwriteStrategy::Never,
+    );
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
         keep_permission: args.keep_permission,
@@ -290,15 +295,23 @@ pub(crate) enum OverwriteStrategy {
 }
 
 impl OverwriteStrategy {
-    pub(crate) const fn from_flags(overwrite: bool, keep_newer: bool, keep_older: bool) -> Self {
+    pub(crate) const fn from_flags(
+        overwrite: bool,
+        no_overwrite: bool,
+        keep_newer: bool,
+        keep_older: bool,
+        default_strategy: Self,
+    ) -> Self {
         if overwrite {
             Self::Always
+        } else if no_overwrite {
+            Self::Never
         } else if keep_newer {
             Self::KeepNewer
         } else if keep_older {
             Self::KeepOlder
         } else {
-            Self::Never
+            default_strategy
         }
     }
 }
