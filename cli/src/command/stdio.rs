@@ -555,8 +555,13 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
 
-    let overwrite_strategy =
-        OverwriteStrategy::from_flags(args.overwrite, args.keep_newer_files, args.keep_old_files);
+    let overwrite_strategy = OverwriteStrategy::from_flags(
+        args.overwrite,
+        args.no_overwrite,
+        args.keep_newer_files,
+        args.keep_old_files,
+        OverwriteStrategy::Always,
+    );
     let out_option = OutputOption {
         overwrite_strategy,
         allow_unsafe_links: args.allow_unsafe_links,
