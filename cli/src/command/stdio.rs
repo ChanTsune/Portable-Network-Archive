@@ -27,6 +27,8 @@ use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
 
 #[derive(Args, Clone, Debug)]
 #[command(
+    version,
+    disable_version_flag = true,
     group(ArgGroup::new("unstable-acl").args(["keep_acl", "no_keep_acl"]).requires("unstable")),
     group(ArgGroup::new("keep-acl-flag").args(["keep_acl", "no_keep_acl"])),
     group(ArgGroup::new("unstable-include").args(["include"]).requires("unstable")),
@@ -304,6 +306,8 @@ pub(crate) struct StdioCommand {
     verbose: bool,
     #[arg(long, hide = true)]
     format: Option<String>,
+    #[arg(long, action = clap::ArgAction::Version, help = "Print version")]
+    version: (),
 }
 
 impl Command for StdioCommand {
