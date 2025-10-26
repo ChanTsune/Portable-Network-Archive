@@ -425,6 +425,10 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         path_transformers: PathTransformers::new(args.substitutions, args.transforms),
         path_locks: Arc::new(PathLocks::default()),
     };
+    let mut files = args.files;
+    if let Some(path) = &args.files_from {
+        files.extend(read_paths(path, args.null)?);
+    }
     // NOTE: "-" will use stdin
     let mut file = args.file;
     file.take_if(|it| it == "-");
@@ -441,14 +445,14 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
             archives
                 .into_iter()
                 .map(|it| io::BufReader::with_capacity(64 * 1024, it)),
-            args.files,
+            files,
             || password.as_deref(),
             out_option,
         )
     } else {
         run_extract_archive_reader(
             std::iter::repeat_with(|| io::stdin().lock()),
-            args.files,
+            files,
             || password.as_deref(),
             out_option,
         )
