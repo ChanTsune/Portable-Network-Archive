@@ -41,7 +41,13 @@ use std::{
     group(ArgGroup::new("unstable-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
-    group(ArgGroup::new("null-requires").arg("null").requires("exclude_from")),
+    group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
+    group(
+        ArgGroup::new("from-input")
+            .args(["files_from", "exclude_from"])
+            .multiple(true)
+    ),
+    group(ArgGroup::new("null-requires").arg("null").requires("from-input")),
     group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
     group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
     group(ArgGroup::new("unstable-transform").args(["transforms"]).requires("unstable")),
@@ -129,6 +135,8 @@ pub(crate) struct ExtractCommand {
     exclude_from: Option<PathBuf>,
     #[arg(long, help = "Exclude vcs files (unstable)")]
     exclude_vcs: bool,
+    #[arg(long, help = "Read extraction patterns from given path (unstable)", value_hint = ValueHint::FilePath)]
+    files_from: Option<String>,
     #[arg(
         long,
         help = "Filenames or patterns are separated by null characters, not by newlines"
@@ -210,6 +218,11 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         }
     };
 
+    let mut files = args.file.files();
+    if let Some(path) = &args.files_from {
+        files.extend(read_paths(path, args.null)?);
+    }
+
     let overwrite_strategy =
         OverwriteStrategy::from_flags(args.overwrite, args.keep_newer_files, args.keep_old_files);
     let keep_options = KeepOptions {
@@ -254,7 +267,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         archives
             .into_iter()
             .map(|it| io::BufReader::with_capacity(64 * 1024, it)),
-        args.file.files(),
+        files,
         || password.as_deref(),
         output_options,
     )?;
@@ -268,12 +281,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let archives = mmaps.iter().map(|m| m.as_ref());
 
     #[cfg(feature = "memmap")]
-    run_extract_archive(
-        archives,
-        args.file.files(),
-        || password.as_deref(),
-        output_options,
-    )?;
+    run_extract_archive(archives, files, || password.as_deref(), output_options)?;
     log::info!(
         "Successfully extracted an archive in {}",
         DurationDisplay(start.elapsed())

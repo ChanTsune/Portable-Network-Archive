@@ -1,6 +1,7 @@
 mod chroot;
 mod exclude;
 mod exclude_vcs;
+mod files_from;
 mod hardlink;
 mod missing_file;
 mod option_keep_newer_files;
