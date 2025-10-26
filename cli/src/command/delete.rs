@@ -3,14 +3,13 @@ use crate::{
         FileArgs, PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs,
     },
     command::{
-        ask_password,
+        Command, ask_password,
         core::{
-            collect_split_archives, read_paths, read_paths_stdin, run_transform_entry, PathFilter,
-            TransformStrategyKeepSolid, TransformStrategyUnSolid,
+            PathFilter, TransformStrategyKeepSolid, TransformStrategyUnSolid,
+            collect_split_archives, read_paths, read_paths_stdin, run_transform_entry,
         },
-        Command,
     },
-    utils::{env::NamedTempFile, GlobPatterns, PathPartExt, VCS_FILES},
+    utils::{GlobPatterns, PathPartExt, VCS_FILES, env::NamedTempFile},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::NormalEntry;

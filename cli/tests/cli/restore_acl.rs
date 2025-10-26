@@ -1,5 +1,5 @@
 #![cfg(feature = "acl")]
-use crate::utils::{setup, EmbedExt, TestResources};
+use crate::utils::{EmbedExt, TestResources, setup};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 

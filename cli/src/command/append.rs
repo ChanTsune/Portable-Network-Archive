@@ -4,17 +4,16 @@ use crate::{
         PasswordArgs,
     },
     command::{
-        ask_password, check_password,
+        Command, ask_password, check_password,
         core::{
-            collect_items, create_entry, entry_option, read_paths, read_paths_stdin, CreateOptions,
-            KeepOptions, OwnerOptions, PathFilter, PathTransformers, StoreAs, TimeFilter,
-            TimeFilters, TimeOptions,
+            CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers, StoreAs,
+            TimeFilter, TimeFilters, TimeOptions, collect_items, create_entry, entry_option,
+            read_paths, read_paths_stdin,
         },
-        Command,
     },
     utils::{
-        re::{bsd::SubstitutionRule, gnu::TransformRule},
         PathPartExt, VCS_FILES,
+        re::{bsd::SubstitutionRule, gnu::TransformRule},
     },
 };
 use anyhow::Context;

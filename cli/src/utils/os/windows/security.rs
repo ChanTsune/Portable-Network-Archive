@@ -4,25 +4,25 @@ use std::path::Path;
 use std::ptr::null_mut;
 use std::str::FromStr;
 use std::{io, mem};
-use windows::core::{PCWSTR, PWSTR};
 use windows::Win32::Foundation::{
-    CloseHandle, LocalFree, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, HLOCAL, INVALID_HANDLE_VALUE,
+    CloseHandle, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, HLOCAL, INVALID_HANDLE_VALUE, LocalFree,
 };
 use windows::Win32::Security::Authorization::{
-    ConvertSidToStringSidW, ConvertStringSidToSidW, GetNamedSecurityInfoW, SetNamedSecurityInfoW,
-    SE_FILE_OBJECT,
+    ConvertSidToStringSidW, ConvertStringSidToSidW, GetNamedSecurityInfoW, SE_FILE_OBJECT,
+    SetNamedSecurityInfoW,
 };
 use windows::Win32::Security::{
-    AdjustTokenPrivileges, CopySid, GetLengthSid, IsValidSid, LookupAccountNameW,
-    LookupAccountSidW, LookupPrivilegeValueW, SidTypeAlias, SidTypeComputer, SidTypeDeletedAccount,
-    SidTypeDomain, SidTypeGroup, SidTypeInvalid, SidTypeLabel, SidTypeLogonSession, SidTypeUnknown,
-    SidTypeUser, SidTypeWellKnownGroup, ACL as Win32ACL, DACL_SECURITY_INFORMATION,
-    GROUP_SECURITY_INFORMATION, OBJECT_SECURITY_INFORMATION, OWNER_SECURITY_INFORMATION,
+    ACL as Win32ACL, AdjustTokenPrivileges, CopySid, DACL_SECURITY_INFORMATION,
+    GROUP_SECURITY_INFORMATION, GetLengthSid, IsValidSid, LookupAccountNameW, LookupAccountSidW,
+    LookupPrivilegeValueW, OBJECT_SECURITY_INFORMATION, OWNER_SECURITY_INFORMATION,
     PROTECTED_DACL_SECURITY_INFORMATION, PSECURITY_DESCRIPTOR, PSID, SE_BACKUP_NAME,
     SE_PRIVILEGE_ENABLED, SE_RESTORE_NAME, SE_SECURITY_NAME, SE_TAKE_OWNERSHIP_NAME, SID_NAME_USE,
-    TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES, TOKEN_QUERY,
+    SidTypeAlias, SidTypeComputer, SidTypeDeletedAccount, SidTypeDomain, SidTypeGroup,
+    SidTypeInvalid, SidTypeLabel, SidTypeLogonSession, SidTypeUnknown, SidTypeUser,
+    SidTypeWellKnownGroup, TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES, TOKEN_QUERY,
 };
 use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+use windows::core::{PCWSTR, PWSTR};
 
 pub(crate) type PACL = *mut Win32ACL;
 

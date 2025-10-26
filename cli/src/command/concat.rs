@@ -3,7 +3,7 @@ use crate::command::core::run_across_archive;
 #[cfg(feature = "memmap")]
 use crate::command::core::run_across_archive_mem as run_across_archive;
 use crate::{
-    command::{core::collect_split_archives, Command},
+    command::{Command, core::collect_split_archives},
     utils,
 };
 use clap::{ArgGroup, Parser, ValueHint};

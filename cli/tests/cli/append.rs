@@ -10,7 +10,7 @@ mod option_newer_mtime;
 mod option_older_ctime;
 mod option_older_mtime;
 
-use crate::utils::{diff::diff, setup, EmbedExt, TestResources};
+use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 

@@ -4,17 +4,16 @@ use crate::{
         SolidEntriesTransformStrategyArgs,
     },
     command::{
-        ask_password,
+        Command, ask_password,
         core::{
-            collect_split_archives, run_transform_entry, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid,
+            TransformStrategyKeepSolid, TransformStrategyUnSolid, collect_split_archives,
+            run_transform_entry,
         },
-        Command,
     },
-    utils::{env::NamedTempFile, PathPartExt},
+    utils::{PathPartExt, env::NamedTempFile},
 };
 use clap::{Args, Parser, ValueHint};
-use pna::{prelude::*, Metadata, NormalEntry, RawChunk};
+use pna::{Metadata, NormalEntry, RawChunk, prelude::*};
 use std::path::PathBuf;
 
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]

@@ -1,4 +1,4 @@
-use crate::utils::{diff::diff, setup, EmbedExt, TestResources};
+use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
 use assert_cmd::Command as Cmd;
 use std::fs;
 use std::path::Path;

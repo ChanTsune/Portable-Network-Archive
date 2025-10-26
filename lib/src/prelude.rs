@@ -7,4 +7,4 @@
 //! # #![allow(unused_imports)]
 //! use libpna::prelude::*;
 //! ```
-pub use crate::{ext::time::*, Chunk, Entry};
+pub use crate::{Chunk, Entry, ext::time::*};

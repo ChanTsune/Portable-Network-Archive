@@ -1,4 +1,4 @@
-use crate::{entry::CompressionLevelImpl, CompressionLevel};
+use crate::{CompressionLevel, entry::CompressionLevelImpl};
 use std::{num::ParseIntError, str::FromStr};
 use zstd::zstd_safe;
 

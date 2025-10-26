@@ -1,4 +1,4 @@
-use crate::utils::{setup, EmbedExt, TestResources};
+use crate::utils::{EmbedExt, TestResources, setup};
 use std::fs;
 
 /// Precondition: the source tree contains file and directory.
