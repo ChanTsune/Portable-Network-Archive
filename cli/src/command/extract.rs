@@ -49,6 +49,7 @@ use std::{
     ),
     group(ArgGroup::new("null-requires").arg("null").requires("from-input")),
     group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
+    group(ArgGroup::new("keep-xattr-flag").args(["keep_xattr", "no_keep_xattr"])),
     group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
     group(ArgGroup::new("unstable-transform").args(["transforms"]).requires("unstable")),
     group(ArgGroup::new("unstable-keep-old-files").args(["keep_old_files"]).requires("unstable")),
@@ -99,6 +100,12 @@ pub(crate) struct ExtractCommand {
         help = "Restore the extended attributes of the files"
     )]
     pub(crate) keep_xattr: bool,
+    #[arg(
+        long,
+        visible_alias = "no-preserve-xattrs",
+        help = "Do not restore extended attributes of files. This is the inverse option of --preserve-xattrs"
+    )]
+    pub(crate) no_keep_xattr: bool,
     #[arg(
         long,
         visible_alias = "preserve-acls",
@@ -228,7 +235,11 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
         keep_permission: args.keep_permission,
-        keep_xattr: args.keep_xattr,
+        keep_xattr: if args.no_keep_xattr {
+            false
+        } else {
+            args.keep_xattr
+        },
         keep_acl: args.keep_acl,
     };
     let owner_options = OwnerOptions::new(

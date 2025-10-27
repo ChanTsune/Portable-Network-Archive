@@ -54,6 +54,7 @@ use std::{env, fs, io, path::PathBuf, time::SystemTime};
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
     group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
     group(ArgGroup::new("keep-dir-flag").args(["keep_dir", "no_keep_dir"])),
+    group(ArgGroup::new("keep-xattr-flag").args(["keep_xattr", "no_keep_xattr"])),
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
     group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
     group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
@@ -108,6 +109,12 @@ pub(crate) struct UpdateCommand {
         help = "Archiving the extended attributes of the files"
     )]
     pub(crate) keep_xattr: bool,
+    #[arg(
+        long,
+        visible_alias = "no-preserve-xattrs",
+        help = "Do not archive extended attributes of files. This is the inverse option of --preserve-xattrs"
+    )]
+    pub(crate) no_keep_xattr: bool,
     #[arg(
         long,
         visible_alias = "preserve-acls",
@@ -271,7 +278,11 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
         keep_permission: args.keep_permission,
-        keep_xattr: args.keep_xattr,
+        keep_xattr: if args.no_keep_xattr {
+            false
+        } else {
+            args.keep_xattr
+        },
         keep_acl: args.keep_acl,
     };
     let owner_options = OwnerOptions::new(
