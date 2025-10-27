@@ -14,7 +14,7 @@ rust-version = "1.82"
 anyhow = { version = "1.0.100", features = ["backtrace"] }
 base64 = "0.22.1"
 bitflags = "2.10.0"
-bstr = "1.12.0"
+bstr = "1.12.1"
 bugreport = { version = "0.5.1", default-features = false, features = ["collector_operating_system", "format_markdown"] }
 bytesize = "2.1.0"
 chrono = "0.4.42"
