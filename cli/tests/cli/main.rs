@@ -30,3 +30,11 @@ mod strip;
 mod update;
 pub mod utils;
 mod xattr;
+
+use clap::CommandFactory;
+use portable_network_archive::cli::Cli;
+
+#[test]
+fn clap_configuration_remains_valid() {
+    Cli::command().debug_assert();
+}
