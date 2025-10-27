@@ -32,7 +32,8 @@ use std::{
 
 #[derive(Parser, Clone, Debug)]
 #[command(
-    group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
+    group(ArgGroup::new("unstable-acl").args(["keep_acl", "no_keep_acl"]).requires("unstable")),
+    group(ArgGroup::new("keep-acl-flag").args(["keep_acl", "no_keep_acl"])),
     group(ArgGroup::new("unstable-include").args(["include"]).requires("unstable")),
     group(ArgGroup::new("unstable-create-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
@@ -132,6 +133,12 @@ pub(crate) struct CreateCommand {
         help = "Archiving the acl of the files (unstable)"
     )]
     pub(crate) keep_acl: bool,
+    #[arg(
+        long,
+        visible_alias = "no-preserve-acls",
+        help = "Do not archive acl of files. This is the inverse option of --keep-acl (unstable)"
+    )]
+    pub(crate) no_keep_acl: bool,
     #[arg(
         long,
         value_name = "size",
@@ -366,7 +373,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         } else {
             args.keep_xattr
         },
-        keep_acl: args.keep_acl,
+        keep_acl: !args.no_keep_acl && args.keep_acl,
     };
     let owner_options = OwnerOptions::new(
         args.uname,

@@ -26,7 +26,8 @@ use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
 
 #[derive(Args, Clone, Debug)]
 #[command(
-    group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
+    group(ArgGroup::new("unstable-acl").args(["keep_acl", "no_keep_acl"]).requires("unstable")),
+    group(ArgGroup::new("keep-acl-flag").args(["keep_acl", "no_keep_acl"])),
     group(ArgGroup::new("unstable-include").args(["include"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude").args(["exclude"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
@@ -145,6 +146,12 @@ pub(crate) struct StdioCommand {
         help = "Archiving the acl of the files (unstable)"
     )]
     keep_acl: bool,
+    #[arg(
+        long,
+        visible_aliases = ["no-preserve-acls", "no-acls"],
+        help = "Do not archive acl of files. This is the inverse option of --keep-acl (unstable)"
+    )]
+    no_keep_acl: bool,
     #[arg(long, help = "Solid mode archive")]
     pub(crate) solid: bool,
     #[command(flatten)]
@@ -357,7 +364,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         } else {
             args.keep_xattr
         },
-        keep_acl: args.keep_acl,
+        keep_acl: !args.no_keep_acl && args.keep_acl,
     };
     let owner_options = OwnerOptions::new(
         args.uname,
@@ -427,7 +434,7 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
             } else {
                 args.keep_xattr
             },
-            keep_acl: args.keep_acl,
+            keep_acl: !args.no_keep_acl && args.keep_acl,
         },
         owner_options: OwnerOptions::new(
             args.uname,
@@ -548,7 +555,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         } else {
             args.keep_xattr
         },
-        keep_acl: args.keep_acl,
+        keep_acl: !args.no_keep_acl && args.keep_acl,
     };
     let owner_options = OwnerOptions::new(
         args.uname,
