@@ -51,6 +51,7 @@ use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
     group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
     group(ArgGroup::new("keep-dir-flag").args(["keep_dir", "no_keep_dir"])),
+    group(ArgGroup::new("keep-xattr-flag").args(["keep_xattr", "no_keep_xattr"])),
     group(ArgGroup::new("action-flags").args(["create", "extract", "list", "append"]).required(true)),
     group(ArgGroup::new("ctime-flag").args(["clamp_ctime"]).requires("ctime")),
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
@@ -132,6 +133,12 @@ pub(crate) struct StdioCommand {
         help = "Archiving the extended attributes of the files"
     )]
     keep_xattr: bool,
+    #[arg(
+        long,
+        visible_aliases = ["no-preserve-xattrs", "no-xattrs"],
+        help = "Do not archive extended attributes of files. This is the inverse option of --preserve-xattrs"
+    )]
+    no_keep_xattr: bool,
     #[arg(
         long,
         visible_aliases = ["preserve-acls", "acls"],
@@ -345,7 +352,11 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
         keep_permission: args.keep_permission,
-        keep_xattr: args.keep_xattr,
+        keep_xattr: if args.no_keep_xattr {
+            false
+        } else {
+            args.keep_xattr
+        },
         keep_acl: args.keep_acl,
     };
     let owner_options = OwnerOptions::new(
@@ -411,7 +422,11 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         keep_options: KeepOptions {
             keep_timestamp: args.keep_timestamp,
             keep_permission: args.keep_permission,
-            keep_xattr: args.keep_xattr,
+            keep_xattr: if args.no_keep_xattr {
+                false
+            } else {
+                args.keep_xattr
+            },
             keep_acl: args.keep_acl,
         },
         owner_options: OwnerOptions::new(
@@ -524,7 +539,11 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
         keep_permission: args.keep_permission,
-        keep_xattr: args.keep_xattr,
+        keep_xattr: if args.no_keep_xattr {
+            false
+        } else {
+            args.keep_xattr
+        },
         keep_acl: args.keep_acl,
     };
     let owner_options = OwnerOptions::new(
