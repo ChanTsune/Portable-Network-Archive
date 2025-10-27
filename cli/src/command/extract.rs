@@ -48,8 +48,9 @@ use std::{
             .multiple(true)
     ),
     group(ArgGroup::new("null-requires").arg("null").requires("from-input")),
-    group(ArgGroup::new("unstable-acl").args(["keep_acl"]).requires("unstable")),
     group(ArgGroup::new("keep-xattr-flag").args(["keep_xattr", "no_keep_xattr"])),
+    group(ArgGroup::new("unstable-acl").args(["keep_acl", "no_keep_acl"]).requires("unstable")),
+    group(ArgGroup::new("keep-acl-flag").args(["keep_acl", "no_keep_acl"])),
     group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
     group(ArgGroup::new("unstable-transform").args(["transforms"]).requires("unstable")),
     group(ArgGroup::new("unstable-keep-old-files").args(["keep_old_files"]).requires("unstable")),
@@ -112,6 +113,12 @@ pub(crate) struct ExtractCommand {
         help = "Restore the acl of the files (unstable)"
     )]
     pub(crate) keep_acl: bool,
+    #[arg(
+        long,
+        visible_alias = "no-preserve-acls",
+        help = "Do not restore acl of files. This is the inverse option of --keep-acl (unstable)"
+    )]
+    pub(crate) no_keep_acl: bool,
     #[arg(long, help = "Restore user from given name")]
     pub(crate) uname: Option<String>,
     #[arg(long, help = "Restore group from given name")]
@@ -240,7 +247,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         } else {
             args.keep_xattr
         },
-        keep_acl: args.keep_acl,
+        keep_acl: !args.no_keep_acl && args.keep_acl,
     };
     let owner_options = OwnerOptions::new(
         args.uname,
