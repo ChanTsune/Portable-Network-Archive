@@ -45,7 +45,7 @@ jobs:
           cargo fuzz run --release ${{ matrix.fuzz_target }} -- -max_total_time=300
       - name: Upload crash artifacts
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: fuzz-${{ matrix.fuzz_target }}-crashes
           path: fuzz/artifacts
