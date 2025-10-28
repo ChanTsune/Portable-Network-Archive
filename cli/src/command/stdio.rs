@@ -8,6 +8,7 @@ use crate::{
         core::{
             collect_items, collect_split_archives, entry_option, path_lock::PathLocks, read_paths,
             CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers, TimeOptions,
+            XattrStrategy,
         },
         create::{create_archive_file, CreationContext},
         extract::{run_extract_archive_reader, OutputOption, OverwriteStrategy},
@@ -359,11 +360,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
         keep_permission: args.keep_permission,
-        keep_xattr: if args.no_keep_xattr {
-            false
-        } else {
-            args.keep_xattr
-        },
+        xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         keep_acl: !args.no_keep_acl && args.keep_acl,
     };
     let owner_options = OwnerOptions::new(
@@ -429,11 +426,7 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         keep_options: KeepOptions {
             keep_timestamp: args.keep_timestamp,
             keep_permission: args.keep_permission,
-            keep_xattr: if args.no_keep_xattr {
-                false
-            } else {
-                args.keep_xattr
-            },
+            xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
             keep_acl: !args.no_keep_acl && args.keep_acl,
         },
         owner_options: OwnerOptions::new(
@@ -550,11 +543,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
         keep_permission: args.keep_permission,
-        keep_xattr: if args.no_keep_xattr {
-            false
-        } else {
-            args.keep_xattr
-        },
+        xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         keep_acl: !args.no_keep_acl && args.keep_acl,
     };
     let owner_options = OwnerOptions::new(

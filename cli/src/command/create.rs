@@ -8,7 +8,8 @@ use crate::{
         core::{
             collect_items, create_entry, entry_option, read_paths, read_paths_stdin,
             write_split_archive, CreateOptions, KeepOptions, OwnerOptions, PathFilter,
-            PathTransformers, StoreAs, TimeFilter, TimeFilters, TimeOptions, MIN_SPLIT_PART_BYTES,
+            PathTransformers, StoreAs, TimeFilter, TimeFilters, TimeOptions, XattrStrategy,
+            MIN_SPLIT_PART_BYTES,
         },
         Command,
     },
@@ -368,11 +369,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
         keep_permission: args.keep_permission,
-        keep_xattr: if args.no_keep_xattr {
-            false
-        } else {
-            args.keep_xattr
-        },
+        xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         keep_acl: !args.no_keep_acl && args.keep_acl,
     };
     let owner_options = OwnerOptions::new(
