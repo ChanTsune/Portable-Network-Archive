@@ -59,6 +59,7 @@ use std::{
     group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
     group(ArgGroup::new("keep-dir-flag").args(["keep_dir", "no_keep_dir"])),
     group(ArgGroup::new("keep-xattr-flag").args(["keep_xattr", "no_keep_xattr"])),
+    group(ArgGroup::new("keep-timestamp-flag").args(["keep_timestamp", "no_keep_timestamp"])),
     group(ArgGroup::new("ctime-flag").args(["clamp_ctime"]).requires("ctime")),
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
     group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
@@ -110,6 +111,12 @@ pub(crate) struct CreateCommand {
         help = "Archiving the timestamp of the files"
     )]
     pub(crate) keep_timestamp: bool,
+    #[arg(
+        long,
+        visible_alias = "no-preserve-timestamps",
+        help = "Do not archive timestamp of files. This is the inverse option of --preserve-timestamps"
+    )]
+    pub(crate) no_keep_timestamp: bool,
     #[arg(
         long,
         visible_alias = "preserve-permissions",
@@ -367,7 +374,11 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         fs::create_dir_all(parent)?;
     }
     let keep_options = KeepOptions {
-        keep_timestamp: args.keep_timestamp,
+        keep_timestamp: if args.no_keep_timestamp {
+            false
+        } else {
+            args.keep_timestamp
+        },
         keep_permission: args.keep_permission,
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         keep_acl: !args.no_keep_acl && args.keep_acl,
