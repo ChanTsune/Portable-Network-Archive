@@ -56,6 +56,7 @@ use std::{env, fs, io, path::PathBuf, time::SystemTime};
     group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
     group(ArgGroup::new("keep-dir-flag").args(["keep_dir", "no_keep_dir"])),
     group(ArgGroup::new("keep-xattr-flag").args(["keep_xattr", "no_keep_xattr"])),
+    group(ArgGroup::new("keep-timestamp-flag").args(["keep_timestamp", "no_keep_timestamp"])),
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
     group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
     group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
@@ -98,6 +99,12 @@ pub(crate) struct UpdateCommand {
         help = "Archiving the timestamp of the files"
     )]
     pub(crate) keep_timestamp: bool,
+    #[arg(
+        long,
+        visible_alias = "no-preserve-timestamps",
+        help = "Do not archive timestamp of files. This is the inverse option of --preserve-timestamps"
+    )]
+    pub(crate) no_keep_timestamp: bool,
     #[arg(
         long,
         visible_alias = "preserve-permissions",
@@ -283,7 +290,11 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
     let password = password.as_deref();
     let option = entry_option(args.compression, args.cipher, args.hash, password);
     let keep_options = KeepOptions {
-        keep_timestamp: args.keep_timestamp,
+        keep_timestamp: if args.no_keep_timestamp {
+            false
+        } else {
+            args.keep_timestamp
+        },
         keep_permission: args.keep_permission,
         keep_xattr: if args.no_keep_xattr {
             false
