@@ -8,7 +8,7 @@ use crate::{
         ask_password,
         core::{
             collect_split_archives, path_lock::PathLocks, read_paths, run_process_archive,
-            KeepOptions, OwnerOptions, PathFilter, PathTransformers,
+            KeepOptions, OwnerOptions, PathFilter, PathTransformers, XattrStrategy,
         },
         Command,
     },
@@ -242,11 +242,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let keep_options = KeepOptions {
         keep_timestamp: args.keep_timestamp,
         keep_permission: args.keep_permission,
-        keep_xattr: if args.no_keep_xattr {
-            false
-        } else {
-            args.keep_xattr
-        },
+        xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         keep_acl: !args.no_keep_acl && args.keep_acl,
     };
     let owner_options = OwnerOptions::new(
@@ -623,11 +619,11 @@ where
         }
     }
     #[cfg(unix)]
-    if keep_options.keep_xattr {
+    if let XattrStrategy::Always = keep_options.xattr_strategy {
         utils::os::unix::fs::xattrs::set_xattrs(&path, item.xattrs())?;
     }
     #[cfg(not(unix))]
-    if keep_options.keep_xattr {
+    if let XattrStrategy::Always = keep_options.xattr_strategy {
         log::warn!("Currently extended attribute is not supported on this platform.");
     }
     #[cfg(feature = "acl")]

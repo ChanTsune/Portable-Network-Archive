@@ -36,10 +36,28 @@ pub(crate) const SPLIT_ARCHIVE_OVERHEAD_BYTES: usize =
 pub(crate) const MIN_SPLIT_PART_BYTES: usize = SPLIT_ARCHIVE_OVERHEAD_BYTES + MIN_CHUNK_BYTES_SIZE;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub(crate) enum XattrStrategy {
+    Never,
+    Always,
+}
+
+impl XattrStrategy {
+    pub(crate) const fn from_flags(keep_xattr: bool, no_keep_xattr: bool) -> Self {
+        if no_keep_xattr {
+            Self::Never
+        } else if keep_xattr {
+            Self::Always
+        } else {
+            Self::Never
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) struct KeepOptions {
     pub(crate) keep_timestamp: bool,
     pub(crate) keep_permission: bool,
-    pub(crate) keep_xattr: bool,
+    pub(crate) xattr_strategy: XattrStrategy,
     pub(crate) keep_acl: bool,
 }
 
@@ -588,13 +606,13 @@ pub(crate) fn apply_metadata<'p>(
         log::warn!("Please enable `acl` feature and rebuild and install pna.");
     }
     #[cfg(unix)]
-    if keep_options.keep_xattr {
+    if let XattrStrategy::Always = keep_options.xattr_strategy {
         for attr in utils::os::unix::fs::xattrs::get_xattrs(path)? {
             entry.add_xattr(attr);
         }
     }
     #[cfg(not(unix))]
-    if keep_options.keep_xattr {
+    if let XattrStrategy::Always = keep_options.xattr_strategy {
         log::warn!("Currently extended attribute is not supported on this platform.");
     }
     Ok(entry)
