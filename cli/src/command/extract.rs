@@ -8,7 +8,7 @@ use crate::{
         ask_password,
         core::{
             collect_split_archives, path_lock::PathLocks, read_paths, run_process_archive,
-            KeepOptions, OwnerOptions, PathFilter, PathTransformers,
+            KeepOptions, OwnerOptions, PathFilter, PathTransformers, PermissionStrategy,
         },
         Command,
     },
@@ -48,6 +48,7 @@ use std::{
             .multiple(true)
     ),
     group(ArgGroup::new("null-requires").arg("null").requires("from-input")),
+    group(ArgGroup::new("keep-permission-flag").args(["keep_permission", "no_keep_permission"])),
     group(ArgGroup::new("keep-xattr-flag").args(["keep_xattr", "no_keep_xattr"])),
     group(ArgGroup::new("unstable-acl").args(["keep_acl", "no_keep_acl"]).requires("unstable")),
     group(ArgGroup::new("keep-acl-flag").args(["keep_acl", "no_keep_acl"])),
@@ -94,7 +95,13 @@ pub(crate) struct ExtractCommand {
         visible_alias = "preserve-permissions",
         help = "Restore the permissions of the files (unstable on Windows)"
     )]
-    pub(crate) keep_permission: bool,
+    keep_permission: bool,
+    #[arg(
+        long,
+        visible_alias = "no-preserve-permissions",
+        help = "Do not restore the permissions of the files. This is the inverse option of --preserve-permissions"
+    )]
+    no_keep_permission: bool,
     #[arg(
         long,
         visible_alias = "preserve-xattrs",
@@ -239,16 +246,16 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
 
     let overwrite_strategy =
         OverwriteStrategy::from_flags(args.overwrite, args.keep_newer_files, args.keep_old_files);
-    let keep_options = KeepOptions {
-        keep_timestamp: args.keep_timestamp,
-        keep_permission: args.keep_permission,
-        keep_xattr: if args.no_keep_xattr {
+    let keep_options = KeepOptions::new(
+        args.keep_timestamp,
+        PermissionStrategy::from_flags(args.keep_permission, args.no_keep_permission),
+        if args.no_keep_xattr {
             false
         } else {
             args.keep_xattr
         },
-        keep_acl: !args.no_keep_acl && args.keep_acl,
-    };
+        !args.no_keep_acl && args.keep_acl,
+    );
     let owner_options = OwnerOptions::new(
         args.uname,
         args.gname,
@@ -617,7 +624,7 @@ where
             fs::hard_link(original, &path)?;
         }
     }
-    if keep_options.keep_permission {
+    if keep_options.keep_permission() {
         if let Some(p) = item.metadata().permission() {
             restore_permissions(*same_owner, &path, p, owner_options)?;
         }

@@ -36,11 +36,49 @@ pub(crate) const SPLIT_ARCHIVE_OVERHEAD_BYTES: usize =
 pub(crate) const MIN_SPLIT_PART_BYTES: usize = SPLIT_ARCHIVE_OVERHEAD_BYTES + MIN_CHUNK_BYTES_SIZE;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub(crate) enum PermissionStrategy {
+    Keep,
+    NoKeep,
+}
+
+impl PermissionStrategy {
+    pub(crate) fn from_flags(keep: bool, no_keep: bool) -> Self {
+        if no_keep {
+            Self::NoKeep
+        } else if keep {
+            Self::Keep
+        } else {
+            Self::NoKeep
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) struct KeepOptions {
     pub(crate) keep_timestamp: bool,
-    pub(crate) keep_permission: bool,
+    keep_permission: PermissionStrategy,
     pub(crate) keep_xattr: bool,
     pub(crate) keep_acl: bool,
+}
+
+impl KeepOptions {
+    pub(crate) fn new(
+        keep_timestamp: bool,
+        permission_strategy: PermissionStrategy,
+        keep_xattr: bool,
+        keep_acl: bool,
+    ) -> Self {
+        Self {
+            keep_timestamp,
+            keep_permission: permission_strategy,
+            keep_xattr,
+            keep_acl,
+        }
+    }
+
+    pub(crate) fn keep_permission(&self) -> bool {
+        matches!(self.keep_permission, PermissionStrategy::Keep)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -482,7 +520,7 @@ pub(crate) fn apply_metadata<'p>(
     time_options: &TimeOptions,
     metadata: impl Fn(&'p Path) -> io::Result<fs::Metadata>,
 ) -> io::Result<EntryBuilder> {
-    if keep_options.keep_timestamp || keep_options.keep_permission {
+    if keep_options.keep_timestamp || keep_options.keep_permission() {
         let meta = metadata(path)?;
         if keep_options.keep_timestamp {
             let ctime = clamped_time(
@@ -511,7 +549,7 @@ pub(crate) fn apply_metadata<'p>(
             }
         }
         #[cfg(unix)]
-        if keep_options.keep_permission {
+        if keep_options.keep_permission() {
             use crate::utils::fs::{Group, User};
             use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
@@ -539,7 +577,7 @@ pub(crate) fn apply_metadata<'p>(
             ));
         }
         #[cfg(windows)]
-        if keep_options.keep_permission {
+        if keep_options.keep_permission() {
             use crate::utils::os::windows::{fs::stat, security::SecurityDescriptor};
 
             let sd = SecurityDescriptor::try_from(path)?;

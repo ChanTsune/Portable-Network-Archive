@@ -7,7 +7,8 @@ use crate::{
         ask_password, check_password,
         core::{
             collect_items, collect_split_archives, entry_option, path_lock::PathLocks, read_paths,
-            CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers, TimeOptions,
+            CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
+            PermissionStrategy, TimeOptions,
         },
         create::{create_archive_file, CreationContext},
         extract::{run_extract_archive_reader, OutputOption, OverwriteStrategy},
@@ -52,6 +53,7 @@ use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
     group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
     group(ArgGroup::new("keep-dir-flag").args(["keep_dir", "no_keep_dir"])),
+    group(ArgGroup::new("keep-permission-flag").args(["keep_permission", "no_keep_permission"])),
     group(ArgGroup::new("keep-xattr-flag").args(["keep_xattr", "no_keep_xattr"])),
     group(ArgGroup::new("action-flags").args(["create", "extract", "list", "append"]).required(true)),
     group(ArgGroup::new("ctime-flag").args(["clamp_ctime"]).requires("ctime")),
@@ -128,6 +130,12 @@ pub(crate) struct StdioCommand {
         help = "Archiving the permissions of the files (unstable on Windows)"
     )]
     keep_permission: bool,
+    #[arg(
+        long,
+        visible_alias = "no-preserve-permissions",
+        help = "Do not archive the permissions of the files. This is the inverse option of --preserve-permissions"
+    )]
+    no_keep_permission: bool,
     #[arg(
         long,
         visible_aliases = ["preserve-xattrs", "xattrs"],
@@ -356,16 +364,16 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
 
     let password = password.as_deref();
     let cli_option = entry_option(args.compression, args.cipher, args.hash, password);
-    let keep_options = KeepOptions {
-        keep_timestamp: args.keep_timestamp,
-        keep_permission: args.keep_permission,
-        keep_xattr: if args.no_keep_xattr {
+    let keep_options = KeepOptions::new(
+        args.keep_timestamp,
+        PermissionStrategy::from_flags(args.keep_permission, args.no_keep_permission),
+        if args.no_keep_xattr {
             false
         } else {
             args.keep_xattr
         },
-        keep_acl: !args.no_keep_acl && args.keep_acl,
-    };
+        !args.no_keep_acl && args.keep_acl,
+    );
     let owner_options = OwnerOptions::new(
         args.uname,
         args.gname,
@@ -426,16 +434,16 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         strip_components: args.strip_components,
         out_dir: args.out_dir,
         filter,
-        keep_options: KeepOptions {
-            keep_timestamp: args.keep_timestamp,
-            keep_permission: args.keep_permission,
-            keep_xattr: if args.no_keep_xattr {
+        keep_options: KeepOptions::new(
+            args.keep_timestamp,
+            PermissionStrategy::from_flags(args.keep_permission, args.no_keep_permission),
+            if args.no_keep_xattr {
                 false
             } else {
                 args.keep_xattr
             },
-            keep_acl: !args.no_keep_acl && args.keep_acl,
-        },
+            !args.no_keep_acl && args.keep_acl,
+        ),
         owner_options: OwnerOptions::new(
             args.uname,
             args.gname,
@@ -547,16 +555,16 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     check_password(&password, &args.cipher);
     let password = password.as_deref();
     let option = entry_option(args.compression, args.cipher, args.hash, password);
-    let keep_options = KeepOptions {
-        keep_timestamp: args.keep_timestamp,
-        keep_permission: args.keep_permission,
-        keep_xattr: if args.no_keep_xattr {
+    let keep_options = KeepOptions::new(
+        args.keep_timestamp,
+        PermissionStrategy::from_flags(args.keep_permission, args.no_keep_permission),
+        if args.no_keep_xattr {
             false
         } else {
             args.keep_xattr
         },
-        keep_acl: !args.no_keep_acl && args.keep_acl,
-    };
+        !args.no_keep_acl && args.keep_acl,
+    );
     let owner_options = OwnerOptions::new(
         args.uname,
         args.gname,

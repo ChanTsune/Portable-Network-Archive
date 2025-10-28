@@ -8,7 +8,8 @@ use crate::{
         core::{
             collect_items, create_entry, entry_option, read_paths, read_paths_stdin,
             write_split_archive, CreateOptions, KeepOptions, OwnerOptions, PathFilter,
-            PathTransformers, StoreAs, TimeFilter, TimeFilters, TimeOptions, MIN_SPLIT_PART_BYTES,
+            PathTransformers, PermissionStrategy, StoreAs, TimeFilter, TimeFilters, TimeOptions,
+            MIN_SPLIT_PART_BYTES,
         },
         Command,
     },
@@ -57,6 +58,7 @@ use std::{
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
     group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
     group(ArgGroup::new("keep-dir-flag").args(["keep_dir", "no_keep_dir"])),
+    group(ArgGroup::new("keep-permission-flag").args(["keep_permission", "no_keep_permission"])),
     group(ArgGroup::new("keep-xattr-flag").args(["keep_xattr", "no_keep_xattr"])),
     group(ArgGroup::new("ctime-flag").args(["clamp_ctime"]).requires("ctime")),
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
@@ -114,7 +116,13 @@ pub(crate) struct CreateCommand {
         visible_alias = "preserve-permissions",
         help = "Archiving the permissions of the files (unstable on Windows)"
     )]
-    pub(crate) keep_permission: bool,
+    keep_permission: bool,
+    #[arg(
+        long,
+        visible_alias = "no-preserve-permissions",
+        help = "Do not archive the permissions of the files. This is the inverse option of --preserve-permissions"
+    )]
+    no_keep_permission: bool,
     #[arg(
         long,
         visible_alias = "preserve-xattrs",
@@ -365,16 +373,16 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     if let Some(parent) = archive_path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let keep_options = KeepOptions {
-        keep_timestamp: args.keep_timestamp,
-        keep_permission: args.keep_permission,
-        keep_xattr: if args.no_keep_xattr {
+    let keep_options = KeepOptions::new(
+        args.keep_timestamp,
+        PermissionStrategy::from_flags(args.keep_permission, args.no_keep_permission),
+        if args.no_keep_xattr {
             false
         } else {
             args.keep_xattr
         },
-        keep_acl: !args.no_keep_acl && args.keep_acl,
-    };
+        !args.no_keep_acl && args.keep_acl,
+    );
     let owner_options = OwnerOptions::new(
         args.uname,
         args.gname,

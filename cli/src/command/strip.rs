@@ -18,6 +18,10 @@ use pna::{prelude::*, Metadata, NormalEntry, RawChunk};
 use std::path::PathBuf;
 
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
+#[command(group(
+    clap::ArgGroup::new("keep-permission-flag")
+        .args(["keep_permission", "no_keep_permission"])
+))]
 pub(crate) struct StripOptions {
     #[arg(
         long,
@@ -30,7 +34,13 @@ pub(crate) struct StripOptions {
         visible_alias = "preserve-permissions",
         help = "Keep the permissions of the files"
     )]
-    pub(crate) keep_permission: bool,
+    keep_permission: bool,
+    #[arg(
+        long,
+        visible_alias = "no-preserve-permissions",
+        help = "Do not keep the permissions of the files. This is the inverse option of --preserve-permissions"
+    )]
+    no_keep_permission: bool,
     #[arg(
         long,
         visible_alias = "preserve-xattrs",
@@ -45,6 +55,12 @@ pub(crate) struct StripOptions {
     pub(crate) keep_acl: bool,
     #[arg(long, visible_alias = "preserve-private_chunks", help = "Keep private chunks", value_delimiter = ',', num_args = 0..)]
     pub(crate) keep_private: Option<Vec<PrivateChunkType>>,
+}
+
+impl StripOptions {
+    fn keep_permission(&self) -> bool {
+        !self.no_keep_permission && self.keep_permission
+    }
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
@@ -118,7 +134,7 @@ where
     RawChunk<T>: Chunk,
 {
     let mut metadata = Metadata::new();
-    if options.keep_permission {
+    if options.keep_permission() {
         metadata = metadata.with_permission(entry.metadata().permission().cloned());
     }
     if options.keep_timestamp {
