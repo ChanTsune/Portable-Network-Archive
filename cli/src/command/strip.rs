@@ -6,8 +6,8 @@ use crate::{
     command::{
         ask_password,
         core::{
-            collect_split_archives, run_transform_entry, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid,
+            collect_split_archives, run_transform_entry, PermissionStrategy,
+            TransformStrategyKeepSolid, TransformStrategyUnSolid,
         },
         Command,
     },
@@ -20,6 +20,7 @@ use std::path::PathBuf;
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(
     group(ArgGroup::new("keep-timestamp-flag").args(["keep_timestamp", "no_keep_timestamp"])),
+    group(ArgGroup::new("keep-permission-flag").args(["keep_permission", "no_keep_permission"])),
 )]
 pub(crate) struct StripOptions {
     #[arg(
@@ -39,7 +40,13 @@ pub(crate) struct StripOptions {
         visible_alias = "preserve-permissions",
         help = "Keep the permissions of the files"
     )]
-    pub(crate) keep_permission: bool,
+    keep_permission: bool,
+    #[arg(
+        long,
+        visible_alias = "no-preserve-permissions",
+        help = "Do not keep permissions of files. This is the inverse option of --preserve-permissions"
+    )]
+    no_keep_permission: bool,
     #[arg(
         long,
         visible_alias = "preserve-xattrs",
@@ -127,7 +134,9 @@ where
     RawChunk<T>: Chunk,
 {
     let mut metadata = Metadata::new();
-    if options.keep_permission {
+    if let PermissionStrategy::Always =
+        PermissionStrategy::from_flags(options.keep_permission, options.no_keep_permission)
+    {
         metadata = metadata.with_permission(entry.metadata().permission().cloned());
     }
     if if options.no_keep_timestamp {

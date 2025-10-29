@@ -7,8 +7,8 @@ use crate::{
         ask_password, check_password,
         core::{
             collect_items, collect_split_archives, entry_option, path_lock::PathLocks, read_paths,
-            CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers, TimeOptions,
-            XattrStrategy,
+            CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
+            PermissionStrategy, TimeOptions, XattrStrategy,
         },
         create::{create_archive_file, CreationContext},
         extract::{run_extract_archive_reader, OutputOption, OverwriteStrategy},
@@ -55,6 +55,7 @@ use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
     group(ArgGroup::new("keep-dir-flag").args(["keep_dir", "no_keep_dir"])),
     group(ArgGroup::new("keep-xattr-flag").args(["keep_xattr", "no_keep_xattr"])),
     group(ArgGroup::new("keep-timestamp-flag").args(["keep_timestamp", "no_keep_timestamp"])),
+    group(ArgGroup::new("keep-permission-flag").args(["keep_permission", "no_keep_permission"])),
     group(ArgGroup::new("action-flags").args(["create", "extract", "list", "append"]).required(true)),
     group(ArgGroup::new("ctime-flag").args(["clamp_ctime"]).requires("ctime")),
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
@@ -65,7 +66,7 @@ use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
     ),
 )]
 #[cfg_attr(windows, command(
-    group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
+    group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission", "no_keep_permission"]).requires("unstable")),
 ))]
 pub(crate) struct StdioCommand {
     #[arg(
@@ -136,6 +137,12 @@ pub(crate) struct StdioCommand {
         help = "Archiving the permissions of the files (unstable on Windows)"
     )]
     keep_permission: bool,
+    #[arg(
+        long,
+        visible_aliases = ["no-preserve-permissions", "no-permissions"],
+        help = "Do not archive permissions of files. This is the inverse option of --preserve-permissions"
+    )]
+    no_keep_permission: bool,
     #[arg(
         long,
         visible_aliases = ["preserve-xattrs", "xattrs"],
@@ -370,7 +377,10 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         } else {
             args.keep_timestamp
         },
-        keep_permission: args.keep_permission,
+        permission_strategy: PermissionStrategy::from_flags(
+            args.keep_permission,
+            args.no_keep_permission,
+        ),
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         keep_acl: !args.no_keep_acl && args.keep_acl,
     };
@@ -440,7 +450,10 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
             } else {
                 args.keep_timestamp
             },
-            keep_permission: args.keep_permission,
+            permission_strategy: PermissionStrategy::from_flags(
+                args.keep_permission,
+                args.no_keep_permission,
+            ),
             xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
             keep_acl: !args.no_keep_acl && args.keep_acl,
         },
@@ -561,7 +574,10 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         } else {
             args.keep_timestamp
         },
-        keep_permission: args.keep_permission,
+        permission_strategy: PermissionStrategy::from_flags(
+            args.keep_permission,
+            args.no_keep_permission,
+        ),
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         keep_acl: !args.no_keep_acl && args.keep_acl,
     };

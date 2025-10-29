@@ -8,8 +8,8 @@ use crate::{
         core::{
             collect_items, create_entry, entry_option, read_paths, read_paths_stdin,
             write_split_archive, CreateOptions, KeepOptions, OwnerOptions, PathFilter,
-            PathTransformers, StoreAs, TimeFilter, TimeFilters, TimeOptions, XattrStrategy,
-            MIN_SPLIT_PART_BYTES,
+            PathTransformers, PermissionStrategy, StoreAs, TimeFilter, TimeFilters, TimeOptions,
+            XattrStrategy, MIN_SPLIT_PART_BYTES,
         },
         Command,
     },
@@ -67,9 +67,10 @@ use std::{
     group(ArgGroup::new("unstable-follow_command_links").args(["follow_command_links"]).requires("unstable")),
     group(ArgGroup::new("unstable-one-file-system").args(["one_file_system"]).requires("unstable")),
     group(ArgGroup::new("overwrite-flag").args(["overwrite", "no_overwrite"])),
+    group(ArgGroup::new("keep-permission-flag").args(["keep_permission", "no_keep_permission"])),
 )]
 #[cfg_attr(windows, command(
-    group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
+    group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission", "no_keep_permission"]).requires("unstable")),
 ))]
 pub(crate) struct CreateCommand {
     #[arg(
@@ -122,7 +123,13 @@ pub(crate) struct CreateCommand {
         visible_alias = "preserve-permissions",
         help = "Archiving the permissions of the files (unstable on Windows)"
     )]
-    pub(crate) keep_permission: bool,
+    keep_permission: bool,
+    #[arg(
+        long,
+        visible_alias = "no-preserve-permissions",
+        help = "Do not archive permissions of files. This is the inverse option of --preserve-permissions"
+    )]
+    no_keep_permission: bool,
     #[arg(
         long,
         visible_alias = "preserve-xattrs",
@@ -379,7 +386,10 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         } else {
             args.keep_timestamp
         },
-        keep_permission: args.keep_permission,
+        permission_strategy: PermissionStrategy::from_flags(
+            args.keep_permission,
+            args.no_keep_permission,
+        ),
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         keep_acl: !args.no_keep_acl && args.keep_acl,
     };
