@@ -8,8 +8,8 @@ use crate::{
         ask_password,
         core::{
             collect_split_archives, path_lock::PathLocks, read_paths, run_process_archive,
-            KeepOptions, OwnerOptions, PathFilter, PathTransformers, PermissionStrategy,
-            TimestampStrategy, XattrStrategy,
+            AclStrategy, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
+            PermissionStrategy, TimestampStrategy, XattrStrategy,
         },
         Command,
     },
@@ -264,7 +264,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
             args.no_keep_permission,
         ),
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
-        keep_acl: !args.no_keep_acl && args.keep_acl,
+        acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
     };
     let owner_options = OwnerOptions::new(
         args.uname,
@@ -655,7 +655,7 @@ where
             target_os = "macos",
             windows
         ))]
-        if keep_options.keep_acl {
+        if let AclStrategy::Always = keep_options.acl_strategy {
             use crate::chunk::{acl_convert_current_platform, AcePlatform, Acl};
             use crate::ext::*;
             use itertools::Itertools;
@@ -681,12 +681,12 @@ where
             target_os = "macos",
             windows
         )))]
-        if keep_options.keep_acl {
+        if let AclStrategy::Always = keep_options.acl_strategy {
             log::warn!("Currently acl is not supported on this platform.");
         }
     }
     #[cfg(not(feature = "acl"))]
-    if keep_options.keep_acl {
+    if let AclStrategy::Always = keep_options.acl_strategy {
         log::warn!("Please enable `acl` feature and rebuild and install pna.");
     }
     drop(path_guard);

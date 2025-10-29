@@ -7,7 +7,7 @@ use crate::{
         ask_password, check_password,
         core::{
             collect_items, create_entry, entry_option, read_paths, read_paths_stdin,
-            write_split_archive, CreateOptions, KeepOptions, OwnerOptions, PathFilter,
+            write_split_archive, AclStrategy, CreateOptions, KeepOptions, OwnerOptions, PathFilter,
             PathTransformers, PermissionStrategy, StoreAs, TimeFilter, TimeFilters, TimeOptions,
             TimestampStrategy, XattrStrategy, MIN_SPLIT_PART_BYTES,
         },
@@ -390,7 +390,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
             args.no_keep_permission,
         ),
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
-        keep_acl: !args.no_keep_acl && args.keep_acl,
+        acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
     };
     let owner_options = OwnerOptions::new(
         args.uname,
