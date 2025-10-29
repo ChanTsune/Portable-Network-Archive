@@ -536,10 +536,8 @@ pub(crate) fn apply_metadata<'p>(
     time_options: &TimeOptions,
     metadata: impl Fn(&'p Path) -> io::Result<fs::Metadata>,
 ) -> io::Result<EntryBuilder> {
-    if matches!(
-        keep_options.timestamp_strategy,
-        TimestampStrategy::Always
-    ) || matches!(keep_options.permission_strategy, PermissionStrategy::Always)
+    if matches!(keep_options.timestamp_strategy, TimestampStrategy::Always)
+        || matches!(keep_options.permission_strategy, PermissionStrategy::Always)
     {
         let meta = metadata(path)?;
         if let TimestampStrategy::Always = keep_options.timestamp_strategy {
