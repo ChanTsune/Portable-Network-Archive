@@ -54,9 +54,27 @@ impl XattrStrategy {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub(crate) enum PermissionStrategy {
+    Never,
+    Always,
+}
+
+impl PermissionStrategy {
+    pub(crate) const fn from_flags(keep_permission: bool, no_keep_permission: bool) -> Self {
+        if no_keep_permission {
+            Self::Never
+        } else if keep_permission {
+            Self::Always
+        } else {
+            Self::Never
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) struct KeepOptions {
     pub(crate) keep_timestamp: bool,
-    pub(crate) keep_permission: bool,
+    pub(crate) permission_strategy: PermissionStrategy,
     pub(crate) xattr_strategy: XattrStrategy,
     pub(crate) keep_acl: bool,
 }
@@ -500,7 +518,9 @@ pub(crate) fn apply_metadata<'p>(
     time_options: &TimeOptions,
     metadata: impl Fn(&'p Path) -> io::Result<fs::Metadata>,
 ) -> io::Result<EntryBuilder> {
-    if keep_options.keep_timestamp || keep_options.keep_permission {
+    if keep_options.keep_timestamp
+        || matches!(keep_options.permission_strategy, PermissionStrategy::Always)
+    {
         let meta = metadata(path)?;
         if keep_options.keep_timestamp {
             let ctime = clamped_time(
@@ -529,7 +549,7 @@ pub(crate) fn apply_metadata<'p>(
             }
         }
         #[cfg(unix)]
-        if keep_options.keep_permission {
+        if let PermissionStrategy::Always = keep_options.permission_strategy {
             use crate::utils::fs::{Group, User};
             use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
@@ -557,7 +577,7 @@ pub(crate) fn apply_metadata<'p>(
             ));
         }
         #[cfg(windows)]
-        if keep_options.keep_permission {
+        if let PermissionStrategy::Always = keep_options.permission_strategy {
             use crate::utils::os::windows::{fs::stat, security::SecurityDescriptor};
 
             let sd = SecurityDescriptor::try_from(path)?;

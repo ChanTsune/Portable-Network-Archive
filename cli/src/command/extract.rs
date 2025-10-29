@@ -8,7 +8,8 @@ use crate::{
         ask_password,
         core::{
             collect_split_archives, path_lock::PathLocks, read_paths, run_process_archive,
-            KeepOptions, OwnerOptions, PathFilter, PathTransformers, XattrStrategy,
+            KeepOptions, OwnerOptions, PathFilter, PathTransformers, PermissionStrategy,
+            XattrStrategy,
         },
         Command,
     },
@@ -49,6 +50,7 @@ use std::{
     ),
     group(ArgGroup::new("null-requires").arg("null").requires("from-input")),
     group(ArgGroup::new("keep-timestamp-flag").args(["keep_timestamp", "no_keep_timestamp"])),
+    group(ArgGroup::new("keep-permission-flag").args(["keep_permission", "no_keep_permission"])),
     group(ArgGroup::new("keep-xattr-flag").args(["keep_xattr", "no_keep_xattr"])),
     group(ArgGroup::new("unstable-acl").args(["keep_acl", "no_keep_acl"]).requires("unstable")),
     group(ArgGroup::new("keep-acl-flag").args(["keep_acl", "no_keep_acl"])),
@@ -66,7 +68,7 @@ use std::{
     ),
 )]
 #[cfg_attr(windows, command(
-    group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
+    group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission", "no_keep_permission"]).requires("unstable")),
 ))]
 pub(crate) struct ExtractCommand {
     #[arg(long, help = "Overwrite file")]
@@ -101,7 +103,13 @@ pub(crate) struct ExtractCommand {
         visible_alias = "preserve-permissions",
         help = "Restore the permissions of the files (unstable on Windows)"
     )]
-    pub(crate) keep_permission: bool,
+    keep_permission: bool,
+    #[arg(
+        long,
+        visible_alias = "no-preserve-permissions",
+        help = "Do not restore permissions of files. This is the inverse option of --preserve-permissions"
+    )]
+    no_keep_permission: bool,
     #[arg(
         long,
         visible_alias = "preserve-xattrs",
@@ -252,7 +260,10 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         } else {
             args.keep_timestamp
         },
-        keep_permission: args.keep_permission,
+        permission_strategy: PermissionStrategy::from_flags(
+            args.keep_permission,
+            args.no_keep_permission,
+        ),
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         keep_acl: !args.no_keep_acl && args.keep_acl,
     };
@@ -624,7 +635,7 @@ where
             fs::hard_link(original, &path)?;
         }
     }
-    if keep_options.keep_permission {
+    if let PermissionStrategy::Always = keep_options.permission_strategy {
         if let Some(p) = item.metadata().permission() {
             restore_permissions(*same_owner, &path, p, owner_options)?;
         }

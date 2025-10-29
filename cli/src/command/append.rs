@@ -7,8 +7,8 @@ use crate::{
         ask_password, check_password,
         core::{
             collect_items, create_entry, entry_option, read_paths, read_paths_stdin, CreateOptions,
-            KeepOptions, OwnerOptions, PathFilter, PathTransformers, StoreAs, TimeFilter,
-            TimeFilters, TimeOptions, XattrStrategy,
+            KeepOptions, OwnerOptions, PathFilter, PathTransformers, PermissionStrategy, StoreAs,
+            TimeFilter, TimeFilters, TimeOptions, XattrStrategy,
         },
         Command,
     },
@@ -54,6 +54,7 @@ use std::{
     group(ArgGroup::new("keep-dir-flag").args(["keep_dir", "no_keep_dir"])),
     group(ArgGroup::new("keep-xattr-flag").args(["keep_xattr", "no_keep_xattr"])),
     group(ArgGroup::new("keep-timestamp-flag").args(["keep_timestamp", "no_keep_timestamp"])),
+    group(ArgGroup::new("keep-permission-flag").args(["keep_permission", "no_keep_permission"])),
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
     group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
     group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
@@ -61,7 +62,7 @@ use std::{
     group(ArgGroup::new("unstable-one-file-system").args(["one_file_system"]).requires("unstable")),
 )]
 #[cfg_attr(windows, command(
-    group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission"]).requires("unstable")),
+    group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission", "no_keep_permission"]).requires("unstable")),
 ))]
 pub(crate) struct AppendCommand {
     #[arg(
@@ -107,7 +108,13 @@ pub(crate) struct AppendCommand {
         visible_alias = "preserve-permissions",
         help = "Archiving the permissions of the files (unstable on Windows)"
     )]
-    pub(crate) keep_permission: bool,
+    keep_permission: bool,
+    #[arg(
+        long,
+        visible_alias = "no-preserve-permissions",
+        help = "Do not archive permissions of files. This is the inverse option of --preserve-permissions"
+    )]
+    no_keep_permission: bool,
     #[arg(
         long,
         visible_alias = "preserve-xattrs",
@@ -286,7 +293,10 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         } else {
             args.keep_timestamp
         },
-        keep_permission: args.keep_permission,
+        permission_strategy: PermissionStrategy::from_flags(
+            args.keep_permission,
+            args.no_keep_permission,
+        ),
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         keep_acl: !args.no_keep_acl && args.keep_acl,
     };
