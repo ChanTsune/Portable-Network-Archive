@@ -13,14 +13,11 @@ use crate::{
     },
     utils::{env::NamedTempFile, PathPartExt},
 };
-use clap::{ArgGroup, Args, Parser, ValueHint};
+use clap::{Args, Parser, ValueHint};
 use pna::{prelude::*, Metadata, NormalEntry, RawChunk};
 use std::path::PathBuf;
 
 #[derive(Args, Clone, Eq, PartialEq, Hash, Debug)]
-#[command(
-    group(ArgGroup::new("keep-timestamp-flag").args(["keep_timestamp", "no_keep_timestamp"])),
-)]
 pub(crate) struct StripOptions {
     #[arg(
         long,
@@ -28,12 +25,6 @@ pub(crate) struct StripOptions {
         help = "Keep the timestamp of the files"
     )]
     pub(crate) keep_timestamp: bool,
-    #[arg(
-        long,
-        visible_alias = "no-preserve-timestamps",
-        help = "Do not keep timestamp of files. This is the inverse option of --preserve-timestamps"
-    )]
-    pub(crate) no_keep_timestamp: bool,
     #[arg(
         long,
         visible_alias = "preserve-permissions",
@@ -130,11 +121,7 @@ where
     if options.keep_permission {
         metadata = metadata.with_permission(entry.metadata().permission().cloned());
     }
-    if if options.no_keep_timestamp {
-        false
-    } else {
-        options.keep_timestamp
-    } {
+    if options.keep_timestamp {
         metadata = metadata.with_accessed(entry.metadata().accessed());
         metadata = metadata.with_created(entry.metadata().created());
         metadata = metadata.with_modified(entry.metadata().modified());
