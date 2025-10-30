@@ -70,7 +70,7 @@ walkdir = "2.5.0"
 criterion = { version = "0.7.0", default-features = false, features = ["cargo_bench_support", "plotters"] }
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
-assert_cmd = "2.1.0"
+assert_cmd = "2.1.1"
 
 [features]
 acl = [
