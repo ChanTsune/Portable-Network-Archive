@@ -90,11 +90,29 @@ impl TimestampStrategy {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub(crate) enum AclStrategy {
+    Never,
+    Always,
+}
+
+impl AclStrategy {
+    pub(crate) const fn from_flags(keep_acl: bool, no_keep_acl: bool) -> Self {
+        if no_keep_acl {
+            Self::Never
+        } else if keep_acl {
+            Self::Always
+        } else {
+            Self::Never
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) struct KeepOptions {
     pub(crate) timestamp_strategy: TimestampStrategy,
     pub(crate) permission_strategy: PermissionStrategy,
     pub(crate) xattr_strategy: XattrStrategy,
-    pub(crate) keep_acl: bool,
+    pub(crate) acl_strategy: AclStrategy,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -620,7 +638,7 @@ pub(crate) fn apply_metadata<'p>(
             target_os = "macos",
             windows
         ))]
-        if keep_options.keep_acl {
+        if let AclStrategy::Always = keep_options.acl_strategy {
             use crate::chunk;
             use pna::RawChunk;
             let acl = utils::acl::get_facl(path)?;
@@ -635,12 +653,12 @@ pub(crate) fn apply_metadata<'p>(
             target_os = "macos",
             windows
         )))]
-        if keep_options.keep_acl {
+        if let AclStrategy::Always = keep_options.acl_strategy {
             log::warn!("Currently acl is not supported on this platform.");
         }
     }
     #[cfg(not(feature = "acl"))]
-    if keep_options.keep_acl {
+    if let AclStrategy::Always = keep_options.acl_strategy {
         log::warn!("Please enable `acl` feature and rebuild and install pna.");
     }
     #[cfg(unix)]

@@ -6,9 +6,10 @@ use crate::{
     command::{
         ask_password, check_password,
         core::{
-            collect_items, create_entry, entry_option, read_paths, read_paths_stdin, CreateOptions,
-            KeepOptions, OwnerOptions, PathFilter, PathTransformers, PermissionStrategy, StoreAs,
-            TimeFilter, TimeFilters, TimeOptions, TimestampStrategy, XattrStrategy,
+            collect_items, create_entry, entry_option, read_paths, read_paths_stdin, AclStrategy,
+            CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
+            PermissionStrategy, StoreAs, TimeFilter, TimeFilters, TimeOptions, TimestampStrategy,
+            XattrStrategy,
         },
         Command,
     },
@@ -297,7 +298,7 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
             args.no_keep_permission,
         ),
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
-        keep_acl: !args.no_keep_acl && args.keep_acl,
+        acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
     };
     let owner_options = OwnerOptions::new(
         args.uname,

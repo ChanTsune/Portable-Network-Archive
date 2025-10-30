@@ -7,7 +7,7 @@ use crate::{
         ask_password, check_password,
         core::{
             collect_items, collect_split_archives, entry_option, path_lock::PathLocks, read_paths,
-            CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
+            AclStrategy, CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
             PermissionStrategy, TimeOptions, TimestampStrategy, XattrStrategy,
         },
         create::{create_archive_file, CreationContext},
@@ -381,7 +381,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
             args.no_keep_permission,
         ),
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
-        keep_acl: !args.no_keep_acl && args.keep_acl,
+        acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
     };
     let owner_options = OwnerOptions::new(
         args.uname,
@@ -453,7 +453,7 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
                 args.no_keep_permission,
             ),
             xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
-            keep_acl: !args.no_keep_acl && args.keep_acl,
+            acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
         },
         owner_options: OwnerOptions::new(
             args.uname,
@@ -576,7 +576,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.no_keep_permission,
         ),
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
-        keep_acl: !args.no_keep_acl && args.keep_acl,
+        acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
     };
     let owner_options = OwnerOptions::new(
         args.uname,
