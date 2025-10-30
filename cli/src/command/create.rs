@@ -9,7 +9,7 @@ use crate::{
             collect_items, create_entry, entry_option, read_paths, read_paths_stdin,
             write_split_archive, CreateOptions, KeepOptions, OwnerOptions, PathFilter,
             PathTransformers, PermissionStrategy, StoreAs, TimeFilter, TimeFilters, TimeOptions,
-            XattrStrategy, MIN_SPLIT_PART_BYTES,
+            TimestampStrategy, XattrStrategy, MIN_SPLIT_PART_BYTES,
         },
         Command,
     },
@@ -381,11 +381,10 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         fs::create_dir_all(parent)?;
     }
     let keep_options = KeepOptions {
-        keep_timestamp: if args.no_keep_timestamp {
-            false
-        } else {
-            args.keep_timestamp
-        },
+        timestamp_strategy: TimestampStrategy::from_flags(
+            args.keep_timestamp,
+            args.no_keep_timestamp,
+        ),
         permission_strategy: PermissionStrategy::from_flags(
             args.keep_permission,
             args.no_keep_permission,

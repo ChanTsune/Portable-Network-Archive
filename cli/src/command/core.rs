@@ -72,8 +72,26 @@ impl PermissionStrategy {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub(crate) enum TimestampStrategy {
+    Never,
+    Always,
+}
+
+impl TimestampStrategy {
+    pub(crate) const fn from_flags(keep_timestamp: bool, no_keep_timestamp: bool) -> Self {
+        if no_keep_timestamp {
+            Self::Never
+        } else if keep_timestamp {
+            Self::Always
+        } else {
+            Self::Never
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) struct KeepOptions {
-    pub(crate) keep_timestamp: bool,
+    pub(crate) timestamp_strategy: TimestampStrategy,
     pub(crate) permission_strategy: PermissionStrategy,
     pub(crate) xattr_strategy: XattrStrategy,
     pub(crate) keep_acl: bool,
@@ -518,11 +536,11 @@ pub(crate) fn apply_metadata<'p>(
     time_options: &TimeOptions,
     metadata: impl Fn(&'p Path) -> io::Result<fs::Metadata>,
 ) -> io::Result<EntryBuilder> {
-    if keep_options.keep_timestamp
+    if matches!(keep_options.timestamp_strategy, TimestampStrategy::Always)
         || matches!(keep_options.permission_strategy, PermissionStrategy::Always)
     {
         let meta = metadata(path)?;
-        if keep_options.keep_timestamp {
+        if let TimestampStrategy::Always = keep_options.timestamp_strategy {
             let ctime = clamped_time(
                 meta.created().ok(),
                 time_options.ctime,

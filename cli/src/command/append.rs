@@ -8,7 +8,7 @@ use crate::{
         core::{
             collect_items, create_entry, entry_option, read_paths, read_paths_stdin, CreateOptions,
             KeepOptions, OwnerOptions, PathFilter, PathTransformers, PermissionStrategy, StoreAs,
-            TimeFilter, TimeFilters, TimeOptions, XattrStrategy,
+            TimeFilter, TimeFilters, TimeOptions, TimestampStrategy, XattrStrategy,
         },
         Command,
     },
@@ -288,11 +288,10 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
     let password = password.as_deref();
     let option = entry_option(args.compression, args.cipher, args.hash, password);
     let keep_options = KeepOptions {
-        keep_timestamp: if args.no_keep_timestamp {
-            false
-        } else {
-            args.keep_timestamp
-        },
+        timestamp_strategy: TimestampStrategy::from_flags(
+            args.keep_timestamp,
+            args.no_keep_timestamp,
+        ),
         permission_strategy: PermissionStrategy::from_flags(
             args.keep_permission,
             args.no_keep_permission,

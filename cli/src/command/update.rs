@@ -13,7 +13,8 @@ use crate::{
             collect_items, collect_split_archives, create_entry, entry_option, read_paths,
             read_paths_stdin, CreateOptions, KeepOptions, OwnerOptions, PathFilter,
             PathTransformers, PermissionStrategy, TimeFilter, TimeFilters, TimeOptions,
-            TransformStrategy, TransformStrategyKeepSolid, TransformStrategyUnSolid, XattrStrategy,
+            TimestampStrategy, TransformStrategy, TransformStrategyKeepSolid,
+            TransformStrategyUnSolid, XattrStrategy,
         },
         Command,
     },
@@ -297,11 +298,10 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
     let password = password.as_deref();
     let option = entry_option(args.compression, args.cipher, args.hash, password);
     let keep_options = KeepOptions {
-        keep_timestamp: if args.no_keep_timestamp {
-            false
-        } else {
-            args.keep_timestamp
-        },
+        timestamp_strategy: TimestampStrategy::from_flags(
+            args.keep_timestamp,
+            args.no_keep_timestamp,
+        ),
         permission_strategy: PermissionStrategy::from_flags(
             args.keep_permission,
             args.no_keep_permission,

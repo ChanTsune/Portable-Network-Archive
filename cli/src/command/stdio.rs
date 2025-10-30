@@ -8,7 +8,7 @@ use crate::{
         core::{
             collect_items, collect_split_archives, entry_option, path_lock::PathLocks, read_paths,
             CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
-            PermissionStrategy, TimeOptions, XattrStrategy,
+            PermissionStrategy, TimeOptions, TimestampStrategy, XattrStrategy,
         },
         create::{create_archive_file, CreationContext},
         extract::{run_extract_archive_reader, OutputOption, OverwriteStrategy},
@@ -372,11 +372,10 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     let password = password.as_deref();
     let cli_option = entry_option(args.compression, args.cipher, args.hash, password);
     let keep_options = KeepOptions {
-        keep_timestamp: if args.no_keep_timestamp {
-            false
-        } else {
-            args.keep_timestamp
-        },
+        timestamp_strategy: TimestampStrategy::from_flags(
+            args.keep_timestamp,
+            args.no_keep_timestamp,
+        ),
         permission_strategy: PermissionStrategy::from_flags(
             args.keep_permission,
             args.no_keep_permission,
@@ -445,11 +444,10 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         out_dir: args.out_dir,
         filter,
         keep_options: KeepOptions {
-            keep_timestamp: if args.no_keep_timestamp {
-                false
-            } else {
-                args.keep_timestamp
-            },
+            timestamp_strategy: TimestampStrategy::from_flags(
+                args.keep_timestamp,
+                args.no_keep_timestamp,
+            ),
             permission_strategy: PermissionStrategy::from_flags(
                 args.keep_permission,
                 args.no_keep_permission,
@@ -569,11 +567,10 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     let password = password.as_deref();
     let option = entry_option(args.compression, args.cipher, args.hash, password);
     let keep_options = KeepOptions {
-        keep_timestamp: if args.no_keep_timestamp {
-            false
-        } else {
-            args.keep_timestamp
-        },
+        timestamp_strategy: TimestampStrategy::from_flags(
+            args.keep_timestamp,
+            args.no_keep_timestamp,
+        ),
         permission_strategy: PermissionStrategy::from_flags(
             args.keep_permission,
             args.no_keep_permission,

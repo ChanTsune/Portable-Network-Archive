@@ -9,7 +9,7 @@ use crate::{
         core::{
             collect_split_archives, path_lock::PathLocks, read_paths, run_process_archive,
             KeepOptions, OwnerOptions, PathFilter, PathTransformers, PermissionStrategy,
-            XattrStrategy,
+            TimestampStrategy, XattrStrategy,
         },
         Command,
     },
@@ -255,11 +255,10 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let overwrite_strategy =
         OverwriteStrategy::from_flags(args.overwrite, args.keep_newer_files, args.keep_old_files);
     let keep_options = KeepOptions {
-        keep_timestamp: if args.no_keep_timestamp {
-            false
-        } else {
-            args.keep_timestamp
-        },
+        timestamp_strategy: TimestampStrategy::from_flags(
+            args.keep_timestamp,
+            args.no_keep_timestamp,
+        ),
         permission_strategy: PermissionStrategy::from_flags(
             args.keep_permission,
             args.no_keep_permission,
@@ -563,7 +562,7 @@ where
     match item.header().data_kind() {
         DataKind::File => {
             let mut file = utils::fs::file_create(&path, remove_existing)?;
-            if keep_options.keep_timestamp {
+            if let TimestampStrategy::Always = keep_options.timestamp_strategy {
                 let mut times = fs::FileTimes::new();
                 if let Some(accessed) = item.metadata().accessed_time() {
                     times = times.set_accessed(accessed);
