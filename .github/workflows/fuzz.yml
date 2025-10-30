@@ -14,7 +14,7 @@ on:
 jobs:
   fuzz_target:
     name: Detect fuzz target
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     outputs:
       fuzz_target: ${{ steps.fuzz_target.outputs.fuzz_target }}
     steps:
