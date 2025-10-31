@@ -31,7 +31,7 @@ jobs:
           - target: wasm32-wasip2
             container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-26
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     container: ${{ matrix.container }}
     timeout-minutes: 100
     steps:
