@@ -22,10 +22,7 @@ pub(crate) fn normalize_utf8path(path: impl AsRef<Utf8Path>) -> Utf8PathBuf {
                 }
                 Some(Utf8Component::ParentDir) | None => buf.push(c),
                 Some(Utf8Component::RootDir | Utf8Component::Prefix(_)) => {}
-                Some(Utf8Component::CurDir) => {
-                    buf.pop();
-                    buf.push(c);
-                }
+                Some(Utf8Component::CurDir) => unreachable!("normalized path must not contain '.'"),
             },
             Utf8Component::Normal(_) => buf.push(c),
         }
