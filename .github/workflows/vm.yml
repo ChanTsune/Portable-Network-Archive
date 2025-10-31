@@ -118,30 +118,30 @@ jobs:
             cargo install -f cargo-hack --locked
             cargo hack test --locked --release --feature-powerset --exclude-features wasm
 
-#  DragonflyBSD-test:
-#    runs-on: ubuntu-latest
-#    timeout-minutes: 100
-#    name: Test on DragonflyBSD
-#    steps:
-#      - uses: actions/checkout@v4
-#      - name: Test in DragonflyBSD
-#        id: test
-#        uses: vmactions/dragonflybsd-vm@v1.0.9
-#        with:
-#          envs: "RUST_BACKTRACE"
-#          copyback: false
-#          usesh: true
-#          prepare: |
-#            pkg install -y curl cmake libnghttp2
-#            pkg install -y rust
-#          run: |
-#            set -e
-#            export LC_ALL=C LANG=C
-#            uname -a
-#            chown -R $(whoami):$(id -gn) ./
-#            chmod -R a+rw ./
-#            cargo install -f cargo-hack --locked
-#            cargo hack test --locked --release --feature-powerset --exclude-features wasm
+  DragonflyBSD-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    name: Test on DragonflyBSD
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test in DragonflyBSD
+        id: test
+        uses: vmactions/dragonflybsd-vm@v1.1.1
+        with:
+          envs: "RUST_BACKTRACE"
+          copyback: false
+          usesh: true
+          prepare: |
+            pkg install -y curl cmake libnghttp2
+            pkg install -y rust
+          run: |
+            set -e
+            export LC_ALL=C LANG=C
+            uname -a
+            chown -R $(whoami):$(id -gn) ./
+            chmod -R a+rw ./
+            cargo install -f cargo-hack --locked
+            cargo hack test --locked --release --feature-powerset --exclude-features wasm
 
   OmniOS-test:
     runs-on: ubuntu-latest
