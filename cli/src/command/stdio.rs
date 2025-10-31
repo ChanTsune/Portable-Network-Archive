@@ -26,6 +26,7 @@ use pna::Archive;
 use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
 
 #[derive(Args, Clone, Debug)]
+#[clap(disable_help_flag = true)]
 #[command(
     group(ArgGroup::new("unstable-acl").args(["keep_acl", "no_keep_acl"]).requires("unstable")),
     group(ArgGroup::new("keep-acl-flag").args(["keep_acl", "no_keep_acl"])),
@@ -304,6 +305,8 @@ pub(crate) struct StdioCommand {
     verbose: bool,
     #[arg(long, hide = true)]
     format: Option<String>,
+    #[arg(long, action = clap::ArgAction::Help)]
+    help: Option<bool>,
 }
 
 impl Command for StdioCommand {
