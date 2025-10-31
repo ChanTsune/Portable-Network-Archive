@@ -4,7 +4,7 @@ use std::borrow::Cow;
 use std::error::Error;
 use std::ffi::{OsStr, OsString};
 use std::fmt::{self, Display, Formatter};
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::str::{self, Utf8Error};
 
 /// A UTF-8 encoded entry name.
@@ -25,15 +25,7 @@ pub struct EntryName(String);
 
 impl EntryName {
     fn new_from_utf8path(path: &Utf8Path) -> Self {
-        let path = normalize_utf8path(path);
-        let iter = path.components().filter_map(|c| match c {
-            Utf8Component::Prefix(_)
-            | Utf8Component::RootDir
-            | Utf8Component::CurDir
-            | Utf8Component::ParentDir => None,
-            Utf8Component::Normal(p) => Some(p),
-        });
-        Self(join_with_capacity(iter, "/", path.as_str().len()))
+        Self::new_from_utf8path_preserve_root(path).sanitize()
     }
 
     #[inline]
@@ -69,16 +61,123 @@ impl EntryName {
         Self::from_path_lossy(&p.into())
     }
 
+    #[inline]
     fn from_path_lossy(p: &Path) -> Self {
-        let p = normalize_path(p);
-        let iter = p.components().filter_map(|c| match c {
-            Component::Prefix(_)
-            | Component::RootDir
-            | Component::CurDir
-            | Component::ParentDir => None,
-            Component::Normal(p) => Some(p.to_string_lossy()),
-        });
-        Self(join_with_capacity(iter, "/", p.as_os_str().len()))
+        Self::from_path_lossy_preserve_root(p).sanitize()
+    }
+
+    /// Creates an [EntryName] from a path, preserving absolute path components.
+    ///
+    /// This method is similar to the `From` implementations for path-like types, but preserves absolute path components.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use libpna::EntryName;
+    ///
+    /// assert_eq!("foo.txt", EntryName::from_utf8_preserve_root("foo.txt"));
+    /// #[cfg(windows)]
+    /// assert_eq!("\\foo.txt", EntryName::from_utf8_preserve_root("/foo.txt"));
+    /// #[cfg(unix)]
+    /// assert_eq!("/foo.txt", EntryName::from_utf8_preserve_root("/foo.txt"));
+    /// assert_eq!("foo.txt", EntryName::from_utf8_preserve_root("./foo.txt"));
+    /// #[cfg(windows)]
+    /// assert_eq!("..\\foo.txt", EntryName::from_utf8_preserve_root("../foo.txt"));
+    /// #[cfg(unix)]
+    /// assert_eq!("../foo.txt", EntryName::from_utf8_preserve_root("../foo.txt"));
+    /// assert_eq!("foo.txt", EntryName::from_utf8_preserve_root("bar/../foo.txt"));
+    /// ```
+    #[inline]
+    pub fn from_utf8_preserve_root(path: &str) -> Self {
+        Self::new_from_utf8path_preserve_root(Utf8Path::new(path))
+    }
+
+    #[inline]
+    fn new_from_utf8path_preserve_root(path: &Utf8Path) -> Self {
+        let path = normalize_utf8path(path);
+        Self(path.into_string())
+    }
+
+    /// Creates an [EntryName] from a path, preserving absolute path components.
+    ///
+    /// This method is similar to the `From` implementations for path-like types, but preserves absolute path components.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use libpna::EntryName;
+    ///
+    /// assert_eq!("foo.txt", EntryName::from_path_preserve_root("foo.txt".as_ref()).unwrap());
+    /// #[cfg(windows)]
+    /// assert_eq!("\\foo.txt", EntryName::from_path_preserve_root("/foo.txt".as_ref()).unwrap());
+    /// #[cfg(unix)]
+    /// assert_eq!("/foo.txt", EntryName::from_path_preserve_root("/foo.txt".as_ref()).unwrap());
+    /// assert_eq!("foo.txt", EntryName::from_path_preserve_root("./foo.txt".as_ref()).unwrap());
+    /// #[cfg(windows)]
+    /// assert_eq!("..\\foo.txt", EntryName::from_path_preserve_root("../foo.txt".as_ref()).unwrap());
+    /// #[cfg(unix)]
+    /// assert_eq!("../foo.txt", EntryName::from_path_preserve_root("../foo.txt".as_ref()).unwrap());
+    /// assert_eq!("foo.txt", EntryName::from_path_preserve_root("bar/../foo.txt".as_ref()).unwrap());
+    /// ```
+    #[inline]
+    pub fn from_path_preserve_root(name: &Path) -> Result<Self, EntryNameError> {
+        let path = str::from_utf8(name.as_os_str().as_encoded_bytes())?;
+        Ok(Self::new_from_utf8path_preserve_root(Utf8Path::new(path)))
+    }
+
+    /// Creates an [EntryName] from a path, preserving absolute path components.
+    ///
+    /// This method is similar to the `From` implementations for path-like types, but preserves absolute path components.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`EntryNameError`] if it cannot be represented as valid UTF-8.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use libpna::EntryName;
+    ///
+    /// assert_eq!("foo.txt", EntryName::from_path_lossy_preserve_root("foo.txt".as_ref()));
+    /// #[cfg(windows)]
+    /// assert_eq!("\\foo.txt", EntryName::from_path_lossy_preserve_root("/foo.txt".as_ref()));
+    /// #[cfg(unix)]
+    /// assert_eq!("/foo.txt", EntryName::from_path_lossy_preserve_root("/foo.txt".as_ref()));
+    /// assert_eq!("foo.txt", EntryName::from_path_lossy_preserve_root("./foo.txt".as_ref()));
+    /// #[cfg(windows)]
+    /// assert_eq!("..\\foo.txt", EntryName::from_path_lossy_preserve_root("../foo.txt".as_ref()));
+    /// #[cfg(unix)]
+    /// assert_eq!("../foo.txt", EntryName::from_path_lossy_preserve_root("../foo.txt".as_ref()));
+    /// assert_eq!("foo.txt", EntryName::from_path_lossy_preserve_root("bar/../foo.txt".as_ref()));
+    /// ```
+    #[inline]
+    pub fn from_path_lossy_preserve_root(name: &Path) -> Self {
+        let p = normalize_path(name);
+        Self::new_from_utf8path_preserve_root(Utf8Path::new(&p.to_string_lossy()))
+    }
+
+    /// Returns a sanitized copy of this entry name that contains only normal components.
+    ///
+    /// Sanitization discards prefixes, root separators, `.` and `..` segments so the
+    /// resulting entry name is always relative and safe to embed in an archive.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use libpna::EntryName;
+    ///
+    /// let name = EntryName::from_utf8_preserve_root("/var/../tmp/./log");
+    /// assert_eq!("tmp/log", name.sanitize());
+    /// ```
+    #[inline]
+    pub fn sanitize(&self) -> Self {
+        let path = Utf8Path::new(&self.0);
+        Self(join_with_capacity(
+            path.components()
+                .filter(|c| matches!(c, Utf8Component::Normal(_))),
+            "/",
+            path.as_str().len(),
+        ))
     }
 
     #[inline]
