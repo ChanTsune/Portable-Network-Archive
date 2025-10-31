@@ -12,7 +12,7 @@ use pna::{DataKind, NormalEntry, ReadOptions};
 use std::{
     fs,
     io::{self, prelude::*},
-    path::PathBuf,
+    path::Path,
 };
 
 #[derive(Parser, Clone, Debug)]
@@ -82,7 +82,7 @@ fn compare_entry<T: AsRef<[u8]>>(entry: NormalEntry<T>, password: Option<&str>) 
                 let mut reader = entry.reader(ReadOptions::with_password(password))?;
                 let mut link_str = String::new();
                 reader.read_to_string(&mut link_str)?;
-                if link != PathBuf::from(link_str) {
+                if link.as_path() != Path::new(&link_str) {
                     println!("Different symlink: {path}");
                 }
             }
