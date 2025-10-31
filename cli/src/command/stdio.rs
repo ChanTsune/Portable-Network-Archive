@@ -128,8 +128,9 @@ pub(crate) struct StdioCommand {
     )]
     keep_timestamp: bool,
     #[arg(
+        short = 'm',
         long,
-        visible_alias = "no-preserve-timestamps",
+        visible_aliases = ["no-preserve-timestamps", "modification_time"],
         help = "Do not archive timestamp of files. This is the inverse option of --preserve-timestamps"
     )]
     no_keep_timestamp: bool,
