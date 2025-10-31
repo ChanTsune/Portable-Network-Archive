@@ -15,7 +15,7 @@ env:
 jobs:
   solaris-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 100
+    timeout-minutes: 60
     name: Test on Solaris
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -42,7 +42,7 @@ jobs:
 
   NetBSD-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 100
+    timeout-minutes: 60
     name: Test on NetBSD
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -69,7 +69,7 @@ jobs:
 
   FreeBSD-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 100
+    timeout-minutes: 60
     name: Test on FreeBSD
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -95,7 +95,7 @@ jobs:
 
   OpenBSD-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 100
+    timeout-minutes: 60
     name: Test on OpenBSD
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
@@ -120,7 +120,7 @@ jobs:
 
 #  DragonflyBSD-test:
 #    runs-on: ubuntu-latest
-#    timeout-minutes: 100
+#    timeout-minutes: 60
 #    name: Test on DragonflyBSD
 #    steps:
 #      - uses: actions/checkout@v4
@@ -145,7 +145,7 @@ jobs:
 
   OmniOS-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 100
+    timeout-minutes: 60
     name: Test on OmniOS
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
