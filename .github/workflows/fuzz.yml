@@ -26,7 +26,7 @@ jobs:
 
   fuzz:
     name: Run cargo fuzz
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     needs: fuzz_target
     strategy:
       fail-fast: false
