@@ -20,7 +20,7 @@ use crate::{
 };
 use anyhow::Context;
 use clap::{ArgGroup, Parser, ValueHint};
-use pna::Archive;
+use pna::{prelude::*, Archive};
 use std::{
     env, fs, io,
     path::{Path, PathBuf},
@@ -409,26 +409,9 @@ pub(crate) fn run_append_archive(
     Ok(())
 }
 
+#[inline]
 pub(crate) fn open_archive_then_seek_to_end(
     path: impl AsRef<Path>,
-) -> anyhow::Result<Archive<fs::File>> {
-    let archive_path = path.as_ref();
-    let mut num = 1;
-    let file = fs::File::options()
-        .write(true)
-        .read(true)
-        .open(archive_path)?;
-    let mut archive = Archive::read_header(file)?;
-    loop {
-        archive.seek_to_end()?;
-        if !archive.has_next_archive() {
-            break Ok(archive);
-        }
-        num += 1;
-        let file = fs::File::options()
-            .write(true)
-            .read(true)
-            .open(archive_path.with_part(num).unwrap())?;
-        archive = archive.read_next_archive(file)?;
-    }
+) -> io::Result<Archive<fs::File>> {
+    Archive::open_multipart_for_append(path, |base, index| base.with_part(index).unwrap())
 }
