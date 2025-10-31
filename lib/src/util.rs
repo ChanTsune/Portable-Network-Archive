@@ -1,7 +1,6 @@
 //! Internal utility helpers shared across modules.
 //!
 //! The contents of this module are crate-internal.
-pub(crate) mod path;
 pub(crate) mod str;
 pub(crate) mod utf8path;
 

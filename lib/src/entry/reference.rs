@@ -4,7 +4,7 @@ use std::borrow::Cow;
 use std::error::Error;
 use std::ffi::{OsStr, OsString};
 use std::fmt::{self, Display, Formatter};
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::str::{self, Utf8Error};
 
 /// A UTF-8 encoded entry reference.
@@ -77,22 +77,7 @@ impl EntryReference {
 
     #[inline]
     fn from_path_lossy(path: &Path) -> Self {
-        let has_root = path.has_root();
-        let has_prefix = path
-            .components()
-            .any(|it| matches!(&it, Component::Prefix(_)));
-        let p = path.components().filter_map(|it| match it {
-            Component::Prefix(p) => Some(p.as_os_str().to_string_lossy()),
-            Component::RootDir => None,
-            Component::CurDir => Some(Cow::from(".")),
-            Component::ParentDir => Some(Cow::from("..")),
-            Component::Normal(n) => Some(n.to_string_lossy()),
-        });
-        let mut s = join_with_capacity(p, "/", path.as_os_str().len());
-        if !has_prefix && has_root {
-            s.insert(0, '/');
-        };
-        Self(s)
+        Self::new_from_utf8(&path.to_string_lossy())
     }
 
     #[inline]

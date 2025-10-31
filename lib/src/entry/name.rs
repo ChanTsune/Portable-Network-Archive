@@ -1,10 +1,10 @@
-use crate::util::{path::normalize_path, str::join_with_capacity, utf8path::normalize_utf8path};
+use crate::util::{str::join_with_capacity, utf8path::normalize_utf8path};
 use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
 use std::borrow::Cow;
 use std::error::Error;
 use std::ffi::{OsStr, OsString};
 use std::fmt::{self, Display, Formatter};
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::str::{self, Utf8Error};
 
 /// A UTF-8 encoded entry name.
@@ -69,16 +69,9 @@ impl EntryName {
         Self::from_path_lossy(&p.into())
     }
 
+    #[inline]
     fn from_path_lossy(p: &Path) -> Self {
-        let p = normalize_path(p);
-        let iter = p.components().filter_map(|c| match c {
-            Component::Prefix(_)
-            | Component::RootDir
-            | Component::CurDir
-            | Component::ParentDir => None,
-            Component::Normal(p) => Some(p.to_string_lossy()),
-        });
-        Self(join_with_capacity(iter, "/", p.as_os_str().len()))
+        Self::new_from_utf8(&p.to_string_lossy())
     }
 
     #[inline]
