@@ -440,6 +440,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[derive(Clone)]
 pub(crate) struct CreationContext {
     pub(crate) write_option: WriteOptions,
     pub(crate) keep_options: KeepOptions,
@@ -449,35 +450,24 @@ pub(crate) struct CreationContext {
     pub(crate) path_transformers: Option<PathTransformers>,
 }
 
-pub(crate) fn create_archive_file<W, F>(
-    mut get_writer: F,
-    CreationContext {
-        write_option,
-        keep_options,
-        owner_options,
-        time_options,
-        solid,
-        path_transformers,
-    }: CreationContext,
+fn create_entries_in_parallel(
     target_items: Vec<(PathBuf, StoreAs)>,
-) -> anyhow::Result<()>
-where
-    W: Write,
-    F: FnMut() -> io::Result<W> + Send,
-{
+    context: &CreationContext,
+) -> std::sync::mpsc::Receiver<io::Result<pna::NormalEntry>> {
     let (tx, rx) = std::sync::mpsc::channel();
-    let option = if solid {
+    let option = if context.solid {
         WriteOptions::store()
     } else {
-        write_option.clone()
+        context.write_option.clone()
     };
     let create_options = CreateOptions {
         option,
-        keep_options,
-        owner_options,
-        time_options,
+        keep_options: context.keep_options,
+        owner_options: context.owner_options.clone(),
+        time_options: context.time_options.clone(),
     };
-    rayon::scope_fifo(|s| {
+    let path_transformers = context.path_transformers.clone();
+    rayon::scope_fifo(move |s| {
         for file in target_items {
             let tx = tx.clone();
             let create_options = create_options.clone();
@@ -488,13 +478,24 @@ where
                     .unwrap_or_else(|e| log::error!("{e}: {}", file.0.display()));
             })
         }
-
         drop(tx);
     });
+    rx
+}
 
+pub(crate) fn create_archive_file<W, F>(
+    mut get_writer: F,
+    context: CreationContext,
+    target_items: Vec<(PathBuf, StoreAs)>,
+) -> anyhow::Result<()>
+where
+    W: Write,
+    F: FnMut() -> io::Result<W> + Send,
+{
+    let rx = create_entries_in_parallel(target_items, &context);
     let file = get_writer()?;
-    if solid {
-        let mut writer = Archive::write_solid_header(file, write_option)?;
+    if context.solid {
+        let mut writer = Archive::write_solid_header(file, context.write_option)?;
         for entry in rx.into_iter() {
             writer.add_entry(entry?)?;
         }
@@ -511,47 +512,14 @@ where
 
 fn create_archive_with_split(
     archive: &Path,
-    CreationContext {
-        write_option,
-        keep_options,
-        owner_options,
-        time_options,
-        solid,
-        path_transformers,
-    }: CreationContext,
+    context: CreationContext,
     target_items: Vec<(PathBuf, StoreAs)>,
     max_file_size: usize,
     overwrite: bool,
 ) -> anyhow::Result<()> {
-    let (tx, rx) = std::sync::mpsc::channel();
-    let option = if solid {
-        WriteOptions::store()
-    } else {
-        write_option.clone()
-    };
-    let create_options = CreateOptions {
-        option,
-        keep_options,
-        owner_options,
-        time_options,
-    };
-    rayon::scope_fifo(|s| -> anyhow::Result<()> {
-        for file in target_items {
-            let tx = tx.clone();
-            let create_options = create_options.clone();
-            let path_transformers = path_transformers.clone();
-            s.spawn_fifo(move |_| {
-                log::debug!("Adding: {}", file.0.display());
-                tx.send(create_entry(&file, &create_options, &path_transformers))
-                    .unwrap_or_else(|e| log::error!("{e}: {}", file.0.display()));
-            })
-        }
-
-        drop(tx);
-        Ok(())
-    })?;
-    if solid {
-        let mut entries_builder = SolidEntryBuilder::new(write_option)?;
+    let rx = create_entries_in_parallel(target_items, &context);
+    if context.solid {
+        let mut entries_builder = SolidEntryBuilder::new(context.write_option)?;
         for entry in rx.into_iter() {
             entries_builder.add_entry(entry?)?;
         }
