@@ -118,6 +118,7 @@ jobs:
           RUST_BACKTRACE: 1
 
   msrv:
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
