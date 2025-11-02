@@ -10,6 +10,7 @@ jobs:
   rust-bench:
     name: Run rust-bench
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
       contents: read
     steps:
@@ -29,6 +30,7 @@ jobs:
   cli-tests:
     name: Run cli bench
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
       contents: read
     steps:

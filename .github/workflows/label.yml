@@ -4,6 +4,7 @@ on: [pull_request]
 jobs:
   label:
     runs-on: ubuntu-slim
+    timeout-minutes: 60
     permissions:
       contents: read
       issues: write
