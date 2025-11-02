@@ -1,6 +1,6 @@
 #![cfg(not(target_family = "wasm"))]
 use crate::utils::{self, diff::diff, setup, EmbedExt, TestResources};
-use assert_cmd::Command;
+use assert_cmd::cargo::cargo_bin_cmd;
 
 #[test]
 fn create_with_files_from_stdin() {
@@ -13,7 +13,7 @@ fn create_with_files_from_stdin() {
     ]
     .join("\n");
 
-    let mut cmd = Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.write_stdin(list);
     cmd.args([
         "--quiet",
@@ -25,7 +25,7 @@ fn create_with_files_from_stdin() {
     ]);
     cmd.assert().success();
 
-    let mut cmd = Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "x",

@@ -1,11 +1,12 @@
 use crate::utils::{setup, EmbedExt, TestResources};
+use assert_cmd::cargo::cargo_bin_cmd;
 
 #[test]
 fn acl_get_dump() {
     setup();
     TestResources::extract_in("mixed_acl.pna", "acl_get_dump/").unwrap();
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
         .args([
             "--quiet",

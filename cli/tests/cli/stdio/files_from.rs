@@ -1,5 +1,5 @@
 use crate::utils::setup;
-use assert_cmd::Command as Cmd;
+use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
 use std::path::Path;
 
@@ -24,7 +24,7 @@ fn stdio_extract_with_files_from() {
 
     // Create archive using stdio mode
     let archive_path = base.join("archive.pna");
-    let mut create_cmd = Cmd::cargo_bin("pna").unwrap();
+    let mut create_cmd = cargo_bin_cmd!("pna");
     create_cmd.args([
         "--quiet",
         "experimental",
@@ -47,7 +47,7 @@ fn stdio_extract_with_files_from() {
 
     // Extract only files referenced by --files-from
     let output_dir = base.join("out");
-    let mut extract_cmd = Cmd::cargo_bin("pna").unwrap();
+    let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd.args([
         "--quiet",
         "experimental",

@@ -1,6 +1,6 @@
 #![cfg(not(target_family = "wasm"))]
 use crate::utils::{diff::diff, setup, EmbedExt, TestResources};
-use assert_cmd::Command;
+use assert_cmd::cargo::cargo_bin_cmd;
 
 #[test]
 fn test_update_files_from_stdin() {
@@ -10,8 +10,7 @@ fn test_update_files_from_stdin() {
     TestResources::extract_in("raw/pna/", "update_files_from_stdin/in/").unwrap();
 
     // Create a base archive
-    Command::cargo_bin("pna")
-        .unwrap()
+    cargo_bin_cmd!("pna")
         .args([
             "--quiet",
             "create",
@@ -27,7 +26,7 @@ fn test_update_files_from_stdin() {
         "update_files_from_stdin/in/raw/images/\nupdate_files_from_stdin/in/raw/parent/";
 
     // Run update command with --files-from-stdin
-    let mut cmd = Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "experimental",
@@ -42,8 +41,7 @@ fn test_update_files_from_stdin() {
     cmd.assert().success();
 
     // Extract the updated archive and verify contents
-    Command::cargo_bin("pna")
-        .unwrap()
+    cargo_bin_cmd!("pna")
         .args([
             "--quiet",
             "extract",

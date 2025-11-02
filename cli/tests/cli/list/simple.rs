@@ -1,11 +1,12 @@
 use crate::utils::{setup, EmbedExt, TestResources};
+use assert_cmd::cargo::cargo_bin_cmd;
 
 #[test]
 fn simple_list_output() {
     setup();
     TestResources::extract_in("raw/", "list_simple/in/").unwrap();
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "c",
@@ -17,7 +18,7 @@ fn simple_list_output() {
     .success();
 
     // Sort entries for stablize entries order.
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "experimental",
@@ -28,7 +29,7 @@ fn simple_list_output() {
     .assert()
     .success();
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd.args(["list", "list_simple/list.pna"]).assert();
 
     assert.stdout(concat!(

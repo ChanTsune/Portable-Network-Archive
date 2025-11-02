@@ -1,4 +1,5 @@
 use crate::utils::{diff::diff, setup, EmbedExt, TestResources};
+use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
 
 #[test]
@@ -6,7 +7,7 @@ fn create_extract_with_cd() {
     setup();
     TestResources::extract_in("raw/", "create_extract_with_cd/in/").unwrap();
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "c",
@@ -20,7 +21,7 @@ fn create_extract_with_cd() {
 
     assert!(fs::exists("create_extract_with_cd/create_extract_with_cd.pna").unwrap());
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "x",
@@ -42,7 +43,7 @@ fn append_with_cd() {
     setup();
     TestResources::extract_in("raw/", "append_with_cd/in/").unwrap();
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "c",
@@ -60,7 +61,7 @@ fn append_with_cd() {
     TestResources::extract_in("store.pna", "append_with_cd/in/").unwrap();
     TestResources::extract_in("zstd.pna", "append_with_cd/in/").unwrap();
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "append",
@@ -72,7 +73,7 @@ fn append_with_cd() {
     ]);
     cmd.assert().success();
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "x",
@@ -94,7 +95,7 @@ fn update_with_cd() {
     setup();
     TestResources::extract_in("raw/", "update_with_cd/in/").unwrap();
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "c",
@@ -112,7 +113,7 @@ fn update_with_cd() {
     TestResources::extract_in("store.pna", "update_with_cd/in/").unwrap();
     TestResources::extract_in("zstd.pna", "update_with_cd/in/").unwrap();
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "experimental",
@@ -125,7 +126,7 @@ fn update_with_cd() {
     ]);
     cmd.assert().success();
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "x",
@@ -147,7 +148,7 @@ fn stdio_with_cd() {
     setup();
     TestResources::extract_in("raw/", "stdio_with_cd/in/").unwrap();
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "experimental",
@@ -159,7 +160,7 @@ fn stdio_with_cd() {
     ]);
     let assert = cmd.assert().success();
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.write_stdin(assert.get_output().stdout.as_slice());
     cmd.args([
         "--quiet",
