@@ -1,11 +1,12 @@
 use crate::utils::{setup, EmbedExt, TestResources};
+use assert_cmd::cargo::cargo_bin_cmd;
 
 #[test]
 fn xattr_get_dump() {
     setup();
     TestResources::extract_in("raw/", "xattr_get_dump/in/").unwrap();
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "c",
@@ -24,7 +25,7 @@ fn xattr_get_dump() {
     ];
 
     for (name, value) in xattrs_to_set {
-        let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+        let mut cmd = cargo_bin_cmd!("pna");
         cmd.args([
             "--quiet",
             "xattr",
@@ -39,7 +40,7 @@ fn xattr_get_dump() {
         .unwrap();
     }
     // Sort entries for stablize entries order.
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "experimental",
@@ -48,7 +49,7 @@ fn xattr_get_dump() {
     ])
     .assert();
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
         .args([
             "--quiet",

@@ -1,4 +1,5 @@
 use crate::utils::{archive::for_each_entry, setup, EmbedExt, TestResources};
+use assert_cmd::cargo::cargo_bin_cmd;
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 
@@ -93,7 +94,7 @@ fn xattr_get_name_match_encoding() {
     })
     .unwrap();
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
         .args([
             "--quiet",

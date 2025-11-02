@@ -1,4 +1,5 @@
 use crate::utils::{setup, EmbedExt, TestResources};
+use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
 
 #[test]
@@ -6,7 +7,7 @@ fn acl_set_restore() {
     setup();
     TestResources::extract_in("mixed_acl.pna", "acl_set_restore/").unwrap();
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
         .args([
             "--quiet",
@@ -62,14 +63,13 @@ fn acl_set_restore() {
     assert.stdout(expected);
 
     // Strip all metadata.
-    assert_cmd::Command::cargo_bin("pna")
-        .unwrap()
+    cargo_bin_cmd!("pna")
         .args(["--quiet", "strip", "acl_set_restore/mixed_acl.pna"])
         .assert()
         .success();
 
     // Check striped
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
         .args([
             "--quiet",
@@ -105,8 +105,7 @@ fn acl_set_restore() {
     ));
 
     // Restore acl
-    assert_cmd::Command::cargo_bin("pna")
-        .unwrap()
+    cargo_bin_cmd!("pna")
         .args([
             "--quiet",
             "experimental",
@@ -120,7 +119,7 @@ fn acl_set_restore() {
         .assert()
         .success();
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
         .args([
             "--quiet",
@@ -182,14 +181,13 @@ fn acl_set_restore_compat() {
     fs::write("acl_set_restore_compat/acl_dump.txt", old_format).unwrap();
 
     // Strip all metadata.
-    assert_cmd::Command::cargo_bin("pna")
-        .unwrap()
+    cargo_bin_cmd!("pna")
         .args(["--quiet", "strip", "acl_set_restore_compat/mixed_acl.pna"])
         .assert()
         .success();
 
     // Check striped
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
         .args([
             "--quiet",
@@ -225,8 +223,7 @@ fn acl_set_restore_compat() {
     ));
 
     // Restore acl
-    assert_cmd::Command::cargo_bin("pna")
-        .unwrap()
+    cargo_bin_cmd!("pna")
         .args([
             "--quiet",
             "experimental",
@@ -240,7 +237,7 @@ fn acl_set_restore_compat() {
         .assert()
         .success();
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
         .args([
             "--quiet",

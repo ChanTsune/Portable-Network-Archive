@@ -1,5 +1,6 @@
 #![cfg(all(unix, not(target_family = "wasm")))]
 use crate::utils::{diff::diff, setup, EmbedExt, TestResources};
+use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
 
 #[test]
@@ -11,7 +12,7 @@ fn archive_extract_chroot() {
     setup();
     TestResources::extract_in("raw/", "extract_chroot/in/").unwrap();
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "c",
@@ -25,7 +26,7 @@ fn archive_extract_chroot() {
 
     assert!(fs::exists("extract_chroot/extract_chroot.pna").unwrap());
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "x",

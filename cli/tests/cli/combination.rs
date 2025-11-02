@@ -1,4 +1,5 @@
 use crate::utils::{diff::diff, setup, EmbedExt, LibSourceCode};
+use assert_cmd::cargo::cargo_bin_cmd;
 use itertools::Itertools;
 
 // NOTE: Skip `--keep-xattr` option for NetBSD
@@ -37,7 +38,7 @@ fn combination_fs() {
     fn inner(options: Vec<&str>) {
         let joined_options = options.iter().join("");
 
-        let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+        let mut cmd = cargo_bin_cmd!("pna");
         cmd.args(
             [
                 "--quiet",
@@ -52,7 +53,7 @@ fn combination_fs() {
             .chain(options),
         );
         cmd.assert().success();
-        let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+        let mut cmd = cargo_bin_cmd!("pna");
         cmd.args([
             "--quiet",
             "x",
@@ -107,7 +108,7 @@ fn combination_stdio() {
     fn inner(options: Vec<&str>) {
         let joined_options = options.iter().join("");
 
-        let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+        let mut cmd = cargo_bin_cmd!("pna");
         cmd.args(
             [
                 "--quiet",
@@ -123,7 +124,7 @@ fn combination_stdio() {
         );
         let assert = cmd.assert().success();
 
-        let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+        let mut cmd = cargo_bin_cmd!("pna");
         cmd.write_stdin(assert.get_output().stdout.as_slice());
         cmd.args([
             "--quiet",

@@ -1,5 +1,5 @@
 use crate::utils::{diff::diff, setup, EmbedExt, TestResources};
-use assert_cmd::Command as Cmd;
+use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
 use std::path::Path;
 
@@ -38,7 +38,7 @@ fn stdio_with_exclude_vcs() {
         fs::write(file, "regular file content").unwrap();
     }
     // Create archive to stdout via stdio (with --exclude-vcs)
-    let mut create_cmd = Cmd::cargo_bin("pna").unwrap();
+    let mut create_cmd = cargo_bin_cmd!("pna");
     create_cmd.args([
         "--quiet",
         "experimental",
@@ -54,7 +54,7 @@ fn stdio_with_exclude_vcs() {
     let archive_data = create_cmd.assert().get_output().stdout.clone();
     // Extract archive from stdin via stdio (with --exclude-vcs)
     let out_dir = "stdio_with_exclude_vcs/out/";
-    let mut extract_cmd = Cmd::cargo_bin("pna").unwrap();
+    let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd.write_stdin(archive_data).args([
         "--quiet",
         "experimental",
@@ -110,7 +110,7 @@ fn stdio_without_exclude_vcs() {
         fs::write(file, "regular file content").unwrap();
     }
     // Create archive to stdout via stdio (without --exclude-vcs)
-    let mut create_cmd = Cmd::cargo_bin("pna").unwrap();
+    let mut create_cmd = cargo_bin_cmd!("pna");
     create_cmd.args([
         "--quiet",
         "experimental",
@@ -125,7 +125,7 @@ fn stdio_without_exclude_vcs() {
     let archive_data = create_cmd.assert().get_output().stdout.clone();
     // Extract archive from stdin via stdio (without --exclude-vcs)
     let out_dir = "stdio_without_exclude_vcs/out/";
-    let mut extract_cmd = Cmd::cargo_bin("pna").unwrap();
+    let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd.write_stdin(archive_data).args([
         "--quiet",
         "experimental",

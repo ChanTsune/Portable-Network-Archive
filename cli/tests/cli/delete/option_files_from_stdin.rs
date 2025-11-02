@@ -1,6 +1,6 @@
 #![cfg(not(target_family = "wasm"))]
 use crate::utils::{archive, setup, EmbedExt, TestResources};
-use assert_cmd::Command as Cmd;
+use assert_cmd::cargo::cargo_bin_cmd;
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 use std::collections::HashSet;
@@ -27,7 +27,7 @@ fn delete_with_files_from_stdin() {
 
     let list = ["**/raw/empty.txt", "**/raw/text.txt"].join("\n");
 
-    let mut cmd = Cmd::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.write_stdin(list);
     cmd.args([
         "--quiet",

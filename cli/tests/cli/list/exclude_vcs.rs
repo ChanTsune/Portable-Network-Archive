@@ -1,5 +1,5 @@
 use crate::utils::{setup, EmbedExt, TestResources};
-use assert_cmd::Command as Cmd;
+use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
 
 #[test]
@@ -46,7 +46,7 @@ fn list_with_exclude_vcs() {
     }
 
     // Create archive
-    let mut cmd = Cmd::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "c",
@@ -59,7 +59,7 @@ fn list_with_exclude_vcs() {
     .success();
 
     // Sort entries for stable order
-    let mut cmd = Cmd::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "experimental",
@@ -71,7 +71,7 @@ fn list_with_exclude_vcs() {
     .success();
 
     // Test list with --exclude-vcs
-    let mut cmd = Cmd::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
         .args([
             "list",
@@ -142,7 +142,7 @@ fn list_without_exclude_vcs() {
     }
 
     // Create archive
-    let mut cmd = Cmd::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "c",
@@ -155,7 +155,7 @@ fn list_without_exclude_vcs() {
     .success();
 
     // Sort entries for stable order
-    let mut cmd = Cmd::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "experimental",
@@ -167,7 +167,7 @@ fn list_without_exclude_vcs() {
     .success();
 
     // Test list without --exclude-vcs
-    let mut cmd = Cmd::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
         .args([
             "list",

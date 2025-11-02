@@ -1,4 +1,5 @@
 use crate::utils::{setup, EmbedExt, TestResources};
+use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
 
 /// Precondition: the source tree contains file and directory.
@@ -10,7 +11,7 @@ fn diff_missing_in_archive() {
     setup();
     TestResources::extract_in("raw/", "diff_missing_in_archive/in/").unwrap();
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "c",
@@ -25,7 +26,7 @@ fn diff_missing_in_archive() {
     .assert()
     .success();
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
         .args([
             "experimental",
@@ -47,7 +48,7 @@ fn diff_missing_in_disk() {
     setup();
     TestResources::extract_in("raw/", "diff_missing_in_disk/in/").unwrap();
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "c",
@@ -60,7 +61,7 @@ fn diff_missing_in_disk() {
     .success();
     fs::remove_file("diff_missing_in_disk/in/raw/images/icon.svg").unwrap();
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
         .args([
             "experimental",

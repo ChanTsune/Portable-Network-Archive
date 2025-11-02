@@ -1,11 +1,12 @@
 use crate::utils::{diff::diff, setup, EmbedExt, TestResources};
+use assert_cmd::cargo::cargo_bin_cmd;
 
 #[test]
 fn xattr_set_restore() {
     setup();
     TestResources::extract_in("raw/", "xattr_set_restore/in/").unwrap();
 
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "c",
@@ -14,7 +15,7 @@ fn xattr_set_restore() {
         "xattr_set_restore/in/",
     ])
     .unwrap();
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.write_stdin(concat!(
         "# file: xattr_set_restore/in/raw/empty.txt\n",
         "user.name=\"pna\"\n",
@@ -39,7 +40,7 @@ fn xattr_set_restore() {
         "-",
     ])
     .unwrap();
-    let mut cmd = assert_cmd::Command::cargo_bin("pna").unwrap();
+    let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "x",
