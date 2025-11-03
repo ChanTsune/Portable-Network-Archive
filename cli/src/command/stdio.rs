@@ -309,6 +309,8 @@ pub(crate) struct StdioCommand {
     read_full_blocks: bool,
     #[arg(long, hide = true)]
     format: Option<String>,
+    #[arg(long, hide = true)]
+    ignore_zeros: bool,
     #[arg(long, action = clap::ArgAction::Version, help = "Print version")]
     version: (),
 }
@@ -323,6 +325,12 @@ impl Command for StdioCommand {
 fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     if let Some(format) = &args.format {
         log::debug!("Warning: Option '--format {format}' is accepted for compatibility but will be ignored.");
+    }
+    if args.read_full_blocks {
+        log::debug!("Warning: Option '--read-full-blocks' is accepted for compatibility but will be ignored.");
+    }
+    if args.ignore_zeros {
+        log::debug!("Warning: Option '--ignore-zeros' is accepted for compatibility but will be ignored.");
     }
     if args.create {
         run_create_archive(args)
