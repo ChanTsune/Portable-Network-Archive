@@ -204,7 +204,7 @@ pub(crate) struct AppendCommand {
     )]
     newer_mtime: Option<DateTime>,
     #[arg(long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
-    pub(crate) files_from: Option<String>,
+    files_from: Option<PathBuf>,
     #[arg(long, help = "Read archiving files from stdin (unstable)")]
     pub(crate) files_from_stdin: bool,
     #[arg(
@@ -215,7 +215,7 @@ pub(crate) struct AppendCommand {
     #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
     exclude: Option<Vec<String>>,
     #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
-    exclude_from: Option<String>,
+    exclude_from: Option<PathBuf>,
     #[arg(long, help = "Exclude vcs files (unstable)")]
     exclude_vcs: bool,
     #[arg(long, help = "Ignore files from .gitignore (unstable)")]
