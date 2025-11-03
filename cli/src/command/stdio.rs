@@ -330,7 +330,9 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
         log::debug!("Warning: Option '--read-full-blocks' is accepted for compatibility but will be ignored.");
     }
     if args.ignore_zeros {
-        log::debug!("Warning: Option '--ignore-zeros' is accepted for compatibility but will be ignored.");
+        log::debug!(
+            "Warning: Option '--ignore-zeros' is accepted for compatibility but will be ignored."
+        );
     }
     if args.create {
         run_create_archive(args)
