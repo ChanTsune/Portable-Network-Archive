@@ -8,7 +8,8 @@ use crate::{
         core::{
             collect_items, collect_split_archives, entry_option, path_lock::PathLocks, read_paths,
             AclStrategy, CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
-            PermissionStrategy, TimeOptions, TimestampStrategy, XattrStrategy,
+            PermissionStrategy, TimeFilter, TimeFilters, TimeOptions, TimestampStrategy,
+            XattrStrategy,
         },
         create::{create_archive_file, CreationContext},
         extract::{run_extract_archive_reader, OutputOption, OverwriteStrategy},
@@ -254,6 +255,30 @@ pub(crate) struct StdioCommand {
         help = "Clamp the modification time of the entries to the specified time by --mtime"
     )]
     clamp_mtime: bool,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Only include files and directories older than the specified date (unstable). This compares ctime entries."
+    )]
+    older_ctime: Option<DateTime>,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Only include files and directories older than the specified date (unstable). This compares mtime entries."
+    )]
+    older_mtime: Option<DateTime>,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Only include files and directories newer than the specified date (unstable). This compares ctime entries."
+    )]
+    newer_ctime: Option<DateTime>,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Only include files and directories newer than the specified date (unstable). This compares mtime entries."
+    )]
+    newer_mtime: Option<DateTime>,
     #[arg(short = 'T', visible_short_aliases = ['I'], long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
     files_from: Option<String>,
     #[arg(
@@ -363,6 +388,16 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
     }
+    let time_filters = TimeFilters {
+        ctime: TimeFilter {
+            newer_than: args.newer_ctime.map(|it| it.to_system_time()),
+            older_than: args.older_ctime.map(|it| it.to_system_time()),
+        },
+        mtime: TimeFilter {
+            newer_than: args.newer_mtime.map(|it| it.to_system_time()),
+            older_than: args.older_mtime.map(|it| it.to_system_time()),
+        },
+    };
     let target_items = collect_items(
         &files,
         !args.no_recursive,
@@ -372,6 +407,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         args.follow_command_links,
         args.one_file_system,
         &filter,
+        &time_filters,
     )?;
 
     let password = password.as_deref();
@@ -631,6 +667,16 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
     }
+    let time_filters = TimeFilters {
+        ctime: TimeFilter {
+            newer_than: args.newer_ctime.map(|it| it.to_system_time()),
+            older_than: args.older_ctime.map(|it| it.to_system_time()),
+        },
+        mtime: TimeFilter {
+            newer_than: args.newer_mtime.map(|it| it.to_system_time()),
+            older_than: args.older_mtime.map(|it| it.to_system_time()),
+        },
+    };
     if let Some(file) = &archive_path {
         let archive = open_archive_then_seek_to_end(file)?;
         let target_items = collect_items(
@@ -642,6 +688,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.follow_command_links,
             args.one_file_system,
             &filter,
+            &time_filters,
         )?;
         run_append_archive(&create_options, &path_transformers, archive, target_items)
     } else {
@@ -654,6 +701,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.follow_command_links,
             args.one_file_system,
             &filter,
+            &time_filters,
         )?;
         let mut output_archive = Archive::write_header(io::stdout().lock())?;
         {

@@ -309,6 +309,7 @@ pub(crate) fn collect_items(
     follow_command_links: bool,
     one_file_system: bool,
     filter: &PathFilter,
+    time_filters: &TimeFilters,
 ) -> io::Result<Vec<(PathBuf, StoreAs)>> {
     let mut ig = Ignore::empty();
     let mut hardlink_resolver = HardlinkResolver::new(follow_links);
@@ -328,7 +329,7 @@ pub(crate) fn collect_items(
         while let Some(res) = iter.next() {
             match res {
                 Ok(entry) => {
-                    let path = entry.path().to_path_buf();
+                    let path = entry.path();
                     let ty = entry.file_type();
                     let depth = entry.depth();
                     let should_follow = follow_links || (depth == 0 && follow_command_links);
@@ -347,7 +348,7 @@ pub(crate) fn collect_items(
 
                     if gitignore {
                         // Gitignore pruning before reading this dir's .gitignore
-                        if ig.is_ignore(&path, is_dir) {
+                        if ig.is_ignore(path, is_dir) {
                             if is_dir {
                                 iter.skip_current_dir();
                             }
@@ -355,27 +356,42 @@ pub(crate) fn collect_items(
                         }
                         // After confirming not ignored, load .gitignore from this directory
                         if is_dir {
-                            ig.add_path(&path);
+                            ig.add_path(path);
                         }
                     }
-                    // Classify entry
-                    if is_symlink {
-                        out.push((path, StoreAs::Symlink));
+
+                    // Classify entry and maybe add it to output
+                    let store_as = if is_symlink {
+                        Some(StoreAs::Symlink)
                     } else if is_file {
-                        if let Some(linked) = hardlink_resolver.resolve(&path).ok().flatten() {
-                            out.push((path, StoreAs::Hardlink(linked)));
+                        let path_buf = path.to_path_buf();
+                        if let Some(linked) = hardlink_resolver.resolve(&path_buf).ok().flatten() {
+                            Some(StoreAs::Hardlink(linked))
                         } else {
-                            out.push((path, StoreAs::File));
+                            Some(StoreAs::File)
                         }
                     } else if is_dir {
                         if keep_dir {
-                            out.push((path, StoreAs::Dir));
+                            Some(StoreAs::Dir)
+                        } else {
+                            None
                         }
                     } else {
                         return Err(io::Error::new(
                             io::ErrorKind::Unsupported,
                             format!("Unsupported file type: {}", path.display()),
                         ));
+                    };
+
+                    if let Some(store) = store_as {
+                        if if time_filters.is_active() {
+                            let metadata = fs::symlink_metadata(path)?;
+                            time_filters.is_retain(&metadata)
+                        } else {
+                            true
+                        } {
+                            out.push((path.to_path_buf(), store));
+                        }
                     }
                 }
                 Err(e) => {
@@ -1136,10 +1152,23 @@ mod tests {
     use std::collections::HashSet;
     use std::time::Duration;
 
-    fn empty_filter() -> PathFilter {
+    fn empty_path_filter() -> PathFilter {
         PathFilter {
             include: Vec::<&str>::new().into(),
             exclude: Vec::<&str>::new().into(),
+        }
+    }
+
+    fn empty_time_filters() -> TimeFilters {
+        TimeFilters {
+            ctime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
+            mtime: TimeFilter {
+                newer_than: None,
+                older_than: None,
+            },
         }
     }
 
@@ -1190,7 +1219,8 @@ mod tests {
             false,
             false,
             false,
-            &empty_filter(),
+            &empty_path_filter(),
+            &empty_time_filters(),
         )
         .unwrap();
         assert_eq!(
@@ -1213,7 +1243,8 @@ mod tests {
             false,
             false,
             false,
-            &empty_filter(),
+            &empty_path_filter(),
+            &empty_time_filters(),
         )
         .unwrap();
         assert_eq!(
@@ -1242,7 +1273,8 @@ mod tests {
             false,
             false,
             false,
-            &empty_filter(),
+            &empty_path_filter(),
+            &empty_time_filters(),
         )
         .unwrap();
         assert_eq!(

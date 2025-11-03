@@ -18,7 +18,6 @@ use crate::{
         PathPartExt, VCS_FILES,
     },
 };
-use anyhow::Context;
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::{prelude::*, Archive};
 use std::{
@@ -357,7 +356,7 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
     }
-    let mut target_items = collect_items(
+    let target_items = collect_items(
         &files,
         !args.no_recursive,
         args.keep_dir,
@@ -366,18 +365,8 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         args.follow_command_links,
         args.one_file_system,
         &filter,
+        &time_filters,
     )?;
-    if time_filters.is_active() {
-        let mut filtered = Vec::new();
-        for item in target_items.into_iter() {
-            let metadata = fs::symlink_metadata(&item.0)
-                .with_context(|| format!("failed to read metadata for {}", item.0.display()))?;
-            if time_filters.is_retain(&metadata) {
-                filtered.push(item);
-            }
-        }
-        target_items = filtered;
-    }
 
     run_append_archive(&create_options, &path_transformers, archive, target_items)
 }
