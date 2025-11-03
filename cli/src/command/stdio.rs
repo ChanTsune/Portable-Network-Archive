@@ -188,7 +188,7 @@ pub(crate) struct StdioCommand {
     #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
     exclude: Option<Vec<String>>,
     #[arg(short = 'X', long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
-    exclude_from: Option<String>,
+    exclude_from: Option<PathBuf>,
     #[arg(long, help = "Exclude vcs files (unstable)")]
     exclude_vcs: bool,
     #[arg(long, help = "Ignore files from .gitignore (unstable)")]
@@ -255,7 +255,7 @@ pub(crate) struct StdioCommand {
     )]
     clamp_mtime: bool,
     #[arg(short = 'T', visible_short_aliases = ['I'], long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
-    files_from: Option<String>,
+    files_from: Option<PathBuf>,
     #[arg(
         short = 's',
         value_name = "PATTERN",

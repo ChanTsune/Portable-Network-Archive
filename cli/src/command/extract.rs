@@ -165,7 +165,7 @@ pub(crate) struct ExtractCommand {
     #[arg(long, help = "Exclude vcs files (unstable)")]
     exclude_vcs: bool,
     #[arg(long, help = "Read extraction patterns from given path (unstable)", value_hint = ValueHint::FilePath)]
-    files_from: Option<String>,
+    files_from: Option<PathBuf>,
     #[arg(
         long,
         help = "Filenames or patterns are separated by null characters, not by newlines"

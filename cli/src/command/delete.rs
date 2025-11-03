@@ -36,7 +36,7 @@ pub(crate) struct DeleteCommand {
     #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
     output: Option<PathBuf>,
     #[arg(long, help = "Read deleting files from given path (unstable)", value_hint = ValueHint::FilePath)]
-    files_from: Option<String>,
+    files_from: Option<PathBuf>,
     #[arg(long, help = "Read deleting files from stdin (unstable)")]
     files_from_stdin: bool,
     #[arg(
