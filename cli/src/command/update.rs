@@ -27,7 +27,7 @@ use crate::{
 use clap::{ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;
 use pna::{Archive, EntryName, Metadata};
-use std::{env, fs, io, path::PathBuf, time::SystemTime};
+use std::{env, fs, io, os, path::PathBuf, time::SystemTime};
 
 #[derive(Parser, Clone, Debug)]
 #[command(
@@ -203,6 +203,20 @@ pub(crate) struct UpdateCommand {
         help = "Only include files and directories newer than the specified date. This compares mtime entries."
     )]
     newer_mtime: Option<DateTime>,
+    #[arg(
+        long,
+        value_name = "file",
+        requires = "unstable",
+        help = "Only include files and directories newer than the specified file (unstable). This compares ctime entries."
+    )]
+    newer_ctime_than: Option<PathBuf>,
+    #[arg(
+        long,
+        value_name = "file",
+        requires = "unstable",
+        help = "Only include files and directories newer than the specified file (unstable). This compares mtime entries."
+    )]
+    newer_mtime_than: Option<PathBuf>,
     #[arg(long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
     pub(crate) files_from: Option<String>,
     #[arg(long, help = "Read archiving files from stdin (unstable)")]
@@ -326,11 +340,19 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
     };
     let time_filters = TimeFilters {
         ctime: TimeFilter {
-            newer_than: args.newer_ctime.map(|it| it.to_system_time()),
+            newer_than: if let Some(p) = &args.newer_ctime_than {
+                Some(fs::metadata(p)?.created()?)
+            } else {
+                args.newer_ctime.map(|it| it.to_system_time())
+            },
             older_than: args.older_ctime.map(|it| it.to_system_time()),
         },
         mtime: TimeFilter {
-            newer_than: args.newer_mtime.map(|it| it.to_system_time()),
+            newer_than: if let Some(p) = &args.newer_mtime_than {
+                Some(fs::metadata(p)?.modified()?)
+            } else {
+                args.newer_mtime.map(|it| it.to_system_time())
+            },
             older_than: args.older_mtime.map(|it| it.to_system_time()),
         },
     };

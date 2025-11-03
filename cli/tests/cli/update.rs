@@ -8,3 +8,5 @@ mod files_from_stdin;
 mod mtime;
 mod newer_mtime;
 mod older_mtime;
+mod option_newer_ctime_than;
+mod option_newer_mtime_than;

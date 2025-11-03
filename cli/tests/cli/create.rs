@@ -18,6 +18,8 @@ mod option_older_ctime;
 mod option_older_mtime;
 mod password_from_file;
 mod password_hash;
+mod option_newer_ctime_than;
+mod option_newer_mtime_than;
 mod substitution;
 mod symlink;
 mod transform;
