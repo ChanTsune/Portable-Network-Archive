@@ -12,7 +12,9 @@ mod no_recursive;
 mod numeric_owner;
 #[cfg(any(windows, target_os = "macos"))]
 mod option_newer_ctime;
+mod option_newer_ctime_than;
 mod option_newer_mtime;
+mod option_newer_mtime_than;
 #[cfg(any(windows, target_os = "macos"))]
 mod option_older_ctime;
 mod option_older_mtime;
