@@ -378,6 +378,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         args.follow_command_links,
         args.one_file_system,
         &filter,
+        &time_filters,
     )?;
 
     let (tx, rx) = std::sync::mpsc::channel();
@@ -407,9 +408,8 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
                     target_files_mapping.swap_remove(entry.header().path())
                 {
                     let fs_meta = fs::symlink_metadata(&target_path)?;
-                    let need_update = is_newer_than_archive(&fs_meta, entry.metadata())
-                        .unwrap_or(true)
-                        && time_filters.is_retain(&fs_meta);
+                    let need_update =
+                        is_newer_than_archive(&fs_meta, entry.metadata()).unwrap_or(true);
                     if need_update {
                         let tx = tx.clone();
                         let create_options = create_options.clone();
