@@ -305,6 +305,8 @@ pub(crate) struct StdioCommand {
     null: bool,
     #[arg(short, help = "Verbose")]
     verbose: bool,
+    #[arg(short = 'B', long, hide = true)]
+    read_full_blocks: bool,
     #[arg(long, hide = true)]
     format: Option<String>,
     #[arg(long, action = clap::ArgAction::Version, help = "Print version")]
