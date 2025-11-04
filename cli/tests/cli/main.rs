@@ -19,6 +19,8 @@ mod keep_acl;
 mod keep_all;
 mod list;
 mod multipart;
+#[cfg(not(target_family = "wasm"))]
+mod nodump;
 mod restore_acl;
 mod restore_acl_0_19_1;
 mod solid_mode;

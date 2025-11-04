@@ -77,6 +77,12 @@ pub(crate) struct StdioCommand {
         help = "Stay in the same file system when collecting files (unstable)"
     )]
     one_file_system: bool,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Exclude files with the nodump flag (unstable)"
+    )]
+    nodump: bool,
     #[arg(short, long, help = "Create archive")]
     create: bool,
     #[arg(short = 'x', long, help = "Extract archive")]
@@ -415,6 +421,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         !args.no_recursive,
         args.keep_dir,
         args.gitignore,
+        args.nodump,
         args.follow_links,
         args.follow_command_links,
         args.one_file_system,
@@ -696,6 +703,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.recursive,
             args.keep_dir,
             args.gitignore,
+            args.nodump,
             args.follow_links,
             args.follow_command_links,
             args.one_file_system,
@@ -709,6 +717,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.recursive,
             args.keep_dir,
             args.gitignore,
+            args.nodump,
             args.follow_links,
             args.follow_command_links,
             args.one_file_system,

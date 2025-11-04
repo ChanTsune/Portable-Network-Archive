@@ -75,6 +75,12 @@ pub(crate) struct UpdateCommand {
     )]
     one_file_system: bool,
     #[arg(
+        long,
+        requires = "unstable",
+        help = "Exclude files with the nodump flag (unstable)"
+    )]
+    nodump: bool,
+    #[arg(
         short,
         long,
         visible_alias = "recursion",
@@ -374,6 +380,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         !args.no_recursive,
         args.keep_dir,
         args.gitignore,
+        args.nodump,
         args.follow_links,
         args.follow_command_links,
         args.one_file_system,
