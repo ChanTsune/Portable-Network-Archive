@@ -1,6 +1,7 @@
 # pna
 [![test](https://github.com/ChanTsune/Portable-Network-Archive/actions/workflows/test.yml/badge.svg)](https://github.com/ChanTsune/Portable-Network-Archive/actions/workflows/test.yml)
 [![Crates.io][crates-badge]][crates-url]
+[![docs.rs](https://img.shields.io/docsrs/pna)](https://docs.rs/pna)
 
 [crates-badge]: https://img.shields.io/crates/v/pna.svg
 [crates-url]: https://crates.io/crates/pna
