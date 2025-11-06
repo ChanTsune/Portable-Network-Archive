@@ -16,7 +16,7 @@ jobs:
           - stable
           - beta
           - nightly
-        target: 
+        target:
           - wasm32-unknown-emscripten
           - wasm32-unknown-unknown
           - wasm32-wasip1
@@ -24,14 +24,18 @@ jobs:
         include:
           - target: wasm32-unknown-emscripten
             container: emscripten/emsdk:latest
+            runner: ubuntu-latest
           - target: wasm32-unknown-unknown
             container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-26
+            runner: ubuntu-24.04-arm
           - target: wasm32-wasip1
             container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-26
+            runner: ubuntu-24.04-arm
           - target: wasm32-wasip2
             container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-26
+            runner: ubuntu-24.04-arm
 
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     container: ${{ matrix.container }}
     timeout-minutes: 60
     steps:
