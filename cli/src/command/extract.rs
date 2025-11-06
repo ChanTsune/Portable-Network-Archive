@@ -271,6 +271,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         args.gname,
         args.uid,
         args.gid,
+        None,
         args.numeric_owner,
     );
     let output_options = OutputOption {
@@ -753,14 +754,18 @@ fn permissions<'p>(
             permission.uid(),
         )
     };
-    let group = if let Some(gid) = owner_options.gid {
+
+    let group = if let Some(gname) = owner_options.gname.as_deref() {
+        Group::from_name(gname).or_else(|_| {
+            let fallback_gid = owner_options.gid.unwrap_or(permission.gid() as u32);
+            Group::from_gid(fallback_gid.into())
+        })
+    } else if let Some(gid) = owner_options.gid {
         Group::from_gid(gid.into())
     } else {
-        search_group(
-            owner_options.gname.as_deref().unwrap_or(permission.gname()),
-            permission.gid(),
-        )
+        search_group(permission.gname(), permission.gid())
     };
+
     Some((permission, user.ok(), group.ok()))
 }
 

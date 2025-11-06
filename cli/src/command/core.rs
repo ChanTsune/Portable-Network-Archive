@@ -130,8 +130,26 @@ impl OwnerOptions {
         gname: Option<String>,
         uid: Option<u32>,
         gid: Option<u32>,
+        group: Option<String>,
         numeric_owner: bool,
     ) -> Self {
+        let (gname_from_group, gid_from_group) = if let Some(group) = group {
+            if let Some((name, id)) = group.split_once(':') {
+                let name = Some(name.to_string());
+                let id = id.parse::<u32>().ok();
+                (name, id)
+            } else if let Ok(id) = group.parse::<u32>() {
+                (None, Some(id))
+            } else {
+                (Some(group), None)
+            }
+        } else {
+            (None, None)
+        };
+
+        let final_gid = gid.or(gid_from_group);
+        let final_gname = gname.or(gname_from_group);
+
         Self {
             uname: if numeric_owner {
                 Some(String::new())
@@ -141,10 +159,10 @@ impl OwnerOptions {
             gname: if numeric_owner {
                 Some(String::new())
             } else {
-                gname
+                final_gname
             },
             uid,
-            gid,
+            gid: final_gid,
         }
     }
 }
@@ -618,12 +636,15 @@ pub(crate) fn apply_metadata<'p>(
                     Some(uname) => uname.into(),
                 },
                 gid.into(),
-                match owner_options.gname.as_deref() {
-                    None => Group::from_gid(gid.into())?
+                if let Some(gname) = owner_options.gname.as_deref() {
+                    gname.into()
+                } else if let Some(gid_override) = owner_options.gid {
+                    gid_override.to_string().into()
+                } else {
+                    Group::from_gid(gid.into())?
                         .name()
                         .unwrap_or_default()
-                        .into(),
-                    Some(gname) => gname.into(),
+                        .into()
                 },
                 mode,
             ));

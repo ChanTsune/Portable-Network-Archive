@@ -107,9 +107,24 @@ pub fn remove_with_empty_parents(path: impl AsRef<Path>) -> io::Result<()> {
     inner(path.as_ref())
 }
 
+use pna::{Archive, ReadEntry};
+use std::io::Cursor;
+
 pub fn components_count<P: AsRef<Path>>(p: P) -> usize {
     p.as_ref()
         .components()
         .filter(|it| matches!(it, Component::Normal(_)))
         .count()
+}
+
+pub(crate) fn assert_archive_gid_gname(archive_bytes: &[u8], expected_gid: u64, expected_gname: &str) {
+    let mut archive = Archive::read_header(Cursor::new(archive_bytes)).unwrap();
+    let entry = archive.entries().next().expect("archive has no entry").unwrap();
+    let normal_entry = match entry {
+        ReadEntry::Normal(entry) => entry,
+        _ => panic!("Expected a normal entry"),
+    };
+    let permission = normal_entry.metadata().permission().unwrap();
+    assert_eq!(permission.gid(), expected_gid, "GID mismatch");
+    assert_eq!(permission.gname(), expected_gname, "gname mismatch");
 }

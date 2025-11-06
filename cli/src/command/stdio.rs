@@ -53,7 +53,7 @@ use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
     group(ArgGroup::new("path-transform").args(["substitutions", "transforms"])),
     group(ArgGroup::new("owner-flag").args(["same_owner", "no_same_owner"])),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
-    group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
+    group(ArgGroup::new("group-flag").args(["numeric_owner", "group"])),
     group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
     group(ArgGroup::new("keep-dir-flag").args(["keep_dir", "no_keep_dir"])),
     group(ArgGroup::new("keep-xattr-flag").args(["keep_xattr", "no_keep_xattr"])),
@@ -229,6 +229,11 @@ pub(crate) struct StdioCommand {
         help = "On create, this overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id. On extract, this overrides the group id in the archive; the group name in the archive will be ignored"
     )]
     pub(crate) gid: Option<u32>,
+    #[arg(
+        long,
+        help = "Use the provided group, if gid is not provided, name can be either a group name or numeric id. See the --gname option for details."
+    )]
+    pub(crate) group: Option<String>,
     #[arg(
         long,
         help = "This is equivalent to --uname \"\" --gname \"\". On create, it causes user and group names to not be stored in the archive. On extract, it causes user and group names in the archive to be ignored in favor of the numeric user and group ids."
@@ -441,6 +446,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         args.gname,
         args.uid,
         args.gid,
+        args.group,
         args.numeric_owner,
     );
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
@@ -513,6 +519,7 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
             args.gname,
             args.uid,
             args.gid,
+            args.group,
             args.numeric_owner,
         ),
         same_owner: !args.no_same_owner,
@@ -636,6 +643,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         args.gname,
         args.uid,
         args.gid,
+        args.group,
         args.numeric_owner,
     );
     let time_options = TimeOptions {
