@@ -7,47 +7,8 @@ on:
   push:
 
 jobs:
-  test-emscripten:
-    name: Test Emscripten
-    strategy:
-      fail-fast: false
-      matrix:
-        rust:
-          - stable
-          - beta
-          - nightly
-        target: 
-          - wasm32-unknown-emscripten
-        include:
-          - target: wasm32-unknown-emscripten
-            container: emscripten/emsdk:latest
-    runs-on: ubuntu-latest
-    container: ${{ matrix.container }}
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          submodules: true
-      - uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
-        with:
-          target: ${{ matrix.target }}
-          toolchain: ${{ matrix.rust }}
-          rustflags: ''
-      - if: ${{ matrix.rust != 'nightly' }}
-        name: Run test
-        run: |
-          cargo test -p libpna --target ${{ matrix.target }} -- --skip test_readme_deps --skip test_html_root_url
-        env:
-          RUSTFLAGS: "-C link-arg=-sINITIAL_MEMORY=512MB -C link-arg=-sTOTAL_STACK=16MB"
-      - name: Run on Node.js
-        if: ${{ matrix.rust == 'nightly' }}
-        run: |
-          cargo run -p portable-network-archive --target ${{ matrix.target }} --release -- --help
-        env:
-          RUSTFLAGS: "-C link-arg=-sINITIAL_MEMORY=512MB -C link-arg=-sTOTAL_STACK=16MB"
-
-  test-wasi:
-    name: Test WASI
+  test:
+    name: Test WebAssembly
     strategy:
       fail-fast: false
       matrix:
@@ -56,17 +17,25 @@ jobs:
           - beta
           - nightly
         target:
+          - wasm32-unknown-emscripten
           - wasm32-unknown-unknown
           - wasm32-wasip1
           - wasm32-wasip2
         include:
+          - target: wasm32-unknown-emscripten
+            container: emscripten/emsdk:latest
+            runner: ubuntu-latest
           - target: wasm32-unknown-unknown
             container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-26
+            runner: ubuntu-24.04-arm
           - target: wasm32-wasip1
             container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-26
+            runner: ubuntu-24.04-arm
           - target: wasm32-wasip2
             container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-26
-    runs-on: ubuntu-24.04-arm
+            runner: ubuntu-24.04-arm
+
+    runs-on: ${{ matrix.runner }}
     container: ${{ matrix.container }}
     timeout-minutes: 60
     steps:
@@ -91,6 +60,18 @@ jobs:
         name: Run test
         run: |
           cargo test --target ${{ matrix.target }} -- --nocapture
+      - if: ${{ startsWith(matrix.target, 'wasm32-unknown-emscripten') && matrix.rust != 'nightly' }}
+        name: Run test
+        run: |
+          cargo test -p libpna --target ${{ matrix.target }} -- --skip test_readme_deps --skip test_html_root_url
+        env:
+          RUSTFLAGS: "-C link-arg=-sINITIAL_MEMORY=512MB -C link-arg=-sTOTAL_STACK=16MB"
+      - name: Run on Node.js
+        if: ${{ startsWith(matrix.target, 'wasm32-unknown-emscripten') && matrix.rust == 'nightly' }}
+        run: |
+          cargo run -p portable-network-archive --target ${{ matrix.target }} --release -- --help
+        env:
+          RUSTFLAGS: "-C link-arg=-sINITIAL_MEMORY=512MB -C link-arg=-sTOTAL_STACK=16MB"
       - if: ${{ endsWith(matrix.target, 'unknown') }}
         name: get wasm-bindgen version
         id: get_version
