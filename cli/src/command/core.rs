@@ -3,7 +3,6 @@ pub(crate) mod time_filter;
 
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
-    value::NameIdPair,
     utils::{
         self,
         fs::HardlinkResolver,
@@ -13,6 +12,7 @@ use crate::{
         },
         BsdGlobPatterns, PathPartExt,
     },
+    value::NameIdPair,
 };
 use path_slash::*;
 use pna::{

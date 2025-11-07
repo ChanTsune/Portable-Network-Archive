@@ -117,9 +117,17 @@ pub fn components_count<P: AsRef<Path>>(p: P) -> usize {
         .count()
 }
 
-pub(crate) fn assert_archive_gid_gname(archive_bytes: &[u8], expected_gid: u64, expected_gname: &str) {
+pub(crate) fn assert_archive_gid_gname(
+    archive_bytes: &[u8],
+    expected_gid: u64,
+    expected_gname: &str,
+) {
     let mut archive = Archive::read_header(Cursor::new(archive_bytes)).unwrap();
-    let entry = archive.entries().next().expect("archive has no entry").unwrap();
+    let entry = archive
+        .entries()
+        .next()
+        .expect("archive has no entry")
+        .unwrap();
     let normal_entry = match entry {
         ReadEntry::Normal(entry) => entry,
         _ => panic!("Expected a normal entry"),
@@ -128,3 +136,49 @@ pub(crate) fn assert_archive_gid_gname(archive_bytes: &[u8], expected_gid: u64, 
     assert_eq!(permission.gid(), expected_gid, "GID mismatch");
     assert_eq!(permission.gname(), expected_gname, "gname mismatch");
 }
+
+// A temporary environment for testing that creates files in a temporary directory.
+pub(crate) mod test_env {
+    use std::{
+        env,
+        fs::{self, File},
+        io::Write,
+        path::{Path, PathBuf},
+    };
+
+    pub(crate) struct TestEnv {
+        dir: PathBuf,
+    }
+
+    impl TestEnv {
+        pub(crate) fn new() -> Self {
+            let temp_dir = env::temp_dir();
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let dir_name = format!("pna-test-{}", timestamp);
+            let path = temp_dir.join(dir_name);
+            fs::create_dir_all(&path).unwrap();
+            Self { dir: path }
+        }
+
+        pub(crate) fn create_file(&self, name: &str, content: &[u8]) -> fs::Metadata {
+            let path = self.dir.join(name);
+            let mut file = File::create(&path).unwrap();
+            file.write_all(content).unwrap();
+            fs::metadata(path).unwrap()
+        }
+
+        pub(crate) fn path(&self) -> &Path {
+            &self.dir
+        }
+    }
+
+    impl Drop for TestEnv {
+        fn drop(&mut self) {
+            fs::remove_dir_all(&self.dir).unwrap();
+        }
+    }
+}
+pub(crate) use test_env::TestEnv;

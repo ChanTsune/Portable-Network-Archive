@@ -2,7 +2,6 @@ use crate::{
     cli::{
         CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, HashAlgorithmArgs, PasswordArgs,
     },
-    value::NameIdPair,
     command::{
         append::{open_archive_then_seek_to_end, run_append_archive},
         ask_password, check_password,
@@ -22,6 +21,7 @@ use crate::{
         re::{bsd::SubstitutionRule, gnu::TransformRule},
         GlobPatterns, VCS_FILES,
     },
+    value::NameIdPair,
 };
 use clap::{ArgGroup, Args, ValueHint};
 use pna::Archive;
