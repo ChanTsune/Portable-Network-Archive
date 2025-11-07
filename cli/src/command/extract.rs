@@ -233,19 +233,19 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
 
     let archives = collect_split_archives(&archive)?;
 
-    let filter = {
-        let mut exclude = args.exclude.unwrap_or_default();
-        if let Some(p) = args.exclude_from {
-            exclude.extend(read_paths(p, args.null)?);
-        }
-        if args.exclude_vcs {
-            exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
-        }
-        PathFilter {
-            include: args.include.unwrap_or_default().into(),
-            exclude: exclude.into(),
-        }
-    };
+    let mut exclude = args.exclude.unwrap_or_default();
+    if let Some(p) = args.exclude_from {
+        exclude.extend(read_paths(p, args.null)?);
+    }
+    let vcs_patterns = args
+        .exclude_vcs
+        .then(|| VCS_FILES.iter().copied())
+        .into_iter()
+        .flatten();
+    let filter = PathFilter::new(
+        args.include.iter().flatten(),
+        exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
+    );
 
     let mut files = args.file.files();
     if let Some(path) = &args.files_from {
@@ -347,12 +347,12 @@ impl OverwriteStrategy {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct OutputOption {
+pub(crate) struct OutputOption<'a> {
     pub(crate) overwrite_strategy: OverwriteStrategy,
     pub(crate) allow_unsafe_links: bool,
     pub(crate) strip_components: Option<usize>,
     pub(crate) out_dir: Option<PathBuf>,
-    pub(crate) filter: PathFilter,
+    pub(crate) filter: PathFilter<'a>,
     pub(crate) keep_options: KeepOptions,
     pub(crate) owner_options: OwnerOptions,
     pub(crate) same_owner: bool,
@@ -360,11 +360,11 @@ pub(crate) struct OutputOption {
     pub(crate) path_locks: Arc<PathLocks>,
 }
 
-pub(crate) fn run_extract_archive_reader<'p, Provider>(
+pub(crate) fn run_extract_archive_reader<'a, 'p, Provider>(
     reader: impl IntoIterator<Item = impl Read> + Send,
     files: Vec<String>,
     mut password_provider: Provider,
-    args: OutputOption,
+    args: OutputOption<'a>,
 ) -> anyhow::Result<()>
 where
     Provider: FnMut() -> Option<&'p str> + Send,
@@ -414,11 +414,11 @@ where
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_extract_archive<'d, 'p, Provider>(
+pub(crate) fn run_extract_archive<'a, 'd, 'p, Provider>(
     archives: impl IntoIterator<Item = &'d [u8]> + Send,
     files: Vec<String>,
     mut password_provider: Provider,
-    args: OutputOption,
+    args: OutputOption<'a>,
 ) -> anyhow::Result<()>
 where
     Provider: FnMut() -> Option<&'p str> + Send,
@@ -466,7 +466,7 @@ where
     })
 }
 
-pub(crate) fn extract_entry<T>(
+pub(crate) fn extract_entry<'a, T>(
     item: NormalEntry<T>,
     password: Option<&str>,
     OutputOption {
@@ -480,7 +480,7 @@ pub(crate) fn extract_entry<T>(
         same_owner,
         path_transformers,
         path_locks,
-    }: &OutputOption,
+    }: &OutputOption<'a>,
 ) -> io::Result<()>
 where
     T: AsRef<[u8]>,

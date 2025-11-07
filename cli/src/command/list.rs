@@ -291,19 +291,19 @@ fn list_archive(args: ListCommand) -> anyhow::Result<()> {
     let files = args.file.files();
     let files_globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))?;
 
-    let filter = {
-        let mut exclude = args.exclude.unwrap_or_default();
-        if let Some(p) = args.exclude_from {
-            exclude.extend(read_paths(p, args.null)?);
-        }
-        if args.exclude_vcs {
-            exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
-        }
-        PathFilter {
-            include: args.include.unwrap_or_default().into(),
-            exclude: exclude.into(),
-        }
-    };
+    let mut exclude = args.exclude.unwrap_or_default();
+    if let Some(p) = args.exclude_from {
+        exclude.extend(read_paths(p, args.null)?);
+    }
+    let vcs_patterns = args
+        .exclude_vcs
+        .then(|| VCS_FILES.iter().copied())
+        .into_iter()
+        .flatten();
+    let filter = PathFilter::new(
+        args.include.iter().flatten(),
+        exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
+    );
 
     let archives = collect_split_archives(&archive)?;
 
@@ -366,11 +366,11 @@ pub(crate) struct ListOptions {
     pub(crate) format: Option<Format>,
 }
 
-pub(crate) fn run_list_archive(
+pub(crate) fn run_list_archive<'a>(
     archive_provider: impl IntoIterator<Item = impl Read>,
     password: Option<&str>,
     files_globs: GlobPatterns,
-    filter: PathFilter,
+    filter: PathFilter<'a>,
     args: ListOptions,
 ) -> anyhow::Result<()> {
     let mut entries = Vec::new();
@@ -393,11 +393,11 @@ pub(crate) fn run_list_archive(
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_list_archive_mem(
+pub(crate) fn run_list_archive_mem<'a>(
     archives: Vec<std::fs::File>,
     password: Option<&str>,
     files_globs: GlobPatterns,
-    filter: PathFilter,
+    filter: PathFilter<'a>,
     args: ListOptions,
 ) -> anyhow::Result<()> {
     let mut entries = Vec::new();
@@ -424,10 +424,10 @@ pub(crate) fn run_list_archive_mem(
     print_entries(entries, files_globs, filter, args)
 }
 
-fn print_entries(
+fn print_entries<'a>(
     entries: Vec<TableRow>,
     mut globs: GlobPatterns,
-    filter: PathFilter,
+    filter: PathFilter<'a>,
     options: ListOptions,
 ) -> anyhow::Result<()> {
     let entries = entries
