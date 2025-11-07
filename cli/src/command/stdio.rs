@@ -2,6 +2,7 @@ use crate::{
     cli::{
         CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, HashAlgorithmArgs, PasswordArgs,
     },
+    value::NameIdPair,
     command::{
         append::{open_archive_then_seek_to_end, run_append_archive},
         ask_password, check_password,
@@ -53,7 +54,7 @@ use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
     group(ArgGroup::new("path-transform").args(["substitutions", "transforms"])),
     group(ArgGroup::new("owner-flag").args(["same_owner", "no_same_owner"])),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
-    group(ArgGroup::new("group-flag").args(["numeric_owner", "group"])),
+    group(ArgGroup::new("group-flag").args(["numeric_owner", "gname", "group"])),
     group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
     group(ArgGroup::new("keep-dir-flag").args(["keep_dir", "no_keep_dir"])),
     group(ArgGroup::new("keep-xattr-flag").args(["keep_xattr", "no_keep_xattr"])),
@@ -233,7 +234,7 @@ pub(crate) struct StdioCommand {
         long,
         help = "Use the provided group, if gid is not provided, name can be either a group name or numeric id. See the --gname option for details."
     )]
-    pub(crate) group: Option<String>,
+    pub(crate) group: Option<NameIdPair>,
     #[arg(
         long,
         help = "This is equivalent to --uname \"\" --gname \"\". On create, it causes user and group names to not be stored in the archive. On extract, it causes user and group names in the archive to be ignored in favor of the numeric user and group ids."

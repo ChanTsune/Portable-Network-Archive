@@ -3,6 +3,7 @@ pub(crate) mod time_filter;
 
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
+    value::NameIdPair,
     utils::{
         self,
         fs::HardlinkResolver,
@@ -130,22 +131,11 @@ impl OwnerOptions {
         gname: Option<String>,
         uid: Option<u32>,
         gid: Option<u32>,
-        group: Option<String>,
+        group: Option<NameIdPair>,
         numeric_owner: bool,
     ) -> Self {
-        let (gname_from_group, gid_from_group) = if let Some(group) = group {
-            if let Some((name, id)) = group.split_once(':') {
-                let name = Some(name.to_string());
-                let id = id.parse::<u32>().ok();
-                (name, id)
-            } else if let Ok(id) = group.parse::<u32>() {
-                (None, Some(id))
-            } else {
-                (Some(group), None)
-            }
-        } else {
-            (None, None)
-        };
+        let (gname_from_group, gid_from_group) =
+            group.map_or((None, None), |g| (Some(g.name), g.id));
 
         let final_gid = gid.or(gid_from_group);
         let final_gname = gname.or(gname_from_group);

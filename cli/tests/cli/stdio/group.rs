@@ -6,32 +6,40 @@ use std::os::unix::fs::MetadataExt;
 // A temporary environment for testing that creates files in a temporary directory.
 mod test_env {
     use std::{
+        env,
         fs::{self, File},
         io::Write,
-        path::Path,
+        path::{Path, PathBuf},
     };
-    use tempfile::{tempdir, TempDir};
 
     pub(crate) struct TestEnv {
-        dir: TempDir,
+        dir: PathBuf,
     }
 
     impl TestEnv {
         pub(crate) fn new() -> Self {
-            Self {
-                dir: tempdir().unwrap(),
-            }
+            let temp_dir = env::temp_dir();
+            let dir_name = format!("pna-test-{}", rand::random::<u64>());
+            let path = temp_dir.join(dir_name);
+            fs::create_dir_all(&path).unwrap();
+            Self { dir: path }
         }
 
-        pub(crate) fn create_file(&self, name: &str, content: &[u8]) -> std::fs::Metadata {
-            let path = self.dir.path().join(name);
+        pub(crate) fn create_file(&self, name: &str, content: &[u8]) -> fs::Metadata {
+            let path = self.dir.join(name);
             let mut file = File::create(&path).unwrap();
             file.write_all(content).unwrap();
             fs::metadata(path).unwrap()
         }
 
         pub(crate) fn path(&self) -> &Path {
-            self.dir.path()
+            &self.dir
+        }
+    }
+
+    impl Drop for TestEnv {
+        fn drop(&mut self) {
+            fs::remove_dir_all(&self.dir).unwrap();
         }
     }
 }
