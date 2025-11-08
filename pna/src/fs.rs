@@ -76,7 +76,7 @@ pub fn remove_path_all<P: AsRef<Path>>(path: P) -> io::Result<()> {
         if file_type.is_symlink() {
             match fs::remove_file(path) {
                 #[cfg(windows)]
-                Err(e) => fs::remove_dir(path),
+                Err(_) => fs::remove_dir(path),
                 other => other,
             }
         } else if file_type.is_dir() {
