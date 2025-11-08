@@ -80,7 +80,7 @@ jobs:
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
       - if: ${{ endsWith(matrix.target, 'unknown') }}
         name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@a66119fbb1c952daba62640c2609111fe0803621 # v1.15.7
+        uses: cargo-bins/cargo-binstall@b3f755e95653da9a2d25b99154edfdbd5b356d0a # v1.15.10
       - if: ${{ endsWith(matrix.target, 'unknown') }}
         name: Install wasm-bindgen-cli from crates.io
         run: |
