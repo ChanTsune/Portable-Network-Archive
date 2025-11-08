@@ -69,11 +69,11 @@ impl<'s> GlobPatterns<'s> {
 
 /// BSD tar command like globs.
 #[derive(Clone, Debug)]
-pub(crate) struct BsdGlobPatterns(Vec<BsdGlobPattern>);
+pub(crate) struct BsdGlobPatterns<'a>(Vec<BsdGlobPattern<'a>>);
 
-impl BsdGlobPatterns {
+impl<'a> BsdGlobPatterns<'a> {
     #[inline]
-    pub fn new(value: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn new(value: impl IntoIterator<Item = &'a str>) -> Self {
         Self(value.into_iter().map(BsdGlobPattern::new).collect())
     }
 
@@ -92,31 +92,33 @@ impl BsdGlobPatterns {
     }
 }
 
-impl<T: Into<String>> From<Vec<T>> for BsdGlobPatterns {
+impl<'a, T, I> From<I> for BsdGlobPatterns<'a>
+where
+    T: AsRef<str> + ?Sized + 'a,
+    I: IntoIterator<Item = &'a T>,
+{
     #[inline]
-    fn from(value: Vec<T>) -> Self {
-        Self::new(value)
+    fn from(value: I) -> Self {
+        Self::new(value.into_iter().map(|it| it.as_ref()))
     }
 }
 
 /// BSD tar command like glob.
 #[derive(Clone, Debug)]
-pub(crate) struct BsdGlobPattern {
-    pattern: String,
+pub(crate) struct BsdGlobPattern<'a> {
+    pattern: &'a str,
 }
 
-impl BsdGlobPattern {
+impl<'a> BsdGlobPattern<'a> {
     #[inline]
-    pub fn new(pattern: impl Into<String>) -> Self {
-        Self {
-            pattern: pattern.into(),
-        }
+    pub fn new(pattern: &'a str) -> Self {
+        Self { pattern }
     }
 
     #[inline]
     pub fn match_exclusion(&self, s: &str) -> bool {
         archive_pathmatch(
-            &self.pattern,
+            self.pattern,
             s,
             PathMatch::NO_ANCHOR_START | PathMatch::NO_ANCHOR_END,
         )
@@ -124,7 +126,7 @@ impl BsdGlobPattern {
 
     #[inline]
     pub fn match_inclusion(&self, s: &str) -> bool {
-        archive_pathmatch(&self.pattern, s, PathMatch::NO_ANCHOR_START)
+        archive_pathmatch(self.pattern, s, PathMatch::NO_ANCHOR_START)
     }
 }
 

@@ -327,19 +327,20 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     } else if let Some(path) = args.files_from {
         files.extend(read_paths(path, args.null)?);
     }
-    let filter = {
-        let mut exclude = args.exclude.unwrap_or_default();
-        if let Some(p) = args.exclude_from {
-            exclude.extend(read_paths(p, args.null)?);
-        }
-        if args.exclude_vcs {
-            exclude.extend(VCS_FILES.iter().map(|it| String::from(*it)))
-        }
-        PathFilter {
-            include: args.include.unwrap_or_default().into(),
-            exclude: exclude.into(),
-        }
-    };
+
+    let mut exclude = args.exclude.unwrap_or_default();
+    if let Some(p) = args.exclude_from {
+        exclude.extend(read_paths(p, args.null)?);
+    }
+    let vcs_patterns = args
+        .exclude_vcs
+        .then(|| VCS_FILES.iter().copied())
+        .into_iter()
+        .flatten();
+    let filter = PathFilter::new(
+        args.include.iter().flatten(),
+        exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
+    );
     let archive_path = current_dir.join(archive);
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;

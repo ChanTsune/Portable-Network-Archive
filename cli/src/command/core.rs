@@ -300,7 +300,7 @@ pub(crate) enum StoreAs {
 /// `io::ErrorKind::Unsupported` for entries with unsupported types. Other walk
 /// errors are wrapped using `io::Error::other`.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn collect_items(
+pub(crate) fn collect_items<'a>(
     files: impl IntoIterator<Item = impl AsRef<Path>>,
     recursive: bool,
     keep_dir: bool,
@@ -308,7 +308,7 @@ pub(crate) fn collect_items(
     follow_links: bool,
     follow_command_links: bool,
     one_file_system: bool,
-    filter: &PathFilter,
+    filter: &PathFilter<'a>,
     time_filters: &TimeFilters,
 ) -> io::Result<Vec<(PathBuf, StoreAs)>> {
     let mut ig = Ignore::empty();
@@ -1107,12 +1107,23 @@ where
 
 /// A filter for paths based on include and exclude glob patterns.
 #[derive(Clone, Debug)]
-pub(crate) struct PathFilter {
-    pub(crate) include: BsdGlobPatterns,
-    pub(crate) exclude: BsdGlobPatterns,
+pub(crate) struct PathFilter<'a> {
+    include: BsdGlobPatterns<'a>,
+    exclude: BsdGlobPatterns<'a>,
 }
 
-impl PathFilter {
+impl<'a> PathFilter<'a> {
+    #[inline]
+    pub(crate) fn new(
+        include: impl Into<BsdGlobPatterns<'a>>,
+        exclude: impl Into<BsdGlobPatterns<'a>>,
+    ) -> Self {
+        Self {
+            include: include.into(),
+            exclude: exclude.into(),
+        }
+    }
+
     /// Returns `true` if the given path should be excluded.
     ///
     /// A path is excluded if it matches any of the `exclude` patterns,
@@ -1152,11 +1163,10 @@ mod tests {
     use std::collections::HashSet;
     use std::time::Duration;
 
-    fn empty_path_filter() -> PathFilter {
-        PathFilter {
-            include: Vec::<&str>::new().into(),
-            exclude: Vec::<&str>::new().into(),
-        }
+    const EMPTY_PATTERNS: [&str; 0] = [];
+
+    fn empty_path_filter<'a>() -> PathFilter<'a> {
+        PathFilter::new(&EMPTY_PATTERNS, &EMPTY_PATTERNS)
     }
 
     fn empty_time_filters() -> TimeFilters {
@@ -1174,34 +1184,26 @@ mod tests {
 
     #[test]
     fn path_filter_empty() {
-        let filter = PathFilter {
-            include: Vec::<&str>::new().into(),
-            exclude: Vec::<&str>::new().into(),
-        };
+        let filter = PathFilter::new(&EMPTY_PATTERNS, &EMPTY_PATTERNS);
         assert!(!filter.excluded("a/b/c"));
     }
 
     #[test]
     fn path_filter_exclude() {
-        let filter = PathFilter {
-            include: Vec::<&str>::new().into(),
-            exclude: vec!["a/*"].into(),
-        };
+        let exclude = ["a/*"];
+        let filter = PathFilter::new(&EMPTY_PATTERNS, &exclude);
         assert!(filter.excluded("a/b/c"));
     }
 
     #[test]
     fn path_filter_include_precedence() {
-        let filter = PathFilter {
-            include: vec!["a/*/c"].into(),
-            exclude: vec!["a/*"].into(),
-        };
+        let include = ["a/*/c"];
+        let exclude = ["a/*"];
+        let filter = PathFilter::new(&include, &exclude);
         assert!(filter.excluded("a/b/c"));
 
-        let filter = PathFilter {
-            include: vec!["a/*/c"].into(),
-            exclude: vec!["a/*/c"].into(),
-        };
+        let exclude = ["a/*/c"];
+        let filter = PathFilter::new(&include, &exclude);
         assert!(filter.excluded("a/b/c"));
     }
 
