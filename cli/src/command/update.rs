@@ -314,6 +314,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         args.gname,
         args.uid,
         args.gid,
+        None,
         args.numeric_owner,
     );
     let time_options = TimeOptions {

@@ -304,6 +304,7 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         args.gname,
         args.uid,
         args.gid,
+        None,
         args.numeric_owner,
     );
     let time_options = TimeOptions {
