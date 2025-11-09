@@ -67,6 +67,10 @@ use std::{env, fs, io, path::PathBuf, sync::Arc, time::SystemTime};
         ArgGroup::new("overwrite-flag")
             .args(["overwrite", "no_overwrite", "keep_newer_files", "keep_old_files"])
     ),
+    group(ArgGroup::new("ctime-older-than-source").args(["older_ctime", "older_ctime_than"])),
+    group(ArgGroup::new("ctime-newer-than-source").args(["newer_ctime", "newer_ctime_than"])),
+    group(ArgGroup::new("mtime-older-than-source").args(["older_mtime", "older_mtime_than"])),
+    group(ArgGroup::new("mtime-newer-than-source").args(["newer_mtime", "newer_mtime_than"])),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission", "no_keep_permission"]).requires("unstable")),
