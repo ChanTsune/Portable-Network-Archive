@@ -10,7 +10,9 @@ mod option_newer_mtime;
 mod option_newer_mtime_than;
 #[cfg(any(windows, target_os = "macos"))]
 mod option_older_ctime;
+mod option_older_ctime_than;
 mod option_older_mtime;
+mod option_older_mtime_than;
 
 use crate::utils::{diff::diff, setup, EmbedExt, TestResources};
 use clap::Parser;
