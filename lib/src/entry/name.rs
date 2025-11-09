@@ -51,10 +51,10 @@ impl EntryName {
     ///
     /// Any non-Unicode sequences are replaced with
     /// [`U+FFFD REPLACEMENT CHARACTER`][U+FFFD] and
-    /// any path components not match with [std::path::Component::Normal] are removed.
+    /// any path components not match with [Component::Normal] are removed.
     ///
     /// [U+FFFD]: core::char::REPLACEMENT_CHARACTER
-    ///
+    /// [Component::Normal]: std::path::Component::Normal
     /// # Examples
     /// ```rust
     /// use libpna::EntryName;
