@@ -1,7 +1,11 @@
 use crate::utils::{archive, setup};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
-use std::{collections::HashSet, fs, thread, time};
+use std::{
+    collections::HashSet,
+    fs, thread,
+    time::{Duration, SystemTime},
+};
 
 /// Precondition: Create three files with different creation times (reference, older, newer).
 /// Action: Run `pna create` with `--newer-ctime-than reference.txt`, specifying all three files.
@@ -25,16 +29,23 @@ fn create_with_newer_ctime_than() {
     }
 
     // Wait to ensure distinct ctime
-    thread::sleep(time::Duration::from_millis(10));
+    thread::sleep(Duration::from_millis(10));
 
     // Create the reference file
     fs::write(reference_file, "reference time marker").unwrap();
+    let reference_ctime = fs::metadata(reference_file).unwrap().created().unwrap();
 
     // Wait to ensure the next file has a newer ctime
-    thread::sleep(time::Duration::from_millis(10));
+    thread::sleep(Duration::from_millis(10));
 
     // Create the newer file
     fs::write(newer_file, "newer file content").unwrap();
+    if !wait_until_ctime_newer_than(newer_file, reference_ctime)
+        || !confirm_ctime_not_newer_than(older_file, reference_ctime)
+    {
+        eprintln!("Skipping test: unable to produce distinct creation times on this filesystem");
+        return;
+    }
 
     // Create an archive with the `--newer-ctime-than` option
     cli::Cli::try_parse_from([
@@ -86,4 +97,29 @@ fn create_with_newer_ctime_than() {
         "Expected exactly 2 entries, but found {}: {seen:?}",
         seen.len()
     );
+}
+
+fn wait_until_ctime_newer_than(path: &str, baseline: SystemTime) -> bool {
+    const MAX_ATTEMPTS: usize = 500;
+    const SLEEP_MS: u64 = 10;
+    for _ in 0..MAX_ATTEMPTS {
+        if fs::metadata(path)
+            .ok()
+            .and_then(|meta| meta.created().ok())
+            .map(|ctime| ctime > baseline)
+            .unwrap_or(false)
+        {
+            return true;
+        }
+        thread::sleep(Duration::from_millis(SLEEP_MS));
+    }
+    false
+}
+
+fn confirm_ctime_not_newer_than(path: &str, baseline: SystemTime) -> bool {
+    fs::metadata(path)
+        .ok()
+        .and_then(|meta| meta.created().ok())
+        .map(|ctime| ctime <= baseline)
+        .unwrap_or(false)
 }
