@@ -305,6 +305,7 @@ pub(crate) fn collect_items<'a>(
     recursive: bool,
     keep_dir: bool,
     gitignore: bool,
+    nodump: bool,
     follow_links: bool,
     follow_command_links: bool,
     one_file_system: bool,
@@ -357,6 +358,25 @@ pub(crate) fn collect_items<'a>(
                         // After confirming not ignored, load .gitignore from this directory
                         if is_dir {
                             ig.add_path(path);
+                        }
+                    }
+
+                    if nodump {
+                        match utils::fs::is_nodump(path) {
+                            Ok(true) => {
+                                if is_dir {
+                                    iter.skip_current_dir();
+                                }
+                                continue;
+                            }
+                            Ok(false) => {}
+                            Err(e) => {
+                                log::warn!(
+                                    "Failed to check nodump flag for {}: {}",
+                                    path.display(),
+                                    e
+                                );
+                            }
                         }
                     }
 
@@ -1221,6 +1241,7 @@ mod tests {
             false,
             false,
             false,
+            false,
             &empty_path_filter(),
             &empty_time_filters(),
         )
@@ -1241,6 +1262,7 @@ mod tests {
             source,
             false,
             true,
+            false,
             false,
             false,
             false,
@@ -1270,6 +1292,7 @@ mod tests {
         let items = collect_items(
             source,
             true,
+            false,
             false,
             false,
             false,

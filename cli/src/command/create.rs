@@ -79,6 +79,12 @@ pub(crate) struct CreateCommand {
     )]
     one_file_system: bool,
     #[arg(
+        long,
+        requires = "unstable",
+        help = "Exclude files with the nodump flag (unstable)"
+    )]
+    nodump: bool,
+    #[arg(
         short,
         long,
         visible_alias = "recursion",
@@ -360,6 +366,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         !args.no_recursive,
         args.keep_dir,
         args.gitignore,
+        args.nodump,
         args.follow_links,
         args.follow_command_links,
         args.one_file_system,
