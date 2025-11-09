@@ -66,6 +66,10 @@ use std::{
     group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
     group(ArgGroup::new("unstable-follow_command_links").args(["follow_command_links"]).requires("unstable")),
     group(ArgGroup::new("unstable-one-file-system").args(["one_file_system"]).requires("unstable")),
+    group(ArgGroup::new("ctime-older-than-source").args(["older_ctime", "older_ctime_than"])),
+    group(ArgGroup::new("ctime-newer-than-source").args(["newer_ctime", "newer_ctime_than"])),
+    group(ArgGroup::new("mtime-older-than-source").args(["older_mtime", "older_mtime_than"])),
+    group(ArgGroup::new("mtime-newer-than-source").args(["newer_mtime", "newer_mtime_than"])),
     group(ArgGroup::new("overwrite-flag").args(["overwrite", "no_overwrite"])),
     group(ArgGroup::new("keep-permission-flag").args(["keep_permission", "no_keep_permission"])),
 )]
