@@ -24,7 +24,7 @@ use crate::{
 };
 use clap::{ArgGroup, Args, ValueHint};
 use pna::Archive;
-use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
+use std::{env, fs, io, path::PathBuf, sync::Arc, time::SystemTime};
 
 #[derive(Args, Clone, Debug)]
 #[command(
@@ -285,6 +285,20 @@ pub(crate) struct StdioCommand {
         help = "Only include files and directories newer than the specified date (unstable). This compares mtime entries."
     )]
     newer_mtime: Option<DateTime>,
+    #[arg(
+        long,
+        value_name = "file",
+        requires = "unstable",
+        help = "Only include files and directories newer than the specified file (unstable). This compares ctime entries."
+    )]
+    newer_ctime_than: Option<PathBuf>,
+    #[arg(
+        long,
+        value_name = "file",
+        requires = "unstable",
+        help = "Only include files and directories newer than the specified file (unstable). This compares mtime entries."
+    )]
+    newer_mtime_than: Option<PathBuf>,
     #[arg(short = 'T', visible_short_aliases = ['I'], long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
     files_from: Option<PathBuf>,
     #[arg(
@@ -409,11 +423,25 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     }
     let time_filters = TimeFilters {
         ctime: TimeFilter {
-            newer_than: args.newer_ctime.map(|it| it.to_system_time()),
+            newer_than: if let Some(p) = &args.newer_ctime_than {
+                let metadata = fs::metadata(p)?;
+                Some(metadata.created().map_err(|_| {
+                        std::io::Error::new(
+                            std::io::ErrorKind::Unsupported,
+                            format!("--newer-ctime-than requires filesystem support for creation time (birth time), which is not available for '{}'", p.display())
+                        )
+                    })?)
+            } else {
+                args.newer_ctime.map(|it| it.to_system_time())
+            },
             older_than: args.older_ctime.map(|it| it.to_system_time()),
         },
         mtime: TimeFilter {
-            newer_than: args.newer_mtime.map(|it| it.to_system_time()),
+            newer_than: if let Some(p) = &args.newer_mtime_than {
+                Some(fs::metadata(p)?.modified()?)
+            } else {
+                args.newer_mtime.map(|it| it.to_system_time())
+            },
             older_than: args.older_mtime.map(|it| it.to_system_time()),
         },
     };
@@ -690,11 +718,25 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     }
     let time_filters = TimeFilters {
         ctime: TimeFilter {
-            newer_than: args.newer_ctime.map(|it| it.to_system_time()),
+            newer_than: if let Some(p) = &args.newer_ctime_than {
+                let metadata = fs::metadata(p)?;
+                Some(metadata.created().map_err(|_| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::Unsupported,
+                        format!("--newer-ctime-than requires filesystem support for creation time (birth time), which is not available for '{}'", p.display())
+                    )
+                })?)
+            } else {
+                args.newer_ctime.map(|it| it.to_system_time())
+            },
             older_than: args.older_ctime.map(|it| it.to_system_time()),
         },
         mtime: TimeFilter {
-            newer_than: args.newer_mtime.map(|it| it.to_system_time()),
+            newer_than: if let Some(p) = &args.newer_mtime_than {
+                Some(fs::metadata(p)?.modified()?)
+            } else {
+                args.newer_mtime.map(|it| it.to_system_time())
+            },
             older_than: args.older_mtime.map(|it| it.to_system_time()),
         },
     };
