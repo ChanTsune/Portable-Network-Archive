@@ -376,10 +376,6 @@ pub(crate) fn collect_items(
                                     path.display(),
                                     e
                                 );
-                                if is_dir {
-                                    iter.skip_current_dir();
-                                }
-                                continue;
                             }
                         }
                     }
