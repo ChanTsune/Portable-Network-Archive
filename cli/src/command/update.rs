@@ -223,6 +223,20 @@ pub(crate) struct UpdateCommand {
         help = "Only include files and directories newer than the specified file (unstable). This compares mtime entries."
     )]
     newer_mtime_than: Option<PathBuf>,
+    #[arg(
+        long,
+        value_name = "file",
+        requires = "unstable",
+        help = "Only include files and directories older than the specified file (unstable). This compares ctime entries."
+    )]
+    older_ctime_than: Option<PathBuf>,
+    #[arg(
+        long,
+        value_name = "file",
+        requires = "unstable",
+        help = "Only include files and directories older than the specified file (unstable). This compares mtime entries."
+    )]
+    older_mtime_than: Option<PathBuf>,
     #[arg(long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
     files_from: Option<PathBuf>,
     #[arg(long, help = "Read archiving files from stdin (unstable)")]
@@ -357,7 +371,17 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
             } else {
                 args.newer_ctime.map(|it| it.to_system_time())
             },
-            older_than: args.older_ctime.map(|it| it.to_system_time()),
+            older_than: if let Some(p) = &args.older_ctime_than {
+                let metadata = fs::metadata(p)?;
+                Some(metadata.created().map_err(|_| {
+                        std::io::Error::new(
+                            std::io::ErrorKind::Unsupported,
+                            format!("--older-ctime-than requires filesystem support for creation time (birth time), which is not available for '{}'", p.display())
+                        )
+                    })?)
+            } else {
+                args.older_ctime.map(|it| it.to_system_time())
+            },
         },
         mtime: TimeFilter {
             newer_than: if let Some(p) = &args.newer_mtime_than {
@@ -365,7 +389,11 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
             } else {
                 args.newer_mtime.map(|it| it.to_system_time())
             },
-            older_than: args.older_mtime.map(|it| it.to_system_time()),
+            older_than: if let Some(p) = &args.older_mtime_than {
+                Some(fs::metadata(p)?.modified()?)
+            } else {
+                args.older_mtime.map(|it| it.to_system_time())
+            },
         },
     };
     let create_options = CreateOptions {
