@@ -26,8 +26,8 @@ use crate::{
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;
-use pna::{Archive, EntryName, Metadata};
-use std::{env, fs, io, path::PathBuf, time::SystemTime};
+use pna::{prelude::*, Archive, EntryName, Metadata};
+use std::{env, fs, io, path::PathBuf};
 
 #[derive(Parser, Clone, Debug)]
 #[command(
@@ -493,6 +493,11 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
 
 fn is_newer_than_archive(fs_meta: &fs::Metadata, metadata: &Metadata) -> Option<bool> {
     let mtime = fs_meta.modified().ok()?;
-    let d = metadata.modified()?;
-    Some(SystemTime::UNIX_EPOCH + d < mtime)
+    let d = metadata.modified_time()?;
+    if d < mtime {
+        return Some(true);
+    }
+    let ctime = fs_meta.created().ok()?;
+    let c = metadata.created_time()?;
+    Some(c < ctime)
 }
