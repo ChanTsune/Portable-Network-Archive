@@ -1,7 +1,11 @@
 use crate::utils::{archive, setup};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
-use std::{collections::HashSet, fs, thread, time};
+use std::{
+    collections::HashSet,
+    fs, thread,
+    time::{Duration, SystemTime},
+};
 
 /// Precondition: Create an archive with file_to_update, then create reference, update files, and new file.
 /// Action: Run `pna experimental update` with `--newer-ctime-than reference.txt`.
@@ -38,15 +42,24 @@ fn update_with_newer_ctime_than() {
     .unwrap();
 
     // 2. Wait and create a reference file to set a timestamp benchmark.
-    thread::sleep(time::Duration::from_millis(10));
+    thread::sleep(Duration::from_millis(10));
     fs::write(reference_file, "time reference").unwrap();
+    let reference_ctime = fs::metadata(reference_file).unwrap().created().unwrap();
 
     // 3. Wait, then recreate the existing file (to ensure both ctime/birth time move
     //    forward) and create the new file so that both are newer than the reference.
-    thread::sleep(time::Duration::from_millis(10));
+    thread::sleep(Duration::from_millis(10));
     fs::remove_file(file_to_update).unwrap();
     fs::write(file_to_update, "updated content").unwrap();
     fs::write(file_to_add, "new file content").unwrap();
+    if !wait_until_ctime_after(file_to_update, reference_ctime)
+        || !wait_until_ctime_after(file_to_add, reference_ctime)
+    {
+        eprintln!(
+            "Skipping test: creation time did not advance beyond reference on this filesystem"
+        );
+        return;
+    }
 
     // 4. Run the update command, targeting the files to be updated/added,
     //    filtered by the ctime of the reference file.
@@ -117,4 +130,21 @@ fn update_with_newer_ctime_than() {
         updated_content, "updated content",
         "The updated file did not contain the correct content"
     );
+}
+
+fn wait_until_ctime_after(path: &str, baseline: SystemTime) -> bool {
+    const MAX_ATTEMPTS: usize = 200;
+    const SLEEP_MS: u64 = 10;
+    for _ in 0..MAX_ATTEMPTS {
+        if fs::metadata(path)
+            .ok()
+            .and_then(|meta| meta.created().ok())
+            .map(|ctime| ctime > baseline)
+            .unwrap_or(false)
+        {
+            return true;
+        }
+        thread::sleep(Duration::from_millis(SLEEP_MS));
+    }
+    false
 }
