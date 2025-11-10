@@ -2,13 +2,10 @@ use crate::utils::{diff::diff, setup, EmbedExt, LibSourceCode};
 use assert_cmd::cargo::cargo_bin_cmd;
 use itertools::Itertools;
 
-// NOTE: Skip `--keep-xattr` option for NetBSD
-//       because NetBSD default filesystem is not support extended attribute.
 const KEEP_OPTIONS: &[Option<&str>] = &[
     Some("--keep-dir"),
     Some("--keep-timestamp"),
     Some("--keep-permission"),
-    #[cfg(not(target_os = "netbsd"))]
     Some("--keep-xattr"),
 ];
 

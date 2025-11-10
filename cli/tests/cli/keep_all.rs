@@ -14,7 +14,6 @@ fn archive_keep_all() {
         "archive_keep_all/keep_all.pna",
         "--overwrite",
         "archive_keep_all/in/",
-        #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
@@ -33,7 +32,6 @@ fn archive_keep_all() {
         "--overwrite",
         "--out-dir",
         "archive_keep_all/out/",
-        #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",

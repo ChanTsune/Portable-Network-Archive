@@ -13,7 +13,6 @@ fn archive_strip_metadata() {
         "archive_strip_metadata/strip_metadata.pna",
         "--overwrite",
         "archive_strip_metadata/in/",
-        #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
@@ -45,7 +44,6 @@ fn archive_strip_metadata() {
         "--overwrite",
         "--out-dir",
         "archive_strip_metadata/out/",
-        #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
