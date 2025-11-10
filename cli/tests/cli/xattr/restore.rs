@@ -48,7 +48,6 @@ fn xattr_set_restore() {
         "--overwrite",
         "--out-dir",
         "xattr_set_restore/out/",
-        #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--strip-components",
         "2",
@@ -57,7 +56,7 @@ fn xattr_set_restore() {
 
     diff("xattr_set_restore/in/", "xattr_set_restore/out/").unwrap();
 
-    #[cfg(all(unix, not(target_os = "netbsd")))]
+    #[cfg(unix)]
     if xattr::SUPPORTED_PLATFORM {
         // Check if xattr is supported on this filesystem
         match xattr::get("xattr_set_restore/out/raw/empty.txt", "user.name") {
@@ -65,7 +64,9 @@ fn xattr_set_restore() {
                 assert_eq!(value, b"pna");
             }
             Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
-                eprintln!("Skipping xattr verification: filesystem does not support extended attributes");
+                eprintln!(
+                    "Skipping xattr verification: filesystem does not support extended attributes"
+                );
                 return;
             }
             other => panic!("Unexpected result: {:?}", other),

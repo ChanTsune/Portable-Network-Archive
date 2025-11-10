@@ -41,7 +41,6 @@ fn archive_list_detail() {
         "list_detail/list_detail.pna",
         "--overwrite",
         "list_detail/in/",
-        #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
@@ -82,7 +81,6 @@ fn archive_list_solid_detail() {
         "--overwrite",
         "list_solid_detail/in/",
         "--solid",
-        #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
@@ -122,7 +120,6 @@ fn archive_list_jsonl() {
         "list_jsonl/list_jsonl.pna",
         "--overwrite",
         "list_jsonl/in/",
-        #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
@@ -167,7 +164,6 @@ fn archive_list_solid_jsonl() {
         "--overwrite",
         "list_solid_jsonl/in/",
         "--solid",
-        #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
@@ -212,7 +208,6 @@ fn archive_list_tree() {
         "list_tree/list_tree.pna",
         "--overwrite",
         "list_tree/in/",
-        #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
@@ -257,7 +252,6 @@ fn archive_list_solid_tree() {
         "--overwrite",
         "list_solid_tree/in/",
         "--solid",
-        #[cfg(not(target_os = "netbsd"))]
         "--keep-xattr",
         "--keep-timestamp",
         "--keep-permission",
