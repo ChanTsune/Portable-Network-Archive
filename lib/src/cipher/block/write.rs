@@ -60,13 +60,17 @@ where
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let block_size = cbc::Encryptor::<C>::block_size();
         if buf.len() + self.buf.len() < block_size {
-            self.buf.try_extend_from_slice(buf).expect("");
+            self.buf
+                .try_extend_from_slice(buf)
+                .expect("buffer capacity exceeded: crypto block size invariant violated");
             return Ok(buf.len());
         }
         let mut total_written = 0;
         if !self.buf.is_empty() {
             let remaining = block_size - self.buf.len();
-            self.buf.try_extend_from_slice(&buf[..remaining]).expect("");
+            self.buf
+                .try_extend_from_slice(&buf[..remaining])
+                .expect("buffer capacity exceeded: crypto block size invariant violated");
             total_written += remaining;
 
             let inout_block = Block::<cbc::Encryptor<C>>::from_mut_slice(&mut self.buf);
@@ -84,7 +88,9 @@ where
             self.w.write_all(out_block.as_slice())?;
             total_written += b.len();
         }
-        self.buf.try_extend_from_slice(remainder).expect("");
+        self.buf
+            .try_extend_from_slice(remainder)
+            .expect("buffer capacity exceeded: crypto block size invariant violated");
         total_written += remainder.len();
         Ok(total_written)
     }
