@@ -641,7 +641,17 @@ where
     }
     #[cfg(unix)]
     if let XattrStrategy::Always = keep_options.xattr_strategy {
-        utils::os::unix::fs::xattrs::set_xattrs(&path, item.xattrs())?;
+        match utils::os::unix::fs::xattrs::set_xattrs(&path, item.xattrs()) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
+                log::warn!(
+                    "Extended attributes are not supported on filesystem for '{}': {}",
+                    path.display(),
+                    e
+                );
+            }
+            Err(e) => return Err(e),
+        }
     }
     #[cfg(not(unix))]
     if let XattrStrategy::Always = keep_options.xattr_strategy {

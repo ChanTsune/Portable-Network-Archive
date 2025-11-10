@@ -59,12 +59,18 @@ fn xattr_set_restore() {
 
     #[cfg(all(unix, not(target_os = "netbsd")))]
     if xattr::SUPPORTED_PLATFORM {
-        assert_eq!(
-            xattr::get("xattr_set_restore/out/raw/empty.txt", "user.name")
-                .unwrap()
-                .unwrap(),
-            b"pna"
-        );
+        // Check if xattr is supported on this filesystem
+        match xattr::get("xattr_set_restore/out/raw/empty.txt", "user.name") {
+            Ok(Some(value)) => {
+                assert_eq!(value, b"pna");
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
+                eprintln!("Skipping xattr verification: filesystem does not support extended attributes");
+                return;
+            }
+            other => panic!("Unexpected result: {:?}", other),
+        }
+
         assert_eq!(
             xattr::get("xattr_set_restore/out/raw/empty.txt", "user.value")
                 .unwrap()

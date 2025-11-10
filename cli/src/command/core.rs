@@ -699,8 +699,20 @@ pub(crate) fn apply_metadata<'p>(
     }
     #[cfg(unix)]
     if let XattrStrategy::Always = keep_options.xattr_strategy {
-        for attr in utils::os::unix::fs::xattrs::get_xattrs(path)? {
-            entry.add_xattr(attr);
+        match utils::os::unix::fs::xattrs::get_xattrs(path) {
+            Ok(xattrs) => {
+                for attr in xattrs {
+                    entry.add_xattr(attr);
+                }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
+                log::warn!(
+                    "Extended attributes are not supported on filesystem for '{}': {}",
+                    path.display(),
+                    e
+                );
+            }
+            Err(e) => return Err(e),
         }
     }
     #[cfg(not(unix))]
