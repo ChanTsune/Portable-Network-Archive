@@ -236,6 +236,11 @@ impl Display for ChunkType {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         // SAFETY: A field checked to be ASCII alphabetic in the constructor.
+        debug_assert!(
+            self.0.iter().all(|b| b.is_ascii_alphabetic()),
+            "ChunkType invariant violated: contains non-ASCII alphabetic bytes {:?}",
+            self.0
+        );
         Display::fmt(unsafe { std::str::from_utf8_unchecked(&self.0) }, f)
     }
 }
