@@ -26,7 +26,7 @@ globset = "0.4.16"
 ignore = "0.4.23"
 indexmap = "2.12.0"
 itertools = "0.14.0"
-jiff = "0.2.15"
+jiff = "0.2.16"
 libc = "0.2.177"
 log = "0.4.28"
 memmap2 = { version = "0.9.9", optional = true }
