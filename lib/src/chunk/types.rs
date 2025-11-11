@@ -19,9 +19,9 @@ impl Display for ChunkTypeError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         Display::fmt(
             match self {
-                Self::NonAsciiAlphabetic => "All characters are must be ASCII alphabet",
-                Self::NonPrivateChunkType => "The second character is must be lowercase",
-                Self::Reserved => "The third character is must be uppercase",
+                Self::NonAsciiAlphabetic => "All characters must be ASCII alphabetic",
+                Self::NonPrivateChunkType => "The second character must be lowercase",
+                Self::Reserved => "The third character must be uppercase",
             },
             f,
         )
