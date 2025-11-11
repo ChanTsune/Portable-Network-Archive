@@ -143,7 +143,7 @@ impl<R: Read> Archive<R> {
     ///
     /// # Deprecated
     ///
-    /// Use [`Archive::entries().skip_solid()`] instead.
+    /// Use [`Archive::entries()`] followed by `skip_solid()` instead.
     ///
     /// # Returns
     ///
