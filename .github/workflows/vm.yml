@@ -101,7 +101,7 @@ jobs:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Test in OpenBSD
         id: test
-        uses: vmactions/OpenBSD-vm@b9ca589cf377275c2453361a4e45ed9ffdfc58ec # v1.2.2
+        uses: vmactions/OpenBSD-vm@a254d784d6fad46e22ef73c6ecbb1dc310b04777 # v1.2.3
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
