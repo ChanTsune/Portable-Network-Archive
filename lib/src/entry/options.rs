@@ -429,7 +429,81 @@ impl TryFrom<u8> for DataKind {
     }
 }
 
-/// Options for writing an entry.
+/// Options for writing entries to a PNA archive.
+///
+/// This type configures compression, encryption, and password hashing for archive entries.
+/// Options are created using the builder pattern via [`WriteOptions::builder()`] or by
+/// using the convenience constructor [`WriteOptions::store()`] for uncompressed entries.
+///
+/// # Compression and Encryption Order
+///
+/// When both compression and encryption are enabled, data is **compressed first, then encrypted**.
+/// This order maximizes compression efficiency since encrypted data is essentially random
+/// and cannot be compressed effectively.
+///
+/// Data flow: `Original → Compress → Encrypt → Write to archive`
+///
+/// # Security Considerations
+///
+/// - **Hash Algorithm**: Always use [`HashAlgorithm::argon2id()`] in production for password-based
+///   encryption. [`HashAlgorithm::pbkdf2_sha256()`] is primarily for compatibility with older
+///   systems or when Argon2 is not available.
+/// - **Cipher Mode**: CTR mode ([`CipherMode::CTR`]) is recommended over CBC for most use cases
+///   as it allows parallel processing and has simpler security requirements.
+/// - **IV Generation**: Initialization vectors (IVs) are automatically generated using
+///   cryptographically secure random number generation. You do not need to provide IVs.
+/// - **Password Strength**: Use strong passwords (12+ characters, mixed case, numbers, symbols)
+///   as the encryption key is derived from the password.
+///
+/// # Examples
+///
+/// Store without compression or encryption:
+/// ```rust
+/// use libpna::WriteOptions;
+///
+/// let opts = WriteOptions::store();
+/// ```
+///
+/// Compress only (no encryption):
+/// ```rust
+/// use libpna::{WriteOptions, Compression, CompressionLevel};
+///
+/// let opts = WriteOptions::builder()
+///     .compression(Compression::ZStandard)
+///     .compression_level(CompressionLevel::max())
+///     .build();
+/// ```
+///
+/// Encrypt only (no compression):
+/// ```rust
+/// use libpna::{WriteOptions, Encryption, CipherMode, HashAlgorithm};
+///
+/// let opts = WriteOptions::builder()
+///     .encryption(Encryption::Aes)
+///     .cipher_mode(CipherMode::CTR)
+///     .hash_algorithm(HashAlgorithm::argon2id())
+///     .password(Some("secure_password"))
+///     .build();
+/// ```
+///
+/// Both compression and encryption (recommended for sensitive data):
+/// ```rust
+/// use libpna::{WriteOptions, Compression, Encryption, CipherMode, HashAlgorithm};
+///
+/// let opts = WriteOptions::builder()
+///     .compression(Compression::ZStandard)
+///     .encryption(Encryption::Aes)
+///     .cipher_mode(CipherMode::CTR)
+///     .hash_algorithm(HashAlgorithm::argon2id())
+///     .password(Some("secure_password"))
+///     .build();
+/// ```
+///
+/// # Relationship to ReadOptions
+///
+/// When reading an archive, use [`ReadOptions`] to provide the password for decryption.
+/// The compression algorithm and cipher mode are stored in the archive metadata, so you
+/// only need to provide the password.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct WriteOptions {
     compress: Compress,
@@ -587,9 +661,33 @@ impl WriteOptionsBuilder {
 
     /// Creates a new [`WriteOptions`] from this builder.
     ///
-    /// ## Panics
+    /// This finalizes the builder configuration and creates an immutable [`WriteOptions`]
+    /// that can be used when creating entries.
     ///
-    /// Panic will occur when encryption is enabled and a password is not provided.
+    /// # Panics
+    ///
+    /// Panics if [`encryption()`](Self::encryption) was set to [`Encryption::Aes`] or
+    /// [`Encryption::Camellia`] but [`password()`](Self::password) was not called with
+    /// a password.
+    ///
+    /// **Always provide a password when enabling encryption.** The following code will panic:
+    /// ```no_run
+    /// use libpna::{WriteOptions, Encryption};
+    ///
+    /// let opts = WriteOptions::builder()
+    ///     .encryption(Encryption::Aes)
+    ///     .build();  // PANICS: Password was not provided.
+    /// ```
+    ///
+    /// **Correct usage:**
+    /// ```rust
+    /// use libpna::{WriteOptions, Encryption};
+    ///
+    /// let opts = WriteOptions::builder()
+    ///     .encryption(Encryption::Aes)
+    ///     .password(Some("secure_password"))
+    ///     .build();  // OK
+    /// ```
     #[inline]
     pub fn build(&self) -> WriteOptions {
         let cipher = if self.encryption != Encryption::No {
