@@ -29,7 +29,7 @@ use std::{
 ///
 /// # Entry Types
 ///
-/// - **Files**: Created with [`new_file()`](Self::new_file), support data writing via [`Write`] trait
+/// - **Files**: Created with [`new_file()`](Self::new_file), supports data writing via the [`Write`] trait
 /// - **Directories**: Created with [`new_dir()`](Self::new_dir), have no data payload
 /// - **Symbolic links**: Created with [`new_symlink()`](Self::new_symlink), data is the link target path
 /// - **Hard links**: Created with [`new_hard_link()`](Self::new_hard_link), data is the link target path
