@@ -23,9 +23,54 @@ use std::{
 
 /// A builder for creating a [`NormalEntry`].
 ///
-/// This builder provides a flexible way to construct a `NormalEntry` by specifying
-/// its type (file, directory, symlink), content, and metadata. It handles the
-/// underlying complexity of compression and encryption.
+/// This builder provides a flexible way to construct entries for PNA archives by specifying
+/// the entry type (file, directory, symbolic link, hard link), content, and metadata.
+/// It handles compression and encryption transparently according to the provided [`WriteOptions`].
+///
+/// # Entry Types
+///
+/// - **Files**: Created with [`new_file()`](Self::new_file), support data writing via [`Write`] trait
+/// - **Directories**: Created with [`new_dir()`](Self::new_dir), have no data payload
+/// - **Symbolic links**: Created with [`new_symlink()`](Self::new_symlink), data is the link target path
+/// - **Hard links**: Created with [`new_hard_link()`](Self::new_hard_link), data is the link target path
+///
+/// # Write Trait Behavior
+///
+/// For **file entries**, the [`Write`] trait is fully functional. Data written via
+/// [`write_all()`](Write::write_all) or similar methods is automatically compressed and
+/// encrypted according to the [`WriteOptions`] provided at construction time. The original
+/// (uncompressed) file size is tracked separately.
+///
+/// For **directory entries**, the [`Write`] trait is implemented but writing data has no effect.
+/// Directories do not store data payloads in PNA archives.
+///
+/// For **symbolic link and hard link entries**, do not use the [`Write`] trait. Instead, the
+/// link target is provided to the constructor ([`new_symlink()`](Self::new_symlink) or
+/// [`new_hard_link()`](Self::new_hard_link)).
+///
+/// # Metadata
+///
+/// Metadata (timestamps, permissions, extended attributes) can be set at any time before
+/// calling [`build()`](Self::build). The order does not matter - you can set metadata before,
+/// during, or after writing data to file entries.
+///
+/// # Compression and Encryption
+///
+/// When data is written to a file entry:
+/// 1. Data is compressed according to [`WriteOptions`] compression settings
+/// 2. Compressed data is encrypted according to [`WriteOptions`] encryption settings
+/// 3. Encrypted data is buffered into chunks
+/// 4. Chunks are finalized when [`build()`](Self::build) is called
+///
+/// This happens **transparently** - you just write raw data and the builder handles the rest.
+///
+/// # Important Notes
+///
+/// - Each builder can only be built **once** ([`build()`](Self::build) consumes `self`)
+/// - File entries with no data written will have **zero size**
+/// - Compression and encryption are applied **during writes**, not at build time
+/// - The [`build()`](Self::build) method finalizes compression/encryption streams
+/// - Building a directory or file without calling write methods is valid
 ///
 /// # Examples
 ///
@@ -43,6 +88,21 @@ use std::{
 /// # }
 /// ```
 ///
+/// ## Creating a file entry with extended attributes
+///
+/// ```
+/// # use std::io::{self, Write};
+/// use libpna::{EntryBuilder, WriteOptions, ExtendedAttribute};
+///
+/// # fn main() -> io::Result<()> {
+/// let mut builder = EntryBuilder::new_file("data.txt".into(), WriteOptions::store())?;
+/// builder.write_all(b"file content")?;
+/// builder.add_xattr(ExtendedAttribute::new("user.comment".into(), b"important".to_vec()));
+/// let entry = builder.build()?;
+/// # Ok(())
+/// # }
+/// ```
+///
 /// ## Creating a directory entry
 ///
 /// ```
@@ -51,6 +111,22 @@ use std::{
 ///
 /// # fn main() -> io::Result<()> {
 /// let builder = EntryBuilder::new_dir("my_dir/".into());
+/// let entry = builder.build()?;
+/// # Ok(())
+/// # }
+/// ```
+///
+/// ## Creating a symbolic link entry
+///
+/// ```
+/// # use std::io;
+/// use libpna::EntryBuilder;
+///
+/// # fn main() -> io::Result<()> {
+/// let builder = EntryBuilder::new_symlink(
+///     "link_name".into(),
+///     "target/file.txt".into()
+/// )?;
 /// let entry = builder.build()?;
 /// # Ok(())
 /// # }
