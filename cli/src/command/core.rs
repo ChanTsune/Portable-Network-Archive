@@ -806,7 +806,7 @@ impl TransformStrategy for TransformStrategyUnSolid {
     {
         match read_entry? {
             ReadEntry::Solid(s) => {
-                for n in s.entries(password)? {
+                for n in s.entries(password.map(|p| p.as_bytes()))? {
                     if let Some(entry) = transformer(n.map(Into::into))? {
                         archive.add_entry(entry)?;
                     }
@@ -850,7 +850,7 @@ impl TransformStrategy for TransformStrategyKeepSolid {
                         .password(password)
                         .build(),
                 )?;
-                for n in s.entries(password)? {
+                for n in s.entries(password.map(|p| p.as_bytes()))? {
                     if let Some(entry) = transformer(n.map(Into::into))? {
                         builder.add_entry(entry)?;
                     }
@@ -906,7 +906,9 @@ where
 {
     let password = password_provider();
     run_read_entries(archive_provider, |entry| match entry? {
-        ReadEntry::Solid(solid) => solid.entries(password)?.try_for_each(&mut processor),
+        ReadEntry::Solid(solid) => solid
+            .entries(password.map(|p| p.as_bytes()))?
+            .try_for_each(&mut processor),
         ReadEntry::Normal(regular) => processor(Ok(regular)),
     })
 }

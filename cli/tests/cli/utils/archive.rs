@@ -33,7 +33,9 @@ where
 {
     let password = password.into();
     let mut archive = pna::Archive::open(path)?;
-    let entries = archive.entries().extract_solid_entries(password);
+    let entries = archive
+        .entries()
+        .extract_solid_entries(password.map(|p| p.as_bytes()));
     for entry in entries {
         f(entry?);
     }

@@ -378,7 +378,7 @@ pub(crate) fn run_list_archive<'a>(
     run_read_entries(archive_provider, |entry| {
         match entry? {
             ReadEntry::Solid(solid) if args.solid => {
-                for entry in solid.entries(password)? {
+                for entry in solid.entries(password.map(|p| p.as_bytes()))? {
                     entries.push((&entry?, password, Some(solid.header())).try_into()?)
                 }
             }
