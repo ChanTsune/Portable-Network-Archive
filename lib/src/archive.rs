@@ -309,7 +309,7 @@ mod tests {
     }
 
     fn solid_archive(write_option: WriteOptions) {
-        let password = write_option.password().map(|it| it.to_string());
+        let password = write_option.password().map(|it| it.to_vec());
         let mut archive = Archive::write_solid_header(Vec::new(), write_option).unwrap();
         for i in 0..200 {
             archive
@@ -383,7 +383,7 @@ mod tests {
         };
 
         let mut archive_reader = Archive::read_header(archive.as_slice()).unwrap();
-        let mut entries = archive_reader.entries_with_password(Some("password"));
+        let mut entries = archive_reader.entries_with_password(Some(b"password"));
         entries.next().unwrap().expect("failed to read entry");
         entries.next().unwrap().expect("failed to read entry");
         assert!(entries.next().is_none());

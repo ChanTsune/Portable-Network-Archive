@@ -390,7 +390,7 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
     /// for entry in archive.entries() {
     ///     match entry? {
     ///         ReadEntry::Solid(solid_entry) => {
-    ///             for entry in solid_entry.entries(Some("password"))? {
+    ///             for entry in solid_entry.entries(Some(b"password"))? {
     ///                 let entry = entry?;
     ///                 let mut reader = entry.reader(ReadOptions::builder().build());
     ///                 // process the entry
@@ -411,14 +411,14 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
     #[inline]
     pub fn entries(
         &self,
-        password: Option<&str>,
+        password: Option<&[u8]>,
     ) -> io::Result<impl Iterator<Item = io::Result<NormalEntry>> + '_> {
         let reader = decrypt_reader(
             ChainReader::new(self.data.iter().map(AsRef::as_ref as fn(&T) -> &[u8])),
             self.header.encryption,
             self.header.cipher_mode,
             self.phsf.as_deref(),
-            password.map(|it| it.as_bytes()),
+            password,
         )?;
         let reader = decompress_reader(reader, self.header.compression)?;
 
@@ -434,7 +434,7 @@ where
     ///
     /// This variant owns the underlying buffers, enabling streaming without borrowing from `self`.
     #[inline]
-    pub(crate) fn into_entries(self, password: Option<&str>) -> io::Result<IntoEntries> {
+    pub(crate) fn into_entries(self, password: Option<&[u8]>) -> io::Result<IntoEntries> {
         let bufs = self
             .data
             .into_iter()
@@ -446,7 +446,7 @@ where
             self.header.encryption,
             self.header.cipher_mode,
             self.phsf.as_deref(),
-            password.map(|it| it.as_bytes()),
+            password,
         )?;
         let reader = decompress_reader(reader, self.header.compression)?;
         Ok(IntoEntries(EntryReader(reader)))
@@ -945,7 +945,7 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
             self.header.encryption,
             self.header.cipher_mode,
             self.phsf.as_deref(),
-            option.password().map(|it| it.as_bytes()),
+            option.password(),
         )?;
         let reader = decompress_reader(decrypt_reader, self.header.compression)?;
         Ok(EntryDataReader(EntryReader(reader)))
