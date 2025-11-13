@@ -169,7 +169,7 @@ impl<R: Read> Archive<R> {
     #[inline]
     pub fn entries_with_password<'a>(
         &'a mut self,
-        password: Option<&'a str>,
+        password: Option<&'a [u8]>,
     ) -> impl Iterator<Item = io::Result<NormalEntry>> + 'a {
         self.entries().extract_solid_entries(password)
     }
@@ -353,7 +353,7 @@ impl<'r, R> Entries<'r, R> {
     /// # fn main() -> io::Result<()> {
     /// let file = fs::File::open("foo.pna")?;
     /// let mut archive = Archive::read_header(file)?;
-    /// for entry in archive.entries().extract_solid_entries(Some("password")) {
+    /// for entry in archive.entries().extract_solid_entries(Some(b"password")) {
     ///     let mut reader = entry?.reader(ReadOptions::builder().build());
     ///     // process the entry
     /// }
@@ -361,7 +361,7 @@ impl<'r, R> Entries<'r, R> {
     /// # }
     /// ```
     #[inline]
-    pub fn extract_solid_entries(self, password: Option<&'r str>) -> NormalEntries<'r, R> {
+    pub fn extract_solid_entries(self, password: Option<&'r [u8]>) -> NormalEntries<'r, R> {
         NormalEntries::new(self.reader, password)
     }
 }
@@ -412,13 +412,13 @@ impl<R: futures_io::AsyncRead + Unpin> futures_util::Stream for Entries<'_, R> {
 /// An iterator over the entries in the archive.
 pub struct NormalEntries<'r, R> {
     reader: &'r mut Archive<R>,
-    password: Option<&'r str>,
+    password: Option<&'r [u8]>,
     solid_iter: Option<crate::entry::IntoEntries>,
 }
 
 impl<'r, R> NormalEntries<'r, R> {
     #[inline]
-    pub(crate) fn new(reader: &'r mut Archive<R>, password: Option<&'r str>) -> Self {
+    pub(crate) fn new(reader: &'r mut Archive<R>, password: Option<&'r [u8]>) -> Self {
         Self {
             reader,
             password,
