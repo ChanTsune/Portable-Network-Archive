@@ -227,7 +227,7 @@ impl<'a, 'r> Entries<'a, 'r> {
     /// let mut archive = Archive::read_header_from_slice(&file[..])?;
     /// for entry in archive
     ///     .entries_slice()
-    ///     .extract_solid_entries(Some("password"))
+    ///     .extract_solid_entries(Some(b"password"))
     /// {
     ///     let mut reader = entry?.reader(ReadOptions::builder().build());
     ///     // process the entry
@@ -238,7 +238,7 @@ impl<'a, 'r> Entries<'a, 'r> {
     #[inline]
     pub fn extract_solid_entries(
         self,
-        password: Option<&'r str>,
+        password: Option<&'r [u8]>,
     ) -> impl Iterator<Item = io::Result<NormalEntry>> + 'a
     where
         'a: 'r,

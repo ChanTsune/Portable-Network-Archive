@@ -563,7 +563,7 @@ pub(crate) fn entry_option(
     compression: CompressionAlgorithmArgs,
     cipher: CipherAlgorithmArgs,
     hash: HashAlgorithmArgs,
-    password: Option<&str>,
+    password: Option<&[u8]>,
 ) -> WriteOptions {
     let (algorithm, level) = compression.algorithm();
     let mut option_builder = WriteOptions::builder();
@@ -776,7 +776,7 @@ pub(crate) fn split_to_parts(
 pub(crate) trait TransformStrategy {
     fn transform<W, T, F>(
         archive: &mut Archive<W>,
-        password: Option<&str>,
+        password: Option<&[u8]>,
         read_entry: io::Result<ReadEntry<T>>,
         transformer: F,
     ) -> io::Result<()>
@@ -793,7 +793,7 @@ pub(crate) struct TransformStrategyUnSolid;
 impl TransformStrategy for TransformStrategyUnSolid {
     fn transform<W, T, F>(
         archive: &mut Archive<W>,
-        password: Option<&str>,
+        password: Option<&[u8]>,
         read_entry: io::Result<ReadEntry<T>>,
         mut transformer: F,
     ) -> io::Result<()>
@@ -828,7 +828,7 @@ pub(crate) struct TransformStrategyKeepSolid;
 impl TransformStrategy for TransformStrategyKeepSolid {
     fn transform<W, T, F>(
         archive: &mut Archive<W>,
-        password: Option<&str>,
+        password: Option<&[u8]>,
         read_entry: io::Result<ReadEntry<T>>,
         mut transformer: F,
     ) -> io::Result<()>
@@ -901,7 +901,7 @@ pub(crate) fn run_process_archive<'p, Provider, F>(
     mut processor: F,
 ) -> io::Result<()>
 where
-    Provider: FnMut() -> Option<&'p str>,
+    Provider: FnMut() -> Option<&'p [u8]>,
     F: FnMut(io::Result<NormalEntry>) -> io::Result<()>,
 {
     let password = password_provider();
@@ -959,7 +959,7 @@ pub(crate) fn run_entries<'d, 'p, Provider, F>(
     mut processor: F,
 ) -> io::Result<()>
 where
-    Provider: FnMut() -> Option<&'p str>,
+    Provider: FnMut() -> Option<&'p [u8]>,
     F: FnMut(io::Result<NormalEntry<Cow<'d, [u8]>>>) -> io::Result<()>,
 {
     let password = password_provider();
@@ -981,7 +981,7 @@ pub(crate) fn run_transform_entry<'d, 'p, W, Provider, F, Transform>(
 ) -> anyhow::Result<()>
 where
     W: Write,
-    Provider: FnMut() -> Option<&'p str>,
+    Provider: FnMut() -> Option<&'p [u8]>,
     F: FnMut(
         io::Result<NormalEntry<Cow<'d, [u8]>>>,
     ) -> io::Result<Option<NormalEntry<Cow<'d, [u8]>>>>,
@@ -1018,7 +1018,7 @@ pub(crate) fn run_transform_entry<'p, W, Provider, F, Transform>(
 ) -> anyhow::Result<()>
 where
     W: Write,
-    Provider: FnMut() -> Option<&'p str>,
+    Provider: FnMut() -> Option<&'p [u8]>,
     F: FnMut(io::Result<NormalEntry>) -> io::Result<Option<NormalEntry>>,
     Transform: TransformStrategy,
 {
@@ -1038,7 +1038,7 @@ pub(crate) fn run_entries<'p, Provider, F>(
     processor: F,
 ) -> io::Result<()>
 where
-    Provider: FnMut() -> Option<&'p str>,
+    Provider: FnMut() -> Option<&'p [u8]>,
     F: FnMut(io::Result<NormalEntry>) -> io::Result<()>,
 {
     run_process_archive(archives, password_provider, processor)

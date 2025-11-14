@@ -76,8 +76,8 @@ mod private {
         }
 
         #[inline]
-        fn password(&self) -> Option<&str> {
-            self.cipher().map(|it| it.password.0.as_str())
+        fn password(&self) -> Option<&[u8]> {
+            self.cipher().map(|it| it.password.as_bytes())
         }
     }
 
@@ -110,19 +110,19 @@ mod private {
 
     /// Entry read option getter trait.
     pub trait ReadOption {
-        fn password(&self) -> Option<&str>;
+        fn password(&self) -> Option<&[u8]>;
     }
 
     impl<T: ReadOption> ReadOption for &T {
         #[inline]
-        fn password(&self) -> Option<&str> {
+        fn password(&self) -> Option<&[u8]> {
             T::password(self)
         }
     }
 
     impl ReadOption for ReadOptions {
         #[inline]
-        fn password(&self) -> Option<&str> {
+        fn password(&self) -> Option<&[u8]> {
             self.password.as_deref()
         }
     }
@@ -271,26 +271,19 @@ pub enum CipherAlgorithm {
 
 /// Password.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub(crate) struct Password(String);
+pub(crate) struct Password(Vec<u8>);
 
 impl Password {
     #[inline]
     pub(crate) fn as_bytes(&self) -> &[u8] {
-        self.0.as_bytes()
+        &self.0
     }
 }
 
-impl From<String> for Password {
+impl<T: AsRef<[u8]>> From<T> for Password {
     #[inline]
-    fn from(value: String) -> Self {
-        Self(value)
-    }
-}
-
-impl From<&str> for Password {
-    #[inline]
-    fn from(value: &str) -> Self {
-        Self(value.into())
+    fn from(value: T) -> Self {
+        Self(value.as_ref().to_vec())
     }
 }
 
@@ -575,7 +568,7 @@ pub struct WriteOptionsBuilder {
     encryption: Encryption,
     cipher_mode: CipherMode,
     hash_algorithm: HashAlgorithm,
-    password: Option<String>,
+    password: Option<Vec<u8>>,
 }
 
 impl Default for WriteOptionsBuilder {
@@ -600,7 +593,7 @@ impl From<WriteOptions> for WriteOptionsBuilder {
             encryption: value.encryption(),
             cipher_mode: value.cipher_mode(),
             hash_algorithm: value.hash_algorithm(),
-            password: value.password().map(Into::into),
+            password: value.password().map(|p| p.to_vec()),
         }
     }
 }
@@ -653,9 +646,23 @@ impl WriteOptionsBuilder {
     }
 
     /// Sets the password.
+    ///
+    /// Accepts both UTF-8 strings and arbitrary byte slices.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use libpna::WriteOptions;
+    ///
+    /// // String password
+    /// WriteOptions::builder().password(Some("my_password"));
+    ///
+    /// // Byte slice password
+    /// WriteOptions::builder().password(Some(b"binary_password"));
+    /// WriteOptions::builder().password(Some(&[0x01, 0x02, 0x03, 0x04]));
+    /// ```
     #[inline]
-    pub fn password<S: AsRef<str>>(&mut self, password: Option<S>) -> &mut Self {
-        self.password = password.map(|it| it.as_ref().into());
+    pub fn password<B: AsRef<[u8]>>(&mut self, password: Option<B>) -> &mut Self {
+        self.password = password.map(|it| it.as_ref().to_vec());
         self
     }
 
@@ -676,7 +683,7 @@ impl WriteOptionsBuilder {
     ///
     /// let opts = WriteOptions::builder()
     ///     .encryption(Encryption::Aes)
-    ///     .build();  // PANICS: Password was not provided.
+    ///     .build();  // PANICS: "Password was not provided."
     /// ```
     ///
     /// **Correct usage:**
@@ -722,22 +729,29 @@ impl WriteOptionsBuilder {
 /// Options for reading an entry.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct ReadOptions {
-    password: Option<String>,
+    password: Option<Vec<u8>>,
 }
 
 impl ReadOptions {
     /// Creates a new [`ReadOptions`] with an optional password.
     ///
+    /// Accepts both UTF-8 strings and arbitrary byte slices.
+    ///
     /// # Examples
     /// ```rust
     /// use libpna::ReadOptions;
     ///
+    /// // String password
     /// let read_option = ReadOptions::with_password(Some("password"));
+    ///
+    /// // Byte slice password
+    /// let read_option = ReadOptions::with_password(Some(b"password"));
+    /// let read_option = ReadOptions::with_password(Some(&[0x01, 0x02, 0x03]));
     /// ```
     #[inline]
-    pub fn with_password<T: Into<String>>(password: Option<T>) -> Self {
+    pub fn with_password<B: AsRef<[u8]>>(password: Option<B>) -> Self {
         Self {
-            password: password.map(Into::into),
+            password: password.map(|p| p.as_ref().to_vec()),
         }
     }
 
@@ -780,7 +794,7 @@ impl ReadOptions {
 /// Builder for [`ReadOptions`].
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 pub struct ReadOptionsBuilder {
-    password: Option<String>,
+    password: Option<Vec<u8>>,
 }
 
 impl From<ReadOptions> for ReadOptionsBuilder {

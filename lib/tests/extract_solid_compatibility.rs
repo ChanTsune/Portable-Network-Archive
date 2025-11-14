@@ -1,7 +1,7 @@
 use libpna::{Archive, DataKind, NormalEntry, ReadEntry, ReadOptions};
 use std::io;
 
-fn assert_entry(item: NormalEntry, password: Option<&str>) {
+fn assert_entry(item: NormalEntry, password: Option<&[u8]>) {
     let path = item.header().path().as_str();
     let mut dist = Vec::new();
     let mut reader = item.reader(ReadOptions::with_password(password)).unwrap();
@@ -47,7 +47,7 @@ fn assert_entry(item: NormalEntry, password: Option<&str>) {
     }
 }
 
-fn extract_all(bytes: &[u8], password: Option<&str>) {
+fn extract_all(bytes: &[u8], password: Option<&[u8]>) {
     let mut n = 0;
     let mut archive_reader = Archive::read_header(bytes).unwrap();
     for entry in archive_reader.entries_with_password(password) {

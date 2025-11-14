@@ -48,7 +48,7 @@ fn diff_archive(args: DiffCommand) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn compare_entry<T: AsRef<[u8]>>(entry: NormalEntry<T>, password: Option<&str>) -> io::Result<()> {
+fn compare_entry<T: AsRef<[u8]>>(entry: NormalEntry<T>, password: Option<&[u8]>) -> io::Result<()> {
     let data_kind = entry.header().data_kind();
     let path = entry.header().path();
     let meta = match fs::symlink_metadata(path) {

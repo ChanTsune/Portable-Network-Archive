@@ -1,7 +1,7 @@
 use libpna::{Archive, DataKind, ReadOptions};
 use std::io;
 
-fn extract_all(bytes: &[u8], password: Option<&str>) {
+fn extract_all(bytes: &[u8], password: Option<&[u8]>) {
     let mut archive_reader = Archive::read_header(bytes).unwrap();
     for entry in archive_reader.entries().skip_solid() {
         let item = entry.unwrap();
@@ -110,7 +110,7 @@ fn xz() {
 fn zstd_aes_cbc() {
     extract_all(
         include_bytes!("../../resources/test/zstd_aes_cbc.pna"),
-        Some("password"),
+        Some(b"password"),
     );
 }
 
@@ -118,7 +118,7 @@ fn zstd_aes_cbc() {
 fn zstd_aes_ctr() {
     extract_all(
         include_bytes!("../../resources/test/zstd_aes_ctr.pna"),
-        Some("password"),
+        Some(b"password"),
     );
 }
 
@@ -126,7 +126,7 @@ fn zstd_aes_ctr() {
 fn zstd_camellia_cbc() {
     extract_all(
         include_bytes!("../../resources/test/zstd_camellia_cbc.pna"),
-        Some("password"),
+        Some(b"password"),
     );
 }
 
@@ -134,7 +134,7 @@ fn zstd_camellia_cbc() {
 fn zstd_camellia_ctr() {
     extract_all(
         include_bytes!("../../resources/test/zstd_camellia_ctr.pna"),
-        Some("password"),
+        Some(b"password"),
     );
 }
 
