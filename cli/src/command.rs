@@ -24,21 +24,25 @@ pub mod xattr;
 use crate::cli::{CipherAlgorithmArgs, Cli, Commands, PasswordArgs};
 use std::{fs, io};
 
-fn ask_password(args: PasswordArgs) -> io::Result<Option<String>> {
+fn ask_password(args: PasswordArgs) -> io::Result<Option<Vec<u8>>> {
     if let Some(path) = args.password_file {
-        return Ok(Some(fs::read_to_string(path)?));
+        return Ok(Some(fs::read(path)?));
     };
     Ok(match args.password {
-        Some(password @ Some(_)) => {
+        Some(Some(password)) => {
             log::warn!("Using a password on the command line interface can be insecure.");
-            password
+            Some(password.into_bytes())
         }
-        Some(None) => Some(gix_prompt::securely("Enter password: ").map_err(io::Error::other)?),
+        Some(None) => Some(
+            gix_prompt::securely("Enter password: ")
+                .map_err(io::Error::other)?
+                .into_bytes(),
+        ),
         None => None,
     })
 }
 
-fn check_password(password: &Option<String>, cipher_args: &CipherAlgorithmArgs) {
+fn check_password(password: &Option<Vec<u8>>, cipher_args: &CipherAlgorithmArgs) {
     if password.is_some() {
         return;
     }

@@ -31,7 +31,7 @@ pub fn for_each_entry_with_password<'a, F>(
 where
     F: FnMut(pna::NormalEntry),
 {
-    let password = password.into();
+    let password = password.into().map(|p| p.as_bytes());
     let mut archive = pna::Archive::open(path)?;
     let entries = archive.entries().extract_solid_entries(password);
     for entry in entries {
