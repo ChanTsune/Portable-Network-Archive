@@ -367,7 +367,7 @@ pub(crate) fn run_extract_archive_reader<'a, 'p, Provider>(
     args: OutputOption<'a>,
 ) -> anyhow::Result<()>
 where
-    Provider: FnMut() -> Option<&'p str> + Send,
+    Provider: FnMut() -> Option<&'p [u8]> + Send,
 {
     let password = password_provider();
     let patterns = files;
@@ -421,7 +421,7 @@ pub(crate) fn run_extract_archive<'a, 'd, 'p, Provider>(
     args: OutputOption<'a>,
 ) -> anyhow::Result<()>
 where
-    Provider: FnMut() -> Option<&'p str> + Send,
+    Provider: FnMut() -> Option<&'p [u8]> + Send,
 {
     rayon::scope_fifo(|s| {
         let password = password_provider();
@@ -468,7 +468,7 @@ where
 
 pub(crate) fn extract_entry<'a, T>(
     item: NormalEntry<T>,
-    password: Option<&str>,
+    password: Option<&[u8]>,
     OutputOption {
         overwrite_strategy,
         allow_unsafe_links,

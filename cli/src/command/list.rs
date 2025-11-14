@@ -198,7 +198,7 @@ impl TableRow {
     }
 }
 
-impl<T> TryFrom<(&NormalEntry<T>, Option<&str>, Option<&SolidHeader>)> for TableRow
+impl<T> TryFrom<(&NormalEntry<T>, Option<&[u8]>, Option<&SolidHeader>)> for TableRow
 where
     T: AsRef<[u8]> + Clone,
     RawChunk<T>: Chunk,
@@ -207,7 +207,7 @@ where
     type Error = io::Error;
     #[inline]
     fn try_from(
-        (entry, password, solid): (&NormalEntry<T>, Option<&str>, Option<&SolidHeader>),
+        (entry, password, solid): (&NormalEntry<T>, Option<&[u8]>, Option<&SolidHeader>),
     ) -> Result<Self, Self::Error> {
         let header = entry.header();
         let metadata = entry.metadata();
@@ -368,7 +368,7 @@ pub(crate) struct ListOptions {
 
 pub(crate) fn run_list_archive<'a>(
     archive_provider: impl IntoIterator<Item = impl Read>,
-    password: Option<&str>,
+    password: Option<&[u8]>,
     files_globs: GlobPatterns,
     filter: PathFilter<'a>,
     args: ListOptions,
@@ -395,7 +395,7 @@ pub(crate) fn run_list_archive<'a>(
 #[cfg(feature = "memmap")]
 pub(crate) fn run_list_archive_mem<'a>(
     archives: Vec<std::fs::File>,
-    password: Option<&str>,
+    password: Option<&[u8]>,
     files_globs: GlobPatterns,
     filter: PathFilter<'a>,
     args: ListOptions,
