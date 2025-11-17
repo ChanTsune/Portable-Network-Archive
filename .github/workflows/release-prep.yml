@@ -1,0 +1,117 @@
+name: release-prep
+
+on:
+  workflow_dispatch:
+    inputs:
+      crate:
+        description: "Target crate to bump (exclude fuzz)"
+        required: true
+        type: choice
+        options:
+          - all
+          - portable-network-archive
+          - pna
+          - libpna
+        default: portable-network-archive
+      level:
+        description: "Version level"
+        required: true
+        type: choice
+        options: [major, minor, patch]
+        default: patch
+      dependent_version:
+        description: "Update dependent versions?"
+        required: true
+        type: choice
+        options:
+          - fix       # Upgrade only when previous requirement no longer matches
+          - upgrade   # Always upgrade dependents
+        default: fix
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
+        with:
+          toolchain: stable
+
+      - uses: cargo-bins/cargo-binstall@a66119fbb1c952daba62640c2609111fe0803621 # v1.15.7
+
+      - name: Install cargo-release
+        run: cargo binstall cargo-release --no-confirm --force
+
+      - name: Compute next version and build temp release config
+        id: prep
+        shell: bash
+        run: |
+          set -euo pipefail
+          CRATE="${{ inputs.crate }}"
+          LEVEL="${{ inputs.level }}"
+
+          CONFIG=/tmp/release-config.toml
+
+          if [ "$LEVEL" = "patch" ]; then
+            COMMIT_MSG=':bookmark: Bump {{crate_name}} version to {{version}}'
+          else
+            COMMIT_MSG=':bookmark: Bump version to {{version}}'
+          fi
+
+          printf 'pre-release-commit-message = "%s"\n' "$COMMIT_MSG" > "$CONFIG"
+          echo "config=$CONFIG" >> "$GITHUB_OUTPUT"
+
+      - name: Run cargo release (no tag/push)
+        env:
+          CARGO_TERM_COLOR: always
+        run: |
+          set -euo pipefail
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          CRATE="${{ inputs.crate }}"
+          DEP_FLAG="--dependent-version ${{ inputs.dependent_version }}"
+          EXCLUDES="--exclude portable-network-archive-fuzz"
+          if [ "$CRATE" = "all" ]; then
+            PKG_FLAG=""
+          else
+            PKG_FLAG="-p $CRATE"
+          fi
+
+          cargo release \
+            ${{ inputs.level }} \
+            $PKG_FLAG \
+            --no-publish \
+            --no-push \
+            --no-tag \
+            --execute \
+            --no-confirm \
+            $EXCLUDES \
+            $DEP_FLAG \
+            --config "${{ steps.prep.outputs.config }}"
+
+      - name: Set PR branch name
+        id: branch
+        run: |
+          BRANCH="release/${{ inputs.crate }}/${{ inputs.level }}-${{ steps.prep.outputs.new_version }}"
+          echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Create draft PR
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ steps.branch.outputs.name }}
+          title: "chore: prepare release ${{ inputs.crate }} ${{ steps.prep.outputs.new_version }}"
+          body: |
+            Draft: release prep for `${{ inputs.crate }}` (${{ inputs.level }}).
+            - Version set to ${{ steps.prep.outputs.new_version }}
+            - Dependent versions: ${{ inputs.dependent_version }}
+            - No tags or publishes; cargo-release performed pre-replacements.
+          draft: true
+          commit-message: "chore: prepare release ${{ inputs.crate }} ${{ steps.prep.outputs.new_version }}"
