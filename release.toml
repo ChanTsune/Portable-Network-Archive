@@ -1,0 +1,2 @@
+tag-name = "{{crate_name}}-{{version}}"
+pre-release-commit-message = ":bookmark: Bump {{crate_name}} version to {{version}}"
