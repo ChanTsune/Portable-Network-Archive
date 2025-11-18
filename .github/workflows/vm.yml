@@ -29,11 +29,11 @@ jobs:
           prepare: |
             pkg install bash libtool gnu-m4 tree wget gcc autoconf //solaris/text/gawk pkg://solaris/text/gnu-diffutils pkg://solaris/text/gnu-grep pkg://solaris/text/gnu-sed cmake
             source <(curl -s https://raw.githubusercontent.com/psumbera/solaris-rust/refs/heads/main/sh.rust-web-install)
-            mv /root/.rust_solaris/rustc-*/ /root/.rust_solaris/rustc/
+            # mv /root/.rust_solaris/rustc-*/ /root/.rust_solaris/rustc/
           run: |
             set -e
             export LC_ALL=C LANG=C
-            export PATH=/root/.rust_solaris/rustc/bin:$PATH
+            # export PATH=/root/.rust_solaris/rustc/bin:$PATH
             uname -a
             chown -R $(whoami):$(id -gn) ./
             chmod -R a+rw ./
