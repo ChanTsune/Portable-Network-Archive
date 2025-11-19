@@ -101,3 +101,8 @@ harness = false
 [[bench]]
 name = "split"
 harness = false
+
+[package.metadata.release]
+pre-release-replacements = [
+    { file = "src/lib.rs", search = "https://docs.rs/portable-network-archive/[0-9]+\\.[0-9]+\\.[0-9]+", replace = "https://docs.rs/portable-network-archive/{{version}}" },
+]
