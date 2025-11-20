@@ -45,7 +45,7 @@ jobs:
           toolchain: stable
 
       - name: Install cargo-release
-        run: cargo install -f --git https://github.com/ChanTsune/cargo-release --branch workspace-enable-template-render-when-single-crate --locked
+        run: cargo install -f --git https://github.com/ChanTsune/cargo-release --branch workspace-enable-template-render-when-single-crate --locked cargo-release
 
       - name: Compute next version and build temp release config
         id: prep
