@@ -19,7 +19,7 @@ bugreport = { version = "0.5.1", default-features = false, features = ["collecto
 bytesize = "2.2.0"
 chrono = "0.4.42"
 clap = { version = "4.5.53", features = ["derive"] }
-clap_complete = "4.5.60"
+clap_complete = "4.5.61"
 fern = "0.7.1"
 gix-prompt = "0.11.2"
 globset = "0.4.16"
