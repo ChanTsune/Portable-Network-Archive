@@ -77,7 +77,7 @@ jobs:
           DEP_FLAG="--dependent-version ${{ inputs.dependent_version }}"
           EXCLUDES="--exclude portable-network-archive-fuzz"
           if [ "$CRATE" = "all" ]; then
-            PKG_FLAG=""
+            PKG_FLAG="--workspace"
           else
             PKG_FLAG="-p $CRATE"
           fi
