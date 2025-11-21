@@ -454,6 +454,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         args.gname,
         args.uid,
         args.gid,
+        None,
         args.numeric_owner,
     );
     let path_transformers = PathTransformers::new(args.substitutions, args.transforms);

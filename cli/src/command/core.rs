@@ -12,6 +12,7 @@ use crate::{
         },
         BsdGlobPatterns, PathPartExt,
     },
+    value::NameIdPair,
 };
 use path_slash::*;
 use pna::{
@@ -130,8 +131,15 @@ impl OwnerOptions {
         gname: Option<String>,
         uid: Option<u32>,
         gid: Option<u32>,
+        group: Option<NameIdPair>,
         numeric_owner: bool,
     ) -> Self {
+        let (gname_from_group, gid_from_group) =
+            group.map_or((None, None), |g| (Some(g.name), g.id));
+
+        let final_gid = gid.or(gid_from_group);
+        let final_gname = gname.or(gname_from_group);
+
         Self {
             uname: if numeric_owner {
                 Some(String::new())
@@ -141,10 +149,10 @@ impl OwnerOptions {
             gname: if numeric_owner {
                 Some(String::new())
             } else {
-                gname
+                final_gname
             },
             uid,
-            gid,
+            gid: final_gid,
         }
     }
 }
@@ -638,12 +646,15 @@ pub(crate) fn apply_metadata<'p>(
                     Some(uname) => uname.into(),
                 },
                 gid.into(),
-                match owner_options.gname.as_deref() {
-                    None => Group::from_gid(gid.into())?
+                if let Some(gname) = owner_options.gname.as_deref() {
+                    gname.into()
+                } else if let Some(gid_override) = owner_options.gid {
+                    gid_override.to_string().into()
+                } else {
+                    Group::from_gid(gid.into())?
                         .name()
                         .unwrap_or_default()
-                        .into(),
-                    Some(gname) => gname.into(),
+                        .into()
                 },
                 mode,
             ));
