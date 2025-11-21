@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 60
     name: Test on Solaris
     steps:
-      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - name: Test in Solaris
         id: test
         uses: vmactions/solaris-vm@f700ee5be83ffc08d416557506be1a46b7d3f079 # v1.1.6
@@ -45,7 +45,7 @@ jobs:
     timeout-minutes: 60
     name: Test on NetBSD
     steps:
-      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - name: Test in NetBSD
         id: test
         uses: vmactions/NetBSD-vm@495b430eb9f48e0c42f3e0e23294ba00d2df22a7 # v1.2.1
@@ -72,7 +72,7 @@ jobs:
     timeout-minutes: 60
     name: Test on FreeBSD
     steps:
-      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - name: Test in FreeBSD
         id: test
         uses: vmactions/freebsd-vm@b9c3f24600acdef618ef1c9e2d3c6eeda4dce712 # v1.2.7
@@ -98,7 +98,7 @@ jobs:
     timeout-minutes: 60
     name: Test on OpenBSD
     steps:
-      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - name: Test in OpenBSD
         id: test
         uses: vmactions/OpenBSD-vm@a254d784d6fad46e22ef73c6ecbb1dc310b04777 # v1.2.3
@@ -148,7 +148,7 @@ jobs:
     timeout-minutes: 60
     name: Test on OmniOS
     steps:
-      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - name: Test in OmniOS
         id: test
         uses: vmactions/omnios-vm@affa9744a4f240f181f67d0962ba9d685333999e # v1.1.2
