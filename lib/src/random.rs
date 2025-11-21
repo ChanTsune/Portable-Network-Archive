@@ -1,13 +1,11 @@
 //! Random salt and initialization vector generation.
 
 use password_hash::phc::{Salt, SaltString};
-use rand::prelude::*;
-use rand_chacha::ChaCha20Rng;
+use rand::{TryRng, rngs::SysRng};
 use std::io;
 
 pub(crate) fn random_bytes(dist: &mut [u8]) -> io::Result<()> {
-    let mut rand = ChaCha20Rng::from_entropy();
-    rand.try_fill_bytes(dist).map_err(io::Error::other)
+    SysRng.try_fill_bytes(dist).map_err(io::Error::other)
 }
 
 pub(crate) fn random_vec(size: usize) -> io::Result<Vec<u8>> {
