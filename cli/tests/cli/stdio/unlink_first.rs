@@ -1,6 +1,6 @@
 use crate::utils::setup;
 use assert_cmd::Command as Cmd;
-use pna::{fs as pna_fs, Archive, EntryBuilder, WriteOptions};
+use pna::{Archive, EntryBuilder, WriteOptions, fs as pna_fs};
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
@@ -68,10 +68,12 @@ fn unlink_first_replaces_existing_symlink_file() {
         fs::read_to_string(dist.join("file.txt")).unwrap(),
         "updated"
     );
-    assert!(!fs::symlink_metadata(dist.join("file.txt"))
-        .unwrap()
-        .file_type()
-        .is_symlink());
+    assert!(
+        !fs::symlink_metadata(dist.join("file.txt"))
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
 }
 
 #[test]
