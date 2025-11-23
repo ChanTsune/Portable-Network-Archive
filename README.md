@@ -77,7 +77,7 @@ cargo install --git https://github.com/ChanTsune/Portable-Network-Archive.git po
 ## Basic Usage
 
 Note on archive argument style
-- The positional archive argument `<ARCHIVE>` is deprecated since version 0.28.0. Use `-f/--file <ARCHIVE>` instead. The positional form is still accepted for backward compatibility and will emit a warning. It may be removed in a future release.
+- The positional archive argument `<ARCHIVE>` is deprecated since version 0.28.0. Use `-f/--file <ARCHIVE>` instead. The positional form is still accepted for backward compatibility and will emit a warning. It will be removed in a future release.
 
 Create an archive:
 ```sh
