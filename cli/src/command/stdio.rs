@@ -8,9 +8,9 @@ use crate::{
         append::{open_archive_then_seek_to_end, run_append_archive},
         ask_password, check_password,
         core::{
-            AclStrategy, CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
-            PathnameEditor, PermissionStrategy, TimeFilterResolver, TimeOptions, TimestampStrategy,
-            XattrStrategy, collect_items, collect_split_archives, entry_option,
+            AclStrategy, CreateOptions, FflagsStrategy, KeepOptions, OwnerOptions, PathFilter,
+            PathTransformers, PathnameEditor, PermissionStrategy, TimeFilterResolver, TimeOptions,
+            TimestampStrategy, XattrStrategy, collect_items, collect_split_archives, entry_option,
             path_lock::PathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths,
@@ -73,6 +73,7 @@ use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
     group(ArgGroup::new("ctime-newer-than-source").args(["newer_ctime", "newer_ctime_than"])),
     group(ArgGroup::new("mtime-older-than-source").args(["older_mtime", "older_mtime_than"])),
     group(ArgGroup::new("mtime-newer-than-source").args(["newer_mtime", "newer_mtime_than"])),
+    group(ArgGroup::new("keep-fflags-flag").args(["keep_fflags", "no_keep_fflags"])),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission", "no_keep_permission"]).requires("unstable")),
@@ -190,6 +191,20 @@ pub(crate) struct StdioCommand {
         help = "Do not archive acl of files. This is the inverse option of --keep-acl (unstable)"
     )]
     no_keep_acl: bool,
+    #[arg(
+        long,
+        visible_aliases = ["preserve-fflags", "fflags"],
+        requires = "unstable",
+        help = "Archiving the file flags of the files (unstable)"
+    )]
+    keep_fflags: bool,
+    #[arg(
+        long,
+        visible_aliases = ["no-preserve-fflags", "no-fflags"],
+        requires = "unstable",
+        help = "Do not archive file flags of files. This is the inverse option of --keep-fflags (unstable)"
+    )]
+    no_keep_fflags: bool,
     #[arg(long, help = "Solid mode archive")]
     pub(crate) solid: bool,
     #[command(flatten)]
@@ -526,6 +541,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         ),
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
+        fflags_strategy: FflagsStrategy::from_flags(args.keep_fflags, args.no_keep_fflags),
     };
     let owner_options = OwnerOptions::new(
         args.uname,
@@ -606,6 +622,7 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
             ),
             xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
             acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
+            fflags_strategy: FflagsStrategy::from_flags(args.keep_fflags, args.no_keep_fflags),
         },
         owner_options: OwnerOptions::new(
             args.uname,
@@ -736,6 +753,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         ),
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
+        fflags_strategy: FflagsStrategy::from_flags(args.keep_fflags, args.no_keep_fflags),
     };
     let owner_options = OwnerOptions::new(
         args.uname,
