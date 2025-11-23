@@ -66,6 +66,30 @@ pub(crate) fn lchown<P: AsRef<Path>>(
     inner(path.as_ref(), owner, group)
 }
 
+pub(crate) fn get_flags<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> {
+    #[cfg(target_os = "macos")]
+    fn inner(path: &Path) -> io::Result<Vec<String>> {
+        crate::utils::os::unix::fs::get_flags(path)
+    }
+    #[cfg(not(target_os = "macos"))]
+    fn inner(_path: &Path) -> io::Result<Vec<String>> {
+        Ok(Vec::new())
+    }
+    inner(path.as_ref())
+}
+
+pub(crate) fn set_flags<P: AsRef<Path>>(path: P, flags: &[String]) -> io::Result<()> {
+    #[cfg(target_os = "macos")]
+    fn inner(path: &Path, flags: &[String]) -> io::Result<()> {
+        crate::utils::os::unix::fs::set_flags(path, flags)
+    }
+    #[cfg(not(target_os = "macos"))]
+    fn inner(_path: &Path, _flags: &[String]) -> io::Result<()> {
+        Ok(())
+    }
+    inner(path.as_ref(), flags)
+}
+
 #[inline]
 pub(crate) fn file_create(path: impl AsRef<Path>, overwrite: bool) -> io::Result<fs::File> {
     if overwrite {
