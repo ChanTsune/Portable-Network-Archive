@@ -23,7 +23,7 @@ impl NamedTempFile {
     pub(crate) fn new<'p>(fallback_dir: impl Fn() -> &'p Path) -> io::Result<Self> {
         let temp_dir = temp_dir_or_else(fallback_dir);
         fs::create_dir_all(&temp_dir)?;
-        let random = rand::random::<usize>();
+        let random = rand::random::<u64>();
         let file_path = temp_dir.join(format!("{random}.tmp"));
         let file = fs::File::create(&file_path)?;
         Ok(Self { file, file_path })
