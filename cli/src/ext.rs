@@ -13,6 +13,7 @@ pub(crate) type Acls = HashMap<AcePlatform, Vec<Ace>>;
 
 pub(crate) trait NormalEntryExt {
     fn acl(&self) -> io::Result<Acls>;
+    fn fflags(&self) -> Vec<String>;
 }
 
 impl<T> NormalEntryExt for NormalEntry<T>
@@ -42,6 +43,20 @@ where
             }
         }
         Ok(acls)
+    }
+
+    #[inline]
+    fn fflags(&self) -> Vec<String> {
+        self.extra_chunks()
+            .iter()
+            .filter_map(|c| {
+                if c.ty() == chunk::ffLg {
+                    std::str::from_utf8(c.data()).ok().map(str::to_string)
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 }
 

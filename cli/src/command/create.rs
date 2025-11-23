@@ -6,7 +6,7 @@ use crate::{
     command::{
         Command, ask_password, check_password,
         core::{
-            AclStrategy, CollectOptions, CollectedItem, CreateOptions, KeepOptions,
+            AclStrategy, CollectOptions, CollectedItem, CreateOptions, FflagsStrategy, KeepOptions,
             MIN_SPLIT_PART_BYTES, OwnerOptions, PathFilter, PathTransformers, PathnameEditor,
             PermissionStrategy, TimeFilterResolver, TimestampStrategyResolver, XattrStrategy,
             collect_items_from_paths, create_entry, entry_option,
@@ -477,6 +477,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         ),
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
+        fflags_strategy: FflagsStrategy::Never,
     };
     let owner_options = OwnerOptions::new(
         args.uname,
