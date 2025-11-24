@@ -405,7 +405,8 @@ fn create_with_gitignore_pruned_dir_cannot_unignore_inside() {
     })
     .unwrap();
 
-    for required in ["gitignore/pruned_dir/source/.gitignore"] {
+    let required_entries = ["gitignore/pruned_dir/source/.gitignore"];
+    for required in required_entries {
         assert!(
             seen.take(required).is_some(),
             "required entry missing: {required}"
@@ -499,7 +500,8 @@ fn create_with_gitignore_excludes_gitignore_file_itself() {
     })
     .unwrap();
 
-    for required in ["gitignore/self_exclude/source/keep.txt"] {
+    let required_entries = ["gitignore/self_exclude/source/keep.txt"];
+    for required in required_entries {
         assert!(
             seen.take(required).is_some(),
             "required entry missing: {required}"
