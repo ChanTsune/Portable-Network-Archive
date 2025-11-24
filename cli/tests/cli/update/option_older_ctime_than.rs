@@ -105,7 +105,7 @@ fn update_with_older_ctime_than() {
     let updated_content = fs::read_to_string(format!("{base_dir}/out/{file_to_update}")).unwrap();
     assert_eq!(updated_content, "updated content");
     assert!(
-        !fs::metadata(format!("{base_dir}/out/{file_to_skip}")).is_ok(),
+        fs::metadata(format!("{base_dir}/out/{file_to_skip}")).is_err(),
         "skip file should not have been extracted/added"
     );
 }
