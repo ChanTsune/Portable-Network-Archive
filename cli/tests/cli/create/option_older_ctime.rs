@@ -76,7 +76,8 @@ fn create_with_older_ctime() {
     )
     .unwrap();
 
-    for required in ["create_with_older_ctime/in/keep.txt"] {
+    let required_entries = ["create_with_older_ctime/in/keep.txt"];
+    for required in required_entries {
         assert!(
             seen.take(required).is_some(),
             "required entry missing: {required}"

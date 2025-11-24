@@ -91,7 +91,8 @@ fn append_with_newer_ctime() {
     )
     .unwrap();
 
-    for required in ["append_with_newer_ctime/in/keep.txt"] {
+    let required_entries = ["append_with_newer_ctime/in/keep.txt"];
+    for required in required_entries {
         assert!(
             seen.take(required).is_some(),
             "required entry missing: {required}"
