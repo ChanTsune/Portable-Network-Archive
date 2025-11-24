@@ -1197,7 +1197,7 @@ mod tests {
     const EMPTY_PATTERNS: [&str; 0] = [];
 
     fn empty_path_filter<'a>() -> PathFilter<'a> {
-        PathFilter::new(&EMPTY_PATTERNS, &EMPTY_PATTERNS)
+        PathFilter::new(EMPTY_PATTERNS, EMPTY_PATTERNS)
     }
 
     fn empty_time_filters() -> TimeFilters {
@@ -1215,14 +1215,14 @@ mod tests {
 
     #[test]
     fn path_filter_empty() {
-        let filter = PathFilter::new(&EMPTY_PATTERNS, &EMPTY_PATTERNS);
+        let filter = PathFilter::new(EMPTY_PATTERNS, EMPTY_PATTERNS);
         assert!(!filter.excluded("a/b/c"));
     }
 
     #[test]
     fn path_filter_exclude() {
         let exclude = ["a/*"];
-        let filter = PathFilter::new(&EMPTY_PATTERNS, &exclude);
+        let filter = PathFilter::new(EMPTY_PATTERNS, exclude);
         assert!(filter.excluded("a/b/c"));
     }
 
@@ -1230,11 +1230,11 @@ mod tests {
     fn path_filter_include_precedence() {
         let include = ["a/*/c"];
         let exclude = ["a/*"];
-        let filter = PathFilter::new(&include, &exclude);
+        let filter = PathFilter::new(include, exclude);
         assert!(filter.excluded("a/b/c"));
 
         let exclude = ["a/*/c"];
-        let filter = PathFilter::new(&include, &exclude);
+        let filter = PathFilter::new(include, exclude);
         assert!(filter.excluded("a/b/c"));
     }
 
