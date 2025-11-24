@@ -1,5 +1,5 @@
 use crate::utils::setup;
-use assert_cmd::Command as Cmd;
+use assert_cmd::cargo::cargo_bin_cmd;
 use pna::{Archive, EntryBuilder, WriteOptions, fs as pna_fs};
 use std::fs;
 use std::io::Write;
@@ -42,8 +42,7 @@ fn unlink_first_replaces_existing_symlink_file() {
     }
     pna_fs::symlink(outside.join("original.txt"), &link_path).unwrap();
 
-    Cmd::cargo_bin("pna")
-        .unwrap()
+    cargo_bin_cmd!("pna")
         .args([
             "--quiet",
             "experimental",
@@ -96,8 +95,7 @@ fn unlink_first_removes_symlinked_parent_directory() {
     }
     pna_fs::symlink(&outside, &link_dir).unwrap();
 
-    Cmd::cargo_bin("pna")
-        .unwrap()
+    cargo_bin_cmd!("pna")
         .args([
             "--quiet",
             "experimental",
@@ -136,8 +134,7 @@ fn unlink_first_replaces_existing_regular_file_without_overwrite() {
     fs::create_dir_all(&dist).unwrap();
     fs::write(dist.join("file.txt"), "stale").unwrap();
 
-    Cmd::cargo_bin("pna")
-        .unwrap()
+    cargo_bin_cmd!("pna")
         .args([
             "--quiet",
             "experimental",
