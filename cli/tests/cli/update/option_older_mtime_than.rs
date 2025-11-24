@@ -43,7 +43,7 @@ fn update_with_older_mtime_than() {
     fs::write(&reference_file, "reference marker").unwrap();
     let reference_mtime = fs::metadata(&reference_file).unwrap().modified().unwrap();
 
-    if !(updated_mtime <= reference_mtime) {
+    if updated_mtime > reference_mtime {
         eprintln!(
             "Skipping test: unable to ensure updated file mtime <= reference on this filesystem"
         );
@@ -105,7 +105,7 @@ fn update_with_older_mtime_than() {
     let updated_content = fs::read_to_string(format!("{base_dir}/out/{file_to_update}")).unwrap();
     assert_eq!(updated_content, "updated content");
     assert!(
-        !fs::metadata(format!("{base_dir}/out/{file_to_skip}")).is_ok(),
+        fs::metadata(format!("{base_dir}/out/{file_to_skip}")).is_err(),
         "skip file should not have been extracted/added"
     );
 }
