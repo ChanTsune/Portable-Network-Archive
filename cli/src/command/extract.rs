@@ -19,6 +19,7 @@ use crate::{
         re::{bsd::SubstitutionRule, gnu::TransformRule},
     },
 };
+use anyhow::Context;
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::{DataKind, EntryReference, NormalEntry, Permission, ReadOptions, prelude::*};
 use std::io::Read;
@@ -224,16 +225,20 @@ impl Command for ExtractCommand {
     }
 }
 fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
-    let password = ask_password(args.password)?;
+    let password = ask_password(args.password).with_context(|| "reading password")?;
     let start = Instant::now();
     let archive = args.file.archive();
     log::info!("Extract archive {}", archive.display());
 
-    let archives = collect_split_archives(&archive)?;
+    let archives = collect_split_archives(&archive)
+        .with_context(|| format!("opening archive '{}'", archive.display()))?;
 
     let mut exclude = args.exclude.unwrap_or_default();
     if let Some(p) = args.exclude_from {
-        exclude.extend(read_paths(p, args.null)?);
+        exclude.extend(
+            read_paths(&p, args.null)
+                .with_context(|| format!("reading exclude patterns from {}", p.display()))?,
+        );
     }
     let vcs_patterns = args
         .exclude_vcs
@@ -247,7 +252,10 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
 
     let mut files = args.file.files();
     if let Some(path) = &args.files_from {
-        files.extend(read_paths(path, args.null)?);
+        files.extend(
+            read_paths(path, args.null)
+                .with_context(|| format!("reading file list from {}", path.display()))?,
+        );
     }
 
     let overwrite_strategy = OverwriteStrategy::from_flags(
@@ -290,12 +298,16 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         unlink_first: false,
     };
     if let Some(working_dir) = args.working_dir {
-        env::set_current_dir(working_dir)?;
+        env::set_current_dir(&working_dir)
+            .with_context(|| format!("changing directory to {}", working_dir.display()))?;
     }
     #[cfg(all(unix, not(target_os = "fuchsia")))]
     if args.chroot {
-        std::os::unix::fs::chroot(env::current_dir()?)?;
-        env::set_current_dir("/")?;
+        std::os::unix::fs::chroot(
+            env::current_dir().with_context(|| "resolving current directory before chroot")?,
+        )
+        .with_context(|| "chroot into current directory")?;
+        env::set_current_dir("/").with_context(|| "changing directory to / after chroot")?;
     }
     #[cfg(not(all(unix, not(target_os = "fuchsia"))))]
     if args.chroot {
@@ -309,18 +321,21 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         files,
         || password.as_deref(),
         output_options,
-    )?;
+    )
+    .with_context(|| format!("extracting entries from '{}'", archive.display()))?;
 
     #[cfg(feature = "memmap")]
     let mmaps = archives
         .into_iter()
         .map(utils::mmap::Mmap::try_from)
-        .collect::<io::Result<Vec<_>>>()?;
+        .collect::<io::Result<Vec<_>>>()
+        .with_context(|| format!("memory-mapping archive '{}'", archive.display()))?;
     #[cfg(feature = "memmap")]
     let archives = mmaps.iter().map(|m| m.as_ref());
 
     #[cfg(feature = "memmap")]
-    run_extract_archive(archives, files, || password.as_deref(), output_options)?;
+    run_extract_archive(archives, files, || password.as_deref(), output_options)
+        .with_context(|| format!("extracting entries from '{}'", archive.display()))?;
     log::info!(
         "Successfully extracted an archive in {}",
         DurationDisplay(start.elapsed())
@@ -384,14 +399,15 @@ where
 {
     let password = password_provider();
     let patterns = files;
-    let mut globs = GlobPatterns::new(patterns.iter().map(|it| it.as_str()))?;
+    let mut globs = GlobPatterns::new(patterns.iter().map(|it| it.as_str()))
+        .with_context(|| "building inclusion patterns")?;
 
     let mut link_entries = Vec::new();
 
     let (tx, rx) = std::sync::mpsc::channel();
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
         run_process_archive(reader, password_provider, |entry| {
-            let item = entry?;
+            let item = entry.with_context(|| "reading archive entry")?;
             let item_path = item.header().path().to_string();
             if !globs.is_empty() && !globs.matches_any(&item_path) {
                 log::debug!("Skip: {}", item.header().path());
@@ -407,11 +423,15 @@ where
             let tx = tx.clone();
             let args = args.clone();
             s.spawn_fifo(move |_| {
-                tx.send(extract_entry(item, password, &args))
-                    .unwrap_or_else(|e| log::error!("{e}: {item_path}"));
+                tx.send(
+                    extract_entry(item, password, &args)
+                        .with_context(|| format!("extracting {}", item_path)),
+                )
+                .unwrap_or_else(|e| log::error!("{e}: {item_path}"));
             });
             Ok(())
-        })?;
+        })
+        .with_context(|| "streaming archive entries")?;
         drop(tx);
         Ok(())
     })?;
@@ -419,7 +439,9 @@ where
         result?;
     }
     for item in link_entries {
-        extract_entry(item, password, &args)?;
+        let path = item.header().path().to_string();
+        extract_entry(item, password, &args)
+            .with_context(|| format!("extracting deferred link {}", path))?;
     }
 
     globs.ensure_all_matched()?;
@@ -438,14 +460,15 @@ where
 {
     rayon::scope_fifo(|s| {
         let password = password_provider();
-        let mut globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))?;
+        let mut globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))
+            .with_context(|| "building inclusion patterns")?;
 
         let mut link_entries = Vec::<NormalEntry>::new();
 
         let (tx, rx) = std::sync::mpsc::channel();
 
         run_entries(archives, password_provider, |entry| {
-            let item = entry?;
+            let item = entry.with_context(|| "reading archive entry")?;
             let item_path = item.header().path().to_string();
             if !globs.is_empty() && !globs.matches_any(&item_path) {
                 log::debug!("Skip: {}", item.header().path());
@@ -461,18 +484,24 @@ where
             let tx = tx.clone();
             let args = args.clone();
             s.spawn_fifo(move |_| {
-                tx.send(extract_entry(item, password, &args))
-                    .unwrap_or_else(|e| log::error!("{e}: {item_path}"));
+                tx.send(
+                    extract_entry(item, password, &args)
+                        .with_context(|| format!("extracting {}", item_path)),
+                )
+                .unwrap_or_else(|e| log::error!("{e}: {item_path}"));
             });
             Ok(())
-        })?;
+        })
+        .with_context(|| "streaming archive entries")?;
         drop(tx);
         for result in rx {
             result?;
         }
 
         for item in link_entries {
-            extract_entry(item, password, &args)?;
+            let path = item.header().path().to_string();
+            extract_entry(item, password, &args)
+                .with_context(|| format!("extracting deferred link {}", path))?;
         }
         globs.ensure_all_matched()?;
         Ok(())
