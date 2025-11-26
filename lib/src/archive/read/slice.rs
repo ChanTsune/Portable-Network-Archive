@@ -263,6 +263,314 @@ impl<'r> Iterator for Entries<'_, 'r> {
     }
 }
 
+/// Entry type returned by [`IntoEntriesSlice`] iterator.
+///
+/// Unlike [`ReadEntry`], this enum includes a [`Continue`](IntoEntrySlice::Continue) variant
+/// that signals when the next archive part is needed for multipart archives.
+#[allow(clippy::large_enum_variant)]
+pub enum IntoEntrySlice<'d> {
+    /// Normal entry (FHED to FEND chunks).
+    Normal(NormalEntry<Cow<'d, [u8]>>),
+    /// Solid entry (SHED to SEND chunks).
+    Solid(crate::entry::SolidEntry<Cow<'d, [u8]>>),
+    /// Next archive part is required (ANXT chunk was detected).
+    ///
+    /// This variant is only returned when reading multipart archives.
+    /// Use [`ArchiveContinuationSlice::read_next_archive_from_slice`] to continue reading.
+    Continue(ArchiveContinuationSlice),
+}
+
+/// State for continuing to read a multipart archive (slice version).
+///
+/// Obtained from [`IntoEntrySlice::Continue`] when an ANXT chunk is detected.
+/// Unlike [`super::ArchiveContinuation`], this type does not hold a reference
+/// to the original slice, allowing the next part to have any lifetime that
+/// outlives the continuation.
+pub struct ArchiveContinuationSlice {
+    header: ArchiveHeader,
+    buf: Vec<RawChunk>,
+}
+
+impl ArchiveContinuationSlice {
+    /// Returns the current archive part number (0-indexed).
+    #[inline]
+    pub const fn archive_number(&self) -> u32 {
+        self.header.archive_number
+    }
+
+    /// Reads the next archive part and returns a new iterator.
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - Slice containing the next archive part.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The next archive number is not exactly current + 1
+    /// - An I/O error occurs while reading the header
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use libpna::{Archive, IntoEntrySlice};
+    /// use std::fs;
+    /// # use std::io;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let part1 = fs::read("archive.part1.pna")?;
+    /// let part2 = fs::read("archive.part2.pna")?;
+    ///
+    /// let mut entries = Archive::read_header_from_slice(&part1)?.into_entries_slice();
+    ///
+    /// loop {
+    ///     match entries.next() {
+    ///         Some(Ok(IntoEntrySlice::Continue(cont))) => {
+    ///             entries = cont.read_next_archive_from_slice(&part2)?;
+    ///         }
+    ///         Some(Ok(_)) => { /* process entry */ }
+    ///         Some(Err(e)) => return Err(e),
+    ///         None => break,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn read_next_archive_from_slice<'d>(
+        self,
+        bytes: &'d [u8],
+    ) -> io::Result<IntoEntriesSlice<'d>> {
+        let current_number = self.header.archive_number;
+        let next = IntoEntriesSlice::read_header_from_slice_with_buffer(bytes, self.buf)?;
+
+        if current_number + 1 != next.archive_number() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Next archive number must be +1 (current: {}, detected: {})",
+                    current_number,
+                    next.archive_number()
+                ),
+            ));
+        }
+        Ok(next)
+    }
+}
+
+/// An owning iterator over archive entries (slice version).
+///
+/// Created by [`Archive::into_entries_slice`]. This iterator consumes the archive
+/// and yields entries until the archive end is reached.
+///
+/// For multipart archives, when an ANXT chunk is detected, the iterator
+/// yields [`IntoEntrySlice::Continue`] instead of returning `None`. Use
+/// [`ArchiveContinuationSlice::read_next_archive_from_slice`] to continue with the next part.
+///
+/// # Examples
+///
+/// ## Single-part archive
+///
+/// ```no_run
+/// use libpna::{Archive, IntoEntrySlice};
+/// use std::fs;
+/// # use std::io;
+///
+/// # fn main() -> io::Result<()> {
+/// let data = fs::read("archive.pna")?;
+/// let entries = Archive::read_header_from_slice(&data)?.into_entries_slice();
+///
+/// for item in entries {
+///     match item? {
+///         IntoEntrySlice::Normal(entry) => {
+///             println!("File: {}", entry.header().path());
+///         }
+///         IntoEntrySlice::Solid(solid) => {
+///             // process solid entry
+///         }
+///         IntoEntrySlice::Continue(_) => unreachable!("single-part archive"),
+///     }
+/// }
+/// # Ok(())
+/// # }
+/// ```
+///
+/// ## Multipart archive
+///
+/// ```ignore
+/// use libpna::{Archive, IntoEntrySlice};
+/// # use std::io;
+///
+/// # fn main() -> io::Result<()> {
+/// let parts: &[&[u8]] = &[
+///     include_bytes!("part1.pna"),
+///     include_bytes!("part2.pna"),
+/// ];
+/// let mut part_iter = parts.iter();
+///
+/// let mut entries = Archive::read_header_from_slice(part_iter.next().unwrap())?
+///     .into_entries_slice();
+///
+/// loop {
+///     match entries.next() {
+///         Some(Ok(IntoEntrySlice::Normal(entry))) => {
+///             println!("File: {}", entry.header().path());
+///         }
+///         Some(Ok(IntoEntrySlice::Solid(solid))) => {
+///             // process solid entry
+///         }
+///         Some(Ok(IntoEntrySlice::Continue(cont))) => {
+///             entries = cont.read_next_archive_from_slice(part_iter.next().unwrap())?;
+///         }
+///         Some(Err(e)) => return Err(e),
+///         None => break,
+///     }
+/// }
+/// # Ok(())
+/// # }
+/// ```
+pub struct IntoEntriesSlice<'d> {
+    state: Option<IntoEntriesSliceState<'d>>,
+}
+
+struct IntoEntriesSliceState<'d> {
+    inner: &'d [u8],
+    header: ArchiveHeader,
+    next_archive: bool,
+    buf: Vec<RawChunk>,
+}
+
+impl<'d> IntoEntriesSlice<'d> {
+    /// Returns the archive part number.
+    #[inline]
+    fn archive_number(&self) -> u32 {
+        self.state.as_ref().map_or(0, |s| s.header.archive_number)
+    }
+
+    fn read_header_from_slice_with_buffer(bytes: &'d [u8], buf: Vec<RawChunk>) -> io::Result<Self> {
+        let bytes = read_header_from_slice(bytes)?;
+        let (chunk, r) = read_chunk_from_slice(bytes)?;
+        if chunk.ty != ChunkType::AHED {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Unexpected Chunk `{}`", chunk.ty),
+            ));
+        }
+        let header = ArchiveHeader::try_from_bytes(chunk.data())?;
+        Ok(Self {
+            state: Some(IntoEntriesSliceState {
+                inner: r,
+                header,
+                next_archive: false,
+                buf,
+            }),
+        })
+    }
+}
+
+impl<'d> IntoEntriesSliceState<'d> {
+    fn next_raw_item(&mut self) -> io::Result<Option<RawEntry<Cow<'d, [u8]>>>> {
+        let mut chunks = Vec::new();
+        std::mem::swap(&mut self.buf, &mut chunks);
+        let mut chunks: Vec<RawChunk<Cow<'d, [u8]>>> = chunks.into_iter().map(Into::into).collect();
+        loop {
+            let (chunk, r) = read_chunk_from_slice(self.inner)?;
+            self.inner = r;
+            match chunk.ty {
+                ChunkType::FEND | ChunkType::SEND => {
+                    chunks.push(chunk.into());
+                    break;
+                }
+                ChunkType::ANXT => self.next_archive = true,
+                ChunkType::AEND => {
+                    // Convert Cow chunks back to owned Vec<u8> for storage
+                    self.buf = chunks.into_iter().map(Into::into).collect();
+                    return Ok(None);
+                }
+                _ => chunks.push(chunk.into()),
+            }
+        }
+        Ok(Some(RawEntry(chunks)))
+    }
+}
+
+impl<'d> Iterator for IntoEntriesSlice<'d> {
+    type Item = io::Result<IntoEntrySlice<'d>>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let state = self.state.as_mut()?;
+
+        match state.next_raw_item() {
+            Ok(Some(raw_entry)) => match raw_entry.try_into() {
+                Ok(ReadEntry::Normal(e)) => Some(Ok(IntoEntrySlice::Normal(e))),
+                Ok(ReadEntry::Solid(e)) => Some(Ok(IntoEntrySlice::Solid(e))),
+                Err(e) => {
+                    self.state = None;
+                    Some(Err(e))
+                }
+            },
+            Ok(None) => {
+                let state = self.state.take().unwrap();
+                if state.next_archive {
+                    Some(Ok(IntoEntrySlice::Continue(ArchiveContinuationSlice {
+                        header: state.header,
+                        buf: state.buf,
+                    })))
+                } else {
+                    None
+                }
+            }
+            Err(e) => {
+                self.state = None;
+                Some(Err(e))
+            }
+        }
+    }
+}
+
+impl<'d> Archive<&'d [u8]> {
+    /// Consumes the archive and returns an owning iterator over its entries (slice version).
+    ///
+    /// Unlike [`entries_slice`](Archive::entries_slice), this method takes ownership of the archive,
+    /// allowing the iterator to yield [`IntoEntrySlice::Continue`] for multipart archives.
+    ///
+    /// # Returns
+    ///
+    /// An [`IntoEntriesSlice`] iterator that yields [`IntoEntrySlice`] items.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use libpna::{Archive, IntoEntrySlice};
+    /// use std::fs;
+    /// # use std::io;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let data = fs::read("archive.pna")?;
+    /// for item in Archive::read_header_from_slice(&data)?.into_entries_slice() {
+    ///     match item? {
+    ///         IntoEntrySlice::Normal(entry) => println!("{}", entry.header().path()),
+    ///         IntoEntrySlice::Solid(solid) => { /* handle solid */ }
+    ///         IntoEntrySlice::Continue(cont) => { /* handle multipart */ }
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn into_entries_slice(self) -> IntoEntriesSlice<'d> {
+        IntoEntriesSlice {
+            state: Some(IntoEntriesSliceState {
+                inner: self.inner,
+                header: self.header,
+                next_archive: self.next_archive,
+                buf: self.buf,
+            }),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

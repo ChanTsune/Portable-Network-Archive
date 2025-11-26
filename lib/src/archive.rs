@@ -8,8 +8,13 @@ use crate::{
     compress::CompressionWriter,
 };
 pub use header::*;
+pub use read::{
+    ArchiveContinuation, ArchiveContinuationSlice, Entries, IntoEntries, IntoEntriesSlice,
+    IntoEntry, IntoEntrySlice,
+};
+pub(crate) use read::{read_header_from_slice, read_pna_header};
 use std::io::prelude::*;
-pub(crate) use {read::*, write::*};
+pub(crate) use write::{InternalArchiveDataWriter, InternalDataWriter, write_file_entry};
 
 /// An object providing access to a PNA file.
 /// An instance of an [Archive] can be read and/or written.

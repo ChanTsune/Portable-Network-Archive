@@ -8,6 +8,7 @@ use crate::{
 #[cfg(feature = "unstable-async")]
 use futures_util::AsyncReadExt;
 pub(crate) use slice::read_header_from_slice;
+pub use slice::{ArchiveContinuationSlice, IntoEntriesSlice, IntoEntrySlice};
 use std::{
     io::{self, Read, Seek, SeekFrom},
     mem::swap,
@@ -452,6 +453,323 @@ impl<R: Read> Iterator for NormalEntries<'_, R> {
                 Ok(None) => return None,
                 Err(e) => return Some(Err(e)),
             }
+        }
+    }
+}
+
+/// Entry type returned by [`IntoEntries`] iterator.
+///
+/// Unlike [`ReadEntry`], this enum includes a [`Continue`](IntoEntry::Continue) variant
+/// that signals when the next archive part is needed for multipart archives.
+#[allow(clippy::large_enum_variant)]
+pub enum IntoEntry<R> {
+    /// Normal entry (FHED to FEND chunks).
+    Normal(NormalEntry),
+    /// Solid entry (SHED to SEND chunks).
+    Solid(crate::entry::SolidEntry),
+    /// Next archive part is required (ANXT chunk was detected).
+    ///
+    /// This variant is only returned when reading multipart archives.
+    /// Use [`ArchiveContinuation::read_next_archive`] to continue reading.
+    Continue(ArchiveContinuation<R>),
+}
+
+/// State for continuing to read a multipart archive.
+///
+/// Obtained from [`IntoEntry::Continue`] when an ANXT chunk is detected.
+/// Use [`read_next_archive`](ArchiveContinuation::read_next_archive) to provide
+/// the next archive part and continue iteration.
+pub struct ArchiveContinuation<R> {
+    inner: R,
+    header: ArchiveHeader,
+    buf: Vec<RawChunk>,
+}
+
+impl<R> ArchiveContinuation<R> {
+    /// Returns the current archive part number (0-indexed).
+    #[inline]
+    pub const fn archive_number(&self) -> u32 {
+        self.header.archive_number
+    }
+
+    /// Consumes this continuation and returns the inner reader.
+    ///
+    /// Use this when you want to abort multipart processing and
+    /// recover the underlying reader.
+    #[inline]
+    pub fn into_inner(self) -> R {
+        self.inner
+    }
+}
+
+impl<R: Read> ArchiveContinuation<R> {
+    /// Reads the next archive part and returns a new iterator.
+    ///
+    /// # Arguments
+    ///
+    /// * `reader` - Reader for the next archive part.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The next archive number is not exactly current + 1
+    /// - An I/O error occurs while reading the header
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use libpna::{Archive, IntoEntry};
+    /// use std::fs::File;
+    /// # use std::io;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let part1 = File::open("archive.part1.pna")?;
+    /// let part2 = File::open("archive.part2.pna")?;
+    ///
+    /// let mut entries = Archive::read_header(part1)?.into_entries();
+    ///
+    /// loop {
+    ///     match entries.next() {
+    ///         Some(Ok(IntoEntry::Continue(cont))) => {
+    ///             entries = cont.read_next_archive(part2)?;
+    ///             break;
+    ///         }
+    ///         Some(Ok(_)) => { /* process entry */ }
+    ///         Some(Err(e)) => return Err(e),
+    ///         None => break,
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn read_next_archive<OR: Read>(self, reader: OR) -> io::Result<IntoEntries<OR>> {
+        let current_number = self.header.archive_number;
+        let next = IntoEntries::read_header_with_buffer(reader, self.buf)?;
+
+        if current_number + 1 != next.archive_number() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Next archive number must be +1 (current: {}, detected: {})",
+                    current_number,
+                    next.archive_number()
+                ),
+            ));
+        }
+        Ok(next)
+    }
+}
+
+/// An owning iterator over archive entries.
+///
+/// Created by [`Archive::into_entries`]. This iterator consumes the archive
+/// and yields entries until the archive end is reached.
+///
+/// For multipart archives, when an ANXT chunk is detected, the iterator
+/// yields [`IntoEntry::Continue`] instead of returning `None`. Use
+/// [`ArchiveContinuation::read_next_archive`] to continue with the next part.
+///
+/// # Examples
+///
+/// ## Single-part archive
+///
+/// ```no_run
+/// use libpna::{Archive, IntoEntry};
+/// use std::fs::File;
+/// # use std::io;
+///
+/// # fn main() -> io::Result<()> {
+/// let file = File::open("archive.pna")?;
+/// let mut entries = Archive::read_header(file)?.into_entries();
+///
+/// for item in entries {
+///     match item? {
+///         IntoEntry::Normal(entry) => {
+///             println!("File: {}", entry.header().path());
+///         }
+///         IntoEntry::Solid(solid) => {
+///             // process solid entry
+///         }
+///         IntoEntry::Continue(_) => unreachable!("single-part archive"),
+///     }
+/// }
+/// # Ok(())
+/// # }
+/// ```
+///
+/// ## Multipart archive
+///
+/// ```no_run
+/// use libpna::{Archive, IntoEntry};
+/// use std::fs::File;
+/// # use std::io;
+///
+/// # fn main() -> io::Result<()> {
+/// let files = ["part1.pna", "part2.pna"];
+/// let mut file_iter = files.iter();
+///
+/// let first = File::open(file_iter.next().unwrap())?;
+/// let mut entries = Archive::read_header(first)?.into_entries();
+///
+/// loop {
+///     match entries.next() {
+///         Some(Ok(IntoEntry::Normal(entry))) => {
+///             println!("File: {}", entry.header().path());
+///         }
+///         Some(Ok(IntoEntry::Solid(solid))) => {
+///             // process solid entry
+///         }
+///         Some(Ok(IntoEntry::Continue(cont))) => {
+///             let next = File::open(file_iter.next().unwrap())?;
+///             entries = cont.read_next_archive(next)?;
+///         }
+///         Some(Err(e)) => return Err(e),
+///         None => break,
+///     }
+/// }
+/// # Ok(())
+/// # }
+/// ```
+pub struct IntoEntries<R> {
+    state: Option<IntoEntriesState<R>>,
+}
+
+struct IntoEntriesState<R> {
+    inner: R,
+    header: ArchiveHeader,
+    next_archive: bool,
+    buf: Vec<RawChunk>,
+}
+
+impl<R> IntoEntries<R> {
+    /// Returns the archive part number.
+    #[inline]
+    fn archive_number(&self) -> u32 {
+        self.state.as_ref().map_or(0, |s| s.header.archive_number)
+    }
+}
+
+impl<R: Read> IntoEntries<R> {
+    fn read_header_with_buffer(mut reader: R, buf: Vec<RawChunk>) -> io::Result<Self> {
+        read_pna_header(&mut reader)?;
+        let mut chunk_reader = ChunkReader::from(&mut reader);
+        let chunk = chunk_reader.read_chunk()?;
+        if chunk.ty != ChunkType::AHED {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Unexpected Chunk `{}`", chunk.ty),
+            ));
+        }
+        let header = ArchiveHeader::try_from_bytes(chunk.data())?;
+        Ok(Self {
+            state: Some(IntoEntriesState {
+                inner: reader,
+                header,
+                next_archive: false,
+                buf,
+            }),
+        })
+    }
+}
+
+impl<R: Read> IntoEntriesState<R> {
+    fn next_raw_item(&mut self) -> io::Result<Option<RawEntry>> {
+        let mut chunks = Vec::new();
+        swap(&mut self.buf, &mut chunks);
+        loop {
+            let chunk = read_chunk(&mut self.inner)?;
+            match chunk.ty {
+                ChunkType::FEND | ChunkType::SEND => {
+                    chunks.push(chunk);
+                    break;
+                }
+                ChunkType::ANXT => self.next_archive = true,
+                ChunkType::AEND => {
+                    self.buf = chunks;
+                    return Ok(None);
+                }
+                _ => chunks.push(chunk),
+            }
+        }
+        Ok(Some(RawEntry(chunks)))
+    }
+}
+
+impl<R: Read> Iterator for IntoEntries<R> {
+    type Item = io::Result<IntoEntry<R>>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        let state = self.state.as_mut()?;
+
+        match state.next_raw_item() {
+            Ok(Some(raw_entry)) => match raw_entry.try_into() {
+                Ok(ReadEntry::Normal(e)) => Some(Ok(IntoEntry::Normal(e))),
+                Ok(ReadEntry::Solid(e)) => Some(Ok(IntoEntry::Solid(e))),
+                Err(e) => {
+                    self.state = None;
+                    Some(Err(e))
+                }
+            },
+            Ok(None) => {
+                let state = self.state.take().unwrap();
+                if state.next_archive {
+                    Some(Ok(IntoEntry::Continue(ArchiveContinuation {
+                        inner: state.inner,
+                        header: state.header,
+                        buf: state.buf,
+                    })))
+                } else {
+                    None
+                }
+            }
+            Err(e) => {
+                self.state = None;
+                Some(Err(e))
+            }
+        }
+    }
+}
+
+impl<R: Read> Archive<R> {
+    /// Consumes the archive and returns an owning iterator over its entries.
+    ///
+    /// Unlike [`entries`](Archive::entries), this method takes ownership of the archive,
+    /// allowing the iterator to yield [`IntoEntry::Continue`] for multipart archives.
+    ///
+    /// # Returns
+    ///
+    /// An [`IntoEntries`] iterator that yields [`IntoEntry`] items.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use libpna::{Archive, IntoEntry};
+    /// use std::fs::File;
+    /// # use std::io;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let file = File::open("archive.pna")?;
+    /// for item in Archive::read_header(file)?.into_entries() {
+    ///     match item? {
+    ///         IntoEntry::Normal(entry) => println!("{}", entry.header().path()),
+    ///         IntoEntry::Solid(solid) => { /* handle solid */ }
+    ///         IntoEntry::Continue(cont) => { /* handle multipart */ }
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn into_entries(self) -> IntoEntries<R> {
+        IntoEntries {
+            state: Some(IntoEntriesState {
+                inner: self.inner,
+                header: self.header,
+                next_archive: self.next_archive,
+                buf: self.buf,
+            }),
         }
     }
 }
