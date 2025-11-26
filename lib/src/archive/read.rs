@@ -413,7 +413,7 @@ impl<R: futures_io::AsyncRead + Unpin> futures_util::Stream for Entries<'_, R> {
 pub struct NormalEntries<'r, R> {
     reader: &'r mut Archive<R>,
     password: Option<&'r [u8]>,
-    solid_iter: Option<crate::entry::IntoEntries>,
+    solid_iter: Option<crate::entry::SolidIntoEntries>,
 }
 
 impl<'r, R> NormalEntries<'r, R> {
