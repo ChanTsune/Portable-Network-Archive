@@ -282,11 +282,11 @@ type BytesCursor = io::Cursor<Vec<u8>>;
 /// An iterator that moves out of a solid entry.
 ///
 /// This struct is created by the `into_entries` method on [`SolidEntry`].
-pub(crate) struct IntoEntries(
+pub(crate) struct SolidIntoEntries(
     EntryReader<ChainReader<std::vec::IntoIter<BytesCursor>, BytesCursor>>,
 );
 
-impl Iterator for IntoEntries {
+impl Iterator for SolidIntoEntries {
     type Item = io::Result<NormalEntry>;
 
     #[inline]
@@ -434,7 +434,7 @@ where
     ///
     /// This variant owns the underlying buffers, enabling streaming without borrowing from `self`.
     #[inline]
-    pub(crate) fn into_entries(self, password: Option<&[u8]>) -> io::Result<IntoEntries> {
+    pub(crate) fn into_entries(self, password: Option<&[u8]>) -> io::Result<SolidIntoEntries> {
         let bufs = self
             .data
             .into_iter()
@@ -449,7 +449,7 @@ where
             password,
         )?;
         let reader = decompress_reader(reader, self.header.compression)?;
-        Ok(IntoEntries(EntryReader(reader)))
+        Ok(SolidIntoEntries(EntryReader(reader)))
     }
 }
 
