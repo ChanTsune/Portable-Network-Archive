@@ -429,10 +429,12 @@ impl ArchiveContinuationSlice {
 /// # Ok(())
 /// # }
 /// ```
+#[derive(Debug)]
 pub struct IntoEntriesSlice<'d> {
     state: Option<IntoEntriesSliceState<'d>>,
 }
 
+#[derive(Debug)]
 struct IntoEntriesSliceState<'d> {
     inner: &'d [u8],
     header: ArchiveHeader,
@@ -620,6 +622,210 @@ mod tests {
             assert!(entries.next().is_none());
         } else {
             panic!()
+        }
+    }
+
+    // ==================== into_entries_slice tests ====================
+
+    #[test]
+    fn into_entries_slice_empty() {
+        let file_bytes = include_bytes!("../../../../resources/test/empty.pna");
+        let archive = Archive::read_header_from_slice(file_bytes).unwrap();
+        let mut entries = archive.into_entries_slice();
+        assert!(entries.next().is_none());
+    }
+
+    #[test]
+    fn into_entries_slice_single() {
+        use crate::{EntryBuilder, WriteOptions};
+        use std::io::Write;
+
+        // Create archive with single entry
+        let mut writer = Archive::write_header(Vec::new()).unwrap();
+        let mut builder = EntryBuilder::new_file("test.txt".into(), WriteOptions::store()).unwrap();
+        builder.write_all(b"test content").unwrap();
+        writer.add_entry(builder.build().unwrap()).unwrap();
+        let archive_data = writer.finalize().unwrap();
+
+        // Read with into_entries_slice
+        let archive = Archive::read_header_from_slice(&archive_data).unwrap();
+        let mut entries = archive.into_entries_slice();
+
+        match entries.next() {
+            Some(Ok(IntoEntrySlice::Normal(entry))) => {
+                assert_eq!(entry.header().path().as_str(), "test.txt");
+            }
+            other => panic!("Expected Normal entry, got {:?}", other.is_some()),
+        }
+        assert!(entries.next().is_none());
+    }
+
+    #[test]
+    fn into_entries_slice_multiple() {
+        use crate::{EntryBuilder, WriteOptions};
+        use std::io::Write;
+
+        // Create archive with multiple entries
+        let mut writer = Archive::write_header(Vec::new()).unwrap();
+        for i in 0..3 {
+            let mut builder =
+                EntryBuilder::new_file(format!("file{}.txt", i).into(), WriteOptions::store())
+                    .unwrap();
+            builder
+                .write_all(format!("content{}", i).as_bytes())
+                .unwrap();
+            writer.add_entry(builder.build().unwrap()).unwrap();
+        }
+        let archive_data = writer.finalize().unwrap();
+
+        // Read with into_entries_slice
+        let archive = Archive::read_header_from_slice(&archive_data).unwrap();
+        let entries: Vec<_> = archive.into_entries_slice().collect();
+
+        assert_eq!(entries.len(), 3);
+        for (i, entry) in entries.into_iter().enumerate() {
+            match entry {
+                Ok(IntoEntrySlice::Normal(e)) => {
+                    assert_eq!(e.header().path().as_str(), format!("file{}.txt", i));
+                }
+                _ => panic!("Expected Normal entry"),
+            }
+        }
+    }
+
+    #[test]
+    fn into_entries_slice_solid() {
+        use crate::{EntryBuilder, SolidEntryBuilder, WriteOptions};
+        use std::io::Write;
+
+        // Create archive with solid entry
+        let mut archive_writer = Archive::write_header(Vec::new()).unwrap();
+        let mut solid_builder = SolidEntryBuilder::new(WriteOptions::store()).unwrap();
+
+        let mut file_builder =
+            EntryBuilder::new_file("inner.txt".into(), WriteOptions::store()).unwrap();
+        file_builder.write_all(b"inner content").unwrap();
+        solid_builder
+            .add_entry(file_builder.build().unwrap())
+            .unwrap();
+
+        archive_writer
+            .add_entry(solid_builder.build().unwrap())
+            .unwrap();
+        let archive_data = archive_writer.finalize().unwrap();
+
+        // Read with into_entries_slice
+        let archive = Archive::read_header_from_slice(&archive_data).unwrap();
+        let mut entries = archive.into_entries_slice();
+
+        match entries.next() {
+            Some(Ok(IntoEntrySlice::Solid(_))) => {}
+            other => panic!("Expected Solid entry, got {:?}", other.is_some()),
+        }
+        assert!(entries.next().is_none());
+    }
+
+    #[test]
+    fn into_entries_slice_multipart() {
+        let part1 = include_bytes!("../../../../resources/test/multipart.part1.pna");
+        let part2 = include_bytes!("../../../../resources/test/multipart.part2.pna");
+
+        let archive = Archive::read_header_from_slice(part1).unwrap();
+        let mut entries = archive.into_entries_slice();
+
+        // Read entries from part1
+        let mut entry_count = 0;
+        loop {
+            match entries.next() {
+                Some(Ok(IntoEntrySlice::Normal(_))) => entry_count += 1,
+                Some(Ok(IntoEntrySlice::Solid(_))) => entry_count += 1,
+                Some(Ok(IntoEntrySlice::Continue(cont))) => {
+                    assert_eq!(cont.archive_number(), 0);
+                    // Continue to part2
+                    entries = cont.read_next_archive_from_slice(part2).unwrap();
+                }
+                Some(Err(e)) => panic!("Error reading entry: {}", e),
+                None => break,
+            }
+        }
+        assert!(entry_count > 0, "Expected at least one entry");
+    }
+
+    #[test]
+    fn into_entries_slice_multipart_wrong_number() {
+        let part1 = include_bytes!("../../../../resources/test/multipart.part1.pna");
+
+        let archive = Archive::read_header_from_slice(part1).unwrap();
+        let mut entries = archive.into_entries_slice();
+
+        // Find Continue variant
+        loop {
+            match entries.next() {
+                Some(Ok(IntoEntrySlice::Continue(cont))) => {
+                    // Try to read part1 again (wrong archive number)
+                    let result = cont.read_next_archive_from_slice(part1);
+                    assert!(result.is_err());
+                    let err = result.unwrap_err();
+                    assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+                    assert!(err.to_string().contains("Next archive number must be +1"));
+                    return;
+                }
+                Some(Ok(_)) => continue,
+                Some(Err(e)) => panic!("Error reading entry: {}", e),
+                None => panic!("Expected Continue variant for multipart archive"),
+            }
+        }
+    }
+
+    #[test]
+    fn into_entries_slice_archive_number() {
+        let part1 = include_bytes!("../../../../resources/test/multipart.part1.pna");
+        let part2 = include_bytes!("../../../../resources/test/multipart.part2.pna");
+
+        let archive = Archive::read_header_from_slice(part1).unwrap();
+        let mut entries = archive.into_entries_slice();
+
+        loop {
+            match entries.next() {
+                Some(Ok(IntoEntrySlice::Continue(cont))) => {
+                    assert_eq!(cont.archive_number(), 0);
+                    entries = cont.read_next_archive_from_slice(part2).unwrap();
+                    // After reading part2, continue iteration
+                }
+                Some(Ok(_)) => continue,
+                Some(Err(e)) => panic!("Error: {}", e),
+                None => break,
+            }
+        }
+    }
+
+    #[test]
+    fn into_entries_slice_continuation_no_lifetime() {
+        // Test that ArchiveContinuationSlice does not hold any lifetime
+        // and can be used with a new slice of different lifetime
+        let part1 = include_bytes!("../../../../resources/test/multipart.part1.pna");
+
+        let archive = Archive::read_header_from_slice(part1).unwrap();
+        let mut entries = archive.into_entries_slice();
+
+        loop {
+            match entries.next() {
+                Some(Ok(IntoEntrySlice::Continue(cont))) => {
+                    // ArchiveContinuationSlice does not borrow from part1,
+                    // so we can use it with a completely new slice
+                    let part2 = include_bytes!("../../../../resources/test/multipart.part2.pna");
+                    // Create a new iterator with part2's lifetime
+                    let new_entries = cont.read_next_archive_from_slice(part2).unwrap();
+                    // Verify we can read entries from it
+                    for item in new_entries {
+                        item.unwrap();
+                    }
+                    return;
+                }
+                Some(Ok(_)) => continue,
+                Some(Err(e)) => panic!("Error: {}", e),
+                None => panic!("Expected Continue variant"),
+            }
         }
     }
 }

@@ -631,10 +631,12 @@ impl<R: Read> ArchiveContinuation<R> {
 /// # Ok(())
 /// # }
 /// ```
+#[derive(Debug)]
 pub struct IntoEntries<R> {
     state: Option<IntoEntriesState<R>>,
 }
 
+#[derive(Debug)]
 struct IntoEntriesState<R> {
     inner: R,
     header: ArchiveHeader,
@@ -876,5 +878,200 @@ mod tests {
             }
         }
         Ok(())
+    }
+
+    // ==================== into_entries tests ====================
+
+    #[test]
+    fn into_entries_empty() {
+        let file_bytes = include_bytes!("../../../resources/test/empty.pna");
+        let archive = Archive::read_header(&file_bytes[..]).unwrap();
+        let mut entries = archive.into_entries();
+        assert!(entries.next().is_none());
+    }
+
+    #[test]
+    fn into_entries_single() {
+        use crate::{EntryBuilder, WriteOptions};
+        use std::io::Write;
+
+        // Create archive with single entry
+        let mut writer = Archive::write_header(Vec::new()).unwrap();
+        let mut builder = EntryBuilder::new_file("test.txt".into(), WriteOptions::store()).unwrap();
+        builder.write_all(b"test content").unwrap();
+        writer.add_entry(builder.build().unwrap()).unwrap();
+        let archive_data = writer.finalize().unwrap();
+
+        // Read with into_entries
+        let archive = Archive::read_header(&archive_data[..]).unwrap();
+        let mut entries = archive.into_entries();
+
+        match entries.next() {
+            Some(Ok(IntoEntry::Normal(entry))) => {
+                assert_eq!(entry.header().path().as_str(), "test.txt");
+            }
+            other => panic!("Expected Normal entry, got {:?}", other.is_some()),
+        }
+        assert!(entries.next().is_none());
+    }
+
+    #[test]
+    fn into_entries_multiple() {
+        use crate::{EntryBuilder, WriteOptions};
+        use std::io::Write;
+
+        // Create archive with multiple entries
+        let mut writer = Archive::write_header(Vec::new()).unwrap();
+        for i in 0..3 {
+            let mut builder =
+                EntryBuilder::new_file(format!("file{}.txt", i).into(), WriteOptions::store())
+                    .unwrap();
+            builder
+                .write_all(format!("content{}", i).as_bytes())
+                .unwrap();
+            writer.add_entry(builder.build().unwrap()).unwrap();
+        }
+        let archive_data = writer.finalize().unwrap();
+
+        // Read with into_entries
+        let archive = Archive::read_header(&archive_data[..]).unwrap();
+        let entries: Vec<_> = archive.into_entries().collect();
+
+        assert_eq!(entries.len(), 3);
+        for (i, entry) in entries.into_iter().enumerate() {
+            match entry {
+                Ok(IntoEntry::Normal(e)) => {
+                    assert_eq!(e.header().path().as_str(), format!("file{}.txt", i));
+                }
+                _ => panic!("Expected Normal entry"),
+            }
+        }
+    }
+
+    #[test]
+    fn into_entries_solid() {
+        use crate::{EntryBuilder, SolidEntryBuilder, WriteOptions};
+        use std::io::Write;
+
+        // Create archive with solid entry
+        let mut archive_writer = Archive::write_header(Vec::new()).unwrap();
+        let mut solid_builder = SolidEntryBuilder::new(WriteOptions::store()).unwrap();
+
+        let mut file_builder =
+            EntryBuilder::new_file("inner.txt".into(), WriteOptions::store()).unwrap();
+        file_builder.write_all(b"inner content").unwrap();
+        solid_builder
+            .add_entry(file_builder.build().unwrap())
+            .unwrap();
+
+        archive_writer
+            .add_entry(solid_builder.build().unwrap())
+            .unwrap();
+        let archive_data = archive_writer.finalize().unwrap();
+
+        // Read with into_entries
+        let archive = Archive::read_header(&archive_data[..]).unwrap();
+        let mut entries = archive.into_entries();
+
+        match entries.next() {
+            Some(Ok(IntoEntry::Solid(_))) => {}
+            other => panic!("Expected Solid entry, got {:?}", other.is_some()),
+        }
+        assert!(entries.next().is_none());
+    }
+
+    #[test]
+    fn into_entries_multipart() {
+        let part1 = include_bytes!("../../../resources/test/multipart.part1.pna");
+        let part2 = include_bytes!("../../../resources/test/multipart.part2.pna");
+
+        let archive = Archive::read_header(&part1[..]).unwrap();
+        let mut entries = archive.into_entries();
+
+        // Read entries from part1
+        let mut entry_count = 0;
+        loop {
+            match entries.next() {
+                Some(Ok(IntoEntry::Normal(_))) => entry_count += 1,
+                Some(Ok(IntoEntry::Solid(_))) => entry_count += 1,
+                Some(Ok(IntoEntry::Continue(cont))) => {
+                    assert_eq!(cont.archive_number(), 0);
+                    // Continue to part2
+                    entries = cont.read_next_archive(&part2[..]).unwrap();
+                }
+                Some(Err(e)) => panic!("Error reading entry: {}", e),
+                None => break,
+            }
+        }
+        assert!(entry_count > 0, "Expected at least one entry");
+    }
+
+    #[test]
+    fn into_entries_multipart_wrong_number() {
+        let part1 = include_bytes!("../../../resources/test/multipart.part1.pna");
+
+        let archive = Archive::read_header(&part1[..]).unwrap();
+        let mut entries = archive.into_entries();
+
+        // Find Continue variant
+        loop {
+            match entries.next() {
+                Some(Ok(IntoEntry::Continue(cont))) => {
+                    // Try to read part1 again (wrong archive number)
+                    let result = cont.read_next_archive(&part1[..]);
+                    assert!(result.is_err());
+                    let err = result.unwrap_err();
+                    assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+                    assert!(err.to_string().contains("Next archive number must be +1"));
+                    return;
+                }
+                Some(Ok(_)) => continue,
+                Some(Err(e)) => panic!("Error reading entry: {}", e),
+                None => panic!("Expected Continue variant for multipart archive"),
+            }
+        }
+    }
+
+    #[test]
+    fn into_entries_archive_number() {
+        let part1 = include_bytes!("../../../resources/test/multipart.part1.pna");
+        let part2 = include_bytes!("../../../resources/test/multipart.part2.pna");
+
+        let archive = Archive::read_header(&part1[..]).unwrap();
+        let mut entries = archive.into_entries();
+
+        loop {
+            match entries.next() {
+                Some(Ok(IntoEntry::Continue(cont))) => {
+                    assert_eq!(cont.archive_number(), 0);
+                    entries = cont.read_next_archive(&part2[..]).unwrap();
+                    // After reading part2, continue iteration
+                }
+                Some(Ok(_)) => continue,
+                Some(Err(e)) => panic!("Error: {}", e),
+                None => break,
+            }
+        }
+    }
+
+    #[test]
+    fn into_entries_continuation_into_inner() {
+        let part1 = include_bytes!("../../../resources/test/multipart.part1.pna");
+
+        let archive = Archive::read_header(&part1[..]).unwrap();
+        let mut entries = archive.into_entries();
+
+        loop {
+            match entries.next() {
+                Some(Ok(IntoEntry::Continue(cont))) => {
+                    // Recover the inner reader
+                    let _recovered: &[u8] = cont.into_inner();
+                    return;
+                }
+                Some(Ok(_)) => continue,
+                Some(Err(e)) => panic!("Error: {}", e),
+                None => panic!("Expected Continue variant"),
+            }
+        }
     }
 }
