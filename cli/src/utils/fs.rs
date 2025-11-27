@@ -67,11 +67,21 @@ pub(crate) fn lchown<P: AsRef<Path>>(
 }
 
 pub(crate) fn get_flags<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(
+        target_os = "macos",
+        target_os = "linux",
+        target_os = "android",
+        target_os = "freebsd"
+    ))]
     fn inner(path: &Path) -> io::Result<Vec<String>> {
         crate::utils::os::unix::fs::get_flags(path)
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(any(
+        target_os = "macos",
+        target_os = "linux",
+        target_os = "android",
+        target_os = "freebsd"
+    )))]
     fn inner(_path: &Path) -> io::Result<Vec<String>> {
         Ok(Vec::new())
     }
@@ -79,11 +89,21 @@ pub(crate) fn get_flags<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> {
 }
 
 pub(crate) fn set_flags<P: AsRef<Path>>(path: P, flags: &[String]) -> io::Result<()> {
-    #[cfg(target_os = "macos")]
+    #[cfg(any(
+        target_os = "macos",
+        target_os = "linux",
+        target_os = "android",
+        target_os = "freebsd"
+    ))]
     fn inner(path: &Path, flags: &[String]) -> io::Result<()> {
         crate::utils::os::unix::fs::set_flags(path, flags)
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(any(
+        target_os = "macos",
+        target_os = "linux",
+        target_os = "android",
+        target_os = "freebsd"
+    )))]
     fn inner(_path: &Path, _flags: &[String]) -> io::Result<()> {
         Ok(())
     }

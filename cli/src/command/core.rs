@@ -737,8 +737,7 @@ pub(crate) fn apply_metadata<'p>(
         match utils::fs::get_flags(path) {
             Ok(flags) => {
                 for flag in flags {
-                    use crate::chunk::fflag_chunk;
-                    entry.add_extra_chunk(fflag_chunk(&flag));
+                    entry.add_extra_chunk(crate::chunk::fflag_chunk(&flag));
                 }
             }
             Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
