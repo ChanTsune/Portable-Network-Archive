@@ -75,7 +75,7 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           CRATE="${{ inputs.crate }}"
           DEP_FLAG="--dependent-version ${{ inputs.dependent_version }}"
-          EXCLUDES="--exclude portable-network-archive-fuzz"
+          EXCLUDES="--exclude portable-network-archive-fuzz --exclude xtask"
           if [ "$CRATE" = "all" ]; then
             PKG_FLAG="--workspace"
           else
