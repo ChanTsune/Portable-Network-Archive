@@ -13,6 +13,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     match args.command {
         Command::Mangen(args) => mangen(args),
+        Command::Docgen(args) => docgen(args),
     }
 }
 
@@ -27,12 +28,21 @@ struct Args {
 enum Command {
     /// Generate man pages for the CLI
     Mangen(MangenArgs),
+    /// Generate markdown documentation for the CLI
+    Docgen(DocgenArgs),
 }
 
 #[derive(Parser)]
 struct MangenArgs {
     /// Output directory for man pages
     #[arg(short, long, default_value = "target/man")]
+    output: PathBuf,
+}
+
+#[derive(Parser)]
+struct DocgenArgs {
+    /// Output file path for markdown documentation
+    #[arg(short, long, default_value = "target/doc/pna.md")]
     output: PathBuf,
 }
 
@@ -48,5 +58,30 @@ fn mangen(args: MangenArgs) -> Result<(), Box<dyn std::error::Error>> {
     clap_mangen::generate_to(cmd, out_dir)?;
 
     eprintln!("Man pages generated in: {}", out_dir.display());
+    Ok(())
+}
+
+fn docgen(args: DocgenArgs) -> Result<(), Box<dyn std::error::Error>> {
+    let out_path = &args.output;
+
+    // Create parent directory if it doesn't exist
+    if let Some(parent) = out_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    // Get the CLI command and rename to match the binary name
+    let mut cmd = portable_network_archive::cli::Cli::command().name("pna");
+
+    // Build the command to propagate global arguments to subcommands
+    // This is necessary because clap-markdown iterates through subcommands
+    // and global argument references need to be resolved first
+    cmd.build();
+
+    // Generate markdown documentation
+    let markdown = clap_markdown::help_markdown_command(&cmd);
+
+    fs::write(out_path, markdown)?;
+
+    eprintln!("Markdown documentation generated: {}", out_path.display());
     Ok(())
 }
