@@ -5,6 +5,7 @@ members = [
     "lib",
     "pna",
     "fuzz",
+    "xtask",
 ]
 
 # The profile that 'dist' will build with
