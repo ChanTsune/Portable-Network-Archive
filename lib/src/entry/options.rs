@@ -275,8 +275,8 @@ pub(crate) struct Password(Vec<u8>);
 
 impl Password {
     #[inline]
-    pub(crate) fn as_bytes(&self) -> &[u8] {
-        &self.0
+    pub(crate) const fn as_bytes(&self) -> &[u8] {
+        self.0.as_slice()
     }
 }
 
