@@ -1,7 +1,7 @@
 use pna::{ChunkType, RawChunk};
 
 /// Private chunk type for file flags (fflags).
-/// Name follows PNG/PNA chunk naming convention where case has semantic meaning:
+/// Name follows PNA chunk naming convention where case has semantic meaning:
 /// - lowercase first letter: ancillary (not critical)
 /// - lowercase second letter: private (not public)
 /// - uppercase third letter: reserved
