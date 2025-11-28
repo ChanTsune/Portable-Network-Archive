@@ -13,7 +13,7 @@ use crate::{
         },
     },
     utils::{
-        self, GlobPatterns, VCS_FILES,
+        self, GlobPatterns, PathWithCwd, VCS_FILES,
         fmt::DurationDisplay,
         fs::{Group, User},
         re::{bsd::SubstitutionRule, gnu::TransformRule},
@@ -228,16 +228,17 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password).with_context(|| "reading password")?;
     let start = Instant::now();
     let archive = args.file.archive();
-    log::info!("Extract archive {}", archive.display());
+    log::info!("Extract archive {}", PathWithCwd::new(&archive));
 
     let archives = collect_split_archives(&archive)
-        .with_context(|| format!("opening archive '{}'", archive.display()))?;
+        .with_context(|| format!("opening archive '{}'", PathWithCwd::new(&archive)))?;
 
     let mut exclude = args.exclude.unwrap_or_default();
     if let Some(p) = args.exclude_from {
         exclude.extend(
-            read_paths(&p, args.null)
-                .with_context(|| format!("reading exclude patterns from {}", p.display()))?,
+            read_paths(&p, args.null).with_context(|| {
+                format!("reading exclude patterns from {}", PathWithCwd::new(&p))
+            })?,
         );
     }
     let vcs_patterns = args
@@ -254,7 +255,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     if let Some(path) = &args.files_from {
         files.extend(
             read_paths(path, args.null)
-                .with_context(|| format!("reading file list from {}", path.display()))?,
+                .with_context(|| format!("reading file list from {}", PathWithCwd::new(path)))?,
         );
     }
 
@@ -299,7 +300,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     };
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(&working_dir)
-            .with_context(|| format!("changing directory to {}", working_dir.display()))?;
+            .with_context(|| format!("changing directory to {}", PathWithCwd::new(&working_dir)))?;
     }
     #[cfg(all(unix, not(target_os = "fuchsia")))]
     if args.chroot {
@@ -322,20 +323,20 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         || password.as_deref(),
         output_options,
     )
-    .with_context(|| format!("extracting entries from '{}'", archive.display()))?;
+    .with_context(|| format!("extracting entries from '{}'", PathWithCwd::new(&archive)))?;
 
     #[cfg(feature = "memmap")]
     let mmaps = archives
         .into_iter()
         .map(utils::mmap::Mmap::try_from)
         .collect::<io::Result<Vec<_>>>()
-        .with_context(|| format!("memory-mapping archive '{}'", archive.display()))?;
+        .with_context(|| format!("memory-mapping archive '{}'", PathWithCwd::new(&archive)))?;
     #[cfg(feature = "memmap")]
     let archives = mmaps.iter().map(|m| m.as_ref());
 
     #[cfg(feature = "memmap")]
     run_extract_archive(archives, files, || password.as_deref(), output_options)
-        .with_context(|| format!("extracting entries from '{}'", archive.display()))?;
+        .with_context(|| format!("extracting entries from '{}'", PathWithCwd::new(&archive)))?;
     log::info!(
         "Successfully extracted an archive in {}",
         DurationDisplay(start.elapsed())
@@ -407,7 +408,8 @@ where
     let (tx, rx) = std::sync::mpsc::channel();
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
         run_process_archive(reader, password_provider, |entry| {
-            let item = entry.with_context(|| "reading archive entry")?;
+            let item = entry
+                .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
             let item_path = item.header().path().to_string();
             if !globs.is_empty() && !globs.matches_any(&item_path) {
                 log::debug!("Skip: {}", item.header().path());
@@ -468,7 +470,8 @@ where
         let (tx, rx) = std::sync::mpsc::channel();
 
         run_entries(archives, password_provider, |entry| {
-            let item = entry.with_context(|| "reading archive entry")?;
+            let item = entry
+                .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
             let item_path = item.header().path().to_string();
             if !globs.is_empty() && !globs.matches_any(&item_path) {
                 log::debug!("Skip: {}", item.header().path());
