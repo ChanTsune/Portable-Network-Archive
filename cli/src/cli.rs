@@ -106,10 +106,12 @@ pub(crate) struct FileArgs {
     pub(crate) files: Vec<String>,
 }
 
-/// Archive related args for compatibility with optional and positional arguments.
-///
-/// This is a temporary measure while the compatibility feature is available,
-/// and will be removed once the compatibility feature is no longer available.
+// Archive related args for compatibility with optional and positional arguments.
+// This is a temporary measure while the compatibility feature is available,
+// and will be removed once the compatibility feature is no longer available.
+//
+// NOTE: Do NOT use doc comments (///) here as they become `long_about` in clap
+// and propagate to commands that flatten this struct, causing incorrect documentation.
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(
     group(
