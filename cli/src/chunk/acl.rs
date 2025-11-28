@@ -8,11 +8,21 @@ use std::{
     str::{FromStr, Utf8Error, from_utf8},
 };
 
-/// [ChunkType] File Access Control Entry
+/// Private chunk type for File Access Control Entry.
+/// Name follows PNA chunk naming convention where case has semantic meaning:
+/// - lowercase first letter: ancillary (not critical)
+/// - lowercase second letter: private (not public)
+/// - uppercase third letter: reserved
+/// - lowercase fourth letter: safe to copy
 #[allow(non_upper_case_globals)]
 pub const faCe: ChunkType = unsafe { ChunkType::from_unchecked(*b"faCe") };
 
-/// [ChunkType] File Access Control List
+/// Private chunk type for File Access Control List.
+/// Name follows PNA chunk naming convention where case has semantic meaning:
+/// - lowercase first letter: ancillary (not critical)
+/// - lowercase second letter: private (not public)
+/// - uppercase third letter: reserved
+/// - lowercase fourth letter: safe to copy
 #[allow(non_upper_case_globals)]
 pub const faCl: ChunkType = unsafe { ChunkType::from_unchecked(*b"faCl") };
 
