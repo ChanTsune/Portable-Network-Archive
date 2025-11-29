@@ -221,7 +221,7 @@ pub(crate) fn get_flags(path: &Path) -> io::Result<Vec<String>> {
     use nix::sys::stat::lstat;
 
     let stat = lstat(path)?;
-    let flags = stat.st_flags as u32;
+    let flags = stat.st_flags as libc::c_ulong;
 
     let mut flag_names = Vec::new();
 
