@@ -162,6 +162,7 @@ impl FileArgsCompat {
 pub(crate) struct PasswordArgs {
     #[arg(
         long,
+        visible_alias = "passphrase",
         help = "Password of archive. If password is not given it's asked from the tty"
     )]
     pub(crate) password: Option<Option<String>>,
