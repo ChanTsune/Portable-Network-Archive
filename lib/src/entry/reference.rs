@@ -1,4 +1,4 @@
-use crate::util::str::join_with_capacity;
+use crate::util::{str::join_with_capacity, utf8path::normalize_utf8path};
 use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
 use std::borrow::Cow;
 use std::error::Error;
@@ -78,6 +78,129 @@ impl EntryReference {
     #[inline]
     fn from_path_lossy(path: &Path) -> Self {
         Self::new_from_utf8(&path.to_string_lossy())
+    }
+
+    /// Creates an [EntryReference] from a UTF-8 string while preserving absolute
+    /// roots, prefixes, and parent components.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use libpna::EntryReference;
+    ///
+    /// assert_eq!("/foo.txt", EntryReference::from_utf8_preserve_root("/foo.txt"));
+    /// assert_eq!("bar/../foo.txt", EntryReference::from_utf8_preserve_root("bar/../foo.txt"));
+    /// assert_eq!("../foo.txt", EntryReference::from_utf8_preserve_root("../foo.txt"));
+    /// ```
+    #[inline]
+    pub fn from_utf8_preserve_root(path: &str) -> Self {
+        Self::new_from_utf8path_preserve_root(Utf8Path::new(path))
+    }
+
+    #[inline]
+    fn new_from_utf8path_preserve_root(path: &Utf8Path) -> Self {
+        // Preserve everything, only normalize separator direction by using '/'
+        // and collapse duplicate leading slashes.
+        let mut iter = path.components().peekable();
+        let mut out = String::with_capacity(path.as_str().len());
+        let mut saw_prefix = false;
+        if let Some(Utf8Component::Prefix(p)) = iter.peek() {
+            out.push_str(p.as_str());
+            saw_prefix = true;
+            iter.next();
+        }
+        // Collapse duplicate leading slashes.
+        let mut first = true;
+        for comp in iter {
+            match comp {
+                Utf8Component::RootDir => {
+                    if first {
+                        out.push('/');
+                    } else if out.ends_with('/') {
+                        // skip duplicate
+                    } else {
+                        out.push('/');
+                    }
+                }
+                Utf8Component::CurDir => {
+                    if !out.is_empty() && !out.ends_with('/') {
+                        out.push('/');
+                    }
+                    out.push('.');
+                }
+                Utf8Component::ParentDir => {
+                    if !out.is_empty() && !out.ends_with('/') {
+                        out.push('/');
+                    }
+                    out.push_str("..");
+                }
+                Utf8Component::Normal(n) => {
+                    if !out.is_empty() && !out.ends_with('/') {
+                        out.push('/');
+                    }
+                    out.push_str(n);
+                }
+                Utf8Component::Prefix(_) => unreachable!(),
+            }
+            first = false;
+        }
+
+        // If the path started with a root but no explicit component yet ("/").
+        if out.is_empty() && path.has_root() && !saw_prefix {
+            out.push('/');
+        }
+
+        Self(out)
+    }
+
+    /// Creates an [EntryReference] from a path, preserving absolute path components.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`EntryReferenceError`] if the path cannot be represented as valid UTF-8.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use libpna::EntryReference;
+    ///
+    /// assert_eq!("/foo.txt", EntryReference::from_path_preserve_root("/foo.txt".as_ref()).unwrap());
+    /// assert_eq!("../foo.txt", EntryReference::from_path_preserve_root("../foo.txt".as_ref()).unwrap());
+    /// ```
+    #[inline]
+    pub fn from_path_preserve_root(path: &Path) -> Result<Self, EntryReferenceError> {
+        let path = str::from_utf8(path.as_os_str().as_encoded_bytes())?;
+        Ok(Self::new_from_utf8path_preserve_root(Utf8Path::new(path)))
+    }
+
+    /// Creates an [EntryReference] from a path, preserving absolute path components.
+    ///
+    /// Any invalid UTF-8 sequences are replaced.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use libpna::EntryReference;
+    ///
+    /// assert_eq!("/foo.txt", EntryReference::from_path_lossy_preserve_root("/foo.txt".as_ref()));
+    /// ```
+    #[inline]
+    pub fn from_path_lossy_preserve_root(path: &Path) -> Self {
+        Self::new_from_utf8path_preserve_root(Utf8Path::new(&path.to_string_lossy()))
+    }
+
+    /// Returns a sanitized relative reference containing only normal path components.
+    ///
+    /// This discards prefixes, root separators, `.` and `..`, mirroring the safety
+    /// behavior used for archive member names.
+    #[inline]
+    pub fn sanitize(&self) -> Self {
+        let path = Utf8Path::new(&self.0);
+        let normalized = normalize_utf8path(path);
+        let iter = normalized
+            .components()
+            .filter_map(|c| matches!(c, Utf8Component::Normal(_)).then_some(c.as_str()));
+        Self(join_with_capacity(iter, "/", path.as_str().len()))
     }
 
     #[inline]
@@ -400,6 +523,28 @@ mod tests {
     }
 
     #[test]
+    fn preserve_root_variants() {
+        assert_eq!(
+            "/abs/path",
+            EntryReference::from_utf8_preserve_root("/abs/path").as_str()
+        );
+        assert_eq!(
+            "../rel/path",
+            EntryReference::from_utf8_preserve_root("../rel/path").as_str()
+        );
+        #[cfg(windows)]
+        assert_eq!(
+            "C:/drive/path",
+            EntryReference::from_utf8_preserve_root("C:\\drive\\path").as_str()
+        );
+        #[cfg(not(windows))]
+        assert_eq!(
+            "C:\\drive\\path",
+            EntryReference::from_utf8_preserve_root("C:\\drive\\path").as_str()
+        );
+    }
+
+    #[test]
     fn remove_last() {
         assert_eq!("test", EntryReference::from("test/"));
         assert_eq!("test/test", EntryReference::from("test/test/"));
@@ -470,6 +615,14 @@ mod tests {
         assert_eq!("test/test.txt", EntryReference::from("test//test.txt"));
         assert_eq!("test/test.txt", EntryReference::from("test///test.txt"));
         assert_eq!("/test/test.txt", EntryReference::from("///test///test.txt"));
+    }
+
+    #[test]
+    fn sanitize_discards_unsafe_components() {
+        let r = EntryReference::from_utf8_preserve_root("/tmp/../etc/passwd");
+        assert_eq!("etc/passwd", r.sanitize().as_str());
+        let r = EntryReference::from_utf8_preserve_root("../relative/../../../x");
+        assert_eq!("x", r.sanitize().as_str());
     }
 
     #[cfg(unix)]
