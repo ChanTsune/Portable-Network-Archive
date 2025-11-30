@@ -25,22 +25,7 @@ pub struct EntryReference(String);
 
 impl EntryReference {
     fn new_from_utf8path(path: &Utf8Path) -> Self {
-        let has_root = path.has_root();
-        let has_prefix = path
-            .components()
-            .any(|it| matches!(&it, Utf8Component::Prefix(_)));
-        let p = path.components().filter_map(|it| match it {
-            Utf8Component::Prefix(p) => Some(p.as_str()),
-            Utf8Component::RootDir => None,
-            Utf8Component::CurDir => Some("."),
-            Utf8Component::ParentDir => Some(".."),
-            Utf8Component::Normal(n) => Some(n),
-        });
-        let mut s = join_with_capacity(p, "/", path.as_str().len());
-        if !has_prefix && has_root {
-            s.insert(0, '/');
-        };
-        Self(s)
+        Self::new_from_utf8path_preserve_root(path).sanitize()
     }
 
     #[inline]
@@ -78,6 +63,89 @@ impl EntryReference {
     #[inline]
     fn from_path_lossy(path: &Path) -> Self {
         Self::new_from_utf8(&path.to_string_lossy())
+    }
+
+    /// Creates an [EntryReference] from a UTF-8 string while preserving absolute
+    /// roots, prefixes, and parent components.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use libpna::EntryReference;
+    ///
+    /// assert_eq!("/foo.txt", EntryReference::from_utf8_preserve_root("/foo.txt"));
+    /// assert_eq!("bar/../foo.txt", EntryReference::from_utf8_preserve_root("bar/../foo.txt"));
+    /// assert_eq!("../foo.txt", EntryReference::from_utf8_preserve_root("../foo.txt"));
+    /// ```
+    #[inline]
+    pub fn from_utf8_preserve_root(path: &str) -> Self {
+        Self::new_from_utf8path_preserve_root(Utf8Path::new(path))
+    }
+
+    #[inline]
+    fn new_from_utf8path_preserve_root(path: &Utf8Path) -> Self {
+        Self(path.as_str().to_owned())
+    }
+
+    /// Creates an [EntryReference] from a path, preserving absolute path components.
+    ///
+    /// # Errors
+    ///
+    /// Returns an [`EntryReferenceError`] if the path cannot be represented as valid UTF-8.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use libpna::EntryReference;
+    ///
+    /// assert_eq!("/foo.txt", EntryReference::from_path_preserve_root("/foo.txt".as_ref()).unwrap());
+    /// assert_eq!("../foo.txt", EntryReference::from_path_preserve_root("../foo.txt".as_ref()).unwrap());
+    /// ```
+    #[inline]
+    pub fn from_path_preserve_root(path: &Path) -> Result<Self, EntryReferenceError> {
+        let path = str::from_utf8(path.as_os_str().as_encoded_bytes())?;
+        Ok(Self::new_from_utf8path_preserve_root(Utf8Path::new(path)))
+    }
+
+    /// Creates an [EntryReference] from a path, preserving absolute path components.
+    ///
+    /// Any invalid UTF-8 sequences are replaced.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use libpna::EntryReference;
+    ///
+    /// assert_eq!("/foo.txt", EntryReference::from_path_lossy_preserve_root("/foo.txt".as_ref()));
+    /// ```
+    #[inline]
+    pub fn from_path_lossy_preserve_root(path: &Path) -> Self {
+        Self::new_from_utf8path_preserve_root(Utf8Path::new(&path.to_string_lossy()))
+    }
+
+    /// Returns a sanitized relative reference containing only normal path components.
+    ///
+    /// This discards prefixes, root separators, `.` and `..`, mirroring the safety
+    /// behavior used for archive member names.
+    #[inline]
+    pub fn sanitize(&self) -> Self {
+        let path = Utf8Path::new(&self.0);
+        let has_root = path.has_root();
+        let has_prefix = path
+            .components()
+            .any(|it| matches!(&it, Utf8Component::Prefix(_)));
+        let p = path.components().filter_map(|it| match it {
+            Utf8Component::Prefix(p) => Some(p.as_str()),
+            Utf8Component::RootDir => None,
+            Utf8Component::CurDir => Some("."),
+            Utf8Component::ParentDir => Some(".."),
+            Utf8Component::Normal(n) => Some(n),
+        });
+        let mut s = join_with_capacity(p, "/", path.as_str().len());
+        if !has_prefix && has_root {
+            s.insert(0, '/');
+        };
+        Self(s)
     }
 
     #[inline]
@@ -400,6 +468,23 @@ mod tests {
     }
 
     #[test]
+    fn preserve_root_variants() {
+        assert_eq!(
+            "/abs/path",
+            EntryReference::from_utf8_preserve_root("/abs/path")
+        );
+        assert_eq!(
+            "../rel/path",
+            EntryReference::from_utf8_preserve_root("../rel/path")
+        );
+        // preserve_root stores the string as-is, no separator conversion
+        assert_eq!(
+            "C:\\drive\\path",
+            EntryReference::from_utf8_preserve_root("C:\\drive\\path")
+        );
+    }
+
+    #[test]
     fn remove_last() {
         assert_eq!("test", EntryReference::from("test/"));
         assert_eq!("test/test", EntryReference::from("test/test/"));
@@ -470,6 +555,52 @@ mod tests {
         assert_eq!("test/test.txt", EntryReference::from("test//test.txt"));
         assert_eq!("test/test.txt", EntryReference::from("test///test.txt"));
         assert_eq!("/test/test.txt", EntryReference::from("///test///test.txt"));
+    }
+
+    #[test]
+    fn preserve_root_edge_cases() {
+        // Empty string
+        assert_eq!("", EntryReference::from_utf8_preserve_root(""));
+        // Only parent dir
+        assert_eq!("..", EntryReference::from_utf8_preserve_root(".."));
+        // Only current dir
+        assert_eq!(".", EntryReference::from_utf8_preserve_root("."));
+        // Only root
+        assert_eq!("/", EntryReference::from_utf8_preserve_root("/"));
+        // Multiple parent dirs
+        assert_eq!(
+            "../../..",
+            EntryReference::from_utf8_preserve_root("../../..")
+        );
+    }
+
+    #[test]
+    fn sanitize_edge_cases() {
+        // Empty string remains empty
+        assert_eq!("", EntryReference::from_utf8_preserve_root("").sanitize());
+        // Only parent dir
+        assert_eq!(
+            "..",
+            EntryReference::from_utf8_preserve_root("..").sanitize()
+        );
+        // Only current dir
+        assert_eq!(".", EntryReference::from_utf8_preserve_root(".").sanitize());
+        // Only root
+        assert_eq!("/", EntryReference::from_utf8_preserve_root("/").sanitize());
+        // Multiple parent dirs
+        assert_eq!(
+            "../../..",
+            EntryReference::from_utf8_preserve_root("../../..").sanitize()
+        );
+        // Mixed with normal component
+        assert_eq!(
+            "/../foo",
+            EntryReference::from_utf8_preserve_root("/../foo").sanitize()
+        );
+        assert_eq!(
+            "./foo",
+            EntryReference::from_utf8_preserve_root("./foo").sanitize()
+        );
     }
 
     #[cfg(unix)]
