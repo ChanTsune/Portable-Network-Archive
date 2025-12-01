@@ -99,6 +99,8 @@ For more commands and options:
 pna --help
 ```
 
+See also the [CLI Reference](./docs/cli-reference.md) for detailed command documentation.
+
 ## Specification
 
 Detailed information is available in the [Specification](https://portable-network-archive.github.io/Portable-Network-Archive-Specification/) document.
