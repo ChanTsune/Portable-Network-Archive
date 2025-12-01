@@ -68,7 +68,7 @@ path-slash = "0.2.1"
 rust-embed = { version = "8.9.0", features = ["debug-embed"] }
 same-file = "1.0.6"
 walkdir = "2.5.0"
-criterion = { version = "0.7.0", default-features = false, features = ["cargo_bench_support", "plotters"] }
+criterion = { version = "0.8.0", default-features = false, features = ["cargo_bench_support", "plotters"] }
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
 assert_cmd = "2.1.1"
