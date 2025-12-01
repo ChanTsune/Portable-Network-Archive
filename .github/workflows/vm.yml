@@ -75,7 +75,7 @@ jobs:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
       - name: Test in FreeBSD
         id: test
-        uses: vmactions/freebsd-vm@b9c3f24600acdef618ef1c9e2d3c6eeda4dce712 # v1.2.7
+        uses: vmactions/freebsd-vm@0cd283ca698d48b59cda444a9948f48a30709627 # v1.2.8
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
