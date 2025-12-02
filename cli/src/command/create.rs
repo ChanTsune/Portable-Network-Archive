@@ -7,9 +7,9 @@ use crate::{
         Command, ask_password, check_password,
         core::{
             AclStrategy, CreateOptions, KeepOptions, MIN_SPLIT_PART_BYTES, OwnerOptions,
-            PathFilter, PathTransformers, PermissionStrategy, StoreAs, TimeFilter, TimeFilters,
-            TimeOptions, TimestampStrategy, XattrStrategy, collect_items, create_entry,
-            entry_option, read_paths, read_paths_stdin, write_split_archive,
+            PathFilter, PathTransformers, PathnameEditor, PermissionStrategy, StoreAs, TimeFilter,
+            TimeFilters, TimeOptions, TimestampStrategy, XattrStrategy, collect_items,
+            create_entry, entry_option, read_paths, read_paths_stdin, write_split_archive,
         },
     },
     utils::{
@@ -184,6 +184,12 @@ pub(crate) struct CreateCommand {
         help = "Overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id"
     )]
     pub(crate) gid: Option<u32>,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Remove the specified number of leading path elements when storing paths (unstable)"
+    )]
+    strip_components: Option<usize>,
     #[arg(
         long,
         help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names to not be stored in the archive"
@@ -454,7 +460,10 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         args.gid,
         args.numeric_owner,
     );
-    let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
+    let pathname_editor = PathnameEditor::new(
+        args.strip_components,
+        PathTransformers::new(args.substitutions, args.transforms),
+    );
     let time_options = TimeOptions {
         mtime: args.mtime.map(|it| it.to_system_time()),
         clamp_mtime: args.clamp_mtime,
@@ -471,7 +480,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         owner_options,
         time_options,
         solid: args.solid,
-        path_transformers,
+        pathname_editor,
     };
     if let Some(size) = max_file_size {
         create_archive_with_split(
@@ -501,7 +510,7 @@ pub(crate) struct CreationContext {
     pub(crate) owner_options: OwnerOptions,
     pub(crate) time_options: TimeOptions,
     pub(crate) solid: bool,
-    pub(crate) path_transformers: Option<PathTransformers>,
+    pub(crate) pathname_editor: PathnameEditor,
 }
 
 pub(crate) fn create_archive_file<W, F>(
@@ -512,7 +521,7 @@ pub(crate) fn create_archive_file<W, F>(
         owner_options,
         time_options,
         solid,
-        path_transformers,
+        pathname_editor,
     }: CreationContext,
     target_items: Vec<(PathBuf, StoreAs)>,
 ) -> anyhow::Result<()>
@@ -531,15 +540,15 @@ where
         keep_options,
         owner_options,
         time_options,
+        pathname_editor,
     };
     rayon::scope_fifo(|s| {
         for file in target_items {
             let tx = tx.clone();
             let create_options = create_options.clone();
-            let path_transformers = path_transformers.clone();
             s.spawn_fifo(move |_| {
                 log::debug!("Adding: {}", file.0.display());
-                tx.send(create_entry(&file, &create_options, &path_transformers))
+                tx.send(create_entry(&file, &create_options))
                     .unwrap_or_else(|e| log::error!("{e}: {}", file.0.display()));
             })
         }
@@ -551,13 +560,17 @@ where
     if solid {
         let mut writer = Archive::write_solid_header(file, write_option)?;
         for entry in rx.into_iter() {
-            writer.add_entry(entry?)?;
+            if let Some(entry) = entry? {
+                writer.add_entry(entry)?;
+            }
         }
         writer.finalize()?;
     } else {
         let mut writer = Archive::write_header(file)?;
         for entry in rx.into_iter() {
-            writer.add_entry(entry?)?;
+            if let Some(entry) = entry? {
+                writer.add_entry(entry)?;
+            }
         }
         writer.finalize()?;
     }
@@ -572,7 +585,7 @@ fn create_archive_with_split(
         owner_options,
         time_options,
         solid,
-        path_transformers,
+        pathname_editor,
     }: CreationContext,
     target_items: Vec<(PathBuf, StoreAs)>,
     max_file_size: usize,
@@ -589,15 +602,15 @@ fn create_archive_with_split(
         keep_options,
         owner_options,
         time_options,
+        pathname_editor,
     };
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
         for file in target_items {
             let tx = tx.clone();
             let create_options = create_options.clone();
-            let path_transformers = path_transformers.clone();
             s.spawn_fifo(move |_| {
                 log::debug!("Adding: {}", file.0.display());
-                tx.send(create_entry(&file, &create_options, &path_transformers))
+                tx.send(create_entry(&file, &create_options))
                     .unwrap_or_else(|e| log::error!("{e}: {}", file.0.display()));
             })
         }
@@ -608,12 +621,19 @@ fn create_archive_with_split(
     if solid {
         let mut entries_builder = SolidEntryBuilder::new(write_option)?;
         for entry in rx.into_iter() {
-            entries_builder.add_entry(entry?)?;
+            if let Some(entry) = entry? {
+                entries_builder.add_entry(entry)?;
+            }
         }
         let entries = entries_builder.build();
         write_split_archive(archive, [entries].into_iter(), max_file_size, overwrite)?;
     } else {
-        write_split_archive(archive, rx.into_iter(), max_file_size, overwrite)?;
+        write_split_archive(
+            archive,
+            rx.into_iter().filter_map(Result::transpose),
+            max_file_size,
+            overwrite,
+        )?;
     }
     Ok(())
 }

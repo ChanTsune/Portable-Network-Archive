@@ -8,8 +8,8 @@ use crate::{
         ask_password, check_password,
         core::{
             AclStrategy, CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
-            PermissionStrategy, TimeFilter, TimeFilters, TimeOptions, TimestampStrategy,
-            XattrStrategy, collect_items, collect_split_archives, entry_option,
+            PathnameEditor, PermissionStrategy, TimeFilter, TimeFilters, TimeOptions,
+            TimestampStrategy, XattrStrategy, collect_items, collect_split_archives, entry_option,
             path_lock::PathLocks, read_paths,
         },
         create::{CreationContext, create_archive_file},
@@ -525,7 +525,6 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         args.gid,
         args.numeric_owner,
     );
-    let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
     let time_options = TimeOptions {
         mtime: args.mtime.map(|it| it.to_system_time()),
         clamp_mtime: args.clamp_mtime,
@@ -540,7 +539,10 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         owner_options,
         time_options,
         solid: args.solid,
-        path_transformers,
+        pathname_editor: PathnameEditor::new(
+            args.strip_components,
+            PathTransformers::new(args.substitutions, args.transforms),
+        ),
     };
     if let Some(file) = archive_file {
         create_archive_file(
@@ -739,8 +741,11 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         keep_options,
         owner_options,
         time_options,
+        pathname_editor: PathnameEditor::new(
+            args.strip_components,
+            PathTransformers::new(args.substitutions, args.transforms),
+        ),
     };
-    let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
 
     // NOTE: "-" will use stdin/out
     let mut file = args.file;
@@ -820,7 +825,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             &filter,
             &time_filters,
         )?;
-        run_append_archive(&create_options, &path_transformers, archive, target_items)
+        run_append_archive(&create_options, archive, target_items)
     } else {
         let target_items = collect_items(
             &files,
@@ -841,11 +846,6 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
                 output_archive.add_entry(entry?)?;
             }
         }
-        run_append_archive(
-            &create_options,
-            &path_transformers,
-            output_archive,
-            target_items,
-        )
+        run_append_archive(&create_options, output_archive, target_items)
     }
 }

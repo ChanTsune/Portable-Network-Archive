@@ -1,6 +1,8 @@
+pub(crate) mod path;
 pub(crate) mod path_lock;
 pub(crate) mod time_filter;
 
+pub(crate) use self::path::PathnameEditor;
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
     utils::{
@@ -14,8 +16,8 @@ use crate::{
 };
 use path_slash::*;
 use pna::{
-    Archive, EntryBuilder, EntryName, EntryPart, EntryReference, MIN_CHUNK_BYTES_SIZE, NormalEntry,
-    PNA_HEADER, ReadEntry, SolidEntryBuilder, WriteOptions, prelude::*,
+    Archive, EntryBuilder, EntryPart, MIN_CHUNK_BYTES_SIZE, NormalEntry, PNA_HEADER, ReadEntry,
+    SolidEntryBuilder, WriteOptions, prelude::*,
 };
 use std::{
     borrow::Cow,
@@ -148,12 +150,13 @@ impl OwnerOptions {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Clone, Debug)]
 pub(crate) struct CreateOptions {
     pub(crate) option: WriteOptions,
     pub(crate) keep_options: KeepOptions,
     pub(crate) owner_options: OwnerOptions,
     pub(crate) time_options: TimeOptions,
+    pub(crate) pathname_editor: PathnameEditor,
 }
 
 #[derive(Clone, Debug)]
@@ -482,20 +485,16 @@ pub(crate) fn create_entry(
         keep_options,
         owner_options,
         time_options,
+        pathname_editor,
     }: &CreateOptions,
-    substitutions: &Option<PathTransformers>,
-) -> io::Result<NormalEntry> {
-    let entry_name = if let Some(substitutions) = substitutions {
-        EntryName::from(substitutions.apply(path.to_string_lossy(), false, false))
-    } else {
-        EntryName::from_lossy(path)
+) -> io::Result<Option<NormalEntry>> {
+    let Some(entry_name) = pathname_editor.edit_entry_name(path) else {
+        return Ok(None);
     };
     match link {
         StoreAs::Hardlink(source) => {
-            let reference = if let Some(substitutions) = substitutions {
-                EntryReference::from(substitutions.apply(source.to_string_lossy(), false, true))
-            } else {
-                EntryReference::from_lossy(source)
+            let Some(reference) = pathname_editor.edit_hardlink(source) else {
+                return Ok(None);
             };
             let entry = EntryBuilder::new_hard_link(entry_name, reference)?;
             apply_metadata(
@@ -510,11 +509,7 @@ pub(crate) fn create_entry(
         }
         StoreAs::Symlink => {
             let source = fs::read_link(path)?;
-            let reference = if let Some(substitutions) = substitutions {
-                EntryReference::from(substitutions.apply(source.to_string_lossy(), true, false))
-            } else {
-                EntryReference::from_lossy(source)
-            };
+            let reference = pathname_editor.edit_symlink(&source);
             let entry = EntryBuilder::new_symlink(entry_name, reference)?;
             apply_metadata(
                 entry,
@@ -552,6 +547,7 @@ pub(crate) fn create_entry(
             .build()
         }
     }
+    .map(Some)
 }
 
 pub(crate) fn entry_option(
