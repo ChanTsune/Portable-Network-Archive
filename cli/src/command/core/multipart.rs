@@ -7,7 +7,7 @@
 //!
 //! Two iterator types are provided:
 //! - [`MultipartEntries`]: For streaming readers implementing [`Read`]
-//! - [`MultipartEntriesSlice`]: For memory-mapped byte slices (zero-copy)
+//! - [`MultipartEntriesSlice`]: For memory-mapped byte slices (zero-copy, requires `memmap` feature)
 //!
 //! # Examples
 //!
@@ -36,15 +36,8 @@
 //! }
 //! ```
 
-// Allow dead_code as these types are newly added and will be used
-// to replace the closure-based API in subsequent refactoring.
-#![allow(dead_code)]
-
 use pna::{Archive, ReadEntry};
-use std::{
-    borrow::Cow,
-    io::{self, Read},
-};
+use std::io::{self, Read};
 
 /// An iterator over entries in a multipart archive using streaming readers.
 ///
@@ -106,15 +99,6 @@ where
             current_archive: Some(archive),
         })
     }
-
-    /// Returns `true` if there are potentially more entries to read.
-    ///
-    /// Note: This only checks if the internal archive state is non-empty.
-    /// It does not guarantee that the next call to `next()` will return `Some`.
-    #[inline]
-    pub fn has_more(&self) -> bool {
-        self.current_archive.is_some()
-    }
 }
 
 impl<I, R> Iterator for MultipartEntries<I, R>
@@ -171,6 +155,7 @@ where
 ///
 /// * `'d` - The lifetime of the byte slice data
 /// * `I` - The iterator type providing slices for subsequent archive parts
+#[cfg(feature = "memmap")]
 pub struct MultipartEntriesSlice<'d, I>
 where
     I: Iterator<Item = &'d [u8]>,
@@ -181,6 +166,7 @@ where
     current_archive: Option<Archive<&'d [u8]>>,
 }
 
+#[cfg(feature = "memmap")]
 impl<'d, I> MultipartEntriesSlice<'d, I>
 where
     I: Iterator<Item = &'d [u8]>,
@@ -219,19 +205,14 @@ where
             current_archive: Some(archive),
         })
     }
-
-    /// Returns `true` if there are potentially more entries to read.
-    #[inline]
-    pub fn has_more(&self) -> bool {
-        self.current_archive.is_some()
-    }
 }
 
+#[cfg(feature = "memmap")]
 impl<'d, I> Iterator for MultipartEntriesSlice<'d, I>
 where
     I: Iterator<Item = &'d [u8]>,
 {
-    type Item = io::Result<ReadEntry<Cow<'d, [u8]>>>;
+    type Item = io::Result<ReadEntry<std::borrow::Cow<'d, [u8]>>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -326,28 +307,49 @@ mod tests {
     fn multipart_entries_slice_empty_archive() {
         let archive_data = empty_archive();
         let slices = vec![archive_data.as_slice()];
-        let mut entries = MultipartEntriesSlice::new(slices).unwrap();
-        assert!(entries.next().is_none());
+        #[cfg(feature = "memmap")]
+        {
+            let mut entries = MultipartEntriesSlice::new(slices).unwrap();
+            assert!(entries.next().is_none());
+        }
+        #[cfg(not(feature = "memmap"))]
+        {
+            let _ = slices; // suppress unused warning
+        }
     }
 
     #[test]
     fn multipart_entries_slice_no_archive_provided() {
         let slices: Vec<&[u8]> = vec![];
-        let result = MultipartEntriesSlice::new(slices);
-        assert!(result.is_err());
-        let err = result.err().unwrap();
-        assert_eq!(err.kind(), io::ErrorKind::NotFound);
+        #[cfg(feature = "memmap")]
+        {
+            let result = MultipartEntriesSlice::new(slices);
+            assert!(result.is_err());
+            let err = result.err().unwrap();
+            assert_eq!(err.kind(), io::ErrorKind::NotFound);
+        }
+        #[cfg(not(feature = "memmap"))]
+        {
+            let _ = slices; // suppress unused warning
+        }
     }
 
     #[test]
     fn multipart_entries_slice_single_entry() {
         let archive_data = single_entry_archive();
         let slices = vec![archive_data.as_slice()];
-        let entries: Vec<_> = MultipartEntriesSlice::new(slices)
-            .unwrap()
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
-        assert_eq!(entries.len(), 1);
+        #[cfg(feature = "memmap")]
+        {
+            let entries: Vec<_> = MultipartEntriesSlice::new(slices)
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+            assert_eq!(entries.len(), 1);
+        }
+        #[cfg(not(feature = "memmap"))]
+        {
+            let _ = slices; // suppress unused warning
+        }
     }
 
     #[test]
@@ -368,12 +370,19 @@ mod tests {
         let part1 = include_bytes!("../../../../resources/test/multipart.part1.pna");
         let part2 = include_bytes!("../../../../resources/test/multipart.part2.pna");
         let slices: Vec<&[u8]> = vec![&part1[..], &part2[..]];
-        let entries: Vec<_> = MultipartEntriesSlice::new(slices)
-            .unwrap()
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
-        // The multipart archive should contain entries
-        assert!(!entries.is_empty());
+        #[cfg(feature = "memmap")]
+        {
+            let entries: Vec<_> = MultipartEntriesSlice::new(slices)
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+            // The multipart archive should contain entries
+            assert!(!entries.is_empty());
+        }
+        #[cfg(not(feature = "memmap"))]
+        {
+            let _ = slices; // suppress unused warning
+        }
     }
 
     #[test]
@@ -381,11 +390,11 @@ mod tests {
         let part1 = include_bytes!("../../../../resources/test/multipart.part1.pna");
         // Only provide the first part, which has ANXT marker
         let readers = vec![Cursor::new(&part1[..])];
-        let mut entries = MultipartEntries::new(readers).unwrap();
+        let entries = MultipartEntries::new(readers).unwrap();
 
         // Should get entries from first part, then error when trying to transition
         let mut count = 0;
-        for result in entries.by_ref() {
+        for result in entries {
             match result {
                 Ok(_) => count += 1,
                 Err(e) => {
