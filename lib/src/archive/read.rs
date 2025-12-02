@@ -97,6 +97,9 @@ impl<R: Read> Archive<R> {
 
     /// Reads the next entry from the archive.
     ///
+    /// This method is useful for manual iteration over archive entries,
+    /// particularly when implementing custom multipart archive traversal.
+    ///
     /// # Returns
     ///
     /// An [`io::Result<Option<ReadEntry>>`]. Returns `Ok(None)` if there are no more entries to read.
@@ -104,7 +107,25 @@ impl<R: Read> Archive<R> {
     /// # Errors
     ///
     /// Returns an error if an I/O error occurs while reading from the archive.
-    fn read_entry(&mut self) -> io::Result<Option<ReadEntry>> {
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use libpna::Archive;
+    /// use std::fs::File;
+    /// # use std::io;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let file = File::open("foo.pna")?;
+    /// let mut archive = Archive::read_header(file)?;
+    /// while let Some(entry) = archive.read_entry()? {
+    ///     // process entry
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn read_entry(&mut self) -> io::Result<Option<ReadEntry>> {
         let entry = self.next_raw_item()?;
         match entry {
             Some(entry) => Ok(Some(entry.try_into()?)),

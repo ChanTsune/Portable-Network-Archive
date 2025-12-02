@@ -80,16 +80,38 @@ impl<'d> Archive<&'d [u8]> {
         Ok(Some(RawEntry(chunks)))
     }
 
-    /// Reads the next entry from the archive.
+    /// Reads the next entry from the archive using zero-copy slice access.
+    ///
+    /// This method is useful for manual iteration over archive entries,
+    /// particularly when implementing custom multipart archive traversal
+    /// with memory-mapped files.
     ///
     /// # Returns
     ///
-    /// An [`io::Result<Option<ReadEntry>>`]. Returns `Ok(None)` if there are no more entries to read.
+    /// An [`io::Result<Option<ReadEntry<Cow<'d, [u8]>>>>`]. Returns `Ok(None)` if there are no more entries to read.
     ///
     /// # Errors
     ///
     /// Returns an error if an I/O error occurs while reading from the archive.
-    fn read_entry_slice(&mut self) -> io::Result<Option<ReadEntry<Cow<'d, [u8]>>>> {
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use libpna::Archive;
+    /// use std::fs;
+    /// # use std::io;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let bytes = fs::read("foo.pna")?;
+    /// let mut archive = Archive::read_header_from_slice(&bytes)?;
+    /// while let Some(entry) = archive.read_entry_slice()? {
+    ///     // process entry
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn read_entry_slice(&mut self) -> io::Result<Option<ReadEntry<Cow<'d, [u8]>>>> {
         let entry = self.next_raw_item_slice()?;
         match entry {
             Some(entry) => Ok(Some(entry.try_into()?)),
