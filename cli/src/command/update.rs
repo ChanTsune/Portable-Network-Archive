@@ -11,10 +11,10 @@ use crate::{
         Command, ask_password, check_password,
         core::{
             AclStrategy, CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
-            PermissionStrategy, TimeFilter, TimeFilters, TimeOptions, TimestampStrategy,
-            TransformStrategy, TransformStrategyKeepSolid, TransformStrategyUnSolid, XattrStrategy,
-            collect_items, collect_split_archives, create_entry, entry_option, read_paths,
-            read_paths_stdin,
+            PathnameEditor, PermissionStrategy, TimeFilter, TimeFilters, TimeOptions,
+            TimestampStrategy, TransformStrategy, TransformStrategyKeepSolid,
+            TransformStrategyUnSolid, XattrStrategy, collect_items, collect_split_archives,
+            create_entry, entry_option, read_paths, read_paths_stdin,
         },
     },
     utils::{
@@ -166,6 +166,12 @@ pub(crate) struct UpdateCommand {
         help = "Overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id"
     )]
     pub(crate) gid: Option<u32>,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Remove the specified number of leading path elements when storing paths (unstable)"
+    )]
+    strip_components: Option<usize>,
     #[arg(
         long,
         help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names to not be stored in the archive"
@@ -404,8 +410,11 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         keep_options,
         owner_options,
         time_options,
+        pathname_editor: PathnameEditor::new(
+            args.strip_components,
+            PathTransformers::new(args.substitutions, args.transforms),
+        ),
     };
-    let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
 
     let archives = collect_split_archives(&args.file.archive)?;
 
@@ -480,16 +489,13 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
                     if need_update {
                         let tx = tx.clone();
                         let create_options = create_options.clone();
-                        let path_transformers = path_transformers.clone();
                         s.spawn_fifo(move |_| {
                             log::debug!("Updating: {}", target_path.display());
                             let target_path = (target_path, store);
-                            tx.send(create_entry(
-                                &target_path,
-                                &create_options,
-                                &path_transformers,
-                            ))
-                            .unwrap_or_else(|e| log::error!("{e}: {}", target_path.0.display()));
+                            tx.send(create_entry(&target_path, &create_options))
+                                .unwrap_or_else(|e| {
+                                    log::error!("{e}: {}", target_path.0.display())
+                                });
                         });
                         Ok(None)
                     } else {
@@ -505,11 +511,10 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         for (_, (file, store)) in target_files_mapping {
             let tx = tx.clone();
             let create_options = create_options.clone();
-            let path_transformers = path_transformers.clone();
             s.spawn_fifo(move |_| {
                 log::debug!("Adding: {}", file.display());
                 let file = (file, store);
-                tx.send(create_entry(&file, &create_options, &path_transformers))
+                tx.send(create_entry(&file, &create_options))
                     .unwrap_or_else(|e| log::error!("{e}: {}", file.0.display()));
             });
         }
@@ -518,7 +523,9 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
     })?;
 
     for entry in rx.into_iter() {
-        out_archive.add_entry(entry?)?;
+        if let Some(entry) = entry? {
+            out_archive.add_entry(entry)?;
+        }
     }
     out_archive.finalize()?;
 

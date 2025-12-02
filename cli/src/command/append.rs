@@ -7,8 +7,9 @@ use crate::{
         Command, ask_password, check_password,
         core::{
             AclStrategy, CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
-            PermissionStrategy, StoreAs, TimeFilter, TimeFilters, TimeOptions, TimestampStrategy,
-            XattrStrategy, collect_items, create_entry, entry_option, read_paths, read_paths_stdin,
+            PathnameEditor, PermissionStrategy, StoreAs, TimeFilter, TimeFilters, TimeOptions,
+            TimestampStrategy, XattrStrategy, collect_items, create_entry, entry_option,
+            read_paths, read_paths_stdin,
         },
     },
     utils::{
@@ -161,6 +162,12 @@ pub(crate) struct AppendCommand {
         help = "Overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id"
     )]
     pub(crate) gid: Option<u32>,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Remove the specified number of leading path elements when storing paths (unstable)"
+    )]
+    strip_components: Option<usize>,
     #[arg(
         long,
         help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names to not be stored in the archive"
@@ -393,8 +400,11 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         keep_options,
         owner_options,
         time_options,
+        pathname_editor: PathnameEditor::new(
+            args.strip_components,
+            PathTransformers::new(args.substitutions, args.transforms),
+        ),
     };
-    let path_transformers = PathTransformers::new(args.substitutions, args.transforms);
 
     let archive = open_archive_then_seek_to_end(&archive_path)?;
 
@@ -433,12 +443,11 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         &time_filters,
     )?;
 
-    run_append_archive(&create_options, &path_transformers, archive, target_items)
+    run_append_archive(&create_options, archive, target_items)
 }
 
 pub(crate) fn run_append_archive(
     create_options: &CreateOptions,
-    path_transformers: &Option<PathTransformers>,
     mut archive: Archive<impl io::Write>,
     target_items: Vec<(PathBuf, StoreAs)>,
 ) -> anyhow::Result<()> {
@@ -448,7 +457,7 @@ pub(crate) fn run_append_archive(
             let tx = tx.clone();
             s.spawn_fifo(move |_| {
                 log::debug!("Adding: {}", file.0.display());
-                tx.send(create_entry(&file, create_options, path_transformers))
+                tx.send(create_entry(&file, create_options))
                     .unwrap_or_else(|e| log::error!("{e}: {}", file.0.display()));
             })
         }
@@ -457,7 +466,9 @@ pub(crate) fn run_append_archive(
     });
 
     for entry in rx.into_iter() {
-        archive.add_entry(entry?)?;
+        if let Some(entry) = entry? {
+            archive.add_entry(entry)?;
+        }
     }
     archive.finalize()?;
     Ok(())
