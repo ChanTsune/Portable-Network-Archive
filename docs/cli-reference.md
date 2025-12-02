@@ -107,18 +107,18 @@ Portable-Network-Archive cli
 
 ###### **Subcommands:**
 
-* `pna create` — Create archive
-* `pna append` — Append files to archive
-* `pna extract` — Extract files from archive
-* `pna list` — List files in archive
-* `pna split` — Split archive
-* `pna concat` — Concat archives
-* `pna strip` — Strip entries metadata
-* `pna xattr` — Manipulate extended attributes
-* `pna complete` — Generate shell auto complete
-* `pna bug-report` — Generate bug report template
-* `pna experimental` — Unstable experimental commands; behavior and interface may change or be removed
-* `pna help` — Print this message or the help of the given subcommand(s)
+* `create` — Create archive
+* `append` — Append files to archive
+* `extract` — Extract files from archive
+* `list` — List files in archive
+* `split` — Split archive
+* `concat` — Concat archives
+* `strip` — Strip entries metadata
+* `xattr` — Manipulate extended attributes
+* `complete` — Generate shell auto complete
+* `bug-report` — Generate bug report template
+* `experimental` — Unstable experimental commands; behavior and interface may change or be removed
+* `help` — Print this message or the help of the given subcommand(s)
 
 ###### **Options:**
 
@@ -271,7 +271,7 @@ Create archive
 
 * `--argon2 <ARGON2>` — Use argon2 for password hashing
 * `--pbkdf2 <PBKDF2>` — Use pbkdf2 for password hashing
-* `--password <PASSWORD>` — Password of archive. If password is not given it's asked from the tty
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
 * `-f`, `--file <FILE>`
 * `--quiet` — Make some output more quiet
@@ -402,7 +402,7 @@ Append files to archive
 * `--deflate <level>` — Use deflate for compression [possible level: 1-9]
 * `--zstd <level>` — Use zstd for compression [possible level: 1-21]
 * `--xz <level>` — Use xz for compression [possible level: 0-9]
-* `--password <PASSWORD>` — Password of archive. If password is not given it's asked from the tty
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
 * `--aes <cipher mode>` — Use aes for encryption
 
@@ -456,7 +456,7 @@ Extract files from archive
 
   Default value: `false`
 * `--out-dir <OUT_DIR>` — Output directory of extracted files
-* `--password <PASSWORD>` — Password of archive. If password is not given it's asked from the tty
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
 * `--keep-timestamp` [alias: `preserve-timestamps`] — Restore the timestamp of the files
 
@@ -591,7 +591,7 @@ List files in archive
 * `--null` — Filenames or patterns are separated by null characters, not by newlines
 
   Default value: `false`
-* `--password <PASSWORD>` — Password of archive. If password is not given it's asked from the tty
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
 * `-f`, `--file <FILE>`
 * `--help`
@@ -706,7 +706,7 @@ Strip entries metadata
 
   Default value: `false`
 * `--output <OUTPUT>` — Output file path
-* `--password <PASSWORD>` — Password of archive. If password is not given it's asked from the tty
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
 * `-f`, `--file <FILE>`
 * `--quiet` — Make some output more quiet
@@ -731,9 +731,9 @@ Manipulate extended attributes
 
 ###### **Subcommands:**
 
-* `pna xattr get` — Get extended attributes of entries
-* `pna xattr set` — Set extended attributes of entries
-* `pna xattr help` — Print this message or the help of the given subcommand(s)
+* `get` — Get extended attributes of entries
+* `set` — Set extended attributes of entries
+* `help` — Print this message or the help of the given subcommand(s)
 
 ###### **Options:**
 
@@ -773,7 +773,7 @@ Get extended attributes of entries
 
   Possible values: `text`, `hex`, `base64`
 
-* `--password <PASSWORD>` — Password of archive. If password is not given it's asked from the tty
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
 * `--quiet` — Make some output more quiet
 
@@ -812,7 +812,7 @@ Set extended attributes of entries
 * `--keep-solid` — Keep input solid entries.
 
   Default value: `false`
-* `--password <PASSWORD>` — Password of archive. If password is not given it's asked from the tty
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
 * `--quiet` — Make some output more quiet
 
@@ -835,9 +835,9 @@ Print this message or the help of the given subcommand(s)
 
 ###### **Subcommands:**
 
-* `pna xattr help get` — Get extended attributes of entries
-* `pna xattr help set` — Set extended attributes of entries
-* `pna xattr help help` — Print this message or the help of the given subcommand(s)
+* `get` — Get extended attributes of entries
+* `set` — Set extended attributes of entries
+* `help` — Print this message or the help of the given subcommand(s)
 
 
 
@@ -923,18 +923,18 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 ###### **Subcommands:**
 
-* `pna experimental stdio` — Archive manipulation via stdio
-* `pna experimental delete` — Delete entry from archive
-* `pna experimental update` — Update entries in archive
-* `pna experimental chown` — Change owner
-* `pna experimental chmod` — Change mode
-* `pna experimental xattr` — Manipulate extended attributes (stabilized, use `pna xattr` command instead. this command will be removed in the future)
-* `pna experimental acl` — Manipulate ACLs of entries
-* `pna experimental migrate` — Migrate old format to latest format
-* `pna experimental chunk` — Chunk level operation
-* `pna experimental sort` — Sort entries in archive
-* `pna experimental diff` — Compare archive entries with filesystem
-* `pna experimental help` — Print this message or the help of the given subcommand(s)
+* `stdio` — Archive manipulation via stdio
+* `delete` — Delete entry from archive
+* `update` — Update entries in archive
+* `chown` — Change owner
+* `chmod` — Change mode
+* `xattr` — Manipulate extended attributes (stabilized, use `pna xattr` command instead. this command will be removed in the future)
+* `acl` — Manipulate ACLs of entries
+* `migrate` — Migrate old format to latest format
+* `chunk` — Chunk level operation
+* `sort` — Sort entries in archive
+* `diff` — Compare archive entries with filesystem
+* `help` — Print this message or the help of the given subcommand(s)
 
 ###### **Options:**
 
@@ -1051,7 +1051,7 @@ Archive manipulation via stdio
 
 * `--argon2 <ARGON2>` — Use argon2 for password hashing
 * `--pbkdf2 <PBKDF2>` — Use pbkdf2 for password hashing
-* `--password <PASSWORD>` — Password of archive. If password is not given it's asked from the tty
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
 * `--include <INCLUDE>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
 * `--exclude <EXCLUDE>` — Exclude path glob (unstable)
@@ -1154,7 +1154,7 @@ Delete entry from archive
 * `--null` — Filenames or patterns are separated by null characters, not by newlines
 
   Default value: `false`
-* `--password <PASSWORD>` — Password of archive. If password is not given it's asked from the tty
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
 * `--unsolid` — Unsolid input solid entries.
 
@@ -1276,7 +1276,7 @@ Update entries in archive
 * `--deflate <level>` — Use deflate for compression [possible level: 1-9]
 * `--zstd <level>` — Use zstd for compression [possible level: 1-21]
 * `--xz <level>` — Use xz for compression [possible level: 0-9]
-* `--password <PASSWORD>` — Password of archive. If password is not given it's asked from the tty
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
 * `--aes <cipher mode>` — Use aes for encryption
 
@@ -1349,7 +1349,7 @@ Change owner
 * `--keep-solid` — Keep input solid entries.
 
   Default value: `false`
-* `--password <PASSWORD>` — Password of archive. If password is not given it's asked from the tty
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
 * `--quiet` — Make some output more quiet
 
@@ -1384,7 +1384,7 @@ Change mode
 * `--keep-solid` — Keep input solid entries.
 
   Default value: `false`
-* `--password <PASSWORD>` — Password of archive. If password is not given it's asked from the tty
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
 * `--quiet` — Make some output more quiet
 
@@ -1408,9 +1408,9 @@ Manipulate extended attributes (stabilized, use `pna xattr` command instead. thi
 
 ###### **Subcommands:**
 
-* `pna experimental xattr get` — Get extended attributes of entries
-* `pna experimental xattr set` — Set extended attributes of entries
-* `pna experimental xattr help` — Print this message or the help of the given subcommand(s)
+* `get` — Get extended attributes of entries
+* `set` — Set extended attributes of entries
+* `help` — Print this message or the help of the given subcommand(s)
 
 ###### **Options:**
 
@@ -1450,7 +1450,7 @@ Get extended attributes of entries
 
   Possible values: `text`, `hex`, `base64`
 
-* `--password <PASSWORD>` — Password of archive. If password is not given it's asked from the tty
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
 * `--quiet` — Make some output more quiet
 
@@ -1489,7 +1489,7 @@ Set extended attributes of entries
 * `--keep-solid` — Keep input solid entries.
 
   Default value: `false`
-* `--password <PASSWORD>` — Password of archive. If password is not given it's asked from the tty
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
 * `--quiet` — Make some output more quiet
 
@@ -1512,9 +1512,9 @@ Print this message or the help of the given subcommand(s)
 
 ###### **Subcommands:**
 
-* `pna experimental xattr help get` — Get extended attributes of entries
-* `pna experimental xattr help set` — Set extended attributes of entries
-* `pna experimental xattr help help` — Print this message or the help of the given subcommand(s)
+* `get` — Get extended attributes of entries
+* `set` — Set extended attributes of entries
+* `help` — Print this message or the help of the given subcommand(s)
 
 
 
@@ -1551,9 +1551,9 @@ Manipulate ACLs of entries
 
 ###### **Subcommands:**
 
-* `pna experimental acl get` — Get acl of entries
-* `pna experimental acl set` — Set acl of entries
-* `pna experimental acl help` — Print this message or the help of the given subcommand(s)
+* `get` — Get acl of entries
+* `set` — Set acl of entries
+* `help` — Print this message or the help of the given subcommand(s)
 
 ###### **Options:**
 
@@ -1587,7 +1587,7 @@ Get acl of entries
 
   Default value: `false`
 * `-f`, `--file <ARCHIVE>`
-* `--password <PASSWORD>` — Password of archive. If password is not given it's asked from the tty
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
 * `--quiet` — Make some output more quiet
 
@@ -1628,7 +1628,7 @@ Set acl of entries
 * `--keep-solid` — Keep input solid entries.
 
   Default value: `false`
-* `--password <PASSWORD>` — Password of archive. If password is not given it's asked from the tty
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
 * `--quiet` — Make some output more quiet
 
@@ -1651,9 +1651,9 @@ Print this message or the help of the given subcommand(s)
 
 ###### **Subcommands:**
 
-* `pna experimental acl help get` — Get acl of entries
-* `pna experimental acl help set` — Set acl of entries
-* `pna experimental acl help help` — Print this message or the help of the given subcommand(s)
+* `get` — Get acl of entries
+* `set` — Set acl of entries
+* `help` — Print this message or the help of the given subcommand(s)
 
 
 
@@ -1695,7 +1695,7 @@ Migrate old format to latest format
 * `--keep-solid` — Keep input solid entries.
 
   Default value: `false`
-* `--password <PASSWORD>` — Password of archive. If password is not given it's asked from the tty
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
 * `-f`, `--file <ARCHIVE>`
 * `--output <OUTPUT>` — Output file path
@@ -1721,8 +1721,8 @@ Chunk level operation
 
 ###### **Subcommands:**
 
-* `pna experimental chunk list` — List chunks
-* `pna experimental chunk help` — Print this message or the help of the given subcommand(s)
+* `list` — List chunks
+* `help` — Print this message or the help of the given subcommand(s)
 
 ###### **Options:**
 
@@ -1775,8 +1775,8 @@ Print this message or the help of the given subcommand(s)
 
 ###### **Subcommands:**
 
-* `pna experimental chunk help list` — List chunks
-* `pna experimental chunk help help` — Print this message or the help of the given subcommand(s)
+* `list` — List chunks
+* `help` — Print this message or the help of the given subcommand(s)
 
 
 
@@ -1809,7 +1809,7 @@ Sort entries in archive
 * `--by <BY>`
 
   Default value: `name`
-* `--password <PASSWORD>` — Password of archive. If password is not given it's asked from the tty
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
 * `--quiet` — Make some output more quiet
 
@@ -1837,7 +1837,7 @@ Compare archive entries with filesystem
 ###### **Options:**
 
 * `-f`, `--file <ARCHIVE>`
-* `--password <PASSWORD>` — Password of archive. If password is not given it's asked from the tty
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
 * `--quiet` — Make some output more quiet
 
@@ -1860,18 +1860,18 @@ Print this message or the help of the given subcommand(s)
 
 ###### **Subcommands:**
 
-* `pna experimental help stdio` — Archive manipulation via stdio
-* `pna experimental help delete` — Delete entry from archive
-* `pna experimental help update` — Update entries in archive
-* `pna experimental help chown` — Change owner
-* `pna experimental help chmod` — Change mode
-* `pna experimental help xattr` — Manipulate extended attributes (stabilized, use `pna xattr` command instead. this command will be removed in the future)
-* `pna experimental help acl` — Manipulate ACLs of entries
-* `pna experimental help migrate` — Migrate old format to latest format
-* `pna experimental help chunk` — Chunk level operation
-* `pna experimental help sort` — Sort entries in archive
-* `pna experimental help diff` — Compare archive entries with filesystem
-* `pna experimental help help` — Print this message or the help of the given subcommand(s)
+* `stdio` — Archive manipulation via stdio
+* `delete` — Delete entry from archive
+* `update` — Update entries in archive
+* `chown` — Change owner
+* `chmod` — Change mode
+* `xattr` — Manipulate extended attributes (stabilized, use `pna xattr` command instead. this command will be removed in the future)
+* `acl` — Manipulate ACLs of entries
+* `migrate` — Migrate old format to latest format
+* `chunk` — Chunk level operation
+* `sort` — Sort entries in archive
+* `diff` — Compare archive entries with filesystem
+* `help` — Print this message or the help of the given subcommand(s)
 
 
 
@@ -1923,8 +1923,8 @@ Manipulate extended attributes (stabilized, use `pna xattr` command instead. thi
 
 ###### **Subcommands:**
 
-* `pna experimental help xattr get` — Get extended attributes of entries
-* `pna experimental help xattr set` — Set extended attributes of entries
+* `get` — Get extended attributes of entries
+* `set` — Set extended attributes of entries
 
 
 
@@ -1952,8 +1952,8 @@ Manipulate ACLs of entries
 
 ###### **Subcommands:**
 
-* `pna experimental help acl get` — Get acl of entries
-* `pna experimental help acl set` — Set acl of entries
+* `get` — Get acl of entries
+* `set` — Set acl of entries
 
 
 
@@ -1989,7 +1989,7 @@ Chunk level operation
 
 ###### **Subcommands:**
 
-* `pna experimental help chunk list` — List chunks
+* `list` — List chunks
 
 
 
@@ -2033,18 +2033,18 @@ Print this message or the help of the given subcommand(s)
 
 ###### **Subcommands:**
 
-* `pna help create` — Create archive
-* `pna help append` — Append files to archive
-* `pna help extract` — Extract files from archive
-* `pna help list` — List files in archive
-* `pna help split` — Split archive
-* `pna help concat` — Concat archives
-* `pna help strip` — Strip entries metadata
-* `pna help xattr` — Manipulate extended attributes
-* `pna help complete` — Generate shell auto complete
-* `pna help bug-report` — Generate bug report template
-* `pna help experimental` — Unstable experimental commands; behavior and interface may change or be removed
-* `pna help help` — Print this message or the help of the given subcommand(s)
+* `create` — Create archive
+* `append` — Append files to archive
+* `extract` — Extract files from archive
+* `list` — List files in archive
+* `split` — Split archive
+* `concat` — Concat archives
+* `strip` — Strip entries metadata
+* `xattr` — Manipulate extended attributes
+* `complete` — Generate shell auto complete
+* `bug-report` — Generate bug report template
+* `experimental` — Unstable experimental commands; behavior and interface may change or be removed
+* `help` — Print this message or the help of the given subcommand(s)
 
 
 
@@ -2112,8 +2112,8 @@ Manipulate extended attributes
 
 ###### **Subcommands:**
 
-* `pna help xattr get` — Get extended attributes of entries
-* `pna help xattr set` — Set extended attributes of entries
+* `get` — Get extended attributes of entries
+* `set` — Set extended attributes of entries
 
 
 
@@ -2157,17 +2157,17 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 ###### **Subcommands:**
 
-* `pna help experimental stdio` — Archive manipulation via stdio
-* `pna help experimental delete` — Delete entry from archive
-* `pna help experimental update` — Update entries in archive
-* `pna help experimental chown` — Change owner
-* `pna help experimental chmod` — Change mode
-* `pna help experimental xattr` — Manipulate extended attributes (stabilized, use `pna xattr` command instead. this command will be removed in the future)
-* `pna help experimental acl` — Manipulate ACLs of entries
-* `pna help experimental migrate` — Migrate old format to latest format
-* `pna help experimental chunk` — Chunk level operation
-* `pna help experimental sort` — Sort entries in archive
-* `pna help experimental diff` — Compare archive entries with filesystem
+* `stdio` — Archive manipulation via stdio
+* `delete` — Delete entry from archive
+* `update` — Update entries in archive
+* `chown` — Change owner
+* `chmod` — Change mode
+* `xattr` — Manipulate extended attributes (stabilized, use `pna xattr` command instead. this command will be removed in the future)
+* `acl` — Manipulate ACLs of entries
+* `migrate` — Migrate old format to latest format
+* `chunk` — Chunk level operation
+* `sort` — Sort entries in archive
+* `diff` — Compare archive entries with filesystem
 
 
 
@@ -2219,8 +2219,8 @@ Manipulate extended attributes (stabilized, use `pna xattr` command instead. thi
 
 ###### **Subcommands:**
 
-* `pna help experimental xattr get` — Get extended attributes of entries
-* `pna help experimental xattr set` — Set extended attributes of entries
+* `get` — Get extended attributes of entries
+* `set` — Set extended attributes of entries
 
 
 
@@ -2248,8 +2248,8 @@ Manipulate ACLs of entries
 
 ###### **Subcommands:**
 
-* `pna help experimental acl get` — Get acl of entries
-* `pna help experimental acl set` — Set acl of entries
+* `get` — Get acl of entries
+* `set` — Set acl of entries
 
 
 
@@ -2285,7 +2285,7 @@ Chunk level operation
 
 ###### **Subcommands:**
 
-* `pna help experimental chunk list` — List chunks
+* `list` — List chunks
 
 
 
