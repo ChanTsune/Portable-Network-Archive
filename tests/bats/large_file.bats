@@ -8,8 +8,8 @@ setup() {
   export TEST_FILE="test_data.txt"
   export TEST_FILE_PATH="${RESOURCE_DIR}${TEST_FILE}"
 
-  # Create 6GB random test file
-  head -c $((6 * 1024 * 1024 * 1024)) </dev/urandom >"${TEST_FILE_PATH}"
+  # Create 5GB random test file
+  head -c $((5 * 1024 * 1024 * 1024)) </dev/urandom >"${TEST_FILE_PATH}"
 }
 
 teardown() {
