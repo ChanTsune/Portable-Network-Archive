@@ -27,7 +27,7 @@ ignore = "0.4.25"
 indexmap = "2.12.1"
 itertools = "0.14.0"
 jiff = "0.2.16"
-libc = "0.2.177"
+libc = "0.2.178"
 log = "0.4.28"
 memmap2 = { version = "0.9.9", optional = true }
 nom = "8.0.0"
