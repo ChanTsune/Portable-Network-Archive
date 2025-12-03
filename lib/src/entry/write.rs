@@ -33,7 +33,7 @@ pub(crate) struct EntryWriterContext {
 
 #[inline]
 fn to_hashed(cipher: &Cipher) -> io::Result<WriteCipher> {
-    let salt = random::salt_string();
+    let salt = random::salt_string()?;
     let (key, phsf) = hash(
         cipher.cipher_algorithm,
         cipher.hash_algorithm,
