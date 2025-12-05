@@ -258,9 +258,9 @@ Create archive
 * `--store` — No compression
 
   Default value: `false`
-* `--deflate <level>` — Use deflate for compression [possible level: 1-9]
-* `--zstd <level>` — Use zstd for compression [possible level: 1-21]
-* `--xz <level>` — Use xz for compression [possible level: 0-9]
+* `--deflate <level>` — Use deflate for compression [possible level: 1-9, min, max]
+* `--zstd <level>` — Use zstd for compression [possible level: 1-21, min, max]
+* `--xz <level>` — Use xz for compression [possible level: 0-9, min, max]
 * `--aes <cipher mode>` — Use aes for encryption
 
   Possible values: `cbc`, `ctr`
@@ -399,9 +399,9 @@ Append files to archive
 * `--store` — No compression
 
   Default value: `false`
-* `--deflate <level>` — Use deflate for compression [possible level: 1-9]
-* `--zstd <level>` — Use zstd for compression [possible level: 1-21]
-* `--xz <level>` — Use xz for compression [possible level: 0-9]
+* `--deflate <level>` — Use deflate for compression [possible level: 1-9, min, max]
+* `--zstd <level>` — Use zstd for compression [possible level: 1-21, min, max]
+* `--xz <level>` — Use xz for compression [possible level: 0-9, min, max]
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
 * `--aes <cipher mode>` — Use aes for encryption
@@ -1038,9 +1038,9 @@ Archive manipulation via stdio
 * `--store` — No compression
 
   Default value: `false`
-* `--deflate <level>` — Use deflate for compression [possible level: 1-9]
-* `--zstd <level>` — Use zstd for compression [possible level: 1-21]
-* `--xz <level>` — Use xz for compression [possible level: 0-9]
+* `--deflate <level>` — Use deflate for compression [possible level: 1-9, min, max]
+* `--zstd <level>` — Use zstd for compression [possible level: 1-21, min, max]
+* `--xz <level>` — Use xz for compression [possible level: 0-9, min, max]
 * `--aes <cipher mode>` — Use aes for encryption
 
   Possible values: `cbc`, `ctr`
@@ -1273,9 +1273,9 @@ Update entries in archive
 * `--store` — No compression
 
   Default value: `false`
-* `--deflate <level>` — Use deflate for compression [possible level: 1-9]
-* `--zstd <level>` — Use zstd for compression [possible level: 1-21]
-* `--xz <level>` — Use xz for compression [possible level: 0-9]
+* `--deflate <level>` — Use deflate for compression [possible level: 1-9, min, max]
+* `--zstd <level>` — Use zstd for compression [possible level: 1-21, min, max]
+* `--xz <level>` — Use xz for compression [possible level: 0-9, min, max]
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
 * `--aes <cipher mode>` — Use aes for encryption
