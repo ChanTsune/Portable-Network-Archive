@@ -6,7 +6,7 @@ use crate::command::{
     extract::ExtractCommand, list::ListCommand, split::SplitCommand, strip::StripCommand,
     xattr::XattrCommand,
 };
-use clap::{ArgGroup, Parser, Subcommand, ValueEnum, ValueHint, value_parser};
+use clap::{ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
 use log::{Level, LevelFilter};
 use pna::HashAlgorithm;
 use std::{io, path::PathBuf};
@@ -204,24 +204,21 @@ pub(crate) struct CompressionAlgorithmArgs {
     #[arg(
         long,
         value_name = "level",
-        value_parser = value_parser!(u8).range(1..=9),
-        help = "Use deflate for compression [possible level: 1-9]"
+        help = "Use deflate for compression [possible level: 1-9, min, max]"
     )]
-    pub(crate) deflate: Option<Option<u8>>,
+    pub(crate) deflate: Option<Option<DeflateLevel>>,
     #[arg(
         long,
         value_name = "level",
-        value_parser = value_parser!(u8).range(1..=21),
-        help = "Use zstd for compression [possible level: 1-21]"
+        help = "Use zstd for compression [possible level: 1-21, min, max]"
     )]
-    pub(crate) zstd: Option<Option<u8>>,
+    pub(crate) zstd: Option<Option<ZstdLevel>>,
     #[arg(
         long,
         value_name = "level",
-        value_parser = value_parser!(u8).range(0..=9),
-        help = "Use xz for compression [possible level: 0-9]"
+        help = "Use xz for compression [possible level: 0-9, min, max]"
     )]
-    pub(crate) xz: Option<Option<u8>>,
+    pub(crate) xz: Option<Option<XzLevel>>,
 }
 
 impl CompressionAlgorithmArgs {
