@@ -308,6 +308,7 @@ pub(crate) struct StdioCommand {
         long,
         value_name = "file",
         requires = "unstable",
+        visible_alias = "newer-than",
         help = "Only include files and directories newer than the specified file (unstable). This compares mtime entries."
     )]
     newer_mtime_than: Option<PathBuf>,
@@ -322,6 +323,7 @@ pub(crate) struct StdioCommand {
         long,
         value_name = "file",
         requires = "unstable",
+        visible_alias = "older-than",
         help = "Only include files and directories older than the specified file (unstable). This compares mtime entries."
     )]
     older_mtime_than: Option<PathBuf>,
