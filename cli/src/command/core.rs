@@ -440,7 +440,7 @@ pub(crate) fn collect_split_archives(first: impl AsRef<Path>) -> io::Result<Vec<
     while fs::exists(&target_archive)? {
         archives.push(fs::File::open(&target_archive)?);
         n += 1;
-        target_archive = target_archive.with_part(n).expect("").into();
+        target_archive = target_archive.with_part(n).into();
     }
     if archives.is_empty() {
         return Err(io::Error::new(
@@ -1052,7 +1052,7 @@ pub(crate) fn write_split_archive(
     write_split_archive_path(
         archive,
         entries,
-        |base, n| base.with_part(n).unwrap(),
+        |base, n| base.with_part(n),
         max_file_size,
         overwrite,
     )
