@@ -1096,9 +1096,9 @@ Archive manipulation via stdio
 * `--newer-ctime <NEWER_CTIME>` — Only include files and directories newer than the specified date (unstable). This compares ctime entries.
 * `--newer-mtime <NEWER_MTIME>` — Only include files and directories newer than the specified date (unstable). This compares mtime entries.
 * `--newer-ctime-than <file>` — Only include files and directories newer than the specified file (unstable). This compares ctime entries.
-* `--newer-mtime-than <file>` — Only include files and directories newer than the specified file (unstable). This compares mtime entries.
+* `--newer-mtime-than <file>` [alias: `newer-than`] — Only include files and directories newer than the specified file (unstable). This compares mtime entries.
 * `--older-ctime-than <file>` — Only include files and directories older than the specified file (unstable). This compares ctime entries.
-* `--older-mtime-than <file>` — Only include files and directories older than the specified file (unstable). This compares mtime entries.
+* `--older-mtime-than <file>` [alias: `older-than`] — Only include files and directories older than the specified file (unstable). This compares mtime entries.
 * `-T`, `--files-from <FILES_FROM>` — Read archiving files from given path (unstable)
 * `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option (unstable)
 * `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option (unstable)
