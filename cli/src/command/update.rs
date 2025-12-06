@@ -10,11 +10,11 @@ use crate::{
     command::{
         Command, ask_password, check_password,
         core::{
-            AclStrategy, CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
-            PermissionStrategy, TimeFilter, TimeFilters, TimeOptions, TimestampStrategy,
-            TransformStrategy, TransformStrategyKeepSolid, TransformStrategyUnSolid, XattrStrategy,
-            collect_items, collect_split_archives, create_entry, entry_option, read_paths,
-            read_paths_stdin,
+            AclStrategy, CreateOptions, FflagsStrategy, KeepOptions, OwnerOptions, PathFilter,
+            PathTransformers, PermissionStrategy, TimeFilter, TimeFilters, TimeOptions,
+            TimestampStrategy, TransformStrategy, TransformStrategyKeepSolid,
+            TransformStrategyUnSolid, XattrStrategy, collect_items, collect_split_archives,
+            create_entry, entry_option, read_paths, read_paths_stdin,
         },
     },
     utils::{
@@ -345,6 +345,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         ),
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
+        fflags_strategy: FflagsStrategy::Never,
     };
     let owner_options = OwnerOptions::new(
         args.uname,
