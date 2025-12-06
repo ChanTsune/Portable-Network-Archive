@@ -467,5 +467,5 @@ pub(crate) fn run_append_archive(
 pub(crate) fn open_archive_then_seek_to_end(
     path: impl AsRef<Path>,
 ) -> io::Result<Archive<fs::File>> {
-    Archive::open_multipart_for_append(path, |base, index| base.with_part(index).unwrap())
+    Archive::open_multipart_for_append(path, |base, index| base.with_part(index))
 }

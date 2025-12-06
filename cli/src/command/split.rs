@@ -78,7 +78,7 @@ fn split_archive(args: SplitCommand) -> anyhow::Result<()> {
     } else {
         archive_path.clone()
     };
-    let name = base_out_file_name.with_part(1).unwrap();
+    let name = base_out_file_name.with_part(1);
     if !args.overwrite && name.exists() {
         return Err(io::Error::new(
             io::ErrorKind::AlreadyExists,
