@@ -2,9 +2,9 @@ pub mod value;
 
 use crate::command::{
     append::AppendCommand, bugreport::BugReportCommand, complete::CompleteCommand,
-    concat::ConcatCommand, create::CreateCommand, experimental::ExperimentalCommand,
-    extract::ExtractCommand, list::ListCommand, split::SplitCommand, strip::StripCommand,
-    xattr::XattrCommand,
+    concat::ConcatCommand, create::CreateCommand, delete::DeleteCommand,
+    experimental::ExperimentalCommand, extract::ExtractCommand, list::ListCommand,
+    split::SplitCommand, strip::StripCommand, xattr::XattrCommand,
 };
 use clap::{ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
 use log::{Level, LevelFilter};
@@ -80,6 +80,8 @@ pub(crate) enum Commands {
     Extract(ExtractCommand),
     #[command(visible_aliases = &["l", "ls"], about = "List files in archive")]
     List(ListCommand),
+    #[command(about = "Delete entry from archive")]
+    Delete(DeleteCommand),
     #[command(about = "Split archive")]
     Split(SplitCommand),
     #[command(about = "Concat archives")]
