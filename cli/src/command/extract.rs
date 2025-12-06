@@ -288,6 +288,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let output_options = OutputOption {
         overwrite_strategy,
         allow_unsafe_links: args.allow_unsafe_links,
+        absolute_paths: false,
         strip_components: args.strip_components,
         out_dir: args.out_dir,
         filter,
@@ -378,6 +379,7 @@ impl OverwriteStrategy {
 pub(crate) struct OutputOption<'a> {
     pub(crate) overwrite_strategy: OverwriteStrategy,
     pub(crate) allow_unsafe_links: bool,
+    pub(crate) absolute_paths: bool,
     pub(crate) strip_components: Option<usize>,
     pub(crate) out_dir: Option<PathBuf>,
     pub(crate) filter: PathFilter<'a>,
@@ -517,6 +519,7 @@ pub(crate) fn extract_entry<'a, T>(
     OutputOption {
         overwrite_strategy,
         allow_unsafe_links,
+        absolute_paths,
         strip_components,
         out_dir,
         filter,
@@ -545,6 +548,9 @@ where
         Cow::from(PathBuf::from_iter(item_path.components().skip(strip_count)))
     } else {
         Cow::from(item_path)
+    };
+    let Some(item_path) = adjust_absolute_path(item_path, *absolute_paths) else {
+        return Ok(());
     };
     let item_path = if let Some(transformers) = path_transformers {
         Cow::from(PathBuf::from(transformers.apply(
@@ -912,4 +918,93 @@ fn is_unsafe_link(reference: &EntryReference) -> bool {
             Component::ParentDir | Component::RootDir | Component::Prefix(_)
         )
     })
+}
+
+fn adjust_absolute_path(path: Cow<Path>, absolute_paths: bool) -> Option<Cow<Path>> {
+    if absolute_paths {
+        // Preserve prefix/root, but collapse duplicate leading separators.
+        let mut out = PathBuf::new();
+        let mut root_seen = false;
+        for comp in path.components() {
+            match comp {
+                Component::Prefix(p) => out.push(p.as_os_str()),
+                Component::RootDir => {
+                    if !root_seen {
+                        out.push(Component::RootDir.as_os_str());
+                        root_seen = true;
+                    }
+                }
+                other => out.push(other.as_os_str()),
+            }
+        }
+        let owned = out;
+        if owned.as_os_str().is_empty() {
+            None
+        } else if owned == path {
+            Some(path)
+        } else {
+            Some(Cow::Owned(owned))
+        }
+    } else {
+        // Strip leading prefix/root/curdir/parentdir like bsdtar default.
+        let mut comps = path.components().peekable();
+        while matches!(comps.peek(), Some(Component::Prefix(_))) {
+            comps.next();
+        }
+        while matches!(
+            comps.peek(),
+            Some(Component::RootDir | Component::CurDir | Component::ParentDir)
+        ) {
+            comps.next();
+        }
+        let stripped: PathBuf = comps.collect();
+        if stripped.as_os_str().is_empty() {
+            None
+        } else if stripped == path {
+            Some(path)
+        } else {
+            Some(Cow::Owned(stripped))
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn adjust_absolute_path_default_strips_leading() {
+        assert_eq!(
+            Path::new("etc/passwd"),
+            adjust_absolute_path(Cow::from(Path::new("/etc/passwd")), false)
+                .unwrap()
+                .as_ref()
+        );
+        assert_eq!(
+            Path::new("etc/passwd"),
+            adjust_absolute_path(Cow::from(Path::new("../etc/passwd")), false)
+                .unwrap()
+                .as_ref()
+        );
+        assert!(
+            adjust_absolute_path(Cow::from(Path::new("../..")), false).is_none(),
+            "all-stripped should skip entry"
+        );
+    }
+
+    #[test]
+    fn adjust_absolute_path_preserves_when_absolute() {
+        assert_eq!(
+            Path::new("/etc/passwd"),
+            adjust_absolute_path(Cow::from(Path::new("//etc/passwd")), true)
+                .unwrap()
+                .as_ref()
+        );
+        assert_eq!(
+            Path::new("../etc/passwd"),
+            adjust_absolute_path(Cow::from(Path::new("../etc/passwd")), true)
+                .unwrap()
+                .as_ref()
+        );
+    }
 }

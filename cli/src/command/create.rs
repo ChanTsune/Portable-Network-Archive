@@ -481,6 +481,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         time_options,
         solid: args.solid,
         pathname_editor,
+        absolute_paths: false,
     };
     if let Some(size) = max_file_size {
         create_archive_with_split(
@@ -511,6 +512,7 @@ pub(crate) struct CreationContext {
     pub(crate) time_options: TimeOptions,
     pub(crate) solid: bool,
     pub(crate) pathname_editor: PathnameEditor,
+    pub(crate) absolute_paths: bool,
 }
 
 pub(crate) fn create_archive_file<W, F>(
@@ -522,6 +524,7 @@ pub(crate) fn create_archive_file<W, F>(
         time_options,
         solid,
         pathname_editor,
+        absolute_paths,
     }: CreationContext,
     target_items: Vec<(PathBuf, StoreAs)>,
 ) -> anyhow::Result<()>
@@ -541,6 +544,7 @@ where
         owner_options,
         time_options,
         pathname_editor,
+        absolute_paths,
     };
     rayon::scope_fifo(|s| {
         for file in target_items {
@@ -586,6 +590,7 @@ fn create_archive_with_split(
         time_options,
         solid,
         pathname_editor,
+        absolute_paths,
     }: CreationContext,
     target_items: Vec<(PathBuf, StoreAs)>,
     max_file_size: usize,
@@ -603,6 +608,7 @@ fn create_archive_with_split(
         owner_options,
         time_options,
         pathname_editor,
+        absolute_paths,
     };
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
         for file in target_items {

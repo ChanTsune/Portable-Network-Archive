@@ -362,6 +362,12 @@ pub(crate) struct StdioCommand {
     )]
     allow_unsafe_links: bool,
     #[arg(
+        short = 'P',
+        long = "absolute-paths",
+        help = "Do not strip leading '/' or '..' from member names and link targets"
+    )]
+    absolute_paths: bool,
+    #[arg(
         short,
         long,
         help = "Read the archive from or write the archive to the specified file. The filename can be - for standard input or standard output."
@@ -543,6 +549,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
             args.strip_components,
             PathTransformers::new(args.substitutions, args.transforms),
         ),
+        absolute_paths: args.absolute_paths,
     };
     if let Some(file) = archive_file {
         create_archive_file(
@@ -608,6 +615,7 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         path_transformers: PathTransformers::new(args.substitutions, args.transforms),
         path_locks: Arc::new(PathLocks::default()),
         unlink_first: args.unlink_first,
+        absolute_paths: args.absolute_paths,
     };
     let mut files = args.files;
     if let Some(path) = &args.files_from {
@@ -745,6 +753,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.strip_components,
             PathTransformers::new(args.substitutions, args.transforms),
         ),
+        absolute_paths: args.absolute_paths,
     };
 
     // NOTE: "-" will use stdin/out

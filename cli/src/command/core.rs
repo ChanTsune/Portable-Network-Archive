@@ -157,6 +157,7 @@ pub(crate) struct CreateOptions {
     pub(crate) owner_options: OwnerOptions,
     pub(crate) time_options: TimeOptions,
     pub(crate) pathname_editor: PathnameEditor,
+    pub(crate) absolute_paths: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -486,14 +487,15 @@ pub(crate) fn create_entry(
         owner_options,
         time_options,
         pathname_editor,
+        absolute_paths,
     }: &CreateOptions,
 ) -> io::Result<Option<NormalEntry>> {
-    let Some(entry_name) = pathname_editor.edit_entry_name(path) else {
+    let Some(entry_name) = pathname_editor.edit_entry_name(path, *absolute_paths) else {
         return Ok(None);
     };
     match link {
         StoreAs::Hardlink(source) => {
-            let Some(reference) = pathname_editor.edit_hardlink(source) else {
+            let Some(reference) = pathname_editor.edit_hardlink(source, *absolute_paths) else {
                 return Ok(None);
             };
             let entry = EntryBuilder::new_hard_link(entry_name, reference)?;
@@ -509,7 +511,7 @@ pub(crate) fn create_entry(
         }
         StoreAs::Symlink => {
             let source = fs::read_link(path)?;
-            let reference = pathname_editor.edit_symlink(&source);
+            let reference = pathname_editor.edit_symlink(&source, *absolute_paths);
             let entry = EntryBuilder::new_symlink(entry_name, reference)?;
             apply_metadata(
                 entry,
@@ -549,7 +551,6 @@ pub(crate) fn create_entry(
     }
     .map(Some)
 }
-
 pub(crate) fn entry_option(
     compression: CompressionAlgorithmArgs,
     cipher: CipherAlgorithmArgs,
