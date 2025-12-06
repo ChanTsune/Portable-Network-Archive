@@ -38,6 +38,9 @@ fn init_broken_resource<P: AsRef<Path>>(dir: P) {
     pna::fs::symlink(Path::new("missing_dir"), dir.join("broken_dir")).unwrap();
 }
 
+/// Precondition: source tree with regular files, dirs, and symlinks (all valid).
+/// Action: run `pna create` without `--follow-links`, then run `pna extract`.
+/// Expectation: symlinks are stored/extracted as links; regular files/dirs stay intact.
 #[test]
 fn symlink_no_follow() {
     setup();
@@ -109,6 +112,9 @@ fn symlink_no_follow() {
 }
 
 // FIXME: On GitHub Actions Windows runner disabled due to insufficient privileges for execution
+/// Precondition: source tree with regular files, directories, and symlinks (all targets exist).
+/// Action: run `pna create` with `--follow-links`, then run `pna extract`.
+/// Expectation: links are resolved to their targets; archive/extract contains files/dirs, not symlinks.
 #[cfg(unix)]
 #[test]
 fn symlink_follow() {
@@ -188,6 +194,9 @@ fn symlink_follow() {
     );
 }
 
+/// Precondition: source tree contains broken file and dir symlinks.
+/// Action: run `pna create` without `--follow-links`, then run `pna extract`.
+/// Expectation: broken links are stored/extracted as symlinks; missing targets do not error.
 #[test]
 fn broken_symlink_no_follow() {
     setup();
@@ -243,6 +252,9 @@ fn broken_symlink_no_follow() {
 }
 
 // FIXME: On GitHub Actions Windows runner disabled due to insufficient privileges for execution
+/// Precondition: source tree contains broken file and dir symlinks (targets missing).
+/// Action: run `pna create` with `--follow-links`, then run `pna extract`.
+/// Expectation: broken links stay symlinks (unresolvable); nothing is dropped or rewritten.
 #[cfg(unix)]
 #[test]
 fn broken_symlink_follow() {
@@ -299,6 +311,9 @@ fn broken_symlink_follow() {
     assert!(PathBuf::from("broken_symlink_follow/dist/broken_dir").is_symlink());
 }
 
+/// Precondition: top-level input is a file symlink (depth 0).
+/// Action: run `pna create` without `--follow-links`, then extract.
+/// Expectation: archive stores a symlink entry; extraction recreates the symlink path.
 #[test]
 fn symlink_depth0_no_follow_file() {
     // Ensure a symlink passed directly (depth 0) is stored as a symlink when not following links
@@ -354,6 +369,9 @@ fn symlink_depth0_no_follow_file() {
     assert!(PathBuf::from("symlink_depth0_no_follow_file/dist/link.txt").is_symlink());
 }
 
+/// Precondition: top-level input is a directory symlink (depth 0) with `--no-keep-dir`.
+/// Action: run `pna create` without `--follow-links`, then extract.
+/// Expectation: directory symlink stored/extracted as symlink; target tree is not expanded.
 #[test]
 fn symlink_depth0_no_follow_dir() {
     // Ensure a directory symlink passed directly (depth 0) is stored as a symlink when not following links
@@ -411,6 +429,9 @@ fn symlink_depth0_no_follow_dir() {
     assert!(PathBuf::from("symlink_depth0_no_follow_dir/dist/link_dir").is_symlink());
 }
 
+/// Precondition: fixture with nested dir and file symlinks.
+/// Action: run `pna create` with `-H`, then inspect entries.
+/// Expectation: command-line symlink operands are resolved; nested symlinks remain links in the archive.
 #[cfg(unix)]
 #[test]
 fn symlink_follow_command_line_partial() {
