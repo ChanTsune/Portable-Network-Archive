@@ -1,11 +1,7 @@
 pub mod archive;
 pub mod diff;
 
-use std::{
-    borrow::Cow,
-    fs, io,
-    path::{Component, Path},
-};
+use std::{borrow::Cow, fs, io, path::Path};
 
 #[derive(rust_embed::Embed)]
 #[folder = "../resources/test"]
@@ -105,11 +101,4 @@ pub fn remove_with_empty_parents(path: impl AsRef<Path>) -> io::Result<()> {
         Ok(())
     }
     inner(path.as_ref())
-}
-
-pub fn components_count<P: AsRef<Path>>(p: P) -> usize {
-    p.as_ref()
-        .components()
-        .filter(|it| matches!(it, Component::Normal(_)))
-        .count()
 }
