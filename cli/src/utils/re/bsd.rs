@@ -64,6 +64,7 @@ pub(crate) struct SubstitutionRule {
     apply_to_hardlinks: bool,
     apply_to_symlinks: bool,
     apply_to_regular_files: bool,
+    apply_to_basename_only: bool,
 }
 
 impl FromStr for SubstitutionRule {
@@ -90,11 +91,13 @@ impl SubstitutionRule {
         let mut apply_to_hardlinks = true;
         let mut apply_to_symlinks = true;
         let mut apply_to_regular_files = true;
+        let mut apply_to_basename_only = false;
 
         for flag in flags.chars() {
             match flag {
                 'g' | 'G' => global = true,
                 'p' | 'P' => print = true,
+                'b' | 'B' => apply_to_basename_only = true,
                 's' => apply_to_symlinks = true,
                 'S' => apply_to_symlinks = false,
                 'h' => apply_to_hardlinks = true,
@@ -114,6 +117,7 @@ impl SubstitutionRule {
             apply_to_hardlinks,
             apply_to_symlinks,
             apply_to_regular_files,
+            apply_to_basename_only,
         })
     }
 
@@ -134,10 +138,28 @@ impl SubstitutionRule {
             return None;
         }
 
-        let result = if self.global {
-            self.pattern.replace_all(input, self.replacement.clone())
+        let (dir, target) = if self.apply_to_basename_only {
+            input
+                .rsplit_once('/')
+                .map_or(("", input), |(dir, base)| (dir, base))
         } else {
-            self.pattern.replace(input, self.replacement.clone())
+            ("", input)
+        };
+
+        let replaced = if self.global {
+            self.pattern.replace_all(target, self.replacement.clone())
+        } else {
+            self.pattern.replace(target, self.replacement.clone())
+        };
+
+        let result = if self.apply_to_basename_only {
+            if dir.is_empty() {
+                replaced
+            } else {
+                Cow::Owned(format!("{dir}/{replaced}"))
+            }
+        } else {
+            replaced
         };
 
         if self.print {
@@ -201,6 +223,43 @@ mod tests {
         let input = "foo baz foo";
         let result = substitution.apply(input, false, false).unwrap();
         assert_eq!(result, "bar baz bar");
+    }
+
+    #[test]
+    fn parse_and_apply_basename_only() {
+        let substitution = SubstitutionRule::parse("/ar/az/b").unwrap();
+        let input = "dir1/dir2/far";
+        let result = substitution.apply(input, false, false).unwrap();
+        assert_eq!(result, "dir1/dir2/faz");
+    }
+
+    #[test]
+    fn apply_multiple_with_basename_flag_matches_bsdtar_behaviour() {
+        // Mirrors bsdtar test_option_s 4b: -s /oo/ar/ -s }ar}az}b
+        let rules = SubstitutionRules::new(vec![
+            SubstitutionRule::parse("/oo/ar/").unwrap(),
+            SubstitutionRule::parse("}ar}az}b").unwrap(),
+        ]);
+
+        let out_foo = rules.apply("in/d1/foo", false, false);
+        let out_bar = rules.apply("in/d1/bar", false, false);
+        assert_eq!(out_foo, "in/d1/faz");
+        assert_eq!(out_bar, "in/d1/baz");
+    }
+
+    #[test]
+    fn apply_three_with_basename_flag_matches_bsdtar_regression_case() {
+        // Mirrors bsdtar test_option_s 4bb: -s /oo/ar/ -s }ar}az}b -s :az:end:b
+        let rules = SubstitutionRules::new(vec![
+            SubstitutionRule::parse("/oo/ar/").unwrap(),
+            SubstitutionRule::parse("}ar}az}b").unwrap(),
+            SubstitutionRule::parse(":az:end:b").unwrap(),
+        ]);
+
+        let out_foo = rules.apply("in/d1/foo", false, false);
+        let out_bar = rules.apply("in/d1/bar", false, false);
+        assert_eq!(out_foo, "in/d1/fend");
+        assert_eq!(out_bar, "in/d1/bend");
     }
 
     #[test]
