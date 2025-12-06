@@ -80,9 +80,7 @@ fn strip_metadata(args: StripCommand) -> anyhow::Result<()> {
     #[cfg(feature = "memmap")]
     let archives = mmaps.iter().map(|m| m.as_ref());
 
-    let output_path = args
-        .output
-        .unwrap_or_else(|| archive.remove_part().unwrap());
+    let output_path = args.output.unwrap_or_else(|| archive.remove_part());
     let mut temp_file =
         NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
 

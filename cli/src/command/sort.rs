@@ -186,9 +186,7 @@ fn sort_archive(args: SortCommand) -> anyhow::Result<()> {
     #[cfg(feature = "memmap")]
     drop(mmaps);
 
-    let output = args
-        .output
-        .unwrap_or_else(|| args.archive.remove_part().unwrap());
+    let output = args.output.unwrap_or_else(|| args.archive.remove_part());
     temp_file.persist(output)?;
 
     Ok(())
