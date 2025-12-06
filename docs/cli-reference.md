@@ -207,6 +207,7 @@ Create archive
 * `--gname <GNAME>` — Archiving group to the entries from given name
 * `--uid <UID>` — Overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id
 * `--gid <GID>` — Overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id
+* `--strip-components <STRIP_COMPONENTS>` — Remove the specified number of leading path elements when storing paths (unstable)
 * `--numeric-owner` — This is equivalent to --uname "" --gname "". It causes user and group names to not be stored in the archive
 
   Default value: `false`
@@ -348,6 +349,7 @@ Append files to archive
 * `--gname <GNAME>` — Archiving group to the entries from given name
 * `--uid <UID>` — Overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id
 * `--gid <GID>` — Overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id
+* `--strip-components <STRIP_COMPONENTS>` — Remove the specified number of leading path elements when storing paths (unstable)
 * `--numeric-owner` — This is equivalent to --uname "" --gname "". It causes user and group names to not be stored in the archive
 
   Default value: `false`
@@ -1234,6 +1236,7 @@ Update entries in archive
 * `--gname <GNAME>` — Archiving group to the entries from given name
 * `--uid <UID>` — Overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id
 * `--gid <GID>` — Overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id
+* `--strip-components <STRIP_COMPONENTS>` — Remove the specified number of leading path elements when storing paths (unstable)
 * `--numeric-owner` — This is equivalent to --uname "" --gname "". It causes user and group names to not be stored in the archive
 
   Default value: `false`
