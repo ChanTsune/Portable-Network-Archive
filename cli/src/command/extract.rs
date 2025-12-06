@@ -22,14 +22,14 @@ use crate::{
 use anyhow::Context;
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::{DataKind, EntryReference, NormalEntry, Permission, ReadOptions, prelude::*};
-use std::io::Read;
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::FileTimesExt;
 #[cfg(windows)]
 use std::os::windows::fs::FileTimesExt;
 use std::{
     borrow::Cow,
-    env, fs, io,
+    env, fs,
+    io::{self, prelude::*},
     path::{Component, Path, PathBuf},
     sync::Arc,
     time::Instant,
@@ -290,6 +290,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         allow_unsafe_links: args.allow_unsafe_links,
         strip_components: args.strip_components,
         out_dir: args.out_dir,
+        to_stdout: false,
         filter,
         keep_options,
         owner_options,
@@ -380,6 +381,7 @@ pub(crate) struct OutputOption<'a> {
     pub(crate) allow_unsafe_links: bool,
     pub(crate) strip_components: Option<usize>,
     pub(crate) out_dir: Option<PathBuf>,
+    pub(crate) to_stdout: bool,
     pub(crate) filter: PathFilter<'a>,
     pub(crate) keep_options: KeepOptions,
     pub(crate) owner_options: OwnerOptions,
@@ -519,6 +521,7 @@ pub(crate) fn extract_entry<'a, T>(
         allow_unsafe_links,
         strip_components,
         out_dir,
+        to_stdout,
         filter,
         keep_options,
         owner_options,
@@ -555,6 +558,11 @@ where
     } else {
         item_path
     };
+
+    if *to_stdout {
+        return extract_entry_to_stdout(&item, password);
+    }
+
     let path = if let Some(out_dir) = out_dir {
         Cow::from(out_dir.join(item_path))
     } else {
@@ -822,6 +830,22 @@ where
     } else {
         false
     }
+}
+
+fn extract_entry_to_stdout<T>(item: &NormalEntry<T>, password: Option<&[u8]>) -> io::Result<()>
+where
+    T: AsRef<[u8]>,
+    pna::RawChunk<T>: Chunk,
+{
+    if !matches!(item.header().data_kind(), DataKind::File) {
+        return Ok(());
+    }
+
+    let mut reader = item.reader(ReadOptions::with_password(password))?;
+    let mut stdout = io::stdout().lock();
+    io::copy(&mut reader, &mut stdout)?;
+    stdout.flush()?;
+    Ok(())
 }
 
 fn ensure_directory_components(path: &Path, unlink_first: bool) -> io::Result<()> {

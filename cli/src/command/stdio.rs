@@ -357,6 +357,13 @@ pub(crate) struct StdioCommand {
     )]
     working_dir: Option<PathBuf>,
     #[arg(
+        short = 'O',
+        long = "to-stdout",
+        requires = "unstable",
+        help = "Write extracted file data to standard output instead of the file system"
+    )]
+    to_stdout: bool,
+    #[arg(
         long,
         help = "Allow extracting symbolic links and hard links that contain root or parent paths"
     )]
@@ -584,6 +591,7 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         allow_unsafe_links: args.allow_unsafe_links,
         strip_components: args.strip_components,
         out_dir: args.out_dir,
+        to_stdout: args.to_stdout,
         filter,
         keep_options: KeepOptions {
             timestamp_strategy: TimestampStrategy::from_flags(
