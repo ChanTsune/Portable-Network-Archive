@@ -14,14 +14,12 @@ use crate::{
             PathnameEditor, PermissionStrategy, TimeFilter, TimeFilters, TimeOptions,
             TimestampStrategy, TransformStrategy, TransformStrategyKeepSolid,
             TransformStrategyUnSolid, XattrStrategy, collect_items, collect_split_archives,
-            create_entry, entry_option, read_paths, read_paths_stdin,
+            create_entry, entry_option,
+            re::{bsd::SubstitutionRule, gnu::TransformRule},
+            read_paths, read_paths_stdin,
         },
     },
-    utils::{
-        PathPartExt, VCS_FILES,
-        env::NamedTempFile,
-        re::{bsd::SubstitutionRule, gnu::TransformRule},
-    },
+    utils::{PathPartExt, VCS_FILES, env::NamedTempFile},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;

@@ -9,14 +9,12 @@ use crate::{
             AclStrategy, CreateOptions, KeepOptions, MIN_SPLIT_PART_BYTES, OwnerOptions,
             PathFilter, PathTransformers, PathnameEditor, PermissionStrategy, StoreAs, TimeFilter,
             TimeFilters, TimeOptions, TimestampStrategy, XattrStrategy, collect_items,
-            create_entry, entry_option, read_paths, read_paths_stdin, write_split_archive,
+            create_entry, entry_option,
+            re::{bsd::SubstitutionRule, gnu::TransformRule},
+            read_paths, read_paths_stdin, write_split_archive,
         },
     },
-    utils::{
-        self, VCS_FILES,
-        fmt::DurationDisplay,
-        re::{bsd::SubstitutionRule, gnu::TransformRule},
-    },
+    utils::{self, VCS_FILES, fmt::DurationDisplay},
 };
 use anyhow::ensure;
 use bytesize::ByteSize;

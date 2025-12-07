@@ -1,23 +1,21 @@
 pub(crate) mod path;
 pub(crate) mod path_lock;
+pub(crate) mod re;
 pub(crate) mod time_filter;
 
 pub(crate) use self::path::PathnameEditor;
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
-    utils::{
-        self, BsdGlobPatterns, PathPartExt,
-        fs::HardlinkResolver,
-        re::{
-            bsd::{SubstitutionRule, SubstitutionRules},
-            gnu::{TransformRule, TransformRules},
-        },
-    },
+    utils::{self, BsdGlobPatterns, PathPartExt, fs::HardlinkResolver},
 };
 use path_slash::*;
 use pna::{
     Archive, EntryBuilder, EntryPart, MIN_CHUNK_BYTES_SIZE, NormalEntry, PNA_HEADER, ReadEntry,
     SolidEntryBuilder, WriteOptions, prelude::*,
+};
+use re::{
+    bsd::{SubstitutionRule, SubstitutionRules},
+    gnu::{TransformRule, TransformRules},
 };
 use std::{
     borrow::Cow,
