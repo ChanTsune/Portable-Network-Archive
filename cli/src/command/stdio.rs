@@ -18,7 +18,7 @@ use crate::{
         extract::{OutputOption, OverwriteStrategy, run_extract_archive_reader},
         list::{Format, ListOptions, TimeField, TimeFormat},
     },
-    utils::{self, GlobPatterns, VCS_FILES},
+    utils::{self, BsdGlobMatcher, VCS_FILES},
 };
 use clap::{ArgGroup, Args, ValueHint};
 use pna::Archive;
@@ -673,7 +673,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
         }),
         out_to_stderr: args.to_stdout,
     };
-    let files_globs = GlobPatterns::new(args.files.iter().map(|it| it.as_str()))?;
+    let files_globs = BsdGlobMatcher::new(args.files.iter().map(|it| it.as_str()));
 
     let mut exclude = args.exclude.unwrap_or_default();
     if let Some(p) = args.exclude_from {

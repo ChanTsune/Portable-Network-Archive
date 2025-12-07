@@ -8,7 +8,7 @@ use crate::{
         core::{PathFilter, collect_split_archives, read_paths, run_read_entries},
     },
     ext::*,
-    utils::{GlobPatterns, VCS_FILES},
+    utils::{BsdGlobMatcher, VCS_FILES},
 };
 use base64::Engine;
 use chrono::{
@@ -289,7 +289,7 @@ fn list_archive(args: ListCommand) -> anyhow::Result<()> {
     };
     let archive = args.file.archive();
     let files = args.file.files();
-    let files_globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))?;
+    let files_globs = BsdGlobMatcher::new(files.iter().map(|it| it.as_str()));
 
     let mut exclude = args.exclude.unwrap_or_default();
     if let Some(p) = args.exclude_from {
@@ -370,7 +370,7 @@ pub(crate) struct ListOptions {
 pub(crate) fn run_list_archive<'a>(
     archive_provider: impl IntoIterator<Item = impl Read>,
     password: Option<&[u8]>,
-    files_globs: GlobPatterns,
+    files_globs: BsdGlobMatcher,
     filter: PathFilter<'a>,
     args: ListOptions,
 ) -> anyhow::Result<()> {
@@ -399,7 +399,7 @@ pub(crate) fn run_list_archive<'a>(
 pub(crate) fn run_list_archive_mem<'a>(
     archives: Vec<std::fs::File>,
     password: Option<&[u8]>,
-    files_globs: GlobPatterns,
+    files_globs: BsdGlobMatcher,
     filter: PathFilter<'a>,
     args: ListOptions,
 ) -> anyhow::Result<()> {
@@ -431,14 +431,14 @@ pub(crate) fn run_list_archive_mem<'a>(
 
 fn print_entries<'a>(
     entries: Vec<TableRow>,
-    mut globs: GlobPatterns,
+    mut globs: BsdGlobMatcher,
     filter: PathFilter<'a>,
     options: ListOptions,
 ) -> anyhow::Result<()> {
     let entries = entries
         .into_iter()
         .filter(|r| {
-            (globs.is_empty() || globs.matches_any(r.entry_type.name()))
+            (globs.is_empty() || globs.matches(r.entry_type.name()))
                 && !filter.excluded(r.entry_type.name())
         })
         .collect::<Vec<_>>();
