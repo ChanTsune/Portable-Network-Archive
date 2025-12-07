@@ -1,5 +1,6 @@
 pub(crate) mod path;
 pub(crate) mod path_lock;
+mod path_transformer;
 pub(crate) mod re;
 pub(crate) mod time_filter;
 
@@ -9,13 +10,10 @@ use crate::{
     utils::{self, BsdGlobPatterns, PathPartExt, fs::HardlinkResolver},
 };
 use path_slash::*;
+pub(crate) use path_transformer::PathTransformers;
 use pna::{
     Archive, EntryBuilder, EntryPart, MIN_CHUNK_BYTES_SIZE, NormalEntry, PNA_HEADER, ReadEntry,
     SolidEntryBuilder, WriteOptions, prelude::*,
-};
-use re::{
-    bsd::{SubstitutionRule, SubstitutionRules},
-    gnu::{TransformRule, TransformRules},
 };
 use std::{
     borrow::Cow,
@@ -155,37 +153,6 @@ pub(crate) struct CreateOptions {
     pub(crate) owner_options: OwnerOptions,
     pub(crate) time_options: TimeOptions,
     pub(crate) pathname_editor: PathnameEditor,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) enum PathTransformers {
-    BsdSubstitutions(SubstitutionRules),
-    GnuTransforms(TransformRules),
-}
-
-impl PathTransformers {
-    pub(crate) fn new(
-        substitutions: Option<Vec<SubstitutionRule>>,
-        transforms: Option<Vec<TransformRule>>,
-    ) -> Option<Self> {
-        if let Some(s) = substitutions {
-            Some(Self::BsdSubstitutions(SubstitutionRules::new(s)))
-        } else {
-            transforms.map(|t| Self::GnuTransforms(TransformRules::new(t)))
-        }
-    }
-    #[inline]
-    pub(crate) fn apply(
-        &self,
-        input: impl Into<String>,
-        is_symlink: bool,
-        is_hardlink: bool,
-    ) -> String {
-        match self {
-            Self::BsdSubstitutions(s) => s.apply(input, is_symlink, is_hardlink),
-            Self::GnuTransforms(t) => t.apply(input, is_symlink, is_hardlink),
-        }
-    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
