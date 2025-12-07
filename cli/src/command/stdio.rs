@@ -671,6 +671,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
         } else {
             Format::Line
         }),
+        out_to_stderr: args.to_stdout,
     };
     let files_globs = GlobPatterns::new(args.files.iter().map(|it| it.as_str()))?;
 
