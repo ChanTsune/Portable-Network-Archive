@@ -1,3 +1,4 @@
+mod absolute_paths;
 mod exclude_vcs;
 mod files_from;
 mod strip_components;

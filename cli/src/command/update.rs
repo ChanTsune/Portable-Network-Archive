@@ -412,6 +412,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
             args.strip_components,
             PathTransformers::new(args.substitutions, args.transforms),
         ),
+        absolute_paths: false,
     };
 
     let archives = collect_split_archives(&args.file.archive)?;
