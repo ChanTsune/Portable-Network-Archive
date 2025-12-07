@@ -841,10 +841,16 @@ impl<T> NormalEntry<T> {
         &self.header
     }
 
-    /// Name of the entry.
+    /// Returns the name of this entry.
+    ///
+    /// # Warning
+    ///
+    /// The returned name is not sanitized. Using it directly as a filesystem
+    /// path may allow path traversal. Call [`EntryName::sanitize`] before
+    /// using it as a path.
     #[inline]
-    pub fn name(&self) -> EntryName {
-        self.header.path.clone()
+    pub fn name(&self) -> &EntryName {
+        &self.header.name
     }
 
     /// Type of the entry.

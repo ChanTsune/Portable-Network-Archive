@@ -1,10 +1,13 @@
 use super::{CipherMode, Compression, DataKind, Encryption, EntryName};
+use std::cmp::Ordering;
+use std::hash::{Hash, Hasher};
 use std::io;
+use std::sync::OnceLock;
 
 /// Represents the entry information header that expressed in the [FHED] chunk.
 ///
 /// [FHED]: crate::ChunkType::FHED
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Clone, Debug)]
 pub struct EntryHeader {
     pub(crate) major: u8,
     pub(crate) minor: u8,
@@ -12,7 +15,8 @@ pub struct EntryHeader {
     pub(crate) compression: Compression,
     pub(crate) encryption: Encryption,
     pub(crate) cipher_mode: CipherMode,
-    pub(crate) path: EntryName,
+    sanitized_path: OnceLock<EntryName>,
+    pub(crate) name: EntryName,
 }
 
 impl EntryHeader {
@@ -30,7 +34,8 @@ impl EntryHeader {
             compression,
             encryption,
             cipher_mode,
-            path,
+            sanitized_path: OnceLock::new(),
+            name: path,
         }
     }
 
@@ -70,10 +75,10 @@ impl EntryHeader {
         Self::new(DataKind::HardLink, path)
     }
 
-    /// Path of the entry.
+    /// Path of the entry that sanitized to remove path traversal characters by [`EntryName::sanitize`].
     #[inline]
     pub fn path(&self) -> &EntryName {
-        &self.path
+        self.sanitized_path.get_or_init(|| self.name.sanitize())
     }
 
     /// Type of the entry.
@@ -101,7 +106,7 @@ impl EntryHeader {
     }
 
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
-        let name = self.path.as_bytes();
+        let name = self.name.as_bytes();
         let mut data = Vec::with_capacity(6 + name.len());
         data.push(self.major);
         data.push(self.minor);
@@ -120,7 +125,12 @@ impl EntryHeader {
                 "entry header too short",
             ));
         }
-        Ok(Self {
+        let path = EntryName::from_utf8_preserve_root(
+            std::str::from_utf8(&bytes[6..])
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
+        );
+        let sanitized = path.sanitize();
+        let header = Self {
             major: bytes[0],
             minor: bytes[1],
             data_kind: DataKind::try_from(bytes[2])
@@ -131,9 +141,62 @@ impl EntryHeader {
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
             cipher_mode: CipherMode::try_from(bytes[5])
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
-            path: EntryName::try_from(&bytes[6..])
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
-        })
+            sanitized_path: OnceLock::new(),
+            name: path,
+        };
+        let _ = header.sanitized_path.set(sanitized);
+        Ok(header)
+    }
+}
+
+impl PartialEq for EntryHeader {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.major == other.major
+            && self.minor == other.minor
+            && self.data_kind == other.data_kind
+            && self.compression == other.compression
+            && self.encryption == other.encryption
+            && self.cipher_mode == other.cipher_mode
+            && self.name == other.name
+    }
+}
+
+impl Eq for EntryHeader {}
+
+impl PartialOrd for EntryHeader {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for EntryHeader {
+    #[inline]
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.major
+            .cmp(&other.major)
+            .then_with(|| self.minor.cmp(&other.minor))
+            .then_with(|| self.data_kind.cmp(&other.data_kind))
+            .then_with(|| self.compression.cmp(&other.compression))
+            .then_with(|| self.encryption.cmp(&other.encryption))
+            .then_with(|| self.cipher_mode.cmp(&other.cipher_mode))
+            .then_with(|| self.path().cmp(other.path()))
+            .then_with(|| self.name.cmp(&other.name))
+    }
+}
+
+impl Hash for EntryHeader {
+    #[inline]
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.major.hash(state);
+        self.minor.hash(state);
+        self.data_kind.hash(state);
+        self.compression.hash(state);
+        self.encryption.hash(state);
+        self.cipher_mode.hash(state);
+        self.path().hash(state);
+        self.name.hash(state);
     }
 }
 
