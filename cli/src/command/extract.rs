@@ -664,7 +664,7 @@ where
             } else {
                 original
             };
-            let original = EntryReference::from_lossy(original);
+            let original = EntryReference::from_utf8_preserve_root(&original).sanitize();
             if !allow_unsafe_links && is_unsafe_link(&original) {
                 log::warn!(
                     "Skipped extracting a symbolic link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
@@ -684,7 +684,7 @@ where
             } else {
                 original
             };
-            let original = EntryReference::from_lossy(original);
+            let original = EntryReference::from_utf8_preserve_root(&original).sanitize();
             if !allow_unsafe_links && is_unsafe_link(&original) {
                 log::warn!(
                     "Skipped extracting a hard link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
