@@ -58,6 +58,112 @@ impl<'s> GlobPatterns<'s> {
     }
 }
 
+/// Tar-compatible glob matcher that mirrors libarchive/bsdtar semantics.
+///
+/// Unlike `GlobPatterns`, this uses the project's `BsdGlobPattern` (which is
+/// derived from libarchive's path matching) and also tracks which patterns
+/// matched so we can surface the same "not found in archive" diagnostics.
+#[derive(Clone, Debug)]
+pub(crate) struct BsdGlobMatcher<'s> {
+    patterns: Vec<BsdGlobPattern<'s>>,
+    raw_patterns: Vec<&'s str>,
+    matched: Vec<bool>,
+    /// When true, patterns without glob meta do NOT match directory prefixes.
+    /// This corresponds to bsdtar's -n/--no-recursive option.
+    no_recursive: bool,
+}
+
+impl<'s> BsdGlobMatcher<'s> {
+    #[inline]
+    pub(crate) fn new<I: IntoIterator<Item = &'s str>>(patterns: I) -> Self {
+        let raw_patterns: Vec<&'s str> = patterns.into_iter().collect();
+        let patterns = raw_patterns
+            .iter()
+            .map(|p| BsdGlobPattern::new(p))
+            .collect();
+        let matched = vec![false; raw_patterns.len()];
+        Self {
+            patterns,
+            raw_patterns,
+            matched,
+            no_recursive: false,
+        }
+    }
+
+    /// Set the no-recursive mode. When enabled, patterns without glob meta
+    /// do NOT match directory prefixes (bsdtar -n behavior).
+    #[inline]
+    pub(crate) fn with_no_recursive(mut self, no_recursive: bool) -> Self {
+        self.no_recursive = no_recursive;
+        self
+    }
+
+    #[inline]
+    pub(crate) fn is_empty(&self) -> bool {
+        self.patterns.is_empty()
+    }
+
+    /// Returns true if any pattern matches the given path. Patterns without
+    /// glob meta also match directory prefixes (e.g., pattern "dir" matches
+    /// "dir/file"), unless `no_recursive` mode is enabled.
+    #[inline]
+    pub(crate) fn matches(&mut self, path: impl AsRef<str>) -> bool {
+        let path = path.as_ref();
+        let mut matched_any = false;
+        for (idx, pat) in self.patterns.iter().enumerate() {
+            // In no_recursive mode, only use glob matching (no prefix matching)
+            let matches = if self.no_recursive {
+                pat.match_inclusion(path)
+            } else {
+                pat.match_inclusion(path)
+                    || (!has_glob_meta(self.raw_patterns[idx])
+                        && prefix_match(self.raw_patterns[idx], path))
+            };
+            if matches {
+                self.matched[idx] = true;
+                matched_any = true;
+            }
+        }
+        matched_any
+    }
+
+    #[inline]
+    pub(crate) fn ensure_all_matched(&self) -> anyhow::Result<()> {
+        let mut any_unmatched = false;
+        for (idx, &is_matched) in self.matched.iter().enumerate() {
+            if !is_matched {
+                any_unmatched = true;
+                log::error!("'{}' not found in archive", self.raw_patterns[idx]);
+            }
+        }
+        if any_unmatched {
+            anyhow::bail!("from previous errors");
+        }
+        Ok(())
+    }
+}
+
+#[inline]
+fn has_glob_meta(pattern: &str) -> bool {
+    pattern.contains(['*', '?', '[', '{'])
+}
+
+#[inline]
+fn prefix_match(pattern: &str, path: &str) -> bool {
+    // Normalize pattern by stripping trailing slash for bsdtar compatibility.
+    // bsdtar treats "dir/" and "dir" identically for prefix matching.
+    let pattern = pattern.strip_suffix('/').unwrap_or(pattern);
+    if !path.starts_with(pattern) {
+        return false;
+    }
+    // Exact match is already handled by match_inclusion; here we only care
+    // about "pattern/…" forms.
+    path.as_bytes()
+        .get(pattern.len())
+        .map(|next| *next == b'/')
+        .unwrap_or(false)
+}
+
 /// BSD tar command like globs.
 #[derive(Clone, Debug)]
 pub(crate) struct BsdGlobPatterns<'a>(Vec<BsdGlobPattern<'a>>);

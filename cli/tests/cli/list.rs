@@ -15,3 +15,5 @@ mod option_format_table;
 mod option_format_tree;
 #[cfg(not(target_family = "wasm"))]
 mod option_format_tsv;
+#[cfg(not(target_family = "wasm"))]
+mod option_no_recursive;
