@@ -596,7 +596,7 @@ List files in archive
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
 * `-f`, `--file <FILE>`
-* `--help`
+* `--help` — Print help
 * `--quiet` — Make some output more quiet
 
   Default value: `false`
@@ -1123,7 +1123,7 @@ Archive manipulation via stdio
 
   Default value: `false`
 * `--version` — Print version
-* `--help`
+* `--help` — Print help
 * `--quiet` — Make some output more quiet
 
   Default value: `false`
@@ -1760,7 +1760,7 @@ List chunks
 
   Default value: `false`
 * `-f`, `--file <ARCHIVE>`
-* `--help`
+* `--help` — Print help
 * `--quiet` — Make some output more quiet
 
   Default value: `false`
