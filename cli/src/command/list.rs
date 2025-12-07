@@ -111,8 +111,8 @@ pub(crate) struct ListCommand {
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
     pub(crate) file: FileArgsCompat,
-    #[arg(long, action = clap::ArgAction::Help)]
-    help: Option<bool>,
+    #[arg(long, action = clap::ArgAction::Help, help = "Print help")]
+    help: (),
 }
 
 impl Command for ListCommand {
