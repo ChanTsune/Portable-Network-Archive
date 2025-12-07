@@ -35,8 +35,8 @@ pub(crate) struct ListCommand {
     pub(crate) header: bool,
     #[arg(short = 'f', long = "file", value_hint = ValueHint::FilePath)]
     archive: PathBuf,
-    #[arg(long, action = clap::ArgAction::Help)]
-    help: Option<bool>,
+    #[arg(long, action = clap::ArgAction::Help, help = "Print help")]
+    help: (),
 }
 
 impl Command for ListCommand {

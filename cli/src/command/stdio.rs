@@ -393,8 +393,8 @@ pub(crate) struct StdioCommand {
     ignore_zeros: bool,
     #[arg(long, action = clap::ArgAction::Version, help = "Print version")]
     version: (),
-    #[arg(long, action = clap::ArgAction::Help)]
-    help: Option<bool>,
+    #[arg(long, action = clap::ArgAction::Help, help = "Print help")]
+    help: (),
 }
 
 impl Command for StdioCommand {
