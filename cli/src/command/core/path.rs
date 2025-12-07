@@ -38,7 +38,7 @@ impl PathnameEditor {
             Cow::Borrowed(path)
         };
         let stripped = strip_components(&transformed, self.strip_components)?;
-        Some(EntryName::from_lossy(stripped))
+        Some(EntryName::from_path_lossy_preserve_root(&stripped).sanitize())
     }
 
     /// Edit pathname for a hardlink target. Returns `None` to skip the entry.
@@ -54,17 +54,18 @@ impl PathnameEditor {
             Cow::Borrowed(target)
         };
         let stripped = strip_components(&transformed, self.strip_components)?;
-        Some(EntryReference::from_lossy(stripped))
+        Some(EntryReference::from_path_lossy_preserve_root(&stripped).sanitize())
     }
 
     /// Edit pathname for a symlink target.
     pub(crate) fn edit_symlink(&self, target: &Path) -> EntryReference {
         // Note: symlinks do not have strip_components applied (matching bsdtar behavior)
         if let Some(t) = &self.transformers {
-            EntryReference::from(t.apply(target.to_string_lossy(), true, false))
+            EntryReference::from_utf8_preserve_root(&t.apply(target.to_string_lossy(), true, false))
         } else {
-            EntryReference::from_lossy(target)
+            EntryReference::from_path_lossy_preserve_root(target)
         }
+        .sanitize()
     }
 }
 
