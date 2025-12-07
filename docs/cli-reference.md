@@ -1109,6 +1109,9 @@ Archive manipulation via stdio
 
   Default value: `false`
 * `-C`, `--cd <DIRECTORY>` [alias: `directory`] — changes the directory before adding the following files
+* `-O`, `--to-stdout` — Write extracted file data to standard output instead of the file system
+
+  Default value: `false`
 * `--allow-unsafe-links` — Allow extracting symbolic links and hard links that contain root or parent paths
 
   Default value: `false`
