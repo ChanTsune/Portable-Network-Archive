@@ -1,5 +1,5 @@
 use crate::util::str::join_with_capacity;
-use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
+use camino::{Utf8Component, Utf8Path};
 use std::borrow::Cow;
 use std::error::Error;
 use std::ffi::{OsStr, OsString};
@@ -24,19 +24,15 @@ use std::str::{self, Utf8Error};
 pub struct EntryReference(String);
 
 impl EntryReference {
-    fn new_from_utf8path(path: &Utf8Path) -> Self {
-        Self::new_from_utf8path_preserve_root(path).sanitize()
-    }
-
     #[inline]
     fn new_from_utf8(name: &str) -> Self {
-        Self::new_from_utf8path(&Utf8PathBuf::from(name))
+        Self::from_utf8_preserve_root(name).sanitize()
     }
 
     #[inline]
     fn new_from_path(path: &Path) -> Result<Self, EntryReferenceError> {
         let path = str::from_utf8(path.as_os_str().as_encoded_bytes())?;
-        Ok(Self::new_from_utf8path(Utf8Path::new(path)))
+        Ok(Self::new_from_utf8(path))
     }
 
     /// Creates an [`EntryReference`] from a struct impl <code>[Into]<[PathBuf]></code>.
@@ -79,12 +75,12 @@ impl EntryReference {
     /// ```
     #[inline]
     pub fn from_utf8_preserve_root(path: &str) -> Self {
-        Self::new_from_utf8path_preserve_root(Utf8Path::new(path))
+        Self::new_preserve_root(path.into())
     }
 
     #[inline]
-    fn new_from_utf8path_preserve_root(path: &Utf8Path) -> Self {
-        Self(path.as_str().to_owned())
+    fn new_preserve_root(path: String) -> Self {
+        Self(path)
     }
 
     /// Creates an [EntryReference] from a path, preserving absolute path components.
@@ -104,7 +100,7 @@ impl EntryReference {
     #[inline]
     pub fn from_path_preserve_root(path: &Path) -> Result<Self, EntryReferenceError> {
         let path = str::from_utf8(path.as_os_str().as_encoded_bytes())?;
-        Ok(Self::new_from_utf8path_preserve_root(Utf8Path::new(path)))
+        Ok(Self::from_utf8_preserve_root(path))
     }
 
     /// Creates an [EntryReference] from a path, preserving absolute path components.
@@ -120,7 +116,7 @@ impl EntryReference {
     /// ```
     #[inline]
     pub fn from_path_lossy_preserve_root(path: &Path) -> Self {
-        Self::new_from_utf8path_preserve_root(Utf8Path::new(&path.to_string_lossy()))
+        Self::new_preserve_root(path.to_string_lossy().into())
     }
 
     /// Returns a sanitized relative reference containing only normal path components.

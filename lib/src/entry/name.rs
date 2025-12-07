@@ -1,5 +1,5 @@
 use crate::util::{str::join_with_capacity, utf8path::normalize_utf8path};
-use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
+use camino::{Utf8Component, Utf8Path};
 use std::borrow::Cow;
 use std::error::Error;
 use std::ffi::{OsStr, OsString};
@@ -24,19 +24,15 @@ use std::str::{self, Utf8Error};
 pub struct EntryName(String);
 
 impl EntryName {
-    fn new_from_utf8path(path: &Utf8Path) -> Self {
-        Self(path.as_str().to_owned()).sanitize()
-    }
-
     #[inline]
     fn new_from_utf8(name: &str) -> Self {
-        Self::new_from_utf8path(&Utf8PathBuf::from(name))
+        Self::from_utf8_preserve_root(name).sanitize()
     }
 
     #[inline]
     fn new_from_path(name: &Path) -> Result<Self, EntryNameError> {
         let name = str::from_utf8(name.as_os_str().as_encoded_bytes())?;
-        Ok(Self::new_from_utf8path(Utf8Path::new(name)))
+        Ok(Self::new_from_utf8(name))
     }
 
     /// Creates an [`EntryName`] from a struct impl <code>[Into]<[PathBuf]></code>.
@@ -83,12 +79,12 @@ impl EntryName {
     /// ```
     #[inline]
     pub fn from_utf8_preserve_root(path: &str) -> Self {
-        Self::new_from_utf8path_preserve_root(Utf8Path::new(path))
+        Self::new_preserve_root(path.into())
     }
 
     #[inline]
-    fn new_from_utf8path_preserve_root(path: &Utf8Path) -> Self {
-        Self(path.as_str().to_owned())
+    fn new_preserve_root(path: String) -> Self {
+        Self(path)
     }
 
     /// Creates an [EntryName] from a path, preserving absolute path components.
@@ -111,7 +107,7 @@ impl EntryName {
     #[inline]
     pub fn from_path_preserve_root(name: &Path) -> Result<Self, EntryNameError> {
         let path = str::from_utf8(name.as_os_str().as_encoded_bytes())?;
-        Ok(Self::new_from_utf8path_preserve_root(Utf8Path::new(path)))
+        Ok(Self::from_utf8_preserve_root(path))
     }
 
     /// Creates an [EntryName] from a path, preserving absolute path components.
@@ -133,7 +129,7 @@ impl EntryName {
     /// ```
     #[inline]
     pub fn from_path_lossy_preserve_root(name: &Path) -> Self {
-        Self::new_from_utf8path_preserve_root(Utf8Path::new(&name.to_string_lossy()))
+        Self::new_preserve_root(name.to_string_lossy().into())
     }
 
     /// Returns a sanitized copy of this entry name that contains only normal components.
