@@ -285,6 +285,7 @@ fn list_archive(args: ListCommand) -> anyhow::Result<()> {
         hide_control_chars: args.hide_control_chars,
         classify: args.classify,
         format: args.format,
+        out_to_stderr: false,
     };
     let archive = args.file.archive();
     let files = args.file.files();
@@ -363,6 +364,7 @@ pub(crate) struct ListOptions {
     pub(crate) hide_control_chars: bool,
     pub(crate) classify: bool,
     pub(crate) format: Option<Format>,
+    pub(crate) out_to_stderr: bool,
 }
 
 pub(crate) fn run_list_archive<'a>(
@@ -441,19 +443,31 @@ fn print_entries<'a>(
         })
         .collect::<Vec<_>>();
     globs.ensure_all_matched()?;
+    let mut stdout = io::stdout().lock();
+    let mut stderr = io::stderr().lock();
+    let out: &mut dyn Write = if options.out_to_stderr {
+        &mut stderr
+    } else {
+        &mut stdout
+    };
+
     match options.format {
-        Some(Format::Line) => simple_list_entries(entries, options),
-        Some(Format::JsonL) => json_line_entries(entries),
-        Some(Format::Table) => detail_list_entries(entries, options),
-        Some(Format::Tree) => tree_entries(entries, options),
-        Some(Format::BsdTar) => bsd_tar_list_entries(entries, options),
-        None if options.long => detail_list_entries(entries, options),
-        None => simple_list_entries(entries, options),
-    }
+        Some(Format::Line) => simple_list_entries_to(entries, &options, out)?,
+        Some(Format::JsonL) => json_line_entries_to(entries, out)?,
+        Some(Format::Table) => detail_list_entries_to(entries, &options, out)?,
+        Some(Format::Tree) => tree_entries_to(entries, &options, out)?,
+        Some(Format::BsdTar) => bsd_tar_list_entries_to(entries, &options, out)?,
+        None if options.long => detail_list_entries_to(entries, &options, out)?,
+        None => simple_list_entries_to(entries, &options, out)?,
+    };
     Ok(())
 }
 
-fn bsd_tar_list_entries(entries: Vec<TableRow>, options: ListOptions) {
+fn bsd_tar_list_entries_to(
+    entries: Vec<TableRow>,
+    options: &ListOptions,
+    out: &mut dyn Write,
+) -> io::Result<()> {
     let now = SystemTime::now();
     let mut uname_width = 6;
     let mut gname_width = 6;
@@ -486,10 +500,12 @@ fn bsd_tar_list_entries(entries: Vec<TableRow>, options: ListOptions) {
 
         // permission nlink uname gname size mtime name link
         // ex: -rw-r--r--  0 1000   1000        0 Jan  1  1980 f
-        println!(
+        writeln!(
+            out,
             "{perm}  {nlink} {uname:<uname_width$} {gname:<gname_width$} {size:8} {mtime} {name}"
-        );
+        )?;
     }
+    Ok(())
 }
 
 fn bsd_tar_time(now: SystemTime, time: SystemTime) -> DelayedFormat<StrftimeItems<'static>> {
@@ -527,17 +543,23 @@ impl<'a> Display for SimpleListDisplay<'a> {
     }
 }
 
-fn simple_list_entries(entries: Vec<TableRow>, options: ListOptions) {
-    print!(
-        "{}",
-        SimpleListDisplay {
-            entries: &entries,
-            options: &options,
-        }
-    );
+fn simple_list_entries_to(
+    entries: Vec<TableRow>,
+    options: &ListOptions,
+    out: &mut dyn Write,
+) -> io::Result<()> {
+    let display = SimpleListDisplay {
+        entries: &entries,
+        options,
+    };
+    write!(out, "{display}")
 }
 
-fn detail_list_entries(entries: impl IntoIterator<Item = TableRow>, options: ListOptions) {
+fn detail_list_entries_to(
+    entries: impl IntoIterator<Item = TableRow>,
+    options: &ListOptions,
+    out: &mut dyn Write,
+) -> io::Result<()> {
     let underline = Color::new("\x1B[4m", "\x1B[0m");
     let reset = Color::new("\x1B[8m", "\x1B[0m");
     let header = [
@@ -663,7 +685,7 @@ fn detail_list_entries(entries: impl IntoIterator<Item = TableRow>, options: Lis
         Color::empty(),
         Color::empty(),
     ));
-    println!("{table}");
+    writeln!(out, "{table}")
 }
 
 const DURATION_SIX_MONTH: Duration = Duration::from_secs(60 * 60 * 24 * 30 * 6);
@@ -843,7 +865,7 @@ struct XAttr<'a> {
     value: String,
 }
 
-fn json_line_entries(entries: Vec<TableRow>) {
+fn json_line_entries_to(entries: Vec<TableRow>, out: &mut dyn Write) -> anyhow::Result<()> {
     let entries = entries
         .par_iter()
         .map(|it| {
@@ -899,54 +921,11 @@ fn json_line_entries(entries: Vec<TableRow>) {
         })
         .collect::<Vec<_>>();
 
-    print!("{}", JsonLDisplay(entries));
-}
-
-struct JsonLDisplay<T>(Vec<T>);
-
-impl<T: serde::Serialize> Display for JsonLDisplay<T> {
-    #[inline]
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        struct FormatterAdapter<'f, 'a>(&'f mut Formatter<'a>);
-        impl Write for FormatterAdapter<'_, '_> {
-            #[inline]
-            fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-                self.0
-                    .write_str(unsafe { std::str::from_utf8_unchecked(buf) })
-                    .map_err(io::Error::other)?;
-                Ok(buf.len())
-            }
-
-            #[inline]
-            fn flush(&mut self) -> io::Result<()> {
-                Ok(())
-            }
-        }
-
-        impl fmt::Write for FormatterAdapter<'_, '_> {
-            #[inline]
-            fn write_str(&mut self, s: &str) -> fmt::Result {
-                self.0.write_str(s)
-            }
-
-            #[inline]
-            fn write_char(&mut self, c: char) -> fmt::Result {
-                self.0.write_char(c)
-            }
-
-            #[inline]
-            fn write_fmt(&mut self, args: fmt::Arguments<'_>) -> fmt::Result {
-                self.0.write_fmt(args)
-            }
-        }
-        let mut writer = FormatterAdapter(f);
-        for line in &self.0 {
-            use core::fmt::Write;
-            serde_json::to_writer(&mut writer, &line).map_err(|_| fmt::Error)?;
-            writer.write_char('\n')?;
-        }
-        Ok(())
+    for line in entries {
+        serde_json::to_writer(&mut *out, &line)?;
+        out.write_all(b"\n")?;
     }
+    Ok(())
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -962,7 +941,11 @@ impl<'s> TreeEntry<'s> {
     }
 }
 
-fn tree_entries(entries: Vec<TableRow>, options: ListOptions) {
+fn tree_entries_to(
+    entries: Vec<TableRow>,
+    options: &ListOptions,
+    out: &mut dyn Write,
+) -> io::Result<()> {
     let entries = entries.iter().map(|it| match &it.entry_type {
         EntryType::File(name) => (name.as_str(), DataKind::File),
         EntryType::Directory(name) => (name.as_str(), DataKind::Directory),
@@ -970,8 +953,8 @@ fn tree_entries(entries: Vec<TableRow>, options: ListOptions) {
         EntryType::HardLink(name, _) => (name.as_str(), DataKind::HardLink),
     });
     let map = build_tree_map(entries);
-    let tree = build_term_tree(&map, Cow::Borrowed(""), None, DataKind::Directory, &options);
-    println!("{tree}");
+    let tree = build_term_tree(&map, Cow::Borrowed(""), None, DataKind::Directory, options);
+    writeln!(out, "{tree}")
 }
 
 fn build_tree_map<'s>(
