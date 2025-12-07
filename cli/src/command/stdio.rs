@@ -10,16 +10,15 @@ use crate::{
             AclStrategy, CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
             PathnameEditor, PermissionStrategy, TimeFilter, TimeFilters, TimeOptions,
             TimestampStrategy, XattrStrategy, collect_items, collect_split_archives, entry_option,
-            path_lock::PathLocks, read_paths,
+            path_lock::PathLocks,
+            re::{bsd::SubstitutionRule, gnu::TransformRule},
+            read_paths,
         },
         create::{CreationContext, create_archive_file},
         extract::{OutputOption, OverwriteStrategy, run_extract_archive_reader},
         list::{Format, ListOptions, TimeField, TimeFormat},
     },
-    utils::{
-        self, GlobPatterns, VCS_FILES,
-        re::{bsd::SubstitutionRule, gnu::TransformRule},
-    },
+    utils::{self, GlobPatterns, VCS_FILES},
 };
 use clap::{ArgGroup, Args, ValueHint};
 use pna::Archive;

@@ -9,14 +9,15 @@ use crate::{
         core::{
             AclStrategy, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
             PermissionStrategy, TimestampStrategy, XattrStrategy, collect_split_archives,
-            path_lock::PathLocks, read_paths, run_process_archive,
+            path_lock::PathLocks,
+            re::{bsd::SubstitutionRule, gnu::TransformRule},
+            read_paths, run_process_archive,
         },
     },
     utils::{
         self, GlobPatterns, PathWithCwd, VCS_FILES,
         fmt::DurationDisplay,
         fs::{Group, User},
-        re::{bsd::SubstitutionRule, gnu::TransformRule},
     },
 };
 use anyhow::Context;

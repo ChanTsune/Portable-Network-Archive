@@ -152,8 +152,7 @@ mod tests {
         // Example: path "old/a/b" with transform /old/new/ and strip=1
         // bsdtar order: "old/a/b" -> transform -> "new/a/b" -> strip 1 -> "a/b"
         // (wrong order would be: "old/a/b" -> strip 1 -> "a/b" -> transform -> "a/b")
-        use super::super::PathTransformers;
-        use crate::utils::re::bsd::SubstitutionRules;
+        use super::super::{PathTransformers, re::bsd::SubstitutionRules};
 
         // Format: /pattern/replacement/flags - first char is the delimiter
         let rules = SubstitutionRules::new(vec!["/old/new/".parse().unwrap()]);

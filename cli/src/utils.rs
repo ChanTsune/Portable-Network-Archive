@@ -9,7 +9,6 @@ pub(crate) mod io;
 pub(crate) mod mmap;
 pub(crate) mod os;
 mod path;
-pub(crate) mod re;
 pub(crate) mod str;
 
 pub(crate) use {globs::*, path::*};

@@ -9,13 +9,11 @@ use crate::{
             AclStrategy, CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
             PathnameEditor, PermissionStrategy, StoreAs, TimeFilter, TimeFilters, TimeOptions,
             TimestampStrategy, XattrStrategy, collect_items, create_entry, entry_option,
+            re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin,
         },
     },
-    utils::{
-        PathPartExt, VCS_FILES,
-        re::{bsd::SubstitutionRule, gnu::TransformRule},
-    },
+    utils::{PathPartExt, VCS_FILES},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::{Archive, prelude::*};
