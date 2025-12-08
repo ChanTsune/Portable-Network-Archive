@@ -25,6 +25,11 @@ impl User {
     pub(crate) fn as_raw(&self) -> u32 {
         self.0.as_raw()
     }
+
+    #[inline]
+    pub(crate) fn primary_gid(&self) -> Option<u32> {
+        None
+    }
 }
 pub(crate) struct Group(Gid);
 
