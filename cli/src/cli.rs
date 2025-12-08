@@ -3,8 +3,8 @@ pub mod value;
 use crate::command::{
     append::AppendCommand, bugreport::BugReportCommand, complete::CompleteCommand,
     concat::ConcatCommand, create::CreateCommand, experimental::ExperimentalCommand,
-    extract::ExtractCommand, list::ListCommand, split::SplitCommand, strip::StripCommand,
-    xattr::XattrCommand,
+    extract::ExtractCommand, list::ListCommand, sort::SortCommand, split::SplitCommand,
+    strip::StripCommand, xattr::XattrCommand,
 };
 use clap::{ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
 use log::{Level, LevelFilter};
@@ -86,6 +86,8 @@ pub(crate) enum Commands {
     Concat(ConcatCommand),
     #[command(about = "Strip entries metadata")]
     Strip(StripCommand),
+    #[command(about = "Sort entries in archive")]
+    Sort(SortCommand),
     #[command(about = "Manipulate extended attributes")]
     Xattr(XattrCommand),
     #[command(about = "Generate shell auto complete")]
