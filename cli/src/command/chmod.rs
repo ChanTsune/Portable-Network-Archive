@@ -124,6 +124,7 @@ bitflags! {
 }
 
 impl Who {
+    /// Expand 3-bit permission value to positions specified by this Who mask.
     #[inline]
     const fn to_permission_bits(self, n: u16) -> u16 {
         let mut result = 0;
@@ -135,6 +136,22 @@ impl Who {
         }
         if self.contains(Who::Other) {
             result |= n;
+        }
+        result
+    }
+
+    /// Extract 3-bit permission values from positions specified by this Who mask.
+    #[inline]
+    const fn extract_bits(self, mode: u16) -> u8 {
+        let mut result = 0u8;
+        if self.contains(Who::User) {
+            result |= ((mode >> 6) & 0o7) as u8;
+        }
+        if self.contains(Who::Group) {
+            result |= ((mode >> 3) & 0o7) as u8;
+        }
+        if self.contains(Who::Other) {
+            result |= (mode & 0o7) as u8;
         }
         result
     }
@@ -151,37 +168,108 @@ impl Who {
     }
 }
 
+/// Permission bits that can be either literal (r, w, x) or copied from another class (u, g, o).
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub(crate) struct PermBits {
+    /// Direct permission bits (r=4, w=2, x=1)
+    literal: u8,
+    /// Sources to copy from (resolved at apply time)
+    copy_from: Who,
+}
+
+impl Default for PermBits {
+    fn default() -> Self {
+        Self {
+            literal: 0,
+            copy_from: Who::empty(),
+        }
+    }
+}
+
+impl From<u8> for PermBits {
+    fn from(literal: u8) -> Self {
+        Self {
+            literal,
+            copy_from: Who::empty(),
+        }
+    }
+}
+
+impl PermBits {
+    /// Create a PermBits that copies from the given source(s).
+    const fn copy_from(source: Who) -> Self {
+        Self {
+            literal: 0,
+            copy_from: source,
+        }
+    }
+
+    /// Resolve copy sources against current mode to get final permission bits.
+    #[must_use]
+    #[inline]
+    fn resolve(self, mode: u16) -> u8 {
+        self.literal | self.copy_from.extract_bits(mode)
+    }
+}
+
+impl BitOr for PermBits {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self {
+        Self {
+            literal: self.literal | rhs.literal,
+            copy_from: self.copy_from | rhs.copy_from,
+        }
+    }
+}
+
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) enum Action {
-    Equal(u8),
-    Plus(u8),
-    Minus(u8),
+    Equal(PermBits),
+    Plus(PermBits),
+    Minus(PermBits),
 }
 
 impl Action {
     #[inline]
     fn parse_from(s: &str) -> nom::IResult<&str, Self> {
-        fn op(s: &str) -> nom::IResult<&str, Action> {
-            alt((
-                map(char('+'), |_| Action::Plus(0)),
-                map(char('-'), |_| Action::Minus(0)),
-                map(char('='), |_| Action::Equal(0)),
-            ))
-            .parse(s)
+        #[derive(Copy, Clone)]
+        enum Op {
+            Plus,
+            Minus,
+            Equal,
         }
-        fn perm(s: &str) -> nom::IResult<&str, u8> {
+
+        fn op(s: &str) -> nom::IResult<&str, Op> {
             alt((
-                map(char('r'), |_| 0o4),
-                map(char('w'), |_| 0o2),
-                map(char('x'), |_| 0o1),
+                map(char('+'), |_| Op::Plus),
+                map(char('-'), |_| Op::Minus),
+                map(char('='), |_| Op::Equal),
             ))
             .parse(s)
         }
 
-        map((op, many0(perm)), |(op, perms)| match op {
-            Action::Equal(m) => Action::Equal(perms.into_iter().fold(m, BitOr::bitor)),
-            Action::Plus(m) => Action::Plus(perms.into_iter().fold(m, BitOr::bitor)),
-            Action::Minus(m) => Action::Minus(perms.into_iter().fold(m, BitOr::bitor)),
+        fn perm(s: &str) -> nom::IResult<&str, PermBits> {
+            alt((
+                // Literal permission bits
+                map(char('r'), |_| 0o4.into()),
+                map(char('w'), |_| 0o2.into()),
+                map(char('x'), |_| 0o1.into()),
+                // Copy sources
+                map(char('u'), |_| PermBits::copy_from(Who::User)),
+                map(char('g'), |_| PermBits::copy_from(Who::Group)),
+                map(char('o'), |_| PermBits::copy_from(Who::Other)),
+            ))
+            .parse(s)
+        }
+
+        map((op, many0(perm)), |(op, perms)| {
+            let bits = perms.into_iter().fold(PermBits::default(), BitOr::bitor);
+            match op {
+                Op::Plus => Action::Plus(bits),
+                Op::Minus => Action::Minus(bits),
+                Op::Equal => Action::Equal(bits),
+            }
         })
         .parse(s)
     }
@@ -227,26 +315,34 @@ impl Mode {
                 for ModeClause { who, actions } in clauses {
                     for action in actions {
                         match action {
-                            Action::Equal(m) => {
+                            Action::Equal(bits) => {
+                                // Resolve copy sources against current mode
+                                let m = bits.resolve(mode) as u16;
                                 let owner_mode = if who.contains(Who::User) {
-                                    Who::User.to_permission_bits(*m as u16)
+                                    Who::User.to_permission_bits(m)
                                 } else {
                                     mode & Self::OWNER_MASK
                                 };
                                 let group_mode = if who.contains(Who::Group) {
-                                    Who::Group.to_permission_bits(*m as u16)
+                                    Who::Group.to_permission_bits(m)
                                 } else {
                                     mode & Self::GROUP_MASK
                                 };
                                 let other_mode = if who.contains(Who::Other) {
-                                    Who::Other.to_permission_bits(*m as u16)
+                                    Who::Other.to_permission_bits(m)
                                 } else {
                                     mode & Self::OTHER_MASK
                                 };
                                 mode = owner_mode | group_mode | other_mode
                             }
-                            Action::Plus(m) => mode |= who.to_permission_bits(*m as u16),
-                            Action::Minus(m) => mode &= !who.to_permission_bits(*m as u16),
+                            Action::Plus(bits) => {
+                                let m = bits.resolve(mode) as u16;
+                                mode |= who.to_permission_bits(m)
+                            }
+                            Action::Minus(bits) => {
+                                let m = bits.resolve(mode) as u16;
+                                mode &= !who.to_permission_bits(m)
+                            }
                         }
                     }
                 }
@@ -298,28 +394,28 @@ mod tests {
             Mode::from_str("=rwx").unwrap(),
             Mode::Clause(vec![ModeClause {
                 who: Who::All,
-                actions: vec![Action::Equal(0o7)]
+                actions: vec![Action::Equal(0o7.into())]
             }])
         );
         assert_eq!(
             Mode::from_str("=rw").unwrap(),
             Mode::Clause(vec![ModeClause {
                 who: Who::All,
-                actions: vec![Action::Equal(0o6)]
+                actions: vec![Action::Equal(0o6.into())]
             }])
         );
         assert_eq!(
             Mode::from_str("+x").unwrap(),
             Mode::Clause(vec![ModeClause {
                 who: Who::All,
-                actions: vec![Action::Plus(0o1)]
+                actions: vec![Action::Plus(0o1.into())]
             }])
         );
         assert_eq!(
             Mode::from_str("-w").unwrap(),
             Mode::Clause(vec![ModeClause {
                 who: Who::All,
-                actions: vec![Action::Minus(0o2)]
+                actions: vec![Action::Minus(0o2.into())]
             }])
         );
     }
@@ -330,28 +426,28 @@ mod tests {
             Mode::from_str("u=rwx").unwrap(),
             Mode::Clause(vec![ModeClause {
                 who: Who::User,
-                actions: vec![Action::Equal(0o7)]
+                actions: vec![Action::Equal(0o7.into())]
             }])
         );
         assert_eq!(
             Mode::from_str("g=rw").unwrap(),
             Mode::Clause(vec![ModeClause {
                 who: Who::Group,
-                actions: vec![Action::Equal(0o6)]
+                actions: vec![Action::Equal(0o6.into())]
             }])
         );
         assert_eq!(
             Mode::from_str("o+x").unwrap(),
             Mode::Clause(vec![ModeClause {
                 who: Who::Other,
-                actions: vec![Action::Plus(0o1)]
+                actions: vec![Action::Plus(0o1.into())]
             }])
         );
         assert_eq!(
             Mode::from_str("a-w").unwrap(),
             Mode::Clause(vec![ModeClause {
                 who: Who::All,
-                actions: vec![Action::Minus(0o2)]
+                actions: vec![Action::Minus(0o2.into())]
             }])
         );
     }
@@ -362,21 +458,21 @@ mod tests {
             Mode::from_str("u=").unwrap(),
             Mode::Clause(vec![ModeClause {
                 who: Who::User,
-                actions: vec![Action::Equal(0)]
+                actions: vec![Action::Equal(0.into())]
             }])
         );
         assert_eq!(
             Mode::from_str("g+").unwrap(),
             Mode::Clause(vec![ModeClause {
                 who: Who::Group,
-                actions: vec![Action::Plus(0)]
+                actions: vec![Action::Plus(0.into())]
             }])
         );
         assert_eq!(
             Mode::from_str("o-").unwrap(),
             Mode::Clause(vec![ModeClause {
                 who: Who::Other,
-                actions: vec![Action::Minus(0)]
+                actions: vec![Action::Minus(0.into())]
             }])
         );
     }
@@ -387,7 +483,7 @@ mod tests {
             Mode::from_str("ug=").unwrap(),
             Mode::Clause(vec![ModeClause {
                 who: Who::User | Who::Group,
-                actions: vec![Action::Equal(0)]
+                actions: vec![Action::Equal(0.into())]
             }])
         );
     }
@@ -398,21 +494,21 @@ mod tests {
             Mode::from_str("=rwx").unwrap(),
             Mode::Clause(vec![ModeClause {
                 who: Who::All,
-                actions: vec![Action::Equal(0o7)]
+                actions: vec![Action::Equal(0o7.into())]
             }])
         );
         assert_eq!(
             Mode::from_str("+x").unwrap(),
             Mode::Clause(vec![ModeClause {
                 who: Who::All,
-                actions: vec![Action::Plus(0o1)]
+                actions: vec![Action::Plus(0o1.into())]
             }])
         );
         assert_eq!(
             Mode::from_str("-w").unwrap(),
             Mode::Clause(vec![ModeClause {
                 who: Who::All,
-                actions: vec![Action::Minus(0o2)]
+                actions: vec![Action::Minus(0o2.into())]
             }])
         );
     }
@@ -423,14 +519,14 @@ mod tests {
             Mode::from_str("ugo=rw").unwrap(),
             Mode::Clause(vec![ModeClause {
                 who: Who::User | Who::Group | Who::Other,
-                actions: vec![Action::Equal(0o6)]
+                actions: vec![Action::Equal(0o6.into())]
             }])
         );
         assert_eq!(
             Mode::from_str("ug+x").unwrap(),
             Mode::Clause(vec![ModeClause {
                 who: Who::User | Who::Group,
-                actions: vec![Action::Plus(0o1)]
+                actions: vec![Action::Plus(0o1.into())]
             }])
         );
     }
@@ -441,7 +537,7 @@ mod tests {
             Mode::from_str("au=rw").unwrap(),
             Mode::Clause(vec![ModeClause {
                 who: Who::All,
-                actions: vec![Action::Equal(0o6)]
+                actions: vec![Action::Equal(0o6.into())]
             }])
         );
     }
@@ -453,15 +549,15 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User,
-                    actions: vec![Action::Equal(0o7)]
+                    actions: vec![Action::Equal(0o7.into())]
                 },
                 ModeClause {
                     who: Who::Group,
-                    actions: vec![Action::Equal(0o5)]
+                    actions: vec![Action::Equal(0o5.into())]
                 },
                 ModeClause {
                     who: Who::Other,
-                    actions: vec![Action::Equal(0o4)]
+                    actions: vec![Action::Equal(0o4.into())]
                 }
             ])
         );
@@ -474,15 +570,15 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User,
-                    actions: vec![Action::Equal(0o7)]
+                    actions: vec![Action::Equal(0o7.into())]
                 },
                 ModeClause {
                     who: Who::Group,
-                    actions: vec![Action::Plus(0o5)]
+                    actions: vec![Action::Plus(0o5.into())]
                 },
                 ModeClause {
                     who: Who::Other,
-                    actions: vec![Action::Minus(0o4)]
+                    actions: vec![Action::Minus(0o4.into())]
                 }
             ])
         );
@@ -495,11 +591,11 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User | Who::Group,
-                    actions: vec![Action::Equal(0o7)]
+                    actions: vec![Action::Equal(0o7.into())]
                 },
                 ModeClause {
                     who: Who::Other,
-                    actions: vec![Action::Equal(0o5)]
+                    actions: vec![Action::Equal(0o5.into())]
                 }
             ])
         );
@@ -512,15 +608,15 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User,
-                    actions: vec![Action::Equal(0)]
+                    actions: vec![Action::Equal(0.into())]
                 },
                 ModeClause {
                     who: Who::Group,
-                    actions: vec![Action::Equal(0)]
+                    actions: vec![Action::Equal(0.into())]
                 },
                 ModeClause {
                     who: Who::Other,
-                    actions: vec![Action::Equal(0)]
+                    actions: vec![Action::Equal(0.into())]
                 }
             ])
         );
@@ -533,15 +629,15 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User,
-                    actions: vec![Action::Equal(0o7)]
+                    actions: vec![Action::Equal(0o7.into())]
                 },
                 ModeClause {
                     who: Who::Group,
-                    actions: vec![Action::Equal(0o6)]
+                    actions: vec![Action::Equal(0o6.into())]
                 },
                 ModeClause {
                     who: Who::Other,
-                    actions: vec![Action::Equal(0o4)]
+                    actions: vec![Action::Equal(0o4.into())]
                 }
             ])
         );
@@ -560,21 +656,21 @@ mod tests {
             Mode::from_str("u=rwx+rx").unwrap(),
             Mode::Clause(vec![ModeClause {
                 who: Who::User,
-                actions: vec![Action::Equal(0o7), Action::Plus(0o5)],
+                actions: vec![Action::Equal(0o7.into()), Action::Plus(0o5.into())],
             }])
         );
         assert_eq!(
             Mode::from_str("u=rwx-rx").unwrap(),
             Mode::Clause(vec![ModeClause {
                 who: Who::User,
-                actions: vec![Action::Equal(0o7), Action::Minus(0o5)],
+                actions: vec![Action::Equal(0o7.into()), Action::Minus(0o5.into())],
             }])
         );
         assert_eq!(
             Mode::from_str("u+rwx=rx").unwrap(),
             Mode::Clause(vec![ModeClause {
                 who: Who::User,
-                actions: vec![Action::Plus(0o7), Action::Equal(0o5)],
+                actions: vec![Action::Plus(0o7.into()), Action::Equal(0o5.into())],
             }])
         );
     }
@@ -612,14 +708,14 @@ mod tests {
             Mode::from_str("u==rw").unwrap(),
             Mode::Clause(vec![ModeClause {
                 who: Who::User,
-                actions: vec![Action::Equal(0o0), Action::Equal(0o6)],
+                actions: vec![Action::Equal(0o0.into()), Action::Equal(0o6.into())],
             }])
         );
         assert_eq!(
             Mode::from_str("u++x").unwrap(),
             Mode::Clause(vec![ModeClause {
                 who: Who::User,
-                actions: vec![Action::Plus(0o0), Action::Plus(0o1)],
+                actions: vec![Action::Plus(0o0.into()), Action::Plus(0o1.into())],
             }])
         );
     }
@@ -696,7 +792,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::User,
-                actions: vec![Action::Equal(0o7)]
+                actions: vec![Action::Equal(0o7.into())]
             }])
             .apply_to(0o654),
             0o754
@@ -708,7 +804,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::Group,
-                actions: vec![Action::Equal(0o6)]
+                actions: vec![Action::Equal(0o6.into())]
             }])
             .apply_to(0o754),
             0o764
@@ -720,7 +816,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::Other,
-                actions: vec![Action::Equal(0o5)]
+                actions: vec![Action::Equal(0o5.into())]
             }])
             .apply_to(0o764),
             0o765
@@ -732,7 +828,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::All,
-                actions: vec![Action::Equal(0o0)]
+                actions: vec![Action::Equal(0o0.into())]
             }])
             .apply_to(0o777),
             0o000
@@ -744,7 +840,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::User | Who::Group,
-                actions: vec![Action::Equal(0o4)]
+                actions: vec![Action::Equal(0o4.into())]
             }])
             .apply_to(0o777),
             0o447
@@ -756,7 +852,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::User,
-                actions: vec![Action::Plus(0o1)]
+                actions: vec![Action::Plus(0o1.into())]
             }])
             .apply_to(0o600),
             0o700
@@ -768,7 +864,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::Group,
-                actions: vec![Action::Plus(0o2)]
+                actions: vec![Action::Plus(0o2.into())]
             }])
             .apply_to(0o640),
             0o660
@@ -780,7 +876,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::Other,
-                actions: vec![Action::Plus(0o4)]
+                actions: vec![Action::Plus(0o4.into())]
             }])
             .apply_to(0o600),
             0o604
@@ -792,7 +888,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::All,
-                actions: vec![Action::Plus(0o1)]
+                actions: vec![Action::Plus(0o1.into())]
             }])
             .apply_to(0o660),
             0o771
@@ -804,7 +900,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::All,
-                actions: vec![Action::Plus(0)]
+                actions: vec![Action::Plus(0.into())]
             }])
             .apply_to(0o777),
             0o777
@@ -816,7 +912,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::User,
-                actions: vec![Action::Minus(0o4)]
+                actions: vec![Action::Minus(0o4.into())]
             }])
             .apply_to(0o744),
             0o344
@@ -828,7 +924,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::Group,
-                actions: vec![Action::Minus(0o2)]
+                actions: vec![Action::Minus(0o2.into())]
             }])
             .apply_to(0o762),
             0o742
@@ -840,7 +936,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::Other,
-                actions: vec![Action::Minus(0o1)]
+                actions: vec![Action::Minus(0o1.into())]
             }])
             .apply_to(0o701),
             0o700
@@ -852,7 +948,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::All,
-                actions: vec![Action::Minus(0o7)]
+                actions: vec![Action::Minus(0o7.into())]
             }])
             .apply_to(0o777),
             0o000
@@ -864,7 +960,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::All,
-                actions: vec![Action::Minus(0)]
+                actions: vec![Action::Minus(0.into())]
             }])
             .apply_to(0o777),
             0o777
@@ -876,7 +972,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::All,
-                actions: vec![Action::Plus(0o7)]
+                actions: vec![Action::Plus(0o7.into())]
             }])
             .apply_to(0o777),
             0o777
@@ -888,7 +984,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::All,
-                actions: vec![Action::Minus(0o7)]
+                actions: vec![Action::Minus(0o7.into())]
             }])
             .apply_to(0o000),
             0o000
@@ -900,7 +996,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::User,
-                actions: vec![Action::Equal(0o7), Action::Plus(0o5)],
+                actions: vec![Action::Equal(0o7.into()), Action::Plus(0o5.into())],
             }])
             .apply_to(0o000),
             0o700
@@ -908,7 +1004,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::User,
-                actions: vec![Action::Equal(0o7), Action::Minus(0o5)],
+                actions: vec![Action::Equal(0o7.into()), Action::Minus(0o5.into())],
             }])
             .apply_to(0o777),
             0o277
@@ -916,7 +1012,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::User,
-                actions: vec![Action::Plus(0o7), Action::Equal(0o5)],
+                actions: vec![Action::Plus(0o7.into()), Action::Equal(0o5.into())],
             }])
             .apply_to(0o000),
             0o500
@@ -929,15 +1025,15 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User,
-                    actions: vec![Action::Equal(0o7)],
+                    actions: vec![Action::Equal(0o7.into())],
                 },
                 ModeClause {
                     who: Who::Group,
-                    actions: vec![Action::Equal(0o5)],
+                    actions: vec![Action::Equal(0o5.into())],
                 },
                 ModeClause {
                     who: Who::Other,
-                    actions: vec![Action::Equal(0o4)],
+                    actions: vec![Action::Equal(0o4.into())],
                 }
             ])
             .apply_to(0o000),
@@ -951,11 +1047,11 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User | Who::Group,
-                    actions: vec![Action::Equal(0o7)],
+                    actions: vec![Action::Equal(0o7.into())],
                 },
                 ModeClause {
                     who: Who::Other,
-                    actions: vec![Action::Equal(0o5)],
+                    actions: vec![Action::Equal(0o5.into())],
                 }
             ])
             .apply_to(0o000),
@@ -969,15 +1065,15 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User,
-                    actions: vec![Action::Equal(0)],
+                    actions: vec![Action::Equal(0.into())],
                 },
                 ModeClause {
                     who: Who::Group,
-                    actions: vec![Action::Equal(0)],
+                    actions: vec![Action::Equal(0.into())],
                 },
                 ModeClause {
                     who: Who::Other,
-                    actions: vec![Action::Equal(0)],
+                    actions: vec![Action::Equal(0.into())],
                 }
             ])
             .apply_to(0o777),
@@ -991,15 +1087,15 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User,
-                    actions: vec![Action::Equal(0o7)],
+                    actions: vec![Action::Equal(0o7.into())],
                 },
                 ModeClause {
                     who: Who::Group,
-                    actions: vec![Action::Equal(0o6)],
+                    actions: vec![Action::Equal(0o6.into())],
                 },
                 ModeClause {
                     who: Who::Other,
-                    actions: vec![Action::Equal(0o4)],
+                    actions: vec![Action::Equal(0o4.into())],
                 }
             ])
             .apply_to(0o000),
@@ -1014,11 +1110,11 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User,
-                    actions: vec![Action::Plus(0o7)],
+                    actions: vec![Action::Plus(0o7.into())],
                 },
                 ModeClause {
                     who: Who::Group,
-                    actions: vec![Action::Minus(0o5)],
+                    actions: vec![Action::Minus(0o5.into())],
                 }
             ])
             .apply_to(0o000),
@@ -1030,11 +1126,11 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User,
-                    actions: vec![Action::Plus(0o4)],
+                    actions: vec![Action::Plus(0o4.into())],
                 },
                 ModeClause {
                     who: Who::User,
-                    actions: vec![Action::Plus(0o2)],
+                    actions: vec![Action::Plus(0o2.into())],
                 }
             ])
             .apply_to(0o000),
@@ -1046,11 +1142,11 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User,
-                    actions: vec![Action::Minus(0o4)],
+                    actions: vec![Action::Minus(0o4.into())],
                 },
                 ModeClause {
                     who: Who::User,
-                    actions: vec![Action::Minus(0o2)],
+                    actions: vec![Action::Minus(0o2.into())],
                 }
             ])
             .apply_to(0o777),
@@ -1065,15 +1161,15 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User,
-                    actions: vec![Action::Equal(0o7)],
+                    actions: vec![Action::Equal(0o7.into())],
                 },
                 ModeClause {
                     who: Who::Group,
-                    actions: vec![Action::Plus(0o5)],
+                    actions: vec![Action::Plus(0o5.into())],
                 },
                 ModeClause {
                     who: Who::Other,
-                    actions: vec![Action::Minus(0o4)],
+                    actions: vec![Action::Minus(0o4.into())],
                 }
             ])
             .apply_to(0o000),
@@ -1085,11 +1181,11 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User,
-                    actions: vec![Action::Equal(0o4)],
+                    actions: vec![Action::Equal(0o4.into())],
                 },
                 ModeClause {
                     who: Who::User,
-                    actions: vec![Action::Plus(0o2)],
+                    actions: vec![Action::Plus(0o2.into())],
                 }
             ])
             .apply_to(0o000),
@@ -1104,11 +1200,11 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User | Who::Group,
-                    actions: vec![Action::Equal(0o7)],
+                    actions: vec![Action::Equal(0o7.into())],
                 },
                 ModeClause {
                     who: Who::Group | Who::Other,
-                    actions: vec![Action::Plus(0o5)],
+                    actions: vec![Action::Plus(0o5.into())],
                 }
             ])
             .apply_to(0o000),
@@ -1120,11 +1216,11 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User | Who::Group,
-                    actions: vec![Action::Equal(0o7)],
+                    actions: vec![Action::Equal(0o7.into())],
                 },
                 ModeClause {
                     who: Who::Group | Who::Other,
-                    actions: vec![Action::Minus(0o5)],
+                    actions: vec![Action::Minus(0o5.into())],
                 }
             ])
             .apply_to(0o777),
@@ -1139,11 +1235,11 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User,
-                    actions: vec![Action::Plus(0o7)],
+                    actions: vec![Action::Plus(0o7.into())],
                 },
                 ModeClause {
                     who: Who::User,
-                    actions: vec![Action::Equal(0o5)],
+                    actions: vec![Action::Equal(0o5.into())],
                 }
             ])
             .apply_to(0o000),
@@ -1154,11 +1250,11 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User,
-                    actions: vec![Action::Equal(0o7)],
+                    actions: vec![Action::Equal(0o7.into())],
                 },
                 ModeClause {
                     who: Who::User,
-                    actions: vec![Action::Minus(0o5)],
+                    actions: vec![Action::Minus(0o5.into())],
                 }
             ])
             .apply_to(0o000),
@@ -1172,11 +1268,11 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User,
-                    actions: vec![Action::Equal(0o7)],
+                    actions: vec![Action::Equal(0o7.into())],
                 },
                 ModeClause {
                     who: Who::Group,
-                    actions: vec![Action::Plus(0o5)],
+                    actions: vec![Action::Plus(0o5.into())],
                 }
             ])
             .apply_to(0o123),
@@ -1190,11 +1286,11 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User,
-                    actions: vec![Action::Minus(0o4)],
+                    actions: vec![Action::Minus(0o4.into())],
                 },
                 ModeClause {
                     who: Who::Group,
-                    actions: vec![Action::Plus(0o2)],
+                    actions: vec![Action::Plus(0o2.into())],
                 }
             ])
             .apply_to(0o421),
@@ -1208,11 +1304,11 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User | Who::Group,
-                    actions: vec![Action::Equal(0o4)],
+                    actions: vec![Action::Equal(0o4.into())],
                 },
                 ModeClause {
                     who: Who::Other,
-                    actions: vec![Action::Plus(0o1)],
+                    actions: vec![Action::Plus(0o1.into())],
                 }
             ])
             .apply_to(0o242),
@@ -1226,15 +1322,15 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User,
-                    actions: vec![Action::Equal(0o6)],
+                    actions: vec![Action::Equal(0o6.into())],
                 },
                 ModeClause {
                     who: Who::Group,
-                    actions: vec![Action::Minus(0o2)],
+                    actions: vec![Action::Minus(0o2.into())],
                 },
                 ModeClause {
                     who: Who::Other,
-                    actions: vec![Action::Plus(0o1)],
+                    actions: vec![Action::Plus(0o1.into())],
                 }
             ])
             .apply_to(0o135),
@@ -1249,11 +1345,11 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User | Who::Group,
-                    actions: vec![Action::Minus(0o3)],
+                    actions: vec![Action::Minus(0o3.into())],
                 },
                 ModeClause {
                     who: Who::Other,
-                    actions: vec![Action::Equal(0o4)],
+                    actions: vec![Action::Equal(0o4.into())],
                 }
             ])
             .apply_to(0o666),
@@ -1268,15 +1364,15 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User,
-                    actions: vec![Action::Equal(0o4)],
+                    actions: vec![Action::Equal(0o4.into())],
                 },
                 ModeClause {
                     who: Who::User,
-                    actions: vec![Action::Plus(0o2)],
+                    actions: vec![Action::Plus(0o2.into())],
                 },
                 ModeClause {
                     who: Who::Group,
-                    actions: vec![Action::Minus(0o1)],
+                    actions: vec![Action::Minus(0o1.into())],
                 }
             ])
             .apply_to(0o531),
@@ -1291,11 +1387,11 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User | Who::Group,
-                    actions: vec![Action::Equal(0o5)],
+                    actions: vec![Action::Equal(0o5.into())],
                 },
                 ModeClause {
                     who: Who::Group | Who::Other,
-                    actions: vec![Action::Plus(0o2)],
+                    actions: vec![Action::Plus(0o2.into())],
                 }
             ])
             .apply_to(0o246),
@@ -1309,7 +1405,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::User,
-                actions: vec![Action::Equal(0o1)],
+                actions: vec![Action::Equal(0o1.into())],
             }])
             .apply_to(0o777),
             0o177
@@ -1319,7 +1415,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::Group,
-                actions: vec![Action::Equal(0o2)],
+                actions: vec![Action::Equal(0o2.into())],
             }])
             .apply_to(0o777),
             0o727
@@ -1329,7 +1425,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::Other,
-                actions: vec![Action::Equal(0o4)],
+                actions: vec![Action::Equal(0o4.into())],
             }])
             .apply_to(0o777),
             0o774
@@ -1339,7 +1435,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::User,
-                actions: vec![Action::Equal(0o3)],
+                actions: vec![Action::Equal(0o3.into())],
             }])
             .apply_to(0o777),
             0o377
@@ -1349,7 +1445,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::Group,
-                actions: vec![Action::Equal(0o5)],
+                actions: vec![Action::Equal(0o5.into())],
             }])
             .apply_to(0o777),
             0o757
@@ -1359,7 +1455,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::Other,
-                actions: vec![Action::Equal(0o6)],
+                actions: vec![Action::Equal(0o6.into())],
             }])
             .apply_to(0o777),
             0o776
@@ -1372,7 +1468,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::User | Who::Group | Who::Other,
-                actions: vec![Action::Minus(0o7)],
+                actions: vec![Action::Minus(0o7.into())],
             }])
             .apply_to(0o777),
             0o000
@@ -1382,7 +1478,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::User | Who::Group | Who::Other,
-                actions: vec![Action::Plus(0o7)],
+                actions: vec![Action::Plus(0o7.into())],
             }])
             .apply_to(0o000),
             0o777
@@ -1392,7 +1488,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::User,
-                actions: vec![Action::Equal(0o7)],
+                actions: vec![Action::Equal(0o7.into())],
             }])
             .apply_to(0o000),
             0o700
@@ -1405,7 +1501,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::User,
-                actions: vec![Action::Equal(0o4), Action::Equal(0o2)],
+                actions: vec![Action::Equal(0o4.into()), Action::Equal(0o2.into())],
             }])
             .apply_to(0o777),
             0o277
@@ -1415,7 +1511,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::Group,
-                actions: vec![Action::Plus(0o4), Action::Plus(0o2)],
+                actions: vec![Action::Plus(0o4.into()), Action::Plus(0o2.into())],
             }])
             .apply_to(0o000),
             0o060
@@ -1425,7 +1521,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::Other,
-                actions: vec![Action::Minus(0o4), Action::Minus(0o2)],
+                actions: vec![Action::Minus(0o4.into()), Action::Minus(0o2.into())],
             }])
             .apply_to(0o777),
             0o771
@@ -1435,7 +1531,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::User,
-                actions: vec![Action::Plus(0o4), Action::Minus(0o2)],
+                actions: vec![Action::Plus(0o4.into()), Action::Minus(0o2.into())],
             }])
             .apply_to(0o000),
             0o400
@@ -1448,7 +1544,7 @@ mod tests {
         assert_eq!(
             Mode::Clause(vec![ModeClause {
                 who: Who::User | Who::Group | Who::Other,
-                actions: vec![Action::Equal(0o7)],
+                actions: vec![Action::Equal(0o7.into())],
             }])
             .apply_to(0o000),
             0o777
@@ -1459,11 +1555,11 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User | Who::Group,
-                    actions: vec![Action::Equal(0o5)],
+                    actions: vec![Action::Equal(0o5.into())],
                 },
                 ModeClause {
                     who: Who::Group | Who::Other,
-                    actions: vec![Action::Equal(0o3)],
+                    actions: vec![Action::Equal(0o3.into())],
                 }
             ])
             .apply_to(0o000),
@@ -1475,15 +1571,185 @@ mod tests {
             Mode::Clause(vec![
                 ModeClause {
                     who: Who::User | Who::Group,
-                    actions: vec![Action::Plus(0o4)],
+                    actions: vec![Action::Plus(0o4.into())],
                 },
                 ModeClause {
                     who: Who::Group | Who::Other,
-                    actions: vec![Action::Minus(0o2)],
+                    actions: vec![Action::Minus(0o2.into())],
                 }
             ])
             .apply_to(0o000),
             0o440
         );
+    }
+
+    // ==================== Mode Copying Tests ====================
+
+    #[test]
+    fn parse_mode_copy_from_user() {
+        // g=u means "set group permissions to whatever user has"
+        let mode = Mode::from_str("g=u").unwrap();
+        assert!(matches!(mode, Mode::Clause(_)));
+        if let Mode::Clause(clauses) = mode {
+            assert_eq!(clauses.len(), 1);
+            assert_eq!(clauses[0].who, Who::Group);
+            assert_eq!(clauses[0].actions.len(), 1);
+            if let Action::Equal(bits) = clauses[0].actions[0] {
+                assert_eq!(bits.literal, 0);
+                assert_eq!(bits.copy_from, Who::User);
+            } else {
+                panic!("Expected Action::Equal");
+            }
+        }
+    }
+
+    #[test]
+    fn parse_mode_copy_from_group() {
+        // u=g means "set user permissions to whatever group has"
+        let mode = Mode::from_str("u=g").unwrap();
+        if let Mode::Clause(clauses) = mode {
+            if let Action::Equal(bits) = clauses[0].actions[0] {
+                assert_eq!(bits.copy_from, Who::Group);
+            } else {
+                panic!("Expected Action::Equal");
+            }
+        }
+    }
+
+    #[test]
+    fn parse_mode_copy_from_other() {
+        // ug=o means "set user and group permissions to whatever other has"
+        let mode = Mode::from_str("ug=o").unwrap();
+        if let Mode::Clause(clauses) = mode {
+            assert_eq!(clauses[0].who, Who::User | Who::Group);
+            if let Action::Equal(bits) = clauses[0].actions[0] {
+                assert_eq!(bits.copy_from, Who::Other);
+            } else {
+                panic!("Expected Action::Equal");
+            }
+        }
+    }
+
+    #[test]
+    fn parse_mode_copy_multiple_sources() {
+        // o=ug means "set other permissions to user OR group"
+        let mode = Mode::from_str("o=ug").unwrap();
+        if let Mode::Clause(clauses) = mode {
+            if let Action::Equal(bits) = clauses[0].actions[0] {
+                assert_eq!(bits.copy_from, Who::User | Who::Group);
+            } else {
+                panic!("Expected Action::Equal");
+            }
+        }
+    }
+
+    #[test]
+    fn parse_mode_copy_plus_literal() {
+        // g=urx means "set group to user's permissions OR read and execute"
+        let mode = Mode::from_str("g=urx").unwrap();
+        if let Mode::Clause(clauses) = mode {
+            if let Action::Equal(bits) = clauses[0].actions[0] {
+                assert_eq!(bits.literal, 0o5); // r=4, x=1
+                assert_eq!(bits.copy_from, Who::User);
+            } else {
+                panic!("Expected Action::Equal");
+            }
+        }
+    }
+
+    #[test]
+    fn mode_apply_copy_user_to_group() {
+        // g=u: copy user permissions to group
+        // Starting: 0o750 (user=rwx, group=rx, other=0)
+        // Result: group gets user's rwx -> 0o770
+        assert_eq!(Mode::from_str("g=u").unwrap().apply_to(0o750), 0o770);
+
+        // Starting: 0o640 (user=rw, group=r, other=0)
+        // Result: group gets user's rw -> 0o660
+        assert_eq!(Mode::from_str("g=u").unwrap().apply_to(0o640), 0o660);
+    }
+
+    #[test]
+    fn mode_apply_copy_group_to_user() {
+        // u=g: copy group permissions to user
+        // Starting: 0o750 (user=rwx, group=rx, other=0)
+        // Result: user gets group's rx -> 0o550
+        assert_eq!(Mode::from_str("u=g").unwrap().apply_to(0o750), 0o550);
+    }
+
+    #[test]
+    fn mode_apply_copy_user_to_group_and_other() {
+        // go=u: copy user permissions to group and other
+        // Starting: 0o700 (user=rwx, group=0, other=0)
+        // Result: group and other get user's rwx -> 0o777
+        assert_eq!(Mode::from_str("go=u").unwrap().apply_to(0o700), 0o777);
+    }
+
+    #[test]
+    fn mode_apply_copy_other_to_user() {
+        // u=o: copy other permissions to user
+        // Starting: 0o705 (user=rwx, group=0, other=rx)
+        // Result: user gets other's rx -> 0o505
+        assert_eq!(Mode::from_str("u=o").unwrap().apply_to(0o705), 0o505);
+    }
+
+    #[test]
+    fn mode_apply_copy_with_literal() {
+        // g=ux: copy user permissions to group, plus execute
+        // Starting: 0o600 (user=rw, group=0, other=0)
+        // Result: group gets user's rw (=6) OR x (=1) -> 0o670
+        assert_eq!(Mode::from_str("g=ux").unwrap().apply_to(0o600), 0o670);
+    }
+
+    #[test]
+    fn mode_apply_copy_from_multiple_sources() {
+        // o=ug: copy user OR group permissions to other
+        // Starting: 0o640 (user=rw, group=r, other=0)
+        // Result: other gets (user rw | group r) = rw -> 0o646
+        assert_eq!(Mode::from_str("o=ug").unwrap().apply_to(0o640), 0o646);
+    }
+
+    #[test]
+    fn mode_apply_copy_add_from_user() {
+        // g+u: add user permissions to group
+        // Starting: 0o741 (user=rwx, group=r, other=x)
+        // Result: group gets r | rwx -> 0o771
+        assert_eq!(Mode::from_str("g+u").unwrap().apply_to(0o741), 0o771);
+    }
+
+    #[test]
+    fn mode_apply_copy_remove_from_user() {
+        // g-u: remove user permissions from group
+        // Starting: 0o777 (all have rwx)
+        // User has rwx (7), so remove rwx from group -> 0o707
+        assert_eq!(Mode::from_str("g-u").unwrap().apply_to(0o777), 0o707);
+    }
+
+    #[test]
+    fn perm_bits_resolve_copies_correct_bits() {
+        // Test PermBits::resolve directly
+        let mode = 0o754u16; // user=rwx, group=rx, other=r
+
+        // Copy from user (should get 7)
+        assert_eq!(PermBits::copy_from(Who::User).resolve(mode), 0o7);
+
+        // Copy from group (should get 5)
+        assert_eq!(PermBits::copy_from(Who::Group).resolve(mode), 0o5);
+
+        // Copy from other (should get 4)
+        assert_eq!(PermBits::copy_from(Who::Other).resolve(mode), 0o4);
+
+        // Copy from user | group (should get 7 | 5 = 7)
+        assert_eq!(
+            PermBits::copy_from(Who::User | Who::Group).resolve(mode),
+            0o7
+        );
+
+        // Literal plus copy
+        let bits = PermBits {
+            literal: 0o1, // x
+            copy_from: Who::Other,
+        };
+        assert_eq!(bits.resolve(mode), 0o5); // 4 | 1 = 5
     }
 }
