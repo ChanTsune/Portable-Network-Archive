@@ -12,6 +12,7 @@ This document contains the help content for the `pna` command-line program.
 * [`pna split`↴](#pna-split)
 * [`pna concat`↴](#pna-concat)
 * [`pna strip`↴](#pna-strip)
+* [`pna sort`↴](#pna-sort)
 * [`pna xattr`↴](#pna-xattr)
 * [`pna xattr get`↴](#pna-xattr-get)
 * [`pna xattr set`↴](#pna-xattr-set)
@@ -75,6 +76,7 @@ This document contains the help content for the `pna` command-line program.
 * [`pna help split`↴](#pna-help-split)
 * [`pna help concat`↴](#pna-help-concat)
 * [`pna help strip`↴](#pna-help-strip)
+* [`pna help sort`↴](#pna-help-sort)
 * [`pna help xattr`↴](#pna-help-xattr)
 * [`pna help xattr get`↴](#pna-help-xattr-get)
 * [`pna help xattr set`↴](#pna-help-xattr-set)
@@ -114,6 +116,7 @@ Portable-Network-Archive cli
 * `split` — Split archive
 * `concat` — Concat archives
 * `strip` — Strip entries metadata
+* `sort` — Sort entries in archive
 * `xattr` — Manipulate extended attributes
 * `complete` — Generate shell auto complete
 * `bug-report` — Generate bug report template
@@ -724,6 +727,34 @@ Strip entries metadata
 
 
 
+## `pna sort`
+
+Sort entries in archive
+
+**Usage:** `pna sort [OPTIONS] --file <ARCHIVE>`
+
+###### **Options:**
+
+* `-f`, `--file <ARCHIVE>`
+* `--output <OUTPUT>` — Output file path
+* `--by <KEY>` — Sort key in format KEY[:ORDER] (e.g., name, mtime:desc) [keys: name, ctime, mtime, atime] [orders: asc, desc]
+
+  Default value: `name`
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
+* `--password-file <PASSWORD_FILE>` — Read password from specified file
+* `--quiet` — Make some output more quiet
+
+  Default value: `false`
+* `--verbose` — Make some output more verbose
+
+  Default value: `false`
+* `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
+
+  Default value: `false`
+* `-h`, `--help` — Print help
+
+
+
 ## `pna xattr`
 
 Manipulate extended attributes
@@ -934,7 +965,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 * `acl` — Manipulate ACLs of entries
 * `migrate` — Migrate old format to latest format
 * `chunk` — Chunk level operation
-* `sort` — Sort entries in archive
+* `sort` — Sort entries in archive (stabilized, use `pna sort` command instead. this command will be removed in the future)
 * `diff` — Compare archive entries with filesystem
 * `help` — Print this message or the help of the given subcommand(s)
 
@@ -1804,7 +1835,7 @@ Print this message or the help of the given subcommand(s)
 
 ## `pna experimental sort`
 
-Sort entries in archive
+Sort entries in archive (stabilized, use `pna sort` command instead. this command will be removed in the future)
 
 **Usage:** `pna experimental sort [OPTIONS] --file <ARCHIVE>`
 
@@ -1812,7 +1843,7 @@ Sort entries in archive
 
 * `-f`, `--file <ARCHIVE>`
 * `--output <OUTPUT>` — Output file path
-* `--by <BY>`
+* `--by <KEY>` — Sort key in format KEY[:ORDER] (e.g., name, mtime:desc) [keys: name, ctime, mtime, atime] [orders: asc, desc]
 
   Default value: `name`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
@@ -1875,7 +1906,7 @@ Print this message or the help of the given subcommand(s)
 * `acl` — Manipulate ACLs of entries
 * `migrate` — Migrate old format to latest format
 * `chunk` — Chunk level operation
-* `sort` — Sort entries in archive
+* `sort` — Sort entries in archive (stabilized, use `pna sort` command instead. this command will be removed in the future)
 * `diff` — Compare archive entries with filesystem
 * `help` — Print this message or the help of the given subcommand(s)
 
@@ -2009,7 +2040,7 @@ List chunks
 
 ## `pna experimental help sort`
 
-Sort entries in archive
+Sort entries in archive (stabilized, use `pna sort` command instead. this command will be removed in the future)
 
 **Usage:** `pna experimental help sort`
 
@@ -2046,6 +2077,7 @@ Print this message or the help of the given subcommand(s)
 * `split` — Split archive
 * `concat` — Concat archives
 * `strip` — Strip entries metadata
+* `sort` — Sort entries in archive
 * `xattr` — Manipulate extended attributes
 * `complete` — Generate shell auto complete
 * `bug-report` — Generate bug report template
@@ -2107,6 +2139,14 @@ Concat archives
 Strip entries metadata
 
 **Usage:** `pna help strip`
+
+
+
+## `pna help sort`
+
+Sort entries in archive
+
+**Usage:** `pna help sort`
 
 
 
@@ -2172,7 +2212,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 * `acl` — Manipulate ACLs of entries
 * `migrate` — Migrate old format to latest format
 * `chunk` — Chunk level operation
-* `sort` — Sort entries in archive
+* `sort` — Sort entries in archive (stabilized, use `pna sort` command instead. this command will be removed in the future)
 * `diff` — Compare archive entries with filesystem
 
 
@@ -2305,7 +2345,7 @@ List chunks
 
 ## `pna help experimental sort`
 
-Sort entries in archive
+Sort entries in archive (stabilized, use `pna sort` command instead. this command will be removed in the future)
 
 **Usage:** `pna help experimental sort`
 
