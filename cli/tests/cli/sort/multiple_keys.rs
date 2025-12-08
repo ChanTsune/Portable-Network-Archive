@@ -4,6 +4,9 @@ use pna::{Archive, Duration, EntryBuilder, WriteOptions};
 use portable_network_archive::{cli, command::Command};
 use std::fs;
 
+/// Precondition: An archive contains entries where the primary key has ties.
+/// Action: Run `pna experimental sort` with `--by ctime --by mtime`.
+/// Expectation: Entries are ordered by ctime first, then by mtime as a tiebreaker.
 #[test]
 fn sort_by_multiple_keys() {
     setup();

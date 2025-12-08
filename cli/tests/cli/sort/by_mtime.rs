@@ -4,6 +4,9 @@ use pna::{Archive, Duration, EntryBuilder, WriteOptions};
 use portable_network_archive::{cli, command::Command};
 use std::fs;
 
+/// Precondition: An archive contains entries with different modification times.
+/// Action: Run `pna experimental sort` with `--by mtime`.
+/// Expectation: Entries are reordered by modification time in ascending order.
 #[test]
 fn sort_by_mtime() {
     setup();
