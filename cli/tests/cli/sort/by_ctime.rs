@@ -4,6 +4,9 @@ use pna::{Archive, Duration, EntryBuilder, WriteOptions};
 use portable_network_archive::{cli, command::Command};
 use std::fs;
 
+/// Precondition: An archive contains entries with different creation times.
+/// Action: Run `pna experimental sort` with `--by ctime`.
+/// Expectation: Entries are reordered by creation time in ascending order.
 #[test]
 fn sort_by_ctime() {
     setup();

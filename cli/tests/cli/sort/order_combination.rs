@@ -4,6 +4,9 @@ use pna::{Archive, Duration, EntryBuilder, WriteOptions};
 use portable_network_archive::{cli, command::Command};
 use std::fs;
 
+/// Precondition: An archive contains entries with distinct atime, mtime, ctime, and name values.
+/// Action: Run `pna experimental sort` with all four keys in different orderings.
+/// Expectation: Entries are ordered according to the specified key priority.
 #[test]
 fn sort_by_all_keys() {
     setup();

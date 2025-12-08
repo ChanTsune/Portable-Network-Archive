@@ -4,6 +4,9 @@ use pna::{Archive, EntryBuilder, WriteOptions};
 use portable_network_archive::{cli, command::Command};
 use std::fs;
 
+/// Precondition: An archive contains entries in non-alphabetical order.
+/// Action: Run `pna experimental sort` with the default sort key (name).
+/// Expectation: Entries are reordered alphabetically by path in ascending order.
 #[test]
 fn sort_by_name() {
     setup();
