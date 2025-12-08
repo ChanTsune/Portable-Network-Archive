@@ -74,6 +74,18 @@ impl User {
             None
         }
     }
+
+    #[inline]
+    pub(crate) fn primary_gid(&self) -> Option<u64> {
+        #[cfg(unix)]
+        {
+            self.0.primary_gid().map(|gid| gid as _)
+        }
+        #[cfg(not(unix))]
+        {
+            None
+        }
+    }
 }
 
 pub(crate) struct Group(pub(super) imp::Group);
