@@ -155,11 +155,19 @@ pub(crate) struct Ownership {
 pub(crate) struct RawOwnership {
     user: Option<String>,
     group: Option<String>,
+    use_login_group: bool,
 }
 
 impl RawOwnership {
     #[inline]
     fn lookup_platform_owner(self, numeric_owner: bool, lookup: bool) -> io::Result<Ownership> {
+        if self.use_login_group && !lookup {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "cannot use 'user:' format with --no-owner-lookup",
+            ));
+        }
+
         let user = match self.user {
             Some(user) if lookup => Some(OwnerSpecifier::System(if numeric_owner {
                 User::from_uid(
@@ -179,27 +187,44 @@ impl RawOwnership {
             }),
             None => None,
         };
-        let group = match self.group {
-            Some(group) if lookup => Some(OwnerSpecifier::System(if numeric_owner {
-                Group::from_gid(
-                    group
-                        .parse()
-                        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-                )?
-            } else {
-                Group::from_name(&group)?
-            })),
-            Some(group) => Some(if numeric_owner {
-                OwnerSpecifier::ID(
-                    group
-                        .parse()
-                        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
-                )
-            } else {
-                OwnerSpecifier::Name(group)
-            }),
-            None => None,
+
+        let group = if self.use_login_group {
+            match &user {
+                Some(OwnerSpecifier::System(u)) => {
+                    let gid = u.primary_gid().ok_or_else(|| {
+                        io::Error::new(
+                            io::ErrorKind::Unsupported,
+                            "cannot get user's primary group",
+                        )
+                    })?;
+                    Some(OwnerSpecifier::System(Group::from_gid(gid)?))
+                }
+                _ => None,
+            }
+        } else {
+            match self.group {
+                Some(group) if lookup => Some(OwnerSpecifier::System(if numeric_owner {
+                    Group::from_gid(
+                        group
+                            .parse()
+                            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+                    )?
+                } else {
+                    Group::from_name(&group)?
+                })),
+                Some(group) => Some(if numeric_owner {
+                    OwnerSpecifier::ID(
+                        group
+                            .parse()
+                            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+                    )
+                } else {
+                    OwnerSpecifier::Name(group)
+                }),
+                None => None,
+            }
         };
+
         Ok(Ownership { user, group })
     }
 }
@@ -211,15 +236,20 @@ impl FromStr for RawOwnership {
         if s.is_empty() || s == ":" {
             return Err("owner must not be empty".into());
         }
-        let (user, group) = if let Some((user, group)) = s.split_once(':') {
+        let (user, group, use_login_group) = if let Some((user, group)) = s.split_once(':') {
             (
                 user.is_empty().not().then(|| user.into()),
                 group.is_empty().not().then(|| group.into()),
+                !user.is_empty() && group.is_empty(),
             )
         } else {
-            (Some(s.into()), None)
+            (Some(s.into()), None, false)
         };
-        Ok(Self { user, group })
+        Ok(Self {
+            user,
+            group,
+            use_login_group,
+        })
     }
 }
 
@@ -234,6 +264,19 @@ mod tests {
             RawOwnership {
                 user: Some("user".into()),
                 group: None,
+                use_login_group: false,
+            }
+        );
+    }
+
+    #[test]
+    fn owner_from_str_user_login_group() {
+        assert_eq!(
+            RawOwnership::from_str("user:").unwrap(),
+            RawOwnership {
+                user: Some("user".into()),
+                group: None,
+                use_login_group: true,
             }
         );
     }
@@ -245,6 +288,7 @@ mod tests {
             RawOwnership {
                 user: None,
                 group: Some("group".into()),
+                use_login_group: false,
             }
         );
     }
@@ -256,6 +300,7 @@ mod tests {
             RawOwnership {
                 user: Some("user".into()),
                 group: Some("group".into()),
+                use_login_group: false,
             }
         );
     }
