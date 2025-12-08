@@ -124,7 +124,13 @@ pub(crate) struct SortCommand {
     archive: PathBuf,
     #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
     output: Option<PathBuf>,
-    #[arg(long = "by", num_args = 1.., default_values_t = [SortKey::default()])]
+    #[arg(
+        long = "by",
+        value_name = "KEY",
+        num_args = 1..,
+        default_values_t = [SortKey::default()],
+        help = "Sort key in format KEY[:ORDER] (e.g., name, mtime:desc) [keys: name, ctime, mtime, atime] [orders: asc, desc]"
+    )]
     by: Vec<SortKey>,
     #[command(flatten)]
     password: PasswordArgs,
