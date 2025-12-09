@@ -53,11 +53,9 @@ jobs:
         run: |
           set -euo pipefail
           CRATE="${{ inputs.crate }}"
-          LEVEL="${{ inputs.level }}"
-
           CONFIG=/tmp/release-config.toml
 
-          if [ "$LEVEL" = "patch" ]; then
+          if [ "$CRATE" != "all" ]; then
             COMMIT_MSG=':bookmark: Bump {{crate_name}} version to {{version}}'
           else
             COMMIT_MSG=':bookmark: Bump version to {{version}}'
