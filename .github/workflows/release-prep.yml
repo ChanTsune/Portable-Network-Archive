@@ -92,10 +92,26 @@ jobs:
             $DEP_FLAG \
             --config "${{ steps.prep.outputs.config }}"
 
+      - name: Get new version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          CRATE="${{ inputs.crate }}"
+
+          if [ "$CRATE" = "all" ]; then
+            TARGET_CRATE="portable-network-archive"
+          else
+            TARGET_CRATE="$CRATE"
+          fi
+
+          NEW_VERSION=$(cargo metadata --format-version 1 --no-deps | jq -r --arg name "$TARGET_CRATE" '.packages[] | select(.name == $name) | .version')
+          echo "value=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Set PR branch name
         id: branch
         run: |
-          BRANCH="release/${{ inputs.crate }}/${{ inputs.level }}-${{ steps.prep.outputs.new_version }}"
+          BRANCH="release/${{ inputs.crate }}/${{ inputs.level }}-${{ steps.version.outputs.value }}"
           echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
 
       - name: Create draft PR
@@ -103,11 +119,11 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: ${{ steps.branch.outputs.name }}
-          title: "chore: prepare release ${{ inputs.crate }} ${{ steps.prep.outputs.new_version }}"
+          title: "chore: prepare release ${{ inputs.crate }} ${{ steps.version.outputs.value }}"
           body: |
             Draft: release prep for `${{ inputs.crate }}` (${{ inputs.level }}).
-            - Version set to ${{ steps.prep.outputs.new_version }}
+            - Version set to ${{ steps.version.outputs.value }}
             - Dependent versions: ${{ inputs.dependent_version }}
             - No tags or publishes; cargo-release performed pre-replacements.
           draft: true
-          commit-message: "chore: prepare release ${{ inputs.crate }} ${{ steps.prep.outputs.new_version }}"
+          commit-message: "chore: prepare release ${{ inputs.crate }} ${{ steps.version.outputs.value }}"
