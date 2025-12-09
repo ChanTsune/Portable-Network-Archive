@@ -1,6 +1,7 @@
 mod atime;
 mod ctime;
 mod deletion;
+mod encryption;
 mod error;
 mod exclude;
 mod exclude_vcs;
