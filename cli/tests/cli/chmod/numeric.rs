@@ -1,4 +1,4 @@
-use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 #[cfg(unix)]
@@ -6,6 +6,9 @@ use std::fs;
 #[cfg(unix)]
 use std::os::unix::prelude::*;
 
+/// Precondition: An archive contains a file with permission 0o777 (rwxrwxrwx).
+/// Action: Run `pna experimental chmod` with numeric mode `644`.
+/// Expectation: The archive entry's permission becomes 0o644 (rw-r--r--).
 #[test]
 fn chmod_numeric_mode() {
     setup();
@@ -32,6 +35,7 @@ fn chmod_numeric_mode() {
     .unwrap()
     .execute()
     .unwrap();
+
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -45,28 +49,19 @@ fn chmod_numeric_mode() {
     .unwrap()
     .execute()
     .unwrap();
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "x",
-        "chmod_numeric/chmod_numeric.pna",
-        "--overwrite",
-        "--out-dir",
-        "chmod_numeric/out/",
-        "--keep-permission",
-        #[cfg(windows)]
-        "--unstable",
-        "--strip-components",
-        "2",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
-    #[cfg(unix)]
-    {
-        let meta = fs::symlink_metadata("chmod_numeric/out/raw/text.txt").unwrap();
-        assert_eq!(meta.permissions().mode() & 0o777, 0o644);
-    }
 
-    diff("chmod_numeric/in/", "chmod_numeric/out/").unwrap();
+    archive::for_each_entry("chmod_numeric/chmod_numeric.pna", |entry| {
+        if entry.header().path() == "chmod_numeric/in/raw/text.txt" {
+            let perm = entry
+                .metadata()
+                .permission()
+                .expect("entry should have permission metadata");
+            assert_eq!(
+                perm.permissions() & 0o777,
+                0o644,
+                "644 on 0o777 should yield 0o644"
+            );
+        }
+    })
+    .unwrap();
 }

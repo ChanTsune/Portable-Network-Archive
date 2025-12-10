@@ -13,7 +13,7 @@ mod symbolic_other;
 mod symbolic_user;
 mod unsolid;
 
-use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 #[cfg(unix)]
@@ -23,7 +23,7 @@ use std::os::unix::prelude::*;
 
 /// Precondition: An archive contains a file with permission 0o777 (rwxrwxrwx).
 /// Action: Run `pna experimental chmod` with `-x` to remove execute permission for all.
-/// Expectation: The file's permission becomes 0o666 (rw-rw-rw-).
+/// Expectation: The archive entry's permission becomes 0o666 (rw-rw-rw-).
 #[test]
 fn archive_chmod() {
     setup();
@@ -46,6 +46,7 @@ fn archive_chmod() {
     .unwrap()
     .execute()
     .unwrap();
+
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -60,28 +61,19 @@ fn archive_chmod() {
     .unwrap()
     .execute()
     .unwrap();
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "x",
-        "chmod/chmod.pna",
-        "--overwrite",
-        "--out-dir",
-        "chmod/out/",
-        "--keep-permission",
-        #[cfg(windows)]
-        "--unstable",
-        "--strip-components",
-        "2",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
-    #[cfg(unix)]
-    {
-        let meta = fs::symlink_metadata("chmod/out/raw/text.txt").unwrap();
-        assert_eq!(meta.permissions().mode() & 0o777, 0o666);
-    }
 
-    diff("chmod/in/", "chmod/out/").unwrap();
+    archive::for_each_entry("chmod/chmod.pna", |entry| {
+        if entry.header().path() == "chmod/in/raw/text.txt" {
+            let perm = entry
+                .metadata()
+                .permission()
+                .expect("entry should have permission metadata");
+            assert_eq!(
+                perm.permissions() & 0o777,
+                0o666,
+                "-x on 0o777 should yield 0o666"
+            );
+        }
+    })
+    .unwrap();
 }

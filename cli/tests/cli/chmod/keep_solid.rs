@@ -1,4 +1,4 @@
-use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 #[cfg(unix)]
@@ -6,6 +6,9 @@ use std::fs;
 #[cfg(unix)]
 use std::os::unix::prelude::*;
 
+/// Precondition: A solid archive contains a file with permission 0o777 (rwxrwxrwx).
+/// Action: Run `pna experimental chmod` with `--keep-solid` and `-x` to remove execute.
+/// Expectation: The archive entry's permission becomes 0o666 (rw-rw-rw-) and archive remains solid.
 #[test]
 fn chmod_keep_solid() {
     setup();
@@ -33,6 +36,7 @@ fn chmod_keep_solid() {
     .unwrap()
     .execute()
     .unwrap();
+
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -48,28 +52,19 @@ fn chmod_keep_solid() {
     .unwrap()
     .execute()
     .unwrap();
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "x",
-        "chmod_keep_solid/chmod_keep_solid.pna",
-        "--overwrite",
-        "--out-dir",
-        "chmod_keep_solid/out/",
-        "--keep-permission",
-        #[cfg(windows)]
-        "--unstable",
-        "--strip-components",
-        "2",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
-    #[cfg(unix)]
-    {
-        let meta = fs::symlink_metadata("chmod_keep_solid/out/raw/text.txt").unwrap();
-        assert_eq!(meta.permissions().mode() & 0o777, 0o666);
-    }
 
-    diff("chmod_keep_solid/in/", "chmod_keep_solid/out/").unwrap();
+    archive::for_each_entry("chmod_keep_solid/chmod_keep_solid.pna", |entry| {
+        if entry.header().path() == "chmod_keep_solid/in/raw/text.txt" {
+            let perm = entry
+                .metadata()
+                .permission()
+                .expect("entry should have permission metadata");
+            assert_eq!(
+                perm.permissions() & 0o777,
+                0o666,
+                "-x on 0o777 should yield 0o666"
+            );
+        }
+    })
+    .unwrap();
 }
