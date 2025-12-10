@@ -1,10 +1,9 @@
-use crate::utils::{EmbedExt, TestResources, archive, setup};
+use crate::utils::{archive, archive::FileEntryDef, setup};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
-#[cfg(unix)]
-use std::fs;
-#[cfg(unix)]
-use std::os::unix::prelude::*;
+
+const ENTRY_PATH: &str = "test.txt";
+const ENTRY_CONTENT: &[u8] = b"test content";
 
 /// Precondition: An archive contains a file with permission 0o640 (rw-r-----).
 /// Action: Run `pna experimental chmod` with `g+w` to add write permission for the group.
@@ -12,28 +11,15 @@ use std::os::unix::prelude::*;
 #[test]
 fn chmod_symbolic_group_add_write() {
     setup();
-    TestResources::extract_in("raw/", "chmod_sym_g_add_w/in/").unwrap();
 
-    #[cfg(unix)]
-    fs::set_permissions(
-        "chmod_sym_g_add_w/in/raw/text.txt",
-        fs::Permissions::from_mode(0o640),
+    archive::create_archive_with_permissions(
+        "chmod_sym_g_add_w.pna",
+        &[FileEntryDef {
+            path: ENTRY_PATH,
+            content: ENTRY_CONTENT,
+            permission: 0o640,
+        }],
     )
-    .unwrap();
-
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "c",
-        "chmod_sym_g_add_w/archive.pna",
-        "--overwrite",
-        "chmod_sym_g_add_w/in/",
-        "--keep-permission",
-        #[cfg(windows)]
-        "--unstable",
-    ])
-    .unwrap()
-    .execute()
     .unwrap();
 
     cli::Cli::try_parse_from([
@@ -42,16 +28,16 @@ fn chmod_symbolic_group_add_write() {
         "experimental",
         "chmod",
         "-f",
-        "chmod_sym_g_add_w/archive.pna",
+        "chmod_sym_g_add_w.pna",
         "g+w",
-        "chmod_sym_g_add_w/in/raw/text.txt",
+        ENTRY_PATH,
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    archive::for_each_entry("chmod_sym_g_add_w/archive.pna", |entry| {
-        if entry.header().path() == "chmod_sym_g_add_w/in/raw/text.txt" {
+    archive::for_each_entry("chmod_sym_g_add_w.pna", |entry| {
+        if entry.header().path() == ENTRY_PATH {
             let perm = entry
                 .metadata()
                 .permission()
@@ -72,28 +58,15 @@ fn chmod_symbolic_group_add_write() {
 #[test]
 fn chmod_symbolic_group_remove_write() {
     setup();
-    TestResources::extract_in("raw/", "chmod_sym_g_rm_w/in/").unwrap();
 
-    #[cfg(unix)]
-    fs::set_permissions(
-        "chmod_sym_g_rm_w/in/raw/text.txt",
-        fs::Permissions::from_mode(0o775),
+    archive::create_archive_with_permissions(
+        "chmod_sym_g_rm_w.pna",
+        &[FileEntryDef {
+            path: ENTRY_PATH,
+            content: ENTRY_CONTENT,
+            permission: 0o775,
+        }],
     )
-    .unwrap();
-
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "c",
-        "chmod_sym_g_rm_w/archive.pna",
-        "--overwrite",
-        "chmod_sym_g_rm_w/in/",
-        "--keep-permission",
-        #[cfg(windows)]
-        "--unstable",
-    ])
-    .unwrap()
-    .execute()
     .unwrap();
 
     cli::Cli::try_parse_from([
@@ -102,16 +75,16 @@ fn chmod_symbolic_group_remove_write() {
         "experimental",
         "chmod",
         "-f",
-        "chmod_sym_g_rm_w/archive.pna",
+        "chmod_sym_g_rm_w.pna",
         "g-w",
-        "chmod_sym_g_rm_w/in/raw/text.txt",
+        ENTRY_PATH,
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    archive::for_each_entry("chmod_sym_g_rm_w/archive.pna", |entry| {
-        if entry.header().path() == "chmod_sym_g_rm_w/in/raw/text.txt" {
+    archive::for_each_entry("chmod_sym_g_rm_w.pna", |entry| {
+        if entry.header().path() == ENTRY_PATH {
             let perm = entry
                 .metadata()
                 .permission()
@@ -132,28 +105,15 @@ fn chmod_symbolic_group_remove_write() {
 #[test]
 fn chmod_symbolic_group_set_readexec() {
     setup();
-    TestResources::extract_in("raw/", "chmod_sym_g_set_rx/in/").unwrap();
 
-    #[cfg(unix)]
-    fs::set_permissions(
-        "chmod_sym_g_set_rx/in/raw/text.txt",
-        fs::Permissions::from_mode(0o777),
+    archive::create_archive_with_permissions(
+        "chmod_sym_g_set_rx.pna",
+        &[FileEntryDef {
+            path: ENTRY_PATH,
+            content: ENTRY_CONTENT,
+            permission: 0o777,
+        }],
     )
-    .unwrap();
-
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "c",
-        "chmod_sym_g_set_rx/archive.pna",
-        "--overwrite",
-        "chmod_sym_g_set_rx/in/",
-        "--keep-permission",
-        #[cfg(windows)]
-        "--unstable",
-    ])
-    .unwrap()
-    .execute()
     .unwrap();
 
     cli::Cli::try_parse_from([
@@ -162,16 +122,16 @@ fn chmod_symbolic_group_set_readexec() {
         "experimental",
         "chmod",
         "-f",
-        "chmod_sym_g_set_rx/archive.pna",
+        "chmod_sym_g_set_rx.pna",
         "g=rx",
-        "chmod_sym_g_set_rx/in/raw/text.txt",
+        ENTRY_PATH,
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    archive::for_each_entry("chmod_sym_g_set_rx/archive.pna", |entry| {
-        if entry.header().path() == "chmod_sym_g_set_rx/in/raw/text.txt" {
+    archive::for_each_entry("chmod_sym_g_set_rx.pna", |entry| {
+        if entry.header().path() == ENTRY_PATH {
             let perm = entry
                 .metadata()
                 .permission()

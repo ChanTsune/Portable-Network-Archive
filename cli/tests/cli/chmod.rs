@@ -13,13 +13,12 @@ mod symbolic_other;
 mod symbolic_user;
 mod unsolid;
 
-use crate::utils::{EmbedExt, TestResources, archive, setup};
+use crate::utils::{archive, archive::FileEntryDef, setup};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
-#[cfg(unix)]
-use std::fs;
-#[cfg(unix)]
-use std::os::unix::prelude::*;
+
+const ENTRY_PATH: &str = "test.txt";
+const ENTRY_CONTENT: &[u8] = b"test content";
 
 /// Precondition: An archive contains a file with permission 0o777 (rwxrwxrwx).
 /// Action: Run `pna experimental chmod` with `-x` to remove execute permission for all.
@@ -27,24 +26,15 @@ use std::os::unix::prelude::*;
 #[test]
 fn archive_chmod() {
     setup();
-    TestResources::extract_in("raw/", "chmod/in/").unwrap();
 
-    #[cfg(unix)]
-    fs::set_permissions("chmod/in/raw/text.txt", fs::Permissions::from_mode(0o777)).unwrap();
-
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "c",
-        "chmod/chmod.pna",
-        "--overwrite",
-        "chmod/in/",
-        "--keep-permission",
-        #[cfg(windows)]
-        "--unstable",
-    ])
-    .unwrap()
-    .execute()
+    archive::create_archive_with_permissions(
+        "chmod.pna",
+        &[FileEntryDef {
+            path: ENTRY_PATH,
+            content: ENTRY_CONTENT,
+            permission: 0o777,
+        }],
+    )
     .unwrap();
 
     cli::Cli::try_parse_from([
@@ -53,17 +43,17 @@ fn archive_chmod() {
         "experimental",
         "chmod",
         "-f",
-        "chmod/chmod.pna",
+        "chmod.pna",
         "--",
         "-x",
-        "chmod/in/raw/text.txt",
+        ENTRY_PATH,
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    archive::for_each_entry("chmod/chmod.pna", |entry| {
-        if entry.header().path() == "chmod/in/raw/text.txt" {
+    archive::for_each_entry("chmod.pna", |entry| {
+        if entry.header().path() == ENTRY_PATH {
             let perm = entry
                 .metadata()
                 .permission()
