@@ -87,3 +87,52 @@ pub fn remove_path_all<P: AsRef<Path>>(path: P) -> io::Result<()> {
     }
     inner(path.as_ref())
 }
+
+/// Removes an entry from the filesystem without descending into directories.
+/// If the given path is a directory, calls [`fs::remove_dir`] (non-recursive);
+/// otherwise calls [`fs::remove_file`]. Use carefully!
+///
+/// This function does **not** follow symbolic links and it will simply remove the
+/// symbolic link itself.
+///
+/// # Errors
+///
+/// See [`fs::remove_file`] and [`fs::remove_dir`].
+///
+/// `remove_path` will fail if `remove_dir` or `remove_file` fail on the target
+/// path. As a result, the entry you are deleting must exist, meaning that this
+/// function is not idempotent.
+///
+/// Consider ignoring the error if validating the removal is not required for your use case.
+///
+/// [`io::ErrorKind::NotFound`] is only returned if no removal occurs.
+///
+/// # Examples
+///
+/// ```no_run
+/// use pna::fs;
+///
+/// # fn main() -> std::io::Result<()> {
+/// fs::remove_path("/some/empty_dir_or_file")?;
+/// #    Ok(())
+/// # }
+/// ```
+#[inline]
+pub fn remove_path<P: AsRef<Path>>(path: P) -> io::Result<()> {
+    fn inner(path: &Path) -> io::Result<()> {
+        let metadata = fs::symlink_metadata(path)?;
+        let file_type = metadata.file_type();
+        if file_type.is_symlink() {
+            match fs::remove_file(path) {
+                #[cfg(windows)]
+                Err(_) => fs::remove_dir(path),
+                other => other,
+            }
+        } else if file_type.is_dir() {
+            fs::remove_dir(path)
+        } else {
+            fs::remove_file(path)
+        }
+    }
+    inner(path.as_ref())
+}
