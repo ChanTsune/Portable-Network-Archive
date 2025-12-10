@@ -1,10 +1,10 @@
-use crate::utils::{EmbedExt, TestResources, archive, setup};
+use crate::utils::{archive, archive::FileEntryDef, setup};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
-#[cfg(unix)]
-use std::fs;
-#[cfg(unix)]
-use std::os::unix::prelude::*;
+
+const ENTRY_PATH: &str = "test.txt";
+const ENTRY_CONTENT: &[u8] = b"test content";
+const PASSWORD: &str = "password";
 
 /// Precondition: An encrypted archive contains a file with permission 0o777 (rwxrwxrwx).
 /// Action: Run `pna experimental chmod` with password and `-x` to remove execute.
@@ -12,34 +12,16 @@ use std::os::unix::prelude::*;
 #[test]
 fn chmod_with_password() {
     setup();
-    TestResources::extract_in("raw/", "chmod_password/in/").unwrap();
 
-    #[cfg(unix)]
-    fs::set_permissions(
-        "chmod_password/in/raw/text.txt",
-        fs::Permissions::from_mode(0o777),
+    archive::create_encrypted_archive_with_permissions(
+        "chmod_password.pna",
+        &[FileEntryDef {
+            path: ENTRY_PATH,
+            content: ENTRY_CONTENT,
+            permission: 0o777,
+        }],
+        PASSWORD,
     )
-    .unwrap();
-
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "c",
-        "chmod_password/chmod_password.pna",
-        "--overwrite",
-        "chmod_password/in/",
-        "--keep-permission",
-        "--password",
-        "password",
-        "--aes",
-        "ctr",
-        "--argon2",
-        "t=1,m=50",
-        #[cfg(windows)]
-        "--unstable",
-    ])
-    .unwrap()
-    .execute()
     .unwrap();
 
     cli::Cli::try_parse_from([
@@ -48,33 +30,29 @@ fn chmod_with_password() {
         "experimental",
         "chmod",
         "-f",
-        "chmod_password/chmod_password.pna",
+        "chmod_password.pna",
         "--password",
-        "password",
+        PASSWORD,
         "--",
         "-x",
-        "chmod_password/in/raw/text.txt",
+        ENTRY_PATH,
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    archive::for_each_entry_with_password(
-        "chmod_password/chmod_password.pna",
-        Some("password"),
-        |entry| {
-            if entry.header().path() == "chmod_password/in/raw/text.txt" {
-                let perm = entry
-                    .metadata()
-                    .permission()
-                    .expect("entry should have permission metadata");
-                assert_eq!(
-                    perm.permissions() & 0o777,
-                    0o666,
-                    "-x on 0o777 should yield 0o666"
-                );
-            }
-        },
-    )
+    archive::for_each_entry_with_password("chmod_password.pna", Some(PASSWORD), |entry| {
+        if entry.header().path() == ENTRY_PATH {
+            let perm = entry
+                .metadata()
+                .permission()
+                .expect("entry should have permission metadata");
+            assert_eq!(
+                perm.permissions() & 0o777,
+                0o666,
+                "-x on 0o777 should yield 0o666"
+            );
+        }
+    })
     .unwrap();
 }

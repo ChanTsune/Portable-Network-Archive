@@ -1,10 +1,9 @@
-use crate::utils::{EmbedExt, TestResources, archive, setup};
+use crate::utils::{archive, archive::FileEntryDef, setup};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
-#[cfg(unix)]
-use std::fs;
-#[cfg(unix)]
-use std::os::unix::prelude::*;
+
+const ENTRY_PATH: &str = "test.txt";
+const ENTRY_CONTENT: &[u8] = b"test content";
 
 /// Precondition: An archive contains a file with permission 0o777 (rwxrwxrwx).
 /// Action: Run `pna experimental chmod` with mode `000` to remove all permissions.
@@ -12,28 +11,15 @@ use std::os::unix::prelude::*;
 #[test]
 fn chmod_edge_set_no_permissions() {
     setup();
-    TestResources::extract_in("raw/", "chmod_edge_000/in/").unwrap();
 
-    #[cfg(unix)]
-    fs::set_permissions(
-        "chmod_edge_000/in/raw/text.txt",
-        fs::Permissions::from_mode(0o777),
+    archive::create_archive_with_permissions(
+        "chmod_edge_000.pna",
+        &[FileEntryDef {
+            path: ENTRY_PATH,
+            content: ENTRY_CONTENT,
+            permission: 0o777,
+        }],
     )
-    .unwrap();
-
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "c",
-        "chmod_edge_000/archive.pna",
-        "--overwrite",
-        "chmod_edge_000/in/",
-        "--keep-permission",
-        #[cfg(windows)]
-        "--unstable",
-    ])
-    .unwrap()
-    .execute()
     .unwrap();
 
     cli::Cli::try_parse_from([
@@ -42,16 +28,16 @@ fn chmod_edge_set_no_permissions() {
         "experimental",
         "chmod",
         "-f",
-        "chmod_edge_000/archive.pna",
+        "chmod_edge_000.pna",
         "000",
-        "chmod_edge_000/in/raw/text.txt",
+        ENTRY_PATH,
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    archive::for_each_entry("chmod_edge_000/archive.pna", |entry| {
-        if entry.header().path() == "chmod_edge_000/in/raw/text.txt" {
+    archive::for_each_entry("chmod_edge_000.pna", |entry| {
+        if entry.header().path() == ENTRY_PATH {
             let perm = entry
                 .metadata()
                 .permission()
@@ -72,28 +58,15 @@ fn chmod_edge_set_no_permissions() {
 #[test]
 fn chmod_edge_set_full_permissions() {
     setup();
-    TestResources::extract_in("raw/", "chmod_edge_777/in/").unwrap();
 
-    #[cfg(unix)]
-    fs::set_permissions(
-        "chmod_edge_777/in/raw/text.txt",
-        fs::Permissions::from_mode(0o000),
+    archive::create_archive_with_permissions(
+        "chmod_edge_777.pna",
+        &[FileEntryDef {
+            path: ENTRY_PATH,
+            content: ENTRY_CONTENT,
+            permission: 0o000,
+        }],
     )
-    .unwrap();
-
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "c",
-        "chmod_edge_777/archive.pna",
-        "--overwrite",
-        "chmod_edge_777/in/",
-        "--keep-permission",
-        #[cfg(windows)]
-        "--unstable",
-    ])
-    .unwrap()
-    .execute()
     .unwrap();
 
     cli::Cli::try_parse_from([
@@ -102,16 +75,16 @@ fn chmod_edge_set_full_permissions() {
         "experimental",
         "chmod",
         "-f",
-        "chmod_edge_777/archive.pna",
+        "chmod_edge_777.pna",
         "777",
-        "chmod_edge_777/in/raw/text.txt",
+        ENTRY_PATH,
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    archive::for_each_entry("chmod_edge_777/archive.pna", |entry| {
-        if entry.header().path() == "chmod_edge_777/in/raw/text.txt" {
+    archive::for_each_entry("chmod_edge_777.pna", |entry| {
+        if entry.header().path() == ENTRY_PATH {
             let perm = entry
                 .metadata()
                 .permission()
@@ -132,47 +105,33 @@ fn chmod_edge_set_full_permissions() {
 #[test]
 fn chmod_edge_idempotent_operation() {
     setup();
-    TestResources::extract_in("raw/", "chmod_edge_idem/in/").unwrap();
 
-    #[cfg(unix)]
-    fs::set_permissions(
-        "chmod_edge_idem/in/raw/text.txt",
-        fs::Permissions::from_mode(0o644),
+    archive::create_archive_with_permissions(
+        "chmod_edge_idem.pna",
+        &[FileEntryDef {
+            path: ENTRY_PATH,
+            content: ENTRY_CONTENT,
+            permission: 0o644,
+        }],
     )
     .unwrap();
 
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "c",
-        "chmod_edge_idem/archive.pna",
-        "--overwrite",
-        "chmod_edge_idem/in/",
-        "--keep-permission",
-        #[cfg(windows)]
-        "--unstable",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
-
-    // Apply the same permission that already exists
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
         "experimental",
         "chmod",
         "-f",
-        "chmod_edge_idem/archive.pna",
+        "chmod_edge_idem.pna",
         "644",
-        "chmod_edge_idem/in/raw/text.txt",
+        ENTRY_PATH,
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    archive::for_each_entry("chmod_edge_idem/archive.pna", |entry| {
-        if entry.header().path() == "chmod_edge_idem/in/raw/text.txt" {
+    archive::for_each_entry("chmod_edge_idem.pna", |entry| {
+        if entry.header().path() == ENTRY_PATH {
             let perm = entry
                 .metadata()
                 .permission()
@@ -193,28 +152,15 @@ fn chmod_edge_idempotent_operation() {
 #[test]
 fn chmod_edge_symbolic_clear_all() {
     setup();
-    TestResources::extract_in("raw/", "chmod_edge_clear/in/").unwrap();
 
-    #[cfg(unix)]
-    fs::set_permissions(
-        "chmod_edge_clear/in/raw/text.txt",
-        fs::Permissions::from_mode(0o755),
+    archive::create_archive_with_permissions(
+        "chmod_edge_clear.pna",
+        &[FileEntryDef {
+            path: ENTRY_PATH,
+            content: ENTRY_CONTENT,
+            permission: 0o755,
+        }],
     )
-    .unwrap();
-
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "c",
-        "chmod_edge_clear/archive.pna",
-        "--overwrite",
-        "chmod_edge_clear/in/",
-        "--keep-permission",
-        #[cfg(windows)]
-        "--unstable",
-    ])
-    .unwrap()
-    .execute()
     .unwrap();
 
     cli::Cli::try_parse_from([
@@ -223,16 +169,16 @@ fn chmod_edge_symbolic_clear_all() {
         "experimental",
         "chmod",
         "-f",
-        "chmod_edge_clear/archive.pna",
+        "chmod_edge_clear.pna",
         "a=",
-        "chmod_edge_clear/in/raw/text.txt",
+        ENTRY_PATH,
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    archive::for_each_entry("chmod_edge_clear/archive.pna", |entry| {
-        if entry.header().path() == "chmod_edge_clear/in/raw/text.txt" {
+    archive::for_each_entry("chmod_edge_clear.pna", |entry| {
+        if entry.header().path() == ENTRY_PATH {
             let perm = entry
                 .metadata()
                 .permission()
@@ -253,28 +199,15 @@ fn chmod_edge_symbolic_clear_all() {
 #[test]
 fn chmod_edge_symbolic_full_permissions() {
     setup();
-    TestResources::extract_in("raw/", "chmod_edge_full/in/").unwrap();
 
-    #[cfg(unix)]
-    fs::set_permissions(
-        "chmod_edge_full/in/raw/text.txt",
-        fs::Permissions::from_mode(0o000),
+    archive::create_archive_with_permissions(
+        "chmod_edge_full.pna",
+        &[FileEntryDef {
+            path: ENTRY_PATH,
+            content: ENTRY_CONTENT,
+            permission: 0o000,
+        }],
     )
-    .unwrap();
-
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "c",
-        "chmod_edge_full/archive.pna",
-        "--overwrite",
-        "chmod_edge_full/in/",
-        "--keep-permission",
-        #[cfg(windows)]
-        "--unstable",
-    ])
-    .unwrap()
-    .execute()
     .unwrap();
 
     cli::Cli::try_parse_from([
@@ -283,16 +216,16 @@ fn chmod_edge_symbolic_full_permissions() {
         "experimental",
         "chmod",
         "-f",
-        "chmod_edge_full/archive.pna",
+        "chmod_edge_full.pna",
         "a=rwx",
-        "chmod_edge_full/in/raw/text.txt",
+        ENTRY_PATH,
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    archive::for_each_entry("chmod_edge_full/archive.pna", |entry| {
-        if entry.header().path() == "chmod_edge_full/in/raw/text.txt" {
+    archive::for_each_entry("chmod_edge_full.pna", |entry| {
+        if entry.header().path() == ENTRY_PATH {
             let perm = entry
                 .metadata()
                 .permission()
@@ -313,48 +246,34 @@ fn chmod_edge_symbolic_full_permissions() {
 #[test]
 fn chmod_edge_idempotent_add_execute() {
     setup();
-    TestResources::extract_in("raw/", "chmod_edge_idem_x/in/").unwrap();
 
-    #[cfg(unix)]
-    fs::set_permissions(
-        "chmod_edge_idem_x/in/raw/text.txt",
-        fs::Permissions::from_mode(0o755),
+    archive::create_archive_with_permissions(
+        "chmod_edge_idem_x.pna",
+        &[FileEntryDef {
+            path: ENTRY_PATH,
+            content: ENTRY_CONTENT,
+            permission: 0o755,
+        }],
     )
     .unwrap();
 
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "c",
-        "chmod_edge_idem_x/archive.pna",
-        "--overwrite",
-        "chmod_edge_idem_x/in/",
-        "--keep-permission",
-        #[cfg(windows)]
-        "--unstable",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
-
-    // Add +x when it already has x
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
         "experimental",
         "chmod",
         "-f",
-        "chmod_edge_idem_x/archive.pna",
+        "chmod_edge_idem_x.pna",
         "--",
         "+x",
-        "chmod_edge_idem_x/in/raw/text.txt",
+        ENTRY_PATH,
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    archive::for_each_entry("chmod_edge_idem_x/archive.pna", |entry| {
-        if entry.header().path() == "chmod_edge_idem_x/in/raw/text.txt" {
+    archive::for_each_entry("chmod_edge_idem_x.pna", |entry| {
+        if entry.header().path() == ENTRY_PATH {
             let perm = entry
                 .metadata()
                 .permission()
@@ -375,48 +294,34 @@ fn chmod_edge_idempotent_add_execute() {
 #[test]
 fn chmod_edge_idempotent_remove_execute() {
     setup();
-    TestResources::extract_in("raw/", "chmod_edge_idem_no_x/in/").unwrap();
 
-    #[cfg(unix)]
-    fs::set_permissions(
-        "chmod_edge_idem_no_x/in/raw/text.txt",
-        fs::Permissions::from_mode(0o644),
+    archive::create_archive_with_permissions(
+        "chmod_edge_idem_no_x.pna",
+        &[FileEntryDef {
+            path: ENTRY_PATH,
+            content: ENTRY_CONTENT,
+            permission: 0o644,
+        }],
     )
     .unwrap();
 
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "c",
-        "chmod_edge_idem_no_x/archive.pna",
-        "--overwrite",
-        "chmod_edge_idem_no_x/in/",
-        "--keep-permission",
-        #[cfg(windows)]
-        "--unstable",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
-
-    // Remove -x when there's no x to remove
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
         "experimental",
         "chmod",
         "-f",
-        "chmod_edge_idem_no_x/archive.pna",
+        "chmod_edge_idem_no_x.pna",
         "--",
         "-x",
-        "chmod_edge_idem_no_x/in/raw/text.txt",
+        ENTRY_PATH,
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    archive::for_each_entry("chmod_edge_idem_no_x/archive.pna", |entry| {
-        if entry.header().path() == "chmod_edge_idem_no_x/in/raw/text.txt" {
+    archive::for_each_entry("chmod_edge_idem_no_x.pna", |entry| {
+        if entry.header().path() == ENTRY_PATH {
             let perm = entry
                 .metadata()
                 .permission()

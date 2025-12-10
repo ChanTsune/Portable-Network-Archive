@@ -1,10 +1,9 @@
-use crate::utils::{EmbedExt, TestResources, archive, setup};
+use crate::utils::{archive, archive::FileEntryDef, setup};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
-#[cfg(unix)]
-use std::fs;
-#[cfg(unix)]
-use std::os::unix::prelude::*;
+
+const ENTRY_PATH: &str = "test.txt";
+const ENTRY_CONTENT: &[u8] = b"test content";
 
 /// Precondition: An archive contains a file with permission 0o000 (---------).
 /// Action: Run `pna experimental chmod` with `u=rwx,g=rx,o=r` (common 754 pattern).
@@ -12,28 +11,15 @@ use std::os::unix::prelude::*;
 #[test]
 fn chmod_multiple_clauses_standard_754() {
     setup();
-    TestResources::extract_in("raw/", "chmod_multi_754/in/").unwrap();
 
-    #[cfg(unix)]
-    fs::set_permissions(
-        "chmod_multi_754/in/raw/text.txt",
-        fs::Permissions::from_mode(0o000),
+    archive::create_archive_with_permissions(
+        "chmod_multi_754.pna",
+        &[FileEntryDef {
+            path: ENTRY_PATH,
+            content: ENTRY_CONTENT,
+            permission: 0o000,
+        }],
     )
-    .unwrap();
-
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "c",
-        "chmod_multi_754/archive.pna",
-        "--overwrite",
-        "chmod_multi_754/in/",
-        "--keep-permission",
-        #[cfg(windows)]
-        "--unstable",
-    ])
-    .unwrap()
-    .execute()
     .unwrap();
 
     cli::Cli::try_parse_from([
@@ -42,16 +28,16 @@ fn chmod_multiple_clauses_standard_754() {
         "experimental",
         "chmod",
         "-f",
-        "chmod_multi_754/archive.pna",
+        "chmod_multi_754.pna",
         "u=rwx,g=rx,o=r",
-        "chmod_multi_754/in/raw/text.txt",
+        ENTRY_PATH,
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    archive::for_each_entry("chmod_multi_754/archive.pna", |entry| {
-        if entry.header().path() == "chmod_multi_754/in/raw/text.txt" {
+    archive::for_each_entry("chmod_multi_754.pna", |entry| {
+        if entry.header().path() == ENTRY_PATH {
             let perm = entry
                 .metadata()
                 .permission()
@@ -72,28 +58,15 @@ fn chmod_multiple_clauses_standard_754() {
 #[test]
 fn chmod_multiple_clauses_restrictive() {
     setup();
-    TestResources::extract_in("raw/", "chmod_multi_640/in/").unwrap();
 
-    #[cfg(unix)]
-    fs::set_permissions(
-        "chmod_multi_640/in/raw/text.txt",
-        fs::Permissions::from_mode(0o777),
+    archive::create_archive_with_permissions(
+        "chmod_multi_640.pna",
+        &[FileEntryDef {
+            path: ENTRY_PATH,
+            content: ENTRY_CONTENT,
+            permission: 0o777,
+        }],
     )
-    .unwrap();
-
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "c",
-        "chmod_multi_640/archive.pna",
-        "--overwrite",
-        "chmod_multi_640/in/",
-        "--keep-permission",
-        #[cfg(windows)]
-        "--unstable",
-    ])
-    .unwrap()
-    .execute()
     .unwrap();
 
     cli::Cli::try_parse_from([
@@ -102,16 +75,16 @@ fn chmod_multiple_clauses_restrictive() {
         "experimental",
         "chmod",
         "-f",
-        "chmod_multi_640/archive.pna",
+        "chmod_multi_640.pna",
         "u=rw,g=r,o=",
-        "chmod_multi_640/in/raw/text.txt",
+        ENTRY_PATH,
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    archive::for_each_entry("chmod_multi_640/archive.pna", |entry| {
-        if entry.header().path() == "chmod_multi_640/in/raw/text.txt" {
+    archive::for_each_entry("chmod_multi_640.pna", |entry| {
+        if entry.header().path() == ENTRY_PATH {
             let perm = entry
                 .metadata()
                 .permission()
@@ -132,28 +105,15 @@ fn chmod_multiple_clauses_restrictive() {
 #[test]
 fn chmod_multiple_clauses_mixed_operations() {
     setup();
-    TestResources::extract_in("raw/", "chmod_multi_mixed/in/").unwrap();
 
-    #[cfg(unix)]
-    fs::set_permissions(
-        "chmod_multi_mixed/in/raw/text.txt",
-        fs::Permissions::from_mode(0o644),
+    archive::create_archive_with_permissions(
+        "chmod_multi_mixed.pna",
+        &[FileEntryDef {
+            path: ENTRY_PATH,
+            content: ENTRY_CONTENT,
+            permission: 0o644,
+        }],
     )
-    .unwrap();
-
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "c",
-        "chmod_multi_mixed/archive.pna",
-        "--overwrite",
-        "chmod_multi_mixed/in/",
-        "--keep-permission",
-        #[cfg(windows)]
-        "--unstable",
-    ])
-    .unwrap()
-    .execute()
     .unwrap();
 
     cli::Cli::try_parse_from([
@@ -162,16 +122,16 @@ fn chmod_multiple_clauses_mixed_operations() {
         "experimental",
         "chmod",
         "-f",
-        "chmod_multi_mixed/archive.pna",
+        "chmod_multi_mixed.pna",
         "u+x,g+w,o-r",
-        "chmod_multi_mixed/in/raw/text.txt",
+        ENTRY_PATH,
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    archive::for_each_entry("chmod_multi_mixed/archive.pna", |entry| {
-        if entry.header().path() == "chmod_multi_mixed/in/raw/text.txt" {
+    archive::for_each_entry("chmod_multi_mixed.pna", |entry| {
+        if entry.header().path() == ENTRY_PATH {
             let perm = entry
                 .metadata()
                 .permission()
@@ -192,28 +152,15 @@ fn chmod_multiple_clauses_mixed_operations() {
 #[test]
 fn chmod_multiple_clauses_combined_targets() {
     setup();
-    TestResources::extract_in("raw/", "chmod_multi_combined/in/").unwrap();
 
-    #[cfg(unix)]
-    fs::set_permissions(
-        "chmod_multi_combined/in/raw/text.txt",
-        fs::Permissions::from_mode(0o777),
+    archive::create_archive_with_permissions(
+        "chmod_multi_combined.pna",
+        &[FileEntryDef {
+            path: ENTRY_PATH,
+            content: ENTRY_CONTENT,
+            permission: 0o777,
+        }],
     )
-    .unwrap();
-
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "c",
-        "chmod_multi_combined/archive.pna",
-        "--overwrite",
-        "chmod_multi_combined/in/",
-        "--keep-permission",
-        #[cfg(windows)]
-        "--unstable",
-    ])
-    .unwrap()
-    .execute()
     .unwrap();
 
     cli::Cli::try_parse_from([
@@ -222,16 +169,16 @@ fn chmod_multiple_clauses_combined_targets() {
         "experimental",
         "chmod",
         "-f",
-        "chmod_multi_combined/archive.pna",
+        "chmod_multi_combined.pna",
         "ug=rwx,o=rx",
-        "chmod_multi_combined/in/raw/text.txt",
+        ENTRY_PATH,
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    archive::for_each_entry("chmod_multi_combined/archive.pna", |entry| {
-        if entry.header().path() == "chmod_multi_combined/in/raw/text.txt" {
+    archive::for_each_entry("chmod_multi_combined.pna", |entry| {
+        if entry.header().path() == ENTRY_PATH {
             let perm = entry
                 .metadata()
                 .permission()
