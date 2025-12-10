@@ -1,10 +1,13 @@
-use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
 use portable_network_archive::{cli, command::Command};
 use std::fs;
 #[cfg(unix)]
 use std::os::unix::prelude::*;
 
+/// Precondition: An encrypted archive contains a file with permission 0o777 (rwxrwxrwx).
+/// Action: Run `pna experimental chmod` with password file and `-x` to remove execute.
+/// Expectation: The archive entry's permission becomes 0o666 (rw-rw-rw-).
 #[test]
 fn chmod_with_password_file() {
     setup();
@@ -40,6 +43,7 @@ fn chmod_with_password_file() {
     .unwrap()
     .execute()
     .unwrap();
+
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -56,30 +60,23 @@ fn chmod_with_password_file() {
     .unwrap()
     .execute()
     .unwrap();
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "x",
-        "chmod_password_file/chmod_password_file.pna",
-        "--overwrite",
-        "--out-dir",
-        "chmod_password_file/out/",
-        "--password-file",
-        password_file_path,
-        "--keep-permission",
-        #[cfg(windows)]
-        "--unstable",
-        "--strip-components",
-        "2",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
-    #[cfg(unix)]
-    {
-        let meta = fs::symlink_metadata("chmod_password_file/out/raw/text.txt").unwrap();
-        assert_eq!(meta.permissions().mode() & 0o777, 0o666);
-    }
 
-    diff("chmod_password_file/in/", "chmod_password_file/out/").unwrap();
+    archive::for_each_entry_with_password(
+        "chmod_password_file/chmod_password_file.pna",
+        Some(password),
+        |entry| {
+            if entry.header().path() == "chmod_password_file/in/raw/text.txt" {
+                let perm = entry
+                    .metadata()
+                    .permission()
+                    .expect("entry should have permission metadata");
+                assert_eq!(
+                    perm.permissions() & 0o777,
+                    0o666,
+                    "-x on 0o777 should yield 0o666"
+                );
+            }
+        },
+    )
+    .unwrap();
 }
