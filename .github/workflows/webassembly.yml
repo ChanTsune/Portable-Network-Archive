@@ -55,28 +55,28 @@ jobs:
       - if: ${{ startsWith(matrix.target, 'wasm32-wasi') }}
         name: Run test
         run: |
-          cargo test -p libpna --target ${{ matrix.target }} -- --nocapture
+          cargo test -p libpna --locked --target ${{ matrix.target }} -- --nocapture
       - if: ${{ startsWith(matrix.target, 'wasm32-wasip1') && matrix.rust == 'nightly'}}
         name: Run test
         run: |
-          cargo test --target ${{ matrix.target }} -- --nocapture
+          cargo test --locked --target ${{ matrix.target }} -- --nocapture
       - if: ${{ startsWith(matrix.target, 'wasm32-unknown-emscripten') && matrix.rust != 'nightly' }}
         name: Run test
         run: |
-          cargo test -p libpna --target ${{ matrix.target }} -- --skip test_readme_deps --skip test_html_root_url
+          cargo test -p libpna --locked --target ${{ matrix.target }} -- --skip test_readme_deps --skip test_html_root_url
         env:
           RUSTFLAGS: "-C link-arg=-sINITIAL_MEMORY=512MB -C link-arg=-sTOTAL_STACK=16MB"
       - name: Run on Node.js
         if: ${{ startsWith(matrix.target, 'wasm32-unknown-emscripten') && matrix.rust == 'nightly' }}
         run: |
-          cargo run -p portable-network-archive --target ${{ matrix.target }} --release -- --help
+          cargo run -p portable-network-archive --locked --target ${{ matrix.target }} --release -- --help
         env:
           RUSTFLAGS: "-C link-arg=-sINITIAL_MEMORY=512MB -C link-arg=-sTOTAL_STACK=16MB"
       - if: ${{ endsWith(matrix.target, 'unknown') }}
         name: get wasm-bindgen version
         id: get_version
         run: |
-          VERSION=$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == "wasm-bindgen") | .version')
+          VERSION=$(cargo metadata --locked --format-version 1 | jq -r '.packages[] | select(.name == "wasm-bindgen") | .version')
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
       - if: ${{ endsWith(matrix.target, 'unknown') }}
         name: Install cargo-binstall
@@ -90,4 +90,4 @@ jobs:
       - if: ${{ endsWith(matrix.target, 'unknown') }}
         name: Run test
         run: |
-          cargo test -p libpna --target ${{ matrix.target }} --release
+          cargo test -p libpna --locked --target ${{ matrix.target }} --release
