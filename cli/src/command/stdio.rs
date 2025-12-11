@@ -22,8 +22,16 @@ use crate::{
     utils::{self, GlobPatterns, VCS_FILES},
 };
 use clap::{ArgGroup, Args, ValueHint};
-use pna::Archive;
-use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
+use pna::{
+    Archive, DataKind, EntryBuilder, NormalEntry, ReadOptions, SolidEntryBuilder, WriteOptions,
+};
+use std::{
+    env, fs,
+    io::{self, Read, Write},
+    path::PathBuf,
+    sync::Arc,
+    time::SystemTime,
+};
 
 #[derive(Args, Clone, Debug)]
 #[clap(disable_help_flag = true)]
@@ -456,6 +464,292 @@ impl Command for StdioCommand {
     }
 }
 
+/// Represents a file argument that can be either a filesystem path or an archive inclusion.
+/// Archive inclusions start with '@' and contain entries from an existing archive.
+#[derive(Clone, Debug)]
+enum FileArg {
+    /// A regular filesystem path (file or directory)
+    Path(String),
+    /// An archive inclusion (@archive-path). The string is the path after removing '@'.
+    /// Special case: "-" means read archive from stdin.
+    Archive(String),
+}
+
+/// Parses file arguments to separate regular paths from archive inclusions.
+/// Arguments starting with '@' are treated as archive paths (bsdtar compatibility).
+/// Archive paths are canonicalized to absolute paths so they remain valid after
+/// working directory changes (via -C option).
+fn parse_file_args(files: &[String]) -> io::Result<Vec<FileArg>> {
+    files
+        .iter()
+        .map(|arg| {
+            if let Some(archive_path) = arg.strip_prefix('@') {
+                // Don't canonicalize stdin ("-")
+                if archive_path == "-" {
+                    Ok(FileArg::Archive(archive_path.to_string()))
+                } else {
+                    // Canonicalize to absolute path so it remains valid after -C directory change
+                    let canonical = fs::canonicalize(archive_path)?;
+                    Ok(FileArg::Archive(canonical.to_string_lossy().to_string()))
+                }
+            } else {
+                Ok(FileArg::Path(arg.to_string()))
+            }
+        })
+        .collect()
+}
+
+/// Checks if the file arguments contain any archive inclusions.
+fn has_archive_inclusions(file_args: &[FileArg]) -> bool {
+    file_args
+        .iter()
+        .any(|arg| matches!(arg, FileArg::Archive(_)))
+}
+
+/// Extracts only the filesystem paths from file arguments (excluding archive inclusions).
+fn extract_filesystem_paths(file_args: &[FileArg]) -> Vec<String> {
+    file_args
+        .iter()
+        .filter_map(|arg| match arg {
+            FileArg::Path(p) => Some(p.clone()),
+            FileArg::Archive(_) => None,
+        })
+        .collect()
+}
+
+/// Appends entries from a source archive file to the output archive (non-solid mode).
+/// For @- (stdin), reads from stdin instead of a file.
+/// Note: All entries from the source archive are included (matching bsdtar behavior).
+fn append_archive_to_normal<W: Write>(
+    archive_path: &str,
+    output: &mut Archive<W>,
+    verbose: bool,
+) -> anyhow::Result<()> {
+    // Handle @- for stdin
+    let reader: Box<dyn Read> = if archive_path == "-" {
+        Box::new(io::stdin().lock())
+    } else {
+        Box::new(fs::File::open(archive_path)?)
+    };
+
+    let mut source = Archive::read_header(io::BufReader::with_capacity(64 * 1024, reader))?;
+
+    for entry in source.raw_entries() {
+        let entry = entry?;
+
+        if verbose {
+            eprintln!("a (from @{})", archive_path);
+        }
+
+        output.add_entry(entry)?;
+    }
+    Ok(())
+}
+
+/// Appends entries from a source archive file to a solid archive builder.
+/// Entries are decoded and re-encoded into the solid block.
+fn append_archive_to_solid_builder(
+    archive_path: &str,
+    builder: &mut SolidEntryBuilder,
+    password: Option<&[u8]>,
+    verbose: bool,
+) -> anyhow::Result<()> {
+    // Handle @- for stdin
+    let reader: Box<dyn Read> = if archive_path == "-" {
+        Box::new(io::stdin().lock())
+    } else {
+        Box::new(fs::File::open(archive_path)?)
+    };
+
+    let mut source = Archive::read_header(io::BufReader::with_capacity(64 * 1024, reader))?;
+
+    for entry in source.entries_with_password(password) {
+        let entry = entry?;
+
+        if verbose {
+            eprintln!(
+                "a {} (from @{})",
+                entry.header().path().as_path().display(),
+                archive_path
+            );
+        }
+
+        // Re-create entry for solid mode
+        let built = create_entry_from_normal_entry(&entry, password)?;
+        builder.add_entry(built)?;
+    }
+    Ok(())
+}
+
+/// Creates a new NormalEntry from an existing NormalEntry by decoding and re-encoding.
+/// This is needed for solid mode where we need to decode encrypted/compressed entries
+/// and re-encode them with WriteOptions::store().
+fn create_entry_from_normal_entry<T: AsRef<[u8]>>(
+    entry: &NormalEntry<T>,
+    password: Option<&[u8]>,
+) -> io::Result<NormalEntry> {
+    let header = entry.header();
+    let metadata = entry.metadata();
+    let xattrs = entry.xattrs();
+
+    let mut builder = match header.data_kind() {
+        DataKind::File => {
+            let mut b = EntryBuilder::new_file(header.path().clone(), WriteOptions::store())?;
+            let mut reader = entry.reader(ReadOptions::with_password(password))?;
+            io::copy(&mut reader, &mut b)?;
+            b
+        }
+        DataKind::Directory => EntryBuilder::new_dir(header.path().clone()),
+        DataKind::SymbolicLink => {
+            let mut reader = entry.reader(ReadOptions::with_password(password))?;
+            let mut target = String::new();
+            reader.read_to_string(&mut target)?;
+            EntryBuilder::new_symlink(header.path().clone(), target.into())?
+        }
+        DataKind::HardLink => {
+            let mut reader = entry.reader(ReadOptions::with_password(password))?;
+            let mut target = String::new();
+            reader.read_to_string(&mut target)?;
+            EntryBuilder::new_hard_link(header.path().clone(), target.into())?
+        }
+    };
+
+    // Apply metadata
+    if let Some(created) = metadata.created() {
+        builder.created(created);
+    }
+    if let Some(modified) = metadata.modified() {
+        builder.modified(modified);
+    }
+    if let Some(accessed) = metadata.accessed() {
+        builder.accessed(accessed);
+    }
+    if let Some(permission) = metadata.permission() {
+        builder.permission(permission.clone());
+    }
+
+    // Apply xattrs
+    for xattr in xattrs {
+        builder.add_xattr(xattr.clone());
+    }
+
+    builder.build()
+}
+
+/// Creates an archive with support for @archive inclusions (bsdtar compatibility).
+/// Processes file arguments in order, interleaving filesystem entries and archive inclusions.
+fn create_archive_with_inclusions<W, F>(
+    mut get_writer: F,
+    CreationContext {
+        write_option,
+        keep_options,
+        owner_options,
+        time_options,
+        solid,
+        pathname_editor,
+    }: CreationContext,
+    target_items: Vec<(PathBuf, crate::command::core::StoreAs)>,
+    file_args: &[FileArg],
+    password: Option<&[u8]>,
+    verbose: bool,
+) -> anyhow::Result<()>
+where
+    W: Write,
+    F: FnMut() -> io::Result<W>,
+{
+    // Build entries from filesystem using rayon (like create_archive_file does)
+    let (tx, rx) = std::sync::mpsc::channel();
+    let option = if solid {
+        WriteOptions::store()
+    } else {
+        write_option.clone()
+    };
+    let create_options = CreateOptions {
+        option,
+        keep_options,
+        owner_options,
+        time_options,
+        pathname_editor,
+    };
+
+    rayon::scope_fifo(|s| {
+        for file in target_items {
+            let tx = tx.clone();
+            let create_options = create_options.clone();
+            s.spawn_fifo(move |_| {
+                log::debug!("Adding: {}", file.0.display());
+                tx.send(crate::command::core::create_entry(&file, &create_options))
+                    .unwrap_or_else(|e| log::error!("{e}: {}", file.0.display()));
+            })
+        }
+        drop(tx);
+    });
+
+    // Collect all filesystem entries
+    let filesystem_entries: Vec<_> = rx.into_iter().collect();
+    let mut entry_iter = filesystem_entries.into_iter();
+
+    let file = get_writer()?;
+
+    if solid {
+        // Solid mode: re-encode all entries into the solid block
+        let mut builder = SolidEntryBuilder::new(write_option)?;
+
+        for arg in file_args {
+            match arg {
+                FileArg::Path(_) => {
+                    // Write corresponding filesystem entry
+                    if let Some(entry_result) = entry_iter.next() {
+                        if let Some(entry) = entry_result? {
+                            if verbose {
+                                eprintln!("a {}", entry.header().path().as_path().display());
+                            }
+                            builder.add_entry(entry)?;
+                        }
+                    }
+                }
+                FileArg::Archive(archive_path) => {
+                    // Include entries from source archive
+                    append_archive_to_solid_builder(archive_path, &mut builder, password, verbose)?;
+                }
+            }
+        }
+
+        // Finalize solid archive
+        let solid_entry = builder.build()?;
+        let mut archive = Archive::write_header(file)?;
+        archive.add_entry(solid_entry)?;
+        archive.finalize()?;
+    } else {
+        // Normal mode: copy entries directly
+        let mut writer = Archive::write_header(file)?;
+
+        for arg in file_args {
+            match arg {
+                FileArg::Path(_) => {
+                    // Write corresponding filesystem entry
+                    if let Some(entry_result) = entry_iter.next() {
+                        if let Some(entry) = entry_result? {
+                            if verbose {
+                                eprintln!("a {}", entry.header().path().as_path().display());
+                            }
+                            writer.add_entry(entry)?;
+                        }
+                    }
+                }
+                FileArg::Archive(archive_path) => {
+                    // Include entries from source archive
+                    append_archive_to_normal(archive_path, &mut writer, verbose)?;
+                }
+            }
+        }
+
+        writer.finalize()?;
+    }
+
+    Ok(())
+}
+
 fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     if let Some(format) = &args.format {
         log::debug!(
@@ -500,19 +794,23 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
 
 fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
-    let password = ask_password(args.password)?;
+    let password = ask_password(args.password.clone())?;
     check_password(&password, &args.cipher);
     // NOTE: "-" will use stdout
-    let mut file = args.file;
+    let mut file = args.file.clone();
     file.take_if(|it| it == "-");
     let archive_file = file.take().map(|p| current_dir.join(p));
-    let mut files = args.files;
-    if let Some(path) = args.files_from {
+    let mut files = args.files.clone();
+    if let Some(ref path) = args.files_from {
         files.extend(read_paths(path, args.null)?);
     }
 
-    let mut exclude = args.exclude.unwrap_or_default();
-    if let Some(p) = args.exclude_from {
+    // Parse file arguments to detect @archive inclusions
+    // This must happen before changing working directory so @archive paths are canonicalized
+    let file_args = parse_file_args(&files)?;
+
+    let mut exclude = args.exclude.clone().unwrap_or_default();
+    if let Some(ref p) = args.exclude_from {
         exclude.extend(read_paths(p, args.null)?);
     }
     let vcs_patterns = args
@@ -538,8 +836,12 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
     }
+
+    // Extract only filesystem paths (exclude @archive inclusions) for collect_items
+    let filesystem_paths = extract_filesystem_paths(&file_args);
+
     let target_items = collect_items(
-        &files,
+        &filesystem_paths,
         !args.no_recursive,
         args.keep_dir,
         args.gitignore,
@@ -552,7 +854,12 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     )?;
 
     let password = password.as_deref();
-    let cli_option = entry_option(args.compression, args.cipher, args.hash, password);
+    let cli_option = entry_option(
+        args.compression.clone(),
+        args.cipher.clone(),
+        args.hash.clone(),
+        password,
+    );
     let keep_options = KeepOptions {
         timestamp_strategy: TimestampStrategy::from_flags(
             args.keep_timestamp,
@@ -594,14 +901,49 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
             args.absolute_paths,
         ),
     };
-    if let Some(file) = archive_file {
-        create_archive_file(
-            || utils::fs::file_create(&file, args.overwrite),
-            creation_context,
-            target_items,
-        )
+
+    // Check if there are any @archive inclusions
+    if has_archive_inclusions(&file_args) {
+        // Check for @- stdin conflict with -f - (stdout output)
+        let uses_stdout = archive_file.is_none();
+        let uses_stdin_archive = file_args
+            .iter()
+            .any(|arg| matches!(arg, FileArg::Archive(p) if p == "-"));
+        if uses_stdout && uses_stdin_archive {
+            anyhow::bail!("Cannot use @- (read archive from stdin) when writing to stdout (-f -)");
+        }
+
+        // Use custom archive creation with @archive support
+        if let Some(file) = archive_file {
+            create_archive_with_inclusions(
+                || utils::fs::file_create(&file, args.overwrite),
+                creation_context,
+                target_items,
+                &file_args,
+                password,
+                args.verbose,
+            )
+        } else {
+            create_archive_with_inclusions(
+                || Ok(io::stdout().lock()),
+                creation_context,
+                target_items,
+                &file_args,
+                password,
+                args.verbose,
+            )
+        }
     } else {
-        create_archive_file(|| Ok(io::stdout().lock()), creation_context, target_items)
+        // No @archive inclusions, use the existing optimized path
+        if let Some(file) = archive_file {
+            create_archive_file(
+                || utils::fs::file_create(&file, args.overwrite),
+                creation_context,
+                target_items,
+            )
+        } else {
+            create_archive_file(|| Ok(io::stdout().lock()), creation_context, target_items)
+        }
     }
 }
 
@@ -809,16 +1151,20 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     };
 
     // NOTE: "-" will use stdin/out
-    let mut file = args.file;
+    let mut file = args.file.clone();
     file.take_if(|it| it == "-");
     let archive_path = file.take().map(|p| current_dir.join(p));
-    let mut files = args.files;
-    if let Some(path) = args.files_from {
+    let mut files = args.files.clone();
+    if let Some(ref path) = args.files_from {
         files.extend(read_paths(path, args.null)?);
     }
 
-    let mut exclude = args.exclude.unwrap_or_default();
-    if let Some(p) = args.exclude_from {
+    // Parse file arguments to detect @archive inclusions
+    // This must happen before changing working directory so @archive paths are canonicalized
+    let file_args = parse_file_args(&files)?;
+
+    let mut exclude = args.exclude.clone().unwrap_or_default();
+    if let Some(ref p) = args.exclude_from {
         exclude.extend(read_paths(p, args.null)?);
     }
     let vcs_patterns = args
@@ -844,10 +1190,13 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
     }
+    // Extract only filesystem paths (exclude @archive inclusions)
+    let filesystem_paths = extract_filesystem_paths(&file_args);
+
     if let Some(file) = &archive_path {
-        let archive = open_archive_then_seek_to_end(file)?;
+        let mut archive = open_archive_then_seek_to_end(file)?;
         let target_items = collect_items(
-            &files,
+            &filesystem_paths,
             args.recursive,
             args.keep_dir,
             args.gitignore,
@@ -858,10 +1207,31 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             &filter,
             &time_filters,
         )?;
+
+        // Check if there are any @archive inclusions
+        if has_archive_inclusions(&file_args) {
+            // Append entries from @archive sources first
+            for arg in &file_args {
+                if let FileArg::Archive(archive_path) = arg {
+                    append_archive_to_normal(archive_path, &mut archive, args.verbose)?;
+                }
+            }
+        }
+
         run_append_archive(&create_options, archive, target_items)
     } else {
+        // Check for @- stdin conflict
+        let uses_stdin_archive = file_args
+            .iter()
+            .any(|arg| matches!(arg, FileArg::Archive(p) if p == "-"));
+        if uses_stdin_archive {
+            anyhow::bail!(
+                "Cannot use @- (read archive from stdin) when reading input archive from stdin (-f -)"
+            );
+        }
+
         let target_items = collect_items(
-            &files,
+            &filesystem_paths,
             args.recursive,
             args.keep_dir,
             args.gitignore,
@@ -879,6 +1249,17 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
                 output_archive.add_entry(entry?)?;
             }
         }
+
+        // Check if there are any @archive inclusions
+        if has_archive_inclusions(&file_args) {
+            // Append entries from @archive sources
+            for arg in &file_args {
+                if let FileArg::Archive(archive_path) = arg {
+                    append_archive_to_normal(archive_path, &mut output_archive, args.verbose)?;
+                }
+            }
+        }
+
         run_append_archive(&create_options, output_archive, target_items)
     }
 }
