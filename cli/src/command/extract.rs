@@ -586,7 +586,7 @@ where
         Err(err) if err.kind() == io::ErrorKind::NotFound => None,
         Err(err) => return Err(err),
     };
-    if let Some(existing) = metadata.as_ref() {
+    if let Some(existing) = &metadata {
         match overwrite_strategy {
             OverwriteStrategy::Never if !*unlink_first => {
                 return Err(io::Error::new(
@@ -630,6 +630,11 @@ where
 
     if let Some(parent) = path.parent() {
         ensure_directory_components(parent, *unlink_first)?;
+    }
+    if let Some(meta) = metadata {
+        if meta.is_symlink() || (meta.is_file() && entry_kind == DataKind::Directory) {
+            utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
+        }
     }
 
     let remove_existing = should_overwrite_existing && !unlink_existing;
