@@ -20,7 +20,7 @@ use pna::{
 use std::{
     borrow::Cow,
     collections::HashMap,
-    fs,
+    fmt, fs,
     io::{self, prelude::*},
     path::{Path, PathBuf},
     time::SystemTime,
@@ -290,11 +290,127 @@ impl Ignore {
     }
 }
 
+#[derive(Clone, Debug)]
 pub(crate) enum StoreAs {
     File,
     Dir,
     Symlink,
     Hardlink(PathBuf),
+}
+
+/// Source of an archive to include (file path or stdin).
+#[derive(Clone, Debug)]
+pub(crate) enum ArchiveSource {
+    File(PathBuf),
+    Stdin,
+}
+
+impl fmt::Display for ArchiveSource {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::File(path) => fmt::Display::fmt(&path.display(), f),
+            Self::Stdin => f.write_str("-"),
+        }
+    }
+}
+
+/// Represents a CLI file argument that can be either a filesystem path or an archive inclusion.
+///
+/// Archive inclusions start with '@' and reference entries from an existing archive.
+/// This follows bsdtar's convention for including archives.
+#[derive(Clone, Debug)]
+pub(crate) enum ItemSource {
+    /// A regular filesystem path (file or directory).
+    Filesystem(PathBuf),
+    /// An archive to include entries from.
+    Archive(ArchiveSource),
+}
+
+impl ItemSource {
+    /// Parses a single CLI argument into an `ItemSource`.
+    ///
+    /// - `@-` → `Archive(Stdin)`
+    /// - `@path` → `Archive(File(canonicalize(path)))`
+    /// - `path` → `Filesystem(path)`
+    ///
+    /// Archive paths are canonicalized immediately so they remain valid
+    /// after working directory changes (via -C option).
+    pub(crate) fn parse(arg: &str) -> io::Result<Self> {
+        if let Some(archive_path) = arg.strip_prefix('@') {
+            if archive_path == "-" {
+                Ok(Self::Archive(ArchiveSource::Stdin))
+            } else {
+                let canonical = fs::canonicalize(archive_path)?;
+                Ok(Self::Archive(ArchiveSource::File(canonical)))
+            }
+        } else {
+            Ok(Self::Filesystem(PathBuf::from(arg)))
+        }
+    }
+
+    /// Parses multiple CLI arguments into `ItemSource` values.
+    pub(crate) fn parse_many(args: &[String]) -> io::Result<Vec<Self>> {
+        args.iter().map(|s| Self::parse(s)).collect()
+    }
+
+    /// Checks if any of the sources use stdin for archive reading.
+    pub(crate) fn has_stdin_archive(sources: &[Self]) -> bool {
+        sources
+            .iter()
+            .any(|s| matches!(s, Self::Archive(ArchiveSource::Stdin)))
+    }
+}
+
+/// Represents a collected item ready for archive creation.
+///
+/// This preserves the CLI argument order while separating filesystem items
+/// (which need entry building) from archive markers (which need entry copying).
+#[derive(Clone, Debug)]
+pub(crate) enum CollectedItem {
+    /// A filesystem item with its path and storage strategy.
+    Filesystem(PathBuf, StoreAs),
+    /// A marker indicating where to insert entries from an archive source.
+    ArchiveMarker(ArchiveSource),
+}
+
+/// Collects items from mixed filesystem and archive sources, preserving order.
+///
+/// For filesystem sources, uses the existing collection logic with shared
+/// hardlink detection. For archive sources, returns markers that indicate
+/// where archive entries should be inserted.
+///
+/// # Order Guarantee
+/// - Between arguments: strictly preserved
+/// - Within a single filesystem argument: walkdir traversal order
+///
+/// # Hardlink Detection
+/// A single `HardlinkResolver` is shared across all filesystem paths,
+/// enabling cross-path hardlink detection.
+pub(crate) fn collect_items_from_sources(
+    sources: impl IntoIterator<Item = ItemSource>,
+    options: &CollectOptions<'_>,
+) -> io::Result<Vec<CollectedItem>> {
+    let mut hardlink_resolver = HardlinkResolver::new(options.follow_links);
+    let mut results = Vec::new();
+
+    for source in sources {
+        match source {
+            ItemSource::Filesystem(path) => {
+                let items = collect_items_with_state(&path, options, &mut hardlink_resolver)?;
+                results.extend(
+                    items
+                        .into_iter()
+                        .map(|(p, s)| CollectedItem::Filesystem(p, s)),
+                );
+            }
+            ItemSource::Archive(archive_source) => {
+                results.push(CollectedItem::ArchiveMarker(archive_source));
+            }
+        }
+    }
+
+    Ok(results)
 }
 
 /// Collects items from multiple paths, preserving CLI argument order.
