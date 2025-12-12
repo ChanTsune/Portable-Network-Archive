@@ -70,6 +70,11 @@ pub fn extract_in<T: rust_embed::Embed>(item: &str, into: impl AsRef<Path>) -> i
 pub fn setup() {
     fs::create_dir_all(env!("CARGO_TARGET_TMPDIR")).expect("Failed to create working dir");
     std::env::set_current_dir(env!("CARGO_TARGET_TMPDIR")).expect("Failed to set current dir");
+    #[cfg(target_family = "wasm")]
+    rayon::ThreadPoolBuilder::new()
+        .use_current_thread()
+        .build_global()
+        .expect("Failed to initialize thread pool");
 }
 
 pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
