@@ -625,7 +625,7 @@ where
         OverwriteStrategy::Always | OverwriteStrategy::KeepNewer
     ) && had_existing;
     if unlink_existing {
-        utils::io::ignore_not_found(utils::fs::remove_path_all(&path))?;
+        utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
     }
 
     if let Some(parent) = path.parent() {
@@ -678,7 +678,7 @@ where
                 return Ok(());
             }
             if remove_existing {
-                utils::io::ignore_not_found(utils::fs::remove_path_all(&path))?;
+                utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
             }
             utils::fs::symlink(original, &path)?;
         }
@@ -716,7 +716,7 @@ where
                 original_path
             };
             if remove_existing {
-                utils::io::ignore_not_found(utils::fs::remove_path_all(&path))?;
+                utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
             }
             fs::hard_link(original, &path)?;
         }
