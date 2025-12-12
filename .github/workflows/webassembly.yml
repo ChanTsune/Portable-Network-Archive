@@ -15,7 +15,7 @@ jobs:
         rust:
           - stable
           - beta
-          - nightly
+          - nightly-2025-12-09
         target:
           - wasm32-unknown-emscripten
           - wasm32-unknown-unknown
