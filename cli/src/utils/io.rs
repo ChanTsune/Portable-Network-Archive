@@ -46,3 +46,10 @@ where
         Err(err) => Err(err),
     }
 }
+
+/// Ignores [`io::ErrorKind::NotFound`] errors, returning `Ok(())` in that case.
+/// Other errors are propagated unchanged.
+#[inline]
+pub(crate) fn ignore_not_found<T>(result: io::Result<T>) -> io::Result<()> {
+    ok_if(result, |e| matches!(e.kind(), io::ErrorKind::NotFound))
+}
