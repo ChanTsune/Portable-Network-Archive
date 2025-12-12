@@ -318,22 +318,8 @@ impl Mode {
                             Action::Equal(bits) => {
                                 // Resolve copy sources against current mode
                                 let m = bits.resolve(mode) as u16;
-                                let owner_mode = if who.contains(Who::User) {
-                                    Who::User.to_permission_bits(m)
-                                } else {
-                                    mode & Self::OWNER_MASK
-                                };
-                                let group_mode = if who.contains(Who::Group) {
-                                    Who::Group.to_permission_bits(m)
-                                } else {
-                                    mode & Self::GROUP_MASK
-                                };
-                                let other_mode = if who.contains(Who::Other) {
-                                    Who::Other.to_permission_bits(m)
-                                } else {
-                                    mode & Self::OTHER_MASK
-                                };
-                                mode = owner_mode | group_mode | other_mode
+                                let mask = who.to_permission_bits(0o7);
+                                mode = (mode & !mask) | who.to_permission_bits(m);
                             }
                             Action::Plus(bits) => {
                                 let m = bits.resolve(mode) as u16;
