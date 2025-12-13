@@ -367,6 +367,24 @@ impl<T> SolidEntry<T> {
         &self.header
     }
 
+    /// Compression method of the solid entry.
+    #[inline]
+    pub const fn compression(&self) -> Compression {
+        self.header.compression
+    }
+
+    /// Encryption method of the solid entry.
+    #[inline]
+    pub const fn encryption(&self) -> Encryption {
+        self.header.encryption
+    }
+
+    /// Cipher mode of the solid entry's encryption method.
+    #[inline]
+    pub const fn cipher_mode(&self) -> CipherMode {
+        self.header.cipher_mode
+    }
+
     /// Extra chunks.
     #[inline]
     pub fn extra_chunks(&self) -> &[RawChunk<T>] {
@@ -821,6 +839,42 @@ impl<T> NormalEntry<T> {
     #[inline]
     pub fn header(&self) -> &EntryHeader {
         &self.header
+    }
+
+    /// Returns the name of this entry.
+    ///
+    /// # Warning
+    ///
+    /// The returned name is not sanitized. Using it directly as a filesystem
+    /// path may allow path traversal. Call [`EntryName::sanitize`] before
+    /// using it as a path.
+    #[inline]
+    pub fn name(&self) -> &EntryName {
+        &self.header.name
+    }
+
+    /// Type of the entry.
+    #[inline]
+    pub const fn data_kind(&self) -> DataKind {
+        self.header.data_kind
+    }
+
+    /// Compression method of the entry.
+    #[inline]
+    pub const fn compression(&self) -> Compression {
+        self.header.compression
+    }
+
+    /// Encryption method of the entry.
+    #[inline]
+    pub const fn encryption(&self) -> Encryption {
+        self.header.encryption
+    }
+
+    /// Cipher mode of the entry's encryption method.
+    #[inline]
+    pub const fn cipher_mode(&self) -> CipherMode {
+        self.header.cipher_mode
     }
 
     /// Metadata of the entry.
