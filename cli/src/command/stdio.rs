@@ -665,7 +665,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
         time_field: TimeField::default(),
         numeric_owner: args.numeric_owner,
         hide_control_chars: false,
-        classify: false,
+        classify: true,
         format: Some(if args.verbose {
             Format::BsdTar
         } else {
