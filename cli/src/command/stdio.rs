@@ -87,13 +87,13 @@ pub(crate) struct StdioCommand {
         help = "Exclude files with the nodump flag (unstable)"
     )]
     nodump: bool,
-    #[arg(short, long, help = "Create archive")]
+    #[arg(short = 'c', long, help = "Create archive")]
     create: bool,
     #[arg(short = 'x', long, help = "Extract archive")]
     extract: bool,
     #[arg(short = 't', long, help = "List files in archive")]
     list: bool,
-    #[arg(long, help = "Append files to archive")]
+    #[arg(short = 'r', long, help = "Append files to archive")]
     append: bool,
     #[arg(
         long,
