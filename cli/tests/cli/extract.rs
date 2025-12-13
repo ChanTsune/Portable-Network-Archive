@@ -8,5 +8,6 @@ mod option_keep_newer_files;
 mod option_keep_old_files;
 mod overwrite_symlink;
 mod password_from_file;
+mod permission_preservation;
 mod substitution;
 mod transform;
