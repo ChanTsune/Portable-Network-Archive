@@ -637,6 +637,8 @@ where
     match entry_kind {
         DataKind::File => {
             let mut file = utils::fs::file_create(&path, remove_existing)?;
+            let mut reader = item.reader(ReadOptions::with_password(password))?;
+            io::copy(&mut reader, &mut file)?;
             if let TimestampStrategy::Always = keep_options.timestamp_strategy {
                 let mut times = fs::FileTimes::new();
                 if let Some(accessed) = item.metadata().accessed_time() {
@@ -651,8 +653,6 @@ where
                 }
                 file.set_times(times)?;
             }
-            let mut reader = item.reader(ReadOptions::with_password(password))?;
-            io::copy(&mut reader, &mut file)?;
         }
         DataKind::Directory => {
             ensure_directory_components(&path, *unlink_first)?;
