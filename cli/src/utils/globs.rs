@@ -112,9 +112,7 @@ impl<'s> BsdGlobMatcher<'s> {
                 || (!has_glob_meta(self.raw_patterns[idx])
                     && prefix_match(self.raw_patterns[idx], path))
             {
-                if let Some(flag) = self.matched.get_mut(idx) {
-                    *flag = true;
-                }
+                self.matched[idx] = true;
                 matched_any = true;
             }
         }
