@@ -289,6 +289,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let output_options = OutputOption {
         overwrite_strategy,
         allow_unsafe_links: args.allow_unsafe_links,
+        absolute_paths: false,
         strip_components: args.strip_components,
         out_dir: args.out_dir,
         to_stdout: false,
@@ -380,6 +381,7 @@ impl OverwriteStrategy {
 pub(crate) struct OutputOption<'a> {
     pub(crate) overwrite_strategy: OverwriteStrategy,
     pub(crate) allow_unsafe_links: bool,
+    pub(crate) absolute_paths: bool,
     pub(crate) strip_components: Option<usize>,
     pub(crate) out_dir: Option<PathBuf>,
     pub(crate) to_stdout: bool,
@@ -408,41 +410,26 @@ where
 
     let mut link_entries = Vec::new();
 
-    let (tx, rx) = std::sync::mpsc::channel();
-    rayon::scope_fifo(|s| -> anyhow::Result<()> {
-        run_process_archive(reader, password_provider, |entry| {
-            let item = entry
-                .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
-            let item_path = item.header().path().to_string();
-            if !globs.is_empty() && !globs.matches_any(&item_path) {
-                log::debug!("Skip: {}", item.header().path());
-                return Ok(());
-            }
-            if matches!(
-                item.header().data_kind(),
-                DataKind::SymbolicLink | DataKind::HardLink
-            ) {
-                link_entries.push(item);
-                return Ok(());
-            }
-            let tx = tx.clone();
-            let args = args.clone();
-            s.spawn_fifo(move |_| {
-                tx.send(
-                    extract_entry(item, password, &args)
-                        .with_context(|| format!("extracting {}", item_path)),
-                )
-                .unwrap_or_else(|e| log::error!("{e}: {item_path}"));
-            });
-            Ok(())
-        })
-        .with_context(|| "streaming archive entries")?;
-        drop(tx);
-        Ok(())
-    })?;
-    for result in rx {
-        result?;
-    }
+    run_process_archive(reader, password_provider, |entry| {
+        let item =
+            entry.map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
+        let item_path = item.header().path().to_string();
+        if !globs.is_empty() && !globs.matches_any(&item_path) {
+            log::debug!("Skip: {}", item.header().path());
+            return Ok(());
+        }
+        if matches!(
+            item.header().data_kind(),
+            DataKind::SymbolicLink | DataKind::HardLink
+        ) {
+            link_entries.push(item);
+            return Ok(());
+        }
+        extract_entry(item, password, &args)
+            .map_err(|e| io::Error::new(e.kind(), format!("extracting {item_path}: {e}")))
+    })
+    .with_context(|| "streaming archive entries")?;
+
     for item in link_entries {
         let path = item.header().path().to_string();
         extract_entry(item, password, &args)
@@ -520,6 +507,7 @@ pub(crate) fn extract_entry<'a, T>(
     OutputOption {
         overwrite_strategy,
         allow_unsafe_links,
+        absolute_paths,
         strip_components,
         out_dir,
         to_stdout,
@@ -549,6 +537,9 @@ where
         Cow::from(PathBuf::from_iter(item_path.components().skip(strip_count)))
     } else {
         Cow::from(item_path)
+    };
+    let Some(item_path) = adjust_absolute_path(item_path, *absolute_paths) else {
+        return Ok(());
     };
     let item_path = if let Some(transformers) = path_transformers {
         Cow::from(PathBuf::from(transformers.apply(
@@ -581,9 +572,16 @@ where
     let path_guard = path_lock.lock().expect("path lock mutex poisoned");
 
     log::debug!("start: {}", path.display());
-    let metadata = match fs::symlink_metadata(&path) {
+    let mut metadata = match fs::symlink_metadata(&path) {
         Ok(meta) => Some(meta),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(err)
+            if matches!(
+                err.kind(),
+                io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
+            ) =>
+        {
+            None
+        }
         Err(err) => return Err(err),
     };
     if let Some(existing) = &metadata {
@@ -626,12 +624,13 @@ where
     ) && had_existing;
     if unlink_existing {
         utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
+        metadata = None;
     }
 
     if let Some(parent) = path.parent() {
-        ensure_directory_components(parent, *unlink_first)?;
+        ensure_directory_components(parent, *unlink_first, *absolute_paths)?;
     }
-    if let Some(meta) = metadata {
+    if let Some(meta) = &metadata {
         if meta.is_symlink() || (meta.is_file() && entry_kind == DataKind::Directory) {
             utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
         }
@@ -641,6 +640,16 @@ where
 
     match entry_kind {
         DataKind::File => {
+            if remove_existing {
+                utils::fs::remove_path_all(&path)?;
+            } else if metadata
+                .as_ref()
+                .map(|m| m.file_type().is_symlink())
+                .unwrap_or(false)
+            {
+                // Avoid writing through an existing symlink; replace it with a regular file.
+                utils::fs::remove_path_all(&path)?;
+            }
             let mut file = utils::fs::file_create(&path, remove_existing)?;
             let mut reader = item.reader(ReadOptions::with_password(password))?;
             io::copy(&mut reader, &mut file)?;
@@ -660,17 +669,29 @@ where
             }
         }
         DataKind::Directory => {
-            ensure_directory_components(&path, *unlink_first)?;
+            ensure_directory_components(&path, *unlink_first, *absolute_paths)?;
         }
         DataKind::SymbolicLink => {
             let reader = item.reader(ReadOptions::with_password(password))?;
             let original = io::read_to_string(reader)?;
-            let original = if let Some(substitutions) = path_transformers {
-                substitutions.apply(original, true, false)
-            } else {
-                original
+            // Preserve/strip leading root according to --absolute-paths
+            let target = adjust_absolute_path(Cow::from(PathBuf::from(original)), *absolute_paths);
+            if target.is_none() {
+                log::warn!("Skipped extracting a symbolic link with unsafe or empty target.");
+                return Ok(());
+            }
+            let mut target = target.unwrap();
+            if let Some(substitutions) = path_transformers {
+                target = Cow::from(PathBuf::from(substitutions.apply(
+                    target.to_string_lossy(),
+                    true,
+                    false,
+                )));
+            }
+            let mut original = EntryReference::from_utf8_preserve_root(&target.to_string_lossy());
+            if !absolute_paths {
+                original = original.sanitize();
             };
-            let original = EntryReference::from_utf8_preserve_root(&original).sanitize();
             if !allow_unsafe_links && is_unsafe_link(&original) {
                 log::warn!(
                     "Skipped extracting a symbolic link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
@@ -691,13 +712,27 @@ where
                 original
             };
             let original = EntryReference::from_utf8_preserve_root(&original).sanitize();
-            if !allow_unsafe_links && is_unsafe_link(&original) {
+            let target = if !absolute_paths {
+                original.sanitize()
+            } else {
+                original
+            };
+            if !allow_unsafe_links && is_unsafe_link(&target) {
                 log::warn!(
                     "Skipped extracting a hard link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
                 );
-                return Ok(());
             }
-            let mut original_path = Cow::from(original.as_path());
+
+            let target = if let Some(substitutions) = path_transformers {
+                Cow::from(PathBuf::from(substitutions.apply(
+                    target.to_string(),
+                    true,
+                    false,
+                )))
+            } else {
+                Cow::from(target.as_path())
+            };
+            let mut original_path: Cow<'_, Path> = Cow::from(target.as_ref());
             if let Some(strip_count) = *strip_components {
                 if original_path.components().count() <= strip_count {
                     log::warn!(
@@ -854,12 +889,13 @@ where
     Ok(())
 }
 
-fn ensure_directory_components(path: &Path, unlink_first: bool) -> io::Result<()> {
+fn ensure_directory_components(
+    path: &Path,
+    unlink_first: bool,
+    absolute_paths: bool,
+) -> io::Result<()> {
     if path.as_os_str().is_empty() {
         return Ok(());
-    }
-    if !unlink_first {
-        return fs::create_dir_all(path);
     }
     let mut current = PathBuf::new();
     for component in path.components() {
@@ -881,9 +917,31 @@ fn ensure_directory_components(path: &Path, unlink_first: bool) -> io::Result<()
                 if meta.is_dir() {
                     continue;
                 }
-                utils::fs::remove_path_all(&current)?;
+                let file_type = meta.file_type();
+                if file_type.is_symlink() {
+                    // Follow existing dir symlinks only when -P is set and the target is a directory.
+                    if absolute_paths {
+                        if let Ok(target) = fs::metadata(&current) {
+                            if target.is_dir() {
+                                continue;
+                            }
+                        }
+                    }
+                    utils::fs::remove_path_all(&current)?;
+                } else if unlink_first {
+                    utils::fs::remove_path_all(&current)?;
+                } else {
+                    return Err(io::Error::new(
+                        io::ErrorKind::AlreadyExists,
+                        format!("{} exists and is not a directory", current.display()),
+                    ));
+                }
             }
-            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+            Err(err)
+                if matches!(
+                    err.kind(),
+                    io::ErrorKind::NotFound | io::ErrorKind::NotADirectory
+                ) => {}
             Err(err) => return Err(err),
         }
         if let Err(err) = fs::create_dir(&current) {
@@ -942,4 +1000,93 @@ fn is_unsafe_link(reference: &EntryReference) -> bool {
             Component::ParentDir | Component::RootDir | Component::Prefix(_)
         )
     })
+}
+
+fn adjust_absolute_path(path: Cow<Path>, absolute_paths: bool) -> Option<Cow<Path>> {
+    if absolute_paths {
+        // Preserve prefix/root, but collapse duplicate leading separators.
+        let mut out = PathBuf::new();
+        let mut root_seen = false;
+        for comp in path.components() {
+            match comp {
+                Component::Prefix(p) => out.push(p.as_os_str()),
+                Component::RootDir => {
+                    if !root_seen {
+                        out.push(Component::RootDir.as_os_str());
+                        root_seen = true;
+                    }
+                }
+                other => out.push(other.as_os_str()),
+            }
+        }
+        let owned = out;
+        if owned.as_os_str().is_empty() {
+            None
+        } else if owned == path {
+            Some(path)
+        } else {
+            Some(Cow::Owned(owned))
+        }
+    } else {
+        // Strip leading prefix/root/curdir/parentdir like bsdtar default.
+        let mut comps = path.components().peekable();
+        while matches!(comps.peek(), Some(Component::Prefix(_))) {
+            comps.next();
+        }
+        while matches!(
+            comps.peek(),
+            Some(Component::RootDir | Component::CurDir | Component::ParentDir)
+        ) {
+            comps.next();
+        }
+        let stripped: PathBuf = comps.collect();
+        if stripped.as_os_str().is_empty() {
+            None
+        } else if stripped == path {
+            Some(path)
+        } else {
+            Some(Cow::Owned(stripped))
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn adjust_absolute_path_default_strips_leading() {
+        assert_eq!(
+            Path::new("etc/passwd"),
+            adjust_absolute_path(Cow::from(Path::new("/etc/passwd")), false)
+                .unwrap()
+                .as_ref()
+        );
+        assert_eq!(
+            Path::new("etc/passwd"),
+            adjust_absolute_path(Cow::from(Path::new("../etc/passwd")), false)
+                .unwrap()
+                .as_ref()
+        );
+        assert!(
+            adjust_absolute_path(Cow::from(Path::new("../..")), false).is_none(),
+            "all-stripped should skip entry"
+        );
+    }
+
+    #[test]
+    fn adjust_absolute_path_preserves_when_absolute() {
+        assert_eq!(
+            Path::new("/etc/passwd"),
+            adjust_absolute_path(Cow::from(Path::new("//etc/passwd")), true)
+                .unwrap()
+                .as_ref()
+        );
+        assert_eq!(
+            Path::new("../etc/passwd"),
+            adjust_absolute_path(Cow::from(Path::new("../etc/passwd")), true)
+                .unwrap()
+                .as_ref()
+        );
+    }
 }
