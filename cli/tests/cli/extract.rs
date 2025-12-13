@@ -6,6 +6,7 @@ mod hardlink;
 mod missing_file;
 mod option_keep_newer_files;
 mod option_keep_old_files;
+mod option_keep_timestamp;
 mod overwrite_symlink;
 mod password_from_file;
 mod substitution;
