@@ -35,6 +35,11 @@ impl User {
     pub(crate) fn as_raw(&self) -> u32 {
         self.0.uid.as_raw()
     }
+
+    #[inline]
+    pub(crate) fn primary_gid(&self) -> u32 {
+        self.0.gid.as_raw()
+    }
 }
 pub(crate) struct Group(unistd::Group);
 
