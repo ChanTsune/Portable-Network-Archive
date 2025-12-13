@@ -50,4 +50,4 @@ jobs:
           cargo install --locked --all-features --path cli
       - name: Run CLI tests
         run: |
-          bats tests/bats/ tests/bats/bsdtar_compat/
+          bats tests/bats/ tests/bats/bsdtar_compat/ tests/bats/gnutar_compat/
