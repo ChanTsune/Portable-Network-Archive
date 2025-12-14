@@ -22,7 +22,7 @@ use crate::{
 };
 use anyhow::Context;
 use clap::{ArgGroup, Parser, ValueHint};
-use pna::{DataKind, EntryReference, NormalEntry, Permission, ReadOptions, prelude::*};
+use pna::{DataKind, EntryName, EntryReference, NormalEntry, Permission, ReadOptions, prelude::*};
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::FileTimesExt;
 #[cfg(windows)]
@@ -289,6 +289,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let output_options = OutputOption {
         overwrite_strategy,
         allow_unsafe_links: args.allow_unsafe_links,
+        absolute_paths: false,
         strip_components: args.strip_components,
         out_dir: args.out_dir,
         to_stdout: false,
@@ -380,6 +381,7 @@ impl OverwriteStrategy {
 pub(crate) struct OutputOption<'a> {
     pub(crate) overwrite_strategy: OverwriteStrategy,
     pub(crate) allow_unsafe_links: bool,
+    pub(crate) absolute_paths: bool,
     pub(crate) strip_components: Option<usize>,
     pub(crate) out_dir: Option<PathBuf>,
     pub(crate) to_stdout: bool,
@@ -415,7 +417,7 @@ where
                 .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
             let item_path = item.header().path().to_string();
             if !globs.is_empty() && !globs.matches_any(&item_path) {
-                log::debug!("Skip: {}", item.header().path());
+                log::debug!("Skip: {item_path}");
                 return Ok(());
             }
             if matches!(
@@ -444,7 +446,7 @@ where
         result?;
     }
     for item in link_entries {
-        let path = item.header().path().to_string();
+        let path = item.name().to_string();
         extract_entry(item, password, &args)
             .with_context(|| format!("extracting deferred link {}", path))?;
     }
@@ -477,7 +479,7 @@ where
                 .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
             let item_path = item.header().path().to_string();
             if !globs.is_empty() && !globs.matches_any(&item_path) {
-                log::debug!("Skip: {}", item.header().path());
+                log::debug!("Skip: {item_path}");
                 return Ok(());
             }
             if matches!(
@@ -505,7 +507,7 @@ where
         }
 
         for item in link_entries {
-            let path = item.header().path().to_string();
+            let path = item.name().to_string();
             extract_entry(item, password, &args)
                 .with_context(|| format!("extracting deferred link {}", path))?;
         }
@@ -520,6 +522,7 @@ pub(crate) fn extract_entry<'a, T>(
     OutputOption {
         overwrite_strategy,
         allow_unsafe_links,
+        absolute_paths,
         strip_components,
         out_dir,
         to_stdout,
@@ -536,11 +539,10 @@ where
     T: AsRef<[u8]>,
     pna::RawChunk<T>: Chunk,
 {
-    let item_path = item.header().path().as_str();
-    if filter.excluded(item_path) {
+    if filter.excluded(item.name()) {
         return Ok(());
     }
-    let item_path = item.header().path().as_path();
+    let item_path = item.name().as_path();
     log::debug!("Extract: {}", item_path.display());
     let item_path = if let Some(strip_count) = *strip_components {
         if item_path.components().count() <= strip_count {
@@ -556,6 +558,16 @@ where
             false,
             false,
         )))
+    } else {
+        item_path
+    };
+    let item_path = if !absolute_paths {
+        Cow::Owned(
+            EntryName::from_path_lossy_preserve_root(&item_path)
+                .sanitize()
+                .as_path()
+                .to_owned(),
+        )
     } else {
         item_path
     };
@@ -670,7 +682,10 @@ where
             } else {
                 original
             };
-            let original = EntryReference::from_utf8_preserve_root(&original).sanitize();
+            let mut original = EntryReference::from_utf8_preserve_root(&original);
+            if !absolute_paths {
+                original = original.sanitize();
+            }
             if !allow_unsafe_links && is_unsafe_link(&original) {
                 log::warn!(
                     "Skipped extracting a symbolic link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
@@ -690,7 +705,10 @@ where
             } else {
                 original
             };
-            let original = EntryReference::from_utf8_preserve_root(&original).sanitize();
+            let mut original = EntryReference::from_utf8_preserve_root(&original);
+            if !absolute_paths {
+                original = original.sanitize();
+            }
             if !allow_unsafe_links && is_unsafe_link(&original) {
                 log::warn!(
                     "Skipped extracting a hard link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
