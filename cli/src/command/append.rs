@@ -402,6 +402,7 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
             args.strip_components,
             PathTransformers::new(args.substitutions, args.transforms),
         ),
+        absolute_paths: false,
     };
 
     let archive = open_archive_then_seek_to_end(&archive_path)?;
