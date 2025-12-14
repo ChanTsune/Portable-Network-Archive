@@ -456,13 +456,13 @@ fn print_formatted_entries(
     out: impl Write,
 ) -> anyhow::Result<()> {
     match options.format {
-        Some(Format::Line) => simple_list_entries_to(entries, &options, out)?,
+        Some(Format::Line) => simple_list_entries_to(entries, options, out)?,
         Some(Format::JsonL) => json_line_entries_to(entries, out)?,
-        Some(Format::Table) => detail_list_entries_to(entries, &options, out)?,
-        Some(Format::Tree) => tree_entries_to(entries, &options, out)?,
-        Some(Format::BsdTar) => bsd_tar_list_entries_to(entries, &options, out)?,
-        None if options.long => detail_list_entries_to(entries, &options, out)?,
-        None => simple_list_entries_to(entries, &options, out)?,
+        Some(Format::Table) => detail_list_entries_to(entries, options, out)?,
+        Some(Format::Tree) => tree_entries_to(entries, options, out)?,
+        Some(Format::BsdTar) => bsd_tar_list_entries_to(entries, options, out)?,
+        None if options.long => detail_list_entries_to(entries, options, out)?,
+        None => simple_list_entries_to(entries, options, out)?,
     };
     Ok(())
 }
