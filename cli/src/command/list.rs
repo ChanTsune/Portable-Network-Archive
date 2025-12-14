@@ -443,14 +443,18 @@ fn print_entries<'a>(
         })
         .collect::<Vec<_>>();
     globs.ensure_all_matched()?;
-    let mut stdout = io::stdout().lock();
-    let mut stderr = io::stderr().lock();
-    let out: &mut dyn Write = if options.out_to_stderr {
-        &mut stderr
+    if options.out_to_stderr {
+        print_formatted_entries(entries, &options, io::stderr().lock())
     } else {
-        &mut stdout
-    };
+        print_formatted_entries(entries, &options, io::stdout().lock())
+    }
+}
 
+fn print_formatted_entries(
+    entries: Vec<TableRow>,
+    options: &ListOptions,
+    out: impl Write,
+) -> anyhow::Result<()> {
     match options.format {
         Some(Format::Line) => simple_list_entries_to(entries, &options, out)?,
         Some(Format::JsonL) => json_line_entries_to(entries, out)?,
@@ -466,7 +470,7 @@ fn print_entries<'a>(
 fn bsd_tar_list_entries_to(
     entries: Vec<TableRow>,
     options: &ListOptions,
-    out: &mut dyn Write,
+    mut out: impl Write,
 ) -> io::Result<()> {
     let now = SystemTime::now();
     let mut uname_width = 6;
@@ -546,7 +550,7 @@ impl<'a> Display for SimpleListDisplay<'a> {
 fn simple_list_entries_to(
     entries: Vec<TableRow>,
     options: &ListOptions,
-    out: &mut dyn Write,
+    mut out: impl Write,
 ) -> io::Result<()> {
     let display = SimpleListDisplay {
         entries: &entries,
@@ -558,7 +562,7 @@ fn simple_list_entries_to(
 fn detail_list_entries_to(
     entries: impl IntoIterator<Item = TableRow>,
     options: &ListOptions,
-    out: &mut dyn Write,
+    mut out: impl Write,
 ) -> io::Result<()> {
     let underline = Color::new("\x1B[4m", "\x1B[0m");
     let reset = Color::new("\x1B[8m", "\x1B[0m");
@@ -865,7 +869,7 @@ struct XAttr<'a> {
     value: String,
 }
 
-fn json_line_entries_to(entries: Vec<TableRow>, out: &mut dyn Write) -> anyhow::Result<()> {
+fn json_line_entries_to(entries: Vec<TableRow>, mut out: impl Write) -> anyhow::Result<()> {
     let entries = entries
         .par_iter()
         .map(|it| {
@@ -922,7 +926,7 @@ fn json_line_entries_to(entries: Vec<TableRow>, out: &mut dyn Write) -> anyhow::
         .collect::<Vec<_>>();
 
     for line in entries {
-        serde_json::to_writer(&mut *out, &line)?;
+        serde_json::to_writer(&mut out, &line)?;
         out.write_all(b"\n")?;
     }
     Ok(())
@@ -944,7 +948,7 @@ impl<'s> TreeEntry<'s> {
 fn tree_entries_to(
     entries: Vec<TableRow>,
     options: &ListOptions,
-    out: &mut dyn Write,
+    mut out: impl Write,
 ) -> io::Result<()> {
     let entries = entries.iter().map(|it| match &it.entry_type {
         EntryType::File(name) => (name.as_str(), DataKind::File),
