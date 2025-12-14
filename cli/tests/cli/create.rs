@@ -22,6 +22,7 @@ mod option_older_mtime;
 mod option_older_mtime_than;
 mod password_from_file;
 mod password_hash;
+mod sanitize_parent_components;
 mod strip_components;
 mod substitution;
 mod symlink;

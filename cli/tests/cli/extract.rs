@@ -9,5 +9,6 @@ mod option_keep_old_files;
 mod option_keep_timestamp;
 mod overwrite_symlink;
 mod password_from_file;
+mod sanitize_parent_components;
 mod substitution;
 mod transform;
