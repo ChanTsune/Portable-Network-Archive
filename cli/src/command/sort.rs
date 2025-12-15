@@ -166,7 +166,7 @@ fn sort_archive(args: SortCommand) -> anyhow::Result<()> {
     entries.sort_by(|a, b| {
         for key in &args.by {
             let ord = match key.by {
-                SortBy::Name => a.header().path().cmp(b.header().path()),
+                SortBy::Name => a.name().cmp(b.name()),
                 SortBy::Ctime => a.metadata().created().cmp(&b.metadata().created()),
                 SortBy::Mtime => a.metadata().modified().cmp(&b.metadata().modified()),
                 SortBy::Atime => a.metadata().accessed().cmp(&b.metadata().accessed()),
