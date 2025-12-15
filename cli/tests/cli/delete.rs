@@ -1,4 +1,7 @@
+mod delete_all_entries;
+mod directory_entry;
 mod missing_file;
+mod multipart;
 mod option_exclude;
 mod option_exclude_from;
 mod option_exclude_vcs;
@@ -6,8 +9,10 @@ mod option_files_from;
 mod option_files_from_stdin;
 mod option_include;
 mod option_keep_solid;
+mod option_null;
 mod option_output;
 mod option_password;
 mod option_password_file;
 mod option_unsolid;
 mod overwrite_original;
+mod symlink_entry;
