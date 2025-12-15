@@ -79,7 +79,7 @@ fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
             || password.as_deref(),
             |entry| {
                 let entry = entry?;
-                if globs.matches_any(entry.header().path()) {
+                if globs.matches_any(entry.name()) {
                     Ok(Some(transform_entry(entry, &owner)))
                 } else {
                     Ok(Some(entry))
@@ -93,7 +93,7 @@ fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
             || password.as_deref(),
             |entry| {
                 let entry = entry?;
-                if globs.matches_any(entry.header().path()) {
+                if globs.matches_any(entry.name()) {
                     Ok(Some(transform_entry(entry, &owner)))
                 } else {
                     Ok(Some(entry))

@@ -479,9 +479,7 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         run_read_entries(archives, |entry| {
             Strategy::transform(&mut out_archive, password, entry, |entry| {
                 let entry = entry?;
-                if let Some((target_path, store)) =
-                    target_files_mapping.swap_remove(entry.header().path())
-                {
+                if let Some((target_path, store)) = target_files_mapping.swap_remove(entry.name()) {
                     let fs_meta = fs::symlink_metadata(&target_path)?;
                     let need_update =
                         is_newer_than_archive(&fs_meta, entry.metadata()).unwrap_or(true);

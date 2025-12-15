@@ -70,7 +70,7 @@ fn archive_chmod(args: ChmodCommand) -> anyhow::Result<()> {
             || password.as_deref(),
             |entry| {
                 let entry = entry?;
-                if globs.matches_any(entry.header().path()) {
+                if globs.matches_any(entry.name()) {
                     Ok(Some(transform_entry(entry, &args.mode)))
                 } else {
                     Ok(Some(entry))
@@ -84,7 +84,7 @@ fn archive_chmod(args: ChmodCommand) -> anyhow::Result<()> {
             || password.as_deref(),
             |entry| {
                 let entry = entry?;
-                if globs.matches_any(entry.header().path()) {
+                if globs.matches_any(entry.name()) {
                     Ok(Some(transform_entry(entry, &args.mode)))
                 } else {
                     Ok(Some(entry))

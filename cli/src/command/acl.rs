@@ -302,7 +302,7 @@ fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
         || password.as_deref(),
         |entry| {
             let entry = entry?;
-            let name = entry.header().path();
+            let name = entry.name();
             if globs.matches_any(name) {
                 let permission = entry.metadata().permission();
                 println!("# file: {name}");
@@ -416,7 +416,7 @@ impl SetAclsStrategy<'_> {
     {
         match self {
             Self::Restore(restore) => {
-                if let Some(acls) = restore.get(entry.header().path().as_str()) {
+                if let Some(acls) = restore.get(entry.name().as_str()) {
                     let extra_without_known = entry
                         .extra_chunks()
                         .iter()
@@ -449,7 +449,7 @@ impl SetAclsStrategy<'_> {
                 remove,
                 platform,
             } => {
-                if globs.matches_any(entry.header().path()) {
+                if globs.matches_any(entry.name()) {
                     transform_entry(
                         entry,
                         platform,

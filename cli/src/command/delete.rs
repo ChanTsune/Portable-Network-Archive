@@ -141,7 +141,7 @@ fn filter_entry<T>(
     filter: &PathFilter,
     entry: NormalEntry<T>,
 ) -> Option<NormalEntry<T>> {
-    let entry_path = entry.header().path();
+    let entry_path = entry.name();
     if globs.matches_any(entry_path) && !filter.excluded(entry_path) {
         return None;
     }
