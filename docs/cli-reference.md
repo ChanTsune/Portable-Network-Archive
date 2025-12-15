@@ -1146,6 +1146,9 @@ Archive manipulation via stdio
 * `--allow-unsafe-links` — Allow extracting symbolic links and hard links that contain root or parent paths
 
   Default value: `false`
+* `-P`, `--absolute-paths` — Do not strip leading '/' or '..' from member names and link targets (unstable)
+
+  Default value: `false`
 * `-f`, `--file <FILE>` — Read the archive from or write the archive to the specified file. The filename can be - for standard input or standard output.
 * `--null` — Filenames or patterns are separated by null characters, not by newlines
 
