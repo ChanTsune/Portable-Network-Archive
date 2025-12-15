@@ -248,12 +248,11 @@ where
     fn try_from(
         (entry, password, solid): (&NormalEntry<T>, Option<&[u8]>, Option<&SolidHeader>),
     ) -> Result<Self, Self::Error> {
-        let header = entry.header();
         let metadata = entry.metadata();
         let acl = entry.acl()?;
         Ok(Self {
             encryption: match solid.map_or_else(
-                || (header.encryption(), header.cipher_mode()),
+                || (entry.encryption(), entry.cipher_mode()),
                 |s| (s.encryption(), s.cipher_mode()),
             ) {
                 (Encryption::No, _) => "-".into(),
@@ -262,7 +261,7 @@ where
                 }
             },
             compression: match (
-                solid.map_or(header.compression(), |s| s.compression()),
+                solid.map_or(entry.compression(), |s| s.compression()),
                 solid,
             ) {
                 (Compression::No, None) => "-".into(),
@@ -276,23 +275,23 @@ where
             created: metadata.created_time(),
             modified: metadata.modified_time(),
             accessed: metadata.accessed_time(),
-            entry_type: match header.data_kind() {
+            entry_type: match entry.data_kind() {
                 DataKind::SymbolicLink => EntryType::SymbolicLink(
-                    header.path().to_string(),
+                    entry.name().to_string(),
                     entry
                         .reader(ReadOptions::with_password(password))
                         .and_then(io::read_to_string)
                         .unwrap_or_else(|_| "-".into()),
                 ),
                 DataKind::HardLink => EntryType::HardLink(
-                    header.path().to_string(),
+                    entry.name().to_string(),
                     entry
                         .reader(ReadOptions::with_password(password))
                         .and_then(io::read_to_string)
                         .unwrap_or_else(|_| "-".into()),
                 ),
-                DataKind::Directory => EntryType::Directory(header.path().to_string()),
-                DataKind::File => EntryType::File(header.path().to_string()),
+                DataKind::Directory => EntryType::Directory(entry.name().to_string()),
+                DataKind::File => EntryType::File(entry.name().to_string()),
             },
             xattrs: entry.xattrs().to_vec(),
             acl,

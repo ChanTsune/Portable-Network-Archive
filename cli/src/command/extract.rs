@@ -429,7 +429,7 @@ where
         run_process_archive(reader, password_provider, |entry| {
             let item = entry
                 .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
-            let item_path = item.header().path().to_string();
+            let item_path = item.name().to_string();
             if !globs.is_empty() && !globs.matches_any(&item_path) {
                 log::debug!("Skip: {item_path}");
                 return Ok(());
@@ -491,7 +491,7 @@ where
         run_entries(archives, password_provider, |entry| {
             let item = entry
                 .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
-            let item_path = item.header().path().to_string();
+            let item_path = item.name().to_string();
             if !globs.is_empty() && !globs.matches_any(&item_path) {
                 log::debug!("Skip: {item_path}");
                 return Ok(());
