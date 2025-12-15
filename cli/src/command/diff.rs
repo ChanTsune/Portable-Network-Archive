@@ -8,7 +8,7 @@ use crate::{
 };
 
 use clap::Parser;
-use pna::{DataKind, NormalEntry, ReadOptions};
+use pna::{DataKind, EntryReference, NormalEntry, ReadOptions};
 use std::{
     fs,
     io::{self, prelude::*},
@@ -91,7 +91,67 @@ fn compare_entry<T: AsRef<[u8]>>(entry: NormalEntry<T>, password: Option<&[u8]>)
         DataKind::File | DataKind::Directory | DataKind::SymbolicLink => {
             println!("Mismatch file type: {path}")
         }
-        DataKind::HardLink => (),
+        DataKind::HardLink if meta.is_file() => {
+            compare_hard_link(&entry, password, path)?;
+        }
+        DataKind::HardLink => {
+            println!("Mismatch file type: {path}")
+        }
     }
     Ok(())
+}
+
+fn compare_hard_link<T: AsRef<[u8]>>(
+    entry: &NormalEntry<T>,
+    password: Option<&[u8]>,
+    path: &pna::EntryName,
+) -> io::Result<()> {
+    let reader = entry.reader(ReadOptions::with_password(password))?;
+    let link_target = io::read_to_string(reader)?;
+    let link_target = EntryReference::from_utf8_preserve_root(&link_target).sanitize();
+
+    match fs::symlink_metadata(link_target.as_path()) {
+        Ok(target_meta) => {
+            let link_meta = fs::symlink_metadata(path)?;
+            if !same_file(&link_meta, &target_meta) {
+                println!("Not linked to {}: {path}", link_target.display());
+            }
+        }
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            // Target file doesn't exist - the hard link cannot be verified
+            // This is a difference because the archive expects a hard link to this target
+            println!("Not linked to {}: {path}", link_target.display());
+        }
+        Err(e) => return Err(e),
+    }
+    Ok(())
+}
+
+/// Check if two metadata entries refer to the same file (same inode on Unix).
+#[cfg(unix)]
+fn same_file(a: &fs::Metadata, b: &fs::Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    a.dev() == b.dev() && a.ino() == b.ino()
+}
+
+/// Check if two metadata entries refer to the same file (using file index on Windows).
+#[cfg(windows)]
+fn same_file(a: &fs::Metadata, b: &fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    // On Windows, we compare volume serial number and file index
+    // Note: file_index() returns Option<u64>, so we need to handle that
+    match (a.volume_serial_number(), b.volume_serial_number()) {
+        (Some(vol_a), Some(vol_b)) if vol_a == vol_b => {
+            a.file_index() == b.file_index()
+        }
+        _ => false,
+    }
+}
+
+/// Fallback for platforms without inode support (e.g., WASI).
+/// We cannot reliably verify hard links, so we skip the check.
+#[cfg(not(any(unix, windows)))]
+fn same_file(_a: &fs::Metadata, _b: &fs::Metadata) -> bool {
+    // Cannot verify hard links on this platform
+    true
 }
