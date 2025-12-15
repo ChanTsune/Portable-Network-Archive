@@ -314,6 +314,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let output_options = OutputOption {
         overwrite_strategy,
         allow_unsafe_links: args.allow_unsafe_links,
+        unsafe_path_handling: UnsafePathHandling::Sanitize,
         out_dir: args.out_dir,
         to_stdout: false,
         filter,
@@ -393,10 +394,19 @@ impl OverwriteStrategy {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum UnsafePathHandling {
+    /// Sanitize unsafe components (default).
+    Sanitize,
+    /// Refuse to extract paths that contain `..` components.
+    Reject,
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct OutputOption<'a> {
     pub(crate) overwrite_strategy: OverwriteStrategy,
     pub(crate) allow_unsafe_links: bool,
+    pub(crate) unsafe_path_handling: UnsafePathHandling,
     pub(crate) out_dir: Option<PathBuf>,
     pub(crate) to_stdout: bool,
     pub(crate) filter: PathFilter<'a>,
@@ -536,6 +546,7 @@ pub(crate) fn extract_entry<'a, T>(
     OutputOption {
         overwrite_strategy,
         allow_unsafe_links,
+        unsafe_path_handling,
         out_dir,
         to_stdout,
         filter,
@@ -556,9 +567,28 @@ where
     }
     let item_path = item.name().as_path();
     log::debug!("Extract: {}", item_path.display());
+
     let Some(item_path) = pathname_editor.edit_entry_name(item_path) else {
         return Ok(());
     };
+
+    if *unsafe_path_handling == UnsafePathHandling::Reject {
+        let mut components = item_path.as_path().components();
+        if let Some(Component::ParentDir | Component::Prefix(_) | Component::RootDir) =
+            components.next()
+        {
+            // NOTE: bsdtar (libarchive) will continue extracting other entries but
+            // eventually exit with a non-zero status for unsafe paths (e.g. SECURE_NODOTDOT).
+            // We fail fast here to keep the control-flow simple.
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Refusing to extract an entry with an unsafe path: {}",
+                    item.name()
+                ),
+            ));
+        }
+    }
 
     if *to_stdout {
         return extract_entry_to_stdout(&item, password);

@@ -17,7 +17,9 @@ use crate::{
             read_paths,
         },
         create::{CreationContext, create_archive_file},
-        extract::{OutputOption, OverwriteStrategy, run_extract_archive_reader},
+        extract::{
+            OutputOption, OverwriteStrategy, UnsafePathHandling, run_extract_archive_reader,
+        },
         list::{Format, ListOptions, TimeField, TimeFormat},
     },
     utils::{self, GlobPatterns, VCS_FILES},
@@ -636,6 +638,7 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
     let out_option = OutputOption {
         overwrite_strategy,
         allow_unsafe_links: args.allow_unsafe_links,
+        unsafe_path_handling: UnsafePathHandling::Reject,
         out_dir: args.out_dir,
         to_stdout: args.to_stdout,
         filter,
