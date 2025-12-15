@@ -13,9 +13,20 @@ pub(crate) fn read_to_lines<R: io::BufRead>(reader: R) -> io::Result<Vec<String>
 }
 
 /// Reads a reader and splits its contents on null characters ('\0'), returning a Vec<String>.
+/// The null characters are stripped from the output (similar to how `lines()` strips newlines).
 #[inline]
 pub(crate) fn read_to_nul<R: io::BufRead>(reader: R) -> io::Result<Vec<String>> {
-    reader.delimit_by_str("\0").collect()
+    reader
+        .delimit_by_str("\0")
+        .map(|r| {
+            r.map(|mut s| {
+                if let Some(stripped) = s.strip_suffix('\0') {
+                    s.truncate(stripped.len());
+                };
+                s
+            })
+        })
+        .collect()
 }
 
 /// Treats an `io::Result` as success when a predicate over the error returns true.
@@ -52,4 +63,16 @@ where
 #[inline]
 pub(crate) fn ignore_not_found<T>(result: io::Result<T>) -> io::Result<()> {
     ok_if(result, |e| matches!(e.kind(), io::ErrorKind::NotFound))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn read_to_nul_splits_on_nul_without_including_delimiters() {
+        let input = b"d1/d2/f3\0d1/d2/f5\0";
+        let got = read_to_nul(io::BufReader::new(&input[..])).unwrap();
+        assert_eq!(got, vec!["d1/d2/f3", "d1/d2/f5"]);
+    }
 }
