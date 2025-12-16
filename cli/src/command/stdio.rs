@@ -1,6 +1,7 @@
 use crate::{
     cli::{
-        CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, HashAlgorithmArgs, PasswordArgs,
+        CipherAlgorithmArgs, ColorChoice, CompressionAlgorithmArgs, DateTime, HashAlgorithmArgs,
+        PasswordArgs,
     },
     command::{
         Command,
@@ -681,6 +682,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
             Format::Line
         }),
         out_to_stderr: args.to_stdout,
+        color: ColorChoice::Auto,
     };
     let files_globs = GlobPatterns::new(args.files.iter().map(|it| it.as_str()))?;
 

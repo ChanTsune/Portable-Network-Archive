@@ -2,7 +2,7 @@
 use crate::command::core::run_read_entries_mem;
 use crate::{
     chunk,
-    cli::{FileArgsCompat, PasswordArgs},
+    cli::{ColorChoice, FileArgsCompat, PasswordArgs},
     command::{
         Command, ask_password,
         core::{PathFilter, collect_split_archives, read_paths, run_read_entries},
@@ -52,6 +52,8 @@ use tabled::{
     group(ArgGroup::new("null-requires").arg("null").requires("exclude_from")),
 )]
 pub(crate) struct ListCommand {
+    #[arg(skip)]
+    pub(crate) color: ColorChoice,
     #[arg(short, long, help = "Display extended file metadata as a table")]
     pub(crate) long: bool,
     #[arg(short, long, help = "Add a header row to each column")]
@@ -286,6 +288,7 @@ fn list_archive(args: ListCommand) -> anyhow::Result<()> {
         classify: args.classify,
         format: args.format,
         out_to_stderr: false,
+        color: args.color,
     };
     let archive = args.file.archive();
     let files = args.file.files();
@@ -365,6 +368,7 @@ pub(crate) struct ListOptions {
     pub(crate) classify: bool,
     pub(crate) format: Option<Format>,
     pub(crate) out_to_stderr: bool,
+    pub(crate) color: ColorChoice,
 }
 
 pub(crate) fn run_list_archive<'a>(
@@ -444,9 +448,11 @@ fn print_entries<'a>(
         .collect::<Vec<_>>();
     globs.ensure_all_matched()?;
     if options.out_to_stderr {
-        print_formatted_entries(entries, &options, io::stderr().lock())
+        let out = anstream::AutoStream::new(io::stderr().lock(), options.color.into());
+        print_formatted_entries(entries, &options, out)
     } else {
-        print_formatted_entries(entries, &options, io::stdout().lock())
+        let out = anstream::AutoStream::new(io::stdout().lock(), options.color.into());
+        print_formatted_entries(entries, &options, out)
     }
 }
 
