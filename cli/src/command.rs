@@ -21,12 +21,21 @@ pub(crate) mod strip;
 pub mod update;
 pub mod xattr;
 
-use crate::cli::{CipherAlgorithmArgs, Cli, Commands, PasswordArgs};
-use std::{fs, io};
+use crate::{
+    cli::{CipherAlgorithmArgs, Cli, Commands, PasswordArgs},
+    utils::fs,
+};
+use std::io;
 
 fn ask_password(args: PasswordArgs) -> io::Result<Option<Vec<u8>>> {
     if let Some(path) = args.password_file {
-        return Ok(Some(fs::read(path)?));
+        return match fs::read_first_non_empty_line(path)? {
+            Some(password) => Ok(Some(password.into_bytes())),
+            None => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "password is empty",
+            )),
+        };
     };
     Ok(match args.password {
         Some(Some(password)) => {

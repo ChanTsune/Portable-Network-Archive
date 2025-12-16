@@ -8,7 +8,11 @@ pub(crate) use file_id::HardlinkResolver;
 pub(crate) use nodump::is_nodump;
 pub(crate) use owner::*;
 pub(crate) use pna::fs::*;
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io::{self, BufRead},
+    path::Path,
+};
 
 pub(crate) fn is_pna<P: AsRef<Path>>(path: P) -> io::Result<bool> {
     let file = fs::File::open(path)?;
@@ -73,4 +77,31 @@ pub(crate) fn file_create(path: impl AsRef<Path>, overwrite: bool) -> io::Result
     } else {
         fs::File::create_new(path)
     }
+}
+
+/// Returns the first non-empty line from a file as UTF-8, if any.
+///
+/// Empty lines are skipped. The trailing line terminator (`\n` or `\r\n`)
+/// is not included in the returned string.
+///
+/// # Returns
+///
+/// - `Ok(Some(line))` if a non-empty line was found.
+/// - `Ok(None)` if the file contains no non-empty lines.
+/// - `Err(e)` if an I/O error occurs while opening or reading the file.
+///
+/// # Errors
+///
+/// Propagates any I/O error that occurs while opening or reading the file.
+#[inline]
+pub(crate) fn read_first_non_empty_line<P: AsRef<Path>>(path: P) -> io::Result<Option<String>> {
+    let file = fs::File::open(path)?;
+    let reader = io::BufReader::new(file);
+    for line in reader.lines() {
+        let line = line?;
+        if !line.is_empty() {
+            return Ok(Some(line));
+        }
+    }
+    Ok(None)
 }
