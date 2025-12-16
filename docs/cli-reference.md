@@ -131,6 +131,12 @@ Portable-Network-Archive cli
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -284,6 +290,12 @@ Create archive
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -426,6 +438,12 @@ Append files to archive
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -527,6 +545,12 @@ Extract files from archive
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -606,6 +630,12 @@ List files in archive
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -639,6 +669,12 @@ Split archive
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -671,6 +707,12 @@ Concat archives
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -720,6 +762,12 @@ Strip entries metadata
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -748,6 +796,12 @@ Sort entries in archive
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -776,6 +830,12 @@ Manipulate extended attributes
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -814,6 +874,12 @@ Get extended attributes of entries
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -853,6 +919,12 @@ Set extended attributes of entries
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -919,6 +991,12 @@ Generate shell auto complete
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -940,6 +1018,12 @@ Generate bug report template
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -977,6 +1061,12 @@ Unstable experimental commands; behavior and interface may change or be removed
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -1161,6 +1251,12 @@ Archive manipulation via stdio
 * `--quiet` — Make some output more quiet
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -1208,6 +1304,12 @@ Delete entry from archive
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -1353,6 +1455,12 @@ Update entries in archive
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -1397,6 +1505,12 @@ Change owner
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -1432,6 +1546,12 @@ Change mode
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -1460,6 +1580,12 @@ Manipulate extended attributes (stabilized, use `pna xattr` command instead. thi
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -1498,6 +1624,12 @@ Get extended attributes of entries
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -1537,6 +1669,12 @@ Set extended attributes of entries
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -1603,6 +1741,12 @@ Manipulate ACLs of entries
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -1635,6 +1779,12 @@ Get acl of entries
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -1676,6 +1826,12 @@ Set acl of entries
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -1745,6 +1901,12 @@ Migrate old format to latest format
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -1772,6 +1934,12 @@ Chunk level operation
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -1801,6 +1969,12 @@ List chunks
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -1857,6 +2031,12 @@ Sort entries in archive (stabilized, use `pna sort` command instead. this comman
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
@@ -1885,6 +2065,12 @@ Compare archive entries with filesystem
 * `--verbose` — Make some output more verbose
 
   Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
