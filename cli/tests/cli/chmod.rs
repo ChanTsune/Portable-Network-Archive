@@ -15,7 +15,7 @@ mod unsolid;
 
 use crate::utils::{archive, archive::FileEntryDef, setup};
 use clap::Parser;
-use portable_network_archive::{cli, command::Command};
+use portable_network_archive::cli;
 
 const ENTRY_PATH: &str = "test.txt";
 const ENTRY_CONTENT: &[u8] = b"test content";

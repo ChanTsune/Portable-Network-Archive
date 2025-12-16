@@ -332,7 +332,7 @@ pub(crate) struct CreateCommand {
 
 impl Command for CreateCommand {
     #[inline]
-    fn execute(self) -> anyhow::Result<()> {
+    fn execute(self, _ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
         create_archive(self)
     }
 }

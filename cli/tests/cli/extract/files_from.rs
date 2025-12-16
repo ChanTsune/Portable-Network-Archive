@@ -1,6 +1,6 @@
 use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
 use clap::Parser;
-use portable_network_archive::{cli, command::Command};
+use portable_network_archive::cli;
 use std::fs;
 
 /// Precondition: An archive contains multiple resources under `raw/`.

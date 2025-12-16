@@ -1,6 +1,6 @@
 use crate::utils::{archive, archive::FileEntryDef, setup};
 use clap::Parser;
-use portable_network_archive::{cli, command::Command};
+use portable_network_archive::cli;
 
 /// Precondition: An archive contains multiple .txt files with permission 0o644.
 /// Action: Run `pna experimental chmod` with glob pattern `**/*.txt` and mode `755`.

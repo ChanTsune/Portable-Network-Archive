@@ -42,7 +42,7 @@ pub(crate) struct ChownCommand {
 
 impl Command for ChownCommand {
     #[inline]
-    fn execute(self) -> anyhow::Result<()> {
+    fn execute(self, _ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
         archive_chown(self)
     }
 }

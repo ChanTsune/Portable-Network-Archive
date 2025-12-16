@@ -1,6 +1,6 @@
 use crate::utils::{archive, setup};
 use clap::Parser;
-use portable_network_archive::{cli, command::Command as _};
+use portable_network_archive::cli;
 use std::{fs, path::Path, process::Command as StdCommand};
 
 #[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd"))]

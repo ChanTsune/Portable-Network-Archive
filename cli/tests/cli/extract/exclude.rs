@@ -1,7 +1,6 @@
 use crate::utils::{self, EmbedExt, TestResources, diff::diff, setup};
 use clap::Parser;
 use portable_network_archive::cli;
-use portable_network_archive::command::Command;
 use std::fs;
 
 #[test]

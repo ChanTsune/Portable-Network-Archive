@@ -25,7 +25,7 @@ pub(crate) struct DiffCommand {
 
 impl Command for DiffCommand {
     #[inline]
-    fn execute(self) -> anyhow::Result<()> {
+    fn execute(self, _ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
         diff_archive(self)
     }
 }

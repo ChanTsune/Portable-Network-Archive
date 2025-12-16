@@ -1,7 +1,6 @@
 use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
 use portable_network_archive::cli;
-use portable_network_archive::command::Command;
 
 #[test]
 fn xattr_set_base64() {

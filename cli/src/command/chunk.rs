@@ -13,9 +13,9 @@ pub(crate) struct ChunkCommand {
 
 impl Command for ChunkCommand {
     #[inline]
-    fn execute(self) -> anyhow::Result<()> {
+    fn execute(self, ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
         match self.command {
-            ChunkCommands::List(cmd) => cmd.execute(),
+            ChunkCommands::List(cmd) => cmd.execute(ctx),
         }
     }
 }
@@ -41,7 +41,7 @@ pub(crate) struct ListCommand {
 
 impl Command for ListCommand {
     #[inline]
-    fn execute(self) -> anyhow::Result<()> {
+    fn execute(self, _ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
         list_archive_chunks(self)
     }
 }

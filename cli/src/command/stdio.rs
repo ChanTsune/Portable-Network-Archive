@@ -406,7 +406,7 @@ pub(crate) struct StdioCommand {
 
 impl Command for StdioCommand {
     #[inline]
-    fn execute(self) -> anyhow::Result<()> {
+    fn execute(self, _ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
         run_stdio(self)
     }
 }

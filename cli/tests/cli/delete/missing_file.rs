@@ -1,6 +1,6 @@
 use crate::utils::{EmbedExt, TestResources, setup};
 use clap::Parser;
-use portable_network_archive::{cli, command::Command};
+use portable_network_archive::cli;
 
 /// Precondition: The source tree contains both files and directories.
 /// Action: Run `pna experimental delete` targeting an existing entry and a missing entry.

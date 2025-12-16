@@ -1,7 +1,7 @@
 #![cfg(any(unix, windows))]
 use crate::utils::{EmbedExt, TestResources, archive, diff::diff, setup};
 use clap::Parser;
-use portable_network_archive::{cli, command::Command};
+use portable_network_archive::cli;
 
 #[test]
 fn archive_create_uname_gname() {

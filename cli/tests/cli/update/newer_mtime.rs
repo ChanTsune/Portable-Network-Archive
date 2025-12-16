@@ -1,6 +1,6 @@
 use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
 use clap::Parser;
-use portable_network_archive::{cli, command::Command};
+use portable_network_archive::cli;
 use std::{fs, io::prelude::*, time};
 
 const DURATION_24_HOURS: time::Duration = time::Duration::from_secs(24 * 60 * 60);

@@ -1,6 +1,6 @@
 use crate::utils::{EmbedExt, TestResources, setup};
 use clap::Parser;
-use portable_network_archive::{cli, command::Command};
+use portable_network_archive::cli;
 
 /// Precondition: An archive contains files, but one target file does not exist in the archive.
 /// Action: Run `pna experimental chmod` targeting both existing and non-existing files.

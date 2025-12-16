@@ -1,6 +1,6 @@
 use clap::Parser;
 use criterion::{Criterion, criterion_group, criterion_main};
-use portable_network_archive::{cli, command::Command};
+use portable_network_archive::cli;
 
 fn bench_list_normal(c: &mut Criterion) {
     c.bench_function("list_normal", |b| {
