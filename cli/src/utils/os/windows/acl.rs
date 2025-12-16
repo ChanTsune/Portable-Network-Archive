@@ -60,7 +60,10 @@ impl ACL {
             let mut header: PACE_HEADER = null_mut();
             unsafe { GetAce(p_acl, i, mem::transmute(&mut header)) }?;
             if header.is_null() {
-                return Err(io::Error::new(io::ErrorKind::InvalidData, "GetAce returned null pointer"));
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "GetAce returned null pointer",
+                ));
             }
             let ace = match unsafe { *header }.AceType as u32 {
                 ACCESS_ALLOWED_ACE_TYPE => {
