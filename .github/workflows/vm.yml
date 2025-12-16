@@ -116,6 +116,7 @@ jobs:
             chown -R $(whoami):$(id -gn) ./
             chmod -R a+rw ./
             cargo install -f cargo-hack --locked
+            ulimit -n 2048
             cargo hack test --locked --release --feature-powerset --exclude-features wasm
 
 #  DragonflyBSD-test:
