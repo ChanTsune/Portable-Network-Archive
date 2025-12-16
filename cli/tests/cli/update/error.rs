@@ -1,6 +1,6 @@
 use crate::utils::setup;
 use clap::Parser;
-use portable_network_archive::{cli, command::Command};
+use portable_network_archive::cli;
 
 #[test]
 fn test_update_non_existent_archive() {

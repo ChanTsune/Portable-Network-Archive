@@ -1,9 +1,6 @@
 use crate::utils::{archive, setup};
 use clap::Parser;
-use portable_network_archive::{
-    cli::{self, value::DateTime},
-    command::Command,
-};
+use portable_network_archive::cli::{self, value::DateTime};
 use std::collections::HashSet;
 use std::fs;
 use std::str::FromStr;

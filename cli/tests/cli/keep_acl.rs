@@ -1,7 +1,7 @@
 #![cfg(feature = "acl")]
 use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
 use clap::Parser;
-use portable_network_archive::{cli, command::Command};
+use portable_network_archive::cli;
 
 #[test]
 fn archive_keep_acl() {

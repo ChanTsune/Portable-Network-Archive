@@ -10,13 +10,13 @@ pub(crate) struct ExperimentalCommand {
 
 impl Command for ExperimentalCommand {
     #[inline]
-    fn execute(self) -> anyhow::Result<()> {
+    fn execute(self, ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
         match self.command {
-            ExperimentalCommands::Stdio(cmd) => cmd.execute(),
-            ExperimentalCommands::Delete(cmd) => cmd.execute(),
-            ExperimentalCommands::Update(cmd) => cmd.execute(),
-            ExperimentalCommands::Chown(cmd) => cmd.execute(),
-            ExperimentalCommands::Chmod(cmd) => cmd.execute(),
+            ExperimentalCommands::Stdio(cmd) => cmd.execute(ctx),
+            ExperimentalCommands::Delete(cmd) => cmd.execute(ctx),
+            ExperimentalCommands::Update(cmd) => cmd.execute(ctx),
+            ExperimentalCommands::Chown(cmd) => cmd.execute(ctx),
+            ExperimentalCommands::Chmod(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Xattr(cmd) => {
                 log::warn!(
                     "`{0} experimental xattr` subcommand was stabilized, use `{0} xattr` instead. this command will be removed in the future.",
@@ -26,11 +26,11 @@ impl Command for ExperimentalCommand {
                         .unwrap_or_default()
                         .to_string_lossy()
                 );
-                cmd.execute()
+                cmd.execute(ctx)
             }
-            ExperimentalCommands::Acl(cmd) => cmd.execute(),
-            ExperimentalCommands::Migrate(cmd) => cmd.execute(),
-            ExperimentalCommands::Chunk(cmd) => cmd.execute(),
+            ExperimentalCommands::Acl(cmd) => cmd.execute(ctx),
+            ExperimentalCommands::Migrate(cmd) => cmd.execute(ctx),
+            ExperimentalCommands::Chunk(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Sort(cmd) => {
                 log::warn!(
                     "`{0} experimental sort` subcommand was stabilized, use `{0} sort` instead. this command will be removed in the future.",
@@ -40,9 +40,9 @@ impl Command for ExperimentalCommand {
                         .unwrap_or_default()
                         .to_string_lossy()
                 );
-                cmd.execute()
+                cmd.execute(ctx)
             }
-            ExperimentalCommands::Diff(cmd) => cmd.execute(),
+            ExperimentalCommands::Diff(cmd) => cmd.execute(ctx),
         }
     }
 }

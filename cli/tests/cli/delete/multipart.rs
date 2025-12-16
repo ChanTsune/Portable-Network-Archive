@@ -1,6 +1,6 @@
 use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
-use portable_network_archive::{cli, command::Command};
+use portable_network_archive::cli;
 use std::collections::HashSet;
 
 /// Precondition: The source tree is archived and split into multiple parts.

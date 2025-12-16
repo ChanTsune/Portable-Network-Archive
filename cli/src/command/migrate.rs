@@ -28,7 +28,7 @@ pub(crate) struct MigrateCommand {
 
 impl Command for MigrateCommand {
     #[inline]
-    fn execute(self) -> anyhow::Result<()> {
+    fn execute(self, _ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
         migrate_metadata(self)
     }
 }

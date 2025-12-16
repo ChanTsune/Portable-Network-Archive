@@ -40,7 +40,7 @@ pub(crate) struct SplitCommand {
 
 impl Command for SplitCommand {
     #[inline]
-    fn execute(self) -> anyhow::Result<()> {
+    fn execute(self, _ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
         split_archive(self)
     }
 }

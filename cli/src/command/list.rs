@@ -52,8 +52,6 @@ use tabled::{
     group(ArgGroup::new("null-requires").arg("null").requires("exclude_from")),
 )]
 pub(crate) struct ListCommand {
-    #[arg(skip)]
-    pub(crate) color: ColorChoice,
     #[arg(short, long, help = "Display extended file metadata as a table")]
     pub(crate) long: bool,
     #[arg(short, long, help = "Add a header row to each column")]
@@ -119,8 +117,8 @@ pub(crate) struct ListCommand {
 
 impl Command for ListCommand {
     #[inline]
-    fn execute(self) -> anyhow::Result<()> {
-        list_archive(self)
+    fn execute(self, ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
+        list_archive(self, ctx.color())
     }
 }
 
@@ -268,7 +266,7 @@ where
     }
 }
 
-fn list_archive(args: ListCommand) -> anyhow::Result<()> {
+fn list_archive(args: ListCommand, color: ColorChoice) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let options = ListOptions {
         long: args.long,
@@ -288,7 +286,7 @@ fn list_archive(args: ListCommand) -> anyhow::Result<()> {
         classify: args.classify,
         format: args.format,
         out_to_stderr: false,
-        color: args.color,
+        color,
     };
     let archive = args.file.archive();
     let files = args.file.files();

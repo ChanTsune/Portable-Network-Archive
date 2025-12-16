@@ -1,6 +1,6 @@
 use crate::utils::{archive, setup};
 use clap::Parser;
-use portable_network_archive::{cli, command::Command};
+use portable_network_archive::cli;
 use std::{collections::HashSet, fs, path::Path};
 
 /// Precondition: An archive contains symlink entries alongside file entries.

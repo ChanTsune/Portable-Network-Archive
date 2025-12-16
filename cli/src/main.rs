@@ -1,5 +1,5 @@
 use clap::Parser;
-use portable_network_archive::{cli, command::Command};
+use portable_network_archive::cli;
 
 fn main() -> anyhow::Result<()> {
     let cli = cli::Cli::parse();

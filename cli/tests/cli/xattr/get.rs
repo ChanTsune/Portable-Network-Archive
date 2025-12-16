@@ -1,7 +1,7 @@
 use crate::utils::{EmbedExt, TestResources, archive::for_each_entry, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use clap::Parser;
-use portable_network_archive::{cli, command::Command};
+use portable_network_archive::cli;
 
 #[test]
 fn xattr_get_name_match_encoding() {

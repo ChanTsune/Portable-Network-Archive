@@ -310,7 +310,7 @@ pub(crate) struct AppendCommand {
 
 impl Command for AppendCommand {
     #[inline]
-    fn execute(self) -> anyhow::Result<()> {
+    fn execute(self, _ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
         append_to_archive(self)
     }
 }

@@ -24,6 +24,12 @@ pub struct Cli {
     #[command(subcommand)]
     pub(crate) commands: Commands,
     #[command(flatten)]
+    pub(crate) global: GlobalArgs,
+}
+
+#[derive(Parser, Clone, Eq, PartialEq, Debug)]
+pub(crate) struct GlobalArgs {
+    #[command(flatten)]
     pub(crate) verbosity: VerbosityArgs,
     #[command(flatten)]
     pub(crate) color: ColorArgs,
@@ -35,9 +41,16 @@ pub struct Cli {
     pub(crate) unstable: bool,
 }
 
+impl GlobalArgs {
+    #[inline]
+    pub(crate) fn color(&self) -> ColorChoice {
+        self.color.color
+    }
+}
+
 impl Cli {
     pub fn init_logger(&self) -> io::Result<()> {
-        let level = self.verbosity.log_level_filter();
+        let level = self.global.verbosity.log_level_filter();
         let base = fern::Dispatch::new();
         let stderr = fern::Dispatch::new()
             .level(level)

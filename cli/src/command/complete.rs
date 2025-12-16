@@ -11,7 +11,7 @@ pub(crate) struct CompleteCommand {
 
 impl Command for CompleteCommand {
     #[inline]
-    fn execute(self) -> anyhow::Result<()> {
+    fn execute(self, _ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
         let cmd = &mut Cli::command();
         print_completions(self.shell, cmd);
         Ok(())

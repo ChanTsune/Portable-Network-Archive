@@ -138,7 +138,7 @@ pub(crate) struct SortCommand {
 
 impl Command for SortCommand {
     #[inline]
-    fn execute(self) -> anyhow::Result<()> {
+    fn execute(self, _ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
         sort_archive(self)
     }
 }

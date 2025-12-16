@@ -21,7 +21,7 @@ pub(crate) mod strip;
 pub mod update;
 pub mod xattr;
 
-use crate::cli::{CipherAlgorithmArgs, Cli, Commands, PasswordArgs};
+use crate::cli::{CipherAlgorithmArgs, Cli, Commands, GlobalArgs, PasswordArgs};
 use std::{fs, io};
 
 fn ask_password(args: PasswordArgs) -> io::Result<Option<Vec<u8>>> {
@@ -55,29 +55,27 @@ fn check_password(password: &Option<Vec<u8>>, cipher_args: &CipherAlgorithmArgs)
     }
 }
 
-pub trait Command {
-    fn execute(self) -> anyhow::Result<()>;
+pub(crate) trait Command {
+    fn execute(self, ctx: &GlobalArgs) -> anyhow::Result<()>;
 }
 
-impl Command for Cli {
+impl Cli {
     #[inline]
-    fn execute(self) -> anyhow::Result<()> {
+    pub fn execute(self) -> anyhow::Result<()> {
+        let ctx = &self.global;
         match self.commands {
-            Commands::Create(cmd) => cmd.execute(),
-            Commands::Append(cmd) => cmd.execute(),
-            Commands::Extract(cmd) => cmd.execute(),
-            Commands::List(mut cmd) => {
-                cmd.color = self.color.color;
-                cmd.execute()
-            }
-            Commands::Split(cmd) => cmd.execute(),
-            Commands::Concat(cmd) => cmd.execute(),
-            Commands::Strip(cmd) => cmd.execute(),
-            Commands::Sort(cmd) => cmd.execute(),
-            Commands::Xattr(cmd) => cmd.execute(),
-            Commands::Complete(cmd) => cmd.execute(),
-            Commands::BugReport(cmd) => cmd.execute(),
-            Commands::Experimental(cmd) => cmd.execute(),
+            Commands::Create(cmd) => cmd.execute(ctx),
+            Commands::Append(cmd) => cmd.execute(ctx),
+            Commands::Extract(cmd) => cmd.execute(ctx),
+            Commands::List(cmd) => cmd.execute(ctx),
+            Commands::Split(cmd) => cmd.execute(ctx),
+            Commands::Concat(cmd) => cmd.execute(ctx),
+            Commands::Strip(cmd) => cmd.execute(ctx),
+            Commands::Sort(cmd) => cmd.execute(ctx),
+            Commands::Xattr(cmd) => cmd.execute(ctx),
+            Commands::Complete(cmd) => cmd.execute(ctx),
+            Commands::BugReport(cmd) => cmd.execute(ctx),
+            Commands::Experimental(cmd) => cmd.execute(ctx),
         }
     }
 }

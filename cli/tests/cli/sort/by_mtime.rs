@@ -1,7 +1,7 @@
 use crate::utils::{archive::for_each_entry, setup};
 use clap::Parser;
 use pna::{Archive, Duration, EntryBuilder, WriteOptions};
-use portable_network_archive::{cli, command::Command};
+use portable_network_archive::cli;
 use std::fs;
 
 /// Precondition: An archive contains entries with different modification times.

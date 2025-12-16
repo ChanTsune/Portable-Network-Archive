@@ -1,7 +1,7 @@
 use crate::utils::{EmbedExt, TestResources, archive::for_each_entry, setup};
 use clap::Parser;
 use pna::Duration;
-use portable_network_archive::{cli, command::Command};
+use portable_network_archive::cli;
 use std::{
     fs::{self, FileTimes},
     io::prelude::*,

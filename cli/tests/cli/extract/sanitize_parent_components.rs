@@ -1,6 +1,6 @@
 use crate::utils::setup;
 use clap::Parser;
-use portable_network_archive::{cli, command::Command};
+use portable_network_archive::cli;
 use std::{fs, io::Write};
 
 /// Precondition: An archive contains a file entry whose stored name includes `..` (e.g. `../escape.txt`).
