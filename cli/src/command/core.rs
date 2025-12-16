@@ -722,7 +722,16 @@ pub(crate) fn split_to_parts(
                 parts.push(write_part);
                 break;
             }
-            Err(_) => {
+            Err(unsplit_part) => {
+                if split_size < max && parts.is_empty() {
+                    // The entry's first chunk doesn't fit in remaining space (`first`),
+                    // but it might fit in a fresh archive with full capacity (`max`).
+                    // Retry with max size - the caller will handle creating a new archive
+                    // when it sees the returned part exceeds remaining space.
+                    entry_part = unsplit_part;
+                    split_size = max;
+                    continue;
+                }
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     format!(
