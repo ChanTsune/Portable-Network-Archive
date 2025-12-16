@@ -25,6 +25,8 @@ pub struct Cli {
     pub(crate) commands: Commands,
     #[command(flatten)]
     pub(crate) verbosity: VerbosityArgs,
+    #[command(flatten)]
+    pub(crate) color: ColorArgs,
     #[arg(
         long,
         global = true,
@@ -68,6 +70,18 @@ impl VerbosityArgs {
             (_, _) => LevelFilter::Info,
         }
     }
+}
+
+#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+pub(crate) struct ColorArgs {
+    #[arg(
+        long,
+        global = true,
+        value_name = "WHEN",
+        default_value = "auto",
+        help = "Control color output"
+    )]
+    pub(crate) color: ColorChoice,
 }
 
 #[derive(Subcommand, Clone, Debug)]

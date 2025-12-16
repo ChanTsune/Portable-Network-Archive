@@ -66,7 +66,10 @@ impl Command for Cli {
             Commands::Create(cmd) => cmd.execute(),
             Commands::Append(cmd) => cmd.execute(),
             Commands::Extract(cmd) => cmd.execute(),
-            Commands::List(cmd) => cmd.execute(),
+            Commands::List(mut cmd) => {
+                cmd.color = self.color.color;
+                cmd.execute()
+            }
             Commands::Split(cmd) => cmd.execute(),
             Commands::Concat(cmd) => cmd.execute(),
             Commands::Strip(cmd) => cmd.execute(),
