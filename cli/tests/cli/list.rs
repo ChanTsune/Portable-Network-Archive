@@ -2,7 +2,7 @@
 mod exclude_vcs;
 mod missing_file;
 #[cfg(not(target_family = "wasm"))]
-mod simple;
+mod option_format_line;
 
 use crate::utils::{EmbedExt, TestResources, setup};
 use clap::Parser;
