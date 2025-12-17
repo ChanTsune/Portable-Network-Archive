@@ -2,6 +2,8 @@
 mod exclude_vcs;
 mod missing_file;
 #[cfg(not(target_family = "wasm"))]
+mod option_format_jsonl;
+#[cfg(not(target_family = "wasm"))]
 mod option_format_line;
 #[cfg(not(target_family = "wasm"))]
 mod option_format_tree;
@@ -105,94 +107,6 @@ fn archive_list_solid_detail() {
         "--solid",
         "--password",
         "password",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
-}
-
-#[test]
-fn archive_list_jsonl() {
-    setup();
-    TestResources::extract_in("raw/", "list_jsonl/in/").unwrap();
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "c",
-        "list_jsonl/list_jsonl.pna",
-        "--overwrite",
-        "list_jsonl/in/",
-        "--keep-xattr",
-        "--keep-timestamp",
-        "--keep-permission",
-        #[cfg(feature = "acl")]
-        "--keep-acl",
-        "--password",
-        "password",
-        "--aes",
-        "ctr",
-        "--argon2",
-        "t=1,m=50",
-        "--unstable",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
-    cli::Cli::try_parse_from([
-        "pna",
-        "list",
-        "-l",
-        "--format",
-        "jsonl",
-        "list_jsonl/list_jsonl.pna",
-        "--password",
-        "password",
-        "--unstable",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
-}
-
-#[test]
-fn archive_list_solid_jsonl() {
-    setup();
-    TestResources::extract_in("raw/", "list_solid_jsonl/in/").unwrap();
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "c",
-        "list_solid_jsonl/list_solid_jsonl.pna",
-        "--overwrite",
-        "list_solid_jsonl/in/",
-        "--solid",
-        "--keep-xattr",
-        "--keep-timestamp",
-        "--keep-permission",
-        #[cfg(feature = "acl")]
-        "--keep-acl",
-        "--password",
-        "password",
-        "--aes",
-        "ctr",
-        "--argon2",
-        "t=1,m=50",
-        "--unstable",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
-    cli::Cli::try_parse_from([
-        "pna",
-        "list",
-        "-l",
-        "--format",
-        "jsonl",
-        "list_solid_jsonl/list_solid_jsonl.pna",
-        "--solid",
-        "--password",
-        "password",
-        "--unstable",
     ])
     .unwrap()
     .execute()
