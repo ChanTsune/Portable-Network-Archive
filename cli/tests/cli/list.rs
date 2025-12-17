@@ -8,6 +8,8 @@ mod option_format_jsonl;
 #[cfg(not(target_family = "wasm"))]
 mod option_format_line;
 #[cfg(not(target_family = "wasm"))]
+mod option_format_table;
+#[cfg(not(target_family = "wasm"))]
 mod option_format_tree;
 
 use crate::utils::{EmbedExt, TestResources, setup};
