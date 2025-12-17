@@ -3,6 +3,8 @@ mod exclude_vcs;
 mod missing_file;
 #[cfg(not(target_family = "wasm"))]
 mod option_format_line;
+#[cfg(not(target_family = "wasm"))]
+mod option_format_tree;
 
 use crate::utils::{EmbedExt, TestResources, setup};
 use clap::Parser;
@@ -187,94 +189,6 @@ fn archive_list_solid_jsonl() {
         "--format",
         "jsonl",
         "list_solid_jsonl/list_solid_jsonl.pna",
-        "--solid",
-        "--password",
-        "password",
-        "--unstable",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
-}
-
-#[test]
-fn archive_list_tree() {
-    setup();
-    TestResources::extract_in("raw/", "list_tree/in/").unwrap();
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "c",
-        "list_tree/list_tree.pna",
-        "--overwrite",
-        "list_tree/in/",
-        "--keep-xattr",
-        "--keep-timestamp",
-        "--keep-permission",
-        #[cfg(feature = "acl")]
-        "--keep-acl",
-        "--password",
-        "password",
-        "--aes",
-        "ctr",
-        "--argon2",
-        "t=1,m=50",
-        "--unstable",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
-    cli::Cli::try_parse_from([
-        "pna",
-        "list",
-        "-l",
-        "--format",
-        "tree",
-        "list_tree/list_tree.pna",
-        "--password",
-        "password",
-        "--unstable",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
-}
-
-#[test]
-fn archive_list_solid_tree() {
-    setup();
-    TestResources::extract_in("raw/", "list_solid_tree/in/").unwrap();
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "c",
-        "list_solid_tree/list_solid_tree.pna",
-        "--overwrite",
-        "list_solid_tree/in/",
-        "--solid",
-        "--keep-xattr",
-        "--keep-timestamp",
-        "--keep-permission",
-        #[cfg(feature = "acl")]
-        "--keep-acl",
-        "--password",
-        "password",
-        "--aes",
-        "ctr",
-        "--argon2",
-        "t=1,m=50",
-        "--unstable",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
-    cli::Cli::try_parse_from([
-        "pna",
-        "list",
-        "-l",
-        "--format",
-        "tree",
-        "list_solid_tree/list_solid_tree.pna",
         "--solid",
         "--password",
         "password",
