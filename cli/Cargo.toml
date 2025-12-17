@@ -11,7 +11,7 @@ rust-version = "1.85"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anstream = "0.6.16"
+anstream = "0.6.21"
 anyhow = { version = "1.0.100", features = ["backtrace"] }
 base64 = "0.22.1"
 bitflags = "2.10.0"
