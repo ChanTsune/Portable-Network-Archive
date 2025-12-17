@@ -113,11 +113,11 @@ fn compare_hard_link<T: AsRef<[u8]>>(
     match same_file::is_same_file(path.as_path(), link_target.as_path()) {
         Ok(true) => {}
         Ok(false) => {
-            println!("Not linked to {link_target}: {path}");
+            println!("Hard link mismatch: {path} (expected link to {link_target})");
         }
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
             // Target or link file doesn't exist on filesystem
-            println!("Not linked to {link_target}: {path}");
+            println!("Hard link mismatch: {path} (expected link to {link_target})");
         }
         Err(e) => return Err(e),
     }

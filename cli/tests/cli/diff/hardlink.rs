@@ -110,7 +110,7 @@ fn diff_hardlink_missing_target() {
     // - link.txt not linked to origin.txt
     assert
         .success()
-        .stdout(predicate::str::contains("Not linked to"));
+        .stdout(predicate::str::contains("Hard link mismatch:"));
 }
 
 /// Precondition: Archive contains a hard link entry pointing to origin.txt.
@@ -139,7 +139,7 @@ fn diff_hardlink_broken_link() {
 
     assert
         .success()
-        .stdout(predicate::str::contains("Not linked to"));
+        .stdout(predicate::str::contains("Hard link mismatch:"));
 }
 
 /// Precondition: Archive contains a hard link entry.
