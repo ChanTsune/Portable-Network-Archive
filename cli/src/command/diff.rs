@@ -8,11 +8,12 @@ use crate::{
 };
 
 use clap::Parser;
+use path_slash::PathBufExt as _;
 use pna::{DataKind, EntryReference, NormalEntry, ReadOptions};
 use std::{
     fs,
     io::{self, prelude::*},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 #[derive(Parser, Clone, Debug)]
@@ -110,7 +111,11 @@ fn compare_hard_link<T: AsRef<[u8]>>(
     let link_target = io::read_to_string(reader)?;
     let link_target = EntryReference::from_utf8_preserve_root(&link_target).sanitize();
 
-    match same_file::is_same_file(path.as_path(), link_target.as_path()) {
+    // Convert archive paths (Unix-style `/`) to native OS paths for filesystem comparison
+    let native_path = PathBuf::from_slash(path.as_str());
+    let native_target = PathBuf::from_slash(link_target.as_str());
+
+    match same_file::is_same_file(&native_path, &native_target) {
         Ok(true) => {}
         Ok(false) => {
             println!("Hard link mismatch: {path} (expected link to {link_target})");
