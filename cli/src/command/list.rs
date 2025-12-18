@@ -47,7 +47,6 @@ use tabled::{
 #[command(
     group(ArgGroup::new("unstable-acl").args(["show_acl"]).requires("unstable")),
     group(ArgGroup::new("unstable-private-chunk").args(["show_private"]).requires("unstable")),
-    group(ArgGroup::new("unstable-format").args(["format"]).requires("unstable")),
     group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
     group(ArgGroup::new("null-requires").arg("null").requires("exclude_from")),
 )]
@@ -77,7 +76,7 @@ pub(crate) struct ListCommand {
         help = "When used with the -l option, display complete time information for the entry, including month, day, hour, minute, second, and year"
     )]
     pub(crate) long_time: bool,
-    #[arg(long, help = "Display format (unstable)")]
+    #[arg(long, help = "Display format [unstable: jsonl, bsdtar]")]
     format: Option<Format>,
     #[arg(
         long,
@@ -118,6 +117,14 @@ pub(crate) struct ListCommand {
 impl Command for ListCommand {
     #[inline]
     fn execute(self, ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
+        if let Some(format) = self.format {
+            if format.is_unstable() && !ctx.unstable {
+                anyhow::bail!(
+                    "The '--format {}' option is unstable and requires --unstable flag",
+                    format
+                );
+            }
+        }
         list_archive(self, ctx.color())
     }
 }
@@ -130,6 +137,21 @@ pub(crate) enum Format {
     JsonL,
     Tree,
     BsdTar,
+}
+
+impl Format {
+    /// Returns true if this format is unstable and requires --unstable flag
+    #[inline]
+    const fn is_unstable(self) -> bool {
+        matches!(self, Self::JsonL | Self::BsdTar)
+    }
+}
+
+impl fmt::Display for Format {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str(self.to_possible_value().unwrap().get_name())
+    }
 }
 
 #[derive(Debug)]
