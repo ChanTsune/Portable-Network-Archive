@@ -52,9 +52,10 @@ fn diff_hardlink_no_diff() {
     assert.success().stdout("");
 }
 
-/// Precondition: Archive contains a hard link entry pointing to origin.txt.
-/// Action: Delete the hard link file and run `pna experimental diff`.
-/// Expectation: Reports missing hard link.
+/// Precondition: Archive contains hard-linked files (origin.txt and link.txt).
+/// Action: Delete one of the hard-linked files and run `pna experimental diff`.
+/// Expectation: Reports missing file or hard link (depending on which was stored as link).
+/// Note: Directory iteration order differs between OSes, so either file may be the "original".
 #[test]
 fn diff_hardlink_missing_link() {
     setup();
@@ -74,14 +75,17 @@ fn diff_hardlink_missing_link() {
         ])
         .assert();
 
-    assert
-        .success()
-        .stdout(predicate::str::contains("Missing hard link:"));
+    // On Unix: link.txt is stored as hard link → "Missing hard link:"
+    // On Windows: link.txt may be stored as file → "Missing file:"
+    assert.success().stdout(
+        predicate::str::contains("Missing hard link:").or(predicate::str::contains("Missing file:")),
+    );
 }
 
-/// Precondition: Archive contains a hard link entry pointing to origin.txt.
-/// Action: Delete the original file (link target) and run `pna experimental diff`.
-/// Expectation: Reports that the hard link is not linked to the target.
+/// Precondition: Archive contains hard-linked files (origin.txt and link.txt).
+/// Action: Delete one file and replace the other with a regular file (breaking the link).
+/// Expectation: Reports missing file/hard link (depending on archive order).
+/// Note: Directory iteration order differs between OSes, so either file may be the "original".
 #[test]
 fn diff_hardlink_missing_target() {
     setup();
@@ -105,12 +109,12 @@ fn diff_hardlink_missing_target() {
         ])
         .assert();
 
-    // Should report both:
-    // - origin.txt missing (it's a regular file in archive)
-    // - link.txt not linked to origin.txt
-    assert
-        .success()
-        .stdout(predicate::str::contains("Hard link mismatch:"));
+    // On Unix: origin.txt is file, link.txt is hard link → "Hard link mismatch:" for link.txt
+    // On Windows: link.txt may be file, origin.txt may be hard link → "Missing hard link:" for origin.txt
+    assert.success().stdout(
+        predicate::str::contains("Hard link mismatch:")
+            .or(predicate::str::contains("Missing hard link:")),
+    );
 }
 
 /// Precondition: Archive contains a hard link entry pointing to origin.txt.
