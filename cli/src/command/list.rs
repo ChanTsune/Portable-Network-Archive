@@ -76,7 +76,7 @@ pub(crate) struct ListCommand {
         help = "When used with the -l option, display complete time information for the entry, including month, day, hour, minute, second, and year"
     )]
     pub(crate) long_time: bool,
-    #[arg(long, help = "Display format [unstable: jsonl, bsdtar]")]
+    #[arg(long, help = "Display format [unstable: jsonl, bsdtar, csv]")]
     format: Option<Format>,
     #[arg(
         long,
@@ -137,13 +137,14 @@ pub(crate) enum Format {
     JsonL,
     Tree,
     BsdTar,
+    Csv,
 }
 
 impl Format {
     /// Returns true if this format is unstable and requires --unstable flag
     #[inline]
     const fn is_unstable(self) -> bool {
-        matches!(self, Self::JsonL | Self::BsdTar)
+        matches!(self, Self::JsonL | Self::BsdTar | Self::Csv)
     }
 }
 
@@ -487,6 +488,7 @@ fn print_formatted_entries(
         Some(Format::Table) => detail_list_entries_to(entries, options, out)?,
         Some(Format::Tree) => tree_entries_to(entries, options, out)?,
         Some(Format::BsdTar) => bsd_tar_list_entries_to(entries, options, out)?,
+        Some(Format::Csv) => csv_entries_to(entries, options, out)?,
         None if options.long => detail_list_entries_to(entries, options, out)?,
         None => simple_list_entries_to(entries, options, out)?,
     };
@@ -955,6 +957,63 @@ fn json_line_entries_to(entries: Vec<TableRow>, mut out: impl Write) -> anyhow::
         serde_json::to_writer(&mut out, &line)?;
         out.write_all(b"\n")?;
     }
+    Ok(())
+}
+
+fn csv_entries_to(
+    entries: Vec<TableRow>,
+    options: &ListOptions,
+    out: impl Write,
+) -> io::Result<()> {
+    let mut wtr = csv::Writer::from_writer(out);
+
+    // Write header
+    wtr.write_record([
+        "filename",
+        "permissions",
+        "owner",
+        "group",
+        "raw_size",
+        "compressed_size",
+        "encryption",
+        "compression",
+        options.time_field.as_str(),
+    ])?;
+
+    for row in entries {
+        let permission_mode = row.permission_mode();
+        let owner = row.permission.as_ref().map_or_else(String::new, |it| {
+            it.owner_display(options.numeric_owner).to_string()
+        });
+        let group = row.permission.as_ref().map_or_else(String::new, |it| {
+            it.group_display(options.numeric_owner).to_string()
+        });
+        let time = match options.time_field {
+            TimeField::Created => row.created,
+            TimeField::Modified => row.modified,
+            TimeField::Accessed => row.accessed,
+        }
+        .map_or_else(String::new, |d| datetime(TimeFormat::Long, d));
+
+        wtr.write_record([
+            row.entry_type.name(),
+            &permission_string(
+                &row.entry_type,
+                permission_mode,
+                !row.xattrs.is_empty(),
+                !row.acl.is_empty(),
+            ),
+            &owner,
+            &group,
+            &row.raw_size.unwrap_or(0).to_string(),
+            &row.compressed_size.to_string(),
+            &row.encryption,
+            &row.compression,
+            &time,
+        ])?;
+    }
+
+    wtr.flush()?;
     Ok(())
 }
 

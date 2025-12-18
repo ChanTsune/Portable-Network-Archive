@@ -4,6 +4,8 @@ mod missing_file;
 #[cfg(not(target_family = "wasm"))]
 mod option_format_bsdtar;
 #[cfg(not(target_family = "wasm"))]
+mod option_format_csv;
+#[cfg(not(target_family = "wasm"))]
 mod option_format_jsonl;
 #[cfg(not(target_family = "wasm"))]
 mod option_format_line;
