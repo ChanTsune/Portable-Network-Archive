@@ -1,6 +1,73 @@
 use crate::utils::{EmbedExt, TestResources, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 
+/// Precondition: An encrypted archive exists with preserved metadata.
+/// Action: Run `pna list -l` with password.
+/// Expectation: Entries are listed with encryption, compression, permissions, timestamps.
+#[test]
+fn list_encrypted() {
+    setup();
+    TestResources::extract_in("zstd_aes_ctr.pna", "").unwrap();
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    let assert = cmd
+        .args([
+            "list",
+            "-l",
+            "-f",
+            "zstd_aes_ctr.pna",
+            "--password",
+            "password",
+        ])
+        .assert();
+
+    assert.stdout(concat!(
+        "aes(ctr) zstandard .---------  -    25 - - - raw/empty.txt                  \n",
+        "aes(ctr) zstandard .---------  - 35142 - - - raw/images/icon.png            \n",
+        "aes(ctr) zstandard .---------  -   751 - - - raw/images/icon.svg            \n",
+        "aes(ctr) zstandard .---------  - 13378 - - - raw/images/icon.bmp            \n",
+        "aes(ctr) zstandard .---------  -    28 - - - raw/first/second/third/pna.txt \n",
+        "aes(ctr) zstandard .---------  -    65 - - - raw/pna/empty.pna              \n",
+        "aes(ctr) zstandard .---------  - 53757 - - - raw/pna/nest.pna               \n",
+        "aes(ctr) zstandard .---------  -    25 - - - raw/parent/child.txt           \n",
+        "aes(ctr) zstandard .---------  -    35 - - - raw/text.txt                   \n",
+    ));
+}
+
+/// Precondition: A solid encrypted archive exists with preserved metadata.
+/// Action: Run `pna list -l --solid` with password.
+/// Expectation: Solid entries are listed with encryption details.
+#[test]
+fn list_encrypted_solid() {
+    setup();
+    TestResources::extract_in("solid_zstd_aes_ctr.pna", "").unwrap();
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    let assert = cmd
+        .args([
+            "list",
+            "-l",
+            "-f",
+            "solid_zstd_aes_ctr.pna",
+            "--solid",
+            "--password",
+            "password",
+        ])
+        .assert();
+
+    assert.stdout(concat!(
+        "aes(ctr) zstandard(solid) .---------        0       0 - - Jan  1  2023 raw/parent/child.txt           \n",
+        "aes(ctr) zstandard(solid) .---------        3       3 - - Jan  1  2023 raw/first/second/third/pna.txt \n",
+        "aes(ctr) zstandard(solid) .---------       40      40 - - Jan  1  2023 raw/pna/empty.pna              \n",
+        "aes(ctr) zstandard(solid) .---------    51475   51475 - - Jan  1  2023 raw/images/icon.png            \n",
+        "aes(ctr) zstandard(solid) .---------        0       0 - - Jan  1  2023 raw/empty.txt                  \n",
+        "aes(ctr) zstandard(solid) .---------    57032   57032 - - Jan  1  2023 raw/pna/nest.pna               \n",
+        "aes(ctr) zstandard(solid) .---------     1984    1984 - - Jan  1  2023 raw/images/icon.svg            \n",
+        "aes(ctr) zstandard(solid) .---------       10      10 - - Jan  1  2023 raw/text.txt                   \n",
+        "aes(ctr) zstandard(solid) .---------  4194442 4194442 - - Jan  1  2023 raw/images/icon.bmp            \n",
+    ));
+}
+
 /// Precondition: An archive contains multiple file entries with preserved timestamps.
 /// Action: Run `pna list --format table`.
 /// Expectation: Entries are displayed in table format with encryption, compression, permissions, sizes, owner, group, timestamp, and filename.

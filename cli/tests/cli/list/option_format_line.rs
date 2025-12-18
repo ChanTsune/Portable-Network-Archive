@@ -1,6 +1,32 @@
 use crate::utils::{EmbedExt, TestResources, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 
+/// Precondition: A solid archive contains multiple file entries.
+/// Action: Run `pna list --solid` with default format.
+/// Expectation: All solid entries are listed, one per line.
+#[test]
+fn list_solid() {
+    setup();
+    TestResources::extract_in("solid_zstd.pna", "").unwrap();
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    let assert = cmd
+        .args(["list", "-f", "solid_zstd.pna", "--solid"])
+        .assert();
+
+    assert.stdout(concat!(
+        "raw/empty.txt\n",
+        "raw/parent/child.txt\n",
+        "raw/images/icon.svg\n",
+        "raw/first/second/third/pna.txt\n",
+        "raw/images/icon.png\n",
+        "raw/pna/nest.pna\n",
+        "raw/text.txt\n",
+        "raw/pna/empty.pna\n",
+        "raw/images/icon.bmp\n",
+    ));
+}
+
 /// Precondition: An archive contains multiple file entries.
 /// Action: Run `pna list` with default format (no --format option).
 /// Expectation: Each entry path is output on a separate line.
