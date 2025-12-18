@@ -24,7 +24,6 @@ fn xattr_multiple_set_and_remove() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "xattr",
         "set",
         "xattr_multi/xattr_multi.pna",
@@ -40,7 +39,6 @@ fn xattr_multiple_set_and_remove() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "xattr",
         "set",
         "xattr_multi/xattr_multi.pna",
@@ -58,7 +56,6 @@ fn xattr_multiple_set_and_remove() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "xattr",
         "set",
         "xattr_multi/xattr_multi.pna",

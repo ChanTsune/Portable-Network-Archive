@@ -41,19 +41,13 @@ fn xattr_get_dump() {
     }
     // Sort entries for stablize entries order.
     let mut cmd = cargo_bin_cmd!("pna");
-    cmd.args([
-        "--quiet",
-        "experimental",
-        "sort",
-        "xattr_get_dump/xattr_get_dump.pna",
-    ])
-    .assert();
+    cmd.args(["--quiet", "sort", "xattr_get_dump/xattr_get_dump.pna"])
+        .assert();
 
     let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd
         .args([
             "--quiet",
-            "experimental",
             "xattr",
             "get",
             "xattr_get_dump/xattr_get_dump.pna",

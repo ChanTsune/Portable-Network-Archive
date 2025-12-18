@@ -21,7 +21,6 @@ fn fail_with_missing_file_get() {
     let result = cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "xattr",
         "get",
         "xattr_missing/archive.pna",
@@ -53,7 +52,6 @@ fn fail_with_missing_file_set() {
     let result = cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "xattr",
         "set",
         "xattr_missing_set/archive.pna",

@@ -32,7 +32,6 @@ fn xattr_set_restore() {
     ));
     cmd.args([
         "--quiet",
-        "experimental",
         "xattr",
         "set",
         "xattr_set_restore/xattr_set_restore.pna",

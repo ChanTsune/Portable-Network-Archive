@@ -21,7 +21,6 @@ fn archive_xattr_set() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "xattr",
         "set",
         "xattr_set/xattr_set.pna",
@@ -70,7 +69,6 @@ fn xattr_long_key_value() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "xattr",
         "set",
         "xattr_long/xattr_long.pna",
@@ -86,7 +84,6 @@ fn xattr_long_key_value() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "xattr",
         "set",
         "xattr_long/xattr_long.pna",
@@ -139,7 +136,6 @@ fn xattr_empty_key() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "xattr",
         "set",
         "xattr_empty_key/xattr_empty_key.pna",
@@ -183,7 +179,6 @@ fn xattr_empty_value() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "xattr",
         "set",
         "xattr_empty_value/xattr_empty_value.pna",
