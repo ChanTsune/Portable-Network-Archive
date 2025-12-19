@@ -999,37 +999,44 @@ fn delimited_entries_to(
         options.time_field.as_str(),
     ])?;
 
-    for row in entries {
-        let permission_mode = row.permission_mode();
-        let owner = row.permission.as_ref().map_or_else(String::new, |it| {
-            it.owner_display(options.numeric_owner).to_string()
-        });
-        let group = row.permission.as_ref().map_or_else(String::new, |it| {
-            it.group_display(options.numeric_owner).to_string()
-        });
-        let time = match options.time_field {
-            TimeField::Created => row.created,
-            TimeField::Modified => row.modified,
-            TimeField::Accessed => row.accessed,
-        }
-        .map_or_else(String::new, |d| datetime(TimeFormat::Long, d));
+    let rows = entries
+        .par_iter()
+        .map(|row| {
+            let permission_mode = row.permission_mode();
+            let owner = row.permission.as_ref().map_or_else(String::new, |it| {
+                it.owner_display(options.numeric_owner).to_string()
+            });
+            let group = row.permission.as_ref().map_or_else(String::new, |it| {
+                it.group_display(options.numeric_owner).to_string()
+            });
+            let time = match options.time_field {
+                TimeField::Created => row.created,
+                TimeField::Modified => row.modified,
+                TimeField::Accessed => row.accessed,
+            }
+            .map_or_else(String::new, |d| datetime(TimeFormat::Long, d));
 
-        wtr.write_record([
-            row.entry_type.name(),
-            &permission_string(
-                &row.entry_type,
-                permission_mode,
-                !row.xattrs.is_empty(),
-                !row.acl.is_empty(),
-            ),
-            &owner,
-            &group,
-            &row.raw_size.unwrap_or(0).to_string(),
-            &row.compressed_size.to_string(),
-            &row.encryption,
-            &row.compression,
-            &time,
-        ])?;
+            [
+                row.entry_type.name().to_string(),
+                permission_string(
+                    &row.entry_type,
+                    permission_mode,
+                    !row.xattrs.is_empty(),
+                    !row.acl.is_empty(),
+                ),
+                owner,
+                group,
+                row.raw_size.unwrap_or(0).to_string(),
+                row.compressed_size.to_string(),
+                row.encryption.clone(),
+                row.compression.clone(),
+                time,
+            ]
+        })
+        .collect::<Vec<_>>();
+
+    for row in rows {
+        wtr.write_record(row)?;
     }
 
     wtr.flush()?;
