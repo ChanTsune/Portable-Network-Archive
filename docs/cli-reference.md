@@ -597,9 +597,9 @@ List files in archive
 * `-T` — When used with the -l option, display complete time information for the entry, including month, day, hour, minute, second, and year
 
   Default value: `false`
-* `--format <FORMAT>` — Display format [unstable: jsonl, bsdtar]
+* `--format <FORMAT>` — Display format [unstable: jsonl, bsdtar, csv, tsv]
 
-  Possible values: `line`, `table`, `jsonl`, `tree`, `bsdtar`
+  Possible values: `line`, `table`, `jsonl`, `tree`, `bsdtar`, `csv`, `tsv`
 
 * `--time <TIME>` — Which timestamp field to list (modified, accessed, created)
 
