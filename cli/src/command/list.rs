@@ -76,7 +76,7 @@ pub(crate) struct ListCommand {
         help = "When used with the -l option, display complete time information for the entry, including month, day, hour, minute, second, and year"
     )]
     pub(crate) long_time: bool,
-    #[arg(long, help = "Display format [unstable: jsonl, bsdtar, csv]")]
+    #[arg(long, help = "Display format [unstable: jsonl, bsdtar, csv, tsv]")]
     format: Option<Format>,
     #[arg(
         long,
@@ -138,13 +138,14 @@ pub(crate) enum Format {
     Tree,
     BsdTar,
     Csv,
+    Tsv,
 }
 
 impl Format {
     /// Returns true if this format is unstable and requires --unstable flag
     #[inline]
     const fn is_unstable(self) -> bool {
-        matches!(self, Self::JsonL | Self::BsdTar | Self::Csv)
+        matches!(self, Self::JsonL | Self::BsdTar | Self::Csv | Self::Tsv)
     }
 }
 
@@ -489,6 +490,7 @@ fn print_formatted_entries(
         Some(Format::Tree) => tree_entries_to(entries, options, out)?,
         Some(Format::BsdTar) => bsd_tar_list_entries_to(entries, options, out)?,
         Some(Format::Csv) => csv_entries_to(entries, options, out)?,
+        Some(Format::Tsv) => tsv_entries_to(entries, options, out)?,
         None if options.long => detail_list_entries_to(entries, options, out)?,
         None => simple_list_entries_to(entries, options, out)?,
     };
@@ -965,9 +967,26 @@ fn csv_entries_to(
     options: &ListOptions,
     out: impl Write,
 ) -> io::Result<()> {
-    let mut wtr = csv::Writer::from_writer(out);
+    delimited_entries_to(entries, options, csv::Writer::from_writer(out))
+}
 
-    // Write header
+fn tsv_entries_to(
+    entries: Vec<TableRow>,
+    options: &ListOptions,
+    out: impl Write,
+) -> io::Result<()> {
+    delimited_entries_to(
+        entries,
+        options,
+        csv::WriterBuilder::new().delimiter(b'\t').from_writer(out),
+    )
+}
+
+fn delimited_entries_to(
+    entries: Vec<TableRow>,
+    options: &ListOptions,
+    mut wtr: csv::Writer<impl Write>,
+) -> io::Result<()> {
     wtr.write_record([
         "filename",
         "permissions",
