@@ -13,3 +13,5 @@ mod option_format_line;
 mod option_format_table;
 #[cfg(not(target_family = "wasm"))]
 mod option_format_tree;
+#[cfg(not(target_family = "wasm"))]
+mod option_format_tsv;
