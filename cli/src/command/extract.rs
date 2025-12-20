@@ -1,5 +1,7 @@
 #[cfg(feature = "memmap")]
 use crate::command::core::run_entries;
+#[cfg(feature = "acl")]
+use crate::ext::*;
 #[cfg(any(unix, windows))]
 use crate::utils::fs::lchown;
 use crate::{
@@ -656,20 +658,7 @@ where
             let mut file = utils::fs::file_create(&path, remove_existing)?;
             let mut reader = item.reader(ReadOptions::with_password(password))?;
             io::copy(&mut reader, &mut file)?;
-            if let TimestampStrategy::Always = keep_options.timestamp_strategy {
-                let mut times = fs::FileTimes::new();
-                if let Some(accessed) = item.metadata().accessed_time() {
-                    times = times.set_accessed(accessed);
-                }
-                if let Some(modified) = item.metadata().modified_time() {
-                    times = times.set_modified(modified);
-                }
-                #[cfg(any(windows, target_os = "macos"))]
-                if let Some(created) = item.metadata().created_time() {
-                    times = times.set_created(created);
-                }
-                file.set_times(times)?;
-            }
+            restore_timestamps(&mut file, item.metadata(), keep_options)?;
         }
         DataKind::Directory => {
             ensure_directory_components(&path, *unlink_first)?;
@@ -739,16 +728,55 @@ where
             fs::hard_link(original, &path)?;
         }
     }
+    restore_metadata(&item, &path, keep_options, owner_options, same_owner)?;
+    drop(path_guard);
+    log::debug!("end: {}", path.display());
+    Ok(())
+}
+
+#[inline]
+fn restore_timestamps(
+    file: &mut fs::File,
+    metadata: &pna::Metadata,
+    keep_options: &KeepOptions,
+) -> io::Result<()> {
+    if let TimestampStrategy::Always = keep_options.timestamp_strategy {
+        let mut times = fs::FileTimes::new();
+        if let Some(accessed) = metadata.accessed_time() {
+            times = times.set_accessed(accessed);
+        }
+        if let Some(modified) = metadata.modified_time() {
+            times = times.set_modified(modified);
+        }
+        #[cfg(any(windows, target_os = "macos"))]
+        if let Some(created) = metadata.created_time() {
+            times = times.set_created(created);
+        }
+        file.set_times(times)?;
+    }
+    Ok(())
+}
+
+fn restore_metadata<T>(
+    item: &NormalEntry<T>,
+    path: &Path,
+    keep_options: &KeepOptions,
+    owner_options: &OwnerOptions,
+    same_owner: &bool,
+) -> io::Result<()>
+where
+    T: AsRef<[u8]>,
+{
     if let PermissionStrategy::Always = keep_options.permission_strategy {
         if let Some(p) = item.metadata().permission() {
-            restore_permissions(*same_owner, &path, p, owner_options)?;
+            restore_permissions(*same_owner, path, p, owner_options)?;
         }
     }
     #[cfg(unix)]
     if let XattrStrategy::Always = keep_options.xattr_strategy {
-        match utils::os::unix::fs::xattrs::set_xattrs(&path, item.xattrs()) {
+        match utils::os::unix::fs::xattrs::set_xattrs(path, item.xattrs()) {
             Ok(()) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
+            Err(e) if e.kind() == io::ErrorKind::Unsupported => {
                 log::warn!(
                     "Extended attributes are not supported on filesystem for '{}': {}",
                     path.display(),
@@ -763,49 +791,48 @@ where
         log::warn!("Currently extended attribute is not supported on this platform.");
     }
     #[cfg(feature = "acl")]
-    {
-        #[cfg(any(
-            target_os = "linux",
-            target_os = "freebsd",
-            target_os = "macos",
-            windows
-        ))]
-        if let AclStrategy::Always = keep_options.acl_strategy {
-            use crate::chunk::{AcePlatform, Acl, acl_convert_current_platform};
-            use crate::ext::*;
-            use itertools::Itertools;
-
-            let platform = AcePlatform::CURRENT;
-            let acls = item.acl()?;
-            if let Some((platform, acl)) = acls.into_iter().find_or_first(|(p, _)| p.eq(&platform))
-            {
-                if !acl.is_empty() {
-                    utils::acl::set_facl(
-                        &path,
-                        acl_convert_current_platform(Acl {
-                            platform,
-                            entries: acl,
-                        }),
-                    )?;
-                }
-            }
-        }
-        #[cfg(not(any(
-            target_os = "linux",
-            target_os = "freebsd",
-            target_os = "macos",
-            windows
-        )))]
-        if let AclStrategy::Always = keep_options.acl_strategy {
-            log::warn!("Currently acl is not supported on this platform.");
-        }
-    }
+    restore_alcs(path, item.acl()?, keep_options.acl_strategy)?;
     #[cfg(not(feature = "acl"))]
     if let AclStrategy::Always = keep_options.acl_strategy {
         log::warn!("Please enable `acl` feature and rebuild and install pna.");
     }
-    drop(path_guard);
-    log::debug!("end: {}", path.display());
+    Ok(())
+}
+
+#[cfg(feature = "acl")]
+fn restore_alcs(path: &Path, acls: Acls, acl_strategy: AclStrategy) -> io::Result<()> {
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "freebsd",
+        target_os = "macos",
+        windows
+    ))]
+    if let AclStrategy::Always = acl_strategy {
+        use crate::chunk::{AcePlatform, Acl, acl_convert_current_platform};
+        use itertools::Itertools;
+
+        let platform = AcePlatform::CURRENT;
+        if let Some((platform, acl)) = acls.into_iter().find_or_first(|(p, _)| p.eq(&platform)) {
+            if !acl.is_empty() {
+                utils::acl::set_facl(
+                    path,
+                    acl_convert_current_platform(Acl {
+                        platform,
+                        entries: acl,
+                    }),
+                )?;
+            }
+        }
+    }
+    #[cfg(not(any(
+        target_os = "linux",
+        target_os = "freebsd",
+        target_os = "macos",
+        windows
+    )))]
+    if let AclStrategy::Always = acl_strategy {
+        log::warn!("Currently acl is not supported on this platform.");
+    }
     Ok(())
 }
 
