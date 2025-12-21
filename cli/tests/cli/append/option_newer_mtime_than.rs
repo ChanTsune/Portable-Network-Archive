@@ -1,11 +1,15 @@
 use crate::utils::{archive, setup};
 use clap::Parser;
 use portable_network_archive::cli;
-use std::{collections::HashSet, fs, thread, time};
+use std::{
+    collections::HashSet,
+    fs, thread,
+    time::{Duration, SystemTime},
+};
 
 /// Precondition: Create an archive with an older file, then prepare reference and newer files.
 /// Action: Run `pna append` with `--newer-mtime-than reference.txt`, specifying older, reference, and newer files.
-/// Expectation: Files with mtime >= reference are appended (reference and newer); older is not re-added.
+/// Expectation: Files with mtime > reference are appended (newer only); older and reference are not re-added.
 #[test]
 fn append_with_newer_mtime_than() {
     setup();
@@ -33,16 +37,21 @@ fn append_with_newer_mtime_than() {
     .unwrap();
 
     // Wait to ensure distinct mtime
-    thread::sleep(time::Duration::from_millis(10));
+    thread::sleep(Duration::from_millis(10));
 
     // Create the reference file
     fs::write(reference_file, "reference time marker").unwrap();
 
     // Wait to ensure the next file has a newer mtime
-    thread::sleep(time::Duration::from_millis(10));
+    thread::sleep(Duration::from_millis(10));
 
     // Create the newer file
     fs::write(newer_file, "newer file content").unwrap();
+    let reference_mtime = fs::metadata(reference_file).unwrap().modified().unwrap();
+    if !ensure_mtime_order(older_file, newer_file, reference_mtime) {
+        eprintln!("Skipping test: unable to produce strict mtime ordering on this filesystem");
+        return;
+    }
 
     // Append to the archive with the `--newer-mtime-than` option
     cli::Cli::try_parse_from([
@@ -74,23 +83,55 @@ fn append_with_newer_mtime_than() {
         "older file should be in archive from initial creation: {older_file}"
     );
 
-    // reference_file should be included (appended because mtime >= reference)
+    // reference_file should NOT be included (mtime == reference)
     assert!(
-        seen.contains(reference_file),
-        "reference file should be appended: {reference_file}"
+        !seen.contains(reference_file),
+        "reference file should NOT be appended: {reference_file}"
     );
 
-    // newer_file should be included (appended because mtime >= reference)
+    // newer_file should be included (appended because mtime > reference)
     assert!(
         seen.contains(newer_file),
         "newer file should be appended: {newer_file}"
     );
 
-    // Verify that exactly three entries exist
+    // Verify that exactly two entries exist
     assert_eq!(
         seen.len(),
-        3,
-        "Expected exactly 3 entries, but found {}: {seen:?}",
+        2,
+        "Expected exactly 2 entries, but found {}: {seen:?}",
         seen.len()
     );
+}
+
+fn ensure_mtime_order(older: &str, newer: &str, reference: SystemTime) -> bool {
+    if !confirm_mtime_older_than(older, reference) {
+        return false;
+    }
+    wait_until_mtime_newer_than(newer, reference)
+}
+
+fn wait_until_mtime_newer_than(path: &str, baseline: SystemTime) -> bool {
+    const MAX_ATTEMPTS: usize = 500;
+    const SLEEP_MS: u64 = 10;
+    for _ in 0..MAX_ATTEMPTS {
+        if fs::metadata(path)
+            .ok()
+            .and_then(|meta| meta.modified().ok())
+            .map(|mtime| mtime > baseline)
+            .unwrap_or(false)
+        {
+            return true;
+        }
+        thread::sleep(Duration::from_millis(SLEEP_MS));
+    }
+    false
+}
+
+fn confirm_mtime_older_than(path: &str, baseline: SystemTime) -> bool {
+    fs::metadata(path)
+        .ok()
+        .and_then(|meta| meta.modified().ok())
+        .map(|mtime| mtime < baseline)
+        .unwrap_or(false)
 }

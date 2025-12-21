@@ -10,7 +10,7 @@ use std::{
 /// Precondition: Archive contains `file_to_update`. Prepare a reference file whose mtime is after
 /// the rewritten file plus a newer file that should be ignored.
 /// Action: Run `pna experimental update` with `--older-mtime-than reference.txt`.
-/// Expectation: Only files whose mtime <= reference (file_to_update) are processed; newer files are skipped.
+/// Expectation: Only files whose mtime < reference (file_to_update) are processed; newer files are skipped.
 #[test]
 fn update_with_older_mtime_than() {
     setup();
@@ -43,9 +43,9 @@ fn update_with_older_mtime_than() {
     fs::write(&reference_file, "reference marker").unwrap();
     let reference_mtime = fs::metadata(&reference_file).unwrap().modified().unwrap();
 
-    if updated_mtime > reference_mtime {
+    if updated_mtime >= reference_mtime {
         eprintln!(
-            "Skipping test: unable to ensure updated file mtime <= reference on this filesystem"
+            "Skipping test: unable to ensure updated file mtime < reference on this filesystem"
         );
         return;
     }

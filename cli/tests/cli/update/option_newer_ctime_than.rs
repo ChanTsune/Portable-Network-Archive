@@ -9,7 +9,7 @@ use std::{
 
 /// Precondition: Create an archive with file_to_update, then create reference, update files, and new file.
 /// Action: Run `pna experimental update` with `--newer-ctime-than reference.txt`.
-/// Expectation: Files with ctime >= reference.txt are updated or added to the archive.
+/// Expectation: Files with ctime > reference.txt are updated or added to the archive.
 /// Note: This test requires filesystem support for creation time (birth time).
 #[test]
 fn update_with_newer_ctime_than() {

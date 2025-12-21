@@ -9,7 +9,7 @@ use std::{
 
 /// Precondition: Create three files (older, reference, newer) with strictly increasing mtime.
 /// Action: Run `pna create` with `--older-mtime-than reference.txt`, specifying all three files.
-/// Expectation: Files with mtime <= reference.txt are included (older + reference); newer is excluded.
+/// Expectation: Files with mtime < reference.txt are included (older only); reference and newer are excluded.
 #[test]
 fn create_with_older_mtime_than() {
     setup();
@@ -62,8 +62,8 @@ fn create_with_older_mtime_than() {
         "older file should be included: {older_file}"
     );
     assert!(
-        seen.contains(reference_file),
-        "reference file should be included: {reference_file}"
+        !seen.contains(reference_file),
+        "reference file should NOT be included: {reference_file}"
     );
     assert!(
         !seen.contains(newer_file),
@@ -71,14 +71,14 @@ fn create_with_older_mtime_than() {
     );
     assert_eq!(
         seen.len(),
-        2,
-        "Expected exactly 2 entries, but found {}: {seen:?}",
+        1,
+        "Expected exactly 1 entry, but found {}: {seen:?}",
         seen.len()
     );
 }
 
 fn ensure_mtime_order(older: &str, baseline: SystemTime, newer: &str) -> bool {
-    if !confirm_mtime_not_newer_than(older, baseline) {
+    if !confirm_mtime_older_than(older, baseline) {
         return false;
     }
     wait_until_mtime_newer_than(newer, baseline)
@@ -101,10 +101,10 @@ fn wait_until_mtime_newer_than(path: &str, baseline: SystemTime) -> bool {
     false
 }
 
-fn confirm_mtime_not_newer_than(path: &str, baseline: SystemTime) -> bool {
+fn confirm_mtime_older_than(path: &str, baseline: SystemTime) -> bool {
     fs::metadata(path)
         .ok()
         .and_then(|meta| meta.modified().ok())
-        .map(|mtime| mtime <= baseline)
+        .map(|mtime| mtime < baseline)
         .unwrap_or(false)
 }

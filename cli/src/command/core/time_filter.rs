@@ -4,9 +4,9 @@ use std::{fs, time::SystemTime};
 
 /// Represents a filter based on time, allowing for inclusion of files newer or older than a specific `SystemTime`.
 pub(crate) struct TimeFilter {
-    /// If `Some`, only includes files newer than the specified `SystemTime`.
+    /// If `Some`, only includes files strictly newer than the specified `SystemTime`.
     pub(crate) newer_than: Option<SystemTime>,
-    /// If `Some`, only includes files older than the specified `SystemTime`.
+    /// If `Some`, only includes files strictly older than the specified `SystemTime`.
     pub(crate) older_than: Option<SystemTime>,
 }
 
@@ -33,14 +33,14 @@ impl TimeFilter {
     fn is_retain(&self, time: Option<SystemTime>) -> bool {
         if let Some(newer) = self.newer_than {
             if let Some(t) = time {
-                if t < newer {
+                if t <= newer {
                     return false;
                 }
             }
         }
         if let Some(older) = self.older_than {
             if let Some(t) = time {
-                if t > older {
+                if t >= older {
                     return false;
                 }
             }
