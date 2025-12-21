@@ -7,7 +7,7 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            AclStrategy, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
+            AclStrategy, KeepOptions, OwnerOptions, PathFilter, PathTransformers, PathnameEditor,
             PermissionStrategy, TimestampStrategy, XattrStrategy, collect_split_archives,
             path_lock::PathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
@@ -22,7 +22,7 @@ use crate::{
 };
 use anyhow::Context;
 use clap::{ArgGroup, Parser, ValueHint};
-use pna::{DataKind, EntryName, EntryReference, NormalEntry, Permission, ReadOptions, prelude::*};
+use pna::{DataKind, EntryReference, NormalEntry, Permission, ReadOptions, prelude::*};
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::FileTimesExt;
 #[cfg(windows)]
@@ -289,15 +289,17 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let output_options = OutputOption {
         overwrite_strategy,
         allow_unsafe_links: args.allow_unsafe_links,
-        absolute_paths: false,
-        strip_components: args.strip_components,
         out_dir: args.out_dir,
         to_stdout: false,
         filter,
         keep_options,
         owner_options,
         same_owner: !args.no_same_owner,
-        path_transformers: PathTransformers::new(args.substitutions, args.transforms),
+        pathname_editor: PathnameEditor::new(
+            args.strip_components,
+            PathTransformers::new(args.substitutions, args.transforms),
+            false,
+        ),
         path_locks: Arc::new(PathLocks::default()),
         unlink_first: false,
     };
@@ -381,15 +383,13 @@ impl OverwriteStrategy {
 pub(crate) struct OutputOption<'a> {
     pub(crate) overwrite_strategy: OverwriteStrategy,
     pub(crate) allow_unsafe_links: bool,
-    pub(crate) absolute_paths: bool,
-    pub(crate) strip_components: Option<usize>,
     pub(crate) out_dir: Option<PathBuf>,
     pub(crate) to_stdout: bool,
     pub(crate) filter: PathFilter<'a>,
     pub(crate) keep_options: KeepOptions,
     pub(crate) owner_options: OwnerOptions,
     pub(crate) same_owner: bool,
-    pub(crate) path_transformers: Option<PathTransformers>,
+    pub(crate) pathname_editor: PathnameEditor,
     pub(crate) path_locks: Arc<PathLocks>,
     pub(crate) unlink_first: bool,
 }
@@ -522,15 +522,13 @@ pub(crate) fn extract_entry<'a, T>(
     OutputOption {
         overwrite_strategy,
         allow_unsafe_links,
-        absolute_paths,
-        strip_components,
         out_dir,
         to_stdout,
         filter,
         keep_options,
         owner_options,
         same_owner,
-        path_transformers,
+        pathname_editor,
         path_locks,
         unlink_first,
     }: &OutputOption<'a>,
@@ -544,32 +542,8 @@ where
     }
     let item_path = item.name().as_path();
     log::debug!("Extract: {}", item_path.display());
-    let item_path = if let Some(strip_count) = *strip_components {
-        if item_path.components().count() <= strip_count {
-            return Ok(());
-        }
-        Cow::from(PathBuf::from_iter(item_path.components().skip(strip_count)))
-    } else {
-        Cow::from(item_path)
-    };
-    let item_path = if let Some(transformers) = path_transformers {
-        Cow::from(PathBuf::from(transformers.apply(
-            item_path.to_string_lossy(),
-            false,
-            false,
-        )))
-    } else {
-        item_path
-    };
-    let item_path = if !absolute_paths {
-        Cow::Owned(
-            EntryName::from_path_lossy_preserve_root(&item_path)
-                .sanitize()
-                .as_path()
-                .to_owned(),
-        )
-    } else {
-        item_path
+    let Some(item_path) = pathname_editor.edit_entry_name(item_path) else {
+        return Ok(());
     };
 
     if *to_stdout {
@@ -579,7 +553,7 @@ where
     let path = if let Some(out_dir) = out_dir {
         Cow::from(out_dir.join(item_path))
     } else {
-        item_path
+        Cow::from(item_path.as_path())
     };
     let path = if path.as_os_str().is_empty() {
         Cow::Borrowed(".".as_ref())
@@ -677,15 +651,7 @@ where
         DataKind::SymbolicLink => {
             let reader = item.reader(ReadOptions::with_password(password))?;
             let original = io::read_to_string(reader)?;
-            let original = if let Some(substitutions) = path_transformers {
-                substitutions.apply(original, true, false)
-            } else {
-                original
-            };
-            let mut original = EntryReference::from_utf8_preserve_root(&original);
-            if !absolute_paths {
-                original = original.sanitize();
-            }
+            let original = pathname_editor.edit_symlink(original.as_ref());
             if !allow_unsafe_links && is_unsafe_link(&original) {
                 log::warn!(
                     "Skipped extracting a symbolic link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
@@ -700,38 +666,23 @@ where
         DataKind::HardLink => {
             let reader = item.reader(ReadOptions::with_password(password))?;
             let original = io::read_to_string(reader)?;
-            let original = if let Some(substitutions) = path_transformers {
-                substitutions.apply(original, true, false)
-            } else {
-                original
+            let Some(original) = pathname_editor.edit_hardlink(original.as_ref()) else {
+                log::warn!(
+                    "Skipped extracting a hard link that pointed at a file which was skipped.: {}",
+                    original
+                );
+                return Ok(());
             };
-            let mut original = EntryReference::from_utf8_preserve_root(&original);
-            if !absolute_paths {
-                original = original.sanitize();
-            }
             if !allow_unsafe_links && is_unsafe_link(&original) {
                 log::warn!(
                     "Skipped extracting a hard link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
                 );
                 return Ok(());
             }
-            let mut original_path = Cow::from(original.as_path());
-            if let Some(strip_count) = *strip_components {
-                if original_path.components().count() <= strip_count {
-                    log::warn!(
-                        "Skipped extracting a hard link that pointed at a file which was skipped.: {}",
-                        original_path.display()
-                    );
-                    return Ok(());
-                }
-                original_path = Cow::from(PathBuf::from_iter(
-                    original_path.components().skip(strip_count),
-                ));
-            }
             let original = if let Some(out_dir) = out_dir {
-                Cow::from(out_dir.join(original_path))
+                Cow::from(out_dir.join(original))
             } else {
-                original_path
+                Cow::from(original.as_path())
             };
             if remove_existing {
                 utils::io::ignore_not_found(utils::fs::remove_path(&path))?;

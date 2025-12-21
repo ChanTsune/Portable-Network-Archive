@@ -599,7 +599,6 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
     let out_option = OutputOption {
         overwrite_strategy,
         allow_unsafe_links: args.allow_unsafe_links,
-        strip_components: args.strip_components,
         out_dir: args.out_dir,
         to_stdout: args.to_stdout,
         filter,
@@ -623,10 +622,13 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
             args.numeric_owner,
         ),
         same_owner: !args.no_same_owner,
-        path_transformers: PathTransformers::new(args.substitutions, args.transforms),
+        pathname_editor: PathnameEditor::new(
+            args.strip_components,
+            PathTransformers::new(args.substitutions, args.transforms),
+            args.absolute_paths,
+        ),
         path_locks: Arc::new(PathLocks::default()),
         unlink_first: args.unlink_first,
-        absolute_paths: args.absolute_paths,
     };
     let mut files = args.files;
     if let Some(path) = &args.files_from {
