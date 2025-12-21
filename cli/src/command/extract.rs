@@ -791,7 +791,7 @@ where
         log::warn!("Currently extended attribute is not supported on this platform.");
     }
     #[cfg(feature = "acl")]
-    restore_alcs(path, item.acl()?, keep_options.acl_strategy)?;
+    restore_acls(path, item.acl()?, keep_options.acl_strategy)?;
     #[cfg(not(feature = "acl"))]
     if let AclStrategy::Always = keep_options.acl_strategy {
         log::warn!("Please enable `acl` feature and rebuild and install pna.");
@@ -800,7 +800,7 @@ where
 }
 
 #[cfg(feature = "acl")]
-fn restore_alcs(path: &Path, acls: Acls, acl_strategy: AclStrategy) -> io::Result<()> {
+fn restore_acls(path: &Path, acls: Acls, acl_strategy: AclStrategy) -> io::Result<()> {
     #[cfg(any(
         target_os = "linux",
         target_os = "freebsd",
