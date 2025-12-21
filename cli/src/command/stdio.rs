@@ -558,8 +558,8 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         pathname_editor: PathnameEditor::new(
             args.strip_components,
             PathTransformers::new(args.substitutions, args.transforms),
+            args.absolute_paths,
         ),
-        absolute_paths: args.absolute_paths,
     };
     if let Some(file) = archive_file {
         create_archive_file(
@@ -765,8 +765,8 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         pathname_editor: PathnameEditor::new(
             args.strip_components,
             PathTransformers::new(args.substitutions, args.transforms),
+            args.absolute_paths,
         ),
-        absolute_paths: args.absolute_paths,
     };
 
     // NOTE: "-" will use stdin/out

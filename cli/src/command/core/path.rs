@@ -15,6 +15,7 @@ use super::PathTransformers;
 pub(crate) struct PathnameEditor {
     strip_components: Option<usize>,
     transformers: Option<PathTransformers>,
+    absolute_paths: bool,
 }
 
 impl PathnameEditor {
@@ -22,15 +23,17 @@ impl PathnameEditor {
     pub(crate) const fn new(
         strip_components: Option<usize>,
         transformers: Option<PathTransformers>,
+        absolute_paths: bool,
     ) -> Self {
         Self {
             strip_components,
             transformers,
+            absolute_paths,
         }
     }
 
     /// Edit pathname for a regular entry. Returns `None` to skip the entry.
-    pub(crate) fn edit_entry_name(&self, path: &Path, absolute_paths: bool) -> Option<EntryName> {
+    pub(crate) fn edit_entry_name(&self, path: &Path) -> Option<EntryName> {
         // bsdtar order: substitution first, then strip
         let transformed: Cow<'_, Path> = if let Some(t) = &self.transformers {
             Cow::Owned(PathBuf::from(t.apply(path.to_string_lossy(), false, false)))
@@ -39,7 +42,7 @@ impl PathnameEditor {
         };
         let stripped = strip_components(&transformed, self.strip_components)?;
         let entry_name = EntryName::from_path_lossy_preserve_root(&stripped);
-        if absolute_paths {
+        if self.absolute_paths {
             Some(entry_name)
         } else {
             Some(entry_name.sanitize())
@@ -47,11 +50,7 @@ impl PathnameEditor {
     }
 
     /// Edit pathname for a hardlink target. Returns `None` to skip the entry.
-    pub(crate) fn edit_hardlink(
-        &self,
-        target: &Path,
-        absolute_paths: bool,
-    ) -> Option<EntryReference> {
+    pub(crate) fn edit_hardlink(&self, target: &Path) -> Option<EntryReference> {
         // bsdtar order: substitution first, then strip
         let transformed: Cow<'_, Path> = if let Some(t) = &self.transformers {
             Cow::Owned(PathBuf::from(t.apply(
@@ -64,7 +63,7 @@ impl PathnameEditor {
         };
         let stripped = strip_components(&transformed, self.strip_components)?;
         let entry_reference = EntryReference::from_path_lossy_preserve_root(&stripped);
-        if absolute_paths {
+        if self.absolute_paths {
             Some(entry_reference)
         } else {
             Some(entry_reference.sanitize())
@@ -72,7 +71,7 @@ impl PathnameEditor {
     }
 
     /// Edit pathname for a symlink target.
-    pub(crate) fn edit_symlink(&self, target: &Path, absolute_paths: bool) -> EntryReference {
+    pub(crate) fn edit_symlink(&self, target: &Path) -> EntryReference {
         // Note: symlinks do not have strip_components applied (matching bsdtar behavior)
         let transformed: Cow<'_, Path> = if let Some(t) = &self.transformers {
             Cow::Owned(PathBuf::from(t.apply(
@@ -84,7 +83,7 @@ impl PathnameEditor {
             Cow::Borrowed(target)
         };
         let entry_reference = EntryReference::from_path_lossy_preserve_root(&transformed);
-        if absolute_paths {
+        if self.absolute_paths {
             entry_reference
         } else {
             entry_reference.sanitize()
@@ -151,23 +150,23 @@ mod tests {
 
     #[test]
     fn editor_no_transforms() {
-        let editor = PathnameEditor::new(None, None);
-        let name = editor.edit_entry_name(Path::new("a/b/c"), false).unwrap();
+        let editor = PathnameEditor::new(None, None, false);
+        let name = editor.edit_entry_name(Path::new("a/b/c")).unwrap();
         assert_eq!(name.as_str(), "a/b/c");
     }
 
     #[test]
     fn editor_strip_only() {
-        let editor = PathnameEditor::new(Some(1), None);
-        let name = editor.edit_entry_name(Path::new("a/b/c"), false).unwrap();
+        let editor = PathnameEditor::new(Some(1), None, false);
+        let name = editor.edit_entry_name(Path::new("a/b/c")).unwrap();
         assert_eq!(name.as_str(), "b/c");
     }
 
     #[test]
     fn editor_strip_insufficient_components() {
-        let editor = PathnameEditor::new(Some(5), None);
-        assert!(editor.edit_entry_name(Path::new("a/b"), false).is_none());
-        assert!(editor.edit_hardlink(Path::new("a/b"), false).is_none());
+        let editor = PathnameEditor::new(Some(5), None, false);
+        assert!(editor.edit_entry_name(Path::new("a/b")).is_none());
+        assert!(editor.edit_hardlink(Path::new("a/b")).is_none());
     }
 
     #[test]
@@ -181,18 +180,18 @@ mod tests {
         // Format: /pattern/replacement/flags - first char is the delimiter
         let rules = SubstitutionRules::new(vec!["/old/new/".parse().unwrap()]);
         let transformers = Some(PathTransformers::BsdSubstitutions(rules));
-        let editor = PathnameEditor::new(Some(1), transformers);
+        let editor = PathnameEditor::new(Some(1), transformers, false);
 
         // With bsdtar order: "old/a/b" -> "new/a/b" -> strip 1 -> "a/b"
-        let result = editor.edit_entry_name(Path::new("old/a/b"), false).unwrap();
+        let result = editor.edit_entry_name(Path::new("old/a/b")).unwrap();
         assert_eq!(result.as_str(), "a/b");
     }
 
     #[test]
     fn editor_symlink_no_strip() {
         // Symlink targets should NOT have strip-components applied (bsdtar behavior)
-        let editor = PathnameEditor::new(Some(2), None);
-        let result = editor.edit_symlink(Path::new("a/b/c"), false);
+        let editor = PathnameEditor::new(Some(2), None, false);
+        let result = editor.edit_symlink(Path::new("a/b/c"));
         assert_eq!(result.as_str(), "a/b/c"); // Not stripped
     }
 }
