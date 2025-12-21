@@ -290,6 +290,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         overwrite_strategy,
         allow_unsafe_links: args.allow_unsafe_links,
         absolute_paths: false,
+        unsafe_path_handling: UnsafePathHandling::Sanitize,
         strip_components: args.strip_components,
         out_dir: args.out_dir,
         to_stdout: false,
@@ -377,11 +378,20 @@ impl OverwriteStrategy {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum UnsafePathHandling {
+    /// Sanitize unsafe components (default).
+    Sanitize,
+    /// Refuse to extract paths that contain `..` components.
+    Reject,
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct OutputOption<'a> {
     pub(crate) overwrite_strategy: OverwriteStrategy,
     pub(crate) allow_unsafe_links: bool,
     pub(crate) absolute_paths: bool,
+    pub(crate) unsafe_path_handling: UnsafePathHandling,
     pub(crate) strip_components: Option<usize>,
     pub(crate) out_dir: Option<PathBuf>,
     pub(crate) to_stdout: bool,
@@ -523,6 +533,7 @@ pub(crate) fn extract_entry<'a, T>(
         overwrite_strategy,
         allow_unsafe_links,
         absolute_paths,
+        unsafe_path_handling,
         strip_components,
         out_dir,
         to_stdout,
@@ -562,12 +573,25 @@ where
         item_path
     };
     let item_path = if !absolute_paths {
-        Cow::Owned(
-            EntryName::from_path_lossy_preserve_root(&item_path)
-                .sanitize()
-                .as_path()
-                .to_owned(),
-        )
+        let sanitized = EntryName::from_path_lossy_preserve_root(&item_path)
+            .sanitize()
+            .as_path()
+            .to_owned();
+        if *unsafe_path_handling == UnsafePathHandling::Reject
+            && sanitized.as_path() != item_path.as_ref()
+        {
+            // NOTE: bsdtar (libarchive) will continue extracting other entries but
+            // eventually exit with a non-zero status for unsafe paths (e.g. SECURE_NODOTDOT).
+            // We fail fast here to keep the control-flow simple.
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Refusing to extract an entry with an unsafe path: {}",
+                    item.name()
+                ),
+            ));
+        }
+        Cow::Owned(sanitized)
     } else {
         item_path
     };
