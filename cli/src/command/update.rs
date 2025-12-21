@@ -411,8 +411,8 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         pathname_editor: PathnameEditor::new(
             args.strip_components,
             PathTransformers::new(args.substitutions, args.transforms),
+            false,
         ),
-        absolute_paths: false,
     };
 
     let archives = collect_split_archives(&args.file.archive)?;
