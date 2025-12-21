@@ -64,6 +64,7 @@ use std::{env, fs, io, path::PathBuf, sync::Arc, time::SystemTime};
     group(ArgGroup::new("ctime-flag").args(["clamp_ctime"]).requires("ctime")),
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
     group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
+    group(ArgGroup::new("safe-writes-flag").args(["safe_writes", "no_safe_writes"])),
     group(
         ArgGroup::new("overwrite-flag")
             .args(["overwrite", "no_overwrite", "keep_newer_files", "keep_old_files"])
@@ -398,6 +399,10 @@ pub(crate) struct StdioCommand {
     format: Option<String>,
     #[arg(long, hide = true)]
     ignore_zeros: bool,
+    #[arg(long, hide = true)]
+    safe_writes: bool,
+    #[arg(long, hide = true)]
+    no_safe_writes: bool,
     #[arg(long, action = clap::ArgAction::Version, help = "Print version")]
     version: (),
     #[arg(long, action = clap::ArgAction::Help, help = "Print help")]
@@ -425,6 +430,16 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     if args.ignore_zeros {
         log::debug!(
             "Warning: Option '--ignore-zeros' is accepted for compatibility but will be ignored."
+        );
+    }
+    if args.safe_writes {
+        log::debug!(
+            "Warning: Option '--safe-writes' is accepted for compatibility but will be ignored."
+        );
+    }
+    if args.no_safe_writes {
+        log::debug!(
+            "Warning: Option '--no-safe-writes' is accepted for compatibility but will be ignored."
         );
     }
     if args.create {
