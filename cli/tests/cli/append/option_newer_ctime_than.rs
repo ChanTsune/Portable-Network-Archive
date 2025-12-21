@@ -1,11 +1,15 @@
 use crate::utils::{archive, setup};
 use clap::Parser;
 use portable_network_archive::cli;
-use std::{collections::HashSet, fs, thread, time};
+use std::{
+    collections::HashSet,
+    fs, thread,
+    time::{Duration, SystemTime},
+};
 
 /// Precondition: Create an archive with an older file, then prepare reference and newer files.
 /// Action: Run `pna append` with `--newer-ctime-than reference.txt`, specifying older, reference, and newer files.
-/// Expectation: Files with ctime >= reference are appended (reference and newer); older is not re-added.
+/// Expectation: Files with ctime > reference are appended (newer only); older and reference are not re-added.
 /// Note: This test requires filesystem support for creation time (birth time).
 #[test]
 fn append_with_newer_ctime_than() {
@@ -40,16 +44,21 @@ fn append_with_newer_ctime_than() {
     .unwrap();
 
     // Wait to ensure distinct ctime
-    thread::sleep(time::Duration::from_millis(10));
+    thread::sleep(Duration::from_millis(10));
 
     // Create the reference file
     fs::write(reference_file, "reference time marker").unwrap();
 
     // Wait to ensure the next file has a newer ctime
-    thread::sleep(time::Duration::from_millis(10));
+    thread::sleep(Duration::from_millis(10));
 
     // Create the newer file
     fs::write(newer_file, "newer file content").unwrap();
+    let reference_ctime = fs::metadata(reference_file).unwrap().created().unwrap();
+    if !ensure_ctime_order(older_file, newer_file, reference_ctime) {
+        eprintln!("Skipping test: unable to produce strict ctime ordering on this filesystem");
+        return;
+    }
 
     // Append to the archive with the `--newer-ctime-than` option
     cli::Cli::try_parse_from([
@@ -81,23 +90,55 @@ fn append_with_newer_ctime_than() {
         "older file should be in archive from initial creation: {older_file}"
     );
 
-    // reference_file should be included (appended because ctime >= reference)
+    // reference_file should NOT be included (ctime == reference)
     assert!(
-        seen.contains(reference_file),
-        "reference file should be appended: {reference_file}"
+        !seen.contains(reference_file),
+        "reference file should NOT be appended: {reference_file}"
     );
 
-    // newer_file should be included (appended because ctime >= reference)
+    // newer_file should be included (appended because ctime > reference)
     assert!(
         seen.contains(newer_file),
         "newer file should be appended: {newer_file}"
     );
 
-    // Verify that exactly three entries exist
+    // Verify that exactly two entries exist
     assert_eq!(
         seen.len(),
-        3,
-        "Expected exactly 3 entries, but found {}: {seen:?}",
+        2,
+        "Expected exactly 2 entries, but found {}: {seen:?}",
         seen.len()
     );
+}
+
+fn ensure_ctime_order(older: &str, newer: &str, reference: SystemTime) -> bool {
+    if !confirm_ctime_older_than(older, reference) {
+        return false;
+    }
+    wait_until_ctime_newer_than(newer, reference)
+}
+
+fn wait_until_ctime_newer_than(path: &str, baseline: SystemTime) -> bool {
+    const MAX_ATTEMPTS: usize = 500;
+    const SLEEP_MS: u64 = 10;
+    for _ in 0..MAX_ATTEMPTS {
+        if fs::metadata(path)
+            .ok()
+            .and_then(|meta| meta.created().ok())
+            .map(|ctime| ctime > baseline)
+            .unwrap_or(false)
+        {
+            return true;
+        }
+        thread::sleep(Duration::from_millis(SLEEP_MS));
+    }
+    false
+}
+
+fn confirm_ctime_older_than(path: &str, baseline: SystemTime) -> bool {
+    fs::metadata(path)
+        .ok()
+        .and_then(|meta| meta.created().ok())
+        .map(|ctime| ctime < baseline)
+        .unwrap_or(false)
 }

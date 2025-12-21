@@ -9,7 +9,7 @@ use std::{
 
 /// Precondition: Create three files with different creation times (reference, older, newer).
 /// Action: Run `pna create` with `--newer-ctime-than reference.txt`, specifying all three files.
-/// Expectation: Files with ctime >= reference.txt are included (reference and newer); older is excluded.
+/// Expectation: Files with ctime > reference.txt are included (newer only); older and reference are excluded.
 /// Note: This test requires filesystem support for creation time (birth time).
 #[test]
 fn create_with_newer_ctime_than() {
@@ -41,7 +41,7 @@ fn create_with_newer_ctime_than() {
     // Create the newer file
     fs::write(newer_file, "newer file content").unwrap();
     if !wait_until_ctime_newer_than(newer_file, reference_ctime)
-        || !confirm_ctime_not_newer_than(older_file, reference_ctime)
+        || !confirm_ctime_older_than(older_file, reference_ctime)
     {
         eprintln!("Skipping test: unable to produce distinct creation times on this filesystem");
         return;
@@ -78,10 +78,10 @@ fn create_with_newer_ctime_than() {
         "newer file should be included: {newer_file}"
     );
 
-    // reference_file should be included (ctime >= reference threshold)
+    // reference_file should NOT be included (ctime == reference)
     assert!(
-        seen.contains(reference_file),
-        "reference file should be included: {reference_file}"
+        !seen.contains(reference_file),
+        "reference file should NOT be included: {reference_file}"
     );
 
     // older_file should NOT be included (ctime < reference)
@@ -90,11 +90,11 @@ fn create_with_newer_ctime_than() {
         "older file should NOT be included: {older_file}"
     );
 
-    // Verify that exactly two entries exist (reference + newer)
+    // Verify that exactly one entry exists (newer only)
     assert_eq!(
         seen.len(),
-        2,
-        "Expected exactly 2 entries, but found {}: {seen:?}",
+        1,
+        "Expected exactly 1 entry, but found {}: {seen:?}",
         seen.len()
     );
 }
@@ -116,10 +116,10 @@ fn wait_until_ctime_newer_than(path: &str, baseline: SystemTime) -> bool {
     false
 }
 
-fn confirm_ctime_not_newer_than(path: &str, baseline: SystemTime) -> bool {
+fn confirm_ctime_older_than(path: &str, baseline: SystemTime) -> bool {
     fs::metadata(path)
         .ok()
         .and_then(|meta| meta.created().ok())
-        .map(|ctime| ctime <= baseline)
+        .map(|ctime| ctime < baseline)
         .unwrap_or(false)
 }

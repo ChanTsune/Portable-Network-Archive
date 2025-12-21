@@ -10,7 +10,7 @@ use std::{
 /// Precondition: Archive contains `older.txt`. Prepare `reference.txt` and `newer.txt` with strictly
 /// increasing modification times.
 /// Action: Run `pna append` with `--older-mtime-than reference.txt`, appending both candidates.
-/// Expectation: Only files whose mtime <= reference (reference itself) are appended; `newer` is skipped.
+/// Expectation: Only files whose mtime < reference are appended; `reference` and `newer` are skipped.
 #[test]
 fn append_with_older_mtime_than() {
     setup();
@@ -42,7 +42,7 @@ fn append_with_older_mtime_than() {
     thread::sleep(Duration::from_millis(10));
     fs::write(&newer_file, "newer mtime content").unwrap();
 
-    if !confirm_mtime_not_newer_than(&older_file, reference_mtime)
+    if !confirm_mtime_older_than(&older_file, reference_mtime)
         || !wait_until_mtime_newer_than(&newer_file, reference_mtime)
     {
         eprintln!(
@@ -77,8 +77,8 @@ fn append_with_older_mtime_than() {
         "older file should remain from initial archive: {older_file}"
     );
     assert!(
-        seen.contains(&reference_file),
-        "reference file should be appended: {reference_file}"
+        !seen.contains(&reference_file),
+        "reference file should NOT be appended: {reference_file}"
     );
     assert!(
         !seen.contains(&newer_file),
@@ -86,8 +86,8 @@ fn append_with_older_mtime_than() {
     );
     assert_eq!(
         seen.len(),
-        2,
-        "Expected exactly 2 entries (older + reference) but found {}: {seen:?}",
+        1,
+        "Expected exactly 1 entry (older only) but found {}: {seen:?}",
         seen.len()
     );
 }
@@ -109,10 +109,10 @@ fn wait_until_mtime_newer_than(path: &str, baseline: SystemTime) -> bool {
     false
 }
 
-fn confirm_mtime_not_newer_than(path: &str, baseline: SystemTime) -> bool {
+fn confirm_mtime_older_than(path: &str, baseline: SystemTime) -> bool {
     fs::metadata(path)
         .ok()
         .and_then(|meta| meta.modified().ok())
-        .map(|mtime| mtime <= baseline)
+        .map(|mtime| mtime < baseline)
         .unwrap_or(false)
 }

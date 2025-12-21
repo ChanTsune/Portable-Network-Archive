@@ -5,7 +5,7 @@ use std::{collections::HashSet, fs, thread, time};
 
 /// Precondition: Create an archive with file_to_update, then create reference, update files, and new file.
 /// Action: Run `pna experimental update` with `--newer-mtime-than reference.txt`.
-/// Expectation: Files with mtime >= reference.txt are updated or added to the archive.
+/// Expectation: Files with mtime > reference.txt are updated or added to the archive.
 #[test]
 fn update_with_newer_mtime_than() {
     setup();
@@ -39,6 +39,15 @@ fn update_with_newer_mtime_than() {
     thread::sleep(time::Duration::from_millis(10));
     fs::write(file_to_update, "updated content").unwrap();
     fs::write(file_to_add, "new file content").unwrap();
+    let reference_mtime = fs::metadata(reference_file).unwrap().modified().unwrap();
+    let update_mtime = fs::metadata(file_to_update).unwrap().modified().unwrap();
+    let add_mtime = fs::metadata(file_to_add).unwrap().modified().unwrap();
+    if update_mtime <= reference_mtime || add_mtime <= reference_mtime {
+        eprintln!(
+            "Skipping test: unable to ensure updated files have mtime > reference on this filesystem"
+        );
+        return;
+    }
 
     // 4. Run the update command, targeting the files to be updated/added,
     //    filtered by the mtime of the reference file.
