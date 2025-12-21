@@ -19,6 +19,11 @@ pub(crate) struct PathnameEditor {
 }
 
 impl PathnameEditor {
+    /// Create a PathnameEditor with the given configuration.
+    ///
+    /// `strip_components` sets the number of leading path components to remove when editing paths (use `None` to disable stripping).
+    /// `transformers` supplies optional path transformations to apply before stripping.
+    /// `absolute_paths` controls whether absolute paths are preserved (true) or sanitized (false).
     #[inline]
     pub(crate) const fn new(
         strip_components: Option<usize>,
@@ -32,7 +37,9 @@ impl PathnameEditor {
         }
     }
 
-    /// Edit pathname for a regular entry. Returns `None` to skip the entry.
+    /// Edit the pathname for a regular archive entry using the editor's configured transformers, strip count, and absolute-path policy.
+    ///
+    /// The method applies any path transformations first (bsdtar order), then strips the configured number of leading components; if stripping removes the entire path, the entry is skipped. The resulting path is converted to an `EntryName` that preserves a root component, and is sanitized unless the editor is configured to preserve absolute paths.
     pub(crate) fn edit_entry_name(&self, path: &Path) -> Option<EntryName> {
         // bsdtar order: substitution first, then strip
         let transformed: Cow<'_, Path> = if let Some(t) = &self.transformers {
@@ -49,7 +56,19 @@ impl PathnameEditor {
         }
     }
 
-    /// Edit pathname for a hardlink target. Returns `None` to skip the entry.
+    /// Edit a hardlink target pathname according to the editor's configuration.
+    ///
+    /// The method applies any configured path transformers, then strips the configured
+    /// number of leading components (if set). The resulting path is converted to an
+    /// `EntryReference` (preserving a leading root if present). If the editor is
+    /// configured to preserve absolute paths, the preserved `EntryReference` is
+    /// returned; otherwise a sanitized `EntryReference` is returned. If stripping
+    /// removes all components, `None` is returned to indicate the entry should be skipped.
+    ///
+    /// # Returns
+    ///
+    /// `Some(EntryReference)` with the edited reference, or `None` if the path was
+    /// stripped away (entry should be skipped).
     pub(crate) fn edit_hardlink(&self, target: &Path) -> Option<EntryReference> {
         // bsdtar order: substitution first, then strip
         let transformed: Cow<'_, Path> = if let Some(t) = &self.transformers {
@@ -70,7 +89,9 @@ impl PathnameEditor {
         }
     }
 
-    /// Edit pathname for a symlink target.
+    /// Edit a symlink target path by applying any configured transformations and then either preserving or sanitizing absolute paths.
+    ///
+    /// Strip-component rules are not applied to symlink targets; only the editor's optional transformers and its absolute-paths configuration affect the result.
     pub(crate) fn edit_symlink(&self, target: &Path) -> EntryReference {
         // Note: symlinks do not have strip_components applied (matching bsdtar behavior)
         let transformed: Cow<'_, Path> = if let Some(t) = &self.transformers {
