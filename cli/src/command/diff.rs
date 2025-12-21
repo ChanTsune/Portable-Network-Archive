@@ -8,11 +8,12 @@ use crate::{
 };
 
 use clap::Parser;
-use pna::{DataKind, NormalEntry, ReadOptions};
+use path_slash::PathBufExt as _;
+use pna::{DataKind, EntryReference, NormalEntry, ReadOptions};
 use std::{
     fs,
     io::{self, prelude::*},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 #[derive(Parser, Clone, Debug)]
@@ -91,7 +92,39 @@ fn compare_entry<T: AsRef<[u8]>>(entry: NormalEntry<T>, password: Option<&[u8]>)
         DataKind::File | DataKind::Directory | DataKind::SymbolicLink => {
             println!("Mismatch file type: {path}")
         }
-        DataKind::HardLink => (),
+        DataKind::HardLink if meta.is_file() => {
+            compare_hard_link(&entry, password, path)?;
+        }
+        DataKind::HardLink => {
+            println!("Mismatch file type: {path}")
+        }
+    }
+    Ok(())
+}
+
+fn compare_hard_link<T: AsRef<[u8]>>(
+    entry: &NormalEntry<T>,
+    password: Option<&[u8]>,
+    path: &pna::EntryName,
+) -> io::Result<()> {
+    let reader = entry.reader(ReadOptions::with_password(password))?;
+    let link_target = io::read_to_string(reader)?;
+    let link_target = EntryReference::from_utf8_preserve_root(&link_target).sanitize();
+
+    // Convert archive paths (Unix-style `/`) to native OS paths for filesystem comparison
+    let native_path = PathBuf::from_slash(path.as_str());
+    let native_target = PathBuf::from_slash(link_target.as_str());
+
+    match same_file::is_same_file(&native_path, &native_target) {
+        Ok(true) => {}
+        Ok(false) => {
+            println!("Hard link mismatch: {path} (expected link to {link_target})");
+        }
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            // Target or link file doesn't exist on filesystem
+            println!("Hard link mismatch: {path} (expected link to {link_target})");
+        }
+        Err(e) => return Err(e),
     }
     Ok(())
 }
