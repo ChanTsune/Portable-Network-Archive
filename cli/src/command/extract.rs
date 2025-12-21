@@ -734,6 +734,10 @@ where
     Ok(())
 }
 
+/// Applies preserved timestamps from archive metadata to an open output file when timestamp preservation is enabled.
+///
+/// If the configured timestamp strategy is `Always`, sets the file's accessed and modified times (and on supported platforms, created time)
+/// from the provided archive `metadata`. No changes are made when another timestamp strategy is configured.
 #[inline]
 fn restore_timestamps(
     file: &mut fs::File,
@@ -757,6 +761,9 @@ fn restore_timestamps(
     Ok(())
 }
 
+/// Restores file metadata (permissions, extended attributes, and ACLs) for an extracted entry according to the provided keep and owner options.
+///
+/// Permissions are applied when `keep_options.permission_strategy` is `Always`. Extended attributes are applied on Unix when `keep_options.xattr_strategy` is `Always` (logs a warning if the filesystem or platform does not support xattrs). ACLs are restored when the `acl` feature is enabled and `keep_options.acl_strategy` requests them; if the `acl` feature is not compiled in but ACLs were requested, a warning is emitted.
 fn restore_metadata<T>(
     item: &NormalEntry<T>,
     path: &Path,
@@ -799,6 +806,12 @@ where
     Ok(())
 }
 
+/// Restore POSIX/Windows ACLs on a filesystem path when ACL preservation is enabled.
+///
+/// When `acl_strategy` is `AclStrategy::Always`, selects the ACL entries that match the current
+/// platform if present, otherwise uses the first available platform-tagged ACL set, and applies
+/// them to `path`. Empty ACL lists are ignored. On platforms without ACL support this emits a
+/// warning instead of applying ACLs.
 #[cfg(feature = "acl")]
 fn restore_acls(path: &Path, acls: Acls, acl_strategy: AclStrategy) -> io::Result<()> {
     #[cfg(any(
