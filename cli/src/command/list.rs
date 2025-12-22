@@ -2,17 +2,20 @@
 use crate::command::core::run_read_entries_mem;
 use crate::{
     chunk,
-    cli::{ColorChoice, FileArgsCompat, PasswordArgs},
+    cli::{ColorChoice, DateTime, FileArgsCompat, PasswordArgs},
     command::{
         Command, ask_password,
-        core::{PathFilter, collect_split_archives, read_paths, run_read_entries},
+        core::{
+            PathFilter, TimeFilterResolver, TimeFilters, collect_split_archives, read_paths,
+            run_read_entries,
+        },
     },
     ext::*,
     utils::{BsdGlobMatcher, VCS_FILES},
 };
 use base64::Engine;
 use chrono::{
-    DateTime, Local,
+    DateTime as ChronoLocalDateTime, Local,
     format::{DelayedFormat, StrftimeItems},
 };
 use clap::{
@@ -47,6 +50,10 @@ use tabled::{
 #[command(
     group(ArgGroup::new("null-requires").arg("null").requires("exclude_from")),
     group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
+    group(ArgGroup::new("ctime-older-than-source").args(["older_ctime", "older_ctime_than"])),
+    group(ArgGroup::new("ctime-newer-than-source").args(["newer_ctime", "newer_ctime_than"])),
+    group(ArgGroup::new("mtime-older-than-source").args(["older_mtime", "older_mtime_than"])),
+    group(ArgGroup::new("mtime-newer-than-source").args(["newer_mtime", "newer_mtime_than"])),
 )]
 pub(crate) struct ListCommand {
     #[arg(short, long, help = "Display extended file metadata as a table")]
@@ -86,6 +93,60 @@ pub(crate) struct ListCommand {
         help = "Which timestamp field to list (modified, accessed, created)"
     )]
     time: Option<TimeField>,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Only include files and directories older than the specified date (unstable). This compares ctime entries."
+    )]
+    older_ctime: Option<DateTime>,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Only include files and directories older than the specified date (unstable). This compares mtime entries."
+    )]
+    older_mtime: Option<DateTime>,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Only include files and directories newer than the specified date (unstable). This compares ctime entries."
+    )]
+    newer_ctime: Option<DateTime>,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Only include files and directories newer than the specified date (unstable). This compares mtime entries."
+    )]
+    newer_mtime: Option<DateTime>,
+    #[arg(
+        long,
+        value_name = "file",
+        requires = "unstable",
+        visible_alias = "newer-than",
+        help = "Only include files and directories newer than the specified file (unstable). This compares ctime entries."
+    )]
+    newer_ctime_than: Option<PathBuf>,
+    #[arg(
+        long,
+        value_name = "file",
+        requires = "unstable",
+        help = "Only include files and directories newer than the specified file (unstable). This compares mtime entries."
+    )]
+    newer_mtime_than: Option<PathBuf>,
+    #[arg(
+        long,
+        value_name = "file",
+        requires = "unstable",
+        visible_alias = "older-than",
+        help = "Only include files and directories older than the specified file (unstable). This compares ctime entries."
+    )]
+    older_ctime_than: Option<PathBuf>,
+    #[arg(
+        long,
+        value_name = "file",
+        requires = "unstable",
+        help = "Only include files and directories older than the specified file (unstable). This compares mtime entries."
+    )]
+    older_mtime_than: Option<PathBuf>,
     #[arg(
         short = 'q',
         help = "Force printing of non-graphic characters in file names as the character '?'"
@@ -329,6 +390,18 @@ where
 #[hooq::hooq(anyhow)]
 fn list_archive(args: ListCommand, color: ColorChoice) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
+    let time_filters = TimeFilterResolver {
+        newer_ctime_than: args.newer_ctime_than.as_deref(),
+        older_ctime_than: args.older_ctime_than.as_deref(),
+        newer_ctime: args.newer_ctime.map(|it| it.to_system_time()),
+        older_ctime: args.older_ctime.map(|it| it.to_system_time()),
+        newer_mtime_than: args.newer_mtime_than.as_deref(),
+        older_mtime_than: args.older_mtime_than.as_deref(),
+        newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
+        older_mtime: args.older_mtime.map(|it| it.to_system_time()),
+    }
+    .resolve()?;
+
     let options = ListOptions {
         long: args.long,
         header: args.header,
@@ -348,6 +421,7 @@ fn list_archive(args: ListCommand, color: ColorChoice) -> anyhow::Result<()> {
         format: args.format,
         out_to_stderr: false,
         color,
+        time_filters,
     };
     let archive = args.file.archive();
     let files = args.file.files();
@@ -429,6 +503,7 @@ pub(crate) struct ListOptions {
     pub(crate) format: Option<Format>,
     pub(crate) out_to_stderr: bool,
     pub(crate) color: ColorChoice,
+    pub(crate) time_filters: TimeFilters,
 }
 
 pub(crate) fn run_list_archive<'a>(
@@ -502,8 +577,11 @@ fn print_entries<'a>(
     let entries = entries
         .into_iter()
         .filter(|r| {
-            (globs.is_empty() || globs.matches(r.entry_type.name()))
-                && !filter.excluded(r.entry_type.name())
+            let matched = globs.is_empty() || globs.matches(r.entry_type.name());
+            let time_ok = options
+                .time_filters
+                .matches_or_inactive(r.created, r.modified);
+            matched && time_ok && !filter.excluded(r.entry_type.name())
         })
         .collect::<Vec<_>>();
     globs.ensure_all_matched()?;
@@ -581,7 +659,7 @@ fn bsd_tar_list_entries_to(
 }
 
 fn bsd_tar_time(now: SystemTime, time: SystemTime) -> DelayedFormat<StrftimeItems<'static>> {
-    let datetime = DateTime::<Local>::from(time);
+    let datetime = ChronoLocalDateTime::<Local>::from(time);
     if within_six_months(now, time) {
         datetime.format("%b %e %H:%M")
     } else {
@@ -768,7 +846,7 @@ fn within_six_months(now: SystemTime, x: SystemTime) -> bool {
 }
 
 fn datetime(format: TimeFormat, time: SystemTime) -> String {
-    let datetime = DateTime::<Local>::from(time);
+    let datetime = ChronoLocalDateTime::<Local>::from(time);
     match format {
         TimeFormat::Auto(now) => {
             if within_six_months(now, time) {

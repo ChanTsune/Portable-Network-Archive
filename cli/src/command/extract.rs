@@ -5,13 +5,13 @@ use crate::ext::*;
 #[cfg(any(unix, windows))]
 use crate::utils::fs::lchown;
 use crate::{
-    cli::{FileArgsCompat, PasswordArgs},
+    cli::{DateTime, FileArgsCompat, PasswordArgs},
     command::{
         Command, ask_password,
         core::{
             AclStrategy, KeepOptions, OwnerOptions, PathFilter, PathTransformers, PathnameEditor,
-            PermissionStrategy, TimestampStrategy, XattrStrategy, apply_chroot,
-            collect_split_archives,
+            PermissionStrategy, TimeFilterResolver, TimeFilters, TimestampStrategy, XattrStrategy,
+            apply_chroot, collect_split_archives,
             path_lock::PathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, run_process_archive,
@@ -55,6 +55,10 @@ use std::{
     group(ArgGroup::new("owner-flag").args(["same_owner", "no_same_owner"])),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
     group(ArgGroup::new("group-flag").args(["numeric_owner", "gname"])),
+    group(ArgGroup::new("ctime-older-than-source").args(["older_ctime", "older_ctime_than"])),
+    group(ArgGroup::new("ctime-newer-than-source").args(["newer_ctime", "newer_ctime_than"])),
+    group(ArgGroup::new("mtime-older-than-source").args(["older_mtime", "older_mtime_than"])),
+    group(ArgGroup::new("mtime-newer-than-source").args(["newer_mtime", "newer_mtime_than"])),
     group(
         ArgGroup::new("overwrite-flag")
             .args(["overwrite", "no_overwrite", "keep_newer_files", "keep_old_files"])
@@ -158,6 +162,60 @@ pub(crate) struct ExtractCommand {
         help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names in the archive to be ignored in favor of the numeric user and group ids."
     )]
     numeric_owner: bool,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Only include files and directories older than the specified date (unstable). This compares ctime entries."
+    )]
+    older_ctime: Option<DateTime>,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Only include files and directories older than the specified date (unstable). This compares mtime entries."
+    )]
+    older_mtime: Option<DateTime>,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Only include files and directories newer than the specified date (unstable). This compares ctime entries."
+    )]
+    newer_ctime: Option<DateTime>,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Only include files and directories newer than the specified date (unstable). This compares mtime entries."
+    )]
+    newer_mtime: Option<DateTime>,
+    #[arg(
+        long,
+        value_name = "file",
+        requires = "unstable",
+        visible_alias = "newer-than",
+        help = "Only include files and directories newer than the specified file (unstable). This compares ctime entries."
+    )]
+    newer_ctime_than: Option<PathBuf>,
+    #[arg(
+        long,
+        value_name = "file",
+        requires = "unstable",
+        help = "Only include files and directories newer than the specified file (unstable). This compares mtime entries."
+    )]
+    newer_mtime_than: Option<PathBuf>,
+    #[arg(
+        long,
+        value_name = "file",
+        requires = "unstable",
+        visible_alias = "older-than",
+        help = "Only include files and directories older than the specified file (unstable). This compares ctime entries."
+    )]
+    older_ctime_than: Option<PathBuf>,
+    #[arg(
+        long,
+        value_name = "file",
+        requires = "unstable",
+        help = "Only include files and directories older than the specified file (unstable). This compares mtime entries."
+    )]
+    older_mtime_than: Option<PathBuf>,
     #[arg(
         long,
         value_name = "PATTERN",
@@ -293,6 +351,17 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         );
     }
 
+    let time_filters = TimeFilterResolver {
+        newer_ctime_than: args.newer_ctime_than.as_deref(),
+        older_ctime_than: args.older_ctime_than.as_deref(),
+        newer_ctime: args.newer_ctime.map(|it| it.to_system_time()),
+        older_ctime: args.older_ctime.map(|it| it.to_system_time()),
+        newer_mtime_than: args.newer_mtime_than.as_deref(),
+        older_mtime_than: args.older_mtime_than.as_deref(),
+        newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
+        older_mtime: args.older_mtime.map(|it| it.to_system_time()),
+    }
+    .resolve()?;
     let overwrite_strategy = OverwriteStrategy::from_flags(
         args.overwrite,
         args.no_overwrite,
@@ -336,6 +405,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         ),
         path_locks: Arc::new(PathLocks::default()),
         unlink_first: false,
+        time_filters,
     };
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(&working_dir)
@@ -415,6 +485,7 @@ pub(crate) struct OutputOption<'a> {
     pub(crate) pathname_editor: PathnameEditor,
     pub(crate) path_locks: Arc<PathLocks>,
     pub(crate) unlink_first: bool,
+    pub(crate) time_filters: TimeFilters,
 }
 
 pub(crate) fn run_extract_archive_reader<'a, 'p, Provider>(
@@ -440,6 +511,10 @@ where
                 .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
             let item_path = item.name().to_string();
             if !globs.is_empty() && !globs.matches_any(&item_path) {
+                log::debug!("Skip: {item_path}");
+                return Ok(());
+            }
+            if !entry_matches_time_filters(&item, &args.time_filters) {
                 log::debug!("Skip: {item_path}");
                 return Ok(());
             }
@@ -507,6 +582,10 @@ where
                 log::debug!("Skip: {item_path}");
                 return Ok(());
             }
+            if !entry_matches_time_filters(&item, &args.time_filters) {
+                log::debug!("Skip: {item_path}");
+                return Ok(());
+            }
             if matches!(
                 item.header().data_kind(),
                 DataKind::SymbolicLink | DataKind::HardLink
@@ -541,6 +620,16 @@ where
     })
 }
 
+#[inline]
+fn entry_matches_time_filters<T>(item: &NormalEntry<T>, filters: &TimeFilters) -> bool
+where
+    T: AsRef<[u8]>,
+    pna::RawChunk<T>: Chunk,
+{
+    let metadata = item.metadata();
+    filters.matches_or_inactive(metadata.created_time(), metadata.modified_time())
+}
+
 pub(crate) fn extract_entry<'a, T>(
     item: NormalEntry<T>,
     password: Option<&[u8]>,
@@ -556,6 +645,7 @@ pub(crate) fn extract_entry<'a, T>(
         pathname_editor,
         path_locks,
         unlink_first,
+        time_filters: _,
     }: &OutputOption<'a>,
 ) -> io::Result<()>
 where
