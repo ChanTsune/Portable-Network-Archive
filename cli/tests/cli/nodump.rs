@@ -7,6 +7,47 @@ use std::{fs, path::Path, process::Command as StdCommand};
 mod platform {
     use super::*;
 
+    /// Checks if nodump is supported in the current working directory.
+    /// Must be called after setup() to test in the actual test directory.
+    fn is_nodump_supported() -> bool {
+        let test_dir = Path::new("pna_nodump_check");
+        let _ = fs::remove_dir_all(test_dir);
+
+        let result = (|| -> std::io::Result<()> {
+            fs::create_dir_all(test_dir)?;
+            let test_file = test_dir.join("test.txt");
+            fs::write(&test_file, "test")?;
+            try_set_nodump(&test_file).map_err(std::io::Error::other)
+        })();
+
+        let _ = fs::remove_dir_all(test_dir);
+        result.is_ok()
+    }
+
+    #[cfg(target_os = "linux")]
+    fn try_set_nodump(path: &Path) -> Result<(), String> {
+        match StdCommand::new("chattr").arg("+d").arg(path).output() {
+            Ok(output) if output.status.success() => Ok(()),
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                Err(format!("chattr failed: {stderr}"))
+            }
+            Err(e) => Err(format!("chattr not available: {e}")),
+        }
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "freebsd"))]
+    fn try_set_nodump(path: &Path) -> Result<(), String> {
+        match StdCommand::new("chflags").arg("nodump").arg(path).output() {
+            Ok(output) if output.status.success() => Ok(()),
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                Err(format!("chflags failed: {stderr}"))
+            }
+            Err(e) => Err(format!("chflags not available: {e}")),
+        }
+    }
+
     #[cfg(target_os = "linux")]
     fn set_nodump(path: &Path) {
         let status = StdCommand::new("chattr")
@@ -42,6 +83,11 @@ mod platform {
     #[test]
     fn create_nodump() {
         setup();
+        if !is_nodump_supported() {
+            eprintln!("Skipping test: nodump not supported on this system");
+            return;
+        }
+
         let _ = fs::remove_dir_all("nodump_create");
         fs::create_dir_all("nodump_create").unwrap();
 
@@ -70,6 +116,11 @@ mod platform {
     #[test]
     fn append_nodump() {
         setup();
+        if !is_nodump_supported() {
+            eprintln!("Skipping test: nodump not supported on this system");
+            return;
+        }
+
         let _ = fs::remove_dir_all("nodump_append");
         fs::create_dir_all("nodump_append").unwrap();
 
