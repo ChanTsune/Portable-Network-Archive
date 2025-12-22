@@ -1,4 +1,5 @@
 pub(crate) mod path;
+mod path_filter;
 pub(crate) mod path_lock;
 mod path_transformer;
 pub(crate) mod re;
@@ -7,8 +8,9 @@ pub(crate) mod time_filter;
 pub(crate) use self::path::PathnameEditor;
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
-    utils::{self, BsdGlobPatterns, PathPartExt, fs::HardlinkResolver},
+    utils::{self, PathPartExt, fs::HardlinkResolver},
 };
+pub(crate) use path_filter::PathFilter;
 use path_slash::*;
 pub(crate) use path_transformer::PathTransformers;
 use pna::{
@@ -1106,37 +1108,6 @@ where
     Ok(())
 }
 
-/// A filter for paths based on include and exclude glob patterns.
-#[derive(Clone, Debug)]
-pub(crate) struct PathFilter<'a> {
-    include: BsdGlobPatterns<'a>,
-    exclude: BsdGlobPatterns<'a>,
-}
-
-impl<'a> PathFilter<'a> {
-    #[inline]
-    pub(crate) fn new(
-        include: impl Into<BsdGlobPatterns<'a>>,
-        exclude: impl Into<BsdGlobPatterns<'a>>,
-    ) -> Self {
-        Self {
-            include: include.into(),
-            exclude: exclude.into(),
-        }
-    }
-
-    /// Returns `true` if the given path should be excluded.
-    ///
-    /// A path is excluded if it matches any of the `exclude` patterns,
-    /// or if `include` patterns are provided and the path does not match any of them.
-    /// Exclusion patterns take precedence over inclusion patterns.
-    #[inline]
-    pub(crate) fn excluded(&self, s: impl AsRef<str>) -> bool {
-        let s = s.as_ref();
-        self.exclude.matches_exclusion(s) || !self.include.matches_inclusion(s)
-    }
-}
-
 #[inline]
 fn read_paths_reader(reader: impl BufRead, nul: bool) -> io::Result<Vec<String>> {
     if nul {
@@ -1181,31 +1152,6 @@ mod tests {
                 older_than: None,
             },
         }
-    }
-
-    #[test]
-    fn path_filter_empty() {
-        let filter = PathFilter::new(EMPTY_PATTERNS, EMPTY_PATTERNS);
-        assert!(!filter.excluded("a/b/c"));
-    }
-
-    #[test]
-    fn path_filter_exclude() {
-        let exclude = ["a/*"];
-        let filter = PathFilter::new(EMPTY_PATTERNS, exclude);
-        assert!(filter.excluded("a/b/c"));
-    }
-
-    #[test]
-    fn path_filter_include_precedence() {
-        let include = ["a/*/c"];
-        let exclude = ["a/*"];
-        let filter = PathFilter::new(include, exclude);
-        assert!(filter.excluded("a/b/c"));
-
-        let exclude = ["a/*/c"];
-        let filter = PathFilter::new(include, exclude);
-        assert!(filter.excluded("a/b/c"));
     }
 
     #[test]
