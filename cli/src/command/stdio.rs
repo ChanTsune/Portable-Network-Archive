@@ -510,9 +510,6 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         args.include.iter().flatten(),
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
-    if let Some(working_dir) = args.working_dir {
-        env::set_current_dir(working_dir)?;
-    }
     let time_filters = TimeFilterResolver {
         newer_ctime_than: args.newer_ctime_than.as_deref(),
         older_ctime_than: args.older_ctime_than.as_deref(),
@@ -524,6 +521,9 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
     }
     .resolve()?;
+    if let Some(working_dir) = args.working_dir {
+        env::set_current_dir(working_dir)?;
+    }
     let target_items = collect_items(
         &files,
         !args.no_recursive,
@@ -810,10 +810,6 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         args.include.iter().flatten(),
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
-
-    if let Some(working_dir) = args.working_dir {
-        env::set_current_dir(working_dir)?;
-    }
     let time_filters = TimeFilterResolver {
         newer_ctime_than: args.newer_ctime_than.as_deref(),
         older_ctime_than: args.older_ctime_than.as_deref(),
@@ -825,6 +821,9 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
     }
     .resolve()?;
+    if let Some(working_dir) = args.working_dir {
+        env::set_current_dir(working_dir)?;
+    }
     if let Some(file) = &archive_path {
         let archive = open_archive_then_seek_to_end(file)?;
         let target_items = collect_items(
