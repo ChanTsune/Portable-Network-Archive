@@ -25,6 +25,59 @@ use std::{
 };
 pub(crate) use time_filter::{TimeFilter, TimeFilters};
 
+/// Resolves CLI time filter options into a `TimeFilters` instance.
+/// Path arguments (`*_than`) take precedence over direct `SystemTime` values.
+pub(crate) struct TimeFilterResolver<'a> {
+    pub(crate) newer_ctime_than: Option<&'a Path>,
+    pub(crate) older_ctime_than: Option<&'a Path>,
+    pub(crate) newer_ctime: Option<SystemTime>,
+    pub(crate) older_ctime: Option<SystemTime>,
+    pub(crate) newer_mtime_than: Option<&'a Path>,
+    pub(crate) older_mtime_than: Option<&'a Path>,
+    pub(crate) newer_mtime: Option<SystemTime>,
+    pub(crate) older_mtime: Option<SystemTime>,
+}
+
+impl TimeFilterResolver<'_> {
+    /// Resolves file paths and times into a `TimeFilters` instance.
+    pub(crate) fn resolve(self) -> io::Result<TimeFilters> {
+        fn resolve_ctime(path: &Path) -> io::Result<SystemTime> {
+            fs::metadata(path)?.created().map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::Unsupported,
+                    format!(
+                        "creation time (birth time) is not available for '{}'",
+                        path.display()
+                    ),
+                )
+            })
+        }
+
+        Ok(TimeFilters {
+            ctime: TimeFilter {
+                newer_than: match self.newer_ctime_than {
+                    Some(p) => Some(resolve_ctime(p)?),
+                    None => self.newer_ctime,
+                },
+                older_than: match self.older_ctime_than {
+                    Some(p) => Some(resolve_ctime(p)?),
+                    None => self.older_ctime,
+                },
+            },
+            mtime: TimeFilter {
+                newer_than: match self.newer_mtime_than {
+                    Some(p) => Some(fs::metadata(p)?.modified()?),
+                    None => self.newer_mtime,
+                },
+                older_than: match self.older_mtime_than {
+                    Some(p) => Some(fs::metadata(p)?.modified()?),
+                    None => self.older_mtime,
+                },
+            },
+        })
+    }
+}
+
 /// Overhead for a split archive part in bytes, including PNA header, AHED, ANXT, and AEND chunks.
 pub(crate) const SPLIT_ARCHIVE_OVERHEAD_BYTES: usize =
     PNA_HEADER.len() + MIN_CHUNK_BYTES_SIZE * 3 + 8;
