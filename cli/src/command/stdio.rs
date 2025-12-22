@@ -664,6 +664,17 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         args.keep_old_files,
         OverwriteStrategy::Always,
     );
+    let time_filters = TimeFilterResolver {
+        newer_ctime_than: args.newer_ctime_than.as_deref(),
+        older_ctime_than: args.older_ctime_than.as_deref(),
+        newer_ctime: args.newer_ctime.map(|it| it.to_system_time()),
+        older_ctime: args.older_ctime.map(|it| it.to_system_time()),
+        newer_mtime_than: args.newer_mtime_than.as_deref(),
+        older_mtime_than: args.older_mtime_than.as_deref(),
+        newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
+        older_mtime: args.older_mtime.map(|it| it.to_system_time()),
+    }
+    .resolve()?;
     let out_option = OutputOption {
         overwrite_strategy,
         allow_unsafe_links: args.allow_unsafe_links,
@@ -700,6 +711,7 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         ),
         path_locks: Arc::new(PathLocks::default()),
         unlink_first: args.unlink_first,
+        time_filters,
     };
     let mut files = args.files;
     if let Some(path) = &args.files_from {
@@ -739,6 +751,18 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
 #[hooq::hooq(anyhow)]
 fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
+    let time_filters = TimeFilterResolver {
+        newer_ctime_than: args.newer_ctime_than.as_deref(),
+        older_ctime_than: args.older_ctime_than.as_deref(),
+        newer_ctime: args.newer_ctime.map(|it| it.to_system_time()),
+        older_ctime: args.older_ctime.map(|it| it.to_system_time()),
+        newer_mtime_than: args.newer_mtime_than.as_deref(),
+        older_mtime_than: args.older_mtime_than.as_deref(),
+        newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
+        older_mtime: args.older_mtime.map(|it| it.to_system_time()),
+    }
+    .resolve()?;
+
     let list_options = ListOptions {
         long: false,
         header: false,
@@ -758,6 +782,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
         }),
         out_to_stderr: args.to_stdout,
         color: ColorChoice::Auto,
+        time_filters,
     };
     let files_globs = BsdGlobMatcher::new(args.files.iter().map(|it| it.as_str()))
         .with_no_recursive(args.no_recursive);

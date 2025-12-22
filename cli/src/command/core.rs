@@ -462,12 +462,9 @@ pub(crate) fn collect_items_with_state(
                 };
 
                 if let Some(store) = store_as {
-                    if if options.time_filters.is_active() {
-                        let metadata = fs::symlink_metadata(path)?;
-                        options.time_filters.is_retain(&metadata)
-                    } else {
-                        true
-                    } {
+                    if !options.time_filters.is_active()
+                        || options.time_filters.is_retain(&fs::symlink_metadata(path)?)
+                    {
                         out.push((path.to_path_buf(), store));
                     }
                 }
