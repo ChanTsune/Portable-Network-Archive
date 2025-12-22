@@ -654,6 +654,18 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
 
 fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
+    let time_filters = TimeFilterResolver {
+        newer_ctime_than: args.newer_ctime_than.as_deref(),
+        older_ctime_than: args.older_ctime_than.as_deref(),
+        newer_ctime: args.newer_ctime.map(|it| it.to_system_time()),
+        older_ctime: args.older_ctime.map(|it| it.to_system_time()),
+        newer_mtime_than: args.newer_mtime_than.as_deref(),
+        older_mtime_than: args.older_mtime_than.as_deref(),
+        newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
+        older_mtime: args.older_mtime.map(|it| it.to_system_time()),
+    }
+    .resolve()?;
+
     let list_options = ListOptions {
         long: false,
         header: false,
@@ -673,6 +685,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
         }),
         out_to_stderr: args.to_stdout,
         color: ColorChoice::Auto,
+        time_filters,
     };
     let files_globs = GlobPatterns::new(args.files.iter().map(|it| it.as_str()))?;
 
