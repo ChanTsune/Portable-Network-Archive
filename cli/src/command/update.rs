@@ -11,10 +11,9 @@ use crate::{
         Command, ask_password, check_password,
         core::{
             AclStrategy, CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
-            PathnameEditor, PermissionStrategy, TimeFilter, TimeFilters, TimeOptions,
-            TimestampStrategy, TransformStrategy, TransformStrategyKeepSolid,
-            TransformStrategyUnSolid, XattrStrategy, collect_items, collect_split_archives,
-            create_entry, entry_option,
+            PathnameEditor, PermissionStrategy, TimeFilterResolver, TimeOptions, TimestampStrategy,
+            TransformStrategy, TransformStrategyKeepSolid, TransformStrategyUnSolid, XattrStrategy,
+            collect_items, collect_split_archives, create_entry, entry_option,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin,
         },
@@ -365,44 +364,17 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         atime: args.atime.map(|it| it.to_system_time()),
         clamp_atime: args.clamp_atime,
     };
-    let time_filters = TimeFilters {
-        ctime: TimeFilter {
-            newer_than: if let Some(p) = &args.newer_ctime_than {
-                let metadata = fs::metadata(p)?;
-                Some(metadata.created().map_err(|_| {
-                        std::io::Error::new(
-                            std::io::ErrorKind::Unsupported,
-                            format!("--newer-ctime-than requires filesystem support for creation time (birth time), which is not available for '{}'", p.display())
-                        )
-                    })?)
-            } else {
-                args.newer_ctime.map(|it| it.to_system_time())
-            },
-            older_than: if let Some(p) = &args.older_ctime_than {
-                let metadata = fs::metadata(p)?;
-                Some(metadata.created().map_err(|_| {
-                        std::io::Error::new(
-                            std::io::ErrorKind::Unsupported,
-                            format!("--older-ctime-than requires filesystem support for creation time (birth time), which is not available for '{}'", p.display())
-                        )
-                    })?)
-            } else {
-                args.older_ctime.map(|it| it.to_system_time())
-            },
-        },
-        mtime: TimeFilter {
-            newer_than: if let Some(p) = &args.newer_mtime_than {
-                Some(fs::metadata(p)?.modified()?)
-            } else {
-                args.newer_mtime.map(|it| it.to_system_time())
-            },
-            older_than: if let Some(p) = &args.older_mtime_than {
-                Some(fs::metadata(p)?.modified()?)
-            } else {
-                args.older_mtime.map(|it| it.to_system_time())
-            },
-        },
-    };
+    let time_filters = TimeFilterResolver {
+        newer_ctime_than: args.newer_ctime_than.as_deref(),
+        older_ctime_than: args.older_ctime_than.as_deref(),
+        newer_ctime: args.newer_ctime.map(|it| it.to_system_time()),
+        older_ctime: args.older_ctime.map(|it| it.to_system_time()),
+        newer_mtime_than: args.newer_mtime_than.as_deref(),
+        older_mtime_than: args.older_mtime_than.as_deref(),
+        newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
+        older_mtime: args.older_mtime.map(|it| it.to_system_time()),
+    }
+    .resolve()?;
     let create_options = CreateOptions {
         option,
         keep_options,

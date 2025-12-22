@@ -7,8 +7,8 @@ use crate::{
         Command, ask_password, check_password,
         core::{
             AclStrategy, CreateOptions, KeepOptions, MIN_SPLIT_PART_BYTES, OwnerOptions,
-            PathFilter, PathTransformers, PathnameEditor, PermissionStrategy, StoreAs, TimeFilter,
-            TimeFilters, TimeOptions, TimestampStrategy, XattrStrategy, collect_items,
+            PathFilter, PathTransformers, PathnameEditor, PermissionStrategy, StoreAs,
+            TimeFilterResolver, TimeOptions, TimestampStrategy, XattrStrategy, collect_items,
             create_entry, entry_option,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin, write_split_archive,
@@ -385,44 +385,17 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
     }
-    let time_filters = TimeFilters {
-        ctime: TimeFilter {
-            newer_than: if let Some(p) = &args.newer_ctime_than {
-                let metadata = fs::metadata(p)?;
-                Some(metadata.created().map_err(|_| {
-                        std::io::Error::new(
-                            std::io::ErrorKind::Unsupported,
-                            format!("--newer-ctime-than requires filesystem support for creation time (birth time), which is not available for '{}'", p.display())
-                        )
-                    })?)
-            } else {
-                args.newer_ctime.map(|it| it.to_system_time())
-            },
-            older_than: if let Some(p) = &args.older_ctime_than {
-                let metadata = fs::metadata(p)?;
-                Some(metadata.created().map_err(|_| {
-                        std::io::Error::new(
-                            std::io::ErrorKind::Unsupported,
-                            format!("--older-ctime-than requires filesystem support for creation time (birth time), which is not available for '{}'", p.display())
-                        )
-                    })?)
-            } else {
-                args.older_ctime.map(|it| it.to_system_time())
-            },
-        },
-        mtime: TimeFilter {
-            newer_than: if let Some(p) = &args.newer_mtime_than {
-                Some(fs::metadata(p)?.modified()?)
-            } else {
-                args.newer_mtime.map(|it| it.to_system_time())
-            },
-            older_than: if let Some(p) = &args.older_mtime_than {
-                Some(fs::metadata(p)?.modified()?)
-            } else {
-                args.older_mtime.map(|it| it.to_system_time())
-            },
-        },
-    };
+    let time_filters = TimeFilterResolver {
+        newer_ctime_than: args.newer_ctime_than.as_deref(),
+        older_ctime_than: args.older_ctime_than.as_deref(),
+        newer_ctime: args.newer_ctime.map(|it| it.to_system_time()),
+        older_ctime: args.older_ctime.map(|it| it.to_system_time()),
+        newer_mtime_than: args.newer_mtime_than.as_deref(),
+        older_mtime_than: args.older_mtime_than.as_deref(),
+        newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
+        older_mtime: args.older_mtime.map(|it| it.to_system_time()),
+    }
+    .resolve()?;
     let target_items = collect_items(
         &files,
         !args.no_recursive,
