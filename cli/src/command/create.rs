@@ -382,9 +382,6 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
     let archive_path = current_dir.join(archive);
-    if let Some(working_dir) = args.working_dir {
-        env::set_current_dir(working_dir)?;
-    }
     let time_filters = TimeFilterResolver {
         newer_ctime_than: args.newer_ctime_than.as_deref(),
         older_ctime_than: args.older_ctime_than.as_deref(),
@@ -396,6 +393,9 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
     }
     .resolve()?;
+    if let Some(working_dir) = args.working_dir {
+        env::set_current_dir(working_dir)?;
+    }
     let target_items = collect_items(
         &files,
         !args.no_recursive,
