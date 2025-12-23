@@ -403,6 +403,8 @@ pub(crate) struct StdioCommand {
     safe_writes: bool,
     #[arg(long, hide = true)]
     no_safe_writes: bool,
+    #[arg(short = 'a', long = "auto-compress", hide = true)]
+    auto_compress: bool,
     #[arg(long, action = clap::ArgAction::Version, help = "Print version")]
     version: (),
     #[arg(long, action = clap::ArgAction::Help, help = "Print help")]
@@ -441,6 +443,9 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
         log::debug!(
             "Warning: Option '--no-safe-writes' is accepted for compatibility but will be ignored."
         );
+    }
+    if args.auto_compress {
+        log::warn!("Option '--auto-compress' is accepted for compatibility but will be ignored.");
     }
     if args.create {
         run_create_archive(args)
