@@ -3,6 +3,9 @@ use clap::Parser;
 use portable_network_archive::cli;
 use std::fs;
 
+/// Precondition: A directory contains various files including `.txt` files.
+/// Action: Run `pna create` with `--exclude "**.txt"`.
+/// Expectation: All `.txt` files are excluded; other file types are included.
 #[test]
 fn create_with_exclude() {
     setup();

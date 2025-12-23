@@ -3,6 +3,9 @@ use clap::Parser;
 use portable_network_archive::cli;
 use std::fs;
 
+/// Precondition: A directory contains VCS files (`.git/`, `.svn/`, `.hg/`, `.bzr/`, `CVS/`, `.gitignore`, etc.) and regular files.
+/// Action: Run `pna create` with `--exclude-vcs`.
+/// Expectation: All VCS-related files and directories are excluded; regular files are included.
 #[test]
 fn create_with_exclude_vcs() {
     setup();
@@ -83,6 +86,9 @@ fn create_with_exclude_vcs() {
     .unwrap();
 }
 
+/// Precondition: A directory contains VCS files (`.git/`, `.svn/`, `.hg/`, `.bzr/`, `CVS/`, `.gitignore`, etc.) and regular files.
+/// Action: Run `pna create` without `--exclude-vcs`.
+/// Expectation: All files including VCS files are included in the archive.
 #[test]
 fn create_without_exclude_vcs() {
     setup();

@@ -2,6 +2,9 @@ use crate::utils::{self, EmbedExt, TestResources, diff::diff, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 
+/// Precondition: A directory contains various file types (`.txt`, `.bmp`, `.png`, `.svg`, `.pna`).
+/// Action: Run `pna create` with `--include "**/*.txt"`.
+/// Expectation: Only `.txt` files are included; other file types are excluded.
 #[test]
 fn create_with_include() {
     setup();

@@ -3,6 +3,9 @@ use clap::Parser;
 use portable_network_archive::cli;
 use std::fs;
 
+/// Precondition: A file contains exclusion patterns (`**/*.txt`) and a directory contains various files.
+/// Action: Run `pna create` with `--exclude-from` pointing to the pattern file.
+/// Expectation: Files matching the patterns in the file are excluded.
 #[test]
 fn create_with_exclude_from() {
     setup();
