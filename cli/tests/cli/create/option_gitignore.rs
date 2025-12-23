@@ -3,6 +3,9 @@ use clap::Parser;
 use portable_network_archive::cli;
 use std::{collections::HashSet, fs};
 
+/// Precondition: A directory contains a `.gitignore` file with `*.log` pattern and both `.txt` and `.log` files.
+/// Action: Run `pna create` with `--gitignore`.
+/// Expectation: The `.log` file is excluded; `.gitignore` and `.txt` files are included.
 #[test]
 fn create_with_gitignore() {
     setup();
@@ -25,7 +28,6 @@ fn create_with_gitignore() {
     .execute()
     .unwrap();
 
-    // Expect: only `.gitignore` and `keep.txt` are present.
     let mut seen = HashSet::new();
     archive::for_each_entry("gitignore/gitignore.pna", |entry| {
         seen.insert(entry.header().path().to_string());
@@ -41,6 +43,10 @@ fn create_with_gitignore() {
     assert!(seen.is_empty(), "unexpected entries found: {seen:?}");
 }
 
+/// Precondition: A complex directory tree with nested `.gitignore` files containing various patterns
+///               including negation (`!`), directory ignore (`build/`), and double-star globs (`**/secret.txt`).
+/// Action: Run `pna create` with `--gitignore`.
+/// Expectation: Files are included or excluded according to gitignore rules; child rules can override parent rules.
 #[test]
 fn create_with_gitignore_subdirs_and_negation() {
     // Matrix (path => expected with --gitignore):
@@ -97,7 +103,6 @@ fn create_with_gitignore_subdirs_and_negation() {
     fs::write("gitignore/complex/source/tmponly/file.tmp", b"ignored").unwrap();
     fs::write("gitignore/complex/source/tmponly/file.txt", b"ok").unwrap();
 
-    // Create archive with --gitignore
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -112,14 +117,12 @@ fn create_with_gitignore_subdirs_and_negation() {
     .execute()
     .unwrap();
 
-    // Verify using entries inside the archive (no extraction).
     let mut seen = HashSet::new();
     archive::for_each_entry("gitignore/complex/archive.pna", |entry| {
         seen.insert(entry.header().path().to_string());
     })
     .unwrap();
 
-    // Exact set of expected entries.
     for required in [
         "gitignore/complex/source/.gitignore",
         "gitignore/complex/source/keep.txt",
@@ -139,17 +142,17 @@ fn create_with_gitignore_subdirs_and_negation() {
     assert!(seen.is_empty(), "unexpected entries found: {seen:?}");
 }
 
+/// Precondition: Parent `.gitignore` unignores `*.log`; child `.gitignore` re-ignores `*.log`.
+/// Action: Run `pna create` with `--gitignore`.
+/// Expectation: Parent's `.log` files are included; child's `.log` files are excluded (child rule overrides).
 #[test]
 fn create_with_gitignore_child_overrides_parent_ignore() {
-    // Parent unignores (*.log), child re-ignores (*.log)
     setup();
     fs::create_dir_all("gitignore/child_overrides/source/child").unwrap();
 
-    // Parent allows all .log
     fs::write("gitignore/child_overrides/source/.gitignore", "!*.log\n").unwrap();
     fs::write("gitignore/child_overrides/source/root.log", b"ok").unwrap();
 
-    // Child ignores .log
     fs::write(
         "gitignore/child_overrides/source/child/.gitignore",
         "*.log\n",
@@ -160,7 +163,6 @@ fn create_with_gitignore_child_overrides_parent_ignore() {
         b"ignored by child",
     )
     .unwrap();
-    // Another .log in child should also be excluded
     fs::write(
         "gitignore/child_overrides/source/child/other.log",
         b"ignored too",
@@ -200,9 +202,11 @@ fn create_with_gitignore_child_overrides_parent_ignore() {
     assert!(seen.is_empty(), "unexpected entries found: {seen:?}");
 }
 
+/// Precondition: Three-level nesting where parent ignores `*.log`, child unignores, grandchild re-ignores.
+/// Action: Run `pna create` with `--gitignore`.
+/// Expectation: Each level's rule applies to its subtree; grandchild's `.log` files are excluded.
 #[test]
 fn create_with_gitignore_multi_level_toggle() {
-    // Parent: *.log (ignore) -> Child: !*.log (unignore) -> Grandchild: *.log (ignore again)
     setup();
     fs::create_dir_all("gitignore/multi_toggle/source/child/nested").unwrap();
 
@@ -222,7 +226,6 @@ fn create_with_gitignore_multi_level_toggle() {
         b"drop",
     )
     .unwrap();
-    // Another file under child that should be kept
     fs::write("gitignore/multi_toggle/source/child/extra.log", b"keep").unwrap();
 
     cli::Cli::try_parse_from([
@@ -260,24 +263,23 @@ fn create_with_gitignore_multi_level_toggle() {
     assert!(seen.is_empty(), "unexpected entries found: {seen:?}");
 }
 
+/// Precondition: A `.gitignore` contains multiple rules where later rules override earlier ones.
+/// Action: Run `pna create` with `--gitignore`.
+/// Expectation: The last matching rule wins; `*.log` then `!keep.log` keeps `keep.log`.
 #[test]
 fn create_with_gitignore_last_match_wins() {
-    // Within a single .gitignore, the last matching rule wins
     setup();
     fs::create_dir_all("gitignore/last_match/source/order_allow").unwrap();
     fs::create_dir_all("gitignore/last_match/source/order_deny").unwrap();
 
-    // Case A: ignore then unignore (should be kept)
     fs::write(
         "gitignore/last_match/source/order_allow/.gitignore",
         "*.log\n!keep.log\n",
     )
     .unwrap();
     fs::write("gitignore/last_match/source/order_allow/keep.log", b"keep").unwrap();
-    // This one should remain ignored
     fs::write("gitignore/last_match/source/order_allow/drop.log", b"drop").unwrap();
 
-    // Case B: unignore then ignore (should be dropped)
     fs::write(
         "gitignore/last_match/source/order_deny/.gitignore",
         "!keep.log\n*.log\n",
@@ -318,13 +320,14 @@ fn create_with_gitignore_last_match_wins() {
     assert!(seen.is_empty(), "unexpected entries found: {seen:?}");
 }
 
+/// Precondition: Child `.gitignore` contains `/only_here.txt` (anchored pattern).
+/// Action: Run `pna create` with `--gitignore`.
+/// Expectation: Only `child/only_here.txt` is excluded; `child/nested/only_here.txt` is included.
 #[test]
 fn create_with_gitignore_child_anchored_slash() {
-    // Leading slash in child .gitignore anchors to the child directory root
     setup();
     fs::create_dir_all("gitignore/child_anchor/source/child/nested").unwrap();
 
-    // Child rule: only child/only_here.txt is excluded
     fs::write(
         "gitignore/child_anchor/source/child/.gitignore",
         "/only_here.txt\n",
@@ -369,9 +372,11 @@ fn create_with_gitignore_child_anchored_slash() {
     assert!(seen.is_empty(), "unexpected entries found: {seen:?}");
 }
 
+/// Precondition: Parent `.gitignore` prunes `sub/` directory; child `.gitignore` tries to unignore files.
+/// Action: Run `pna create` with `--gitignore`.
+/// Expectation: Once a directory is pruned, child rules cannot resurrect files inside it.
 #[test]
 fn create_with_gitignore_pruned_dir_cannot_unignore_inside() {
-    // If parent prunes 'sub/', child '!keep.txt' cannot resurrect files inside
     setup();
     fs::create_dir_all("gitignore/pruned_dir/source/sub").unwrap();
 
@@ -382,7 +387,6 @@ fn create_with_gitignore_pruned_dir_cannot_unignore_inside() {
         b"should not be included",
     )
     .unwrap();
-    // Another file under the pruned dir
     fs::write("gitignore/pruned_dir/source/sub/also.txt", b"not included").unwrap();
 
     cli::Cli::try_parse_from([
@@ -415,9 +419,11 @@ fn create_with_gitignore_pruned_dir_cannot_unignore_inside() {
     assert!(seen.is_empty(), "unexpected entries found: {seen:?}");
 }
 
+/// Precondition: Parent `.gitignore` prunes `sub/` but then unignores `!sub/` and `!sub/keep.txt`.
+/// Action: Run `pna create` with `--gitignore`.
+/// Expectation: Re-inclusion works when parent explicitly unignores the directory and specific files.
 #[test]
 fn create_with_gitignore_pruned_dir_unignore_with_parent_exceptions() {
-    // Re-inclusion works only if parent adds '!sub/' and '!sub/keep.txt'
     setup();
     fs::create_dir_all("gitignore/pruned_dir_fix/source/sub").unwrap();
 
@@ -467,16 +473,17 @@ fn create_with_gitignore_pruned_dir_unignore_with_parent_exceptions() {
             "required entry missing: {required}"
         );
     }
+    assert!(seen.is_empty(), "unexpected entries found: {seen:?}");
 }
 
+/// Precondition: A `.gitignore` file contains a pattern that matches `.gitignore` itself.
+/// Action: Run `pna create` with `--gitignore`.
+/// Expectation: The `.gitignore` file is excluded from the archive.
 #[test]
 fn create_with_gitignore_excludes_gitignore_file_itself() {
-    // A .gitignore rule can exclude the .gitignore file itself.
-    // When the pattern contains ".gitignore", the file should not be archived.
     setup();
     fs::create_dir_all("gitignore/self_exclude/source").unwrap();
 
-    // Ignore the .gitignore file itself.
     fs::write("gitignore/self_exclude/source/.gitignore", ".gitignore\n").unwrap();
     fs::write("gitignore/self_exclude/source/keep.txt", b"ok").unwrap();
 
@@ -510,6 +517,9 @@ fn create_with_gitignore_excludes_gitignore_file_itself() {
     assert!(seen.is_empty(), "unexpected entries found: {seen:?}");
 }
 
+/// Precondition: Sibling directories A and B each have their own `.gitignore` with different rules.
+/// Action: Run `pna create` with `--gitignore`.
+/// Expectation: Each sibling's rules apply only to its own subtree; no rule leakage across siblings.
 #[test]
 fn create_with_gitignore_sibling_scopes_do_not_leak() {
     // Sibling directories each have their own .gitignore, and rules apply only to their subtree.
@@ -529,7 +539,6 @@ fn create_with_gitignore_sibling_scopes_do_not_leak() {
     fs::write("gitignore/sibling_scope/source/B/b.log", b"ok").unwrap();
     fs::write("gitignore/sibling_scope/source/B/tmp.tmp", b"drop").unwrap();
 
-    // Create archive with --gitignore
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -544,7 +553,6 @@ fn create_with_gitignore_sibling_scopes_do_not_leak() {
     .execute()
     .unwrap();
 
-    // Verify exact set of entries; no leakage across siblings.
     let mut seen = HashSet::new();
     archive::for_each_entry("gitignore/sibling_scope/archive.pna", |entry| {
         seen.insert(entry.header().path().to_string());
@@ -565,10 +573,11 @@ fn create_with_gitignore_sibling_scopes_do_not_leak() {
     assert!(seen.is_empty(), "unexpected entries found: {seen:?}");
 }
 
+/// Precondition: A `.gitignore` contains a comment line (`#...`) and an escaped `#` pattern (`\#secret.txt`).
+/// Action: Run `pna create` with `--gitignore`.
+/// Expectation: Comment lines are ignored; escaped `#` matches a file starting with `#`.
 #[test]
 fn create_with_gitignore_comment_and_escape() {
-    // '#' starts a comment unless escaped; '\#file' matches a file literally starting with '#'.
-    // Verify that comments don't act as patterns and escaped '#' does.
     setup();
     fs::create_dir_all("gitignore/comment_escape/source").unwrap();
 
@@ -612,10 +621,11 @@ fn create_with_gitignore_comment_and_escape() {
     assert!(seen.is_empty(), "unexpected entries found: {seen:?}");
 }
 
+/// Precondition: A `.gitignore` contains `\!file.txt` to match a file literally named `!file.txt`.
+/// Action: Run `pna create` with `--gitignore`.
+/// Expectation: The file `!file.txt` is excluded; leading `!` in patterns unignores, but escaped `\!` matches literal.
 #[test]
 fn create_with_gitignore_literal_bang_pattern() {
-    // Leading '!' unignores patterns; to match a literal '!' in filename, it must be escaped.
-    // Verify that '\!file.txt' ignores a file literally named '!file.txt'.
     setup();
     fs::create_dir_all("gitignore/literal_bang/source").unwrap();
 
