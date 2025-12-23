@@ -1,11 +1,7 @@
-use crate::utils::{archive, setup};
+use crate::utils::{archive, setup, time::wait_until_time_newer_than};
 use clap::Parser;
 use portable_network_archive::cli;
-use std::{
-    collections::HashSet,
-    fs, thread,
-    time::{Duration, SystemTime},
-};
+use std::{collections::HashSet, fs, thread, time::Duration};
 
 /// Precondition: Archive contains `file_to_update`. Prepare a reference file whose mtime is after
 /// the rewritten file plus a newer file that should be ignored.
@@ -53,7 +49,7 @@ fn update_with_older_mtime_than() {
     thread::sleep(Duration::from_millis(10));
     fs::write(&file_to_skip, "skip content").unwrap();
 
-    if !wait_until_mtime_newer_than(&file_to_skip, reference_mtime) {
+    if !wait_until_time_newer_than(&file_to_skip, reference_mtime, |m| m.modified().ok()) {
         eprintln!(
             "Skipping test: unable to ensure skip file is newer than reference on this filesystem"
         );
@@ -108,21 +104,4 @@ fn update_with_older_mtime_than() {
         fs::metadata(format!("{base_dir}/out/{file_to_skip}")).is_err(),
         "skip file should not have been extracted/added"
     );
-}
-
-fn wait_until_mtime_newer_than(path: &str, baseline: SystemTime) -> bool {
-    const MAX_ATTEMPTS: usize = 500;
-    const SLEEP_MS: u64 = 10;
-    for _ in 0..MAX_ATTEMPTS {
-        if fs::metadata(path)
-            .ok()
-            .and_then(|meta| meta.modified().ok())
-            .map(|mtime| mtime > baseline)
-            .unwrap_or(false)
-        {
-            return true;
-        }
-        thread::sleep(Duration::from_millis(SLEEP_MS));
-    }
-    false
 }

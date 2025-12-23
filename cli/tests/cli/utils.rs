@@ -1,5 +1,6 @@
 pub mod archive;
 pub mod diff;
+pub mod time;
 
 use std::{borrow::Cow, fs, io, path::Path};
 

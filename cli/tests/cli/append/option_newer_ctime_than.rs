@@ -1,11 +1,7 @@
-use crate::utils::{archive, setup};
+use crate::utils::{archive, setup, time::ensure_ctime_order};
 use clap::Parser;
 use portable_network_archive::cli;
-use std::{
-    collections::HashSet,
-    fs, thread,
-    time::{Duration, SystemTime},
-};
+use std::{collections::HashSet, fs, thread, time::Duration};
 
 /// Precondition: Create an archive with an older file, then prepare reference and newer files.
 /// Action: Run `pna append` with `--newer-ctime-than reference.txt`, specifying older, reference, and newer files.
@@ -109,36 +105,4 @@ fn append_with_newer_ctime_than() {
         "Expected exactly 2 entries, but found {}: {seen:?}",
         seen.len()
     );
-}
-
-fn ensure_ctime_order(older: &str, newer: &str, reference: SystemTime) -> bool {
-    if !confirm_ctime_older_than(older, reference) {
-        return false;
-    }
-    wait_until_ctime_newer_than(newer, reference)
-}
-
-fn wait_until_ctime_newer_than(path: &str, baseline: SystemTime) -> bool {
-    const MAX_ATTEMPTS: usize = 500;
-    const SLEEP_MS: u64 = 10;
-    for _ in 0..MAX_ATTEMPTS {
-        if fs::metadata(path)
-            .ok()
-            .and_then(|meta| meta.created().ok())
-            .map(|ctime| ctime > baseline)
-            .unwrap_or(false)
-        {
-            return true;
-        }
-        thread::sleep(Duration::from_millis(SLEEP_MS));
-    }
-    false
-}
-
-fn confirm_ctime_older_than(path: &str, baseline: SystemTime) -> bool {
-    fs::metadata(path)
-        .ok()
-        .and_then(|meta| meta.created().ok())
-        .map(|ctime| ctime < baseline)
-        .unwrap_or(false)
 }

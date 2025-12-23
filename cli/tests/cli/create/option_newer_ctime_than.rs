@@ -1,11 +1,10 @@
-use crate::utils::{archive, setup};
+use crate::utils::{
+    archive, setup,
+    time::{confirm_time_older_than, wait_until_time_newer_than},
+};
 use clap::Parser;
 use portable_network_archive::cli;
-use std::{
-    collections::HashSet,
-    fs, thread,
-    time::{Duration, SystemTime},
-};
+use std::{collections::HashSet, fs, thread, time::Duration};
 
 /// Precondition: Create three files with different creation times (reference, older, newer).
 /// Action: Run `pna create` with `--newer-ctime-than reference.txt`, specifying all three files.
@@ -40,8 +39,8 @@ fn create_with_newer_ctime_than() {
 
     // Create the newer file
     fs::write(newer_file, "newer file content").unwrap();
-    if !wait_until_ctime_newer_than(newer_file, reference_ctime)
-        || !confirm_ctime_older_than(older_file, reference_ctime)
+    if !wait_until_time_newer_than(newer_file, reference_ctime, |m| m.created().ok())
+        || !confirm_time_older_than(older_file, reference_ctime, |m| m.created().ok())
     {
         eprintln!("Skipping test: unable to produce distinct creation times on this filesystem");
         return;
@@ -97,29 +96,4 @@ fn create_with_newer_ctime_than() {
         "Expected exactly 1 entry, but found {}: {seen:?}",
         seen.len()
     );
-}
-
-fn wait_until_ctime_newer_than(path: &str, baseline: SystemTime) -> bool {
-    const MAX_ATTEMPTS: usize = 500;
-    const SLEEP_MS: u64 = 10;
-    for _ in 0..MAX_ATTEMPTS {
-        if fs::metadata(path)
-            .ok()
-            .and_then(|meta| meta.created().ok())
-            .map(|ctime| ctime > baseline)
-            .unwrap_or(false)
-        {
-            return true;
-        }
-        thread::sleep(Duration::from_millis(SLEEP_MS));
-    }
-    false
-}
-
-fn confirm_ctime_older_than(path: &str, baseline: SystemTime) -> bool {
-    fs::metadata(path)
-        .ok()
-        .and_then(|meta| meta.created().ok())
-        .map(|ctime| ctime < baseline)
-        .unwrap_or(false)
 }

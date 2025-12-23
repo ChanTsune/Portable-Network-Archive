@@ -1,11 +1,7 @@
-use crate::utils::{archive, setup};
+use crate::utils::{archive, setup, time::ensure_mtime_order};
 use clap::Parser;
 use portable_network_archive::cli;
-use std::{
-    collections::HashSet,
-    fs, thread,
-    time::{Duration, SystemTime},
-};
+use std::{collections::HashSet, fs, thread, time::Duration};
 
 /// Precondition: Create three files with different modification times (reference, older, newer).
 /// Action: Run `pna create` with `--newer-mtime-than reference.txt`, specifying all three files.
@@ -88,36 +84,4 @@ fn create_with_newer_mtime_than() {
         "Expected exactly 1 entry, but found {}: {seen:?}",
         seen.len()
     );
-}
-
-fn ensure_mtime_order(older: &str, newer: &str, reference: SystemTime) -> bool {
-    if !confirm_mtime_older_than(older, reference) {
-        return false;
-    }
-    wait_until_mtime_newer_than(newer, reference)
-}
-
-fn wait_until_mtime_newer_than(path: &str, baseline: SystemTime) -> bool {
-    const MAX_ATTEMPTS: usize = 500;
-    const SLEEP_MS: u64 = 10;
-    for _ in 0..MAX_ATTEMPTS {
-        if fs::metadata(path)
-            .ok()
-            .and_then(|meta| meta.modified().ok())
-            .map(|mtime| mtime > baseline)
-            .unwrap_or(false)
-        {
-            return true;
-        }
-        thread::sleep(Duration::from_millis(SLEEP_MS));
-    }
-    false
-}
-
-fn confirm_mtime_older_than(path: &str, baseline: SystemTime) -> bool {
-    fs::metadata(path)
-        .ok()
-        .and_then(|meta| meta.modified().ok())
-        .map(|mtime| mtime < baseline)
-        .unwrap_or(false)
 }
