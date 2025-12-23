@@ -361,11 +361,18 @@ pub(crate) fn collect_items<'a>(
                         ty.is_file() || (ty.is_symlink() && should_follow && path.is_file());
                     let is_symlink = ty.is_symlink() && !should_follow;
 
-                    // Exclude (prunes descent when directory)
-                    if filter.excluded(path.to_slash_lossy()) {
-                        if is_dir {
-                            iter.skip_current_dir();
-                        }
+                    // Check exclusion patterns
+                    let path_str = path.to_slash_lossy();
+
+                    // Only skip directory traversal for explicit exclude patterns,
+                    // NOT for include pattern mismatches (we need to traverse to find matching files)
+                    if is_dir && filter.explicitly_excluded(&path_str) {
+                        iter.skip_current_dir();
+                        continue;
+                    }
+
+                    // Skip entries that don't match the filter (exclude patterns or include mismatches)
+                    if filter.excluded(&path_str) {
                         continue;
                     }
 

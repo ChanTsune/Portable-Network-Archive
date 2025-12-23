@@ -1020,4 +1020,62 @@ mod tests {
             PathMatch::NO_ANCHOR_START | PathMatch::NO_ANCHOR_END
         ));
     }
+
+    #[test]
+    fn bsd_glob_match_inclusion() {
+        let pattern = BsdGlobPattern::new("**/*.txt");
+
+        // Test with path containing directory (should work)
+        assert!(
+            pattern.match_inclusion("dir/file.txt"),
+            "should match dir/file.txt"
+        );
+        assert!(
+            pattern.match_inclusion("a/b/c/file.txt"),
+            "should match a/b/c/file.txt"
+        );
+
+        // Test with full path like in the actual use case
+        assert!(
+            pattern.match_inclusion("create_with_include/in/raw/empty.txt"),
+            "should match create_with_include/in/raw/empty.txt"
+        );
+
+        // file.txt without directory prefix should NOT match **/*.txt
+        // because **/*.txt requires at least one path separator
+        // (this is standard glob behavior)
+
+        // Should not match non-.txt files
+        assert!(
+            !pattern.match_inclusion("file.png"),
+            "should not match file.png"
+        );
+        assert!(
+            !pattern.match_inclusion("dir/file.png"),
+            "should not match dir/file.png"
+        );
+    }
+
+    #[test]
+    fn bsd_glob_match_exclusion() {
+        // The pattern used in tests is "**.txt" not "**/*.txt"
+        let pattern = BsdGlobPattern::new("**.txt");
+        // Should match .txt files
+        assert!(
+            pattern.match_exclusion("file.txt"),
+            "exclusion should match file.txt"
+        );
+        assert!(
+            pattern.match_exclusion("dir/file.txt"),
+            "exclusion should match dir/file.txt"
+        );
+
+        // Test **/*.txt pattern too
+        let pattern2 = BsdGlobPattern::new("**/*.txt");
+        // This should also work for paths with directories
+        assert!(
+            pattern2.match_exclusion("dir/file.txt"),
+            "**/*.txt exclusion should match dir/file.txt"
+        );
+    }
 }
