@@ -20,6 +20,8 @@ mod option_older_ctime;
 mod option_older_ctime_than;
 mod option_older_mtime;
 mod option_older_mtime_than;
+#[cfg(unix)]
+mod option_one_file_system;
 mod password_from_file;
 mod password_hash;
 mod sanitize_parent_components;
