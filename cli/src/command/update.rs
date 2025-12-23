@@ -307,6 +307,11 @@ pub(crate) struct UpdateCommand {
         help = "Follow symbolic links named on the command line"
     )]
     follow_command_links: bool,
+    #[arg(
+        long,
+        help = "Synchronize archive with source: remove entries for files that no longer exist in the source"
+    )]
+    sync: bool,
 }
 
 impl Command for UpdateCommand {
@@ -324,6 +329,7 @@ impl Command for UpdateCommand {
 }
 
 fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::Result<()> {
+    let sync = args.sync;
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
@@ -472,6 +478,9 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
                     } else {
                         Ok(Some(entry))
                     }
+                } else if sync {
+                    log::debug!("Removing (sync): {}", entry.header().path());
+                    Ok(None)
                 } else {
                     Ok(Some(entry))
                 }
