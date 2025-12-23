@@ -13,6 +13,8 @@ const DURATION_24_HOURS: time::Duration = time::Duration::from_secs(24 * 60 * 60
 #[test]
 fn update_encrypted_archive() {
     setup();
+    // Clean up any leftover files from previous test runs
+    let _ = fs::remove_dir_all("update_encrypted");
     TestResources::extract_in("raw/", "update_encrypted/in/").unwrap();
 
     // Create encrypted archive
@@ -87,6 +89,8 @@ fn update_encrypted_archive() {
 #[test]
 fn update_encrypted_add_entry() {
     setup();
+    // Clean up any leftover files from previous test runs
+    let _ = fs::remove_dir_all("update_encrypted_add");
     TestResources::extract_in("raw/", "update_encrypted_add/in/").unwrap();
 
     // Create encrypted archive
@@ -166,6 +170,8 @@ fn update_encrypted_add_entry() {
 #[test]
 fn update_encrypted_keep_unchanged() {
     setup();
+    // Clean up any leftover files from previous test runs
+    let _ = fs::remove_dir_all("update_encrypted_keep");
     TestResources::extract_in("raw/", "update_encrypted_keep/in/").unwrap();
 
     // Create encrypted archive
@@ -240,6 +246,8 @@ fn update_encrypted_keep_unchanged() {
 #[test]
 fn update_encrypted_aes_cbc() {
     setup();
+    // Clean up any leftover files from previous test runs
+    let _ = fs::remove_dir_all("update_encrypted_aes_cbc");
     TestResources::extract_in("raw/", "update_encrypted_aes_cbc/in/").unwrap();
 
     // Create encrypted archive with AES-CBC
@@ -319,6 +327,8 @@ fn update_encrypted_aes_cbc() {
 #[test]
 fn update_encrypted_camellia_ctr() {
     setup();
+    // Clean up any leftover files from previous test runs
+    let _ = fs::remove_dir_all("update_encrypted_camellia");
     TestResources::extract_in("raw/", "update_encrypted_camellia/in/").unwrap();
 
     // Create encrypted archive with Camellia-CTR
@@ -398,6 +408,8 @@ fn update_encrypted_camellia_ctr() {
 #[test]
 fn update_encrypted_pbkdf2() {
     setup();
+    // Clean up any leftover files from previous test runs
+    let _ = fs::remove_dir_all("update_encrypted_pbkdf2");
     TestResources::extract_in("raw/", "update_encrypted_pbkdf2/in/").unwrap();
 
     // Create encrypted archive with PBKDF2
@@ -479,6 +491,8 @@ fn update_encrypted_pbkdf2() {
 #[test]
 fn update_encrypted_content_verify() {
     setup();
+    // Clean up any leftover files from previous test runs
+    let _ = fs::remove_dir_all("update_encrypted_content");
     TestResources::extract_in("raw/", "update_encrypted_content/in/").unwrap();
 
     // Create encrypted archive
