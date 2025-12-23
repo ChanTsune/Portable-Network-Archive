@@ -1,11 +1,10 @@
-use crate::utils::{archive, setup};
+use crate::utils::{
+    archive, setup,
+    time::{confirm_time_older_than, wait_until_time_newer_than},
+};
 use clap::Parser;
 use portable_network_archive::cli;
-use std::{
-    collections::HashSet,
-    fs, thread,
-    time::{Duration, SystemTime},
-};
+use std::{collections::HashSet, fs, thread, time::Duration};
 
 /// Precondition: Archive contains `older.txt`. Prepare `reference.txt` and `newer.txt` with strictly
 /// increasing modification times.
@@ -42,8 +41,8 @@ fn append_with_older_mtime_than() {
     thread::sleep(Duration::from_millis(10));
     fs::write(&newer_file, "newer mtime content").unwrap();
 
-    if !confirm_mtime_older_than(&older_file, reference_mtime)
-        || !wait_until_mtime_newer_than(&newer_file, reference_mtime)
+    if !confirm_time_older_than(&older_file, reference_mtime, |m| m.modified().ok())
+        || !wait_until_time_newer_than(&newer_file, reference_mtime, |m| m.modified().ok())
     {
         eprintln!(
             "Skipping test: unable to establish required modification time ordering on this filesystem"
@@ -90,29 +89,4 @@ fn append_with_older_mtime_than() {
         "Expected exactly 1 entry (older only) but found {}: {seen:?}",
         seen.len()
     );
-}
-
-fn wait_until_mtime_newer_than(path: &str, baseline: SystemTime) -> bool {
-    const MAX_ATTEMPTS: usize = 500;
-    const SLEEP_MS: u64 = 10;
-    for _ in 0..MAX_ATTEMPTS {
-        if fs::metadata(path)
-            .ok()
-            .and_then(|meta| meta.modified().ok())
-            .map(|mtime| mtime > baseline)
-            .unwrap_or(false)
-        {
-            return true;
-        }
-        thread::sleep(Duration::from_millis(SLEEP_MS));
-    }
-    false
-}
-
-fn confirm_mtime_older_than(path: &str, baseline: SystemTime) -> bool {
-    fs::metadata(path)
-        .ok()
-        .and_then(|meta| meta.modified().ok())
-        .map(|mtime| mtime < baseline)
-        .unwrap_or(false)
 }
