@@ -1,7 +1,7 @@
-use crate::utils::{self, EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
 use portable_network_archive::cli;
-use std::fs;
+use std::collections::HashSet;
 
 /// Precondition: A directory contains various files including `.txt` files.
 /// Action: Run `pna create` with `--exclude "**.txt"`.
@@ -24,33 +24,41 @@ fn create_with_exclude() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(fs::exists("create_with_exclude/create_with_exclude.pna").unwrap());
 
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "x",
-        "create_with_exclude/create_with_exclude.pna",
-        "--overwrite",
-        "--out-dir",
-        "create_with_exclude/out/",
-        "--strip-components",
-        "2",
-    ])
-    .unwrap()
-    .execute()
+    let mut seen = HashSet::new();
+    archive::for_each_entry("create_with_exclude/create_with_exclude.pna", |entry| {
+        seen.insert(entry.header().path().to_string());
+    })
     .unwrap();
 
-    // Remove files that are expected to be excluded from input for comparison
-    let expected_to_be_excluded = [
+    // Verify included entries (non-.txt files)
+    let required_entries = [
+        "create_with_exclude/in/raw/images/icon.bmp",
+        "create_with_exclude/in/raw/images/icon.png",
+        "create_with_exclude/in/raw/images/icon.svg",
+        "create_with_exclude/in/raw/pna/empty.pna",
+        "create_with_exclude/in/raw/pna/nest.pna",
+    ];
+    for required in required_entries {
+        assert!(
+            seen.take(required).is_some(),
+            "required entry missing: {required}"
+        );
+    }
+
+    // Verify excluded entries (.txt files)
+    let excluded_entries = [
         "create_with_exclude/in/raw/first/second/third/pna.txt",
         "create_with_exclude/in/raw/parent/child.txt",
         "create_with_exclude/in/raw/empty.txt",
         "create_with_exclude/in/raw/text.txt",
     ];
-    for file in expected_to_be_excluded {
-        utils::remove_with_empty_parents(file).unwrap();
+    for excluded in excluded_entries {
+        assert!(
+            !seen.contains(excluded),
+            "excluded entry should not be present: {excluded}"
+        );
     }
 
-    diff("create_with_exclude/in/", "create_with_exclude/out/").unwrap();
+    assert!(seen.is_empty(), "unexpected entries found: {seen:?}");
 }

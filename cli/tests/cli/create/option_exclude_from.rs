@@ -1,7 +1,7 @@
-use crate::utils::{self, EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
 use portable_network_archive::cli;
-use std::fs;
+use std::{collections::HashSet, fs};
 
 /// Precondition: A file contains exclusion patterns (`**/*.txt`) and a directory contains various files.
 /// Action: Run `pna create` with `--exclude-from` pointing to the pattern file.
@@ -26,34 +26,41 @@ fn create_with_exclude_from() {
     .unwrap()
     .execute()
     .unwrap();
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "x",
-        "create_with_exclude_from/exclude_from.pna",
-        "--overwrite",
-        "--out-dir",
-        "create_with_exclude_from/out/",
-        "--strip-components",
-        "2",
-    ])
-    .unwrap()
-    .execute()
+
+    let mut seen = HashSet::new();
+    archive::for_each_entry("create_with_exclude_from/exclude_from.pna", |entry| {
+        seen.insert(entry.header().path().to_string());
+    })
     .unwrap();
 
-    let excluded = [
+    // Verify included entries (non-.txt files)
+    let required_entries = [
+        "create_with_exclude_from/in/raw/images/icon.bmp",
+        "create_with_exclude_from/in/raw/images/icon.png",
+        "create_with_exclude_from/in/raw/images/icon.svg",
+        "create_with_exclude_from/in/raw/pna/empty.pna",
+        "create_with_exclude_from/in/raw/pna/nest.pna",
+    ];
+    for required in required_entries {
+        assert!(
+            seen.take(required).is_some(),
+            "required entry missing: {required}"
+        );
+    }
+
+    // Verify excluded entries (.txt files)
+    let excluded_entries = [
         "create_with_exclude_from/in/raw/first/second/third/pna.txt",
         "create_with_exclude_from/in/raw/parent/child.txt",
         "create_with_exclude_from/in/raw/empty.txt",
         "create_with_exclude_from/in/raw/text.txt",
     ];
-    for file in excluded {
-        utils::remove_with_empty_parents(file).unwrap();
+    for excluded in excluded_entries {
+        assert!(
+            !seen.contains(excluded),
+            "excluded entry should not be present: {excluded}"
+        );
     }
 
-    diff(
-        "create_with_exclude_from/in/",
-        "create_with_exclude_from/out/",
-    )
-    .unwrap();
+    assert!(seen.is_empty(), "unexpected entries found: {seen:?}");
 }

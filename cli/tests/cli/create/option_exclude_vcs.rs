@@ -1,7 +1,7 @@
-use crate::utils::{self, EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
 use portable_network_archive::cli;
-use std::fs;
+use std::{collections::HashSet, fs};
 
 /// Precondition: A directory contains VCS files (`.git/`, `.svn/`, `.hg/`, `.bzr/`, `CVS/`, `.gitignore`, etc.) and regular files.
 /// Action: Run `pna create` with `--exclude-vcs`.
@@ -57,33 +57,49 @@ fn create_with_exclude_vcs() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(fs::exists("create_with_exclude_vcs/create_with_exclude_vcs.pna").unwrap());
 
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "x",
+    let mut seen = HashSet::new();
+    archive::for_each_entry(
         "create_with_exclude_vcs/create_with_exclude_vcs.pna",
-        "--overwrite",
-        "--out-dir",
-        "create_with_exclude_vcs/out/",
-        "--strip-components",
-        "2",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
-
-    // Remove VCS files that are expected to be excluded from input for comparison
-    for file in vcs_files {
-        utils::remove_with_empty_parents(file).unwrap();
-    }
-
-    diff(
-        "create_with_exclude_vcs/in/",
-        "create_with_exclude_vcs/out/",
+        |entry| {
+            seen.insert(entry.header().path().to_string());
+        },
     )
     .unwrap();
+
+    // Verify included entries (regular files + original raw resources)
+    let required_entries = [
+        // Regular files we created
+        "create_with_exclude_vcs/in/raw/regular.txt",
+        "create_with_exclude_vcs/in/raw/data.csv",
+        "create_with_exclude_vcs/in/raw/document.pdf",
+        // Original test resources (non-VCS)
+        "create_with_exclude_vcs/in/raw/empty.txt",
+        "create_with_exclude_vcs/in/raw/text.txt",
+        "create_with_exclude_vcs/in/raw/first/second/third/pna.txt",
+        "create_with_exclude_vcs/in/raw/parent/child.txt",
+        "create_with_exclude_vcs/in/raw/images/icon.bmp",
+        "create_with_exclude_vcs/in/raw/images/icon.png",
+        "create_with_exclude_vcs/in/raw/images/icon.svg",
+        "create_with_exclude_vcs/in/raw/pna/empty.pna",
+        "create_with_exclude_vcs/in/raw/pna/nest.pna",
+    ];
+    for required in required_entries {
+        assert!(
+            seen.take(required).is_some(),
+            "required entry missing: {required}"
+        );
+    }
+
+    // Verify excluded entries (VCS files)
+    for vcs_file in vcs_files {
+        assert!(
+            !seen.contains(vcs_file),
+            "VCS entry should not be present: {vcs_file}"
+        );
+    }
+
+    assert!(seen.is_empty(), "unexpected entries found: {seen:?}");
 }
 
 /// Precondition: A directory contains VCS files (`.git/`, `.svn/`, `.hg/`, `.bzr/`, `CVS/`, `.gitignore`, etc.) and regular files.
@@ -139,27 +155,51 @@ fn create_without_exclude_vcs() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(fs::exists("create_without_exclude_vcs/create_without_exclude_vcs.pna").unwrap());
 
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "x",
+    let mut seen = HashSet::new();
+    archive::for_each_entry(
         "create_without_exclude_vcs/create_without_exclude_vcs.pna",
-        "--overwrite",
-        "--out-dir",
-        "create_without_exclude_vcs/out/",
-        "--strip-components",
-        "2",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
-
-    // VCS files should be included when --exclude-vcs is not used
-    diff(
-        "create_without_exclude_vcs/in/",
-        "create_without_exclude_vcs/out/",
+        |entry| {
+            seen.insert(entry.header().path().to_string());
+        },
     )
     .unwrap();
+
+    // Verify all entries are included (VCS files + regular files + original resources)
+    let required_entries = [
+        // VCS files we created
+        "create_without_exclude_vcs/in/raw/.git/HEAD",
+        "create_without_exclude_vcs/in/raw/.git/config",
+        "create_without_exclude_vcs/in/raw/.gitignore",
+        "create_without_exclude_vcs/in/raw/.svn/entries",
+        "create_without_exclude_vcs/in/raw/.hg/hgrc",
+        "create_without_exclude_vcs/in/raw/.hgignore",
+        "create_without_exclude_vcs/in/raw/.bzr/branch-format",
+        "create_without_exclude_vcs/in/raw/.bzrignore",
+        "create_without_exclude_vcs/in/raw/CVS/Root",
+        "create_without_exclude_vcs/in/raw/.gitmodules",
+        "create_without_exclude_vcs/in/raw/.gitattributes",
+        // Regular files we created
+        "create_without_exclude_vcs/in/raw/regular.txt",
+        "create_without_exclude_vcs/in/raw/data.csv",
+        "create_without_exclude_vcs/in/raw/document.pdf",
+        // Original test resources
+        "create_without_exclude_vcs/in/raw/empty.txt",
+        "create_without_exclude_vcs/in/raw/text.txt",
+        "create_without_exclude_vcs/in/raw/first/second/third/pna.txt",
+        "create_without_exclude_vcs/in/raw/parent/child.txt",
+        "create_without_exclude_vcs/in/raw/images/icon.bmp",
+        "create_without_exclude_vcs/in/raw/images/icon.png",
+        "create_without_exclude_vcs/in/raw/images/icon.svg",
+        "create_without_exclude_vcs/in/raw/pna/empty.pna",
+        "create_without_exclude_vcs/in/raw/pna/nest.pna",
+    ];
+    for required in required_entries {
+        assert!(
+            seen.take(required).is_some(),
+            "required entry missing: {required}"
+        );
+    }
+
+    assert!(seen.is_empty(), "unexpected entries found: {seen:?}");
 }
