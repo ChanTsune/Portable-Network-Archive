@@ -13,3 +13,4 @@ mod option_newer_ctime_than;
 mod option_newer_mtime_than;
 mod option_older_ctime_than;
 mod option_older_mtime_than;
+mod option_recursive;
