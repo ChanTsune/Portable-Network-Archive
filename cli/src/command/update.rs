@@ -11,9 +11,10 @@ use crate::{
         Command, ask_password, check_password,
         core::{
             AclStrategy, CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
-            PathnameEditor, PermissionStrategy, TimeFilterResolver, TimeOptions, TimestampStrategy,
-            TransformStrategy, TransformStrategyKeepSolid, TransformStrategyUnSolid, XattrStrategy,
-            collect_items, collect_split_archives, create_entry, entry_option,
+            PathnameEditor, PermissionStrategy, StoreAs, TimeFilterResolver, TimeOptions,
+            TimestampStrategy, TransformStrategy, TransformStrategyKeepSolid,
+            TransformStrategyUnSolid, XattrStrategy, collect_items, collect_split_archives,
+            create_entry, entry_option,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin,
         },
@@ -434,16 +435,9 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         &time_filters,
     )?;
 
-    let (tx, rx) = std::sync::mpsc::channel();
-
     let mut temp_file =
         NamedTempFile::new(|| archive_path.parent().unwrap_or_else(|| ".".as_ref()))?;
     let mut out_archive = Archive::write_header(temp_file.as_file_mut())?;
-
-    let mut target_files_mapping = target_items
-        .into_iter()
-        .map(|(it, store)| (EntryName::from_lossy(&it), (it, store)))
-        .collect::<IndexMap<_, _>>();
 
     #[cfg(feature = "memmap")]
     let mmaps = archives
@@ -453,9 +447,48 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
     #[cfg(feature = "memmap")]
     let archives = mmaps.iter().map(|m| m.as_ref());
 
+    run_update_archive::<Strategy, _, _>(
+        archives,
+        password,
+        &create_options,
+        target_items,
+        sync,
+        &mut out_archive,
+    )?;
+
+    out_archive.finalize()?;
+
+    #[cfg(feature = "memmap")]
+    drop(mmaps);
+
+    temp_file.persist(archive_path.remove_part())?;
+
+    Ok(())
+}
+
+pub(crate) fn run_update_archive<Strategy, R, W>(
+    archives: impl IntoIterator<Item = R> + Send,
+    password: Option<&[u8]>,
+    create_options: &CreateOptions,
+    target_items: Vec<(PathBuf, StoreAs)>,
+    sync: bool,
+    out_archive: &mut Archive<W>,
+) -> anyhow::Result<()>
+where
+    Strategy: TransformStrategy,
+    R: io::Read,
+    W: io::Write + Send,
+{
+    let (tx, rx) = std::sync::mpsc::channel();
+
+    let mut target_files_mapping = target_items
+        .into_iter()
+        .map(|(it, store)| (EntryName::from_lossy(&it), (it, store)))
+        .collect::<IndexMap<_, _>>();
+
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
         run_read_entries(archives, |entry| {
-            Strategy::transform(&mut out_archive, password, entry, |entry| {
+            Strategy::transform(out_archive, password, entry, |entry| {
                 let entry = entry?;
                 if let Some((target_path, store)) =
                     target_files_mapping.swap_remove(entry.header().path())
@@ -507,12 +540,6 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
             out_archive.add_entry(entry)?;
         }
     }
-    out_archive.finalize()?;
-
-    #[cfg(feature = "memmap")]
-    drop(mmaps);
-
-    temp_file.persist(archive_path.remove_part())?;
 
     Ok(())
 }
