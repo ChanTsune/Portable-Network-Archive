@@ -57,6 +57,13 @@ pub(crate) fn get_flags(path: &Path) -> io::Result<Vec<String>> {
     Ok(flag_names)
 }
 
+/// Sets file flags on macOS.
+///
+/// Note: This implementation overwrites all existing flags rather than merging them,
+/// which matches libarchive/bsdtar behavior. libarchive uses `chflags()` directly on
+/// BSD systems which replaces all flags, while on Linux it uses ioctl to read current
+/// flags first and merge them. This cross-platform inconsistency exists in bsdtar itself.
+/// See: https://github.com/libarchive/libarchive/blob/master/libarchive/archive_write_disk_posix.c
 #[cfg(target_os = "macos")]
 pub(crate) fn set_flags(path: &Path, flags: &[String]) -> io::Result<()> {
     use std::os::unix::ffi::OsStrExt;
@@ -152,6 +159,14 @@ pub(crate) fn get_flags(path: &Path) -> io::Result<Vec<String>> {
     Ok(flag_names)
 }
 
+/// Sets file flags on Linux.
+///
+/// Note: This implementation reads current flags first and merges them with new flags,
+/// which matches libarchive/bsdtar behavior on Linux. libarchive uses ioctl to read
+/// current flags (`FS_IOC_GETFLAGS`) then computes `newflags = (oldflags & ~clear) | set`
+/// before writing. This differs from BSD systems where `chflags()` overwrites all flags.
+/// This cross-platform inconsistency exists in bsdtar itself.
+/// See: https://github.com/libarchive/libarchive/blob/master/libarchive/archive_write_disk_posix.c
 #[cfg(any(target_os = "linux", target_os = "android"))]
 pub(crate) fn set_flags(path: &Path, flags: &[String]) -> io::Result<()> {
     use linux_flags::*;
@@ -256,6 +271,13 @@ pub(crate) fn get_flags(path: &Path) -> io::Result<Vec<String>> {
     Ok(flag_names)
 }
 
+/// Sets file flags on FreeBSD.
+///
+/// Note: This implementation overwrites all existing flags rather than merging them,
+/// which matches libarchive/bsdtar behavior. libarchive uses `chflags()` directly on
+/// BSD systems which replaces all flags, while on Linux it uses ioctl to read current
+/// flags first and merge them. This cross-platform inconsistency exists in bsdtar itself.
+/// See: https://github.com/libarchive/libarchive/blob/master/libarchive/archive_write_disk_posix.c
 #[cfg(target_os = "freebsd")]
 pub(crate) fn set_flags(path: &Path, flags: &[String]) -> io::Result<()> {
     use std::os::unix::ffi::OsStrExt;
