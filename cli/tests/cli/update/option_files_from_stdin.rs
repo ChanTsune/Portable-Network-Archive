@@ -1,10 +1,16 @@
 #![cfg(not(target_family = "wasm"))]
 use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
+use std::fs;
 
+/// Precondition: An archive exists with some files.
+/// Action: Run `pna experimental update` with `--files-from-stdin` providing additional paths.
+/// Expectation: Files from stdin are added to the archive.
 #[test]
-fn test_update_files_from_stdin() {
+fn update_with_files_from_stdin() {
     setup();
+    // Clean up any leftover files from previous test runs
+    let _ = fs::remove_dir_all("update_files_from_stdin");
     TestResources::extract_in("raw/images/", "update_files_from_stdin/in/").unwrap();
     TestResources::extract_in("raw/parent/", "update_files_from_stdin/in/").unwrap();
     TestResources::extract_in("raw/pna/", "update_files_from_stdin/in/").unwrap();

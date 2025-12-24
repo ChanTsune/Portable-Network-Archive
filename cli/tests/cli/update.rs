@@ -1,11 +1,11 @@
-mod atime;
-mod ctime;
 mod encryption;
 mod error;
-mod files_from_stdin;
-mod mtime;
+mod option_atime;
+mod option_ctime;
 mod option_exclude;
 mod option_exclude_vcs;
+mod option_files_from_stdin;
+mod option_mtime;
 mod option_newer_ctime;
 mod option_newer_ctime_than;
 mod option_newer_mtime;

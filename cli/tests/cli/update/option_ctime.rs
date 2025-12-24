@@ -6,18 +6,24 @@ use std::{fs, io::prelude::*, time::SystemTime};
 
 const DURATION_24_HOURS: Duration = Duration::seconds(24 * 60 * 60);
 
+/// Precondition: An archive contains files.
+/// Action: Modify a file, run `pna experimental update` with `--ctime`.
+/// Expectation: All entries in the archive have the specified ctime.
 #[test]
-fn archive_update_with_ctime() {
+fn update_with_ctime() {
     setup();
-    TestResources::extract_in("raw/", "archive_update_with_ctime/in/").unwrap();
+    // Clean up any leftover files from previous test runs
+    let _ = fs::remove_dir_all("update_with_ctime");
+    TestResources::extract_in("raw/", "update_with_ctime/in/").unwrap();
+
     // Create initial archive
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
-        "archive_update_with_ctime/update_with_ctime.pna",
+        "update_with_ctime/archive.pna",
         "--overwrite",
-        "archive_update_with_ctime/in/",
+        "update_with_ctime/in/",
     ])
     .unwrap()
     .execute()
@@ -27,7 +33,7 @@ fn archive_update_with_ctime() {
     let mut file = fs::File::options()
         .write(true)
         .truncate(true)
-        .open("archive_update_with_ctime/in/raw/text.txt")
+        .open("update_with_ctime/in/raw/text.txt")
         .unwrap();
     file.write_all(b"updated!").unwrap();
     file.set_modified(SystemTime::now() + DURATION_24_HOURS)
@@ -42,8 +48,8 @@ fn archive_update_with_ctime() {
         "--ctime",
         "2024-01-01T00:00:00Z",
         "-f",
-        "archive_update_with_ctime/update_with_ctime.pna",
-        "archive_update_with_ctime/in/",
+        "update_with_ctime/archive.pna",
+        "update_with_ctime/in/",
         "--keep-timestamp",
     ])
     .unwrap()
@@ -52,24 +58,30 @@ fn archive_update_with_ctime() {
 
     // Verify ctime is set correctly in the archive
     let expected = Duration::seconds(1704067200);
-    for_each_entry("archive_update_with_ctime/update_with_ctime.pna", |entry| {
+    for_each_entry("update_with_ctime/archive.pna", |entry| {
         assert_eq!(entry.metadata().created(), Some(expected));
     })
     .unwrap();
 }
 
+/// Precondition: An archive contains files.
+/// Action: Modify a file, run `pna experimental update` with `--ctime` and `--clamp-ctime`.
+/// Expectation: All entries in the archive have ctime clamped to the specified value.
 #[test]
-fn archive_update_with_clamp_ctime() {
+fn update_with_clamp_ctime() {
     setup();
-    TestResources::extract_in("raw/", "archive_update_with_clamp_ctime/in/").unwrap();
+    // Clean up any leftover files from previous test runs
+    let _ = fs::remove_dir_all("update_with_clamp_ctime");
+    TestResources::extract_in("raw/", "update_with_clamp_ctime/in/").unwrap();
+
     // Create initial archive
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "c",
-        "archive_update_with_clamp_ctime/update_with_clamp_ctime.pna",
+        "update_with_clamp_ctime/archive.pna",
         "--overwrite",
-        "archive_update_with_clamp_ctime/in/",
+        "update_with_clamp_ctime/in/",
     ])
     .unwrap()
     .execute()
@@ -79,7 +91,7 @@ fn archive_update_with_clamp_ctime() {
     let mut file = fs::File::options()
         .write(true)
         .truncate(true)
-        .open("archive_update_with_clamp_ctime/in/raw/text.txt")
+        .open("update_with_clamp_ctime/in/raw/text.txt")
         .unwrap();
     file.write_all(b"updated!").unwrap();
     file.set_modified(SystemTime::now() + DURATION_24_HOURS)
@@ -95,8 +107,8 @@ fn archive_update_with_clamp_ctime() {
         "2024-01-01T00:00:00Z",
         "--clamp-ctime",
         "-f",
-        "archive_update_with_clamp_ctime/update_with_clamp_ctime.pna",
-        "archive_update_with_clamp_ctime/in/",
+        "update_with_clamp_ctime/archive.pna",
+        "update_with_clamp_ctime/in/",
         "--keep-timestamp",
     ])
     .unwrap()
@@ -105,11 +117,8 @@ fn archive_update_with_clamp_ctime() {
 
     // Verify ctime is clamped correctly in the archive
     let expected = Duration::seconds(1704067200);
-    for_each_entry(
-        "archive_update_with_clamp_ctime/update_with_clamp_ctime.pna",
-        |entry| {
-            assert!(entry.metadata().created() <= Some(expected));
-        },
-    )
+    for_each_entry("update_with_clamp_ctime/archive.pna", |entry| {
+        assert!(entry.metadata().created() <= Some(expected));
+    })
     .unwrap();
 }
