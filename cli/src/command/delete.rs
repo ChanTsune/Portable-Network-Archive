@@ -17,13 +17,7 @@ use std::path::PathBuf;
 
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 #[command(
-    group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
-    group(ArgGroup::new("unstable-files-from-stdin").args(["files_from_stdin"]).requires("unstable")),
-    group(ArgGroup::new("unstable-include").args(["include"]).requires("unstable")),
-    group(ArgGroup::new("unstable-delete-exclude").args(["exclude"]).requires("unstable")),
-    group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
     group(ArgGroup::new("read-files-from").args(["files_from", "files_from_stdin"])),
-    group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
     group(
         ArgGroup::new("from-input")
             .args(["files_from", "files_from_stdin", "exclude_from"])
@@ -34,20 +28,44 @@ use std::path::PathBuf;
 pub(crate) struct DeleteCommand {
     #[arg(long, help = "Output file path", value_hint = ValueHint::FilePath)]
     output: Option<PathBuf>,
-    #[arg(long, help = "Read deleting files from given path (unstable)", value_hint = ValueHint::FilePath)]
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Read deleting files from given path (unstable)",
+        value_hint = ValueHint::FilePath
+    )]
     files_from: Option<PathBuf>,
-    #[arg(long, help = "Read deleting files from stdin (unstable)")]
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Read deleting files from stdin (unstable)"
+    )]
     files_from_stdin: bool,
     #[arg(
         long,
+        requires = "unstable",
         help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)"
     )]
     include: Option<Vec<String>>,
-    #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Exclude path glob (unstable)",
+        value_hint = ValueHint::AnyPath
+    )]
     exclude: Option<Vec<String>>,
-    #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Read exclude files from given path (unstable)",
+        value_hint = ValueHint::FilePath
+    )]
     exclude_from: Option<PathBuf>,
-    #[arg(long, help = "Exclude vcs files (unstable)")]
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)"
+    )]
     exclude_vcs: bool,
     #[arg(
         long,
