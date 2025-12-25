@@ -2,6 +2,7 @@ mod argon2id_params;
 mod color_choice;
 mod compression_level;
 mod datetime;
+mod name_id_pair;
 mod pbkdf2_sha256_params;
 mod private_chunk_type;
 
@@ -9,5 +10,6 @@ pub(crate) use argon2id_params::Argon2idParams;
 pub(crate) use color_choice::ColorChoice;
 pub(crate) use compression_level::{DeflateLevel, XzLevel, ZstdLevel};
 pub use datetime::DateTime;
+pub(crate) use name_id_pair::NameIdPair;
 pub(crate) use pbkdf2_sha256_params::Pbkdf2Sha256Params;
 pub(crate) use private_chunk_type::PrivateChunkType;
