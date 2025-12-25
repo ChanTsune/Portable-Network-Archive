@@ -13,21 +13,6 @@ impl FromStr for NameIdPair {
     ///
     /// Accepts either `name:id`, a bare numeric `id`, or a bare `name`. An empty input or an empty
     /// name with no id is an error; a non-numeric id produces `NameIdParseError::InvalidId`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::str::FromStr;
-    /// let p: crate::cli::value::name_id_pair::NameIdPair = "alice:1000".parse().unwrap();
-    /// assert_eq!(p.name.as_deref(), Some("alice"));
-    /// assert_eq!(p.id, Some(1000));
-    /// let p2: crate::cli::value::name_id_pair::NameIdPair = "42".parse().unwrap();
-    /// assert_eq!(p2.name, None);
-    /// assert_eq!(p2.id, Some(42));
-    /// let p3: crate::cli::value::name_id_pair::NameIdPair = "bob".parse().unwrap();
-    /// assert_eq!(p3.name.as_deref(), Some("bob"));
-    /// assert_eq!(p3.id, None);
-    /// ```
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.is_empty() {

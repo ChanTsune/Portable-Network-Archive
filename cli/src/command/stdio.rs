@@ -474,21 +474,6 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     }
 }
 
-/// Creates an archive using the options and file lists provided in `args`.
-///
-/// The function reads/validates the password, resolves owner and time options, builds
-/// file-selection filters, collects matching items, and writes the resulting archive
-/// either to the specified archive file or to stdout. If `args.working_dir` is set,
-/// the process current directory is changed before collecting files. Errors from IO,
-/// password handling, or item collection are propagated.
-///
-/// # Examples
-///
-/// ```ignore
-/// // Build a StdioCommand with the desired options (this example is illustrative).
-/// let args = StdioCommand { file: Some("archive.pna".into()), files: vec!["src".into()], ..Default::default() };
-/// run_create_archive(args).expect("failed to create archive");
-/// ```
 fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
@@ -596,27 +581,6 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     }
 }
 
-/// Extracts files from the archive described by `args`, applying the requested filters,
-/// ownership, timestamp, and overwrite policies, and reading the archive from a file or stdin.
-///
-/// This builds an `OutputOption` from the command arguments (include/exclude filters, VCS excludes,
-/// overwrite/keep strategies, keep options, owner resolution, pathname editing, locks, and unlink behavior),
-/// collects the target file list (including `--files-from`), and then invokes the extraction routine
-/// on either the archive files specified by `--file` or the stdin stream when `-`/no file is used.
-///
-/// # Examples
-///
-/// ```no_run
-/// # use anyhow::Result;
-/// # use crate::cli::StdioCommand;
-/// # fn example() -> Result<()> {
-/// // Construct a minimal command that requests extraction; real invocation should set
-/// // the relevant fields (file, files, out_dir, etc.) as needed.
-/// let args = StdioCommand { extract: true, ..Default::default() };
-/// run_extract_archive(args)?;
-/// # Ok(())
-/// # }
-/// ```
 fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
 
@@ -773,30 +737,6 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
     }
 }
 
-/// Append specified files to an existing archive file or, when writing to stdout, merge an input
-/// archive from stdin and append additional files to the output stream.
-///
-/// This function collects files according to the provided CLI-style options (filters, recursion,
-/// time constraints, ownership, keep strategies, path transformations, and password/cipher settings)
-/// and appends them into the archive at `args.file` (resolved relative to the current working
-/// directory). If `args.file` is "-" or unset, the function reads an input archive from stdin,
-/// writes a combined archive to stdout, and then appends the collected files.
-///
-/// # Examples
-///
-/// ```no_run
-/// use std::process::Command;
-/// // Construct a StdioCommand configured to append files and write to stdout (or '-' archive).
-/// // run_append will read an input archive from stdin and write the resulting archive to stdout.
-/// // (Example usage is platform- and environment-dependent; see CLI integration for real use.)
-/// # fn example() -> anyhow::Result<()> {
-/// #     // Placeholder: actual StdioCommand construction requires many fields from the CLI parser.
-/// #     let args = /* build StdioCommand with file = Some("-".into()), files = vec!["path".into()], etc. */ unimplemented!();
-/// #     super::run_append(args)?;
-/// #     Ok(())
-/// # }
-/// ```
-#[doc(hidden)]
 fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
@@ -920,40 +860,6 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     }
 }
 
-/// Resolve owner and group inputs into an OwnerOptions value.
-///
-/// This selects the effective user name/ID and group name/ID from the provided
-/// inputs: when a `NameIdPair` is supplied for owner or group it takes
-/// precedence; otherwise the explicit `uname`/`gname` or `uid`/`gid` values
-/// are used. The resulting `OwnerOptions` encodes those resolved values along
-/// with the `numeric_owner` flag.
-///
-/// - `owner`: optional user specification (name and/or id) that, if present,
-///   overrides `uname`/`uid`.
-/// - `group`: optional group specification (name and/or id) that, if present,
-///   overrides `gname`/`gid`.
-/// - `uname`, `gname`: explicit user or group name to use when no corresponding
-///   `NameIdPair` is provided.
-/// - `uid`, `gid`: explicit user or group id to use when no corresponding
-///   `NameIdPair` is provided.
-/// - `numeric_owner`: when true, prefer numeric ownership semantics in the
-///   resulting options.
-///
-/// # Returns
-///
-/// An `OwnerOptions` constructed from the resolved user and group name/ID and
-/// the `numeric_owner` flag.
-///
-/// # Examples
-///
-/// ```
-/// // Prefer the NameIdPair owner over explicit uname/uid.
-/// let owner = Some(NameIdPair { name: Some("alice".into()), id: Some(1000) });
-/// let group = None;
-/// let opts = resolve_owner_options(owner, group, Some("bob".into()), None, Some(2000), None, false);
-/// // `opts` now encodes "alice" / 1000 for the owner and uses the explicit group id 2000.
-/// let _ = opts;
-/// ```
 fn resolve_owner_options(
     owner: Option<NameIdPair>,
     group: Option<NameIdPair>,
@@ -968,29 +874,6 @@ fn resolve_owner_options(
     OwnerOptions::new(uname, gname, uid, gid, numeric_owner)
 }
 
-/// Prefer the provided `spec`'s name and id when present, otherwise return the explicit `name` and `id`.
-///
-/// # Parameters
-///
-/// - `spec`: Optional `NameIdPair` whose `name` and `id` take precedence when `Some`.
-/// - `name`: Fallback name to use when `spec` is `None`.
-/// - `id`: Fallback id to use when `spec` is `None`.
-///
-/// # Returns
-///
-/// A tuple with the chosen `(name, id)`: the values from `spec` if it is `Some`, otherwise `(name, id)`.
-///
-/// # Examples
-///
-/// ```
-/// use crate::cli::NameIdPair;
-///
-/// let spec = Some(NameIdPair { name: Some("alice".into()), id: Some(100) });
-/// assert_eq!(resolve_name_id(spec, Some("bob".into()), Some(200)), (Some("alice".into()), Some(100)));
-///
-/// let none_spec: Option<NameIdPair> = None;
-/// assert_eq!(resolve_name_id(none_spec, Some("bob".into()), Some(200)), (Some("bob".into()), Some(200)));
-/// ```
 fn resolve_name_id(
     spec: Option<NameIdPair>,
     name: Option<String>,
