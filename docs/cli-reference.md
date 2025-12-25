@@ -1193,10 +1193,12 @@ Archive manipulation via stdio
   Default value: `false`
 * `--out-dir <OUT_DIR>` — Output directory of extracted files
 * `--strip-components <STRIP_COMPONENTS>` — Remove the specified number of leading path elements. Path names with fewer elements will be silently skipped
+* `--owner <OWNER>` — Use the provided owner, if uid is not provided, name can be either a user name or numeric id. See the --uname option for details (unstable).
 * `--uname <UNAME>` — On create, archiving user to the entries from given name. On extract, restore user from given name
 * `--gname <GNAME>` — On create, archiving group to the entries from given name. On extract, restore group from given name
 * `--uid <UID>` — On create, this overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id. On extract, this overrides the user id in the archive; the user name in the archive will be ignored
 * `--gid <GID>` — On create, this overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id. On extract, this overrides the group id in the archive; the group name in the archive will be ignored
+* `--group <GROUP>` — Use the provided group, if gid is not provided, name can be either a group name or numeric id. See the --gname option for details (unstable).
 * `--numeric-owner` — This is equivalent to --uname "" --gname "". On create, it causes user and group names to not be stored in the archive. On extract, it causes user and group names in the archive to be ignored in favor of the numeric user and group ids.
 
   Default value: `false`
