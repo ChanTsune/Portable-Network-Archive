@@ -40,11 +40,6 @@ use std::{
 
 #[derive(Parser, Clone, Debug)]
 #[command(
-    group(ArgGroup::new("unstable-include").args(["include"]).requires("unstable")),
-    group(ArgGroup::new("unstable-exclude").args(["exclude"]).requires("unstable")),
-    group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
-    group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
-    group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
     group(
         ArgGroup::new("from-input")
             .args(["files_from", "exclude_from"])
@@ -54,12 +49,7 @@ use std::{
     group(ArgGroup::new("keep-timestamp-flag").args(["keep_timestamp", "no_keep_timestamp"])),
     group(ArgGroup::new("keep-permission-flag").args(["keep_permission", "no_keep_permission"])),
     group(ArgGroup::new("keep-xattr-flag").args(["keep_xattr", "no_keep_xattr"])),
-    group(ArgGroup::new("unstable-acl").args(["keep_acl", "no_keep_acl"]).requires("unstable")),
     group(ArgGroup::new("keep-acl-flag").args(["keep_acl", "no_keep_acl"])),
-    group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
-    group(ArgGroup::new("unstable-transform").args(["transforms"]).requires("unstable")),
-    group(ArgGroup::new("unstable-keep-old-files").args(["keep_old_files"]).requires("unstable")),
-    group(ArgGroup::new("unstable-keep-newer-files").args(["keep_newer_files"]).requires("unstable")),
     group(ArgGroup::new("path-transform").args(["substitutions", "transforms"])),
     group(ArgGroup::new("owner-flag").args(["same_owner", "no_same_owner"])),
     group(ArgGroup::new("user-flag").args(["numeric_owner", "uname"])),
@@ -80,9 +70,17 @@ pub(crate) struct ExtractCommand {
         help = "Do not overwrite files. This is the inverse option of --overwrite"
     )]
     no_overwrite: bool,
-    #[arg(long, help = "Skip extracting files if a newer version already exists")]
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Skip extracting files if a newer version already exists (unstable)"
+    )]
     keep_newer_files: bool,
-    #[arg(long, help = "Skip extracting files if they already exist")]
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Skip extracting files if they already exist (unstable)"
+    )]
     keep_old_files: bool,
     #[arg(long, help = "Output directory of extracted files", value_hint = ValueHint::DirPath)]
     pub(crate) out_dir: Option<PathBuf>,
@@ -127,12 +125,14 @@ pub(crate) struct ExtractCommand {
     #[arg(
         long,
         visible_alias = "preserve-acls",
+        requires = "unstable",
         help = "Restore the acl of the files (unstable)"
     )]
     pub(crate) keep_acl: bool,
     #[arg(
         long,
         visible_alias = "no-preserve-acls",
+        requires = "unstable",
         help = "Do not restore acl of files. This is the inverse option of --keep-acl (unstable)"
     )]
     pub(crate) no_keep_acl: bool,
@@ -157,16 +157,36 @@ pub(crate) struct ExtractCommand {
     pub(crate) numeric_owner: bool,
     #[arg(
         long,
+        requires = "unstable",
         help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)"
     )]
     include: Option<Vec<String>>,
-    #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Exclude path glob (unstable)",
+        value_hint = ValueHint::AnyPath
+    )]
     exclude: Option<Vec<String>>,
-    #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Read exclude files from given path (unstable)",
+        value_hint = ValueHint::FilePath
+    )]
     exclude_from: Option<PathBuf>,
-    #[arg(long, help = "Exclude vcs files (unstable)")]
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)"
+    )]
     exclude_vcs: bool,
-    #[arg(long, help = "Read extraction patterns from given path (unstable)", value_hint = ValueHint::FilePath)]
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Read extraction patterns from given path (unstable)",
+        value_hint = ValueHint::FilePath
+    )]
     files_from: Option<PathBuf>,
     #[arg(
         long,
@@ -181,6 +201,7 @@ pub(crate) struct ExtractCommand {
     #[arg(
         short = 's',
         value_name = "PATTERN",
+        requires = "unstable",
         help = "Modify file or archive member names according to pattern that like BSD tar -s option (unstable)"
     )]
     substitutions: Option<Vec<SubstitutionRule>>,
@@ -188,6 +209,7 @@ pub(crate) struct ExtractCommand {
         long = "transform",
         visible_alias = "xform",
         value_name = "PATTERN",
+        requires = "unstable",
         help = "Modify file or archive member names according to pattern that like GNU tar -transform option (unstable)"
     )]
     transforms: Option<Vec<TransformRule>>,

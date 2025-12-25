@@ -45,9 +45,6 @@ use tabled::{
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[clap(disable_help_flag = true)]
 #[command(
-    group(ArgGroup::new("unstable-acl").args(["show_acl"]).requires("unstable")),
-    group(ArgGroup::new("unstable-private-chunk").args(["show_private"]).requires("unstable")),
-    group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
     group(ArgGroup::new("null-requires").arg("null").requires("exclude_from")),
 )]
 pub(crate) struct ListCommand {
@@ -59,10 +56,15 @@ pub(crate) struct ListCommand {
     pub(crate) solid: bool,
     #[arg(short = '@', help = "Display extended file attributes in a table")]
     pub(crate) show_xattr: bool,
-    #[arg(short = 'e', help = "Display acl in a table (unstable)")]
-    pub(crate) show_acl: bool,
+    #[arg(
+        short = 'e',
+        requires = "unstable",
+        help = "Display acl in a table (unstable)"
+    )]
+    show_acl: bool,
     #[arg(
         long = "private",
+        requires = "unstable",
         help = "Display private chunks in a table (unstable)"
     )]
     pub(crate) show_private: bool,
@@ -95,11 +97,25 @@ pub(crate) struct ListCommand {
         help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions"
     )]
     include: Option<Vec<String>>,
-    #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Exclude path glob (unstable)",
+        value_hint = ValueHint::AnyPath
+    )]
     exclude: Option<Vec<String>>,
-    #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Read exclude files from given path (unstable)",
+        value_hint = ValueHint::FilePath
+    )]
     exclude_from: Option<PathBuf>,
-    #[arg(long, help = "Exclude vcs files (unstable)")]
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)"
+    )]
     exclude_vcs: bool,
     #[arg(
         long,

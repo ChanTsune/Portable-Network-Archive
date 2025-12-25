@@ -27,16 +27,7 @@ use std::{env, fs, io, path::PathBuf, time::SystemTime};
 
 #[derive(Parser, Clone, Debug)]
 #[command(
-    group(ArgGroup::new("unstable-acl").args(["keep_acl", "no_keep_acl"]).requires("unstable")),
     group(ArgGroup::new("keep-acl-flag").args(["keep_acl", "no_keep_acl"])),
-    group(ArgGroup::new("unstable-include").args(["include"]).requires("unstable")),
-    group(ArgGroup::new("unstable-update-exclude").args(["exclude"]).requires("unstable")),
-    group(ArgGroup::new("unstable-files-from").args(["files_from"]).requires("unstable")),
-    group(ArgGroup::new("unstable-files-from-stdin").args(["files_from_stdin"]).requires("unstable")),
-    group(ArgGroup::new("unstable-exclude-from").args(["exclude_from"]).requires("unstable")),
-    group(ArgGroup::new("unstable-gitignore").args(["gitignore"]).requires("unstable")),
-    group(ArgGroup::new("unstable-substitution").args(["substitutions"]).requires("unstable")),
-    group(ArgGroup::new("unstable-transform").args(["transforms"]).requires("unstable")),
     group(ArgGroup::new("path-transform").args(["substitutions", "transforms"])),
     group(ArgGroup::new("read-files-from").args(["files_from", "files_from_stdin"])),
     group(
@@ -57,9 +48,6 @@ use std::{env, fs, io, path::PathBuf, time::SystemTime};
     group(ArgGroup::new("keep-permission-flag").args(["keep_permission", "no_keep_permission"])),
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
     group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
-    group(ArgGroup::new("unstable-exclude-vcs").args(["exclude_vcs"]).requires("unstable")),
-    group(ArgGroup::new("unstable-follow_command_links").args(["follow_command_links"]).requires("unstable")),
-    group(ArgGroup::new("unstable-one-file-system").args(["one_file_system"]).requires("unstable")),
     group(ArgGroup::new("ctime-older-than-source").args(["older_ctime", "older_ctime_than"])),
     group(ArgGroup::new("ctime-newer-than-source").args(["newer_ctime", "newer_ctime_than"])),
     group(ArgGroup::new("mtime-older-than-source").args(["older_mtime", "older_mtime_than"])),
@@ -71,6 +59,7 @@ use std::{env, fs, io, path::PathBuf, time::SystemTime};
 pub(crate) struct UpdateCommand {
     #[arg(
         long,
+        requires = "unstable",
         help = "Stay in the same file system when collecting files (unstable)"
     )]
     one_file_system: bool,
@@ -140,12 +129,14 @@ pub(crate) struct UpdateCommand {
     #[arg(
         long,
         visible_alias = "preserve-acls",
+        requires = "unstable",
         help = "Archiving the acl of the files (unstable)"
     )]
     pub(crate) keep_acl: bool,
     #[arg(
         long,
         visible_alias = "no-preserve-acls",
+        requires = "unstable",
         help = "Do not archive acl of files. This is the inverse option of --keep-acl (unstable)"
     )]
     pub(crate) no_keep_acl: bool,
@@ -243,24 +234,49 @@ pub(crate) struct UpdateCommand {
         help = "Only include files and directories older than the specified file (unstable). This compares mtime entries."
     )]
     older_mtime_than: Option<PathBuf>,
-    #[arg(long, help = "Read archiving files from given path (unstable)", value_hint = ValueHint::FilePath)]
-    files_from: Option<PathBuf>,
-    #[arg(long, help = "Read archiving files from stdin (unstable)")]
-    pub(crate) files_from_stdin: bool,
     #[arg(
         long,
+        requires = "unstable",
+        help = "Read archiving files from given path (unstable)",
+        value_hint = ValueHint::FilePath
+    )]
+    files_from: Option<PathBuf>,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Read archiving files from stdin (unstable)"
+    )]
+    files_from_stdin: bool,
+    #[arg(
+        long,
+        requires = "unstable",
         help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)"
     )]
     include: Option<Vec<String>>,
-    #[arg(long, help = "Exclude path glob (unstable)", value_hint = ValueHint::AnyPath)]
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Exclude path glob (unstable)",
+        value_hint = ValueHint::AnyPath
+    )]
     exclude: Option<Vec<String>>,
-    #[arg(long, help = "Read exclude files from given path (unstable)", value_hint = ValueHint::FilePath)]
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Read exclude files from given path (unstable)",
+        value_hint = ValueHint::FilePath
+    )]
     exclude_from: Option<PathBuf>,
-    #[arg(long, help = "Exclude vcs files (unstable)")]
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)"
+    )]
     exclude_vcs: bool,
     #[arg(
         short = 's',
         value_name = "PATTERN",
+        requires = "unstable",
         help = "Modify file or archive member names according to pattern that like BSD tar -s option (unstable)"
     )]
     substitutions: Option<Vec<SubstitutionRule>>,
@@ -268,6 +284,7 @@ pub(crate) struct UpdateCommand {
         long = "transform",
         visible_alias = "xform",
         value_name = "PATTERN",
+        requires = "unstable",
         help = "Modify file or archive member names according to pattern that like GNU tar -transform option (unstable)"
     )]
     transforms: Option<Vec<TransformRule>>,
@@ -297,14 +314,19 @@ pub(crate) struct UpdateCommand {
         help = "Filenames or patterns are separated by null characters, not by newlines"
     )]
     null: bool,
-    #[arg(long, help = "Ignore files from .gitignore (unstable)")]
-    pub(crate) gitignore: bool,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Ignore files from .gitignore (unstable)"
+    )]
+    gitignore: bool,
     #[arg(long, visible_aliases = ["dereference"], help = "Follow symbolic links")]
     follow_links: bool,
     #[arg(
         short = 'H',
         long,
-        help = "Follow symbolic links named on the command line"
+        requires = "unstable",
+        help = "Follow symbolic links named on the command line (unstable)"
     )]
     follow_command_links: bool,
 }
