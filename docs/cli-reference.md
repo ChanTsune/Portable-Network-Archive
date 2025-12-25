@@ -247,7 +247,7 @@ Create archive
 * `--include <INCLUDE>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
 * `--exclude <EXCLUDE>` — Exclude path glob (unstable)
 * `--exclude-from <EXCLUDE_FROM>` — Read exclude files from given path (unstable)
-* `--exclude-vcs` — Exclude vcs files (unstable)
+* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)
 
   Default value: `false`
 * `--gitignore` — Ignore files from .gitignore (unstable)
@@ -256,7 +256,7 @@ Create archive
 * `--follow-links` [alias: `dereference`] — Follow symbolic links
 
   Default value: `false`
-* `-H`, `--follow-command-links` — Follow symbolic links named on the command line
+* `-H`, `--follow-command-links` — Follow symbolic links named on the command line (unstable)
 
   Default value: `false`
 * `--null` — Filenames or patterns are separated by null characters, not by newlines
@@ -395,7 +395,7 @@ Append files to archive
 * `--include <INCLUDE>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
 * `--exclude <EXCLUDE>` — Exclude path glob (unstable)
 * `--exclude-from <EXCLUDE_FROM>` — Read exclude files from given path (unstable)
-* `--exclude-vcs` — Exclude vcs files (unstable)
+* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)
 
   Default value: `false`
 * `--gitignore` — Ignore files from .gitignore (unstable)
@@ -404,7 +404,7 @@ Append files to archive
 * `--follow-links` [alias: `dereference`] — Follow symbolic links
 
   Default value: `false`
-* `-H`, `--follow-command-links` — Follow symbolic links named on the command line
+* `-H`, `--follow-command-links` — Follow symbolic links named on the command line (unstable)
 
   Default value: `false`
 * `--null` — Filenames or patterns are separated by null characters, not by newlines
@@ -472,10 +472,10 @@ Extract files from archive
 * `--no-overwrite` — Do not overwrite files. This is the inverse option of --overwrite
 
   Default value: `false`
-* `--keep-newer-files` — Skip extracting files if a newer version already exists
+* `--keep-newer-files` — Skip extracting files if a newer version already exists (unstable)
 
   Default value: `false`
-* `--keep-old-files` — Skip extracting files if they already exist
+* `--keep-old-files` — Skip extracting files if they already exist (unstable)
 
   Default value: `false`
 * `--out-dir <OUT_DIR>` — Output directory of extracted files
@@ -515,7 +515,7 @@ Extract files from archive
 * `--include <INCLUDE>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
 * `--exclude <EXCLUDE>` — Exclude path glob (unstable)
 * `--exclude-from <EXCLUDE_FROM>` — Read exclude files from given path (unstable)
-* `--exclude-vcs` — Exclude vcs files (unstable)
+* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)
 
   Default value: `false`
 * `--files-from <FILES_FROM>` — Read extraction patterns from given path (unstable)
@@ -614,7 +614,7 @@ List files in archive
 * `--include <INCLUDE>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions
 * `--exclude <EXCLUDE>` — Exclude path glob (unstable)
 * `--exclude-from <EXCLUDE_FROM>` — Read exclude files from given path (unstable)
-* `--exclude-vcs` — Exclude vcs files (unstable)
+* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)
 
   Default value: `false`
 * `--null` — Filenames or patterns are separated by null characters, not by newlines
@@ -1116,13 +1116,13 @@ Archive manipulation via stdio
 * `--no-overwrite` — Do not overwrite files. This is the inverse option of --overwrite
 
   Default value: `false`
-* `--keep-newer-files` — Skip extracting files if a newer version already exists
+* `--keep-newer-files` — Skip extracting files if a newer version already exists (unstable)
 
   Default value: `false`
-* `-U`, `--unlink-first` [alias: `unlink`] — Unlink files before creating them; also removes intervening directory symlinks (extract mode only)
+* `-U`, `--unlink-first` [alias: `unlink`] — Unlink files before creating them; also removes intervening directory symlinks (extract mode only) (unstable)
 
   Default value: `false`
-* `-k`, `--keep-old-files` — Skip extracting files if they already exist
+* `-k`, `--keep-old-files` — Skip extracting files if they already exist (unstable)
 
   Default value: `false`
 * `--keep-dir` — Archiving the directories
@@ -1179,7 +1179,7 @@ Archive manipulation via stdio
 * `--include <INCLUDE>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
 * `--exclude <EXCLUDE>` — Exclude path glob (unstable)
 * `-X`, `--exclude-from <EXCLUDE_FROM>` — Read exclude files from given path (unstable)
-* `--exclude-vcs` — Exclude vcs files (unstable)
+* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)
 
   Default value: `false`
 * `--gitignore` — Ignore files from .gitignore (unstable)
@@ -1188,7 +1188,7 @@ Archive manipulation via stdio
 * `-L`, `--follow-links` [alias: `dereference`] — Follow symbolic links
 
   Default value: `false`
-* `-H`, `--follow-command-links` — Follow symbolic links named on the command line
+* `-H`, `--follow-command-links` — Follow symbolic links named on the command line (unstable)
 
   Default value: `false`
 * `--out-dir <OUT_DIR>` — Output directory of extracted files
@@ -1283,7 +1283,7 @@ Delete entry from archive
 * `--include <INCLUDE>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
 * `--exclude <EXCLUDE>` — Exclude path glob (unstable)
 * `--exclude-from <EXCLUDE_FROM>` — Read exclude files from given path (unstable)
-* `--exclude-vcs` — Exclude vcs files (unstable)
+* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)
 
   Default value: `false`
 * `--null` — Filenames or patterns are separated by null characters, not by newlines
@@ -1406,7 +1406,7 @@ Update entries in archive
 * `--include <INCLUDE>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
 * `--exclude <EXCLUDE>` — Exclude path glob (unstable)
 * `--exclude-from <EXCLUDE_FROM>` — Read exclude files from given path (unstable)
-* `--exclude-vcs` — Exclude vcs files (unstable)
+* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)
 
   Default value: `false`
 * `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option (unstable)
@@ -1446,7 +1446,7 @@ Update entries in archive
 * `--follow-links` [alias: `dereference`] — Follow symbolic links
 
   Default value: `false`
-* `-H`, `--follow-command-links` — Follow symbolic links named on the command line
+* `-H`, `--follow-command-links` — Follow symbolic links named on the command line (unstable)
 
   Default value: `false`
 * `--quiet` — Make some output more quiet
