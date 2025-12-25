@@ -9,6 +9,10 @@ pub(crate) struct NameIdPair {
 impl FromStr for NameIdPair {
     type Err = NameIdParseError;
 
+    /// Parses a `NameIdPair` from the given string.
+    ///
+    /// Accepts either `name:id`, a bare numeric `id`, or a bare `name`. An empty input or an empty
+    /// name with no id is an error; a non-numeric id produces `NameIdParseError::InvalidId`.
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.is_empty() {
