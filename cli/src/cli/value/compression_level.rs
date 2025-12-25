@@ -1,8 +1,7 @@
 use std::{num::ParseIntError, str::FromStr};
-use thiserror::Error;
 
 /// Error type for parsing compression level input.
-#[derive(Clone, Eq, PartialEq, Debug, Error)]
+#[derive(thiserror::Error, Clone, Eq, PartialEq, Debug)]
 pub(crate) enum ParseCompressionLevelError {
     #[error("{0}")]
     ParseInt(#[from] ParseIntError),
