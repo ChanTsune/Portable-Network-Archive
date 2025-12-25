@@ -1,7 +1,7 @@
 use crate::{
     cli::{
         CipherAlgorithmArgs, ColorChoice, CompressionAlgorithmArgs, DateTime, HashAlgorithmArgs,
-        PasswordArgs,
+        NameIdPair, PasswordArgs,
     },
     command::{
         Command,
@@ -230,6 +230,13 @@ pub(crate) struct StdioCommand {
     strip_components: Option<usize>,
     #[arg(
         long,
+        requires = "unstable",
+        conflicts_with_all = ["uname", "uid", "numeric_owner"],
+        help = "Use the provided owner, if uid is not provided, name can be either a user name or numeric id. See the --uname option for details (unstable)."
+    )]
+    owner: Option<NameIdPair>,
+    #[arg(
+        long,
         help = "On create, archiving user to the entries from given name. On extract, restore user from given name"
     )]
     pub(crate) uname: Option<String>,
@@ -248,6 +255,13 @@ pub(crate) struct StdioCommand {
         help = "On create, this overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id. On extract, this overrides the group id in the archive; the group name in the archive will be ignored"
     )]
     pub(crate) gid: Option<u32>,
+    #[arg(
+        long,
+        requires = "unstable",
+        conflicts_with_all = ["gname", "gid", "numeric_owner"],
+        help = "Use the provided group, if gid is not provided, name can be either a group name or numeric id. See the --gname option for details (unstable)."
+    )]
+    group: Option<NameIdPair>,
     #[arg(
         long,
         help = "This is equivalent to --uname \"\" --gname \"\". On create, it causes user and group names to not be stored in the archive. On extract, it causes user and group names in the archive to be ignored in favor of the numeric user and group ids."
@@ -527,7 +541,9 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
     };
-    let owner_options = OwnerOptions::new(
+    let owner_options = resolve_owner_options(
+        args.owner,
+        args.group,
         args.uname,
         args.gname,
         args.uid,
@@ -607,7 +623,9 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
             xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
             acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
         },
-        owner_options: OwnerOptions::new(
+        owner_options: resolve_owner_options(
+            args.owner,
+            args.group,
             args.uname,
             args.gname,
             args.uid,
@@ -737,7 +755,9 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
     };
-    let owner_options = OwnerOptions::new(
+    let owner_options = resolve_owner_options(
+        args.owner,
+        args.group,
         args.uname,
         args.gname,
         args.uid,
@@ -837,5 +857,30 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             }
         }
         run_append_archive(&create_options, output_archive, target_items)
+    }
+}
+
+fn resolve_owner_options(
+    owner: Option<NameIdPair>,
+    group: Option<NameIdPair>,
+    uname: Option<String>,
+    gname: Option<String>,
+    uid: Option<u32>,
+    gid: Option<u32>,
+    numeric_owner: bool,
+) -> OwnerOptions {
+    let (uname, uid) = resolve_name_id(owner, uname, uid);
+    let (gname, gid) = resolve_name_id(group, gname, gid);
+    OwnerOptions::new(uname, gname, uid, gid, numeric_owner)
+}
+
+fn resolve_name_id(
+    spec: Option<NameIdPair>,
+    name: Option<String>,
+    id: Option<u32>,
+) -> (Option<String>, Option<u32>) {
+    match spec {
+        Some(spec) => (spec.name, spec.id),
+        None => (name, id),
     }
 }
