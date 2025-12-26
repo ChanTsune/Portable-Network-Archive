@@ -6,10 +6,10 @@ use crate::{
     command::{
         Command, ask_password, check_password,
         core::{
-            AclStrategy, CreateOptions, KeepOptions, MIN_SPLIT_PART_BYTES, OwnerOptions,
-            PathFilter, PathTransformers, PathnameEditor, PermissionStrategy, StoreAs,
-            TimeFilterResolver, TimeOptions, TimestampStrategy, XattrStrategy, collect_items,
-            create_entry, entry_option,
+            AclStrategy, CreateOptions, FflagsStrategy, KeepOptions, MIN_SPLIT_PART_BYTES,
+            OwnerOptions, PathFilter, PathTransformers, PathnameEditor, PermissionStrategy,
+            StoreAs, TimeFilterResolver, TimeOptions, TimestampStrategy, XattrStrategy,
+            collect_items, create_entry, entry_option,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin, write_split_archive,
         },
@@ -445,6 +445,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         ),
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
+        fflags_strategy: FflagsStrategy::Never,
     };
     let owner_options = OwnerOptions::new(
         args.uname,
