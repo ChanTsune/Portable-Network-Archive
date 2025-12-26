@@ -86,6 +86,71 @@ fn list_format_jsonl_solid() {
     ));
 }
 
+/// Precondition: An archive contains multiple file entries.
+/// Action: Run `pna list --format jsonl` with positional arguments to filter entries.
+/// Expectation: Only matching entries are output as JSON lines.
+#[test]
+fn list_format_jsonl_with_filter() {
+    setup();
+    TestResources::extract_in("zstd_with_raw_file_size.pna", "list_format_jsonl_filter/").unwrap();
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    let assert = cmd
+        .args([
+            "list",
+            "--format",
+            "jsonl",
+            "-f",
+            "list_format_jsonl_filter/zstd_with_raw_file_size.pna",
+            "--unstable",
+            "raw/text.txt",
+            "raw/empty.txt",
+        ])
+        .assert();
+
+    assert.stdout(concat!(
+        r#"{"filename":"raw/empty.txt","permissions":"---------- ","owner":"","group":"","raw_size":0,"size":9,"encryption":"-","compression":"zstandard","created":"","modified":"","accessed":"","acl":[],"xattr":[]}"#,
+        "\n",
+        r#"{"filename":"raw/text.txt","permissions":"---------- ","owner":"","group":"","raw_size":10,"size":19,"encryption":"-","compression":"zstandard","created":"","modified":"","accessed":"","acl":[],"xattr":[]}"#,
+        "\n",
+    ));
+}
+
+/// Precondition: An archive contains directory entries.
+/// Action: Run `pna list --format jsonl` with a directory path as positional argument.
+/// Expectation: Only entries under the specified directory are output as JSON lines.
+#[test]
+fn list_format_jsonl_with_directory_filter() {
+    setup();
+    TestResources::extract_in(
+        "zstd_with_raw_file_size.pna",
+        "list_format_jsonl_dir_filter/",
+    )
+    .unwrap();
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    let assert = cmd
+        .args([
+            "list",
+            "--format",
+            "jsonl",
+            "-f",
+            "list_format_jsonl_dir_filter/zstd_with_raw_file_size.pna",
+            "--unstable",
+            "raw/images/",
+        ])
+        .assert();
+
+    assert.stdout(concat!(
+        r#"{"filename":"raw/images/icon.png","permissions":"---------- ","owner":"","group":"","raw_size":51475,"size":38437,"encryption":"-","compression":"zstandard","created":"","modified":"","accessed":"","acl":[],"xattr":[]}"#,
+        "\n",
+        r#"{"filename":"raw/images/icon.svg","permissions":"---------- ","owner":"","group":"","raw_size":1984,"size":789,"encryption":"-","compression":"zstandard","created":"","modified":"","accessed":"","acl":[],"xattr":[]}"#,
+        "\n",
+        r#"{"filename":"raw/images/icon.bmp","permissions":"---------- ","owner":"","group":"","raw_size":4194442,"size":17183,"encryption":"-","compression":"zstandard","created":"","modified":"","accessed":"","acl":[],"xattr":[]}"#,
+        "\n",
+    ));
+}
+
 /// Precondition: An encrypted archive contains file entries.
 /// Action: Run `pna list --format jsonl` with password.
 /// Expectation: Entries show encryption type in JSON output.
