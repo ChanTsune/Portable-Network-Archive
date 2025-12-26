@@ -49,7 +49,7 @@ impl Command for ExperimentalCommand {
 
 #[derive(Subcommand, Clone, Debug)]
 pub(crate) enum ExperimentalCommands {
-    #[command(about = "Archive manipulation via stdio")]
+    #[command(about = "bsdtar-like CLI semantics for PNA archives")]
     Stdio(command::stdio::StdioCommand),
     #[command(about = "Delete entry from archive")]
     Delete(command::delete::DeleteCommand),
