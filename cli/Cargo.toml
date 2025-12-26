@@ -7,7 +7,7 @@ description = "Portable-Network-Archive cli"
 repository = "https://github.com/ChanTsune/Portable-Network-Archive.git"
 categories = ["data-structures", "filesystem"]
 keywords = ["pna", "archive", "cli", "crypto", "data"]
-rust-version = "1.85"
+rust-version = "1.88"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
