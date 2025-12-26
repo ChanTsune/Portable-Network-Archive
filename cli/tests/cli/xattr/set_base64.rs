@@ -22,7 +22,6 @@ fn xattr_set_base64() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "xattr",
         "set",
         "xattr_set_base64/xattr_set_base64.pna",

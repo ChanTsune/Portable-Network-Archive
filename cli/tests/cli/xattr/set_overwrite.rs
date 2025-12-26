@@ -20,7 +20,6 @@ fn xattr_overwrite() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "xattr",
         "set",
         "xattr_overwrite/xattr_overwrite.pna",
@@ -36,7 +35,6 @@ fn xattr_overwrite() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "xattr",
         "set",
         "xattr_overwrite/xattr_overwrite.pna",

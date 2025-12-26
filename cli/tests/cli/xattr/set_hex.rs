@@ -22,7 +22,6 @@ fn xattr_set_hex() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "xattr",
         "set",
         "xattr_set_hex/xattr_set_hex.pna",
