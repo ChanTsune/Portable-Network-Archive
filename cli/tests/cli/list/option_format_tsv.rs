@@ -70,6 +70,65 @@ fn list_format_tsv_solid() {
     ));
 }
 
+/// Precondition: An archive contains multiple file entries.
+/// Action: Run `pna list --format tsv` with positional arguments to filter entries.
+/// Expectation: Only matching entries are output in TSV format.
+#[test]
+fn list_format_tsv_with_filter() {
+    setup();
+    TestResources::extract_in("zstd_with_raw_file_size.pna", "list_format_tsv_filter/").unwrap();
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    let assert = cmd
+        .args([
+            "list",
+            "--format",
+            "tsv",
+            "-f",
+            "list_format_tsv_filter/zstd_with_raw_file_size.pna",
+            "--unstable",
+            "raw/text.txt",
+            "raw/empty.txt",
+        ])
+        .assert();
+
+    assert.stdout(concat!(
+        "filename\tpermissions\towner\tgroup\traw_size\tcompressed_size\tencryption\tcompression\tModified\n",
+        "raw/empty.txt\t---------- \t\t\t0\t9\t-\tzstandard\t\n",
+        "raw/text.txt\t---------- \t\t\t10\t19\t-\tzstandard\t\n",
+    ));
+}
+
+/// Precondition: An archive contains directory entries.
+/// Action: Run `pna list --format tsv` with a directory path as positional argument.
+/// Expectation: Only entries under the specified directory are output in TSV format.
+#[test]
+fn list_format_tsv_with_directory_filter() {
+    setup();
+    TestResources::extract_in("zstd_with_raw_file_size.pna", "list_format_tsv_dir_filter/")
+        .unwrap();
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    let assert = cmd
+        .args([
+            "list",
+            "--format",
+            "tsv",
+            "-f",
+            "list_format_tsv_dir_filter/zstd_with_raw_file_size.pna",
+            "--unstable",
+            "raw/images/",
+        ])
+        .assert();
+
+    assert.stdout(concat!(
+        "filename\tpermissions\towner\tgroup\traw_size\tcompressed_size\tencryption\tcompression\tModified\n",
+        "raw/images/icon.png\t---------- \t\t\t51475\t38437\t-\tzstandard\t\n",
+        "raw/images/icon.svg\t---------- \t\t\t1984\t789\t-\tzstandard\t\n",
+        "raw/images/icon.bmp\t---------- \t\t\t4194442\t17183\t-\tzstandard\t\n",
+    ));
+}
+
 /// Precondition: An encrypted archive contains file entries.
 /// Action: Run `pna list --format tsv` with password.
 /// Expectation: Entries show encryption type in TSV output.
