@@ -1,11 +1,11 @@
-use crate::utils::{archive, setup};
+use crate::utils::{archive, setup, time::ensure_mtime_order};
 use clap::Parser;
 use portable_network_archive::cli;
-use std::{collections::HashSet, fs, thread, time};
+use std::{collections::HashSet, fs, thread, time::Duration};
 
 /// Precondition: Create three files with different modification times (reference, older, newer).
 /// Action: Run `pna create` with `--newer-mtime-than reference.txt`, specifying all three files.
-/// Expectation: Files with mtime >= reference.txt are included (reference and newer); older is excluded.
+/// Expectation: Files with mtime > reference.txt are included (newer only); older and reference are excluded.
 #[test]
 fn create_with_newer_mtime_than() {
     setup();
@@ -18,16 +18,21 @@ fn create_with_newer_mtime_than() {
     fs::write(older_file, "older file content").unwrap();
 
     // Wait to ensure distinct mtime
-    thread::sleep(time::Duration::from_millis(10));
+    thread::sleep(Duration::from_millis(10));
 
     // Create the reference file
     fs::write(reference_file, "reference time marker").unwrap();
 
     // Wait to ensure the next file has a newer mtime
-    thread::sleep(time::Duration::from_millis(10));
+    thread::sleep(Duration::from_millis(10));
 
     // Create the newer file
     fs::write(newer_file, "newer file content").unwrap();
+    let reference_mtime = fs::metadata(reference_file).unwrap().modified().unwrap();
+    if !ensure_mtime_order(older_file, newer_file, reference_mtime) {
+        eprintln!("Skipping test: unable to produce strict mtime ordering on this filesystem");
+        return;
+    }
 
     // Create an archive with the `--newer-mtime-than` option
     cli::Cli::try_parse_from([
@@ -60,10 +65,10 @@ fn create_with_newer_mtime_than() {
         "newer file should be included: {newer_file}"
     );
 
-    // reference_file should be included (mtime >= reference threshold)
+    // reference_file should NOT be included (mtime == reference)
     assert!(
-        seen.contains(reference_file),
-        "reference file should be included: {reference_file}"
+        !seen.contains(reference_file),
+        "reference file should NOT be included: {reference_file}"
     );
 
     // older_file should NOT be included (mtime < reference)
@@ -72,11 +77,11 @@ fn create_with_newer_mtime_than() {
         "older file should NOT be included: {older_file}"
     );
 
-    // Verify that exactly two entries exist (reference + newer)
+    // Verify that exactly one entry exists (newer only)
     assert_eq!(
         seen.len(),
-        2,
-        "Expected exactly 2 entries, but found {}: {seen:?}",
+        1,
+        "Expected exactly 1 entry, but found {}: {seen:?}",
         seen.len()
     );
 }

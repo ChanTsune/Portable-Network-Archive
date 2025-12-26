@@ -1,15 +1,14 @@
-use crate::utils::{archive, setup};
+use crate::utils::{
+    archive, setup,
+    time::{confirm_time_older_than, wait_until_time_newer_than},
+};
 use clap::Parser;
 use portable_network_archive::cli;
-use std::{
-    collections::HashSet,
-    fs, thread,
-    time::{Duration, SystemTime},
-};
+use std::{collections::HashSet, fs, thread, time::Duration};
 
 /// Precondition: Create three files (older, reference, newer) with strictly increasing mtime.
 /// Action: Run `pna create` with `--older-mtime-than reference.txt`, specifying all three files.
-/// Expectation: Files with mtime <= reference.txt are included (older + reference); newer is excluded.
+/// Expectation: Files with mtime < reference.txt are included (older only); reference and newer are excluded.
 #[test]
 fn create_with_older_mtime_than() {
     setup();
@@ -27,7 +26,9 @@ fn create_with_older_mtime_than() {
     thread::sleep(Duration::from_millis(10));
     fs::write(newer_file, "newer file content").unwrap();
 
-    if !ensure_mtime_order(older_file, reference_mtime, newer_file) {
+    if !confirm_time_older_than(older_file, reference_mtime, |m| m.modified().ok())
+        || !wait_until_time_newer_than(newer_file, reference_mtime, |m| m.modified().ok())
+    {
         eprintln!(
             "Skipping test: unable to establish strict modification time ordering on this filesystem"
         );
@@ -62,8 +63,8 @@ fn create_with_older_mtime_than() {
         "older file should be included: {older_file}"
     );
     assert!(
-        seen.contains(reference_file),
-        "reference file should be included: {reference_file}"
+        !seen.contains(reference_file),
+        "reference file should NOT be included: {reference_file}"
     );
     assert!(
         !seen.contains(newer_file),
@@ -71,40 +72,8 @@ fn create_with_older_mtime_than() {
     );
     assert_eq!(
         seen.len(),
-        2,
-        "Expected exactly 2 entries, but found {}: {seen:?}",
+        1,
+        "Expected exactly 1 entry, but found {}: {seen:?}",
         seen.len()
     );
-}
-
-fn ensure_mtime_order(older: &str, baseline: SystemTime, newer: &str) -> bool {
-    if !confirm_mtime_not_newer_than(older, baseline) {
-        return false;
-    }
-    wait_until_mtime_newer_than(newer, baseline)
-}
-
-fn wait_until_mtime_newer_than(path: &str, baseline: SystemTime) -> bool {
-    const MAX_ATTEMPTS: usize = 500;
-    const SLEEP_MS: u64 = 10;
-    for _ in 0..MAX_ATTEMPTS {
-        if fs::metadata(path)
-            .ok()
-            .and_then(|meta| meta.modified().ok())
-            .map(|mtime| mtime > baseline)
-            .unwrap_or(false)
-        {
-            return true;
-        }
-        thread::sleep(Duration::from_millis(SLEEP_MS));
-    }
-    false
-}
-
-fn confirm_mtime_not_newer_than(path: &str, baseline: SystemTime) -> bool {
-    fs::metadata(path)
-        .ok()
-        .and_then(|meta| meta.modified().ok())
-        .map(|mtime| mtime <= baseline)
-        .unwrap_or(false)
 }

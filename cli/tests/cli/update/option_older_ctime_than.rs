@@ -1,16 +1,15 @@
-use crate::utils::{archive, setup};
+use crate::utils::{
+    archive, setup,
+    time::{confirm_time_older_than, wait_until_time_newer_than},
+};
 use clap::Parser;
 use portable_network_archive::cli;
-use std::{
-    collections::HashSet,
-    fs, thread,
-    time::{Duration, SystemTime},
-};
+use std::{collections::HashSet, fs, thread, time::Duration};
 
 /// Precondition: Archive contains `file_to_update`. Prepare a reference file whose ctime is *after*
 /// the rewritten file so `file_to_update` remains older, plus a newer file that should be skipped.
 /// Action: Run `pna experimental update` with `--older-ctime-than reference.txt`.
-/// Expectation: Only files whose ctime <= reference (i.e., `file_to_update`) are processed; newer files are ignored.
+/// Expectation: Only files whose ctime < reference (i.e., `file_to_update`) are processed; newer files are ignored.
 #[test]
 fn update_with_older_ctime_than() {
     setup();
@@ -51,8 +50,8 @@ fn update_with_older_ctime_than() {
     thread::sleep(Duration::from_millis(10));
     fs::write(&file_to_skip, "skip content").unwrap();
 
-    if !confirm_ctime_not_newer_than(&file_to_update, reference_ctime)
-        || !wait_until_ctime_newer_than(&file_to_skip, reference_ctime)
+    if !confirm_time_older_than(&file_to_update, reference_ctime, |m| m.created().ok())
+        || !wait_until_time_newer_than(&file_to_skip, reference_ctime, |m| m.created().ok())
     {
         eprintln!(
             "Skipping test: unable to create deterministic creation times on this filesystem"
@@ -108,29 +107,4 @@ fn update_with_older_ctime_than() {
         fs::metadata(format!("{base_dir}/out/{file_to_skip}")).is_err(),
         "skip file should not have been extracted/added"
     );
-}
-
-fn wait_until_ctime_newer_than(path: &str, baseline: SystemTime) -> bool {
-    const MAX_ATTEMPTS: usize = 500;
-    const SLEEP_MS: u64 = 10;
-    for _ in 0..MAX_ATTEMPTS {
-        if fs::metadata(path)
-            .ok()
-            .and_then(|meta| meta.created().ok())
-            .map(|ctime| ctime > baseline)
-            .unwrap_or(false)
-        {
-            return true;
-        }
-        thread::sleep(Duration::from_millis(SLEEP_MS));
-    }
-    false
-}
-
-fn confirm_ctime_not_newer_than(path: &str, baseline: SystemTime) -> bool {
-    fs::metadata(path)
-        .ok()
-        .and_then(|meta| meta.created().ok())
-        .map(|ctime| ctime <= baseline)
-        .unwrap_or(false)
 }
