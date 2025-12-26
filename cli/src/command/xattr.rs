@@ -205,7 +205,7 @@ fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
         || password.as_deref(),
         |entry| {
             let entry = entry?;
-            let name = entry.header().path();
+            let name = entry.name();
             if globs.matches_any(name) {
                 println!("# file: {name}");
                 for attr in entry
@@ -309,7 +309,7 @@ impl SetAttrStrategy<'_> {
     fn transform_entry<T>(&mut self, entry: NormalEntry<T>) -> NormalEntry<T> {
         match self {
             SetAttrStrategy::Restore(restore) => {
-                if let Some(attrs) = restore.get(entry.header().path().as_str()) {
+                if let Some(attrs) = restore.get(entry.name().as_str()) {
                     let xattrs = entry
                         .xattrs()
                         .iter()
@@ -331,7 +331,7 @@ impl SetAttrStrategy<'_> {
                 value,
                 remove,
             } => {
-                if globs.matches_any(entry.header().path()) {
+                if globs.matches_any(entry.name()) {
                     transform_entry(entry, name.as_deref(), value.as_bytes(), remove.as_deref())
                 } else {
                     entry
