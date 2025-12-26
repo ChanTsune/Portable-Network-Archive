@@ -41,6 +41,63 @@ fn list_format_bsdtar() {
     ));
 }
 
+/// Precondition: An archive contains multiple file entries with preserved timestamps.
+/// Action: Run `pna list --format bsdtar` with positional arguments to filter entries.
+/// Expectation: Only matching entries are displayed in bsdtar format.
+#[test]
+fn list_format_bsdtar_with_filter() {
+    setup();
+    TestResources::extract_in("zstd_keep_all.pna", "list_format_bsdtar_filter/").unwrap();
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    let assert = cmd
+        .args([
+            "list",
+            "--format",
+            "bsdtar",
+            "-f",
+            "list_format_bsdtar_filter/zstd_keep_all.pna",
+            "--unstable",
+            "raw/text.txt",
+            "raw/empty.txt",
+        ])
+        .assert();
+
+    assert.stdout(concat!(
+        "-rw-r--r--   0 root   root          0 Jan 26  2025 raw/empty.txt\n",
+        "-rw-r--r--   0 root   root         10 Jan 26  2025 raw/text.txt\n",
+    ));
+}
+
+/// Precondition: An archive contains directory entries with preserved timestamps.
+/// Action: Run `pna list --format bsdtar` with a directory path as positional argument.
+/// Expectation: Only entries under the specified directory are displayed in bsdtar format.
+#[test]
+fn list_format_bsdtar_with_directory_filter() {
+    setup();
+    TestResources::extract_in("zstd_keep_all.pna", "list_format_bsdtar_dir_filter/").unwrap();
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    let assert = cmd
+        .args([
+            "list",
+            "--format",
+            "bsdtar",
+            "-f",
+            "list_format_bsdtar_dir_filter/zstd_keep_all.pna",
+            "--unstable",
+            "raw/images/",
+        ])
+        .assert();
+
+    assert.stdout(concat!(
+        "drwxr-xr-x   0 root   root          0 Jan 26  2025 raw/images/\n",
+        "-rw-r--r--   0 root   root       1984 Jan 26  2025 raw/images/icon.svg\n",
+        "-rw-r--r--   0 root   root      51475 Jan 26  2025 raw/images/icon.png\n",
+        "-rw-r--r--   0 root   root    4194442 Jan 26  2025 raw/images/icon.bmp\n",
+    ));
+}
+
 /// Precondition: A solid archive contains multiple file entries with preserved timestamps.
 /// Action: Run `pna list --format bsdtar --solid`.
 /// Expectation: Solid entries are displayed in bsdtar format.

@@ -108,6 +108,63 @@ fn list_format_table() {
     ));
 }
 
+/// Precondition: An archive contains multiple file entries with preserved timestamps.
+/// Action: Run `pna list --format table` with positional arguments to filter entries.
+/// Expectation: Only matching entries are displayed in table format.
+#[test]
+fn list_format_table_with_filter() {
+    setup();
+    TestResources::extract_in("zstd_keep_all.pna", "list_format_table_filter/").unwrap();
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    let assert = cmd
+        .args([
+            "list",
+            "--format",
+            "table",
+            "-f",
+            "list_format_table_filter/zstd_keep_all.pna",
+            "--unstable",
+            "raw/text.txt",
+            "raw/empty.txt",
+        ])
+        .assert();
+
+    assert.stdout(concat!(
+        "- zstandard .rw-r--r--   0  9 root root Jan 26  2025 raw/empty.txt \n",
+        "- zstandard .rw-r--r--  10 19 root root Jan 26  2025 raw/text.txt  \n",
+    ));
+}
+
+/// Precondition: An archive contains directory entries with preserved timestamps.
+/// Action: Run `pna list --format table` with a directory path as positional argument.
+/// Expectation: Only entries under the specified directory are displayed in table format.
+#[test]
+fn list_format_table_with_directory_filter() {
+    setup();
+    TestResources::extract_in("zstd_keep_all.pna", "list_format_table_dir_filter/").unwrap();
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    let assert = cmd
+        .args([
+            "list",
+            "--format",
+            "table",
+            "-f",
+            "list_format_table_dir_filter/zstd_keep_all.pna",
+            "--unstable",
+            "raw/images/",
+        ])
+        .assert();
+
+    assert.stdout(concat!(
+        "- -         drwxr-xr-x        -     0 root root Jan 26  2025 raw/images          \n",
+        "- zstandard .rw-r--r--     1984   788 root root Jan 26  2025 raw/images/icon.svg \n",
+        "- zstandard .rw-r--r--    51475 38437 root root Jan 26  2025 raw/images/icon.png \n",
+        "- zstandard .rw-r--r--  4194442 17183 root root Jan 26  2025 raw/images/icon.bmp \n",
+    ));
+}
+
 /// Precondition: A solid archive contains multiple file entries with preserved timestamps.
 /// Action: Run `pna list --format table --solid`.
 /// Expectation: Solid entries are displayed in table format.

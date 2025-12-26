@@ -70,6 +70,65 @@ fn list_format_csv_solid() {
     ));
 }
 
+/// Precondition: An archive contains multiple file entries.
+/// Action: Run `pna list --format csv` with positional arguments to filter entries.
+/// Expectation: Only matching entries are output in CSV format.
+#[test]
+fn list_format_csv_with_filter() {
+    setup();
+    TestResources::extract_in("zstd_with_raw_file_size.pna", "list_format_csv_filter/").unwrap();
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    let assert = cmd
+        .args([
+            "list",
+            "--format",
+            "csv",
+            "-f",
+            "list_format_csv_filter/zstd_with_raw_file_size.pna",
+            "--unstable",
+            "raw/text.txt",
+            "raw/empty.txt",
+        ])
+        .assert();
+
+    assert.stdout(concat!(
+        "filename,permissions,owner,group,raw_size,compressed_size,encryption,compression,Modified\n",
+        "raw/empty.txt,---------- ,,,0,9,-,zstandard,\n",
+        "raw/text.txt,---------- ,,,10,19,-,zstandard,\n",
+    ));
+}
+
+/// Precondition: An archive contains directory entries.
+/// Action: Run `pna list --format csv` with a directory path as positional argument.
+/// Expectation: Only entries under the specified directory are output in CSV format.
+#[test]
+fn list_format_csv_with_directory_filter() {
+    setup();
+    TestResources::extract_in("zstd_with_raw_file_size.pna", "list_format_csv_dir_filter/")
+        .unwrap();
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    let assert = cmd
+        .args([
+            "list",
+            "--format",
+            "csv",
+            "-f",
+            "list_format_csv_dir_filter/zstd_with_raw_file_size.pna",
+            "--unstable",
+            "raw/images/",
+        ])
+        .assert();
+
+    assert.stdout(concat!(
+        "filename,permissions,owner,group,raw_size,compressed_size,encryption,compression,Modified\n",
+        "raw/images/icon.png,---------- ,,,51475,38437,-,zstandard,\n",
+        "raw/images/icon.svg,---------- ,,,1984,789,-,zstandard,\n",
+        "raw/images/icon.bmp,---------- ,,,4194442,17183,-,zstandard,\n",
+    ));
+}
+
 /// Precondition: An encrypted archive contains file entries.
 /// Action: Run `pna list --format csv` with password.
 /// Expectation: Entries show encryption type in CSV output.

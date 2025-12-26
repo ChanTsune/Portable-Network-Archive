@@ -91,6 +91,63 @@ fn list_format_line() {
 }
 
 /// Precondition: An archive contains multiple file entries.
+/// Action: Run `pna list --format line` with positional arguments to filter entries.
+/// Expectation: Only matching entries are output, one per line.
+#[test]
+fn list_format_line_with_filter() {
+    setup();
+    TestResources::extract_in("zstd_with_raw_file_size.pna", "list_format_line_filter/").unwrap();
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    let assert = cmd
+        .args([
+            "list",
+            "--format",
+            "line",
+            "-f",
+            "list_format_line_filter/zstd_with_raw_file_size.pna",
+            "--unstable",
+            "raw/text.txt",
+            "raw/empty.txt",
+        ])
+        .assert();
+
+    assert.stdout(concat!("raw/empty.txt\n", "raw/text.txt\n",));
+}
+
+/// Precondition: An archive contains directory entries.
+/// Action: Run `pna list --format line` with a directory path as positional argument.
+/// Expectation: Only entries under the specified directory are output, one per line.
+#[test]
+fn list_format_line_with_directory_filter() {
+    setup();
+    TestResources::extract_in(
+        "zstd_with_raw_file_size.pna",
+        "list_format_line_dir_filter/",
+    )
+    .unwrap();
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    let assert = cmd
+        .args([
+            "list",
+            "--format",
+            "line",
+            "-f",
+            "list_format_line_dir_filter/zstd_with_raw_file_size.pna",
+            "--unstable",
+            "raw/images/",
+        ])
+        .assert();
+
+    assert.stdout(concat!(
+        "raw/images/icon.png\n",
+        "raw/images/icon.svg\n",
+        "raw/images/icon.bmp\n",
+    ));
+}
+
+/// Precondition: An archive contains multiple file entries.
 /// Action: Run `pna list` default format and `pna list --format line` on the same archive.
 /// Expectation: Both commands produce identical output.
 #[test]

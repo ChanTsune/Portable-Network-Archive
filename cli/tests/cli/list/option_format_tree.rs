@@ -43,6 +43,73 @@ fn list_format_tree() {
     ));
 }
 
+/// Precondition: An archive contains multiple file entries in a directory hierarchy.
+/// Action: Run `pna list --format tree` with positional arguments to filter entries.
+/// Expectation: Only matching entries are displayed in tree structure.
+#[test]
+fn list_format_tree_with_filter() {
+    setup();
+    TestResources::extract_in("zstd_with_raw_file_size.pna", "list_format_tree_filter/").unwrap();
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    let assert = cmd
+        .args([
+            "list",
+            "--format",
+            "tree",
+            "-f",
+            "list_format_tree_filter/zstd_with_raw_file_size.pna",
+            "--unstable",
+            "raw/text.txt",
+            "raw/empty.txt",
+        ])
+        .assert();
+
+    assert.stdout(concat!(
+        ".\n",
+        "└── raw\n",
+        "    ├── empty.txt\n",
+        "    └── text.txt\n",
+        "\n",
+    ));
+}
+
+/// Precondition: An archive contains directory entries.
+/// Action: Run `pna list --format tree` with a directory path as positional argument.
+/// Expectation: Only entries under the specified directory are displayed in tree structure.
+#[test]
+fn list_format_tree_with_directory_filter() {
+    setup();
+    TestResources::extract_in(
+        "zstd_with_raw_file_size.pna",
+        "list_format_tree_dir_filter/",
+    )
+    .unwrap();
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    let assert = cmd
+        .args([
+            "list",
+            "--format",
+            "tree",
+            "-f",
+            "list_format_tree_dir_filter/zstd_with_raw_file_size.pna",
+            "--unstable",
+            "raw/images/",
+        ])
+        .assert();
+
+    assert.stdout(concat!(
+        ".\n",
+        "└── raw\n",
+        "    └── images\n",
+        "        ├── icon.bmp\n",
+        "        ├── icon.png\n",
+        "        └── icon.svg\n",
+        "\n",
+    ));
+}
+
 /// Precondition: A solid archive contains multiple file entries.
 /// Action: Run `pna list --format tree --solid`.
 /// Expectation: Solid entries are displayed in a tree structure.
