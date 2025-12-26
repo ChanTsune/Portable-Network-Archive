@@ -6,6 +6,7 @@ mod missing_file;
 mod option_chroot;
 mod option_keep_newer_files;
 mod option_keep_old_files;
+mod option_keep_permission;
 mod option_keep_timestamp;
 mod option_substitution;
 mod option_transform;
