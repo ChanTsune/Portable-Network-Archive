@@ -6,10 +6,10 @@ use crate::{
     command::{
         Command, ask_password, check_password,
         core::{
-            AclStrategy, CreateOptions, KeepOptions, MIN_SPLIT_PART_BYTES, OwnerOptions,
-            PathFilter, PathTransformers, PathnameEditor, PermissionStrategy, StoreAs,
-            TimeFilterResolver, TimeOptions, TimestampStrategy, XattrStrategy, collect_items,
-            create_entry, entry_option,
+            AclStrategy, CollectOptions, CreateOptions, KeepOptions, MIN_SPLIT_PART_BYTES,
+            OwnerOptions, PathFilter, PathTransformers, PathnameEditor, PermissionStrategy,
+            StoreAs, TimeFilterResolver, TimeOptions, TimestampStrategy, XattrStrategy,
+            collect_items_from_paths, create_entry, entry_option,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin, write_split_archive,
         },
@@ -418,18 +418,18 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
     }
-    let target_items = collect_items(
-        &files,
-        !args.no_recursive,
-        args.keep_dir,
-        args.gitignore,
-        args.nodump,
-        args.follow_links,
-        args.follow_command_links,
-        args.one_file_system,
-        &filter,
-        &time_filters,
-    )?;
+    let collect_options = CollectOptions {
+        recursive: !args.no_recursive,
+        keep_dir: args.keep_dir,
+        gitignore: args.gitignore,
+        nodump: args.nodump,
+        follow_links: args.follow_links,
+        follow_command_links: args.follow_command_links,
+        one_file_system: args.one_file_system,
+        filter: &filter,
+        time_filters: &time_filters,
+    };
+    let target_items = collect_items_from_paths(&files, &collect_options)?;
 
     if let Some(parent) = archive_path.parent() {
         fs::create_dir_all(parent)?;

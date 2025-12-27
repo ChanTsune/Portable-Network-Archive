@@ -10,10 +10,11 @@ use crate::{
     command::{
         Command, ask_password, check_password,
         core::{
-            AclStrategy, CreateOptions, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
-            PathnameEditor, PermissionStrategy, TimeFilterResolver, TimeOptions, TimestampStrategy,
-            TransformStrategy, TransformStrategyKeepSolid, TransformStrategyUnSolid, XattrStrategy,
-            collect_items, collect_split_archives, create_entry, entry_option,
+            AclStrategy, CollectOptions, CreateOptions, KeepOptions, OwnerOptions, PathFilter,
+            PathTransformers, PathnameEditor, PermissionStrategy, TimeFilterResolver, TimeOptions,
+            TimestampStrategy, TransformStrategy, TransformStrategyKeepSolid,
+            TransformStrategyUnSolid, XattrStrategy, collect_items_from_paths,
+            collect_split_archives, create_entry, entry_option,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin,
         },
@@ -437,18 +438,18 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
         env::set_current_dir(working_dir)?;
     }
 
-    let target_items = collect_items(
-        &files,
-        !args.no_recursive,
-        args.keep_dir,
-        args.gitignore,
-        args.nodump,
-        args.follow_links,
-        args.follow_command_links,
-        args.one_file_system,
-        &filter,
-        &time_filters,
-    )?;
+    let collect_options = CollectOptions {
+        recursive: !args.no_recursive,
+        keep_dir: args.keep_dir,
+        gitignore: args.gitignore,
+        nodump: args.nodump,
+        follow_links: args.follow_links,
+        follow_command_links: args.follow_command_links,
+        one_file_system: args.one_file_system,
+        filter: &filter,
+        time_filters: &time_filters,
+    };
+    let target_items = collect_items_from_paths(&files, &collect_options)?;
 
     let (tx, rx) = std::sync::mpsc::channel();
 
