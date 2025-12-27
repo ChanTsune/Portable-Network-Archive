@@ -8,7 +8,7 @@ use crate::{
         core::{PathFilter, collect_split_archives, read_paths, run_read_entries},
     },
     ext::*,
-    utils::{GlobPatterns, VCS_FILES},
+    utils::{BsdGlobMatcher, VCS_FILES},
 };
 use base64::Engine;
 use chrono::{
@@ -46,6 +46,7 @@ use tabled::{
 #[clap(disable_help_flag = true)]
 #[command(
     group(ArgGroup::new("null-requires").arg("null").requires("exclude_from")),
+    group(ArgGroup::new("recursive-flag").args(["recursive", "no_recursive"])),
 )]
 pub(crate) struct ListCommand {
     #[arg(short, long, help = "Display extended file metadata as a table")]
@@ -92,6 +93,20 @@ pub(crate) struct ListCommand {
     hide_control_chars: bool,
     #[arg(long, help = "Display type indicator by entry kinds")]
     classify: bool,
+    #[arg(
+        long,
+        visible_alias = "recursion",
+        help = "Operate recursively on the content of directories (default)",
+        default_value_t = true
+    )]
+    recursive: bool,
+    #[arg(
+        short = 'n',
+        long = "no-recursive",
+        visible_aliases = ["norecurse", "no-recursion"],
+        help = "Do not operate recursively on the content of directories"
+    )]
+    no_recursive: bool,
     #[arg(
         long,
         help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions"
@@ -330,7 +345,8 @@ fn list_archive(args: ListCommand, color: ColorChoice) -> anyhow::Result<()> {
     };
     let archive = args.file.archive();
     let files = args.file.files();
-    let files_globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))?;
+    let files_globs = BsdGlobMatcher::new(files.iter().map(|it| it.as_str()))
+        .with_no_recursive(args.no_recursive);
 
     let mut exclude = args.exclude.unwrap_or_default();
     if let Some(p) = args.exclude_from {
@@ -412,7 +428,7 @@ pub(crate) struct ListOptions {
 pub(crate) fn run_list_archive<'a>(
     archive_provider: impl IntoIterator<Item = impl Read>,
     password: Option<&[u8]>,
-    files_globs: GlobPatterns,
+    files_globs: BsdGlobMatcher,
     filter: PathFilter<'a>,
     args: ListOptions,
 ) -> anyhow::Result<()> {
@@ -441,7 +457,7 @@ pub(crate) fn run_list_archive<'a>(
 pub(crate) fn run_list_archive_mem<'a>(
     archives: Vec<std::fs::File>,
     password: Option<&[u8]>,
-    files_globs: GlobPatterns,
+    files_globs: BsdGlobMatcher,
     filter: PathFilter<'a>,
     args: ListOptions,
 ) -> anyhow::Result<()> {
@@ -473,14 +489,14 @@ pub(crate) fn run_list_archive_mem<'a>(
 
 fn print_entries<'a>(
     entries: Vec<TableRow>,
-    mut globs: GlobPatterns,
+    mut globs: BsdGlobMatcher,
     filter: PathFilter<'a>,
     options: ListOptions,
 ) -> anyhow::Result<()> {
     let entries = entries
         .into_iter()
         .filter(|r| {
-            (globs.is_empty() || globs.matches_any(r.entry_type.name()))
+            (globs.is_empty() || globs.matches(r.entry_type.name()))
                 && !filter.excluded(r.entry_type.name())
         })
         .collect::<Vec<_>>();
