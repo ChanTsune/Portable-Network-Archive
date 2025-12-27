@@ -27,6 +27,23 @@ use std::{
 };
 pub(crate) use time_filter::{TimeFilter, TimeFilters};
 
+/// Options controlling how filesystem items are collected for archiving.
+///
+/// This struct groups all traversal and filtering options that were previously
+/// passed as individual parameters.
+#[derive(Clone, Debug)]
+pub(crate) struct CollectOptions<'a> {
+    pub(crate) recursive: bool,
+    pub(crate) keep_dir: bool,
+    pub(crate) gitignore: bool,
+    pub(crate) nodump: bool,
+    pub(crate) follow_links: bool,
+    pub(crate) follow_command_links: bool,
+    pub(crate) one_file_system: bool,
+    pub(crate) filter: &'a PathFilter<'a>,
+    pub(crate) time_filters: &'a TimeFilters,
+}
+
 /// Resolves CLI time filter options into a `TimeFilters` instance.
 /// Path arguments (`*_than`) take precedence over direct `SystemTime` values.
 pub(crate) struct TimeFilterResolver<'a> {
@@ -280,39 +297,67 @@ pub(crate) enum StoreAs {
     Hardlink(PathBuf),
 }
 
-/// Walks the given paths and collects filesystem items to archive.
+/// Collects items from multiple paths, preserving CLI argument order.
+///
+/// State such as hardlink detection is shared across all paths, enabling
+/// cross-path hardlink recognition.
+///
+/// # Order Preservation
+/// Items are collected in the order paths are provided. Each path's items
+/// appear in traversal order. This enables predictable archive ordering
+/// matching CLI argument order.
+pub(crate) fn collect_items_from_paths<P: AsRef<Path>>(
+    paths: impl IntoIterator<Item = P>,
+    options: &CollectOptions<'_>,
+) -> io::Result<Vec<(PathBuf, StoreAs)>> {
+    let mut hardlink_resolver = HardlinkResolver::new(options.follow_links);
+    let mut results = Vec::new();
+    for path in paths {
+        results.extend(collect_items_with_state(
+            path.as_ref(),
+            options,
+            &mut hardlink_resolver,
+        )?);
+    }
+    Ok(results)
+}
+
+/// Walks a single path and collects filesystem items to archive.
 ///
 /// Returns a list of path/strategy pairs indicating how each discovered item
 /// should be stored in the archive (`StoreAs`). Traversal supports recursion,
 /// exclusion filters, and correct handling of symbolic and hard links.
 ///
 /// Behavior summary:
-/// - Recursion: when `recursive` is true, subdirectories are walked
-///   recursively; otherwise only the provided paths are inspected.
-/// - Directory entries: when `keep_dir` is true, directories are included as
+/// - Recursion: when `options.recursive` is true, subdirectories are walked
+///   recursively; otherwise only the provided path is inspected.
+/// - Directory entries: when `options.keep_dir` is true, directories are included as
 ///   `StoreAs::Dir`. When false, directories act only as containers during
 ///   traversal and are not returned themselves.
-/// - Exclusion: entries whose slash-separated path matches `exclude` are
-///   pruned from the traversal and not returned.
-/// - Gitignore pruning: when `gitignore` is true, `.gitignore` files found in
+/// - Exclusion: entries whose slash-separated path matches `options.filter` exclusions
+///   are pruned from the traversal and not returned.
+/// - Gitignore pruning: when `options.gitignore` is true, `.gitignore` files found in
 ///   encountered directories are loaded and applied using closest-precedence
 ///   rules. Ignored files are skipped; ignored directories are pruned from
 ///   descent. Patterns are evaluated relative to the directory that owns the
 ///   `.gitignore`.
 /// - Symbolic links: by default, symlinks are returned as `StoreAs::Symlink`.
-///   If `follow_links` is true, symlinks are resolved and classified by their
+///   If `options.follow_links` is true, symlinks are resolved and classified by their
 ///   targets (file => `StoreAs::File`, dir => `StoreAs::Dir`). If
-///   `follow_command_links` is true, only the top-level input paths (depth 0)
-///   are followed; nested symlinks require `follow_links`. Broken symlinks are
+///   `options.follow_command_links` is true, only the top-level input path (depth 0)
+///   is followed; nested symlinks require `follow_links`. Broken symlinks are
 ///   still returned as `StoreAs::Symlink`.
 /// - Hard links: regular files detected as hard links to a previously seen
 ///   file are returned as `StoreAs::Hardlink(<target>)`, where `<target>` is the
 ///   canonical path of the first occurrence; otherwise they are returned as
 ///   `StoreAs::File`.
-/// - One File System: when `one_file_system` is true, the traversal will not
+/// - One File System: when `options.one_file_system` is true, the traversal will not
 ///   cross filesystem boundaries.
 /// - Unsupported types: special files that are neither regular files, dirs, nor
 ///   symlinks produce an `io::ErrorKind::Unsupported` error.
+///
+/// This function accepts a shared `HardlinkResolver` to enable cross-path hardlink
+/// detection when collecting from multiple paths.
 ///
 /// Returns a vector of `(PathBuf, StoreAs)` pairs on success.
 ///
@@ -321,132 +366,120 @@ pub(crate) enum StoreAs {
 /// tolerated and returned as `StoreAs::Symlink` instead of an error. Returns
 /// `io::ErrorKind::Unsupported` for entries with unsupported types. Other walk
 /// errors are wrapped using `io::Error::other`.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn collect_items<'a>(
-    files: impl IntoIterator<Item = impl AsRef<Path>>,
-    recursive: bool,
-    keep_dir: bool,
-    gitignore: bool,
-    nodump: bool,
-    follow_links: bool,
-    follow_command_links: bool,
-    one_file_system: bool,
-    filter: &PathFilter<'a>,
-    time_filters: &TimeFilters,
+pub(crate) fn collect_items_with_state(
+    path: &Path,
+    options: &CollectOptions<'_>,
+    hardlink_resolver: &mut HardlinkResolver,
 ) -> io::Result<Vec<(PathBuf, StoreAs)>> {
     let mut ig = Ignore::empty();
-    let mut hardlink_resolver = HardlinkResolver::new(follow_links);
     let mut out = Vec::new();
 
-    for p in files {
-        let mut iter = if recursive {
-            walkdir::WalkDir::new(p)
-        } else {
-            walkdir::WalkDir::new(p).max_depth(0)
-        }
-        .follow_links(follow_links)
-        .follow_root_links(follow_command_links)
-        .same_file_system(one_file_system)
-        .into_iter();
+    let mut iter = if options.recursive {
+        walkdir::WalkDir::new(path)
+    } else {
+        walkdir::WalkDir::new(path).max_depth(0)
+    }
+    .follow_links(options.follow_links)
+    .follow_root_links(options.follow_command_links)
+    .same_file_system(options.one_file_system)
+    .into_iter();
 
-        while let Some(res) = iter.next() {
-            match res {
-                Ok(entry) => {
-                    let path = entry.path();
-                    let ty = entry.file_type();
-                    let depth = entry.depth();
-                    let should_follow = follow_links || (depth == 0 && follow_command_links);
-                    let is_dir = ty.is_dir() || (ty.is_symlink() && should_follow && path.is_dir());
-                    let is_file =
-                        ty.is_file() || (ty.is_symlink() && should_follow && path.is_file());
-                    let is_symlink = ty.is_symlink() && !should_follow;
+    while let Some(res) = iter.next() {
+        match res {
+            Ok(entry) => {
+                let path = entry.path();
+                let ty = entry.file_type();
+                let depth = entry.depth();
+                let should_follow =
+                    options.follow_links || (depth == 0 && options.follow_command_links);
+                let is_dir = ty.is_dir() || (ty.is_symlink() && should_follow && path.is_dir());
+                let is_file = ty.is_file() || (ty.is_symlink() && should_follow && path.is_file());
+                let is_symlink = ty.is_symlink() && !should_follow;
 
-                    // Exclude (prunes descent when directory)
-                    if filter.excluded(path.to_slash_lossy()) {
+                // Exclude (prunes descent when directory)
+                if options.filter.excluded(path.to_slash_lossy()) {
+                    if is_dir {
+                        iter.skip_current_dir();
+                    }
+                    continue;
+                }
+
+                if options.gitignore {
+                    // Gitignore pruning before reading this dir's .gitignore
+                    if ig.is_ignore(path, is_dir) {
                         if is_dir {
                             iter.skip_current_dir();
                         }
                         continue;
                     }
+                    // After confirming not ignored, load .gitignore from this directory
+                    if is_dir {
+                        ig.add_path(path);
+                    }
+                }
 
-                    if gitignore {
-                        // Gitignore pruning before reading this dir's .gitignore
-                        if ig.is_ignore(path, is_dir) {
+                if options.nodump {
+                    match utils::fs::is_nodump(path) {
+                        Ok(true) => {
                             if is_dir {
                                 iter.skip_current_dir();
                             }
                             continue;
                         }
-                        // After confirming not ignored, load .gitignore from this directory
-                        if is_dir {
-                            ig.add_path(path);
+                        Ok(false) => {}
+                        Err(e) => {
+                            log::warn!("Failed to check nodump flag for {}: {}", path.display(), e);
                         }
                     }
+                }
 
-                    if nodump {
-                        match utils::fs::is_nodump(path) {
-                            Ok(true) => {
-                                if is_dir {
-                                    iter.skip_current_dir();
-                                }
-                                continue;
-                            }
-                            Ok(false) => {}
-                            Err(e) => {
-                                log::warn!(
-                                    "Failed to check nodump flag for {}: {}",
-                                    path.display(),
-                                    e
-                                );
-                            }
-                        }
-                    }
-
-                    // Classify entry and maybe add it to output
-                    let store_as = if is_symlink {
-                        Some(StoreAs::Symlink)
-                    } else if is_file {
-                        let path_buf = path.to_path_buf();
-                        if let Some(linked) = hardlink_resolver.resolve(&path_buf).ok().flatten() {
-                            Some(StoreAs::Hardlink(linked))
-                        } else {
-                            Some(StoreAs::File)
-                        }
-                    } else if is_dir {
-                        if keep_dir { Some(StoreAs::Dir) } else { None }
+                // Classify entry and maybe add it to output
+                let store_as = if is_symlink {
+                    Some(StoreAs::Symlink)
+                } else if is_file {
+                    let path_buf = path.to_path_buf();
+                    if let Some(linked) = hardlink_resolver.resolve(&path_buf).ok().flatten() {
+                        Some(StoreAs::Hardlink(linked))
                     } else {
-                        return Err(io::Error::new(
-                            io::ErrorKind::Unsupported,
-                            format!("Unsupported file type: {}", path.display()),
-                        ));
-                    };
+                        Some(StoreAs::File)
+                    }
+                } else if is_dir {
+                    if options.keep_dir {
+                        Some(StoreAs::Dir)
+                    } else {
+                        None
+                    }
+                } else {
+                    return Err(io::Error::new(
+                        io::ErrorKind::Unsupported,
+                        format!("Unsupported file type: {}", path.display()),
+                    ));
+                };
 
-                    if let Some(store) = store_as {
-                        if if time_filters.is_active() {
-                            let metadata = fs::symlink_metadata(path)?;
-                            time_filters.is_retain(&metadata)
-                        } else {
-                            true
-                        } {
-                            out.push((path.to_path_buf(), store));
+                if let Some(store) = store_as {
+                    if if options.time_filters.is_active() {
+                        let metadata = fs::symlink_metadata(path)?;
+                        options.time_filters.is_retain(&metadata)
+                    } else {
+                        true
+                    } {
+                        out.push((path.to_path_buf(), store));
+                    }
+                }
+            }
+            Err(e) => {
+                if let Some(ioe) = e.io_error() {
+                    if let Some(path) = e.path() {
+                        if is_broken_symlink_error(path, ioe) {
+                            out.push((path.to_path_buf(), StoreAs::Symlink));
+                            continue;
                         }
                     }
                 }
-                Err(e) => {
-                    if let Some(ioe) = e.io_error() {
-                        if let Some(path) = e.path() {
-                            if is_broken_symlink_error(path, ioe) {
-                                out.push((path.to_path_buf(), StoreAs::Symlink));
-                                continue;
-                            }
-                        }
-                    }
-                    return Err(io::Error::other(e));
-                }
+                return Err(io::Error::other(e));
             }
         }
     }
-
     Ok(out)
 }
 
@@ -1207,25 +1240,30 @@ mod tests {
         }
     }
 
+    fn default_collect_options<'a>(
+        filter: &'a PathFilter<'a>,
+        time_filters: &'a TimeFilters,
+    ) -> CollectOptions<'a> {
+        CollectOptions {
+            recursive: false,
+            keep_dir: false,
+            gitignore: false,
+            nodump: false,
+            follow_links: false,
+            follow_command_links: false,
+            one_file_system: false,
+            filter,
+            time_filters,
+        }
+    }
+
     #[test]
     fn collect_items_only_file() {
-        let source = [concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../resources/test/raw",
-        )];
-        let items = collect_items(
-            source,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            &empty_path_filter(),
-            &empty_time_filters(),
-        )
-        .unwrap();
+        let source = concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/test/raw",);
+        let filter = empty_path_filter();
+        let time_filters = empty_time_filters();
+        let options = default_collect_options(&filter, &time_filters);
+        let items = collect_items_from_paths([source], &options).unwrap();
         assert_eq!(
             items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
             HashSet::new()
@@ -1234,23 +1272,12 @@ mod tests {
 
     #[test]
     fn collect_items_keep_dir() {
-        let source = [concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../resources/test/raw",
-        )];
-        let items = collect_items(
-            source,
-            false,
-            true,
-            false,
-            false,
-            false,
-            false,
-            false,
-            &empty_path_filter(),
-            &empty_time_filters(),
-        )
-        .unwrap();
+        let source = concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/test/raw",);
+        let filter = empty_path_filter();
+        let time_filters = empty_time_filters();
+        let mut options = default_collect_options(&filter, &time_filters);
+        options.keep_dir = true;
+        let items = collect_items_from_paths([source], &options).unwrap();
         assert_eq!(
             items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
             [concat!(
@@ -1265,23 +1292,12 @@ mod tests {
 
     #[test]
     fn collect_items_recursive() {
-        let source = [concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../resources/test/raw",
-        )];
-        let items = collect_items(
-            source,
-            true,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false,
-            &empty_path_filter(),
-            &empty_time_filters(),
-        )
-        .unwrap();
+        let source = concat!(env!("CARGO_MANIFEST_DIR"), "/../resources/test/raw",);
+        let filter = empty_path_filter();
+        let time_filters = empty_time_filters();
+        let mut options = default_collect_options(&filter, &time_filters);
+        options.recursive = true;
+        let items = collect_items_from_paths([source], &options).unwrap();
         assert_eq!(
             items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
             [

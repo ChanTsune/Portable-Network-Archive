@@ -3,6 +3,7 @@
 use std::{fs, time::SystemTime};
 
 /// Represents a filter based on time, allowing for inclusion of files newer or older than a specific `SystemTime`.
+#[derive(Clone, Debug)]
 pub(crate) struct TimeFilter {
     /// If `Some`, only includes files newer than the specified `SystemTime`.
     pub(crate) newer_than: Option<SystemTime>,
@@ -50,6 +51,7 @@ impl TimeFilter {
 }
 
 /// Represents a set of time filters for creation time (`ctime`) and modification time (`mtime`).
+#[derive(Clone, Debug)]
 pub(crate) struct TimeFilters {
     /// A `TimeFilter` for the creation time of a file.
     pub(crate) ctime: TimeFilter,
