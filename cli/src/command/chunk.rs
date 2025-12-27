@@ -46,6 +46,7 @@ impl Command for ListCommand {
     }
 }
 
+#[hooq::hooq(anyhow)]
 fn list_archive_chunks(args: ListCommand) -> anyhow::Result<()> {
     let archive = fs::File::open(args.archive)?;
     let mut builder = TableBuilder::new();

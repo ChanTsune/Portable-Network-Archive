@@ -337,6 +337,7 @@ impl Command for AppendCommand {
     }
 }
 
+#[hooq::hooq(anyhow)]
 fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
