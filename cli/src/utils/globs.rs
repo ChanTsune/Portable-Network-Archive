@@ -37,30 +37,21 @@ impl<'s> GlobPatterns<'s> {
     pub(crate) fn matches_any<P: AsRef<Path>>(&mut self, s: P) -> bool {
         let indices = self.globs.matches(s);
         for idx in indices.iter() {
-            if let Some(found) = self.matched.get_mut(*idx) {
-                *found = true;
-            }
+            self.matched[*idx] = true;
         }
         !indices.is_empty()
     }
 
     #[inline]
-    pub(crate) fn unmatched_patterns(&self) -> Vec<&str> {
-        let mut unmatched = Vec::new();
-        for (idx, matched) in self.matched.iter().enumerate() {
-            if !matched {
-                unmatched.push(self.raw_patterns[idx]);
+    pub(crate) fn ensure_all_matched(&self) -> anyhow::Result<()> {
+        let mut any_unmatched = false;
+        for (idx, &is_matched) in self.matched.iter().enumerate() {
+            if !is_matched {
+                any_unmatched = true;
+                log::error!("'{}' not found in archive", self.raw_patterns[idx]);
             }
         }
-        unmatched
-    }
-
-    pub(crate) fn ensure_all_matched(&self) -> anyhow::Result<()> {
-        let unmatched = self.unmatched_patterns();
-        if !unmatched.is_empty() {
-            for p in unmatched {
-                log::error!("'{p}' not found in archive");
-            }
+        if any_unmatched {
             anyhow::bail!("from previous errors");
         }
         Ok(())
