@@ -437,6 +437,8 @@ pub(crate) struct StdioCommand {
     #[arg(long, hide = true)]
     format: Option<String>,
     #[arg(long, hide = true)]
+    posix: bool,
+    #[arg(long, hide = true)]
     ignore_zeros: bool,
     #[arg(long, hide = true)]
     safe_writes: bool,
@@ -459,29 +461,24 @@ impl Command for StdioCommand {
 
 fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     if let Some(format) = &args.format {
-        log::debug!(
-            "Warning: Option '--format {format}' is accepted for compatibility but will be ignored."
-        );
+        log::warn!("Option '--format {format}' is accepted for compatibility but will be ignored.");
+    }
+    if args.posix {
+        log::warn!("Option '--posix' is accepted for compatibility but will be ignored.");
     }
     if args.read_full_blocks {
-        log::debug!(
-            "Warning: Option '--read-full-blocks' is accepted for compatibility but will be ignored."
+        log::warn!(
+            "Option '--read-full-blocks' is accepted for compatibility but will be ignored."
         );
     }
     if args.ignore_zeros {
-        log::debug!(
-            "Warning: Option '--ignore-zeros' is accepted for compatibility but will be ignored."
-        );
+        log::warn!("Option '--ignore-zeros' is accepted for compatibility but will be ignored.");
     }
     if args.safe_writes {
-        log::debug!(
-            "Warning: Option '--safe-writes' is accepted for compatibility but will be ignored."
-        );
+        log::warn!("Option '--safe-writes' is accepted for compatibility but will be ignored.");
     }
     if args.no_safe_writes {
-        log::debug!(
-            "Warning: Option '--no-safe-writes' is accepted for compatibility but will be ignored."
-        );
+        log::warn!("Option '--no-safe-writes' is accepted for compatibility but will be ignored.");
     }
     if args.auto_compress {
         log::warn!("Option '--auto-compress' is accepted for compatibility but will be ignored.");
