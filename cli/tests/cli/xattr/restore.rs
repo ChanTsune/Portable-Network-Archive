@@ -1,6 +1,9 @@
 use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 
+/// Precondition: An archive exists and xattr dump is provided via stdin.
+/// Action: Run `pna xattr set --restore -` to restore xattrs from stdin, then extract.
+/// Expectation: Extracted files have the xattrs applied from the dump.
 #[test]
 fn xattr_set_restore() {
     setup();
@@ -14,7 +17,9 @@ fn xattr_set_restore() {
         "--overwrite",
         "xattr_set_restore/in/",
     ])
-    .unwrap();
+    .assert()
+    .success();
+
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.write_stdin(concat!(
         "# file: xattr_set_restore/in/raw/empty.txt\n",
@@ -39,7 +44,9 @@ fn xattr_set_restore() {
         "--restore",
         "-",
     ])
-    .unwrap();
+    .assert()
+    .success();
+
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
@@ -52,7 +59,8 @@ fn xattr_set_restore() {
         "--strip-components",
         "2",
     ])
-    .unwrap();
+    .assert()
+    .success();
 
     diff("xattr_set_restore/in/", "xattr_set_restore/out/").unwrap();
 

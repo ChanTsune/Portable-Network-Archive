@@ -2,6 +2,9 @@ use crate::utils::{EmbedExt, TestResources, archive::for_each_entry, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 
+/// Precondition: An archive entry has an extended attribute set.
+/// Action: Remove the xattr using `--remove` option.
+/// Expectation: The xattr is removed from the target entry; other entries remain unaffected.
 #[test]
 fn archive_xattr_remove() {
     setup();
@@ -35,13 +38,21 @@ fn archive_xattr_remove() {
     .unwrap();
 
     for_each_entry("xattr_remove/xattr_remove.pna", |entry| {
-        if entry.header().path().as_str() == "xattr_remove/in/raw/empty.txt" {
+        if entry.name() == "xattr_remove/in/raw/empty.txt" {
             assert_eq!(
                 entry.xattrs(),
                 &[pna::ExtendedAttribute::new(
                     "user.name".into(),
                     b"pna developers!".into()
                 )],
+            );
+        } else {
+            // Non-target entries should have no xattrs
+            assert!(
+                entry.xattrs().is_empty(),
+                "Entry {} should have no xattrs but has {:?}",
+                entry.name(),
+                entry.xattrs()
             );
         }
     })
@@ -63,9 +74,13 @@ fn archive_xattr_remove() {
     .unwrap();
 
     for_each_entry("xattr_remove/xattr_remove.pna", |entry| {
-        if entry.header().path().as_str() == "xattr_remove/in/raw/empty.txt" {
-            assert!(entry.xattrs().is_empty());
-        }
+        // After removal, all entries should have no xattrs
+        assert!(
+            entry.xattrs().is_empty(),
+            "Entry {} should have no xattrs after removal but has {:?}",
+            entry.name(),
+            entry.xattrs()
+        );
     })
     .unwrap();
 }

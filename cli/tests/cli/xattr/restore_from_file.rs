@@ -53,7 +53,7 @@ fn xattr_restore_from_file() {
 
     // Verify xattrs were restored
     archive::for_each_entry("xattr_restore_file/archive.pna", |entry| {
-        match entry.header().path().as_str() {
+        match entry.name().as_str() {
             "xattr_restore_file/in/raw/empty.txt" => {
                 let xattrs = entry.xattrs();
                 assert_eq!(xattrs.len(), 2);
@@ -128,7 +128,7 @@ fn xattr_restore_from_file_with_encodings() {
     .unwrap();
 
     archive::for_each_entry("xattr_restore_enc/archive.pna", |entry| {
-        if entry.header().path().as_str() == "xattr_restore_enc/in/raw/empty.txt" {
+        if entry.name() == "xattr_restore_enc/in/raw/empty.txt" {
             let xattrs = entry.xattrs();
             assert_eq!(xattrs.len(), 3);
             assert!(
@@ -218,7 +218,7 @@ fn xattr_restore_from_file_merge() {
     .unwrap();
 
     archive::for_each_entry("xattr_restore_merge/archive.pna", |entry| {
-        if entry.header().path().as_str() == "xattr_restore_merge/in/raw/empty.txt" {
+        if entry.name() == "xattr_restore_merge/in/raw/empty.txt" {
             let xattrs = entry.xattrs();
             assert_eq!(xattrs.len(), 3, "should have 3 xattrs after merge");
             assert!(

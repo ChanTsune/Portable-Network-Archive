@@ -1,6 +1,9 @@
 use crate::utils::{EmbedExt, TestResources, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 
+/// Precondition: An archive entry has multiple extended attributes set.
+/// Action: Run `pna xattr get` with `--dump` to display attribute values.
+/// Expectation: All attributes are shown with their values in quoted format.
 #[test]
 fn xattr_get_dump() {
     setup();
@@ -14,7 +17,8 @@ fn xattr_get_dump() {
         "--overwrite",
         "xattr_get_dump/in/",
     ])
-    .unwrap();
+    .assert()
+    .success();
 
     let archive_path = "xattr_get_dump/xattr_get_dump.pna";
     let file_to_set_xattr = "xattr_get_dump/in/raw/empty.txt";
@@ -37,17 +41,20 @@ fn xattr_get_dump() {
             "--value",
             value,
         ])
-        .unwrap();
+        .assert()
+        .success();
     }
-    // Sort entries for stablize entries order.
+    // Sort entries to stabilize entry order.
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
         "experimental",
         "sort",
+        "-f",
         "xattr_get_dump/xattr_get_dump.pna",
     ])
-    .assert();
+    .assert()
+    .success();
 
     let mut cmd = cargo_bin_cmd!("pna");
     let assert = cmd

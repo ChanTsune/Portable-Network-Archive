@@ -55,7 +55,7 @@ fn xattr_set_keep_solid() {
 
     // Verify xattr was applied
     archive::for_each_entry("xattr_keep_solid/archive.pna", |entry| {
-        if entry.header().path().as_str() == "xattr_keep_solid/in/raw/empty.txt" {
+        if entry.name() == "xattr_keep_solid/in/raw/empty.txt" {
             let xattrs = entry.xattrs();
             assert_eq!(xattrs.len(), 1, "entry should have exactly one xattr");
             assert_eq!(xattrs[0].name(), "user.author");
@@ -122,7 +122,7 @@ fn xattr_set_keep_solid_preserves_existing() {
 
     // Verify both xattrs exist
     archive::for_each_entry("xattr_keep_solid_existing/archive.pna", |entry| {
-        if entry.header().path().as_str() == "xattr_keep_solid_existing/in/raw/empty.txt" {
+        if entry.name() == "xattr_keep_solid_existing/in/raw/empty.txt" {
             let xattrs = entry.xattrs();
             assert_eq!(xattrs.len(), 2, "entry should have two xattrs");
             assert!(
