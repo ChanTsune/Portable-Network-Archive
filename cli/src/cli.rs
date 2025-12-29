@@ -151,11 +151,11 @@ pub(crate) struct FileArgs {
     )
 )]
 pub(crate) struct FileArgsCompat {
-    #[arg(short, long, value_hint = ValueHint::FilePath)]
+    #[arg(short, long, help = "Archive file path", value_hint = ValueHint::FilePath)]
     file: Option<PathBuf>,
-    #[arg(value_hint = ValueHint::FilePath)]
+    #[arg(help = "Archive file path (deprecated, use --file)", value_hint = ValueHint::FilePath)]
     archive: Option<PathBuf>,
-    #[arg(value_hint = ValueHint::FilePath)]
+    #[arg(help = "Files or directories to process", value_hint = ValueHint::FilePath)]
     files: Vec<String>,
 }
 
@@ -202,10 +202,10 @@ pub(crate) struct PasswordArgs {
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(group(ArgGroup::new("transform_strategy").args(["unsolid", "keep_solid"])))]
 pub(crate) struct SolidEntriesTransformStrategyArgs {
-    #[arg(long, help = "Unsolid input solid entries.")]
-    pub(crate) unsolid: bool,
-    #[arg(long, help = "Keep input solid entries.")]
-    pub(crate) keep_solid: bool,
+    #[arg(long, help = "Convert solid entries to regular entries")]
+    unsolid: bool,
+    #[arg(long, help = "Preserve solid entries without conversion")]
+    keep_solid: bool,
 }
 
 impl SolidEntriesTransformStrategyArgs {

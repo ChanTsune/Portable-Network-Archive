@@ -20,9 +20,9 @@ pub(crate) struct ConcatCommand {
         help = "Do not overwrite files. This is the inverse option of --overwrite"
     )]
     no_overwrite: bool,
-    #[arg(value_hint = ValueHint::FilePath)]
+    #[arg(help = "Archive files to concatenate (deprecated, use --files)", value_hint = ValueHint::FilePath)]
     archives: Vec<PathBuf>,
-    #[arg(short, long, value_hint = ValueHint::FilePath)]
+    #[arg(short, long, help = "Archive files to concatenate", value_hint = ValueHint::FilePath)]
     files: Vec<PathBuf>,
 }
 
