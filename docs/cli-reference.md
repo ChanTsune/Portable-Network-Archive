@@ -532,7 +532,7 @@ Extract files from archive
 
   Default value: `false`
 * `-C`, `--cd <DIRECTORY>` [alias: `directory`] — Change directories after opening the archive but before extracting entries from the archive
-* `--chroot` — chroot() to the current directory after processing any --cd options and before extracting any files
+* `--chroot` — chroot() to the current directory after processing any --cd options and before extracting any files (requires root privileges)
 
   Default value: `false`
 * `--allow-unsafe-links` — Allow extracting symbolic links and hard links that contain root or parent paths
@@ -1236,6 +1236,9 @@ Archive manipulation via stdio
 
   Default value: `false`
 * `--allow-unsafe-links` — Allow extracting symbolic links and hard links that contain root or parent paths
+
+  Default value: `false`
+* `--chroot` — chroot() to the current directory after processing any --cd options and before extracting any files (requires root privileges)
 
   Default value: `false`
 * `-P`, `--absolute-paths` — Do not strip leading '/' or '..' from member names and link targets (unstable)
