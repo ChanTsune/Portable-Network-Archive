@@ -2,23 +2,13 @@ use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 
+/// Precondition: An archive entry has multiple extended attributes set.
+/// Action: Remove one attribute using `--remove` option.
+/// Expectation: Only the removed attribute is gone; other attributes remain.
 #[test]
 fn xattr_multiple_set_and_remove() {
     setup();
-    TestResources::extract_in("raw/", "xattr_multi/in/").unwrap();
-
-    // Create archive
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "c",
-        "xattr_multi/xattr_multi.pna",
-        "--overwrite",
-        "xattr_multi/in/",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
+    TestResources::extract_in("zstd.pna", "xattr_multi/").unwrap();
 
     // Set multiple xattrs
     cli::Cli::try_parse_from([
@@ -27,12 +17,12 @@ fn xattr_multiple_set_and_remove() {
         "experimental",
         "xattr",
         "set",
-        "xattr_multi/xattr_multi.pna",
+        "xattr_multi/zstd.pna",
         "--name",
         "user.a",
         "--value",
         "A",
-        "xattr_multi/in/raw/empty.txt",
+        "raw/empty.txt",
     ])
     .unwrap()
     .execute()
@@ -43,12 +33,12 @@ fn xattr_multiple_set_and_remove() {
         "experimental",
         "xattr",
         "set",
-        "xattr_multi/xattr_multi.pna",
+        "xattr_multi/zstd.pna",
         "--name",
         "user.b",
         "--value",
         "B",
-        "xattr_multi/in/raw/empty.txt",
+        "raw/empty.txt",
     ])
     .unwrap()
     .execute()
@@ -61,20 +51,28 @@ fn xattr_multiple_set_and_remove() {
         "experimental",
         "xattr",
         "set",
-        "xattr_multi/xattr_multi.pna",
+        "xattr_multi/zstd.pna",
         "--remove",
         "user.a",
-        "xattr_multi/in/raw/empty.txt",
+        "raw/empty.txt",
     ])
     .unwrap()
     .execute()
     .unwrap();
 
-    archive::for_each_entry("xattr_multi/xattr_multi.pna", |entry| {
-        if entry.header().path() == "xattr_multi/out/raw/empty.txt" {
+    archive::for_each_entry("xattr_multi/zstd.pna", |entry| {
+        if entry.name() == "raw/empty.txt" {
             assert_eq!(
                 entry.xattrs(),
                 &[pna::ExtendedAttribute::new("user.b".into(), b"B".into())]
+            );
+        } else {
+            // Non-target entries should remain unaffected (no xattrs)
+            assert!(
+                entry.xattrs().is_empty(),
+                "Entry {} should have no xattrs but has {:?}",
+                entry.name(),
+                entry.xattrs()
             );
         }
     })

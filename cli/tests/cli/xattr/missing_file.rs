@@ -2,6 +2,9 @@ use crate::utils::{EmbedExt, TestResources, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 
+/// Precondition: An archive exists but requested entry path does not.
+/// Action: Run `pna xattr get` with a non-existent entry path.
+/// Expectation: The command returns an error.
 #[test]
 fn fail_with_missing_file_get() {
     setup();
@@ -34,6 +37,9 @@ fn fail_with_missing_file_get() {
     assert!(result.is_err());
 }
 
+/// Precondition: An archive exists but requested entry path does not.
+/// Action: Run `pna xattr set` with a non-existent entry path.
+/// Expectation: The command returns an error.
 #[test]
 fn fail_with_missing_file_set() {
     setup();

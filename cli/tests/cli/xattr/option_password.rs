@@ -45,7 +45,7 @@ fn xattr_set_with_password() {
     .unwrap();
 
     archive::for_each_entry_with_password("xattr_password/archive.pna", "test_password", |entry| {
-        if entry.header().path().as_str() == "xattr_password/in/raw/empty.txt" {
+        if entry.name() == "xattr_password/in/raw/empty.txt" {
             let xattrs = entry.xattrs();
             assert_eq!(xattrs.len(), 1, "entry should have exactly one xattr");
             assert_eq!(xattrs[0].name(), "user.author");
@@ -101,7 +101,7 @@ fn xattr_set_with_password_file() {
     .unwrap();
 
     archive::for_each_entry_with_password("xattr_password_file/archive.pna", password, |entry| {
-        if entry.header().path().as_str() == "xattr_password_file/in/raw/empty.txt" {
+        if entry.name() == "xattr_password_file/in/raw/empty.txt" {
             let xattrs = entry.xattrs();
             assert_eq!(xattrs.len(), 1, "entry should have exactly one xattr");
             assert_eq!(xattrs[0].name(), "user.version");
@@ -243,7 +243,7 @@ fn xattr_set_wrong_password_no_effect() {
         "xattr_wrong_password/archive.pna",
         "correct_password",
         |entry| {
-            if entry.header().path().as_str() == "xattr_wrong_password/in/raw/empty.txt" {
+            if entry.name() == "xattr_wrong_password/in/raw/empty.txt" {
                 let xattrs = entry.xattrs();
                 // Original xattr should exist
                 assert!(
