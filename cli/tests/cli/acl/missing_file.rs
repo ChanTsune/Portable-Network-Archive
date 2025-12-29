@@ -2,6 +2,9 @@ use crate::utils::{EmbedExt, TestResources, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 
+/// Precondition: An archive exists but one of the requested entry paths does not.
+/// Action: Run `pna acl get` with both existing and non-existent entry paths.
+/// Expectation: The command returns an error due to the missing entry.
 #[test]
 fn fail_with_missing_file_get() {
     setup();
@@ -35,6 +38,9 @@ fn fail_with_missing_file_get() {
     assert!(result.is_err());
 }
 
+/// Precondition: An archive exists but one of the requested entry paths does not.
+/// Action: Run `pna acl set` with both existing and non-existent entry paths.
+/// Expectation: The command returns an error due to the missing entry.
 #[test]
 fn fail_with_missing_file_set() {
     setup();
