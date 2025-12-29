@@ -360,25 +360,97 @@ pub(crate) enum HashAlgorithmParams {
 pub struct HashAlgorithm(pub(crate) HashAlgorithmParams);
 
 impl HashAlgorithm {
-    /// Pbkdf2 with sha256
+    /// Creates a PBKDF2-SHA256 password hasher with default iterations.
+    ///
+    /// **Note:** Prefer [`argon2id()`](Self::argon2id) for new archives.
+    /// PBKDF2 is provided for compatibility with systems where Argon2 is unavailable.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use libpna::{WriteOptions, Encryption, HashAlgorithm};
+    ///
+    /// let opts = WriteOptions::builder()
+    ///     .encryption(Encryption::Aes)
+    ///     .hash_algorithm(HashAlgorithm::pbkdf2_sha256())
+    ///     .password(Some("password"))
+    ///     .build();
+    /// ```
     #[inline]
     pub const fn pbkdf2_sha256() -> Self {
         Self::pbkdf2_sha256_with(None)
     }
 
-    /// Pbkdf2 with sha256 with parameters.
+    /// Creates a PBKDF2-SHA256 password hasher with custom iteration count.
+    ///
+    /// Higher iteration counts increase security but also increase key derivation time.
+    /// If `rounds` is `None`, the default iteration count is used.
+    ///
+    /// **Note:** Prefer [`argon2id_with()`](Self::argon2id_with) for new archives.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use libpna::{WriteOptions, Encryption, HashAlgorithm};
+    ///
+    /// let opts = WriteOptions::builder()
+    ///     .encryption(Encryption::Aes)
+    ///     .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(100_000)))
+    ///     .password(Some("password"))
+    ///     .build();
+    /// ```
     #[inline]
     pub const fn pbkdf2_sha256_with(rounds: Option<u32>) -> Self {
         Self(HashAlgorithmParams::Pbkdf2Sha256 { rounds })
     }
 
-    /// Argon2Id
+    /// Creates an Argon2id password hasher with default parameters.
+    ///
+    /// **Recommended** for all new archives. Argon2id is memory-hard, providing
+    /// better resistance against GPU/ASIC brute-force attacks compared to PBKDF2.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use libpna::{WriteOptions, Encryption, HashAlgorithm};
+    ///
+    /// let opts = WriteOptions::builder()
+    ///     .encryption(Encryption::Aes)
+    ///     .hash_algorithm(HashAlgorithm::argon2id())
+    ///     .password(Some("secure_password"))
+    ///     .build();
+    /// ```
     #[inline]
     pub const fn argon2id() -> Self {
         Self::argon2id_with(None, None, None)
     }
 
-    /// Argon2Id with parameters.
+    /// Creates an Argon2id password hasher with custom parameters.
+    ///
+    /// - `time_cost`: Number of iterations (higher = slower, more secure)
+    /// - `memory_cost`: Memory usage in KiB (higher = more memory-hard)
+    /// - `parallelism_cost`: Degree of parallelism (threads)
+    ///
+    /// If any parameter is `None`, the default value is used.
+    ///
+    /// **Recommended** for all new archives when custom tuning is needed.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use libpna::{WriteOptions, Encryption, HashAlgorithm};
+    ///
+    /// // Custom Argon2id with higher security parameters
+    /// let opts = WriteOptions::builder()
+    ///     .encryption(Encryption::Aes)
+    ///     .hash_algorithm(HashAlgorithm::argon2id_with(
+    ///         Some(4),       // time_cost: 4 iterations
+    ///         Some(65536),   // memory_cost: 64 MiB
+    ///         Some(2),       // parallelism: 2 threads
+    ///     ))
+    ///     .password(Some("secure_password"))
+    ///     .build();
+    /// ```
     #[inline]
     pub const fn argon2id_with(
         time_cost: Option<u32>,
@@ -393,17 +465,21 @@ impl HashAlgorithm {
     }
 }
 
-/// Type of entry.
+/// Type of filesystem object represented by an entry.
+///
+/// Each variant determines how the entry's data should be interpreted
+/// and how the entry should be extracted to the filesystem.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
 pub enum DataKind {
-    /// Regular file
+    /// Regular file. Entry data contains the file contents.
     File = 0,
-    /// Directory
+    /// Directory. Entry has no data content.
     Directory = 1,
-    /// Symbolic link
+    /// Symbolic link. Entry data contains the UTF-8 encoded link target path.
     SymbolicLink = 2,
-    /// Hard link
+    /// Hard link. Entry data contains the UTF-8 encoded path of the target entry
+    /// within the same archive.
     HardLink = 3,
 }
 
