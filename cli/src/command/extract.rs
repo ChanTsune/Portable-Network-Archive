@@ -127,16 +127,16 @@ pub(crate) struct ExtractCommand {
         long,
         visible_alias = "preserve-acls",
         requires = "unstable",
-        help = "Restore the acl of the files (unstable)"
+        help = "Restore ACLs (unstable)"
     )]
-    pub(crate) keep_acl: bool,
+    keep_acl: bool,
     #[arg(
         long,
         visible_alias = "no-preserve-acls",
         requires = "unstable",
-        help = "Do not restore acl of files. This is the inverse option of --keep-acl (unstable)"
+        help = "Do not restore ACLs. This is the inverse option of --keep-acl (unstable)"
     )]
-    pub(crate) no_keep_acl: bool,
+    no_keep_acl: bool,
     #[arg(long, help = "Restore user from given name")]
     pub(crate) uname: Option<String>,
     #[arg(long, help = "Restore group from given name")]

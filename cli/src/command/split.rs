@@ -17,12 +17,12 @@ use std::{fs, io, path::PathBuf};
     group(ArgGroup::new("overwrite-flag").args(["overwrite", "no_overwrite"]))
 )]
 pub(crate) struct SplitCommand {
-    #[arg(short = 'f', long = "file", value_hint = ValueHint::FilePath)]
-    pub(crate) file: Option<PathBuf>,
+    #[arg(short = 'f', long = "file", help = "Archive file path", value_hint = ValueHint::FilePath)]
+    file: Option<PathBuf>,
     #[arg(value_hint = ValueHint::FilePath, hide = true)]
     pub(crate) archive: Option<PathBuf>,
-    #[arg(long, value_hint = ValueHint::DirPath)]
-    pub(crate) out_dir: Option<PathBuf>,
+    #[arg(long, help = "Output directory for split archives", value_hint = ValueHint::DirPath)]
+    out_dir: Option<PathBuf>,
     #[arg(long, help = "Overwrite file")]
     overwrite: bool,
     #[arg(

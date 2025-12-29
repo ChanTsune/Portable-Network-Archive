@@ -21,27 +21,23 @@ pub(crate) struct StripOptions {
     #[arg(
         long,
         visible_alias = "preserve-timestamps",
-        help = "Keep the timestamp of the files"
+        help = "Preserve file timestamps"
     )]
-    pub(crate) keep_timestamp: bool,
+    keep_timestamp: bool,
     #[arg(
         long,
         visible_alias = "preserve-permissions",
-        help = "Keep the permissions of the files"
+        help = "Preserve file permissions"
     )]
-    pub(crate) keep_permission: bool,
+    keep_permission: bool,
     #[arg(
         long,
         visible_alias = "preserve-xattrs",
-        help = "Keep the extended attributes of the files"
+        help = "Preserve extended attributes"
     )]
-    pub(crate) keep_xattr: bool,
-    #[arg(
-        long,
-        visible_alias = "preserve-acls",
-        help = "Keep the acl of the files"
-    )]
-    pub(crate) keep_acl: bool,
+    keep_xattr: bool,
+    #[arg(long, visible_alias = "preserve-acls", help = "Preserve ACLs")]
+    keep_acl: bool,
     #[arg(long, visible_alias = "preserve-private_chunks", help = "Keep private chunks", value_delimiter = ',', num_args = 0..)]
     pub(crate) keep_private: Option<Vec<PrivateChunkType>>,
 }

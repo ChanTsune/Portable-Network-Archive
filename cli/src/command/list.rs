@@ -52,14 +52,14 @@ pub(crate) struct ListCommand {
     pub(crate) long: bool,
     #[arg(short, long, help = "Add a header row to each column")]
     pub(crate) header: bool,
-    #[arg(long, help = "Display solid mode archive entries")]
-    pub(crate) solid: bool,
+    #[arg(long, help = "Show entries that are compressed together")]
+    solid: bool,
     #[arg(short = '@', help = "Display extended file attributes in a table")]
     pub(crate) show_xattr: bool,
     #[arg(
         short = 'e',
         requires = "unstable",
-        help = "Display acl in a table (unstable)"
+        help = "Display ACLs in a table (unstable)"
     )]
     show_acl: bool,
     #[arg(
@@ -90,7 +90,10 @@ pub(crate) struct ListCommand {
         help = "Force printing of non-graphic characters in file names as the character '?'"
     )]
     hide_control_chars: bool,
-    #[arg(long, help = "Display type indicator by entry kinds")]
+    #[arg(
+        long,
+        help = "Append file type indicators (/ for directories, @ for symlinks)"
+    )]
     classify: bool,
     #[arg(
         long,

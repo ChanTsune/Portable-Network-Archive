@@ -127,7 +127,7 @@ pub(crate) struct StdioCommand {
         help = "Skip extracting files if they already exist (unstable)"
     )]
     keep_old_files: bool,
-    #[arg(long, help = "Archiving the directories")]
+    #[arg(long, help = "Include directories in archive")]
     keep_dir: bool,
     #[arg(
         long,
@@ -137,7 +137,7 @@ pub(crate) struct StdioCommand {
     #[arg(
         long,
         visible_alias = "preserve-timestamps",
-        help = "Archiving the timestamp of the files"
+        help = "Preserve file timestamps"
     )]
     keep_timestamp: bool,
     #[arg(
@@ -150,7 +150,7 @@ pub(crate) struct StdioCommand {
     #[arg(
         long,
         visible_alias = "preserve-permissions",
-        help = "Archiving the permissions of the files (unstable on Windows)"
+        help = "Preserve file permissions (unstable on Windows)"
     )]
     keep_permission: bool,
     #[arg(
@@ -162,7 +162,7 @@ pub(crate) struct StdioCommand {
     #[arg(
         long,
         visible_aliases = ["preserve-xattrs", "xattrs"],
-        help = "Archiving the extended attributes of the files"
+        help = "Preserve extended attributes"
     )]
     keep_xattr: bool,
     #[arg(
@@ -175,18 +175,21 @@ pub(crate) struct StdioCommand {
         long,
         visible_aliases = ["preserve-acls", "acls"],
         requires = "unstable",
-        help = "Archiving the acl of the files (unstable)"
+        help = "Preserve ACLs (unstable)"
     )]
     keep_acl: bool,
     #[arg(
         long,
         visible_aliases = ["no-preserve-acls", "no-acls"],
         requires = "unstable",
-        help = "Do not archive acl of files. This is the inverse option of --keep-acl (unstable)"
+        help = "Do not archive ACLs. This is the inverse option of --keep-acl (unstable)"
     )]
     no_keep_acl: bool,
-    #[arg(long, help = "Solid mode archive")]
-    pub(crate) solid: bool,
+    #[arg(
+        long,
+        help = "Compress multiple files together for better compression ratio"
+    )]
+    solid: bool,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -394,7 +397,7 @@ pub(crate) struct StdioCommand {
         long = "cd",
         visible_aliases = ["directory"],
         value_name = "DIRECTORY",
-        help = "changes the directory before adding the following files",
+        help = "Change directory before adding the following files",
         value_hint = ValueHint::DirPath
     )]
     working_dir: Option<PathBuf>,

@@ -84,7 +84,7 @@ pub(crate) struct UpdateCommand {
         help = "Do not recursively add directories to the archives. This is the inverse option of --recursive"
     )]
     no_recursive: bool,
-    #[arg(long, help = "Archiving the directories")]
+    #[arg(long, help = "Include directories in archive")]
     keep_dir: bool,
     #[arg(
         long,
@@ -94,9 +94,9 @@ pub(crate) struct UpdateCommand {
     #[arg(
         long,
         visible_alias = "preserve-timestamps",
-        help = "Archiving the timestamp of the files"
+        help = "Preserve file timestamps"
     )]
-    pub(crate) keep_timestamp: bool,
+    keep_timestamp: bool,
     #[arg(
         long,
         visible_alias = "no-preserve-timestamps",
@@ -106,7 +106,7 @@ pub(crate) struct UpdateCommand {
     #[arg(
         long,
         visible_alias = "preserve-permissions",
-        help = "Archiving the permissions of the files (unstable on Windows)"
+        help = "Preserve file permissions (unstable on Windows)"
     )]
     keep_permission: bool,
     #[arg(
@@ -118,9 +118,9 @@ pub(crate) struct UpdateCommand {
     #[arg(
         long,
         visible_alias = "preserve-xattrs",
-        help = "Archiving the extended attributes of the files"
+        help = "Preserve extended attributes"
     )]
-    pub(crate) keep_xattr: bool,
+    keep_xattr: bool,
     #[arg(
         long,
         visible_alias = "no-preserve-xattrs",
@@ -131,20 +131,20 @@ pub(crate) struct UpdateCommand {
         long,
         visible_alias = "preserve-acls",
         requires = "unstable",
-        help = "Archiving the acl of the files (unstable)"
+        help = "Preserve ACLs (unstable)"
     )]
-    pub(crate) keep_acl: bool,
+    keep_acl: bool,
     #[arg(
         long,
         visible_alias = "no-preserve-acls",
         requires = "unstable",
-        help = "Do not archive acl of files. This is the inverse option of --keep-acl (unstable)"
+        help = "Do not archive ACLs. This is the inverse option of --keep-acl (unstable)"
     )]
-    pub(crate) no_keep_acl: bool,
-    #[arg(long, help = "Archiving user to the entries from given name")]
-    pub(crate) uname: Option<String>,
-    #[arg(long, help = "Archiving group to the entries from given name")]
-    pub(crate) gname: Option<String>,
+    no_keep_acl: bool,
+    #[arg(long, help = "Set user name for archive entries")]
+    uname: Option<String>,
+    #[arg(long, help = "Set group name for archive entries")]
+    gname: Option<String>,
     #[arg(
         long,
         help = "Overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id"
@@ -294,7 +294,7 @@ pub(crate) struct UpdateCommand {
         long = "cd",
         visible_aliases = ["directory"],
         value_name = "DIRECTORY",
-        help = "changes the directory before adding the following files",
+        help = "Change directory before adding the following files",
         value_hint = ValueHint::DirPath
     )]
     working_dir: Option<PathBuf>,
