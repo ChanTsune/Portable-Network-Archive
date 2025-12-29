@@ -6,12 +6,16 @@ use std::time::SystemTime;
 /// [`EntryBuilder`] extension trait.
 pub trait EntryBuilderExt: private::Sealed {
     /// Sets metadata.
+    #[must_use]
     fn add_metadata(&mut self, metadata: &Metadata) -> &mut Self;
     /// Sets the created time.
+    #[must_use]
     fn created_time(&mut self, time: impl Into<Option<SystemTime>>) -> &mut Self;
     /// Sets the modified time.
+    #[must_use]
     fn modified_time(&mut self, time: impl Into<Option<SystemTime>>) -> &mut Self;
     /// Sets the accessed time.
+    #[must_use]
     fn accessed_time(&mut self, time: impl Into<Option<SystemTime>>) -> &mut Self;
 }
 

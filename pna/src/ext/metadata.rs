@@ -13,10 +13,13 @@ pub trait MetadataTimeExt: private::Sealed {
     /// Returns the accessed time.
     fn accessed_time(&self) -> Option<SystemTime>;
     /// Sets the created time.
+    #[must_use]
     fn with_created_time(self, time: impl Into<Option<SystemTime>>) -> Self;
     /// Sets the modified time.
+    #[must_use]
     fn with_modified_time(self, time: impl Into<Option<SystemTime>>) -> Self;
     /// Sets the accessed time.
+    #[must_use]
     fn with_accessed_time(self, time: impl Into<Option<SystemTime>>) -> Self;
 }
 

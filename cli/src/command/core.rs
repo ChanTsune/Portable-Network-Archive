@@ -645,7 +645,7 @@ pub(crate) fn apply_metadata<'p>(
                 time_options.clamp_ctime,
             );
             if let Some(c) = ctime {
-                entry.created_time(c);
+                let _ = entry.created_time(c);
             }
             let mtime = clamped_time(
                 meta.modified().ok(),
@@ -653,7 +653,7 @@ pub(crate) fn apply_metadata<'p>(
                 time_options.clamp_mtime,
             );
             if let Some(m) = mtime {
-                entry.modified_time(m);
+                let _ = entry.modified_time(m);
             }
             let atime = clamped_time(
                 meta.accessed().ok(),
@@ -661,7 +661,7 @@ pub(crate) fn apply_metadata<'p>(
                 time_options.clamp_atime,
             );
             if let Some(a) = atime {
-                entry.accessed_time(a);
+                let _ = entry.accessed_time(a);
             }
         }
         #[cfg(unix)]
