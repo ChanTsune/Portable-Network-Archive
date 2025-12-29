@@ -1,3 +1,9 @@
+//! Custom value types for CLI argument parsing.
+//!
+//! This module provides specialized types that implement [`std::str::FromStr`] for use
+//! with clap's argument parsing. Each type handles validation and conversion of
+//! command-line string inputs into strongly-typed values.
+
 mod argon2id_params;
 mod color_choice;
 mod compression_level;
