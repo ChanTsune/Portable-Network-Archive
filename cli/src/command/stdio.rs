@@ -8,10 +8,10 @@ use crate::{
         append::{open_archive_then_seek_to_end, run_append_archive},
         ask_password, check_password,
         core::{
-            AclStrategy, CollectOptions, CreateOptions, KeepOptions, OwnerOptions, PathFilter,
-            PathTransformers, PathnameEditor, PermissionStrategy, TimeFilterResolver, TimeOptions,
-            TimestampStrategy, XattrStrategy, collect_items_from_paths, collect_split_archives,
-            entry_option,
+            AclStrategy, ArchiveSource, CollectOptions, CollectedItem, CreateOptions, ItemSource,
+            KeepOptions, OwnerOptions, PathFilter, PathTransformers, PathnameEditor,
+            PermissionStrategy, TimeFilterResolver, TimeOptions, TimestampStrategy, XattrStrategy,
+            collect_items_from_sources, collect_split_archives, create_entry, entry_option,
             path_lock::PathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths,
@@ -23,8 +23,16 @@ use crate::{
     utils::{self, GlobPatterns, VCS_FILES},
 };
 use clap::{ArgGroup, Args, ValueHint};
-use pna::Archive;
-use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
+use pna::{
+    Archive, DataKind, EntryBuilder, NormalEntry, ReadOptions, SolidEntryBuilder, WriteOptions,
+};
+use std::{
+    env, fs,
+    io::{self, Read, Write},
+    path::PathBuf,
+    sync::Arc,
+    time::SystemTime,
+};
 
 #[derive(Args, Clone, Debug)]
 #[clap(disable_help_flag = true)]
@@ -512,6 +520,16 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         files.extend(read_paths(path, args.null)?);
     }
 
+    // Parse file arguments to detect @archive inclusions.
+    // This must happen before changing working directory so @archive paths are canonicalized.
+    let item_sources = ItemSource::parse_many(&files)?;
+
+    // Check for stdin conflict: can't read @- when writing to stdout
+    let uses_stdout = archive_file.is_none();
+    if uses_stdout && ItemSource::has_stdin_archive(&item_sources) {
+        anyhow::bail!("Cannot use @- (read archive from stdin) when writing to stdout (-f -)");
+    }
+
     let mut exclude = args.exclude.unwrap_or_default();
     if let Some(p) = args.exclude_from {
         exclude.extend(read_paths(p, args.null)?);
@@ -536,9 +554,12 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
     }
     .resolve()?;
+
+    // Change working directory after parsing @archive paths
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
     }
+
     let collect_options = CollectOptions {
         recursive: !args.no_recursive,
         keep_dir: args.keep_dir,
@@ -550,7 +571,9 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         filter: &filter,
         time_filters: &time_filters,
     };
-    let target_items = collect_items_from_paths(&files, &collect_options)?;
+
+    // Collect items from sources (preserving argument order)
+    let collected_items = collect_items_from_sources(item_sources, &collect_options)?;
 
     let password = password.as_deref();
     let cli_option = entry_option(args.compression, args.cipher, args.hash, password);
@@ -583,26 +606,80 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         atime: args.atime.map(|it| it.to_system_time()),
         clamp_atime: args.clamp_atime,
     };
-    let creation_context = CreationContext {
-        write_option: cli_option,
-        keep_options,
-        owner_options,
-        time_options,
-        solid: args.solid,
-        pathname_editor: PathnameEditor::new(
-            args.strip_components,
-            PathTransformers::new(args.substitutions, args.transforms),
-            args.absolute_paths,
-        ),
-    };
-    if let Some(file) = archive_file {
-        create_archive_file(
-            || utils::fs::file_create(&file, args.overwrite),
-            creation_context,
-            target_items,
-        )
+    let pathname_editor = PathnameEditor::new(
+        args.strip_components,
+        PathTransformers::new(args.substitutions, args.transforms),
+        args.absolute_paths,
+    );
+
+    // Check if there are any @archive inclusions
+    let has_archive_inclusions = collected_items
+        .iter()
+        .any(|item| matches!(item, CollectedItem::ArchiveMarker(_)));
+
+    if has_archive_inclusions {
+        // Build CreateOptions only when needed for @archive inclusions
+        let create_options = CreateOptions {
+            option: if args.solid {
+                WriteOptions::store()
+            } else {
+                cli_option.clone()
+            },
+            keep_options,
+            owner_options,
+            time_options,
+            pathname_editor,
+        };
+        if let Some(ref file) = archive_file {
+            let writer = utils::fs::file_create(file, args.overwrite)?;
+            create_archive_with_inclusions(
+                writer,
+                collected_items,
+                &create_options,
+                &filter,
+                cli_option,
+                password,
+                args.solid,
+            )
+        } else {
+            create_archive_with_inclusions(
+                io::stdout().lock(),
+                collected_items,
+                &create_options,
+                &filter,
+                cli_option,
+                password,
+                args.solid,
+            )
+        }
     } else {
-        create_archive_file(|| Ok(io::stdout().lock()), creation_context, target_items)
+        // No @archive inclusions, use the existing optimized path
+        let target_items: Vec<_> = collected_items
+            .into_iter()
+            .filter_map(|item| match item {
+                CollectedItem::Filesystem(path, store_as) => Some((path, store_as)),
+                CollectedItem::ArchiveMarker(_) => None,
+            })
+            .collect();
+
+        let creation_context = CreationContext {
+            write_option: cli_option,
+            keep_options,
+            owner_options,
+            time_options,
+            solid: args.solid,
+            pathname_editor,
+        };
+
+        if let Some(file) = archive_file {
+            create_archive_file(
+                || utils::fs::file_create(&file, args.overwrite),
+                creation_context,
+                target_items,
+            )
+        } else {
+            create_archive_file(|| Ok(io::stdout().lock()), creation_context, target_items)
+        }
     }
 }
 
@@ -818,6 +895,18 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         files.extend(read_paths(path, args.null)?);
     }
 
+    // Parse file arguments to detect @archive inclusions.
+    // This must happen before changing working directory so @archive paths are canonicalized.
+    let item_sources = ItemSource::parse_many(&files)?;
+
+    // Check for stdin conflict: can't read @- when reading input archive from stdin
+    let uses_stdin_for_input = archive_path.is_none();
+    if uses_stdin_for_input && ItemSource::has_stdin_archive(&item_sources) {
+        anyhow::bail!(
+            "Cannot use @- (read archive from stdin) when reading input archive from stdin (-f -)"
+        );
+    }
+
     let mut exclude = args.exclude.unwrap_or_default();
     if let Some(p) = args.exclude_from {
         exclude.extend(read_paths(p, args.null)?);
@@ -842,9 +931,12 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
     }
     .resolve()?;
+
+    // Change working directory after parsing @archive paths
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
     }
+
     let collect_options = CollectOptions {
         recursive: args.recursive,
         keep_dir: args.keep_dir,
@@ -856,21 +948,101 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         filter: &filter,
         time_filters: &time_filters,
     };
-    if let Some(file) = &archive_path {
-        let archive = open_archive_then_seek_to_end(file)?;
-        let target_items = collect_items_from_paths(&files, &collect_options)?;
-        run_append_archive(&create_options, archive, target_items)
+
+    // Collect items from sources (preserving argument order)
+    let collected_items = collect_items_from_sources(item_sources, &collect_options)?;
+
+    // Check if there are any @archive inclusions
+    let has_archive_inclusions = collected_items
+        .iter()
+        .any(|item| matches!(item, CollectedItem::ArchiveMarker(_)));
+
+    if has_archive_inclusions {
+        // Use append with @ support
+        if let Some(file) = &archive_path {
+            let mut archive = open_archive_then_seek_to_end(file)?;
+            append_with_inclusions(
+                &mut archive,
+                collected_items,
+                &create_options,
+                &filter,
+                password,
+            )?;
+            archive.finalize()?;
+            Ok(())
+        } else {
+            let mut output_archive = Archive::write_header(io::stdout().lock())?;
+            {
+                let mut input_archive = Archive::read_header(io::stdin().lock())?;
+                for entry in input_archive.raw_entries() {
+                    output_archive.add_entry(entry?)?;
+                }
+            }
+            append_with_inclusions(
+                &mut output_archive,
+                collected_items,
+                &create_options,
+                &filter,
+                password,
+            )?;
+            let _ = output_archive.finalize()?;
+            Ok(())
+        }
     } else {
-        let target_items = collect_items_from_paths(&files, &collect_options)?;
-        let mut output_archive = Archive::write_header(io::stdout().lock())?;
-        {
-            let mut input_archive = Archive::read_header(io::stdin().lock())?;
-            for entry in input_archive.raw_entries() {
-                output_archive.add_entry(entry?)?;
+        // No @archive inclusions, use the existing path
+        let target_items: Vec<_> = collected_items
+            .into_iter()
+            .filter_map(|item| match item {
+                CollectedItem::Filesystem(path, store_as) => Some((path, store_as)),
+                CollectedItem::ArchiveMarker(_) => None,
+            })
+            .collect();
+
+        if let Some(file) = &archive_path {
+            let archive = open_archive_then_seek_to_end(file)?;
+            run_append_archive(&create_options, archive, target_items)
+        } else {
+            let mut output_archive = Archive::write_header(io::stdout().lock())?;
+            {
+                let mut input_archive = Archive::read_header(io::stdin().lock())?;
+                for entry in input_archive.raw_entries() {
+                    output_archive.add_entry(entry?)?;
+                }
+            }
+            run_append_archive(&create_options, output_archive, target_items)
+        }
+    }
+}
+
+/// Appends items to an archive with @archive inclusions support.
+fn append_with_inclusions<W: Write>(
+    archive: &mut Archive<W>,
+    collected_items: Vec<CollectedItem>,
+    create_options: &CreateOptions,
+    filter: &PathFilter<'_>,
+    password: Option<&[u8]>,
+) -> anyhow::Result<()> {
+    for item in collected_items {
+        match item {
+            CollectedItem::Filesystem(path, store_as) => {
+                if let Some(entry) = create_entry(&(path, store_as), create_options)? {
+                    archive.add_entry(entry)?;
+                }
+            }
+            CollectedItem::ArchiveMarker(ArchiveSource::Stdin) => {
+                append_archive_entries(archive, io::stdin().lock(), filter, password)?;
+            }
+            CollectedItem::ArchiveMarker(ArchiveSource::File(path)) => {
+                append_archive_entries(
+                    archive,
+                    io::BufReader::new(fs::File::open(path)?),
+                    filter,
+                    password,
+                )?;
             }
         }
-        run_append_archive(&create_options, output_archive, target_items)
     }
+    Ok(())
 }
 
 fn resolve_owner_options(
@@ -896,4 +1068,219 @@ fn resolve_name_id(
         Some(spec) => (spec.name, spec.id),
         None => (name, id),
     }
+}
+
+/// Creates an archive with support for @archive inclusions.
+///
+/// Processes collected items in order, interleaving filesystem entries
+/// with entries from included archives. Order is preserved exactly as
+/// specified on the command line.
+fn create_archive_with_inclusions<W: Write>(
+    writer: W,
+    collected_items: Vec<CollectedItem>,
+    create_options: &CreateOptions,
+    filter: &PathFilter<'_>,
+    write_option: WriteOptions,
+    password: Option<&[u8]>,
+    solid: bool,
+) -> anyhow::Result<()> {
+    if solid {
+        create_solid_archive_with_inclusions(
+            writer,
+            collected_items,
+            create_options,
+            filter,
+            write_option,
+            password,
+        )
+    } else {
+        create_normal_archive_with_inclusions(
+            writer,
+            collected_items,
+            create_options,
+            filter,
+            password,
+        )
+    }
+}
+
+/// Creates a normal (non-solid) archive with @archive inclusions.
+fn create_normal_archive_with_inclusions<W: Write>(
+    writer: W,
+    collected_items: Vec<CollectedItem>,
+    create_options: &CreateOptions,
+    filter: &PathFilter<'_>,
+    password: Option<&[u8]>,
+) -> anyhow::Result<()> {
+    let mut archive = Archive::write_header(writer)?;
+
+    // Process items in order, building filesystem entries and copying archive entries
+    for item in collected_items {
+        match item {
+            CollectedItem::Filesystem(path, store_as) => {
+                if let Some(entry) = create_entry(&(path, store_as), create_options)? {
+                    archive.add_entry(entry)?;
+                }
+            }
+            CollectedItem::ArchiveMarker(ArchiveSource::Stdin) => {
+                append_archive_entries(&mut archive, io::stdin().lock(), filter, password)?;
+            }
+            CollectedItem::ArchiveMarker(ArchiveSource::File(path)) => {
+                append_archive_entries(
+                    &mut archive,
+                    io::BufReader::new(fs::File::open(path)?),
+                    filter,
+                    password,
+                )?;
+            }
+        }
+    }
+
+    archive.finalize()?;
+    Ok(())
+}
+
+/// Creates a solid archive with @archive inclusions.
+fn create_solid_archive_with_inclusions<W: Write>(
+    writer: W,
+    collected_items: Vec<CollectedItem>,
+    create_options: &CreateOptions,
+    filter: &PathFilter<'_>,
+    write_option: WriteOptions,
+    password: Option<&[u8]>,
+) -> anyhow::Result<()> {
+    let mut builder = SolidEntryBuilder::new(write_option)?;
+
+    // Process items in order
+    for item in collected_items {
+        match item {
+            CollectedItem::Filesystem(path, store_as) => {
+                if let Some(entry) = create_entry(&(path, store_as), create_options)? {
+                    builder.add_entry(entry)?;
+                }
+            }
+            CollectedItem::ArchiveMarker(ArchiveSource::Stdin) => {
+                append_archive_entries_to_solid(
+                    &mut builder,
+                    io::stdin().lock(),
+                    filter,
+                    password,
+                )?;
+            }
+            CollectedItem::ArchiveMarker(ArchiveSource::File(path)) => {
+                append_archive_entries_to_solid(
+                    &mut builder,
+                    io::BufReader::new(fs::File::open(path)?),
+                    filter,
+                    password,
+                )?;
+            }
+        }
+    }
+
+    // Finalize solid archive
+    let solid_entry = builder.build()?;
+    let mut archive = Archive::write_header(writer)?;
+    archive.add_entry(solid_entry)?;
+    archive.finalize()?;
+    Ok(())
+}
+
+/// Appends entries from a source archive to the output archive (normal mode).
+fn append_archive_entries<W: Write>(
+    archive: &mut Archive<W>,
+    reader: impl Read,
+    filter: &PathFilter<'_>,
+    password: Option<&[u8]>,
+) -> anyhow::Result<()> {
+    let mut src_archive = Archive::read_header(reader)?;
+
+    for entry in src_archive.entries_with_password(password) {
+        let entry = entry?;
+        let entry_path = entry.header().path();
+        if filter.excluded(entry_path) {
+            continue;
+        }
+        archive.add_entry(entry)?;
+    }
+
+    Ok(())
+}
+
+/// Appends entries from a source archive to a solid builder.
+///
+/// Entries are decoded and re-encoded into the solid block.
+fn append_archive_entries_to_solid(
+    builder: &mut SolidEntryBuilder,
+    reader: impl Read,
+    filter: &PathFilter<'_>,
+    password: Option<&[u8]>,
+) -> anyhow::Result<()> {
+    let mut src_archive = Archive::read_header(reader)?;
+
+    for entry in src_archive.entries_with_password(password) {
+        let entry = entry?;
+        let entry_path = entry.header().path();
+        if filter.excluded(entry_path) {
+            continue;
+        }
+        // Re-create entry for solid mode
+        let rebuilt = rebuild_entry_for_solid(&entry, password)?;
+        builder.add_entry(rebuilt)?;
+    }
+
+    Ok(())
+}
+
+/// Rebuilds an entry for solid mode by decoding and re-encoding.
+fn rebuild_entry_for_solid<T: AsRef<[u8]>>(
+    entry: &NormalEntry<T>,
+    password: Option<&[u8]>,
+) -> io::Result<NormalEntry> {
+    let header = entry.header();
+    let metadata = entry.metadata();
+    let xattrs = entry.xattrs();
+
+    let mut builder = match header.data_kind() {
+        DataKind::File => {
+            let mut b = EntryBuilder::new_file(header.path().clone(), WriteOptions::store())?;
+            let mut reader = entry.reader(ReadOptions::with_password(password))?;
+            io::copy(&mut reader, &mut b)?;
+            b
+        }
+        DataKind::Directory => EntryBuilder::new_dir(header.path().clone()),
+        DataKind::SymbolicLink => {
+            let mut reader = entry.reader(ReadOptions::with_password(password))?;
+            let mut target = String::new();
+            reader.read_to_string(&mut target)?;
+            EntryBuilder::new_symlink(header.path().clone(), target.into())?
+        }
+        DataKind::HardLink => {
+            let mut reader = entry.reader(ReadOptions::with_password(password))?;
+            let mut target = String::new();
+            reader.read_to_string(&mut target)?;
+            EntryBuilder::new_hard_link(header.path().clone(), target.into())?
+        }
+    };
+
+    // Apply metadata
+    if let Some(created) = metadata.created() {
+        builder.created(created);
+    }
+    if let Some(modified) = metadata.modified() {
+        builder.modified(modified);
+    }
+    if let Some(accessed) = metadata.accessed() {
+        builder.accessed(accessed);
+    }
+    if let Some(permission) = metadata.permission() {
+        builder.permission(permission.clone());
+    }
+
+    // Apply xattrs
+    for xattr in xattrs {
+        builder.add_xattr(xattr.clone());
+    }
+
+    builder.build()
 }
