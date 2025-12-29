@@ -438,6 +438,7 @@ impl EntryBuilder {
     ///
     /// Returns an error if an I/O error occurs while building entry into buffer.
     #[inline]
+    #[must_use = "building an entry without using it is wasteful"]
     pub fn build(self) -> io::Result<NormalEntry> {
         let mut data = if let Some(data) = self.data {
             data.try_into_inner()?.try_into_inner()?.inner
@@ -717,6 +718,7 @@ impl SolidEntryBuilder {
     /// # }
     /// ```
     #[inline]
+    #[must_use = "building an entry without using it is wasteful"]
     pub fn build(self) -> io::Result<impl Entry + Sized> {
         self.build_as_entry()
     }

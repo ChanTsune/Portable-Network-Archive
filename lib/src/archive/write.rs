@@ -275,6 +275,7 @@ impl<W: Write> Archive<W> {
     /// # Errors
     /// Returns an error if writing the end-of-archive marker fails.
     #[inline]
+    #[must_use = "archive is not complete until finalize succeeds"]
     pub fn finalize(mut self) -> io::Result<W> {
         (ChunkType::AEND, []).write_chunk_in(&mut self.inner)?;
         Ok(self.inner)
@@ -497,6 +498,7 @@ impl<W: Write> SolidArchive<W> {
     /// # }
     /// ```
     #[inline]
+    #[must_use = "archive is not complete until finalize succeeds"]
     pub fn finalize(self) -> io::Result<W> {
         let archive = self.finalize_solid_entry()?;
         archive.finalize()
