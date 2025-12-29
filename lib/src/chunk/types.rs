@@ -31,6 +31,53 @@ impl Display for ChunkTypeError {
 impl Error for ChunkTypeError {}
 
 /// A 4-byte chunk type code.
+///
+/// PNA uses a chunk-based format inspired by PNG. Each chunk has a 4-character
+/// type code that determines how the chunk should be interpreted.
+///
+/// # Chunk Type Naming Convention
+///
+/// The case of each letter in the chunk type encodes important properties:
+///
+/// | Position | Uppercase | Lowercase |
+/// |----------|-----------|-----------|
+/// | 1st | Critical (must understand) | Ancillary (can ignore) |
+/// | 2nd | Public (standardized) | Private (application-specific) |
+/// | 3rd | Reserved (must be uppercase) | - |
+/// | 4th | Unsafe to copy | Safe to copy if unknown |
+///
+/// # Critical Chunks
+///
+/// These chunks are essential for reading the archive structure:
+///
+/// - **Archive structure**: [`AHED`](Self::AHED) (header), [`AEND`](Self::AEND) (end),
+///   [`ANXT`](Self::ANXT) (next part)
+/// - **Entry structure**: [`FHED`](Self::FHED) (header), [`FDAT`](Self::FDAT) (data),
+///   [`FEND`](Self::FEND) (end)
+/// - **Solid mode**: [`SHED`](Self::SHED) (header), [`SDAT`](Self::SDAT) (data),
+///   [`SEND`](Self::SEND) (end)
+/// - **Encryption**: [`PHSF`](Self::PHSF) (password hash string format)
+///
+/// # Ancillary Chunks
+///
+/// These chunks contain optional metadata that can be safely ignored:
+///
+/// - **Timestamps**: [`cTIM`](Self::cTIM), [`mTIM`](Self::mTIM), [`aTIM`](Self::aTIM)
+///   (seconds), [`cTNS`](Self::cTNS), [`mTNS`](Self::mTNS), [`aTNS`](Self::aTNS) (nanoseconds)
+/// - **File info**: [`fSIZ`](Self::fSIZ) (size), [`fPRM`](Self::fPRM) (permissions)
+/// - **Extended attributes**: [`xATR`](Self::xATR)
+///
+/// # Creating Private Chunks
+///
+/// Use [`ChunkType::private`] to create application-specific chunk types:
+///
+/// ```rust
+/// use libpna::ChunkType;
+///
+/// // Private chunk type must have lowercase second letter
+/// let my_chunk = ChunkType::private(*b"myTy").unwrap();
+/// assert!(my_chunk.is_private());
+/// ```
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ChunkType(pub(crate) [u8; 4]);
 
