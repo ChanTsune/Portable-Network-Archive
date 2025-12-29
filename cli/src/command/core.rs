@@ -10,6 +10,7 @@ use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
     utils::{self, PathPartExt, fs::HardlinkResolver},
 };
+use anyhow::Context;
 pub(crate) use path_filter::PathFilter;
 use path_slash::*;
 pub(crate) use path_transformer::PathTransformers;
@@ -1213,6 +1214,31 @@ pub(crate) fn read_paths<P: AsRef<Path>>(path: P, nul: bool) -> io::Result<Vec<S
 #[inline]
 pub(crate) fn read_paths_stdin(nul: bool) -> io::Result<Vec<String>> {
     read_paths_reader(io::stdin().lock(), nul)
+}
+
+/// Apply chroot to the current directory if enabled.
+///
+/// On Unix systems (excluding Fuchsia), this changes the root directory to the
+/// current directory and resets the working directory to `/`.
+/// On other platforms, a warning is emitted since chroot is unsupported.
+#[allow(unused_variables)]
+pub(crate) fn apply_chroot(chroot: bool) -> anyhow::Result<()> {
+    if !chroot {
+        return Ok(());
+    }
+    #[cfg(all(unix, not(target_os = "fuchsia")))]
+    {
+        std::os::unix::fs::chroot(
+            std::env::current_dir().with_context(|| "resolving current directory before chroot")?,
+        )
+        .with_context(|| "chroot into current directory")?;
+        std::env::set_current_dir("/").with_context(|| "changing directory to / after chroot")?;
+    }
+    #[cfg(not(all(unix, not(target_os = "fuchsia"))))]
+    {
+        log::warn!("chroot not supported on this platform");
+    }
+    Ok(())
 }
 
 #[cfg(test)]

@@ -10,7 +10,8 @@ use crate::{
         Command, ask_password,
         core::{
             AclStrategy, KeepOptions, OwnerOptions, PathFilter, PathTransformers, PathnameEditor,
-            PermissionStrategy, TimestampStrategy, XattrStrategy, collect_split_archives,
+            PermissionStrategy, TimestampStrategy, XattrStrategy, apply_chroot,
+            collect_split_archives,
             path_lock::PathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, run_process_archive,
@@ -231,7 +232,7 @@ pub(crate) struct ExtractCommand {
     working_dir: Option<PathBuf>,
     #[arg(
         long,
-        help = "chroot() to the current directory after processing any --cd options and before extracting any files"
+        help = "chroot() to the current directory after processing any --cd options and before extracting any files (requires root privileges)"
     )]
     chroot: bool,
     #[arg(
@@ -331,18 +332,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         env::set_current_dir(&working_dir)
             .with_context(|| format!("changing directory to {}", PathWithCwd::new(&working_dir)))?;
     }
-    #[cfg(all(unix, not(target_os = "fuchsia")))]
-    if args.chroot {
-        std::os::unix::fs::chroot(
-            env::current_dir().with_context(|| "resolving current directory before chroot")?,
-        )
-        .with_context(|| "chroot into current directory")?;
-        env::set_current_dir("/").with_context(|| "changing directory to / after chroot")?;
-    }
-    #[cfg(not(all(unix, not(target_os = "fuchsia"))))]
-    if args.chroot {
-        log::warn!("chroot not supported on this platform");
-    };
+    apply_chroot(args.chroot)?;
     #[cfg(not(feature = "memmap"))]
     run_extract_archive_reader(
         archives

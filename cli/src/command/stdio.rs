@@ -10,8 +10,8 @@ use crate::{
         core::{
             AclStrategy, CollectOptions, CreateOptions, KeepOptions, OwnerOptions, PathFilter,
             PathTransformers, PathnameEditor, PermissionStrategy, TimeFilterResolver, TimeOptions,
-            TimestampStrategy, XattrStrategy, collect_items_from_paths, collect_split_archives,
-            entry_option,
+            TimestampStrategy, XattrStrategy, apply_chroot, collect_items_from_paths,
+            collect_split_archives, entry_option,
             path_lock::PathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths,
@@ -411,6 +411,12 @@ pub(crate) struct StdioCommand {
     )]
     allow_unsafe_links: bool,
     #[arg(
+        long,
+        requires = "extract",
+        help = "chroot() to the current directory after processing any --cd options and before extracting any files (requires root privileges)"
+    )]
+    chroot: bool,
+    #[arg(
         short = 'P',
         long = "absolute-paths",
         requires = "unstable",
@@ -678,6 +684,7 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
     }
+    apply_chroot(args.chroot)?;
     if let Some(archives) = archives {
         run_extract_archive_reader(
             archives
