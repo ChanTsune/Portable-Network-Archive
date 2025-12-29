@@ -2,6 +2,9 @@ use crate::utils::{EmbedExt, TestResources, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
 
+/// Precondition: A pre-built archive with mixed platform ACLs exists.
+/// Action: Dump ACLs to file, strip all metadata, restore ACLs from dump file.
+/// Expectation: After restore, ACLs match the original dump exactly.
 #[test]
 fn acl_set_restore() {
     setup();
@@ -134,6 +137,9 @@ fn acl_set_restore() {
     assert.stdout(expected);
 }
 
+/// Precondition: A pre-built archive with mixed platform ACLs exists.
+/// Action: Create dump file with old format (comma separator), strip metadata, restore.
+/// Expectation: Old format (`,` separator) is correctly parsed and restored as new format (`|`).
 #[test]
 fn acl_set_restore_compat() {
     setup();

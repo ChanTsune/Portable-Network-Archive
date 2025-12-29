@@ -1,6 +1,9 @@
 use crate::utils::{EmbedExt, TestResources, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 
+/// Precondition: A pre-built archive with mixed platform ACLs exists.
+/// Action: Run `pna acl get` with wildcard to dump all ACLs.
+/// Expectation: Output contains ACL entries for all platforms in correct format.
 #[test]
 fn acl_get_dump() {
     setup();
