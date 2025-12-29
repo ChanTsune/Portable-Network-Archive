@@ -26,6 +26,37 @@ macro_rules! set_permissions_or_skip {
     };
 }
 
+/// Recursively remove a directory, restoring write permissions on files if needed.
+/// This is necessary because files with 0o000 permissions cannot be overwritten.
+#[cfg(unix)]
+fn force_remove_dir_all(path: impl AsRef<std::path::Path>) -> std::io::Result<()> {
+    let path = path.as_ref();
+    if !path.exists() {
+        return Ok(());
+    }
+
+    // Walk the directory and restore write permissions on all files
+    fn restore_permissions(dir: &std::path::Path) -> std::io::Result<()> {
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            let file_type = entry.file_type()?;
+
+            if file_type.is_dir() {
+                restore_permissions(&path)?;
+            } else if file_type.is_file() {
+                // Try to restore write permission so the file can be deleted
+                let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o644));
+            }
+        }
+        Ok(())
+    }
+
+    // Ignore errors during permission restoration - we'll try to remove anyway
+    let _ = restore_permissions(path);
+    fs::remove_dir_all(path)
+}
+
 /// Precondition: An archive contains a file with permission 0o755 (rwxr-xr-x).
 /// Action: Extract the archive with `--keep-permission`.
 /// Expectation: The extracted file has permission 0o755 on the filesystem.
@@ -177,6 +208,9 @@ fn extract_preserves_private_permission() {
 #[cfg(unix)]
 fn extract_preserves_no_permission() {
     setup();
+    // Clean up any leftover files from previous test runs.
+    // Files with 0o000 permissions cannot be overwritten, so we must remove them first.
+    let _ = force_remove_dir_all("extract_perm_000");
     TestResources::extract_in("raw/", "extract_perm_000/in/").unwrap();
 
     set_permissions_or_skip!("extract_perm_000/in/raw/text.txt", 0o000);
