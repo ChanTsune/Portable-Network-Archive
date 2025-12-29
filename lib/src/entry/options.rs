@@ -696,6 +696,7 @@ impl WriteOptionsBuilder {
     ///     .build();  // OK
     /// ```
     #[inline]
+    #[must_use = "building options without using them is wasteful"]
     pub fn build(&self) -> WriteOptions {
         let cipher = if self.encryption != Encryption::No {
             Some(Cipher::new(
@@ -814,6 +815,7 @@ impl ReadOptionsBuilder {
 
     /// Creates a new [`ReadOptions`].
     #[inline]
+    #[must_use = "building options without using them is wasteful"]
     pub fn build(&self) -> ReadOptions {
         ReadOptions {
             password: self.password.clone(),
