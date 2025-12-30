@@ -10,6 +10,8 @@ mod combination;
 mod concat;
 mod create;
 mod delete;
+#[cfg(unix)]
+mod device_files;
 #[cfg(not(target_family = "wasm"))]
 mod diff;
 mod encrypt;
