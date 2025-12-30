@@ -158,8 +158,8 @@ Create archive
 
 ###### **Arguments:**
 
-* `<ARCHIVE>`
-* `<FILES>`
+* `<ARCHIVE>` — Archive file path (deprecated, use --file)
+* `<FILES>` — Files or directories to process
 
 ###### **Options:**
 
@@ -181,42 +181,42 @@ Create archive
 * `--no-overwrite` — Do not overwrite files. This is the inverse option of --overwrite
 
   Default value: `false`
-* `--keep-dir` — Archiving the directories
+* `--keep-dir` — Include directories in archive
 
   Default value: `false`
 * `--no-keep-dir` — Do not archive directories. This is the inverse option of --keep-dir
 
   Default value: `false`
-* `--keep-timestamp` [alias: `preserve-timestamps`] — Archiving the timestamp of the files
+* `--keep-timestamp` [alias: `preserve-timestamps`] — Preserve file timestamps
 
   Default value: `false`
 * `--no-keep-timestamp` [alias: `no-preserve-timestamps`] — Do not archive timestamp of files. This is the inverse option of --preserve-timestamps
 
   Default value: `false`
-* `--keep-permission` [alias: `preserve-permissions`] — Archiving the permissions of the files (unstable on Windows)
+* `--keep-permission` [alias: `preserve-permissions`] — Preserve file permissions (unstable on Windows)
 
   Default value: `false`
 * `--no-keep-permission` [alias: `no-preserve-permissions`] — Do not archive permissions of files. This is the inverse option of --preserve-permissions
 
   Default value: `false`
-* `--keep-xattr` [alias: `preserve-xattrs`] — Archiving the extended attributes of the files
+* `--keep-xattr` [alias: `preserve-xattrs`] — Preserve extended attributes
 
   Default value: `false`
 * `--no-keep-xattr` [alias: `no-preserve-xattrs`] — Do not archive extended attributes of files. This is the inverse option of --preserve-xattrs
 
   Default value: `false`
-* `--keep-acl` [alias: `preserve-acls`] — Archiving the acl of the files (unstable)
+* `--keep-acl` [alias: `preserve-acls`] — Preserve ACLs (unstable)
 
   Default value: `false`
-* `--no-keep-acl` [alias: `no-preserve-acls`] — Do not archive acl of files. This is the inverse option of --keep-acl (unstable)
+* `--no-keep-acl` [alias: `no-preserve-acls`] — Do not archive ACLs. This is the inverse option of --keep-acl (unstable)
 
   Default value: `false`
 * `--split <size>` — Splits archive by given size in bytes (minimum 64B)
-* `--solid` — Create an archive in solid mode
+* `--solid` — Compress multiple files together for better compression ratio
 
   Default value: `false`
-* `--uname <UNAME>` — Archiving user to the entries from given name
-* `--gname <GNAME>` — Archiving group to the entries from given name
+* `--uname <UNAME>` — Set user name for archive entries
+* `--gname <GNAME>` — Set group name for archive entries
 * `--uid <UID>` — Overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id
 * `--gid <GID>` — Overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id
 * `--strip-components <STRIP_COMPONENTS>` — Remove the specified number of leading path elements when storing paths (unstable)
@@ -267,7 +267,7 @@ Create archive
   Default value: `false`
 * `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option (unstable)
 * `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option (unstable)
-* `-C`, `--cd <DIRECTORY>` [alias: `directory`] — changes the directory before adding the following files
+* `-C`, `--cd <DIRECTORY>` [alias: `directory`] — Change directory before adding the following files
 * `--store` — No compression
 
   Default value: `false`
@@ -286,7 +286,7 @@ Create archive
 * `--pbkdf2 <PBKDF2>` — Use pbkdf2 for password hashing
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
-* `-f`, `--file <FILE>`
+* `-f`, `--file <FILE>` — Archive file path
 * `--quiet` — Make some output more quiet
 
   Default value: `false`
@@ -316,8 +316,8 @@ Append files to archive
 
 ###### **Arguments:**
 
-* `<ARCHIVE>`
-* `<FILES>`
+* `<ARCHIVE>` — Archive file path (deprecated, use --file)
+* `<FILES>` — Files or directories to process
 
 ###### **Options:**
 
@@ -333,38 +333,38 @@ Append files to archive
 * `--no-recursive` [alias: `no-recursion`] — Do not recursively add directories to the archives. This is the inverse option of --recursive
 
   Default value: `false`
-* `--keep-dir` — Archiving the directories
+* `--keep-dir` — Include directories in archive
 
   Default value: `false`
 * `--no-keep-dir` — Do not archive directories. This is the inverse option of --keep-dir
 
   Default value: `false`
-* `--keep-timestamp` [alias: `preserve-timestamps`] — Archiving the timestamp of the files
+* `--keep-timestamp` [alias: `preserve-timestamps`] — Preserve file timestamps
 
   Default value: `false`
 * `--no-keep-timestamp` [alias: `no-preserve-timestamps`] — Do not archive timestamp of files. This is the inverse option of --preserve-timestamps
 
   Default value: `false`
-* `--keep-permission` [alias: `preserve-permissions`] — Archiving the permissions of the files (unstable on Windows)
+* `--keep-permission` [alias: `preserve-permissions`] — Preserve file permissions (unstable on Windows)
 
   Default value: `false`
 * `--no-keep-permission` [alias: `no-preserve-permissions`] — Do not archive permissions of files. This is the inverse option of --preserve-permissions
 
   Default value: `false`
-* `--keep-xattr` [alias: `preserve-xattrs`] — Archiving the extended attributes of the files
+* `--keep-xattr` [alias: `preserve-xattrs`] — Preserve extended attributes
 
   Default value: `false`
 * `--no-keep-xattr` [alias: `no-preserve-xattrs`] — Do not archive extended attributes of files. This is the inverse option of --preserve-xattrs
 
   Default value: `false`
-* `--keep-acl` [alias: `preserve-acls`] — Archiving the acl of the files (unstable)
+* `--keep-acl` [alias: `preserve-acls`] — Preserve ACLs (unstable)
 
   Default value: `false`
-* `--no-keep-acl` [alias: `no-preserve-acls`] — Do not archive acl of files. This is the inverse option of --keep-acl (unstable)
+* `--no-keep-acl` [alias: `no-preserve-acls`] — Do not archive ACLs. This is the inverse option of --keep-acl (unstable)
 
   Default value: `false`
-* `--uname <UNAME>` — Archiving user to the entries from given name
-* `--gname <GNAME>` — Archiving group to the entries from given name
+* `--uname <UNAME>` — Set user name for archive entries
+* `--gname <GNAME>` — Set group name for archive entries
 * `--uid <UID>` — Overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id
 * `--gid <GID>` — Overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id
 * `--strip-components <STRIP_COMPONENTS>` — Remove the specified number of leading path elements when storing paths (unstable)
@@ -415,7 +415,7 @@ Append files to archive
   Default value: `false`
 * `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option (unstable)
 * `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option (unstable)
-* `-C`, `--cd <DIRECTORY>` [alias: `directory`] — changes the directory before adding the following files
+* `-C`, `--cd <DIRECTORY>` [alias: `directory`] — Change directory before adding the following files
 * `--store` — No compression
 
   Default value: `false`
@@ -434,7 +434,7 @@ Append files to archive
 
 * `--argon2 <ARGON2>` — Use argon2 for password hashing
 * `--pbkdf2 <PBKDF2>` — Use pbkdf2 for password hashing
-* `-f`, `--file <FILE>`
+* `-f`, `--file <FILE>` — Archive file path
 * `--quiet` — Make some output more quiet
 
   Default value: `false`
@@ -464,8 +464,8 @@ Extract files from archive
 
 ###### **Arguments:**
 
-* `<ARCHIVE>`
-* `<FILES>`
+* `<ARCHIVE>` — Archive file path (deprecated, use --file)
+* `<FILES>` — Files or directories to process
 
 ###### **Options:**
 
@@ -502,10 +502,10 @@ Extract files from archive
 * `--no-keep-xattr` [alias: `no-preserve-xattrs`] — Do not restore extended attributes of files. This is the inverse option of --preserve-xattrs
 
   Default value: `false`
-* `--keep-acl` [alias: `preserve-acls`] — Restore the acl of the files (unstable)
+* `--keep-acl` [alias: `preserve-acls`] — Restore ACLs (unstable)
 
   Default value: `false`
-* `--no-keep-acl` [alias: `no-preserve-acls`] — Do not restore acl of files. This is the inverse option of --keep-acl (unstable)
+* `--no-keep-acl` [alias: `no-preserve-acls`] — Do not restore ACLs. This is the inverse option of --keep-acl (unstable)
 
   Default value: `false`
 * `--uname <UNAME>` — Restore user from given name
@@ -541,7 +541,7 @@ Extract files from archive
 * `--allow-unsafe-links` — Allow extracting symbolic links and hard links that contain root or parent paths
 
   Default value: `false`
-* `-f`, `--file <FILE>`
+* `-f`, `--file <FILE>` — Archive file path
 * `--quiet` — Make some output more quiet
 
   Default value: `false`
@@ -571,8 +571,8 @@ List files in archive
 
 ###### **Arguments:**
 
-* `<ARCHIVE>`
-* `<FILES>`
+* `<ARCHIVE>` — Archive file path (deprecated, use --file)
+* `<FILES>` — Files or directories to process
 
 ###### **Options:**
 
@@ -582,13 +582,13 @@ List files in archive
 * `-h`, `--header` — Add a header row to each column
 
   Default value: `false`
-* `--solid` — Display solid mode archive entries
+* `--solid` — Show entries that are compressed together
 
   Default value: `false`
 * `-@` — Display extended file attributes in a table
 
   Default value: `false`
-* `-e` — Display acl in a table (unstable)
+* `-e` — Display ACLs in a table (unstable)
 
   Default value: `false`
 * `--private` — Display private chunks in a table (unstable)
@@ -611,7 +611,7 @@ List files in archive
 * `-q` — Force printing of non-graphic characters in file names as the character '?'
 
   Default value: `false`
-* `--classify` — Display type indicator by entry kinds
+* `--classify` — Append file type indicators (/ for directories, @ for symlinks)
 
   Default value: `false`
 * `--include <INCLUDE>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions
@@ -625,7 +625,7 @@ List files in archive
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
-* `-f`, `--file <FILE>`
+* `-f`, `--file <FILE>` — Archive file path
 * `--help` — Print help
 * `--quiet` — Make some output more quiet
 
@@ -673,10 +673,10 @@ Delete entry from archive
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
-* `--unsolid` — Unsolid input solid entries.
+* `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
-* `--keep-solid` — Keep input solid entries.
+* `--keep-solid` — Preserve solid entries without conversion
 
   Default value: `false`
 * `-f`, `--file <ARCHIVE>`
@@ -711,8 +711,8 @@ Split archive
 
 ###### **Options:**
 
-* `-f`, `--file <FILE>`
-* `--out-dir <OUT_DIR>`
+* `-f`, `--file <FILE>` — Archive file path
+* `--out-dir <OUT_DIR>` — Output directory for split archives
 * `--overwrite` — Overwrite file
 
   Default value: `false`
@@ -747,7 +747,7 @@ Concat archives
 
 ###### **Arguments:**
 
-* `<ARCHIVES>`
+* `<ARCHIVES>` — Archive files to concatenate (deprecated, use --files)
 
 ###### **Options:**
 
@@ -757,7 +757,7 @@ Concat archives
 * `--no-overwrite` — Do not overwrite files. This is the inverse option of --overwrite
 
   Default value: `false`
-* `-f`, `--files <FILES>`
+* `-f`, `--files <FILES>` — Archive files to concatenate
 * `--quiet` — Make some output more quiet
 
   Default value: `false`
@@ -785,34 +785,34 @@ Strip entries metadata
 
 ###### **Arguments:**
 
-* `<ARCHIVE>`
-* `<FILES>`
+* `<ARCHIVE>` — Archive file path (deprecated, use --file)
+* `<FILES>` — Files or directories to process
 
 ###### **Options:**
 
-* `--keep-timestamp` [alias: `preserve-timestamps`] — Keep the timestamp of the files
+* `--keep-timestamp` [alias: `preserve-timestamps`] — Preserve file timestamps
 
   Default value: `false`
-* `--keep-permission` [alias: `preserve-permissions`] — Keep the permissions of the files
+* `--keep-permission` [alias: `preserve-permissions`] — Preserve file permissions
 
   Default value: `false`
-* `--keep-xattr` [alias: `preserve-xattrs`] — Keep the extended attributes of the files
+* `--keep-xattr` [alias: `preserve-xattrs`] — Preserve extended attributes
 
   Default value: `false`
-* `--keep-acl` [alias: `preserve-acls`] — Keep the acl of the files
+* `--keep-acl` [alias: `preserve-acls`] — Preserve ACLs
 
   Default value: `false`
 * `--keep-private <KEEP_PRIVATE>` [alias: `preserve-private_chunks`] — Keep private chunks
-* `--unsolid` — Unsolid input solid entries.
+* `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
-* `--keep-solid` — Keep input solid entries.
+* `--keep-solid` — Preserve solid entries without conversion
 
   Default value: `false`
 * `--output <OUTPUT>` — Output file path
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
-* `-f`, `--file <FILE>`
+* `-f`, `--file <FILE>` — Archive file path
 * `--quiet` — Make some output more quiet
 
   Default value: `false`
@@ -840,8 +840,8 @@ Sort entries in archive
 
 ###### **Options:**
 
-* `-f`, `--file <ARCHIVE>`
-* `--output <OUTPUT>` — Output file path
+* `-f`, `--file <ARCHIVE>` — Archive file path
+* `--output <OUTPUT>` — Output archive file path
 * `--by <KEY>` — Sort key in format KEY[:ORDER] (e.g., name, mtime:desc) [keys: name, ctime, mtime, atime] [orders: asc, desc]
 
   Default value: `name`
@@ -908,12 +908,12 @@ Get extended attributes of entries
 
 ###### **Arguments:**
 
-* `<ARCHIVE>`
-* `<FILES>`
+* `<ARCHIVE>` — Archive file path (deprecated, use --file)
+* `<FILES>` — Files or directories to process
 
 ###### **Options:**
 
-* `-f`, `--file <FILE>`
+* `-f`, `--file <FILE>` — Archive file path
 * `-n`, `--name <NAME>` — Dump the value of the named extended attribute
 * `-d`, `--dump` — Dump the values of all matched extended attributes
 
@@ -952,20 +952,20 @@ Set extended attributes of entries
 
 ###### **Arguments:**
 
-* `<ARCHIVE>`
-* `<FILES>`
+* `<ARCHIVE>` — Archive file path (deprecated, use --file)
+* `<FILES>` — Files or directories to process
 
 ###### **Options:**
 
-* `-f`, `--file <FILE>`
+* `-f`, `--file <FILE>` — Archive file path
 * `-n`, `--name <NAME>` — Name of extended attribute
 * `-v`, `--value <VALUE>` — Value of extended attribute
 * `-x`, `--remove <REMOVE>` — Remove extended attribute
 * `--restore <RESTORE>` — Restores extended attributes from file. The file must be in the format generated by the pna xattr get command with the --dump option. If a dash (-) is given as the file name, reads from standard input
-* `--unsolid` — Unsolid input solid entries.
+* `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
-* `--keep-solid` — Keep input solid entries.
+* `--keep-solid` — Preserve solid entries without conversion
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
@@ -1097,7 +1097,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 ###### **Subcommands:**
 
-* `stdio` — Archive manipulation via stdio
+* `stdio` — bsdtar-like CLI semantics for PNA archives
 * `delete` — Delete entry from archive
 * `update` — Update entries in archive
 * `chown` — Change owner
@@ -1133,7 +1133,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 ## `pna experimental stdio`
 
-Archive manipulation via stdio
+bsdtar-like CLI semantics for PNA archives
 
 **Usage:** `pna experimental stdio [OPTIONS] <--create|--extract|--list|--append> [FILES]...`
 
@@ -1182,37 +1182,37 @@ Archive manipulation via stdio
 * `-k`, `--keep-old-files` — Skip extracting files if they already exist (unstable)
 
   Default value: `false`
-* `--keep-dir` — Archiving the directories
+* `--keep-dir` — Include directories in archive
 
   Default value: `false`
 * `--no-keep-dir` — Do not archive directories. This is the inverse option of --keep-dir
 
   Default value: `false`
-* `--keep-timestamp` [alias: `preserve-timestamps`] — Archiving the timestamp of the files
+* `--keep-timestamp` [alias: `preserve-timestamps`] — Preserve file timestamps
 
   Default value: `false`
 * `-m`, `--no-keep-timestamp` [aliases: `no-preserve-timestamps`, `modification_time`] — Do not archive timestamp of files. This is the inverse option of --preserve-timestamps
 
   Default value: `false`
-* `--keep-permission` [alias: `preserve-permissions`] — Archiving the permissions of the files (unstable on Windows)
+* `--keep-permission` [alias: `preserve-permissions`] — Preserve file permissions (unstable on Windows)
 
   Default value: `false`
 * `--no-keep-permission` [aliases: `no-preserve-permissions`, `no-permissions`] — Do not archive permissions of files. This is the inverse option of --preserve-permissions
 
   Default value: `false`
-* `--keep-xattr` [aliases: `preserve-xattrs`, `xattrs`] — Archiving the extended attributes of the files
+* `--keep-xattr` [aliases: `preserve-xattrs`, `xattrs`] — Preserve extended attributes
 
   Default value: `false`
 * `--no-keep-xattr` [aliases: `no-preserve-xattrs`, `no-xattrs`] — Do not archive extended attributes of files. This is the inverse option of --preserve-xattrs
 
   Default value: `false`
-* `--keep-acl` [aliases: `preserve-acls`, `acls`] — Archiving the acl of the files (unstable)
+* `--keep-acl` [aliases: `preserve-acls`, `acls`] — Preserve ACLs (unstable)
 
   Default value: `false`
-* `--no-keep-acl` [aliases: `no-preserve-acls`, `no-acls`] — Do not archive acl of files. This is the inverse option of --keep-acl (unstable)
+* `--no-keep-acl` [aliases: `no-preserve-acls`, `no-acls`] — Do not archive ACLs. This is the inverse option of --keep-acl (unstable)
 
   Default value: `false`
-* `--solid` — Solid mode archive
+* `--solid` — Compress multiple files together for better compression ratio
 
   Default value: `false`
 * `--store` — No compression
@@ -1288,7 +1288,7 @@ Archive manipulation via stdio
 * `--no-same-owner` — Extract files as yourself
 
   Default value: `false`
-* `-C`, `--cd <DIRECTORY>` [alias: `directory`] — changes the directory before adding the following files
+* `-C`, `--cd <DIRECTORY>` [alias: `directory`] — Change directory before adding the following files
 * `-O`, `--to-stdout` — Write extracted file data to standard output instead of the file system
 
   Default value: `false`
@@ -1353,10 +1353,10 @@ Delete entry from archive
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <PASSWORD_FILE>` — Read password from specified file
-* `--unsolid` — Unsolid input solid entries.
+* `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
-* `--keep-solid` — Keep input solid entries.
+* `--keep-solid` — Preserve solid entries without conversion
 
   Default value: `false`
 * `-f`, `--file <ARCHIVE>`
@@ -1403,38 +1403,38 @@ Update entries in archive
 * `--no-recursive` [alias: `no-recursion`] — Do not recursively add directories to the archives. This is the inverse option of --recursive
 
   Default value: `false`
-* `--keep-dir` — Archiving the directories
+* `--keep-dir` — Include directories in archive
 
   Default value: `false`
 * `--no-keep-dir` — Do not archive directories. This is the inverse option of --keep-dir
 
   Default value: `false`
-* `--keep-timestamp` [alias: `preserve-timestamps`] — Archiving the timestamp of the files
+* `--keep-timestamp` [alias: `preserve-timestamps`] — Preserve file timestamps
 
   Default value: `false`
 * `--no-keep-timestamp` [alias: `no-preserve-timestamps`] — Do not archive timestamp of files. This is the inverse option of --preserve-timestamps
 
   Default value: `false`
-* `--keep-permission` [alias: `preserve-permissions`] — Archiving the permissions of the files (unstable on Windows)
+* `--keep-permission` [alias: `preserve-permissions`] — Preserve file permissions (unstable on Windows)
 
   Default value: `false`
 * `--no-keep-permission` [alias: `no-preserve-permissions`] — Do not archive permissions of files. This is the inverse option of --preserve-permissions
 
   Default value: `false`
-* `--keep-xattr` [alias: `preserve-xattrs`] — Archiving the extended attributes of the files
+* `--keep-xattr` [alias: `preserve-xattrs`] — Preserve extended attributes
 
   Default value: `false`
 * `--no-keep-xattr` [alias: `no-preserve-xattrs`] — Do not archive extended attributes of files. This is the inverse option of --preserve-xattrs
 
   Default value: `false`
-* `--keep-acl` [alias: `preserve-acls`] — Archiving the acl of the files (unstable)
+* `--keep-acl` [alias: `preserve-acls`] — Preserve ACLs (unstable)
 
   Default value: `false`
-* `--no-keep-acl` [alias: `no-preserve-acls`] — Do not archive acl of files. This is the inverse option of --keep-acl (unstable)
+* `--no-keep-acl` [alias: `no-preserve-acls`] — Do not archive ACLs. This is the inverse option of --keep-acl (unstable)
 
   Default value: `false`
-* `--uname <UNAME>` — Archiving user to the entries from given name
-* `--gname <GNAME>` — Archiving group to the entries from given name
+* `--uname <UNAME>` — Set user name for archive entries
+* `--gname <GNAME>` — Set group name for archive entries
 * `--uid <UID>` — Overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id
 * `--gid <GID>` — Overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id
 * `--strip-components <STRIP_COMPONENTS>` — Remove the specified number of leading path elements when storing paths (unstable)
@@ -1473,7 +1473,7 @@ Update entries in archive
   Default value: `false`
 * `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option (unstable)
 * `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option (unstable)
-* `-C`, `--cd <DIRECTORY>` [alias: `directory`] — changes the directory before adding the following files
+* `-C`, `--cd <DIRECTORY>` [alias: `directory`] — Change directory before adding the following files
 * `--store` — No compression
 
   Default value: `false`
@@ -1492,10 +1492,10 @@ Update entries in archive
 
 * `--argon2 <ARGON2>` — Use argon2 for password hashing
 * `--pbkdf2 <PBKDF2>` — Use pbkdf2 for password hashing
-* `--unsolid` — Unsolid input solid entries.
+* `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
-* `--keep-solid` — Keep input solid entries.
+* `--keep-solid` — Preserve solid entries without conversion
 
   Default value: `false`
 * `-f`, `--file <ARCHIVE>`
@@ -1509,6 +1509,9 @@ Update entries in archive
 
   Default value: `false`
 * `-H`, `--follow-command-links` — Follow symbolic links named on the command line (unstable)
+
+  Default value: `false`
+* `--sync` — Synchronize archive with source: remove entries for files that no longer exist in the source
 
   Default value: `false`
 * `--quiet` — Make some output more quiet
@@ -1553,10 +1556,10 @@ Change owner
 * `--no-owner-lookup` — do not resolve user and group
 
   Default value: `false`
-* `--unsolid` — Unsolid input solid entries.
+* `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
-* `--keep-solid` — Keep input solid entries.
+* `--keep-solid` — Preserve solid entries without conversion
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
@@ -1594,10 +1597,10 @@ Change mode
 ###### **Options:**
 
 * `-f`, `--file <ARCHIVE>`
-* `--unsolid` — Unsolid input solid entries.
+* `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
-* `--keep-solid` — Keep input solid entries.
+* `--keep-solid` — Preserve solid entries without conversion
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
@@ -1663,12 +1666,12 @@ Get extended attributes of entries
 
 ###### **Arguments:**
 
-* `<ARCHIVE>`
-* `<FILES>`
+* `<ARCHIVE>` — Archive file path (deprecated, use --file)
+* `<FILES>` — Files or directories to process
 
 ###### **Options:**
 
-* `-f`, `--file <FILE>`
+* `-f`, `--file <FILE>` — Archive file path
 * `-n`, `--name <NAME>` — Dump the value of the named extended attribute
 * `-d`, `--dump` — Dump the values of all matched extended attributes
 
@@ -1707,20 +1710,20 @@ Set extended attributes of entries
 
 ###### **Arguments:**
 
-* `<ARCHIVE>`
-* `<FILES>`
+* `<ARCHIVE>` — Archive file path (deprecated, use --file)
+* `<FILES>` — Files or directories to process
 
 ###### **Options:**
 
-* `-f`, `--file <FILE>`
+* `-f`, `--file <FILE>` — Archive file path
 * `-n`, `--name <NAME>` — Name of extended attribute
 * `-v`, `--value <VALUE>` — Value of extended attribute
 * `-x`, `--remove <REMOVE>` — Remove extended attribute
 * `--restore <RESTORE>` — Restores extended attributes from file. The file must be in the format generated by the pna xattr get command with the --dump option. If a dash (-) is given as the file name, reads from standard input
-* `--unsolid` — Unsolid input solid entries.
+* `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
-* `--keep-solid` — Keep input solid entries.
+* `--keep-solid` — Preserve solid entries without conversion
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
@@ -1874,10 +1877,10 @@ Set acl of entries
 
   Default value: ``
 * `--restore <RESTORE>` — Restore a permission backup created by `pna acl get *` or similar. All permissions of a complete directory subtree are restored using this mechanism. If a dash (-) is given as the file name, reads from standard input
-* `--unsolid` — Unsolid input solid entries.
+* `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
-* `--keep-solid` — Keep input solid entries.
+* `--keep-solid` — Preserve solid entries without conversion
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
@@ -1947,10 +1950,10 @@ Migrate old format to latest format
 
 ###### **Options:**
 
-* `--unsolid` — Unsolid input solid entries.
+* `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
-* `--keep-solid` — Keep input solid entries.
+* `--keep-solid` — Preserve solid entries without conversion
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
@@ -2080,8 +2083,8 @@ Sort entries in archive (stabilized, use `pna sort` command instead. this comman
 
 ###### **Options:**
 
-* `-f`, `--file <ARCHIVE>`
-* `--output <OUTPUT>` — Output file path
+* `-f`, `--file <ARCHIVE>` — Archive file path
+* `--output <OUTPUT>` — Output archive file path
 * `--by <KEY>` — Sort key in format KEY[:ORDER] (e.g., name, mtime:desc) [keys: name, ctime, mtime, atime] [orders: asc, desc]
 
   Default value: `name`
@@ -2148,7 +2151,7 @@ Print this message or the help of the given subcommand(s)
 
 ###### **Subcommands:**
 
-* `stdio` — Archive manipulation via stdio
+* `stdio` — bsdtar-like CLI semantics for PNA archives
 * `delete` — Delete entry from archive
 * `update` — Update entries in archive
 * `chown` — Change owner
@@ -2165,7 +2168,7 @@ Print this message or the help of the given subcommand(s)
 
 ## `pna experimental help stdio`
 
-Archive manipulation via stdio
+bsdtar-like CLI semantics for PNA archives
 
 **Usage:** `pna experimental help stdio`
 
@@ -2463,7 +2466,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 ###### **Subcommands:**
 
-* `stdio` — Archive manipulation via stdio
+* `stdio` — bsdtar-like CLI semantics for PNA archives
 * `delete` — Delete entry from archive
 * `update` — Update entries in archive
 * `chown` — Change owner
@@ -2479,7 +2482,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 ## `pna help experimental stdio`
 
-Archive manipulation via stdio
+bsdtar-like CLI semantics for PNA archives
 
 **Usage:** `pna help experimental stdio`
 
