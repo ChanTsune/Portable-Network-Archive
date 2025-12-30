@@ -1027,7 +1027,7 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
     ///     let entry = entry?;
     ///     match entry.data_kind() {
     ///         DataKind::BlockDevice | DataKind::CharDevice => {
-    ///             if let Some(dev) = entry.read_device_numbers()? {
+    ///             if let Some(dev) = entry.read_device_numbers(ReadOptions::builder().build())? {
     ///                 println!("Device: {}:{}", dev.major(), dev.minor());
     ///             }
     ///         }
@@ -1042,10 +1042,13 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
     ///
     /// Returns an error if an I/O error occurs while reading the device numbers.
     #[inline]
-    pub fn read_device_numbers(&self) -> io::Result<Option<DeviceNumbers>> {
+    pub fn read_device_numbers(
+        &self,
+        option: impl ReadOption,
+    ) -> io::Result<Option<DeviceNumbers>> {
         match self.header.data_kind {
             DataKind::BlockDevice | DataKind::CharDevice => {
-                let mut reader = self.reader(ReadOptions::builder().build())?;
+                let mut reader = self.reader(option)?;
                 let mut buf = [0u8; 8];
                 reader.read_exact(&mut buf)?;
                 Ok(Some(DeviceNumbers::try_from_bytes(&buf)?))

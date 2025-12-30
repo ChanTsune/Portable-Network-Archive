@@ -693,7 +693,8 @@ where
         DataKind::BlockDevice => {
             #[cfg(unix)]
             {
-                let Some(dev) = item.read_device_numbers()? else {
+                let Some(dev) = item.read_device_numbers(ReadOptions::with_password(password))?
+                else {
                     log::warn!(
                         "Skipping block device without device numbers: {}",
                         path.display()
@@ -731,7 +732,8 @@ where
         DataKind::CharDevice => {
             #[cfg(unix)]
             {
-                let Some(dev) = item.read_device_numbers()? else {
+                let Some(dev) = item.read_device_numbers(ReadOptions::with_password(password))?
+                else {
                     log::warn!(
                         "Skipping character device without device numbers: {}",
                         path.display()
