@@ -9,6 +9,7 @@ This document contains the help content for the `pna` command-line program.
 * [`pna append`↴](#pna-append)
 * [`pna extract`↴](#pna-extract)
 * [`pna list`↴](#pna-list)
+* [`pna delete`↴](#pna-delete)
 * [`pna split`↴](#pna-split)
 * [`pna concat`↴](#pna-concat)
 * [`pna strip`↴](#pna-strip)
@@ -73,6 +74,7 @@ This document contains the help content for the `pna` command-line program.
 * [`pna help append`↴](#pna-help-append)
 * [`pna help extract`↴](#pna-help-extract)
 * [`pna help list`↴](#pna-help-list)
+* [`pna help delete`↴](#pna-help-delete)
 * [`pna help split`↴](#pna-help-split)
 * [`pna help concat`↴](#pna-help-concat)
 * [`pna help strip`↴](#pna-help-strip)
@@ -113,6 +115,7 @@ Portable-Network-Archive cli
 * `append` — Append files to archive
 * `extract` — Extract files from archive
 * `list` — List files in archive
+* `delete` — Delete entry from archive
 * `split` — Split archive
 * `concat` — Concat archives
 * `strip` — Strip entries metadata
@@ -639,6 +642,60 @@ List files in archive
 * `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
 
   Default value: `false`
+
+
+
+## `pna delete`
+
+Delete entry from archive
+
+**Usage:** `pna delete [OPTIONS] --file <ARCHIVE> [FILES]...`
+
+###### **Arguments:**
+
+* `<FILES>`
+
+###### **Options:**
+
+* `--output <OUTPUT>` — Output file path
+* `--files-from <FILES_FROM>` — Read deleting files from given path (unstable)
+* `--files-from-stdin` — Read deleting files from stdin (unstable)
+
+  Default value: `false`
+* `--include <INCLUDE>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
+* `--exclude <EXCLUDE>` — Exclude path glob (unstable)
+* `--exclude-from <EXCLUDE_FROM>` — Read exclude files from given path (unstable)
+* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)
+
+  Default value: `false`
+* `--null` — Filenames or patterns are separated by null characters, not by newlines
+
+  Default value: `false`
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
+* `--password-file <PASSWORD_FILE>` — Read password from specified file
+* `--unsolid` — Unsolid input solid entries.
+
+  Default value: `false`
+* `--keep-solid` — Keep input solid entries.
+
+  Default value: `false`
+* `-f`, `--file <ARCHIVE>`
+* `--quiet` — Make some output more quiet
+
+  Default value: `false`
+* `--verbose` — Make some output more verbose
+
+  Default value: `false`
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
+* `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
+
+  Default value: `false`
+* `-h`, `--help` — Print help
 
 
 
@@ -2268,6 +2325,7 @@ Print this message or the help of the given subcommand(s)
 * `append` — Append files to archive
 * `extract` — Extract files from archive
 * `list` — List files in archive
+* `delete` — Delete entry from archive
 * `split` — Split archive
 * `concat` — Concat archives
 * `strip` — Strip entries metadata
@@ -2309,6 +2367,14 @@ Extract files from archive
 List files in archive
 
 **Usage:** `pna help list`
+
+
+
+## `pna help delete`
+
+Delete entry from archive
+
+**Usage:** `pna help delete`
 
 
 
