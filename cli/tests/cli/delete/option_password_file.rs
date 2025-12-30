@@ -4,41 +4,27 @@ use portable_network_archive::cli;
 use std::collections::HashSet;
 use std::fs;
 
-/// Precondition: The source tree contains both files and directories.
-/// Action: Run `pna create` with `--password` to build an encrypted archive, then delete entries
-///          by `pna experimental delete` with `--password-file`
-/// Expectation: Only the entries specified is removed from the encrypted archive; all
+/// Precondition: A pre-generated encrypted archive exists.
+/// Action: Run `pna experimental delete` with `--password-file` to delete entries.
+/// Expectation: Only the entries specified are removed from the encrypted archive; all
 ///         other entries remain.
 #[test]
 fn delete_with_password_file() {
     setup();
-    TestResources::extract_in("raw/", "delete_password_file/in/").unwrap();
+    // Use pre-generated encrypted archive (password: "password")
+    TestResources::extract_in("zstd_aes_ctr.pna", "delete_password_file/").unwrap();
     let password_file_path = "delete_password_file/password_file";
-    let password = "delete_password_file";
+    let password = "password";
     fs::write(password_file_path, password).unwrap();
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "c",
-        "delete_password_file/password_file.pna",
-        "--overwrite",
-        "delete_password_file/in/",
-        "--password",
-        password,
-        "--aes",
-        "ctr",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
+
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "experimental",
         "delete",
         "-f",
-        "delete_password_file/password_file.pna",
-        "**/raw/empty.txt",
+        "delete_password_file/zstd_aes_ctr.pna",
+        "**/empty.txt",
         "--password-file",
         password_file_path,
     ])
@@ -48,7 +34,7 @@ fn delete_with_password_file() {
 
     let mut seen = HashSet::new();
     archive::for_each_entry_with_password(
-        "delete_password_file/password_file.pna",
+        "delete_password_file/zstd_aes_ctr.pna",
         password,
         |entry| {
             seen.insert(entry.header().path().to_string());
@@ -57,14 +43,14 @@ fn delete_with_password_file() {
     .unwrap();
 
     for required in [
-        "delete_password_file/in/raw/first/second/third/pna.txt",
-        "delete_password_file/in/raw/images/icon.png",
-        "delete_password_file/in/raw/images/icon.bmp",
-        "delete_password_file/in/raw/images/icon.svg",
-        "delete_password_file/in/raw/pna/empty.pna",
-        "delete_password_file/in/raw/parent/child.txt",
-        "delete_password_file/in/raw/pna/nest.pna",
-        "delete_password_file/in/raw/text.txt",
+        "raw/first/second/third/pna.txt",
+        "raw/images/icon.png",
+        "raw/images/icon.bmp",
+        "raw/images/icon.svg",
+        "raw/pna/empty.pna",
+        "raw/parent/child.txt",
+        "raw/pna/nest.pna",
+        "raw/text.txt",
     ] {
         assert!(
             seen.take(required).is_some(),
