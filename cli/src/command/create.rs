@@ -8,7 +8,7 @@ use crate::{
         core::{
             AclStrategy, CollectOptions, CollectedItem, CreateOptions, KeepOptions,
             MIN_SPLIT_PART_BYTES, OwnerOptions, PathFilter, PathTransformers, PathnameEditor,
-            PermissionStrategy, TimeFilterResolver, TimeOptions, TimestampStrategy, XattrStrategy,
+            PermissionStrategy, TimeFilterResolver, TimestampStrategyResolver, XattrStrategy,
             collect_items_from_paths, create_entry, entry_option,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin, write_split_archive,
@@ -458,11 +458,18 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         fs::create_dir_all(parent)?;
     }
     let keep_options = KeepOptions {
-        timestamp_strategy: TimestampStrategy::from_flags(
-            args.keep_timestamp,
-            args.no_keep_timestamp,
-            TimestampStrategy::Never,
-        ),
+        timestamp_strategy: TimestampStrategyResolver {
+            keep_timestamp: args.keep_timestamp,
+            no_keep_timestamp: args.no_keep_timestamp,
+            default_preserve: false,
+            mtime: args.mtime.map(|it| it.to_system_time()),
+            clamp_mtime: args.clamp_mtime,
+            ctime: args.ctime.map(|it| it.to_system_time()),
+            clamp_ctime: args.clamp_ctime,
+            atime: args.atime.map(|it| it.to_system_time()),
+            clamp_atime: args.clamp_atime,
+        }
+        .resolve(),
         permission_strategy: PermissionStrategy::from_flags(
             args.keep_permission,
             args.no_keep_permission,
@@ -482,21 +489,12 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         PathTransformers::new(args.substitutions, args.transforms),
         false,
     );
-    let time_options = TimeOptions {
-        mtime: args.mtime.map(|it| it.to_system_time()),
-        clamp_mtime: args.clamp_mtime,
-        ctime: args.ctime.map(|it| it.to_system_time()),
-        clamp_ctime: args.clamp_ctime,
-        atime: args.atime.map(|it| it.to_system_time()),
-        clamp_atime: args.clamp_atime,
-    };
     let password = password.as_deref();
     let write_option = entry_option(args.compression, args.cipher, args.hash, password);
     let creation_context = CreationContext {
         write_option,
         keep_options,
         owner_options,
-        time_options,
         solid: args.solid,
         pathname_editor,
     };
@@ -526,7 +524,6 @@ pub(crate) struct CreationContext {
     pub(crate) write_option: WriteOptions,
     pub(crate) keep_options: KeepOptions,
     pub(crate) owner_options: OwnerOptions,
-    pub(crate) time_options: TimeOptions,
     pub(crate) solid: bool,
     pub(crate) pathname_editor: PathnameEditor,
 }
@@ -537,7 +534,6 @@ pub(crate) fn create_archive_file<W, F>(
         write_option,
         keep_options,
         owner_options,
-        time_options,
         solid,
         pathname_editor,
     }: CreationContext,
@@ -557,7 +553,6 @@ where
         option,
         keep_options,
         owner_options,
-        time_options,
         pathname_editor,
     };
     rayon::scope_fifo(|s| {
@@ -602,7 +597,6 @@ fn create_archive_with_split(
         write_option,
         keep_options,
         owner_options,
-        time_options,
         solid,
         pathname_editor,
     }: CreationContext,
@@ -620,7 +614,6 @@ fn create_archive_with_split(
         option,
         keep_options,
         owner_options,
-        time_options,
         pathname_editor,
     };
     rayon::scope_fifo(|s| -> anyhow::Result<()> {

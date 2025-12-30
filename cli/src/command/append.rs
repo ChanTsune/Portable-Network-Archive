@@ -8,7 +8,7 @@ use crate::{
         core::{
             AclStrategy, CollectOptions, CollectedItem, CreateOptions, KeepOptions, OwnerOptions,
             PathFilter, PathTransformers, PathnameEditor, PermissionStrategy, TimeFilterResolver,
-            TimeOptions, TimestampStrategy, XattrStrategy, collect_items_from_paths, create_entry,
+            TimestampStrategyResolver, XattrStrategy, collect_items_from_paths, create_entry,
             entry_option,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin,
@@ -373,11 +373,18 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
     let password = password.as_deref();
     let option = entry_option(args.compression, args.cipher, args.hash, password);
     let keep_options = KeepOptions {
-        timestamp_strategy: TimestampStrategy::from_flags(
-            args.keep_timestamp,
-            args.no_keep_timestamp,
-            TimestampStrategy::Never,
-        ),
+        timestamp_strategy: TimestampStrategyResolver {
+            keep_timestamp: args.keep_timestamp,
+            no_keep_timestamp: args.no_keep_timestamp,
+            default_preserve: false,
+            mtime: args.mtime.map(|it| it.to_system_time()),
+            clamp_mtime: args.clamp_mtime,
+            ctime: args.ctime.map(|it| it.to_system_time()),
+            clamp_ctime: args.clamp_ctime,
+            atime: args.atime.map(|it| it.to_system_time()),
+            clamp_atime: args.clamp_atime,
+        }
+        .resolve(),
         permission_strategy: PermissionStrategy::from_flags(
             args.keep_permission,
             args.no_keep_permission,
@@ -392,14 +399,6 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         args.gid,
         args.numeric_owner,
     );
-    let time_options = TimeOptions {
-        mtime: args.mtime.map(|it| it.to_system_time()),
-        clamp_mtime: args.clamp_mtime,
-        ctime: args.ctime.map(|it| it.to_system_time()),
-        clamp_ctime: args.clamp_ctime,
-        atime: args.atime.map(|it| it.to_system_time()),
-        clamp_atime: args.clamp_atime,
-    };
     let time_filters = TimeFilterResolver {
         newer_ctime_than: args.newer_ctime_than.as_deref(),
         older_ctime_than: args.older_ctime_than.as_deref(),
@@ -415,7 +414,6 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         option,
         keep_options,
         owner_options,
-        time_options,
         pathname_editor: PathnameEditor::new(
             args.strip_components,
             PathTransformers::new(args.substitutions, args.transforms),

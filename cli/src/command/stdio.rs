@@ -9,8 +9,8 @@ use crate::{
         ask_password, check_password,
         core::{
             AclStrategy, CollectOptions, CreateOptions, KeepOptions, OwnerOptions, PathFilter,
-            PathTransformers, PathnameEditor, PermissionStrategy, TimeFilterResolver, TimeOptions,
-            TimestampStrategy, TransformStrategyUnSolid, XattrStrategy, apply_chroot,
+            PathTransformers, PathnameEditor, PermissionStrategy, TimeFilterResolver,
+            TimestampStrategyResolver, TransformStrategyUnSolid, XattrStrategy, apply_chroot,
             collect_items_from_paths, collect_split_archives, entry_option,
             path_lock::PathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
@@ -587,11 +587,18 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     let password = password.as_deref();
     let cli_option = entry_option(args.compression, args.cipher, args.hash, password);
     let keep_options = KeepOptions {
-        timestamp_strategy: TimestampStrategy::from_flags(
-            args.keep_timestamp,
-            args.no_keep_timestamp,
-            TimestampStrategy::Always,
-        ),
+        timestamp_strategy: TimestampStrategyResolver {
+            keep_timestamp: args.keep_timestamp,
+            no_keep_timestamp: args.no_keep_timestamp,
+            default_preserve: true,
+            mtime: args.mtime.map(|it| it.to_system_time()),
+            clamp_mtime: args.clamp_mtime,
+            ctime: args.ctime.map(|it| it.to_system_time()),
+            clamp_ctime: args.clamp_ctime,
+            atime: args.atime.map(|it| it.to_system_time()),
+            clamp_atime: args.clamp_atime,
+        }
+        .resolve(),
         permission_strategy: PermissionStrategy::from_flags(
             args.keep_permission,
             args.no_keep_permission,
@@ -608,19 +615,10 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         args.gid,
         args.numeric_owner,
     );
-    let time_options = TimeOptions {
-        mtime: args.mtime.map(|it| it.to_system_time()),
-        clamp_mtime: args.clamp_mtime,
-        ctime: args.ctime.map(|it| it.to_system_time()),
-        clamp_ctime: args.clamp_ctime,
-        atime: args.atime.map(|it| it.to_system_time()),
-        clamp_atime: args.clamp_atime,
-    };
     let creation_context = CreationContext {
         write_option: cli_option,
         keep_options,
         owner_options,
-        time_options,
         solid: args.solid,
         pathname_editor: PathnameEditor::new(
             args.strip_components,
@@ -682,11 +680,18 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         to_stdout: args.to_stdout,
         filter,
         keep_options: KeepOptions {
-            timestamp_strategy: TimestampStrategy::from_flags(
-                args.keep_timestamp,
-                args.no_keep_timestamp,
-                TimestampStrategy::Always,
-            ),
+            timestamp_strategy: TimestampStrategyResolver {
+                keep_timestamp: args.keep_timestamp,
+                no_keep_timestamp: args.no_keep_timestamp,
+                default_preserve: true,
+                mtime: args.mtime.map(|it| it.to_system_time()),
+                clamp_mtime: args.clamp_mtime,
+                ctime: args.ctime.map(|it| it.to_system_time()),
+                clamp_ctime: args.clamp_ctime,
+                atime: args.atime.map(|it| it.to_system_time()),
+                clamp_atime: args.clamp_atime,
+            }
+            .resolve(),
             permission_strategy: PermissionStrategy::from_flags(
                 args.keep_permission,
                 args.no_keep_permission,
@@ -833,11 +838,18 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     let password = password.as_deref();
     let option = entry_option(args.compression, args.cipher, args.hash, password);
     let keep_options = KeepOptions {
-        timestamp_strategy: TimestampStrategy::from_flags(
-            args.keep_timestamp,
-            args.no_keep_timestamp,
-            TimestampStrategy::Always,
-        ),
+        timestamp_strategy: TimestampStrategyResolver {
+            keep_timestamp: args.keep_timestamp,
+            no_keep_timestamp: args.no_keep_timestamp,
+            default_preserve: true,
+            mtime: args.mtime.map(|it| it.to_system_time()),
+            clamp_mtime: args.clamp_mtime,
+            ctime: args.ctime.map(|it| it.to_system_time()),
+            clamp_ctime: args.clamp_ctime,
+            atime: args.atime.map(|it| it.to_system_time()),
+            clamp_atime: args.clamp_atime,
+        }
+        .resolve(),
         permission_strategy: PermissionStrategy::from_flags(
             args.keep_permission,
             args.no_keep_permission,
@@ -854,19 +866,10 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         args.gid,
         args.numeric_owner,
     );
-    let time_options = TimeOptions {
-        mtime: args.mtime.map(|it| it.to_system_time()),
-        clamp_mtime: args.clamp_mtime,
-        ctime: args.ctime.map(|it| it.to_system_time()),
-        clamp_ctime: args.clamp_ctime,
-        atime: args.atime.map(|it| it.to_system_time()),
-        clamp_atime: args.clamp_atime,
-    };
     let create_options = CreateOptions {
         option,
         keep_options,
         owner_options,
-        time_options,
         pathname_editor: PathnameEditor::new(
             args.strip_components,
             PathTransformers::new(args.substitutions, args.transforms),
@@ -970,11 +973,18 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
     let password = password.as_deref();
     let option = entry_option(args.compression, args.cipher, args.hash, password);
     let keep_options = KeepOptions {
-        timestamp_strategy: TimestampStrategy::from_flags(
-            args.keep_timestamp,
-            args.no_keep_timestamp,
-            TimestampStrategy::Always,
-        ),
+        timestamp_strategy: TimestampStrategyResolver {
+            keep_timestamp: args.keep_timestamp,
+            no_keep_timestamp: args.no_keep_timestamp,
+            default_preserve: true,
+            mtime: args.mtime.map(|it| it.to_system_time()),
+            clamp_mtime: args.clamp_mtime,
+            ctime: args.ctime.map(|it| it.to_system_time()),
+            clamp_ctime: args.clamp_ctime,
+            atime: args.atime.map(|it| it.to_system_time()),
+            clamp_atime: args.clamp_atime,
+        }
+        .resolve(),
         permission_strategy: PermissionStrategy::from_flags(
             args.keep_permission,
             args.no_keep_permission,
@@ -989,19 +999,10 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
         args.gid,
         args.numeric_owner,
     );
-    let time_options = TimeOptions {
-        mtime: args.mtime.map(|it| it.to_system_time()),
-        clamp_mtime: args.clamp_mtime,
-        ctime: args.ctime.map(|it| it.to_system_time()),
-        clamp_ctime: args.clamp_ctime,
-        atime: args.atime.map(|it| it.to_system_time()),
-        clamp_atime: args.clamp_atime,
-    };
     let create_options = CreateOptions {
         option,
         keep_options,
         owner_options,
-        time_options,
         pathname_editor: PathnameEditor::new(
             args.strip_components,
             PathTransformers::new(args.substitutions, args.transforms),

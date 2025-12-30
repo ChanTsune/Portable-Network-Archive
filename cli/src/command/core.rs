@@ -4,8 +4,10 @@ pub(crate) mod path_lock;
 mod path_transformer;
 pub(crate) mod re;
 pub(crate) mod time_filter;
+pub(crate) mod timestamp;
 
 pub(crate) use self::path::PathnameEditor;
+pub(crate) use self::timestamp::{TimeSource, TimestampStrategy};
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
     utils::{self, PathPartExt, fs::HardlinkResolver},
@@ -142,28 +144,6 @@ impl PermissionStrategy {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub(crate) enum TimestampStrategy {
-    Never,
-    Always,
-}
-
-impl TimestampStrategy {
-    pub(crate) const fn from_flags(
-        keep_timestamp: bool,
-        no_keep_timestamp: bool,
-        default: Self,
-    ) -> Self {
-        if no_keep_timestamp {
-            Self::Never
-        } else if keep_timestamp {
-            Self::Always
-        } else {
-            default
-        }
-    }
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) enum AclStrategy {
     Never,
     Always,
@@ -187,6 +167,55 @@ pub(crate) struct KeepOptions {
     pub(crate) permission_strategy: PermissionStrategy,
     pub(crate) xattr_strategy: XattrStrategy,
     pub(crate) acl_strategy: AclStrategy,
+}
+
+/// Resolves CLI timestamp options into a `TimestampStrategy`.
+///
+/// This struct encapsulates the CLI-specific logic for determining timestamp behavior:
+/// - `no_keep_timestamp` forces `NoPreserve`
+/// - `keep_timestamp` or any time override enables `Preserve`
+/// - `default_preserve` determines behavior when no flags are specified
+pub(crate) struct TimestampStrategyResolver {
+    pub(crate) keep_timestamp: bool,
+    pub(crate) no_keep_timestamp: bool,
+    pub(crate) default_preserve: bool,
+    pub(crate) mtime: Option<SystemTime>,
+    pub(crate) clamp_mtime: bool,
+    pub(crate) ctime: Option<SystemTime>,
+    pub(crate) clamp_ctime: bool,
+    pub(crate) atime: Option<SystemTime>,
+    pub(crate) clamp_atime: bool,
+}
+
+impl TimestampStrategyResolver {
+    fn time_source_from(value: Option<SystemTime>, clamp: bool) -> TimeSource {
+        match (value, clamp) {
+            (Some(t), true) => TimeSource::ClampTo(t),
+            (Some(t), false) => TimeSource::Override(t),
+            (None, _) => TimeSource::FromSource,
+        }
+    }
+
+    fn has_any_override(&self) -> bool {
+        self.mtime.is_some() || self.ctime.is_some() || self.atime.is_some()
+    }
+
+    /// Resolves CLI options into a `TimestampStrategy`.
+    pub(crate) fn resolve(self) -> TimestampStrategy {
+        if self.no_keep_timestamp {
+            TimestampStrategy::NoPreserve
+        } else if self.keep_timestamp || self.has_any_override() {
+            TimestampStrategy::Preserve {
+                mtime: Self::time_source_from(self.mtime, self.clamp_mtime),
+                ctime: Self::time_source_from(self.ctime, self.clamp_ctime),
+                atime: Self::time_source_from(self.atime, self.clamp_atime),
+            }
+        } else if self.default_preserve {
+            TimestampStrategy::preserve()
+        } else {
+            TimestampStrategy::NoPreserve
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -228,18 +257,7 @@ pub(crate) struct CreateOptions {
     pub(crate) option: WriteOptions,
     pub(crate) keep_options: KeepOptions,
     pub(crate) owner_options: OwnerOptions,
-    pub(crate) time_options: TimeOptions,
     pub(crate) pathname_editor: PathnameEditor,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub(crate) struct TimeOptions {
-    pub(crate) mtime: Option<SystemTime>,
-    pub(crate) clamp_mtime: bool,
-    pub(crate) ctime: Option<SystemTime>,
-    pub(crate) clamp_ctime: bool,
-    pub(crate) atime: Option<SystemTime>,
-    pub(crate) clamp_atime: bool,
 }
 
 /// Gitignore-style exclusion rules.
@@ -567,7 +585,6 @@ pub(crate) fn create_entry(
         option,
         keep_options,
         owner_options,
-        time_options,
         pathname_editor,
     }: &CreateOptions,
 ) -> io::Result<Option<NormalEntry>> {
@@ -585,54 +602,22 @@ pub(crate) fn create_entry(
                 return Ok(None);
             };
             let entry = EntryBuilder::new_hard_link(entry_name, reference)?;
-            apply_metadata(
-                entry,
-                path,
-                keep_options,
-                owner_options,
-                time_options,
-                metadata,
-            )?
-            .build()
+            apply_metadata(entry, path, keep_options, owner_options, metadata)?.build()
         }
         StoreAs::Symlink => {
             let source = fs::read_link(path)?;
             let reference = pathname_editor.edit_symlink(&source);
             let entry = EntryBuilder::new_symlink(entry_name, reference)?;
-            apply_metadata(
-                entry,
-                path,
-                keep_options,
-                owner_options,
-                time_options,
-                metadata,
-            )?
-            .build()
+            apply_metadata(entry, path, keep_options, owner_options, metadata)?.build()
         }
         StoreAs::File => {
             let mut entry = EntryBuilder::new_file(entry_name, option)?;
             write_from_path(&mut entry, path)?;
-            apply_metadata(
-                entry,
-                path,
-                keep_options,
-                owner_options,
-                time_options,
-                metadata,
-            )?
-            .build()
+            apply_metadata(entry, path, keep_options, owner_options, metadata)?.build()
         }
         StoreAs::Dir => {
             let entry = EntryBuilder::new_dir(entry_name);
-            apply_metadata(
-                entry,
-                path,
-                keep_options,
-                owner_options,
-                time_options,
-                metadata,
-            )?
-            .build()
+            apply_metadata(entry, path, keep_options, owner_options, metadata)?.build()
         }
     }
     .map(Some)
@@ -666,32 +651,21 @@ pub(crate) fn apply_metadata(
     path: &Path,
     keep_options: &KeepOptions,
     owner_options: &OwnerOptions,
-    time_options: &TimeOptions,
     meta: &fs::Metadata,
 ) -> io::Result<EntryBuilder> {
-    if let TimestampStrategy::Always = keep_options.timestamp_strategy {
-        let ctime = clamped_time(
-            meta.created().ok(),
-            time_options.ctime,
-            time_options.clamp_ctime,
-        );
-        if let Some(c) = ctime {
+    if let TimestampStrategy::Preserve {
+        mtime,
+        ctime,
+        atime,
+    } = keep_options.timestamp_strategy
+    {
+        if let Some(c) = ctime.resolve(meta.created().ok()) {
             entry.created_time(c);
         }
-        let mtime = clamped_time(
-            meta.modified().ok(),
-            time_options.mtime,
-            time_options.clamp_mtime,
-        );
-        if let Some(m) = mtime {
+        if let Some(m) = mtime.resolve(meta.modified().ok()) {
             entry.modified_time(m);
         }
-        let atime = clamped_time(
-            meta.accessed().ok(),
-            time_options.atime,
-            time_options.clamp_atime,
-        );
-        if let Some(a) = atime {
+        if let Some(a) = atime.resolve(meta.accessed().ok()) {
             entry.accessed_time(a);
         }
     }
@@ -794,30 +768,6 @@ pub(crate) fn apply_metadata(
         log::warn!("Currently extended attribute is not supported on this platform.");
     }
     Ok(entry)
-}
-
-fn clamped_time(
-    fs_time: Option<SystemTime>,
-    specified_time: Option<SystemTime>,
-    clamp: bool,
-) -> Option<SystemTime> {
-    if let Some(specified_time) = specified_time {
-        if clamp {
-            if let Some(fs_time) = fs_time {
-                if fs_time < specified_time {
-                    Some(fs_time)
-                } else {
-                    Some(specified_time)
-                }
-            } else {
-                Some(specified_time)
-            }
-        } else {
-            Some(specified_time)
-        }
-    } else {
-        fs_time
-    }
 }
 
 pub(crate) fn split_to_parts(
@@ -1278,7 +1228,6 @@ pub(crate) fn apply_chroot(chroot: bool) -> anyhow::Result<()> {
 mod tests {
     use super::*;
     use std::collections::HashSet;
-    use std::time::Duration;
 
     const EMPTY_PATTERNS: [&str; 0] = [];
 
@@ -1400,55 +1349,6 @@ mod tests {
             .into_iter()
             .map(Into::into)
             .collect::<HashSet<_>>()
-        );
-    }
-
-    #[test]
-    fn time_use_fs() {
-        let result = clamped_time(
-            Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1)),
-            None,
-            false,
-        );
-        assert_eq!(
-            result,
-            Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1))
-        );
-    }
-
-    #[test]
-    fn time_use_specified() {
-        let result = clamped_time(
-            Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1)),
-            Some(SystemTime::UNIX_EPOCH + Duration::from_secs(2)),
-            false,
-        );
-        assert_eq!(
-            result,
-            Some(SystemTime::UNIX_EPOCH + Duration::from_secs(2))
-        );
-    }
-
-    #[test]
-    fn time_use_specified_clamp() {
-        let result = clamped_time(
-            Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1)),
-            Some(SystemTime::UNIX_EPOCH),
-            true,
-        );
-        assert_eq!(result, Some(SystemTime::UNIX_EPOCH));
-    }
-
-    #[test]
-    fn time_use_specified_no_clamp() {
-        let result = clamped_time(
-            Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1)),
-            Some(SystemTime::UNIX_EPOCH + Duration::from_secs(2)),
-            true,
-        );
-        assert_eq!(
-            result,
-            Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1))
         );
     }
 }

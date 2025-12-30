@@ -1,6 +1,6 @@
 //! This module provides time-based filtering functionality for files.
 //! It includes structs for defining time filters and applying them to file metadata.
-use std::{fs, time::SystemTime};
+use std::time::SystemTime;
 
 /// Represents a filter based on time, allowing for inclusion of files newer or older than a specific `SystemTime`.
 #[derive(Clone, Copy, Debug)]
@@ -60,20 +60,6 @@ pub(crate) struct TimeFilters {
 }
 
 impl TimeFilters {
-    /// Determines whether a file should be retained based on its metadata.
-    ///
-    /// # Arguments
-    ///
-    /// * `fs_meta` - A reference to the file's `fs::Metadata`.
-    ///
-    /// # Returns
-    ///
-    /// `true` if the file should be retained, `false` otherwise.
-    #[inline]
-    pub(crate) fn is_retain(&self, fs_meta: &fs::Metadata) -> bool {
-        self.matches(fs_meta.created().ok(), fs_meta.modified().ok())
-    }
-
     /// Checks if any of the time filters are active.
     ///
     /// # Returns
