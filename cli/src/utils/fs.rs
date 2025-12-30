@@ -91,7 +91,49 @@ pub(crate) fn decode_rdev(rdev: u64) -> (u32, u32) {
 /// Encodes major and minor device numbers into a raw device number (rdev).
 #[cfg(unix)]
 #[inline]
-#[allow(dead_code)] // Will be used for device file extraction support
 pub(crate) fn encode_rdev(major: u32, minor: u32) -> u64 {
     libc::makedev(major, minor)
+}
+
+/// Creates a block device node at the specified path.
+///
+/// Requires root privileges on most systems.
+#[cfg(unix)]
+pub(crate) fn mknod_block(
+    path: impl AsRef<Path>,
+    major: u32,
+    minor: u32,
+    mode: u32,
+) -> io::Result<()> {
+    use nix::sys::stat::{self, SFlag};
+    let dev = encode_rdev(major, minor);
+    let mode = stat::Mode::from_bits_truncate(mode);
+    stat::mknod(path.as_ref(), SFlag::S_IFBLK, mode, dev)
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+}
+
+/// Creates a character device node at the specified path.
+///
+/// Requires root privileges on most systems.
+#[cfg(unix)]
+pub(crate) fn mknod_char(
+    path: impl AsRef<Path>,
+    major: u32,
+    minor: u32,
+    mode: u32,
+) -> io::Result<()> {
+    use nix::sys::stat::{self, SFlag};
+    let dev = encode_rdev(major, minor);
+    let mode = stat::Mode::from_bits_truncate(mode);
+    stat::mknod(path.as_ref(), SFlag::S_IFCHR, mode, dev)
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+}
+
+/// Creates a FIFO (named pipe) at the specified path.
+#[cfg(unix)]
+pub(crate) fn mkfifo(path: impl AsRef<Path>, mode: u32) -> io::Result<()> {
+    use nix::sys::stat::Mode;
+    use nix::unistd;
+    let mode = Mode::from_bits_truncate(mode);
+    unistd::mkfifo(path.as_ref(), mode).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
 }
