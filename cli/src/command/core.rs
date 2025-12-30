@@ -148,13 +148,17 @@ pub(crate) enum TimestampStrategy {
 }
 
 impl TimestampStrategy {
-    pub(crate) const fn from_flags(keep_timestamp: bool, no_keep_timestamp: bool) -> Self {
+    pub(crate) const fn from_flags(
+        keep_timestamp: bool,
+        no_keep_timestamp: bool,
+        default: Self,
+    ) -> Self {
         if no_keep_timestamp {
             Self::Never
         } else if keep_timestamp {
             Self::Always
         } else {
-            Self::Never
+            default
         }
     }
 }
