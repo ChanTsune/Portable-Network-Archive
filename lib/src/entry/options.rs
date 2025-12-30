@@ -481,6 +481,14 @@ pub enum DataKind {
     /// Hard link. Entry data contains the UTF-8 encoded path of the target entry
     /// within the same archive.
     HardLink = 3,
+    /// Block device. Entry has no data content but stores device major/minor numbers
+    /// in a `dNUM` chunk.
+    BlockDevice = 4,
+    /// Character device. Entry has no data content but stores device major/minor numbers
+    /// in a `dNUM` chunk.
+    CharDevice = 5,
+    /// FIFO (named pipe). Entry has no data content.
+    Fifo = 6,
 }
 
 impl TryFrom<u8> for DataKind {
@@ -493,6 +501,9 @@ impl TryFrom<u8> for DataKind {
             1 => Ok(Self::Directory),
             2 => Ok(Self::SymbolicLink),
             3 => Ok(Self::HardLink),
+            4 => Ok(Self::BlockDevice),
+            5 => Ok(Self::CharDevice),
+            6 => Ok(Self::Fifo),
             value => Err(UnknownValueError(value)),
         }
     }

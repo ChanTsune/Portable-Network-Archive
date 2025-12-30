@@ -584,6 +584,7 @@ pub struct NormalEntry<T = Vec<u8>> {
     pub(crate) data: Vec<T>,
     pub(crate) metadata: Metadata,
     pub(crate) xattrs: Vec<ExtendedAttribute>,
+    pub(crate) device_numbers: Option<DeviceNumbers>,
 }
 
 impl<T> TryFrom<RawEntry<T>> for NormalEntry<T>
@@ -635,6 +636,7 @@ where
         let mut mtime_ns = None;
         let mut atime_ns = None;
         let mut permission = None;
+        let mut device_numbers = None;
         for chunk in chunks {
             match chunk.ty {
                 ChunkType::FEND => break,
@@ -657,6 +659,9 @@ where
                 ChunkType::aTNS => atime_ns = Some(nanos(chunk.data())?),
                 ChunkType::fPRM => permission = Some(Permission::try_from_bytes(chunk.data())?),
                 ChunkType::xATR => xattrs.push(ExtendedAttribute::try_from_bytes(chunk.data())?),
+                ChunkType::dNUM => {
+                    device_numbers = Some(DeviceNumbers::try_from_bytes(chunk.data())?)
+                }
                 _ => extra.push(chunk),
             }
         }
@@ -678,6 +683,7 @@ where
             },
             data,
             xattrs,
+            device_numbers,
         })
     }
 }
@@ -744,6 +750,9 @@ where
         }
         for xattr in &self.xattrs {
             total += (ChunkType::xATR, xattr.to_bytes()).write_chunk_in(writer)?;
+        }
+        if let Some(dev) = &self.device_numbers {
+            total += (ChunkType::dNUM, dev.to_bytes()).write_chunk_in(writer)?;
         }
         total += (ChunkType::FEND, []).write_chunk_in(writer)?;
         Ok(total)
@@ -822,6 +831,9 @@ where
         for xattr in self.xattrs {
             vec.push(RawChunk::from_data(ChunkType::xATR, xattr.to_bytes()));
         }
+        if let Some(dev) = self.device_numbers {
+            vec.push(RawChunk::from_data(ChunkType::dNUM, dev.to_bytes()));
+        }
         vec.push(RawChunk::from_data(ChunkType::FEND, Vec::new()));
         vec
     }
@@ -887,6 +899,15 @@ impl<T> NormalEntry<T> {
     #[inline]
     pub fn xattrs(&self) -> &[ExtendedAttribute] {
         &self.xattrs
+    }
+
+    /// Device numbers for block/character device entries.
+    ///
+    /// Returns `Some` for [`DataKind::BlockDevice`] and [`DataKind::CharDevice`] entries,
+    /// `None` for other entry types.
+    #[inline]
+    pub fn device_numbers(&self) -> Option<&DeviceNumbers> {
+        self.device_numbers.as_ref()
     }
 
     /// Extra chunks.
@@ -1016,6 +1037,7 @@ impl<'a> From<NormalEntry<Cow<'a, [u8]>>> for NormalEntry<Vec<u8>> {
             data: value.data.into_iter().map(Into::into).collect(),
             metadata: value.metadata,
             xattrs: value.xattrs,
+            device_numbers: value.device_numbers,
         }
     }
 }
@@ -1030,6 +1052,7 @@ impl<'a> From<NormalEntry<&'a [u8]>> for NormalEntry<Vec<u8>> {
             data: value.data.into_iter().map(Into::into).collect(),
             metadata: value.metadata,
             xattrs: value.xattrs,
+            device_numbers: value.device_numbers,
         }
     }
 }
@@ -1044,6 +1067,7 @@ impl From<NormalEntry<Vec<u8>>> for NormalEntry<Cow<'_, [u8]>> {
             data: value.data.into_iter().map(Into::into).collect(),
             metadata: value.metadata,
             xattrs: value.xattrs,
+            device_numbers: value.device_numbers,
         }
     }
 }
@@ -1058,6 +1082,7 @@ impl<'a> From<NormalEntry<&'a [u8]>> for NormalEntry<Cow<'a, [u8]>> {
             data: value.data.into_iter().map(Into::into).collect(),
             metadata: value.metadata,
             xattrs: value.xattrs,
+            device_numbers: value.device_numbers,
         }
     }
 }

@@ -5,9 +5,9 @@ use crate::{
     cipher::CipherWriter,
     compress::CompressionWriter,
     entry::{
-        DataKind, Entry, EntryHeader, EntryName, EntryReference, ExtendedAttribute, Metadata,
-        NormalEntry, Permission, SolidEntry, SolidHeader, WriteCipher, WriteOption, WriteOptions,
-        get_writer, get_writer_context, private::SealedEntryExt,
+        DataKind, DeviceNumbers, Entry, EntryHeader, EntryName, EntryReference, ExtendedAttribute,
+        Metadata, NormalEntry, Permission, SolidEntry, SolidHeader, WriteCipher, WriteOption,
+        WriteOptions, get_writer, get_writer_context, private::SealedEntryExt,
     },
     io::{FlattenWriter, TryIntoInner},
 };
@@ -144,6 +144,7 @@ pub struct EntryBuilder {
     file_size: u128,
     xattrs: Vec<ExtendedAttribute>,
     extra_chunks: Vec<RawChunk>,
+    device_numbers: Option<DeviceNumbers>,
 }
 
 impl EntryBuilder {
@@ -161,6 +162,7 @@ impl EntryBuilder {
             file_size: 0,
             xattrs: Vec::new(),
             extra_chunks: Vec::new(),
+            device_numbers: None,
         }
     }
 
@@ -322,6 +324,92 @@ impl EntryBuilder {
         })
     }
 
+    /// Creates a new block device entry with the given name and device numbers.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name of the entry to create.
+    /// * `major` - The major device number.
+    /// * `minor` - The minor device number.
+    ///
+    /// # Returns
+    ///
+    /// A new [EntryBuilder].
+    ///
+    /// # Examples
+    /// ```
+    /// use libpna::{EntryBuilder, EntryName};
+    ///
+    /// // Create a block device entry (e.g., /dev/sda with major=8, minor=0)
+    /// let builder = EntryBuilder::new_block_device(
+    ///     EntryName::try_from("dev/sda").unwrap(),
+    ///     8,
+    ///     0,
+    /// );
+    /// let entry = builder.build().unwrap();
+    /// ```
+    #[inline]
+    pub fn new_block_device(name: EntryName, major: u32, minor: u32) -> Self {
+        Self {
+            device_numbers: Some(DeviceNumbers::new(major, minor)),
+            ..Self::new(EntryHeader::for_block_device(name))
+        }
+    }
+
+    /// Creates a new character device entry with the given name and device numbers.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name of the entry to create.
+    /// * `major` - The major device number.
+    /// * `minor` - The minor device number.
+    ///
+    /// # Returns
+    ///
+    /// A new [EntryBuilder].
+    ///
+    /// # Examples
+    /// ```
+    /// use libpna::{EntryBuilder, EntryName};
+    ///
+    /// // Create a character device entry (e.g., /dev/null with major=1, minor=3)
+    /// let builder = EntryBuilder::new_char_device(
+    ///     EntryName::try_from("dev/null").unwrap(),
+    ///     1,
+    ///     3,
+    /// );
+    /// let entry = builder.build().unwrap();
+    /// ```
+    #[inline]
+    pub fn new_char_device(name: EntryName, major: u32, minor: u32) -> Self {
+        Self {
+            device_numbers: Some(DeviceNumbers::new(major, minor)),
+            ..Self::new(EntryHeader::for_char_device(name))
+        }
+    }
+
+    /// Creates a new FIFO (named pipe) entry with the given name.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name of the entry to create.
+    ///
+    /// # Returns
+    ///
+    /// A new [EntryBuilder].
+    ///
+    /// # Examples
+    /// ```
+    /// use libpna::{EntryBuilder, EntryName};
+    ///
+    /// let builder = EntryBuilder::new_fifo(EntryName::try_from("path/to/pipe").unwrap());
+    /// let entry = builder.build().unwrap();
+    /// ```
+    #[inline]
+    pub const fn new_fifo(name: EntryName) -> Self {
+        Self::new(EntryHeader::for_fifo(name))
+    }
+
     /// Sets the creation timestamp of the entry.
     ///
     /// # Arguments
@@ -466,6 +554,7 @@ impl EntryBuilder {
             data,
             metadata,
             xattrs: self.xattrs,
+            device_numbers: self.device_numbers,
         })
     }
 }

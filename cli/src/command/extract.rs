@@ -690,6 +690,14 @@ where
             }
             fs::hard_link(original, &path)?;
         }
+        DataKind::BlockDevice | DataKind::CharDevice | DataKind::Fifo => {
+            // Device file extraction is not yet supported
+            log::warn!(
+                "Skipping device file extraction (not yet supported): {}",
+                path.display()
+            );
+            return Ok(());
+        }
     }
     restore_metadata(&item, &path, keep_options, owner_options, same_owner)?;
     drop(path_guard);

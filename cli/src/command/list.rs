@@ -178,6 +178,9 @@ enum EntryType {
     Directory(String),
     SymbolicLink(String, String),
     HardLink(String, String),
+    BlockDevice(String),
+    CharDevice(String),
+    Fifo(String),
 }
 
 impl EntryType {
@@ -187,7 +190,10 @@ impl EntryType {
             EntryType::File(name)
             | EntryType::Directory(name)
             | EntryType::SymbolicLink(name, _)
-            | EntryType::HardLink(name, _) => name,
+            | EntryType::HardLink(name, _)
+            | EntryType::BlockDevice(name)
+            | EntryType::CharDevice(name)
+            | EntryType::Fifo(name) => name,
         }
     }
 
@@ -211,6 +217,9 @@ impl Display for EntryTypeBsdLongStyleDisplay<'_> {
             EntryType::HardLink(name, link_to) => {
                 write!(f, "{name} link to {link_to}")
             }
+            EntryType::BlockDevice(name) => write!(f, "{name} (block device)"),
+            EntryType::CharDevice(name) => write!(f, "{name} (char device)"),
+            EntryType::Fifo(name) => write!(f, "{name} (fifo)"),
         }
     }
 }
@@ -292,6 +301,9 @@ where
                 ),
                 DataKind::Directory => EntryType::Directory(entry.name().to_string()),
                 DataKind::File => EntryType::File(entry.name().to_string()),
+                DataKind::BlockDevice => EntryType::BlockDevice(entry.name().to_string()),
+                DataKind::CharDevice => EntryType::CharDevice(entry.name().to_string()),
+                DataKind::Fifo => EntryType::Fifo(entry.name().to_string()),
             },
             xattrs: entry.xattrs().to_vec(),
             acl,
@@ -663,7 +675,11 @@ fn detail_list_entries_to(
                     EntryType::SymbolicLink(name, link_to) if options.classify => {
                         format!("{name}@ -> {link_to}")
                     }
-                    EntryType::File(path) | EntryType::Directory(path) => path,
+                    EntryType::File(path)
+                    | EntryType::Directory(path)
+                    | EntryType::BlockDevice(path)
+                    | EntryType::CharDevice(path)
+                    | EntryType::Fifo(path) => path,
                     EntryType::SymbolicLink(path, link_to) | EntryType::HardLink(path, link_to) => {
                         format!("{path} -> {link_to}")
                     }
@@ -815,6 +831,9 @@ fn kind_paint(kind: &EntryType) -> impl Display + 'static {
         EntryType::File(_) | EntryType::HardLink(_, _) => STYLE_HYPHEN.paint('.'),
         EntryType::Directory(_) => STYLE_DIR.paint('d'),
         EntryType::SymbolicLink(_, _) => STYLE_LINK.paint('l'),
+        EntryType::BlockDevice(_) => STYLE_HYPHEN.paint('b'),
+        EntryType::CharDevice(_) => STYLE_HYPHEN.paint('c'),
+        EntryType::Fifo(_) => STYLE_HYPHEN.paint('p'),
     }
 }
 
@@ -854,6 +873,9 @@ const fn kind_char(kind: &EntryType) -> char {
         EntryType::File(_) | EntryType::HardLink(_, _) => '-',
         EntryType::Directory(_) => 'd',
         EntryType::SymbolicLink(_, _) => 'l',
+        EntryType::BlockDevice(_) => 'b',
+        EntryType::CharDevice(_) => 'c',
+        EntryType::Fifo(_) => 'p',
     }
 }
 
@@ -1081,6 +1103,9 @@ fn tree_entries_to(
         EntryType::Directory(name) => (name.as_str(), DataKind::Directory),
         EntryType::SymbolicLink(name, _) => (name.as_str(), DataKind::SymbolicLink),
         EntryType::HardLink(name, _) => (name.as_str(), DataKind::HardLink),
+        EntryType::BlockDevice(name) => (name.as_str(), DataKind::BlockDevice),
+        EntryType::CharDevice(name) => (name.as_str(), DataKind::CharDevice),
+        EntryType::Fifo(name) => (name.as_str(), DataKind::Fifo),
     });
     let map = build_tree_map(entries);
     let tree = build_term_tree(&map, Cow::Borrowed(""), None, DataKind::Directory, options);
