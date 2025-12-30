@@ -21,22 +21,14 @@ fn xattr_get_name_match_encoding() {
     .unwrap();
 
     // Sort entries for stablize entries order.
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "experimental",
-        "sort",
-        "-f",
-        "xattr_get_opts/archive.pna",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
+    cli::Cli::try_parse_from(["pna", "--quiet", "sort", "-f", "xattr_get_opts/archive.pna"])
+        .unwrap()
+        .execute()
+        .unwrap();
 
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "xattr",
         "set",
         "xattr_get_opts/archive.pna",
@@ -53,7 +45,6 @@ fn xattr_get_name_match_encoding() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "xattr",
         "set",
         "xattr_get_opts/archive.pna",
@@ -98,7 +89,6 @@ fn xattr_get_name_match_encoding() {
     let assert = cmd
         .args([
             "--quiet",
-            "experimental",
             "xattr",
             "get",
             "xattr_get_opts/archive.pna",
