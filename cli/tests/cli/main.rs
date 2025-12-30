@@ -18,6 +18,7 @@ mod hardlink;
 mod keep_acl;
 mod keep_all;
 mod list;
+mod migrate;
 mod multipart;
 #[cfg(not(target_family = "wasm"))]
 mod nodump;
