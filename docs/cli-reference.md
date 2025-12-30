@@ -1158,7 +1158,7 @@ Archive manipulation via stdio
 * `-t`, `--list` — List files in archive
 
   Default value: `false`
-* `--append` — Append files to archive
+* `-r`, `--append` — Append files to archive
 
   Default value: `false`
 * `--recursive` [alias: `recursion`] — Add directories to the archive recursively
