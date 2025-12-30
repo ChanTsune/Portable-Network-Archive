@@ -5,6 +5,7 @@ mod append;
 mod cd_option;
 mod chmod;
 mod chown;
+mod chunk;
 #[cfg(not(target_family = "wasm"))]
 mod combination;
 mod concat;
