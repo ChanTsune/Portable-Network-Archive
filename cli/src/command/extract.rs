@@ -296,6 +296,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         timestamp_strategy: TimestampStrategy::from_flags(
             args.keep_timestamp,
             args.no_keep_timestamp,
+            TimestampStrategy::Never,
         ),
         permission_strategy: PermissionStrategy::from_flags(
             args.keep_permission,

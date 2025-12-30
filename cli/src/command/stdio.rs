@@ -564,6 +564,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         timestamp_strategy: TimestampStrategy::from_flags(
             args.keep_timestamp,
             args.no_keep_timestamp,
+            TimestampStrategy::Always,
         ),
         permission_strategy: PermissionStrategy::from_flags(
             args.keep_permission,
@@ -646,6 +647,7 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
             timestamp_strategy: TimestampStrategy::from_flags(
                 args.keep_timestamp,
                 args.no_keep_timestamp,
+                TimestampStrategy::Always,
             ),
             permission_strategy: PermissionStrategy::from_flags(
                 args.keep_permission,
@@ -779,6 +781,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         timestamp_strategy: TimestampStrategy::from_flags(
             args.keep_timestamp,
             args.no_keep_timestamp,
+            TimestampStrategy::Always,
         ),
         permission_strategy: PermissionStrategy::from_flags(
             args.keep_permission,
