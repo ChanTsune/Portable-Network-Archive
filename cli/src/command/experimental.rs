@@ -27,17 +27,6 @@ impl Command for ExperimentalCommand {
             ExperimentalCommands::Update(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Chown(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Chmod(cmd) => cmd.execute(ctx),
-            ExperimentalCommands::Xattr(cmd) => {
-                log::warn!(
-                    "`{0} experimental xattr` subcommand was stabilized, use `{0} xattr` instead. this command will be removed in the future.",
-                    std::env::current_exe()
-                        .ok()
-                        .and_then(|it| it.file_name().map(|n| n.to_os_string()))
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                );
-                cmd.execute(ctx)
-            }
             ExperimentalCommands::Acl(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Migrate(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Chunk(cmd) => cmd.execute(ctx),
@@ -69,10 +58,6 @@ pub(crate) enum ExperimentalCommands {
     Chown(command::chown::ChownCommand),
     #[command(about = "Change mode")]
     Chmod(command::chmod::ChmodCommand),
-    #[command(
-        about = "Manipulate extended attributes (stabilized, use `pna xattr` command instead. this command will be removed in the future)"
-    )]
-    Xattr(command::xattr::XattrCommand),
     #[command(about = "Manipulate ACLs of entries")]
     Acl(command::acl::AclCommand),
     #[command(about = "Migrate old format to latest format")]

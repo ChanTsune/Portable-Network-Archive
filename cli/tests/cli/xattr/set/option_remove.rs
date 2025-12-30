@@ -23,7 +23,6 @@ fn archive_xattr_remove() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "xattr",
         "set",
         "xattr_remove/xattr_remove.pna",
@@ -61,7 +60,6 @@ fn archive_xattr_remove() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "xattr",
         "set",
         "xattr_remove/xattr_remove.pna",
