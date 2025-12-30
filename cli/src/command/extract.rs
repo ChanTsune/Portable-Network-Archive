@@ -10,8 +10,8 @@ use crate::{
         Command, ask_password,
         core::{
             AclStrategy, KeepOptions, OwnerOptions, PathFilter, PathTransformers, PathnameEditor,
-            PermissionStrategy, TimeFilterResolver, TimeFilters, TimestampStrategy, XattrStrategy,
-            apply_chroot, collect_split_archives,
+            PermissionStrategy, TimeFilterResolver, TimeFilters, TimestampStrategy,
+            TimestampStrategyResolver, XattrStrategy, apply_chroot, collect_split_archives,
             path_lock::PathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, run_process_archive,
@@ -105,6 +105,34 @@ pub(crate) struct ExtractCommand {
     pub(crate) no_keep_timestamp: bool,
     #[arg(
         long,
+        value_name = "DATETIME",
+        help = "Overrides the modification time"
+    )]
+    mtime: Option<DateTime>,
+    #[arg(
+        long,
+        requires = "mtime",
+        help = "Clamp the modification time of the entries to the specified time by --mtime"
+    )]
+    clamp_mtime: bool,
+    #[arg(long, value_name = "DATETIME", help = "Overrides the creation time")]
+    ctime: Option<DateTime>,
+    #[arg(
+        long,
+        requires = "ctime",
+        help = "Clamp the creation time of the entries to the specified time by --ctime"
+    )]
+    clamp_ctime: bool,
+    #[arg(long, value_name = "DATETIME", help = "Overrides the access time")]
+    atime: Option<DateTime>,
+    #[arg(
+        long,
+        requires = "atime",
+        help = "Clamp the access time of the entries to the specified time by --atime"
+    )]
+    clamp_atime: bool,
+    #[arg(
+        long,
         visible_alias = "preserve-permissions",
         help = "Restore the permissions of the files (unstable on Windows)"
     )]
@@ -164,24 +192,28 @@ pub(crate) struct ExtractCommand {
     numeric_owner: bool,
     #[arg(
         long,
+        value_name = "DATETIME",
         requires = "unstable",
         help = "Only include files and directories older than the specified date (unstable). This compares ctime entries."
     )]
     older_ctime: Option<DateTime>,
     #[arg(
         long,
+        value_name = "DATETIME",
         requires = "unstable",
         help = "Only include files and directories older than the specified date (unstable). This compares mtime entries."
     )]
     older_mtime: Option<DateTime>,
     #[arg(
         long,
+        value_name = "DATETIME",
         requires = "unstable",
         help = "Only include files and directories newer than the specified date (unstable). This compares ctime entries."
     )]
     newer_ctime: Option<DateTime>,
     #[arg(
         long,
+        value_name = "DATETIME",
         requires = "unstable",
         help = "Only include files and directories newer than the specified date (unstable). This compares mtime entries."
     )]
@@ -370,11 +402,18 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         OverwriteStrategy::Never,
     );
     let keep_options = KeepOptions {
-        timestamp_strategy: TimestampStrategy::from_flags(
-            args.keep_timestamp,
-            args.no_keep_timestamp,
-            TimestampStrategy::Never,
-        ),
+        timestamp_strategy: TimestampStrategyResolver {
+            keep_timestamp: args.keep_timestamp,
+            no_keep_timestamp: args.no_keep_timestamp,
+            default_preserve: false,
+            mtime: args.mtime.map(|it| it.to_system_time()),
+            clamp_mtime: args.clamp_mtime,
+            ctime: args.ctime.map(|it| it.to_system_time()),
+            clamp_ctime: args.clamp_ctime,
+            atime: args.atime.map(|it| it.to_system_time()),
+            clamp_atime: args.clamp_atime,
+        }
+        .resolve(),
         permission_strategy: PermissionStrategy::from_flags(
             args.keep_permission,
             args.no_keep_permission,
@@ -802,24 +841,30 @@ where
 
 /// Applies preserved timestamps from archive metadata to an open output file when timestamp preservation is enabled.
 ///
-/// If the configured timestamp strategy is `Always`, sets the file's accessed and modified times (and on supported platforms, created time)
-/// from the provided archive `metadata`. No changes are made when another timestamp strategy is configured.
+/// When the configured timestamp strategy is enabled, sets the file's accessed and modified times (and on supported platforms, created time)
+/// from the provided archive `metadata`. Timestamps may be overridden or clamped according to the strategy's configuration.
+/// No changes are made when timestamp strategy is disabled.
 #[inline]
 fn restore_timestamps(
     file: &mut fs::File,
     metadata: &pna::Metadata,
     keep_options: &KeepOptions,
 ) -> io::Result<()> {
-    if let TimestampStrategy::Always = keep_options.timestamp_strategy {
+    if let TimestampStrategy::Preserve {
+        mtime,
+        ctime: _ctime,
+        atime,
+    } = keep_options.timestamp_strategy
+    {
         let mut times = fs::FileTimes::new();
-        if let Some(accessed) = metadata.accessed_time() {
+        if let Some(accessed) = atime.resolve(metadata.accessed_time()) {
             times = times.set_accessed(accessed);
         }
-        if let Some(modified) = metadata.modified_time() {
+        if let Some(modified) = mtime.resolve(metadata.modified_time()) {
             times = times.set_modified(modified);
         }
         #[cfg(any(windows, target_os = "macos"))]
-        if let Some(created) = metadata.created_time() {
+        if let Some(created) = _ctime.resolve(metadata.created_time()) {
             times = times.set_created(created);
         }
         file.set_times(times)?;
