@@ -108,8 +108,7 @@ pub(crate) fn mknod_block(
     use nix::sys::stat::{self, SFlag};
     let dev = encode_rdev(major, minor);
     let mode = stat::Mode::from_bits_truncate(mode);
-    stat::mknod(path.as_ref(), SFlag::S_IFBLK, mode, dev)
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    stat::mknod(path.as_ref(), SFlag::S_IFBLK, mode, dev).map_err(io::Error::other)
 }
 
 /// Creates a character device node at the specified path.
@@ -125,8 +124,7 @@ pub(crate) fn mknod_char(
     use nix::sys::stat::{self, SFlag};
     let dev = encode_rdev(major, minor);
     let mode = stat::Mode::from_bits_truncate(mode);
-    stat::mknod(path.as_ref(), SFlag::S_IFCHR, mode, dev)
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    stat::mknod(path.as_ref(), SFlag::S_IFCHR, mode, dev).map_err(io::Error::other)
 }
 
 /// Creates a FIFO (named pipe) at the specified path.
@@ -135,5 +133,5 @@ pub(crate) fn mkfifo(path: impl AsRef<Path>, mode: u32) -> io::Result<()> {
     use nix::sys::stat::Mode;
     use nix::unistd;
     let mode = Mode::from_bits_truncate(mode);
-    unistd::mkfifo(path.as_ref(), mode).map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+    unistd::mkfifo(path.as_ref(), mode).map_err(io::Error::other)
 }

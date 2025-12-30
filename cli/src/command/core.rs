@@ -642,7 +642,7 @@ pub(crate) fn create_entry(
         }
         #[cfg(unix)]
         StoreAs::BlockDevice { major, minor } => {
-            let entry = EntryBuilder::new_block_device(entry_name, *major, *minor);
+            let entry = EntryBuilder::new_block_device(entry_name, *major, *minor)?;
             apply_metadata(
                 entry,
                 path,
@@ -655,7 +655,7 @@ pub(crate) fn create_entry(
         }
         #[cfg(unix)]
         StoreAs::CharDevice { major, minor } => {
-            let entry = EntryBuilder::new_char_device(entry_name, *major, *minor);
+            let entry = EntryBuilder::new_char_device(entry_name, *major, *minor)?;
             apply_metadata(
                 entry,
                 path,

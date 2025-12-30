@@ -132,9 +132,6 @@ impl ChunkType {
     /// Extended attribute
     #[allow(non_upper_case_globals)]
     pub const xATR: ChunkType = ChunkType(*b"xATR");
-    /// Device major and minor numbers (for block/character devices)
-    #[allow(non_upper_case_globals)]
-    pub const dNUM: ChunkType = ChunkType(*b"dNUM");
 
     /// Returns the length of the chunk type code.
     ///

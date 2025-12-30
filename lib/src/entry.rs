@@ -584,7 +584,6 @@ pub struct NormalEntry<T = Vec<u8>> {
     pub(crate) data: Vec<T>,
     pub(crate) metadata: Metadata,
     pub(crate) xattrs: Vec<ExtendedAttribute>,
-    pub(crate) device_numbers: Option<DeviceNumbers>,
 }
 
 impl<T> TryFrom<RawEntry<T>> for NormalEntry<T>
@@ -636,7 +635,6 @@ where
         let mut mtime_ns = None;
         let mut atime_ns = None;
         let mut permission = None;
-        let mut device_numbers = None;
         for chunk in chunks {
             match chunk.ty {
                 ChunkType::FEND => break,
@@ -659,9 +657,6 @@ where
                 ChunkType::aTNS => atime_ns = Some(nanos(chunk.data())?),
                 ChunkType::fPRM => permission = Some(Permission::try_from_bytes(chunk.data())?),
                 ChunkType::xATR => xattrs.push(ExtendedAttribute::try_from_bytes(chunk.data())?),
-                ChunkType::dNUM => {
-                    device_numbers = Some(DeviceNumbers::try_from_bytes(chunk.data())?)
-                }
                 _ => extra.push(chunk),
             }
         }
@@ -683,7 +678,6 @@ where
             },
             data,
             xattrs,
-            device_numbers,
         })
     }
 }
@@ -750,9 +744,6 @@ where
         }
         for xattr in &self.xattrs {
             total += (ChunkType::xATR, xattr.to_bytes()).write_chunk_in(writer)?;
-        }
-        if let Some(dev) = &self.device_numbers {
-            total += (ChunkType::dNUM, dev.to_bytes()).write_chunk_in(writer)?;
         }
         total += (ChunkType::FEND, []).write_chunk_in(writer)?;
         Ok(total)
@@ -831,9 +822,6 @@ where
         for xattr in self.xattrs {
             vec.push(RawChunk::from_data(ChunkType::xATR, xattr.to_bytes()));
         }
-        if let Some(dev) = self.device_numbers {
-            vec.push(RawChunk::from_data(ChunkType::dNUM, dev.to_bytes()));
-        }
         vec.push(RawChunk::from_data(ChunkType::FEND, Vec::new()));
         vec
     }
@@ -899,15 +887,6 @@ impl<T> NormalEntry<T> {
     #[inline]
     pub fn xattrs(&self) -> &[ExtendedAttribute] {
         &self.xattrs
-    }
-
-    /// Device numbers for block/character device entries.
-    ///
-    /// Returns `Some` for [`DataKind::BlockDevice`] and [`DataKind::CharDevice`] entries,
-    /// `None` for other entry types.
-    #[inline]
-    pub fn device_numbers(&self) -> Option<&DeviceNumbers> {
-        self.device_numbers.as_ref()
     }
 
     /// Extra chunks.
@@ -1025,6 +1004,55 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
         let reader = decompress_reader(decrypt_reader, self.header.compression)?;
         Ok(EntryDataReader(EntryReader(reader)))
     }
+
+    /// Reads device numbers for block/character device entries.
+    ///
+    /// Returns `Some` for [`DataKind::BlockDevice`] and [`DataKind::CharDevice`] entries,
+    /// `None` for other entry types.
+    ///
+    /// Device numbers are stored in the entry's data (FDAT) as 8 bytes:
+    /// - 4 bytes: major device number (big-endian)
+    /// - 4 bytes: minor device number (big-endian)
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use libpna::{Archive, DataKind, ReadOptions};
+    /// use std::{fs, io};
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let file = fs::File::open("foo.pna")?;
+    /// let mut archive = Archive::read_header(file)?;
+    /// for entry in archive.entries().skip_solid() {
+    ///     let entry = entry?;
+    ///     match entry.data_kind() {
+    ///         DataKind::BlockDevice | DataKind::CharDevice => {
+    ///             if let Some(dev) = entry.read_device_numbers()? {
+    ///                 println!("Device: {}:{}", dev.major(), dev.minor());
+    ///             }
+    ///         }
+    ///         _ => {}
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while reading the device numbers.
+    #[inline]
+    pub fn read_device_numbers(&self) -> io::Result<Option<DeviceNumbers>> {
+        match self.header.data_kind {
+            DataKind::BlockDevice | DataKind::CharDevice => {
+                let mut reader = self.reader(ReadOptions::builder().build())?;
+                let mut buf = [0u8; 8];
+                reader.read_exact(&mut buf)?;
+                Ok(Some(DeviceNumbers::try_from_bytes(&buf)?))
+            }
+            _ => Ok(None),
+        }
+    }
 }
 
 impl<'a> From<NormalEntry<Cow<'a, [u8]>>> for NormalEntry<Vec<u8>> {
@@ -1037,7 +1065,6 @@ impl<'a> From<NormalEntry<Cow<'a, [u8]>>> for NormalEntry<Vec<u8>> {
             data: value.data.into_iter().map(Into::into).collect(),
             metadata: value.metadata,
             xattrs: value.xattrs,
-            device_numbers: value.device_numbers,
         }
     }
 }
@@ -1052,7 +1079,6 @@ impl<'a> From<NormalEntry<&'a [u8]>> for NormalEntry<Vec<u8>> {
             data: value.data.into_iter().map(Into::into).collect(),
             metadata: value.metadata,
             xattrs: value.xattrs,
-            device_numbers: value.device_numbers,
         }
     }
 }
@@ -1067,7 +1093,6 @@ impl From<NormalEntry<Vec<u8>>> for NormalEntry<Cow<'_, [u8]>> {
             data: value.data.into_iter().map(Into::into).collect(),
             metadata: value.metadata,
             xattrs: value.xattrs,
-            device_numbers: value.device_numbers,
         }
     }
 }
@@ -1082,7 +1107,6 @@ impl<'a> From<NormalEntry<&'a [u8]>> for NormalEntry<Cow<'a, [u8]>> {
             data: value.data.into_iter().map(Into::into).collect(),
             metadata: value.metadata,
             xattrs: value.xattrs,
-            device_numbers: value.device_numbers,
         }
     }
 }

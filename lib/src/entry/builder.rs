@@ -144,7 +144,6 @@ pub struct EntryBuilder {
     file_size: u128,
     xattrs: Vec<ExtendedAttribute>,
     extra_chunks: Vec<RawChunk>,
-    device_numbers: Option<DeviceNumbers>,
 }
 
 impl EntryBuilder {
@@ -162,7 +161,6 @@ impl EntryBuilder {
             file_size: 0,
             xattrs: Vec::new(),
             extra_chunks: Vec::new(),
-            device_numbers: None,
         }
     }
 
@@ -336,6 +334,10 @@ impl EntryBuilder {
     ///
     /// A new [EntryBuilder].
     ///
+    /// # Errors
+    ///
+    /// Returns an error if initialization fails.
+    ///
     /// # Examples
     /// ```
     /// use libpna::{EntryBuilder, EntryName};
@@ -345,15 +347,25 @@ impl EntryBuilder {
     ///     EntryName::try_from("dev/sda").unwrap(),
     ///     8,
     ///     0,
-    /// );
+    /// ).unwrap();
     /// let entry = builder.build().unwrap();
     /// ```
     #[inline]
-    pub fn new_block_device(name: EntryName, major: u32, minor: u32) -> Self {
-        Self {
-            device_numbers: Some(DeviceNumbers::new(major, minor)),
+    pub fn new_block_device(name: EntryName, major: u32, minor: u32) -> io::Result<Self> {
+        let option = WriteOptions::store();
+        let context = get_writer_context(option)?;
+        let mut writer = get_writer(FlattenWriter::new(), &context)?;
+        writer.write_all(&DeviceNumbers::new(major, minor).to_bytes())?;
+        let (iv, phsf) = match context.cipher {
+            None => (None, None),
+            Some(WriteCipher { context: c, .. }) => (Some(c.iv), Some(c.phsf)),
+        };
+        Ok(Self {
+            data: Some(writer),
+            iv,
+            phsf,
             ..Self::new(EntryHeader::for_block_device(name))
-        }
+        })
     }
 
     /// Creates a new character device entry with the given name and device numbers.
@@ -368,6 +380,10 @@ impl EntryBuilder {
     ///
     /// A new [EntryBuilder].
     ///
+    /// # Errors
+    ///
+    /// Returns an error if initialization fails.
+    ///
     /// # Examples
     /// ```
     /// use libpna::{EntryBuilder, EntryName};
@@ -377,15 +393,25 @@ impl EntryBuilder {
     ///     EntryName::try_from("dev/null").unwrap(),
     ///     1,
     ///     3,
-    /// );
+    /// ).unwrap();
     /// let entry = builder.build().unwrap();
     /// ```
     #[inline]
-    pub fn new_char_device(name: EntryName, major: u32, minor: u32) -> Self {
-        Self {
-            device_numbers: Some(DeviceNumbers::new(major, minor)),
+    pub fn new_char_device(name: EntryName, major: u32, minor: u32) -> io::Result<Self> {
+        let option = WriteOptions::store();
+        let context = get_writer_context(option)?;
+        let mut writer = get_writer(FlattenWriter::new(), &context)?;
+        writer.write_all(&DeviceNumbers::new(major, minor).to_bytes())?;
+        let (iv, phsf) = match context.cipher {
+            None => (None, None),
+            Some(WriteCipher { context: c, .. }) => (Some(c.iv), Some(c.phsf)),
+        };
+        Ok(Self {
+            data: Some(writer),
+            iv,
+            phsf,
             ..Self::new(EntryHeader::for_char_device(name))
-        }
+        })
     }
 
     /// Creates a new FIFO (named pipe) entry with the given name.
@@ -554,7 +580,6 @@ impl EntryBuilder {
             data,
             metadata,
             xattrs: self.xattrs,
-            device_numbers: self.device_numbers,
         })
     }
 }
