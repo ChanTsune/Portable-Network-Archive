@@ -244,7 +244,7 @@ pub(crate) struct StdioCommand {
     )]
     follow_command_links: bool,
     #[arg(long, value_name = "DIRECTORY", help = "Output directory of extracted files", value_hint = ValueHint::DirPath)]
-    pub(crate) out_dir: Option<PathBuf>,
+    out_dir: Option<PathBuf>,
     #[arg(
         long,
         value_name = "N",
@@ -264,25 +264,25 @@ pub(crate) struct StdioCommand {
         value_name = "NAME",
         help = "On create, archiving user to the entries from given name. On extract, restore user from given name"
     )]
-    pub(crate) uname: Option<String>,
+    uname: Option<String>,
     #[arg(
         long,
         value_name = "NAME",
         help = "On create, archiving group to the entries from given name. On extract, restore group from given name"
     )]
-    pub(crate) gname: Option<String>,
+    gname: Option<String>,
     #[arg(
         long,
         value_name = "ID",
         help = "On create, this overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id. On extract, this overrides the user id in the archive; the user name in the archive will be ignored"
     )]
-    pub(crate) uid: Option<u32>,
+    uid: Option<u32>,
     #[arg(
         long,
         value_name = "ID",
         help = "On create, this overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id. On extract, this overrides the group id in the archive; the group name in the archive will be ignored"
     )]
-    pub(crate) gid: Option<u32>,
+    gid: Option<u32>,
     #[arg(
         long,
         value_name = "NAME[:ID]",
@@ -295,7 +295,7 @@ pub(crate) struct StdioCommand {
         long,
         help = "This is equivalent to --uname \"\" --gname \"\". On create, it causes user and group names to not be stored in the archive. On extract, it causes user and group names in the archive to be ignored in favor of the numeric user and group ids."
     )]
-    pub(crate) numeric_owner: bool,
+    numeric_owner: bool,
     #[arg(long, value_name = "DATETIME", help = "Overrides the creation time")]
     ctime: Option<DateTime>,
     #[arg(
