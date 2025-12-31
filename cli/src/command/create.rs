@@ -385,6 +385,7 @@ impl Command for CreateCommand {
     }
 }
 
+#[hooq::hooq(anyhow)]
 fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
@@ -402,11 +403,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         );
     }
     if !args.overwrite && archive.exists() {
-        return Err(io::Error::new(
-            io::ErrorKind::AlreadyExists,
-            format!("{} already exists", archive.display()),
-        )
-        .into());
+        anyhow::bail!("{} already exists", archive.display());
     }
     log::info!("Create an archive: {}", archive.display());
     let mut files = args.file.files();

@@ -33,6 +33,7 @@ impl Command for MigrateCommand {
     }
 }
 
+#[hooq::hooq(anyhow)]
 fn migrate_metadata(args: MigrateCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
 
@@ -55,6 +56,7 @@ fn migrate_metadata(args: MigrateCommand) -> anyhow::Result<()> {
             temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
+            #[hooq::skip_all]
             |entry| Ok(Some(strip_entry_metadata(entry?)?)),
             TransformStrategyUnSolid,
         ),
@@ -62,6 +64,7 @@ fn migrate_metadata(args: MigrateCommand) -> anyhow::Result<()> {
             temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
+            #[hooq::skip_all]
             |entry| Ok(Some(strip_entry_metadata(entry?)?)),
             TransformStrategyKeepSolid,
         ),

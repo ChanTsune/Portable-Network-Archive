@@ -45,6 +45,7 @@ impl Command for SplitCommand {
     }
 }
 
+#[hooq::hooq(anyhow)]
 fn split_archive(args: SplitCommand) -> anyhow::Result<()> {
     let archive_path = match (args.file, args.archive) {
         (Some(f), _) => f,

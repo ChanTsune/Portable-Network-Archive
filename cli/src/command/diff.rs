@@ -30,6 +30,7 @@ impl Command for DiffCommand {
     }
 }
 
+#[hooq::hooq(anyhow)]
 fn diff_archive(args: DiffCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let archives = collect_split_archives(&args.file.archive)?;
@@ -43,6 +44,7 @@ fn diff_archive(args: DiffCommand) -> anyhow::Result<()> {
     run_entries(
         archives,
         || password.as_deref(),
+        #[hooq::skip_all]
         |entry| compare_entry(entry?, password.as_deref()),
     )?;
     Ok(())

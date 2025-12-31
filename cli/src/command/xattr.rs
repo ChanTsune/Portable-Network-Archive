@@ -185,6 +185,7 @@ impl<'a> DumpOption<'a> {
     }
 }
 
+#[hooq::hooq(anyhow)]
 fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     if args.file.files().is_empty() {
@@ -209,6 +210,7 @@ fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
     run_entries(
         archives,
         || password.as_deref(),
+        #[hooq::skip_all]
         |entry| {
             let entry = entry?;
             let name = entry.name();
@@ -238,6 +240,7 @@ fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[hooq::hooq(anyhow)]
 fn archive_set_xattr(args: SetXattrCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let files = args.file.files();
@@ -277,6 +280,7 @@ fn archive_set_xattr(args: SetXattrCommand) -> anyhow::Result<()> {
             temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
+            #[hooq::skip_all]
             |entry| Ok(Some(set_strategy.transform_entry(entry?))),
             TransformStrategyUnSolid,
         ),
@@ -284,6 +288,7 @@ fn archive_set_xattr(args: SetXattrCommand) -> anyhow::Result<()> {
             temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
+            #[hooq::skip_all]
             |entry| Ok(Some(set_strategy.transform_entry(entry?))),
             TransformStrategyKeepSolid,
         ),

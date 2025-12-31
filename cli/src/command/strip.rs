@@ -63,6 +63,7 @@ impl Command for StripCommand {
     }
 }
 
+#[hooq::hooq(anyhow)]
 fn strip_metadata(args: StripCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let archive = args.file.archive();
@@ -85,6 +86,7 @@ fn strip_metadata(args: StripCommand) -> anyhow::Result<()> {
             temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
+            #[hooq::skip_all]
             |entry| Ok(Some(strip_entry_metadata(entry?, &args.strip_options))),
             TransformStrategyUnSolid,
         ),
@@ -92,6 +94,7 @@ fn strip_metadata(args: StripCommand) -> anyhow::Result<()> {
             temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
+            #[hooq::skip_all]
             |entry| Ok(Some(strip_entry_metadata(entry?, &args.strip_options))),
             TransformStrategyKeepSolid,
         ),

@@ -143,6 +143,7 @@ impl Command for SortCommand {
     }
 }
 
+#[hooq::hooq(anyhow)]
 fn sort_archive(args: SortCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let archives = collect_split_archives(&args.archive)?;
@@ -157,6 +158,7 @@ fn sort_archive(args: SortCommand) -> anyhow::Result<()> {
     run_entries(
         archives,
         || password.as_deref(),
+        #[hooq::skip_all]
         |entry| {
             entries.push(entry?);
             Ok(())

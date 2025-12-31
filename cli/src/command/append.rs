@@ -361,16 +361,13 @@ impl Command for AppendCommand {
     }
 }
 
+#[hooq::hooq(anyhow)]
 fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let archive_path = args.file.archive();
     if !archive_path.exists() {
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            format!("{} is not exists", archive_path.display()),
-        )
-        .into());
+        anyhow::bail!("{} is not exists", archive_path.display());
     }
     let password = password.as_deref();
     let option = entry_option(args.compression, args.cipher, args.hash, password);
