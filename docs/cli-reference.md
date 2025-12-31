@@ -202,41 +202,41 @@ Create archive
 * `--solid` — Compress multiple files together for better compression ratio
 
   Default value: `false`
-* `--uname <UNAME>` — Set user name for archive entries
-* `--gname <GNAME>` — Set group name for archive entries
-* `--uid <UID>` — Overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id
-* `--gid <GID>` — Overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id
-* `--strip-components <STRIP_COMPONENTS>` — Remove the specified number of leading path elements when storing paths (unstable)
+* `--uname <NAME>` — Set user name for archive entries
+* `--gname <NAME>` — Set group name for archive entries
+* `--uid <ID>` — Overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id
+* `--gid <ID>` — Overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id
+* `--strip-components <N>` — Remove the specified number of leading path elements when storing paths (unstable)
 * `--numeric-owner` — This is equivalent to --uname "" --gname "". It causes user and group names to not be stored in the archive
 
   Default value: `false`
-* `--ctime <CTIME>` — Overrides the creation time read from disk
+* `--ctime <DATETIME>` — Overrides the creation time read from disk
 * `--clamp-ctime` — Clamp the creation time of the entries to the specified time by --ctime
 
   Default value: `false`
-* `--atime <ATIME>` — Overrides the access time read from disk
+* `--atime <DATETIME>` — Overrides the access time read from disk
 * `--clamp-atime` — Clamp the access time of the entries to the specified time by --atime
 
   Default value: `false`
-* `--mtime <MTIME>` — Overrides the modification time read from disk
+* `--mtime <DATETIME>` — Overrides the modification time read from disk
 * `--clamp-mtime` — Clamp the modification time of the entries to the specified time by --mtime
 
   Default value: `false`
-* `--older-ctime <OLDER_CTIME>` — Only include files and directories older than the specified date (unstable). This compares ctime entries.
-* `--older-mtime <OLDER_MTIME>` — Only include files and directories older than the specified date (unstable). This compares mtime entries.
-* `--newer-ctime <NEWER_CTIME>` — Only include files and directories newer than the specified date (unstable). This compares ctime entries.
-* `--newer-mtime <NEWER_MTIME>` — Only include files and directories newer than the specified date (unstable). This compares mtime entries.
-* `--newer-ctime-than <file>` — Only include files and directories newer than the specified file (unstable). This compares ctime entries.
-* `--newer-mtime-than <file>` — Only include files and directories newer than the specified file (unstable). This compares mtime entries.
-* `--older-ctime-than <file>` — Only include files and directories older than the specified file (unstable). This compares ctime entries.
-* `--older-mtime-than <file>` — Only include files and directories older than the specified file (unstable). This compares mtime entries.
-* `--files-from <FILES_FROM>` — Read archiving files from given path (unstable)
+* `--older-ctime <DATETIME>` — Only include files and directories older than the specified date (unstable). This compares ctime entries.
+* `--older-mtime <DATETIME>` — Only include files and directories older than the specified date (unstable). This compares mtime entries.
+* `--newer-ctime <DATETIME>` — Only include files and directories newer than the specified date (unstable). This compares ctime entries.
+* `--newer-mtime <DATETIME>` — Only include files and directories newer than the specified date (unstable). This compares mtime entries.
+* `--newer-ctime-than <FILE>` — Only include files and directories newer than the specified file (unstable). This compares ctime entries.
+* `--newer-mtime-than <FILE>` — Only include files and directories newer than the specified file (unstable). This compares mtime entries.
+* `--older-ctime-than <FILE>` — Only include files and directories older than the specified file (unstable). This compares ctime entries.
+* `--older-mtime-than <FILE>` — Only include files and directories older than the specified file (unstable). This compares mtime entries.
+* `--files-from <FILE>` — Read archiving files from given path (unstable)
 * `--files-from-stdin` — Read archiving files from stdin (unstable)
 
   Default value: `false`
-* `--include <INCLUDE>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
-* `--exclude <EXCLUDE>` — Exclude path glob (unstable)
-* `--exclude-from <EXCLUDE_FROM>` — Read exclude files from given path (unstable)
+* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
+* `--exclude <PATTERN>` — Exclude path glob (unstable)
+* `--exclude-from <FILE>` — Read exclude files from given path (unstable)
 * `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)
 
   Default value: `false`
@@ -269,10 +269,10 @@ Create archive
 
   Possible values: `cbc`, `ctr`
 
-* `--argon2 <ARGON2>` — Use argon2 for password hashing
-* `--pbkdf2 <PBKDF2>` — Use pbkdf2 for password hashing
+* `--argon2 <PARAMS>` — Use argon2 for password hashing
+* `--pbkdf2 <PARAMS>` — Use pbkdf2 for password hashing
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <PASSWORD_FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from specified file
 * `-f`, `--file <FILE>` — Archive file path
 * `--quiet` — Make some output more quiet
 
@@ -350,41 +350,41 @@ Append files to archive
 * `--no-keep-acl` [alias: `no-preserve-acls`] — Do not archive ACLs. This is the inverse option of --keep-acl (unstable)
 
   Default value: `false`
-* `--uname <UNAME>` — Set user name for archive entries
-* `--gname <GNAME>` — Set group name for archive entries
-* `--uid <UID>` — Overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id
-* `--gid <GID>` — Overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id
-* `--strip-components <STRIP_COMPONENTS>` — Remove the specified number of leading path elements when storing paths (unstable)
+* `--uname <NAME>` — Set user name for archive entries
+* `--gname <NAME>` — Set group name for archive entries
+* `--uid <ID>` — Overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id
+* `--gid <ID>` — Overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id
+* `--strip-components <N>` — Remove the specified number of leading path elements when storing paths (unstable)
 * `--numeric-owner` — This is equivalent to --uname "" --gname "". It causes user and group names to not be stored in the archive
 
   Default value: `false`
-* `--ctime <CTIME>` — Overrides the creation time read from disk
+* `--ctime <DATETIME>` — Overrides the creation time read from disk
 * `--clamp-ctime` — Clamp the creation time of the entries to the specified time by --ctime
 
   Default value: `false`
-* `--atime <ATIME>` — Overrides the access time read from disk
+* `--atime <DATETIME>` — Overrides the access time read from disk
 * `--clamp-atime` — Clamp the access time of the entries to the specified time by --atime
 
   Default value: `false`
-* `--mtime <MTIME>` — Overrides the modification time read from disk
+* `--mtime <DATETIME>` — Overrides the modification time read from disk
 * `--clamp-mtime` — Clamp the modification time of the entries to the specified time by --mtime
 
   Default value: `false`
-* `--older-ctime <OLDER_CTIME>` — Only include files and directories older than the specified date (unstable). This compares ctime entries.
-* `--older-mtime <OLDER_MTIME>` — Only include files and directories older than the specified date (unstable). This compares mtime entries.
-* `--newer-ctime <NEWER_CTIME>` — Only include files and directories newer than the specified date (unstable). This compares ctime entries.
-* `--newer-mtime <NEWER_MTIME>` — Only include files and directories newer than the specified date (unstable). This compares mtime entries.
-* `--newer-ctime-than <file>` — Only include files and directories newer than the specified file (unstable). This compares ctime entries.
-* `--newer-mtime-than <file>` — Only include files and directories newer than the specified file (unstable). This compares mtime entries.
-* `--older-ctime-than <file>` — Only include files and directories older than the specified file (unstable). This compares ctime entries.
-* `--older-mtime-than <file>` — Only include files and directories older than the specified file (unstable). This compares mtime entries.
-* `--files-from <FILES_FROM>` — Read archiving files from given path (unstable)
+* `--older-ctime <DATETIME>` — Only include files and directories older than the specified date (unstable). This compares ctime entries.
+* `--older-mtime <DATETIME>` — Only include files and directories older than the specified date (unstable). This compares mtime entries.
+* `--newer-ctime <DATETIME>` — Only include files and directories newer than the specified date (unstable). This compares ctime entries.
+* `--newer-mtime <DATETIME>` — Only include files and directories newer than the specified date (unstable). This compares mtime entries.
+* `--newer-ctime-than <FILE>` — Only include files and directories newer than the specified file (unstable). This compares ctime entries.
+* `--newer-mtime-than <FILE>` — Only include files and directories newer than the specified file (unstable). This compares mtime entries.
+* `--older-ctime-than <FILE>` — Only include files and directories older than the specified file (unstable). This compares ctime entries.
+* `--older-mtime-than <FILE>` — Only include files and directories older than the specified file (unstable). This compares mtime entries.
+* `--files-from <FILE>` — Read archiving files from given path (unstable)
 * `--files-from-stdin` — Read archiving files from stdin (unstable)
 
   Default value: `false`
-* `--include <INCLUDE>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
-* `--exclude <EXCLUDE>` — Exclude path glob (unstable)
-* `--exclude-from <EXCLUDE_FROM>` — Read exclude files from given path (unstable)
+* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
+* `--exclude <PATTERN>` — Exclude path glob (unstable)
+* `--exclude-from <FILE>` — Read exclude files from given path (unstable)
 * `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)
 
   Default value: `false`
@@ -410,7 +410,7 @@ Append files to archive
 * `--zstd <level>` — Use zstd for compression [possible level: 1-21, min, max]
 * `--xz <level>` — Use xz for compression [possible level: 0-9, min, max]
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <PASSWORD_FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from specified file
 * `--aes <cipher mode>` — Use aes for encryption
 
   Possible values: `cbc`, `ctr`
@@ -419,8 +419,8 @@ Append files to archive
 
   Possible values: `cbc`, `ctr`
 
-* `--argon2 <ARGON2>` — Use argon2 for password hashing
-* `--pbkdf2 <PBKDF2>` — Use pbkdf2 for password hashing
+* `--argon2 <PARAMS>` — Use argon2 for password hashing
+* `--pbkdf2 <PARAMS>` — Use pbkdf2 for password hashing
 * `-f`, `--file <FILE>` — Archive file path
 * `--quiet` — Make some output more quiet
 
@@ -468,9 +468,9 @@ Extract files from archive
 * `--keep-old-files` — Skip extracting files if they already exist (unstable)
 
   Default value: `false`
-* `--out-dir <OUT_DIR>` — Output directory of extracted files
+* `--out-dir <DIRECTORY>` — Output directory of extracted files
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <PASSWORD_FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from specified file
 * `--keep-timestamp` [alias: `preserve-timestamps`] — Restore the timestamp of the files
 
   Default value: `false`
@@ -495,24 +495,24 @@ Extract files from archive
 * `--no-keep-acl` [alias: `no-preserve-acls`] — Do not restore ACLs. This is the inverse option of --keep-acl (unstable)
 
   Default value: `false`
-* `--uname <UNAME>` — Restore user from given name
-* `--gname <GNAME>` — Restore group from given name
-* `--uid <UID>` — Overrides the user id in the archive; the user name in the archive will be ignored
-* `--gid <GID>` — Overrides the group id in the archive; the group name in the archive will be ignored
+* `--uname <NAME>` — Restore user from given name
+* `--gname <NAME>` — Restore group from given name
+* `--uid <ID>` — Overrides the user id in the archive; the user name in the archive will be ignored
+* `--gid <ID>` — Overrides the group id in the archive; the group name in the archive will be ignored
 * `--numeric-owner` — This is equivalent to --uname "" --gname "". It causes user and group names in the archive to be ignored in favor of the numeric user and group ids.
 
   Default value: `false`
-* `--include <INCLUDE>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
-* `--exclude <EXCLUDE>` — Exclude path glob (unstable)
-* `--exclude-from <EXCLUDE_FROM>` — Read exclude files from given path (unstable)
+* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
+* `--exclude <PATTERN>` — Exclude path glob (unstable)
+* `--exclude-from <FILE>` — Read exclude files from given path (unstable)
 * `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)
 
   Default value: `false`
-* `--files-from <FILES_FROM>` — Read extraction patterns from given path (unstable)
+* `--files-from <FILE>` — Read extraction patterns from given path (unstable)
 * `--null` — Filenames or patterns are separated by null characters, not by newlines
 
   Default value: `false`
-* `--strip-components <STRIP_COMPONENTS>` — Remove the specified number of leading path elements. Path names with fewer elements will be silently skipped
+* `--strip-components <N>` — Remove the specified number of leading path elements. Path names with fewer elements will be silently skipped
 * `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option (unstable)
 * `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option (unstable)
 * `--same-owner` — Try extracting files with the same ownership as exists in the archive
@@ -601,9 +601,9 @@ List files in archive
 * `--classify` — Append file type indicators (/ for directories, @ for symlinks)
 
   Default value: `false`
-* `--include <INCLUDE>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions
-* `--exclude <EXCLUDE>` — Exclude path glob (unstable)
-* `--exclude-from <EXCLUDE_FROM>` — Read exclude files from given path (unstable)
+* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions
+* `--exclude <PATTERN>` — Exclude path glob (unstable)
+* `--exclude-from <FILE>` — Read exclude files from given path (unstable)
 * `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)
 
   Default value: `false`
@@ -611,7 +611,7 @@ List files in archive
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <PASSWORD_FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from specified file
 * `-f`, `--file <FILE>` — Archive file path
 * `--help` — Print help
 * `--quiet` — Make some output more quiet
@@ -645,13 +645,13 @@ Delete entry from archive
 ###### **Options:**
 
 * `--output <OUTPUT>` — Output file path
-* `--files-from <FILES_FROM>` — Read deleting files from given path (unstable)
+* `--files-from <FILE>` — Read deleting files from given path (unstable)
 * `--files-from-stdin` — Read deleting files from stdin (unstable)
 
   Default value: `false`
-* `--include <INCLUDE>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
-* `--exclude <EXCLUDE>` — Exclude path glob (unstable)
-* `--exclude-from <EXCLUDE_FROM>` — Read exclude files from given path (unstable)
+* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
+* `--exclude <PATTERN>` — Exclude path glob (unstable)
+* `--exclude-from <FILE>` — Read exclude files from given path (unstable)
 * `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)
 
   Default value: `false`
@@ -659,7 +659,7 @@ Delete entry from archive
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <PASSWORD_FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from specified file
 * `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
@@ -699,7 +699,7 @@ Split archive
 ###### **Options:**
 
 * `-f`, `--file <FILE>` — Archive file path
-* `--out-dir <OUT_DIR>` — Output directory for split archives
+* `--out-dir <DIRECTORY>` — Output directory for split archives
 * `--overwrite` — Overwrite file
 
   Default value: `false`
@@ -789,7 +789,7 @@ Strip entries metadata
 * `--keep-acl` [alias: `preserve-acls`] — Preserve ACLs
 
   Default value: `false`
-* `--keep-private <KEEP_PRIVATE>` [alias: `preserve-private_chunks`] — Keep private chunks
+* `--keep-private <CHUNK_TYPE>` [alias: `preserve-private_chunks`] — Keep private chunks. If no CHUNK_TYPE is specified, all private chunks are kept
 * `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
@@ -798,7 +798,7 @@ Strip entries metadata
   Default value: `false`
 * `--output <OUTPUT>` — Output file path
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <PASSWORD_FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from specified file
 * `-f`, `--file <FILE>` — Archive file path
 * `--quiet` — Make some output more quiet
 
@@ -833,7 +833,7 @@ Sort entries in archive
 
   Default value: `name`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <PASSWORD_FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from specified file
 * `--quiet` — Make some output more quiet
 
   Default value: `false`
@@ -911,7 +911,7 @@ Get extended attributes of entries
   Possible values: `text`, `hex`, `base64`
 
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <PASSWORD_FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from specified file
 * `--quiet` — Make some output more quiet
 
   Default value: `false`
@@ -947,8 +947,8 @@ Set extended attributes of entries
 * `-f`, `--file <FILE>` — Archive file path
 * `-n`, `--name <NAME>` — Name of extended attribute
 * `-v`, `--value <VALUE>` — Value of extended attribute
-* `-x`, `--remove <REMOVE>` — Remove extended attribute
-* `--restore <RESTORE>` — Restores extended attributes from file. The file must be in the format generated by the pna xattr get command with the --dump option. If a dash (-) is given as the file name, reads from standard input
+* `-x`, `--remove <NAME>` — Remove extended attribute
+* `--restore <FILE>` — Restores extended attributes from file. The file must be in the format generated by the pna xattr get command with the --dump option. If a dash (-) is given as the file name, reads from standard input
 * `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
@@ -956,7 +956,7 @@ Set extended attributes of entries
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <PASSWORD_FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from specified file
 * `--quiet` — Make some output more quiet
 
   Default value: `false`
@@ -1215,13 +1215,13 @@ bsdtar-like CLI semantics for PNA archives
 
   Possible values: `cbc`, `ctr`
 
-* `--argon2 <ARGON2>` — Use argon2 for password hashing
-* `--pbkdf2 <PBKDF2>` — Use pbkdf2 for password hashing
+* `--argon2 <PARAMS>` — Use argon2 for password hashing
+* `--pbkdf2 <PARAMS>` — Use pbkdf2 for password hashing
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <PASSWORD_FILE>` — Read password from specified file
-* `--include <INCLUDE>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
-* `--exclude <EXCLUDE>` — Exclude path glob (unstable)
-* `-X`, `--exclude-from <EXCLUDE_FROM>` — Read exclude files from given path (unstable)
+* `--password-file <FILE>` — Read password from specified file
+* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
+* `--exclude <PATTERN>` — Exclude path glob (unstable)
+* `-X`, `--exclude-from <FILE>` — Read exclude files from given path (unstable)
 * `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)
 
   Default value: `false`
@@ -1234,38 +1234,38 @@ bsdtar-like CLI semantics for PNA archives
 * `-H`, `--follow-command-links` — Follow symbolic links named on the command line (unstable)
 
   Default value: `false`
-* `--out-dir <OUT_DIR>` — Output directory of extracted files
-* `--strip-components <STRIP_COMPONENTS>` — Remove the specified number of leading path elements. Path names with fewer elements will be silently skipped
-* `--owner <OWNER>` — Use the provided owner, if uid is not provided, name can be either a user name or numeric id. See the --uname option for details (unstable).
-* `--uname <UNAME>` — On create, archiving user to the entries from given name. On extract, restore user from given name
-* `--gname <GNAME>` — On create, archiving group to the entries from given name. On extract, restore group from given name
-* `--uid <UID>` — On create, this overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id. On extract, this overrides the user id in the archive; the user name in the archive will be ignored
-* `--gid <GID>` — On create, this overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id. On extract, this overrides the group id in the archive; the group name in the archive will be ignored
-* `--group <GROUP>` — Use the provided group, if gid is not provided, name can be either a group name or numeric id. See the --gname option for details (unstable).
+* `--out-dir <DIRECTORY>` — Output directory of extracted files
+* `--strip-components <N>` — Remove the specified number of leading path elements. Path names with fewer elements will be silently skipped
+* `--owner <NAME[:ID]>` — Use the provided owner, if uid is not provided, name can be either a user name or numeric id. See the --uname option for details (unstable).
+* `--uname <NAME>` — On create, archiving user to the entries from given name. On extract, restore user from given name
+* `--gname <NAME>` — On create, archiving group to the entries from given name. On extract, restore group from given name
+* `--uid <ID>` — On create, this overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id. On extract, this overrides the user id in the archive; the user name in the archive will be ignored
+* `--gid <ID>` — On create, this overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id. On extract, this overrides the group id in the archive; the group name in the archive will be ignored
+* `--group <NAME[:ID]>` — Use the provided group, if gid is not provided, name can be either a group name or numeric id. See the --gname option for details (unstable).
 * `--numeric-owner` — This is equivalent to --uname "" --gname "". On create, it causes user and group names to not be stored in the archive. On extract, it causes user and group names in the archive to be ignored in favor of the numeric user and group ids.
 
   Default value: `false`
-* `--ctime <CTIME>` — Overrides the creation time
+* `--ctime <DATETIME>` — Overrides the creation time
 * `--clamp-ctime` — Clamp the creation time of the entries to the specified time by --ctime
 
   Default value: `false`
-* `--atime <ATIME>` — Overrides the access time
+* `--atime <DATETIME>` — Overrides the access time
 * `--clamp-atime` — Clamp the access time of the entries to the specified time by --atime
 
   Default value: `false`
-* `--mtime <MTIME>` — Overrides the modification time
+* `--mtime <DATETIME>` — Overrides the modification time
 * `--clamp-mtime` — Clamp the modification time of the entries to the specified time by --mtime
 
   Default value: `false`
-* `--older-ctime <OLDER_CTIME>` — Only include files and directories older than the specified date (unstable). This compares ctime entries.
-* `--older-mtime <OLDER_MTIME>` — Only include files and directories older than the specified date (unstable). This compares mtime entries.
-* `--newer-ctime <NEWER_CTIME>` — Only include files and directories newer than the specified date (unstable). This compares ctime entries.
-* `--newer-mtime <NEWER_MTIME>` — Only include files and directories newer than the specified date (unstable). This compares mtime entries.
-* `--newer-ctime-than <file>` — Only include files and directories newer than the specified file (unstable). This compares ctime entries.
-* `--newer-mtime-than <file>` [alias: `newer-than`] — Only include files and directories newer than the specified file (unstable). This compares mtime entries.
-* `--older-ctime-than <file>` — Only include files and directories older than the specified file (unstable). This compares ctime entries.
-* `--older-mtime-than <file>` [alias: `older-than`] — Only include files and directories older than the specified file (unstable). This compares mtime entries.
-* `-T`, `--files-from <FILES_FROM>` — Read archiving files from given path (unstable)
+* `--older-ctime <DATETIME>` — Only include files and directories older than the specified date (unstable). This compares ctime entries.
+* `--older-mtime <DATETIME>` — Only include files and directories older than the specified date (unstable). This compares mtime entries.
+* `--newer-ctime <DATETIME>` — Only include files and directories newer than the specified date (unstable). This compares ctime entries.
+* `--newer-mtime <DATETIME>` — Only include files and directories newer than the specified date (unstable). This compares mtime entries.
+* `--newer-ctime-than <FILE>` — Only include files and directories newer than the specified file (unstable). This compares ctime entries.
+* `--newer-mtime-than <FILE>` [alias: `newer-than`] — Only include files and directories newer than the specified file (unstable). This compares mtime entries.
+* `--older-ctime-than <FILE>` — Only include files and directories older than the specified file (unstable). This compares ctime entries.
+* `--older-mtime-than <FILE>` [alias: `older-than`] — Only include files and directories older than the specified file (unstable). This compares mtime entries.
+* `-T`, `--files-from <FILE>` — Read archiving files from given path (unstable)
 * `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option (unstable)
 * `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option (unstable)
 * `--same-owner` — Try extracting files with the same ownership as exists in the archive
@@ -1324,13 +1324,13 @@ Delete entry from archive
 ###### **Options:**
 
 * `--output <OUTPUT>` — Output file path
-* `--files-from <FILES_FROM>` — Read deleting files from given path (unstable)
+* `--files-from <FILE>` — Read deleting files from given path (unstable)
 * `--files-from-stdin` — Read deleting files from stdin (unstable)
 
   Default value: `false`
-* `--include <INCLUDE>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
-* `--exclude <EXCLUDE>` — Exclude path glob (unstable)
-* `--exclude-from <EXCLUDE_FROM>` — Read exclude files from given path (unstable)
+* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
+* `--exclude <PATTERN>` — Exclude path glob (unstable)
+* `--exclude-from <FILE>` — Read exclude files from given path (unstable)
 * `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)
 
   Default value: `false`
@@ -1338,7 +1338,7 @@ Delete entry from archive
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <PASSWORD_FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from specified file
 * `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
@@ -1419,41 +1419,41 @@ Update entries in archive
 * `--no-keep-acl` [alias: `no-preserve-acls`] — Do not archive ACLs. This is the inverse option of --keep-acl (unstable)
 
   Default value: `false`
-* `--uname <UNAME>` — Set user name for archive entries
-* `--gname <GNAME>` — Set group name for archive entries
-* `--uid <UID>` — Overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id
-* `--gid <GID>` — Overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id
-* `--strip-components <STRIP_COMPONENTS>` — Remove the specified number of leading path elements when storing paths (unstable)
+* `--uname <NAME>` — Set user name for archive entries
+* `--gname <NAME>` — Set group name for archive entries
+* `--uid <ID>` — Overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id
+* `--gid <ID>` — Overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id
+* `--strip-components <N>` — Remove the specified number of leading path elements when storing paths (unstable)
 * `--numeric-owner` — This is equivalent to --uname "" --gname "". It causes user and group names to not be stored in the archive
 
   Default value: `false`
-* `--ctime <CTIME>` — Overrides the creation time read from disk
+* `--ctime <DATETIME>` — Overrides the creation time read from disk
 * `--clamp-ctime` — Clamp the creation time of the entries to the specified time by --ctime
 
   Default value: `false`
-* `--atime <ATIME>` — Overrides the access time read from disk
+* `--atime <DATETIME>` — Overrides the access time read from disk
 * `--clamp-atime` — Clamp the access time of the entries to the specified time by --atime
 
   Default value: `false`
-* `--mtime <MTIME>` — Overrides the modification time read from disk
+* `--mtime <DATETIME>` — Overrides the modification time read from disk
 * `--clamp-mtime` — Clamp the modification time of the entries to the specified time by --mtime
 
   Default value: `false`
-* `--older-ctime <OLDER_CTIME>` — Only include files and directories older than the specified date. This compares ctime entries.
-* `--older-mtime <OLDER_MTIME>` — Only include files and directories older than the specified date. This compares mtime entries.
-* `--newer-ctime <NEWER_CTIME>` — Only include files and directories newer than the specified date. This compares ctime entries.
-* `--newer-mtime <NEWER_MTIME>` — Only include files and directories newer than the specified date. This compares mtime entries.
-* `--newer-ctime-than <file>` — Only include files and directories newer than the specified file (unstable). This compares ctime entries.
-* `--newer-mtime-than <file>` — Only include files and directories newer than the specified file (unstable). This compares mtime entries.
-* `--older-ctime-than <file>` — Only include files and directories older than the specified file (unstable). This compares ctime entries.
-* `--older-mtime-than <file>` — Only include files and directories older than the specified file (unstable). This compares mtime entries.
-* `--files-from <FILES_FROM>` — Read archiving files from given path (unstable)
+* `--older-ctime <DATETIME>` — Only include files and directories older than the specified date. This compares ctime entries.
+* `--older-mtime <DATETIME>` — Only include files and directories older than the specified date. This compares mtime entries.
+* `--newer-ctime <DATETIME>` — Only include files and directories newer than the specified date. This compares ctime entries.
+* `--newer-mtime <DATETIME>` — Only include files and directories newer than the specified date. This compares mtime entries.
+* `--newer-ctime-than <FILE>` — Only include files and directories newer than the specified file (unstable). This compares ctime entries.
+* `--newer-mtime-than <FILE>` — Only include files and directories newer than the specified file (unstable). This compares mtime entries.
+* `--older-ctime-than <FILE>` — Only include files and directories older than the specified file (unstable). This compares ctime entries.
+* `--older-mtime-than <FILE>` — Only include files and directories older than the specified file (unstable). This compares mtime entries.
+* `--files-from <FILE>` — Read archiving files from given path (unstable)
 * `--files-from-stdin` — Read archiving files from stdin (unstable)
 
   Default value: `false`
-* `--include <INCLUDE>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
-* `--exclude <EXCLUDE>` — Exclude path glob (unstable)
-* `--exclude-from <EXCLUDE_FROM>` — Read exclude files from given path (unstable)
+* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
+* `--exclude <PATTERN>` — Exclude path glob (unstable)
+* `--exclude-from <FILE>` — Read exclude files from given path (unstable)
 * `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)
 
   Default value: `false`
@@ -1467,7 +1467,7 @@ Update entries in archive
 * `--zstd <level>` — Use zstd for compression [possible level: 1-21, min, max]
 * `--xz <level>` — Use xz for compression [possible level: 0-9, min, max]
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <PASSWORD_FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from specified file
 * `--aes <cipher mode>` — Use aes for encryption
 
   Possible values: `cbc`, `ctr`
@@ -1476,8 +1476,8 @@ Update entries in archive
 
   Possible values: `cbc`, `ctr`
 
-* `--argon2 <ARGON2>` — Use argon2 for password hashing
-* `--pbkdf2 <PBKDF2>` — Use pbkdf2 for password hashing
+* `--argon2 <PARAMS>` — Use argon2 for password hashing
+* `--pbkdf2 <PARAMS>` — Use pbkdf2 for password hashing
 * `--unsolid` — Convert solid entries to regular entries
 
   Default value: `false`
@@ -1549,7 +1549,7 @@ Change owner
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <PASSWORD_FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from specified file
 * `--quiet` — Make some output more quiet
 
   Default value: `false`
@@ -1590,7 +1590,7 @@ Change mode
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <PASSWORD_FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from specified file
 * `--quiet` — Make some output more quiet
 
   Default value: `false`
@@ -1662,7 +1662,7 @@ Get acl of entries
   Default value: `false`
 * `-f`, `--file <ARCHIVE>`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <PASSWORD_FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from specified file
 * `--quiet` — Make some output more quiet
 
   Default value: `false`
@@ -1709,7 +1709,7 @@ Set acl of entries
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <PASSWORD_FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from specified file
 * `--quiet` — Make some output more quiet
 
   Default value: `false`
@@ -1782,7 +1782,7 @@ Migrate old format to latest format
 
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <PASSWORD_FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from specified file
 * `-f`, `--file <ARCHIVE>`
 * `--output <OUTPUT>` — Output file path
 * `--quiet` — Make some output more quiet
@@ -1914,7 +1914,7 @@ Sort entries in archive (stabilized, use `pna sort` command instead. this comman
 
   Default value: `name`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <PASSWORD_FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from specified file
 * `--quiet` — Make some output more quiet
 
   Default value: `false`
@@ -1948,7 +1948,7 @@ Compare archive entries with filesystem
 
 * `-f`, `--file <ARCHIVE>`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <PASSWORD_FILE>` — Read password from specified file
+* `--password-file <FILE>` — Read password from specified file
 * `--quiet` — Make some output more quiet
 
   Default value: `false`
