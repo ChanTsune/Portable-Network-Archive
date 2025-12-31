@@ -21,7 +21,7 @@ pub(crate) struct SplitCommand {
     file: Option<PathBuf>,
     #[arg(value_hint = ValueHint::FilePath, hide = true)]
     pub(crate) archive: Option<PathBuf>,
-    #[arg(long, help = "Output directory for split archives", value_hint = ValueHint::DirPath)]
+    #[arg(long, value_name = "DIRECTORY", help = "Output directory for split archives", value_hint = ValueHint::DirPath)]
     out_dir: Option<PathBuf>,
     #[arg(long, help = "Overwrite file")]
     overwrite: bool,

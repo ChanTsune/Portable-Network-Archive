@@ -30,6 +30,7 @@ pub(crate) struct DeleteCommand {
     output: Option<PathBuf>,
     #[arg(
         long,
+        value_name = "FILE",
         requires = "unstable",
         help = "Read deleting files from given path (unstable)",
         value_hint = ValueHint::FilePath
@@ -43,12 +44,14 @@ pub(crate) struct DeleteCommand {
     files_from_stdin: bool,
     #[arg(
         long,
+        value_name = "PATTERN",
         requires = "unstable",
         help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)"
     )]
     include: Option<Vec<String>>,
     #[arg(
         long,
+        value_name = "PATTERN",
         requires = "unstable",
         help = "Exclude path glob (unstable)",
         value_hint = ValueHint::AnyPath
@@ -56,6 +59,7 @@ pub(crate) struct DeleteCommand {
     exclude: Option<Vec<String>>,
     #[arg(
         long,
+        value_name = "FILE",
         requires = "unstable",
         help = "Read exclude files from given path (unstable)",
         value_hint = ValueHint::FilePath

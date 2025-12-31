@@ -200,12 +200,14 @@ pub(crate) struct StdioCommand {
     pub(crate) password: PasswordArgs,
     #[arg(
         long,
+        value_name = "PATTERN",
         requires = "unstable",
         help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)"
     )]
     include: Option<Vec<String>>,
     #[arg(
         long,
+        value_name = "PATTERN",
         requires = "unstable",
         help = "Exclude path glob (unstable)",
         value_hint = ValueHint::AnyPath
@@ -214,6 +216,7 @@ pub(crate) struct StdioCommand {
     #[arg(
         short = 'X',
         long,
+        value_name = "FILE",
         requires = "unstable",
         help = "Read exclude files from given path (unstable)",
         value_hint = ValueHint::FilePath
@@ -240,15 +243,17 @@ pub(crate) struct StdioCommand {
         help = "Follow symbolic links named on the command line (unstable)"
     )]
     follow_command_links: bool,
-    #[arg(long, help = "Output directory of extracted files", value_hint = ValueHint::DirPath)]
+    #[arg(long, value_name = "DIRECTORY", help = "Output directory of extracted files", value_hint = ValueHint::DirPath)]
     pub(crate) out_dir: Option<PathBuf>,
     #[arg(
         long,
+        value_name = "N",
         help = "Remove the specified number of leading path elements. Path names with fewer elements will be silently skipped"
     )]
     strip_components: Option<usize>,
     #[arg(
         long,
+        value_name = "NAME[:ID]",
         requires = "unstable",
         conflicts_with_all = ["uname", "uid", "numeric_owner"],
         help = "Use the provided owner, if uid is not provided, name can be either a user name or numeric id. See the --uname option for details (unstable)."
@@ -256,26 +261,31 @@ pub(crate) struct StdioCommand {
     owner: Option<NameIdPair>,
     #[arg(
         long,
+        value_name = "NAME",
         help = "On create, archiving user to the entries from given name. On extract, restore user from given name"
     )]
     pub(crate) uname: Option<String>,
     #[arg(
         long,
+        value_name = "NAME",
         help = "On create, archiving group to the entries from given name. On extract, restore group from given name"
     )]
     pub(crate) gname: Option<String>,
     #[arg(
         long,
+        value_name = "ID",
         help = "On create, this overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id. On extract, this overrides the user id in the archive; the user name in the archive will be ignored"
     )]
     pub(crate) uid: Option<u32>,
     #[arg(
         long,
+        value_name = "ID",
         help = "On create, this overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id. On extract, this overrides the group id in the archive; the group name in the archive will be ignored"
     )]
     pub(crate) gid: Option<u32>,
     #[arg(
         long,
+        value_name = "NAME[:ID]",
         requires = "unstable",
         conflicts_with_all = ["gname", "gid", "numeric_owner"],
         help = "Use the provided group, if gid is not provided, name can be either a group name or numeric id. See the --gname option for details (unstable)."
@@ -286,21 +296,25 @@ pub(crate) struct StdioCommand {
         help = "This is equivalent to --uname \"\" --gname \"\". On create, it causes user and group names to not be stored in the archive. On extract, it causes user and group names in the archive to be ignored in favor of the numeric user and group ids."
     )]
     pub(crate) numeric_owner: bool,
-    #[arg(long, help = "Overrides the creation time")]
+    #[arg(long, value_name = "DATETIME", help = "Overrides the creation time")]
     ctime: Option<DateTime>,
     #[arg(
         long,
         help = "Clamp the creation time of the entries to the specified time by --ctime"
     )]
     clamp_ctime: bool,
-    #[arg(long, help = "Overrides the access time")]
+    #[arg(long, value_name = "DATETIME", help = "Overrides the access time")]
     atime: Option<DateTime>,
     #[arg(
         long,
         help = "Clamp the access time of the entries to the specified time by --atime"
     )]
     clamp_atime: bool,
-    #[arg(long, help = "Overrides the modification time")]
+    #[arg(
+        long,
+        value_name = "DATETIME",
+        help = "Overrides the modification time"
+    )]
     mtime: Option<DateTime>,
     #[arg(
         long,
@@ -309,24 +323,28 @@ pub(crate) struct StdioCommand {
     clamp_mtime: bool,
     #[arg(
         long,
+        value_name = "DATETIME",
         requires = "unstable",
         help = "Only include files and directories older than the specified date (unstable). This compares ctime entries."
     )]
     older_ctime: Option<DateTime>,
     #[arg(
         long,
+        value_name = "DATETIME",
         requires = "unstable",
         help = "Only include files and directories older than the specified date (unstable). This compares mtime entries."
     )]
     older_mtime: Option<DateTime>,
     #[arg(
         long,
+        value_name = "DATETIME",
         requires = "unstable",
         help = "Only include files and directories newer than the specified date (unstable). This compares ctime entries."
     )]
     newer_ctime: Option<DateTime>,
     #[arg(
         long,
+        value_name = "DATETIME",
         requires = "unstable",
         help = "Only include files and directories newer than the specified date (unstable). This compares mtime entries."
     )]
@@ -365,6 +383,7 @@ pub(crate) struct StdioCommand {
         short = 'T',
         visible_short_aliases = ['I'],
         long,
+        value_name = "FILE",
         requires = "unstable",
         help = "Read archiving files from given path (unstable)",
         value_hint = ValueHint::FilePath

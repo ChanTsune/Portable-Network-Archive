@@ -138,22 +138,25 @@ pub(crate) struct AppendCommand {
         help = "Do not archive ACLs. This is the inverse option of --keep-acl (unstable)"
     )]
     no_keep_acl: bool,
-    #[arg(long, help = "Set user name for archive entries")]
+    #[arg(long, value_name = "NAME", help = "Set user name for archive entries")]
     uname: Option<String>,
-    #[arg(long, help = "Set group name for archive entries")]
+    #[arg(long, value_name = "NAME", help = "Set group name for archive entries")]
     gname: Option<String>,
     #[arg(
         long,
+        value_name = "ID",
         help = "Overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id"
     )]
     pub(crate) uid: Option<u32>,
     #[arg(
         long,
+        value_name = "ID",
         help = "Overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id"
     )]
     pub(crate) gid: Option<u32>,
     #[arg(
         long,
+        value_name = "N",
         requires = "unstable",
         help = "Remove the specified number of leading path elements when storing paths (unstable)"
     )]
@@ -163,21 +166,33 @@ pub(crate) struct AppendCommand {
         help = "This is equivalent to --uname \"\" --gname \"\". It causes user and group names to not be stored in the archive"
     )]
     pub(crate) numeric_owner: bool,
-    #[arg(long, help = "Overrides the creation time read from disk")]
+    #[arg(
+        long,
+        value_name = "DATETIME",
+        help = "Overrides the creation time read from disk"
+    )]
     ctime: Option<DateTime>,
     #[arg(
         long,
         help = "Clamp the creation time of the entries to the specified time by --ctime"
     )]
     clamp_ctime: bool,
-    #[arg(long, help = "Overrides the access time read from disk")]
+    #[arg(
+        long,
+        value_name = "DATETIME",
+        help = "Overrides the access time read from disk"
+    )]
     atime: Option<DateTime>,
     #[arg(
         long,
         help = "Clamp the access time of the entries to the specified time by --atime"
     )]
     clamp_atime: bool,
-    #[arg(long, help = "Overrides the modification time read from disk")]
+    #[arg(
+        long,
+        value_name = "DATETIME",
+        help = "Overrides the modification time read from disk"
+    )]
     mtime: Option<DateTime>,
     #[arg(
         long,
@@ -186,24 +201,28 @@ pub(crate) struct AppendCommand {
     clamp_mtime: bool,
     #[arg(
         long,
+        value_name = "DATETIME",
         requires = "unstable",
         help = "Only include files and directories older than the specified date (unstable). This compares ctime entries."
     )]
     older_ctime: Option<DateTime>,
     #[arg(
         long,
+        value_name = "DATETIME",
         requires = "unstable",
         help = "Only include files and directories older than the specified date (unstable). This compares mtime entries."
     )]
     older_mtime: Option<DateTime>,
     #[arg(
         long,
+        value_name = "DATETIME",
         requires = "unstable",
         help = "Only include files and directories newer than the specified date (unstable). This compares ctime entries."
     )]
     newer_ctime: Option<DateTime>,
     #[arg(
         long,
+        value_name = "DATETIME",
         requires = "unstable",
         help = "Only include files and directories newer than the specified date (unstable). This compares mtime entries."
     )]
@@ -238,6 +257,7 @@ pub(crate) struct AppendCommand {
     older_mtime_than: Option<PathBuf>,
     #[arg(
         long,
+        value_name = "FILE",
         requires = "unstable",
         help = "Read archiving files from given path (unstable)",
         value_hint = ValueHint::FilePath
@@ -251,12 +271,14 @@ pub(crate) struct AppendCommand {
     files_from_stdin: bool,
     #[arg(
         long,
+        value_name = "PATTERN",
         requires = "unstable",
         help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)"
     )]
     include: Option<Vec<String>>,
     #[arg(
         long,
+        value_name = "PATTERN",
         requires = "unstable",
         help = "Exclude path glob (unstable)",
         value_hint = ValueHint::AnyPath
@@ -264,6 +286,7 @@ pub(crate) struct AppendCommand {
     exclude: Option<Vec<String>>,
     #[arg(
         long,
+        value_name = "FILE",
         requires = "unstable",
         help = "Read exclude files from given path (unstable)",
         value_hint = ValueHint::FilePath
