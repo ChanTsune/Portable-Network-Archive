@@ -3,13 +3,13 @@ use crate::{
         Command,
         core::{MIN_SPLIT_PART_BYTES, write_split_archive},
     },
-    utils::PathPartExt,
+    utils::PathWithCwd,
 };
-use anyhow::ensure;
+use anyhow::{Context, ensure};
 use bytesize::ByteSize;
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
-use std::{fs, io, path::PathBuf};
+use std::{borrow::Cow, fs, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(
@@ -74,17 +74,16 @@ fn split_archive(args: SplitCommand) -> anyhow::Result<()> {
 
     let base_out_file_name = if let Some(out_dir) = args.out_dir {
         fs::create_dir_all(&out_dir)?;
-        out_dir.join(archive_path.file_name().unwrap_or_default())
+        Cow::Owned(out_dir.join(archive_path.file_name().unwrap_or_default()))
     } else {
-        archive_path.clone()
+        Cow::Borrowed(archive_path.as_path())
     };
-    let name = base_out_file_name.with_part(1);
-    if !args.overwrite && name.exists() {
-        return Err(io::Error::new(
-            io::ErrorKind::AlreadyExists,
-            format!("{} already exists", name.display()),
-        )
-        .into());
-    }
-    write_split_archive(base_out_file_name, entries, max_file_size, args.overwrite)
+    write_split_archive(&base_out_file_name, entries, max_file_size, args.overwrite).with_context(
+        || {
+            format!(
+                "failed to create `{}`",
+                PathWithCwd::new(&base_out_file_name)
+            )
+        },
+    )
 }
