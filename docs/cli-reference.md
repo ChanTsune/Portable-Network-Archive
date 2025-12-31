@@ -29,13 +29,6 @@ This document contains the help content for the `pna` command-line program.
 * [`pna experimental update`↴](#pna-experimental-update)
 * [`pna experimental chown`↴](#pna-experimental-chown)
 * [`pna experimental chmod`↴](#pna-experimental-chmod)
-* [`pna experimental xattr`↴](#pna-experimental-xattr)
-* [`pna experimental xattr get`↴](#pna-experimental-xattr-get)
-* [`pna experimental xattr set`↴](#pna-experimental-xattr-set)
-* [`pna experimental xattr help`↴](#pna-experimental-xattr-help)
-* [`pna experimental xattr help get`↴](#pna-experimental-xattr-help-get)
-* [`pna experimental xattr help set`↴](#pna-experimental-xattr-help-set)
-* [`pna experimental xattr help help`↴](#pna-experimental-xattr-help-help)
 * [`pna experimental acl`↴](#pna-experimental-acl)
 * [`pna experimental acl get`↴](#pna-experimental-acl-get)
 * [`pna experimental acl set`↴](#pna-experimental-acl-set)
@@ -57,9 +50,6 @@ This document contains the help content for the `pna` command-line program.
 * [`pna experimental help update`↴](#pna-experimental-help-update)
 * [`pna experimental help chown`↴](#pna-experimental-help-chown)
 * [`pna experimental help chmod`↴](#pna-experimental-help-chmod)
-* [`pna experimental help xattr`↴](#pna-experimental-help-xattr)
-* [`pna experimental help xattr get`↴](#pna-experimental-help-xattr-get)
-* [`pna experimental help xattr set`↴](#pna-experimental-help-xattr-set)
 * [`pna experimental help acl`↴](#pna-experimental-help-acl)
 * [`pna experimental help acl get`↴](#pna-experimental-help-acl-get)
 * [`pna experimental help acl set`↴](#pna-experimental-help-acl-set)
@@ -90,9 +80,6 @@ This document contains the help content for the `pna` command-line program.
 * [`pna help experimental update`↴](#pna-help-experimental-update)
 * [`pna help experimental chown`↴](#pna-help-experimental-chown)
 * [`pna help experimental chmod`↴](#pna-help-experimental-chmod)
-* [`pna help experimental xattr`↴](#pna-help-experimental-xattr)
-* [`pna help experimental xattr get`↴](#pna-help-experimental-xattr-get)
-* [`pna help experimental xattr set`↴](#pna-help-experimental-xattr-set)
 * [`pna help experimental acl`↴](#pna-help-experimental-acl)
 * [`pna help experimental acl get`↴](#pna-help-experimental-acl-get)
 * [`pna help experimental acl set`↴](#pna-help-experimental-acl-set)
@@ -1102,7 +1089,6 @@ Unstable experimental commands; behavior and interface may change or be removed
 * `update` — Update entries in archive
 * `chown` — Change owner
 * `chmod` — Change mode
-* `xattr` — Manipulate extended attributes (stabilized, use `pna xattr` command instead. this command will be removed in the future)
 * `acl` — Manipulate ACLs of entries
 * `migrate` — Migrate old format to latest format
 * `chunk` — Chunk level operation
@@ -1624,167 +1610,6 @@ Change mode
 
 
 
-## `pna experimental xattr`
-
-Manipulate extended attributes (stabilized, use `pna xattr` command instead. this command will be removed in the future)
-
-**Usage:** `pna experimental xattr [OPTIONS]
-       pna experimental xattr <COMMAND>`
-
-###### **Subcommands:**
-
-* `get` — Get extended attributes of entries
-* `set` — Set extended attributes of entries
-* `help` — Print this message or the help of the given subcommand(s)
-
-###### **Options:**
-
-* `--quiet` — Make some output more quiet
-
-  Default value: `false`
-* `--verbose` — Make some output more verbose
-
-  Default value: `false`
-* `--color <WHEN>` — Control color output
-
-  Default value: `auto`
-
-  Possible values: `auto`, `always`, `never`
-
-* `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
-
-  Default value: `false`
-* `-h`, `--help` — Print help
-
-
-
-## `pna experimental xattr get`
-
-Get extended attributes of entries
-
-**Usage:** `pna experimental xattr get [OPTIONS] <--file <FILE>|ARCHIVE> [FILES]...`
-
-###### **Arguments:**
-
-* `<ARCHIVE>` — Archive file path (deprecated, use --file)
-* `<FILES>` — Files or directories to process
-
-###### **Options:**
-
-* `-f`, `--file <FILE>` — Archive file path
-* `-n`, `--name <NAME>` — Dump the value of the named extended attribute
-* `-d`, `--dump` — Dump the values of all matched extended attributes
-
-  Default value: `false`
-* `-m`, `--match <pattern>` — Only include attributes with names matching the regular expression pattern. Specify '-' for including all attributes
-* `-e`, `--encoding <ENCODING>` — Encode values after retrieving them
-
-  Possible values: `text`, `hex`, `base64`
-
-* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <PASSWORD_FILE>` — Read password from specified file
-* `--quiet` — Make some output more quiet
-
-  Default value: `false`
-* `--verbose` — Make some output more verbose
-
-  Default value: `false`
-* `--color <WHEN>` — Control color output
-
-  Default value: `auto`
-
-  Possible values: `auto`, `always`, `never`
-
-* `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
-
-  Default value: `false`
-* `-h`, `--help` — Print help
-
-
-
-## `pna experimental xattr set`
-
-Set extended attributes of entries
-
-**Usage:** `pna experimental xattr set [OPTIONS] <--file <FILE>|ARCHIVE> [FILES]...`
-
-###### **Arguments:**
-
-* `<ARCHIVE>` — Archive file path (deprecated, use --file)
-* `<FILES>` — Files or directories to process
-
-###### **Options:**
-
-* `-f`, `--file <FILE>` — Archive file path
-* `-n`, `--name <NAME>` — Name of extended attribute
-* `-v`, `--value <VALUE>` — Value of extended attribute
-* `-x`, `--remove <REMOVE>` — Remove extended attribute
-* `--restore <RESTORE>` — Restores extended attributes from file. The file must be in the format generated by the pna xattr get command with the --dump option. If a dash (-) is given as the file name, reads from standard input
-* `--unsolid` — Convert solid entries to regular entries
-
-  Default value: `false`
-* `--keep-solid` — Preserve solid entries without conversion
-
-  Default value: `false`
-* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
-* `--password-file <PASSWORD_FILE>` — Read password from specified file
-* `--quiet` — Make some output more quiet
-
-  Default value: `false`
-* `--verbose` — Make some output more verbose
-
-  Default value: `false`
-* `--color <WHEN>` — Control color output
-
-  Default value: `auto`
-
-  Possible values: `auto`, `always`, `never`
-
-* `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
-
-  Default value: `false`
-* `-h`, `--help` — Print help
-
-
-
-## `pna experimental xattr help`
-
-Print this message or the help of the given subcommand(s)
-
-**Usage:** `pna experimental xattr help [COMMAND]`
-
-###### **Subcommands:**
-
-* `get` — Get extended attributes of entries
-* `set` — Set extended attributes of entries
-* `help` — Print this message or the help of the given subcommand(s)
-
-
-
-## `pna experimental xattr help get`
-
-Get extended attributes of entries
-
-**Usage:** `pna experimental xattr help get`
-
-
-
-## `pna experimental xattr help set`
-
-Set extended attributes of entries
-
-**Usage:** `pna experimental xattr help set`
-
-
-
-## `pna experimental xattr help help`
-
-Print this message or the help of the given subcommand(s)
-
-**Usage:** `pna experimental xattr help help`
-
-
-
 ## `pna experimental acl`
 
 Manipulate ACLs of entries
@@ -2156,7 +1981,6 @@ Print this message or the help of the given subcommand(s)
 * `update` — Update entries in archive
 * `chown` — Change owner
 * `chmod` — Change mode
-* `xattr` — Manipulate extended attributes (stabilized, use `pna xattr` command instead. this command will be removed in the future)
 * `acl` — Manipulate ACLs of entries
 * `migrate` — Migrate old format to latest format
 * `chunk` — Chunk level operation
@@ -2203,35 +2027,6 @@ Change owner
 Change mode
 
 **Usage:** `pna experimental help chmod`
-
-
-
-## `pna experimental help xattr`
-
-Manipulate extended attributes (stabilized, use `pna xattr` command instead. this command will be removed in the future)
-
-**Usage:** `pna experimental help xattr [COMMAND]`
-
-###### **Subcommands:**
-
-* `get` — Get extended attributes of entries
-* `set` — Set extended attributes of entries
-
-
-
-## `pna experimental help xattr get`
-
-Get extended attributes of entries
-
-**Usage:** `pna experimental help xattr get`
-
-
-
-## `pna experimental help xattr set`
-
-Set extended attributes of entries
-
-**Usage:** `pna experimental help xattr set`
 
 
 
@@ -2471,7 +2266,6 @@ Unstable experimental commands; behavior and interface may change or be removed
 * `update` — Update entries in archive
 * `chown` — Change owner
 * `chmod` — Change mode
-* `xattr` — Manipulate extended attributes (stabilized, use `pna xattr` command instead. this command will be removed in the future)
 * `acl` — Manipulate ACLs of entries
 * `migrate` — Migrate old format to latest format
 * `chunk` — Chunk level operation
@@ -2517,35 +2311,6 @@ Change owner
 Change mode
 
 **Usage:** `pna help experimental chmod`
-
-
-
-## `pna help experimental xattr`
-
-Manipulate extended attributes (stabilized, use `pna xattr` command instead. this command will be removed in the future)
-
-**Usage:** `pna help experimental xattr [COMMAND]`
-
-###### **Subcommands:**
-
-* `get` — Get extended attributes of entries
-* `set` — Set extended attributes of entries
-
-
-
-## `pna help experimental xattr get`
-
-Get extended attributes of entries
-
-**Usage:** `pna help experimental xattr get`
-
-
-
-## `pna help experimental xattr set`
-
-Set extended attributes of entries
-
-**Usage:** `pna help experimental xattr set`
 
 
 
