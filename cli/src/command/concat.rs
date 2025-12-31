@@ -4,8 +4,9 @@ use crate::command::core::run_across_archive;
 use crate::command::core::run_across_archive_mem as run_across_archive;
 use crate::{
     command::{Command, core::collect_split_archives},
-    utils,
+    utils::{self, PathWithCwd},
 };
+use anyhow::Context;
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
 use std::{io, path::PathBuf};
@@ -46,13 +47,6 @@ fn concat_entry(args: ConcatCommand) -> anyhow::Result<()> {
         args.files
     };
     let archive = archives.remove(0);
-    if !args.overwrite && archive.exists() {
-        return Err(io::Error::new(
-            io::ErrorKind::AlreadyExists,
-            format!("{} already exists", archive.display()),
-        )
-        .into());
-    }
     for item in &archives {
         if !utils::fs::is_pna(item)? {
             return Err(io::Error::new(
@@ -62,7 +56,8 @@ fn concat_entry(args: ConcatCommand) -> anyhow::Result<()> {
             .into());
         }
     }
-    let file = utils::fs::file_create(&archive, args.overwrite)?;
+    let file = utils::fs::file_create(&archive, args.overwrite)
+        .with_context(|| format!("failed to create `{}`", PathWithCwd::new(&archive)))?;
     let mut archive = Archive::write_header(file)?;
 
     for item in &archives {
