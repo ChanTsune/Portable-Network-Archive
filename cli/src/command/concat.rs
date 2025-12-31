@@ -11,7 +11,10 @@ use pna::Archive;
 use std::{io, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-#[command(group(ArgGroup::new("archive-args").args(["files", "archives"]).required(true)))]
+#[command(
+    group(ArgGroup::new("archive-args").args(["files", "archives"]).required(true)),
+    group(ArgGroup::new("overwrite-flag").args(["overwrite", "no_overwrite"])),
+)]
 pub(crate) struct ConcatCommand {
     #[arg(long, help = "Overwrite file")]
     overwrite: bool,
