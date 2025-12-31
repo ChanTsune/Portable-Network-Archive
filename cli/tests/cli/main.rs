@@ -1,6 +1,7 @@
 #![cfg_attr(target_os = "wasi", feature(wasi_ext))]
 mod acl;
 mod append;
+mod bugreport;
 #[cfg(not(target_family = "wasm"))]
 mod cd_option;
 mod chmod;
@@ -8,6 +9,7 @@ mod chown;
 mod chunk;
 #[cfg(not(target_family = "wasm"))]
 mod combination;
+mod complete;
 mod concat;
 mod create;
 mod delete;
