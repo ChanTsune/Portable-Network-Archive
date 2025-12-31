@@ -1,7 +1,12 @@
+mod option_overwrite;
+
 use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 
+/// Precondition: Split archive parts exist.
+/// Action: Concatenate split archive parts into a single archive.
+/// Expectation: Extracted content matches original.
 #[test]
 fn concat_archive() {
     setup();
