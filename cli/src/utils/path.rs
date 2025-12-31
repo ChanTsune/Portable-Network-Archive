@@ -102,7 +102,7 @@ impl fmt::Display for PathWithCwd<'_> {
 
 impl<'a> PathWithCwd<'a> {
     #[inline]
-    pub(crate) fn new(path: &'a Path) -> Self {
+    pub(crate) const fn new(path: &'a Path) -> Self {
         Self { path }
     }
 }
