@@ -230,10 +230,9 @@ fn extract_preserves_no_permission() {
     .execute();
 
     if let Err(e) = &result {
-        // Check if the error is permission-related
-        if e.to_string().contains("Permission denied")
-            || e.to_string().contains("permission denied")
-        {
+        // Check if the error is permission-related (use {:#} to include full error chain)
+        let full_error = format!("{:#}", e);
+        if full_error.contains("Permission denied") || full_error.contains("permission denied") {
             eprintln!(
                 "Skipping test: insufficient permissions to read file with 0o000 mode: {}",
                 e

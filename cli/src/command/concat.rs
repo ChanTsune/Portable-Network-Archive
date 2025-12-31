@@ -9,7 +9,9 @@ use crate::{
 use anyhow::Context;
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::Archive;
-use std::{io, path::PathBuf};
+#[cfg(feature = "memmap")]
+use std::io;
+use std::path::PathBuf;
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(
@@ -37,6 +39,7 @@ impl Command for ConcatCommand {
     }
 }
 
+#[hooq::hooq(anyhow)]
 fn concat_entry(args: ConcatCommand) -> anyhow::Result<()> {
     let mut archives = if args.files.is_empty() {
         if !args.archives.is_empty() {
@@ -49,11 +52,7 @@ fn concat_entry(args: ConcatCommand) -> anyhow::Result<()> {
     let archive = archives.remove(0);
     for item in &archives {
         if !utils::fs::is_pna(item)? {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("{} is not a pna file", item.display()),
-            )
-            .into());
+            anyhow::bail!("{} is not a pna file", item.display());
         }
     }
     let file = utils::fs::file_create(&archive, args.overwrite)
@@ -69,21 +68,29 @@ fn concat_entry(args: ConcatCommand) -> anyhow::Result<()> {
                 .map(utils::mmap::Mmap::try_from)
                 .collect::<io::Result<Vec<_>>>()?;
             let archives = mmaps.iter().map(|m| m.as_ref());
-            run_across_archive(archives, |reader| {
-                for entry in reader.raw_entries_slice() {
-                    archive.add_entry(entry?)?;
-                }
-                Ok(())
-            })?;
+            run_across_archive(
+                archives,
+                #[hooq::skip_all]
+                |reader| {
+                    for entry in reader.raw_entries_slice() {
+                        archive.add_entry(entry?)?;
+                    }
+                    Ok(())
+                },
+            )?;
         }
         #[cfg(not(feature = "memmap"))]
         {
-            run_across_archive(archives, |reader| {
-                for entry in reader.raw_entries() {
-                    archive.add_entry(entry?)?;
-                }
-                Ok(())
-            })?;
+            run_across_archive(
+                archives,
+                #[hooq::skip_all]
+                |reader| {
+                    for entry in reader.raw_entries() {
+                        archive.add_entry(entry?)?;
+                    }
+                    Ok(())
+                },
+            )?;
         }
     }
     archive.finalize()?;

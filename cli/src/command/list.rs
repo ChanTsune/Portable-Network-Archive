@@ -311,6 +311,7 @@ where
     }
 }
 
+#[hooq::hooq(anyhow)]
 fn list_archive(args: ListCommand, color: ColorChoice) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let options = ListOptions {

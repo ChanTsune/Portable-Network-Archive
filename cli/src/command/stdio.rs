@@ -490,6 +490,7 @@ impl Command for StdioCommand {
     }
 }
 
+#[hooq::hooq(anyhow)]
 fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     if let Some(format) = &args.format {
         log::warn!("Option '--format {format}' is accepted for compatibility but will be ignored.");
@@ -529,6 +530,7 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     }
 }
 
+#[hooq::hooq(anyhow)]
 fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
@@ -637,6 +639,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     }
 }
 
+#[hooq::hooq(anyhow)]
 fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
 
@@ -733,6 +736,7 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
     }
 }
 
+#[hooq::hooq(anyhow)]
 fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let list_options = ListOptions {
@@ -795,6 +799,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
     }
 }
 
+#[hooq::hooq(anyhow)]
 fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;

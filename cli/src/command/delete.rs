@@ -91,6 +91,7 @@ impl Command for DeleteCommand {
     }
 }
 
+#[hooq::hooq(anyhow)]
 fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let mut files = args.file.files;
@@ -136,6 +137,7 @@ fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
             temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
+            #[hooq::skip_all]
             |entry| Ok(filter_entry(&mut globs, &filter, entry?)),
             TransformStrategyUnSolid,
         ),
@@ -143,6 +145,7 @@ fn delete_file_from_archive(args: DeleteCommand) -> anyhow::Result<()> {
             temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
+            #[hooq::skip_all]
             |entry| Ok(filter_entry(&mut globs, &filter, entry?)),
             TransformStrategyKeepSolid,
         ),

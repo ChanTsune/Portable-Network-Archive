@@ -47,6 +47,7 @@ impl Command for ChownCommand {
     }
 }
 
+#[hooq::hooq(anyhow)]
 fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     if args.files.is_empty() {
@@ -77,6 +78,7 @@ fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
             temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
+            #[hooq::skip_all]
             |entry| {
                 let entry = entry?;
                 if globs.matches_any(entry.name()) {
@@ -91,6 +93,7 @@ fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
             temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
+            #[hooq::skip_all]
             |entry| {
                 let entry = entry?;
                 if globs.matches_any(entry.name()) {

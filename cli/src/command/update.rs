@@ -367,6 +367,7 @@ impl Command for UpdateCommand {
     }
 }
 
+#[hooq::hooq(anyhow)]
 fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
     let transform_strategy = args.transform_strategy.strategy();
     let sync = args.sync;
@@ -375,11 +376,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
     check_password(&password, &args.cipher);
     let archive_path = &args.file.archive;
     if !archive_path.exists() {
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            format!("{} is not exists", archive_path.display()),
-        )
-        .into());
+        anyhow::bail!("{} is not exists", archive_path.display());
     }
     let password = password.as_deref();
     let option = entry_option(args.compression, args.cipher, args.hash, password);

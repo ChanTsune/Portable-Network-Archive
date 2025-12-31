@@ -257,6 +257,7 @@ impl Command for ExtractCommand {
         extract_archive(self)
     }
 }
+#[hooq::hooq(anyhow)]
 fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password).with_context(|| "reading password")?;
     let start = Instant::now();
@@ -478,6 +479,7 @@ where
 }
 
 #[cfg(feature = "memmap")]
+#[hooq::hooq(anyhow)]
 pub(crate) fn run_extract_archive<'a, 'd, 'p, Provider>(
     archives: impl IntoIterator<Item = &'d [u8]> + Send,
     files: Vec<String>,
@@ -487,7 +489,7 @@ pub(crate) fn run_extract_archive<'a, 'd, 'p, Provider>(
 where
     Provider: FnMut() -> Option<&'p [u8]> + Send,
 {
-    rayon::scope_fifo(|s| {
+    rayon::scope_fifo(|s| -> anyhow::Result<()> {
         let password = password_provider();
         let mut globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))
             .with_context(|| "building inclusion patterns")?;
@@ -496,6 +498,7 @@ where
 
         let (tx, rx) = std::sync::mpsc::channel();
 
+        #[hooq::skip_all]
         run_entries(archives, password_provider, |entry| {
             let item = entry
                 .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;

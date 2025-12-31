@@ -277,6 +277,7 @@ impl FromStr for AclEntries {
     }
 }
 
+#[hooq::hooq(anyhow)]
 fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     if args.file.files.is_empty() {
@@ -300,6 +301,7 @@ fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
     run_entries(
         archives,
         || password.as_deref(),
+        #[hooq::skip_all]
         |entry| {
             let entry = entry?;
             let name = entry.name();
@@ -332,6 +334,7 @@ fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[hooq::hooq(anyhow)]
 fn archive_set_acl(args: SetAclCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let files = args.file.files;
@@ -371,6 +374,7 @@ fn archive_set_acl(args: SetAclCommand) -> anyhow::Result<()> {
             temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
+            #[hooq::skip_all]
             |entry| Ok(Some(set_strategy.transform_entry(entry?))),
             TransformStrategyUnSolid,
         ),
@@ -378,6 +382,7 @@ fn archive_set_acl(args: SetAclCommand) -> anyhow::Result<()> {
             temp_file.as_file_mut(),
             archives,
             || password.as_deref(),
+            #[hooq::skip_all]
             |entry| Ok(Some(set_strategy.transform_entry(entry?))),
             TransformStrategyKeepSolid,
         ),
