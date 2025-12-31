@@ -1282,7 +1282,7 @@ checksum = "f9fbbcab51052fe104eb5e5d351cf728d30a5be1fe14d9be8a3b097481fb97de"
 
 [[package]]
 name = "libpna"
-version = "0.29.2"
+version = "0.30.0"
 dependencies = [
  "aes",
  "argon2",
@@ -1629,7 +1629,7 @@ dependencies = [
 
 [[package]]
 name = "pna"
-version = "0.29.3"
+version = "0.30.0"
 dependencies = [
  "libpna",
  "version-sync",
@@ -1652,7 +1652,7 @@ dependencies = [
 
 [[package]]
 name = "portable-network-archive"
-version = "0.29.5"
+version = "0.30.0"
 dependencies = [
  "anstream",
  "anyhow",
