@@ -649,9 +649,11 @@ where
 
     match entry_kind {
         DataKind::File => {
-            let mut file = utils::fs::file_create(&path, remove_existing)?;
+            let file = utils::fs::file_create(&path, remove_existing)?;
+            let mut writer = io::BufWriter::with_capacity(64 * 1024, file);
             let mut reader = item.reader(ReadOptions::with_password(password))?;
-            io::copy(&mut reader, &mut file)?;
+            io::copy(&mut reader, &mut writer)?;
+            let mut file = writer.into_inner().map_err(|e| e.into_error())?;
             restore_timestamps(&mut file, item.metadata(), keep_options)?;
         }
         DataKind::Directory => {
