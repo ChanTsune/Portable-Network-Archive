@@ -38,7 +38,7 @@ pub(crate) struct StripOptions {
     keep_xattr: bool,
     #[arg(long, visible_alias = "preserve-acls", help = "Preserve ACLs")]
     keep_acl: bool,
-    #[arg(long, visible_alias = "preserve-private_chunks", value_name = "CHUNK_TYPE", help = "Keep private chunks", value_delimiter = ',', num_args = 0..)]
+    #[arg(long, visible_alias = "preserve-private_chunks", value_name = "CHUNK_TYPE", help = "Keep private chunks. If no CHUNK_TYPE is specified, all private chunks are kept", value_delimiter = ',', num_args = 0..)]
     pub(crate) keep_private: Option<Vec<PrivateChunkType>>,
 }
 
