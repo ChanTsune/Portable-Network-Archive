@@ -72,7 +72,7 @@ pub(crate) struct ListCommand {
         long,
         help = "Display user id and group id instead of user name and group name"
     )]
-    pub(crate) numeric_owner: bool,
+    numeric_owner: bool,
     #[arg(
         short = 'T',
         help = "When used with the -l option, display complete time information for the entry, including month, day, hour, minute, second, and year"

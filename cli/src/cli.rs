@@ -310,9 +310,9 @@ pub(crate) enum CipherMode {
 #[command(group(ArgGroup::new("hash_algorithm").args(["argon2", "pbkdf2"])))]
 pub(crate) struct HashAlgorithmArgs {
     #[arg(long, value_name = "PARAMS", help = "Use argon2 for password hashing")]
-    pub(crate) argon2: Option<Option<Argon2idParams>>,
+    argon2: Option<Option<Argon2idParams>>,
     #[arg(long, value_name = "PARAMS", help = "Use pbkdf2 for password hashing")]
-    pub(crate) pbkdf2: Option<Option<Pbkdf2Sha256Params>>,
+    pbkdf2: Option<Option<Pbkdf2Sha256Params>>,
 }
 
 impl HashAlgorithmArgs {
