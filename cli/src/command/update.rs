@@ -1,7 +1,7 @@
 #[cfg(not(feature = "memmap"))]
 use crate::command::core::run_read_entries;
 #[cfg(feature = "memmap")]
-use crate::command::core::run_read_entries_mem as run_read_entries;
+use crate::command::core::run_read_entries_mem;
 use crate::{
     cli::{
         CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileArgs, HashAlgorithmArgs,
@@ -11,8 +11,8 @@ use crate::{
         Command, ask_password, check_password,
         core::{
             AclStrategy, CollectOptions, CreateOptions, KeepOptions, OwnerOptions, PathFilter,
-            PathTransformers, PathnameEditor, PermissionStrategy, TimeFilterResolver, TimeOptions,
-            TimestampStrategy, TransformStrategy, TransformStrategyKeepSolid,
+            PathTransformers, PathnameEditor, PermissionStrategy, StoreAs, TimeFilterResolver,
+            TimeOptions, TimestampStrategy, TransformStrategy, TransformStrategyKeepSolid,
             TransformStrategyUnSolid, XattrStrategy, collect_items_from_paths,
             collect_split_archives, create_entry, entry_option,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
@@ -363,18 +363,12 @@ pub(crate) struct UpdateCommand {
 impl Command for UpdateCommand {
     #[inline]
     fn execute(self, _ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
-        match self.transform_strategy.strategy() {
-            SolidEntriesTransformStrategy::UnSolid => {
-                update_archive::<TransformStrategyUnSolid>(self)
-            }
-            SolidEntriesTransformStrategy::KeepSolid => {
-                update_archive::<TransformStrategyKeepSolid>(self)
-            }
-        }
+        update_archive(self)
     }
 }
 
-fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::Result<()> {
+fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
+    let transform_strategy = args.transform_strategy.strategy();
     let sync = args.sync;
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
@@ -481,16 +475,9 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
     };
     let target_items = collect_items_from_paths(&files, &collect_options)?;
 
-    let (tx, rx) = std::sync::mpsc::channel();
-
     let mut temp_file =
         NamedTempFile::new(|| archive_path.parent().unwrap_or_else(|| ".".as_ref()))?;
     let mut out_archive = Archive::write_header(temp_file.as_file_mut())?;
-
-    let mut target_files_mapping = target_items
-        .into_iter()
-        .map(|(it, store)| (EntryName::from_lossy(&it), (it, store)))
-        .collect::<IndexMap<_, _>>();
 
     #[cfg(feature = "memmap")]
     let mmaps = archives
@@ -500,9 +487,62 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
     #[cfg(feature = "memmap")]
     let archives = mmaps.iter().map(|m| m.as_ref());
 
+    match transform_strategy {
+        SolidEntriesTransformStrategy::UnSolid => run_update_archive(
+            archives,
+            password,
+            &create_options,
+            target_items,
+            sync,
+            &mut out_archive,
+            TransformStrategyUnSolid,
+        ),
+        SolidEntriesTransformStrategy::KeepSolid => run_update_archive(
+            archives,
+            password,
+            &create_options,
+            target_items,
+            sync,
+            &mut out_archive,
+            TransformStrategyKeepSolid,
+        ),
+    }?;
+
+    out_archive.finalize()?;
+
+    #[cfg(feature = "memmap")]
+    drop(mmaps);
+
+    temp_file.persist(archive_path.remove_part())?;
+
+    Ok(())
+}
+
+#[cfg(not(feature = "memmap"))]
+pub(crate) fn run_update_archive<Strategy, R, W>(
+    archives: impl IntoIterator<Item = R> + Send,
+    password: Option<&[u8]>,
+    create_options: &CreateOptions,
+    target_items: Vec<(PathBuf, StoreAs)>,
+    sync: bool,
+    out_archive: &mut Archive<W>,
+    _strategy: Strategy,
+) -> anyhow::Result<()>
+where
+    Strategy: TransformStrategy,
+    R: io::Read,
+    W: io::Write + Send,
+{
+    let (tx, rx) = std::sync::mpsc::channel();
+
+    let mut target_files_mapping = target_items
+        .into_iter()
+        .map(|(it, store)| (EntryName::from_lossy(&it), (it, store)))
+        .collect::<IndexMap<_, _>>();
+
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
         run_read_entries(archives, |entry| {
-            Strategy::transform(&mut out_archive, password, entry, |entry| {
+            Strategy::transform(out_archive, password, entry, |entry| {
                 let entry = entry?;
                 if let Some((target_path, store)) =
                     target_files_mapping.swap_remove(entry.header().path())
@@ -554,12 +594,85 @@ fn update_archive<Strategy: TransformStrategy>(args: UpdateCommand) -> anyhow::R
             out_archive.add_entry(entry)?;
         }
     }
-    out_archive.finalize()?;
 
-    #[cfg(feature = "memmap")]
-    drop(mmaps);
+    Ok(())
+}
 
-    temp_file.persist(archive_path.remove_part())?;
+#[cfg(feature = "memmap")]
+pub(crate) fn run_update_archive<'d, Strategy, W>(
+    archives: impl IntoIterator<Item = &'d [u8]> + Send,
+    password: Option<&[u8]>,
+    create_options: &CreateOptions,
+    target_items: Vec<(PathBuf, StoreAs)>,
+    sync: bool,
+    out_archive: &mut Archive<W>,
+    _strategy: Strategy,
+) -> anyhow::Result<()>
+where
+    Strategy: TransformStrategy,
+    W: io::Write + Send,
+{
+    let (tx, rx) = std::sync::mpsc::channel();
+
+    let mut target_files_mapping = target_items
+        .into_iter()
+        .map(|(it, store)| (EntryName::from_lossy(&it), (it, store)))
+        .collect::<IndexMap<_, _>>();
+
+    rayon::scope_fifo(|s| -> anyhow::Result<()> {
+        run_read_entries_mem(archives, |entry| {
+            Strategy::transform(out_archive, password, entry, |entry| {
+                let entry = entry?;
+                if let Some((target_path, store)) =
+                    target_files_mapping.swap_remove(entry.header().path())
+                {
+                    let fs_meta = fs::symlink_metadata(&target_path)?;
+                    let need_update =
+                        is_newer_than_archive(&fs_meta, entry.metadata()).unwrap_or(true);
+                    if need_update {
+                        let tx = tx.clone();
+                        let create_options = create_options.clone();
+                        s.spawn_fifo(move |_| {
+                            log::debug!("Updating: {}", target_path.display());
+                            let target_path = (target_path, store);
+                            tx.send(create_entry(&target_path, &create_options))
+                                .unwrap_or_else(|e| {
+                                    log::error!("{e}: {}", target_path.0.display())
+                                });
+                        });
+                        Ok(None)
+                    } else {
+                        Ok(Some(entry))
+                    }
+                } else if sync {
+                    log::debug!("Removing (sync): {}", entry.header().path());
+                    Ok(None)
+                } else {
+                    Ok(Some(entry))
+                }
+            })
+        })?;
+
+        // NOTE: Add new entries
+        for (_, (file, store)) in target_files_mapping {
+            let tx = tx.clone();
+            let create_options = create_options.clone();
+            s.spawn_fifo(move |_| {
+                log::debug!("Adding: {}", file.display());
+                let file = (file, store);
+                tx.send(create_entry(&file, &create_options))
+                    .unwrap_or_else(|e| log::error!("{e}: {}", file.0.display()));
+            });
+        }
+        drop(tx);
+        Ok(())
+    })?;
+
+    for entry in rx.into_iter() {
+        if let Some(entry) = entry? {
+            out_archive.add_entry(entry)?;
+        }
+    }
 
     Ok(())
 }

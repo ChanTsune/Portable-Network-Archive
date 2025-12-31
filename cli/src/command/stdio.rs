@@ -10,8 +10,8 @@ use crate::{
         core::{
             AclStrategy, CollectOptions, CreateOptions, KeepOptions, OwnerOptions, PathFilter,
             PathTransformers, PathnameEditor, PermissionStrategy, TimeFilterResolver, TimeOptions,
-            TimestampStrategy, XattrStrategy, apply_chroot, collect_items_from_paths,
-            collect_split_archives, entry_option,
+            TimestampStrategy, TransformStrategyUnSolid, XattrStrategy, apply_chroot,
+            collect_items_from_paths, collect_split_archives, entry_option,
             path_lock::PathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths,
@@ -19,8 +19,9 @@ use crate::{
         create::{CreationContext, create_archive_file},
         extract::{OutputOption, OverwriteStrategy, run_extract_archive_reader},
         list::{Format, ListOptions, TimeField, TimeFormat},
+        update::run_update_archive,
     },
-    utils::{self, GlobPatterns, VCS_FILES},
+    utils::{self, GlobPatterns, PathPartExt, VCS_FILES, env::NamedTempFile},
 };
 use clap::{ArgGroup, Args, ValueHint};
 use pna::Archive;
@@ -47,7 +48,7 @@ use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
     group(ArgGroup::new("keep-xattr-flag").args(["keep_xattr", "no_keep_xattr"])),
     group(ArgGroup::new("keep-timestamp-flag").args(["keep_timestamp", "no_keep_timestamp"])),
     group(ArgGroup::new("keep-permission-flag").args(["keep_permission", "no_keep_permission"])),
-    group(ArgGroup::new("action-flags").args(["create", "extract", "list", "append"]).required(true)),
+    group(ArgGroup::new("action-flags").args(["create", "extract", "list", "append", "update"]).required(true)),
     group(ArgGroup::new("ctime-flag").args(["clamp_ctime"]).requires("ctime")),
     group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
     group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
@@ -85,6 +86,8 @@ pub(crate) struct StdioCommand {
     list: bool,
     #[arg(short = 'r', long, help = "Append files to archive")]
     append: bool,
+    #[arg(short = 'u', long, help = "Update archive with newer files")]
+    update: bool,
     #[arg(
         long,
         visible_alias = "recursion",
@@ -519,6 +522,8 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
         run_list_archive(args)
     } else if args.append {
         run_append(args)
+    } else if args.update {
+        run_update(args)
     } else {
         unreachable!()
     }
@@ -925,4 +930,151 @@ fn resolve_name_id(
         Some(spec) => (spec.name, spec.id),
         None => (name, id),
     }
+}
+
+fn run_update(args: StdioCommand) -> anyhow::Result<()> {
+    let current_dir = env::current_dir()?;
+    let password = ask_password(args.password)?;
+    check_password(&password, &args.cipher);
+    let password = password.as_deref();
+    let option = entry_option(args.compression, args.cipher, args.hash, password);
+    let keep_options = KeepOptions {
+        timestamp_strategy: TimestampStrategy::from_flags(
+            args.keep_timestamp,
+            args.no_keep_timestamp,
+            TimestampStrategy::Always,
+        ),
+        permission_strategy: PermissionStrategy::from_flags(
+            args.keep_permission,
+            args.no_keep_permission,
+        ),
+        xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
+        acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
+    };
+    let owner_options = OwnerOptions::new(
+        args.uname,
+        args.gname,
+        args.uid,
+        args.gid,
+        args.numeric_owner,
+    );
+    let time_options = TimeOptions {
+        mtime: args.mtime.map(|it| it.to_system_time()),
+        clamp_mtime: args.clamp_mtime,
+        ctime: args.ctime.map(|it| it.to_system_time()),
+        clamp_ctime: args.clamp_ctime,
+        atime: args.atime.map(|it| it.to_system_time()),
+        clamp_atime: args.clamp_atime,
+    };
+    let create_options = CreateOptions {
+        option,
+        keep_options,
+        owner_options,
+        time_options,
+        pathname_editor: PathnameEditor::new(
+            args.strip_components,
+            PathTransformers::new(args.substitutions, args.transforms),
+            args.absolute_paths,
+        ),
+    };
+
+    // NOTE: "-" is not supported for update mode
+    let mut file = args.file;
+    file.take_if(|it| it == "-");
+    let archive_path = match file.take() {
+        Some(p) => current_dir.join(p),
+        None => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "update mode requires a file-based archive",
+            )
+            .into());
+        }
+    };
+    if !archive_path.exists() {
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("{} is not exists", archive_path.display()),
+        )
+        .into());
+    }
+
+    let mut files = args.files;
+    if let Some(path) = args.files_from {
+        files.extend(read_paths(path, args.null)?);
+    }
+
+    let mut exclude = args.exclude.unwrap_or_default();
+    if let Some(p) = args.exclude_from {
+        exclude.extend(read_paths(p, args.null)?);
+    }
+    let vcs_patterns = args
+        .exclude_vcs
+        .then(|| VCS_FILES.iter().copied())
+        .into_iter()
+        .flatten();
+    let filter = PathFilter::new(
+        args.include.iter().flatten(),
+        exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
+    );
+
+    if let Some(working_dir) = args.working_dir {
+        env::set_current_dir(working_dir)?;
+    }
+    let time_filters = TimeFilterResolver {
+        newer_ctime_than: args.newer_ctime_than.as_deref(),
+        older_ctime_than: args.older_ctime_than.as_deref(),
+        newer_ctime: args.newer_ctime.map(|it| it.to_system_time()),
+        older_ctime: args.older_ctime.map(|it| it.to_system_time()),
+        newer_mtime_than: args.newer_mtime_than.as_deref(),
+        older_mtime_than: args.older_mtime_than.as_deref(),
+        newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
+        older_mtime: args.older_mtime.map(|it| it.to_system_time()),
+    }
+    .resolve()?;
+    let collect_options = CollectOptions {
+        recursive: !args.no_recursive,
+        keep_dir: args.keep_dir,
+        gitignore: args.gitignore,
+        nodump: args.nodump,
+        follow_links: args.follow_links,
+        follow_command_links: args.follow_command_links,
+        one_file_system: args.one_file_system,
+        filter: &filter,
+        time_filters: &time_filters,
+    };
+    let target_items = collect_items_from_paths(&files, &collect_options)?;
+
+    let archives = collect_split_archives(&archive_path)?;
+
+    let mut temp_file =
+        NamedTempFile::new(|| archive_path.parent().unwrap_or_else(|| ".".as_ref()))?;
+    let mut out_archive = Archive::write_header(temp_file.as_file_mut())?;
+
+    #[cfg(not(feature = "memmap"))]
+    let archives = archives
+        .into_iter()
+        .map(|it| io::BufReader::with_capacity(64 * 1024, it));
+    #[cfg(feature = "memmap")]
+    let mmaps = archives
+        .into_iter()
+        .map(crate::utils::mmap::Mmap::try_from)
+        .collect::<io::Result<Vec<_>>>()?;
+    #[cfg(feature = "memmap")]
+    let archives = mmaps.iter().map(|m| m.as_ref());
+
+    run_update_archive(
+        archives,
+        password,
+        &create_options,
+        target_items,
+        false, // sync is always false for stdio (bsdtar compatibility)
+        &mut out_archive,
+        TransformStrategyUnSolid,
+    )?;
+
+    out_archive.finalize()?;
+    temp_file.persist(archive_path.remove_part())?;
+
+    Ok(())
 }
