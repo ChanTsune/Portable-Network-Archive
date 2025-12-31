@@ -2,12 +2,7 @@ use crate::utils::{EmbedExt, LibSourceCode, diff::diff, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use itertools::Itertools;
 
-const KEEP_OPTIONS: &[Option<&str>] = &[
-    Some("--keep-dir"),
-    Some("--keep-timestamp"),
-    Some("--keep-permission"),
-    Some("--keep-xattr"),
-];
+const KEEP_OPTIONS: &[Option<&str>] = &[Some("--keep-permission"), Some("--keep-xattr")];
 
 const COMPRESSION_OPTIONS: &[Option<&[&str]>] = &[
     Some(&["--store"]),
