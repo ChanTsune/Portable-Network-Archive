@@ -197,7 +197,7 @@ pub(crate) struct PasswordArgs {
         help = "Password of archive. If password is not given it's asked from the tty"
     )]
     pub(crate) password: Option<Option<String>>,
-    #[arg(long, help = "Read password from specified file")]
+    #[arg(long, value_name = "FILE", help = "Read password from specified file")]
     pub(crate) password_file: Option<PathBuf>,
 }
 
@@ -309,9 +309,9 @@ pub(crate) enum CipherMode {
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(group(ArgGroup::new("hash_algorithm").args(["argon2", "pbkdf2"])))]
 pub(crate) struct HashAlgorithmArgs {
-    #[arg(long, help = "Use argon2 for password hashing")]
+    #[arg(long, value_name = "PARAMS", help = "Use argon2 for password hashing")]
     pub(crate) argon2: Option<Option<Argon2idParams>>,
-    #[arg(long, help = "Use pbkdf2 for password hashing")]
+    #[arg(long, value_name = "PARAMS", help = "Use pbkdf2 for password hashing")]
     pub(crate) pbkdf2: Option<Option<Pbkdf2Sha256Params>>,
 }
 

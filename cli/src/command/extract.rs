@@ -83,7 +83,7 @@ pub(crate) struct ExtractCommand {
         help = "Skip extracting files if they already exist (unstable)"
     )]
     keep_old_files: bool,
-    #[arg(long, help = "Output directory of extracted files", value_hint = ValueHint::DirPath)]
+    #[arg(long, value_name = "DIRECTORY", help = "Output directory of extracted files", value_hint = ValueHint::DirPath)]
     pub(crate) out_dir: Option<PathBuf>,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
@@ -137,17 +137,19 @@ pub(crate) struct ExtractCommand {
         help = "Do not restore ACLs. This is the inverse option of --keep-acl (unstable)"
     )]
     no_keep_acl: bool,
-    #[arg(long, help = "Restore user from given name")]
+    #[arg(long, value_name = "NAME", help = "Restore user from given name")]
     pub(crate) uname: Option<String>,
-    #[arg(long, help = "Restore group from given name")]
+    #[arg(long, value_name = "NAME", help = "Restore group from given name")]
     pub(crate) gname: Option<String>,
     #[arg(
         long,
+        value_name = "ID",
         help = "Overrides the user id in the archive; the user name in the archive will be ignored"
     )]
     pub(crate) uid: Option<u32>,
     #[arg(
         long,
+        value_name = "ID",
         help = "Overrides the group id in the archive; the group name in the archive will be ignored"
     )]
     pub(crate) gid: Option<u32>,
@@ -158,12 +160,14 @@ pub(crate) struct ExtractCommand {
     pub(crate) numeric_owner: bool,
     #[arg(
         long,
+        value_name = "PATTERN",
         requires = "unstable",
         help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)"
     )]
     include: Option<Vec<String>>,
     #[arg(
         long,
+        value_name = "PATTERN",
         requires = "unstable",
         help = "Exclude path glob (unstable)",
         value_hint = ValueHint::AnyPath
@@ -171,6 +175,7 @@ pub(crate) struct ExtractCommand {
     exclude: Option<Vec<String>>,
     #[arg(
         long,
+        value_name = "FILE",
         requires = "unstable",
         help = "Read exclude files from given path (unstable)",
         value_hint = ValueHint::FilePath
@@ -184,6 +189,7 @@ pub(crate) struct ExtractCommand {
     exclude_vcs: bool,
     #[arg(
         long,
+        value_name = "FILE",
         requires = "unstable",
         help = "Read extraction patterns from given path (unstable)",
         value_hint = ValueHint::FilePath
@@ -196,6 +202,7 @@ pub(crate) struct ExtractCommand {
     null: bool,
     #[arg(
         long,
+        value_name = "N",
         help = "Remove the specified number of leading path elements. Path names with fewer elements will be silently skipped"
     )]
     strip_components: Option<usize>,
