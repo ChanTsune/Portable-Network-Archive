@@ -1074,6 +1074,10 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
     )?;
 
     out_archive.finalize()?;
+
+    #[cfg(feature = "memmap")]
+    drop(mmaps);
+
     temp_file.persist(archive_path.remove_part())?;
 
     Ok(())
