@@ -23,6 +23,14 @@ use windows::{
 struct FileId(u64, u64); // (device, inode)
 
 #[cfg(any(unix, windows))]
+#[derive(Debug, Clone)]
+struct HardlinkInfo {
+    first_path: PathBuf,
+    expected_nlinks: u64,
+    archived_count: u64,
+}
+
+#[cfg(any(unix, windows))]
 #[allow(unused_variables)]
 fn get_file_id_and_nlinks(path: &Path, follow_symlink: bool) -> io::Result<(FileId, u64)> {
     #[cfg(unix)]
@@ -78,6 +86,9 @@ fn get_file_id_and_nlinks(path: &Path, follow_symlink: bool) -> io::Result<(File
 #[cfg_attr(not(any(unix, windows)), allow(unused_variables))]
 pub(crate) struct HardlinkResolver {
     follow_symlink: bool,
+    #[cfg(any(unix, windows))]
+    seen: HashMap<FileId, HardlinkInfo>,
+    #[cfg(not(any(unix, windows)))]
     seen: HashMap<FileId, PathBuf>,
 }
 
@@ -95,10 +106,18 @@ impl HardlinkResolver {
     pub(crate) fn resolve(&mut self, path: &Path) -> io::Result<Option<PathBuf>> {
         let (id, nlinks) = get_file_id_and_nlinks(path, self.follow_symlink)?;
         if 1 < nlinks {
-            if let Some(path) = self.seen.get(&id) {
-                return Ok(Some(path.to_path_buf()));
+            if let Some(info) = self.seen.get_mut(&id) {
+                info.archived_count += 1;
+                return Ok(Some(info.first_path.clone()));
             }
-            self.seen.insert(id, path.to_path_buf());
+            self.seen.insert(
+                id,
+                HardlinkInfo {
+                    first_path: path.to_path_buf(),
+                    expected_nlinks: nlinks,
+                    archived_count: 1,
+                },
+            );
         }
         Ok(None)
     }
@@ -107,5 +126,28 @@ impl HardlinkResolver {
     #[inline]
     pub(crate) fn resolve(&mut self, _path: &Path) -> io::Result<Option<PathBuf>> {
         Ok(None)
+    }
+
+    /// Returns an iterator over files with incomplete hardlink sets.
+    /// Each item is (first_path, expected_nlinks, archived_count).
+    #[cfg(any(unix, windows))]
+    pub(crate) fn incomplete_links(&self) -> impl Iterator<Item = (&Path, u64, u64)> {
+        self.seen.values().filter_map(|info| {
+            if info.archived_count < info.expected_nlinks {
+                Some((
+                    info.first_path.as_path(),
+                    info.expected_nlinks,
+                    info.archived_count,
+                ))
+            } else {
+                None
+            }
+        })
+    }
+
+    /// Returns an iterator over files with incomplete hardlink sets.
+    #[cfg(not(any(unix, windows)))]
+    pub(crate) fn incomplete_links(&self) -> impl Iterator<Item = (&Path, u64, u64)> {
+        std::iter::empty()
     }
 }

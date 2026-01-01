@@ -19,7 +19,7 @@ use crate::{
             read_paths, read_paths_stdin,
         },
     },
-    utils::{PathPartExt, VCS_FILES, env::NamedTempFile},
+    utils::{PathPartExt, VCS_FILES, env::NamedTempFile, fs::HardlinkResolver},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;
@@ -471,7 +471,8 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
         filter: &filter,
         time_filters: &time_filters,
     };
-    let target_items = collect_items_from_paths(&files, &collect_options)?;
+    let mut resolver = HardlinkResolver::new(collect_options.follow_links);
+    let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?;
 
     let mut temp_file =
         NamedTempFile::new(|| archive_path.parent().unwrap_or_else(|| ".".as_ref()))?;

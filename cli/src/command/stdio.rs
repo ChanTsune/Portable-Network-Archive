@@ -21,7 +21,9 @@ use crate::{
         list::{Format, ListOptions, TimeField, TimeFormat},
         update::run_update_archive,
     },
-    utils::{self, BsdGlobMatcher, PathPartExt, VCS_FILES, env::NamedTempFile},
+    utils::{
+        self, BsdGlobMatcher, PathPartExt, VCS_FILES, env::NamedTempFile, fs::HardlinkResolver,
+    },
 };
 use clap::{ArgGroup, Args, ValueHint};
 use pna::Archive;
@@ -243,6 +245,14 @@ pub(crate) struct StdioCommand {
         help = "Follow symbolic links named on the command line (unstable)"
     )]
     follow_command_links: bool,
+    #[arg(
+        short = 'l',
+        long,
+        visible_alias = "check-links",
+        requires = "create",
+        help = "Warn if not all links to each file are archived (create mode)"
+    )]
+    check_links: bool,
     #[arg(long, value_name = "DIRECTORY", help = "Output directory of extracted files", value_hint = ValueHint::DirPath)]
     out_dir: Option<PathBuf>,
     #[arg(
@@ -582,7 +592,18 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         filter: &filter,
         time_filters: &time_filters,
     };
-    let target_items = collect_items_from_paths(&files, &collect_options)?;
+    let mut resolver = HardlinkResolver::new(collect_options.follow_links);
+    let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?;
+    if args.check_links {
+        for (path, expected, archived) in resolver.incomplete_links() {
+            log::warn!(
+                "{}: file has {} links, only {} archived",
+                path.display(),
+                expected,
+                archived
+            );
+        }
+    }
 
     let password = password.as_deref();
     let cli_option = entry_option(args.compression, args.cipher, args.hash, password);
@@ -921,12 +942,13 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         filter: &filter,
         time_filters: &time_filters,
     };
+    let mut resolver = HardlinkResolver::new(collect_options.follow_links);
     if let Some(file) = &archive_path {
         let archive = open_archive_then_seek_to_end(file)?;
-        let target_items = collect_items_from_paths(&files, &collect_options)?;
+        let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?;
         run_append_archive(&create_options, archive, target_items)
     } else {
-        let target_items = collect_items_from_paths(&files, &collect_options)?;
+        let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?;
         let mut output_archive = Archive::write_header(io::stdout().lock())?;
         {
             let mut input_archive = Archive::read_header(io::stdin().lock())?;
@@ -1074,7 +1096,8 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
         filter: &filter,
         time_filters: &time_filters,
     };
-    let target_items = collect_items_from_paths(&files, &collect_options)?;
+    let mut resolver = HardlinkResolver::new(collect_options.follow_links);
+    let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?;
 
     let archives = collect_split_archives(&archive_path)?;
 
