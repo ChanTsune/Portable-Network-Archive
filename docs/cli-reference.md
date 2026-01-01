@@ -1121,7 +1121,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 bsdtar-like CLI semantics for PNA archives
 
-**Usage:** `pna experimental stdio [OPTIONS] <--create|--extract|--list|--append> [FILES]...`
+**Usage:** `pna experimental stdio [OPTIONS] <--create|--extract|--list|--append|--update> [FILES]...`
 
 ###### **Arguments:**
 
@@ -1145,6 +1145,9 @@ bsdtar-like CLI semantics for PNA archives
 
   Default value: `false`
 * `-r`, `--append` — Append files to archive
+
+  Default value: `false`
+* `-u`, `--update` — Update archive with newer files
 
   Default value: `false`
 * `--recursive` [alias: `recursion`] — Add directories to the archive recursively
