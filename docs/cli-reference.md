@@ -601,6 +601,12 @@ List files in archive
 * `--classify` — Append file type indicators (/ for directories, @ for symlinks)
 
   Default value: `false`
+* `--recursive` [alias: `recursion`] — Operate recursively on the content of directories (default)
+
+  Default value: `true`
+* `-n`, `--no-recursive` [aliases: `norecurse`, `no-recursion`] — Do not operate recursively on the content of directories
+
+  Default value: `false`
 * `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions
 * `--exclude <PATTERN>` — Exclude path glob (unstable)
 * `--exclude-from <FILE>` — Read exclude files from given path (unstable)
