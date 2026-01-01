@@ -1207,12 +1207,6 @@ bsdtar-like CLI semantics for PNA archives
 * `--no-keep-acl` [aliases: `no-preserve-acls`, `no-acls`] — Do not archive ACLs. This is the inverse option of --keep-acl (unstable)
 
   Default value: `false`
-* `--keep-fflags` [aliases: `preserve-fflags`, `fflags`] — Archiving the file flags of the files (unstable)
-
-  Default value: `false`
-* `--no-keep-fflags` [aliases: `no-preserve-fflags`, `no-fflags`] — Do not archive file flags of files. This is the inverse option of --keep-fflags (unstable)
-
-  Default value: `false`
 * `--solid` — Compress multiple files together for better compression ratio
 
   Default value: `false`
