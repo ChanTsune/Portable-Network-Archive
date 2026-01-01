@@ -14,7 +14,7 @@ use crate::{
             read_paths, read_paths_stdin, write_split_archive,
         },
     },
-    utils::{self, VCS_FILES, fmt::DurationDisplay},
+    utils::{self, VCS_FILES, fmt::DurationDisplay, fs::HardlinkResolver},
 };
 use anyhow::ensure;
 use bytesize::ByteSize;
@@ -452,7 +452,8 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         filter: &filter,
         time_filters: &time_filters,
     };
-    let target_items = collect_items_from_paths(&files, &collect_options)?;
+    let mut resolver = HardlinkResolver::new(collect_options.follow_links);
+    let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?;
 
     if let Some(parent) = archive_path.parent() {
         fs::create_dir_all(parent)?;

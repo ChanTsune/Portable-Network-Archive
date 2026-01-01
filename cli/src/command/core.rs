@@ -310,8 +310,10 @@ pub(crate) enum StoreAs {
 
 /// Collects items from multiple paths, preserving CLI argument order.
 ///
-/// State such as hardlink detection is shared across all paths, enabling
-/// cross-path hardlink recognition.
+/// State such as hardlink detection is shared across all paths via the provided
+/// `HardlinkResolver`, enabling cross-path hardlink recognition. The resolver
+/// can be inspected after collection to check for incomplete hardlink sets via
+/// [`HardlinkResolver::incomplete_links`].
 ///
 /// # Order Preservation
 /// Items are collected in the order paths are provided. Each path's items
@@ -320,14 +322,14 @@ pub(crate) enum StoreAs {
 pub(crate) fn collect_items_from_paths<P: AsRef<Path>>(
     paths: impl IntoIterator<Item = P>,
     options: &CollectOptions<'_>,
+    hardlink_resolver: &mut HardlinkResolver,
 ) -> io::Result<Vec<CollectedItem>> {
-    let mut hardlink_resolver = HardlinkResolver::new(options.follow_links);
     let mut results = Vec::new();
     for path in paths {
         results.extend(collect_items_with_state(
             path.as_ref(),
             options,
-            &mut hardlink_resolver,
+            hardlink_resolver,
         )?);
     }
     Ok(results)
@@ -1322,7 +1324,8 @@ mod tests {
         let filter = empty_path_filter();
         let time_filters = empty_time_filters();
         let options = default_collect_options(&filter, &time_filters);
-        let items = collect_items_from_paths([source], &options).unwrap();
+        let mut resolver = HardlinkResolver::new(options.follow_links);
+        let items = collect_items_from_paths([source], &options, &mut resolver).unwrap();
         assert_eq!(
             items.into_iter().map(|it| it.path).collect::<HashSet<_>>(),
             HashSet::new()
@@ -1336,7 +1339,8 @@ mod tests {
         let time_filters = empty_time_filters();
         let mut options = default_collect_options(&filter, &time_filters);
         options.keep_dir = true;
-        let items = collect_items_from_paths([source], &options).unwrap();
+        let mut resolver = HardlinkResolver::new(options.follow_links);
+        let items = collect_items_from_paths([source], &options, &mut resolver).unwrap();
         assert_eq!(
             items.into_iter().map(|it| it.path).collect::<HashSet<_>>(),
             [concat!(
@@ -1356,7 +1360,8 @@ mod tests {
         let time_filters = empty_time_filters();
         let mut options = default_collect_options(&filter, &time_filters);
         options.recursive = true;
-        let items = collect_items_from_paths([source], &options).unwrap();
+        let mut resolver = HardlinkResolver::new(options.follow_links);
+        let items = collect_items_from_paths([source], &options, &mut resolver).unwrap();
         assert_eq!(
             items.into_iter().map(|it| it.path).collect::<HashSet<_>>(),
             [
