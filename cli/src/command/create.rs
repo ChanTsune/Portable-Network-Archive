@@ -578,8 +578,9 @@ where
     });
 
     let file = get_writer()?;
+    let buffered = io::BufWriter::with_capacity(64 * 1024, file);
     if solid {
-        let mut writer = Archive::write_solid_header(file, write_option)?;
+        let mut writer = Archive::write_solid_header(buffered, write_option)?;
         for entry in rx.into_iter() {
             if let Some(entry) = entry? {
                 writer.add_entry(entry)?;
@@ -587,7 +588,7 @@ where
         }
         writer.finalize()?;
     } else {
-        let mut writer = Archive::write_header(file)?;
+        let mut writer = Archive::write_header(buffered)?;
         for entry in rx.into_iter() {
             if let Some(entry) = entry? {
                 writer.add_entry(entry)?;

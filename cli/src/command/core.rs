@@ -1136,10 +1136,14 @@ where
     let first_item_path = get_part_path(archive, 1);
     let first_item_path = first_item_path.as_ref();
     let file = utils::fs::file_create(first_item_path, overwrite)?;
+    let buffered = io::BufWriter::with_capacity(64 * 1024, file);
     write_split_archive_writer(
-        file,
+        buffered,
         entries,
-        |n| utils::fs::file_create(get_part_path(archive, n), overwrite),
+        |n| {
+            let file = utils::fs::file_create(get_part_path(archive, n), overwrite)?;
+            Ok(io::BufWriter::with_capacity(64 * 1024, file))
+        },
         max_file_size,
         |n| {
             if n == 1 {
