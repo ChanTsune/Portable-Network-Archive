@@ -512,28 +512,40 @@ pub(crate) fn collect_split_archives(first: impl AsRef<Path>) -> io::Result<Vec<
     Ok(archives)
 }
 
-const IN_MEMORY_THRESHOLD: u64 = 50 * 1024 * 1024;
+const IN_MEMORY_THRESHOLD: usize = 50 * 1024 * 1024;
+
+#[inline]
+fn copy_buffered(file: fs::File, writer: &mut impl Write) -> io::Result<()> {
+    let mut reader = io::BufReader::with_capacity(IN_MEMORY_THRESHOLD, file);
+    io::copy(&mut reader, writer)?;
+    Ok(())
+}
 
 #[inline]
 pub(crate) fn write_from_path(writer: &mut impl Write, path: impl AsRef<Path>) -> io::Result<()> {
     let path = path.as_ref();
-    let file_size = fs::metadata(path).ok().map(|meta| meta.len());
-    if file_size.is_some_and(|len| len < IN_MEMORY_THRESHOLD) {
-        writer.write_all(&fs::read(path)?)?;
-    } else {
+    let mut file = fs::File::open(path)?;
+    let file_size = file
+        .metadata()
+        .ok()
+        .and_then(|meta| usize::try_from(meta.len()).ok());
+    if let Some(size) = file_size {
+        if size < IN_MEMORY_THRESHOLD {
+            // NOTE: Use read_exact with pre-sized buffer to avoid fstat and dynamic allocation
+            let mut contents = vec![0u8; size];
+            file.read_exact(&mut contents)?;
+            writer.write_all(&contents)?;
+            return Ok(());
+        }
         #[cfg(feature = "memmap")]
         {
-            let file = utils::mmap::Mmap::open(path)?;
-            writer.write_all(&file[..])?;
-        }
-        #[cfg(not(feature = "memmap"))]
-        {
-            let file = fs::File::open(path)?;
-            let mut reader = io::BufReader::with_capacity(IN_MEMORY_THRESHOLD as usize, file);
-            io::copy(&mut reader, writer)?;
+            let mmap = utils::mmap::Mmap::map_with_size(file, size)?;
+            writer.write_all(&mmap[..])?;
+            return Ok(());
         }
     }
-    Ok(())
+    // Fallback for large files without memmap, or when size is unknown
+    copy_buffered(file, writer)
 }
 
 pub(crate) fn create_entry(
