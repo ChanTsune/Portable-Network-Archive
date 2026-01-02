@@ -49,9 +49,6 @@ use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
     group(ArgGroup::new("keep-timestamp-flag").args(["keep_timestamp", "no_keep_timestamp"])),
     group(ArgGroup::new("keep-permission-flag").args(["keep_permission", "no_keep_permission"])),
     group(ArgGroup::new("action-flags").args(["create", "extract", "list", "append", "update"]).required(true)),
-    group(ArgGroup::new("ctime-flag").args(["clamp_ctime"]).requires("ctime")),
-    group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
-    group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
     group(ArgGroup::new("safe-writes-flag").args(["safe_writes", "no_safe_writes"])),
     group(
         ArgGroup::new("overwrite-flag")
@@ -303,6 +300,7 @@ pub(crate) struct StdioCommand {
     ctime: Option<DateTime>,
     #[arg(
         long,
+        requires = "ctime",
         help = "Clamp the creation time of the entries to the specified time by --ctime"
     )]
     clamp_ctime: bool,
@@ -310,6 +308,7 @@ pub(crate) struct StdioCommand {
     atime: Option<DateTime>,
     #[arg(
         long,
+        requires = "atime",
         help = "Clamp the access time of the entries to the specified time by --atime"
     )]
     clamp_atime: bool,
@@ -321,6 +320,7 @@ pub(crate) struct StdioCommand {
     mtime: Option<DateTime>,
     #[arg(
         long,
+        requires = "mtime",
         help = "Clamp the modification time of the entries to the specified time by --mtime"
     )]
     clamp_mtime: bool,

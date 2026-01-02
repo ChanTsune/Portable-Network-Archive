@@ -44,8 +44,6 @@ use std::{
     group(ArgGroup::new("keep-xattr-flag").args(["keep_xattr", "no_keep_xattr"])),
     group(ArgGroup::new("keep-timestamp-flag").args(["keep_timestamp", "no_keep_timestamp"])),
     group(ArgGroup::new("keep-permission-flag").args(["keep_permission", "no_keep_permission"])),
-    group(ArgGroup::new("mtime-flag").args(["clamp_mtime"]).requires("mtime")),
-    group(ArgGroup::new("atime-flag").args(["clamp_atime"]).requires("atime")),
     group(ArgGroup::new("ctime-older-than-source").args(["older_ctime", "older_ctime_than"])),
     group(ArgGroup::new("ctime-newer-than-source").args(["newer_ctime", "newer_ctime_than"])),
     group(ArgGroup::new("mtime-older-than-source").args(["older_mtime", "older_mtime_than"])),
@@ -174,6 +172,7 @@ pub(crate) struct AppendCommand {
     ctime: Option<DateTime>,
     #[arg(
         long,
+        requires = "ctime",
         help = "Clamp the creation time of the entries to the specified time by --ctime"
     )]
     clamp_ctime: bool,
@@ -185,6 +184,7 @@ pub(crate) struct AppendCommand {
     atime: Option<DateTime>,
     #[arg(
         long,
+        requires = "atime",
         help = "Clamp the access time of the entries to the specified time by --atime"
     )]
     clamp_atime: bool,
@@ -196,6 +196,7 @@ pub(crate) struct AppendCommand {
     mtime: Option<DateTime>,
     #[arg(
         long,
+        requires = "mtime",
         help = "Clamp the modification time of the entries to the specified time by --mtime"
     )]
     clamp_mtime: bool,
