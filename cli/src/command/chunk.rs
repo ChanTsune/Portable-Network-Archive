@@ -1,4 +1,4 @@
-use crate::{command::Command, utils::fmt::hex};
+use crate::command::Command;
 use clap::{Parser, ValueHint};
 use pna::prelude::*;
 use std::{fs, path::PathBuf};
@@ -74,7 +74,7 @@ fn list_archive_chunks(args: ListCommand) -> anyhow::Result<()> {
                 let data = chunk.data();
                 match std::str::from_utf8(data) {
                     Ok(s) => s.to_string(),
-                    Err(_) => format!("0x{}", hex::display(data)),
+                    Err(_) => format!("{:#x}", const_hex::display(data)),
                 }
             })),
         );

@@ -10,7 +10,7 @@ use crate::{
             run_entries, run_transform_entry,
         },
     },
-    utils::{GlobPatterns, PathPartExt, env::NamedTempFile, fmt::hex},
+    utils::{GlobPatterns, PathPartExt, env::NamedTempFile},
 };
 use base64::Engine;
 use bstr::{ByteSlice, io::BufReadExt};
@@ -22,7 +22,6 @@ use std::{
     collections::HashMap,
     fmt::{self, Display, Formatter, Write},
     fs, io,
-    num::ParseIntError,
     str::FromStr,
 };
 
@@ -414,7 +413,7 @@ fn transform_xattr(
 #[derive(thiserror::Error, Clone, Eq, PartialEq, Debug)]
 enum ValueError {
     #[error(transparent)]
-    InvalidHex(#[from] ParseIntError),
+    InvalidHex(#[from] const_hex::FromHexError),
     #[error(transparent)]
     InvalidBase64(#[from] base64::DecodeError),
     #[error("missing tailing quote")]
@@ -441,10 +440,7 @@ impl TryFrom<&[u8]> for Value {
     #[inline]
     fn try_from(s: &[u8]) -> Result<Self, Self::Error> {
         Ok(Self(if let Some(stripped) = s.strip_prefix(b"0x") {
-            stripped
-                .chunks(2)
-                .map(|i| u8::from_str_radix(unsafe { std::str::from_utf8_unchecked(i) }, 16))
-                .collect::<Result<Vec<_>, _>>()?
+            const_hex::decode(stripped)?
         } else if let Some(stripped) = s.strip_prefix(b"0s") {
             base64::engine::general_purpose::STANDARD.decode(stripped)?
         } else if let Some(s) = s.strip_prefix(b"\"") {
@@ -500,7 +496,7 @@ impl<'a> DisplayValue<'a> {
     #[inline]
     fn fmt_hex(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str("0x")?;
-        Display::fmt(&hex::display(self.value), f)
+        Display::fmt(&const_hex::display(self.value), f)
     }
 
     #[inline]
