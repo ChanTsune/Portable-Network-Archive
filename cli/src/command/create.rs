@@ -6,9 +6,9 @@ use crate::{
     command::{
         Command, ask_password, check_password,
         core::{
-            AclStrategy, CollectOptions, CreateOptions, KeepOptions, MIN_SPLIT_PART_BYTES,
-            OwnerOptions, PathFilter, PathTransformers, PathnameEditor, PermissionStrategy,
-            StoreAs, TimeFilterResolver, TimeOptions, TimestampStrategy, XattrStrategy,
+            AclStrategy, CollectOptions, CollectedItem, CreateOptions, KeepOptions,
+            MIN_SPLIT_PART_BYTES, OwnerOptions, PathFilter, PathTransformers, PathnameEditor,
+            PermissionStrategy, TimeFilterResolver, TimeOptions, TimestampStrategy, XattrStrategy,
             collect_items_from_paths, create_entry, entry_option,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin, write_split_archive,
@@ -541,7 +541,7 @@ pub(crate) fn create_archive_file<W, F>(
         solid,
         pathname_editor,
     }: CreationContext,
-    target_items: Vec<(PathBuf, StoreAs)>,
+    target_items: Vec<CollectedItem>,
 ) -> anyhow::Result<()>
 where
     W: Write,
@@ -561,13 +561,13 @@ where
         pathname_editor,
     };
     rayon::scope_fifo(|s| {
-        for file in target_items {
+        for item in target_items {
             let tx = tx.clone();
             let create_options = create_options.clone();
             s.spawn_fifo(move |_| {
-                log::debug!("Adding: {}", file.0.display());
-                tx.send(create_entry(&file, &create_options))
-                    .unwrap_or_else(|e| log::error!("{e}: {}", file.0.display()));
+                log::debug!("Adding: {}", item.path.display());
+                tx.send(create_entry(&item, &create_options))
+                    .unwrap_or_else(|e| log::error!("{e}: {}", item.path.display()));
             })
         }
 
@@ -606,7 +606,7 @@ fn create_archive_with_split(
         solid,
         pathname_editor,
     }: CreationContext,
-    target_items: Vec<(PathBuf, StoreAs)>,
+    target_items: Vec<CollectedItem>,
     max_file_size: usize,
     overwrite: bool,
 ) -> anyhow::Result<()> {
@@ -624,13 +624,13 @@ fn create_archive_with_split(
         pathname_editor,
     };
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
-        for file in target_items {
+        for item in target_items {
             let tx = tx.clone();
             let create_options = create_options.clone();
             s.spawn_fifo(move |_| {
-                log::debug!("Adding: {}", file.0.display());
-                tx.send(create_entry(&file, &create_options))
-                    .unwrap_or_else(|e| log::error!("{e}: {}", file.0.display()));
+                log::debug!("Adding: {}", item.path.display());
+                tx.send(create_entry(&item, &create_options))
+                    .unwrap_or_else(|e| log::error!("{e}: {}", item.path.display()));
             })
         }
 

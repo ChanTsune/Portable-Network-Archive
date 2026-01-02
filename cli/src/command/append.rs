@@ -6,8 +6,8 @@ use crate::{
     command::{
         Command, ask_password, check_password,
         core::{
-            AclStrategy, CollectOptions, CreateOptions, KeepOptions, OwnerOptions, PathFilter,
-            PathTransformers, PathnameEditor, PermissionStrategy, StoreAs, TimeFilterResolver,
+            AclStrategy, CollectOptions, CollectedItem, CreateOptions, KeepOptions, OwnerOptions,
+            PathFilter, PathTransformers, PathnameEditor, PermissionStrategy, TimeFilterResolver,
             TimeOptions, TimestampStrategy, XattrStrategy, collect_items_from_paths, create_entry,
             entry_option,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
@@ -466,16 +466,16 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
 pub(crate) fn run_append_archive(
     create_options: &CreateOptions,
     mut archive: Archive<impl io::Write>,
-    target_items: Vec<(PathBuf, StoreAs)>,
+    target_items: Vec<CollectedItem>,
 ) -> anyhow::Result<()> {
     let (tx, rx) = std::sync::mpsc::channel();
     rayon::scope_fifo(|s| {
-        for file in target_items {
+        for item in target_items {
             let tx = tx.clone();
             s.spawn_fifo(move |_| {
-                log::debug!("Adding: {}", file.0.display());
-                tx.send(create_entry(&file, create_options))
-                    .unwrap_or_else(|e| log::error!("{e}: {}", file.0.display()));
+                log::debug!("Adding: {}", item.path.display());
+                tx.send(create_entry(&item, create_options))
+                    .unwrap_or_else(|e| log::error!("{e}: {}", item.path.display()));
             })
         }
 

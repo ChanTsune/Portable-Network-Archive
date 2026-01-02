@@ -295,6 +295,12 @@ impl Ignore {
     }
 }
 
+pub(crate) struct CollectedItem {
+    pub(crate) path: PathBuf,
+    pub(crate) store_as: StoreAs,
+    pub(crate) metadata: fs::Metadata,
+}
+
 pub(crate) enum StoreAs {
     File,
     Dir,
@@ -314,7 +320,7 @@ pub(crate) enum StoreAs {
 pub(crate) fn collect_items_from_paths<P: AsRef<Path>>(
     paths: impl IntoIterator<Item = P>,
     options: &CollectOptions<'_>,
-) -> io::Result<Vec<(PathBuf, StoreAs)>> {
+) -> io::Result<Vec<CollectedItem>> {
     let mut hardlink_resolver = HardlinkResolver::new(options.follow_links);
     let mut results = Vec::new();
     for path in paths {
@@ -329,9 +335,10 @@ pub(crate) fn collect_items_from_paths<P: AsRef<Path>>(
 
 /// Walks a single path and collects filesystem items to archive.
 ///
-/// Returns a list of path/strategy pairs indicating how each discovered item
-/// should be stored in the archive (`StoreAs`). Traversal supports recursion,
-/// exclusion filters, and correct handling of symbolic and hard links.
+/// Returns a list of `CollectedItem` indicating how each discovered item
+/// should be stored in the archive (`StoreAs`), along with its pre-captured
+/// metadata. Traversal supports recursion, exclusion filters, and correct
+/// handling of symbolic and hard links.
 ///
 /// Behavior summary:
 /// - Recursion: when `options.recursive` is true, subdirectories are walked
@@ -364,7 +371,7 @@ pub(crate) fn collect_items_from_paths<P: AsRef<Path>>(
 /// This function accepts a shared `HardlinkResolver` to enable cross-path hardlink
 /// detection when collecting from multiple paths.
 ///
-/// Returns a vector of `(PathBuf, StoreAs)` pairs on success.
+/// Returns a vector of `CollectedItem` on success.
 ///
 /// # Errors
 /// Propagates I/O errors encountered during traversal. Broken symlinks are
@@ -375,7 +382,7 @@ pub(crate) fn collect_items_with_state(
     path: &Path,
     options: &CollectOptions<'_>,
     hardlink_resolver: &mut HardlinkResolver,
-) -> io::Result<Vec<(PathBuf, StoreAs)>> {
+) -> io::Result<Vec<CollectedItem>> {
     let mut ig = Ignore::empty();
     let mut out = Vec::new();
 
@@ -439,18 +446,17 @@ pub(crate) fn collect_items_with_state(
                 }
 
                 // Classify entry and maybe add it to output
-                let store_as = if is_symlink {
-                    Some(StoreAs::Symlink)
+                let store = if is_symlink {
+                    Some((StoreAs::Symlink, fs::symlink_metadata(path)?))
                 } else if is_file {
-                    let path_buf = path.to_path_buf();
-                    if let Some(linked) = hardlink_resolver.resolve(&path_buf).ok().flatten() {
-                        Some(StoreAs::Hardlink(linked))
+                    if let Some(linked) = hardlink_resolver.resolve(path).ok().flatten() {
+                        Some((StoreAs::Hardlink(linked), fs::symlink_metadata(path)?))
                     } else {
-                        Some(StoreAs::File)
+                        Some((StoreAs::File, fs::metadata(path)?))
                     }
                 } else if is_dir {
                     if options.keep_dir {
-                        Some(StoreAs::Dir)
+                        Some((StoreAs::Dir, fs::metadata(path)?))
                     } else {
                         None
                     }
@@ -461,19 +467,29 @@ pub(crate) fn collect_items_with_state(
                     ));
                 };
 
-                if let Some(store) = store_as {
-                    if !options.time_filters.is_active()
-                        || options.time_filters.is_retain(&fs::symlink_metadata(path)?)
+                if let Some((store_as, metadata)) = store {
+                    if options
+                        .time_filters
+                        .matches_or_inactive(metadata.created().ok(), metadata.modified().ok())
                     {
-                        out.push((path.to_path_buf(), store));
+                        out.push(CollectedItem {
+                            path: path.to_path_buf(),
+                            store_as,
+                            metadata,
+                        });
                     }
                 }
             }
             Err(e) => {
                 if let Some(ioe) = e.io_error() {
                     if let Some(path) = e.path() {
-                        if is_broken_symlink_error(path, ioe) {
-                            out.push((path.to_path_buf(), StoreAs::Symlink));
+                        let metadata = fs::symlink_metadata(path)?;
+                        if is_broken_symlink_error(&metadata, ioe) {
+                            out.push(CollectedItem {
+                                path: path.to_path_buf(),
+                                store_as: StoreAs::Symlink,
+                                metadata,
+                            });
                             continue;
                         }
                     }
@@ -486,8 +502,8 @@ pub(crate) fn collect_items_with_state(
 }
 
 #[inline]
-fn is_broken_symlink_error(path: &Path, err: &io::Error) -> bool {
-    path.is_symlink() && err.kind() == io::ErrorKind::NotFound
+fn is_broken_symlink_error(meta: &fs::Metadata, err: &io::Error) -> bool {
+    meta.is_symlink() && err.kind() == io::ErrorKind::NotFound
 }
 
 pub(crate) fn collect_split_archives(first: impl AsRef<Path>) -> io::Result<Vec<fs::File>> {
@@ -546,7 +562,7 @@ pub(crate) fn write_from_path(writer: &mut impl Write, path: impl AsRef<Path>) -
 }
 
 pub(crate) fn create_entry(
-    (path, link): &(PathBuf, StoreAs),
+    item: &CollectedItem,
     CreateOptions {
         option,
         keep_options,
@@ -555,10 +571,15 @@ pub(crate) fn create_entry(
         pathname_editor,
     }: &CreateOptions,
 ) -> io::Result<Option<NormalEntry>> {
+    let CollectedItem {
+        path,
+        store_as,
+        metadata,
+    } = item;
     let Some(entry_name) = pathname_editor.edit_entry_name(path) else {
         return Ok(None);
     };
-    match link {
+    match store_as {
         StoreAs::Hardlink(source) => {
             let Some(reference) = pathname_editor.edit_hardlink(source) else {
                 return Ok(None);
@@ -570,7 +591,7 @@ pub(crate) fn create_entry(
                 keep_options,
                 owner_options,
                 time_options,
-                fs::symlink_metadata,
+                metadata,
             )?
             .build()
         }
@@ -584,7 +605,7 @@ pub(crate) fn create_entry(
                 keep_options,
                 owner_options,
                 time_options,
-                fs::symlink_metadata,
+                metadata,
             )?
             .build()
         }
@@ -597,7 +618,7 @@ pub(crate) fn create_entry(
                 keep_options,
                 owner_options,
                 time_options,
-                fs::metadata,
+                metadata,
             )?
             .build()
         }
@@ -609,7 +630,7 @@ pub(crate) fn create_entry(
                 keep_options,
                 owner_options,
                 time_options,
-                fs::metadata,
+                metadata,
             )?
             .build()
         }
@@ -640,89 +661,84 @@ pub(crate) fn entry_option(
 }
 
 #[cfg_attr(target_os = "wasi", allow(unused_variables))]
-pub(crate) fn apply_metadata<'p>(
+pub(crate) fn apply_metadata(
     mut entry: EntryBuilder,
-    path: &'p Path,
+    path: &Path,
     keep_options: &KeepOptions,
     owner_options: &OwnerOptions,
     time_options: &TimeOptions,
-    metadata: impl Fn(&'p Path) -> io::Result<fs::Metadata>,
+    meta: &fs::Metadata,
 ) -> io::Result<EntryBuilder> {
-    if matches!(keep_options.timestamp_strategy, TimestampStrategy::Always)
-        || matches!(keep_options.permission_strategy, PermissionStrategy::Always)
-    {
-        let meta = metadata(path)?;
-        if let TimestampStrategy::Always = keep_options.timestamp_strategy {
-            let ctime = clamped_time(
-                meta.created().ok(),
-                time_options.ctime,
-                time_options.clamp_ctime,
-            );
-            if let Some(c) = ctime {
-                entry.created_time(c);
-            }
-            let mtime = clamped_time(
-                meta.modified().ok(),
-                time_options.mtime,
-                time_options.clamp_mtime,
-            );
-            if let Some(m) = mtime {
-                entry.modified_time(m);
-            }
-            let atime = clamped_time(
-                meta.accessed().ok(),
-                time_options.atime,
-                time_options.clamp_atime,
-            );
-            if let Some(a) = atime {
-                entry.accessed_time(a);
-            }
+    if let TimestampStrategy::Always = keep_options.timestamp_strategy {
+        let ctime = clamped_time(
+            meta.created().ok(),
+            time_options.ctime,
+            time_options.clamp_ctime,
+        );
+        if let Some(c) = ctime {
+            entry.created_time(c);
         }
-        #[cfg(unix)]
-        if let PermissionStrategy::Always = keep_options.permission_strategy {
-            use crate::utils::fs::{Group, User};
-            use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        let mtime = clamped_time(
+            meta.modified().ok(),
+            time_options.mtime,
+            time_options.clamp_mtime,
+        );
+        if let Some(m) = mtime {
+            entry.modified_time(m);
+        }
+        let atime = clamped_time(
+            meta.accessed().ok(),
+            time_options.atime,
+            time_options.clamp_atime,
+        );
+        if let Some(a) = atime {
+            entry.accessed_time(a);
+        }
+    }
+    #[cfg(unix)]
+    if let PermissionStrategy::Always = keep_options.permission_strategy {
+        use crate::utils::fs::{Group, User};
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
-            let mode = meta.permissions().mode() as u16;
-            let uid = owner_options.uid.unwrap_or(meta.uid());
-            let gid = owner_options.gid.unwrap_or(meta.gid());
-            entry.permission(pna::Permission::new(
-                uid.into(),
-                match owner_options.uname.as_deref() {
-                    None => User::from_uid(uid.into())?
-                        .name()
-                        .unwrap_or_default()
-                        .into(),
-                    Some(uname) => uname.into(),
-                },
-                gid.into(),
-                match owner_options.gname.as_deref() {
-                    None => Group::from_gid(gid.into())?
-                        .name()
-                        .unwrap_or_default()
-                        .into(),
-                    Some(gname) => gname.into(),
-                },
-                mode,
-            ));
-        }
-        #[cfg(windows)]
-        if let PermissionStrategy::Always = keep_options.permission_strategy {
-            use crate::utils::os::windows::{fs::stat, security::SecurityDescriptor};
+        let mode = meta.permissions().mode() as u16;
+        let uid = owner_options.uid.unwrap_or(meta.uid());
+        let gid = owner_options.gid.unwrap_or(meta.gid());
+        entry.permission(pna::Permission::new(
+            uid.into(),
+            match owner_options.uname.as_deref() {
+                None => User::from_uid(uid.into())?
+                    .name()
+                    .unwrap_or_default()
+                    .into(),
+                Some(uname) => uname.into(),
+            },
+            gid.into(),
+            match owner_options.gname.as_deref() {
+                None => Group::from_gid(gid.into())?
+                    .name()
+                    .unwrap_or_default()
+                    .into(),
+                Some(gname) => gname.into(),
+            },
+            mode,
+        ));
+    }
+    #[cfg(windows)]
+    if let PermissionStrategy::Always = keep_options.permission_strategy {
+        use crate::utils::os::windows::{fs::stat, security::SecurityDescriptor};
 
-            let sd = SecurityDescriptor::try_from(path)?;
-            let stat = stat(sd.path.as_ptr() as _)?;
-            let mode = stat.st_mode;
-            let user = sd.owner_sid()?;
-            let group = sd.group_sid()?;
-            entry.permission(pna::Permission::new(
-                owner_options.uid.map_or(u64::MAX, Into::into),
-                owner_options.uname.clone().unwrap_or(user.name),
-                owner_options.gid.map_or(u64::MAX, Into::into),
-                owner_options.gname.clone().unwrap_or(group.name),
-                mode,
-            ));
-        }
+        let sd = SecurityDescriptor::try_from(path)?;
+        let stat = stat(sd.path.as_ptr() as _)?;
+        let mode = stat.st_mode;
+        let user = sd.owner_sid()?;
+        let group = sd.group_sid()?;
+        entry.permission(pna::Permission::new(
+            owner_options.uid.map_or(u64::MAX, Into::into),
+            owner_options.uname.clone().unwrap_or(user.name),
+            owner_options.gid.map_or(u64::MAX, Into::into),
+            owner_options.gname.clone().unwrap_or(group.name),
+            mode,
+        ));
     }
     #[cfg(feature = "acl")]
     {
@@ -1308,7 +1324,7 @@ mod tests {
         let options = default_collect_options(&filter, &time_filters);
         let items = collect_items_from_paths([source], &options).unwrap();
         assert_eq!(
-            items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
+            items.into_iter().map(|it| it.path).collect::<HashSet<_>>(),
             HashSet::new()
         );
     }
@@ -1322,7 +1338,7 @@ mod tests {
         options.keep_dir = true;
         let items = collect_items_from_paths([source], &options).unwrap();
         assert_eq!(
-            items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
+            items.into_iter().map(|it| it.path).collect::<HashSet<_>>(),
             [concat!(
                 env!("CARGO_MANIFEST_DIR"),
                 "/../resources/test/raw",
@@ -1342,7 +1358,7 @@ mod tests {
         options.recursive = true;
         let items = collect_items_from_paths([source], &options).unwrap();
         assert_eq!(
-            items.into_iter().map(|(it, _)| it).collect::<HashSet<_>>(),
+            items.into_iter().map(|it| it.path).collect::<HashSet<_>>(),
             [
                 concat!(
                     env!("CARGO_MANIFEST_DIR"),

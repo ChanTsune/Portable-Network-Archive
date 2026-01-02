@@ -10,8 +10,8 @@ use crate::{
     command::{
         Command, ask_password, check_password,
         core::{
-            AclStrategy, CollectOptions, CreateOptions, KeepOptions, OwnerOptions, PathFilter,
-            PathTransformers, PathnameEditor, PermissionStrategy, StoreAs, TimeFilterResolver,
+            AclStrategy, CollectOptions, CollectedItem, CreateOptions, KeepOptions, OwnerOptions,
+            PathFilter, PathTransformers, PathnameEditor, PermissionStrategy, TimeFilterResolver,
             TimeOptions, TimestampStrategy, TransformStrategy, TransformStrategyKeepSolid,
             TransformStrategyUnSolid, XattrStrategy, collect_items_from_paths,
             collect_split_archives, create_entry, entry_option,
@@ -521,7 +521,7 @@ pub(crate) fn run_update_archive<Strategy, R, W>(
     archives: impl IntoIterator<Item = R> + Send,
     password: Option<&[u8]>,
     create_options: &CreateOptions,
-    target_items: Vec<(PathBuf, StoreAs)>,
+    target_items: Vec<CollectedItem>,
     sync: bool,
     out_archive: &mut Archive<W>,
     _strategy: Strategy,
@@ -535,29 +535,23 @@ where
 
     let mut target_files_mapping = target_items
         .into_iter()
-        .map(|(it, store)| (EntryName::from_lossy(&it), (it, store)))
+        .map(|item| (EntryName::from_lossy(&item.path), item))
         .collect::<IndexMap<_, _>>();
 
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
         run_read_entries(archives, |entry| {
             Strategy::transform(out_archive, password, entry, |entry| {
                 let entry = entry?;
-                if let Some((target_path, store)) =
-                    target_files_mapping.swap_remove(entry.header().path())
-                {
-                    let fs_meta = fs::symlink_metadata(&target_path)?;
+                if let Some(item) = target_files_mapping.swap_remove(entry.header().path()) {
                     let need_update =
-                        is_newer_than_archive(&fs_meta, entry.metadata()).unwrap_or(true);
+                        is_newer_than_archive(&item.metadata, entry.metadata()).unwrap_or(true);
                     if need_update {
                         let tx = tx.clone();
                         let create_options = create_options.clone();
                         s.spawn_fifo(move |_| {
-                            log::debug!("Updating: {}", target_path.display());
-                            let target_path = (target_path, store);
-                            tx.send(create_entry(&target_path, &create_options))
-                                .unwrap_or_else(|e| {
-                                    log::error!("{e}: {}", target_path.0.display())
-                                });
+                            log::debug!("Updating: {}", item.path.display());
+                            tx.send(create_entry(&item, &create_options))
+                                .unwrap_or_else(|e| log::error!("{e}: {}", item.path.display()));
                         });
                         Ok(None)
                     } else {
@@ -573,14 +567,13 @@ where
         })?;
 
         // NOTE: Add new entries
-        for (_, (file, store)) in target_files_mapping {
+        for (_, item) in target_files_mapping {
             let tx = tx.clone();
             let create_options = create_options.clone();
             s.spawn_fifo(move |_| {
-                log::debug!("Adding: {}", file.display());
-                let file = (file, store);
-                tx.send(create_entry(&file, &create_options))
-                    .unwrap_or_else(|e| log::error!("{e}: {}", file.0.display()));
+                log::debug!("Adding: {}", item.path.display());
+                tx.send(create_entry(&item, &create_options))
+                    .unwrap_or_else(|e| log::error!("{e}: {}", item.path.display()));
             });
         }
         drop(tx);
@@ -601,7 +594,7 @@ pub(crate) fn run_update_archive<'d, Strategy, W>(
     archives: impl IntoIterator<Item = &'d [u8]> + Send,
     password: Option<&[u8]>,
     create_options: &CreateOptions,
-    target_items: Vec<(PathBuf, StoreAs)>,
+    target_items: Vec<CollectedItem>,
     sync: bool,
     out_archive: &mut Archive<W>,
     _strategy: Strategy,
@@ -614,29 +607,23 @@ where
 
     let mut target_files_mapping = target_items
         .into_iter()
-        .map(|(it, store)| (EntryName::from_lossy(&it), (it, store)))
+        .map(|item| (EntryName::from_lossy(&item.path), item))
         .collect::<IndexMap<_, _>>();
 
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
         run_read_entries_mem(archives, |entry| {
             Strategy::transform(out_archive, password, entry, |entry| {
                 let entry = entry?;
-                if let Some((target_path, store)) =
-                    target_files_mapping.swap_remove(entry.header().path())
-                {
-                    let fs_meta = fs::symlink_metadata(&target_path)?;
+                if let Some(item) = target_files_mapping.swap_remove(entry.header().path()) {
                     let need_update =
-                        is_newer_than_archive(&fs_meta, entry.metadata()).unwrap_or(true);
+                        is_newer_than_archive(&item.metadata, entry.metadata()).unwrap_or(true);
                     if need_update {
                         let tx = tx.clone();
                         let create_options = create_options.clone();
                         s.spawn_fifo(move |_| {
-                            log::debug!("Updating: {}", target_path.display());
-                            let target_path = (target_path, store);
-                            tx.send(create_entry(&target_path, &create_options))
-                                .unwrap_or_else(|e| {
-                                    log::error!("{e}: {}", target_path.0.display())
-                                });
+                            log::debug!("Updating: {}", item.path.display());
+                            tx.send(create_entry(&item, &create_options))
+                                .unwrap_or_else(|e| log::error!("{e}: {}", item.path.display()));
                         });
                         Ok(None)
                     } else {
@@ -652,14 +639,13 @@ where
         })?;
 
         // NOTE: Add new entries
-        for (_, (file, store)) in target_files_mapping {
+        for (_, item) in target_files_mapping {
             let tx = tx.clone();
             let create_options = create_options.clone();
             s.spawn_fifo(move |_| {
-                log::debug!("Adding: {}", file.display());
-                let file = (file, store);
-                tx.send(create_entry(&file, &create_options))
-                    .unwrap_or_else(|e| log::error!("{e}: {}", file.0.display()));
+                log::debug!("Adding: {}", item.path.display());
+                tx.send(create_entry(&item, &create_options))
+                    .unwrap_or_else(|e| log::error!("{e}: {}", item.path.display()));
             });
         }
         drop(tx);
