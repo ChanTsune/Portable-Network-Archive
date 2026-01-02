@@ -1,8 +1,5 @@
 mod atime;
 mod ctime;
-mod exclude;
-mod exclude_from;
-mod exclude_vcs;
 mod files_from;
 mod files_from_stdin;
 mod gitignore;
@@ -10,6 +7,9 @@ mod include;
 mod mtime;
 mod no_recursive;
 mod numeric_owner;
+mod option_exclude;
+mod option_exclude_from;
+mod option_exclude_vcs;
 #[cfg(any(windows, target_os = "macos"))]
 mod option_newer_ctime;
 mod option_newer_ctime_than;
