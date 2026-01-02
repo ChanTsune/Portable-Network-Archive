@@ -502,6 +502,14 @@ Extract files from archive
 * `--numeric-owner` — This is equivalent to --uname "" --gname "". It causes user and group names in the archive to be ignored in favor of the numeric user and group ids.
 
   Default value: `false`
+* `--older-ctime <OLDER_CTIME>` — Only include files and directories older than the specified date (unstable). This compares ctime entries.
+* `--older-mtime <OLDER_MTIME>` — Only include files and directories older than the specified date (unstable). This compares mtime entries.
+* `--newer-ctime <NEWER_CTIME>` — Only include files and directories newer than the specified date (unstable). This compares ctime entries.
+* `--newer-mtime <NEWER_MTIME>` — Only include files and directories newer than the specified date (unstable). This compares mtime entries.
+* `--newer-ctime-than <file>` [alias: `newer-than`] — Only include files and directories newer than the specified file (unstable). This compares ctime entries.
+* `--newer-mtime-than <file>` — Only include files and directories newer than the specified file (unstable). This compares mtime entries.
+* `--older-ctime-than <file>` [alias: `older-than`] — Only include files and directories older than the specified file (unstable). This compares ctime entries.
+* `--older-mtime-than <file>` — Only include files and directories older than the specified file (unstable). This compares mtime entries.
 * `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
 * `--exclude <PATTERN>` — Exclude path glob (unstable)
 * `--exclude-from <FILE>` — Read exclude files from given path (unstable)
@@ -595,6 +603,14 @@ List files in archive
 
   Possible values: `created`, `modified`, `accessed`
 
+* `--older-ctime <OLDER_CTIME>` — Only include files and directories older than the specified date (unstable). This compares ctime entries.
+* `--older-mtime <OLDER_MTIME>` — Only include files and directories older than the specified date (unstable). This compares mtime entries.
+* `--newer-ctime <NEWER_CTIME>` — Only include files and directories newer than the specified date (unstable). This compares ctime entries.
+* `--newer-mtime <NEWER_MTIME>` — Only include files and directories newer than the specified date (unstable). This compares mtime entries.
+* `--newer-ctime-than <file>` [alias: `newer-than`] — Only include files and directories newer than the specified file (unstable). This compares ctime entries.
+* `--newer-mtime-than <file>` — Only include files and directories newer than the specified file (unstable). This compares mtime entries.
+* `--older-ctime-than <file>` [alias: `older-than`] — Only include files and directories older than the specified file (unstable). This compares ctime entries.
+* `--older-mtime-than <file>` — Only include files and directories older than the specified file (unstable). This compares mtime entries.
 * `-q` — Force printing of non-graphic characters in file names as the character '?'
 
   Default value: `false`
