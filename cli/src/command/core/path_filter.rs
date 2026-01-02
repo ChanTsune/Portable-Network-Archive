@@ -29,6 +29,16 @@ impl<'a> PathFilter<'a> {
         let s = s.as_ref();
         self.exclude.matches_exclusion(s) || !self.include.matches_inclusion(s)
     }
+
+    /// Returns `true` if the given path matches an explicit exclude pattern.
+    ///
+    /// This is used to determine whether to prune directory traversal.
+    /// Unlike `excluded()`, this does NOT consider include pattern mismatches,
+    /// because we need to traverse directories to find files that match include patterns.
+    #[inline]
+    pub(crate) fn explicitly_excluded(&self, s: impl AsRef<str>) -> bool {
+        self.exclude.matches_exclusion(s.as_ref())
+    }
 }
 
 #[cfg(test)]
@@ -59,5 +69,49 @@ mod tests {
         let exclude = ["a/*/c"];
         let filter = PathFilter::new(include, exclude);
         assert!(filter.excluded("a/b/c"));
+    }
+
+    #[test]
+    fn path_filter_include_txt_files() {
+        let include = ["**/*.txt"];
+        let filter = PathFilter::new(include, EMPTY_PATTERNS);
+
+        // Should NOT be excluded (matches include pattern)
+        assert!(
+            !filter.excluded("create_with_include/in/raw/empty.txt"),
+            "empty.txt should NOT be excluded"
+        );
+        assert!(
+            !filter.excluded("create_with_include/in/raw/text.txt"),
+            "text.txt should NOT be excluded"
+        );
+        assert!(
+            !filter.excluded("dir/file.txt"),
+            "dir/file.txt should NOT be excluded"
+        );
+
+        // Should be excluded (doesn't match include pattern)
+        assert!(
+            filter.excluded("create_with_include/in/raw/images/icon.png"),
+            "icon.png should be excluded"
+        );
+        assert!(
+            filter.excluded("dir/file.png"),
+            "dir/file.png should be excluded"
+        );
+    }
+
+    #[test]
+    fn path_filter_include_with_directory_entry() {
+        // Test what happens with directory entries (which don't end in .txt)
+        let include = ["**/*.txt"];
+        let filter = PathFilter::new(include, EMPTY_PATTERNS);
+
+        // Directory entries won't match **/*.txt pattern, so they'll be excluded
+        // This is the bug! Directories are being excluded which prevents traversal
+        assert!(
+            filter.excluded("create_with_include/in/raw"),
+            "directory entry is excluded because it doesn't match **/*.txt"
+        );
     }
 }
