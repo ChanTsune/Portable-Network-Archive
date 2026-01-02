@@ -477,6 +477,18 @@ Extract files from archive
 * `--no-keep-timestamp` [alias: `no-preserve-timestamps`] — Do not restore timestamp of files. This is the inverse option of --preserve-timestamps
 
   Default value: `false`
+* `--mtime <DATETIME>` — Overrides the modification time
+* `--clamp-mtime` — Clamp the modification time of the entries to the specified time by --mtime
+
+  Default value: `false`
+* `--ctime <DATETIME>` — Overrides the creation time
+* `--clamp-ctime` — Clamp the creation time of the entries to the specified time by --ctime
+
+  Default value: `false`
+* `--atime <DATETIME>` — Overrides the access time
+* `--clamp-atime` — Clamp the access time of the entries to the specified time by --atime
+
+  Default value: `false`
 * `--keep-permission` [alias: `preserve-permissions`] — Restore the permissions of the files (unstable on Windows)
 
   Default value: `false`
@@ -502,10 +514,10 @@ Extract files from archive
 * `--numeric-owner` — This is equivalent to --uname "" --gname "". It causes user and group names in the archive to be ignored in favor of the numeric user and group ids.
 
   Default value: `false`
-* `--older-ctime <OLDER_CTIME>` — Only include files and directories older than the specified date (unstable). This compares ctime entries.
-* `--older-mtime <OLDER_MTIME>` — Only include files and directories older than the specified date (unstable). This compares mtime entries.
-* `--newer-ctime <NEWER_CTIME>` — Only include files and directories newer than the specified date (unstable). This compares ctime entries.
-* `--newer-mtime <NEWER_MTIME>` — Only include files and directories newer than the specified date (unstable). This compares mtime entries.
+* `--older-ctime <DATETIME>` — Only include files and directories older than the specified date (unstable). This compares ctime entries.
+* `--older-mtime <DATETIME>` — Only include files and directories older than the specified date (unstable). This compares mtime entries.
+* `--newer-ctime <DATETIME>` — Only include files and directories newer than the specified date (unstable). This compares ctime entries.
+* `--newer-mtime <DATETIME>` — Only include files and directories newer than the specified date (unstable). This compares mtime entries.
 * `--newer-ctime-than <file>` [alias: `newer-than`] — Only include files and directories newer than the specified file (unstable). This compares ctime entries.
 * `--newer-mtime-than <file>` — Only include files and directories newer than the specified file (unstable). This compares mtime entries.
 * `--older-ctime-than <file>` [alias: `older-than`] — Only include files and directories older than the specified file (unstable). This compares ctime entries.
@@ -1257,6 +1269,9 @@ bsdtar-like CLI semantics for PNA archives
 
   Default value: `false`
 * `-H`, `--follow-command-links` — Follow symbolic links named on the command line (unstable)
+
+  Default value: `false`
+* `-l`, `--check-links` [alias: `check-links`] — Warn if not all links to each file are archived (create mode)
 
   Default value: `false`
 * `--out-dir <DIRECTORY>` — Output directory of extracted files
