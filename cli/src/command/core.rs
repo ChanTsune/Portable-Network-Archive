@@ -162,11 +162,30 @@ impl AclStrategy {
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub(crate) enum FflagsStrategy {
+    Never,
+    Always,
+}
+
+impl FflagsStrategy {
+    pub(crate) const fn from_flags(keep_fflags: bool, no_keep_fflags: bool) -> Self {
+        if no_keep_fflags {
+            Self::Never
+        } else if keep_fflags {
+            Self::Always
+        } else {
+            Self::Never
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) struct KeepOptions {
     pub(crate) timestamp_strategy: TimestampStrategy,
     pub(crate) permission_strategy: PermissionStrategy,
     pub(crate) xattr_strategy: XattrStrategy,
     pub(crate) acl_strategy: AclStrategy,
+    pub(crate) fflags_strategy: FflagsStrategy,
 }
 
 /// Resolves CLI timestamp options into a `TimestampStrategy`.
@@ -768,6 +787,23 @@ pub(crate) fn apply_metadata(
     #[cfg(not(unix))]
     if let XattrStrategy::Always = keep_options.xattr_strategy {
         log::warn!("Currently extended attribute is not supported on this platform.");
+    }
+    if let FflagsStrategy::Always = keep_options.fflags_strategy {
+        match utils::fs::get_flags(path) {
+            Ok(flags) => {
+                for flag in flags {
+                    entry.add_extra_chunk(crate::chunk::fflag_chunk(&flag));
+                }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
+                log::warn!(
+                    "File flags are not supported on filesystem for '{}': {}",
+                    path.display(),
+                    e
+                );
+            }
+            Err(e) => return Err(e),
+        }
     }
     Ok(entry)
 }

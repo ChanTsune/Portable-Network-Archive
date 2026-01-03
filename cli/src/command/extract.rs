@@ -1,6 +1,5 @@
 #[cfg(feature = "memmap")]
 use crate::command::core::run_entries;
-#[cfg(feature = "acl")]
 use crate::ext::*;
 #[cfg(any(unix, windows))]
 use crate::utils::fs::lchown;
@@ -9,8 +8,8 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            AclStrategy, KeepOptions, OwnerOptions, PathFilter, PathTransformers, PathnameEditor,
-            PermissionStrategy, TimeFilterResolver, TimeFilters, TimestampStrategy,
+            AclStrategy, FflagsStrategy, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
+            PathnameEditor, PermissionStrategy, TimeFilterResolver, TimeFilters, TimestampStrategy,
             TimestampStrategyResolver, XattrStrategy, apply_chroot, collect_split_archives,
             path_lock::PathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
@@ -420,6 +419,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         ),
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
+        fflags_strategy: FflagsStrategy::Never,
     };
     let owner_options = OwnerOptions::new(
         args.uname,
@@ -913,6 +913,22 @@ where
     #[cfg(not(feature = "acl"))]
     if let AclStrategy::Always = keep_options.acl_strategy {
         log::warn!("Please enable `acl` feature and rebuild and install pna.");
+    }
+    if let FflagsStrategy::Always = keep_options.fflags_strategy {
+        let flags = item.fflags();
+        if !flags.is_empty() {
+            match utils::fs::set_flags(path, &flags) {
+                Ok(()) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
+                    log::warn!(
+                        "File flags are not supported on filesystem for '{}': {}",
+                        path.display(),
+                        e
+                    );
+                }
+                Err(e) => return Err(e),
+            }
+        }
     }
     Ok(())
 }
