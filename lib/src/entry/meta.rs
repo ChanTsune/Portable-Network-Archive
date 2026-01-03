@@ -316,6 +316,112 @@ impl Permission {
     }
 }
 
+/// Device numbers for block and character device entries.
+///
+/// This stores the major and minor device numbers that identify the device type
+/// and specific device instance on Unix-like systems.
+///
+/// # Examples
+///
+/// ```rust
+/// use libpna::DeviceNumbers;
+///
+/// // Create device numbers for /dev/null (typically major=1, minor=3 on Linux)
+/// let dev = DeviceNumbers::new(1, 3);
+/// assert_eq!(dev.major(), 1);
+/// assert_eq!(dev.minor(), 3);
+/// ```
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct DeviceNumbers {
+    major: u32,
+    minor: u32,
+}
+
+impl DeviceNumbers {
+    /// Creates new device numbers with the given major and minor values.
+    ///
+    /// # Arguments
+    ///
+    /// - `major`: The major device number (identifies the device driver)
+    /// - `minor`: The minor device number (identifies the specific device)
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use libpna::DeviceNumbers;
+    ///
+    /// let dev = DeviceNumbers::new(8, 0); // Typical SCSI disk
+    /// ```
+    #[inline]
+    pub const fn new(major: u32, minor: u32) -> Self {
+        Self { major, minor }
+    }
+
+    /// Returns the major device number.
+    ///
+    /// The major number identifies the device driver responsible for the device.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use libpna::DeviceNumbers;
+    ///
+    /// let dev = DeviceNumbers::new(8, 0);
+    /// assert_eq!(dev.major(), 8);
+    /// ```
+    #[inline]
+    pub const fn major(&self) -> u32 {
+        self.major
+    }
+
+    /// Returns the minor device number.
+    ///
+    /// The minor number identifies the specific device managed by the driver.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use libpna::DeviceNumbers;
+    ///
+    /// let dev = DeviceNumbers::new(8, 1);
+    /// assert_eq!(dev.minor(), 1);
+    /// ```
+    #[inline]
+    pub const fn minor(&self) -> u32 {
+        self.minor
+    }
+
+    /// Serializes the device numbers to bytes.
+    ///
+    /// Format: `[major: 4 bytes BE][minor: 4 bytes BE]`
+    #[inline]
+    pub(crate) fn to_bytes(self) -> [u8; 8] {
+        let mut bytes = [0u8; 8];
+        bytes[0..4].copy_from_slice(&self.major.to_be_bytes());
+        bytes[4..8].copy_from_slice(&self.minor.to_be_bytes());
+        bytes
+    }
+
+    /// Deserializes device numbers from bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the byte slice is too short.
+    pub(crate) fn try_from_bytes(mut bytes: &[u8]) -> io::Result<Self> {
+        let major = u32::from_be_bytes({
+            let mut buf = [0; 4];
+            bytes.read_exact(&mut buf)?;
+            buf
+        });
+        let minor = u32::from_be_bytes({
+            let mut buf = [0; 4];
+            bytes.read_exact(&mut buf)?;
+            buf
+        });
+        Ok(Self { major, minor })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -326,5 +432,11 @@ mod tests {
     fn permission() {
         let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
         assert_eq!(perm, Permission::try_from_bytes(&perm.to_bytes()).unwrap());
+    }
+
+    #[test]
+    fn device_numbers() {
+        let dev = DeviceNumbers::new(8, 1);
+        assert_eq!(dev, DeviceNumbers::try_from_bytes(&dev.to_bytes()).unwrap());
     }
 }

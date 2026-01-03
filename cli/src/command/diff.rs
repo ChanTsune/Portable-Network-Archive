@@ -61,6 +61,9 @@ fn compare_entry<T: AsRef<[u8]>>(entry: NormalEntry<T>, password: Option<&[u8]>)
                 DataKind::Directory => println!("Missing directory: {path}"),
                 DataKind::SymbolicLink => println!("Missing symbolic link: {path}"),
                 DataKind::HardLink => println!("Missing hard link: {path}"),
+                DataKind::BlockDevice => println!("Missing block device: {path}"),
+                DataKind::CharDevice => println!("Missing character device: {path}"),
+                DataKind::Fifo => println!("Missing FIFO: {path}"),
             }
             return Ok(());
         }
@@ -90,7 +93,12 @@ fn compare_entry<T: AsRef<[u8]>>(entry: NormalEntry<T>, password: Option<&[u8]>)
             }
             Err(e) => return Err(e),
         },
-        DataKind::File | DataKind::Directory | DataKind::SymbolicLink => {
+        DataKind::File
+        | DataKind::Directory
+        | DataKind::SymbolicLink
+        | DataKind::BlockDevice
+        | DataKind::CharDevice
+        | DataKind::Fifo => {
             println!("Mismatch file type: {path}")
         }
         DataKind::HardLink => (),

@@ -1004,6 +1004,58 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
         let reader = decompress_reader(decrypt_reader, self.header.compression)?;
         Ok(EntryDataReader(EntryReader(reader)))
     }
+
+    /// Reads device numbers for block/character device entries.
+    ///
+    /// Returns `Some` for [`DataKind::BlockDevice`] and [`DataKind::CharDevice`] entries,
+    /// `None` for other entry types.
+    ///
+    /// Device numbers are stored in the entry's data (FDAT) as 8 bytes:
+    /// - 4 bytes: major device number (big-endian)
+    /// - 4 bytes: minor device number (big-endian)
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use libpna::{Archive, DataKind, ReadOptions};
+    /// use std::{fs, io};
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let file = fs::File::open("foo.pna")?;
+    /// let mut archive = Archive::read_header(file)?;
+    /// for entry in archive.entries().skip_solid() {
+    ///     let entry = entry?;
+    ///     match entry.data_kind() {
+    ///         DataKind::BlockDevice | DataKind::CharDevice => {
+    ///             if let Some(dev) = entry.read_device_numbers(ReadOptions::builder().build())? {
+    ///                 println!("Device: {}:{}", dev.major(), dev.minor());
+    ///             }
+    ///         }
+    ///         _ => {}
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if an I/O error occurs while reading the device numbers.
+    #[inline]
+    pub fn read_device_numbers(
+        &self,
+        option: impl ReadOption,
+    ) -> io::Result<Option<DeviceNumbers>> {
+        match self.header.data_kind {
+            DataKind::BlockDevice | DataKind::CharDevice => {
+                let mut reader = self.reader(option)?;
+                let mut buf = [0u8; 8];
+                reader.read_exact(&mut buf)?;
+                Ok(Some(DeviceNumbers::try_from_bytes(&buf)?))
+            }
+            _ => Ok(None),
+        }
+    }
 }
 
 impl<'a> From<NormalEntry<Cow<'a, [u8]>>> for NormalEntry<Vec<u8>> {

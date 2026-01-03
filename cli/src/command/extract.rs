@@ -832,6 +832,109 @@ where
             }
             fs::hard_link(original, &path)?;
         }
+        DataKind::BlockDevice => {
+            #[cfg(unix)]
+            {
+                let Some(dev) = item.read_device_numbers(ReadOptions::with_password(password))?
+                else {
+                    log::warn!(
+                        "Skipping block device without device numbers: {}",
+                        path.display()
+                    );
+                    return Ok(());
+                };
+                let mode = item
+                    .metadata()
+                    .permission()
+                    .map(|p| p.permissions() as u32)
+                    .unwrap_or(0o666);
+                if remove_existing {
+                    utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
+                }
+                if let Err(e) = utils::fs::mknod_block(&path, dev.major(), dev.minor(), mode) {
+                    log::warn!(
+                        "Failed to create block device {} (major={}, minor={}): {} (may require root)",
+                        path.display(),
+                        dev.major(),
+                        dev.minor(),
+                        e
+                    );
+                    return Ok(());
+                }
+            }
+            #[cfg(not(unix))]
+            {
+                log::warn!(
+                    "Skipping block device (not supported on this platform): {}",
+                    path.display()
+                );
+                return Ok(());
+            }
+        }
+        DataKind::CharDevice => {
+            #[cfg(unix)]
+            {
+                let Some(dev) = item.read_device_numbers(ReadOptions::with_password(password))?
+                else {
+                    log::warn!(
+                        "Skipping character device without device numbers: {}",
+                        path.display()
+                    );
+                    return Ok(());
+                };
+                let mode = item
+                    .metadata()
+                    .permission()
+                    .map(|p| p.permissions() as u32)
+                    .unwrap_or(0o666);
+                if remove_existing {
+                    utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
+                }
+                if let Err(e) = utils::fs::mknod_char(&path, dev.major(), dev.minor(), mode) {
+                    log::warn!(
+                        "Failed to create character device {} (major={}, minor={}): {} (may require root)",
+                        path.display(),
+                        dev.major(),
+                        dev.minor(),
+                        e
+                    );
+                    return Ok(());
+                }
+            }
+            #[cfg(not(unix))]
+            {
+                log::warn!(
+                    "Skipping character device (not supported on this platform): {}",
+                    path.display()
+                );
+                return Ok(());
+            }
+        }
+        DataKind::Fifo => {
+            #[cfg(unix)]
+            {
+                let mode = item
+                    .metadata()
+                    .permission()
+                    .map(|p| p.permissions() as u32)
+                    .unwrap_or(0o666);
+                if remove_existing {
+                    utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
+                }
+                if let Err(e) = utils::fs::mkfifo(&path, mode) {
+                    log::warn!("Failed to create FIFO {}: {}", path.display(), e);
+                    return Ok(());
+                }
+            }
+            #[cfg(not(unix))]
+            {
+                log::warn!(
+                    "Skipping FIFO (not supported on this platform): {}",
+                    path.display()
+                );
+                return Ok(());
+            }
+        }
     }
     restore_metadata(&item, &path, keep_options, owner_options, same_owner)?;
     drop(path_guard);

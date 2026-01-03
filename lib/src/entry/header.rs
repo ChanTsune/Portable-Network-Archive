@@ -75,6 +75,24 @@ impl EntryHeader {
         Self::new(DataKind::HardLink, path)
     }
 
+    /// Creates a header for a block device.
+    #[inline]
+    pub(crate) const fn for_block_device(path: EntryName) -> Self {
+        Self::new(DataKind::BlockDevice, path)
+    }
+
+    /// Creates a header for a character device.
+    #[inline]
+    pub(crate) const fn for_char_device(path: EntryName) -> Self {
+        Self::new(DataKind::CharDevice, path)
+    }
+
+    /// Creates a header for a FIFO (named pipe).
+    #[inline]
+    pub(crate) const fn for_fifo(path: EntryName) -> Self {
+        Self::new(DataKind::Fifo, path)
+    }
+
     /// Path of the entry that sanitized to remove path traversal characters by [`EntryName::sanitize`].
     #[inline]
     pub fn path(&self) -> &EntryName {

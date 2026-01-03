@@ -324,6 +324,21 @@ pub(crate) enum StoreAs {
     Dir,
     Symlink,
     Hardlink(PathBuf),
+    /// Block device with major and minor numbers.
+    #[cfg(unix)]
+    BlockDevice {
+        major: u32,
+        minor: u32,
+    },
+    /// Character device with major and minor numbers.
+    #[cfg(unix)]
+    CharDevice {
+        major: u32,
+        minor: u32,
+    },
+    /// FIFO (named pipe).
+    #[cfg(unix)]
+    Fifo,
 }
 
 /// Collects items from multiple paths, preserving CLI argument order.
@@ -481,10 +496,35 @@ pub(crate) fn collect_items_with_state(
                         None
                     }
                 } else {
-                    return Err(io::Error::new(
-                        io::ErrorKind::Unsupported,
-                        format!("Unsupported file type: {}", path.display()),
-                    ));
+                    #[cfg(unix)]
+                    {
+                        use std::os::unix::fs::{FileTypeExt, MetadataExt};
+                        let metadata = fs::symlink_metadata(path)?;
+                        let ft = metadata.file_type();
+                        if ft.is_block_device() {
+                            let rdev = metadata.rdev();
+                            let (major, minor) = utils::fs::decode_rdev(rdev);
+                            Some(StoreAs::BlockDevice { major, minor })
+                        } else if ft.is_char_device() {
+                            let rdev = metadata.rdev();
+                            let (major, minor) = utils::fs::decode_rdev(rdev);
+                            Some(StoreAs::CharDevice { major, minor })
+                        } else if ft.is_fifo() {
+                            Some(StoreAs::Fifo)
+                        } else {
+                            return Err(io::Error::new(
+                                io::ErrorKind::Unsupported,
+                                format!("Unsupported file type: {}", path.display()),
+                            ));
+                        }
+                    }
+                    #[cfg(not(unix))]
+                    {
+                        return Err(io::Error::new(
+                            io::ErrorKind::Unsupported,
+                            format!("Unsupported file type: {}", path.display()),
+                        ));
+                    }
                 };
 
                 if let Some((store_as, metadata)) = store {
@@ -620,6 +660,45 @@ pub(crate) fn create_entry(
         StoreAs::Dir => {
             let entry = EntryBuilder::new_dir(entry_name);
             apply_metadata(entry, path, keep_options, owner_options, metadata)?.build()
+        }
+        #[cfg(unix)]
+        StoreAs::BlockDevice { major, minor } => {
+            let entry = EntryBuilder::new_block_device(entry_name, *major, *minor)?;
+            apply_metadata(
+                entry,
+                path,
+                keep_options,
+                owner_options,
+                time_options,
+                fs::symlink_metadata,
+            )?
+            .build()
+        }
+        #[cfg(unix)]
+        StoreAs::CharDevice { major, minor } => {
+            let entry = EntryBuilder::new_char_device(entry_name, *major, *minor)?;
+            apply_metadata(
+                entry,
+                path,
+                keep_options,
+                owner_options,
+                time_options,
+                fs::symlink_metadata,
+            )?
+            .build()
+        }
+        #[cfg(unix)]
+        StoreAs::Fifo => {
+            let entry = EntryBuilder::new_fifo(entry_name);
+            apply_metadata(
+                entry,
+                path,
+                keep_options,
+                owner_options,
+                time_options,
+                fs::symlink_metadata,
+            )?
+            .build()
         }
     }
     .map(Some)

@@ -74,3 +74,64 @@ pub(crate) fn file_create(path: impl AsRef<Path>, overwrite: bool) -> io::Result
         fs::File::create_new(path)
     }
 }
+
+/// Decodes a raw device number (rdev) into major and minor device numbers.
+///
+/// On Linux, the rdev field uses a more complex encoding for devices with
+/// large numbers, but for most common devices the simple encoding suffices.
+#[cfg(unix)]
+#[inline]
+pub(crate) fn decode_rdev(rdev: u64) -> (u32, u32) {
+    // Use libc's major/minor macros for platform-correct decoding
+    let major = libc::major(rdev) as u32;
+    let minor = libc::minor(rdev) as u32;
+    (major, minor)
+}
+
+/// Encodes major and minor device numbers into a raw device number (rdev).
+#[cfg(unix)]
+#[inline]
+pub(crate) fn encode_rdev(major: u32, minor: u32) -> u64 {
+    libc::makedev(major, minor)
+}
+
+/// Creates a block device node at the specified path.
+///
+/// Requires root privileges on most systems.
+#[cfg(unix)]
+pub(crate) fn mknod_block(
+    path: impl AsRef<Path>,
+    major: u32,
+    minor: u32,
+    mode: u32,
+) -> io::Result<()> {
+    use nix::sys::stat::{self, SFlag};
+    let dev = encode_rdev(major, minor);
+    let mode = stat::Mode::from_bits_truncate(mode);
+    stat::mknod(path.as_ref(), SFlag::S_IFBLK, mode, dev).map_err(io::Error::other)
+}
+
+/// Creates a character device node at the specified path.
+///
+/// Requires root privileges on most systems.
+#[cfg(unix)]
+pub(crate) fn mknod_char(
+    path: impl AsRef<Path>,
+    major: u32,
+    minor: u32,
+    mode: u32,
+) -> io::Result<()> {
+    use nix::sys::stat::{self, SFlag};
+    let dev = encode_rdev(major, minor);
+    let mode = stat::Mode::from_bits_truncate(mode);
+    stat::mknod(path.as_ref(), SFlag::S_IFCHR, mode, dev).map_err(io::Error::other)
+}
+
+/// Creates a FIFO (named pipe) at the specified path.
+#[cfg(unix)]
+pub(crate) fn mkfifo(path: impl AsRef<Path>, mode: u32) -> io::Result<()> {
+    use nix::sys::stat::Mode;
+    use nix::unistd;
+    let mode = Mode::from_bits_truncate(mode);
+    unistd::mkfifo(path.as_ref(), mode).map_err(io::Error::other)
+}
