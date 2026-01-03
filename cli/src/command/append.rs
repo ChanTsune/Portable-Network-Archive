@@ -7,14 +7,14 @@ use crate::{
         Command, ask_password, check_password,
         core::{
             AclStrategy, CollectOptions, CollectedItem, CreateOptions, KeepOptions, OwnerOptions,
-            PathFilter, PathTransformers, PathnameEditor, PermissionStrategy, TimeFilterResolver,
+            PathTransformers, PathnameEditor, PermissionStrategy, TimeFilterResolver,
             TimestampStrategyResolver, XattrStrategy, collect_items_from_paths, create_entry,
-            entry_option,
+            entry_option, new_path_filter,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin,
         },
     },
-    utils::{PathPartExt, VCS_FILES, fs::HardlinkResolver},
+    utils::{PathPartExt, fs::HardlinkResolver},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::{Archive, prelude::*};
@@ -276,7 +276,7 @@ pub(crate) struct AppendCommand {
         requires = "unstable",
         help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)"
     )]
-    include: Option<Vec<String>>,
+    include: Vec<String>,
     #[arg(
         long,
         value_name = "PATTERN",
@@ -284,7 +284,7 @@ pub(crate) struct AppendCommand {
         help = "Exclude path glob (unstable)",
         value_hint = ValueHint::AnyPath
     )]
-    exclude: Option<Vec<String>>,
+    exclude: Vec<String>,
     #[arg(
         long,
         value_name = "FILE",
@@ -429,19 +429,15 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
     } else if let Some(path) = args.files_from {
         files.extend(read_paths(path, args.null)?);
     }
-    let mut exclude = args.exclude.unwrap_or_default();
-    if let Some(p) = args.exclude_from {
-        exclude.extend(read_paths(p, args.null)?);
-    }
-    let vcs_patterns = args
-        .exclude_vcs
-        .then(|| VCS_FILES.iter().copied())
-        .into_iter()
-        .flatten();
-    let filter = PathFilter::new(
-        args.include.iter().flatten(),
-        exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
-    );
+    let include = args.include;
+    let mut exclude = args.exclude;
+    let filter = new_path_filter(
+        &include,
+        &mut exclude,
+        args.exclude_from,
+        args.null,
+        args.exclude_vcs,
+    )?;
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
     }

@@ -1,4 +1,6 @@
-use crate::utils::BsdGlobPatterns;
+use super::read_paths;
+use crate::utils::{BsdGlobPatterns, VCS_FILES};
+use std::{io, path::PathBuf};
 
 /// A filter for paths based on include and exclude glob patterns.
 #[derive(Clone, Debug)]
@@ -29,6 +31,30 @@ impl<'a> PathFilter<'a> {
         let s = s.as_ref();
         self.exclude.matches_exclusion(s) || !self.include.matches_inclusion(s)
     }
+}
+
+#[inline]
+pub(crate) fn new_path_filter<'a>(
+    include_patterns: &'a [String],
+    exclude_patterns: &'a mut Vec<String>,
+    exclude_from: Option<PathBuf>,
+    null_separate: bool,
+    exclude_vcs: bool,
+) -> io::Result<PathFilter<'a>> {
+    if let Some(p) = exclude_from {
+        exclude_patterns.extend(read_paths(p, null_separate)?);
+    }
+    let vcs_patterns = exclude_vcs
+        .then(|| VCS_FILES.iter().copied())
+        .into_iter()
+        .flatten();
+    Ok(PathFilter::new(
+        include_patterns.iter().map(|s| s.as_str()),
+        exclude_patterns
+            .iter()
+            .map(|s| s.as_str())
+            .chain(vcs_patterns),
+    ))
 }
 
 #[cfg(test)]
