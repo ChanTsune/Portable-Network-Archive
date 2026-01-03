@@ -487,6 +487,13 @@ pub(crate) struct StdioCommand {
     no_safe_writes: bool,
     #[arg(short = 'a', long = "auto-compress", hide = true)]
     auto_compress: bool,
+    #[arg(
+        short = 'b',
+        long = "block-size",
+        value_name = "blocksize",
+        hide = true
+    )]
+    block_size: Option<usize>,
     #[arg(long, action = clap::ArgAction::Version, help = "Print version")]
     version: (),
     #[arg(long, action = clap::ArgAction::Help, help = "Print help")]
@@ -524,6 +531,11 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     }
     if args.auto_compress {
         log::warn!("Option '--auto-compress' is accepted for compatibility but will be ignored.");
+    }
+    if let Some(block_size) = &args.block_size {
+        log::warn!(
+            "Option '--block-size {block_size}' is accepted for compatibility but will be ignored."
+        );
     }
     if args.create {
         run_create_archive(args)
