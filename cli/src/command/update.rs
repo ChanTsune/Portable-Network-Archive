@@ -11,15 +11,15 @@ use crate::{
         Command, ask_password, check_password,
         core::{
             AclStrategy, CollectOptions, CollectedItem, CreateOptions, KeepOptions, OwnerOptions,
-            PathFilter, PathTransformers, PathnameEditor, PermissionStrategy, TimeFilterResolver,
+            PathTransformers, PathnameEditor, PermissionStrategy, TimeFilterResolver,
             TimestampStrategyResolver, TransformStrategy, TransformStrategyKeepSolid,
             TransformStrategyUnSolid, XattrStrategy, collect_items_from_paths,
-            collect_split_archives, create_entry, entry_option,
+            collect_split_archives, create_entry, entry_option, new_path_filter,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin,
         },
     },
-    utils::{PathPartExt, VCS_FILES, env::NamedTempFile, fs::HardlinkResolver},
+    utils::{PathPartExt, env::NamedTempFile, fs::HardlinkResolver},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;
@@ -275,7 +275,7 @@ pub(crate) struct UpdateCommand {
         requires = "unstable",
         help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)"
     )]
-    include: Option<Vec<String>>,
+    include: Vec<String>,
     #[arg(
         long,
         value_name = "PATTERN",
@@ -283,7 +283,7 @@ pub(crate) struct UpdateCommand {
         help = "Exclude path glob (unstable)",
         value_hint = ValueHint::AnyPath
     )]
-    exclude: Option<Vec<String>>,
+    exclude: Vec<String>,
     #[arg(
         long,
         value_name = "FILE",
@@ -439,19 +439,15 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
         files.extend(read_paths(path, args.null)?);
     }
 
-    let mut exclude = args.exclude.unwrap_or_default();
-    if let Some(p) = args.exclude_from {
-        exclude.extend(read_paths(p, args.null)?);
-    }
-    let vcs_patterns = args
-        .exclude_vcs
-        .then(|| VCS_FILES.iter().copied())
-        .into_iter()
-        .flatten();
-    let filter = PathFilter::new(
-        args.include.iter().flatten(),
-        exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
-    );
+    let include = args.include;
+    let mut exclude = args.exclude;
+    let filter = new_path_filter(
+        &include,
+        &mut exclude,
+        args.exclude_from,
+        args.null,
+        args.exclude_vcs,
+    )?;
 
     let archive_path = current_dir.join(args.file.archive);
     if let Some(working_dir) = args.working_dir {

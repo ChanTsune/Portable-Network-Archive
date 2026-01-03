@@ -6,12 +6,12 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            PathFilter, TimeFilterResolver, TimeFilters, collect_split_archives, read_paths,
+            PathFilter, TimeFilterResolver, TimeFilters, collect_split_archives, new_path_filter,
             run_read_entries,
         },
     },
     ext::*,
-    utils::{BsdGlobMatcher, VCS_FILES},
+    utils::BsdGlobMatcher,
 };
 use base64::Engine;
 use chrono::{
@@ -176,7 +176,7 @@ pub(crate) struct ListCommand {
         value_name = "PATTERN",
         help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions"
     )]
-    include: Option<Vec<String>>,
+    include: Vec<String>,
     #[arg(
         long,
         value_name = "PATTERN",
@@ -184,7 +184,7 @@ pub(crate) struct ListCommand {
         help = "Exclude path glob (unstable)",
         value_hint = ValueHint::AnyPath
     )]
-    exclude: Option<Vec<String>>,
+    exclude: Vec<String>,
     #[arg(
         long,
         value_name = "FILE",
@@ -428,19 +428,15 @@ fn list_archive(args: ListCommand, color: ColorChoice) -> anyhow::Result<()> {
     let files_globs = BsdGlobMatcher::new(files.iter().map(|it| it.as_str()))
         .with_no_recursive(args.no_recursive);
 
-    let mut exclude = args.exclude.unwrap_or_default();
-    if let Some(p) = args.exclude_from {
-        exclude.extend(read_paths(p, args.null)?);
-    }
-    let vcs_patterns = args
-        .exclude_vcs
-        .then(|| VCS_FILES.iter().copied())
-        .into_iter()
-        .flatten();
-    let filter = PathFilter::new(
-        args.include.iter().flatten(),
-        exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
-    );
+    let include = args.include;
+    let mut exclude = args.exclude;
+    let filter = new_path_filter(
+        &include,
+        &mut exclude,
+        args.exclude_from,
+        args.null,
+        args.exclude_vcs,
+    )?;
 
     let archives = collect_split_archives(&archive)?;
 

@@ -8,10 +8,10 @@ use crate::{
         append::{open_archive_then_seek_to_end, run_append_archive},
         ask_password, check_password,
         core::{
-            AclStrategy, CollectOptions, CreateOptions, KeepOptions, OwnerOptions, PathFilter,
+            AclStrategy, CollectOptions, CreateOptions, KeepOptions, OwnerOptions,
             PathTransformers, PathnameEditor, PermissionStrategy, TimeFilterResolver,
             TimestampStrategyResolver, TransformStrategyUnSolid, XattrStrategy, apply_chroot,
-            collect_items_from_paths, collect_split_archives, entry_option,
+            collect_items_from_paths, collect_split_archives, entry_option, new_path_filter,
             path_lock::PathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths,
@@ -21,9 +21,7 @@ use crate::{
         list::{Format, ListOptions, TimeField, TimeFormat},
         update::run_update_archive,
     },
-    utils::{
-        self, BsdGlobMatcher, PathPartExt, VCS_FILES, env::NamedTempFile, fs::HardlinkResolver,
-    },
+    utils::{self, BsdGlobMatcher, PathPartExt, env::NamedTempFile, fs::HardlinkResolver},
 };
 use clap::{ArgGroup, Args, ValueHint};
 use pna::Archive;
@@ -206,7 +204,7 @@ pub(crate) struct StdioCommand {
         requires = "unstable",
         help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)"
     )]
-    include: Option<Vec<String>>,
+    include: Vec<String>,
     #[arg(
         long,
         value_name = "PATTERN",
@@ -214,7 +212,7 @@ pub(crate) struct StdioCommand {
         help = "Exclude path glob (unstable)",
         value_hint = ValueHint::AnyPath
     )]
-    exclude: Option<Vec<String>>,
+    exclude: Vec<String>,
     #[arg(
         short = 'X',
         long,
@@ -554,19 +552,15 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         files.extend(read_paths(path, args.null)?);
     }
 
-    let mut exclude = args.exclude.unwrap_or_default();
-    if let Some(p) = args.exclude_from {
-        exclude.extend(read_paths(p, args.null)?);
-    }
-    let vcs_patterns = args
-        .exclude_vcs
-        .then(|| VCS_FILES.iter().copied())
-        .into_iter()
-        .flatten();
-    let filter = PathFilter::new(
-        args.include.iter().flatten(),
-        exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
-    );
+    let include = args.include;
+    let mut exclude = args.exclude;
+    let filter = new_path_filter(
+        &include,
+        &mut exclude,
+        args.exclude_from,
+        args.null,
+        args.exclude_vcs,
+    )?;
     let time_filters = TimeFilterResolver {
         newer_ctime_than: args.newer_ctime_than.as_deref(),
         older_ctime_than: args.older_ctime_than.as_deref(),
@@ -662,19 +656,15 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
 fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
 
-    let mut exclude = args.exclude.unwrap_or_default();
-    if let Some(p) = args.exclude_from {
-        exclude.extend(read_paths(p, args.null)?);
-    }
-    let vcs_patterns = args
-        .exclude_vcs
-        .then(|| VCS_FILES.iter().copied())
-        .into_iter()
-        .flatten();
-    let filter = PathFilter::new(
-        args.include.iter().flatten(),
-        exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
-    );
+    let include = args.include;
+    let mut exclude = args.exclude;
+    let filter = new_path_filter(
+        &include,
+        &mut exclude,
+        args.exclude_from,
+        args.null,
+        args.exclude_vcs,
+    )?;
 
     let overwrite_strategy = OverwriteStrategy::from_flags(
         args.overwrite,
@@ -813,19 +803,15 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
     let files_globs = BsdGlobMatcher::new(args.files.iter().map(|it| it.as_str()))
         .with_no_recursive(args.no_recursive);
 
-    let mut exclude = args.exclude.unwrap_or_default();
-    if let Some(p) = args.exclude_from {
-        exclude.extend(read_paths(p, args.null)?);
-    }
-    let vcs_patterns = args
-        .exclude_vcs
-        .then(|| VCS_FILES.iter().copied())
-        .into_iter()
-        .flatten();
-    let filter = PathFilter::new(
-        args.include.iter().flatten(),
-        exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
-    );
+    let include = args.include;
+    let mut exclude = args.exclude;
+    let filter = new_path_filter(
+        &include,
+        &mut exclude,
+        args.exclude_from,
+        args.null,
+        args.exclude_vcs,
+    )?;
     // NOTE: "-" will use stdout
     let mut file = args.file;
     file.take_if(|it| it == "-");
@@ -907,19 +893,15 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         files.extend(read_paths(path, args.null)?);
     }
 
-    let mut exclude = args.exclude.unwrap_or_default();
-    if let Some(p) = args.exclude_from {
-        exclude.extend(read_paths(p, args.null)?);
-    }
-    let vcs_patterns = args
-        .exclude_vcs
-        .then(|| VCS_FILES.iter().copied())
-        .into_iter()
-        .flatten();
-    let filter = PathFilter::new(
-        args.include.iter().flatten(),
-        exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
-    );
+    let include = args.include;
+    let mut exclude = args.exclude;
+    let filter = new_path_filter(
+        &include,
+        &mut exclude,
+        args.exclude_from,
+        args.null,
+        args.exclude_vcs,
+    )?;
     let time_filters = TimeFilterResolver {
         newer_ctime_than: args.newer_ctime_than.as_deref(),
         older_ctime_than: args.older_ctime_than.as_deref(),
@@ -1058,19 +1040,15 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
         files.extend(read_paths(path, args.null)?);
     }
 
-    let mut exclude = args.exclude.unwrap_or_default();
-    if let Some(p) = args.exclude_from {
-        exclude.extend(read_paths(p, args.null)?);
-    }
-    let vcs_patterns = args
-        .exclude_vcs
-        .then(|| VCS_FILES.iter().copied())
-        .into_iter()
-        .flatten();
-    let filter = PathFilter::new(
-        args.include.iter().flatten(),
-        exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
-    );
+    let include = args.include;
+    let mut exclude = args.exclude;
+    let filter = new_path_filter(
+        &include,
+        &mut exclude,
+        args.exclude_from,
+        args.null,
+        args.exclude_vcs,
+    )?;
 
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;

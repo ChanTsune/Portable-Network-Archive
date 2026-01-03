@@ -7,14 +7,14 @@ use crate::{
         Command, ask_password, check_password,
         core::{
             AclStrategy, CollectOptions, CollectedItem, CreateOptions, KeepOptions,
-            MIN_SPLIT_PART_BYTES, OwnerOptions, PathFilter, PathTransformers, PathnameEditor,
+            MIN_SPLIT_PART_BYTES, OwnerOptions, PathTransformers, PathnameEditor,
             PermissionStrategy, TimeFilterResolver, TimestampStrategyResolver, XattrStrategy,
-            collect_items_from_paths, create_entry, entry_option,
+            collect_items_from_paths, create_entry, entry_option, new_path_filter,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin, write_split_archive,
         },
     },
-    utils::{self, VCS_FILES, fmt::DurationDisplay, fs::HardlinkResolver},
+    utils::{self, fmt::DurationDisplay, fs::HardlinkResolver},
 };
 use anyhow::ensure;
 use bytesize::ByteSize;
@@ -299,7 +299,7 @@ pub(crate) struct CreateCommand {
         requires = "unstable",
         help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)"
     )]
-    include: Option<Vec<String>>,
+    include: Vec<String>,
     #[arg(
         long,
         value_name = "PATTERN",
@@ -307,7 +307,7 @@ pub(crate) struct CreateCommand {
         help = "Exclude path glob (unstable)",
         value_hint = ValueHint::AnyPath
     )]
-    exclude: Option<Vec<String>>,
+    exclude: Vec<String>,
     #[arg(
         long,
         value_name = "FILE",
@@ -413,19 +413,15 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         files.extend(read_paths(path, args.null)?);
     }
 
-    let mut exclude = args.exclude.unwrap_or_default();
-    if let Some(p) = args.exclude_from {
-        exclude.extend(read_paths(p, args.null)?);
-    }
-    let vcs_patterns = args
-        .exclude_vcs
-        .then(|| VCS_FILES.iter().copied())
-        .into_iter()
-        .flatten();
-    let filter = PathFilter::new(
-        args.include.iter().flatten(),
-        exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
-    );
+    let include = args.include;
+    let mut exclude = args.exclude;
+    let filter = new_path_filter(
+        &include,
+        &mut exclude,
+        args.exclude_from,
+        args.null,
+        args.exclude_vcs,
+    )?;
     let archive_path = current_dir.join(archive);
     let time_filters = TimeFilterResolver {
         newer_ctime_than: args.newer_ctime_than.as_deref(),

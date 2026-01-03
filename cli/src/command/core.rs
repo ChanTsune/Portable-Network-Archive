@@ -13,7 +13,7 @@ use crate::{
     utils::{self, PathPartExt, fs::HardlinkResolver},
 };
 use anyhow::Context;
-pub(crate) use path_filter::PathFilter;
+pub(crate) use path_filter::{PathFilter, new_path_filter};
 use path_slash::*;
 pub(crate) use path_transformer::PathTransformers;
 use pna::{
