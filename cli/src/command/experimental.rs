@@ -28,6 +28,7 @@ impl Command for ExperimentalCommand {
             ExperimentalCommands::Chown(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Chmod(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Acl(cmd) => cmd.execute(ctx),
+            ExperimentalCommands::Fflag(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Migrate(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Chunk(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Sort(cmd) => {
@@ -60,6 +61,8 @@ pub(crate) enum ExperimentalCommands {
     Chmod(command::chmod::ChmodCommand),
     #[command(about = "Manipulate ACLs of entries")]
     Acl(command::acl::AclCommand),
+    #[command(about = "Manipulate file flags of entries")]
+    Fflag(command::fflag::FflagCommand),
     #[command(about = "Migrate old format to latest format")]
     Migrate(command::migrate::MigrateCommand),
     #[command(about = "Chunk level operation")]

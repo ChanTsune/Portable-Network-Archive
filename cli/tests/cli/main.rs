@@ -17,6 +17,7 @@ mod delete;
 mod diff;
 mod encrypt;
 mod extract;
+mod fflag;
 mod hardlink;
 mod keep_acl;
 mod keep_all;
