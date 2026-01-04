@@ -71,6 +71,12 @@ pub(crate) struct ListCommand {
     )]
     show_acl: bool,
     #[arg(
+        short = 'O',
+        long = "show-fflags",
+        help = "Display file flags (uchg, nodump, hidden, etc.)"
+    )]
+    show_fflags: bool,
+    #[arg(
         long = "private",
         requires = "unstable",
         help = "Display private chunks in a table (unstable)"
@@ -310,6 +316,7 @@ struct TableRow {
     xattrs: Vec<ExtendedAttribute>,
     acl: HashMap<chunk::AcePlatform, Vec<chunk::Ace>>,
     privates: Vec<RawChunk>,
+    fflags: Vec<String>,
 }
 
 impl TableRow {
@@ -383,6 +390,7 @@ where
                 .filter(|it| it.ty() != chunk::faCe && it.ty() != chunk::faCl)
                 .map(|it| (*it).clone().into())
                 .collect::<Vec<_>>(),
+            fflags: entry.fflags(),
         })
     }
 }
@@ -408,6 +416,7 @@ fn list_archive(args: ListCommand, color: ColorChoice) -> anyhow::Result<()> {
         solid: args.solid,
         show_xattr: args.show_xattr,
         show_acl: args.show_acl,
+        show_fflags: args.show_fflags,
         show_private: args.show_private,
         time_format: if args.long_time {
             TimeFormat::Long
@@ -494,6 +503,7 @@ pub(crate) struct ListOptions {
     pub(crate) solid: bool,
     pub(crate) show_xattr: bool,
     pub(crate) show_acl: bool,
+    pub(crate) show_fflags: bool,
     pub(crate) show_private: bool,
     pub(crate) time_format: TimeFormat,
     pub(crate) time_field: TimeField,
@@ -601,7 +611,7 @@ fn print_formatted_entries(
 ) -> anyhow::Result<()> {
     match options.format {
         Some(Format::Line) => simple_list_entries_to(entries, options, out)?,
-        Some(Format::JsonL) => json_line_entries_to(entries, out)?,
+        Some(Format::JsonL) => json_line_entries_to(entries, options, out)?,
         Some(Format::Table) => detail_list_entries_to(entries, options, out)?,
         Some(Format::Tree) => tree_entries_to(entries, options, out)?,
         Some(Format::BsdTar) => bsd_tar_list_entries_to(entries, options, out)?,
@@ -712,23 +722,24 @@ fn detail_list_entries_to(
 ) -> io::Result<()> {
     let underline = Color::new("\x1B[4m", "\x1B[0m");
     let reset = Color::new("\x1B[8m", "\x1B[0m");
-    let header = [
-        "Encryption",
-        "Compression",
-        "Permissions",
-        "Raw Size",
-        "Compressed Size",
-        "User",
-        "Group",
-        options.time_field.as_str(),
-        "Name",
-    ];
     let mut acl_rows = Vec::new();
     let mut xattr_rows = Vec::new();
     let mut builder = TableBuilder::new();
     builder.set_empty(String::new());
     if options.header {
-        builder.push_record(header);
+        let header = [
+            Some("Encryption"),
+            Some("Compression"),
+            Some("Permissions"),
+            options.show_fflags.then_some("Fflags"),
+            Some("Raw Size"),
+            Some("Compressed Size"),
+            Some("User"),
+            Some("Group"),
+            Some(options.time_field.as_str()),
+            Some("Name"),
+        ];
+        builder.push_record(header.into_iter().flatten());
     }
     for content in entries {
         let has_acl = !content.acl.is_empty();
@@ -742,40 +753,44 @@ fn detail_list_entries_to(
             || "-".into(),
             |it| it.group_display(options.numeric_owner).to_string(),
         );
-        builder.push_record([
-            content.encryption,
-            content.compression,
-            paint_permission(&content.entry_type, permission_mode, has_xattr, has_acl),
-            content
-                .raw_size
-                .map_or_else(|| "-".into(), |size| size.to_string()),
-            content.compressed_size.to_string(),
-            user,
-            group,
-            match options.time_field {
-                TimeField::Created => content.created,
-                TimeField::Modified => content.modified,
-                TimeField::Accessed => content.accessed,
-            }
-            .map_or_else(|| "-".into(), |d| datetime(options.time_format, d)),
-            {
-                let name = match content.entry_type {
-                    EntryType::Directory(path) if options.classify => format!("{path}/"),
-                    EntryType::SymbolicLink(name, link_to) if options.classify => {
-                        format!("{name}@ -> {link_to}")
+        builder.push_record(
+            [
+                Some(content.encryption),
+                Some(content.compression),
+                Some(paint_permission(
+                    &content.entry_type,
+                    permission_mode,
+                    has_xattr,
+                    has_acl,
+                )),
+                options.show_fflags.then(|| {
+                    if content.fflags.is_empty() {
+                        "-".into()
+                    } else {
+                        content.fflags.join(",")
                     }
-                    EntryType::File(path) | EntryType::Directory(path) => path,
-                    EntryType::SymbolicLink(path, link_to) | EntryType::HardLink(path, link_to) => {
-                        format!("{path} -> {link_to}")
+                }),
+                Some(
+                    content
+                        .raw_size
+                        .map_or_else(|| "-".into(), |size| size.to_string()),
+                ),
+                Some(content.compressed_size.to_string()),
+                Some(user),
+                Some(group),
+                Some(
+                    match options.time_field {
+                        TimeField::Created => content.created,
+                        TimeField::Modified => content.modified,
+                        TimeField::Accessed => content.accessed,
                     }
-                };
-                if options.hide_control_chars {
-                    hide_control_chars(&name).to_string()
-                } else {
-                    name
-                }
-            },
-        ]);
+                    .map_or_else(|| "-".into(), |d| datetime(options.time_format, d)),
+                ),
+                Some(detailed_format_name(content.entry_type, options)),
+            ]
+            .into_iter()
+            .flatten(),
+        );
         if options.show_acl {
             let acl = content.acl.into_iter().flat_map(|(platform, ace)| {
                 ace.into_iter().map(move |it| chunk::AceWithPlatform {
@@ -811,21 +826,30 @@ fn detail_list_entries_to(
         }
     }
     let mut table = builder.build();
+    // Determine size columns for right alignment
+    let size_cols_start = if options.show_fflags { 4 } else { 3 };
+    let size_cols_end = size_cols_start + 1;
     table
         .with(TableStyle::empty())
-        .with(Colorization::columns([
-            Color::FG_MAGENTA,
-            Color::FG_BLUE,
-            Color::empty(),
-            Color::FG_GREEN,
-            Color::FG_GREEN,
-            Color::FG_CYAN,
-            Color::FG_CYAN,
-            Color::FG_CYAN,
-            Color::FG_CYAN,
-            Color::empty(),
-        ]))
-        .with(Modify::new(Segment::new(.., 3..=4)).with(Alignment::right()));
+        .with(Colorization::columns(
+            [
+                Some(Color::FG_MAGENTA),                         // Encryption
+                Some(Color::FG_BLUE),                            // Compression
+                Some(Color::empty()),                            // Permissions
+                options.show_fflags.then_some(Color::FG_YELLOW), // Fflags
+                Some(Color::FG_GREEN),                           // Raw Size
+                Some(Color::FG_GREEN),                           // Compressed Size
+                Some(Color::FG_CYAN),                            // User
+                Some(Color::FG_CYAN),                            // Group
+                Some(Color::FG_CYAN),                            // Time
+                Some(Color::empty()),                            // Name
+            ]
+            .into_iter()
+            .flatten(),
+        ))
+        .with(
+            Modify::new(Segment::new(.., size_cols_start..=size_cols_end)).with(Alignment::right()),
+        );
     if options.header {
         table.with(Colorization::exact([underline], Rows::first()));
     }
@@ -836,6 +860,24 @@ fn detail_list_entries_to(
         Color::empty(),
     ));
     writeln!(out, "{table}")
+}
+
+fn detailed_format_name(entry: EntryType, options: &ListOptions) -> String {
+    let name = match entry {
+        EntryType::Directory(path) if options.classify => format!("{path}/"),
+        EntryType::SymbolicLink(name, link_to) if options.classify => {
+            format!("{name}@ -> {link_to}")
+        }
+        EntryType::File(path) | EntryType::Directory(path) => path,
+        EntryType::SymbolicLink(path, link_to) | EntryType::HardLink(path, link_to) => {
+            format!("{path} -> {link_to}")
+        }
+    };
+    if options.hide_control_chars {
+        hide_control_chars(&name).to_string()
+    } else {
+        name
+    }
 }
 
 const DURATION_SIX_MONTH: Duration = Duration::from_secs(60 * 60 * 24 * 30 * 6);
@@ -999,6 +1041,8 @@ struct FileInfo<'a> {
     created: String,
     modified: String,
     accessed: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fflags: Option<&'a [String]>,
     acl: Vec<AclEntry>,
     xattr: Vec<XAttr<'a>>,
 }
@@ -1015,7 +1059,12 @@ struct XAttr<'a> {
     value: String,
 }
 
-fn json_line_entries_to(entries: Vec<TableRow>, mut out: impl Write) -> anyhow::Result<()> {
+fn json_line_entries_to(
+    entries: Vec<TableRow>,
+    options: &ListOptions,
+    mut out: impl Write,
+) -> anyhow::Result<()> {
+    let show_fflags = options.show_fflags;
     let entries = entries
         .par_iter()
         .map(|it| {
@@ -1051,6 +1100,11 @@ fn json_line_entries_to(entries: Vec<TableRow>, mut out: impl Write) -> anyhow::
                 accessed: it
                     .accessed
                     .map_or_else(String::new, |d| datetime(TimeFormat::Long, d)),
+                fflags: if show_fflags {
+                    Some(it.fflags.as_slice())
+                } else {
+                    None
+                },
                 acl: it
                     .acl
                     .iter()
@@ -1103,17 +1157,22 @@ fn delimited_entries_to(
     options: &ListOptions,
     mut wtr: csv::Writer<impl Write>,
 ) -> io::Result<()> {
-    wtr.write_record([
-        "filename",
-        "permissions",
-        "owner",
-        "group",
-        "raw_size",
-        "compressed_size",
-        "encryption",
-        "compression",
-        options.time_field.as_str(),
-    ])?;
+    wtr.write_record(
+        [
+            Some("filename"),
+            Some("permissions"),
+            Some("owner"),
+            Some("group"),
+            Some("raw_size"),
+            Some("compressed_size"),
+            Some("encryption"),
+            Some("compression"),
+            options.show_fflags.then_some("fflags"),
+            Some(options.time_field.as_str()),
+        ]
+        .into_iter()
+        .flatten(),
+    )?;
 
     let rows = entries
         .par_iter()
@@ -1133,21 +1192,24 @@ fn delimited_entries_to(
             .map_or_else(String::new, |d| datetime(TimeFormat::Long, d));
 
             [
-                row.entry_type.name().to_string(),
-                permission_string(
+                Some(row.entry_type.name().to_string()),
+                Some(permission_string(
                     &row.entry_type,
                     permission_mode,
                     !row.xattrs.is_empty(),
                     !row.acl.is_empty(),
-                ),
-                owner,
-                group,
-                row.raw_size.unwrap_or(0).to_string(),
-                row.compressed_size.to_string(),
-                row.encryption.clone(),
-                row.compression.clone(),
-                time,
+                )),
+                Some(owner),
+                Some(group),
+                Some(row.raw_size.unwrap_or(0).to_string()),
+                Some(row.compressed_size.to_string()),
+                Some(row.encryption.clone()),
+                Some(row.compression.clone()),
+                options.show_fflags.then(|| row.fflags.join(",")),
+                Some(time),
             ]
+            .into_iter()
+            .flatten()
         })
         .collect::<Vec<_>>();
 
