@@ -22,12 +22,7 @@ pub(crate) fn chmod(path: &Path, mode: u16) -> io::Result<()> {
 
 #[cfg(target_os = "macos")]
 pub(crate) fn get_flags(path: &Path) -> io::Result<Vec<String>> {
-    use std::os::unix::ffi::OsStrExt;
-    let c_path = std::ffi::CString::new(path.as_os_str().as_bytes())?;
-    let mut stat: libc::stat = unsafe { std::mem::zeroed() };
-    if unsafe { libc::lstat(c_path.as_ptr(), &mut stat) } != 0 {
-        return Err(io::Error::last_os_error());
-    }
+    let stat = nix::sys::stat::lstat(path)?;
     let flags = stat.st_flags;
     let mut flag_names = Vec::new();
     if flags & libc::UF_NODUMP != 0 {
