@@ -824,6 +824,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
         solid: true,
         show_xattr: false,
         show_acl: false,
+        show_fflags: false,
         show_private: false,
         time_format: TimeFormat::Auto(SystemTime::now()),
         time_field: TimeField::default(),
