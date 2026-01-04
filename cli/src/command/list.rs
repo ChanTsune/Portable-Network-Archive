@@ -182,7 +182,7 @@ pub(crate) struct ListCommand {
         value_name = "PATTERN",
         help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions"
     )]
-    include: Option<Vec<String>>,
+    include: Vec<String>,
     #[arg(
         long,
         value_name = "PATTERN",
@@ -190,7 +190,7 @@ pub(crate) struct ListCommand {
         help = "Exclude path glob (unstable)",
         value_hint = ValueHint::AnyPath
     )]
-    exclude: Option<Vec<String>>,
+    exclude: Vec<String>,
     #[arg(
         long,
         value_name = "FILE",
@@ -437,7 +437,7 @@ fn list_archive(args: ListCommand, color: ColorChoice) -> anyhow::Result<()> {
     let files_globs = BsdGlobMatcher::new(files.iter().map(|it| it.as_str()))
         .with_no_recursive(args.no_recursive);
 
-    let mut exclude = args.exclude.unwrap_or_default();
+    let mut exclude = args.exclude;
     if let Some(p) = args.exclude_from {
         exclude.extend(read_paths(p, args.null)?);
     }
@@ -447,7 +447,7 @@ fn list_archive(args: ListCommand, color: ColorChoice) -> anyhow::Result<()> {
         .into_iter()
         .flatten();
     let filter = PathFilter::new(
-        args.include.iter().flatten(),
+        args.include.iter().map(|s| s.as_str()),
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
 

@@ -275,7 +275,7 @@ pub(crate) struct UpdateCommand {
         requires = "unstable",
         help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)"
     )]
-    include: Option<Vec<String>>,
+    include: Vec<String>,
     #[arg(
         long,
         value_name = "PATTERN",
@@ -283,7 +283,7 @@ pub(crate) struct UpdateCommand {
         help = "Exclude path glob (unstable)",
         value_hint = ValueHint::AnyPath
     )]
-    exclude: Option<Vec<String>>,
+    exclude: Vec<String>,
     #[arg(
         long,
         value_name = "FILE",
@@ -440,7 +440,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
         files.extend(read_paths(path, args.null)?);
     }
 
-    let mut exclude = args.exclude.unwrap_or_default();
+    let mut exclude = args.exclude;
     if let Some(p) = args.exclude_from {
         exclude.extend(read_paths(p, args.null)?);
     }
@@ -450,7 +450,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
         .into_iter()
         .flatten();
     let filter = PathFilter::new(
-        args.include.iter().flatten(),
+        args.include.iter().map(|s| s.as_str()),
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
 

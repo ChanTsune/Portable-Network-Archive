@@ -276,7 +276,7 @@ pub(crate) struct AppendCommand {
         requires = "unstable",
         help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)"
     )]
-    include: Option<Vec<String>>,
+    include: Vec<String>,
     #[arg(
         long,
         value_name = "PATTERN",
@@ -284,7 +284,7 @@ pub(crate) struct AppendCommand {
         help = "Exclude path glob (unstable)",
         value_hint = ValueHint::AnyPath
     )]
-    exclude: Option<Vec<String>>,
+    exclude: Vec<String>,
     #[arg(
         long,
         value_name = "FILE",
@@ -430,7 +430,7 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
     } else if let Some(path) = args.files_from {
         files.extend(read_paths(path, args.null)?);
     }
-    let mut exclude = args.exclude.unwrap_or_default();
+    let mut exclude = args.exclude;
     if let Some(p) = args.exclude_from {
         exclude.extend(read_paths(p, args.null)?);
     }
@@ -440,7 +440,7 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         .into_iter()
         .flatten();
     let filter = PathFilter::new(
-        args.include.iter().flatten(),
+        args.include.iter().map(|s| s.as_str()),
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
     if let Some(working_dir) = args.working_dir {

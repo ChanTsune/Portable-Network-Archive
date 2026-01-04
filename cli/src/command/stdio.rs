@@ -221,7 +221,7 @@ pub(crate) struct StdioCommand {
         requires = "unstable",
         help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)"
     )]
-    include: Option<Vec<String>>,
+    include: Vec<String>,
     #[arg(
         long,
         value_name = "PATTERN",
@@ -229,7 +229,7 @@ pub(crate) struct StdioCommand {
         help = "Exclude path glob (unstable)",
         value_hint = ValueHint::AnyPath
     )]
-    exclude: Option<Vec<String>>,
+    exclude: Vec<String>,
     #[arg(
         short = 'X',
         long,
@@ -581,7 +581,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         files.extend(read_paths(path, args.null)?);
     }
 
-    let mut exclude = args.exclude.unwrap_or_default();
+    let mut exclude = args.exclude;
     if let Some(p) = args.exclude_from {
         exclude.extend(read_paths(p, args.null)?);
     }
@@ -591,7 +591,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         .into_iter()
         .flatten();
     let filter = PathFilter::new(
-        args.include.iter().flatten(),
+        args.include.iter().map(|s| s.as_str()),
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
     let time_filters = TimeFilterResolver {
@@ -690,7 +690,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
 fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
 
-    let mut exclude = args.exclude.unwrap_or_default();
+    let mut exclude = args.exclude;
     if let Some(p) = args.exclude_from {
         exclude.extend(read_paths(p, args.null)?);
     }
@@ -700,7 +700,7 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         .into_iter()
         .flatten();
     let filter = PathFilter::new(
-        args.include.iter().flatten(),
+        args.include.iter().map(|s| s.as_str()),
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
 
@@ -843,7 +843,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
     let files_globs = BsdGlobMatcher::new(args.files.iter().map(|it| it.as_str()))
         .with_no_recursive(args.no_recursive);
 
-    let mut exclude = args.exclude.unwrap_or_default();
+    let mut exclude = args.exclude;
     if let Some(p) = args.exclude_from {
         exclude.extend(read_paths(p, args.null)?);
     }
@@ -853,7 +853,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
         .into_iter()
         .flatten();
     let filter = PathFilter::new(
-        args.include.iter().flatten(),
+        args.include.iter().map(|s| s.as_str()),
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
     // NOTE: "-" will use stdout
@@ -938,7 +938,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         files.extend(read_paths(path, args.null)?);
     }
 
-    let mut exclude = args.exclude.unwrap_or_default();
+    let mut exclude = args.exclude;
     if let Some(p) = args.exclude_from {
         exclude.extend(read_paths(p, args.null)?);
     }
@@ -948,7 +948,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         .into_iter()
         .flatten();
     let filter = PathFilter::new(
-        args.include.iter().flatten(),
+        args.include.iter().map(|s| s.as_str()),
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
     let time_filters = TimeFilterResolver {
@@ -1090,7 +1090,7 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
         files.extend(read_paths(path, args.null)?);
     }
 
-    let mut exclude = args.exclude.unwrap_or_default();
+    let mut exclude = args.exclude;
     if let Some(p) = args.exclude_from {
         exclude.extend(read_paths(p, args.null)?);
     }
@@ -1100,7 +1100,7 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
         .into_iter()
         .flatten();
     let filter = PathFilter::new(
-        args.include.iter().flatten(),
+        args.include.iter().map(|s| s.as_str()),
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
 
