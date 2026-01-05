@@ -8,9 +8,10 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            AclStrategy, FflagsStrategy, KeepOptions, OwnerOptions, PathFilter, PathTransformers,
-            PathnameEditor, PermissionStrategy, TimeFilterResolver, TimeFilters, TimestampStrategy,
-            TimestampStrategyResolver, XattrStrategy, apply_chroot, collect_split_archives,
+            AclStrategy, FflagsStrategy, KeepOptions, MacMetadataStrategy, OwnerOptions,
+            PathFilter, PathTransformers, PathnameEditor, PermissionStrategy, TimeFilterResolver,
+            TimeFilters, TimestampStrategy, TimestampStrategyResolver, XattrStrategy, apply_chroot,
+            collect_split_archives,
             path_lock::PathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, run_process_archive,
@@ -420,6 +421,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
         fflags_strategy: FflagsStrategy::Never,
+        mac_metadata_strategy: MacMetadataStrategy::Never,
     };
     let owner_options = OwnerOptions::new(
         args.uname,
@@ -872,9 +874,9 @@ fn restore_timestamps(
     Ok(())
 }
 
-/// Restores file metadata (permissions, extended attributes, and ACLs) for an extracted entry according to the provided keep and owner options.
+/// Restores file metadata (permissions, extended attributes, ACLs, and macOS metadata) for an extracted entry according to the provided keep and owner options.
 ///
-/// Permissions are applied when `keep_options.permission_strategy` is `Always`. Extended attributes are applied on Unix when `keep_options.xattr_strategy` is `Always` (logs a warning if the filesystem or platform does not support xattrs). ACLs are restored when the `acl` feature is enabled and `keep_options.acl_strategy` requests them; if the `acl` feature is not compiled in but ACLs were requested, a warning is emitted.
+/// Permissions are applied when `keep_options.permission_strategy` is `Always`. Extended attributes are applied on Unix when `keep_options.xattr_strategy` is `Always` (logs a warning if the filesystem or platform does not support xattrs). ACLs are restored when the `acl` feature is enabled and `keep_options.acl_strategy` requests them; if the `acl` feature is not compiled in but ACLs were requested, a warning is emitted. macOS metadata (AppleDouble) is restored when `keep_options.mac_metadata_strategy` is `Always` on macOS.
 fn restore_metadata<T>(
     item: &NormalEntry<T>,
     path: &Path,
@@ -890,18 +892,31 @@ where
             restore_permissions(*same_owner, path, p, owner_options)?;
         }
     }
+    // On macOS, when mac_metadata_strategy is Always and the entry has mac_metadata,
+    // AppleDouble restoration via copyfile() will include xattrs and ACLs.
+    // Skip separate handling to avoid duplication.
+    #[cfg(target_os = "macos")]
+    let skip_xattr_acl = matches!(
+        keep_options.mac_metadata_strategy,
+        MacMetadataStrategy::Always
+    ) && item.mac_metadata().is_some();
+    #[cfg(not(target_os = "macos"))]
+    let skip_xattr_acl = false;
+
     #[cfg(unix)]
-    if let XattrStrategy::Always = keep_options.xattr_strategy {
-        match utils::os::unix::fs::xattrs::set_xattrs(path, item.xattrs()) {
-            Ok(()) => {}
-            Err(e) if e.kind() == io::ErrorKind::Unsupported => {
-                log::warn!(
-                    "Extended attributes are not supported on filesystem for '{}': {}",
-                    path.display(),
-                    e
-                );
+    if !skip_xattr_acl {
+        if let XattrStrategy::Always = keep_options.xattr_strategy {
+            match utils::os::unix::fs::xattrs::set_xattrs(path, item.xattrs()) {
+                Ok(()) => {}
+                Err(e) if e.kind() == io::ErrorKind::Unsupported => {
+                    log::warn!(
+                        "Extended attributes are not supported on filesystem for '{}': {}",
+                        path.display(),
+                        e
+                    );
+                }
+                Err(e) => return Err(e),
             }
-            Err(e) => return Err(e),
         }
     }
     #[cfg(not(unix))]
@@ -909,7 +924,9 @@ where
         log::warn!("Currently extended attribute is not supported on this platform.");
     }
     #[cfg(feature = "acl")]
-    restore_acls(path, item.acl()?, keep_options.acl_strategy)?;
+    if !skip_xattr_acl {
+        restore_acls(path, item.acl()?, keep_options.acl_strategy)?;
+    }
     #[cfg(not(feature = "acl"))]
     if let AclStrategy::Always = keep_options.acl_strategy {
         log::warn!("Please enable `acl` feature and rebuild and install pna.");
@@ -928,6 +945,33 @@ where
                 }
                 Err(e) => return Err(e),
             }
+        }
+    }
+    // macOS metadata (AppleDouble) - restores xattrs, ACLs, resource forks via copyfile()
+    #[cfg(target_os = "macos")]
+    if let MacMetadataStrategy::Always = keep_options.mac_metadata_strategy {
+        if let Some(apple_double_data) = item.mac_metadata() {
+            match utils::os::unix::fs::copyfile::unpack_apple_double(apple_double_data, path) {
+                Ok(()) => {
+                    log::debug!("Unpacked macOS metadata for '{}'", path.display());
+                }
+                Err(e) => {
+                    log::warn!(
+                        "Failed to restore macOS metadata for '{}': {}",
+                        path.display(),
+                        e
+                    );
+                }
+            }
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    if let MacMetadataStrategy::Always = keep_options.mac_metadata_strategy {
+        if item.mac_metadata().is_some() {
+            log::warn!(
+                "macOS metadata present but cannot be restored on this platform: '{}'",
+                path.display()
+            );
         }
     }
     Ok(())

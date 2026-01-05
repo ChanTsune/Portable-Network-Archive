@@ -8,10 +8,11 @@ use crate::{
         append::{open_archive_then_seek_to_end, run_append_archive},
         ask_password, check_password,
         core::{
-            AclStrategy, CollectOptions, CreateOptions, FflagsStrategy, KeepOptions, OwnerOptions,
-            PathFilter, PathTransformers, PathnameEditor, PermissionStrategy, TimeFilterResolver,
-            TimestampStrategyResolver, TransformStrategyUnSolid, XattrStrategy, apply_chroot,
-            collect_items_from_paths, collect_split_archives, entry_option,
+            AclStrategy, CollectOptions, CreateOptions, FflagsStrategy, KeepOptions,
+            MacMetadataStrategy, OwnerOptions, PathFilter, PathTransformers, PathnameEditor,
+            PermissionStrategy, TimeFilterResolver, TimestampStrategyResolver,
+            TransformStrategyUnSolid, XattrStrategy, apply_chroot, collect_items_from_paths,
+            collect_split_archives, entry_option,
             path_lock::PathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths,
@@ -61,6 +62,7 @@ use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
     group(ArgGroup::new("mtime-older-than-source").args(["older_mtime", "older_mtime_than"])),
     group(ArgGroup::new("mtime-newer-than-source").args(["newer_mtime", "newer_mtime_than"])),
     group(ArgGroup::new("keep-fflags-flag").args(["keep_fflags", "no_keep_fflags"])),
+    group(ArgGroup::new("mac-metadata-flag").args(["mac_metadata", "no_mac_metadata"])),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission", "no_keep_permission"]).requires("unstable")),
@@ -202,6 +204,18 @@ pub(crate) struct StdioCommand {
         help = "Do not archive file flags of files. This is the inverse option of --keep-fflags (unstable)"
     )]
     no_keep_fflags: bool,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Archive and extract Mac metadata (extended attributes and ACLs) (unstable)"
+    )]
+    mac_metadata: bool,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Do not archive or extract Mac metadata. This is the inverse option of --mac-metadata (unstable)"
+    )]
+    no_mac_metadata: bool,
     #[arg(
         long,
         help = "Compress multiple files together for better compression ratio"
@@ -654,6 +668,10 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
         fflags_strategy: FflagsStrategy::from_flags(args.keep_fflags, args.no_keep_fflags),
+        mac_metadata_strategy: MacMetadataStrategy::from_flags(
+            args.mac_metadata,
+            args.no_mac_metadata,
+        ),
     };
     let owner_options = resolve_owner_options(
         args.owner,
@@ -748,6 +766,10 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
             xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
             acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
             fflags_strategy: FflagsStrategy::from_flags(args.keep_fflags, args.no_keep_fflags),
+            mac_metadata_strategy: MacMetadataStrategy::from_flags(
+                args.mac_metadata,
+                args.no_mac_metadata,
+            ),
         },
         owner_options: resolve_owner_options(
             args.owner,
@@ -908,6 +930,10 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
         fflags_strategy: FflagsStrategy::from_flags(args.keep_fflags, args.no_keep_fflags),
+        mac_metadata_strategy: MacMetadataStrategy::from_flags(
+            args.mac_metadata,
+            args.no_mac_metadata,
+        ),
     };
     let owner_options = resolve_owner_options(
         args.owner,
@@ -1045,6 +1071,10 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
         fflags_strategy: FflagsStrategy::from_flags(args.keep_fflags, args.no_keep_fflags),
+        mac_metadata_strategy: MacMetadataStrategy::from_flags(
+            args.mac_metadata,
+            args.no_mac_metadata,
+        ),
     };
     let owner_options = OwnerOptions::new(
         args.uname,

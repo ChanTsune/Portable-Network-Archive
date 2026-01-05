@@ -86,6 +86,90 @@ pub(crate) fn set_flags(path: &Path, flags: &[String]) -> io::Result<()> {
     Ok(())
 }
 
+/// macOS copyfile() API for AppleDouble format handling.
+/// Reference: https://keith.github.io/xcode-man-pages/copyfile.3.html
+#[cfg(target_os = "macos")]
+pub(crate) mod copyfile {
+    use libc::{
+        COPYFILE_ACL, COPYFILE_NOFOLLOW, COPYFILE_PACK, COPYFILE_UNPACK, COPYFILE_XATTR,
+        copyfile_flags_t, copyfile_state_t,
+    };
+    use std::{
+        fs, io,
+        io::prelude::*,
+        path::Path,
+        sync::atomic::{AtomicU64, Ordering},
+    };
+
+    /// Counter for generating unique temporary file names.
+    static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    fn copyfile<P: ?Sized + nix::NixPath, Q: ?Sized + nix::NixPath>(
+        from: &P,
+        to: &Q,
+        state: copyfile_state_t,
+        flags: copyfile_flags_t,
+    ) -> nix::Result<()> {
+        let res = from.with_nix_path(|from| {
+            to.with_nix_path(|to| unsafe {
+                libc::copyfile(from.as_ptr(), to.as_ptr(), state, flags)
+            })
+        })??;
+        nix::errno::Errno::result(res)?;
+        Ok(())
+    }
+
+    /// Packs Mac metadata into AppleDouble format.
+    /// Returns the AppleDouble data as a byte vector.
+    pub fn pack_apple_double(source_path: &Path) -> io::Result<Vec<u8>> {
+        // Create a temporary file for the AppleDouble output
+        let temp_dir = std::env::temp_dir();
+        let counter = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let temp_file = temp_dir.join(format!("pna_appledouble_{}_{counter}", std::process::id()));
+        let clean = scopeguard::guard(&temp_file, |path| {
+            let _ = fs::remove_file(path);
+        });
+
+        // Pack metadata into AppleDouble format
+        copyfile(
+            source_path,
+            &temp_file,
+            std::ptr::null_mut(),
+            COPYFILE_NOFOLLOW | COPYFILE_ACL | COPYFILE_XATTR | COPYFILE_PACK,
+        )?;
+
+        // Read the AppleDouble data
+        let data = fs::read(&temp_file)?;
+        drop(clean);
+        Ok(data)
+    }
+
+    /// Unpacks AppleDouble data and applies metadata to the target file.
+    pub fn unpack_apple_double(apple_double_data: &[u8], target_path: &Path) -> io::Result<()> {
+        // Write AppleDouble data to a temporary file
+        let temp_dir = std::env::temp_dir();
+        let counter = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let temp_file = temp_dir.join(format!("pna_appledouble_{}_{counter}", std::process::id()));
+        let clean = scopeguard::guard(&temp_file, |path| {
+            let _ = fs::remove_file(path);
+        });
+        {
+            let mut file = fs::File::create(&temp_file)?;
+            file.write_all(apple_double_data)?;
+        }
+
+        // Unpack AppleDouble format to target
+        copyfile(
+            &temp_file,
+            target_path,
+            std::ptr::null_mut(),
+            COPYFILE_NOFOLLOW | COPYFILE_ACL | COPYFILE_XATTR | COPYFILE_UNPACK,
+        )?;
+        drop(clean);
+        Ok(())
+    }
+}
+
 // Linux file flags (FS_IOC_GETFLAGS/FS_IOC_SETFLAGS)
 // Reference: https://man7.org/linux/man-pages/man2/ioctl_iflags.2.html
 #[cfg(any(target_os = "linux", target_os = "android"))]

@@ -11,8 +11,8 @@ use crate::{
         Command, ask_password, check_password,
         core::{
             AclStrategy, CollectOptions, CollectedItem, CreateOptions, FflagsStrategy, KeepOptions,
-            OwnerOptions, PathFilter, PathTransformers, PathnameEditor, PermissionStrategy,
-            TimeFilterResolver, TimestampStrategyResolver, TransformStrategy,
+            MacMetadataStrategy, OwnerOptions, PathFilter, PathTransformers, PathnameEditor,
+            PermissionStrategy, TimeFilterResolver, TimestampStrategyResolver, TransformStrategy,
             TransformStrategyKeepSolid, TransformStrategyUnSolid, XattrStrategy,
             collect_items_from_paths, collect_split_archives, create_entry, entry_option,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
@@ -401,6 +401,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
         fflags_strategy: FflagsStrategy::Never,
+        mac_metadata_strategy: MacMetadataStrategy::Never,
     };
     let owner_options = OwnerOptions::new(
         args.uname,

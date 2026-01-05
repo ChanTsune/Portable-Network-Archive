@@ -179,6 +179,38 @@ impl FflagsStrategy {
     }
 }
 
+/// Strategy for handling macOS metadata in AppleDouble format.
+/// When enabled, creates `._` prefixed entries containing AppleDouble data
+/// (extended attributes, ACLs, resource forks) for each file with Mac metadata.
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub(crate) enum MacMetadataStrategy {
+    /// Do not create AppleDouble entries (default)
+    #[default]
+    Never,
+    /// Create AppleDouble entries for files with Mac metadata (macOS only)
+    Always,
+}
+
+impl MacMetadataStrategy {
+    /// Creates a strategy from CLI flags, considering platform.
+    /// On non-macOS platforms, always returns Never regardless of flags.
+    #[cfg(target_os = "macos")]
+    pub(crate) const fn from_flags(mac_metadata: bool, no_mac_metadata: bool) -> Self {
+        if no_mac_metadata {
+            Self::Never
+        } else if mac_metadata {
+            Self::Always
+        } else {
+            Self::Never
+        }
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    pub(crate) const fn from_flags(_mac_metadata: bool, _no_mac_metadata: bool) -> Self {
+        Self::Never
+    }
+}
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) struct KeepOptions {
     pub(crate) timestamp_strategy: TimestampStrategy,
@@ -186,6 +218,7 @@ pub(crate) struct KeepOptions {
     pub(crate) xattr_strategy: XattrStrategy,
     pub(crate) acl_strategy: AclStrategy,
     pub(crate) fflags_strategy: FflagsStrategy,
+    pub(crate) mac_metadata_strategy: MacMetadataStrategy,
 }
 
 /// Resolves CLI timestamp options into a `TimestampStrategy`.
@@ -735,8 +768,18 @@ pub(crate) fn apply_metadata(
             mode,
         ));
     }
+    // On macOS, when mac_metadata_strategy is Always, AppleDouble packing via copyfile()
+    // already includes xattrs and ACLs. Skip separate handling to avoid duplication.
+    #[cfg(target_os = "macos")]
+    let skip_xattr_acl = matches!(
+        keep_options.mac_metadata_strategy,
+        MacMetadataStrategy::Always
+    );
+    #[cfg(not(target_os = "macos"))]
+    let skip_xattr_acl = false;
+
     #[cfg(feature = "acl")]
-    {
+    if !skip_xattr_acl {
         #[cfg(any(
             target_os = "linux",
             target_os = "freebsd",
@@ -767,21 +810,23 @@ pub(crate) fn apply_metadata(
         log::warn!("Please enable `acl` feature and rebuild and install pna.");
     }
     #[cfg(unix)]
-    if let XattrStrategy::Always = keep_options.xattr_strategy {
-        match utils::os::unix::fs::xattrs::get_xattrs(path) {
-            Ok(xattrs) => {
-                for attr in xattrs {
-                    entry.add_xattr(attr);
+    if !skip_xattr_acl {
+        if let XattrStrategy::Always = keep_options.xattr_strategy {
+            match utils::os::unix::fs::xattrs::get_xattrs(path) {
+                Ok(xattrs) => {
+                    for attr in xattrs {
+                        entry.add_xattr(attr);
+                    }
                 }
+                Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
+                    log::warn!(
+                        "Extended attributes are not supported on filesystem for '{}': {}",
+                        path.display(),
+                        e
+                    );
+                }
+                Err(e) => return Err(e),
             }
-            Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
-                log::warn!(
-                    "Extended attributes are not supported on filesystem for '{}': {}",
-                    path.display(),
-                    e
-                );
-            }
-            Err(e) => return Err(e),
         }
     }
     #[cfg(not(unix))]
@@ -804,6 +849,40 @@ pub(crate) fn apply_metadata(
             }
             Err(e) => return Err(e),
         }
+    }
+    // macOS metadata (AppleDouble) - packs xattrs, ACLs, resource forks via copyfile()
+    #[cfg(target_os = "macos")]
+    if let MacMetadataStrategy::Always = keep_options.mac_metadata_strategy {
+        use pna::RawChunk;
+        match utils::os::unix::fs::copyfile::pack_apple_double(path) {
+            Ok(apple_double_data) => {
+                if !apple_double_data.is_empty() {
+                    let len = apple_double_data.len();
+                    entry.add_extra_chunk(RawChunk::from_data(
+                        crate::chunk::maMd,
+                        apple_double_data,
+                    ));
+                    log::debug!(
+                        "Packed macOS metadata for '{}' ({len} bytes)",
+                        path.display(),
+                    );
+                }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                // File has no Mac metadata, this is fine
+            }
+            Err(e) => {
+                log::warn!(
+                    "Failed to pack macOS metadata for '{}': {}",
+                    path.display(),
+                    e
+                );
+            }
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    if let MacMetadataStrategy::Always = keep_options.mac_metadata_strategy {
+        log::warn!("macOS metadata (--mac-metadata) is only supported on macOS.");
     }
     Ok(entry)
 }
