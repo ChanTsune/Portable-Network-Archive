@@ -14,6 +14,8 @@ pub(crate) type Acls = HashMap<AcePlatform, Vec<Ace>>;
 pub(crate) trait NormalEntryExt {
     fn acl(&self) -> io::Result<Acls>;
     fn fflags(&self) -> Vec<String>;
+    /// Returns the macOS metadata (AppleDouble blob) if present.
+    fn mac_metadata(&self) -> Option<&[u8]>;
 }
 
 impl<T> NormalEntryExt for NormalEntry<T>
@@ -57,6 +59,14 @@ where
                 }
             })
             .collect()
+    }
+
+    #[inline]
+    fn mac_metadata(&self) -> Option<&[u8]> {
+        self.extra_chunks()
+            .iter()
+            .find(|c| c.ty() == chunk::maMd)
+            .map(|c| c.data())
     }
 }
 
