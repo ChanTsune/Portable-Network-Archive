@@ -303,6 +303,28 @@ impl Display for EntryTypeBsdLongStyleDisplay<'_> {
     }
 }
 
+/// Configuration for what metadata to collect in TableRow.
+/// Using a dedicated struct avoids collecting expensive data when not needed.
+#[derive(Copy, Clone, Debug, Default)]
+struct CollectOptions {
+    xattrs: bool,
+    acl: bool,
+    privates: bool,
+    fflags: bool,
+}
+
+impl CollectOptions {
+    #[inline]
+    const fn from_list_options(opts: &ListOptions) -> Self {
+        Self {
+            xattrs: opts.show_xattr,
+            acl: opts.show_acl,
+            privates: opts.show_private,
+            fflags: opts.show_fflags,
+        }
+    }
+}
+
 struct TableRow {
     encryption: String,
     compression: String,
@@ -324,21 +346,27 @@ impl TableRow {
     fn permission_mode(&self) -> u16 {
         self.permission.as_ref().map_or(0, |it| it.permissions())
     }
-}
 
-impl<T> TryFrom<(&NormalEntry<T>, Option<&[u8]>, Option<&SolidHeader>)> for TableRow
-where
-    T: AsRef<[u8]> + Clone,
-    RawChunk<T>: Chunk,
-    RawChunk: From<RawChunk<T>>,
-{
-    type Error = io::Error;
+    /// Construct a TableRow from an entry, only collecting expensive metadata when needed.
     #[inline]
-    fn try_from(
-        (entry, password, solid): (&NormalEntry<T>, Option<&[u8]>, Option<&SolidHeader>),
-    ) -> Result<Self, Self::Error> {
+    fn from_entry<T>(
+        entry: &NormalEntry<T>,
+        password: Option<&[u8]>,
+        solid: Option<&SolidHeader>,
+        collect: CollectOptions,
+    ) -> io::Result<Self>
+    where
+        T: AsRef<[u8]> + Clone,
+        RawChunk<T>: Chunk,
+        RawChunk: From<RawChunk<T>>,
+    {
         let metadata = entry.metadata();
-        let acl = entry.acl()?;
+        // Only parse ACL if needed
+        let acl = if collect.acl {
+            entry.acl()?
+        } else {
+            HashMap::new()
+        };
         Ok(Self {
             encryption: match solid.map_or_else(
                 || (entry.encryption(), entry.cipher_mode()),
@@ -382,15 +410,30 @@ where
                 DataKind::Directory => EntryType::Directory(entry.name().to_string()),
                 DataKind::File => EntryType::File(entry.name().to_string()),
             },
-            xattrs: entry.xattrs().to_vec(),
+            // Only collect xattrs if needed
+            xattrs: if collect.xattrs {
+                entry.xattrs().to_vec()
+            } else {
+                Vec::new()
+            },
             acl,
-            privates: entry
-                .extra_chunks()
-                .iter()
-                .filter(|it| it.ty() != chunk::faCe && it.ty() != chunk::faCl)
-                .map(|it| (*it).clone().into())
-                .collect::<Vec<_>>(),
-            fflags: entry.fflags(),
+            // Only collect private chunks if needed
+            privates: if collect.privates {
+                entry
+                    .extra_chunks()
+                    .iter()
+                    .filter(|it| it.ty() != chunk::faCe && it.ty() != chunk::faCl)
+                    .map(|it| (*it).clone().into())
+                    .collect()
+            } else {
+                Vec::new()
+            },
+            // Only collect fflags if needed
+            fflags: if collect.fflags {
+                entry.fflags()
+            } else {
+                Vec::new()
+            },
         })
     }
 }
@@ -524,12 +567,18 @@ pub(crate) fn run_list_archive<'a>(
     args: ListOptions,
 ) -> anyhow::Result<()> {
     let mut entries = Vec::new();
+    let collect_opts = CollectOptions::from_list_options(&args);
 
     run_read_entries(archive_provider, |entry| {
         match entry? {
             ReadEntry::Solid(solid) if args.solid => {
                 for entry in solid.entries(password)? {
-                    entries.push((&entry?, password, Some(solid.header())).try_into()?)
+                    entries.push(TableRow::from_entry(
+                        &entry?,
+                        password,
+                        Some(solid.header()),
+                        collect_opts,
+                    )?)
                 }
             }
             ReadEntry::Solid(_) => {
@@ -537,7 +586,9 @@ pub(crate) fn run_list_archive<'a>(
                     "This archive contain solid mode entry. if you need to show it use --solid option."
                 );
             }
-            ReadEntry::Normal(item) => entries.push((&item, password, None).try_into()?),
+            ReadEntry::Normal(item) => {
+                entries.push(TableRow::from_entry(&item, password, None, collect_opts)?)
+            }
         }
         Ok(())
     })?;
@@ -553,6 +604,7 @@ pub(crate) fn run_list_archive_mem<'a>(
     args: ListOptions,
 ) -> anyhow::Result<()> {
     let mut entries = Vec::new();
+    let collect_opts = CollectOptions::from_list_options(&args);
     let mmaps = archives
         .into_iter()
         .map(crate::utils::mmap::Mmap::try_from)
@@ -563,7 +615,12 @@ pub(crate) fn run_list_archive_mem<'a>(
         match entry? {
             ReadEntry::Solid(solid) if args.solid => {
                 for entry in solid.entries(password)? {
-                    entries.push((&entry?, password, Some(solid.header())).try_into()?);
+                    entries.push(TableRow::from_entry(
+                        &entry?,
+                        password,
+                        Some(solid.header()),
+                        collect_opts,
+                    )?);
                 }
             }
             ReadEntry::Solid(_) => {
@@ -571,7 +628,9 @@ pub(crate) fn run_list_archive_mem<'a>(
                     "This archive contain solid mode entry. if you need to show it use --solid option."
                 );
             }
-            ReadEntry::Normal(item) => entries.push((&item, password, None).try_into()?),
+            ReadEntry::Normal(item) => {
+                entries.push(TableRow::from_entry(&item, password, None, collect_opts)?)
+            }
         }
         Ok(())
     })?;
@@ -596,10 +655,12 @@ fn print_entries<'a>(
         .collect::<Vec<_>>();
     globs.ensure_all_matched()?;
     if options.out_to_stderr {
-        let out = anstream::AutoStream::new(io::stderr().lock(), options.color.into());
+        let stream = anstream::AutoStream::new(io::stderr().lock(), options.color.into());
+        let out = io::BufWriter::new(stream);
         print_formatted_entries(entries, &options, out)
     } else {
-        let out = anstream::AutoStream::new(io::stdout().lock(), options.color.into());
+        let stream = anstream::AutoStream::new(io::stdout().lock(), options.color.into());
+        let out = io::BufWriter::new(stream);
         print_formatted_entries(entries, &options, out)
     }
 }
