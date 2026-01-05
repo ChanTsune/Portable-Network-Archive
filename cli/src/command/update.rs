@@ -23,8 +23,8 @@ use crate::{
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;
-use pna::{Archive, EntryName, Metadata};
-use std::{env, fs, io, path::PathBuf, time::SystemTime};
+use pna::{Archive, EntryName, Metadata, prelude::*};
+use std::{env, fs, io, path::PathBuf};
 
 #[derive(Parser, Clone, Debug)]
 #[command(
@@ -661,8 +661,9 @@ where
     Ok(())
 }
 
+#[inline]
 fn is_newer_than_archive(fs_meta: &fs::Metadata, metadata: &Metadata) -> Option<bool> {
-    let mtime = fs_meta.modified().ok()?;
-    let d = metadata.modified()?;
-    Some(SystemTime::UNIX_EPOCH + d < mtime)
+    let fs_mtime = fs_meta.modified().ok()?;
+    let archive_mtime = metadata.modified_time()?;
+    Some(archive_mtime < fs_mtime)
 }
