@@ -311,16 +311,25 @@ struct CollectOptions {
     acl: bool,
     privates: bool,
     fflags: bool,
+    link_target: bool,
 }
 
 impl CollectOptions {
     #[inline]
     const fn from_list_options(opts: &ListOptions) -> Self {
+        // Link targets only needed for Table/long and BsdTar formats
+        // which display "name -> target". Other formats only show filename.
+        let link_target = match opts.format {
+            Some(Format::Table) | Some(Format::BsdTar) => true,
+            Some(_) => false,  // Line, Tree, JsonL, Csv, Tsv don't need it
+            None => opts.long, // Default: depends on -l flag
+        };
         Self {
             xattrs: opts.show_xattr,
             acl: opts.show_acl,
             privates: opts.show_private,
             fflags: opts.show_fflags,
+            link_target,
         }
     }
 }
@@ -395,17 +404,27 @@ impl TableRow {
             entry_type: match entry.data_kind() {
                 DataKind::SymbolicLink => EntryType::SymbolicLink(
                     entry.name().to_string(),
-                    entry
-                        .reader(ReadOptions::with_password(password))
-                        .and_then(io::read_to_string)
-                        .unwrap_or_else(|_| "-".into()),
+                    // Only read link target if needed (requires decompression)
+                    if collect.link_target {
+                        entry
+                            .reader(ReadOptions::with_password(password))
+                            .and_then(io::read_to_string)
+                            .unwrap_or_else(|_| "-".into())
+                    } else {
+                        String::new()
+                    },
                 ),
                 DataKind::HardLink => EntryType::HardLink(
                     entry.name().to_string(),
-                    entry
-                        .reader(ReadOptions::with_password(password))
-                        .and_then(io::read_to_string)
-                        .unwrap_or_else(|_| "-".into()),
+                    // Only read link target if needed (requires decompression)
+                    if collect.link_target {
+                        entry
+                            .reader(ReadOptions::with_password(password))
+                            .and_then(io::read_to_string)
+                            .unwrap_or_else(|_| "-".into())
+                    } else {
+                        String::new()
+                    },
                 ),
                 DataKind::Directory => EntryType::Directory(entry.name().to_string()),
                 DataKind::File => EntryType::File(entry.name().to_string()),
