@@ -68,7 +68,7 @@ fn get_file_id_and_nlinks(path: &Path, follow_symlink: bool) -> io::Result<(File
             None,
         )?;
 
-        let _cleanup = scopeguard::guard(handle, |h| {
+        let cleanup = scopeguard::guard(handle, |h| {
             let _ = windows::Win32::Foundation::CloseHandle(h);
         });
 
@@ -79,6 +79,7 @@ fn get_file_id_and_nlinks(path: &Path, follow_symlink: bool) -> io::Result<(File
         let volume = info.dwVolumeSerialNumber as u64;
         let index = ((info.nFileIndexHigh as u64) << 32) | (info.nFileIndexLow as u64);
         let nlinks = info.nNumberOfLinks as u64;
+        drop(cleanup);
         Ok((FileId(volume, index), nlinks))
     }
 }
