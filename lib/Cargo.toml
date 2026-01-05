@@ -43,7 +43,7 @@ pbkdf2 = { version = "0.12.2", features = ["simple", "parallel"] }
 
 [dev-dependencies]
 version-sync = "0.9.5"
-criterion = { version = "0.7.0", default-features = false, features = ["cargo_bench_support", "plotters"] }
+criterion = { version = "0.8.1", default-features = false, features = ["cargo_bench_support", "plotters"] }
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
 tokio = { version = "1.49.0", features = ["macros", "rt-multi-thread", "fs", "io-util"] }
