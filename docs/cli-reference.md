@@ -598,6 +598,9 @@ List files in archive
 * `-e` — Display ACLs in a table (unstable)
 
   Default value: `false`
+* `-O`, `--show-fflags` — Display file flags (uchg, nodump, hidden, etc.)
+
+  Default value: `false`
 * `--private` — Display private chunks in a table (unstable)
 
   Default value: `false`
