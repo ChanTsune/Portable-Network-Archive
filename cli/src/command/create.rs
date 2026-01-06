@@ -7,9 +7,10 @@ use crate::{
         Command, ask_password, check_password,
         core::{
             AclStrategy, CollectOptions, CollectedItem, CreateOptions, FflagsStrategy, KeepOptions,
-            MIN_SPLIT_PART_BYTES, MacMetadataStrategy, OwnerOptions, PathFilter, PathTransformers,
-            PathnameEditor, PermissionStrategy, TimeFilterResolver, TimestampStrategyResolver,
-            XattrStrategy, collect_items_from_paths, create_entry, entry_option,
+            MIN_SPLIT_PART_BYTES, MacMetadataStrategy, PathFilter, PathTransformers,
+            PathnameEditor, PermissionStrategyResolver, TimeFilterResolver,
+            TimestampStrategyResolver, XattrStrategy, collect_items_from_paths, create_entry,
+            entry_option,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin, write_split_archive,
         },
@@ -471,22 +472,22 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
             clamp_atime: args.clamp_atime,
         }
         .resolve(),
-        permission_strategy: PermissionStrategy::from_flags(
-            args.keep_permission,
-            args.no_keep_permission,
-        ),
+        permission_strategy: PermissionStrategyResolver {
+            keep_permission: args.keep_permission,
+            no_keep_permission: args.no_keep_permission,
+            same_owner: true, // Must be `true` for creation
+            uname: args.uname,
+            gname: args.gname,
+            uid: args.uid,
+            gid: args.gid,
+            numeric_owner: args.numeric_owner,
+        }
+        .resolve(),
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
         fflags_strategy: FflagsStrategy::Never,
         mac_metadata_strategy: MacMetadataStrategy::Never,
     };
-    let owner_options = OwnerOptions::new(
-        args.uname,
-        args.gname,
-        args.uid,
-        args.gid,
-        args.numeric_owner,
-    );
     let pathname_editor = PathnameEditor::new(
         args.strip_components,
         PathTransformers::new(args.substitutions, args.transforms),
@@ -497,7 +498,6 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     let creation_context = CreationContext {
         write_option,
         keep_options,
-        owner_options,
         solid: args.solid,
         pathname_editor,
     };
@@ -526,7 +526,6 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
 pub(crate) struct CreationContext {
     pub(crate) write_option: WriteOptions,
     pub(crate) keep_options: KeepOptions,
-    pub(crate) owner_options: OwnerOptions,
     pub(crate) solid: bool,
     pub(crate) pathname_editor: PathnameEditor,
 }
@@ -536,7 +535,6 @@ pub(crate) fn create_archive_file<W, F>(
     CreationContext {
         write_option,
         keep_options,
-        owner_options,
         solid,
         pathname_editor,
     }: CreationContext,
@@ -555,7 +553,6 @@ where
     let create_options = CreateOptions {
         option,
         keep_options,
-        owner_options,
         pathname_editor,
     };
     rayon::scope_fifo(|s| {
@@ -599,7 +596,6 @@ fn create_archive_with_split(
     CreationContext {
         write_option,
         keep_options,
-        owner_options,
         solid,
         pathname_editor,
     }: CreationContext,
@@ -616,7 +612,6 @@ fn create_archive_with_split(
     let create_options = CreateOptions {
         option,
         keep_options,
-        owner_options,
         pathname_editor,
     };
     rayon::scope_fifo(|s| -> anyhow::Result<()> {

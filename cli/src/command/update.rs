@@ -11,9 +11,9 @@ use crate::{
         Command, ask_password, check_password,
         core::{
             AclStrategy, CollectOptions, CollectedItem, CreateOptions, FflagsStrategy, KeepOptions,
-            MacMetadataStrategy, OwnerOptions, PathFilter, PathTransformers, PathnameEditor,
-            PermissionStrategy, TimeFilterResolver, TimestampStrategyResolver, TransformStrategy,
-            TransformStrategyKeepSolid, TransformStrategyUnSolid, XattrStrategy,
+            MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
+            PermissionStrategyResolver, TimeFilterResolver, TimestampStrategyResolver,
+            TransformStrategy, TransformStrategyKeepSolid, TransformStrategyUnSolid, XattrStrategy,
             collect_items_from_paths, collect_split_archives, create_entry, entry_option,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin,
@@ -394,22 +394,22 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
             clamp_atime: args.clamp_atime,
         }
         .resolve(),
-        permission_strategy: PermissionStrategy::from_flags(
-            args.keep_permission,
-            args.no_keep_permission,
-        ),
+        permission_strategy: PermissionStrategyResolver {
+            keep_permission: args.keep_permission,
+            no_keep_permission: args.no_keep_permission,
+            same_owner: true, // Must be `true` for creation
+            uname: args.uname,
+            gname: args.gname,
+            uid: args.uid,
+            gid: args.gid,
+            numeric_owner: args.numeric_owner,
+        }
+        .resolve(),
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
         fflags_strategy: FflagsStrategy::Never,
         mac_metadata_strategy: MacMetadataStrategy::Never,
     };
-    let owner_options = OwnerOptions::new(
-        args.uname,
-        args.gname,
-        args.uid,
-        args.gid,
-        args.numeric_owner,
-    );
     let time_filters = TimeFilterResolver {
         newer_ctime_than: args.newer_ctime_than.as_deref(),
         older_ctime_than: args.older_ctime_than.as_deref(),
@@ -424,7 +424,6 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
     let create_options = CreateOptions {
         option,
         keep_options,
-        owner_options,
         pathname_editor: PathnameEditor::new(
             args.strip_components,
             PathTransformers::new(args.substitutions, args.transforms),

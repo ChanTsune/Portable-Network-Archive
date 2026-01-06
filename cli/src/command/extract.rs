@@ -8,10 +8,10 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            AclStrategy, FflagsStrategy, KeepOptions, MacMetadataStrategy, OwnerOptions,
-            PathFilter, PathTransformers, PathnameEditor, PermissionStrategy, TimeFilterResolver,
-            TimeFilters, TimestampStrategy, TimestampStrategyResolver, XattrStrategy, apply_chroot,
-            collect_split_archives,
+            AclStrategy, FflagsStrategy, KeepOptions, MacMetadataStrategy, OwnerSource, PathFilter,
+            PathTransformers, PathnameEditor, PermissionStrategy, PermissionStrategyResolver,
+            TimeFilterResolver, TimeFilters, TimestampStrategy, TimestampStrategyResolver,
+            XattrStrategy, apply_chroot, collect_split_archives,
             path_lock::PathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, run_process_archive,
@@ -414,22 +414,22 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
             clamp_atime: args.clamp_atime,
         }
         .resolve(),
-        permission_strategy: PermissionStrategy::from_flags(
-            args.keep_permission,
-            args.no_keep_permission,
-        ),
+        permission_strategy: PermissionStrategyResolver {
+            keep_permission: args.keep_permission,
+            no_keep_permission: args.no_keep_permission,
+            same_owner: !args.no_same_owner,
+            uname: args.uname,
+            gname: args.gname,
+            uid: args.uid,
+            gid: args.gid,
+            numeric_owner: args.numeric_owner,
+        }
+        .resolve(),
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
         fflags_strategy: FflagsStrategy::Never,
         mac_metadata_strategy: MacMetadataStrategy::Never,
     };
-    let owner_options = OwnerOptions::new(
-        args.uname,
-        args.gname,
-        args.uid,
-        args.gid,
-        args.numeric_owner,
-    );
     let output_options = OutputOption {
         overwrite_strategy,
         allow_unsafe_links: args.allow_unsafe_links,
@@ -437,8 +437,6 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         to_stdout: false,
         filter,
         keep_options,
-        owner_options,
-        same_owner: !args.no_same_owner,
         pathname_editor: PathnameEditor::new(
             args.strip_components,
             PathTransformers::new(args.substitutions, args.transforms),
@@ -521,8 +519,6 @@ pub(crate) struct OutputOption<'a> {
     pub(crate) to_stdout: bool,
     pub(crate) filter: PathFilter<'a>,
     pub(crate) keep_options: KeepOptions,
-    pub(crate) owner_options: OwnerOptions,
-    pub(crate) same_owner: bool,
     pub(crate) pathname_editor: PathnameEditor,
     pub(crate) path_locks: Arc<PathLocks>,
     pub(crate) unlink_first: bool,
@@ -681,8 +677,6 @@ pub(crate) fn extract_entry<'a, T>(
         to_stdout,
         filter,
         keep_options,
-        owner_options,
-        same_owner,
         pathname_editor,
         path_locks,
         unlink_first,
@@ -835,7 +829,7 @@ where
             fs::hard_link(original, &path)?;
         }
     }
-    restore_metadata(&item, &path, keep_options, owner_options, same_owner)?;
+    restore_metadata(&item, &path, keep_options)?;
     drop(path_guard);
     log::debug!("end: {}", path.display());
     Ok(())
@@ -874,22 +868,20 @@ fn restore_timestamps(
     Ok(())
 }
 
-/// Restores file metadata (permissions, extended attributes, ACLs, and macOS metadata) for an extracted entry according to the provided keep and owner options.
+/// Restores file metadata (permissions, extended attributes, ACLs, and macOS metadata) for an extracted entry according to the provided keep options.
 ///
-/// Permissions are applied when `keep_options.permission_strategy` is `Always`. Extended attributes are applied on Unix when `keep_options.xattr_strategy` is `Always` (logs a warning if the filesystem or platform does not support xattrs). ACLs are restored when the `acl` feature is enabled and `keep_options.acl_strategy` requests them; if the `acl` feature is not compiled in but ACLs were requested, a warning is emitted. macOS metadata (AppleDouble) is restored when `keep_options.mac_metadata_strategy` is `Always` on macOS.
+/// Permissions are applied when `keep_options.permission_strategy` is `Preserve`. Extended attributes are applied on Unix when `keep_options.xattr_strategy` is `Always` (logs a warning if the filesystem or platform does not support xattrs). ACLs are restored when the `acl` feature is enabled and `keep_options.acl_strategy` requests them; if the `acl` feature is not compiled in but ACLs were requested, a warning is emitted. macOS metadata (AppleDouble) is restored when `keep_options.mac_metadata_strategy` is `Always` on macOS.
 fn restore_metadata<T>(
     item: &NormalEntry<T>,
     path: &Path,
     keep_options: &KeepOptions,
-    owner_options: &OwnerOptions,
-    same_owner: &bool,
 ) -> io::Result<()>
 where
     T: AsRef<[u8]>,
 {
-    if let PermissionStrategy::Always = keep_options.permission_strategy {
+    if let PermissionStrategy::Preserve { ref owner } = keep_options.permission_strategy {
         if let Some(p) = item.metadata().permission() {
-            restore_permissions(*same_owner, path, p, owner_options)?;
+            restore_permissions(path, p, owner)?;
         }
     }
     // On macOS, when mac_metadata_strategy is Always and the entry has mac_metadata,
@@ -1020,35 +1012,79 @@ fn restore_acls(path: &Path, acls: Acls, acl_strategy: AclStrategy) -> io::Resul
     Ok(())
 }
 
+/// Resolves the user and group to use for ownership restoration.
+///
+/// Priority:
+/// 1. Override uid/gid if specified
+/// 2. Override uname/gname if specified, searching by name
+/// 3. Archive's uname/gname with fallback to archive's uid/gid
+fn resolve_owner(
+    permission: &Permission,
+    uname_override: Option<&str>,
+    gname_override: Option<&str>,
+    uid_override: Option<u32>,
+    gid_override: Option<u32>,
+) -> (Option<User>, Option<Group>) {
+    let user = if let Some(uid) = uid_override {
+        User::from_uid(uid.into()).ok()
+    } else {
+        let name = uname_override.unwrap_or(permission.uname());
+        search_owner(name, permission.uid()).ok()
+    };
+    let group = if let Some(gid) = gid_override {
+        Group::from_gid(gid.into()).ok()
+    } else {
+        let name = gname_override.unwrap_or(permission.gname());
+        search_group(name, permission.gid()).ok()
+    };
+    (user, group)
+}
+
 #[inline]
-fn restore_permissions(
-    same_owner: bool,
-    path: &Path,
-    p: &Permission,
-    options: &OwnerOptions,
-) -> io::Result<()> {
-    let permissions = permissions(p, options);
+fn restore_permissions(path: &Path, p: &Permission, owner: &OwnerSource) -> io::Result<()> {
     #[cfg(unix)]
-    if let Some((p, u, g)) = permissions {
-        if same_owner {
-            match lchown(path, u, g) {
+    {
+        // Restore ownership only when owner is FromSource (i.e., same_owner is true)
+        if let OwnerSource::FromSource {
+            uname,
+            gname,
+            uid,
+            gid,
+        } = owner
+        {
+            let (user, group) = resolve_owner(p, uname.as_deref(), gname.as_deref(), *uid, *gid);
+            match lchown(path, user, group) {
                 Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
                     log::warn!("failed to restore owner of {}: {}", path.display(), e)
                 }
                 r => r?,
             }
         }
+        // Always restore mode permissions
         utils::os::unix::fs::chmod(path, p.permissions())?;
-    };
+    }
     #[cfg(windows)]
-    if let Some((p, u, g)) = permissions {
-        if same_owner {
-            lchown(path, u, g)?;
+    {
+        if let OwnerSource::FromSource {
+            uname,
+            gname,
+            uid,
+            gid,
+        } = owner
+        {
+            let (user, group) = resolve_owner(p, uname.as_deref(), gname.as_deref(), *uid, *gid);
+            match lchown(path, user, group) {
+                Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
+                    log::warn!("failed to restore owner of {}: {}", path.display(), e)
+                }
+                r => r?,
+            }
         }
         utils::os::windows::fs::chmod(path, p.permissions())?;
     }
     #[cfg(not(any(unix, windows)))]
-    if let Some(_) = permissions {
+    {
+        let _ = (path, p, owner);
         log::warn!("Currently permission is not supported on this platform.");
     }
     Ok(())
@@ -1122,29 +1158,6 @@ fn ensure_directory_components(path: &Path, unlink_first: bool) -> io::Result<()
         }
     }
     Ok(())
-}
-
-fn permissions<'p>(
-    permission: &'p Permission,
-    owner_options: &'_ OwnerOptions,
-) -> Option<(&'p Permission, Option<User>, Option<Group>)> {
-    let user = if let Some(uid) = owner_options.uid {
-        User::from_uid(uid.into())
-    } else {
-        search_owner(
-            owner_options.uname.as_deref().unwrap_or(permission.uname()),
-            permission.uid(),
-        )
-    };
-    let group = if let Some(gid) = owner_options.gid {
-        Group::from_gid(gid.into())
-    } else {
-        search_group(
-            owner_options.gname.as_deref().unwrap_or(permission.gname()),
-            permission.gid(),
-        )
-    };
-    Some((permission, user.ok(), group.ok()))
 }
 
 fn search_owner(name: &str, id: u64) -> io::Result<User> {
