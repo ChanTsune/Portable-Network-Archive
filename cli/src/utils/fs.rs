@@ -66,6 +66,19 @@ pub(crate) fn lchown<P: AsRef<Path>>(
     inner(path.as_ref(), owner, group)
 }
 
+#[cfg(any(windows, unix))]
+pub(crate) fn chmod<P: AsRef<Path>>(path: P, mode: u16) -> io::Result<()> {
+    #[cfg(windows)]
+    fn inner(path: &Path, mode: u16) -> io::Result<()> {
+        windows::fs::chmod(path, mode)
+    }
+    #[cfg(unix)]
+    fn inner(path: &Path, mode: u16) -> io::Result<()> {
+        crate::utils::os::unix::fs::chmod(path, mode)
+    }
+    inner(path.as_ref(), mode)
+}
+
 pub(crate) fn get_flags<P: AsRef<Path>>(path: P) -> io::Result<Vec<String>> {
     #[cfg(any(
         target_os = "macos",

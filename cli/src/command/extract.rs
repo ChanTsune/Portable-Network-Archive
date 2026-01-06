@@ -1042,7 +1042,7 @@ fn resolve_owner(
 
 #[inline]
 fn restore_permissions(path: &Path, p: &Permission, owner: &OwnerSource) -> io::Result<()> {
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     {
         // Restore ownership only when owner is FromSource (i.e., same_owner is true)
         if let OwnerSource::FromSource {
@@ -1061,26 +1061,7 @@ fn restore_permissions(path: &Path, p: &Permission, owner: &OwnerSource) -> io::
             }
         }
         // Always restore mode permissions
-        utils::os::unix::fs::chmod(path, p.permissions())?;
-    }
-    #[cfg(windows)]
-    {
-        if let OwnerSource::FromSource {
-            uname,
-            gname,
-            uid,
-            gid,
-        } = owner
-        {
-            let (user, group) = resolve_owner(p, uname.as_deref(), gname.as_deref(), *uid, *gid);
-            match lchown(path, user, group) {
-                Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
-                    log::warn!("failed to restore owner of {}: {}", path.display(), e)
-                }
-                r => r?,
-            }
-        }
-        utils::os::windows::fs::chmod(path, p.permissions())?;
+        utils::fs::chmod(path, p.permissions())?;
     }
     #[cfg(not(any(unix, windows)))]
     {
