@@ -1244,6 +1244,12 @@ bsdtar-like CLI semantics for PNA archives
 * `--no-keep-fflags` [aliases: `no-preserve-fflags`, `no-fflags`] — Do not archive file flags of files. This is the inverse option of --keep-fflags (unstable)
 
   Default value: `false`
+* `--mac-metadata` — Archive and extract Mac metadata (extended attributes and ACLs) (unstable)
+
+  Default value: `false`
+* `--no-mac-metadata` — Do not archive or extract Mac metadata. This is the inverse option of --mac-metadata (unstable)
+
+  Default value: `false`
 * `--solid` — Compress multiple files together for better compression ratio
 
   Default value: `false`
