@@ -9,8 +9,8 @@ use crate::{
         ask_password, check_password,
         core::{
             AclStrategy, CollectOptions, CreateOptions, FflagsStrategy, KeepOptions,
-            MacMetadataStrategy, OwnerOptions, PathFilter, PathTransformers, PathnameEditor,
-            PermissionStrategy, TimeFilterResolver, TimestampStrategyResolver,
+            MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
+            PermissionStrategyResolver, TimeFilterResolver, TimestampStrategyResolver,
             TransformStrategyUnSolid, XattrStrategy, apply_chroot, collect_items_from_paths,
             collect_split_archives, entry_option,
             path_lock::PathLocks,
@@ -648,6 +648,8 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
 
     let password = password.as_deref();
     let cli_option = entry_option(args.compression, args.cipher, args.hash, password);
+    let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
+    let (gname, gid) = resolve_name_id(args.group, args.gname, args.gid);
     let keep_options = KeepOptions {
         timestamp_strategy: TimestampStrategyResolver {
             keep_timestamp: args.keep_timestamp,
@@ -661,10 +663,17 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
             clamp_atime: args.clamp_atime,
         }
         .resolve(),
-        permission_strategy: PermissionStrategy::from_flags(
-            args.keep_permission,
-            args.no_keep_permission,
-        ),
+        permission_strategy: PermissionStrategyResolver {
+            keep_permission: args.keep_permission,
+            no_keep_permission: args.no_keep_permission,
+            same_owner: true, // Must be `true` for creation
+            uname,
+            gname,
+            uid,
+            gid,
+            numeric_owner: args.numeric_owner,
+        }
+        .resolve(),
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
         fflags_strategy: FflagsStrategy::from_flags(args.keep_fflags, args.no_keep_fflags),
@@ -673,19 +682,9 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
             args.no_mac_metadata,
         ),
     };
-    let owner_options = resolve_owner_options(
-        args.owner,
-        args.group,
-        args.uname,
-        args.gname,
-        args.uid,
-        args.gid,
-        args.numeric_owner,
-    );
     let creation_context = CreationContext {
         write_option: cli_option,
         keep_options,
-        owner_options,
         solid: args.solid,
         pathname_editor: PathnameEditor::new(
             args.strip_components,
@@ -740,6 +739,8 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
     }
     .resolve()?;
+    let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
+    let (gname, gid) = resolve_name_id(args.group, args.gname, args.gid);
     let out_option = OutputOption {
         overwrite_strategy,
         allow_unsafe_links: args.allow_unsafe_links,
@@ -759,10 +760,17 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
                 clamp_atime: args.clamp_atime,
             }
             .resolve(),
-            permission_strategy: PermissionStrategy::from_flags(
-                args.keep_permission,
-                args.no_keep_permission,
-            ),
+            permission_strategy: PermissionStrategyResolver {
+                keep_permission: args.keep_permission,
+                no_keep_permission: args.no_keep_permission,
+                same_owner: !args.no_same_owner,
+                uname,
+                gname,
+                uid,
+                gid,
+                numeric_owner: args.numeric_owner,
+            }
+            .resolve(),
             xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
             acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
             fflags_strategy: FflagsStrategy::from_flags(args.keep_fflags, args.no_keep_fflags),
@@ -771,16 +779,6 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
                 args.no_mac_metadata,
             ),
         },
-        owner_options: resolve_owner_options(
-            args.owner,
-            args.group,
-            args.uname,
-            args.gname,
-            args.uid,
-            args.gid,
-            args.numeric_owner,
-        ),
-        same_owner: !args.no_same_owner,
         pathname_editor: PathnameEditor::new(
             args.strip_components,
             PathTransformers::new(args.substitutions, args.transforms),
@@ -910,6 +908,8 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     check_password(&password, &args.cipher);
     let password = password.as_deref();
     let option = entry_option(args.compression, args.cipher, args.hash, password);
+    let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
+    let (gname, gid) = resolve_name_id(args.group, args.gname, args.gid);
     let keep_options = KeepOptions {
         timestamp_strategy: TimestampStrategyResolver {
             keep_timestamp: args.keep_timestamp,
@@ -923,10 +923,17 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             clamp_atime: args.clamp_atime,
         }
         .resolve(),
-        permission_strategy: PermissionStrategy::from_flags(
-            args.keep_permission,
-            args.no_keep_permission,
-        ),
+        permission_strategy: PermissionStrategyResolver {
+            keep_permission: args.keep_permission,
+            no_keep_permission: args.no_keep_permission,
+            same_owner: true, // Must be `true` for creation
+            uname,
+            gname,
+            uid,
+            gid,
+            numeric_owner: args.numeric_owner,
+        }
+        .resolve(),
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
         fflags_strategy: FflagsStrategy::from_flags(args.keep_fflags, args.no_keep_fflags),
@@ -935,19 +942,9 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.no_mac_metadata,
         ),
     };
-    let owner_options = resolve_owner_options(
-        args.owner,
-        args.group,
-        args.uname,
-        args.gname,
-        args.uid,
-        args.gid,
-        args.numeric_owner,
-    );
     let create_options = CreateOptions {
         option,
         keep_options,
-        owner_options,
         pathname_editor: PathnameEditor::new(
             args.strip_components,
             PathTransformers::new(args.substitutions, args.transforms),
@@ -1020,20 +1017,6 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     }
 }
 
-fn resolve_owner_options(
-    owner: Option<NameIdPair>,
-    group: Option<NameIdPair>,
-    uname: Option<String>,
-    gname: Option<String>,
-    uid: Option<u32>,
-    gid: Option<u32>,
-    numeric_owner: bool,
-) -> OwnerOptions {
-    let (uname, uid) = resolve_name_id(owner, uname, uid);
-    let (gname, gid) = resolve_name_id(group, gname, gid);
-    OwnerOptions::new(uname, gname, uid, gid, numeric_owner)
-}
-
 fn resolve_name_id(
     spec: Option<NameIdPair>,
     name: Option<String>,
@@ -1051,6 +1034,8 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
     check_password(&password, &args.cipher);
     let password = password.as_deref();
     let option = entry_option(args.compression, args.cipher, args.hash, password);
+    let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
+    let (gname, gid) = resolve_name_id(args.group, args.gname, args.gid);
     let keep_options = KeepOptions {
         timestamp_strategy: TimestampStrategyResolver {
             keep_timestamp: args.keep_timestamp,
@@ -1064,10 +1049,17 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
             clamp_atime: args.clamp_atime,
         }
         .resolve(),
-        permission_strategy: PermissionStrategy::from_flags(
-            args.keep_permission,
-            args.no_keep_permission,
-        ),
+        permission_strategy: PermissionStrategyResolver {
+            keep_permission: args.keep_permission,
+            no_keep_permission: args.no_keep_permission,
+            same_owner: true, // Must be `true` for creation
+            uname,
+            gname,
+            uid,
+            gid,
+            numeric_owner: args.numeric_owner,
+        }
+        .resolve(),
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
         fflags_strategy: FflagsStrategy::from_flags(args.keep_fflags, args.no_keep_fflags),
@@ -1076,17 +1068,9 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
             args.no_mac_metadata,
         ),
     };
-    let owner_options = OwnerOptions::new(
-        args.uname,
-        args.gname,
-        args.uid,
-        args.gid,
-        args.numeric_owner,
-    );
     let create_options = CreateOptions {
         option,
         keep_options,
-        owner_options,
         pathname_editor: PathnameEditor::new(
             args.strip_components,
             PathTransformers::new(args.substitutions, args.transforms),
