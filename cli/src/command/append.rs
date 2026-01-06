@@ -6,12 +6,13 @@ use crate::{
     command::{
         Command, ask_password, check_password,
         core::{
-            AclStrategy, CollectOptions, CollectedItem, CreateOptions, FflagsStrategy, KeepOptions,
-            MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
-            PermissionStrategyResolver, TimeFilterResolver, TimestampStrategyResolver,
-            XattrStrategy, collect_items_from_paths, create_entry, entry_option,
+            AclStrategy, CollectOptions, CollectedItem, CreateOptions, EntryResult, FflagsStrategy,
+            KeepOptions, MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
+            PermissionStrategyResolver, TimeFilterResolver, TimeFilters, TimestampStrategyResolver,
+            XattrStrategy, collect_items_from_paths, create_entry, drain_entry_results,
+            entry_option,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
-            read_paths, read_paths_stdin,
+            read_archive_source, read_paths, read_paths_stdin,
         },
     },
     utils::{PathPartExt, VCS_FILES, fs::HardlinkResolver},
@@ -460,35 +461,60 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         time_filters: &time_filters,
     };
     let mut resolver = HardlinkResolver::new(collect_options.follow_links);
-    let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?;
+    let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?
+        .into_iter()
+        .map(CollectedItem::Filesystem)
+        .collect::<Vec<_>>();
 
-    run_append_archive(&create_options, archive, target_items)
+    run_append_archive(
+        &create_options,
+        archive,
+        target_items,
+        &filter,
+        &time_filters,
+        password,
+    )
 }
 
 pub(crate) fn run_append_archive(
     create_options: &CreateOptions,
     mut archive: Archive<impl io::Write>,
     target_items: Vec<CollectedItem>,
+    filter: &PathFilter<'_>,
+    time_filters: &TimeFilters,
+    password: Option<&[u8]>,
 ) -> anyhow::Result<()> {
     let (tx, rx) = std::sync::mpsc::channel();
-    rayon::scope_fifo(|s| {
+    rayon::scope_fifo(|s| -> anyhow::Result<()> {
         for item in target_items {
-            let tx = tx.clone();
-            s.spawn_fifo(move |_| {
-                log::debug!("Adding: {}", item.path.display());
-                tx.send(create_entry(&item, create_options))
-                    .unwrap_or_else(|e| log::error!("{e}: {}", item.path.display()));
-            })
+            match item {
+                CollectedItem::Filesystem(entry) => {
+                    let tx = tx.clone();
+                    s.spawn_fifo(move |_| {
+                        log::debug!("Adding: {}", entry.path.display());
+                        tx.send(EntryResult::Single(create_entry(&entry, create_options)))
+                            .unwrap_or_else(|e| log::error!("{e}: {}", entry.path.display()));
+                    })
+                }
+                CollectedItem::ArchiveMarker(source) => {
+                    let result = read_archive_source(
+                        &source,
+                        create_options,
+                        filter,
+                        time_filters,
+                        password,
+                    );
+                    tx.send(EntryResult::Batch(result))
+                        .unwrap_or_else(|e| log::error!("{e}: archive source {}", source));
+                }
+            }
         }
 
         drop(tx);
-    });
+        Ok(())
+    })?;
 
-    for entry in rx.into_iter() {
-        if let Some(entry) = entry? {
-            archive.add_entry(entry)?;
-        }
-    }
+    drain_entry_results(rx, |entry| archive.add_entry(entry))?;
     archive.finalize()?;
     Ok(())
 }
