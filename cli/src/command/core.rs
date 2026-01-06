@@ -27,7 +27,7 @@ use pna::{
 use std::{
     borrow::Cow,
     collections::HashMap,
-    fs,
+    fmt, fs,
     io::{self, prelude::*},
     path::{Path, PathBuf},
     time::SystemTime,
@@ -377,17 +377,226 @@ impl Ignore {
     }
 }
 
-pub(crate) struct CollectedItem {
+#[derive(Clone, Debug)]
+pub(crate) struct CollectedEntry {
     pub(crate) path: PathBuf,
     pub(crate) store_as: StoreAs,
     pub(crate) metadata: fs::Metadata,
 }
 
+#[derive(Clone, Debug)]
 pub(crate) enum StoreAs {
     File,
     Dir,
     Symlink,
     Hardlink(PathBuf),
+}
+
+/// Source of an archive to include (file path or stdin).
+#[derive(Clone, Debug)]
+pub(crate) enum ArchiveSource {
+    File(PathBuf),
+    Stdin,
+}
+
+impl fmt::Display for ArchiveSource {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::File(path) => fmt::Display::fmt(&path.display(), f),
+            Self::Stdin => f.write_str("-"),
+        }
+    }
+}
+
+/// Represents a CLI file argument that can be either a filesystem path or an archive inclusion.
+///
+/// Archive inclusions start with '@' and reference entries from an existing archive.
+/// This follows bsdtar's convention for including archives.
+#[derive(Clone, Debug)]
+pub(crate) enum ItemSource {
+    /// A regular filesystem path (file or directory).
+    Filesystem(PathBuf),
+    /// An archive to include entries from.
+    Archive(ArchiveSource),
+}
+
+impl ItemSource {
+    /// Parses a single CLI argument into an `ItemSource`.
+    ///
+    /// - `@` or `@-` → `Archive(Stdin)`
+    /// - `@path` → `Archive(File(path))`
+    /// - `path` → `Filesystem(path)`
+    ///
+    /// To include a file whose name starts with `@`, use `./@filename` (bsdtar convention).
+    ///
+    /// Paths are stored as-is. Both filesystem and archive paths are resolved
+    /// relative to the current working directory at the time they are accessed,
+    /// which means they are affected by the -C option.
+    pub(crate) fn parse(arg: &str) -> Self {
+        if let Some(archive_path) = arg.strip_prefix('@') {
+            if archive_path.is_empty() || archive_path == "-" {
+                Self::Archive(ArchiveSource::Stdin)
+            } else {
+                Self::Archive(ArchiveSource::File(PathBuf::from(archive_path)))
+            }
+        } else {
+            Self::Filesystem(PathBuf::from(arg))
+        }
+    }
+
+    /// Parses multiple CLI arguments into `ItemSource` values.
+    pub(crate) fn parse_many(args: &[String]) -> Vec<Self> {
+        args.iter().map(|s| Self::parse(s)).collect()
+    }
+}
+
+/// Validates that stdin is not used as a source more than once.
+///
+/// Returns an error if multiple `@-` or `@` sources are found,
+/// since stdin can only be read once.
+pub(crate) fn validate_no_duplicate_stdin(sources: &[ItemSource]) -> anyhow::Result<()> {
+    let stdin_count = sources
+        .iter()
+        .filter(|s| matches!(s, ItemSource::Archive(ArchiveSource::Stdin)))
+        .count();
+    if stdin_count > 1 {
+        anyhow::bail!("stdin (@- or @) can only be specified once as an archive source");
+    }
+    Ok(())
+}
+
+/// Represents a collected item ready for archive creation.
+///
+/// This preserves the CLI argument order while separating filesystem items
+/// (which need entry building) from archive markers (which need entry copying).
+#[derive(Clone, Debug)]
+pub(crate) enum CollectedItem {
+    /// A filesystem item with its path and storage strategy.
+    Filesystem(CollectedEntry),
+    /// A marker indicating where to insert entries from an archive source.
+    ArchiveMarker(ArchiveSource),
+}
+
+/// Result type for entries sent through the channel.
+///
+/// This enum allows batching multiple archive entries into a single channel send
+/// operation, reducing synchronization overhead compared to sending each entry
+/// individually.
+#[allow(clippy::large_enum_variant)]
+pub(crate) enum EntryResult {
+    /// A single entry from a filesystem item.
+    Single(io::Result<Option<NormalEntry>>),
+    /// A batch of entries from an archive source.
+    Batch(io::Result<Vec<io::Result<Option<NormalEntry>>>>),
+}
+
+impl EntryResult {
+    pub(crate) fn into_entries(self) -> Vec<io::Result<Option<NormalEntry>>> {
+        match self {
+            EntryResult::Single(entry) => vec![entry],
+            EntryResult::Batch(entries) => entries.unwrap_or_else(|e| vec![Err(e)]),
+        }
+    }
+}
+
+/// Drains entry results and applies a callback to each emitted entry.
+pub(crate) fn drain_entry_results<I, F, T>(results: I, mut add_entry: F) -> io::Result<()>
+where
+    I: IntoIterator<Item = EntryResult>,
+    F: FnMut(NormalEntry) -> io::Result<T>,
+{
+    for result in results {
+        match result {
+            EntryResult::Single(entry) => {
+                if let Some(entry) = entry? {
+                    add_entry(entry)?;
+                }
+            }
+            EntryResult::Batch(entries) => {
+                for entry in entries? {
+                    if let Some(entry) = entry? {
+                        add_entry(entry)?;
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Spawns entry creation for filesystem items and reads archive sources.
+pub(crate) fn spawn_entry_results(
+    target_items: Vec<CollectedItem>,
+    create_options: &CreateOptions,
+    filter: &PathFilter<'_>,
+    time_filters: &TimeFilters,
+    password: Option<&[u8]>,
+) -> std::sync::mpsc::Receiver<EntryResult> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    rayon::scope_fifo(|s| {
+        for item in target_items {
+            match item {
+                CollectedItem::Filesystem(entry) => {
+                    let tx = tx.clone();
+                    s.spawn_fifo(move |_| {
+                        log::debug!("Adding: {}", entry.path.display());
+                        tx.send(EntryResult::Single(create_entry(&entry, create_options)))
+                            .unwrap_or_else(|e| log::error!("{e}: {}", entry.path.display()));
+                    })
+                }
+                CollectedItem::ArchiveMarker(source) => {
+                    let result = read_archive_source(
+                        &source,
+                        create_options,
+                        filter,
+                        time_filters,
+                        password,
+                    );
+                    tx.send(EntryResult::Batch(result))
+                        .unwrap_or_else(|e| log::error!("{e}: archive source {}", source));
+                }
+            }
+        }
+
+        drop(tx);
+    });
+    rx
+}
+
+/// Collects items from mixed filesystem and archive sources, preserving order.
+///
+/// For filesystem sources, uses the existing collection logic with shared
+/// hardlink detection. For archive sources, returns markers that indicate
+/// where archive entries should be inserted.
+///
+/// # Order Guarantee
+/// - Between arguments: strictly preserved
+/// - Within a single filesystem argument: walkdir traversal order
+///
+/// # Hardlink Detection
+/// A single `HardlinkResolver` is shared across all filesystem paths,
+/// enabling cross-path hardlink detection.
+pub(crate) fn collect_items_from_sources(
+    sources: impl IntoIterator<Item = ItemSource>,
+    options: &CollectOptions<'_>,
+    hardlink_resolver: &mut HardlinkResolver,
+) -> io::Result<Vec<CollectedItem>> {
+    let mut results = Vec::new();
+
+    for source in sources {
+        match source {
+            ItemSource::Filesystem(path) => {
+                let items = collect_items_with_state(&path, options, hardlink_resolver)?;
+                results.extend(items.into_iter().map(CollectedItem::Filesystem));
+            }
+            ItemSource::Archive(archive_source) => {
+                results.push(CollectedItem::ArchiveMarker(archive_source));
+            }
+        }
+    }
+
+    Ok(results)
 }
 
 /// Collects items from multiple paths, preserving CLI argument order.
@@ -405,7 +614,7 @@ pub(crate) fn collect_items_from_paths<P: AsRef<Path>>(
     paths: impl IntoIterator<Item = P>,
     options: &CollectOptions<'_>,
     hardlink_resolver: &mut HardlinkResolver,
-) -> io::Result<Vec<CollectedItem>> {
+) -> io::Result<Vec<CollectedEntry>> {
     let mut results = Vec::new();
     for path in paths {
         results.extend(collect_items_with_state(
@@ -419,7 +628,7 @@ pub(crate) fn collect_items_from_paths<P: AsRef<Path>>(
 
 /// Walks a single path and collects filesystem items to archive.
 ///
-/// Returns a list of `CollectedItem` indicating how each discovered item
+/// Returns a list of [`CollectedEntry`] indicating how each discovered item
 /// should be stored in the archive (`StoreAs`), along with its pre-captured
 /// metadata. Traversal supports recursion, exclusion filters, and correct
 /// handling of symbolic and hard links.
@@ -455,7 +664,7 @@ pub(crate) fn collect_items_from_paths<P: AsRef<Path>>(
 /// This function accepts a shared `HardlinkResolver` to enable cross-path hardlink
 /// detection when collecting from multiple paths.
 ///
-/// Returns a vector of `CollectedItem` on success.
+/// Returns a vector of [`CollectedEntry`] on success.
 ///
 /// # Errors
 /// Propagates I/O errors encountered during traversal. Broken symlinks are
@@ -466,7 +675,7 @@ pub(crate) fn collect_items_with_state(
     path: &Path,
     options: &CollectOptions<'_>,
     hardlink_resolver: &mut HardlinkResolver,
-) -> io::Result<Vec<CollectedItem>> {
+) -> io::Result<Vec<CollectedEntry>> {
     let mut ig = Ignore::empty();
     let mut out = Vec::new();
 
@@ -556,7 +765,7 @@ pub(crate) fn collect_items_with_state(
                         .time_filters
                         .matches_or_inactive(metadata.created().ok(), metadata.modified().ok())
                     {
-                        out.push(CollectedItem {
+                        out.push(CollectedEntry {
                             path: path.to_path_buf(),
                             store_as,
                             metadata,
@@ -569,7 +778,7 @@ pub(crate) fn collect_items_with_state(
                     if let Some(path) = e.path() {
                         let metadata = fs::symlink_metadata(path)?;
                         if is_broken_symlink_error(&metadata, ioe) {
-                            out.push(CollectedItem {
+                            out.push(CollectedEntry {
                                 path: path.to_path_buf(),
                                 store_as: StoreAs::Symlink,
                                 metadata,
@@ -646,14 +855,14 @@ pub(crate) fn write_from_path(writer: &mut impl Write, path: impl AsRef<Path>) -
 }
 
 pub(crate) fn create_entry(
-    item: &CollectedItem,
+    item: &CollectedEntry,
     CreateOptions {
         option,
         keep_options,
         pathname_editor,
     }: &CreateOptions,
 ) -> io::Result<Option<NormalEntry>> {
-    let CollectedItem {
+    let CollectedEntry {
         path,
         store_as,
         metadata,
@@ -1353,6 +1562,120 @@ pub(crate) fn apply_chroot(chroot: bool) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Transforms entries from a source archive, applying path and ownership transformations.
+///
+/// This function reads entries from the source archive and yields transformed entries
+/// that can be added to a target archive. For solid entries, they are expanded to
+/// individual normal entries. Encrypted solid entries can be decrypted and expanded
+/// if a password is provided; without a password they will cause an error.
+///
+/// The entry data (FDAT chunks) is preserved as-is, maintaining the original
+/// compression and encryption. Only the entry headers (paths, ownership) are modified.
+///
+/// Entries whose path matches the filter exclusion rules will be skipped.
+/// Time filters are also applied to filter entries by timestamps.
+pub(crate) fn transform_archive_entries<R: io::Read>(
+    reader: R,
+    create_options: &CreateOptions,
+    filter: &PathFilter<'_>,
+    time_filters: &TimeFilters,
+    password: Option<&[u8]>,
+) -> io::Result<Vec<io::Result<Option<NormalEntry>>>> {
+    let mut archive = Archive::read_header(reader)?;
+    let mut results = Vec::new();
+
+    for entry_result in archive.entries().extract_solid_entries(password) {
+        match entry_result {
+            Ok(entry) => {
+                if filter.excluded(entry.header().path()) {
+                    continue;
+                }
+                let ctime = entry.metadata().created_time();
+                let mtime = entry.metadata().modified_time();
+                if !time_filters.matches_or_inactive(ctime, mtime) {
+                    continue;
+                }
+                results.push(transform_normal_entry(entry, create_options));
+            }
+            Err(e) => results.push(Err(e)),
+        }
+    }
+
+    Ok(results)
+}
+
+/// Reads entries from an archive source (file or stdin) and transforms them.
+pub(crate) fn read_archive_source(
+    source: &ArchiveSource,
+    create_options: &CreateOptions,
+    filter: &PathFilter<'_>,
+    time_filters: &TimeFilters,
+    password: Option<&[u8]>,
+) -> io::Result<Vec<io::Result<Option<NormalEntry>>>> {
+    match source {
+        ArchiveSource::File(path) => {
+            let file = fs::File::open(path)
+                .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", path.display(), e)))?;
+            let reader = io::BufReader::with_capacity(64 * 1024, file);
+            transform_archive_entries(reader, create_options, filter, time_filters, password)
+                .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", path.display(), e)))
+        }
+        ArchiveSource::Stdin => {
+            let reader = io::BufReader::new(io::stdin().lock());
+            transform_archive_entries(reader, create_options, filter, time_filters, password)
+                .map_err(|e| io::Error::new(e.kind(), format!("<stdin>: {}", e)))
+        }
+    }
+}
+
+/// Transforms a single normal entry, applying path and ownership modifications.
+fn transform_normal_entry(
+    entry: NormalEntry,
+    CreateOptions {
+        pathname_editor,
+        keep_options,
+        ..
+    }: &CreateOptions,
+) -> io::Result<Option<NormalEntry>> {
+    // Apply path transformation
+    let original_name = entry.header().path();
+    let Some(new_name) = pathname_editor.edit_entry_name(original_name.as_ref()) else {
+        // Entry path was stripped away entirely
+        return Ok(None);
+    };
+
+    let mut result = entry.with_name(new_name);
+
+    // Apply ownership overrides from owner_strategy
+    if let OwnerStrategy::Preserve {
+        options:
+            OwnerOptions {
+                uid,
+                gid,
+                uname,
+                gname,
+            },
+    } = &keep_options.owner_strategy
+    {
+        // Only apply if at least one override is specified
+        if uid.is_some() || gid.is_some() || uname.is_some() || gname.is_some() {
+            if let Some(perm) = result.metadata().permission() {
+                let new_perm = pna::Permission::new(
+                    uid.map(u64::from).unwrap_or_else(|| perm.uid()),
+                    uname.clone().unwrap_or_else(|| perm.uname().to_string()),
+                    gid.map(u64::from).unwrap_or_else(|| perm.gid()),
+                    gname.clone().unwrap_or_else(|| perm.gname().to_string()),
+                    perm.permissions(),
+                );
+                let metadata = result.metadata().clone().with_permission(Some(new_perm));
+                result = result.with_metadata(metadata);
+            }
+        }
+    }
+
+    Ok(Some(result))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1482,5 +1805,97 @@ mod tests {
             .map(Into::into)
             .collect::<HashSet<_>>()
         );
+    }
+
+    mod item_source_parse {
+        use super::*;
+
+        #[test]
+        fn at_alone_is_stdin() {
+            let result = ItemSource::parse("@");
+            assert!(matches!(result, ItemSource::Archive(ArchiveSource::Stdin)));
+        }
+
+        #[test]
+        fn at_dash_is_stdin() {
+            let result = ItemSource::parse("@-");
+            assert!(matches!(result, ItemSource::Archive(ArchiveSource::Stdin)));
+        }
+
+        #[test]
+        fn at_path_is_archive_file() {
+            let result = ItemSource::parse("@archive.pna");
+            assert!(matches!(
+                result,
+                ItemSource::Archive(ArchiveSource::File(p)) if p == Path::new("archive.pna")
+            ));
+        }
+
+        #[test]
+        fn plain_path_is_filesystem() {
+            let result = ItemSource::parse("some/path");
+            assert!(matches!(
+                result,
+                ItemSource::Filesystem(p) if p == Path::new("some/path")
+            ));
+        }
+
+        #[test]
+        fn dot_slash_at_is_filesystem_escape() {
+            // Following bsdtar convention: ./@file escapes the @ prefix
+            let result = ItemSource::parse("./@file");
+            assert!(matches!(
+                result,
+                ItemSource::Filesystem(p) if p == Path::new("./@file")
+            ));
+        }
+
+        #[test]
+        fn parse_many_mixed() {
+            let args = vec![
+                "file1".to_string(),
+                "@archive.pna".to_string(),
+                "@".to_string(),
+                "./@literal".to_string(),
+            ];
+            let results = ItemSource::parse_many(&args);
+            assert_eq!(results.len(), 4);
+            assert!(matches!(&results[0], ItemSource::Filesystem(p) if p == Path::new("file1")));
+            assert!(
+                matches!(&results[1], ItemSource::Archive(ArchiveSource::File(p)) if p == Path::new("archive.pna"))
+            );
+            assert!(matches!(
+                &results[2],
+                ItemSource::Archive(ArchiveSource::Stdin)
+            ));
+            assert!(
+                matches!(&results[3], ItemSource::Filesystem(p) if p == Path::new("./@literal"))
+            );
+        }
+
+        #[test]
+        fn validate_no_duplicate_stdin_ok() {
+            let sources = vec![
+                ItemSource::Filesystem(PathBuf::from("file")),
+                ItemSource::Archive(ArchiveSource::Stdin),
+                ItemSource::Archive(ArchiveSource::File(PathBuf::from("archive.pna"))),
+            ];
+            assert!(super::validate_no_duplicate_stdin(&sources).is_ok());
+        }
+
+        #[test]
+        fn validate_no_duplicate_stdin_error() {
+            let sources = vec![
+                ItemSource::Archive(ArchiveSource::Stdin),
+                ItemSource::Archive(ArchiveSource::Stdin),
+            ];
+            assert!(super::validate_no_duplicate_stdin(&sources).is_err());
+        }
+
+        #[test]
+        fn validate_no_duplicate_stdin_empty() {
+            let sources: Vec<ItemSource> = vec![];
+            assert!(super::validate_no_duplicate_stdin(&sources).is_ok());
+        }
     }
 }

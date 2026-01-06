@@ -6,13 +6,13 @@ use crate::{
     command::{
         Command, ask_password, check_password,
         core::{
-            AclStrategy, CollectOptions, CollectedItem, CreateOptions, FflagsStrategy, KeepOptions,
-            MIN_SPLIT_PART_BYTES, MacMetadataStrategy, PathFilter, PathTransformers,
-            PathnameEditor, PermissionStrategyResolver, TimeFilterResolver,
-            TimestampStrategyResolver, XattrStrategy, collect_items_from_paths, create_entry,
-            entry_option,
+            AclStrategy, CollectOptions, CollectedItem, CreateOptions, EntryResult, FflagsStrategy,
+            KeepOptions, MIN_SPLIT_PART_BYTES, MacMetadataStrategy, PathFilter, PathTransformers,
+            PathnameEditor, PermissionStrategyResolver, TimeFilterResolver, TimeFilters,
+            TimestampStrategyResolver, XattrStrategy, collect_items_from_paths,
+            drain_entry_results, entry_option,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
-            read_paths, read_paths_stdin, write_split_archive,
+            read_paths, read_paths_stdin, spawn_entry_results, write_split_archive,
         },
     },
     utils::{self, VCS_FILES, fmt::DurationDisplay, fs::HardlinkResolver},
@@ -454,7 +454,10 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         time_filters: &time_filters,
     };
     let mut resolver = HardlinkResolver::new(collect_options.follow_links);
-    let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?;
+    let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?
+        .into_iter()
+        .map(CollectedItem::Filesystem)
+        .collect::<Vec<_>>();
 
     if let Some(parent) = archive_path.parent() {
         fs::create_dir_all(parent)?;
@@ -510,12 +513,18 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
             target_items,
             size,
             args.overwrite,
+            &filter,
+            &time_filters,
+            password,
         )?;
     } else {
         create_archive_file(
             || utils::fs::file_create(&archive_path, args.overwrite),
             creation_context,
             target_items,
+            &filter,
+            &time_filters,
+            password,
         )?;
     }
     log::info!(
@@ -541,12 +550,14 @@ pub(crate) fn create_archive_file<W, F>(
         pathname_editor,
     }: CreationContext,
     target_items: Vec<CollectedItem>,
+    filter: &PathFilter<'_>,
+    time_filters: &TimeFilters,
+    password: Option<&[u8]>,
 ) -> anyhow::Result<()>
 where
     W: Write,
     F: FnMut() -> io::Result<W> + Send,
 {
-    let (tx, rx) = std::sync::mpsc::channel();
     let option = if solid {
         WriteOptions::store()
     } else {
@@ -557,42 +568,29 @@ where
         keep_options,
         pathname_editor,
     };
-    rayon::scope_fifo(|s| {
-        for item in target_items {
-            let tx = tx.clone();
-            let create_options = create_options.clone();
-            s.spawn_fifo(move |_| {
-                log::debug!("Adding: {}", item.path.display());
-                tx.send(create_entry(&item, &create_options))
-                    .unwrap_or_else(|e| log::error!("{e}: {}", item.path.display()));
-            })
-        }
-
-        drop(tx);
-    });
+    let rx = spawn_entry_results(
+        target_items,
+        &create_options,
+        filter,
+        time_filters,
+        password,
+    );
 
     let file = get_writer()?;
     let buffered = io::BufWriter::with_capacity(64 * 1024, file);
     if solid {
         let mut writer = Archive::write_solid_header(buffered, write_option)?;
-        for entry in rx.into_iter() {
-            if let Some(entry) = entry? {
-                writer.add_entry(entry)?;
-            }
-        }
+        drain_entry_results(rx, |entry| writer.add_entry(entry))?;
         writer.finalize()?;
     } else {
         let mut writer = Archive::write_header(buffered)?;
-        for entry in rx.into_iter() {
-            if let Some(entry) = entry? {
-                writer.add_entry(entry)?;
-            }
-        }
+        drain_entry_results(rx, |entry| writer.add_entry(entry))?;
         writer.finalize()?;
     }
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn create_archive_with_split(
     archive: &Path,
     CreationContext {
@@ -604,8 +602,10 @@ fn create_archive_with_split(
     target_items: Vec<CollectedItem>,
     max_file_size: usize,
     overwrite: bool,
+    filter: &PathFilter<'_>,
+    time_filters: &TimeFilters,
+    password: Option<&[u8]>,
 ) -> anyhow::Result<()> {
-    let (tx, rx) = std::sync::mpsc::channel();
     let option = if solid {
         WriteOptions::store()
     } else {
@@ -616,33 +616,23 @@ fn create_archive_with_split(
         keep_options,
         pathname_editor,
     };
-    rayon::scope_fifo(|s| -> anyhow::Result<()> {
-        for item in target_items {
-            let tx = tx.clone();
-            let create_options = create_options.clone();
-            s.spawn_fifo(move |_| {
-                log::debug!("Adding: {}", item.path.display());
-                tx.send(create_entry(&item, &create_options))
-                    .unwrap_or_else(|e| log::error!("{e}: {}", item.path.display()));
-            })
-        }
-
-        drop(tx);
-        Ok(())
-    })?;
+    let rx = spawn_entry_results(
+        target_items,
+        &create_options,
+        filter,
+        time_filters,
+        password,
+    );
     if solid {
         let mut entries_builder = SolidEntryBuilder::new(write_option)?;
-        for entry in rx.into_iter() {
-            if let Some(entry) = entry? {
-                entries_builder.add_entry(entry)?;
-            }
-        }
+        drain_entry_results(rx, |entry| entries_builder.add_entry(entry))?;
         let entries = entries_builder.build();
         write_split_archive(archive, [entries].into_iter(), max_file_size, overwrite)?;
     } else {
+        let entries = rx.into_iter().flat_map(EntryResult::into_entries);
         write_split_archive(
             archive,
-            rx.into_iter().filter_map(Result::transpose),
+            entries.filter_map(Result::transpose),
             max_file_size,
             overwrite,
         )?;

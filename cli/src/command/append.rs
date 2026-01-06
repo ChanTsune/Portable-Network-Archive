@@ -8,10 +8,10 @@ use crate::{
         core::{
             AclStrategy, CollectOptions, CollectedItem, CreateOptions, FflagsStrategy, KeepOptions,
             MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
-            PermissionStrategyResolver, TimeFilterResolver, TimestampStrategyResolver,
-            XattrStrategy, collect_items_from_paths, create_entry, entry_option,
+            PermissionStrategyResolver, TimeFilterResolver, TimeFilters, TimestampStrategyResolver,
+            XattrStrategy, collect_items_from_paths, drain_entry_results, entry_option,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
-            read_paths, read_paths_stdin,
+            read_paths, read_paths_stdin, spawn_entry_results,
         },
     },
     utils::{PathPartExt, VCS_FILES, fs::HardlinkResolver},
@@ -460,35 +460,31 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         time_filters: &time_filters,
     };
     let mut resolver = HardlinkResolver::new(collect_options.follow_links);
-    let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?;
+    let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?
+        .into_iter()
+        .map(CollectedItem::Filesystem)
+        .collect::<Vec<_>>();
 
-    run_append_archive(&create_options, archive, target_items)
+    run_append_archive(
+        &create_options,
+        archive,
+        target_items,
+        &filter,
+        &time_filters,
+        password,
+    )
 }
 
 pub(crate) fn run_append_archive(
     create_options: &CreateOptions,
     mut archive: Archive<impl io::Write>,
     target_items: Vec<CollectedItem>,
+    filter: &PathFilter<'_>,
+    time_filters: &TimeFilters,
+    password: Option<&[u8]>,
 ) -> anyhow::Result<()> {
-    let (tx, rx) = std::sync::mpsc::channel();
-    rayon::scope_fifo(|s| {
-        for item in target_items {
-            let tx = tx.clone();
-            s.spawn_fifo(move |_| {
-                log::debug!("Adding: {}", item.path.display());
-                tx.send(create_entry(&item, create_options))
-                    .unwrap_or_else(|e| log::error!("{e}: {}", item.path.display()));
-            })
-        }
-
-        drop(tx);
-    });
-
-    for entry in rx.into_iter() {
-        if let Some(entry) = entry? {
-            archive.add_entry(entry)?;
-        }
-    }
+    let rx = spawn_entry_results(target_items, create_options, filter, time_filters, password);
+    drain_entry_results(rx, |entry| archive.add_entry(entry))?;
     archive.finalize()?;
     Ok(())
 }
