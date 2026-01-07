@@ -20,7 +20,7 @@ bugreport = { version = "0.5.1", default-features = false, features = ["collecto
 bytesize = "2.3.1"
 chrono = "0.4.42"
 clap = { version = "4.5.54", features = ["derive"] }
-clap_complete = "4.5.64"
+clap_complete = "4.5.65"
 const-hex = "1.17.0"
 csv = "1.3.1"
 fern = "0.7.1"
