@@ -63,7 +63,7 @@ jobs:
           restore-keys: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}"
       - name: run test
         run: |
-          cargo hack test --locked --release --feature-powerset --exclude-features wasm
+          cargo hack test --locked --release --feature-powerset --exclude-features wasm -- --test-threads=1
         env:
           RUST_BACKTRACE: 1
 
@@ -170,6 +170,6 @@ jobs:
           restore-keys: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}"
       - name: run test
         run: |
-          cargo hack test --locked --release --feature-powerset --exclude-features wasm -p ${{ matrix.crate }}
+          cargo hack test --locked --release --feature-powerset --exclude-features wasm -p ${{ matrix.crate }} -- --test-threads=1
         env:
           RUST_BACKTRACE: 1
