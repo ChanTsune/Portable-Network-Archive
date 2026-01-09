@@ -296,11 +296,10 @@ impl<R: futures_io::AsyncRead + Unpin> Archive<R> {
     /// Returns an error if an I/O error occurs while reading from the archive.
     #[inline]
     pub async fn read_entry_async(&mut self) -> io::Result<Option<ReadEntry>> {
-        let entry = self.next_raw_item_async().await?;
-        Ok(match entry {
-            Some(entry) => Some(entry.try_into()?),
-            None => None,
-        })
+        self.next_raw_item_async()
+            .await?
+            .map(TryInto::try_into)
+            .transpose()
     }
 }
 
