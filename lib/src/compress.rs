@@ -49,6 +49,18 @@ impl<W: Write> Write for CompressionWriter<W> {
     }
 }
 
+impl<W: Write> CompressionWriter<W> {
+    #[inline]
+    pub(crate) fn get_mut(&mut self) -> &mut W {
+        match self {
+            Self::No(w) => w,
+            Self::Deflate(w) => w.get_mut(),
+            Self::ZStd(w) => w.get_mut(),
+            Self::Xz(w) => w.get_mut(),
+        }
+    }
+}
+
 impl<W: Write> TryIntoInner<W> for CompressionWriter<W> {
     #[inline]
     fn try_into_inner(self) -> Result<W> {

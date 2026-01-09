@@ -106,6 +106,11 @@ where
     C: BlockEncryptMut + BlockCipher,
     P: Padding<<C as BlockSizeUser>::BlockSize>,
 {
+    #[inline]
+    pub(crate) fn get_mut(&mut self) -> &mut W {
+        &mut self.w
+    }
+
     pub(crate) fn finish(self) -> io::Result<W> {
         self.encrypt_write_with_padding()
     }
