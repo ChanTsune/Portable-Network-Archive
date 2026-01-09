@@ -172,6 +172,7 @@ pub(crate) enum MacMetadataStrategy {
     #[default]
     Never,
     /// Create AppleDouble entries for files with Mac metadata (macOS only)
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     Always,
 }
 
