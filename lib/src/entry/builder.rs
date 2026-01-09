@@ -14,7 +14,10 @@ use crate::{
 
 #[cfg(feature = "unstable-async")]
 use futures_io::AsyncWrite;
-use std::io::{self, prelude::*};
+use std::{
+    io::{self, prelude::*},
+    num::NonZeroUsize,
+};
 #[cfg(feature = "unstable-async")]
 use std::{
     pin::Pin,
@@ -420,6 +423,42 @@ impl EntryBuilder {
         self
     }
 
+    /// Sets the maximum chunk size for data written to this entry.
+    ///
+    /// This controls how the entry data is split into chunks when writing.
+    /// The default is the maximum allowed chunk size (~4GB).
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - The maximum size in bytes for each data chunk. Must be non-zero.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the [`EntryBuilder`] with the maximum chunk size set.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use std::io::{self, Write};
+    /// use std::num::NonZeroUsize;
+    /// use libpna::{EntryBuilder, WriteOptions};
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let mut builder = EntryBuilder::new_file("data.bin".into(), WriteOptions::store())?;
+    /// builder.max_chunk_size(NonZeroUsize::new(1024 * 1024).unwrap()); // 1MB chunks
+    /// builder.write_all(b"file content")?;
+    /// let entry = builder.build()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn max_chunk_size(&mut self, size: NonZeroUsize) -> &mut Self {
+        if let Some(data) = &mut self.data {
+            data.get_mut().get_mut().set_max_chunk_size(size.get());
+        }
+        self
+    }
+
     /// Builds the entry and returns a Result containing the new [NormalEntry].
     ///
     /// # Returns
@@ -674,6 +713,43 @@ impl SolidEntryBuilder {
     #[inline]
     pub fn add_extra_chunk<T: Into<RawChunk>>(&mut self, chunk: T) {
         self.extra.push(chunk.into());
+    }
+
+    /// Sets the maximum chunk size for data written to this solid entry.
+    ///
+    /// This controls how the solid entry data is split into chunks when writing.
+    /// The default is the maximum allowed chunk size (~4GB).
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - The maximum size in bytes for each data chunk. Must be non-zero.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the [`SolidEntryBuilder`] with the maximum chunk size set.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use std::io::{self, Write};
+    /// use std::num::NonZeroUsize;
+    /// use libpna::{EntryBuilder, SolidEntryBuilder, WriteOptions};
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let mut solid_builder = SolidEntryBuilder::new(WriteOptions::store())?;
+    /// solid_builder.max_chunk_size(NonZeroUsize::new(1024 * 1024).unwrap()); // 1MB chunks
+    ///
+    /// let file_entry = EntryBuilder::new_file("file.txt".into(), WriteOptions::store())?;
+    /// solid_builder.add_entry(file_entry.build()?)?;
+    ///
+    /// let solid_entry = solid_builder.build()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn max_chunk_size(&mut self, size: NonZeroUsize) -> &mut Self {
+        self.data.get_mut().get_mut().set_max_chunk_size(size.get());
+        self
     }
 
     fn build_as_entry(self) -> io::Result<SolidEntry> {

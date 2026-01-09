@@ -82,6 +82,19 @@ impl<W: Write> Write for CipherWriter<W> {
     }
 }
 
+impl<W: Write> CipherWriter<W> {
+    #[inline]
+    pub(crate) fn get_mut(&mut self) -> &mut W {
+        match self {
+            Self::No(w) => w,
+            Self::CbcAes(w) => w.get_mut(),
+            Self::CbcCamellia(w) => w.get_mut(),
+            Self::CtrAes(w) => w.get_mut(),
+            Self::CtrCamellia(w) => w.get_mut(),
+        }
+    }
+}
+
 impl<W: Write> TryIntoInner<W> for CipherWriter<W> {
     #[inline]
     fn try_into_inner(self) -> io::Result<W> {

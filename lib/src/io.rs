@@ -4,6 +4,17 @@ pub(crate) use self::finish::TryIntoInner;
 use crate::chunk::MAX_CHUNK_DATA_LENGTH;
 use std::io;
 
+const MIN_CHUNK_BODY_SIZE: usize = 1;
+
+#[inline]
+const fn clamp_chunk_size(size: usize) -> usize {
+    if size < MIN_CHUNK_BODY_SIZE {
+        MIN_CHUNK_BODY_SIZE
+    } else {
+        size
+    }
+}
+
 pub(crate) struct FlattenWriter {
     pub(crate) inner: Vec<Vec<u8>>,
     max_chunk_size: usize,
@@ -19,13 +30,22 @@ impl FlattenWriter {
     pub(crate) const fn with_max_chunk_size(max_chunk_size: usize) -> Self {
         Self {
             inner: Vec::new(),
-            max_chunk_size,
+            max_chunk_size: clamp_chunk_size(max_chunk_size),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn set_max_chunk_size(&mut self, size: usize) {
+        self.max_chunk_size = clamp_chunk_size(size);
     }
 }
 
 impl io::Write for FlattenWriter {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        if buf.is_empty() {
+            return Ok(0);
+        }
         self.inner
             .extend(buf.chunks(self.max_chunk_size).map(|it| it.to_vec()));
         Ok(buf.len())
