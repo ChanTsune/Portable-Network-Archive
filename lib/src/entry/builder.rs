@@ -1,7 +1,7 @@
 use crate::{
     Duration,
     archive::{InternalArchiveDataWriter, InternalDataWriter, write_file_entry},
-    chunk::{MAX_CHUNK_DATA_LENGTH, RawChunk},
+    chunk::RawChunk,
     cipher::CipherWriter,
     compress::CompressionWriter,
     entry::{
@@ -135,7 +135,7 @@ pub struct EntryBuilder {
     header: EntryHeader,
     phsf: Option<String>,
     iv: Option<Vec<u8>>,
-    data: Option<CompressionWriter<CipherWriter<FlattenWriter<MAX_CHUNK_DATA_LENGTH>>>>,
+    data: Option<CompressionWriter<CipherWriter<FlattenWriter>>>,
     created: Option<Duration>,
     last_modified: Option<Duration>,
     accessed: Option<Duration>,
@@ -508,7 +508,7 @@ impl AsyncWrite for EntryBuilder {
 /// being created within a solid entry. It is passed to the closure in the
 /// [`SolidEntryBuilder::write_file`] method.
 pub struct SolidEntryDataWriter<'a>(
-    InternalArchiveDataWriter<&'a mut InternalDataWriter<FlattenWriter<MAX_CHUNK_DATA_LENGTH>>>,
+    InternalArchiveDataWriter<&'a mut InternalDataWriter<FlattenWriter>>,
 );
 
 impl Write for SolidEntryDataWriter<'_> {
@@ -555,7 +555,7 @@ pub struct SolidEntryBuilder {
     header: SolidHeader,
     phsf: Option<String>,
     iv: Option<Vec<u8>>,
-    data: CompressionWriter<CipherWriter<FlattenWriter<MAX_CHUNK_DATA_LENGTH>>>,
+    data: CompressionWriter<CipherWriter<FlattenWriter>>,
     extra: Vec<RawChunk>,
 }
 

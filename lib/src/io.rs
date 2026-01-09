@@ -1,23 +1,33 @@
 mod finish;
 
 pub(crate) use self::finish::TryIntoInner;
+use crate::chunk::MAX_CHUNK_DATA_LENGTH;
 use std::io;
 
-pub(crate) struct FlattenWriter<const N: usize> {
+pub(crate) struct FlattenWriter {
     pub(crate) inner: Vec<Vec<u8>>,
+    max_chunk_size: usize,
 }
 
-impl<const N: usize> FlattenWriter<N> {
+impl FlattenWriter {
     #[inline]
     pub(crate) const fn new() -> Self {
-        Self { inner: Vec::new() }
+        Self::with_max_chunk_size(MAX_CHUNK_DATA_LENGTH)
+    }
+
+    #[inline]
+    pub(crate) const fn with_max_chunk_size(max_chunk_size: usize) -> Self {
+        Self {
+            inner: Vec::new(),
+            max_chunk_size,
     }
 }
 
-impl<const N: usize> io::Write for FlattenWriter<N> {
+impl io::Write for FlattenWriter {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.inner.extend(buf.chunks(N).map(|it| it.to_vec()));
+        self.inner
+            .extend(buf.chunks(self.max_chunk_size).map(|it| it.to_vec()));
         Ok(buf.len())
     }
 
