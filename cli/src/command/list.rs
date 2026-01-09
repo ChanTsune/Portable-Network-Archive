@@ -1123,8 +1123,10 @@ struct FileInfo<'a> {
     accessed: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     fflags: Option<&'a [String]>,
-    acl: Vec<AclEntry>,
-    xattr: Vec<XAttr<'a>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    acl: Option<Vec<AclEntry>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    xattr: Option<Vec<XAttr<'a>>>,
 }
 
 #[derive(Serialize, Debug)]
@@ -1145,6 +1147,8 @@ fn json_line_entries_to(
     mut out: impl Write,
 ) -> anyhow::Result<()> {
     let show_fflags = options.show_fflags;
+    let show_acl = options.show_acl;
+    let show_xattr = options.show_xattr;
     let entries = entries
         .par_iter()
         .map(|it| {
@@ -1180,27 +1184,25 @@ fn json_line_entries_to(
                 accessed: it
                     .accessed
                     .map_or_else(String::new, |d| datetime(TimeFormat::Long, d)),
-                fflags: if show_fflags {
-                    Some(it.fflags.as_slice())
-                } else {
-                    None
-                },
-                acl: it
-                    .acl
-                    .iter()
-                    .map(|(platform, ace)| AclEntry {
-                        platform: platform.to_string(),
-                        entries: ace.iter().map(|it| it.to_string()).collect(),
-                    })
-                    .collect(),
-                xattr: it
-                    .xattrs
-                    .iter()
-                    .map(|x| XAttr {
-                        key: x.name(),
-                        value: base64::engine::general_purpose::STANDARD.encode(x.value()),
-                    })
-                    .collect(),
+                fflags: show_fflags.then_some(it.fflags.as_slice()),
+                acl: show_acl.then(|| {
+                    it.acl
+                        .iter()
+                        .map(|(platform, ace)| AclEntry {
+                            platform: platform.to_string(),
+                            entries: ace.iter().map(|it| it.to_string()).collect(),
+                        })
+                        .collect()
+                }),
+                xattr: show_xattr.then(|| {
+                    it.xattrs
+                        .iter()
+                        .map(|x| XAttr {
+                            key: x.name(),
+                            value: base64::engine::general_purpose::STANDARD.encode(x.value()),
+                        })
+                        .collect()
+                }),
             }
         })
         .collect::<Vec<_>>();

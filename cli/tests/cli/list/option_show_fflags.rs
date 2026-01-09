@@ -105,13 +105,13 @@ fn list_fflags_jsonl() {
         .assert()
         .success()
         .stdout(concat!(
-            r#"{"filename":"file1.txt","permissions":"---------- ","owner":"","group":"","raw_size":10,"size":19,"encryption":"-","compression":"zstandard","created":"","modified":"","accessed":"","fflags":["uchg"],"acl":[],"xattr":[]}"#,
+            r#"{"filename":"file1.txt","permissions":"---------- ","owner":"","group":"","raw_size":10,"size":19,"encryption":"-","compression":"zstandard","created":"","modified":"","accessed":"","fflags":["uchg"]}"#,
             "\n",
-            r#"{"filename":"file2.txt","permissions":"---------- ","owner":"","group":"","raw_size":10,"size":19,"encryption":"-","compression":"zstandard","created":"","modified":"","accessed":"","fflags":["nodump"],"acl":[],"xattr":[]}"#,
+            r#"{"filename":"file2.txt","permissions":"---------- ","owner":"","group":"","raw_size":10,"size":19,"encryption":"-","compression":"zstandard","created":"","modified":"","accessed":"","fflags":["nodump"]}"#,
             "\n",
-            r#"{"filename":"file3.txt","permissions":"---------- ","owner":"","group":"","raw_size":10,"size":19,"encryption":"-","compression":"zstandard","created":"","modified":"","accessed":"","fflags":["hidden","schg"],"acl":[],"xattr":[]}"#,
+            r#"{"filename":"file3.txt","permissions":"---------- ","owner":"","group":"","raw_size":10,"size":19,"encryption":"-","compression":"zstandard","created":"","modified":"","accessed":"","fflags":["hidden","schg"]}"#,
             "\n",
-            r#"{"filename":"testfile.txt","permissions":"---------- ","owner":"","group":"","raw_size":13,"size":22,"encryption":"-","compression":"zstandard","created":"","modified":"","accessed":"","fflags":["hidden","nodump","uchg"],"acl":[],"xattr":[]}"#,
+            r#"{"filename":"testfile.txt","permissions":"---------- ","owner":"","group":"","raw_size":13,"size":22,"encryption":"-","compression":"zstandard","created":"","modified":"","accessed":"","fflags":["hidden","nodump","uchg"]}"#,
             "\n",
         ));
 }
@@ -136,13 +136,13 @@ fn list_jsonl_without_fflags() {
         .assert()
         .success()
         .stdout(concat!(
-            r#"{"filename":"file1.txt","permissions":"---------- ","owner":"","group":"","raw_size":10,"size":19,"encryption":"-","compression":"zstandard","created":"","modified":"","accessed":"","acl":[],"xattr":[]}"#,
+            r#"{"filename":"file1.txt","permissions":"---------- ","owner":"","group":"","raw_size":10,"size":19,"encryption":"-","compression":"zstandard","created":"","modified":"","accessed":""}"#,
             "\n",
-            r#"{"filename":"file2.txt","permissions":"---------- ","owner":"","group":"","raw_size":10,"size":19,"encryption":"-","compression":"zstandard","created":"","modified":"","accessed":"","acl":[],"xattr":[]}"#,
+            r#"{"filename":"file2.txt","permissions":"---------- ","owner":"","group":"","raw_size":10,"size":19,"encryption":"-","compression":"zstandard","created":"","modified":"","accessed":""}"#,
             "\n",
-            r#"{"filename":"file3.txt","permissions":"---------- ","owner":"","group":"","raw_size":10,"size":19,"encryption":"-","compression":"zstandard","created":"","modified":"","accessed":"","acl":[],"xattr":[]}"#,
+            r#"{"filename":"file3.txt","permissions":"---------- ","owner":"","group":"","raw_size":10,"size":19,"encryption":"-","compression":"zstandard","created":"","modified":"","accessed":""}"#,
             "\n",
-            r#"{"filename":"testfile.txt","permissions":"---------- ","owner":"","group":"","raw_size":13,"size":22,"encryption":"-","compression":"zstandard","created":"","modified":"","accessed":"","acl":[],"xattr":[]}"#,
+            r#"{"filename":"testfile.txt","permissions":"---------- ","owner":"","group":"","raw_size":13,"size":22,"encryption":"-","compression":"zstandard","created":"","modified":"","accessed":""}"#,
             "\n",
         ));
 }
