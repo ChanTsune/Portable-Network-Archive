@@ -2,7 +2,10 @@ use crate::utils::{EmbedExt, LibSourceCode, diff::diff, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use itertools::Itertools;
 
-const KEEP_OPTIONS: &[Option<&str>] = &[Some("--keep-permission"), Some("--keep-xattr")];
+// Native commands (pna create/extract) require --keep-permission to store permissions
+const FS_KEEP_OPTIONS: &[Option<&str>] = &[Some("--keep-permission"), Some("--keep-xattr")];
+// stdio stores mode+owner by default, no flag needed; still test with --keep-xattr for extended attrs
+const STDIO_KEEP_OPTIONS: &[Option<&str>] = &[None, Some("--keep-xattr")];
 
 const COMPRESSION_OPTIONS: &[Option<&[&str]>] = &[
     Some(&["--store"]),
@@ -67,7 +70,7 @@ fn combination_fs() {
         )
         .unwrap();
     }
-    for keep in KEEP_OPTIONS {
+    for keep in FS_KEEP_OPTIONS {
         for compress in COMPRESSION_OPTIONS {
             for encrypt in ENCRYPTION_OPTIONS {
                 for solid in SOLID_OPTIONS {
@@ -140,7 +143,7 @@ fn combination_stdio() {
         )
         .unwrap();
     }
-    for keep in KEEP_OPTIONS {
+    for keep in STDIO_KEEP_OPTIONS {
         for compress in COMPRESSION_OPTIONS {
             for encrypt in ENCRYPTION_OPTIONS {
                 for solid in SOLID_OPTIONS {
