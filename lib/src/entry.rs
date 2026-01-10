@@ -533,7 +533,7 @@ where
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     format!(
-                        "Excepted {} chunk, but {} chunk was found",
+                        "Expected {} chunk, but {} chunk was found",
                         ChunkType::SHED,
                         first_chunk.ty
                     ),
@@ -600,7 +600,7 @@ where
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     format!(
-                        "Excepted {} chunk, but {} chunk was found",
+                        "Expected {} chunk, but {} chunk was found",
                         ChunkType::FHED,
                         first_chunk.ty
                     ),
