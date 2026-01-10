@@ -9,7 +9,10 @@ pub(crate) fn is_pna<R: io::Read>(mut reader: R) -> io::Result<bool> {
 
 #[inline]
 pub(crate) fn read_to_lines<R: io::BufRead>(reader: R) -> io::Result<Vec<String>> {
-    reader.lines().collect()
+    reader
+        .split_lines()
+        .filter(|line| !line.as_ref().is_ok_and(|s| s.is_empty()))
+        .collect()
 }
 
 /// Reads a reader and splits its contents on null characters ('\0'), returning a Vec<String>.
@@ -74,5 +77,19 @@ mod tests {
         let input = b"d1/d2/f3\0d1/d2/f5\0";
         let got = read_to_nul(io::BufReader::new(&input[..])).unwrap();
         assert_eq!(got, vec!["d1/d2/f3", "d1/d2/f5"]);
+    }
+
+    #[test]
+    fn read_to_lines_supports_cr_crlf_lf() {
+        let input = b"f\rd1/f1\r\nd1/d2/f4\nd1/d2/f6";
+        let got = read_to_lines(io::BufReader::new(&input[..])).unwrap();
+        assert_eq!(got, vec!["f", "d1/f1", "d1/d2/f4", "d1/d2/f6"]);
+    }
+
+    #[test]
+    fn read_to_lines_ignores_empty_lines() {
+        let input = b"\n\r\n";
+        let got = read_to_lines(io::BufReader::new(&input[..])).unwrap();
+        assert!(got.is_empty());
     }
 }

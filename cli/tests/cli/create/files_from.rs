@@ -72,3 +72,59 @@ fn create_with_files_from() {
     )
     .unwrap();
 }
+
+#[test]
+fn create_with_files_from_crlf() {
+    setup();
+    TestResources::extract_in("raw/", "create_with_files_from_crlf/src/").unwrap();
+
+    // Use CRLF line endings (Windows-style)
+    let list_path = "create_with_files_from_crlf/files.txt";
+    fs::write(
+        list_path,
+        "create_with_files_from_crlf/src/raw/empty.txt\r\ncreate_with_files_from_crlf/src/raw/text.txt\r\n",
+    )
+    .unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "create_with_files_from_crlf/test.pna",
+        "--overwrite",
+        "--files-from",
+        list_path,
+        "--unstable",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+}
+
+#[test]
+fn create_with_files_from_cr() {
+    setup();
+    TestResources::extract_in("raw/", "create_with_files_from_cr/src/").unwrap();
+
+    // Use CR line endings (old Mac-style)
+    let list_path = "create_with_files_from_cr/files.txt";
+    fs::write(
+        list_path,
+        "create_with_files_from_cr/src/raw/empty.txt\rcreate_with_files_from_cr/src/raw/text.txt\r",
+    )
+    .unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "create_with_files_from_cr/test.pna",
+        "--overwrite",
+        "--files-from",
+        list_path,
+        "--unstable",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+}
