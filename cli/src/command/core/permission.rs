@@ -1,25 +1,30 @@
-/// How to handle ownership during permission operations.
-#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub(crate) enum OwnerSource {
-    /// Don't restore ownership (extraction only - same as !same_owner)
-    /// During extraction: chmod() is called but lchown() is NOT
-    NoRestore,
-    /// Use ownership from source with optional overrides.
-    /// During creation: Override values stored in archive (None = use filesystem)
-    /// During extraction: Override values restored from archive (None = use archive)
-    FromSource {
-        uname: Option<String>,
-        gname: Option<String>,
-        uid: Option<u32>,
-        gid: Option<u32>,
-    },
+/// Override values for ownership during permission operations.
+/// During creation: Override values stored in archive (None = use filesystem)
+/// During extraction: Override values restored from archive (None = use archive)
+#[derive(Clone, Debug, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub(crate) struct OwnerOptions {
+    pub(crate) uname: Option<String>,
+    pub(crate) gname: Option<String>,
+    pub(crate) uid: Option<u32>,
+    pub(crate) gid: Option<u32>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub(crate) enum PermissionStrategy {
+/// How to handle file mode bits (permissions).
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub(crate) enum ModeStrategy {
+    /// Don't preserve mode bits
+    #[default]
     Never,
-    /// Preserve permissions with configurable ownership handling
-    Preserve {
-        owner: OwnerSource,
-    },
+    /// Preserve mode bits from source
+    Preserve,
+}
+
+/// How to handle file ownership (uid/gid/uname/gname).
+#[derive(Clone, Debug, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub(crate) enum OwnerStrategy {
+    /// Don't restore ownership
+    #[default]
+    Never,
+    /// Restore ownership with optional overrides
+    Preserve { options: OwnerOptions },
 }

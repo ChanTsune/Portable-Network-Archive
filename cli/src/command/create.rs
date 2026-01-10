@@ -459,6 +459,17 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     if let Some(parent) = archive_path.parent() {
         fs::create_dir_all(parent)?;
     }
+    let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
+        keep_permission: args.keep_permission,
+        no_keep_permission: args.no_keep_permission,
+        same_owner: true, // Must be `true` for creation
+        uname: args.uname,
+        gname: args.gname,
+        uid: args.uid,
+        gid: args.gid,
+        numeric_owner: args.numeric_owner,
+    }
+    .resolve();
     let keep_options = KeepOptions {
         timestamp_strategy: TimestampStrategyResolver {
             keep_timestamp: args.keep_timestamp,
@@ -472,17 +483,8 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
             clamp_atime: args.clamp_atime,
         }
         .resolve(),
-        permission_strategy: PermissionStrategyResolver {
-            keep_permission: args.keep_permission,
-            no_keep_permission: args.no_keep_permission,
-            same_owner: true, // Must be `true` for creation
-            uname: args.uname,
-            gname: args.gname,
-            uid: args.uid,
-            gid: args.gid,
-            numeric_owner: args.numeric_owner,
-        }
-        .resolve(),
+        mode_strategy,
+        owner_strategy,
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
         fflags_strategy: FflagsStrategy::Never,

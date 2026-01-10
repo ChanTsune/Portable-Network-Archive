@@ -8,10 +8,10 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            AclStrategy, FflagsStrategy, KeepOptions, MacMetadataStrategy, OwnerSource, PathFilter,
-            PathTransformers, PathnameEditor, PermissionStrategy, PermissionStrategyResolver,
-            TimeFilterResolver, TimeFilters, TimestampStrategy, TimestampStrategyResolver,
-            XattrStrategy, apply_chroot, collect_split_archives,
+            AclStrategy, FflagsStrategy, KeepOptions, MacMetadataStrategy, ModeStrategy,
+            OwnerOptions, OwnerStrategy, PathFilter, PathTransformers, PathnameEditor,
+            PermissionStrategyResolver, TimeFilterResolver, TimeFilters, TimestampStrategy,
+            TimestampStrategyResolver, XattrStrategy, apply_chroot, collect_split_archives,
             path_lock::PathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, run_process_archive,
@@ -401,6 +401,17 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         args.keep_old_files,
         OverwriteStrategy::Never,
     );
+    let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
+        keep_permission: args.keep_permission,
+        no_keep_permission: args.no_keep_permission,
+        same_owner: !args.no_same_owner,
+        uname: args.uname,
+        gname: args.gname,
+        uid: args.uid,
+        gid: args.gid,
+        numeric_owner: args.numeric_owner,
+    }
+    .resolve();
     let keep_options = KeepOptions {
         timestamp_strategy: TimestampStrategyResolver {
             keep_timestamp: args.keep_timestamp,
@@ -414,17 +425,8 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
             clamp_atime: args.clamp_atime,
         }
         .resolve(),
-        permission_strategy: PermissionStrategyResolver {
-            keep_permission: args.keep_permission,
-            no_keep_permission: args.no_keep_permission,
-            same_owner: !args.no_same_owner,
-            uname: args.uname,
-            gname: args.gname,
-            uid: args.uid,
-            gid: args.gid,
-            numeric_owner: args.numeric_owner,
-        }
-        .resolve(),
+        mode_strategy,
+        owner_strategy,
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
         fflags_strategy: FflagsStrategy::Never,
@@ -870,7 +872,9 @@ fn restore_timestamps(
 
 /// Restores file metadata (permissions, extended attributes, ACLs, and macOS metadata) for an extracted entry according to the provided keep options.
 ///
-/// Permissions are applied when `keep_options.permission_strategy` is `Preserve`. Extended attributes are applied on Unix when `keep_options.xattr_strategy` is `Always` (logs a warning if the filesystem or platform does not support xattrs). ACLs are restored when the `acl` feature is enabled and `keep_options.acl_strategy` requests them; if the `acl` feature is not compiled in but ACLs were requested, a warning is emitted. macOS metadata (AppleDouble) is restored when `keep_options.mac_metadata_strategy` is `Always` on macOS.
+/// - Ownership is restored when `owner_strategy` is `Preserve`
+/// - Mode bits are restored when `mode_strategy` is `Preserve`
+/// - These are independent: `--keep-permission --no-same-owner` restores mode but not ownership
 fn restore_metadata<T>(
     item: &NormalEntry<T>,
     path: &Path,
@@ -879,9 +883,14 @@ fn restore_metadata<T>(
 where
     T: AsRef<[u8]>,
 {
-    if let PermissionStrategy::Preserve { ref owner } = keep_options.permission_strategy {
-        if let Some(p) = item.metadata().permission() {
-            restore_permissions(path, p, owner)?;
+    if let Some(p) = item.metadata().permission() {
+        // Restore ownership when owner_strategy is Preserve (independent of mode)
+        if let OwnerStrategy::Preserve { options } = &keep_options.owner_strategy {
+            restore_owner(path, p, options)?;
+        }
+        // Restore mode bits when mode_strategy is Preserve (independent of owner)
+        if let ModeStrategy::Preserve = keep_options.mode_strategy {
+            restore_mode(path, p)?;
         }
     }
     // On macOS, when mac_metadata_strategy is Always and the entry has mac_metadata,
@@ -1040,33 +1049,46 @@ fn resolve_owner(
     (user, group)
 }
 
+/// Restores file ownership (uid/gid) for an extracted entry.
+/// Called when `OwnerStrategy::Preserve` is set.
 #[inline]
-fn restore_permissions(path: &Path, p: &Permission, owner: &OwnerSource) -> io::Result<()> {
+fn restore_owner(path: &Path, p: &Permission, options: &OwnerOptions) -> io::Result<()> {
     #[cfg(any(unix, windows))]
     {
-        // Restore ownership only when owner is FromSource (i.e., same_owner is true)
-        if let OwnerSource::FromSource {
-            uname,
-            gname,
-            uid,
-            gid,
-        } = owner
-        {
-            let (user, group) = resolve_owner(p, uname.as_deref(), gname.as_deref(), *uid, *gid);
-            match lchown(path, user, group) {
-                Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
-                    log::warn!("failed to restore owner of {}: {}", path.display(), e)
-                }
-                r => r?,
+        let (user, group) = resolve_owner(
+            p,
+            options.uname.as_deref(),
+            options.gname.as_deref(),
+            options.uid,
+            options.gid,
+        );
+        match lchown(path, user, group) {
+            Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
+                log::warn!("failed to restore owner of {}: {}", path.display(), e)
             }
+            r => r?,
         }
-        // Always restore mode permissions
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (path, p, options);
+        log::warn!("Currently ownership restoration is not supported on this platform.");
+    }
+    Ok(())
+}
+
+/// Restores file mode bits (permissions like 0755) for an extracted entry.
+/// Called when `ModeStrategy::Preserve` is set.
+#[inline]
+fn restore_mode(path: &Path, p: &Permission) -> io::Result<()> {
+    #[cfg(any(unix, windows))]
+    {
         utils::fs::chmod(path, p.permissions())?;
     }
     #[cfg(not(any(unix, windows)))]
     {
-        let _ = (path, p, owner);
-        log::warn!("Currently permission is not supported on this platform.");
+        let _ = (path, p);
+        log::warn!("Currently mode restoration is not supported on this platform.");
     }
     Ok(())
 }
