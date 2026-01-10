@@ -9,8 +9,8 @@ use crate::{
         ask_password, check_password,
         core::{
             AclStrategy, CollectOptions, CreateOptions, FflagsStrategy, ItemSource, KeepOptions,
-            MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
-            PermissionStrategyResolver, TimeFilterResolver, TimestampStrategyResolver,
+            MacMetadataStrategy, ModeStrategy, OwnerOptions, OwnerStrategy, PathFilter,
+            PathTransformers, PathnameEditor, TimeFilterResolver, TimestampStrategyResolver,
             TransformStrategyUnSolid, XattrStrategy, apply_chroot, collect_items_from_paths,
             collect_items_from_sources, collect_split_archives,
             path_lock::PathLocks,
@@ -119,7 +119,6 @@ impl CompressionAlgorithmArgs {
     group(ArgGroup::new("keep-dir-flag").args(["keep_dir", "no_keep_dir"])),
     group(ArgGroup::new("keep-xattr-flag").args(["keep_xattr", "no_keep_xattr"])),
     group(ArgGroup::new("keep-timestamp-flag").args(["keep_timestamp", "no_keep_timestamp"])),
-    group(ArgGroup::new("keep-permission-flag").args(["keep_permission", "no_keep_permission"])),
     group(ArgGroup::new("action-flags").args(["create", "extract", "list", "append", "update"]).required(true)),
     group(ArgGroup::new("safe-writes-flag").args(["safe_writes", "no_safe_writes"])),
     group(
@@ -133,9 +132,6 @@ impl CompressionAlgorithmArgs {
     group(ArgGroup::new("keep-fflags-flag").args(["keep_fflags", "no_keep_fflags"])),
     group(ArgGroup::new("mac-metadata-flag").args(["mac_metadata", "no_mac_metadata"])),
 )]
-#[cfg_attr(windows, command(
-    group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission", "no_keep_permission"]).requires("unstable")),
-))]
 pub(crate) struct StdioCommand {
     #[arg(
         long,
@@ -223,16 +219,18 @@ pub(crate) struct StdioCommand {
     no_keep_timestamp: bool,
     #[arg(
         long,
-        visible_alias = "preserve-permissions",
-        help = "Preserve file permissions (unstable on Windows)"
-    )]
-    keep_permission: bool,
-    #[arg(
-        long,
         visible_aliases = ["no-preserve-permissions", "no-permissions"],
-        help = "Do not archive permissions of files. This is the inverse option of --preserve-permissions"
+        help = "Do not store file permissions (mode bits) in the archive"
     )]
-    no_keep_permission: bool,
+    no_same_permissions: bool,
+    #[arg(
+        short = 'p',
+        long,
+        visible_alias = "preserve-permissions",
+        requires = "unstable",
+        help = "Restore file permissions (mode, ACLs, xattrs, fflags, mac-metadata, but NOT ownership) (extract only) (unstable)"
+    )]
+    same_permissions: bool,
     #[arg(
         long,
         visible_aliases = ["preserve-xattrs", "xattrs"],
@@ -673,6 +671,126 @@ fn build_write_options(
     option_builder.build()
 }
 
+/// Resolves permission strategies for stdio creation operations (create/append/update).
+/// Creation defaults: store mode + owner by default (bsdtar behavior).
+struct CreationPermissionStrategyResolver {
+    no_same_permissions: bool,
+    no_same_owner: bool,
+    numeric_owner: bool,
+    uname: Option<String>,
+    gname: Option<String>,
+    uid: Option<u32>,
+    gid: Option<u32>,
+}
+
+impl CreationPermissionStrategyResolver {
+    fn resolve(self) -> (ModeStrategy, OwnerStrategy) {
+        let mode_strategy = if self.no_same_permissions {
+            ModeStrategy::Never
+        } else {
+            ModeStrategy::Preserve
+        };
+        let owner_strategy = if self.no_same_owner {
+            OwnerStrategy::Never
+        } else {
+            OwnerStrategy::Preserve {
+                options: OwnerOptions {
+                    uname: if self.numeric_owner {
+                        Some(String::new())
+                    } else {
+                        self.uname
+                    },
+                    gname: if self.numeric_owner {
+                        Some(String::new())
+                    } else {
+                        self.gname
+                    },
+                    uid: self.uid,
+                    gid: self.gid,
+                },
+            }
+        };
+        (mode_strategy, owner_strategy)
+    }
+}
+
+/// Resolves permission strategies for stdio extraction operations.
+/// Extraction defaults: do NOT restore permissions by default (bsdtar behavior).
+/// -p/--same-permissions enables mode + ACL + xattr + fflags + mac-metadata (but NOT owner)
+/// Flag priority: --no-same-permissions > -p > individual flags; individual --no-* always wins
+struct ExtractionPermissionStrategyResolver {
+    same_permissions: bool,
+    no_same_permissions: bool,
+    same_owner: bool,
+    numeric_owner: bool,
+    uname: Option<String>,
+    gname: Option<String>,
+    uid: Option<u32>,
+    gid: Option<u32>,
+    keep_xattr: bool,
+    keep_acl: bool,
+    keep_fflags: bool,
+    mac_metadata: bool,
+    no_keep_xattr: bool,
+    no_keep_acl: bool,
+    no_keep_fflags: bool,
+    no_mac_metadata: bool,
+}
+
+type ExtractionPermissionStrategies = (
+    ModeStrategy,
+    OwnerStrategy,
+    XattrStrategy,
+    AclStrategy,
+    FflagsStrategy,
+    MacMetadataStrategy,
+);
+
+impl ExtractionPermissionStrategyResolver {
+    fn resolve(self) -> ExtractionPermissionStrategies {
+        let mode_strategy = if self.no_same_permissions {
+            ModeStrategy::Never
+        } else if self.same_permissions {
+            ModeStrategy::Preserve
+        } else {
+            ModeStrategy::Never
+        };
+
+        let owner_strategy = if self.same_owner {
+            OwnerStrategy::Preserve {
+                options: OwnerOptions {
+                    uname: if self.numeric_owner {
+                        Some(String::new())
+                    } else {
+                        self.uname
+                    },
+                    gname: if self.numeric_owner {
+                        Some(String::new())
+                    } else {
+                        self.gname
+                    },
+                    uid: self.uid,
+                    gid: self.gid,
+                },
+            }
+        } else {
+            OwnerStrategy::Never
+        };
+
+        // -p enables these unless --no-same-permissions is set; individual --no-* always wins
+        let p_enables = !self.no_same_permissions && self.same_permissions;
+
+        (
+            mode_strategy,
+            owner_strategy,
+            XattrStrategy::from_flags(self.keep_xattr || p_enables, self.no_keep_xattr),
+            AclStrategy::from_flags(self.keep_acl || p_enables, self.no_keep_acl),
+            FflagsStrategy::from_flags(self.keep_fflags || p_enables, self.no_keep_fflags),
+            MacMetadataStrategy::from_flags(self.mac_metadata || p_enables, self.no_mac_metadata),
+        )
+    }
+}
+
 #[hooq::hooq(anyhow)]
 fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
@@ -751,15 +869,14 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     );
     let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
     let (gname, gid) = resolve_name_id(args.group, args.gname, args.gid);
-    let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
-        keep_permission: args.keep_permission,
-        no_keep_permission: args.no_keep_permission,
-        same_owner: true, // Must be `true` for creation
+    let (mode_strategy, owner_strategy) = CreationPermissionStrategyResolver {
+        no_same_permissions: args.no_same_permissions,
+        no_same_owner: args.no_same_owner,
+        numeric_owner: args.numeric_owner,
         uname,
         gname,
         uid,
         gid,
-        numeric_owner: args.numeric_owner,
     }
     .resolve();
     let keep_options = KeepOptions {
@@ -854,15 +971,30 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
     .resolve()?;
     let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
     let (gname, gid) = resolve_name_id(args.group, args.gname, args.gid);
-    let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
-        keep_permission: args.keep_permission,
-        no_keep_permission: args.no_keep_permission,
-        same_owner: !args.no_same_owner,
+    let (
+        mode_strategy,
+        owner_strategy,
+        xattr_strategy,
+        acl_strategy,
+        fflags_strategy,
+        mac_metadata_strategy,
+    ) = ExtractionPermissionStrategyResolver {
+        same_permissions: args.same_permissions,
+        no_same_permissions: args.no_same_permissions,
+        same_owner: args.same_owner,
+        numeric_owner: args.numeric_owner,
         uname,
         gname,
         uid,
         gid,
-        numeric_owner: args.numeric_owner,
+        keep_xattr: args.keep_xattr,
+        keep_acl: args.keep_acl,
+        keep_fflags: args.keep_fflags,
+        mac_metadata: args.mac_metadata,
+        no_keep_xattr: args.no_keep_xattr,
+        no_keep_acl: args.no_keep_acl,
+        no_keep_fflags: args.no_keep_fflags,
+        no_mac_metadata: args.no_mac_metadata,
     }
     .resolve();
     let out_option = OutputOption {
@@ -886,13 +1018,10 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
             .resolve(),
             mode_strategy,
             owner_strategy,
-            xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
-            acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
-            fflags_strategy: FflagsStrategy::from_flags(args.keep_fflags, args.no_keep_fflags),
-            mac_metadata_strategy: MacMetadataStrategy::from_flags(
-                args.mac_metadata,
-                args.no_mac_metadata,
-            ),
+            xattr_strategy,
+            acl_strategy,
+            fflags_strategy,
+            mac_metadata_strategy,
         },
         pathname_editor: PathnameEditor::new(
             args.strip_components,
@@ -1032,15 +1161,14 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     );
     let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
     let (gname, gid) = resolve_name_id(args.group, args.gname, args.gid);
-    let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
-        keep_permission: args.keep_permission,
-        no_keep_permission: args.no_keep_permission,
-        same_owner: true, // Must be `true` for creation
+    let (mode_strategy, owner_strategy) = CreationPermissionStrategyResolver {
+        no_same_permissions: args.no_same_permissions,
+        no_same_owner: args.no_same_owner,
+        numeric_owner: args.numeric_owner,
         uname,
         gname,
         uid,
         gid,
-        numeric_owner: args.numeric_owner,
     }
     .resolve();
     let keep_options = KeepOptions {
@@ -1183,15 +1311,14 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
     );
     let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
     let (gname, gid) = resolve_name_id(args.group, args.gname, args.gid);
-    let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
-        keep_permission: args.keep_permission,
-        no_keep_permission: args.no_keep_permission,
-        same_owner: true, // Must be `true` for creation
+    let (mode_strategy, owner_strategy) = CreationPermissionStrategyResolver {
+        no_same_permissions: args.no_same_permissions,
+        no_same_owner: args.no_same_owner,
+        numeric_owner: args.numeric_owner,
         uname,
         gname,
         uid,
         gid,
-        numeric_owner: args.numeric_owner,
     }
     .resolve();
     let keep_options = KeepOptions {
