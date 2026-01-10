@@ -65,49 +65,35 @@ pub(crate) fn get_writer_context(option: impl WriteOption) -> io::Result<EntryWr
 }
 
 #[inline]
+fn key_size(cipher_algorithm: CipherAlgorithm) -> usize {
+    match cipher_algorithm {
+        CipherAlgorithm::Aes => Aes256::key_size(),
+        CipherAlgorithm::Camellia => Camellia256::key_size(),
+    }
+}
+
+#[inline]
 fn hash<'s, 'p: 's>(
     cipher_algorithm: CipherAlgorithm,
     hash_algorithm: HashAlgorithm,
     password: &'p [u8],
     salt: &'s SaltString,
 ) -> io::Result<(Output, String)> {
-    let mut password_hash = match (hash_algorithm.0, cipher_algorithm) {
-        (
-            HashAlgorithmParams::Argon2Id {
-                time_cost,
-                memory_cost,
-                parallelism_cost,
-            },
-            CipherAlgorithm::Aes,
-        ) => hash::argon2_with_salt(
+    let mut password_hash = match hash_algorithm.0 {
+        HashAlgorithmParams::Argon2Id {
+            time_cost,
+            memory_cost,
+            parallelism_cost,
+        } => hash::argon2_with_salt(
             password,
             argon2::Algorithm::Argon2id,
             time_cost,
             memory_cost,
             parallelism_cost,
-            Aes256::key_size(),
+            key_size(cipher_algorithm),
             salt,
         ),
-        (
-            HashAlgorithmParams::Argon2Id {
-                time_cost,
-                memory_cost,
-                parallelism_cost,
-            },
-            CipherAlgorithm::Camellia,
-        ) => hash::argon2_with_salt(
-            password,
-            argon2::Algorithm::Argon2id,
-            time_cost,
-            memory_cost,
-            parallelism_cost,
-            Camellia256::key_size(),
-            salt,
-        ),
-        (
-            HashAlgorithmParams::Pbkdf2Sha256 { rounds },
-            CipherAlgorithm::Aes | CipherAlgorithm::Camellia,
-        ) => {
+        HashAlgorithmParams::Pbkdf2Sha256 { rounds } => {
             let mut params = pbkdf2::Params::default();
             if let Some(rounds) = rounds {
                 params.rounds = rounds;

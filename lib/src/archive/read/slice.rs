@@ -90,11 +90,9 @@ impl<'d> Archive<&'d [u8]> {
     ///
     /// Returns an error if an I/O error occurs while reading from the archive.
     fn read_entry_slice(&mut self) -> io::Result<Option<ReadEntry<Cow<'d, [u8]>>>> {
-        let entry = self.next_raw_item_slice()?;
-        match entry {
-            Some(entry) => Ok(Some(entry.try_into()?)),
-            None => Ok(None),
-        }
+        self.next_raw_item_slice()?
+            .map(TryInto::try_into)
+            .transpose()
     }
 
     /// Returns an iterator over the entries in the archive.

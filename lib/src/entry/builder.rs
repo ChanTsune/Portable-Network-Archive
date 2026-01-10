@@ -214,6 +214,24 @@ impl EntryBuilder {
         })
     }
 
+    /// Internal helper for creating link entries (symlink or hard link).
+    fn new_link(header: EntryHeader, source: EntryReference) -> io::Result<Self> {
+        let option = WriteOptions::store();
+        let context = get_writer_context(option)?;
+        let mut writer = get_writer(FlattenWriter::new(), &context)?;
+        writer.write_all(source.as_bytes())?;
+        let (iv, phsf) = match context.cipher {
+            None => (None, None),
+            Some(WriteCipher { context: c, .. }) => (Some(c.iv), Some(c.phsf)),
+        };
+        Ok(Self {
+            data: Some(writer),
+            iv,
+            phsf,
+            ..Self::new(header)
+        })
+    }
+
     /// Creates a new symbolic link with the given name and link.
     ///
     /// # Arguments
@@ -242,20 +260,7 @@ impl EntryBuilder {
     /// ```
     #[inline]
     pub fn new_symlink(name: EntryName, source: EntryReference) -> io::Result<Self> {
-        let option = WriteOptions::store();
-        let context = get_writer_context(option)?;
-        let mut writer = get_writer(FlattenWriter::new(), &context)?;
-        writer.write_all(source.as_bytes())?;
-        let (iv, phsf) = match context.cipher {
-            None => (None, None),
-            Some(WriteCipher { context: c, .. }) => (Some(c.iv), Some(c.phsf)),
-        };
-        Ok(Self {
-            data: Some(writer),
-            iv,
-            phsf,
-            ..Self::new(EntryHeader::for_symlink(name))
-        })
+        Self::new_link(EntryHeader::for_symlink(name), source)
     }
 
     /// Creates a new symbolic link with the given name and link.
@@ -306,20 +311,7 @@ impl EntryBuilder {
     /// ```
     #[inline]
     pub fn new_hard_link(name: EntryName, source: EntryReference) -> io::Result<Self> {
-        let option = WriteOptions::store();
-        let context = get_writer_context(option)?;
-        let mut writer = get_writer(FlattenWriter::new(), &context)?;
-        writer.write_all(source.as_bytes())?;
-        let (iv, phsf) = match context.cipher {
-            None => (None, None),
-            Some(WriteCipher { context: c, .. }) => (Some(c.iv), Some(c.phsf)),
-        };
-        Ok(Self {
-            data: Some(writer),
-            iv,
-            phsf,
-            ..Self::new(EntryHeader::for_hard_link(name))
-        })
+        Self::new_link(EntryHeader::for_hard_link(name), source)
     }
 
     /// Sets the creation timestamp of the entry.
