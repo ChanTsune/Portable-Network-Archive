@@ -650,6 +650,17 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     let cli_option = entry_option(args.compression, args.cipher, args.hash, password);
     let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
     let (gname, gid) = resolve_name_id(args.group, args.gname, args.gid);
+    let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
+        keep_permission: args.keep_permission,
+        no_keep_permission: args.no_keep_permission,
+        same_owner: true, // Must be `true` for creation
+        uname,
+        gname,
+        uid,
+        gid,
+        numeric_owner: args.numeric_owner,
+    }
+    .resolve();
     let keep_options = KeepOptions {
         timestamp_strategy: TimestampStrategyResolver {
             keep_timestamp: args.keep_timestamp,
@@ -663,17 +674,8 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
             clamp_atime: args.clamp_atime,
         }
         .resolve(),
-        permission_strategy: PermissionStrategyResolver {
-            keep_permission: args.keep_permission,
-            no_keep_permission: args.no_keep_permission,
-            same_owner: true, // Must be `true` for creation
-            uname,
-            gname,
-            uid,
-            gid,
-            numeric_owner: args.numeric_owner,
-        }
-        .resolve(),
+        mode_strategy,
+        owner_strategy,
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
         fflags_strategy: FflagsStrategy::from_flags(args.keep_fflags, args.no_keep_fflags),
@@ -741,6 +743,17 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
     .resolve()?;
     let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
     let (gname, gid) = resolve_name_id(args.group, args.gname, args.gid);
+    let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
+        keep_permission: args.keep_permission,
+        no_keep_permission: args.no_keep_permission,
+        same_owner: !args.no_same_owner,
+        uname,
+        gname,
+        uid,
+        gid,
+        numeric_owner: args.numeric_owner,
+    }
+    .resolve();
     let out_option = OutputOption {
         overwrite_strategy,
         allow_unsafe_links: args.allow_unsafe_links,
@@ -760,17 +773,8 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
                 clamp_atime: args.clamp_atime,
             }
             .resolve(),
-            permission_strategy: PermissionStrategyResolver {
-                keep_permission: args.keep_permission,
-                no_keep_permission: args.no_keep_permission,
-                same_owner: !args.no_same_owner,
-                uname,
-                gname,
-                uid,
-                gid,
-                numeric_owner: args.numeric_owner,
-            }
-            .resolve(),
+            mode_strategy,
+            owner_strategy,
             xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
             acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
             fflags_strategy: FflagsStrategy::from_flags(args.keep_fflags, args.no_keep_fflags),
@@ -910,6 +914,17 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     let option = entry_option(args.compression, args.cipher, args.hash, password);
     let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
     let (gname, gid) = resolve_name_id(args.group, args.gname, args.gid);
+    let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
+        keep_permission: args.keep_permission,
+        no_keep_permission: args.no_keep_permission,
+        same_owner: true, // Must be `true` for creation
+        uname,
+        gname,
+        uid,
+        gid,
+        numeric_owner: args.numeric_owner,
+    }
+    .resolve();
     let keep_options = KeepOptions {
         timestamp_strategy: TimestampStrategyResolver {
             keep_timestamp: args.keep_timestamp,
@@ -923,17 +938,8 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             clamp_atime: args.clamp_atime,
         }
         .resolve(),
-        permission_strategy: PermissionStrategyResolver {
-            keep_permission: args.keep_permission,
-            no_keep_permission: args.no_keep_permission,
-            same_owner: true, // Must be `true` for creation
-            uname,
-            gname,
-            uid,
-            gid,
-            numeric_owner: args.numeric_owner,
-        }
-        .resolve(),
+        mode_strategy,
+        owner_strategy,
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
         fflags_strategy: FflagsStrategy::from_flags(args.keep_fflags, args.no_keep_fflags),
@@ -1036,6 +1042,17 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
     let option = entry_option(args.compression, args.cipher, args.hash, password);
     let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
     let (gname, gid) = resolve_name_id(args.group, args.gname, args.gid);
+    let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
+        keep_permission: args.keep_permission,
+        no_keep_permission: args.no_keep_permission,
+        same_owner: true, // Must be `true` for creation
+        uname,
+        gname,
+        uid,
+        gid,
+        numeric_owner: args.numeric_owner,
+    }
+    .resolve();
     let keep_options = KeepOptions {
         timestamp_strategy: TimestampStrategyResolver {
             keep_timestamp: args.keep_timestamp,
@@ -1049,17 +1066,8 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
             clamp_atime: args.clamp_atime,
         }
         .resolve(),
-        permission_strategy: PermissionStrategyResolver {
-            keep_permission: args.keep_permission,
-            no_keep_permission: args.no_keep_permission,
-            same_owner: true, // Must be `true` for creation
-            uname,
-            gname,
-            uid,
-            gid,
-            numeric_owner: args.numeric_owner,
-        }
-        .resolve(),
+        mode_strategy,
+        owner_strategy,
         xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
         fflags_strategy: FflagsStrategy::from_flags(args.keep_fflags, args.no_keep_fflags),

@@ -8,7 +8,7 @@ pub(crate) mod time_filter;
 pub(crate) mod timestamp;
 
 pub(crate) use self::path::PathnameEditor;
-pub(crate) use self::permission::{OwnerSource, PermissionStrategy};
+pub(crate) use self::permission::{ModeStrategy, OwnerOptions, OwnerStrategy};
 pub(crate) use self::timestamp::{TimeSource, TimestampStrategy};
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
@@ -199,7 +199,8 @@ impl MacMetadataStrategy {
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) struct KeepOptions {
     pub(crate) timestamp_strategy: TimestampStrategy,
-    pub(crate) permission_strategy: PermissionStrategy,
+    pub(crate) mode_strategy: ModeStrategy,
+    pub(crate) owner_strategy: OwnerStrategy,
     pub(crate) xattr_strategy: XattrStrategy,
     pub(crate) acl_strategy: AclStrategy,
     pub(crate) fflags_strategy: FflagsStrategy,
@@ -255,11 +256,11 @@ impl TimestampStrategyResolver {
     }
 }
 
-/// Resolves CLI permission options into a `PermissionStrategy`.
+/// Resolves CLI permission options into split mode and owner strategies.
 ///
 /// This struct encapsulates the CLI-specific logic for determining permission behavior:
-/// - `no_keep_permission` forces `Never`
-/// - `keep_permission` enables `Preserve` with ownership handling
+/// - `no_keep_permission` forces both mode and owner to `Never`
+/// - `keep_permission` enables `Preserve` for mode, and ownership handling via `same_owner`
 /// - `same_owner` controls whether to restore ownership (extraction only)
 /// - Owner override fields (uid, gid, uname, gname) are used in both creation and extraction
 pub(crate) struct PermissionStrategyResolver {
@@ -274,21 +275,22 @@ pub(crate) struct PermissionStrategyResolver {
 }
 
 impl PermissionStrategyResolver {
-    /// Resolves CLI options to PermissionStrategy.
+    /// Resolves CLI options to split (ModeStrategy, OwnerStrategy).
     ///
     /// The `same_owner` field controls ownership handling:
-    /// - `true`: Restore/store ownership (FromSource)
-    /// - `false`: Skip ownership restoration (NoRestore, extraction only)
+    /// - `true`: Restore/store ownership (Preserve with options)
+    /// - `false`: Skip ownership restoration (Never)
     ///
     /// For creation contexts, pass `same_owner: true` since ownership
     /// is always stored when `--keep-permission` is enabled.
-    pub(crate) fn resolve(self) -> PermissionStrategy {
+    pub(crate) fn resolve(self) -> (ModeStrategy, OwnerStrategy) {
         if self.no_keep_permission {
-            PermissionStrategy::Never
+            (ModeStrategy::Never, OwnerStrategy::Never)
         } else if self.keep_permission {
-            PermissionStrategy::Preserve {
-                owner: if self.same_owner {
-                    OwnerSource::FromSource {
+            let mode_strategy = ModeStrategy::Preserve;
+            let owner_strategy = if self.same_owner {
+                OwnerStrategy::Preserve {
+                    options: OwnerOptions {
                         uname: if self.numeric_owner {
                             Some(String::new())
                         } else {
@@ -301,13 +303,14 @@ impl PermissionStrategyResolver {
                         },
                         uid: self.uid,
                         gid: self.gid,
-                    }
-                } else {
-                    OwnerSource::NoRestore
-                },
-            }
+                    },
+                }
+            } else {
+                OwnerStrategy::Never
+            };
+            (mode_strategy, owner_strategy)
         } else {
-            PermissionStrategy::Never
+            (ModeStrategy::Never, OwnerStrategy::Never)
         }
     }
 }
@@ -729,45 +732,38 @@ pub(crate) fn apply_metadata(
         }
     }
     #[cfg(unix)]
-    if let PermissionStrategy::Preserve { ref owner } = keep_options.permission_strategy {
+    if let OwnerStrategy::Preserve { options } = &keep_options.owner_strategy {
         use crate::utils::fs::{Group, User};
         use std::os::unix::fs::{MetadataExt, PermissionsExt};
 
         let mode = meta.permissions().mode() as u16;
-        // Extract owner overrides from OwnerSource
-        let (o_uid, o_gid, o_uname, o_gname) = match owner {
-            OwnerSource::NoRestore => unreachable!("NoRestore is not used during creation"),
-            OwnerSource::FromSource {
-                uid,
-                gid,
-                uname,
-                gname,
-            } => (*uid, *gid, uname.as_deref(), gname.as_deref()),
+        // Get owner info: use overrides from OwnerStrategy if Preserve, else use filesystem values
+        let uid = options.uid.unwrap_or(meta.uid());
+        let gid = options.gid.unwrap_or(meta.gid());
+        let uname = match &options.uname {
+            None => User::from_uid(uid.into())?
+                .name()
+                .unwrap_or_default()
+                .into(),
+            Some(uname) => uname.clone(),
         };
-        let uid = o_uid.unwrap_or(meta.uid());
-        let gid = o_gid.unwrap_or(meta.gid());
+        let gname = match &options.gname {
+            None => Group::from_gid(gid.into())?
+                .name()
+                .unwrap_or_default()
+                .into(),
+            Some(gname) => gname.clone(),
+        };
         entry.permission(pna::Permission::new(
             uid.into(),
-            match o_uname {
-                None => User::from_uid(uid.into())?
-                    .name()
-                    .unwrap_or_default()
-                    .into(),
-                Some(uname) => uname.into(),
-            },
+            uname,
             gid.into(),
-            match o_gname {
-                None => Group::from_gid(gid.into())?
-                    .name()
-                    .unwrap_or_default()
-                    .into(),
-                Some(gname) => gname.into(),
-            },
+            gname,
             mode,
         ));
     }
     #[cfg(windows)]
-    if let PermissionStrategy::Preserve { ref owner } = keep_options.permission_strategy {
+    if let OwnerStrategy::Preserve { options } = &keep_options.owner_strategy {
         use crate::utils::os::windows::{fs::stat, security::SecurityDescriptor};
 
         let sd = SecurityDescriptor::try_from(path)?;
@@ -775,23 +771,12 @@ pub(crate) fn apply_metadata(
         let mode = stat.st_mode;
         let user = sd.owner_sid()?;
         let group = sd.group_sid()?;
-        // Extract owner overrides from OwnerSource
-        let (o_uid, o_gid, o_uname, o_gname) = match owner {
-            OwnerSource::NoRestore => unreachable!("NoRestore is not used during creation"),
-            OwnerSource::FromSource {
-                uid,
-                gid,
-                uname,
-                gname,
-            } => (*uid, *gid, uname.clone(), gname.clone()),
-        };
-        entry.permission(pna::Permission::new(
-            o_uid.map_or(u64::MAX, Into::into),
-            o_uname.unwrap_or(user.name),
-            o_gid.map_or(u64::MAX, Into::into),
-            o_gname.unwrap_or(group.name),
-            mode,
-        ));
+        // Get owner info: use overrides from OwnerStrategy
+        let uid = options.uid.map_or(u64::MAX, Into::into);
+        let gid = options.gid.map_or(u64::MAX, Into::into);
+        let uname = options.uname.clone().unwrap_or(user.name);
+        let gname = options.gname.clone().unwrap_or(group.name);
+        entry.permission(pna::Permission::new(uid, uname, gid, gname, mode));
     }
     // On macOS, when mac_metadata_strategy is Always, AppleDouble packing via copyfile()
     // already includes xattrs and ACLs. Skip separate handling to avoid duplication.
