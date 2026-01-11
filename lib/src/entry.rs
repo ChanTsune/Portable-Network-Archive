@@ -934,6 +934,29 @@ impl<T> NormalEntry<T> {
         self.xattrs = xattrs.into();
         self
     }
+
+    /// Applies a new name to the entry, preserving all other fields.
+    ///
+    /// This is useful for path transformations during archive-to-archive copying
+    /// where the entry data should remain unchanged.
+    ///
+    /// # Examples
+    /// ```rust
+    /// # use std::io;
+    /// use libpna::EntryBuilder;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// let entry = EntryBuilder::new_dir("original/path".into()).build()?;
+    /// let renamed = entry.with_name("new/path".into());
+    /// assert_eq!(renamed.header().path().as_str(), "new/path");
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[inline]
+    pub fn with_name(mut self, name: EntryName) -> Self {
+        self.header = self.header.with_name(name);
+        self
+    }
 }
 
 impl<T: Clone> NormalEntry<T> {
@@ -1328,5 +1351,14 @@ mod tests {
                 ))
             );
         }
+    }
+
+    #[test]
+    fn normal_entry_with_name_updates_path() {
+        let entry = EntryBuilder::new_dir("original".into()).build().unwrap();
+        let _ = entry.header().path(); // Force cache population
+        let renamed = entry.with_name("new".into());
+        assert_eq!(renamed.header().path().as_str(), "new");
+        assert_eq!(renamed.name().as_str(), "new");
     }
 }
