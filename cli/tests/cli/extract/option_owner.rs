@@ -10,6 +10,8 @@
 //! - `--numeric-owner`: Use numeric IDs only, ignoring names
 
 use crate::utils::setup;
+#[cfg(unix)]
+use crate::utils::unix::skip_if_not_root;
 use clap::Parser;
 use portable_network_archive::cli;
 use std::fs::{self, File};
@@ -52,17 +54,6 @@ fn create_archive_with_owner(
 
     archive.finalize()?;
     Ok(())
-}
-
-/// Helper macro to skip test if we don't have root privileges.
-#[cfg(unix)]
-macro_rules! skip_if_not_root {
-    () => {
-        if !nix::unistd::Uid::effective().is_root() {
-            eprintln!("Skipping test: requires root privileges to change file ownership");
-            return;
-        }
-    };
 }
 
 /// Precondition: An archive contains files with specific uid/gid.
