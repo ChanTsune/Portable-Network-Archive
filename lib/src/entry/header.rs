@@ -75,6 +75,16 @@ impl EntryHeader {
         Self::new(DataKind::HardLink, path)
     }
 
+    /// Creates a new EntryHeader with a different name, resetting the sanitized path cache.
+    #[inline]
+    pub(crate) fn with_name(self, name: EntryName) -> Self {
+        Self {
+            sanitized_path: OnceLock::new(),
+            name,
+            ..self
+        }
+    }
+
     /// Path of the entry that sanitized to remove path traversal characters by [`EntryName::sanitize`].
     #[inline]
     pub fn path(&self) -> &EntryName {
@@ -330,5 +340,14 @@ mod tests {
             header,
             SolidHeader::try_from_bytes(&header.to_bytes()).unwrap(),
         );
+    }
+
+    #[test]
+    fn with_name_invalidates_cache() {
+        let header = EntryHeader::for_dir("original/path".into());
+        let _ = header.path(); // Populate cache
+        let renamed = header.with_name("new/path".into());
+        assert_eq!(renamed.path().as_str(), "new/path");
+        assert_eq!(renamed.name.as_str(), "new/path");
     }
 }
