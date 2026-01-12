@@ -9,6 +9,7 @@ mod option_keep_old_files;
 mod option_keep_permission;
 mod option_keep_timestamp;
 mod option_mtime;
+mod option_safe_writes;
 mod option_substitution;
 mod option_transform;
 mod overwrite_symlink;
