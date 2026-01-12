@@ -669,6 +669,103 @@ where
     filters.matches_or_inactive(metadata.created_time(), metadata.modified_time())
 }
 
+/// Result of checking whether extraction should proceed for a given path.
+#[derive(Debug, Clone, Copy)]
+enum ExtractionDecision {
+    /// Proceed with extraction; `remove_existing` indicates if existing file should be removed first
+    Proceed { remove_existing: bool },
+    /// Skip extraction (e.g., keep-newer/keep-older strategies)
+    Skip,
+}
+
+/// Checks overwrite strategy and prepares the target path for extraction.
+///
+/// This function:
+/// 1. Checks if a file/directory already exists at the target path
+/// 2. Applies the overwrite strategy to decide whether to proceed
+/// 3. Prepares parent directories
+/// 4. Handles conflicts between entry types (e.g., file vs directory)
+///
+/// Returns `ExtractionDecision::Skip` if extraction should be skipped,
+/// or `ExtractionDecision::Proceed` with information about whether to remove existing files.
+fn check_and_prepare_target<T>(
+    path: &Path,
+    entry_kind: DataKind,
+    item: &NormalEntry<T>,
+    overwrite_strategy: OverwriteStrategy,
+    unlink_first: bool,
+) -> io::Result<ExtractionDecision>
+where
+    T: AsRef<[u8]>,
+{
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(meta) => Some(meta),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(err) => return Err(err),
+    };
+
+    // Check overwrite strategy
+    if let Some(existing) = &metadata {
+        match overwrite_strategy {
+            OverwriteStrategy::Never if !unlink_first => {
+                return Err(io::Error::new(
+                    io::ErrorKind::AlreadyExists,
+                    format!("{} already exists", path.display()),
+                ));
+            }
+            OverwriteStrategy::KeepOlder => {
+                log::debug!(
+                    "Skipped extracting {}: existing one kept by --keep-older",
+                    path.display()
+                );
+                return Ok(ExtractionDecision::Skip);
+            }
+            OverwriteStrategy::KeepNewer => {
+                if is_existing_newer(existing, item) {
+                    log::debug!(
+                        "Skipped extracting {}: newer one already exists (--keep-newer)",
+                        path.display()
+                    );
+                    return Ok(ExtractionDecision::Skip);
+                }
+            }
+            OverwriteStrategy::Always | OverwriteStrategy::Never => (),
+        }
+    }
+
+    // Determine what cleanup is needed
+    let (had_existing, existing_is_dir) = metadata
+        .as_ref()
+        .map(|meta| (true, meta.is_dir()))
+        .unwrap_or((false, false));
+    let unlink_existing =
+        unlink_first && had_existing && (entry_kind != DataKind::Directory || !existing_is_dir);
+    let should_overwrite_existing = matches!(
+        overwrite_strategy,
+        OverwriteStrategy::Always | OverwriteStrategy::KeepNewer
+    ) && had_existing;
+
+    // Remove existing if unlink_first mode
+    if unlink_existing {
+        utils::io::ignore_not_found(utils::fs::remove_path(path))?;
+    }
+
+    // Create parent directories
+    if let Some(parent) = path.parent() {
+        ensure_directory_components(parent, unlink_first)?;
+    }
+
+    // Handle type conflicts (symlink blocking file, file blocking directory)
+    if let Some(meta) = metadata
+        && (meta.is_symlink() || (meta.is_file() && entry_kind == DataKind::Directory))
+    {
+        utils::io::ignore_not_found(utils::fs::remove_path(path))?;
+    }
+
+    let remove_existing = should_overwrite_existing && !unlink_existing;
+    Ok(ExtractionDecision::Proceed { remove_existing })
+}
+
 pub(crate) fn extract_entry<'a, T>(
     item: NormalEntry<T>,
     password: Option<&[u8]>,
@@ -719,63 +816,13 @@ where
     let path_guard = path_lock.lock().expect("path lock mutex poisoned");
 
     log::debug!("start: {}", path.display());
-    let metadata = match fs::symlink_metadata(&path) {
-        Ok(meta) => Some(meta),
-        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
-        Err(err) => return Err(err),
+
+    // Check overwrite strategy and prepare target
+    let ExtractionDecision::Proceed { remove_existing } =
+        check_and_prepare_target(&path, entry_kind, &item, *overwrite_strategy, *unlink_first)?
+    else {
+        return Ok(());
     };
-    if let Some(existing) = &metadata {
-        match overwrite_strategy {
-            OverwriteStrategy::Never if !*unlink_first => {
-                return Err(io::Error::new(
-                    io::ErrorKind::AlreadyExists,
-                    format!("{} already exists", path.display()),
-                ));
-            }
-            OverwriteStrategy::KeepOlder => {
-                log::debug!(
-                    "Skipped extracting {}: existing one kept by --keep-older",
-                    path.display()
-                );
-                return Ok(());
-            }
-            OverwriteStrategy::KeepNewer => {
-                if is_existing_newer(existing, &item) {
-                    log::debug!(
-                        "Skipped extracting {}: newer one already exists (--keep-newer)",
-                        path.display()
-                    );
-                    return Ok(());
-                }
-            }
-            OverwriteStrategy::Always | OverwriteStrategy::Never => (),
-        }
-    }
-
-    let (had_existing, existing_is_dir) = metadata
-        .as_ref()
-        .map(|meta| (true, meta.is_dir()))
-        .unwrap_or((false, false));
-    let unlink_existing =
-        *unlink_first && had_existing && (entry_kind != DataKind::Directory || !existing_is_dir);
-    let should_overwrite_existing = matches!(
-        overwrite_strategy,
-        OverwriteStrategy::Always | OverwriteStrategy::KeepNewer
-    ) && had_existing;
-    if unlink_existing {
-        utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
-    }
-
-    if let Some(parent) = path.parent() {
-        ensure_directory_components(parent, *unlink_first)?;
-    }
-    if let Some(meta) = metadata {
-        if meta.is_symlink() || (meta.is_file() && entry_kind == DataKind::Directory) {
-            utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
-        }
-    }
-
-    let remove_existing = should_overwrite_existing && !unlink_existing;
 
     match entry_kind {
         DataKind::File => {
