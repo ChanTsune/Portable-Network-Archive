@@ -10,8 +10,9 @@ use crate::{
         core::{
             AclStrategy, FflagsStrategy, KeepOptions, MacMetadataStrategy, ModeStrategy,
             OwnerOptions, OwnerStrategy, PathFilter, PathTransformers, PathnameEditor,
-            PermissionStrategyResolver, TimeFilterResolver, TimeFilters, TimestampStrategy,
-            TimestampStrategyResolver, XattrStrategy, apply_chroot, collect_split_archives,
+            PermissionStrategyResolver, SafeWriter, TimeFilterResolver, TimeFilters,
+            TimestampStrategy, TimestampStrategyResolver, XattrStrategy, apply_chroot,
+            collect_split_archives,
             path_lock::PathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, run_process_archive,
@@ -63,6 +64,7 @@ use std::{
         ArgGroup::new("overwrite-flag")
             .args(["overwrite", "no_overwrite", "keep_newer_files", "keep_old_files"])
     ),
+    group(ArgGroup::new("safe-writes-flag").args(["safe_writes", "no_safe_writes"])),
 )]
 #[cfg_attr(windows, command(
     group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission", "no_keep_permission"]).requires("unstable")),
@@ -337,6 +339,18 @@ pub(crate) struct ExtractCommand {
         help = "Allow extracting symbolic links and hard links that contain root or parent paths"
     )]
     allow_unsafe_links: bool,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Extract files atomically via temp file and rename (unstable)"
+    )]
+    safe_writes: bool,
+    #[arg(
+        long,
+        requires = "unstable",
+        help = "Disable atomic extraction. This is the inverse option of --safe-writes (unstable)"
+    )]
+    no_safe_writes: bool,
     #[command(flatten)]
     pub(crate) file: FileArgsCompat,
 }
@@ -447,6 +461,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         path_locks: Arc::new(PathLocks::default()),
         unlink_first: false,
         time_filters,
+        safe_writes: args.safe_writes && !args.no_safe_writes,
     };
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(&working_dir)
@@ -525,6 +540,7 @@ pub(crate) struct OutputOption<'a> {
     pub(crate) path_locks: Arc<PathLocks>,
     pub(crate) unlink_first: bool,
     pub(crate) time_filters: TimeFilters,
+    pub(crate) safe_writes: bool,
 }
 
 pub(crate) fn run_extract_archive_reader<'a, 'p, Provider>(
@@ -683,6 +699,7 @@ pub(crate) fn extract_entry<'a, T>(
         path_locks,
         unlink_first,
         time_filters: _,
+        safe_writes,
     }: &OutputOption<'a>,
 ) -> io::Result<()>
 where
@@ -779,12 +796,26 @@ where
 
     match entry_kind {
         DataKind::File => {
-            let file = utils::fs::file_create(&path, remove_existing)?;
-            let mut writer = io::BufWriter::with_capacity(64 * 1024, file);
-            let mut reader = item.reader(ReadOptions::with_password(password))?;
-            io::copy(&mut reader, &mut writer)?;
-            let mut file = writer.into_inner().map_err(|e| e.into_error())?;
-            restore_timestamps(&mut file, item.metadata(), keep_options)?;
+            if *safe_writes {
+                let mut safe_writer = SafeWriter::new(&path)?;
+                {
+                    let mut writer =
+                        io::BufWriter::with_capacity(64 * 1024, safe_writer.as_file_mut());
+                    let mut reader = item.reader(ReadOptions::with_password(password))?;
+                    io::copy(&mut reader, &mut writer)?;
+                    writer.flush()?;
+                }
+                // Set timestamps before persist; after rename we lose the file handle
+                restore_timestamps(safe_writer.as_file_mut(), item.metadata(), keep_options)?;
+                safe_writer.persist()?;
+            } else {
+                let file = utils::fs::file_create(&path, remove_existing)?;
+                let mut writer = io::BufWriter::with_capacity(64 * 1024, file);
+                let mut reader = item.reader(ReadOptions::with_password(password))?;
+                io::copy(&mut reader, &mut writer)?;
+                let mut file = writer.into_inner().map_err(|e| e.into_error())?;
+                restore_timestamps(&mut file, item.metadata(), keep_options)?;
+            }
         }
         DataKind::Directory => {
             ensure_directory_components(&path, *unlink_first)?;
@@ -799,7 +830,8 @@ where
                 );
                 return Ok(());
             }
-            if remove_existing {
+            // Symlinks/hardlinks cannot be atomically replaced; remove existing path first
+            if *safe_writes || remove_existing {
                 utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
             }
             utils::fs::symlink(original, &path)?;
@@ -825,7 +857,8 @@ where
             } else {
                 Cow::from(original.as_path())
             };
-            if remove_existing {
+            // Symlinks/hardlinks cannot be atomically replaced; remove existing path first
+            if *safe_writes || remove_existing {
                 utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
             }
             fs::hard_link(original, &path)?;

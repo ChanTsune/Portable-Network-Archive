@@ -552,12 +552,6 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     if args.ignore_zeros {
         log::warn!("Option '--ignore-zeros' is accepted for compatibility but will be ignored.");
     }
-    if args.safe_writes {
-        log::warn!("Option '--safe-writes' is accepted for compatibility but will be ignored.");
-    }
-    if args.no_safe_writes {
-        log::warn!("Option '--no-safe-writes' is accepted for compatibility but will be ignored.");
-    }
     if args.auto_compress {
         log::warn!("Option '--auto-compress' is accepted for compatibility but will be ignored.");
     }
@@ -791,6 +785,7 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         path_locks: Arc::new(PathLocks::default()),
         unlink_first: args.unlink_first,
         time_filters,
+        safe_writes: args.safe_writes && !args.no_safe_writes,
     };
     let mut files = args.files;
     if let Some(path) = &args.files_from {
