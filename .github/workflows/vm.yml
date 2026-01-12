@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
       - name: Test in Solaris
         id: test
-        uses: vmactions/solaris-vm@bc0aac1832ebad9d31cbe43a94168dce0f84ed50 # v1.2.3
+        uses: vmactions/solaris-vm@61030aaba6acacac59cf375214a9668f46e94445 # v1.2.6
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
