@@ -730,11 +730,13 @@ where
                 ));
             }
             OverwriteStrategy::KeepOlder => {
-                log::debug!(
-                    "Skipped extracting {}: existing one kept by --keep-older",
-                    path.display()
-                );
-                return Ok(ExtractionDecision::Skip);
+                if is_existing_older(existing, item) {
+                    log::debug!(
+                        "Skipped extracting {}: older one already exists (--keep-older)",
+                        path.display()
+                    );
+                    return Ok(ExtractionDecision::Skip);
+                }
             }
             OverwriteStrategy::KeepNewer => {
                 if is_existing_newer(existing, item) {
@@ -758,7 +760,7 @@ where
         unlink_first && had_existing && (entry_kind != DataKind::Directory || !existing_is_dir);
     let should_overwrite_existing = matches!(
         overwrite_strategy,
-        OverwriteStrategy::Always | OverwriteStrategy::KeepNewer
+        OverwriteStrategy::Always | OverwriteStrategy::KeepNewer | OverwriteStrategy::KeepOlder
     ) && had_existing;
 
     // Remove existing if unlink_first mode
@@ -1181,6 +1183,19 @@ where
         (metadata.modified(), item.metadata().modified_time())
     {
         existing_modified >= entry_modified
+    } else {
+        false
+    }
+}
+
+fn is_existing_older<T>(metadata: &fs::Metadata, item: &NormalEntry<T>) -> bool
+where
+    T: AsRef<[u8]>,
+{
+    if let (Ok(existing_modified), Some(entry_modified)) =
+        (metadata.modified(), item.metadata().modified_time())
+    {
+        existing_modified < entry_modified
     } else {
         false
     }
