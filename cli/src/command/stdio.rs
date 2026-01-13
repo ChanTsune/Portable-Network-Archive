@@ -549,7 +549,7 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
             "Option '--read-full-blocks' is accepted for compatibility but will be ignored."
         );
     }
-    if args.ignore_zeros {
+    if args.ignore_zeros && !args.list {
         log::warn!("Option '--ignore-zeros' is accepted for compatibility but will be ignored.");
     }
     if args.auto_compress {
@@ -888,6 +888,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
             files_globs,
             filter,
             list_options,
+            args.ignore_zeros,
         )
     } else {
         crate::command::list::run_list_archive(
@@ -896,6 +897,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
             files_globs,
             filter,
             list_options,
+            args.ignore_zeros,
         )
     }
 }
