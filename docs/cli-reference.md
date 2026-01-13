@@ -548,6 +548,12 @@ Extract files from archive
 * `--allow-unsafe-links` — Allow extracting symbolic links and hard links that contain root or parent paths
 
   Default value: `false`
+* `--safe-writes` — Extract files atomically via temp file and rename (unstable)
+
+  Default value: `false`
+* `--no-safe-writes` — Disable atomic extraction. This is the inverse option of --safe-writes (unstable)
+
+  Default value: `false`
 * `-f`, `--file <FILE>` — Archive file path
 * `--quiet` — Make some output more quiet
 
