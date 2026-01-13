@@ -1253,6 +1253,7 @@ impl TransformStrategy for TransformStrategyKeepSolid {
 pub(crate) fn run_across_archive<R, F>(
     provider: impl IntoIterator<Item = R>,
     mut processor: F,
+    allow_concatenated_archives: bool,
 ) -> io::Result<()>
 where
     R: Read,
@@ -1270,8 +1271,16 @@ where
                 )
             })?;
             archive = archive.read_next_archive(next_reader)?;
-        } else {
+            continue;
+        }
+        if !allow_concatenated_archives {
             break;
+        }
+        let reader = archive.into_inner();
+        match Archive::read_header(reader) {
+            Ok(next) => archive = next,
+            Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => break,
+            Err(err) => return Err(err),
         }
     }
     Ok(())
@@ -1280,6 +1289,7 @@ where
 fn run_across_archive_stoppable<R, F>(
     provider: impl IntoIterator<Item = R>,
     mut processor: F,
+    allow_concatenated_archives: bool,
 ) -> io::Result<()>
 where
     R: Read,
@@ -1287,7 +1297,10 @@ where
 {
     let mut iter = provider.into_iter();
     let mut archive = Archive::read_header(iter.next().expect(""))?;
-    while let ProcessAction::Continue = processor(&mut archive)? {
+    loop {
+        if let ProcessAction::Stop = processor(&mut archive)? {
+            break;
+        }
         if archive.has_next_archive() {
             let next_reader = iter.next().ok_or_else(|| {
                 io::Error::new(
@@ -1296,8 +1309,16 @@ where
                 )
             })?;
             archive = archive.read_next_archive(next_reader)?;
-        } else {
+            continue;
+        }
+        if !allow_concatenated_archives {
             break;
+        }
+        let reader = archive.into_inner();
+        match Archive::read_header(reader) {
+            Ok(next) => archive = next,
+            Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => break,
+            Err(err) => return Err(err),
         }
     }
     Ok(())
@@ -1313,10 +1334,14 @@ where
     F: FnMut(io::Result<NormalEntry>) -> io::Result<()>,
 {
     let password = password_provider();
-    run_read_entries(archive_provider, |entry| match entry? {
-        ReadEntry::Solid(solid) => solid.entries(password)?.try_for_each(&mut processor),
-        ReadEntry::Normal(regular) => processor(Ok(regular)),
-    })
+    run_read_entries(
+        archive_provider,
+        |entry| match entry? {
+            ReadEntry::Solid(solid) => solid.entries(password)?.try_for_each(&mut processor),
+            ReadEntry::Normal(regular) => processor(Ok(regular)),
+        },
+        false,
+    )
 }
 
 pub(crate) fn run_process_archive_stoppable<'p, Provider, F>(
@@ -1329,24 +1354,29 @@ where
     F: FnMut(io::Result<NormalEntry>) -> io::Result<ProcessAction>,
 {
     let password = password_provider();
-    run_read_entries_stoppable(archive_provider, |entry| match entry? {
-        ReadEntry::Solid(solid) => {
-            for n in solid.entries(password)? {
-                match processor(n)? {
-                    ProcessAction::Continue => {}
-                    ProcessAction::Stop => return Ok(ProcessAction::Stop),
+    run_read_entries_stoppable(
+        archive_provider,
+        |entry| match entry? {
+            ReadEntry::Solid(solid) => {
+                for n in solid.entries(password)? {
+                    match processor(n)? {
+                        ProcessAction::Continue => {}
+                        ProcessAction::Stop => return Ok(ProcessAction::Stop),
+                    }
                 }
+                Ok(ProcessAction::Continue)
             }
-            Ok(ProcessAction::Continue)
-        }
-        ReadEntry::Normal(regular) => processor(Ok(regular)),
-    })
+            ReadEntry::Normal(regular) => processor(Ok(regular)),
+        },
+        false,
+    )
 }
 
 #[cfg(feature = "memmap")]
 pub(crate) fn run_across_archive_mem<'d, F>(
     archives: impl IntoIterator<Item = &'d [u8]>,
     mut processor: F,
+    allow_concatenated_archives: bool,
 ) -> io::Result<()>
 where
     F: FnMut(&mut Archive<&'d [u8]>) -> io::Result<()>,
@@ -1364,8 +1394,16 @@ where
                 )
             })?;
             archive = archive.read_next_archive_from_slice(next_reader)?;
-        } else {
+            continue;
+        }
+        if !allow_concatenated_archives {
             break;
+        }
+        let bytes = archive.into_inner();
+        match Archive::read_header_from_slice(bytes) {
+            Ok(next) => archive = next,
+            Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => break,
+            Err(err) => return Err(err),
         }
     }
     Ok(())
@@ -1375,13 +1413,16 @@ where
 pub(crate) fn run_read_entries_mem<'d, F>(
     archives: impl IntoIterator<Item = &'d [u8]>,
     mut processor: F,
+    allow_concatenated_archives: bool,
 ) -> io::Result<()>
 where
     F: FnMut(io::Result<ReadEntry<Cow<'d, [u8]>>>) -> io::Result<()>,
 {
-    run_across_archive_mem(archives, |archive| {
-        archive.entries_slice().try_for_each(&mut processor)
-    })
+    run_across_archive_mem(
+        archives,
+        |archive| archive.entries_slice().try_for_each(&mut processor),
+        allow_concatenated_archives,
+    )
 }
 
 #[cfg(feature = "memmap")]
@@ -1395,25 +1436,33 @@ where
     F: FnMut(io::Result<NormalEntry<Cow<'d, [u8]>>>) -> io::Result<()>,
 {
     let password = password_provider();
-    run_read_entries_mem(archives, |entry| match entry? {
-        ReadEntry::Solid(s) => s
-            .entries(password)?
-            .try_for_each(|r| processor(r.map(Into::into))),
-        ReadEntry::Normal(r) => processor(Ok(r)),
-    })
+    run_read_entries_mem(
+        archives,
+        |entry| match entry? {
+            ReadEntry::Solid(s) => s
+                .entries(password)?
+                .try_for_each(|r| processor(r.map(Into::into))),
+            ReadEntry::Normal(r) => processor(Ok(r)),
+        },
+        false,
+    )
 }
 
 #[cfg(feature = "memmap")]
 fn run_across_archive_mem_stoppable<'d, F>(
     archives: impl IntoIterator<Item = &'d [u8]>,
     mut processor: F,
+    allow_concatenated_archives: bool,
 ) -> io::Result<()>
 where
     F: FnMut(&mut Archive<&'d [u8]>) -> io::Result<ProcessAction>,
 {
     let mut iter = archives.into_iter();
     let mut archive = Archive::read_header_from_slice(iter.next().expect(""))?;
-    while let ProcessAction::Continue = processor(&mut archive)? {
+    loop {
+        if let ProcessAction::Stop = processor(&mut archive)? {
+            break;
+        }
         if archive.has_next_archive() {
             let next_reader = iter.next().ok_or_else(|| {
                 io::Error::new(
@@ -1422,8 +1471,16 @@ where
                 )
             })?;
             archive = archive.read_next_archive_from_slice(next_reader)?;
-        } else {
+            continue;
+        }
+        if !allow_concatenated_archives {
             break;
+        }
+        let bytes = archive.into_inner();
+        match Archive::read_header_from_slice(bytes) {
+            Ok(next) => archive = next,
+            Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => break,
+            Err(err) => return Err(err),
         }
     }
     Ok(())
@@ -1433,19 +1490,24 @@ where
 fn run_read_entries_mem_stoppable<'d, F>(
     archives: impl IntoIterator<Item = &'d [u8]>,
     mut processor: F,
+    allow_concatenated_archives: bool,
 ) -> io::Result<()>
 where
     F: FnMut(io::Result<ReadEntry<Cow<'d, [u8]>>>) -> io::Result<ProcessAction>,
 {
-    run_across_archive_mem_stoppable(archives, |archive| {
-        for entry in archive.entries_slice() {
-            match processor(entry)? {
-                ProcessAction::Continue => {}
-                ProcessAction::Stop => return Ok(ProcessAction::Stop),
+    run_across_archive_mem_stoppable(
+        archives,
+        |archive| {
+            for entry in archive.entries_slice() {
+                match processor(entry)? {
+                    ProcessAction::Continue => {}
+                    ProcessAction::Stop => return Ok(ProcessAction::Stop),
+                }
             }
-        }
-        Ok(ProcessAction::Continue)
-    })
+            Ok(ProcessAction::Continue)
+        },
+        allow_concatenated_archives,
+    )
 }
 
 #[cfg(feature = "memmap")]
@@ -1459,18 +1521,22 @@ where
     F: FnMut(io::Result<NormalEntry<Cow<'d, [u8]>>>) -> io::Result<ProcessAction>,
 {
     let password = password_provider();
-    run_read_entries_mem_stoppable(archives, |entry| match entry? {
-        ReadEntry::Solid(s) => {
-            for n in s.entries(password)? {
-                match processor(n.map(Into::into))? {
-                    ProcessAction::Continue => {}
-                    ProcessAction::Stop => return Ok(ProcessAction::Stop),
+    run_read_entries_mem_stoppable(
+        archives,
+        |entry| match entry? {
+            ReadEntry::Solid(s) => {
+                for n in s.entries(password)? {
+                    match processor(n.map(Into::into))? {
+                        ProcessAction::Continue => {}
+                        ProcessAction::Stop => return Ok(ProcessAction::Stop),
+                    }
                 }
+                Ok(ProcessAction::Continue)
             }
-            Ok(ProcessAction::Continue)
-        }
-        ReadEntry::Normal(r) => processor(Ok(r)),
-    })
+            ReadEntry::Normal(r) => processor(Ok(r)),
+        },
+        false,
+    )
 }
 
 #[cfg(feature = "memmap")]
@@ -1491,9 +1557,11 @@ where
 {
     let password = password_provider();
     let mut out_archive = Archive::write_header(writer)?;
-    run_read_entries_mem(archives, |entry| {
-        Transform::transform(&mut out_archive, password, entry, &mut processor)
-    })?;
+    run_read_entries_mem(
+        archives,
+        |entry| Transform::transform(&mut out_archive, password, entry, &mut processor),
+        false,
+    )?;
     out_archive.finalize()?;
     Ok(())
 }
@@ -1501,31 +1569,39 @@ where
 pub(crate) fn run_read_entries<F>(
     archive_provider: impl IntoIterator<Item = impl Read>,
     mut processor: F,
+    allow_concatenated_archives: bool,
 ) -> io::Result<()>
 where
     F: FnMut(io::Result<ReadEntry>) -> io::Result<()>,
 {
-    run_across_archive(archive_provider, |archive| {
-        archive.entries().try_for_each(&mut processor)
-    })
+    run_across_archive(
+        archive_provider,
+        |archive| archive.entries().try_for_each(&mut processor),
+        allow_concatenated_archives,
+    )
 }
 
 pub(crate) fn run_read_entries_stoppable<F>(
     archive_provider: impl IntoIterator<Item = impl Read>,
     mut processor: F,
+    allow_concatenated_archives: bool,
 ) -> io::Result<()>
 where
     F: FnMut(io::Result<ReadEntry>) -> io::Result<ProcessAction>,
 {
-    run_across_archive_stoppable(archive_provider, |archive| {
-        for entry in archive.entries() {
-            match processor(entry)? {
-                ProcessAction::Continue => {}
-                ProcessAction::Stop => return Ok(ProcessAction::Stop),
+    run_across_archive_stoppable(
+        archive_provider,
+        |archive| {
+            for entry in archive.entries() {
+                match processor(entry)? {
+                    ProcessAction::Continue => {}
+                    ProcessAction::Stop => return Ok(ProcessAction::Stop),
+                }
             }
-        }
-        Ok(ProcessAction::Continue)
-    })
+            Ok(ProcessAction::Continue)
+        },
+        allow_concatenated_archives,
+    )
 }
 
 #[cfg(not(feature = "memmap"))]
@@ -1544,9 +1620,11 @@ where
 {
     let password = password_provider();
     let mut out_archive = Archive::write_header(writer)?;
-    run_read_entries(archives, |entry| {
-        Transform::transform(&mut out_archive, password, entry, &mut processor)
-    })?;
+    run_read_entries(
+        archives,
+        |entry| Transform::transform(&mut out_archive, password, entry, &mut processor),
+        false,
+    )?;
     out_archive.finalize()?;
     Ok(())
 }
