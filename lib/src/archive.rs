@@ -95,6 +95,49 @@ impl<T> Archive<T> {
     pub const fn has_next_archive(&self) -> bool {
         self.next_archive
     }
+
+    /// Consumes the archive and returns the underlying reader or writer.
+    ///
+    /// # Warning
+    ///
+    /// This method does not finalize the archive. If you are writing to an
+    /// archive, call [`Archive::finalize`] first to ensure the end-of-archive
+    /// marker is written. Using `into_inner` on a writer without finalizing
+    /// leaves the archive incomplete.
+    ///
+    /// # Examples
+    ///
+    /// For normal archive completion, prefer [`Archive::finalize`] which writes
+    /// the end-of-archive marker and returns the inner writer:
+    ///
+    /// ```
+    /// # use libpna::Archive;
+    /// # use std::io;
+    /// # fn main() -> io::Result<()> {
+    /// let archive = Archive::write_header(Vec::new())?;
+    /// let writer = archive.finalize()?; // Preferred: archive is properly closed
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Use `into_inner` when you need to abandon an archive or access the
+    /// underlying reader:
+    ///
+    /// ```
+    /// # use libpna::Archive;
+    /// # use std::io;
+    /// # fn main() -> io::Result<()> {
+    /// let file = std::io::Cursor::new(include_bytes!("../../resources/test/empty.pna").to_vec());
+    /// let archive = Archive::read_header(file)?;
+    /// let _reader = archive.into_inner(); // Safe for readers
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[must_use = "call `finalize` instead if you don't need the inner value"]
+    #[inline]
+    pub fn into_inner(self) -> T {
+        self.inner
+    }
 }
 
 /// An object that provides write access to solid mode PNA files.
