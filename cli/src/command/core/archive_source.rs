@@ -98,6 +98,7 @@ impl SplitArchiveReader {
                     .try_for_each(|r| processor(r.map(Into::into))),
                 ReadEntry::Normal(n) => processor(Ok(n)),
             },
+            false,
         )
     }
 
@@ -106,7 +107,7 @@ impl SplitArchiveReader {
         &mut self,
         processor: impl FnMut(io::Result<ReadEntry>) -> io::Result<()>,
     ) -> io::Result<()> {
-        super::run_read_entries(self.files.drain(..), processor)
+        super::run_read_entries(self.files.drain(..), processor, false)
     }
 
     #[cfg(feature = "memmap")]
@@ -114,6 +115,6 @@ impl SplitArchiveReader {
         &'s mut self,
         processor: impl FnMut(io::Result<ReadEntry<Cow<'s, [u8]>>>) -> io::Result<()>,
     ) -> io::Result<()> {
-        super::run_read_entries_mem(self.mmaps.iter().map(|m| m.as_ref()), processor)
+        super::run_read_entries_mem(self.mmaps.iter().map(|m| m.as_ref()), processor, false)
     }
 }
