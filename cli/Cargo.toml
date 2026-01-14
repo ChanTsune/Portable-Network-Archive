@@ -69,7 +69,7 @@ field-offset = { version = "0.3.6", optional = true }
 [dev-dependencies]
 maplit = "1.0.2"
 path-slash = "0.2.1"
-rust-embed = { version = "8.9.0", features = ["debug-embed"] }
+rust-embed = { version = "8.10.0", features = ["debug-embed"] }
 same-file = "1.0.6"
 scopeguard = "1.2.0"
 walkdir = "2.5.0"
