@@ -12,7 +12,7 @@
 
 **Portable Network Archive (PNA)** is a flexible, secure, and cross-platform archive format inspired by the PNG data structure. It combines the simplicity of ZIP with the robustness of TAR, providing efficient compression, strong encryption, and seamless splitting and streaming capabilities.
 
-### Why PNA?
+## Why PNA?
 
 **Portable Network Archive (PNA): A Flexible, Secure, and Cross-Platform Archive Format**
 - **Portability:** Works seamlessly across multiple platforms, combining the strengths of TAR and ZIP formats.
@@ -24,6 +24,25 @@
 - **Error Resilience:** File integrity checks and error detection ensure data is secure during transmission.
 
 Additionally, the PNA specification includes a rationale appendix to help developers understand key design choices, making implementation more straightforward.
+
+### Minimal archives (metadata-free by design)
+
+Many archive formats *require* a non-trivial amount of metadata (timestamps, permissions, owner ids, directory tables, checksums, etc.) to be present even when you do not want to preserve them.
+
+PNA is intentionally designed so that **everything other than the entry name and the entry body can be optional**.
+In other words, it is possible (by design, without violating the specification) to build an archive that contains only:
+
+* the file name (entry identifier), and
+* the file body (payload bytes)
+
+and omit all other information.
+
+This enables a few practical advantages:
+
+* **Smallest possible archives**: no overhead from timestamps, permissions, comments, or other ancillary fields when they are unnecessary.
+* **Privacy / information minimization**: avoids unintentionally leaking environment details such as mtime, uid/gid, filesystem attributes, tool versions, etc.
+* **Deterministic / reproducible packaging**: fewer variable fields means it is easier to produce stable byte-for-byte outputs across environments.
+* **Clean transport container**: when used as a network-friendly container, the archive can carry exactly what the sender intends—no more, no less.
 
 ## Features
 
