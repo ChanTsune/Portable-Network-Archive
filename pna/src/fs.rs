@@ -41,6 +41,31 @@ pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Resu
     inner(original.as_ref(), link.as_ref())
 }
 
+/// Removes a path by dispatching based on file type.
+///
+/// - Symlinks: removed via `remove_file` (with Windows `remove_dir` fallback)
+/// - Directories: removed via the provided `remove_dir_fn`
+/// - Files: removed via `remove_file`
+#[inline]
+fn remove_path_with<'a, F>(path: &'a Path, remove_dir_fn: F) -> io::Result<()>
+where
+    F: FnOnce(&'a Path) -> io::Result<()>,
+{
+    let metadata = fs::symlink_metadata(path)?;
+    let file_type = metadata.file_type();
+    if file_type.is_symlink() {
+        match fs::remove_file(path) {
+            #[cfg(windows)]
+            Err(_) => fs::remove_dir(path),
+            other => other,
+        }
+    } else if file_type.is_dir() {
+        remove_dir_fn(path)
+    } else {
+        fs::remove_file(path)
+    }
+}
+
 /// Removes an entry from the filesystem. If the given path is a directory,
 /// calls [`fs::remove_dir_all`], otherwise calls [`fs::remove_file`]. Use carefully!
 ///
@@ -70,22 +95,7 @@ pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Resu
 /// ```
 #[inline]
 pub fn remove_path_all<P: AsRef<Path>>(path: P) -> io::Result<()> {
-    fn inner(path: &Path) -> io::Result<()> {
-        let metadata = fs::symlink_metadata(path)?;
-        let file_type = metadata.file_type();
-        if file_type.is_symlink() {
-            match fs::remove_file(path) {
-                #[cfg(windows)]
-                Err(_) => fs::remove_dir(path),
-                other => other,
-            }
-        } else if file_type.is_dir() {
-            fs::remove_dir_all(path)
-        } else {
-            fs::remove_file(path)
-        }
-    }
-    inner(path.as_ref())
+    remove_path_with(path.as_ref(), fs::remove_dir_all)
 }
 
 /// Removes an entry from the filesystem without descending into directories.
@@ -119,20 +129,5 @@ pub fn remove_path_all<P: AsRef<Path>>(path: P) -> io::Result<()> {
 /// ```
 #[inline]
 pub fn remove_path<P: AsRef<Path>>(path: P) -> io::Result<()> {
-    fn inner(path: &Path) -> io::Result<()> {
-        let metadata = fs::symlink_metadata(path)?;
-        let file_type = metadata.file_type();
-        if file_type.is_symlink() {
-            match fs::remove_file(path) {
-                #[cfg(windows)]
-                Err(_) => fs::remove_dir(path),
-                other => other,
-            }
-        } else if file_type.is_dir() {
-            fs::remove_dir(path)
-        } else {
-            fs::remove_file(path)
-        }
-    }
-    inner(path.as_ref())
+    remove_path_with(path.as_ref(), fs::remove_dir)
 }
