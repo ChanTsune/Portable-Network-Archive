@@ -43,7 +43,7 @@ pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Resu
 
 /// Removes a path by dispatching based on file type.
 ///
-/// - Symlinks: removed via `remove_file` (with Windows `remove_dir` fallback)
+/// - Symlinks: removed via `remove_file` (or `remove_dir` for directory symlinks on Windows)
 /// - Directories: removed via the provided `remove_dir_fn`
 /// - Files: removed via `remove_file`
 #[inline]
@@ -54,11 +54,14 @@ where
     let metadata = fs::symlink_metadata(path)?;
     let file_type = metadata.file_type();
     if file_type.is_symlink() {
-        match fs::remove_file(path) {
-            #[cfg(windows)]
-            Err(_) => fs::remove_dir(path),
-            other => other,
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::FileTypeExt;
+            if file_type.is_symlink_dir() {
+                return fs::remove_dir(path);
+            }
         }
+        fs::remove_file(path)
     } else if file_type.is_dir() {
         remove_dir_fn(path)
     } else {
