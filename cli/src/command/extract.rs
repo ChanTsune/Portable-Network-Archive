@@ -816,16 +816,7 @@ where
         return extract_entry_to_stdout(&item, password);
     }
 
-    let path = if let Some(out_dir) = out_dir {
-        Cow::from(out_dir.join(item_path))
-    } else {
-        Cow::from(item_path.as_path())
-    };
-    let path = if path.as_os_str().is_empty() {
-        Cow::Borrowed(".".as_ref())
-    } else {
-        path
-    };
+    let path = build_output_path(out_dir.as_deref(), item_path.as_path());
 
     let entry_kind = item.header().data_kind();
 
@@ -915,6 +906,20 @@ where
     drop(path_guard);
     log::debug!("end: {}", path.display());
     Ok(())
+}
+
+#[inline]
+fn build_output_path<'a>(out_dir: Option<&'a Path>, item_path: &'a Path) -> Cow<'a, Path> {
+    let path = if let Some(out_dir) = out_dir {
+        Cow::from(out_dir.join(item_path))
+    } else {
+        Cow::Borrowed(item_path)
+    };
+    if path.as_os_str().is_empty() {
+        Cow::Borrowed(".".as_ref())
+    } else {
+        path
+    }
 }
 
 /// Applies preserved timestamps from archive metadata to an open output file when timestamp preservation is enabled.
