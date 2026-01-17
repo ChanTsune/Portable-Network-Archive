@@ -569,6 +569,10 @@ where
                 log::debug!("Skip: {item_path}");
                 return Ok(());
             }
+            if args.filter.excluded(item.name()) {
+                log::debug!("Skip: {item_path}");
+                return Ok(());
+            }
             if !entry_matches_time_filters(&item, &args.time_filters) {
                 log::debug!("Skip: {item_path}");
                 return Ok(());
@@ -634,6 +638,10 @@ where
                 .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
             let item_path = item.name().to_string();
             if !globs.is_empty() && !globs.matches_any(&item_path) {
+                log::debug!("Skip: {item_path}");
+                return Ok(());
+            }
+            if args.filter.excluded(item.name()) {
                 log::debug!("Skip: {item_path}");
                 return Ok(());
             }
@@ -790,7 +798,7 @@ pub(crate) fn extract_entry<'a, T>(
         allow_unsafe_links,
         out_dir,
         to_stdout,
-        filter,
+        filter: _,
         keep_options,
         pathname_editor,
         path_locks,
@@ -803,9 +811,6 @@ where
     T: AsRef<[u8]>,
     pna::RawChunk<T>: Chunk,
 {
-    if filter.excluded(item.name()) {
-        return Ok(());
-    }
     let item_path = item.name().as_path();
     log::debug!("Extract: {}", item_path.display());
     let Some(item_path) = pathname_editor.edit_entry_name(item_path) else {
