@@ -573,6 +573,9 @@ where
                 log::debug!("Skip: {item_path}");
                 return Ok(());
             }
+            if args.to_stdout {
+                return extract_entry_to_stdout(&item, password);
+            }
             if matches!(
                 item.header().data_kind(),
                 DataKind::SymbolicLink | DataKind::HardLink
@@ -640,6 +643,9 @@ where
             if !entry_matches_time_filters(&item, &args.time_filters) {
                 log::debug!("Skip: {item_path}");
                 return Ok(());
+            }
+            if args.to_stdout {
+                return extract_entry_to_stdout(&item, password);
             }
             if matches!(
                 item.header().data_kind(),
@@ -789,7 +795,7 @@ pub(crate) fn extract_entry<'a, T>(
         overwrite_strategy,
         allow_unsafe_links,
         out_dir,
-        to_stdout,
+        to_stdout: _,
         filter,
         keep_options,
         pathname_editor,
@@ -811,10 +817,6 @@ where
     let Some(item_path) = pathname_editor.edit_entry_name(item_path) else {
         return Ok(());
     };
-
-    if *to_stdout {
-        return extract_entry_to_stdout(&item, password);
-    }
 
     let path = build_output_path(out_dir.as_deref(), item_path.as_path());
 
