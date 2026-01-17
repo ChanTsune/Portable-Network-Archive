@@ -36,6 +36,7 @@ log = "0.4.29"
 memmap2 = { version = "0.9.9", optional = true }
 nom = "8.0.0"
 parse_datetime = "0.13.3"
+parking_lot = { version = "0.12.4", features = ["arc_lock", "send_guard"] }
 path-slash = "0.2.1"
 pna = { version = "0.30.0", path = "../pna" }
 rayon = "1.11.0"

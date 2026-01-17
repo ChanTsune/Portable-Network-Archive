@@ -1,7 +1,8 @@
+use parking_lot::{ArcMutexGuard, Mutex, RawMutex};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex as StdMutex},
 };
 
 /// Maintains per-path mutexes so that concurrent archive operations update a given path in order.
@@ -11,8 +12,10 @@ use std::{
 /// same output path is serialized even when the caller itself is running inside a parallel context.
 #[derive(Debug, Default)]
 pub(crate) struct PathLocks {
-    inner: Mutex<HashMap<PathBuf, Arc<Mutex<()>>>>,
+    inner: StdMutex<HashMap<PathBuf, Arc<Mutex<()>>>>,
 }
+
+pub(crate) type PathLockGuard = ArcMutexGuard<RawMutex, ()>;
 
 impl PathLocks {
     /// Returns the mutex guarding `path`, creating it on demand.
