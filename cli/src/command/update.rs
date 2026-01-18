@@ -10,8 +10,8 @@ use crate::{
     command::{
         Command, ask_password, check_password,
         core::{
-            AclStrategy, CollectOptions, CollectedItem, CreateOptions, FflagsStrategy, KeepOptions,
-            MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
+            AclStrategy, CollectOptions, CollectedEntry, CreateOptions, FflagsStrategy,
+            KeepOptions, MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
             PermissionStrategyResolver, TimeFilterResolver, TimestampStrategyResolver,
             TransformStrategy, TransformStrategyKeepSolid, TransformStrategyUnSolid, XattrStrategy,
             collect_items_from_paths, collect_split_archives, create_entry, entry_option,
@@ -523,7 +523,7 @@ pub(crate) fn run_update_archive<Strategy, R, W>(
     archives: impl IntoIterator<Item = R> + Send,
     password: Option<&[u8]>,
     create_options: &CreateOptions,
-    target_items: Vec<CollectedItem>,
+    target_items: Vec<CollectedEntry>,
     sync: bool,
     out_archive: &mut Archive<W>,
     _strategy: Strategy,
@@ -596,7 +596,7 @@ pub(crate) fn run_update_archive<'d, Strategy, W>(
     archives: impl IntoIterator<Item = &'d [u8]> + Send,
     password: Option<&[u8]>,
     create_options: &CreateOptions,
-    target_items: Vec<CollectedItem>,
+    target_items: Vec<CollectedEntry>,
     sync: bool,
     out_archive: &mut Archive<W>,
     _strategy: Strategy,

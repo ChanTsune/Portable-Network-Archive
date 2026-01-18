@@ -8,14 +8,14 @@ use crate::{
         append::{open_archive_then_seek_to_end, run_append_archive},
         ask_password, check_password,
         core::{
-            AclStrategy, CollectOptions, CreateOptions, FflagsStrategy, KeepOptions,
+            AclStrategy, CollectOptions, CreateOptions, FflagsStrategy, ItemSource, KeepOptions,
             MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
             PermissionStrategyResolver, TimeFilterResolver, TimestampStrategyResolver,
             TransformStrategyUnSolid, XattrStrategy, apply_chroot, collect_items_from_paths,
-            collect_split_archives, entry_option,
+            collect_items_from_sources, collect_split_archives, entry_option,
             path_lock::PathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
-            read_paths,
+            read_paths, validate_no_duplicate_stdin,
         },
         create::{CreationContext, create_archive_file},
         extract::{OutputOption, OverwriteStrategy, run_extract_archive_reader},
@@ -616,6 +616,9 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
     }
+    // Parse sources AFTER changing directory so @archive paths are affected by -C
+    let sources = ItemSource::parse_many(&files);
+    validate_no_duplicate_stdin(&sources)?;
     let collect_options = CollectOptions {
         recursive: !args.no_recursive,
         keep_dir: args.keep_dir,
@@ -628,7 +631,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         time_filters: &time_filters,
     };
     let mut resolver = HardlinkResolver::new(collect_options.follow_links);
-    let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?;
+    let target_items = collect_items_from_sources(sources, &collect_options, &mut resolver)?;
     if args.check_links {
         for (path, expected, archived) in resolver.incomplete_links() {
             log::warn!(
@@ -693,9 +696,19 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
             || utils::fs::file_create(&file, args.overwrite),
             creation_context,
             target_items,
+            &filter,
+            &time_filters,
+            password,
         )
     } else {
-        create_archive_file(|| Ok(io::stdout().lock()), creation_context, target_items)
+        create_archive_file(
+            || Ok(io::stdout().lock()),
+            creation_context,
+            target_items,
+            &filter,
+            &time_filters,
+            password,
+        )
     }
 }
 
@@ -989,6 +1002,9 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
     }
+    // Parse sources AFTER changing directory so @archive paths are affected by -C
+    let sources = ItemSource::parse_many(&files);
+    validate_no_duplicate_stdin(&sources)?;
     let collect_options = CollectOptions {
         recursive: args.recursive,
         keep_dir: args.keep_dir,
@@ -1003,10 +1019,17 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     let mut resolver = HardlinkResolver::new(collect_options.follow_links);
     if let Some(file) = &archive_path {
         let archive = open_archive_then_seek_to_end(file)?;
-        let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?;
-        run_append_archive(&create_options, archive, target_items)
+        let target_items = collect_items_from_sources(sources, &collect_options, &mut resolver)?;
+        run_append_archive(
+            &create_options,
+            archive,
+            target_items,
+            &filter,
+            &time_filters,
+            password,
+        )
     } else {
-        let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?;
+        let target_items = collect_items_from_sources(sources, &collect_options, &mut resolver)?;
         let mut output_archive = Archive::write_header(io::stdout().lock())?;
         {
             let mut input_archive = Archive::read_header(io::stdin().lock())?;
@@ -1014,7 +1037,14 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
                 output_archive.add_entry(entry?)?;
             }
         }
-        run_append_archive(&create_options, output_archive, target_items)
+        run_append_archive(
+            &create_options,
+            output_archive,
+            target_items,
+            &filter,
+            &time_filters,
+            password,
+        )
     }
 }
 
