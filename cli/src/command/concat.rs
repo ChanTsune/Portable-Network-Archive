@@ -77,6 +77,7 @@ fn concat_entry(args: ConcatCommand) -> anyhow::Result<()> {
                     }
                     Ok(())
                 },
+                false,
             )?;
         }
         #[cfg(not(feature = "memmap"))]
@@ -90,6 +91,7 @@ fn concat_entry(args: ConcatCommand) -> anyhow::Result<()> {
                     }
                     Ok(())
                 },
+                false,
             )?;
         }
     }

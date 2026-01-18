@@ -541,32 +541,38 @@ where
         .collect::<IndexMap<_, _>>();
 
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
-        run_read_entries(archives, |entry| {
-            Strategy::transform(out_archive, password, entry, |entry| {
-                let entry = entry?;
-                if let Some(item) = target_files_mapping.swap_remove(entry.header().path()) {
-                    let need_update =
-                        is_newer_than_archive(&item.metadata, entry.metadata()).unwrap_or(true);
-                    if need_update {
-                        let tx = tx.clone();
-                        let create_options = create_options.clone();
-                        s.spawn_fifo(move |_| {
-                            log::debug!("Updating: {}", item.path.display());
-                            tx.send(create_entry(&item, &create_options))
-                                .unwrap_or_else(|e| log::error!("{e}: {}", item.path.display()));
-                        });
+        run_read_entries(
+            archives,
+            |entry| {
+                Strategy::transform(out_archive, password, entry, |entry| {
+                    let entry = entry?;
+                    if let Some(item) = target_files_mapping.swap_remove(entry.header().path()) {
+                        let need_update =
+                            is_newer_than_archive(&item.metadata, entry.metadata()).unwrap_or(true);
+                        if need_update {
+                            let tx = tx.clone();
+                            let create_options = create_options.clone();
+                            s.spawn_fifo(move |_| {
+                                log::debug!("Updating: {}", item.path.display());
+                                tx.send(create_entry(&item, &create_options))
+                                    .unwrap_or_else(|e| {
+                                        log::error!("{e}: {}", item.path.display())
+                                    });
+                            });
+                            Ok(None)
+                        } else {
+                            Ok(Some(entry))
+                        }
+                    } else if sync {
+                        log::debug!("Removing (sync): {}", entry.header().path());
                         Ok(None)
                     } else {
                         Ok(Some(entry))
                     }
-                } else if sync {
-                    log::debug!("Removing (sync): {}", entry.header().path());
-                    Ok(None)
-                } else {
-                    Ok(Some(entry))
-                }
-            })
-        })?;
+                })
+            },
+            false,
+        )?;
 
         // NOTE: Add new entries
         for (_, item) in target_files_mapping {
