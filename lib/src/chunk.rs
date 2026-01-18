@@ -88,6 +88,20 @@ pub(crate) trait ChunkExt: Chunk {
         Ok(self.bytes_len())
     }
 
+    #[cfg(feature = "unstable-async")]
+    #[inline]
+    async fn write_chunk_in_async<W: futures_io::AsyncWrite + std::marker::Unpin>(
+        &self,
+        writer: &mut W,
+    ) -> io::Result<usize> {
+        use futures_util::AsyncWriteExt;
+        writer.write_all(&self.length().to_be_bytes()).await?;
+        writer.write_all(&self.ty().0).await?;
+        writer.write_all(self.data()).await?;
+        writer.write_all(&self.crc().to_be_bytes()).await?;
+        Ok(self.bytes_len())
+    }
+
     /// Converts the chunk into a `Vec<u8>`.
     ///
     /// This method serializes the entire chunk into a byte vector, which can be
