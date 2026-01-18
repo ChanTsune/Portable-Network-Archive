@@ -135,24 +135,6 @@ impl<R: Read> Archive<R> {
         RawEntries(self)
     }
 
-    /// Returns an iterator over the entries in the archive, excluding entries in solid mode.
-    ///
-    /// # Deprecated
-    ///
-    /// Use [`Archive::entries()`] followed by `skip_solid()` instead.
-    ///
-    /// # Returns
-    ///
-    /// An iterator over the entries in the archive.
-    #[inline]
-    #[deprecated(
-        since = "0.28.1",
-        note = "Use `Archive::entries().skip_solid()` chain instead"
-    )]
-    pub fn entries_skip_solid(&mut self) -> impl Iterator<Item = io::Result<NormalEntry>> + '_ {
-        self.entries().skip_solid()
-    }
-
     /// Returns an iterator over the entries in the archive, including entries in solid mode.
     ///
     /// # Arguments
