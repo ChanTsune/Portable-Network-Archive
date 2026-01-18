@@ -22,7 +22,7 @@ impl TimeFilter {
         self.newer_than.is_some() || self.older_than.is_some()
     }
 
-    /// Determines whether a file should be retained based on its modification time.
+    /// Determines whether a file matches the filter based on its modification time.
     ///
     /// # Arguments
     ///
@@ -30,21 +30,20 @@ impl TimeFilter {
     ///
     /// # Returns
     ///
-    /// `true` if the file should be retained, `false` otherwise.
-    fn is_retain(&self, time: Option<SystemTime>) -> bool {
-        if let Some(newer) = self.newer_than {
-            if let Some(t) = time {
-                if t <= newer {
-                    return false;
-                }
-            }
+    /// `true` if the file matches the filter, `false` otherwise.
+    fn matches(&self, time: Option<SystemTime>) -> bool {
+        let Some(time) = time else {
+            return true;
+        };
+        if let Some(newer) = self.newer_than
+            && time <= newer
+        {
+            return false;
         }
-        if let Some(older) = self.older_than {
-            if let Some(t) = time {
-                if t >= older {
-                    return false;
-                }
-            }
+        if let Some(older) = self.older_than
+            && time >= older
+        {
+            return false;
         }
         true
     }
@@ -76,7 +75,7 @@ impl TimeFilters {
         fs_ctime: Option<SystemTime>,
         fs_mtime: Option<SystemTime>,
     ) -> bool {
-        self.ctime.is_retain(fs_ctime) && self.mtime.is_retain(fs_mtime)
+        self.ctime.matches(fs_ctime) && self.mtime.matches(fs_mtime)
     }
 
     /// Returns `true` if no filters are active, or if the given times pass all active filters.
