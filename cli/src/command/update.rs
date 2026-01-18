@@ -544,7 +544,7 @@ where
         run_read_entries(archives, |entry| {
             Strategy::transform(out_archive, password, entry, |entry| {
                 let entry = entry?;
-                if let Some(item) = target_files_mapping.swap_remove(entry.header().path()) {
+                if let Some(item) = target_files_mapping.shift_remove(entry.header().path()) {
                     let need_update =
                         is_newer_than_archive(&item.metadata, entry.metadata()).unwrap_or(true);
                     if need_update {
@@ -616,7 +616,7 @@ where
         run_read_entries_mem(archives, |entry| {
             Strategy::transform(out_archive, password, entry, |entry| {
                 let entry = entry?;
-                if let Some(item) = target_files_mapping.swap_remove(entry.header().path()) {
+                if let Some(item) = target_files_mapping.shift_remove(entry.header().path()) {
                     let need_update =
                         is_newer_than_archive(&item.metadata, entry.metadata()).unwrap_or(true);
                     if need_update {
