@@ -1,6 +1,8 @@
 mod archive_inclusion;
 mod exclude_vcs;
 mod files_from;
+#[cfg(unix)]
+mod mtree;
 mod option_auto_compress;
 mod option_block_size;
 mod option_check_links;
