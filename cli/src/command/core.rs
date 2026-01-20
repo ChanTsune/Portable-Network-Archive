@@ -1,4 +1,6 @@
 pub(crate) mod iter;
+#[cfg(unix)]
+pub(crate) mod mtree;
 pub(crate) mod path;
 mod path_filter;
 pub(crate) mod path_lock;
@@ -35,6 +37,29 @@ use std::{
     time::SystemTime,
 };
 pub(crate) use time_filter::{TimeFilter, TimeFilters};
+
+/// Detected format of an @archive source.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SourceFormat {
+    /// PNA archive format (detected by magic bytes)
+    Pna,
+    /// mtree manifest format (text-based)
+    Mtree,
+}
+
+/// Detects the format of an @archive source by examining the first bytes.
+///
+/// Returns `SourceFormat::Pna` if the data starts with PNA magic bytes,
+/// otherwise returns `SourceFormat::Mtree`.
+pub(crate) fn detect_format<R: io::BufRead>(reader: &mut R) -> io::Result<SourceFormat> {
+    let buf = reader.fill_buf()?;
+
+    if buf.len() >= PNA_HEADER.len() && buf[..PNA_HEADER.len()] == *PNA_HEADER {
+        return Ok(SourceFormat::Pna);
+    }
+
+    Ok(SourceFormat::Mtree)
+}
 
 /// Options controlling how filesystem items are collected for archiving.
 ///
@@ -1622,6 +1647,72 @@ pub(crate) fn transform_archive_entries<R: io::Read>(
 }
 
 /// Reads entries from an archive source (file or stdin) and transforms them.
+///
+/// This function auto-detects the format of the source:
+/// - PNA archive: Copies entries with optional transformation
+/// - mtree manifest: Reads files from filesystem with metadata overrides (Unix only)
+#[cfg(unix)]
+pub(crate) fn read_archive_source(
+    source: &ArchiveSource,
+    create_options: &CreateOptions,
+    filter: &PathFilter<'_>,
+    time_filters: &TimeFilters,
+    password: Option<&[u8]>,
+) -> io::Result<Vec<io::Result<Option<NormalEntry>>>> {
+    fn process_source<R: io::BufRead>(
+        mut reader: R,
+        source_name: &str,
+        create_options: &CreateOptions,
+        filter: &PathFilter<'_>,
+        time_filters: &TimeFilters,
+        password: Option<&[u8]>,
+    ) -> io::Result<Vec<io::Result<Option<NormalEntry>>>> {
+        let format = detect_format(&mut reader)
+            .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", source_name, e)))?;
+
+        match format {
+            SourceFormat::Pna => {
+                transform_archive_entries(reader, create_options, filter, time_filters, password)
+            }
+            SourceFormat::Mtree => {
+                mtree::transform_mtree_entries(reader, create_options, filter, time_filters)
+            }
+        }
+        .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", source_name, e)))
+    }
+
+    match source {
+        ArchiveSource::File(path) => {
+            let file = fs::File::open(path)
+                .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", path.display(), e)))?;
+            let reader = io::BufReader::with_capacity(64 * 1024, file);
+            process_source(
+                reader,
+                &path.display().to_string(),
+                create_options,
+                filter,
+                time_filters,
+                password,
+            )
+        }
+        ArchiveSource::Stdin => {
+            let reader = io::BufReader::new(io::stdin().lock());
+            process_source(
+                reader,
+                "<stdin>",
+                create_options,
+                filter,
+                time_filters,
+                password,
+            )
+        }
+    }
+}
+
+/// Reads entries from an archive source (file or stdin) and transforms them.
+///
+/// On non-Unix platforms, only PNA format is supported. mtree format is not available.
+#[cfg(not(unix))]
 pub(crate) fn read_archive_source(
     source: &ArchiveSource,
     create_options: &CreateOptions,
@@ -1937,6 +2028,70 @@ mod tests {
         fn validate_no_duplicate_stdin_empty() {
             let sources: Vec<ItemSource> = vec![];
             assert!(super::validate_no_duplicate_stdin(&sources).is_ok());
+        }
+    }
+
+    mod detect_format_tests {
+        use super::*;
+        use std::io::Cursor;
+
+        #[test]
+        fn pna_magic() {
+            // Full PNA header: 0x89 P N A \r \n 0x1A \n
+            let data = [0x89, 0x50, 0x4E, 0x41, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00];
+            let mut reader = Cursor::new(&data[..]);
+            let format = detect_format(&mut reader).unwrap();
+            assert_eq!(format, SourceFormat::Pna);
+        }
+
+        #[test]
+        fn mtree_header() {
+            let data = b"#mtree\n/set type=file mode=0644\n";
+            let mut reader = Cursor::new(&data[..]);
+            let format = detect_format(&mut reader).unwrap();
+            assert_eq!(format, SourceFormat::Mtree);
+        }
+
+        #[test]
+        fn mtree_set_directive() {
+            let data = b"/set type=file mode=0644\n";
+            let mut reader = Cursor::new(&data[..]);
+            let format = detect_format(&mut reader).unwrap();
+            assert_eq!(format, SourceFormat::Mtree);
+        }
+
+        #[test]
+        fn mtree_entry_line() {
+            let data = b"usr/bin/hello mode=0755\n";
+            let mut reader = Cursor::new(&data[..]);
+            let format = detect_format(&mut reader).unwrap();
+            assert_eq!(format, SourceFormat::Mtree);
+        }
+
+        #[test]
+        fn empty_falls_back_to_mtree() {
+            let data = b"";
+            let mut reader = Cursor::new(&data[..]);
+            let format = detect_format(&mut reader).unwrap();
+            assert_eq!(format, SourceFormat::Mtree);
+        }
+
+        #[test]
+        fn partial_pna_magic_is_mtree() {
+            // Only 4 bytes matching old PNA magic (not full 8-byte header)
+            let data = [0x89, 0x50, 0x4E, 0x41, 0x00, 0x00, 0x00, 0x00];
+            let mut reader = Cursor::new(&data[..]);
+            let format = detect_format(&mut reader).unwrap();
+            assert_eq!(format, SourceFormat::Mtree);
+        }
+
+        #[test]
+        fn short_buffer_is_mtree() {
+            // Less than 8 bytes
+            let data = [0x89, 0x50, 0x4E, 0x41];
+            let mut reader = Cursor::new(&data[..]);
+            let format = detect_format(&mut reader).unwrap();
+            assert_eq!(format, SourceFormat::Mtree);
         }
     }
 }
