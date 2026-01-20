@@ -26,7 +26,6 @@ jobs:
             container: emscripten/emsdk:latest
             runner: ubuntu-latest
           - target: wasm32-unknown-unknown
-            container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-27
             runner: ubuntu-24.04-arm
           - target: wasm32-wasip1
             container: ghcr.io/portable-network-archive/wasi-sdk-gh-actions:wasi-sdk-27
