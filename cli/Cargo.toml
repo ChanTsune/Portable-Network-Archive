@@ -51,6 +51,7 @@ rand = "0.8.5"
 walkdir = "2.5.0"
 
 [target.'cfg(unix)'.dependencies]
+mtree2 = "0.6.15"
 nix = { version = "0.31.1", features = ["user"] }
 xattr = "1.6.1"
 
