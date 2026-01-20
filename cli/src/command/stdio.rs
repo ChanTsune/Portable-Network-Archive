@@ -15,7 +15,7 @@ use crate::{
             collect_items_from_sources, collect_split_archives, entry_option,
             path_lock::PathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
-            read_paths, validate_no_duplicate_stdin,
+            read_paths, validate_no_duplicate_stdin, validate_no_stdin_stdout_conflict,
         },
         create::{CreationContext, create_archive_file},
         extract::{OutputOption, OverwriteStrategy, run_extract_archive_reader},
@@ -1005,6 +1005,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     // Parse sources AFTER changing directory so @archive paths are affected by -C
     let sources = ItemSource::parse_many(&files);
     validate_no_duplicate_stdin(&sources)?;
+    validate_no_stdin_stdout_conflict(&sources, archive_path.is_none())?;
     let collect_options = CollectOptions {
         recursive: args.recursive,
         keep_dir: args.keep_dir,

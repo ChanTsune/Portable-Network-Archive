@@ -466,6 +466,28 @@ pub(crate) fn validate_no_duplicate_stdin(sources: &[ItemSource]) -> anyhow::Res
     Ok(())
 }
 
+/// Validates that stdin is not used as a source when output is going to stdout.
+///
+/// When `-f -` is used (writing archive to stdout), stdin cannot also be used
+/// as an archive source (`@-` or `@`), since both would need exclusive access
+/// to the standard streams.
+pub(crate) fn validate_no_stdin_stdout_conflict(
+    sources: &[ItemSource],
+    output_is_stdout: bool,
+) -> anyhow::Result<()> {
+    if output_is_stdout {
+        let uses_stdin = sources
+            .iter()
+            .any(|s| matches!(s, ItemSource::Archive(ArchiveSource::Stdin)));
+        if uses_stdin {
+            anyhow::bail!(
+                "cannot use stdin as archive source (@- or @) when outputting to stdout (-f -)"
+            );
+        }
+    }
+    Ok(())
+}
+
 /// Represents a collected item ready for archive creation.
 ///
 /// This preserves the CLI argument order while separating filesystem items
