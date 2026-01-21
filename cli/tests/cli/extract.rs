@@ -3,6 +3,7 @@ mod exclude_vcs;
 mod files_from;
 mod hardlink;
 mod missing_file;
+#[cfg(not(target_family = "wasm"))]
 mod option_chroot;
 mod option_keep_newer_files;
 mod option_keep_old_files;

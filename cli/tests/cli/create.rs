@@ -4,6 +4,7 @@ mod exclude;
 mod exclude_from;
 mod exclude_vcs;
 mod files_from;
+#[cfg(not(target_family = "wasm"))]
 mod files_from_stdin;
 mod include;
 mod mtime;

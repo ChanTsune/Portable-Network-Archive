@@ -1,3 +1,4 @@
+#[cfg(not(target_family = "wasm"))]
 mod option_overwrite;
 
 use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
