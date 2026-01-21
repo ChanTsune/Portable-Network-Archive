@@ -525,6 +525,7 @@ fn list_archive(args: ListCommand, color: ColorChoice) -> anyhow::Result<()> {
             files_globs,
             filter,
             options,
+            false,
         )
     }
     #[cfg(feature = "memmap")]
@@ -584,11 +585,12 @@ pub(crate) fn run_list_archive<'a>(
     files_globs: BsdGlobMatcher,
     filter: PathFilter<'a>,
     args: ListOptions,
+    allow_concatenated_archives: bool,
 ) -> anyhow::Result<()> {
     let mut entries = Vec::new();
     let collect_opts = CollectOptions::from_list_options(&args);
 
-    run_read_entries(archive_provider, |entry| {
+    let mut handler = |entry| {
         match entry? {
             ReadEntry::Solid(solid) if args.solid => {
                 for entry in solid.entries(password)? {
@@ -610,7 +612,9 @@ pub(crate) fn run_list_archive<'a>(
             }
         }
         Ok(())
-    })?;
+    };
+
+    run_read_entries(archive_provider, &mut handler, allow_concatenated_archives)?;
     print_entries(entries, files_globs, filter, args)
 }
 

@@ -1246,6 +1246,7 @@ impl TransformStrategy for TransformStrategyKeepSolid {
 pub(crate) fn run_across_archive<R, F>(
     provider: impl IntoIterator<Item = R>,
     mut processor: F,
+    allow_concatenated_archives: bool,
 ) -> io::Result<()>
 where
     R: Read,
@@ -1263,8 +1264,16 @@ where
                 )
             })?;
             archive = archive.read_next_archive(next_reader)?;
-        } else {
+            continue;
+        }
+        if !allow_concatenated_archives {
             break;
+        }
+        let reader = archive.into_inner();
+        match Archive::read_header(reader) {
+            Ok(next) => archive = next,
+            Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => break,
+            Err(err) => return Err(err),
         }
     }
     Ok(())
@@ -1280,16 +1289,21 @@ where
     F: FnMut(io::Result<NormalEntry>) -> io::Result<()>,
 {
     let password = password_provider();
-    run_read_entries(archive_provider, |entry| match entry? {
-        ReadEntry::Solid(solid) => solid.entries(password)?.try_for_each(&mut processor),
-        ReadEntry::Normal(regular) => processor(Ok(regular)),
-    })
+    run_read_entries(
+        archive_provider,
+        |entry| match entry? {
+            ReadEntry::Solid(solid) => solid.entries(password)?.try_for_each(&mut processor),
+            ReadEntry::Normal(regular) => processor(Ok(regular)),
+        },
+        false,
+    )
 }
 
 #[cfg(feature = "memmap")]
 pub(crate) fn run_across_archive_mem<'d, F>(
     archives: impl IntoIterator<Item = &'d [u8]>,
     mut processor: F,
+    _allow_concatenated_archives: bool,
 ) -> io::Result<()>
 where
     F: FnMut(&mut Archive<&'d [u8]>) -> io::Result<()>,
@@ -1322,9 +1336,11 @@ pub(crate) fn run_read_entries_mem<'d, F>(
 where
     F: FnMut(io::Result<ReadEntry<Cow<'d, [u8]>>>) -> io::Result<()>,
 {
-    run_across_archive_mem(archives, |archive| {
-        archive.entries_slice().try_for_each(&mut processor)
-    })
+    run_across_archive_mem(
+        archives,
+        |archive| archive.entries_slice().try_for_each(&mut processor),
+        false,
+    )
 }
 
 #[cfg(feature = "memmap")]
@@ -1374,13 +1390,16 @@ where
 pub(crate) fn run_read_entries<F>(
     archive_provider: impl IntoIterator<Item = impl Read>,
     mut processor: F,
+    allow_concatenated_archives: bool,
 ) -> io::Result<()>
 where
     F: FnMut(io::Result<ReadEntry>) -> io::Result<()>,
 {
-    run_across_archive(archive_provider, |archive| {
-        archive.entries().try_for_each(&mut processor)
-    })
+    run_across_archive(
+        archive_provider,
+        |archive| archive.entries().try_for_each(&mut processor),
+        allow_concatenated_archives,
+    )
 }
 
 #[cfg(not(feature = "memmap"))]
@@ -1399,9 +1418,11 @@ where
 {
     let password = password_provider();
     let mut out_archive = Archive::write_header(writer)?;
-    run_read_entries(archives, |entry| {
-        Transform::transform(&mut out_archive, password, entry, &mut processor)
-    })?;
+    run_read_entries(
+        archives,
+        |entry| Transform::transform(&mut out_archive, password, entry, &mut processor),
+        false,
+    )?;
     out_archive.finalize()?;
     Ok(())
 }
