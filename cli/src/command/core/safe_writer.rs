@@ -134,6 +134,7 @@ impl Drop for SafeWriter {
 }
 
 #[cfg(test)]
+#[cfg(not(target_family = "wasm"))]
 mod tests {
     use super::*;
     use std::io::Write;
