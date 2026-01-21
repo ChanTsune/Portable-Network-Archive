@@ -13,7 +13,7 @@ use crate::{
             PermissionStrategyResolver, SafeWriter, TimeFilterResolver, TimeFilters,
             TimestampStrategy, TimestampStrategyResolver, XattrStrategy, apply_chroot,
             collect_split_archives,
-            path_lock::PathLocks,
+            path_lock::{PathLockGuard, PathLocks},
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, run_process_archive,
         },
@@ -591,15 +591,20 @@ where
                 link_entries.push((name, item));
                 return Ok(());
             }
-            let tx = tx.clone();
-            let args = args.clone();
-            s.spawn_fifo(move |_| {
-                tx.send(
-                    extract_entry(item, &name, password, &args)
-                        .with_context(|| format!("extracting {}", item_path)),
-                )
-                .unwrap_or_else(|e| log::error!("{e}: {item_path}"));
-            });
+            let path_lock = args.path_locks.get(name.as_ref());
+            let guard = path_lock.lock_arc();
+
+            let result = process_entry(item, &name, password, &args, guard)?;
+            if let ProcessResult::WriteTask(task) = result {
+                let tx = tx.clone();
+                s.spawn_fifo(move |_| {
+                    tx.send(
+                        task.execute()
+                            .with_context(|| format!("extracting {}", name)),
+                    )
+                    .unwrap_or_else(|e| log::error!("{e}: {name}"));
+                });
+            }
             Ok(())
         })
         .with_context(|| "streaming archive entries")?;
@@ -610,7 +615,9 @@ where
         result?;
     }
     for (name, item) in link_entries {
-        extract_entry(item, &name, password, &args)
+        let path_lock = args.path_locks.get(name.as_path());
+        let guard = path_lock.lock_arc();
+        process_entry(item, &name, password, &args, guard)
             .with_context(|| format!("extracting deferred link {name}"))?;
     }
 
@@ -669,15 +676,20 @@ where
                 link_entries.push((name, item.into()));
                 return Ok(());
             }
-            let tx = tx.clone();
-            let args = args.clone();
-            s.spawn_fifo(move |_| {
-                tx.send(
-                    extract_entry(item, &name, password, &args)
-                        .with_context(|| format!("extracting {}", item_path)),
-                )
-                .unwrap_or_else(|e| log::error!("{e}: {item_path}"));
-            });
+            let path_lock = args.path_locks.get(name.as_ref());
+            let guard = path_lock.lock_arc();
+
+            let result = process_entry(item, &name, password, &args, guard)?;
+            if let ProcessResult::WriteTask(task) = result {
+                let tx = tx.clone();
+                s.spawn_fifo(move |_| {
+                    tx.send(
+                        task.execute()
+                            .with_context(|| format!("extracting {}", name)),
+                    )
+                    .unwrap_or_else(|e| log::error!("{e}: {item_path}"));
+                });
+            }
             Ok(())
         })
         .with_context(|| "streaming archive entries")?;
@@ -687,7 +699,9 @@ where
         }
 
         for (name, item) in link_entries {
-            extract_entry(item, &name, password, &args)
+            let path_lock = args.path_locks.get(name.as_path());
+            let guard = path_lock.lock_arc();
+            process_entry(item, &name, password, &args, guard)
                 .with_context(|| format!("extracting deferred link {name}"))?;
         }
         globs.ensure_all_matched()?;
@@ -802,7 +816,7 @@ where
     Ok(ExtractionDecision::Proceed { remove_existing })
 }
 
-pub(crate) fn extract_entry<'a, T>(
+fn process_entry<'a, T>(
     item: NormalEntry<T>,
     item_path: &EntryName,
     password: Option<&'a [u8]>,
@@ -814,12 +828,13 @@ pub(crate) fn extract_entry<'a, T>(
         filter: _,
         keep_options,
         pathname_editor,
-        path_locks,
+        path_locks: _,
         unlink_first,
         time_filters: _,
         safe_writes,
-    }: &OutputOption<'a>,
-) -> io::Result<()>
+    }: &'a OutputOption<'a>,
+    guard: PathLockGuard,
+) -> io::Result<ProcessResult<'a, T>>
 where
     T: AsRef<[u8]>,
     pna::RawChunk<T>: Chunk,
@@ -827,18 +842,14 @@ where
     log::debug!("Extract: {}", item.name());
     let path = build_output_path(out_dir.as_deref(), item_path.as_path());
 
-    let entry_kind = item.header().data_kind();
-
-    let path_lock = path_locks.get(path.as_ref());
-    let path_guard = path_lock.lock().expect("path lock mutex poisoned");
-
     log::debug!("start: {}", path.display());
 
+    let entry_kind = item.header().data_kind();
     // Check overwrite strategy and prepare target
     let ExtractionDecision::Proceed { remove_existing } =
         check_and_prepare_target(&path, entry_kind, &item, *overwrite_strategy, *unlink_first)?
     else {
-        return Ok(());
+        return Ok(ProcessResult::Skipped);
     };
 
     match entry_kind {
@@ -857,11 +868,14 @@ where
                 safe_writer.persist()?;
             } else {
                 let file = utils::fs::file_create(&path, remove_existing)?;
-                let mut writer = io::BufWriter::with_capacity(64 * 1024, file);
-                let mut reader = item.reader(ReadOptions::with_password(password))?;
-                io::copy(&mut reader, &mut writer)?;
-                let mut file = writer.into_inner().map_err(|e| e.into_error())?;
-                restore_timestamps(&mut file, item.metadata(), keep_options)?;
+                return Ok(ProcessResult::WriteTask(WriteTask {
+                    path: path.to_path_buf(),
+                    password,
+                    keep_options,
+                    item,
+                    file,
+                    _guard: guard,
+                }));
             }
         }
         DataKind::Directory => {
@@ -875,7 +889,7 @@ where
                 log::warn!(
                     "Skipped extracting a symbolic link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
                 );
-                return Ok(());
+                return Ok(ProcessResult::Skipped);
             }
             // Symlinks/hardlinks cannot be atomically replaced; remove existing path first
             if *safe_writes || remove_existing {
@@ -891,13 +905,13 @@ where
                     "Skipped extracting a hard link that pointed at a file which was skipped.: {}",
                     original
                 );
-                return Ok(());
+                return Ok(ProcessResult::Skipped);
             };
             if !allow_unsafe_links && is_unsafe_link(&original) {
                 log::warn!(
                     "Skipped extracting a hard link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
                 );
-                return Ok(());
+                return Ok(ProcessResult::Skipped);
             }
             let original = if let Some(out_dir) = out_dir {
                 Cow::from(out_dir.join(original))
@@ -912,9 +926,45 @@ where
         }
     }
     restore_metadata(&item, &path, keep_options)?;
-    drop(path_guard);
     log::debug!("end: {}", path.display());
-    Ok(())
+    Ok(ProcessResult::Complete)
+}
+
+#[allow(clippy::large_enum_variant)]
+enum ProcessResult<'a, T> {
+    Skipped,
+    Complete,
+    WriteTask(WriteTask<'a, T>),
+}
+
+struct WriteTask<'a, T> {
+    path: PathBuf,
+    password: Option<&'a [u8]>,
+    keep_options: &'a KeepOptions,
+    item: NormalEntry<T>,
+    file: fs::File,
+    #[allow(dead_code)]
+    _guard: PathLockGuard,
+}
+
+impl<'a, T: AsRef<[u8]>> WriteTask<'a, T> {
+    #[inline]
+    fn execute(self) -> io::Result<()> {
+        let Self {
+            path,
+            password,
+            keep_options,
+            item,
+            file,
+            _guard,
+        } = self;
+        let mut writer = io::BufWriter::with_capacity(64 * 1024, file);
+        let mut reader = item.reader(ReadOptions::with_password(password))?;
+        io::copy(&mut reader, &mut writer)?;
+        let mut file = writer.into_inner().map_err(|e| e.into_error())?;
+        restore_timestamps(&mut file, item.metadata(), keep_options)?;
+        restore_metadata(&item, &path, keep_options)
+    }
 }
 
 #[inline]
