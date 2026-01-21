@@ -26,7 +26,7 @@ use crate::{
 };
 use anyhow::Context;
 use clap::{ArgGroup, Parser, ValueHint};
-use pna::{DataKind, EntryReference, NormalEntry, Permission, ReadOptions, prelude::*};
+use pna::{DataKind, EntryName, EntryReference, NormalEntry, Permission, ReadOptions, prelude::*};
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::FileTimesExt;
 #[cfg(windows)]
@@ -577,25 +577,25 @@ where
                 log::debug!("Skip: {item_path}");
                 return Ok(());
             }
+            let Some(name) = args.pathname_editor.edit_entry_name(item.name().as_path()) else {
+                log::debug!("Skip: {item_path}");
+                return Ok(());
+            };
             if args.to_stdout {
-                let Some(_) = args.pathname_editor.edit_entry_name(item.name().as_path()) else {
-                    log::debug!("Skip: {item_path}");
-                    return Ok(());
-                };
                 return extract_entry_to_stdout(&item, password);
             }
             if matches!(
                 item.header().data_kind(),
                 DataKind::SymbolicLink | DataKind::HardLink
             ) {
-                link_entries.push(item);
+                link_entries.push((name, item));
                 return Ok(());
             }
             let tx = tx.clone();
             let args = args.clone();
             s.spawn_fifo(move |_| {
                 tx.send(
-                    extract_entry(item, password, &args)
+                    extract_entry(item, &name, password, &args)
                         .with_context(|| format!("extracting {}", item_path)),
                 )
                 .unwrap_or_else(|e| log::error!("{e}: {item_path}"));
@@ -609,10 +609,9 @@ where
     for result in rx {
         result?;
     }
-    for item in link_entries {
-        let path = item.name().to_string();
-        extract_entry(item, password, &args)
-            .with_context(|| format!("extracting deferred link {}", path))?;
+    for (name, item) in link_entries {
+        extract_entry(item, &name, password, &args)
+            .with_context(|| format!("extracting deferred link {name}"))?;
     }
 
     globs.ensure_all_matched()?;
@@ -635,7 +634,7 @@ where
         let mut globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))
             .with_context(|| "building inclusion patterns")?;
 
-        let mut link_entries = Vec::<NormalEntry>::new();
+        let mut link_entries = Vec::<(_, NormalEntry)>::new();
 
         let (tx, rx) = std::sync::mpsc::channel();
 
@@ -656,25 +655,25 @@ where
                 log::debug!("Skip: {item_path}");
                 return Ok(());
             }
+            let Some(name) = args.pathname_editor.edit_entry_name(item.name().as_path()) else {
+                log::debug!("Skip: {item_path}");
+                return Ok(());
+            };
             if args.to_stdout {
-                let Some(_) = args.pathname_editor.edit_entry_name(item.name().as_path()) else {
-                    log::debug!("Skip: {item_path}");
-                    return Ok(());
-                };
                 return extract_entry_to_stdout(&item, password);
             }
             if matches!(
                 item.header().data_kind(),
                 DataKind::SymbolicLink | DataKind::HardLink
             ) {
-                link_entries.push(item.into());
+                link_entries.push((name, item.into()));
                 return Ok(());
             }
             let tx = tx.clone();
             let args = args.clone();
             s.spawn_fifo(move |_| {
                 tx.send(
-                    extract_entry(item, password, &args)
+                    extract_entry(item, &name, password, &args)
                         .with_context(|| format!("extracting {}", item_path)),
                 )
                 .unwrap_or_else(|e| log::error!("{e}: {item_path}"));
@@ -687,10 +686,9 @@ where
             result?;
         }
 
-        for item in link_entries {
-            let path = item.name().to_string();
-            extract_entry(item, password, &args)
-                .with_context(|| format!("extracting deferred link {}", path))?;
+        for (name, item) in link_entries {
+            extract_entry(item, &name, password, &args)
+                .with_context(|| format!("extracting deferred link {name}"))?;
         }
         globs.ensure_all_matched()?;
         Ok(())
@@ -806,7 +804,8 @@ where
 
 pub(crate) fn extract_entry<'a, T>(
     item: NormalEntry<T>,
-    password: Option<&[u8]>,
+    item_path: &EntryName,
+    password: Option<&'a [u8]>,
     OutputOption {
         overwrite_strategy,
         allow_unsafe_links,
@@ -825,12 +824,7 @@ where
     T: AsRef<[u8]>,
     pna::RawChunk<T>: Chunk,
 {
-    let item_path = item.name().as_path();
-    log::debug!("Extract: {}", item_path.display());
-    let Some(item_path) = pathname_editor.edit_entry_name(item_path) else {
-        return Ok(());
-    };
-
+    log::debug!("Extract: {}", item.name());
     let path = build_output_path(out_dir.as_deref(), item_path.as_path());
 
     let entry_kind = item.header().data_kind();
