@@ -1,4 +1,5 @@
 mod encryption;
+mod entry_order;
 mod error;
 mod option_atime;
 mod option_ctime;
