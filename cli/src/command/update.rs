@@ -519,6 +519,47 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Updates an existing archive by transforming, removing, and/or adding entries based on the
+/// provided target filesystem entries and the selected transform strategy.
+///
+/// The function reads entries from the given `archives`, applies `Strategy::transform` to each
+/// archive entry, and:
+/// - if an entry matches a target item and the filesystem item is newer, schedules creation of an
+///   updated entry (the original entry is omitted from the written output);
+/// - if an entry matches a target item but is not newer, preserves the original entry;
+/// - if an entry does not match any target item and `sync` is true, removes the entry;
+/// - otherwise preserves the original entry.
+/// After processing existing entries, it schedules creation of any remaining target items that were
+/// not present in the archive. Created/updated entries are added to `out_archive` in the original
+/// ordering of `target_items`.
+///
+/// Returns `Ok(())` on success, or an error if archive reading, entry creation, or writing fails.
+///
+/// # Examples
+///
+/// ```
+/// # // This example is illustrative; types such as `CreateOptions`, `CollectedEntry`, `Archive`,
+/// # // and a concrete transform strategy must be available in scope for real use.
+/// # use std::io;
+/// # struct NoopStrategy;
+/// # impl crate::command::core::TransformStrategy for NoopStrategy {}
+/// # let archives: Vec<io::Empty> = Vec::new();
+/// # let password: Option<&[u8]> = None;
+/// # let create_options = crate::command::core::CreateOptions::default();
+/// # let target_items: Vec<crate::command::core::CollectedEntry> = Vec::new();
+/// # let sync = false;
+/// # let mut out_archive = crate::pna::Archive::new(Vec::new());
+/// // Call with an empty set of archives and no target items (no-op)
+/// let _ = crate::command::update::run_update_archive::<NoopStrategy, _, _>(
+///     archives,
+///     password,
+///     &create_options,
+///     target_items,
+///     sync,
+///     &mut out_archive,
+///     NoopStrategy,
+/// );
+/// ```
 #[cfg(not(feature = "memmap"))]
 pub(crate) fn run_update_archive<Strategy, R, W>(
     archives: impl IntoIterator<Item = R> + Send,
@@ -596,6 +637,37 @@ where
     Ok(())
 }
 
+/// Updates an archive represented by memory-mapped byte slices by applying a transform strategy,
+/// adding new entries, updating changed entries, and optionally removing absent entries.
+///
+/// Processes the provided in-memory archives, compares them against `target_items`, and writes
+/// the reconstructed archive content to `out_archive`. When `sync` is true, entries absent from
+/// `target_items` are removed from the output; entries present in `target_items` are added or
+/// replaced when their filesystem metadata is newer than the archived metadata.
+///
+/// # Returns
+///
+/// `Ok(())` on success, or an error if reading, transforming, or writing entries fails.
+///
+/// # Examples
+///
+/// ```
+/// # use std::io::Cursor;
+/// # use pna::Archive;
+/// # // This example is illustrative; real arguments require constructed CreateOptions and entries.
+/// # fn example() -> anyhow::Result<()> {
+/// let memmap_archives: Vec<&[u8]> = vec![]; // memory-mapped archive bytes
+/// let password: Option<&[u8]> = None;
+/// let create_options = /* CreateOptions */ todo!();
+/// let target_items = Vec::new(); // Vec<CollectedEntry>
+/// let mut out_buf = Cursor::new(Vec::new());
+/// let strategy = /* some TransformStrategy implementation */ todo!();
+///
+/// // run_update_archive will update `out_buf` with the new archive contents.
+/// run_update_archive(memmap_archives, password, &create_options, target_items, false, &mut Archive::new(&mut out_buf), strategy)?;
+/// # Ok(())
+/// # }
+/// ```
 #[cfg(feature = "memmap")]
 pub(crate) fn run_update_archive<'d, Strategy, W>(
     archives: impl IntoIterator<Item = &'d [u8]> + Send,

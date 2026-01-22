@@ -3,9 +3,11 @@ use clap::Parser;
 use portable_network_archive::cli;
 use std::fs;
 
-/// Precondition: An archive exists with entries, files of varying sizes exist for update.
-/// Action: Run `pna experimental update` with files in a specific order.
-/// Expectation: Updated archive preserves entry order from input arguments.
+/// Verifies that updating an archive preserves the file entry order specified on the CLI.
+///
+/// Sets up three files, creates an initial archive, modifies the files to produce differing processing
+/// durations, runs `pna experimental update` with a reordered list of files, and asserts the resulting
+/// archive entries appear in the same order as the CLI arguments.
 #[test]
 fn update_preserves_cli_argument_order() {
     setup();
@@ -84,9 +86,12 @@ fn update_preserves_cli_argument_order() {
     );
 }
 
-/// Precondition: An archive exists, multiple directories with files exist.
-/// Action: Run `pna experimental update` with multiple directory arguments.
-/// Expectation: Entries from first directory appear before second directory.
+/// Verifies that updating an archive preserves the ordering of entries when multiple directories are provided.
+///
+/// Creates two directories (dir_a and dir_b), builds an initial archive containing both in that order,
+/// mutates files to create differing update characteristics, runs `pna experimental update` with the
+/// directories specified as dir_a then dir_b, and asserts that every entry originating from dir_a
+/// appears before every entry originating from dir_b in the updated archive.
 #[test]
 fn update_preserves_multiple_directory_order() {
     setup();

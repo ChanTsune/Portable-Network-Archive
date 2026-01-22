@@ -3,9 +3,30 @@ use clap::Parser;
 use portable_network_archive::cli;
 use std::fs;
 
-/// Precondition: Multiple files of varying sizes exist.
-/// Action: Run `pna create` with files in a specific order.
-/// Expectation: Archive entries appear in the same order as CLI arguments.
+/// Verifies that `pna create` preserves the order of files given as CLI arguments.
+///
+/// Creates three files of different sizes, runs `pna create` with those files in a specific
+/// argument order, and asserts that the resulting archive contains entries in the same order.
+///
+/// # Examples
+///
+/// ```rust
+/// // Create files and run the CLI to produce an archive whose entries follow the CLI order.
+/// let dir = "create_preserves_cli_argument_order_example";
+/// std::fs::create_dir_all(dir).unwrap();
+/// let small = format!("{}/small.txt", dir);
+/// let large = format!("{}/large.bin", dir);
+/// std::fs::write(&small, b"small").unwrap();
+/// std::fs::write(&large, vec![0u8; 1024]).unwrap();
+///
+/// cli::Cli::try_parse_from([
+///     "pna", "--quiet", "c", &format!("{}/out.pna", dir), "--overwrite", &small, &large, "--unstable",
+/// ]).unwrap().execute().unwrap();
+///
+/// let mut names = Vec::new();
+/// archive::for_each_entry(&format!("{}/out.pna", dir), |e| names.push(e.header().path().to_string())).unwrap();
+/// assert!(names[0].ends_with("small.txt") && names[1].ends_with("large.bin"));
+/// ```
 #[test]
 fn create_preserves_cli_argument_order() {
     setup();
@@ -142,9 +163,19 @@ fn create_preserves_walkdir_order() {
     );
 }
 
-/// Precondition: Multiple directories with files exist.
-/// Action: Run `pna create` with multiple directory arguments.
-/// Expectation: Entries from first argument appear before second argument.
+/// Verifies that when creating an archive with multiple directory arguments, all entries from
+/// the earlier directory argument appear before any entries from later directory arguments.
+///
+/// The test creates two directories (`dir_a` and `dir_b`) with files, runs `pna create` with
+/// `dir_a` listed before `dir_b`, inspects the archive entries, and asserts that the highest
+/// index of a `dir_a` entry is less than the lowest index of a `dir_b` entry.
+///
+/// # Examples
+///
+/// ```
+/// // The test itself demonstrates usage; running the test ensures directory ordering is preserved:
+/// create_preserves_multiple_directory_order();
+/// ```
 #[test]
 fn create_preserves_multiple_directory_order() {
     setup();

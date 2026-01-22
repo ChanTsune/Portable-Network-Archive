@@ -591,7 +591,54 @@ where
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
+/// Writes a split archive to `archive`, splitting output into parts no larger than `max_file_size`.
+///
+/// For `solid` archives the function builds a single in-memory entries set and writes split files from that set;
+/// for non-solid archives it streams ordered entries through `write_split_archive`, preserving original item ordering.
+/// It respects `overwrite`, applies `filter` and `time_filters`, and uses `password` when spawning entry results.
+///
+/// # Parameters
+///
+/// - `archive`: Path to the archive file to create (parent directories must exist or be created by the caller).
+/// - `CreationContext { ... }`: Provides the write options, keep options, solid flag, and pathname editor used during entry creation.
+/// - `target_items`: Filesystem items to include in the archive.
+/// - `max_file_size`: Maximum size in bytes for each split archive part.
+/// - `overwrite`: If `true`, existing split parts may be overwritten.
+/// - `filter`: Path filter used to include/exclude entries.
+/// - `time_filters`: Time-based filters (e.g., mtime/ctime) applied to entries.
+/// - `password`: Optional password used when creating encrypted entries.
+///
+/// # Returns
+///
+/// `Ok(())` on success, or an error describing the failure.
+///
+/// # Examples
+///
+/// ```no_run
+/// use std::path::Path;
+///
+/// // Prepare placeholders for required values (constructed appropriately in real use).
+/// let archive = Path::new("archive.rart");
+/// let ctx = /* CreationContext built with desired options */ unimplemented!();
+/// let items = Vec::new(); // collected items to archive
+/// let max_size = 10 * 1024 * 1024; // 10 MiB
+/// let overwrite = true;
+/// let filter = /* PathFilter */ unimplemented!();
+/// let time_filters = /* TimeFilters */ unimplemented!();
+/// let password: Option<&[u8]> = None;
+///
+/// // Write split archive (no_run to avoid executing in documentation tests)
+/// let _ = create_archive_with_split(
+///     archive,
+///     ctx,
+///     items,
+///     max_size,
+///     overwrite,
+///     &filter,
+///     &time_filters,
+///     password,
+/// );
+/// ```
 fn create_archive_with_split(
     archive: &Path,
     CreationContext {
