@@ -1646,6 +1646,29 @@ fn transform_normal_entry(
 
     let mut result = entry.with_name(new_name);
 
+    let mut metadata = result.metadata().clone();
+    match keep_options.timestamp_strategy {
+        TimestampStrategy::Preserve {
+            mtime,
+            ctime,
+            atime,
+        } => {
+            let created = ctime.resolve(metadata.created_time());
+            let modified = mtime.resolve(metadata.modified_time());
+            let accessed = atime.resolve(metadata.accessed_time());
+            metadata = metadata
+                .with_created_time(created)
+                .with_modified_time(modified)
+                .with_accessed_time(accessed);
+        }
+        TimestampStrategy::NoPreserve => {
+            metadata = metadata
+                .with_created_time(None)
+                .with_modified_time(None)
+                .with_accessed_time(None);
+        }
+    }
+
     // Apply ownership overrides from owner_strategy
     if let OwnerStrategy::Preserve {
         options:
@@ -1659,7 +1682,7 @@ fn transform_normal_entry(
     {
         // Only apply if at least one override is specified
         if uid.is_some() || gid.is_some() || uname.is_some() || gname.is_some() {
-            if let Some(perm) = result.metadata().permission() {
+            if let Some(perm) = metadata.permission() {
                 let new_perm = pna::Permission::new(
                     uid.map(u64::from).unwrap_or_else(|| perm.uid()),
                     uname.clone().unwrap_or_else(|| perm.uname().to_string()),
@@ -1667,11 +1690,12 @@ fn transform_normal_entry(
                     gname.clone().unwrap_or_else(|| perm.gname().to_string()),
                     perm.permissions(),
                 );
-                let metadata = result.metadata().clone().with_permission(Some(new_perm));
-                result = result.with_metadata(metadata);
+                metadata = metadata.with_permission(Some(new_perm));
             }
         }
     }
+
+    result = result.with_metadata(metadata);
 
     Ok(Some(result))
 }
