@@ -1,3 +1,4 @@
+pub(crate) mod iter;
 pub(crate) mod path;
 mod path_filter;
 pub(crate) mod path_lock;
@@ -17,6 +18,7 @@ use crate::{
     utils::{self, PathPartExt, fs::HardlinkResolver},
 };
 use anyhow::Context;
+pub(crate) use iter::OrderedByIndex;
 pub(crate) use path_filter::PathFilter;
 use path_slash::*;
 pub(crate) use path_transformer::PathTransformers;
@@ -503,10 +505,10 @@ impl EntryResult {
 /// Drains entry results and applies a callback to each emitted entry.
 pub(crate) fn drain_entry_results<I, F, T>(results: I, mut add_entry: F) -> io::Result<()>
 where
-    I: IntoIterator<Item = EntryResult>,
+    I: IntoIterator<Item = (usize, EntryResult)>,
     F: FnMut(NormalEntry) -> io::Result<T>,
 {
-    for result in results {
+    for result in OrderedByIndex::new(results.into_iter()) {
         match result {
             EntryResult::Single(entry) => {
                 if let Some(entry) = entry? {
@@ -532,17 +534,20 @@ pub(crate) fn spawn_entry_results(
     filter: &PathFilter<'_>,
     time_filters: &TimeFilters,
     password: Option<&[u8]>,
-) -> std::sync::mpsc::Receiver<EntryResult> {
+) -> std::sync::mpsc::Receiver<(usize, EntryResult)> {
     let (tx, rx) = std::sync::mpsc::channel();
     rayon::scope_fifo(|s| {
-        for item in target_items {
+        for (idx, item) in target_items.into_iter().enumerate() {
             match item {
                 CollectedItem::Filesystem(entry) => {
                     let tx = tx.clone();
                     s.spawn_fifo(move |_| {
                         log::debug!("Adding: {}", entry.path.display());
-                        tx.send(EntryResult::Single(create_entry(&entry, create_options)))
-                            .unwrap_or_else(|e| log::error!("{e}: {}", entry.path.display()));
+                        tx.send((
+                            idx,
+                            EntryResult::Single(create_entry(&entry, create_options)),
+                        ))
+                        .unwrap_or_else(|e| log::error!("{e}: {}", entry.path.display()));
                     })
                 }
                 CollectedItem::ArchiveMarker(source) => {
@@ -553,7 +558,7 @@ pub(crate) fn spawn_entry_results(
                         time_filters,
                         password,
                     );
-                    tx.send(EntryResult::Batch(result))
+                    tx.send((idx, EntryResult::Batch(result)))
                         .unwrap_or_else(|e| log::error!("{e}: archive source {}", source));
                 }
             }

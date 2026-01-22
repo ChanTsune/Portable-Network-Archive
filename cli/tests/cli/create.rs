@@ -1,5 +1,6 @@
 mod atime;
 mod ctime;
+mod entry_order;
 mod exclude;
 mod exclude_from;
 mod exclude_vcs;

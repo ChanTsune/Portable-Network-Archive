@@ -15,6 +15,7 @@ use crate::{
             PermissionStrategyResolver, TimeFilterResolver, TimestampStrategyResolver,
             TransformStrategy, TransformStrategyKeepSolid, TransformStrategyUnSolid, XattrStrategy,
             collect_items_from_paths, collect_split_archives, create_entry, entry_option,
+            iter::OrderedByIndex,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin,
         },
@@ -537,14 +538,16 @@ where
 
     let mut target_files_mapping = target_items
         .into_iter()
-        .map(|item| (EntryName::from_lossy(&item.path), item))
+        .enumerate()
+        .map(|(idx, item)| (EntryName::from_lossy(&item.path), (idx, item)))
         .collect::<IndexMap<_, _>>();
 
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
         run_read_entries(archives, |entry| {
             Strategy::transform(out_archive, password, entry, |entry| {
                 let entry = entry?;
-                if let Some(item) = target_files_mapping.shift_remove(entry.header().path()) {
+                if let Some((idx, item)) = target_files_mapping.shift_remove(entry.header().path())
+                {
                     let need_update =
                         is_newer_than_archive(&item.metadata, entry.metadata()).unwrap_or(true);
                     if need_update {
@@ -552,11 +555,13 @@ where
                         let create_options = create_options.clone();
                         s.spawn_fifo(move |_| {
                             log::debug!("Updating: {}", item.path.display());
-                            tx.send(create_entry(&item, &create_options))
+                            tx.send((idx, create_entry(&item, &create_options)))
                                 .unwrap_or_else(|e| log::error!("{e}: {}", item.path.display()));
                         });
                         Ok(None)
                     } else {
+                        tx.send((idx, Ok(None)))
+                            .unwrap_or_else(|e| log::error!("{e}: {}", entry.header().path()));
                         Ok(Some(entry))
                     }
                 } else if sync {
@@ -569,12 +574,12 @@ where
         })?;
 
         // NOTE: Add new entries
-        for (_, item) in target_files_mapping {
+        for (_, (idx, item)) in target_files_mapping {
             let tx = tx.clone();
             let create_options = create_options.clone();
             s.spawn_fifo(move |_| {
                 log::debug!("Adding: {}", item.path.display());
-                tx.send(create_entry(&item, &create_options))
+                tx.send((idx, create_entry(&item, &create_options)))
                     .unwrap_or_else(|e| log::error!("{e}: {}", item.path.display()));
             });
         }
@@ -582,7 +587,7 @@ where
         Ok(())
     })?;
 
-    for entry in rx.into_iter() {
+    for entry in OrderedByIndex::new(rx.into_iter()) {
         if let Some(entry) = entry? {
             out_archive.add_entry(entry)?;
         }
@@ -609,14 +614,16 @@ where
 
     let mut target_files_mapping = target_items
         .into_iter()
-        .map(|item| (EntryName::from_lossy(&item.path), item))
+        .enumerate()
+        .map(|(idx, item)| (EntryName::from_lossy(&item.path), (idx, item)))
         .collect::<IndexMap<_, _>>();
 
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
         run_read_entries_mem(archives, |entry| {
             Strategy::transform(out_archive, password, entry, |entry| {
                 let entry = entry?;
-                if let Some(item) = target_files_mapping.shift_remove(entry.header().path()) {
+                if let Some((idx, item)) = target_files_mapping.shift_remove(entry.header().path())
+                {
                     let need_update =
                         is_newer_than_archive(&item.metadata, entry.metadata()).unwrap_or(true);
                     if need_update {
@@ -624,11 +631,13 @@ where
                         let create_options = create_options.clone();
                         s.spawn_fifo(move |_| {
                             log::debug!("Updating: {}", item.path.display());
-                            tx.send(create_entry(&item, &create_options))
+                            tx.send((idx, create_entry(&item, &create_options)))
                                 .unwrap_or_else(|e| log::error!("{e}: {}", item.path.display()));
                         });
                         Ok(None)
                     } else {
+                        tx.send((idx, Ok(None)))
+                            .unwrap_or_else(|e| log::error!("{e}: {}", entry.header().path()));
                         Ok(Some(entry))
                     }
                 } else if sync {
@@ -641,12 +650,12 @@ where
         })?;
 
         // NOTE: Add new entries
-        for (_, item) in target_files_mapping {
+        for (_, (idx, item)) in target_files_mapping {
             let tx = tx.clone();
             let create_options = create_options.clone();
             s.spawn_fifo(move |_| {
                 log::debug!("Adding: {}", item.path.display());
-                tx.send(create_entry(&item, &create_options))
+                tx.send((idx, create_entry(&item, &create_options)))
                     .unwrap_or_else(|e| log::error!("{e}: {}", item.path.display()));
             });
         }
@@ -654,7 +663,7 @@ where
         Ok(())
     })?;
 
-    for entry in rx.into_iter() {
+    for entry in OrderedByIndex::new(rx.into_iter()) {
         if let Some(entry) = entry? {
             out_archive.add_entry(entry)?;
         }
