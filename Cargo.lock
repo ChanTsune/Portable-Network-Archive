@@ -844,9 +844,9 @@ checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
 
 [[package]]
 name = "gix-command"
-version = "0.6.3"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "095c8367c9dc4872a7706fbc39c7f34271b88b541120a4365ff0e36366f66e62"
+checksum = "745bc165b7da500acc26d24888379ae0dfd1ecabe3a47420cdcb92feefb0561d"
 dependencies = [
  "bstr",
  "gix-path",
@@ -857,9 +857,9 @@ dependencies = [
 
 [[package]]
 name = "gix-config-value"
-version = "0.16.0"
+version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2409cffa4fe8b303847d5b6ba8df9da9ba65d302fc5ee474ea0cac5afde79840"
+checksum = "563361198101cedc975fe5760c91ac2e4126eec22216e81b659b45289feaf1ea"
 dependencies = [
  "bitflags",
  "bstr",
@@ -870,9 +870,9 @@ dependencies = [
 
 [[package]]
 name = "gix-path"
-version = "0.10.22"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7cb06c3e4f8eed6e24fd915fa93145e28a511f4ea0e768bae16673e05ed3f366"
+checksum = "c7c3cd795cad18c7acbc6bafe34bfb34ac7273ee81133793f9d1516dd9faf922"
 dependencies = [
  "bstr",
  "gix-trace",
@@ -882,9 +882,9 @@ dependencies = [
 
 [[package]]
 name = "gix-prompt"
-version = "0.12.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "974b142ea650fb0050a301958f49c8cc68929c36f686e9606a381ce39da34fd9"
+checksum = "6d48536da48fa4ae9d99bf46479f37a19a58427711e1927c80790856d4a490f6"
 dependencies = [
  "gix-command",
  "gix-config-value",
@@ -906,9 +906,9 @@ dependencies = [
 
 [[package]]
 name = "gix-trace"
-version = "0.1.14"
+version = "0.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d35bf1c8c1a883bdbb17ed1fef49be8c751a50dc3a28a2deb4234d826eddb4bb"
+checksum = "6e42a4c2583357721ba2d887916e78df504980f22f1182df06997ce197b89504"
 
 [[package]]
 name = "gix-utils"
@@ -922,12 +922,11 @@ dependencies = [
 
 [[package]]
 name = "gix-validate"
-version = "0.10.1"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b1e63a5b516e970a594f870ed4571a8fdcb8a344e7bd407a20db8bd61dbfde4"
+checksum = "0ec1eff98d91941f47766367cba1be746bab662bad761d9891ae6f7882f7840b"
 dependencies = [
  "bstr",
- "thiserror",
 ]
 
 [[package]]
