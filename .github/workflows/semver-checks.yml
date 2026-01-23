@@ -16,7 +16,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      - uses: ./.github/actions/setup-rust
+      - name: Get MSRV from Cargo.toml
+        id: msrv
+        run: |
+          MSRV=$(grep -m1 '^rust-version' lib/Cargo.toml | sed 's/.*"\(.*\)"/\1/')
+          echo "version=$MSRV" >> $GITHUB_OUTPUT
       - name: install dependencies
         run: |
           sudo apt update
@@ -26,6 +30,7 @@ jobs:
         with:
           package: pna,libpna
           feature-group: all-features
+          rust-toolchain: ${{ steps.msrv.outputs.version }}
       - name: Add label if contains break
         if: failure() && github.event_name == 'pull_request'
         shell: bash
