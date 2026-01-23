@@ -15,7 +15,7 @@ use crate::{
             PermissionStrategyResolver, TimeFilterResolver, TimestampStrategyResolver,
             TransformStrategy, TransformStrategyKeepSolid, TransformStrategyUnSolid, XattrStrategy,
             collect_items_from_paths, collect_split_archives, create_entry, entry_option,
-            iter::OrderedByIndex,
+            iter::ReorderByIndex,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin,
         },
@@ -560,12 +560,6 @@ where
                         });
                         Ok(None)
                     } else {
-                        // NOTE: Entry doesn't need update - write it directly to archive.
-                        // We still send a placeholder to the channel to maintain index
-                        // continuity for OrderedByIndex, preventing it from blocking
-                        // on this index forever.
-                        tx.send((idx, Ok(None)))
-                            .unwrap_or_else(|e| log::error!("{e}: {}", entry.header().path()));
                         Ok(Some(entry))
                     }
                 } else if sync {
@@ -591,7 +585,7 @@ where
         Ok(())
     })?;
 
-    for entry in OrderedByIndex::new(rx.into_iter()) {
+    for entry in ReorderByIndex::new(rx.into_iter()) {
         if let Some(entry) = entry? {
             out_archive.add_entry(entry)?;
         }
@@ -640,12 +634,6 @@ where
                         });
                         Ok(None)
                     } else {
-                        // NOTE: Entry doesn't need update - write it directly to archive.
-                        // We still send a placeholder to the channel to maintain index
-                        // continuity for OrderedByIndex, preventing it from blocking
-                        // on this index forever.
-                        tx.send((idx, Ok(None)))
-                            .unwrap_or_else(|e| log::error!("{e}: {}", entry.header().path()));
                         Ok(Some(entry))
                     }
                 } else if sync {
@@ -671,7 +659,7 @@ where
         Ok(())
     })?;
 
-    for entry in OrderedByIndex::new(rx.into_iter()) {
+    for entry in ReorderByIndex::new(rx.into_iter()) {
         if let Some(entry) = entry? {
             out_archive.add_entry(entry)?;
         }
