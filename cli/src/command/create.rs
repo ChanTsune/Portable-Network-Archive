@@ -11,7 +11,7 @@ use crate::{
             PathnameEditor, PermissionStrategyResolver, TimeFilterResolver, TimeFilters,
             TimestampStrategyResolver, XattrStrategy, collect_items_from_paths,
             drain_entry_results, entry_option,
-            iter::OrderedByIndex,
+            iter::ReorderByIndex,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin, spawn_entry_results, write_split_archive,
         },
@@ -630,7 +630,7 @@ fn create_archive_with_split(
         let entries = entries_builder.build();
         write_split_archive(archive, [entries].into_iter(), max_file_size, overwrite)?;
     } else {
-        let entries = OrderedByIndex::new(rx.into_iter()).flat_map(EntryResult::into_entries);
+        let entries = ReorderByIndex::new(rx.into_iter()).flat_map(EntryResult::into_entries);
         write_split_archive(
             archive,
             entries.filter_map(Result::transpose),

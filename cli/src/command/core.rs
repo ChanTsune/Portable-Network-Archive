@@ -18,7 +18,7 @@ use crate::{
     utils::{self, PathPartExt, fs::HardlinkResolver},
 };
 use anyhow::Context;
-pub(crate) use iter::OrderedByIndex;
+pub(crate) use iter::ReorderByIndex;
 pub(crate) use path_filter::PathFilter;
 use path_slash::*;
 pub(crate) use path_transformer::PathTransformers;
@@ -508,7 +508,7 @@ where
     I: IntoIterator<Item = (usize, EntryResult)>,
     F: FnMut(NormalEntry) -> io::Result<T>,
 {
-    for result in OrderedByIndex::new(results.into_iter()) {
+    for result in ReorderByIndex::new(results.into_iter()) {
         match result {
             EntryResult::Single(entry) => {
                 if let Some(entry) = entry? {
