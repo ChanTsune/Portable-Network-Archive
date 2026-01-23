@@ -502,7 +502,7 @@ impl EntryResult {
     }
 }
 
-/// Drains entry results and applies a callback to each emitted entry.
+/// Drains entry results in index order and applies a callback to each emitted entry.
 pub(crate) fn drain_entry_results<I, F, T>(results: I, mut add_entry: F) -> io::Result<()>
 where
     I: IntoIterator<Item = (usize, EntryResult)>,
