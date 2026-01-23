@@ -560,6 +560,10 @@ where
                         });
                         Ok(None)
                     } else {
+                        // NOTE: Entry doesn't need update - write it directly to archive.
+                        // We still send a placeholder to the channel to maintain index
+                        // continuity for OrderedByIndex, preventing it from blocking
+                        // on this index forever.
                         tx.send((idx, Ok(None)))
                             .unwrap_or_else(|e| log::error!("{e}: {}", entry.header().path()));
                         Ok(Some(entry))
@@ -636,6 +640,10 @@ where
                         });
                         Ok(None)
                     } else {
+                        // NOTE: Entry doesn't need update - write it directly to archive.
+                        // We still send a placeholder to the channel to maintain index
+                        // continuity for OrderedByIndex, preventing it from blocking
+                        // on this index forever.
                         tx.send((idx, Ok(None)))
                             .unwrap_or_else(|e| log::error!("{e}: {}", entry.header().path()));
                         Ok(Some(entry))
