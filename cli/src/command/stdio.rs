@@ -1,7 +1,7 @@
 use crate::{
     cli::{
-        CipherAlgorithmArgs, ColorChoice, CompressionAlgorithmArgs, DateTime, HashAlgorithmArgs,
-        NameIdPair, PasswordArgs,
+        CipherAlgorithmArgs, ColorChoice, DateTime, DeflateLevel, HashAlgorithmArgs, NameIdPair,
+        PasswordArgs, XzLevel, ZstdLevel,
     },
     command::{
         Command,
@@ -12,7 +12,7 @@ use crate::{
             MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
             PermissionStrategyResolver, TimeFilterResolver, TimestampStrategyResolver,
             TransformStrategyUnSolid, XattrStrategy, apply_chroot, collect_items_from_paths,
-            collect_items_from_sources, collect_split_archives, entry_option,
+            collect_items_from_sources, collect_split_archives,
             path_lock::PathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, validate_no_duplicate_stdin,
@@ -26,9 +26,70 @@ use crate::{
         self, BsdGlobMatcher, PathPartExt, VCS_FILES, env::NamedTempFile, fs::HardlinkResolver,
     },
 };
-use clap::{ArgGroup, Args, ValueHint};
+use clap::{ArgGroup, Args, Parser, ValueHint};
 use pna::Archive;
 use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
+
+#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[command(group(ArgGroup::new("stdio_compression_method").args(["store", "deflate", "zstd", "xz"])))]
+struct CompressionAlgorithmArgs {
+    #[arg(long, help = "No compression")]
+    store: bool,
+    #[arg(
+        long,
+        value_name = "level",
+        help = "Use deflate for compression [possible level: 1-9, min, max]"
+    )]
+    deflate: Option<Option<DeflateLevel>>,
+    #[arg(
+        long,
+        value_name = "level",
+        help = "Use zstd for compression [possible level: 1-21, min, max]"
+    )]
+    zstd: Option<Option<ZstdLevel>>,
+    #[arg(
+        long,
+        value_name = "level",
+        help = "Use xz for compression [possible level: 0-9, min, max]"
+    )]
+    xz: Option<Option<XzLevel>>,
+}
+
+impl CompressionAlgorithmArgs {
+    fn algorithm(
+        &self,
+        options: Option<&crate::cli::ArchiveOptions>,
+    ) -> (pna::Compression, Option<pna::CompressionLevel>) {
+        let (compression, flag_level, module_level) = if self.store {
+            (pna::Compression::No, None, None)
+        } else if let Some(level) = self.xz {
+            (
+                pna::Compression::XZ,
+                level.map(Into::into),
+                options.and_then(|o| o.xz_compression_level.map(Into::into)),
+            )
+        } else if let Some(level) = self.zstd {
+            (
+                pna::Compression::ZStandard,
+                level.map(Into::into),
+                options.and_then(|o| o.zstd_compression_level.map(Into::into)),
+            )
+        } else if let Some(level) = self.deflate {
+            (
+                pna::Compression::Deflate,
+                level.map(Into::into),
+                options.and_then(|o| o.deflate_compression_level.map(Into::into)),
+            )
+        } else {
+            (pna::Compression::ZStandard, None, None)
+        };
+
+        let global_level = options.and_then(|o| o.compression_level);
+        let level = module_level.or(global_level).or(flag_level);
+
+        (compression, level)
+    }
+}
 
 #[derive(Args, Clone, Debug)]
 #[clap(disable_help_flag = true)]
@@ -222,13 +283,19 @@ pub(crate) struct StdioCommand {
     )]
     solid: bool,
     #[command(flatten)]
-    pub(crate) compression: CompressionAlgorithmArgs,
+    compression: CompressionAlgorithmArgs,
     #[command(flatten)]
     pub(crate) cipher: CipherAlgorithmArgs,
     #[command(flatten)]
     pub(crate) hash: HashAlgorithmArgs,
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
+    #[arg(
+        long,
+        value_name = "OPTIONS",
+        help = "Comma-separated list of options. Format: key=value or module:key=value. Supported: compression-level. Modules: deflate, zstd, xz"
+    )]
+    options: Option<crate::cli::ArchiveOptions>,
     #[arg(
         long,
         value_name = "PATTERN",
@@ -575,6 +642,29 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     }
 }
 
+fn build_write_options(
+    compression: &CompressionAlgorithmArgs,
+    cipher: &CipherAlgorithmArgs,
+    hash: &HashAlgorithmArgs,
+    options: Option<&crate::cli::ArchiveOptions>,
+    password: Option<&[u8]>,
+) -> pna::WriteOptions {
+    let (algorithm, level) = compression.algorithm(options);
+    let mut option_builder = pna::WriteOptions::builder();
+    option_builder
+        .compression(algorithm)
+        .compression_level(level.unwrap_or_default())
+        .encryption(if password.is_some() {
+            cipher.algorithm()
+        } else {
+            pna::Encryption::No
+        })
+        .cipher_mode(cipher.mode())
+        .hash_algorithm(hash.algorithm())
+        .password(password);
+    option_builder.build()
+}
+
 #[hooq::hooq(anyhow)]
 fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
@@ -644,7 +734,13 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     }
 
     let password = password.as_deref();
-    let cli_option = entry_option(args.compression, args.cipher, args.hash, password);
+    let cli_option = build_write_options(
+        &args.compression,
+        &args.cipher,
+        &args.hash,
+        args.options.as_ref(),
+        password,
+    );
     let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
     let (gname, gid) = resolve_name_id(args.group, args.gname, args.gid);
     let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
@@ -919,7 +1015,13 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let password = password.as_deref();
-    let option = entry_option(args.compression, args.cipher, args.hash, password);
+    let option = build_write_options(
+        &args.compression,
+        &args.cipher,
+        &args.hash,
+        args.options.as_ref(),
+        password,
+    );
     let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
     let (gname, gid) = resolve_name_id(args.group, args.gname, args.gid);
     let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
@@ -1064,7 +1166,13 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let password = password.as_deref();
-    let option = entry_option(args.compression, args.cipher, args.hash, password);
+    let option = build_write_options(
+        &args.compression,
+        &args.cipher,
+        &args.hash,
+        args.options.as_ref(),
+        password,
+    );
     let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
     let (gname, gid) = resolve_name_id(args.group, args.gname, args.gid);
     let (mode_strategy, owner_strategy) = PermissionStrategyResolver {
