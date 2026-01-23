@@ -84,6 +84,12 @@ impl CompressionAlgorithmArgs {
             (pna::Compression::ZStandard, None, None)
         };
 
+        if flag_level.is_some() {
+            log::warn!(
+                "compression level in flags is deprecated, use `--options='compression-level=N'` instead"
+            );
+        }
+
         let global_level = options.and_then(|o| o.compression_level);
         let level = module_level.or(global_level).or(flag_level);
 
