@@ -502,18 +502,7 @@ impl EntryResult {
     }
 }
 
-/// Processes an iterator of indexed entry results and calls `add_entry` for each contained `NormalEntry` in index order.
-///
-/// Skips entries that are `None`. If any `io::Error` is encountered while iterating or from `add_entry`, it is returned immediately.
-///
-/// # Examples
-///
-/// ```
-/// use std::io;
-/// // Call with an empty iterator — nothing is processed and `Ok(())` is returned.
-/// let empty = std::iter::empty::<(usize, crate::command::core::EntryResult)>();
-/// crate::command::core::drain_entry_results(empty, |_| -> io::Result<()> { Ok(()) }).unwrap();
-/// ```
+/// Drains entry results and applies a callback to each emitted entry.
 pub(crate) fn drain_entry_results<I, F, T>(results: I, mut add_entry: F) -> io::Result<()>
 where
     I: IntoIterator<Item = (usize, EntryResult)>,

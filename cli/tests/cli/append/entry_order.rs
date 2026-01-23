@@ -3,17 +3,9 @@ use clap::Parser;
 use portable_network_archive::cli;
 use std::fs;
 
-/// Verifies that appending files via the CLI preserves the order of CLI arguments in the archive.
-///
-/// The test creates an archive with an initial entry, appends three files in the order
-/// small, large, medium, and asserts the final archive entry sequence is:
-/// initial.txt, small.txt, large.bin, medium.dat.
-///
-/// # Examples
-///
-/// ```
-/// // Covered by the test: create archive, append files in a specific order, verify entry ordering.
-/// ```
+/// Precondition: An archive exists and multiple files of varying sizes exist.
+/// Action: Run `pna append` with files in a specific order.
+/// Expectation: Appended entries appear in the same order as CLI arguments.
 #[test]
 fn append_preserves_cli_argument_order() {
     setup();
@@ -91,18 +83,9 @@ fn append_preserves_cli_argument_order() {
     );
 }
 
-/// Ensures appending multiple directory arguments preserves the order of directory entries.
-///
-/// Creates an archive with an initial entry, appends two directories (first dir_a then dir_b),
-/// and asserts that all entries originating from dir_a appear before any entries from dir_b.
-///
-/// # Examples
-///
-/// ```
-/// // Given `multi_dir.pna` and two directories `dir_a` and `dir_b`,
-/// // running: `pna append multi_dir.pna dir_a dir_b`
-/// // results in all `dir_a` entries preceding all `dir_b` entries.
-/// ```
+/// Precondition: An archive exists and multiple directories with files exist.
+/// Action: Run `pna append` with multiple directory arguments.
+/// Expectation: Entries from first argument appear before second argument.
 #[test]
 fn append_preserves_multiple_directory_order() {
     setup();
@@ -180,20 +163,9 @@ fn append_preserves_multiple_directory_order() {
     );
 }
 
-/// Verifies that appending files to a solid archive preserves the CLI argument order of the appended files.
-///
-/// The test creates a solid archive with an initial entry, appends three files in a specified order
-/// (small, large, medium), and asserts that the archive entries appear in the initial-first then
-/// appended-files-in-cli-order sequence.
-///
-/// # Examples
-///
-/// ```
-/// // After creating a solid archive with "initial.txt" and appending
-/// // "small.txt", "large.bin", "medium.dat" in that order, the entry paths
-/// // should appear in the archive as:
-/// // [ ".../initial.txt", ".../small.txt", ".../large.bin", ".../medium.dat" ]
-/// ```
+/// Precondition: A solid archive exists and multiple files of varying sizes exist.
+/// Action: Run `pna append` with files in a specific order.
+/// Expectation: Appended entries appear in the same order as CLI arguments.
 #[test]
 fn append_solid_preserves_cli_argument_order() {
     setup();
