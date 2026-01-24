@@ -1262,9 +1262,9 @@ bsdtar-like CLI semantics for PNA archives
 * `--store` — No compression
 
   Default value: `false`
-* `--deflate <level>` — Use deflate for compression [possible level: 1-9, min, max]
+* `--deflate <level>` [alias: `zlib`] — Use deflate for compression [possible level: 1-9, min, max]
 * `--zstd <level>` — Use zstd for compression [possible level: 1-21, min, max]
-* `--xz <level>` — Use xz for compression [possible level: 0-9, min, max]
+* `-J`, `--xz <level>` — Use xz for compression [possible level: 0-9, min, max]
 * `--aes <cipher mode>` — Use aes for encryption
 
   Possible values: `cbc`, `ctr`
