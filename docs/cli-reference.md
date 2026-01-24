@@ -1277,6 +1277,7 @@ bsdtar-like CLI semantics for PNA archives
 * `--pbkdf2 <PARAMS>` — Use pbkdf2 for password hashing
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read password from specified file
+* `--options <OPTIONS>` — Comma-separated list of options. Format: key=value or module:key=value. Supported: compression-level. Modules: deflate, zstd, xz
 * `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
 * `--exclude <PATTERN>` — Exclude path glob (unstable)
 * `-X`, `--exclude-from <FILE>` — Read exclude files from given path (unstable)
