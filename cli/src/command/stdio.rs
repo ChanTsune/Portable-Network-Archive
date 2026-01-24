@@ -37,6 +37,7 @@ struct CompressionAlgorithmArgs {
     store: bool,
     #[arg(
         long,
+        visible_alias = "zlib",
         value_name = "level",
         help = "Use deflate for compression [possible level: 1-9, min, max]"
     )]
@@ -48,6 +49,7 @@ struct CompressionAlgorithmArgs {
     )]
     zstd: Option<Option<ZstdLevel>>,
     #[arg(
+        short = 'J',
         long,
         value_name = "level",
         help = "Use xz for compression [possible level: 0-9, min, max]"
