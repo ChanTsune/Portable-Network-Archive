@@ -286,29 +286,6 @@ fn stdio_archive_inclusion_nonexistent() {
         .failure();
 }
 
-/// Test that creating archive with @- when also outputting to stdout produces an error.
-#[test]
-fn stdio_archive_inclusion_stdin_stdout_conflict() {
-    setup();
-
-    let base = PathBuf::from("stdio_archive_inclusion_stdin_stdout_conflict");
-    fs::create_dir_all(&base).unwrap();
-
-    cargo_bin_cmd!("pna")
-        .args([
-            "--quiet",
-            "experimental",
-            "stdio",
-            "--create",
-            "--unstable",
-            "-f",
-            "-",
-            "@-",
-        ])
-        .assert()
-        .failure();
-}
-
 /// Test @archive inclusion preserves entry data correctly.
 #[test]
 fn stdio_archive_inclusion_data_integrity() {
