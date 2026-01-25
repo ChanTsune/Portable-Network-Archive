@@ -1076,8 +1076,11 @@ where
 ///
 /// When `acl_strategy` is `AclStrategy::Always`, selects the ACL entries that match the current
 /// platform if present, otherwise uses the first available platform-tagged ACL set, and applies
-/// them to `path`. Empty ACL lists are ignored. On platforms without ACL support this emits a
-/// warning instead of applying ACLs.
+/// them to `path`. Empty ACL lists are ignored.
+///
+/// On platforms without ACL support, this emits a warning and returns successfully.
+/// On supported platforms, if the target filesystem does not support ACLs (e.g., FAT32),
+/// a warning is logged for that path and the operation continues.
 #[cfg(feature = "acl")]
 fn restore_acls(path: &Path, acls: Acls, acl_strategy: AclStrategy) -> io::Result<()> {
     #[cfg(any(
@@ -1093,13 +1096,23 @@ fn restore_acls(path: &Path, acls: Acls, acl_strategy: AclStrategy) -> io::Resul
         let platform = AcePlatform::CURRENT;
         if let Some((platform, acl)) = acls.into_iter().find_or_first(|(p, _)| p.eq(&platform)) {
             if !acl.is_empty() {
-                utils::acl::set_facl(
+                match utils::acl::set_facl(
                     path,
                     acl_convert_current_platform(Acl {
                         platform,
                         entries: acl,
                     }),
-                )?;
+                ) {
+                    Ok(()) => {}
+                    Err(e) if e.kind() == io::ErrorKind::Unsupported => {
+                        log::warn!(
+                            "ACL not supported on this filesystem, skipping '{}': {}",
+                            path.display(),
+                            e
+                        );
+                    }
+                    Err(e) => return Err(e),
+                }
             }
         }
     }
