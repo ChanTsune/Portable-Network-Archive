@@ -1015,10 +1015,22 @@ pub(crate) fn apply_metadata(
         if let AclStrategy::Always = keep_options.acl_strategy {
             use crate::chunk;
             use pna::RawChunk;
-            let acl = utils::acl::get_facl(path)?;
-            entry.add_extra_chunk(RawChunk::from_data(chunk::faCl, acl.platform.to_bytes()));
-            for ace in acl.entries {
-                entry.add_extra_chunk(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
+            match utils::acl::get_facl(path) {
+                Ok(acl) => {
+                    entry
+                        .add_extra_chunk(RawChunk::from_data(chunk::faCl, acl.platform.to_bytes()));
+                    for ace in acl.entries {
+                        entry.add_extra_chunk(RawChunk::from_data(chunk::faCe, ace.to_bytes()));
+                    }
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
+                    log::warn!(
+                        "ACL not supported on this filesystem, skipping '{}': {}",
+                        path.display(),
+                        e
+                    );
+                }
+                Err(e) => return Err(e),
             }
         }
         #[cfg(not(any(
