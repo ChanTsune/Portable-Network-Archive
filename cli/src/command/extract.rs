@@ -12,14 +12,14 @@ use crate::{
             OwnerOptions, OwnerStrategy, PathFilter, PathTransformers, PathnameEditor,
             PermissionStrategyResolver, SafeWriter, TimeFilterResolver, TimeFilters,
             TimestampStrategy, TimestampStrategyResolver, XattrStrategy, apply_chroot,
-            collect_split_archives,
+            collect_split_archives, fast_read_stop, is_fast_read_stop,
             path_lock::PathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, run_process_archive,
         },
     },
     utils::{
-        self, GlobPatterns, PathWithCwd, VCS_FILES,
+        self, BsdGlobMatcher, GlobPatterns, PathWithCwd, VCS_FILES,
         fmt::DurationDisplay,
         fs::{Group, User},
     },
@@ -476,6 +476,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         files,
         || password.as_deref(),
         output_options,
+        false,
     )
     .with_context(|| format!("extracting entries from '{}'", PathWithCwd::new(&archive)))?;
 
@@ -489,8 +490,14 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let archives = mmaps.iter().map(|m| m.as_ref());
 
     #[cfg(feature = "memmap")]
-    run_extract_archive(archives, files, || password.as_deref(), output_options)
-        .with_context(|| format!("extracting entries from '{}'", PathWithCwd::new(&archive)))?;
+    run_extract_archive(
+        archives,
+        files,
+        || password.as_deref(),
+        output_options,
+        false,
+    )
+    .with_context(|| format!("extracting entries from '{}'", PathWithCwd::new(&archive)))?;
     log::info!(
         "Successfully extracted an archive in {}",
         DurationDisplay(start.elapsed())
@@ -548,24 +555,90 @@ pub(crate) fn run_extract_archive_reader<'a, 'p, Provider>(
     files: Vec<String>,
     mut password_provider: Provider,
     args: OutputOption<'a>,
+    fast_read: bool,
 ) -> anyhow::Result<()>
 where
     Provider: FnMut() -> Option<&'p [u8]> + Send,
 {
     let password = password_provider();
     let patterns = files;
-    let mut globs = GlobPatterns::new(patterns.iter().map(|it| it.as_str()))
-        .with_context(|| "building inclusion patterns")?;
+
+    if !fast_read || patterns.is_empty() {
+        let mut globs = GlobPatterns::new(patterns.iter().map(|it| it.as_str()))
+            .with_context(|| "building inclusion patterns")?;
+
+        let mut link_entries = Vec::new();
+
+        let (tx, rx) = std::sync::mpsc::channel();
+        rayon::scope_fifo(|s| -> anyhow::Result<()> {
+            run_process_archive(reader, password_provider, |entry| {
+                let item = entry
+                    .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
+                let item_path = item.name().to_string();
+                if !globs.is_empty() && !globs.matches_any(&item_path) {
+                    log::debug!("Skip: {item_path}");
+                    return Ok(());
+                }
+                if args.filter.excluded(item.name()) {
+                    log::debug!("Skip: {item_path}");
+                    return Ok(());
+                }
+                if !entry_matches_time_filters(&item, &args.time_filters) {
+                    log::debug!("Skip: {item_path}");
+                    return Ok(());
+                }
+                let Some(name) = args.pathname_editor.edit_entry_name(item.name().as_path()) else {
+                    log::debug!("Skip: {item_path}");
+                    return Ok(());
+                };
+                if args.to_stdout {
+                    return extract_entry_to_stdout(&item, password);
+                }
+                if matches!(
+                    item.header().data_kind(),
+                    DataKind::SymbolicLink | DataKind::HardLink
+                ) {
+                    link_entries.push((name, item));
+                    return Ok(());
+                }
+                let tx = tx.clone();
+                let args = args.clone();
+                s.spawn_fifo(move |_| {
+                    tx.send(
+                        extract_entry(item, &name, password, &args)
+                            .with_context(|| format!("extracting {}", item_path)),
+                    )
+                    .unwrap_or_else(|e| log::error!("{e}: {item_path}"));
+                });
+                Ok(())
+            })
+            .with_context(|| "streaming archive entries")?;
+            drop(tx);
+            Ok(())
+        })?;
+        for result in rx {
+            result?;
+        }
+        for (name, item) in link_entries {
+            extract_entry(item, &name, password, &args)
+                .with_context(|| format!("extracting deferred link {name}"))?;
+        }
+
+        globs.ensure_all_matched()?;
+        return Ok(());
+    }
+
+    let mut globs = BsdGlobMatcher::new(patterns.iter().map(|it| it.as_str()));
 
     let mut link_entries = Vec::new();
 
     let (tx, rx) = std::sync::mpsc::channel();
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
-        run_process_archive(reader, password_provider, |entry| {
+        let result = run_process_archive(reader, password_provider, |entry| {
             let item = entry
                 .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
             let item_path = item.name().to_string();
-            if !globs.is_empty() && !globs.matches_any(&item_path) {
+            if !globs.matches_unsatisfied(&item_path) {
                 log::debug!("Skip: {item_path}");
                 return Ok(());
             }
@@ -575,6 +648,9 @@ where
             }
             if !entry_matches_time_filters(&item, &args.time_filters) {
                 log::debug!("Skip: {item_path}");
+                if globs.all_matched() {
+                    return Err(fast_read_stop());
+                }
                 return Ok(());
             }
             let Some(name) = args.pathname_editor.edit_entry_name(item.name().as_path()) else {
@@ -589,6 +665,9 @@ where
                 DataKind::SymbolicLink | DataKind::HardLink
             ) {
                 link_entries.push((name, item));
+                if globs.all_matched() {
+                    return Err(fast_read_stop());
+                }
                 return Ok(());
             }
             let tx = tx.clone();
@@ -600,9 +679,17 @@ where
                 )
                 .unwrap_or_else(|e| log::error!("{e}: {item_path}"));
             });
+            if globs.all_matched() {
+                return Err(fast_read_stop());
+            }
             Ok(())
-        })
-        .with_context(|| "streaming archive entries")?;
+        });
+
+        match result {
+            Ok(()) => {}
+            Err(err) if is_fast_read_stop(&err) => {}
+            Err(err) => return Err(anyhow::Error::new(err).context("streaming archive entries")),
+        }
         drop(tx);
         Ok(())
     })?;
@@ -625,6 +712,7 @@ pub(crate) fn run_extract_archive<'a, 'd, 'p, Provider>(
     files: Vec<String>,
     mut password_provider: Provider,
     args: OutputOption<'a>,
+    _fast_read: bool,
 ) -> anyhow::Result<()>
 where
     Provider: FnMut() -> Option<&'p [u8]> + Send,
