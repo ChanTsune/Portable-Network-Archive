@@ -1226,10 +1226,10 @@ bsdtar-like CLI semantics for PNA archives
 * `-m`, `--no-keep-timestamp` [aliases: `no-preserve-timestamps`, `modification_time`] — Do not archive timestamp of files. This is the inverse option of --preserve-timestamps
 
   Default value: `false`
-* `--keep-permission` [alias: `preserve-permissions`] — Preserve file permissions (unstable on Windows)
+* `--no-same-permissions` [aliases: `no-preserve-permissions`, `no-permissions`] — Do not store file permissions (mode bits) in the archive
 
   Default value: `false`
-* `--no-keep-permission` [aliases: `no-preserve-permissions`, `no-permissions`] — Do not archive permissions of files. This is the inverse option of --preserve-permissions
+* `-p`, `--same-permissions` [alias: `preserve-permissions`] — Restore file permissions (mode, ACLs, xattrs, fflags, mac-metadata, but NOT ownership) (extract only) (unstable)
 
   Default value: `false`
 * `--keep-xattr` [aliases: `preserve-xattrs`, `xattrs`] — Preserve extended attributes
