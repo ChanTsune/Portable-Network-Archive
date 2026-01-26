@@ -483,7 +483,7 @@ fn stdio_mtree_parse_error_invalid_syntax() {
 }
 
 /// Precondition: mtree specifies mode=0755 with nochange keyword, file has mode 0644.
-/// Action: Create archive with --keep-permission.
+/// Action: Create archive (stdio stores permissions by default).
 /// Expectation: Archived entry has filesystem mode (0644), not mtree value.
 #[test]
 #[cfg(unix)]
@@ -517,7 +517,6 @@ fn stdio_mtree_nochange_uses_filesystem_metadata() {
             "--create",
             "--unstable",
             "--overwrite",
-            "--keep-permission",
             "-f",
             output_archive.to_str().unwrap(),
             "-C",
