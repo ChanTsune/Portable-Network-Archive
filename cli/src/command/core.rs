@@ -54,11 +54,11 @@ pub(crate) enum SourceFormat {
 pub(crate) fn detect_format<R: io::BufRead>(reader: &mut R) -> io::Result<SourceFormat> {
     let buf = reader.fill_buf()?;
 
-    if buf.len() >= PNA_HEADER.len() && buf[..PNA_HEADER.len()] == *PNA_HEADER {
-        return Ok(SourceFormat::Pna);
-    }
-
-    Ok(SourceFormat::Mtree)
+    Ok(if buf.starts_with(PNA_HEADER) {
+        SourceFormat::Pna
+    } else {
+        SourceFormat::Mtree
+    })
 }
 
 /// Options controlling how filesystem items are collected for archiving.
