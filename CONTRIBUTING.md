@@ -10,7 +10,7 @@ Shared fixtures live in `resources/test/`.
 CI covers Linux, macOS, Windows, and a few cross targets — so portable changes really pay off.
 
 ## Getting Set Up
-- Install Rust via `rustup` (MSRV 1.82; latest stable recommended).
+- Install Rust via `rustup` (MSRV 1.88; latest stable recommended).
 - On Linux, add `libacl1-dev` for ACL support.
 - The optional checks use `cargo-hack`, which you can install with `cargo install cargo-hack`.
 
