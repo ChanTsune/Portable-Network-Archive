@@ -1,3 +1,4 @@
+mod ignore;
 pub(crate) mod iter;
 #[cfg(unix)]
 pub(crate) mod mtree;
@@ -30,7 +31,6 @@ use pna::{
 };
 use std::{
     borrow::Cow,
-    collections::HashMap,
     fmt, fs,
     io::{self, prelude::*},
     path::{Path, PathBuf},
@@ -351,59 +351,6 @@ pub(crate) struct CreateOptions {
     pub(crate) pathname_editor: PathnameEditor,
 }
 
-/// Gitignore-style exclusion rules.
-struct Ignore {
-    // Map of directory path -> compiled .gitignore matcher for that directory
-    by_dir: HashMap<PathBuf, ignore::gitignore::Gitignore>,
-}
-
-impl Ignore {
-    #[inline]
-    pub(crate) fn empty() -> Self {
-        Self {
-            by_dir: HashMap::new(),
-        }
-    }
-
-    #[inline]
-    pub(crate) fn is_ignore(&self, path: impl AsRef<Path>, is_dir: bool) -> bool {
-        let path = path.as_ref();
-        // Start from the directory containing the path (or the path itself if it is a dir),
-        // walk up to root, and apply the nearest .gitignore last (closest wins).
-        // Determine the first directory to check for a .gitignore
-        let mut cur_dir_opt = if is_dir { Some(path) } else { path.parent() };
-
-        while let Some(dir) = cur_dir_opt {
-            if let Some(gi) = self.by_dir.get(dir) {
-                // Match relative to the directory of the .gitignore
-                let rel = path.strip_prefix(dir).unwrap_or(path);
-                let m = gi.matched(rel, is_dir);
-                // If this matcher provides a decision, return immediately; closest wins
-                if m.is_ignore() {
-                    return true;
-                }
-                if m.is_whitelist() {
-                    return false;
-                }
-            }
-            cur_dir_opt = dir.parent();
-        }
-        false
-    }
-
-    #[inline]
-    pub(crate) fn add_path(&mut self, path: impl AsRef<Path>) {
-        let path = path.as_ref();
-        debug_assert!(path.is_dir());
-        let gitignore_path = path.join(".gitignore");
-        if gitignore_path.exists() {
-            let (ig, _) = ignore::gitignore::Gitignore::new(&gitignore_path);
-            // Key by the directory that owns this .gitignore
-            self.by_dir.insert(path.to_path_buf(), ig);
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 pub(crate) struct CollectedEntry {
     pub(crate) path: PathBuf,
@@ -706,7 +653,7 @@ pub(crate) fn collect_items_with_state(
     options: &CollectOptions<'_>,
     hardlink_resolver: &mut HardlinkResolver,
 ) -> io::Result<Vec<CollectedEntry>> {
-    let mut ig = Ignore::empty();
+    let mut ig = ignore::Ignore::empty();
     let mut out = Vec::new();
 
     let mut iter = if options.recursive {
