@@ -556,7 +556,9 @@ where
                         s.spawn_fifo(move |_| {
                             log::debug!("Updating: {}", item.path.display());
                             tx.send((idx, create_entry(&item, &create_options)))
-                                .unwrap_or_else(|e| log::error!("{e}: {}", item.path.display()));
+                                .unwrap_or_else(|_| {
+                                    unreachable!("receiver is held by scope owner")
+                                });
                         });
                         Ok(None)
                     } else {
@@ -578,7 +580,7 @@ where
             s.spawn_fifo(move |_| {
                 log::debug!("Adding: {}", item.path.display());
                 tx.send((idx, create_entry(&item, &create_options)))
-                    .unwrap_or_else(|e| log::error!("{e}: {}", item.path.display()));
+                    .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
             });
         }
         drop(tx);
@@ -630,7 +632,9 @@ where
                         s.spawn_fifo(move |_| {
                             log::debug!("Updating: {}", item.path.display());
                             tx.send((idx, create_entry(&item, &create_options)))
-                                .unwrap_or_else(|e| log::error!("{e}: {}", item.path.display()));
+                                .unwrap_or_else(|_| {
+                                    unreachable!("receiver is held by scope owner")
+                                });
                         });
                         Ok(None)
                     } else {
@@ -652,7 +656,7 @@ where
             s.spawn_fifo(move |_| {
                 log::debug!("Adding: {}", item.path.display());
                 tx.send((idx, create_entry(&item, &create_options)))
-                    .unwrap_or_else(|e| log::error!("{e}: {}", item.path.display()));
+                    .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
             });
         }
         drop(tx);
