@@ -5,19 +5,12 @@ use std::{
 };
 
 /// Gitignore-style exclusion rules.
+#[derive(Default)]
 pub(crate) struct Ignore {
-    // Map of directory path -> compiled .gitignore matcher for that directory
     by_dir: HashMap<PathBuf, Gitignore>,
 }
 
 impl Ignore {
-    #[inline]
-    pub(crate) fn empty() -> Self {
-        Self {
-            by_dir: HashMap::new(),
-        }
-    }
-
     #[inline]
     pub(crate) fn is_ignore(&self, path: impl AsRef<Path>, is_dir: bool) -> bool {
         let path = path.as_ref();
@@ -28,10 +21,8 @@ impl Ignore {
 
         while let Some(dir) = cur_dir_opt {
             if let Some(gi) = self.by_dir.get(dir) {
-                // Match relative to the directory of the .gitignore
                 let rel = path.strip_prefix(dir).unwrap_or(path);
                 let m = gi.matched(rel, is_dir);
-                // If this matcher provides a decision, return immediately; closest wins
                 if m.is_ignore() {
                     return true;
                 }
@@ -50,8 +41,14 @@ impl Ignore {
         debug_assert!(path.is_dir());
         let gitignore_path = path.join(".gitignore");
         if gitignore_path.exists() {
-            let (ig, _) = Gitignore::new(&gitignore_path);
-            // Key by the directory that owns this .gitignore
+            let (ig, err) = Gitignore::new(&gitignore_path);
+            if let Some(e) = err {
+                log::warn!(
+                    "Failed to fully parse .gitignore at '{}': {}",
+                    gitignore_path.display(),
+                    e
+                );
+            }
             self.by_dir.insert(path.to_path_buf(), ig);
         }
     }
