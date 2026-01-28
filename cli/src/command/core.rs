@@ -653,7 +653,7 @@ pub(crate) fn collect_items_with_state(
     options: &CollectOptions<'_>,
     hardlink_resolver: &mut HardlinkResolver,
 ) -> io::Result<Vec<CollectedEntry>> {
-    let mut ig = ignore::Ignore::empty();
+    let mut ig = ignore::Ignore::default();
     let mut out = Vec::new();
 
     let mut iter = if options.recursive {
