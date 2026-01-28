@@ -572,7 +572,7 @@ pub(crate) fn spawn_entry_results(
                             idx,
                             EntryResult::Single(create_entry(&entry, create_options)),
                         ))
-                        .unwrap_or_else(|e| log::error!("{e}: {}", entry.path.display()));
+                        .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
                     })
                 }
                 CollectedItem::ArchiveMarker(source) => {
@@ -584,7 +584,7 @@ pub(crate) fn spawn_entry_results(
                         password,
                     );
                     tx.send((idx, EntryResult::Batch(result)))
-                        .unwrap_or_else(|e| log::error!("{e}: archive source {}", source));
+                        .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
                 }
             }
         }

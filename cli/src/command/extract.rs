@@ -598,7 +598,7 @@ where
                     extract_entry(item, &name, password, &args)
                         .with_context(|| format!("extracting {}", item_path)),
                 )
-                .unwrap_or_else(|e| log::error!("{e}: {item_path}"));
+                .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
             });
             Ok(())
         })
@@ -676,7 +676,7 @@ where
                     extract_entry(item, &name, password, &args)
                         .with_context(|| format!("extracting {}", item_path)),
                 )
-                .unwrap_or_else(|e| log::error!("{e}: {item_path}"));
+                .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
             });
             Ok(())
         })
