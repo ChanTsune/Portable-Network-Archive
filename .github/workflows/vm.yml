@@ -48,7 +48,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Test in NetBSD
         id: test
-        uses: vmactions/NetBSD-vm@2ba9902c77c2ebdb7501e5e9308dea03f0f251c4 # v1.3.1
+        uses: vmactions/NetBSD-vm@37b614756f0b44b02f5dab4fd9ecb27545d1785e # v1.3.2
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
