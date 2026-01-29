@@ -24,6 +24,7 @@ use crate::{
     },
     utils::{
         self, BsdGlobMatcher, PathPartExt, VCS_FILES, env::NamedTempFile, fs::HardlinkResolver,
+        process::is_running_as_root,
     },
 };
 use clap::{ArgGroup, Args, Parser, ValueHint};
@@ -712,17 +713,6 @@ impl CreationPermissionStrategyResolver {
         };
         (mode_strategy, owner_strategy)
     }
-}
-
-/// Returns true if the current process is running as root (effective UID == 0).
-#[cfg(unix)]
-fn is_running_as_root() -> bool {
-    nix::unistd::Uid::effective().is_root()
-}
-
-#[cfg(not(unix))]
-fn is_running_as_root() -> bool {
-    false
 }
 
 /// Resolves permission strategies for stdio extraction operations.
