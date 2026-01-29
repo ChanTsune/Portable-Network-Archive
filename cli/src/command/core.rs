@@ -13,7 +13,7 @@ pub(crate) mod time_filter;
 pub(crate) mod timestamp;
 
 pub(crate) use self::path::PathnameEditor;
-pub(crate) use self::permission::{ModeStrategy, OwnerOptions, OwnerStrategy};
+pub(crate) use self::permission::{ModeStrategy, OwnerOptions, OwnerStrategy, Umask};
 pub(crate) use self::safe_writer::SafeWriter;
 pub(crate) use self::timestamp::{TimeSource, TimestampStrategy};
 use crate::{

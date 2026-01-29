@@ -11,7 +11,7 @@ use crate::{
             AclStrategy, FflagsStrategy, KeepOptions, MacMetadataStrategy, ModeStrategy,
             OwnerOptions, OwnerStrategy, PathFilter, PathTransformers, PathnameEditor,
             PermissionStrategyResolver, SafeWriter, TimeFilterResolver, TimeFilters,
-            TimestampStrategy, TimestampStrategyResolver, XattrStrategy, apply_chroot,
+            TimestampStrategy, TimestampStrategyResolver, Umask, XattrStrategy, apply_chroot,
             collect_split_archives,
             path_lock::PathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
@@ -982,9 +982,11 @@ where
         if let OwnerStrategy::Preserve { options } = &keep_options.owner_strategy {
             restore_owner(path, p, options)?;
         }
-        // Restore mode bits when mode_strategy is Preserve (independent of owner)
-        if let ModeStrategy::Preserve = keep_options.mode_strategy {
-            restore_mode(path, p)?;
+        // Restore mode bits when configured.
+        match keep_options.mode_strategy {
+            ModeStrategy::Preserve => restore_mode(path, p)?,
+            ModeStrategy::Masked(mask) => restore_mode_masked(path, p, mask)?,
+            ModeStrategy::Never => {}
         }
     }
     // On macOS, when mac_metadata_strategy is Always and the entry has mac_metadata,
@@ -1195,7 +1197,28 @@ fn restore_mode(path: &Path, p: &Permission) -> io::Result<()> {
     #[cfg(not(any(unix, windows)))]
     {
         let _ = (path, p);
-        log::warn!("Currently mode restoration is not supported on this platform.");
+        log::warn!(
+            "Skipping mode restoration for '{}': not supported on this platform.",
+            path.display()
+        );
+    }
+    Ok(())
+}
+
+/// Restores file mode bits with umask applied and suid/sgid/sticky cleared.
+#[inline]
+fn restore_mode_masked(path: &Path, p: &Permission, umask: Umask) -> io::Result<()> {
+    #[cfg(any(unix, windows))]
+    {
+        utils::fs::chmod(path, umask.apply(p.permissions()))?;
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (path, p, umask);
+        log::warn!(
+            "Skipping mode restoration for '{}': not supported on this platform.",
+            path.display()
+        );
     }
     Ok(())
 }
