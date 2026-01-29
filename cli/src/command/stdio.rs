@@ -11,7 +11,7 @@ use crate::{
             AclStrategy, CollectOptions, CreateOptions, FflagsStrategy, ItemSource, KeepOptions,
             MacMetadataStrategy, ModeStrategy, OwnerOptions, OwnerStrategy, PathFilter,
             PathTransformers, PathnameEditor, TimeFilterResolver, TimestampStrategyResolver,
-            TransformStrategyUnSolid, XattrStrategy, apply_chroot, collect_items_from_paths,
+            TransformStrategyUnSolid, Umask, XattrStrategy, apply_chroot, collect_items_from_paths,
             collect_items_from_sources, collect_split_archives,
             path_lock::PathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
@@ -714,8 +714,19 @@ impl CreationPermissionStrategyResolver {
     }
 }
 
+/// Returns true if the current process is running as root (effective UID == 0).
+#[cfg(unix)]
+fn is_running_as_root() -> bool {
+    nix::unistd::Uid::effective().is_root()
+}
+
+#[cfg(not(unix))]
+fn is_running_as_root() -> bool {
+    false
+}
+
 /// Resolves permission strategies for stdio extraction operations.
-/// Extraction defaults: do NOT restore permissions by default (bsdtar behavior).
+/// Extraction defaults: root preserves exact permissions, non-root applies umask (bsdtar behavior).
 /// -p/--same-permissions enables mode + ACL + xattr + fflags + mac-metadata (but NOT owner)
 /// Flag priority: --no-same-permissions > -p > individual flags; individual --no-* always wins
 struct ExtractionPermissionStrategyResolver {
@@ -748,12 +759,21 @@ type ExtractionPermissionStrategies = (
 
 impl ExtractionPermissionStrategyResolver {
     fn resolve(self) -> ExtractionPermissionStrategies {
+        let umask = Umask::new(utils::fs::current_umask());
+
+        // bsdtar behavior: root defaults to -p (Preserve), non-root defaults to Masked
+        let default_mode_strategy = if is_running_as_root() {
+            ModeStrategy::Preserve
+        } else {
+            ModeStrategy::Masked(umask)
+        };
+
         let mode_strategy = if self.no_same_permissions {
-            ModeStrategy::Never
+            ModeStrategy::Masked(umask)
         } else if self.same_permissions {
             ModeStrategy::Preserve
         } else {
-            ModeStrategy::Never
+            default_mode_strategy
         };
 
         let owner_strategy = if self.same_owner {

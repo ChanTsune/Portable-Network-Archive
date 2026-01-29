@@ -7,6 +7,8 @@
 use crate::utils::{archive, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use predicates::prelude::predicate;
+#[cfg(unix)]
+use serial_test::serial;
 use std::fs;
 #[cfg(unix)]
 use std::io::ErrorKind;
@@ -25,6 +27,38 @@ macro_rules! set_permissions_or_skip {
             Err(e) => panic!("Failed to set permissions: {}", e),
         }
     };
+}
+
+/// RAII guard for temporarily modifying the process umask.
+///
+/// # Thread Safety
+/// Umask is a process-global setting. Tests using this guard are protected
+/// by `#[serial(umask)]` to ensure they run serially.
+///
+/// The guard is safe for its primary use case: spawning a child process that
+/// inherits the modified umask. Each spawned `pna` process caches its own
+/// umask value via OnceLock at startup.
+#[cfg(unix)]
+struct UmaskGuard(libc::mode_t);
+
+#[cfg(unix)]
+impl UmaskGuard {
+    fn set(mask: u16) -> Self {
+        // SAFETY: libc::umask is always safe to call with any mode_t value.
+        // It atomically sets the new umask and returns the previous value.
+        unsafe { Self(libc::umask(mask as libc::mode_t)) }
+    }
+}
+
+#[cfg(unix)]
+impl Drop for UmaskGuard {
+    fn drop(&mut self) {
+        // SAFETY: Restoring the original umask value that was returned by
+        // the previous umask() call. This is always valid.
+        unsafe {
+            libc::umask(self.0);
+        }
+    }
 }
 
 // =============================================================================
@@ -466,12 +500,17 @@ fn stdio_extract_no_same_permissions_alone() {
 // Behavioral Verification Tests
 // =============================================================================
 
-/// Precondition: Archive contains file with executable permission (0o755).
-/// Action: Extract WITHOUT -p flag (default behavior).
-/// Expectation: Extracted file does NOT have 0o755 permission (follows umask).
+/// Precondition: Archive contains file with executable permission (0o755), running as non-root.
+/// Action: Extract WITHOUT -p flag (default behavior for non-root).
+/// Expectation: Extracted file has mode masked by umask.
 #[test]
 #[cfg(unix)]
-fn stdio_extract_without_p_does_not_preserve_permissions() {
+#[serial(umask)]
+fn stdio_extract_without_p_masks_permissions() {
+    if nix::unistd::Uid::effective().is_root() {
+        eprintln!("Skipping: test requires non-root user (root defaults to preserve mode)");
+        return;
+    }
     setup();
     let base = "stdio_extract_no_p_perm";
     fs::create_dir_all(base).unwrap();
@@ -501,10 +540,11 @@ fn stdio_extract_without_p_does_not_preserve_permissions() {
         .assert()
         .success();
 
-    // Extract WITHOUT -p flag
+    // Extract WITHOUT -p flag (mask should be applied)
     let out_dir = format!("{}/out", base);
     fs::create_dir_all(&out_dir).unwrap();
 
+    let _umask = UmaskGuard::set(0o077);
     let mut extract_cmd = cargo_bin_cmd!("pna");
     extract_cmd
         .write_stdin(create_output.get_output().stdout.as_slice())
@@ -516,13 +556,14 @@ fn stdio_extract_without_p_does_not_preserve_permissions() {
         .assert()
         .success();
 
-    // Verify extracted file does NOT have 0o755 (permission not restored)
+    // Verify extracted file has umask-applied permissions
     let extracted = format!("{}/test.txt", out_dir);
     let meta = fs::symlink_metadata(&extracted).unwrap();
     let extracted_mode = meta.permissions().mode() & 0o777;
-    assert_ne!(
-        extracted_mode, 0o755,
-        "extracted file should NOT have 0o755 without -p flag (got 0o{:o})",
+    let expected_mode = 0o755 & !0o077;
+    assert_eq!(
+        extracted_mode, expected_mode,
+        "extracted file should have umask-applied mode (got 0o{:o})",
         extracted_mode
     );
 }
@@ -790,6 +831,235 @@ fn stdio_extract_with_p_restores_xattr() {
         xattr_value,
         Some(b"testvalue".to_vec()),
         "extracted file should have xattr restored with -p flag"
+    );
+}
+
+/// Precondition: Archive contains file with 0o755, running as non-root.
+/// Action: Extract with --no-same-permissions flag.
+/// Expectation: Permissions are masked (umask applied, special bits cleared).
+#[test]
+#[cfg(unix)]
+#[serial(umask)]
+fn stdio_extract_no_same_permissions_applies_mask() {
+    if nix::unistd::Uid::effective().is_root() {
+        eprintln!("Skipping: test requires non-root user");
+        return;
+    }
+    setup();
+    let base = "stdio_extract_no_same_p_applies_mask";
+    fs::create_dir_all(base).unwrap();
+
+    let file = format!("{}/test.txt", base);
+    fs::write(&file, "test content").unwrap();
+    set_permissions_or_skip!(&file, 0o755);
+
+    let mut create_cmd = cargo_bin_cmd!("pna");
+    let create_output = create_cmd
+        .arg("experimental")
+        .arg("stdio")
+        .arg("-c")
+        .arg("-C")
+        .arg(base)
+        .arg("test.txt")
+        .assert()
+        .success();
+
+    let out_dir = format!("{}/out", base);
+    fs::create_dir_all(&out_dir).unwrap();
+
+    // Set specific umask to verify masking behavior
+    let _umask = UmaskGuard::set(0o027);
+    let mut extract_cmd = cargo_bin_cmd!("pna");
+    extract_cmd
+        .write_stdin(create_output.get_output().stdout.as_slice())
+        .arg("experimental")
+        .arg("stdio")
+        .arg("-x")
+        .arg("--no-same-permissions")
+        .arg("--out-dir")
+        .arg(&out_dir)
+        .assert()
+        .success();
+
+    let extracted = format!("{}/test.txt", out_dir);
+    let meta = fs::symlink_metadata(&extracted).unwrap();
+    let extracted_mode = meta.permissions().mode() & 0o777;
+    // 0o755 & !0o027 = 0o750
+    let expected_mode = 0o755 & !0o027;
+    assert_eq!(
+        extracted_mode, expected_mode,
+        "--no-same-permissions should apply umask (expected 0o{:o}, got 0o{:o})",
+        expected_mode, extracted_mode
+    );
+}
+
+/// Precondition: Archive contains file with setuid bit (0o4755).
+/// Action: Extract WITH -p flag.
+/// Expectation: Setuid bit is PRESERVED (full preserve mode).
+#[test]
+#[cfg(unix)]
+fn stdio_extract_with_p_preserves_special_bits() {
+    setup();
+    let base = "stdio_extract_p_preserves_special";
+    fs::create_dir_all(base).unwrap();
+
+    let file = format!("{}/setuid_file.txt", base);
+    fs::write(&file, "test content").unwrap();
+    set_permissions_or_skip!(&file, 0o4755);
+
+    let src_meta = fs::symlink_metadata(&file).unwrap();
+    if src_meta.permissions().mode() & 0o7777 != 0o4755 {
+        eprintln!("Skipping: filesystem doesn't support setuid bit");
+        return;
+    }
+
+    let mut create_cmd = cargo_bin_cmd!("pna");
+    let create_output = create_cmd
+        .arg("experimental")
+        .arg("stdio")
+        .arg("-c")
+        .arg("-C")
+        .arg(base)
+        .arg("setuid_file.txt")
+        .assert()
+        .success();
+
+    let out_dir = format!("{}/out", base);
+    fs::create_dir_all(&out_dir).unwrap();
+
+    let mut extract_cmd = cargo_bin_cmd!("pna");
+    extract_cmd
+        .write_stdin(create_output.get_output().stdout.as_slice())
+        .arg("experimental")
+        .arg("stdio")
+        .arg("-x")
+        .arg("--unstable")
+        .arg("-p")
+        .arg("--out-dir")
+        .arg(&out_dir)
+        .assert()
+        .success();
+
+    let extracted = format!("{}/setuid_file.txt", out_dir);
+    let meta = fs::symlink_metadata(&extracted).unwrap();
+    let extracted_mode = meta.permissions().mode() & 0o7777;
+    assert_eq!(
+        extracted_mode, 0o4755,
+        "-p flag should preserve setuid bit (got 0o{:o})",
+        extracted_mode
+    );
+}
+
+/// Precondition: Archive contains file with 0o755, running as root.
+/// Action: Extract WITHOUT -p flag (root default behavior).
+/// Expectation: Permissions are PRESERVED exactly (root defaults to Preserve mode).
+#[test]
+#[cfg(unix)]
+#[serial(umask)]
+fn stdio_extract_root_default_preserves_permissions() {
+    if !nix::unistd::Uid::effective().is_root() {
+        eprintln!("Skipping: test requires root user");
+        return;
+    }
+    setup();
+    let base = "stdio_extract_root_default";
+    fs::create_dir_all(base).unwrap();
+
+    let file = format!("{}/test.txt", base);
+    fs::write(&file, "test content").unwrap();
+    set_permissions_or_skip!(&file, 0o755);
+
+    let mut create_cmd = cargo_bin_cmd!("pna");
+    let create_output = create_cmd
+        .arg("experimental")
+        .arg("stdio")
+        .arg("-c")
+        .arg("-C")
+        .arg(base)
+        .arg("test.txt")
+        .assert()
+        .success();
+
+    let out_dir = format!("{}/out", base);
+    fs::create_dir_all(&out_dir).unwrap();
+
+    // Even with restrictive umask, root should preserve exact permissions
+    let _umask = UmaskGuard::set(0o077);
+    let mut extract_cmd = cargo_bin_cmd!("pna");
+    extract_cmd
+        .write_stdin(create_output.get_output().stdout.as_slice())
+        .arg("experimental")
+        .arg("stdio")
+        .arg("-x")
+        .arg("--out-dir")
+        .arg(&out_dir)
+        .assert()
+        .success();
+
+    let extracted = format!("{}/test.txt", out_dir);
+    let meta = fs::symlink_metadata(&extracted).unwrap();
+    let extracted_mode = meta.permissions().mode() & 0o777;
+    assert_eq!(
+        extracted_mode, 0o755,
+        "root should preserve exact permissions by default (got 0o{:o})",
+        extracted_mode
+    );
+}
+
+/// Precondition: Archive contains file with 0o755, running as root.
+/// Action: Extract with --no-same-permissions flag.
+/// Expectation: Permissions are MASKED (--no-same-permissions overrides root default).
+#[test]
+#[cfg(unix)]
+#[serial(umask)]
+fn stdio_extract_root_with_no_same_permissions_masks() {
+    if !nix::unistd::Uid::effective().is_root() {
+        eprintln!("Skipping: test requires root user");
+        return;
+    }
+    setup();
+    let base = "stdio_extract_root_no_same_p";
+    fs::create_dir_all(base).unwrap();
+
+    let file = format!("{}/test.txt", base);
+    fs::write(&file, "test content").unwrap();
+    set_permissions_or_skip!(&file, 0o755);
+
+    let mut create_cmd = cargo_bin_cmd!("pna");
+    let create_output = create_cmd
+        .arg("experimental")
+        .arg("stdio")
+        .arg("-c")
+        .arg("-C")
+        .arg(base)
+        .arg("test.txt")
+        .assert()
+        .success();
+
+    let out_dir = format!("{}/out", base);
+    fs::create_dir_all(&out_dir).unwrap();
+
+    let _umask = UmaskGuard::set(0o027);
+    let mut extract_cmd = cargo_bin_cmd!("pna");
+    extract_cmd
+        .write_stdin(create_output.get_output().stdout.as_slice())
+        .arg("experimental")
+        .arg("stdio")
+        .arg("-x")
+        .arg("--no-same-permissions")
+        .arg("--out-dir")
+        .arg(&out_dir)
+        .assert()
+        .success();
+
+    let extracted = format!("{}/test.txt", out_dir);
+    let meta = fs::symlink_metadata(&extracted).unwrap();
+    let extracted_mode = meta.permissions().mode() & 0o777;
+    let expected_mode = 0o755 & !0o027;
+    assert_eq!(
+        extracted_mode, expected_mode,
+        "--no-same-permissions should override root default (expected 0o{:o}, got 0o{:o})",
+        expected_mode, extracted_mode
     );
 }
 
