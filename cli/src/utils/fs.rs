@@ -8,42 +8,37 @@ pub(crate) use file_id::HardlinkResolver;
 pub(crate) use nodump::is_nodump;
 pub(crate) use owner::*;
 pub(crate) use pna::fs::*;
-use std::sync::OnceLock;
 use std::{fs, io, path::Path};
 
-#[cfg(not(unix))]
-const DEFAULT_UMASK: u16 = 0o022;
-
-static CACHED_UMASK: OnceLock<u16> = OnceLock::new();
-
-/// Returns the current process umask (cached on first call to avoid race conditions).
+/// Returns the current process umask.
 ///
-/// On Unix, the umask is read once via the `umask(0); umask(mode)` pattern and cached.
+/// On Unix, reads the umask via the `umask(0); umask(mode)` pattern.
 /// On non-Unix platforms, returns a default of 0o022.
+///
+/// # Restricted Usage
+///
+/// This function should **only** be called from [`GlobalContext::new()`](crate::cli::GlobalContext::new).
+/// All other code should use `ctx.umask()` to access the cached value.
 ///
 /// # Thread Safety
 ///
-/// This function should be called early in process initialization, before spawning
-/// threads that may create files. The `OnceLock` ensures the value is read only once,
-/// but there is a brief window between `umask(0)` and `umask(mode)` where files
-/// created by other threads would use umask 0.
+/// There is a brief race window between `umask(0)` and `umask(mode)` where
+/// files created by other threads would use umask 0. This is why `GlobalContext`
+/// must be constructed before spawning any threads.
 pub(crate) fn current_umask() -> u16 {
-    *CACHED_UMASK.get_or_init(|| {
-        #[cfg(unix)]
-        {
-            // SAFETY: `libc::umask` is async-signal-safe and always succeeds.
-            // We read the current umask by temporarily setting it to 0, then
-            // immediately restore it. The window between these two calls is
-            // minimized but not eliminated; see the doc comment above.
-            unsafe {
-                let mode = libc::umask(0);
-                libc::umask(mode);
-                mode as _
-            }
+    #[cfg(unix)]
+    {
+        // SAFETY: `libc::umask` is async-signal-safe and always succeeds.
+        unsafe {
+            let mode = libc::umask(0);
+            libc::umask(mode);
+            mode as _
         }
-        #[cfg(not(unix))]
-        DEFAULT_UMASK
-    })
+    }
+    #[cfg(not(unix))]
+    {
+        0o022
+    }
 }
 
 pub(crate) fn is_pna<P: AsRef<Path>>(path: P) -> io::Result<bool> {

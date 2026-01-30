@@ -364,7 +364,7 @@ pub(crate) struct UpdateCommand {
 
 impl Command for UpdateCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
+    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
         update_archive(self)
     }
 }

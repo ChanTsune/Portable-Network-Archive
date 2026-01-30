@@ -357,7 +357,7 @@ pub(crate) struct ExtractCommand {
 
 impl Command for ExtractCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
+    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
         extract_archive(self)
     }
 }

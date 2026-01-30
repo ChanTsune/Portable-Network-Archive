@@ -34,7 +34,7 @@ pub(crate) struct ConcatCommand {
 
 impl Command for ConcatCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
+    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
         concat_entry(self)
     }
 }

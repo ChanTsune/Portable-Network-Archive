@@ -34,7 +34,7 @@ pub(crate) struct XattrCommand {
 
 impl Command for XattrCommand {
     #[inline]
-    fn execute(self, ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
+    fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
         match self.command {
             XattrCommands::Get(cmd) => cmd.execute(ctx),
             XattrCommands::Set(cmd) => cmd.execute(ctx),
@@ -80,7 +80,7 @@ pub(crate) struct GetXattrCommand {
 
 impl Command for GetXattrCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
+    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
         archive_get_xattr(self)
     }
 }
@@ -115,7 +115,7 @@ pub(crate) struct SetXattrCommand {
 
 impl Command for SetXattrCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
+    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
         archive_set_xattr(self)
     }
 }

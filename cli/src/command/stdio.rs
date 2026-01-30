@@ -1,7 +1,7 @@
 use crate::{
     cli::{
-        CipherAlgorithmArgs, ColorChoice, DateTime, DeflateLevel, HashAlgorithmArgs, NameIdPair,
-        PasswordArgs, XzLevel, ZstdLevel,
+        CipherAlgorithmArgs, ColorChoice, DateTime, DeflateLevel, GlobalContext, HashAlgorithmArgs,
+        NameIdPair, PasswordArgs, XzLevel, ZstdLevel,
     },
     command::{
         Command,
@@ -24,7 +24,6 @@ use crate::{
     },
     utils::{
         self, BsdGlobMatcher, PathPartExt, VCS_FILES, env::NamedTempFile, fs::HardlinkResolver,
-        process::is_running_as_root,
     },
 };
 use clap::{ArgGroup, Args, Parser, ValueHint};
@@ -605,13 +604,13 @@ pub(crate) struct StdioCommand {
 
 impl Command for StdioCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
-        run_stdio(self)
+    fn execute(self, ctx: &GlobalContext) -> anyhow::Result<()> {
+        run_stdio(ctx, self)
     }
 }
 
 #[hooq::hooq(anyhow)]
-fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
+fn run_stdio(ctx: &GlobalContext, args: StdioCommand) -> anyhow::Result<()> {
     if let Some(format) = &args.format {
         log::warn!("Option '--format {format}' is accepted for compatibility but will be ignored.");
     }
@@ -637,7 +636,7 @@ fn run_stdio(args: StdioCommand) -> anyhow::Result<()> {
     if args.create {
         run_create_archive(args)
     } else if args.extract {
-        run_extract_archive(args)
+        run_extract_archive(ctx, args)
     } else if args.list {
         run_list_archive(args)
     } else if args.append {
@@ -725,6 +724,8 @@ struct ExtractionPermissionStrategyResolver {
     same_owner: bool,
     numeric_owner: bool,
     uname: Option<String>,
+    umask: Umask,
+    is_root: bool,
     gname: Option<String>,
     uid: Option<u32>,
     gid: Option<u32>,
@@ -749,17 +750,15 @@ type ExtractionPermissionStrategies = (
 
 impl ExtractionPermissionStrategyResolver {
     fn resolve(self) -> ExtractionPermissionStrategies {
-        let umask = Umask::new(utils::fs::current_umask());
-
         // bsdtar behavior: root defaults to -p (Preserve), non-root defaults to Masked
-        let default_mode_strategy = if is_running_as_root() {
+        let default_mode_strategy = if self.is_root {
             ModeStrategy::Preserve
         } else {
-            ModeStrategy::Masked(umask)
+            ModeStrategy::Masked(self.umask)
         };
 
         let mode_strategy = if self.no_same_permissions {
-            ModeStrategy::Masked(umask)
+            ModeStrategy::Masked(self.umask)
         } else if self.same_permissions {
             ModeStrategy::Preserve
         } else {
@@ -944,7 +943,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
 }
 
 #[hooq::hooq(anyhow)]
-fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
+fn run_extract_archive(ctx: &GlobalContext, args: StdioCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
 
     let mut exclude = args.exclude;
@@ -997,6 +996,8 @@ fn run_extract_archive(args: StdioCommand) -> anyhow::Result<()> {
         gname,
         uid,
         gid,
+        umask: ctx.umask(),
+        is_root: ctx.is_root(),
         keep_xattr: args.keep_xattr,
         keep_acl: args.keep_acl,
         keep_fflags: args.keep_fflags,

@@ -37,7 +37,7 @@ pub(crate) struct ChmodCommand {
 
 impl Command for ChmodCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
+    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
         archive_chmod(self)
     }
 }
