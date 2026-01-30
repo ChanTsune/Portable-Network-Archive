@@ -10,7 +10,7 @@ pub(crate) struct ExperimentalCommand {
 
 impl Command for ExperimentalCommand {
     #[inline]
-    fn execute(self, ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
+    fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
         match self.command {
             ExperimentalCommands::Stdio(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Delete(cmd) => {

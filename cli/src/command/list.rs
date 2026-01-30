@@ -220,16 +220,8 @@ pub(crate) struct ListCommand {
 
 impl Command for ListCommand {
     #[inline]
-    fn execute(self, ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
-        if let Some(format) = self.format {
-            if format.is_unstable() && !ctx.unstable {
-                anyhow::bail!(
-                    "The '--format {}' option is unstable and requires --unstable flag",
-                    format
-                );
-            }
-        }
-        list_archive(self, ctx.color())
+    fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
+        list_archive(ctx, self)
     }
 }
 
@@ -458,7 +450,16 @@ impl TableRow {
 }
 
 #[hooq::hooq(anyhow)]
-fn list_archive(args: ListCommand, color: ColorChoice) -> anyhow::Result<()> {
+fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::Result<()> {
+    if let Some(format) = args.format
+        && format.is_unstable()
+        && !ctx.unstable()
+    {
+        anyhow::bail!(
+            "The '--format {}' option is unstable and requires --unstable flag",
+            format
+        );
+    }
     let password = ask_password(args.password)?;
     let time_filters = TimeFilterResolver {
         newer_ctime_than: args.newer_ctime_than.as_deref(),
@@ -491,7 +492,7 @@ fn list_archive(args: ListCommand, color: ColorChoice) -> anyhow::Result<()> {
         classify: args.classify,
         format: args.format,
         out_to_stderr: false,
-        color,
+        color: ctx.color(),
         time_filters,
     };
     let archive = args.file.archive();

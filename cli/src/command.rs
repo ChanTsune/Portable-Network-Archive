@@ -6,7 +6,7 @@ mod chown;
 mod chunk;
 pub mod complete;
 pub(crate) mod concat;
-mod core;
+pub(crate) mod core;
 pub mod create;
 pub mod delete;
 pub mod diff;
@@ -21,7 +21,7 @@ pub(crate) mod strip;
 pub mod update;
 pub mod xattr;
 
-use crate::cli::{CipherAlgorithmArgs, Cli, Commands, GlobalArgs, PasswordArgs};
+use crate::cli::{CipherAlgorithmArgs, Cli, Commands, GlobalContext, PasswordArgs};
 use std::{fs, io};
 
 fn ask_password(args: PasswordArgs) -> io::Result<Option<Vec<u8>>> {
@@ -56,13 +56,13 @@ fn check_password(password: &Option<Vec<u8>>, cipher_args: &CipherAlgorithmArgs)
 }
 
 pub(crate) trait Command {
-    fn execute(self, ctx: &GlobalArgs) -> anyhow::Result<()>;
+    fn execute(self, ctx: &GlobalContext) -> anyhow::Result<()>;
 }
 
 impl Cli {
     #[inline]
     pub fn execute(self) -> anyhow::Result<()> {
-        let ctx = &self.global;
+        let ctx = &GlobalContext::new(self.global);
         match self.commands {
             Commands::Create(cmd) => cmd.execute(ctx),
             Commands::Append(cmd) => cmd.execute(ctx),

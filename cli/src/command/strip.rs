@@ -58,7 +58,7 @@ pub(crate) struct StripCommand {
 
 impl Command for StripCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
+    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
         strip_metadata(self)
     }
 }

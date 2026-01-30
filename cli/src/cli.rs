@@ -1,10 +1,13 @@
 pub mod value;
 
-use crate::command::{
-    append::AppendCommand, bugreport::BugReportCommand, complete::CompleteCommand,
-    concat::ConcatCommand, create::CreateCommand, delete::DeleteCommand,
-    experimental::ExperimentalCommand, extract::ExtractCommand, list::ListCommand,
-    sort::SortCommand, split::SplitCommand, strip::StripCommand, xattr::XattrCommand,
+use crate::{
+    command::{
+        append::AppendCommand, bugreport::BugReportCommand, complete::CompleteCommand,
+        concat::ConcatCommand, core::Umask, create::CreateCommand, delete::DeleteCommand,
+        experimental::ExperimentalCommand, extract::ExtractCommand, list::ListCommand,
+        sort::SortCommand, split::SplitCommand, strip::StripCommand, xattr::XattrCommand,
+    },
+    utils::{fs::current_umask, process::is_running_as_root},
 };
 use clap::{ArgGroup, Parser, Subcommand, ValueEnum, ValueHint};
 use log::{Level, LevelFilter};
@@ -27,7 +30,7 @@ pub struct Cli {
     pub(crate) global: GlobalArgs,
 }
 
-#[derive(Parser, Clone, Eq, PartialEq, Debug)]
+#[derive(Parser, Clone, Eq, PartialEq, Debug, Default)]
 pub(crate) struct GlobalArgs {
     #[command(flatten)]
     pub(crate) verbosity: VerbosityArgs,
@@ -48,6 +51,61 @@ impl GlobalArgs {
     }
 }
 
+/// Runtime context for command execution.
+///
+/// This struct contains [`GlobalArgs`] and adds computed values that must be
+/// initialized early in the process lifecycle (before spawning threads).
+///
+/// # Thread Safety
+///
+/// `GlobalContext` should be created before any parallel processing.
+/// The umask is captured at construction time to minimize exposure to the
+/// inherent race window in umask reading.
+#[derive(Debug)]
+pub(crate) struct GlobalContext {
+    args: GlobalArgs,
+    umask: Umask,
+    is_root: bool,
+}
+
+impl GlobalContext {
+    /// Creates a new execution context, capturing runtime values.
+    ///
+    /// This MUST be called before spawning any threads that may create files,
+    /// as umask reading involves a brief race window.
+    pub(crate) fn new(args: GlobalArgs) -> Self {
+        Self {
+            umask: Umask::new(current_umask()),
+            is_root: is_running_as_root(),
+            args,
+        }
+    }
+
+    /// Returns the cached umask value.
+    #[inline]
+    pub(crate) fn umask(&self) -> Umask {
+        self.umask
+    }
+
+    /// Returns whether the process is running as root/Administrator.
+    #[inline]
+    pub(crate) fn is_root(&self) -> bool {
+        self.is_root
+    }
+
+    /// Returns the color choice setting.
+    #[inline]
+    pub(crate) fn color(&self) -> ColorChoice {
+        self.args.color()
+    }
+
+    /// Returns whether unstable features are enabled.
+    #[inline]
+    pub(crate) fn unstable(&self) -> bool {
+        self.args.unstable
+    }
+}
+
 impl Cli {
     pub fn init_logger(&self) -> io::Result<()> {
         let level = self.global.verbosity.log_level_filter();
@@ -64,7 +122,7 @@ impl Cli {
     }
 }
 
-#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
 #[command(group(ArgGroup::new("verbosity").args(["quiet", "verbose"])))]
 pub(crate) struct VerbosityArgs {
     #[arg(long, global = true, help = "Make some output more quiet")]
@@ -326,5 +384,47 @@ impl HashAlgorithmArgs {
         } else {
             HashAlgorithm::argon2id()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn context_captures_umask() {
+        let args = GlobalArgs::default();
+        let ctx = GlobalContext::new(args);
+        assert!(ctx.umask().apply(0o777) <= 0o777);
+    }
+
+    #[test]
+    fn context_delegates_to_global_args() {
+        let args = GlobalArgs {
+            unstable: true,
+            ..Default::default()
+        };
+        let ctx = GlobalContext::new(args);
+        assert!(ctx.unstable());
+    }
+
+    #[test]
+    fn context_delegates_color_to_global_args() {
+        let args = GlobalArgs {
+            color: ColorArgs {
+                color: ColorChoice::Never,
+            },
+            ..Default::default()
+        };
+        let ctx = GlobalContext::new(args);
+        assert_eq!(ctx.color(), ColorChoice::Never);
+    }
+
+    #[test]
+    fn is_root_returns_consistent_result() {
+        let args = GlobalArgs::default();
+        let ctx1 = GlobalContext::new(args.clone());
+        let ctx2 = GlobalContext::new(args);
+        assert_eq!(ctx1.is_root(), ctx2.is_root());
     }
 }

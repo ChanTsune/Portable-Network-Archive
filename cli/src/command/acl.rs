@@ -38,7 +38,7 @@ pub(crate) struct AclCommand {
 
 impl Command for AclCommand {
     #[inline]
-    fn execute(self, ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
+    fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
         match self.command {
             AclCommands::Get(cmd) => cmd.execute(ctx),
             AclCommands::Set(cmd) => cmd.execute(ctx),
@@ -69,7 +69,7 @@ pub(crate) struct GetAclCommand {
 
 impl Command for GetAclCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
+    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
         archive_get_acl(self)
     }
 }
@@ -115,7 +115,7 @@ pub(crate) struct SetAclCommand {
 
 impl Command for SetAclCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
+    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
         archive_set_acl(self)
     }
 }

@@ -86,7 +86,7 @@ pub(crate) struct DeleteCommand {
 
 impl Command for DeleteCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
+    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
         delete_file_from_archive(self)
     }
 }
