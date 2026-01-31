@@ -82,6 +82,7 @@ fn diff_detects_directory_mode_change() {
 /// Action: Change directory mtime on the filesystem, run diff without --full-compare.
 /// Expectation: No mtime difference reported (default behavior ignores directory mtime).
 #[cfg(unix)]
+#[cfg(not(target_os = "solaris"))] // Solaris doesn't support setting directory mtime
 #[test]
 fn diff_ignores_directory_mtime_by_default() {
     setup();
@@ -124,6 +125,7 @@ fn diff_ignores_directory_mtime_by_default() {
 /// Action: Change directory mtime on the filesystem, run diff with --full-compare.
 /// Expectation: Reports "Mod time differs" for directory.
 #[cfg(unix)]
+#[cfg(not(target_os = "solaris"))] // Solaris doesn't support setting directory mtime
 #[test]
 fn diff_detects_directory_mtime_with_full_compare() {
     setup();
