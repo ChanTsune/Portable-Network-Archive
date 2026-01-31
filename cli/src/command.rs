@@ -74,6 +74,7 @@ impl Cli {
             Commands::Strip(cmd) => cmd.execute(ctx),
             Commands::Sort(cmd) => cmd.execute(ctx),
             Commands::Xattr(cmd) => cmd.execute(ctx),
+            Commands::Diff(cmd) => cmd.execute(ctx),
             Commands::Complete(cmd) => cmd.execute(ctx),
             Commands::BugReport(cmd) => cmd.execute(ctx),
             Commands::Experimental(cmd) => cmd.execute(ctx),

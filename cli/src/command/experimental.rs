@@ -41,7 +41,17 @@ impl Command for ExperimentalCommand {
                 );
                 cmd.execute(ctx)
             }
-            ExperimentalCommands::Diff(cmd) => cmd.execute(ctx),
+            ExperimentalCommands::Diff(cmd) => {
+                log::warn!(
+                    "`{0} experimental diff` subcommand was stabilized, use `{0} diff` instead.",
+                    std::env::current_exe()
+                        .ok()
+                        .and_then(|it| it.file_name().map(|n| n.to_os_string()))
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                );
+                cmd.execute(ctx)
+            }
         }
     }
 }
@@ -68,6 +78,8 @@ pub(crate) enum ExperimentalCommands {
         about = "Sort entries in archive (stabilized, use `pna sort` command instead. this command will be removed in the future)"
     )]
     Sort(command::sort::SortCommand),
-    #[command(about = "Compare archive entries with filesystem")]
+    #[command(
+        about = "Compare archive entries with filesystem (stabilized, use `pna diff` command instead)"
+    )]
     Diff(command::diff::DiffCommand),
 }
