@@ -71,5 +71,7 @@ fn diff_missing_in_disk() {
         ])
         .assert();
 
-    assert.stdout("Missing file: diff_missing_in_disk/in/raw/images/icon.svg\n");
+    assert.stdout(
+        "diff_missing_in_disk/in/raw/images/icon.svg: Warning: Cannot stat: No such file or directory\n",
+    );
 }

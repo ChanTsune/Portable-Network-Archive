@@ -41,6 +41,7 @@ path-slash = "0.2.1"
 pna = { version = "0.30.0", path = "../pna" }
 rayon = "1.11.0"
 regex = "1.12.2"
+same-file = "1.0.6"
 scopeguard = "1.2.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
@@ -69,10 +70,10 @@ windows = { version = "0.62.2", features = [
 field-offset = { version = "0.3.6", optional = true }
 
 [dev-dependencies]
+filetime = "0.2"
 maplit = "1.0.2"
 path-slash = "0.2.1"
 rust-embed = { version = "8.11.0", features = ["debug-embed"] }
-same-file = "1.0.6"
 scopeguard = "1.2.0"
 walkdir = "2.5.0"
 criterion = { version = "0.8.1", default-features = false, features = ["cargo_bench_support", "plotters"] }
