@@ -32,7 +32,7 @@ fn diff_detects_hardlink_to_directory_mismatch() {
         .args(["experimental", "diff", "-f", &archive_path])
         .assert()
         .success()
-        .stdout(predicates::str::contains(format!(
+        .stdout(predicate::str::contains(format!(
             "{link}: File type mismatch"
         )));
 }
@@ -67,5 +67,5 @@ fn diff_detects_broken_hardlink() {
         .args(["experimental", "diff", "-f", &archive_path])
         .assert();
 
-    assert.stdout(predicates::str::contains("Not linked to"));
+    assert.stdout(predicate::str::contains("Not linked to"));
 }

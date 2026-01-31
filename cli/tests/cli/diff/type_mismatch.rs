@@ -34,7 +34,7 @@ fn diff_detects_symlink_to_file_mismatch() {
         .args(["experimental", "diff", "-f", &archive_path])
         .assert()
         .success()
-        .stdout(predicates::str::contains(format!(
+        .stdout(predicate::str::contains(format!(
             "{link}: File type mismatch"
         )));
 }
@@ -65,7 +65,7 @@ fn diff_detects_file_to_directory_mismatch() {
         .args(["experimental", "diff", "-f", &archive_path])
         .assert()
         .success()
-        .stdout(predicates::str::contains(format!(
+        .stdout(predicate::str::contains(format!(
             "{file_path}: File type mismatch"
         )));
 }
@@ -103,7 +103,7 @@ fn diff_detects_directory_to_file_mismatch() {
         .args(["experimental", "diff", "-f", &archive_path])
         .assert()
         .success()
-        .stdout(predicates::str::contains(format!(
+        .stdout(predicate::str::contains(format!(
             "{subdir}: File type mismatch"
         )));
 }

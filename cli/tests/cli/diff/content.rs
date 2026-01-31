@@ -28,7 +28,7 @@ fn diff_detects_content_change_same_size() {
         .args(["experimental", "diff", "-f", &archive_path])
         .assert()
         .success()
-        .stdout(predicates::str::contains("Contents differ"));
+        .stdout(predicate::str::contains("Contents differ"));
 }
 
 /// Precondition: Archive contains file with specific content.
@@ -56,5 +56,5 @@ fn diff_detects_size_change() {
         .args(["experimental", "diff", "-f", &archive_path])
         .assert()
         .success()
-        .stdout(predicates::str::contains("Size differs"));
+        .stdout(predicate::str::contains("Size differs"));
 }

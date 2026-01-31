@@ -36,5 +36,5 @@ fn diff_detects_symlink_change() {
         .args(["experimental", "diff", "-f", &archive_path])
         .assert();
 
-    assert.stdout(predicates::str::contains("Symlink differs"));
+    assert.stdout(predicate::str::contains("Symlink differs"));
 }

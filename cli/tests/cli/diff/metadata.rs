@@ -1,6 +1,6 @@
 use crate::utils::setup;
 use assert_cmd::cargo::cargo_bin_cmd;
-use predicates::prelude::PredicateBooleanExt;
+use predicates::prelude::*;
 use std::fs;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -40,7 +40,7 @@ fn diff_detects_file_mode_change() {
     cargo_bin_cmd!("pna")
         .args(["experimental", "diff", "-f", &archive_path])
         .assert()
-        .stdout(predicates::str::contains("Mode differs"));
+        .stdout(predicate::str::contains("Mode differs"));
 }
 
 /// Precondition: Archive contains directory with mode 0755.
@@ -75,7 +75,7 @@ fn diff_detects_directory_mode_change() {
     cargo_bin_cmd!("pna")
         .args(["experimental", "diff", "-f", &archive_path])
         .assert()
-        .stdout(predicates::str::contains("Mode differs"));
+        .stdout(predicate::str::contains("Mode differs"));
 }
 
 /// Precondition: Archive contains directory with specific mtime.
@@ -116,8 +116,8 @@ fn diff_ignores_directory_mtime_by_default() {
         .args(["experimental", "diff", "-f", &archive_path])
         .assert()
         .success()
-        .stdout(predicates::str::contains("Mod time differs").not())
-        .stdout(predicates::str::contains("Mode differs").not());
+        .stdout(predicate::str::contains("Mod time differs").not())
+        .stdout(predicate::str::contains("Mode differs").not());
 }
 
 /// Precondition: Archive contains directory with specific mtime.
@@ -164,5 +164,5 @@ fn diff_detects_directory_mtime_with_full_compare() {
         ])
         .assert()
         .success()
-        .stdout(predicates::str::contains("Mod time differs"));
+        .stdout(predicate::str::contains("Mod time differs"));
 }
