@@ -825,13 +825,18 @@ pub(crate) fn write_sparse_from_path(
     let mut file = fs::File::open(path)?;
 
     if let Some(sparse_map) = detect_sparse_map(&file)? {
-        // Write only data regions
+        // Write only data regions using chunked I/O to avoid memory exhaustion
+        const CHUNK_SIZE: usize = 64 * 1024;
+        let mut buf = vec![0u8; CHUNK_SIZE];
         for region in sparse_map.regions() {
             file.seek(io::SeekFrom::Start(region.offset()))?;
-            let size = region.size() as usize;
-            let mut buf = vec![0u8; size];
-            file.read_exact(&mut buf)?;
-            entry.write_all(&buf)?;
+            let mut remaining = region.size();
+            while remaining > 0 {
+                let to_read = (remaining as usize).min(CHUNK_SIZE);
+                file.read_exact(&mut buf[..to_read])?;
+                entry.write_all(&buf[..to_read])?;
+                remaining -= to_read as u64;
+            }
         }
         entry.set_sparse_map(sparse_map);
         Ok(())

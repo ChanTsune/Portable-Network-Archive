@@ -88,7 +88,10 @@ fn detect_with_seek_hole_data(
 
     // Restore file position
     // SAFETY: lseek is safe to call with a valid fd
-    unsafe { libc::lseek(fd, 0, libc::SEEK_SET) };
+    let result = unsafe { libc::lseek(fd, 0, libc::SEEK_SET) };
+    if result < 0 {
+        return Err(io::Error::last_os_error());
+    }
 
     // Determine if file is actually sparse
     if regions.is_empty() && file_size > 0 {

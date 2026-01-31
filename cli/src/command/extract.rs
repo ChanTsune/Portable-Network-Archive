@@ -1333,17 +1333,17 @@ fn restore_sparse_file(
 ) -> io::Result<()> {
     use io::Seek;
 
-    // Write each data region at its correct offset
+    // Write each data region at its correct offset using chunked I/O
+    const CHUNK_SIZE: usize = 64 * 1024;
+    let mut buf = vec![0u8; CHUNK_SIZE];
     for region in sparse_map.regions() {
         file.seek(io::SeekFrom::Start(region.offset()))?;
-        let size = region.size() as usize;
-        let mut buf = vec![0u8; size.min(64 * 1024)];
-        let mut remaining = size;
+        let mut remaining = region.size();
         while remaining > 0 {
-            let to_read = remaining.min(buf.len());
+            let to_read = (remaining as usize).min(CHUNK_SIZE);
             reader.read_exact(&mut buf[..to_read])?;
             file.write_all(&buf[..to_read])?;
-            remaining -= to_read;
+            remaining -= to_read as u64;
         }
     }
 
