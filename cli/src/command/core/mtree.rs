@@ -92,6 +92,7 @@ fn create_entry_from_mtree(
         option,
         keep_options,
         pathname_editor,
+        sparse: _,
     }: &CreateOptions,
 ) -> io::Result<Option<NormalEntry>> {
     let entry_path = mtree_entry.path();

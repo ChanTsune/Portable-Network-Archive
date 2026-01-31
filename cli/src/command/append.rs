@@ -446,6 +446,7 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
             PathTransformers::new(args.substitutions, args.transforms),
             false,
         ),
+        sparse: false,
     };
 
     let archive = open_archive_then_seek_to_end(&archive_path)?;

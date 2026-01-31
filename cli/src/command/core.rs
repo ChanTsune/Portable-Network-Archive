@@ -20,7 +20,7 @@ pub(crate) use self::safe_writer::SafeWriter;
 pub(crate) use self::timestamp::{TimeSource, TimestampStrategy};
 use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs, MissingTimePolicy},
-    utils::{self, PathPartExt, fs::HardlinkResolver},
+    utils::{self, PathPartExt, fs::HardlinkResolver, sparse::detect_sparse_map},
 };
 use anyhow::Context;
 pub(crate) use iter::ReorderByIndex;
@@ -355,6 +355,7 @@ pub(crate) struct CreateOptions {
     pub(crate) option: WriteOptions,
     pub(crate) keep_options: KeepOptions,
     pub(crate) pathname_editor: PathnameEditor,
+    pub(crate) sparse: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -810,6 +811,36 @@ fn copy_buffered(file: fs::File, writer: &mut impl Write) -> io::Result<()> {
     Ok(())
 }
 
+/// Writes file data from a path, detecting and preserving sparse regions.
+///
+/// If the file is sparse, only data regions are written and the sparse map is set on the entry.
+/// If the file is not sparse, falls back to normal write behavior.
+pub(crate) fn write_sparse_from_path(
+    entry: &mut EntryBuilder,
+    path: impl AsRef<Path>,
+) -> io::Result<()> {
+    use io::Seek;
+
+    let path = path.as_ref();
+    let mut file = fs::File::open(path)?;
+
+    if let Some(sparse_map) = detect_sparse_map(&file)? {
+        // Write only data regions
+        for region in sparse_map.regions() {
+            file.seek(io::SeekFrom::Start(region.offset()))?;
+            let size = region.size() as usize;
+            let mut buf = vec![0u8; size];
+            file.read_exact(&mut buf)?;
+            entry.write_all(&buf)?;
+        }
+        entry.set_sparse_map(sparse_map);
+        Ok(())
+    } else {
+        // Not sparse, use normal write
+        write_from_path(entry, path)
+    }
+}
+
 #[inline]
 pub(crate) fn write_from_path(writer: &mut impl Write, path: impl AsRef<Path>) -> io::Result<()> {
     let path = path.as_ref();
@@ -843,6 +874,7 @@ pub(crate) fn create_entry(
         option,
         keep_options,
         pathname_editor,
+        sparse,
     }: &CreateOptions,
 ) -> io::Result<Option<NormalEntry>> {
     let CollectedEntry {
@@ -869,7 +901,11 @@ pub(crate) fn create_entry(
         }
         StoreAs::File => {
             let mut entry = EntryBuilder::new_file(entry_name, option)?;
-            write_from_path(&mut entry, path)?;
+            if *sparse {
+                write_sparse_from_path(&mut entry, path)?;
+            } else {
+                write_from_path(&mut entry, path)?;
+            }
             apply_metadata(entry, path, keep_options, metadata)?.build()
         }
         StoreAs::Dir => {

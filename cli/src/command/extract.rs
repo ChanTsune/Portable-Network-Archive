@@ -26,7 +26,10 @@ use crate::{
 };
 use anyhow::Context;
 use clap::{ArgGroup, Parser, ValueHint};
-use pna::{DataKind, EntryName, EntryReference, NormalEntry, Permission, ReadOptions, prelude::*};
+use pna::{
+    DataKind, EntryName, EntryReference, NormalEntry, Permission, ReadOptions, SparseMap,
+    prelude::*,
+};
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::FileTimesExt;
 #[cfg(windows)]
@@ -899,7 +902,9 @@ where
 
     match entry_kind {
         DataKind::File => {
-            if *safe_writes {
+            let sparse_map = item.sparse_map();
+            if *safe_writes && sparse_map.is_none() {
+                // Safe writes (atomic rename) - only for non-sparse files
                 let mut safe_writer = SafeWriter::new(&path)?;
                 {
                     let mut writer =
@@ -911,6 +916,12 @@ where
                 // Set timestamps before persist; after rename we lose the file handle
                 restore_timestamps(safe_writer.as_file_mut(), item.metadata(), keep_options)?;
                 safe_writer.persist()?;
+            } else if let Some(sparse_map) = sparse_map {
+                // Sparse file restoration - write data regions at correct offsets
+                let mut file = utils::fs::file_create(&path, remove_existing)?;
+                let mut reader = item.reader(ReadOptions::with_password(password))?;
+                restore_sparse_file(&mut file, &mut reader, sparse_map)?;
+                restore_timestamps(&mut file, item.metadata(), keep_options)?;
             } else {
                 if remove_existing {
                     utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
@@ -1308,6 +1319,37 @@ where
     let mut stdout = io::stdout().lock();
     io::copy(&mut reader, &mut stdout)?;
     stdout.flush()?;
+    Ok(())
+}
+
+/// Restores a sparse file by writing only data regions and seeking over holes.
+///
+/// This creates a sparse file on filesystems that support it by using seek
+/// to skip over hole regions instead of writing zeros.
+fn restore_sparse_file(
+    file: &mut fs::File,
+    reader: &mut impl Read,
+    sparse_map: &SparseMap,
+) -> io::Result<()> {
+    use io::Seek;
+
+    // Write each data region at its correct offset
+    for region in sparse_map.regions() {
+        file.seek(io::SeekFrom::Start(region.offset()))?;
+        let size = region.size() as usize;
+        let mut buf = vec![0u8; size.min(64 * 1024)];
+        let mut remaining = size;
+        while remaining > 0 {
+            let to_read = remaining.min(buf.len());
+            reader.read_exact(&mut buf[..to_read])?;
+            file.write_all(&buf[..to_read])?;
+            remaining -= to_read;
+        }
+    }
+
+    // Set the file length to the logical size (handles trailing holes)
+    file.set_len(sparse_map.logical_size())?;
+
     Ok(())
 }
 
