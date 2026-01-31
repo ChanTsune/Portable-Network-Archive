@@ -743,8 +743,7 @@ dependencies = [
 [[package]]
 name = "filetime"
 version = "0.2.27"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f98844151eee8917efc50bd9e8318cb963ae8b297431495d3f758616ea5c57db"
+source = "git+https://github.com/ChanTsune/filetime.git?branch=fix-failed-to-set_file_mtime-on-solaris#34f26b4d6816ecdd5d250549d42920f3ee62e202"
 dependencies = [
  "cfg-if",
  "libc",
