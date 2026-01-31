@@ -735,6 +735,9 @@ where
         for ex in &self.extra {
             total += ex.write_chunk_in(writer)?;
         }
+        if let Some(ref sparse_map) = self.sparse_map {
+            total += (ChunkType::SPAR, sparse_map.to_bytes()).write_chunk_in(writer)?;
+        }
         if let Some(raw_file_size) = raw_file_size {
             total += (
                 ChunkType::fSIZ,
@@ -798,6 +801,9 @@ where
         let mut vec = Vec::new();
         vec.push(RawChunk::from_data(ChunkType::FHED, self.header.to_bytes()));
         vec.extend(self.extra.into_iter().map(Into::into));
+        if let Some(sparse_map) = self.sparse_map {
+            vec.push(RawChunk::from_data(ChunkType::SPAR, sparse_map.to_bytes()));
+        }
         if let Some(raw_file_size) = raw_file_size {
             vec.push(RawChunk::from_data(
                 ChunkType::fSIZ,
@@ -1562,5 +1568,66 @@ mod tests {
         let cow_entry: NormalEntry<Cow<[u8]>> = entry.into();
         assert!(cow_entry.sparse_map().is_some());
         assert_eq!(cow_entry.sparse_map().unwrap().logical_size(), 500);
+    }
+
+    mod sparse_entry_serialization {
+        use super::*;
+        use crate::entry::private::SealedEntryExt;
+        #[cfg(all(target_family = "wasm", target_os = "unknown"))]
+        use wasm_bindgen_test::wasm_bindgen_test as test;
+
+        fn create_sparse_entry() -> NormalEntry<Vec<u8>> {
+            // Parse from raw chunks with SPAR
+            let spar_data = SparseMap::new(
+                1000,
+                vec![DataRegion::new(0, 100), DataRegion::new(500, 200)],
+            )
+            .to_bytes();
+            let fhed = RawChunk::from_data(ChunkType::FHED, vec![0, 0, 0, 0, 0, 0]);
+            let spar = RawChunk::from_data(ChunkType::SPAR, spar_data);
+            let fdat = RawChunk::from_data(ChunkType::FDAT, vec![0u8; 300]);
+            let fend = RawChunk::from_data(ChunkType::FEND, vec![]);
+
+            NormalEntry::try_from(RawEntry(vec![fhed, spar, fdat, fend])).unwrap()
+        }
+
+        #[test]
+        fn into_chunks_includes_spar() {
+            let entry = create_sparse_entry();
+            let chunks = entry.into_chunks();
+
+            let spar_chunk = chunks.iter().find(|c| c.ty == ChunkType::SPAR);
+            assert!(spar_chunk.is_some(), "SPAR chunk should be present");
+        }
+
+        #[test]
+        fn round_trip_sparse_entry() {
+            let entry = create_sparse_entry();
+            let original_sparse_map = entry.sparse_map.clone();
+
+            let chunks = entry.into_chunks();
+            let raw_entry = RawEntry(chunks);
+            let parsed = NormalEntry::try_from(raw_entry).unwrap();
+
+            assert_eq!(parsed.sparse_map, original_sparse_map);
+            assert_eq!(parsed.sparse_map().unwrap().logical_size(), 1000);
+            assert_eq!(parsed.sparse_map().unwrap().regions().len(), 2);
+        }
+
+        #[test]
+        fn no_spar_for_non_sparse_entry() {
+            let fhed = RawChunk::from_data(ChunkType::FHED, vec![0, 0, 0, 0, 0, 0]);
+            let fdat = RawChunk::from_data(ChunkType::FDAT, vec![1, 2, 3, 4]);
+            let fend = RawChunk::from_data(ChunkType::FEND, vec![]);
+
+            let entry = NormalEntry::try_from(RawEntry(vec![fhed, fdat, fend])).unwrap();
+            let chunks = entry.into_chunks();
+
+            let spar_chunk = chunks.iter().find(|c| c.ty == ChunkType::SPAR);
+            assert!(
+                spar_chunk.is_none(),
+                "Non-sparse entry should not have SPAR"
+            );
+        }
     }
 }

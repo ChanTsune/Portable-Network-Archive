@@ -6,8 +6,8 @@ use crate::{
     compress::CompressionWriter,
     entry::{
         DataKind, Entry, EntryHeader, EntryName, EntryReference, ExtendedAttribute, Metadata,
-        NormalEntry, Permission, SolidEntry, SolidHeader, WriteCipher, WriteOption, WriteOptions,
-        get_writer, get_writer_context, private::SealedEntryExt,
+        NormalEntry, Permission, SolidEntry, SolidHeader, SparseMap, WriteCipher, WriteOption,
+        WriteOptions, get_writer, get_writer_context, private::SealedEntryExt,
     },
     io::{FlattenWriter, TryIntoInner},
 };
@@ -147,6 +147,7 @@ pub struct EntryBuilder {
     file_size: u128,
     xattrs: Vec<ExtendedAttribute>,
     extra_chunks: Vec<RawChunk>,
+    sparse_map: Option<SparseMap>,
 }
 
 impl EntryBuilder {
@@ -164,6 +165,7 @@ impl EntryBuilder {
             file_size: 0,
             xattrs: Vec::new(),
             extra_chunks: Vec::new(),
+            sparse_map: None,
         }
     }
 
@@ -423,6 +425,26 @@ impl EntryBuilder {
         self
     }
 
+    /// Sets the sparse map for this entry.
+    ///
+    /// When a sparse map is set, the entry will include a SPAR chunk.
+    /// The caller is responsible for writing only the data regions, not the full file content.
+    ///
+    /// # Important
+    ///
+    /// The total bytes written via [`Write`] must equal [`SparseMap::data_size()`],
+    /// not [`SparseMap::logical_size()`]. The sparse map describes where each written
+    /// byte belongs in the logical file space.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the [`EntryBuilder`] with the sparse map set.
+    #[inline]
+    pub fn set_sparse_map(&mut self, sparse_map: SparseMap) -> &mut Self {
+        self.sparse_map = Some(sparse_map);
+        self
+    }
+
     /// Sets the maximum chunk size for data written to this entry.
     ///
     /// This controls how the entry data is split into chunks when writing.
@@ -479,6 +501,20 @@ impl EntryBuilder {
         if let Some(iv) = self.iv {
             data.insert(0, iv);
         }
+        // Validate sparse_map data size matches written data
+        if let Some(ref sparse_map) = self.sparse_map {
+            let expected = sparse_map.data_size() as u128;
+            if self.file_size != expected {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!(
+                        "Sparse map data_size ({}) does not match written bytes ({})",
+                        expected, self.file_size
+                    ),
+                ));
+            }
+        }
+
         let metadata = Metadata {
             raw_file_size: match (self.store_file_size, self.header.data_kind) {
                 (true, DataKind::File) => Some(self.file_size),
@@ -497,7 +533,7 @@ impl EntryBuilder {
             data,
             metadata,
             xattrs: self.xattrs,
-            sparse_map: None,
+            sparse_map: self.sparse_map,
         })
     }
 }
@@ -847,5 +883,70 @@ mod tests {
         reader.read_to_end(&mut buf).unwrap();
 
         assert_eq!("テストデータ".as_bytes(), &buf[..]);
+    }
+
+    #[test]
+    fn entry_builder_with_sparse_map() -> io::Result<()> {
+        use crate::entry::sparse::DataRegion;
+
+        let sparse_map = SparseMap::new(
+            1000,
+            vec![DataRegion::new(0, 100), DataRegion::new(500, 200)],
+        );
+
+        let mut builder = EntryBuilder::new_file("sparse.bin".into(), WriteOptions::store())?;
+        builder.set_sparse_map(sparse_map);
+        builder.write_all(&[0u8; 300])?; // Write data regions
+        let entry = builder.build()?;
+
+        let map = entry.sparse_map().expect("sparse_map should be present");
+        assert_eq!(map.logical_size(), 1000);
+        assert_eq!(map.data_size(), 300);
+        assert_eq!(map.regions().len(), 2);
+        Ok(())
+    }
+
+    #[test]
+    fn entry_builder_without_sparse_map() -> io::Result<()> {
+        let mut builder = EntryBuilder::new_file("normal.bin".into(), WriteOptions::store())?;
+        builder.write_all(&[1, 2, 3, 4])?;
+        let entry = builder.build()?;
+
+        assert!(entry.sparse_map().is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn entry_builder_all_hole_sparse() -> io::Result<()> {
+        // File is 1GB logically but contains no data
+        let sparse_map = SparseMap::new(1024 * 1024 * 1024, vec![]);
+
+        let mut builder = EntryBuilder::new_file("hole.bin".into(), WriteOptions::store())?;
+        builder.set_sparse_map(sparse_map);
+        // Don't write any data
+        let entry = builder.build()?;
+
+        let map = entry.sparse_map().expect("sparse_map should be present");
+        assert!(map.is_all_hole());
+        assert_eq!(map.logical_size(), 1024 * 1024 * 1024);
+        assert_eq!(map.data_size(), 0);
+        Ok(())
+    }
+
+    #[test]
+    fn entry_builder_sparse_map_size_mismatch() -> io::Result<()> {
+        use crate::entry::sparse::DataRegion;
+
+        let sparse_map = SparseMap::new(1000, vec![DataRegion::new(0, 100)]);
+
+        let mut builder = EntryBuilder::new_file("sparse.bin".into(), WriteOptions::store())?;
+        builder.set_sparse_map(sparse_map);
+        builder.write_all(&[0u8; 50])?; // Write less than expected
+        let result = builder.build();
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("does not match"));
+        Ok(())
     }
 }

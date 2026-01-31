@@ -117,6 +117,7 @@
 //! - [`WriteOptions`] - Configuration for compression and encryption when writing
 //! - [`ReadOptions`] - Configuration (password) for reading encrypted entries
 //! - [`NormalEntry`] / [`SolidEntry`] / [`ReadEntry`] - Entry types for reading
+//! - [`SparseMap`] / [`DataRegion`] - Sparse file representation
 //! - [`Chunk`] / [`ChunkType`] - Low-level chunk primitives
 //!
 //! # Feature Flags
