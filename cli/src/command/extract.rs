@@ -1333,19 +1333,47 @@ fn restore_sparse_file(
 ) -> io::Result<()> {
     use io::Seek;
 
+    let expected_data_size = sparse_map.data_size().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Sparse map data size overflow (corrupted archive)",
+        )
+    })?;
+
     // Write each data region at its correct offset using chunked I/O
     const CHUNK_SIZE: usize = 64 * 1024;
     let mut buf = vec![0u8; CHUNK_SIZE];
+    let mut total_read = 0u64;
     for region in sparse_map.regions() {
         file.seek(io::SeekFrom::Start(region.offset()))?;
         let mut remaining = region.size();
         while remaining > 0 {
             let to_read = (remaining as usize).min(CHUNK_SIZE);
-            reader.read_exact(&mut buf[..to_read])?;
+            reader.read_exact(&mut buf[..to_read]).map_err(|e| {
+                io::Error::new(
+                    e.kind(),
+                    format!(
+                        "Failed to read sparse data at offset {}: {} \
+                         (expected {} bytes total, read {} so far)",
+                        region.offset(),
+                        e,
+                        expected_data_size,
+                        total_read
+                    ),
+                )
+            })?;
             file.write_all(&buf[..to_read])?;
             remaining -= to_read as u64;
+            total_read += to_read as u64;
         }
     }
+
+    // Verify total bytes read matches expected
+    debug_assert_eq!(
+        total_read, expected_data_size,
+        "Sparse data size mismatch: read {}, expected {}",
+        total_read, expected_data_size
+    );
 
     // Set the file length to the logical size (handles trailing holes)
     file.set_len(sparse_map.logical_size())?;

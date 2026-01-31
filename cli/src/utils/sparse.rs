@@ -75,6 +75,17 @@ fn detect_with_seek_hole_data(
             return Err(io::Error::last_os_error());
         }
 
+        // Defensive check: hole_start should always be >= data_start
+        if hole_start < data_start {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Invalid SEEK_HOLE result: hole_start ({}) < data_start ({})",
+                    hole_start, data_start
+                ),
+            ));
+        }
+
         let data_size = (hole_start - data_start) as u64;
         if data_size > 0 {
             regions.push(DataRegion::new(data_start as u64, data_size));

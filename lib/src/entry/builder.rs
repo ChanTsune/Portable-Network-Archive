@@ -503,7 +503,9 @@ impl EntryBuilder {
         }
         // Validate sparse_map data size matches written data
         if let Some(ref sparse_map) = self.sparse_map {
-            let expected = sparse_map.data_size() as u128;
+            let expected = sparse_map.data_size().ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidData, "Sparse map data size overflow")
+            })? as u128;
             if self.file_size != expected {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
@@ -905,7 +907,7 @@ mod tests {
 
         let map = entry.sparse_map().expect("sparse_map should be present");
         assert_eq!(map.logical_size(), 1000);
-        assert_eq!(map.data_size(), 300);
+        assert_eq!(map.data_size(), Some(300));
         assert_eq!(map.regions().len(), 2);
         Ok(())
     }
@@ -933,7 +935,7 @@ mod tests {
         let map = entry.sparse_map().expect("sparse_map should be present");
         assert!(map.is_all_hole());
         assert_eq!(map.logical_size(), 1024 * 1024 * 1024);
-        assert_eq!(map.data_size(), 0);
+        assert_eq!(map.data_size(), Some(0));
         Ok(())
     }
 
