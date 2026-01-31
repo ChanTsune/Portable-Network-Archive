@@ -107,7 +107,9 @@ fn diff_ignores_directory_mtime_by_default() {
     .assert()
     .success();
 
-    let new_mtime = SystemTime::UNIX_EPOCH + Duration::from_secs(86400); // 1970-01-02
+    // NOTE: Solaris rejects very old timestamps (e.g., 1970) on directories with EINVAL,
+    // so we use 30 days ago to ensure it differs from archive creation time.
+    let new_mtime = SystemTime::now() - Duration::from_secs(86400 * 30);
     filetime::set_file_mtime(&subdir, filetime::FileTime::from_system_time(new_mtime)).unwrap();
 
     cargo_bin_cmd!("pna")
@@ -147,7 +149,9 @@ fn diff_detects_directory_mtime_with_full_compare() {
     .assert()
     .success();
 
-    let new_mtime = SystemTime::UNIX_EPOCH + Duration::from_secs(86400); // 1970-01-02
+    // NOTE: Solaris rejects very old timestamps (e.g., 1970) on directories with EINVAL,
+    // so we use 30 days ago to ensure it differs from archive creation time.
+    let new_mtime = SystemTime::now() - Duration::from_secs(86400 * 30);
     filetime::set_file_mtime(&subdir, filetime::FileTime::from_system_time(new_mtime)).unwrap();
 
     cargo_bin_cmd!("pna")
