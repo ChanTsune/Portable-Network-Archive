@@ -28,6 +28,8 @@ mod option_strip_components;
 mod password_from_file;
 mod password_hash;
 mod sanitize_parent_components;
+#[cfg(unix)]
+mod sparse;
 mod substitution;
 mod symlink;
 mod transform;

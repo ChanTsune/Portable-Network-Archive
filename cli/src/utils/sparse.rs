@@ -43,7 +43,10 @@ pub(crate) fn detect_sparse_map(file: &File) -> io::Result<Option<SparseMap>> {
     }
 
     // File appears sparse by st_blocks, but we can't determine hole positions
-    // Return None to treat as normal file
+    log::warn!(
+        "File appears sparse (st_blocks indicates holes) but SEEK_HOLE/SEEK_DATA \
+         is not supported on this filesystem; archiving as non-sparse"
+    );
     Ok(None)
 }
 
