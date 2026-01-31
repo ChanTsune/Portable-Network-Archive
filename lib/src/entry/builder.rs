@@ -497,6 +497,7 @@ impl EntryBuilder {
             data,
             metadata,
             xattrs: self.xattrs,
+            sparse_map: None,
         })
     }
 }

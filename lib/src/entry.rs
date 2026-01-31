@@ -6,6 +6,7 @@ mod name;
 mod options;
 mod read;
 mod reference;
+mod sparse;
 mod write;
 
 pub use self::{
@@ -16,6 +17,7 @@ pub use self::{
     name::*,
     options::*,
     reference::*,
+    sparse::{DataRegion, SparseMap},
 };
 pub(crate) use self::{private::*, read::*, write::*};
 use crate::{
@@ -593,6 +595,7 @@ pub struct NormalEntry<T = Vec<u8>> {
     pub(crate) data: Vec<T>,
     pub(crate) metadata: Metadata,
     pub(crate) xattrs: Vec<ExtendedAttribute>,
+    pub(crate) sparse_map: Option<SparseMap>,
 }
 
 impl<T> TryFrom<RawEntry<T>> for NormalEntry<T>
@@ -644,6 +647,7 @@ where
         let mut mtime_ns = None;
         let mut atime_ns = None;
         let mut permission = None;
+        let mut sparse_map = None;
         for chunk in chunks {
             match chunk.ty {
                 ChunkType::FEND => break,
@@ -656,6 +660,15 @@ where
                 ChunkType::FDAT => {
                     compressed_size += chunk.data().len();
                     data.push(chunk.data);
+                }
+                ChunkType::SPAR => {
+                    if sparse_map.is_some() {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "Duplicate SPAR chunk in entry",
+                        ));
+                    }
+                    sparse_map = Some(SparseMap::from_bytes(chunk.data())?);
                 }
                 ChunkType::fSIZ => size = Some(u128_from_be_bytes_last(chunk.data())),
                 ChunkType::cTIM => ctime = Some(timestamp(chunk.data())?),
@@ -695,6 +708,7 @@ where
             },
             data,
             xattrs,
+            sparse_map,
         })
     }
 }
@@ -906,6 +920,17 @@ impl<T> NormalEntry<T> {
         &self.xattrs
     }
 
+    /// Returns the sparse map if this entry represents a sparse file.
+    ///
+    /// When a sparse map is present:
+    /// - The entry's FDAT data contains only the data regions (holes are omitted)
+    /// - Use [`SparseMap::logical_size()`] for the original file size
+    /// - Use [`SparseMap::regions()`] to determine where each data region belongs
+    #[inline]
+    pub fn sparse_map(&self) -> Option<&SparseMap> {
+        self.sparse_map.as_ref()
+    }
+
     /// Extra chunks.
     #[inline]
     pub fn extra_chunks(&self) -> &[RawChunk<T>] {
@@ -1056,6 +1081,7 @@ impl<'a> From<NormalEntry<Cow<'a, [u8]>>> for NormalEntry<Vec<u8>> {
             data: value.data.into_iter().map(Into::into).collect(),
             metadata: value.metadata,
             xattrs: value.xattrs,
+            sparse_map: value.sparse_map,
         }
     }
 }
@@ -1070,6 +1096,7 @@ impl<'a> From<NormalEntry<&'a [u8]>> for NormalEntry<Vec<u8>> {
             data: value.data.into_iter().map(Into::into).collect(),
             metadata: value.metadata,
             xattrs: value.xattrs,
+            sparse_map: value.sparse_map,
         }
     }
 }
@@ -1084,6 +1111,7 @@ impl From<NormalEntry<Vec<u8>>> for NormalEntry<Cow<'_, [u8]>> {
             data: value.data.into_iter().map(Into::into).collect(),
             metadata: value.metadata,
             xattrs: value.xattrs,
+            sparse_map: value.sparse_map,
         }
     }
 }
@@ -1098,6 +1126,7 @@ impl<'a> From<NormalEntry<&'a [u8]>> for NormalEntry<Cow<'a, [u8]>> {
             data: value.data.into_iter().map(Into::into).collect(),
             metadata: value.metadata,
             xattrs: value.xattrs,
+            sparse_map: value.sparse_map,
         }
     }
 }
@@ -1473,5 +1502,65 @@ mod tests {
         assert!(result.is_ok());
         let entry = result.unwrap();
         assert_eq!(entry.extra.len(), 0);
+    }
+
+    #[test]
+    fn parse_entry_with_spar() {
+        let spar_data = SparseMap::new(1000, vec![DataRegion::new(0, 100)]).to_bytes();
+        let fhed = RawChunk::from_data(ChunkType::FHED, vec![0, 0, 0, 0, 0, 0]);
+        let spar = RawChunk::from_data(ChunkType::SPAR, spar_data);
+        let fend = RawChunk::from_data(ChunkType::FEND, vec![]);
+
+        let raw_entry = RawEntry(vec![fhed, spar, fend]);
+        let entry = NormalEntry::try_from(raw_entry).unwrap();
+
+        let map = entry.sparse_map().expect("sparse_map should be present");
+        assert_eq!(map.logical_size(), 1000);
+        assert_eq!(map.regions().len(), 1);
+        assert_eq!(map.regions()[0].offset(), 0);
+        assert_eq!(map.regions()[0].size(), 100);
+    }
+
+    #[test]
+    fn parse_entry_without_spar() {
+        let fhed = RawChunk::from_data(ChunkType::FHED, vec![0, 0, 0, 0, 0, 0]);
+        let fdat = RawChunk::from_data(ChunkType::FDAT, vec![1, 2, 3, 4]);
+        let fend = RawChunk::from_data(ChunkType::FEND, vec![]);
+
+        let raw_entry = RawEntry(vec![fhed, fdat, fend]);
+        let entry = NormalEntry::try_from(raw_entry).unwrap();
+
+        assert!(entry.sparse_map().is_none());
+    }
+
+    #[test]
+    fn reject_duplicate_spar_chunk() {
+        let spar_data = SparseMap::new(1000, vec![]).to_bytes();
+        let fhed = RawChunk::from_data(ChunkType::FHED, vec![0, 0, 0, 0, 0, 0]);
+        let spar1 = RawChunk::from_data(ChunkType::SPAR, spar_data.clone());
+        let spar2 = RawChunk::from_data(ChunkType::SPAR, spar_data);
+        let fend = RawChunk::from_data(ChunkType::FEND, vec![]);
+
+        let raw_entry = RawEntry(vec![fhed, spar1, spar2, fend]);
+        let result = NormalEntry::try_from(raw_entry);
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Duplicate SPAR"));
+    }
+
+    #[test]
+    fn sparse_map_preserved_in_type_conversion() {
+        let spar_data = SparseMap::new(500, vec![DataRegion::new(100, 200)]).to_bytes();
+        let fhed = RawChunk::from_data(ChunkType::FHED, vec![0, 0, 0, 0, 0, 0]);
+        let spar = RawChunk::from_data(ChunkType::SPAR, spar_data);
+        let fend = RawChunk::from_data(ChunkType::FEND, vec![]);
+
+        let raw_entry = RawEntry(vec![fhed, spar, fend]);
+        let entry: NormalEntry<Vec<u8>> = NormalEntry::try_from(raw_entry).unwrap();
+
+        // Convert to Cow variant
+        let cow_entry: NormalEntry<Cow<[u8]>> = entry.into();
+        assert!(cow_entry.sparse_map().is_some());
+        assert_eq!(cow_entry.sparse_map().unwrap().logical_size(), 500);
     }
 }
