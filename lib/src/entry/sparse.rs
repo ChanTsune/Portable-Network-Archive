@@ -40,9 +40,12 @@ impl DataRegion {
     }
 
     /// Returns the exclusive end offset: `offset + size`.
+    ///
+    /// Uses saturating arithmetic to prevent overflow. If `offset + size`
+    /// would exceed `u64::MAX`, returns `u64::MAX` instead.
     #[inline]
     pub const fn end(&self) -> u64 {
-        self.offset + self.size
+        self.offset.saturating_add(self.size)
     }
 }
 
@@ -83,13 +86,12 @@ impl SparseMap {
     ///
     /// # Panics
     ///
-    /// In debug builds, panics if regions violate invariants:
+    /// Panics if regions violate invariants:
     /// - Not sorted by offset
     /// - Overlapping regions
     /// - Region extends beyond logical_size
     #[inline]
     pub fn new(logical_size: u64, regions: Vec<DataRegion>) -> Self {
-        #[cfg(debug_assertions)]
         Self::validate_regions(logical_size, &regions);
         Self {
             logical_size,
@@ -97,16 +99,15 @@ impl SparseMap {
         }
     }
 
-    #[cfg(debug_assertions)]
     fn validate_regions(logical_size: u64, regions: &[DataRegion]) {
         for i in 1..regions.len() {
-            debug_assert!(
+            assert!(
                 regions[i - 1].offset < regions[i].offset,
                 "regions must be sorted by offset in ascending order: {} >= {}",
                 regions[i - 1].offset,
                 regions[i].offset
             );
-            debug_assert!(
+            assert!(
                 regions[i - 1].end() <= regions[i].offset,
                 "regions must not overlap: region {} ends at {}, region {} starts at {}",
                 i - 1,
@@ -116,7 +117,7 @@ impl SparseMap {
             );
         }
         if let Some(last) = regions.last() {
-            debug_assert!(
+            assert!(
                 last.end() <= logical_size,
                 "region must be within logical size: region ends at {}, logical size is {}",
                 last.end(),
