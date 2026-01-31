@@ -516,6 +516,10 @@ impl EntryBuilder {
         }
 
         let metadata = Metadata {
+            // NOTE: For sparse files, raw_file_size is the data size (bytes in FDAT),
+            // not the logical file size. Use sparse_map.logical_size() for the original
+            // file size. This keeps raw_file_size consistent: it always represents
+            // the uncompressed size of data stored in the archive.
             raw_file_size: match (self.store_file_size, self.header.data_kind) {
                 (true, DataKind::File) => Some(self.file_size),
                 _ => None,
