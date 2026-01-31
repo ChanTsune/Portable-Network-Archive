@@ -56,6 +56,7 @@ impl Error for ChunkTypeError {}
 ///   [`FEND`](Self::FEND) (end)
 /// - **Solid mode**: [`SHED`](Self::SHED) (header), [`SDAT`](Self::SDAT) (data),
 ///   [`SEND`](Self::SEND) (end)
+/// - **Sparse files**: [`SPAR`](Self::SPAR) (sparse file map)
 /// - **Encryption**: [`PHSF`](Self::PHSF) (password hash string format)
 ///
 /// # Ancillary Chunks
@@ -103,6 +104,11 @@ impl ChunkType {
     pub const SDAT: ChunkType = ChunkType(*b"SDAT");
     /// Solid mode data stream end marker
     pub const SEND: ChunkType = ChunkType(*b"SEND");
+    /// Sparse file map
+    ///
+    /// Contains the logical file size and a list of data regions for sparse files.
+    /// When present, FDAT contains only the data regions, not the full file content.
+    pub const SPAR: ChunkType = ChunkType(*b"SPAR");
 
     // -- Auxiliary chunks --
     /// Raw file size
@@ -323,5 +329,15 @@ mod tests {
     #[test]
     fn is_safe_to_copy() {
         assert!(!ChunkType::AHED.is_safe_to_copy());
+    }
+
+    #[test]
+    fn spar_chunk_properties() {
+        // SPAR: Critical (S=uppercase), Public (P=uppercase),
+        //       Reserved (A=uppercase), Unsafe-to-copy (R=uppercase)
+        assert!(ChunkType::SPAR.is_critical());
+        assert!(!ChunkType::SPAR.is_private());
+        assert!(!ChunkType::SPAR.is_set_reserved());
+        assert!(!ChunkType::SPAR.is_safe_to_copy());
     }
 }
