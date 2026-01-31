@@ -141,9 +141,12 @@ impl SparseMap {
     /// Returns the total size of all data regions (actual data, excludes holes).
     ///
     /// This is the amount of data stored in the archive's FDAT chunks.
+    /// Returns `None` if the total would overflow u64 (malformed archive).
     #[inline]
-    pub fn data_size(&self) -> u64 {
-        self.regions.iter().map(|r| r.size).sum()
+    pub fn data_size(&self) -> Option<u64> {
+        self.regions
+            .iter()
+            .try_fold(0u64, |acc, r| acc.checked_add(r.size))
     }
 
     /// Returns `true` if there are no data regions (entire file is a hole).
@@ -302,7 +305,7 @@ mod tests {
     fn sparse_map_empty_regions() {
         let map = SparseMap::new(1000, vec![]);
         assert!(map.is_all_hole());
-        assert_eq!(map.data_size(), 0);
+        assert_eq!(map.data_size(), Some(0));
         assert_eq!(map.logical_size(), 1000);
 
         let bytes = map.to_bytes();
@@ -317,7 +320,7 @@ mod tests {
     fn sparse_map_single_region_at_start() {
         let map = SparseMap::new(1000, vec![DataRegion::new(0, 100)]);
         assert!(!map.is_all_hole());
-        assert_eq!(map.data_size(), 100);
+        assert_eq!(map.data_size(), Some(100));
 
         let bytes = map.to_bytes();
         assert_eq!(bytes.len(), 8 + 16); // logical_size + 1 region
@@ -334,7 +337,7 @@ mod tests {
             1000,
             vec![DataRegion::new(0, 100), DataRegion::new(500, 200)],
         );
-        assert_eq!(map.data_size(), 300);
+        assert_eq!(map.data_size(), Some(300));
     }
 
     #[test]
@@ -344,7 +347,7 @@ mod tests {
             200,
             vec![DataRegion::new(0, 100), DataRegion::new(100, 100)],
         );
-        assert_eq!(map.data_size(), 200);
+        assert_eq!(map.data_size(), Some(200));
 
         let bytes = map.to_bytes();
         let parsed = SparseMap::from_bytes(&bytes).unwrap();
@@ -423,5 +426,19 @@ mod tests {
         let bytes = map.to_bytes();
         let parsed = SparseMap::from_bytes(&bytes).unwrap();
         assert_eq!(parsed.logical_size(), 0);
+    }
+
+    #[test]
+    fn sparse_map_data_size_overflow() {
+        // Manually construct a SparseMap with regions that would overflow u64.
+        // We bypass validation by directly constructing the struct.
+        let map = SparseMap {
+            logical_size: u64::MAX,
+            regions: vec![
+                DataRegion::new(0, u64::MAX),
+                DataRegion::new(u64::MAX, 1), // This would overflow the sum
+            ],
+        };
+        assert_eq!(map.data_size(), None);
     }
 }
