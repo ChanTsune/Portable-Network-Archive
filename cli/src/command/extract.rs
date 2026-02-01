@@ -13,7 +13,7 @@ use crate::{
             PermissionStrategyResolver, SafeWriter, TimeFilterResolver, TimeFilters,
             TimestampStrategy, TimestampStrategyResolver, Umask, XattrStrategy, apply_chroot,
             collect_split_archives,
-            path_lock::PathLocks,
+            path_lock::{CompletionSender, PendingPaths},
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, run_process_archive,
         },
@@ -36,7 +36,6 @@ use std::{
     env, fs,
     io::{self, prelude::*},
     path::{Component, Path, PathBuf},
-    sync::Arc,
     time::Instant,
 };
 
@@ -494,7 +493,6 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
             PathTransformers::new(args.substitutions, args.transforms),
             false,
         ),
-        path_locks: Arc::new(PathLocks::default()),
         unlink_first: false,
         time_filters,
         safe_writes: args.safe_writes && !args.no_safe_writes,
@@ -581,7 +579,6 @@ pub(crate) struct OutputOption<'a> {
     pub(crate) filter: PathFilter<'a>,
     pub(crate) keep_options: KeepOptions,
     pub(crate) pathname_editor: PathnameEditor,
-    pub(crate) path_locks: Arc<PathLocks>,
     pub(crate) unlink_first: bool,
     pub(crate) time_filters: TimeFilters,
     pub(crate) safe_writes: bool,
@@ -604,6 +601,7 @@ where
         BsdGlobMatcher::new(patterns.iter().map(|it| it.as_str())).with_no_recursive(no_recursive);
 
     let mut link_entries = Vec::new();
+    let mut pending_paths = PendingPaths::default();
 
     let (tx, rx) = std::sync::mpsc::channel();
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
@@ -626,16 +624,20 @@ where
                 link_entries.push((name, item));
                 return Ok(());
             }
-            let item_path = item.name().to_string();
-            let tx = tx.clone();
-            let args = args.clone();
-            s.spawn_fifo(move |_| {
-                tx.send(
-                    extract_entry(item, &name, password, &args)
-                        .with_context(|| format!("extracting {}", item_path)),
-                )
-                .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
-            });
+            let path = build_output_path(args.out_dir.as_deref(), name.as_path());
+            let completion_tx = pending_paths.begin_write(path.as_ref())?;
+
+            let result = process_entry(item, &name, password, &args, completion_tx)?;
+            if let ProcessResult::WriteTask(task) = result {
+                let tx = tx.clone();
+                s.spawn_fifo(move |_| {
+                    tx.send(
+                        task.execute()
+                            .with_context(|| format!("extracting {}", name)),
+                    )
+                    .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
+                });
+            }
             Ok(())
         })
         .with_context(|| "streaming archive entries")?;
@@ -646,10 +648,13 @@ where
         result?;
     }
     for (name, item) in link_entries {
-        extract_entry(item, &name, password, &args)
+        let path = build_output_path(args.out_dir.as_deref(), name.as_path());
+        let completion_tx = pending_paths.begin_write(path.as_ref())?;
+        process_entry(item, &name, password, &args, completion_tx)
             .with_context(|| format!("extracting deferred link {name}"))?;
     }
 
+    pending_paths.wait_all()?;
     globs.ensure_all_matched()?;
     Ok(())
 }
@@ -672,6 +677,7 @@ where
             BsdGlobMatcher::new(files.iter().map(|it| it.as_str())).with_no_recursive(no_recursive);
 
         let mut link_entries = Vec::new();
+        let mut pending_paths = PendingPaths::default();
 
         let (tx, rx) = std::sync::mpsc::channel();
 
@@ -695,16 +701,20 @@ where
                 link_entries.push((name, item));
                 return Ok(());
             }
-            let item_path = item.name().to_string();
-            let tx = tx.clone();
-            let args = args.clone();
-            s.spawn_fifo(move |_| {
-                tx.send(
-                    extract_entry(item, &name, password, &args)
-                        .with_context(|| format!("extracting {}", item_path)),
-                )
-                .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
-            });
+            let path = build_output_path(args.out_dir.as_deref(), name.as_path());
+            let completion_tx = pending_paths.begin_write(path.as_ref())?;
+
+            let result = process_entry(item, &name, password, &args, completion_tx)?;
+            if let ProcessResult::WriteTask(task) = result {
+                let tx = tx.clone();
+                s.spawn_fifo(move |_| {
+                    tx.send(
+                        task.execute()
+                            .with_context(|| format!("extracting {}", name)),
+                    )
+                    .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
+                });
+            }
             Ok(())
         })
         .with_context(|| "streaming archive entries")?;
@@ -714,9 +724,12 @@ where
         }
 
         for (name, item) in link_entries {
-            extract_entry(item, &name, password, &args)
+            let path = build_output_path(args.out_dir.as_deref(), name.as_path());
+            let completion_tx = pending_paths.begin_write(path.as_ref())?;
+            process_entry(item, &name, password, &args, completion_tx)
                 .with_context(|| format!("extracting deferred link {name}"))?;
         }
+        pending_paths.wait_all()?;
         globs.ensure_all_matched()?;
         Ok(())
     })
@@ -857,7 +870,7 @@ where
     Ok(ExtractionDecision::Proceed { remove_existing })
 }
 
-pub(crate) fn extract_entry<'a, T>(
+fn process_entry<'a, T>(
     item: NormalEntry<T>,
     item_path: &EntryName,
     password: Option<&'a [u8]>,
@@ -869,13 +882,13 @@ pub(crate) fn extract_entry<'a, T>(
         filter: _,
         keep_options,
         pathname_editor,
-        path_locks,
         unlink_first,
         time_filters: _,
         safe_writes,
         verbose: _,
-    }: &OutputOption<'a>,
-) -> io::Result<()>
+    }: &'a OutputOption<'a>,
+    completion_tx: CompletionSender,
+) -> io::Result<ProcessResult<'a, T>>
 where
     T: AsRef<[u8]>,
     pna::RawChunk<T>: Chunk,
@@ -883,18 +896,15 @@ where
     log::debug!("Extract: {}", item.name());
     let path = build_output_path(out_dir.as_deref(), item_path.as_path());
 
-    let entry_kind = item.header().data_kind();
-
-    let path_lock = path_locks.get(path.as_ref());
-    let path_guard = path_lock.lock().expect("path lock mutex poisoned");
-
     log::debug!("start: {}", path.display());
 
+    let entry_kind = item.header().data_kind();
     // Check overwrite strategy and prepare target
     let ExtractionDecision::Proceed { remove_existing } =
         check_and_prepare_target(&path, entry_kind, &item, *overwrite_strategy, *unlink_first)?
     else {
-        return Ok(());
+        let _ = completion_tx.send(Ok(()));
+        return Ok(ProcessResult::Skipped);
     };
 
     match entry_kind {
@@ -916,11 +926,14 @@ where
                     utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
                 }
                 let file = utils::fs::file_create(&path, remove_existing)?;
-                let mut writer = io::BufWriter::with_capacity(64 * 1024, file);
-                let mut reader = item.reader(ReadOptions::with_password(password))?;
-                io::copy(&mut reader, &mut writer)?;
-                let mut file = writer.into_inner().map_err(|e| e.into_error())?;
-                restore_timestamps(&mut file, item.metadata(), keep_options)?;
+                return Ok(ProcessResult::WriteTask(WriteTask {
+                    path: path.to_path_buf(),
+                    password,
+                    keep_options,
+                    item,
+                    file,
+                    completion_tx,
+                }));
             }
         }
         DataKind::Directory => {
@@ -934,7 +947,8 @@ where
                 log::warn!(
                     "Skipped extracting a symbolic link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
                 );
-                return Ok(());
+                let _ = completion_tx.send(Ok(()));
+                return Ok(ProcessResult::Skipped);
             }
             // Symlinks/hardlinks cannot be atomically replaced; remove existing path first
             if *safe_writes || remove_existing {
@@ -950,13 +964,15 @@ where
                     "Skipped extracting a hard link that pointed at a file which was skipped.: {}",
                     original
                 );
-                return Ok(());
+                let _ = completion_tx.send(Ok(()));
+                return Ok(ProcessResult::Skipped);
             };
             if !allow_unsafe_links && is_unsafe_link(&original) {
                 log::warn!(
                     "Skipped extracting a hard link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
                 );
-                return Ok(());
+                let _ = completion_tx.send(Ok(()));
+                return Ok(ProcessResult::Skipped);
             }
             let original = if let Some(out_dir) = out_dir {
                 Cow::from(out_dir.join(original))
@@ -971,9 +987,62 @@ where
         }
     }
     restore_metadata(&item, &path, keep_options)?;
-    drop(path_guard);
+    let _ = completion_tx.send(Ok(()));
     log::debug!("end: {}", path.display());
-    Ok(())
+    Ok(ProcessResult::Complete)
+}
+
+#[allow(clippy::large_enum_variant)]
+enum ProcessResult<'a, T> {
+    Skipped,
+    Complete,
+    WriteTask(WriteTask<'a, T>),
+}
+
+struct WriteTask<'a, T> {
+    path: PathBuf,
+    password: Option<&'a [u8]>,
+    keep_options: &'a KeepOptions,
+    item: NormalEntry<T>,
+    file: fs::File,
+    completion_tx: CompletionSender,
+}
+
+impl<'a, T: AsRef<[u8]>> WriteTask<'a, T> {
+    fn execute(self) -> io::Result<()> {
+        let Self {
+            path,
+            password,
+            keep_options,
+            item,
+            file,
+            completion_tx,
+        } = self;
+        let result = Self::execute_inner(path, password, keep_options, item, file);
+        let _ = completion_tx.send(
+            result
+                .as_ref()
+                .map(|_| ())
+                .map_err(|e| io::Error::new(e.kind(), e.to_string())),
+        );
+        result
+    }
+
+    #[inline]
+    fn execute_inner(
+        path: PathBuf,
+        password: Option<&[u8]>,
+        keep_options: &KeepOptions,
+        item: NormalEntry<T>,
+        file: fs::File,
+    ) -> io::Result<()> {
+        let mut writer = io::BufWriter::with_capacity(64 * 1024, file);
+        let mut reader = item.reader(ReadOptions::with_password(password))?;
+        io::copy(&mut reader, &mut writer)?;
+        let mut file = writer.into_inner().map_err(|e| e.into_error())?;
+        restore_timestamps(&mut file, item.metadata(), keep_options)?;
+        restore_metadata(&item, &path, keep_options)
+    }
 }
 
 #[inline]

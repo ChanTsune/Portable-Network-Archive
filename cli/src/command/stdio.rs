@@ -14,7 +14,6 @@ use crate::{
             PathTransformers, PathnameEditor, TimeFilterResolver, TimestampStrategyResolver,
             TransformStrategyUnSolid, Umask, XattrStrategy, apply_chroot, collect_items_from_paths,
             collect_items_from_sources, collect_split_archives,
-            path_lock::PathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, validate_no_duplicate_stdin,
         },
@@ -29,7 +28,7 @@ use crate::{
 };
 use clap::{ArgGroup, Args, Parser, ValueHint};
 use pna::Archive;
-use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
+use std::{env, io, path::PathBuf, time::SystemTime};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(group(ArgGroup::new("stdio_compression_method").args(["store", "deflate", "zstd", "xz"])))]
@@ -1085,7 +1084,6 @@ fn run_extract_archive(ctx: &GlobalContext, args: StdioCommand) -> anyhow::Resul
             PathTransformers::new(args.substitutions, args.transforms),
             args.absolute_paths,
         ),
-        path_locks: Arc::new(PathLocks::default()),
         unlink_first: args.unlink_first,
         time_filters,
         safe_writes: args.safe_writes && !args.no_safe_writes,
