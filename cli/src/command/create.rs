@@ -396,7 +396,11 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     let archive = &args.file.archive();
     let max_file_size = args
         .split
-        .map(|opt| opt.unwrap_or(ByteSize::gb(1)).as_u64() as usize);
+        .map(|opt| {
+            usize::try_from(opt.unwrap_or(ByteSize::gb(1)).as_u64())
+                .context("--split size is too large for this platform")
+        })
+        .transpose()?;
     if let Some(size) = max_file_size {
         ensure!(
             size >= MIN_SPLIT_PART_BYTES,

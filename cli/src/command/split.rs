@@ -55,7 +55,8 @@ fn split_archive(args: SplitCommand) -> anyhow::Result<()> {
         }
         _ => unreachable!("required by ArgGroup"),
     };
-    let max_file_size = args.max_size.unwrap_or_else(|| ByteSize::gb(1)).as_u64() as usize;
+    let max_file_size = usize::try_from(args.max_size.unwrap_or_else(|| ByteSize::gb(1)).as_u64())
+        .context("--max-size is too large for this platform")?;
     ensure!(
         max_file_size >= MIN_SPLIT_PART_BYTES,
         "The value for --max-size must be at least {MIN_SPLIT_PART_BYTES} bytes ({}).",
