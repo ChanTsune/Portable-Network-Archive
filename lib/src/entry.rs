@@ -552,6 +552,7 @@ where
         let mut phsf = None;
         for chunk in chunks {
             match chunk.ty() {
+                ChunkType::SEND => break,
                 ChunkType::SDAT => data.push(chunk.data),
                 ChunkType::PHSF => {
                     phsf = Some(
@@ -1360,5 +1361,24 @@ mod tests {
         let renamed = entry.with_name("new".into());
         assert_eq!(renamed.header().path().as_str(), "new");
         assert_eq!(renamed.name().as_str(), "new");
+    }
+
+    #[test]
+    fn solid_entry_stops_parsing_at_send() {
+        let shed = RawChunk::from_data(ChunkType::SHED, vec![0, 0, 0, 0, 0]);
+        let send = RawChunk::from_data(ChunkType::SEND, vec![]);
+        // Unknown critical chunk after SEND should be ignored
+        let trailing_critical = RawChunk::from_data(
+            unsafe { ChunkType::from_unchecked(*b"XUNK") },
+            vec![4, 5, 6],
+        );
+
+        let raw_entry = RawEntry(vec![shed, send, trailing_critical]);
+        let result = SolidEntry::try_from(raw_entry);
+
+        // Should succeed: SEND terminates parsing, trailing chunks are ignored
+        assert!(result.is_ok());
+        let entry = result.unwrap();
+        assert_eq!(entry.extra.len(), 0);
     }
 }
