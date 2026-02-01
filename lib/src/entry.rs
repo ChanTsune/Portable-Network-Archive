@@ -560,7 +560,15 @@ where
                             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
                     )
                 }
-                _ => extra.push(chunk),
+                _ => {
+                    if chunk.ty().is_critical() {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            format!("Unknown critical chunk type: {}", chunk.ty()),
+                        ));
+                    }
+                    extra.push(chunk);
+                }
             }
         }
         Ok(Self {
@@ -658,7 +666,15 @@ where
                 ChunkType::aTNS => atime_ns = Some(nanos(chunk.data())?),
                 ChunkType::fPRM => permission = Some(Permission::try_from_bytes(chunk.data())?),
                 ChunkType::xATR => xattrs.push(ExtendedAttribute::try_from_bytes(chunk.data())?),
-                _ => extra.push(chunk),
+                _ => {
+                    if chunk.ty.is_critical() {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            format!("Unknown critical chunk type: {}", chunk.ty),
+                        ));
+                    }
+                    extra.push(chunk);
+                }
             }
         }
         let ctime = ctime.map(|t| t + Duration::nanoseconds(ctime_ns.unwrap_or(0) as _));
@@ -1361,6 +1377,83 @@ mod tests {
         let renamed = entry.with_name("new".into());
         assert_eq!(renamed.header().path().as_str(), "new");
         assert_eq!(renamed.name().as_str(), "new");
+    }
+
+    #[test]
+    fn reject_unknown_critical_chunk_in_normal_entry() {
+        // Unknown Critical chunk: uppercase first letter = Critical
+        let unknown_critical = RawChunk::from_data(
+            unsafe { ChunkType::from_unchecked(*b"XUNK") },
+            vec![1, 2, 3],
+        );
+        // Minimal valid FHED: version 0.0, kind=File(0), compression=No(0), encryption=No(0), cipher_mode=0
+        let fhed = RawChunk::from_data(ChunkType::FHED, vec![0, 0, 0, 0, 0, 0]);
+        let fend = RawChunk::from_data(ChunkType::FEND, vec![]);
+
+        let raw_entry = RawEntry(vec![fhed, unknown_critical, fend]);
+        let result = NormalEntry::try_from(raw_entry);
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        assert!(err.to_string().contains("critical"));
+    }
+
+    #[test]
+    fn reject_unknown_critical_chunk_in_solid_entry() {
+        let unknown_critical = RawChunk::from_data(
+            unsafe { ChunkType::from_unchecked(*b"XUNK") },
+            vec![1, 2, 3],
+        );
+        // Minimal valid SHED: version 0.0, compression=No(0), encryption=No(0), cipher_mode=0
+        let shed = RawChunk::from_data(ChunkType::SHED, vec![0, 0, 0, 0, 0]);
+        let send = RawChunk::from_data(ChunkType::SEND, vec![]);
+
+        let raw_entry = RawEntry(vec![shed, unknown_critical, send]);
+        let result = SolidEntry::try_from(raw_entry);
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        assert!(err.to_string().contains("critical"));
+    }
+
+    #[test]
+    fn accept_unknown_ancillary_chunk_in_normal_entry() {
+        // Unknown Ancillary chunk: lowercase first letter = Ancillary
+        let unknown_ancillary = RawChunk::from_data(
+            unsafe { ChunkType::from_unchecked(*b"xUNK") },
+            vec![1, 2, 3],
+        );
+        let fhed = RawChunk::from_data(ChunkType::FHED, vec![0, 0, 0, 0, 0, 0]);
+        let fend = RawChunk::from_data(ChunkType::FEND, vec![]);
+
+        let raw_entry = RawEntry(vec![fhed, unknown_ancillary, fend]);
+        let result = NormalEntry::try_from(raw_entry);
+
+        // Ancillary chunks should be accepted and stored in extra
+        assert!(result.is_ok());
+        let entry = result.unwrap();
+        assert_eq!(entry.extra.len(), 1);
+    }
+
+    #[test]
+    fn accept_unknown_ancillary_chunk_in_solid_entry() {
+        // Unknown Ancillary chunk: lowercase first letter = Ancillary
+        let unknown_ancillary = RawChunk::from_data(
+            unsafe { ChunkType::from_unchecked(*b"xUNK") },
+            vec![1, 2, 3],
+        );
+        let shed = RawChunk::from_data(ChunkType::SHED, vec![0, 0, 0, 0, 0]);
+        let send = RawChunk::from_data(ChunkType::SEND, vec![]);
+
+        let raw_entry = RawEntry(vec![shed, unknown_ancillary, send]);
+        let result = SolidEntry::try_from(raw_entry);
+
+        // Ancillary chunks should be accepted and stored in extra
+        assert!(result.is_ok());
+        let entry = result.unwrap();
+        assert_eq!(entry.extra.len(), 1);
     }
 
     #[test]
