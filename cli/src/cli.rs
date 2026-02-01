@@ -4,8 +4,9 @@ use crate::{
     command::{
         append::AppendCommand, bugreport::BugReportCommand, complete::CompleteCommand,
         concat::ConcatCommand, core::Umask, create::CreateCommand, delete::DeleteCommand,
-        experimental::ExperimentalCommand, extract::ExtractCommand, list::ListCommand,
-        sort::SortCommand, split::SplitCommand, strip::StripCommand, xattr::XattrCommand,
+        diff::DiffCommand, experimental::ExperimentalCommand, extract::ExtractCommand,
+        list::ListCommand, sort::SortCommand, split::SplitCommand, strip::StripCommand,
+        xattr::XattrCommand,
     },
     utils::{fs::current_umask, process::is_running_as_root},
 };
@@ -177,6 +178,8 @@ pub(crate) enum Commands {
     Sort(SortCommand),
     #[command(about = "Manipulate extended attributes")]
     Xattr(XattrCommand),
+    #[command(about = "Compare archive entries with filesystem")]
+    Diff(DiffCommand),
     #[command(about = "Generate shell auto complete")]
     Complete(CompleteCommand),
     #[command(about = "Generate bug report template")]
