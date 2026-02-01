@@ -403,10 +403,25 @@ impl EntryBuilder {
     ///
     /// # Returns
     ///
-    /// A mutable reference to the [EntryBuilder] with the creation timestamp set.
+    /// A mutable reference to the [EntryBuilder] with the extended attribute added.
     #[inline]
     pub fn add_xattr(&mut self, xattr: ExtendedAttribute) -> &mut Self {
         self.xattrs.push(xattr);
+        self
+    }
+
+    /// Adds [`Acl`] to the entry.
+    ///
+    /// # Arguments
+    ///
+    /// * `acl` - The access control list.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the [`EntryBuilder`] with the ACL added.
+    #[inline]
+    pub fn add_acl(&mut self, acl: Acl) -> &mut Self {
+        self.acls.push(acl);
         self
     }
 
