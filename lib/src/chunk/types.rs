@@ -147,6 +147,10 @@ impl ChunkType {
     #[allow(non_upper_case_globals)]
     pub const fLTP: ChunkType = ChunkType(*b"fLTP");
 
+    /// Access control list
+    #[allow(non_upper_case_globals)]
+    pub const fACL: ChunkType = ChunkType(*b"fACL");
+
     /// Returns the length of the chunk type code.
     ///
     /// # Examples
