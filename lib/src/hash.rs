@@ -48,6 +48,9 @@ pub(crate) fn derive_password_hash<'a>(
 ) -> io::Result<PasswordHash<'a>> {
     let password_hash =
         PasswordHash::new(phsf).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    let salt = password_hash.salt.ok_or_else(|| {
+        io::Error::new(io::ErrorKind::InvalidData, "missing salt in password hash")
+    })?;
     match password_hash.algorithm {
         argon2::ARGON2D_IDENT | argon2::ARGON2I_IDENT | argon2::ARGON2ID_IDENT => {
             let argon2 = Argon2::default();
@@ -58,7 +61,7 @@ pub(crate) fn derive_password_hash<'a>(
                     password_hash.version,
                     argon2::Params::try_from(&password_hash)
                         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
-                    password_hash.salt.unwrap(),
+                    salt,
                 )
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
         }
@@ -70,7 +73,7 @@ pub(crate) fn derive_password_hash<'a>(
                     password_hash.version,
                     pbkdf2::Params::try_from(&password_hash)
                         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?,
-                    password_hash.salt.unwrap(),
+                    salt,
                 )
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
         }
