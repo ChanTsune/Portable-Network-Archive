@@ -1347,6 +1347,7 @@ dependencies = [
  "aes",
  "argon2",
  "arrayvec",
+ "bitflags",
  "camellia",
  "camino",
  "cbc",
