@@ -856,6 +856,9 @@ where
                 restore_timestamps(safe_writer.as_file_mut(), item.metadata(), keep_options)?;
                 safe_writer.persist()?;
             } else {
+                if remove_existing {
+                    utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
+                }
                 let file = utils::fs::file_create(&path, remove_existing)?;
                 let mut writer = io::BufWriter::with_capacity(64 * 1024, file);
                 let mut reader = item.reader(ReadOptions::with_password(password))?;
