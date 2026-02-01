@@ -61,6 +61,19 @@ pub enum AceType {
     // Alarm = 3,
 }
 
+impl TryFrom<u8> for AceType {
+    type Error = UnknownValueError;
+
+    #[inline]
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::Allowed),
+            1 => Ok(Self::Denied),
+            v => Err(UnknownValueError(v)),
+        }
+    }
+}
+
 bitflags! {
     /// Ace Permission flags.
     #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -255,6 +268,7 @@ bitflags! {
 /// Access control entry.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Ace {
+    ace_type: AceType,
     reserved1: u16,
     reserved2: u16,
     reserved3: u16,
@@ -264,19 +278,47 @@ pub struct Ace {
 }
 
 impl Ace {
+    /// Creates a new access control entry.
+    ///
+    /// # Arguments
+    ///
+    /// * `ace_type` - Whether this entry allows or denies access.
+    /// * `identifier` - The principal (user or group) this entry applies to.
+    /// * `permission` - The permission bits for this entry.
+    /// * `flags` - Flags controlling inheritance and other behavior.
+    #[inline]
+    pub fn new(
+        ace_type: AceType,
+        identifier: String,
+        permission: AcePermission,
+        flags: AceFlag,
+    ) -> Self {
+        Self {
+            ace_type,
+            reserved1: 0,
+            reserved2: 0,
+            reserved3: 0,
+            permission,
+            flags,
+            identifier,
+        }
+    }
+
     /// Returns the encoded byte length of this ACE when serialized.
     #[inline]
     pub(crate) const fn encoded_len(&self) -> usize {
-        // reserved1(u16) + reserved2(u16) + reserved3(u16)
+        // ace_type(u8) + reserved1(u16) + reserved2(u16) + reserved3(u16)
         // + permission(u32) + flags(u32) + identifier_len(u16) + identifier bytes
+        const SIZE_ACE_TYPE: usize = mem::size_of::<u8>();
         const SIZE_RESERVED1: usize = mem::size_of::<u16>();
         const SIZE_RESERVED2: usize = mem::size_of::<u16>();
         const SIZE_RESERVED3: usize = mem::size_of::<u16>();
         const SIZE_PERMISSION: usize = mem::size_of::<u32>();
         const SIZE_FLAGS: usize = mem::size_of::<u32>();
         const SIZE_IDENTIFIER_LEN: usize = mem::size_of::<u16>();
-        let ident_len = self.identifier.as_bytes().len();
-        SIZE_RESERVED1
+        let ident_len = self.identifier.len();
+        SIZE_ACE_TYPE
+            + SIZE_RESERVED1
             + SIZE_RESERVED2
             + SIZE_RESERVED3
             + SIZE_PERMISSION
@@ -288,6 +330,7 @@ impl Ace {
     /// Writes this ACE into the given writer without intermediate allocations.
     #[inline]
     pub(crate) fn write_into<W: Write>(&self, mut w: W) -> io::Result<()> {
+        w.write_all(&[self.ace_type as u8])?;
         w.write_all(&self.reserved1.to_be_bytes())?;
         w.write_all(&self.reserved2.to_be_bytes())?;
         w.write_all(&self.reserved3.to_be_bytes())?;
@@ -302,6 +345,7 @@ impl Ace {
     /// Parses an ACE from the provided bytes and returns the ACE with the number of bytes consumed.
     pub(crate) fn try_from_bytes(bytes: &[u8]) -> io::Result<(Self, usize)> {
         // Define field sizes for clarity
+        const SIZE_ACE_TYPE: usize = mem::size_of::<u8>();
         const SIZE_RESERVED1: usize = mem::size_of::<u16>();
         const SIZE_RESERVED2: usize = mem::size_of::<u16>();
         const SIZE_RESERVED3: usize = mem::size_of::<u16>();
@@ -309,14 +353,20 @@ impl Ace {
         const SIZE_FLAGS: usize = mem::size_of::<u32>();
         const SIZE_IDENTIFIER_LEN: usize = mem::size_of::<u16>();
         // The fixed-size portion before the variable-length identifier
-        const FIXED_PREFIX_LEN: usize = SIZE_RESERVED1
+        const FIXED_PREFIX_LEN: usize = SIZE_ACE_TYPE
+            + SIZE_RESERVED1
             + SIZE_RESERVED2
             + SIZE_RESERVED3
             + SIZE_PERMISSION
             + SIZE_FLAGS
             + SIZE_IDENTIFIER_LEN;
 
-        let (reserved, r) = bytes
+        let (ace_type_raw, r) = bytes
+            .split_first_chunk::<{ SIZE_ACE_TYPE }>()
+            .ok_or(io::ErrorKind::UnexpectedEof)?;
+        let ace_type = AceType::try_from(ace_type_raw[0])
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        let (reserved, r) = r
             .split_first_chunk::<{ SIZE_RESERVED1 }>()
             .ok_or(io::ErrorKind::UnexpectedEof)?;
         let reserved1 = u16::from_be_bytes(*reserved);
@@ -346,6 +396,7 @@ impl Ace {
         let identifier = std::str::from_utf8(identifier)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         let ace = Self {
+            ace_type,
             reserved1,
             reserved2,
             reserved3,
@@ -358,11 +409,9 @@ impl Ace {
         Ok((ace, consumed))
     }
 
-    /// Legacy helper kept for tests; allocates a Vec and serializes into it.
-    #[inline]
-    pub(crate) fn to_bytes(&self) -> Vec<u8> {
+    #[cfg(test)]
+    fn to_bytes(&self) -> Vec<u8> {
         let mut v = Vec::with_capacity(self.encoded_len());
-        // write_into only fails on writer errors; Vec writer won't fail
         let _ = self.write_into(&mut v);
         v
     }
@@ -380,6 +429,24 @@ pub struct Acl {
 }
 
 impl Acl {
+    /// Creates a new access control list.
+    ///
+    /// # Arguments
+    ///
+    /// * `platform` - The platform-specific ACL type.
+    /// * `entries` - The access control entries.
+    #[inline]
+    pub fn new(platform: AclPlatform, entries: Vec<Ace>) -> Self {
+        Self {
+            version: 0,
+            reserved: 0,
+            platform,
+            acl_type: AclType::Dacl,
+            bit_flags: 0,
+            entries,
+        }
+    }
+
     #[inline]
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
         let entry_count = self.entries.len() as u16;
@@ -443,6 +510,7 @@ mod tests {
     #[test]
     fn ace_from_to_bytes() {
         let ace = Ace {
+            ace_type: AceType::Allowed,
             reserved1: 0,
             reserved2: 0,
             reserved3: 0,
@@ -465,6 +533,7 @@ mod tests {
             bit_flags: 0,
             entries: vec![
                 Ace {
+                    ace_type: AceType::Allowed,
                     reserved1: 0,
                     reserved2: 0,
                     reserved3: 0,
@@ -473,6 +542,7 @@ mod tests {
                     identifier: "u:user".to_string(),
                 },
                 Ace {
+                    ace_type: AceType::Denied,
                     reserved1: 0,
                     reserved2: 0,
                     reserved3: 0,

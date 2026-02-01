@@ -331,6 +331,21 @@ impl EntryBuilder {
         self
     }
 
+    /// Adds [`Acl`] to the entry.
+    ///
+    /// # Arguments
+    ///
+    /// * `acl` - The access control list.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the [`EntryBuilder`] with the ACL added.
+    #[inline]
+    pub fn add_acl(&mut self, acl: Acl) -> &mut Self {
+        self.acls.push(acl);
+        self
+    }
+
     /// Adds extra chunk to the entry.
     #[inline]
     pub fn add_extra_chunk<T: Into<RawChunk>>(&mut self, chunk: T) -> &mut Self {
