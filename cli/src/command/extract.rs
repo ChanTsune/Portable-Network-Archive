@@ -785,6 +785,7 @@ fn check_and_prepare_target<T>(
     item: &NormalEntry<T>,
     overwrite_strategy: OverwriteStrategy,
     unlink_first: bool,
+    secure_symlinks: bool,
 ) -> io::Result<ExtractionDecision>
 where
     T: AsRef<[u8]>,
@@ -843,7 +844,7 @@ where
 
     // Create parent directories
     if let Some(parent) = path.parent() {
-        ensure_directory_components(parent, unlink_first)?;
+        ensure_directory_components(parent, unlink_first, secure_symlinks)?;
     }
 
     // Handle type conflicts (symlink blocking file, file blocking directory)
@@ -890,9 +891,16 @@ where
 
     log::debug!("start: {}", path.display());
 
+    let secure_symlinks = !pathname_editor.preserves_absolute_paths();
     // Check overwrite strategy and prepare target
-    let ExtractionDecision::Proceed { remove_existing } =
-        check_and_prepare_target(&path, entry_kind, &item, *overwrite_strategy, *unlink_first)?
+    let ExtractionDecision::Proceed { remove_existing } = check_and_prepare_target(
+        &path,
+        entry_kind,
+        &item,
+        *overwrite_strategy,
+        *unlink_first,
+        secure_symlinks,
+    )?
     else {
         return Ok(());
     };
@@ -924,7 +932,7 @@ where
             }
         }
         DataKind::Directory => {
-            ensure_directory_components(&path, *unlink_first)?;
+            ensure_directory_components(&path, *unlink_first, secure_symlinks)?;
         }
         DataKind::SymbolicLink => {
             let reader = item.reader(ReadOptions::with_password(password))?;
@@ -1311,11 +1319,15 @@ where
     Ok(())
 }
 
-fn ensure_directory_components(path: &Path, unlink_first: bool) -> io::Result<()> {
+fn ensure_directory_components(
+    path: &Path,
+    unlink_first: bool,
+    secure_symlinks: bool,
+) -> io::Result<()> {
     if path.as_os_str().is_empty() {
         return Ok(());
     }
-    if !unlink_first {
+    if !secure_symlinks {
         return fs::create_dir_all(path);
     }
     let mut current = PathBuf::new();
@@ -1338,15 +1350,27 @@ fn ensure_directory_components(path: &Path, unlink_first: bool) -> io::Result<()
                 if meta.is_dir() {
                     continue;
                 }
-                utils::fs::remove_path_all(&current)?;
+                if unlink_first {
+                    utils::fs::remove_path_all(&current)?;
+                } else if meta.is_symlink() {
+                    return Err(io::Error::other(format!(
+                        "Cannot extract through symlink {}",
+                        current.display()
+                    )));
+                } else {
+                    return Err(io::Error::new(
+                        io::ErrorKind::NotADirectory,
+                        format!("{} is not a directory", current.display()),
+                    ));
+                }
             }
             Err(err) if err.kind() == io::ErrorKind::NotFound => {}
             Err(err) => return Err(err),
         }
-        if let Err(err) = fs::create_dir(&current) {
-            if err.kind() != io::ErrorKind::AlreadyExists {
-                return Err(err);
-            }
+        if let Err(err) = fs::create_dir(&current)
+            && err.kind() != io::ErrorKind::AlreadyExists
+        {
+            return Err(err);
         }
     }
     Ok(())
