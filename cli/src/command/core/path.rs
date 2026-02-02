@@ -111,6 +111,11 @@ impl PathnameEditor {
             entry_reference.sanitize()
         }
     }
+
+    #[inline]
+    pub(crate) const fn preserves_absolute_paths(&self) -> bool {
+        self.absolute_paths
+    }
 }
 
 fn strip_components(path: &Path, count: Option<usize>) -> Option<Cow<'_, Path>> {
