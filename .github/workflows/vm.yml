@@ -152,7 +152,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Test in OmniOS
         id: test
-        uses: vmactions/omnios-vm@0159a9960c5a801f35aa259df4ebd0a4a60b1a18 # v1.2.2
+        uses: vmactions/omnios-vm@422b3792392d4600a7ae60c5b2ba0f035603b1ec # v1.2.3
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
