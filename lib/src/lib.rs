@@ -124,7 +124,7 @@
 //! - `zlib-ng` - Use zlib-ng for improved deflate compression performance
 //! - `unstable-async` - Enable async I/O support via `futures-io` (unstable API)
 
-#![doc(html_root_url = "https://docs.rs/libpna/0.30.0")]
+#![doc(html_root_url = "https://docs.rs/libpna/0.31.0")]
 #![deny(
     missing_docs,
     clippy::missing_inline_in_public_items,
