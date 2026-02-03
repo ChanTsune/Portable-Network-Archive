@@ -120,13 +120,14 @@ mod tests {
 
         let tx1 = pending.begin_write(path).unwrap();
 
-        let handle = thread::spawn(move || {
-            thread::sleep(std::time::Duration::from_millis(50));
-            tx1.send(Ok(())).unwrap();
+        let tx2 = rayon::scope(|s| {
+            s.spawn(|_| {
+                thread::sleep(std::time::Duration::from_millis(50));
+                tx1.send(Ok(())).unwrap();
+            });
+            pending.begin_write(path).unwrap()
         });
 
-        let tx2 = pending.begin_write(path).unwrap();
-        handle.join().unwrap();
         tx2.send(Ok(())).unwrap();
 
         assert!(pending.wait_all().is_ok());
