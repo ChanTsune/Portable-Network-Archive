@@ -139,8 +139,7 @@ mod tests {
         let path = Path::new("/tmp/test");
 
         let tx1 = pending.begin_write(path).unwrap();
-        tx1.send(Err(io::Error::new(io::ErrorKind::Other, "write failed")))
-            .unwrap();
+        tx1.send(Err(io::Error::other("write failed"))).unwrap();
 
         let result = pending.begin_write(path);
         assert!(result.is_err());
