@@ -2011,6 +2011,9 @@ Compare archive entries with filesystem
 * `-f`, `--file <ARCHIVE>`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read password from specified file
+* `--full-compare` — Compare directory mtime and ownership (by default, only mode is compared for directories)
+
+  Default value: `false`
 * `--quiet` — Make some output more quiet
 
   Default value: `false`
