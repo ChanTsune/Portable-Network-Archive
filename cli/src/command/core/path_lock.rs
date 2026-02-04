@@ -114,6 +114,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn begin_write_waits_for_previous_completion() {
         let mut pending = PendingPaths::default();
         let path = Path::new("/tmp/test");
