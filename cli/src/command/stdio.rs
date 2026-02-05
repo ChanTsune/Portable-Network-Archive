@@ -923,7 +923,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     };
     if let Some(file) = archive_file {
         create_archive_file(
-            || utils::fs::file_create(&file, args.overwrite),
+            || utils::fs::file_create(&file, !args.no_overwrite),
             creation_context,
             target_items,
             &filter,
