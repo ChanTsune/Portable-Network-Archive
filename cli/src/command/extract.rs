@@ -19,7 +19,7 @@ use crate::{
         },
     },
     utils::{
-        self, GlobPatterns, PathWithCwd, VCS_FILES,
+        self, BsdGlobMatcher, PathWithCwd, VCS_FILES,
         fmt::DurationDisplay,
         fs::{Group, User},
     },
@@ -476,6 +476,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         files,
         || password.as_deref(),
         output_options,
+        true,
     )
     .with_context(|| format!("extracting entries from '{}'", PathWithCwd::new(&archive)))?;
 
@@ -489,8 +490,14 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let archives = mmaps.iter().map(|m| m.as_ref());
 
     #[cfg(feature = "memmap")]
-    run_extract_archive(archives, files, || password.as_deref(), output_options)
-        .with_context(|| format!("extracting entries from '{}'", PathWithCwd::new(&archive)))?;
+    run_extract_archive(
+        archives,
+        files,
+        || password.as_deref(),
+        output_options,
+        true,
+    )
+    .with_context(|| format!("extracting entries from '{}'", PathWithCwd::new(&archive)))?;
     log::info!(
         "Successfully extracted an archive in {}",
         DurationDisplay(start.elapsed())
@@ -548,14 +555,15 @@ pub(crate) fn run_extract_archive_reader<'a, 'p, Provider>(
     files: Vec<String>,
     mut password_provider: Provider,
     args: OutputOption<'a>,
+    no_recursive: bool,
 ) -> anyhow::Result<()>
 where
     Provider: FnMut() -> Option<&'p [u8]> + Send,
 {
     let password = password_provider();
     let patterns = files;
-    let mut globs = GlobPatterns::new(patterns.iter().map(|it| it.as_str()))
-        .with_context(|| "building inclusion patterns")?;
+    let mut globs =
+        BsdGlobMatcher::new(patterns.iter().map(|it| it.as_str())).with_no_recursive(no_recursive);
 
     let mut link_entries = Vec::new();
 
@@ -565,7 +573,7 @@ where
             let item = entry
                 .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
             let item_path = item.name().to_string();
-            if !globs.is_empty() && !globs.matches_any(&item_path) {
+            if !globs.is_empty() && !globs.matches(&item_path) {
                 log::debug!("Skip: {item_path}");
                 return Ok(());
             }
@@ -625,14 +633,15 @@ pub(crate) fn run_extract_archive<'a, 'd, 'p, Provider>(
     files: Vec<String>,
     mut password_provider: Provider,
     args: OutputOption<'a>,
+    no_recursive: bool,
 ) -> anyhow::Result<()>
 where
     Provider: FnMut() -> Option<&'p [u8]> + Send,
 {
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
         let password = password_provider();
-        let mut globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))
-            .with_context(|| "building inclusion patterns")?;
+        let mut globs =
+            BsdGlobMatcher::new(files.iter().map(|it| it.as_str())).with_no_recursive(no_recursive);
 
         let mut link_entries = Vec::<(_, NormalEntry)>::new();
 
@@ -643,7 +652,7 @@ where
             let item = entry
                 .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
             let item_path = item.name().to_string();
-            if !globs.is_empty() && !globs.matches_any(&item_path) {
+            if !globs.is_empty() && !globs.matches(&item_path) {
                 log::debug!("Skip: {item_path}");
                 return Ok(());
             }

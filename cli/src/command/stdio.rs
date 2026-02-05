@@ -1068,6 +1068,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: StdioCommand) -> anyhow::Resul
             files,
             || password.as_deref(),
             out_option,
+            args.no_recursive,
         )
     } else {
         run_extract_archive_reader(
@@ -1075,6 +1076,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: StdioCommand) -> anyhow::Resul
             files,
             || password.as_deref(),
             out_option,
+            args.no_recursive,
         )
     }
 }
