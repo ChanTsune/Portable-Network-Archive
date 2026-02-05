@@ -19,3 +19,11 @@ updates:
           - "rand"
           - "rand_chacha"
           - "getrandom"
+      rustcrypto-crates:
+        patterns:
+          - "aes"
+          - "camellia"
+          - "cbc"
+          - "ctr"
+          - "cipher"
+          - "crypto-common"
