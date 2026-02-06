@@ -472,6 +472,7 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         &filter,
         &time_filters,
         password,
+        false,
     )
 }
 
@@ -482,9 +483,15 @@ pub(crate) fn run_append_archive(
     filter: &PathFilter<'_>,
     time_filters: &TimeFilters,
     password: Option<&[u8]>,
+    verbose: bool,
 ) -> anyhow::Result<()> {
     let rx = spawn_entry_results(target_items, create_options, filter, time_filters, password);
-    drain_entry_results(rx, |entry| archive.add_entry(entry))?;
+    drain_entry_results(rx, |entry| {
+        if verbose {
+            eprintln!("a {}", entry.name());
+        }
+        archive.add_entry(entry)
+    })?;
     archive.finalize()?;
     Ok(())
 }

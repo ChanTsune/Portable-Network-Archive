@@ -462,6 +462,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         unlink_first: false,
         time_filters,
         safe_writes: args.safe_writes && !args.no_safe_writes,
+        verbose: false,
     };
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(&working_dir)
@@ -548,6 +549,7 @@ pub(crate) struct OutputOption<'a> {
     pub(crate) unlink_first: bool,
     pub(crate) time_filters: TimeFilters,
     pub(crate) safe_writes: bool,
+    pub(crate) verbose: bool,
 }
 
 pub(crate) fn run_extract_archive_reader<'a, 'p, Provider>(
@@ -589,6 +591,9 @@ where
                 log::debug!("Skip: {item_path}");
                 return Ok(());
             };
+            if args.verbose {
+                eprintln!("x {}", name);
+            }
             if args.to_stdout {
                 return extract_entry_to_stdout(&item, password);
             }
@@ -668,6 +673,9 @@ where
                 log::debug!("Skip: {item_path}");
                 return Ok(());
             };
+            if args.verbose {
+                eprintln!("x {}", name);
+            }
             if args.to_stdout {
                 return extract_entry_to_stdout(&item, password);
             }
@@ -827,6 +835,7 @@ pub(crate) fn extract_entry<'a, T>(
         unlink_first,
         time_filters: _,
         safe_writes,
+        verbose: _,
     }: &OutputOption<'a>,
 ) -> io::Result<()>
 where

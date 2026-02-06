@@ -530,6 +530,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
             &filter,
             &time_filters,
             password,
+            false,
         )?;
     }
     log::info!(
@@ -558,6 +559,7 @@ pub(crate) fn create_archive_file<W, F>(
     filter: &PathFilter<'_>,
     time_filters: &TimeFilters,
     password: Option<&[u8]>,
+    verbose: bool,
 ) -> anyhow::Result<()>
 where
     W: Write,
@@ -585,11 +587,21 @@ where
     let buffered = io::BufWriter::with_capacity(64 * 1024, file);
     if solid {
         let mut writer = Archive::write_solid_header(buffered, write_option)?;
-        drain_entry_results(rx, |entry| writer.add_entry(entry))?;
+        drain_entry_results(rx, |entry| {
+            if verbose {
+                eprintln!("a {}", entry.name());
+            }
+            writer.add_entry(entry)
+        })?;
         writer.finalize()?;
     } else {
         let mut writer = Archive::write_header(buffered)?;
-        drain_entry_results(rx, |entry| writer.add_entry(entry))?;
+        drain_entry_results(rx, |entry| {
+            if verbose {
+                eprintln!("a {}", entry.name());
+            }
+            writer.add_entry(entry)
+        })?;
         writer.finalize()?;
     }
     Ok(())
