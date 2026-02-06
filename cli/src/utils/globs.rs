@@ -29,11 +29,6 @@ impl<'s> GlobPatterns<'s> {
     }
 
     #[inline]
-    pub(crate) fn is_empty(&self) -> bool {
-        self.globs.is_empty()
-    }
-
-    #[inline]
     pub(crate) fn matches_any<P: AsRef<Path>>(&mut self, s: P) -> bool {
         let indices = self.globs.matches(s);
         for idx in indices.iter() {
