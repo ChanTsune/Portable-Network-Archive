@@ -12,7 +12,7 @@ rust-version = "1.88"
 
 [dependencies]
 anstream = "0.6.21"
-anyhow = { version = "1.0.100", features = ["backtrace"] }
+anyhow = { version = "1.0.101", features = ["backtrace"] }
 base64 = "0.22.1"
 bitflags = "2.10.0"
 bstr = "1.12.1"
