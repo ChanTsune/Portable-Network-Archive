@@ -497,6 +497,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
             sync,
             &mut out_archive,
             TransformStrategyUnSolid,
+            false,
         ),
         SolidEntriesTransformStrategy::KeepSolid => run_update_archive(
             archives,
@@ -506,6 +507,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
             sync,
             &mut out_archive,
             TransformStrategyKeepSolid,
+            false,
         ),
     }?;
 
@@ -528,6 +530,7 @@ pub(crate) fn run_update_archive<Strategy, R, W>(
     sync: bool,
     out_archive: &mut Archive<W>,
     _strategy: Strategy,
+    verbose: bool,
 ) -> anyhow::Result<()>
 where
     Strategy: TransformStrategy,
@@ -589,6 +592,9 @@ where
 
     for entry in ReorderByIndex::new(rx.into_iter()) {
         if let Some(entry) = entry? {
+            if verbose {
+                eprintln!("a {}", entry.name());
+            }
             out_archive.add_entry(entry)?;
         }
     }
@@ -605,6 +611,7 @@ pub(crate) fn run_update_archive<'d, Strategy, W>(
     sync: bool,
     out_archive: &mut Archive<W>,
     _strategy: Strategy,
+    verbose: bool,
 ) -> anyhow::Result<()>
 where
     Strategy: TransformStrategy,
@@ -665,6 +672,9 @@ where
 
     for entry in ReorderByIndex::new(rx.into_iter()) {
         if let Some(entry) = entry? {
+            if verbose {
+                eprintln!("a {}", entry.name());
+            }
             out_archive.add_entry(entry)?;
         }
     }

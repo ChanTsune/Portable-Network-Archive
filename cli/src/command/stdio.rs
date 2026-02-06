@@ -929,6 +929,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
             &filter,
             &time_filters,
             password,
+            args.verbose,
         )
     } else {
         create_archive_file(
@@ -938,6 +939,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
             &filter,
             &time_filters,
             password,
+            args.verbose,
         )
     }
 }
@@ -1043,6 +1045,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: StdioCommand) -> anyhow::Resul
         unlink_first: args.unlink_first,
         time_filters,
         safe_writes: args.safe_writes && !args.no_safe_writes,
+        verbose: args.verbose,
     };
     let mut files = args.files;
     if let Some(path) = &args.files_from {
@@ -1278,6 +1281,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             &filter,
             &time_filters,
             password,
+            args.verbose,
         )
     } else {
         let target_items = collect_items_from_sources(sources, &collect_options, &mut resolver)?;
@@ -1295,6 +1299,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             &filter,
             &time_filters,
             password,
+            args.verbose,
         )
     }
 }
@@ -1461,6 +1466,7 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
         false, // sync is always false for stdio (bsdtar compatibility)
         &mut out_archive,
         TransformStrategyUnSolid,
+        args.verbose,
     )?;
 
     out_archive.finalize()?;
