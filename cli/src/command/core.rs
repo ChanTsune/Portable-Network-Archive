@@ -1,3 +1,4 @@
+mod archive_source;
 mod ignore;
 pub(crate) mod iter;
 #[cfg(unix)]
@@ -12,6 +13,7 @@ pub(crate) mod safe_writer;
 pub(crate) mod time_filter;
 pub(crate) mod timestamp;
 
+pub(crate) use self::archive_source::SplitArchiveReader;
 pub(crate) use self::path::PathnameEditor;
 pub(crate) use self::permission::{ModeStrategy, OwnerOptions, OwnerStrategy, Umask};
 pub(crate) use self::safe_writer::SafeWriter;
@@ -1336,7 +1338,7 @@ where
 }
 
 #[cfg(feature = "memmap")]
-pub(crate) fn run_transform_entry<'d, 'p, W, Provider, F, Transform>(
+fn run_transform_entry<'d, 'p, W, Provider, F, Transform>(
     writer: W,
     archives: impl IntoIterator<Item = &'d [u8]>,
     mut password_provider: Provider,
@@ -1373,7 +1375,7 @@ where
 }
 
 #[cfg(not(feature = "memmap"))]
-pub(crate) fn run_transform_entry<'p, W, Provider, F, Transform>(
+fn run_transform_entry<'p, W, Provider, F, Transform>(
     writer: W,
     archives: impl IntoIterator<Item = impl Read>,
     mut password_provider: Provider,
@@ -1393,19 +1395,6 @@ where
     })?;
     out_archive.finalize()?;
     Ok(())
-}
-
-#[cfg(not(feature = "memmap"))]
-pub(crate) fn run_entries<'p, Provider, F>(
-    archives: Vec<fs::File>,
-    password_provider: Provider,
-    processor: F,
-) -> io::Result<()>
-where
-    Provider: FnMut() -> Option<&'p [u8]>,
-    F: FnMut(io::Result<NormalEntry>) -> io::Result<()>,
-{
-    run_process_archive(archives, password_provider, processor)
 }
 
 pub(crate) fn write_split_archive(

@@ -7,6 +7,7 @@ use crate::{
         Command,
         append::{open_archive_then_seek_to_end, run_append_archive},
         ask_password, check_password,
+        core::SplitArchiveReader,
         core::{
             AclStrategy, CollectOptions, CreateOptions, FflagsStrategy, ItemSource, KeepOptions,
             MacMetadataStrategy, ModeStrategy, OwnerOptions, OwnerStrategy, PathFilter,
@@ -1446,33 +1447,19 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
         NamedTempFile::new(|| archive_path.parent().unwrap_or_else(|| ".".as_ref()))?;
     let mut out_archive = Archive::write_header(temp_file.as_file_mut())?;
 
-    #[cfg(not(feature = "memmap"))]
-    let archives = archives
-        .into_iter()
-        .map(|it| io::BufReader::with_capacity(64 * 1024, it));
-    #[cfg(feature = "memmap")]
-    let mmaps = archives
-        .into_iter()
-        .map(crate::utils::mmap::Mmap::try_from)
-        .collect::<io::Result<Vec<_>>>()?;
-    #[cfg(feature = "memmap")]
-    let archives = mmaps.iter().map(|m| m.as_ref());
-
+    let mut source = SplitArchiveReader::new(archives)?;
     run_update_archive(
-        archives,
+        &mut source,
         password,
         &create_options,
         target_items,
-        false, // sync is always false for stdio (bsdtar compatibility)
+        false,
         &mut out_archive,
         TransformStrategyUnSolid,
         args.verbose,
     )?;
-
     out_archive.finalize()?;
-
-    #[cfg(feature = "memmap")]
-    drop(mmaps);
+    drop(source);
 
     temp_file.persist(archive_path.remove_part())?;
 

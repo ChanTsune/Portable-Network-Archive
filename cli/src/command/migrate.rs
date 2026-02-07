@@ -3,8 +3,8 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            TransformStrategyKeepSolid, TransformStrategyUnSolid, collect_split_archives,
-            run_transform_entry,
+            SplitArchiveReader, TransformStrategyKeepSolid, TransformStrategyUnSolid,
+            collect_split_archives,
         },
     },
     ext::*,
@@ -37,41 +37,30 @@ impl Command for MigrateCommand {
 fn migrate_metadata(args: MigrateCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
 
-    let archives = collect_split_archives(&args.archive)?;
-
-    #[cfg(feature = "memmap")]
-    let mmaps = archives
-        .into_iter()
-        .map(crate::utils::mmap::Mmap::try_from)
-        .collect::<io::Result<Vec<_>>>()?;
-    #[cfg(feature = "memmap")]
-    let archives = mmaps.iter().map(|m| m.as_ref());
+    let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive)?)?;
 
     let output_path = args.output;
     let mut temp_file =
         NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
 
     match args.transform_strategy.strategy() {
-        SolidEntriesTransformStrategy::UnSolid => run_transform_entry(
+        SolidEntriesTransformStrategy::UnSolid => source.transform_entries(
             temp_file.as_file_mut(),
-            archives,
-            || password.as_deref(),
+            password.as_deref(),
             #[hooq::skip_all]
             |entry| Ok(Some(strip_entry_metadata(entry?)?)),
             TransformStrategyUnSolid,
         ),
-        SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
+        SolidEntriesTransformStrategy::KeepSolid => source.transform_entries(
             temp_file.as_file_mut(),
-            archives,
-            || password.as_deref(),
+            password.as_deref(),
             #[hooq::skip_all]
             |entry| Ok(Some(strip_entry_metadata(entry?)?)),
             TransformStrategyKeepSolid,
         ),
     }?;
 
-    #[cfg(feature = "memmap")]
-    drop(mmaps);
+    drop(source);
 
     temp_file.persist(output_path)?;
     Ok(())

@@ -1,10 +1,9 @@
-#[cfg(feature = "memmap")]
-use crate::command::core::run_entries;
-#[cfg(not(feature = "memmap"))]
-use crate::command::core::run_process_archive as run_entries;
 use crate::{
     cli::{FileArgs, PasswordArgs},
-    command::{Command, ask_password, core::collect_split_archives},
+    command::{
+        Command, ask_password,
+        core::{SplitArchiveReader, collect_split_archives},
+    },
     utils::{BsdGlobMatcher, io::streams_equal},
 };
 
@@ -54,16 +53,9 @@ fn diff_archive(args: DiffCommand) -> anyhow::Result<()> {
     let mut globs = BsdGlobMatcher::new(args.file.files.iter().map(|s| s.as_str()));
     let filter_enabled = !globs.is_empty();
 
-    #[cfg(feature = "memmap")]
-    let mmaps = archives
-        .into_iter()
-        .map(crate::utils::mmap::Mmap::try_from)
-        .collect::<std::io::Result<Vec<_>>>()?;
-    #[cfg(feature = "memmap")]
-    let archives = mmaps.iter().map(|m| m.as_ref());
-    run_entries(
-        archives,
-        || password.as_deref(),
+    let mut source = SplitArchiveReader::new(archives)?;
+    source.for_each_entry(
+        password.as_deref(),
         #[hooq::skip_all]
         |entry| {
             let entry = entry?;

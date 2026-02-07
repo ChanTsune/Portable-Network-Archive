@@ -6,8 +6,8 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            TransformStrategyKeepSolid, TransformStrategyUnSolid, collect_split_archives,
-            run_entries, run_transform_entry,
+            SplitArchiveReader, TransformStrategyKeepSolid, TransformStrategyUnSolid,
+            collect_split_archives,
         },
     },
     utils::{GlobPatterns, PathPartExt, env::NamedTempFile},
@@ -196,19 +196,10 @@ fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
     let dump_option = DumpOption::new(args.dump, args.name.as_deref(), args.regex_match.as_deref())
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-    let archives = collect_split_archives(args.file.archive())?;
+    let mut source = SplitArchiveReader::new(collect_split_archives(args.file.archive())?)?;
 
-    #[cfg(feature = "memmap")]
-    let mmaps = archives
-        .into_iter()
-        .map(crate::utils::mmap::Mmap::try_from)
-        .collect::<io::Result<Vec<_>>>()?;
-    #[cfg(feature = "memmap")]
-    let archives = mmaps.iter().map(|m| m.as_ref());
-
-    run_entries(
-        archives,
-        || password.as_deref(),
+    source.for_each_entry(
+        password.as_deref(),
         #[hooq::skip_all]
         |entry| {
             let entry = entry?;
@@ -260,41 +251,30 @@ fn archive_set_xattr(args: SetXattrCommand) -> anyhow::Result<()> {
         }
     };
 
-    let archives = collect_split_archives(args.file.archive())?;
-
-    #[cfg(feature = "memmap")]
-    let mmaps = archives
-        .into_iter()
-        .map(crate::utils::mmap::Mmap::try_from)
-        .collect::<io::Result<Vec<_>>>()?;
-    #[cfg(feature = "memmap")]
-    let archives = mmaps.iter().map(|m| m.as_ref());
+    let mut source = SplitArchiveReader::new(collect_split_archives(args.file.archive())?)?;
 
     let output_path = args.file.archive().remove_part();
     let mut temp_file =
         NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
 
     match args.transform_strategy.strategy() {
-        SolidEntriesTransformStrategy::UnSolid => run_transform_entry(
+        SolidEntriesTransformStrategy::UnSolid => source.transform_entries(
             temp_file.as_file_mut(),
-            archives,
-            || password.as_deref(),
+            password.as_deref(),
             #[hooq::skip_all]
             |entry| Ok(Some(set_strategy.transform_entry(entry?))),
             TransformStrategyUnSolid,
         ),
-        SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
+        SolidEntriesTransformStrategy::KeepSolid => source.transform_entries(
             temp_file.as_file_mut(),
-            archives,
-            || password.as_deref(),
+            password.as_deref(),
             #[hooq::skip_all]
             |entry| Ok(Some(set_strategy.transform_entry(entry?))),
             TransformStrategyKeepSolid,
         ),
     }?;
 
-    #[cfg(feature = "memmap")]
-    drop(mmaps);
+    drop(source);
 
     temp_file.persist(output_path)?;
 
