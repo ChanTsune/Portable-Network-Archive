@@ -52,6 +52,8 @@ use tabled::{
     group(ArgGroup::new("ctime-newer-than-source").args(["newer_ctime", "newer_ctime_than"])),
     group(ArgGroup::new("mtime-older-than-source").args(["older_mtime", "older_mtime_than"])),
     group(ArgGroup::new("mtime-newer-than-source").args(["newer_mtime", "newer_mtime_than"])),
+    group(ArgGroup::new("ctime-filter").args(["older_ctime", "older_ctime_than", "newer_ctime", "newer_ctime_than"]).multiple(true)),
+    group(ArgGroup::new("mtime-filter").args(["older_mtime", "older_mtime_than", "newer_mtime", "newer_mtime_than"]).multiple(true)),
 )]
 pub(crate) struct ListCommand {
     #[arg(short, long, help = "Display extended file metadata as a table")]
@@ -151,6 +153,18 @@ pub(crate) struct ListCommand {
         help = "Only include files and directories older than the specified file (unstable). This compares mtime entries."
     )]
     older_mtime_than: Option<PathBuf>,
+    #[arg(
+        long,
+        requires_all = ["unstable", "ctime-filter"],
+        help = "Behavior for entries without ctime when time filtering (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]"
+    )]
+    missing_ctime: Option<MissingTimePolicy>,
+    #[arg(
+        long,
+        requires_all = ["unstable", "mtime-filter"],
+        help = "Behavior for entries without mtime when time filtering (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]"
+    )]
+    missing_mtime: Option<MissingTimePolicy>,
     #[arg(
         short = 'q',
         help = "Force printing of non-graphic characters in file names as the character '?'"
@@ -468,8 +482,8 @@ fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::R
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
-        missing_ctime: MissingTimePolicy::Include,
-        missing_mtime: MissingTimePolicy::Include,
+        missing_ctime: args.missing_ctime.unwrap_or(MissingTimePolicy::Include),
+        missing_mtime: args.missing_mtime.unwrap_or(MissingTimePolicy::Include),
     }
     .resolve()?;
 
