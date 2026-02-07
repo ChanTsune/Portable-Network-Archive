@@ -2,6 +2,8 @@
 //! It includes structs for defining time filters and applying them to file metadata.
 use std::time::SystemTime;
 
+use crate::cli::MissingTimePolicy;
+
 /// Represents a filter based on time, allowing for inclusion of files newer or older than a specific `SystemTime`.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct TimeFilter {
@@ -9,6 +11,8 @@ pub(crate) struct TimeFilter {
     pub(crate) newer_than: Option<SystemTime>,
     /// If `Some`, only includes files strictly older than the specified `SystemTime`.
     pub(crate) older_than: Option<SystemTime>,
+    /// Controls behavior when the timestamp being filtered is absent from the entry.
+    pub(crate) missing_policy: MissingTimePolicy,
 }
 
 impl TimeFilter {
@@ -22,18 +26,15 @@ impl TimeFilter {
         self.newer_than.is_some() || self.older_than.is_some()
     }
 
-    /// Determines whether a file matches the filter based on its modification time.
-    ///
-    /// # Arguments
-    ///
-    /// * `time` - An `Option<SystemTime>` representing the modification time of the file.
-    ///
-    /// # Returns
-    ///
-    /// `true` if the file matches the filter, `false` otherwise.
+    /// Determines whether a given timestamp passes this filter's constraints.
     fn matches(&self, time: Option<SystemTime>) -> bool {
-        let Some(time) = time else {
-            return true;
+        let time = match time {
+            Some(t) => t,
+            None => match &self.missing_policy {
+                MissingTimePolicy::Include => return true,
+                MissingTimePolicy::Exclude => return false,
+                MissingTimePolicy::Assume(t) => *t,
+            },
         };
         if let Some(newer) = self.newer_than
             && time <= newer
@@ -92,6 +93,7 @@ impl TimeFilters {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cli::MissingTimePolicy;
     use std::time::Duration;
 
     fn now() -> SystemTime {
@@ -112,10 +114,12 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: None,
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: None,
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
         };
         assert!(filters.matches(Some(now()), Some(now())));
@@ -129,10 +133,12 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: Some(now()),
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: None,
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
         };
         assert!(!filters.matches(Some(past()), Some(now())));
@@ -142,10 +148,12 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: Some(past()),
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: None,
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
         };
         assert!(filters.matches(Some(now()), Some(now())));
@@ -155,10 +163,12 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: Some(now()),
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: None,
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
         };
         assert!(filters.matches(None, Some(now())));
@@ -171,10 +181,12 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: None,
                 older_than: Some(now()),
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: None,
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
         };
         assert!(!filters.matches(Some(future()), Some(now())));
@@ -184,10 +196,12 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: None,
                 older_than: Some(future()),
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: None,
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
         };
         assert!(filters.matches(Some(now()), Some(now())));
@@ -197,10 +211,12 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: None,
                 older_than: Some(now()),
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: None,
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
         };
         assert!(filters.matches(None, Some(now())));
@@ -213,10 +229,12 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: None,
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: Some(now()),
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
         };
         assert!(!filters.matches(Some(now()), Some(past())));
@@ -226,10 +244,12 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: None,
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: Some(past()),
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
         };
         assert!(filters.matches(Some(now()), Some(now())));
@@ -239,10 +259,12 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: None,
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: Some(now()),
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
         };
         assert!(filters.matches(Some(now()), None));
@@ -255,10 +277,12 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: None,
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: None,
                 older_than: Some(now()),
+                missing_policy: MissingTimePolicy::Include,
             },
         };
         assert!(!filters.matches(Some(now()), Some(future())));
@@ -268,10 +292,12 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: None,
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: None,
                 older_than: Some(future()),
+                missing_policy: MissingTimePolicy::Include,
             },
         };
         assert!(filters.matches(Some(now()), Some(now())));
@@ -281,10 +307,12 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: None,
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: None,
                 older_than: Some(now()),
+                missing_policy: MissingTimePolicy::Include,
             },
         };
         assert!(filters.matches(Some(now()), None));
@@ -296,10 +324,12 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: Some(past()),
                 older_than: Some(future()),
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: Some(past()),
                 older_than: Some(future()),
+                missing_policy: MissingTimePolicy::Include,
             },
         };
         assert!(filters.matches(Some(now()), Some(now())));
@@ -312,10 +342,12 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: Some(now()),
                 older_than: Some(future()),
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: Some(past()),
                 older_than: Some(future()),
+                missing_policy: MissingTimePolicy::Include,
             },
         };
         assert!(!filters.matches(Some(past()), Some(now())));
@@ -325,10 +357,12 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: Some(past()),
                 older_than: Some(now()),
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: Some(past()),
                 older_than: Some(future()),
+                missing_policy: MissingTimePolicy::Include,
             },
         };
         assert!(!filters.matches(Some(future()), Some(now())));
@@ -341,10 +375,12 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: Some(past()),
                 older_than: Some(future()),
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: Some(now()),
                 older_than: Some(future()),
+                missing_policy: MissingTimePolicy::Include,
             },
         };
         assert!(!filters.matches(Some(now()), Some(past())));
@@ -354,10 +390,12 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: Some(past()),
                 older_than: Some(future()),
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: Some(past()),
                 older_than: Some(now()),
+                missing_policy: MissingTimePolicy::Include,
             },
         };
         assert!(!filters.matches(Some(now()), Some(future())));
@@ -370,10 +408,12 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: Some(now()),
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: None,
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
         };
         assert!(filters.matches(None, Some(now())));
@@ -383,10 +423,12 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: None,
                 older_than: Some(now()),
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: None,
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
         };
         assert!(filters.matches(None, Some(now())));
@@ -396,10 +438,12 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: None,
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: Some(now()),
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
         };
         assert!(filters.matches(Some(now()), None));
@@ -409,10 +453,12 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: None,
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: None,
                 older_than: Some(now()),
+                missing_policy: MissingTimePolicy::Include,
             },
         };
         assert!(filters.matches(Some(now()), None));
@@ -424,10 +470,12 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: None,
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: Some(now()),
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
         };
         assert!(active.is_active());
@@ -438,12 +486,155 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: None,
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: None,
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
         };
         assert!(!inactive.is_active());
+    }
+
+    mod missing_policy {
+        use super::*;
+        use crate::cli::MissingTimePolicy;
+
+        #[test]
+        fn include_policy_passes_none_ctime() {
+            let filters = TimeFilters {
+                ctime: TimeFilter {
+                    newer_than: Some(now()),
+                    older_than: None,
+                    missing_policy: MissingTimePolicy::Include,
+                },
+                mtime: TimeFilter {
+                    newer_than: None,
+                    older_than: None,
+                    missing_policy: MissingTimePolicy::Include,
+                },
+            };
+            assert!(filters.matches(None, Some(now())));
+        }
+
+        #[test]
+        fn exclude_policy_rejects_none_ctime() {
+            let filters = TimeFilters {
+                ctime: TimeFilter {
+                    newer_than: Some(now()),
+                    older_than: None,
+                    missing_policy: MissingTimePolicy::Exclude,
+                },
+                mtime: TimeFilter {
+                    newer_than: None,
+                    older_than: None,
+                    missing_policy: MissingTimePolicy::Include,
+                },
+            };
+            assert!(!filters.matches(None, Some(now())));
+        }
+
+        #[test]
+        fn exclude_policy_rejects_none_mtime() {
+            let filters = TimeFilters {
+                ctime: TimeFilter {
+                    newer_than: None,
+                    older_than: None,
+                    missing_policy: MissingTimePolicy::Include,
+                },
+                mtime: TimeFilter {
+                    newer_than: Some(now()),
+                    older_than: None,
+                    missing_policy: MissingTimePolicy::Exclude,
+                },
+            };
+            assert!(!filters.matches(Some(now()), None));
+        }
+
+        #[test]
+        fn assume_epoch_compared_as_older() {
+            let filters = TimeFilters {
+                ctime: TimeFilter {
+                    newer_than: Some(now()),
+                    older_than: None,
+                    missing_policy: MissingTimePolicy::Assume(past()),
+                },
+                mtime: TimeFilter {
+                    newer_than: None,
+                    older_than: None,
+                    missing_policy: MissingTimePolicy::Include,
+                },
+            };
+            assert!(!filters.matches(None, Some(now())));
+        }
+
+        #[test]
+        fn assume_future_compared_as_newer() {
+            let filters = TimeFilters {
+                ctime: TimeFilter {
+                    newer_than: Some(now()),
+                    older_than: None,
+                    missing_policy: MissingTimePolicy::Assume(future()),
+                },
+                mtime: TimeFilter {
+                    newer_than: None,
+                    older_than: None,
+                    missing_policy: MissingTimePolicy::Include,
+                },
+            };
+            assert!(filters.matches(None, Some(now())));
+        }
+
+        #[test]
+        fn assume_future_rejected_by_older_than() {
+            let filters = TimeFilters {
+                ctime: TimeFilter {
+                    newer_than: None,
+                    older_than: Some(now()),
+                    missing_policy: MissingTimePolicy::Assume(future()),
+                },
+                mtime: TimeFilter {
+                    newer_than: None,
+                    older_than: None,
+                    missing_policy: MissingTimePolicy::Include,
+                },
+            };
+            assert!(!filters.matches(None, Some(now())));
+        }
+
+        #[test]
+        fn assume_past_passes_older_than() {
+            let filters = TimeFilters {
+                ctime: TimeFilter {
+                    newer_than: None,
+                    older_than: Some(now()),
+                    missing_policy: MissingTimePolicy::Assume(past()),
+                },
+                mtime: TimeFilter {
+                    newer_than: None,
+                    older_than: None,
+                    missing_policy: MissingTimePolicy::Include,
+                },
+            };
+            assert!(filters.matches(None, Some(now())));
+        }
+
+        #[test]
+        fn policy_ignored_when_time_present() {
+            let filters = TimeFilters {
+                ctime: TimeFilter {
+                    newer_than: Some(now()),
+                    older_than: None,
+                    missing_policy: MissingTimePolicy::Exclude,
+                },
+                mtime: TimeFilter {
+                    newer_than: None,
+                    older_than: None,
+                    missing_policy: MissingTimePolicy::Include,
+                },
+            };
+            assert!(filters.matches(Some(future()), Some(now())));
+        }
     }
 }

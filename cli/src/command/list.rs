@@ -1,6 +1,6 @@
 use crate::{
     chunk,
-    cli::{ColorChoice, DateTime, FileArgsCompat, PasswordArgs},
+    cli::{ColorChoice, DateTime, FileArgsCompat, MissingTimePolicy, PasswordArgs},
     command::{
         Command, ask_password,
         core::{
@@ -43,7 +43,7 @@ use tabled::{
     },
 };
 
-#[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 #[clap(disable_help_flag = true)]
 #[command(
     group(ArgGroup::new("null-requires").arg("null").requires("exclude_from")),
@@ -468,6 +468,8 @@ fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::R
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
+        missing_ctime: MissingTimePolicy::Include,
+        missing_mtime: MissingTimePolicy::Include,
     }
     .resolve()?;
 
