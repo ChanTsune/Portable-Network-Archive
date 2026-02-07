@@ -1,7 +1,3 @@
-#[cfg(not(feature = "memmap"))]
-use crate::command::core::run_read_entries;
-#[cfg(feature = "memmap")]
-use crate::command::core::run_read_entries_mem;
 use crate::{
     cli::{
         CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileArgs, HashAlgorithmArgs,
@@ -12,9 +8,10 @@ use crate::{
         core::{
             AclStrategy, CollectOptions, CollectedEntry, CreateOptions, FflagsStrategy,
             KeepOptions, MacMetadataStrategy, PathFilter, PathTransformers, PathnameEditor,
-            PermissionStrategyResolver, TimeFilterResolver, TimestampStrategyResolver,
-            TransformStrategy, TransformStrategyKeepSolid, TransformStrategyUnSolid, XattrStrategy,
-            collect_items_from_paths, collect_split_archives, create_entry, entry_option,
+            PermissionStrategyResolver, SplitArchiveReader, TimeFilterResolver,
+            TimestampStrategyResolver, TransformStrategy, TransformStrategyKeepSolid,
+            TransformStrategyUnSolid, XattrStrategy, collect_items_from_paths,
+            collect_split_archives, create_entry, entry_option,
             iter::ReorderByIndex,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, read_paths_stdin,
@@ -480,17 +477,10 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
         NamedTempFile::new(|| archive_path.parent().unwrap_or_else(|| ".".as_ref()))?;
     let mut out_archive = Archive::write_header(temp_file.as_file_mut())?;
 
-    #[cfg(feature = "memmap")]
-    let mmaps = archives
-        .into_iter()
-        .map(crate::utils::mmap::Mmap::try_from)
-        .collect::<io::Result<Vec<_>>>()?;
-    #[cfg(feature = "memmap")]
-    let archives = mmaps.iter().map(|m| m.as_ref());
-
+    let mut source = SplitArchiveReader::new(archives)?;
     match transform_strategy {
         SolidEntriesTransformStrategy::UnSolid => run_update_archive(
-            archives,
+            &mut source,
             password,
             &create_options,
             target_items,
@@ -500,7 +490,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
             false,
         ),
         SolidEntriesTransformStrategy::KeepSolid => run_update_archive(
-            archives,
+            &mut source,
             password,
             &create_options,
             target_items,
@@ -510,101 +500,16 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
             false,
         ),
     }?;
-
     out_archive.finalize()?;
-
-    #[cfg(feature = "memmap")]
-    drop(mmaps);
+    drop(source);
 
     temp_file.persist(archive_path.remove_part())?;
 
     Ok(())
 }
 
-#[cfg(not(feature = "memmap"))]
-pub(crate) fn run_update_archive<Strategy, R, W>(
-    archives: impl IntoIterator<Item = R> + Send,
-    password: Option<&[u8]>,
-    create_options: &CreateOptions,
-    target_items: Vec<CollectedEntry>,
-    sync: bool,
-    out_archive: &mut Archive<W>,
-    _strategy: Strategy,
-    verbose: bool,
-) -> anyhow::Result<()>
-where
-    Strategy: TransformStrategy,
-    R: io::Read,
-    W: io::Write + Send,
-{
-    let (tx, rx) = std::sync::mpsc::channel();
-
-    let mut target_files_mapping = target_items
-        .into_iter()
-        .enumerate()
-        .map(|(idx, item)| (EntryName::from_lossy(&item.path), (idx, item)))
-        .collect::<IndexMap<_, _>>();
-
-    rayon::scope_fifo(|s| -> anyhow::Result<()> {
-        run_read_entries(archives, |entry| {
-            Strategy::transform(out_archive, password, entry, |entry| {
-                let entry = entry?;
-                if let Some((idx, item)) = target_files_mapping.shift_remove(entry.header().path())
-                {
-                    let need_update =
-                        is_newer_than_archive(&item.metadata, entry.metadata()).unwrap_or(true);
-                    if need_update {
-                        let tx = tx.clone();
-                        let create_options = create_options.clone();
-                        s.spawn_fifo(move |_| {
-                            log::debug!("Updating: {}", item.path.display());
-                            tx.send((idx, create_entry(&item, &create_options)))
-                                .unwrap_or_else(|_| {
-                                    unreachable!("receiver is held by scope owner")
-                                });
-                        });
-                        Ok(None)
-                    } else {
-                        Ok(Some(entry))
-                    }
-                } else if sync {
-                    log::debug!("Removing (sync): {}", entry.header().path());
-                    Ok(None)
-                } else {
-                    Ok(Some(entry))
-                }
-            })
-        })?;
-
-        // NOTE: Add new entries
-        for (_, (idx, item)) in target_files_mapping {
-            let tx = tx.clone();
-            let create_options = create_options.clone();
-            s.spawn_fifo(move |_| {
-                log::debug!("Adding: {}", item.path.display());
-                tx.send((idx, create_entry(&item, &create_options)))
-                    .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
-            });
-        }
-        drop(tx);
-        Ok(())
-    })?;
-
-    for entry in ReorderByIndex::new(rx.into_iter()) {
-        if let Some(entry) = entry? {
-            if verbose {
-                eprintln!("a {}", entry.name());
-            }
-            out_archive.add_entry(entry)?;
-        }
-    }
-
-    Ok(())
-}
-
-#[cfg(feature = "memmap")]
-pub(crate) fn run_update_archive<'d, Strategy, W>(
-    archives: impl IntoIterator<Item = &'d [u8]> + Send,
+pub(crate) fn run_update_archive<Strategy, W>(
+    source: &mut SplitArchiveReader,
     password: Option<&[u8]>,
     create_options: &CreateOptions,
     target_items: Vec<CollectedEntry>,
@@ -626,7 +531,7 @@ where
         .collect::<IndexMap<_, _>>();
 
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
-        run_read_entries_mem(archives, |entry| {
+        source.for_each_read_entry(|entry| {
             Strategy::transform(out_archive, password, entry, |entry| {
                 let entry = entry?;
                 if let Some((idx, item)) = target_files_mapping.shift_remove(entry.header().path())

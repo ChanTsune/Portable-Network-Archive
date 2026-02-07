@@ -3,8 +3,8 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            TransformStrategyKeepSolid, TransformStrategyUnSolid, collect_split_archives,
-            run_transform_entry,
+            SplitArchiveReader, TransformStrategyKeepSolid, TransformStrategyUnSolid,
+            collect_split_archives,
         },
     },
     utils::{GlobPatterns, PathPartExt, env::NamedTempFile},
@@ -50,25 +50,16 @@ fn archive_chmod(args: ChmodCommand) -> anyhow::Result<()> {
     }
     let mut globs = GlobPatterns::new(args.files.iter().map(|p| p.as_str()))?;
 
-    let archives = collect_split_archives(&args.archive)?;
-
-    #[cfg(feature = "memmap")]
-    let mmaps = archives
-        .into_iter()
-        .map(crate::utils::mmap::Mmap::try_from)
-        .collect::<std::io::Result<Vec<_>>>()?;
-    #[cfg(feature = "memmap")]
-    let archives = mmaps.iter().map(|m| m.as_ref());
+    let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive)?)?;
 
     let output_path = args.archive.remove_part();
     let mut temp_file =
         NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
 
     match args.transform_strategy.strategy() {
-        SolidEntriesTransformStrategy::UnSolid => run_transform_entry(
+        SolidEntriesTransformStrategy::UnSolid => source.transform_entries(
             temp_file.as_file_mut(),
-            archives,
-            || password.as_deref(),
+            password.as_deref(),
             #[hooq::skip_all]
             |entry| {
                 let entry = entry?;
@@ -80,10 +71,9 @@ fn archive_chmod(args: ChmodCommand) -> anyhow::Result<()> {
             },
             TransformStrategyUnSolid,
         ),
-        SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
+        SolidEntriesTransformStrategy::KeepSolid => source.transform_entries(
             temp_file.as_file_mut(),
-            archives,
-            || password.as_deref(),
+            password.as_deref(),
             #[hooq::skip_all]
             |entry| {
                 let entry = entry?;
@@ -97,8 +87,7 @@ fn archive_chmod(args: ChmodCommand) -> anyhow::Result<()> {
         ),
     }?;
 
-    #[cfg(feature = "memmap")]
-    drop(mmaps);
+    drop(source);
 
     temp_file.persist(output_path)?;
 

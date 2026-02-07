@@ -1,13 +1,11 @@
-#[cfg(feature = "memmap")]
-use crate::command::core::run_read_entries_mem;
 use crate::{
     chunk,
     cli::{ColorChoice, DateTime, FileArgsCompat, PasswordArgs},
     command::{
         Command, ask_password,
         core::{
-            PathFilter, TimeFilterResolver, TimeFilters, collect_split_archives, read_paths,
-            run_read_entries,
+            PathFilter, SplitArchiveReader, TimeFilterResolver, TimeFilters,
+            collect_split_archives, read_paths, run_read_entries,
         },
     },
     ext::*,
@@ -514,24 +512,37 @@ fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::R
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
 
-    let archives = collect_split_archives(&archive)?;
-
-    #[cfg(not(feature = "memmap"))]
-    {
-        run_list_archive(
-            archives
-                .into_iter()
-                .map(|it| io::BufReader::with_capacity(64 * 1024, it)),
-            password.as_deref(),
-            files_globs,
-            filter,
-            options,
-        )
-    }
-    #[cfg(feature = "memmap")]
-    {
-        run_list_archive_mem(archives, password.as_deref(), files_globs, filter, options)
-    }
+    let mut source = SplitArchiveReader::new(collect_split_archives(&archive)?)?;
+    let password = password.as_deref();
+    let mut entries = Vec::new();
+    let collect_opts = CollectOptions::from_list_options(&options);
+    source.for_each_read_entry(
+        #[hooq::skip_all]
+        |entry| {
+        match entry? {
+            ReadEntry::Solid(solid) if options.solid => {
+                for entry in solid.entries(password)? {
+                    entries.push(TableRow::from_entry(
+                        &entry?,
+                        password,
+                        Some(solid.header()),
+                        collect_opts,
+                    )?)
+                }
+            }
+            ReadEntry::Solid(_) => {
+                log::warn!(
+                    "This archive contain solid mode entry. if you need to show it use --solid option."
+                );
+            }
+            ReadEntry::Normal(item) => {
+                entries.push(TableRow::from_entry(&item, password, None, collect_opts)?)
+            }
+        }
+            Ok(())
+        },
+    )?;
+    print_entries(entries, files_globs, filter, options)
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -599,48 +610,6 @@ pub(crate) fn run_list_archive<'a>(
                         Some(solid.header()),
                         collect_opts,
                     )?)
-                }
-            }
-            ReadEntry::Solid(_) => {
-                log::warn!(
-                    "This archive contain solid mode entry. if you need to show it use --solid option."
-                );
-            }
-            ReadEntry::Normal(item) => {
-                entries.push(TableRow::from_entry(&item, password, None, collect_opts)?)
-            }
-        }
-        Ok(())
-    })?;
-    print_entries(entries, files_globs, filter, args)
-}
-
-#[cfg(feature = "memmap")]
-pub(crate) fn run_list_archive_mem<'a>(
-    archives: Vec<std::fs::File>,
-    password: Option<&[u8]>,
-    files_globs: BsdGlobMatcher,
-    filter: PathFilter<'a>,
-    args: ListOptions,
-) -> anyhow::Result<()> {
-    let mut entries = Vec::new();
-    let collect_opts = CollectOptions::from_list_options(&args);
-    let mmaps = archives
-        .into_iter()
-        .map(crate::utils::mmap::Mmap::try_from)
-        .collect::<io::Result<Vec<_>>>()?;
-    let archives = mmaps.iter().map(|m| m.as_ref());
-
-    run_read_entries_mem(archives, |entry| {
-        match entry? {
-            ReadEntry::Solid(solid) if args.solid => {
-                for entry in solid.entries(password)? {
-                    entries.push(TableRow::from_entry(
-                        &entry?,
-                        password,
-                        Some(solid.header()),
-                        collect_opts,
-                    )?);
                 }
             }
             ReadEntry::Solid(_) => {

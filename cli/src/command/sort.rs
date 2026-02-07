@@ -2,7 +2,7 @@ use crate::{
     cli::PasswordArgs,
     command::{
         Command, ask_password,
-        core::{collect_split_archives, run_entries},
+        core::{SplitArchiveReader, collect_split_archives},
     },
     utils::{PathPartExt, env::NamedTempFile},
 };
@@ -147,17 +147,10 @@ impl Command for SortCommand {
 fn sort_archive(args: SortCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let archives = collect_split_archives(&args.archive)?;
-    #[cfg(feature = "memmap")]
-    let mmaps = archives
-        .into_iter()
-        .map(crate::utils::mmap::Mmap::try_from)
-        .collect::<std::io::Result<Vec<_>>>()?;
-    #[cfg(feature = "memmap")]
-    let archives = mmaps.iter().map(|m| m.as_ref());
+    let mut source = SplitArchiveReader::new(archives)?;
     let mut entries = Vec::<NormalEntry<_>>::new();
-    run_entries(
-        archives,
-        || password.as_deref(),
+    source.for_each_entry(
+        password.as_deref(),
         #[hooq::skip_all]
         |entry| {
             entries.push(entry?);
@@ -191,8 +184,7 @@ fn sort_archive(args: SortCommand) -> anyhow::Result<()> {
     }
     archive.finalize()?;
 
-    #[cfg(feature = "memmap")]
-    drop(mmaps);
+    drop(source);
 
     let output = args.output.unwrap_or_else(|| args.archive.remove_part());
     temp_file.persist(output)?;
