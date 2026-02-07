@@ -8,14 +8,47 @@ use std::{
     mem,
 };
 
+/// Allocate chunk data buffer with graceful OOM handling and optional size limit.
+fn allocate_chunk_data(length: u32, max_size: Option<u32>) -> io::Result<Vec<u8>> {
+    if let Some(max) = max_size
+        && length > max
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("chunk size {} exceeds limit {}", length, max),
+        ));
+    }
+
+    let len = length as usize;
+    let mut data = Vec::new();
+    data.try_reserve_exact(len).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::OutOfMemory,
+            format!("failed to allocate {} bytes for chunk", len),
+        )
+    })?;
+    data.resize(len, 0);
+    Ok(data)
+}
+
 pub(crate) struct ChunkReader<R> {
     pub(crate) r: R,
+    max_chunk_size: Option<u32>,
+}
+
+impl<R> ChunkReader<R> {
+    pub(crate) fn new(reader: R, max_chunk_size: Option<u32>) -> Self {
+        Self {
+            r: reader,
+            max_chunk_size,
+        }
+    }
 }
 
 impl<R: Read> ChunkReader<R> {
     #[inline]
     pub(crate) fn read_chunk(&mut self) -> io::Result<RawChunk> {
-        read_chunk(&mut self.r)
+        read_chunk(&mut self.r, self.max_chunk_size)
     }
 }
 
@@ -36,7 +69,7 @@ impl<R: AsyncRead + Unpin> ChunkReader<R> {
         crc_hasher.update(&ty);
 
         // read chunk data
-        let mut data = vec![0; length as usize];
+        let mut data = allocate_chunk_data(length, self.max_chunk_size)?;
         self.r.read_exact(&mut data).await?;
 
         crc_hasher.update(&data);
@@ -80,14 +113,7 @@ impl<R: Read + Seek> ChunkReader<R> {
     }
 }
 
-impl<R> From<R> for ChunkReader<R> {
-    #[inline]
-    fn from(reader: R) -> Self {
-        Self { r: reader }
-    }
-}
-
-pub(crate) fn read_chunk<R: Read>(mut r: R) -> io::Result<RawChunk> {
+pub(crate) fn read_chunk<R: Read>(mut r: R, max_chunk_size: Option<u32>) -> io::Result<RawChunk> {
     let mut crc_hasher = Crc32::new();
 
     // read chunk length
@@ -102,7 +128,7 @@ pub(crate) fn read_chunk<R: Read>(mut r: R) -> io::Result<RawChunk> {
     crc_hasher.update(&ty);
 
     // read chunk data
-    let mut data = vec![0; length as usize];
+    let mut data = allocate_chunk_data(length, max_chunk_size)?;
     r.read_exact(&mut data)?;
 
     crc_hasher.update(&data);

@@ -53,7 +53,7 @@ impl<R: Read> Archive<R> {
 
     fn read_header_with_buffer(mut reader: R, buf: Vec<RawChunk>) -> io::Result<Self> {
         read_pna_header(&mut reader)?;
-        let mut chunk_reader = ChunkReader::from(&mut reader);
+        let mut chunk_reader = ChunkReader::new(&mut reader, None);
         let chunk = chunk_reader.read_chunk()?;
         if chunk.ty != ChunkType::AHED {
             return Err(io::Error::new(
@@ -78,7 +78,7 @@ impl<R: Read> Archive<R> {
         let mut chunks = Vec::new();
         swap(&mut self.buf, &mut chunks);
         loop {
-            let chunk = read_chunk(&mut self.inner)?;
+            let chunk = read_chunk(&mut self.inner, self.max_chunk_size)?;
             match chunk.ty {
                 ChunkType::FEND | ChunkType::SEND => {
                     chunks.push(chunk);
@@ -186,7 +186,8 @@ impl<R: Read> Archive<R> {
     #[inline]
     pub fn read_next_archive<OR: Read>(self, reader: OR) -> io::Result<Archive<OR>> {
         let current_header = self.header;
-        let next = Archive::<OR>::read_header_with_buffer(reader, self.buf)?;
+        let mut next = Archive::<OR>::read_header_with_buffer(reader, self.buf)?;
+        next.max_chunk_size = self.max_chunk_size;
         if current_header.archive_number + 1 != next.header.archive_number {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -250,7 +251,7 @@ impl<R: futures_io::AsyncRead + Unpin> Archive<R> {
 
     async fn read_header_with_buffer_async(mut reader: R, buf: Vec<RawChunk>) -> io::Result<Self> {
         read_pna_header_async(&mut reader).await?;
-        let mut chunk_reader = ChunkReader::from(&mut reader);
+        let mut chunk_reader = ChunkReader::new(&mut reader, None);
         let chunk = chunk_reader.read_chunk_async().await?;
         if chunk.ty != ChunkType::AHED {
             return Err(io::Error::new(
@@ -265,7 +266,7 @@ impl<R: futures_io::AsyncRead + Unpin> Archive<R> {
     async fn next_raw_item_async(&mut self) -> io::Result<Option<RawEntry>> {
         let mut chunks = Vec::new();
         swap(&mut self.buf, &mut chunks);
-        let mut reader = ChunkReader::from(&mut self.inner);
+        let mut reader = ChunkReader::new(&mut self.inner, self.max_chunk_size);
         loop {
             let chunk = reader.read_chunk_async().await?;
             match chunk.ty {
@@ -478,7 +479,7 @@ impl<R: Read + Seek> Archive<R> {
     /// ```
     #[inline]
     pub fn seek_to_end(&mut self) -> io::Result<()> {
-        let mut reader = ChunkReader::from(&mut self.inner);
+        let mut reader = ChunkReader::new(&mut self.inner, self.max_chunk_size);
         let byte = loop {
             let (ty, byte_length) = reader.skip_chunk()?;
             if ty == ChunkType::AEND {

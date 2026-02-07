@@ -243,7 +243,7 @@ pub(crate) struct EntryIterator<'s, T>(EntryReader<ChainReader<InternalIterMap<'
 
 #[inline]
 fn read_next_normal_entry_from_stream<R: Read>(reader: &mut R) -> Option<io::Result<NormalEntry>> {
-    let mut chunk_reader = ChunkReader::from(reader);
+    let mut chunk_reader = ChunkReader::new(reader, None);
     let mut chunks = Vec::new();
     loop {
         let chunk = chunk_reader.read_chunk();
