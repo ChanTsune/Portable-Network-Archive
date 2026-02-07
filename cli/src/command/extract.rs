@@ -574,21 +574,7 @@ where
         run_process_archive(reader, password_provider, |entry| {
             let item = entry
                 .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
-            let item_path = item.name().to_string();
-            if !globs.is_empty() && !globs.matches(&item_path) {
-                log::debug!("Skip: {item_path}");
-                return Ok(());
-            }
-            if args.filter.excluded(item.name()) {
-                log::debug!("Skip: {item_path}");
-                return Ok(());
-            }
-            if !entry_matches_time_filters(&item, &args.time_filters) {
-                log::debug!("Skip: {item_path}");
-                return Ok(());
-            }
-            let Some(name) = args.pathname_editor.edit_entry_name(item.name().as_path()) else {
-                log::debug!("Skip: {item_path}");
+            let Some(name) = filter_entry(&item, &mut globs, &args) else {
                 return Ok(());
             };
             if args.verbose {
@@ -604,6 +590,7 @@ where
                 link_entries.push((name, item));
                 return Ok(());
             }
+            let item_path = item.name().to_string();
             let tx = tx.clone();
             let args = args.clone();
             s.spawn_fifo(move |_| {
@@ -656,21 +643,7 @@ where
         run_entries(archives, password_provider, |entry| {
             let item = entry
                 .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
-            let item_path = item.name().to_string();
-            if !globs.is_empty() && !globs.matches(&item_path) {
-                log::debug!("Skip: {item_path}");
-                return Ok(());
-            }
-            if args.filter.excluded(item.name()) {
-                log::debug!("Skip: {item_path}");
-                return Ok(());
-            }
-            if !entry_matches_time_filters(&item, &args.time_filters) {
-                log::debug!("Skip: {item_path}");
-                return Ok(());
-            }
-            let Some(name) = args.pathname_editor.edit_entry_name(item.name().as_path()) else {
-                log::debug!("Skip: {item_path}");
+            let Some(name) = filter_entry(&item, &mut globs, &args) else {
                 return Ok(());
             };
             if args.verbose {
@@ -686,6 +659,7 @@ where
                 link_entries.push((name, item.into()));
                 return Ok(());
             }
+            let item_path = item.name().to_string();
             let tx = tx.clone();
             let args = args.clone();
             s.spawn_fifo(move |_| {
@@ -720,6 +694,34 @@ where
 {
     let metadata = item.metadata();
     filters.matches_or_inactive(metadata.created_time(), metadata.modified_time())
+}
+
+fn filter_entry<T: AsRef<[u8]>>(
+    item: &NormalEntry<T>,
+    globs: &mut BsdGlobMatcher<'_>,
+    args: &OutputOption<'_>,
+) -> Option<EntryName>
+where
+    pna::RawChunk<T>: Chunk,
+{
+    let item_name = item.name();
+    if !globs.is_empty() && !globs.matches(item_name) {
+        log::debug!("Skip: {item_name}");
+        return None;
+    }
+    if args.filter.excluded(item_name) {
+        log::debug!("Skip: {item_name}");
+        return None;
+    }
+    if !entry_matches_time_filters(item, &args.time_filters) {
+        log::debug!("Skip: {item_name}");
+        return None;
+    }
+    let name = args.pathname_editor.edit_entry_name(item_name.as_path());
+    if name.is_none() {
+        log::debug!("Skip: {item_name}");
+    }
+    name
 }
 
 /// Result of checking whether extraction should proceed for a given path.
