@@ -405,7 +405,7 @@ pub fn read_as_chunks<R: Read>(
     crate::archive::read_pna_header(&mut archive)?;
 
     Ok(Chunks {
-        reader: ChunkReader::from(archive),
+        reader: ChunkReader::new(archive, None),
         eoa: false,
     })
 }

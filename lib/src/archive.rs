@@ -68,6 +68,7 @@ pub struct Archive<T> {
     // following fields are only use in reader mode
     next_archive: bool,
     buf: Vec<RawChunk>,
+    max_chunk_size: Option<u32>,
 }
 
 impl<T> Archive<T> {
@@ -81,7 +82,22 @@ impl<T> Archive<T> {
             header,
             next_archive: false,
             buf,
+            max_chunk_size: None,
         }
+    }
+
+    /// Sets the maximum chunk size limit for reading.
+    ///
+    /// When set, chunks larger than this size will be rejected with an error.
+    /// This can be used to protect against denial-of-service attacks from
+    /// maliciously crafted archives with extremely large chunks.
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - The maximum allowed chunk size in bytes.
+    #[inline]
+    pub fn set_max_chunk_size(&mut self, size: core::num::NonZeroU32) {
+        self.max_chunk_size = Some(size.get());
     }
 
     /// Returns `true` if an [ANXT] chunk has appeared before calling this method.
