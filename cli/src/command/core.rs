@@ -17,7 +17,7 @@ pub(crate) use self::permission::{ModeStrategy, OwnerOptions, OwnerStrategy, Uma
 pub(crate) use self::safe_writer::SafeWriter;
 pub(crate) use self::timestamp::{TimeSource, TimestampStrategy};
 use crate::{
-    cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs},
+    cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs, MissingTimePolicy},
     utils::{self, PathPartExt, fs::HardlinkResolver},
 };
 use anyhow::Context;
@@ -89,6 +89,8 @@ pub(crate) struct TimeFilterResolver<'a> {
     pub(crate) older_mtime_than: Option<&'a Path>,
     pub(crate) newer_mtime: Option<SystemTime>,
     pub(crate) older_mtime: Option<SystemTime>,
+    pub(crate) missing_ctime: MissingTimePolicy,
+    pub(crate) missing_mtime: MissingTimePolicy,
 }
 
 impl TimeFilterResolver<'_> {
@@ -116,6 +118,7 @@ impl TimeFilterResolver<'_> {
                     Some(p) => Some(resolve_ctime(p)?),
                     None => self.older_ctime,
                 },
+                missing_policy: self.missing_ctime,
             },
             mtime: TimeFilter {
                 newer_than: match self.newer_mtime_than {
@@ -126,6 +129,7 @@ impl TimeFilterResolver<'_> {
                     Some(p) => Some(fs::metadata(p)?.modified()?),
                     None => self.older_mtime,
                 },
+                missing_policy: self.missing_mtime,
             },
         })
     }
@@ -1758,6 +1762,7 @@ fn transform_normal_entry(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cli::MissingTimePolicy;
     use std::collections::HashSet;
 
     const EMPTY_PATTERNS: [&str; 0] = [];
@@ -1771,10 +1776,12 @@ mod tests {
             ctime: TimeFilter {
                 newer_than: None,
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
             mtime: TimeFilter {
                 newer_than: None,
                 older_than: None,
+                missing_policy: MissingTimePolicy::Include,
             },
         }
     }

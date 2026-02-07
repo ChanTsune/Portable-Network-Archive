@@ -1,7 +1,7 @@
 use crate::{
     cli::{
         CipherAlgorithmArgs, ColorChoice, DateTime, DeflateLevel, GlobalContext, HashAlgorithmArgs,
-        NameIdPair, PasswordArgs, XzLevel, ZstdLevel,
+        MissingTimePolicy, NameIdPair, PasswordArgs, XzLevel, ZstdLevel,
     },
     command::{
         Command,
@@ -836,6 +836,8 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
+        missing_ctime: MissingTimePolicy::Include,
+        missing_mtime: MissingTimePolicy::Include,
     }
     .resolve()?;
     if let Some(working_dir) = args.working_dir {
@@ -978,6 +980,8 @@ fn run_extract_archive(ctx: &GlobalContext, args: StdioCommand) -> anyhow::Resul
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
+        missing_ctime: MissingTimePolicy::Include,
+        missing_mtime: MissingTimePolicy::Include,
     }
     .resolve()?;
     let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
@@ -1096,6 +1100,8 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
+        missing_ctime: MissingTimePolicy::Include,
+        missing_mtime: MissingTimePolicy::Include,
     }
     .resolve()?;
 
@@ -1251,6 +1257,8 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
+        missing_ctime: MissingTimePolicy::Include,
+        missing_mtime: MissingTimePolicy::Include,
     }
     .resolve()?;
     if let Some(working_dir) = args.working_dir {
@@ -1424,6 +1432,8 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
+        missing_ctime: MissingTimePolicy::Include,
+        missing_mtime: MissingTimePolicy::Include,
     }
     .resolve()?;
     let collect_options = CollectOptions {

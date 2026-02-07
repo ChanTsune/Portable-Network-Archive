@@ -1,7 +1,7 @@
 use crate::{
     cli::{
         CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileArgsCompat, HashAlgorithmArgs,
-        PasswordArgs,
+        MissingTimePolicy, PasswordArgs,
     },
     command::{
         Command, ask_password, check_password,
@@ -412,6 +412,8 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
+        missing_ctime: MissingTimePolicy::Include,
+        missing_mtime: MissingTimePolicy::Include,
     }
     .resolve()?;
     let create_options = CreateOptions {
