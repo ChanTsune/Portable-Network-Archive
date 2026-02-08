@@ -529,6 +529,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn run_update_archive<Strategy, W>(
     source: &mut SplitArchiveReader,
     password: Option<&[u8]>,
