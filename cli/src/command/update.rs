@@ -209,24 +209,32 @@ pub(crate) struct UpdateCommand {
     #[arg(
         long,
         value_name = "DATETIME",
+        requires = "unstable",
+        help_heading = "Unstable Options",
         help = "Only include files and directories older than the specified date. This compares ctime entries."
     )]
     older_ctime: Option<DateTime>,
     #[arg(
         long,
         value_name = "DATETIME",
+        requires = "unstable",
+        help_heading = "Unstable Options",
         help = "Only include files and directories older than the specified date. This compares mtime entries."
     )]
     older_mtime: Option<DateTime>,
     #[arg(
         long,
         value_name = "DATETIME",
+        requires = "unstable",
+        help_heading = "Unstable Options",
         help = "Only include files and directories newer than the specified date. This compares ctime entries."
     )]
     newer_ctime: Option<DateTime>,
     #[arg(
         long,
         value_name = "DATETIME",
+        requires = "unstable",
+        help_heading = "Unstable Options",
         help = "Only include files and directories newer than the specified date. This compares mtime entries."
     )]
     newer_mtime: Option<DateTime>,
