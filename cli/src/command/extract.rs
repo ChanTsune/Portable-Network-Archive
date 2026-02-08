@@ -622,6 +622,12 @@ where
                 return Ok(());
             }
             let item_path = item.name().to_string();
+            if !fast_read && !globs.is_empty() {
+                extract_entry(item, &name, password, &args).map_err(|e| {
+                    io::Error::new(e.kind(), format!("extracting {}: {e}", item_path))
+                })?;
+                return Ok(());
+            }
             let tx = tx.clone();
             let args = args.clone();
             s.spawn_fifo(move |_| {
@@ -699,6 +705,12 @@ where
                 return Ok(());
             }
             let item_path = item.name().to_string();
+            if !globs.is_empty() {
+                extract_entry(item, &name, password, &args).map_err(|e| {
+                    io::Error::new(e.kind(), format!("extracting {}: {e}", item_path))
+                })?;
+                return Ok(());
+            }
             let tx = tx.clone();
             let args = args.clone();
             s.spawn_fifo(move |_| {
