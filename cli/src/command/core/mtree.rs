@@ -12,7 +12,7 @@ use pna::prelude::EntryBuilderExt;
 use pna::{EntryBuilder, NormalEntry, WriteOptions};
 use std::{
     fs::{self, Metadata},
-    io::{self, Read},
+    io::{self, BufRead, Read},
     path::{Path, PathBuf},
 };
 
@@ -31,7 +31,7 @@ pub(crate) fn transform_mtree_entries<R: Read>(
     time_filters: &TimeFilters,
 ) -> io::Result<Vec<io::Result<Option<NormalEntry>>>> {
     // Use empty cwd to avoid mtree2 joining paths with current working directory
-    let mtree = MTree::from_reader_with_cwd(reader, PathBuf::new());
+    let mtree = MTree::from_reader_with_cwd(MtreeNormalizer::new(reader), PathBuf::new());
     let mut results = Vec::new();
 
     for entry_result in mtree {
@@ -83,6 +83,153 @@ pub(crate) fn transform_mtree_entries<R: Read>(
     }
 
     Ok(results)
+}
+
+/// Streaming normalizer for mtree input.
+///
+/// Normalizes line-by-line so that bsdtar-style manifests can be parsed by mtree2.
+///
+/// - Treats CR, LF, and CRLF as line terminators (outputs LF)
+/// - Rewrites `content=` to `contents=` (`content=` is a non-standard shorthand
+///   accepted by bsdtar but not recognized by mtree2)
+///
+/// Operates on physical lines, so `content=` as the first token on a
+/// backslash-continuation line will not be rewritten. This is acceptable because
+/// such formatting is uncommon, and the case was already broken before
+/// normalization (mtree2 does not recognize `content=`).
+struct MtreeNormalizer<R> {
+    inner: io::BufReader<R>,
+    line_buf: Vec<u8>,
+    output: Vec<u8>,
+    pos: usize,
+    eof: bool,
+}
+
+impl<R: Read> MtreeNormalizer<R> {
+    fn new(reader: R) -> Self {
+        Self {
+            inner: io::BufReader::new(reader),
+            line_buf: Vec::new(),
+            output: Vec::new(),
+            pos: 0,
+            eof: false,
+        }
+    }
+
+    fn fill_next_line(&mut self) -> io::Result<bool> {
+        self.line_buf.clear();
+        self.output.clear();
+        self.pos = 0;
+
+        if self.eof {
+            return Ok(false);
+        }
+
+        let mut has_terminator = false;
+
+        loop {
+            let buf = self.inner.fill_buf()?;
+            if buf.is_empty() {
+                self.eof = true;
+                break;
+            }
+
+            if let Some(pos) = buf.iter().position(|&b| b == b'\r' || b == b'\n') {
+                self.line_buf.extend_from_slice(&buf[..pos]);
+                let terminator = buf[pos];
+                self.inner.consume(pos + 1);
+
+                if terminator == b'\r' {
+                    let next = self.inner.fill_buf()?;
+                    if !next.is_empty() && next[0] == b'\n' {
+                        self.inner.consume(1);
+                    }
+                }
+
+                has_terminator = true;
+                break;
+            }
+
+            self.line_buf.extend_from_slice(buf);
+            let len = buf.len();
+            self.inner.consume(len);
+        }
+
+        if self.line_buf.is_empty() && !has_terminator {
+            return Ok(false);
+        }
+
+        rewrite_content_keyword_line(&self.line_buf, &mut self.output);
+        if has_terminator {
+            self.output.push(b'\n');
+        }
+
+        Ok(true)
+    }
+}
+
+impl<R: Read> Read for MtreeNormalizer<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        loop {
+            let remaining = &self.output[self.pos..];
+            if !remaining.is_empty() {
+                let n = remaining.len().min(buf.len());
+                buf[..n].copy_from_slice(&remaining[..n]);
+                self.pos += n;
+                return Ok(n);
+            }
+
+            if !self.fill_next_line()? {
+                return Ok(0);
+            }
+        }
+    }
+}
+
+/// `/set` directives are intentionally processed because they carry keyword defaults.
+fn rewrite_content_keyword_line(line: &[u8], out: &mut Vec<u8>) {
+    if line.is_empty() || line[0] == b'#' {
+        out.extend_from_slice(line);
+        return;
+    }
+
+    let mut idx = 0;
+    while idx < line.len() && is_mtree_whitespace(line[idx]) {
+        idx += 1;
+    }
+    while idx < line.len() && !is_mtree_whitespace(line[idx]) {
+        idx += 1;
+    }
+    out.extend_from_slice(&line[..idx]);
+
+    while idx < line.len() {
+        let ws_start = idx;
+        while idx < line.len() && is_mtree_whitespace(line[idx]) {
+            idx += 1;
+        }
+        out.extend_from_slice(&line[ws_start..idx]);
+
+        let token_start = idx;
+        while idx < line.len() && !is_mtree_whitespace(line[idx]) {
+            idx += 1;
+        }
+        if token_start == idx {
+            break;
+        }
+
+        let token = &line[token_start..idx];
+        if token.starts_with(b"content=") {
+            out.extend_from_slice(b"contents=");
+            out.extend_from_slice(&token[b"content=".len()..]);
+        } else {
+            out.extend_from_slice(token);
+        }
+    }
+}
+
+#[inline]
+fn is_mtree_whitespace(byte: u8) -> bool {
+    matches!(byte, b' ' | b'\t')
 }
 
 /// Creates a single archive entry from an mtree entry.
@@ -418,6 +565,13 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
+    fn normalize(input: &[u8]) -> Vec<u8> {
+        let mut normalizer = MtreeNormalizer::new(input);
+        let mut out = Vec::new();
+        normalizer.read_to_end(&mut out).unwrap();
+        out
+    }
+
     #[test]
     fn mtree_optional_keyword_is_parsed() {
         let data = b"#mtree\nfile1.txt\nfile2.txt optional\n";
@@ -433,5 +587,53 @@ mod tests {
 
         assert_eq!(entry2.path().to_str(), Some("file2.txt"));
         assert!(entry2.optional(), "file2.txt should be marked as optional");
+    }
+
+    #[test]
+    fn normalizer_converts_crlf_and_content_alias() {
+        let input = b"#mtree\r\nf type=file content=bar/foo\r\n";
+        assert_eq!(normalize(input), b"#mtree\nf type=file contents=bar/foo\n");
+    }
+
+    #[test]
+    fn normalizer_keeps_existing_contents_keyword() {
+        let input = b"#mtree\nf type=file contents=bar/foo\n";
+        assert_eq!(normalize(input), input);
+    }
+
+    #[test]
+    fn normalizer_preserves_first_token() {
+        let input = b"#mtree\ncontent=file type=file contents=bar/foo\n";
+        assert_eq!(normalize(input), input);
+    }
+
+    #[test]
+    fn normalizer_handles_wrapped_crlf_line() {
+        let input = b"#mtree\r\nf uname=\\\r\nroot content=bar/foo\r\n";
+        assert_eq!(
+            normalize(input),
+            b"#mtree\nf uname=\\\nroot contents=bar/foo\n"
+        );
+    }
+
+    #[test]
+    fn normalizer_converts_standalone_cr() {
+        let input = b"#mtree\rf type=file content=bar/foo\r";
+        assert_eq!(normalize(input), b"#mtree\nf type=file contents=bar/foo\n");
+    }
+
+    #[test]
+    fn normalizer_rewrites_tab_separated_content() {
+        let input = b"#mtree\nf\ttype=file\tcontent=bar/foo\n";
+        assert_eq!(
+            normalize(input),
+            b"#mtree\nf\ttype=file\tcontents=bar/foo\n"
+        );
+    }
+
+    #[test]
+    fn normalizer_handles_no_trailing_newline() {
+        let input = b"#mtree\nf type=file content=bar/foo";
+        assert_eq!(normalize(input), b"#mtree\nf type=file contents=bar/foo");
     }
 }
