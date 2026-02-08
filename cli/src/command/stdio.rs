@@ -632,7 +632,7 @@ pub(crate) struct StdioCommand {
     block_size: Option<usize>,
     #[arg(long, action = clap::ArgAction::Version, help = "Print version")]
     version: (),
-    #[arg(long, action = clap::ArgAction::Help, help = "Print help")]
+    #[arg(short = 'h', long, action = clap::ArgAction::Help, help = "Print help")]
     help: (),
 }
 
