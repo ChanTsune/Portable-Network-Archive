@@ -850,6 +850,9 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     if let Some(path) = args.files_from {
         files.extend(read_paths(path, args.null)?);
     }
+    if files.is_empty() {
+        anyhow::bail!("create mode requires at least one input path or @archive source");
+    }
 
     let mut exclude = args.exclude;
     if let Some(p) = args.exclude_from {
