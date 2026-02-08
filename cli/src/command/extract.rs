@@ -591,6 +591,12 @@ where
                 link_entries.push((name, item));
                 return Ok(());
             }
+            // Preserve archive order for directory entries so symlink/file collisions
+            // follow bsdtar semantics while keeping regular files parallel.
+            if matches!(item.header().data_kind(), DataKind::Directory) {
+                return extract_entry(item, &name, password, &args)
+                    .map_err(|e| io::Error::new(e.kind(), format!("extracting {item_path}: {e}")));
+            }
             let tx = tx.clone();
             let args = args.clone();
             s.spawn_fifo(move |_| {
@@ -609,6 +615,7 @@ where
     for result in rx {
         result?;
     }
+
     for (name, item) in link_entries {
         extract_entry(item, &name, password, &args)
             .with_context(|| format!("extracting deferred link {name}"))?;
@@ -633,9 +640,7 @@ where
         let password = password_provider();
         let mut globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))
             .with_context(|| "building inclusion patterns")?;
-
         let mut link_entries = Vec::<(_, NormalEntry)>::new();
-
         let (tx, rx) = std::sync::mpsc::channel();
 
         #[hooq::skip_all]
@@ -669,6 +674,12 @@ where
                 link_entries.push((name, item.into()));
                 return Ok(());
             }
+            // Preserve archive order for directory entries so symlink/file collisions
+            // follow bsdtar semantics while keeping regular files parallel.
+            if matches!(item.header().data_kind(), DataKind::Directory) {
+                return extract_entry(item, &name, password, &args)
+                    .map_err(|e| io::Error::new(e.kind(), format!("extracting {item_path}: {e}")));
+            }
             let tx = tx.clone();
             let args = args.clone();
             s.spawn_fifo(move |_| {
@@ -685,7 +696,6 @@ where
         for result in rx {
             result?;
         }
-
         for (name, item) in link_entries {
             extract_entry(item, &name, password, &args)
                 .with_context(|| format!("extracting deferred link {name}"))?;
@@ -770,13 +780,22 @@ where
         }
     }
 
+    let preserve_symlink_dir = should_preserve_existing_symlink_for_directory(
+        path,
+        entry_kind,
+        metadata.as_ref(),
+        secure_symlinks,
+    )?;
+
     // Determine what cleanup is needed
     let (had_existing, existing_is_dir) = metadata
         .as_ref()
         .map(|meta| (true, meta.is_dir()))
         .unwrap_or((false, false));
-    let unlink_existing =
-        unlink_first && had_existing && (entry_kind != DataKind::Directory || !existing_is_dir);
+    let unlink_existing = unlink_first
+        && had_existing
+        && !preserve_symlink_dir
+        && (entry_kind != DataKind::Directory || !existing_is_dir);
     let should_overwrite_existing = matches!(
         overwrite_strategy,
         OverwriteStrategy::Always | OverwriteStrategy::KeepNewer
@@ -793,10 +812,12 @@ where
     }
 
     // Handle type conflicts (symlink blocking file, file blocking directory)
-    if let Some(meta) = metadata
-        && (meta.is_symlink() || (meta.is_file() && entry_kind == DataKind::Directory))
-    {
-        utils::io::ignore_not_found(utils::fs::remove_path(path))?;
+    if let Some(meta) = metadata {
+        let symlink_conflict = meta.file_type().is_symlink() && !preserve_symlink_dir;
+        let directory_conflict = meta.is_file() && entry_kind == DataKind::Directory;
+        if symlink_conflict || directory_conflict {
+            utils::io::ignore_not_found(utils::fs::remove_path(path))?;
+        }
     }
 
     let remove_existing = should_overwrite_existing && !unlink_existing;
@@ -864,6 +885,9 @@ where
                 restore_timestamps(safe_writer.as_file_mut(), item.metadata(), keep_options)?;
                 safe_writer.persist()?;
             } else {
+                if remove_existing {
+                    utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
+                }
                 let file = utils::fs::file_create(&path, remove_existing)?;
                 let mut writer = io::BufWriter::with_capacity(64 * 1024, file);
                 let mut reader = item.reader(ReadOptions::with_password(password))?;
@@ -1268,9 +1292,6 @@ fn ensure_directory_components(
     if path.as_os_str().is_empty() {
         return Ok(());
     }
-    if !secure_symlinks {
-        return fs::create_dir_all(path);
-    }
     let mut current = PathBuf::new();
     for component in path.components() {
         match component {
@@ -1291,13 +1312,27 @@ fn ensure_directory_components(
                 if meta.is_dir() {
                     continue;
                 }
-                if unlink_first {
+
+                if meta.file_type().is_symlink() {
+                    // -P follows symlinks when they point to existing directories.
+                    if !secure_symlinks && symlink_target_is_directory(&current)? {
+                        continue;
+                    }
+                    if unlink_first {
+                        utils::fs::remove_path_all(&current)?;
+                    } else if secure_symlinks {
+                        return Err(io::Error::other(format!(
+                            "Cannot extract through symlink {}",
+                            current.display()
+                        )));
+                    } else {
+                        return Err(io::Error::new(
+                            io::ErrorKind::NotADirectory,
+                            format!("{} is not a directory", current.display()),
+                        ));
+                    }
+                } else if unlink_first {
                     utils::fs::remove_path_all(&current)?;
-                } else if meta.is_symlink() {
-                    return Err(io::Error::other(format!(
-                        "Cannot extract through symlink {}",
-                        current.display()
-                    )));
                 } else {
                     return Err(io::Error::new(
                         io::ErrorKind::NotADirectory,
@@ -1315,6 +1350,32 @@ fn ensure_directory_components(
         }
     }
     Ok(())
+}
+
+fn should_preserve_existing_symlink_for_directory(
+    path: &Path,
+    entry_kind: DataKind,
+    metadata: Option<&fs::Metadata>,
+    secure_symlinks: bool,
+) -> io::Result<bool> {
+    if secure_symlinks || entry_kind != DataKind::Directory {
+        return Ok(false);
+    }
+    let Some(meta) = metadata else {
+        return Ok(false);
+    };
+    if !meta.file_type().is_symlink() {
+        return Ok(false);
+    }
+    symlink_target_is_directory(path)
+}
+
+fn symlink_target_is_directory(path: &Path) -> io::Result<bool> {
+    match fs::metadata(path) {
+        Ok(meta) => Ok(meta.is_dir()),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(err) => Err(err),
+    }
 }
 
 fn search_owner(name: &str, id: u64) -> io::Result<User> {

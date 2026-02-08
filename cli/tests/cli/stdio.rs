@@ -1,3 +1,5 @@
+#[cfg(unix)]
+mod absolute_paths_symlink;
 mod archive_inclusion;
 mod exclude_vcs;
 mod files_from;
