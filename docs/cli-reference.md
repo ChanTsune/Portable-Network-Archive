@@ -150,10 +150,10 @@ Create archive
 
 ###### **Options:**
 
-* `--one-file-system` — Stay in the same file system when collecting files (unstable)
+* `--one-file-system` — Stay in the same file system when collecting files
 
   Default value: `false`
-* `--nodump` — Exclude files with the nodump flag (unstable)
+* `--nodump` — Exclude files with the nodump flag
 
   Default value: `false`
 * `-r`, `--recursive` [alias: `recursion`] — Add the directory to the archive recursively
@@ -180,7 +180,7 @@ Create archive
 * `--no-keep-timestamp` [alias: `no-preserve-timestamps`] — Do not archive timestamp of files. This is the inverse option of --preserve-timestamps
 
   Default value: `false`
-* `--keep-permission` [alias: `preserve-permissions`] — Preserve file permissions (unstable on Windows)
+* `--keep-permission` [alias: `preserve-permissions`] — Preserve file permissions
 
   Default value: `false`
 * `--no-keep-permission` [alias: `no-preserve-permissions`] — Do not archive permissions of files. This is the inverse option of --preserve-permissions
@@ -192,10 +192,10 @@ Create archive
 * `--no-keep-xattr` [alias: `no-preserve-xattrs`] — Do not archive extended attributes of files. This is the inverse option of --preserve-xattrs
 
   Default value: `false`
-* `--keep-acl` [alias: `preserve-acls`] — Preserve ACLs (unstable)
+* `--keep-acl` [alias: `preserve-acls`] — Preserve ACLs
 
   Default value: `false`
-* `--no-keep-acl` [alias: `no-preserve-acls`] — Do not archive ACLs. This is the inverse option of --keep-acl (unstable)
+* `--no-keep-acl` [alias: `no-preserve-acls`] — Do not archive ACLs. This is the inverse option of --keep-acl
 
   Default value: `false`
 * `--split <size>` — Splits archive by given size in bytes (minimum 64B)
@@ -206,7 +206,7 @@ Create archive
 * `--gname <NAME>` — Set group name for archive entries
 * `--uid <ID>` — Overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id
 * `--gid <ID>` — Overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id
-* `--strip-components <N>` — Remove the specified number of leading path elements when storing paths (unstable)
+* `--strip-components <N>` — Remove the specified number of leading path elements when storing paths
 * `--numeric-owner` — This is equivalent to --uname "" --gname "". It causes user and group names to not be stored in the archive
 
   Default value: `false`
@@ -222,38 +222,38 @@ Create archive
 * `--clamp-mtime` — Clamp the modification time of the entries to the specified time by --mtime
 
   Default value: `false`
-* `--older-ctime <DATETIME>` — Only include files and directories older than the specified date (unstable). This compares ctime entries.
-* `--older-mtime <DATETIME>` — Only include files and directories older than the specified date (unstable). This compares mtime entries.
-* `--newer-ctime <DATETIME>` — Only include files and directories newer than the specified date (unstable). This compares ctime entries.
-* `--newer-mtime <DATETIME>` — Only include files and directories newer than the specified date (unstable). This compares mtime entries.
-* `--newer-ctime-than <FILE>` — Only include files and directories newer than the specified file (unstable). This compares ctime entries.
-* `--newer-mtime-than <FILE>` — Only include files and directories newer than the specified file (unstable). This compares mtime entries.
-* `--older-ctime-than <FILE>` — Only include files and directories older than the specified file (unstable). This compares ctime entries.
-* `--older-mtime-than <FILE>` — Only include files and directories older than the specified file (unstable). This compares mtime entries.
-* `--files-from <FILE>` — Read archiving files from given path (unstable)
-* `--files-from-stdin` — Read archiving files from stdin (unstable)
+* `--older-ctime <DATETIME>` — Only include files and directories older than the specified date. This compares ctime entries.
+* `--older-mtime <DATETIME>` — Only include files and directories older than the specified date. This compares mtime entries.
+* `--newer-ctime <DATETIME>` — Only include files and directories newer than the specified date. This compares ctime entries.
+* `--newer-mtime <DATETIME>` — Only include files and directories newer than the specified date. This compares mtime entries.
+* `--newer-ctime-than <FILE>` — Only include files and directories newer than the specified file. This compares ctime entries.
+* `--newer-mtime-than <FILE>` — Only include files and directories newer than the specified file. This compares mtime entries.
+* `--older-ctime-than <FILE>` — Only include files and directories older than the specified file. This compares ctime entries.
+* `--older-mtime-than <FILE>` — Only include files and directories older than the specified file. This compares mtime entries.
+* `--files-from <FILE>` — Read archiving files from given path
+* `--files-from-stdin` — Read archiving files from stdin
 
   Default value: `false`
-* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
-* `--exclude <PATTERN>` — Exclude path glob (unstable)
-* `--exclude-from <FILE>` — Read exclude files from given path (unstable)
-* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)
+* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions
+* `--exclude <PATTERN>` — Exclude path glob
+* `--exclude-from <FILE>` — Read exclude files from given path
+* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)
 
   Default value: `false`
-* `--gitignore` — Ignore files from .gitignore (unstable)
+* `--gitignore` — Ignore files from .gitignore
 
   Default value: `false`
 * `--follow-links` [alias: `dereference`] — Follow symbolic links
 
   Default value: `false`
-* `-H`, `--follow-command-links` — Follow symbolic links named on the command line (unstable)
+* `-H`, `--follow-command-links` — Follow symbolic links named on the command line
 
   Default value: `false`
 * `--null` — Filenames or patterns are separated by null characters, not by newlines
 
   Default value: `false`
-* `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option (unstable)
-* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option (unstable)
+* `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option
+* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option
 * `-C`, `--cd <DIRECTORY>` [alias: `directory`] — Change directory before adding the following files
 * `--store` — No compression
 
@@ -308,10 +308,10 @@ Append files to archive
 
 ###### **Options:**
 
-* `--one-file-system` — Stay in the same file system when collecting files (unstable)
+* `--one-file-system` — Stay in the same file system when collecting files
 
   Default value: `false`
-* `--nodump` — Exclude files with the nodump flag (unstable)
+* `--nodump` — Exclude files with the nodump flag
 
   Default value: `false`
 * `-r`, `--recursive` [alias: `recursion`] — Add the directory to the archive recursively
@@ -332,7 +332,7 @@ Append files to archive
 * `--no-keep-timestamp` [alias: `no-preserve-timestamps`] — Do not archive timestamp of files. This is the inverse option of --preserve-timestamps
 
   Default value: `false`
-* `--keep-permission` [alias: `preserve-permissions`] — Preserve file permissions (unstable on Windows)
+* `--keep-permission` [alias: `preserve-permissions`] — Preserve file permissions
 
   Default value: `false`
 * `--no-keep-permission` [alias: `no-preserve-permissions`] — Do not archive permissions of files. This is the inverse option of --preserve-permissions
@@ -344,17 +344,17 @@ Append files to archive
 * `--no-keep-xattr` [alias: `no-preserve-xattrs`] — Do not archive extended attributes of files. This is the inverse option of --preserve-xattrs
 
   Default value: `false`
-* `--keep-acl` [alias: `preserve-acls`] — Preserve ACLs (unstable)
+* `--keep-acl` [alias: `preserve-acls`] — Preserve ACLs
 
   Default value: `false`
-* `--no-keep-acl` [alias: `no-preserve-acls`] — Do not archive ACLs. This is the inverse option of --keep-acl (unstable)
+* `--no-keep-acl` [alias: `no-preserve-acls`] — Do not archive ACLs. This is the inverse option of --keep-acl
 
   Default value: `false`
 * `--uname <NAME>` — Set user name for archive entries
 * `--gname <NAME>` — Set group name for archive entries
 * `--uid <ID>` — Overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id
 * `--gid <ID>` — Overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id
-* `--strip-components <N>` — Remove the specified number of leading path elements when storing paths (unstable)
+* `--strip-components <N>` — Remove the specified number of leading path elements when storing paths
 * `--numeric-owner` — This is equivalent to --uname "" --gname "". It causes user and group names to not be stored in the archive
 
   Default value: `false`
@@ -370,38 +370,38 @@ Append files to archive
 * `--clamp-mtime` — Clamp the modification time of the entries to the specified time by --mtime
 
   Default value: `false`
-* `--older-ctime <DATETIME>` — Only include files and directories older than the specified date (unstable). This compares ctime entries.
-* `--older-mtime <DATETIME>` — Only include files and directories older than the specified date (unstable). This compares mtime entries.
-* `--newer-ctime <DATETIME>` — Only include files and directories newer than the specified date (unstable). This compares ctime entries.
-* `--newer-mtime <DATETIME>` — Only include files and directories newer than the specified date (unstable). This compares mtime entries.
-* `--newer-ctime-than <FILE>` — Only include files and directories newer than the specified file (unstable). This compares ctime entries.
-* `--newer-mtime-than <FILE>` — Only include files and directories newer than the specified file (unstable). This compares mtime entries.
-* `--older-ctime-than <FILE>` — Only include files and directories older than the specified file (unstable). This compares ctime entries.
-* `--older-mtime-than <FILE>` — Only include files and directories older than the specified file (unstable). This compares mtime entries.
-* `--files-from <FILE>` — Read archiving files from given path (unstable)
-* `--files-from-stdin` — Read archiving files from stdin (unstable)
+* `--older-ctime <DATETIME>` — Only include files and directories older than the specified date. This compares ctime entries.
+* `--older-mtime <DATETIME>` — Only include files and directories older than the specified date. This compares mtime entries.
+* `--newer-ctime <DATETIME>` — Only include files and directories newer than the specified date. This compares ctime entries.
+* `--newer-mtime <DATETIME>` — Only include files and directories newer than the specified date. This compares mtime entries.
+* `--newer-ctime-than <FILE>` — Only include files and directories newer than the specified file. This compares ctime entries.
+* `--newer-mtime-than <FILE>` — Only include files and directories newer than the specified file. This compares mtime entries.
+* `--older-ctime-than <FILE>` — Only include files and directories older than the specified file. This compares ctime entries.
+* `--older-mtime-than <FILE>` — Only include files and directories older than the specified file. This compares mtime entries.
+* `--files-from <FILE>` — Read archiving files from given path
+* `--files-from-stdin` — Read archiving files from stdin
 
   Default value: `false`
-* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
-* `--exclude <PATTERN>` — Exclude path glob (unstable)
-* `--exclude-from <FILE>` — Read exclude files from given path (unstable)
-* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)
+* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions
+* `--exclude <PATTERN>` — Exclude path glob
+* `--exclude-from <FILE>` — Read exclude files from given path
+* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)
 
   Default value: `false`
-* `--gitignore` — Ignore files from .gitignore (unstable)
+* `--gitignore` — Ignore files from .gitignore
 
   Default value: `false`
 * `--follow-links` [alias: `dereference`] — Follow symbolic links
 
   Default value: `false`
-* `-H`, `--follow-command-links` — Follow symbolic links named on the command line (unstable)
+* `-H`, `--follow-command-links` — Follow symbolic links named on the command line
 
   Default value: `false`
 * `--null` — Filenames or patterns are separated by null characters, not by newlines
 
   Default value: `false`
-* `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option (unstable)
-* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option (unstable)
+* `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option
+* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option
 * `-C`, `--cd <DIRECTORY>` [alias: `directory`] — Change directory before adding the following files
 * `--store` — No compression
 
@@ -462,10 +462,10 @@ Extract files from archive
 * `--no-overwrite` — Do not overwrite files. This is the inverse option of --overwrite
 
   Default value: `false`
-* `--keep-newer-files` — Skip extracting files if a newer version already exists (unstable)
+* `--keep-newer-files` — Skip extracting files if a newer version already exists
 
   Default value: `false`
-* `--keep-old-files` — Skip extracting files if they already exist (unstable)
+* `--keep-old-files` — Skip extracting files if they already exist
 
   Default value: `false`
 * `--out-dir <DIRECTORY>` — Output directory of extracted files
@@ -489,7 +489,7 @@ Extract files from archive
 * `--clamp-atime` — Clamp the access time of the entries to the specified time by --atime
 
   Default value: `false`
-* `--keep-permission` [alias: `preserve-permissions`] — Restore the permissions of the files (unstable on Windows)
+* `--keep-permission` [alias: `preserve-permissions`] — Restore the permissions of the files
 
   Default value: `false`
 * `--no-keep-permission` [alias: `no-preserve-permissions`] — Do not restore permissions of files. This is the inverse option of --preserve-permissions
@@ -501,10 +501,10 @@ Extract files from archive
 * `--no-keep-xattr` [alias: `no-preserve-xattrs`] — Do not restore extended attributes of files. This is the inverse option of --preserve-xattrs
 
   Default value: `false`
-* `--keep-acl` [alias: `preserve-acls`] — Restore ACLs (unstable)
+* `--keep-acl` [alias: `preserve-acls`] — Restore ACLs
 
   Default value: `false`
-* `--no-keep-acl` [alias: `no-preserve-acls`] — Do not restore ACLs. This is the inverse option of --keep-acl (unstable)
+* `--no-keep-acl` [alias: `no-preserve-acls`] — Do not restore ACLs. This is the inverse option of --keep-acl
 
   Default value: `false`
 * `--uname <NAME>` — Restore user from given name
@@ -514,29 +514,29 @@ Extract files from archive
 * `--numeric-owner` — This is equivalent to --uname "" --gname "". It causes user and group names in the archive to be ignored in favor of the numeric user and group ids.
 
   Default value: `false`
-* `--older-ctime <DATETIME>` — Only include files and directories older than the specified date (unstable). This compares ctime entries.
-* `--older-mtime <DATETIME>` — Only include files and directories older than the specified date (unstable). This compares mtime entries.
-* `--newer-ctime <DATETIME>` — Only include files and directories newer than the specified date (unstable). This compares ctime entries.
-* `--newer-mtime <DATETIME>` — Only include files and directories newer than the specified date (unstable). This compares mtime entries.
-* `--newer-ctime-than <file>` [alias: `newer-than`] — Only include files and directories newer than the specified file (unstable). This compares ctime entries.
-* `--newer-mtime-than <file>` — Only include files and directories newer than the specified file (unstable). This compares mtime entries.
-* `--older-ctime-than <file>` [alias: `older-than`] — Only include files and directories older than the specified file (unstable). This compares ctime entries.
-* `--older-mtime-than <file>` — Only include files and directories older than the specified file (unstable). This compares mtime entries.
+* `--older-ctime <DATETIME>` — Only include files and directories older than the specified date. This compares ctime entries.
+* `--older-mtime <DATETIME>` — Only include files and directories older than the specified date. This compares mtime entries.
+* `--newer-ctime <DATETIME>` — Only include files and directories newer than the specified date. This compares ctime entries.
+* `--newer-mtime <DATETIME>` — Only include files and directories newer than the specified date. This compares mtime entries.
+* `--newer-ctime-than <file>` [alias: `newer-than`] — Only include files and directories newer than the specified file. This compares ctime entries.
+* `--newer-mtime-than <file>` — Only include files and directories newer than the specified file. This compares mtime entries.
+* `--older-ctime-than <file>` [alias: `older-than`] — Only include files and directories older than the specified file. This compares ctime entries.
+* `--older-mtime-than <file>` — Only include files and directories older than the specified file. This compares mtime entries.
 * `--missing-ctime <MISSING_CTIME>` — Behavior for entries without ctime when time filtering (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]
 * `--missing-mtime <MISSING_MTIME>` — Behavior for entries without mtime when time filtering (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]
-* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
-* `--exclude <PATTERN>` — Exclude path glob (unstable)
-* `--exclude-from <FILE>` — Read exclude files from given path (unstable)
-* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)
+* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions
+* `--exclude <PATTERN>` — Exclude path glob
+* `--exclude-from <FILE>` — Read exclude files from given path
+* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)
 
   Default value: `false`
-* `--files-from <FILE>` — Read extraction patterns from given path (unstable)
+* `--files-from <FILE>` — Read extraction patterns from given path
 * `--null` — Filenames or patterns are separated by null characters, not by newlines
 
   Default value: `false`
 * `--strip-components <N>` — Remove the specified number of leading path elements. Path names with fewer elements will be silently skipped
-* `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option (unstable)
-* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option (unstable)
+* `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option
+* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option
 * `--same-owner` — Try extracting files with the same ownership as exists in the archive
 
   Default value: `false`
@@ -550,10 +550,10 @@ Extract files from archive
 * `--allow-unsafe-links` — Allow extracting symbolic links and hard links that contain root or parent paths
 
   Default value: `false`
-* `--safe-writes` — Extract files atomically via temp file and rename (unstable)
+* `--safe-writes` — Extract files atomically via temp file and rename
 
   Default value: `false`
-* `--no-safe-writes` — Disable atomic extraction. This is the inverse option of --safe-writes (unstable)
+* `--no-safe-writes` — Disable atomic extraction. This is the inverse option of --safe-writes
 
   Default value: `false`
 * `-f`, `--file <FILE>` — Archive file path
@@ -603,13 +603,13 @@ List files in archive
 * `-@` — Display extended file attributes in a table
 
   Default value: `false`
-* `-e` — Display ACLs in a table (unstable)
+* `-e` — Display ACLs in a table
 
   Default value: `false`
 * `-O`, `--show-fflags` — Display file flags (uchg, nodump, hidden, etc.)
 
   Default value: `false`
-* `--private` — Display private chunks in a table (unstable)
+* `--private` — Display private chunks in a table
 
   Default value: `false`
 * `--numeric-owner` — Display user id and group id instead of user name and group name
@@ -626,14 +626,14 @@ List files in archive
 
   Possible values: `created`, `modified`, `accessed`
 
-* `--older-ctime <OLDER_CTIME>` — Only include files and directories older than the specified date (unstable). This compares ctime entries.
-* `--older-mtime <OLDER_MTIME>` — Only include files and directories older than the specified date (unstable). This compares mtime entries.
-* `--newer-ctime <NEWER_CTIME>` — Only include files and directories newer than the specified date (unstable). This compares ctime entries.
-* `--newer-mtime <NEWER_MTIME>` — Only include files and directories newer than the specified date (unstable). This compares mtime entries.
-* `--newer-ctime-than <file>` [alias: `newer-than`] — Only include files and directories newer than the specified file (unstable). This compares ctime entries.
-* `--newer-mtime-than <file>` — Only include files and directories newer than the specified file (unstable). This compares mtime entries.
-* `--older-ctime-than <file>` [alias: `older-than`] — Only include files and directories older than the specified file (unstable). This compares ctime entries.
-* `--older-mtime-than <file>` — Only include files and directories older than the specified file (unstable). This compares mtime entries.
+* `--older-ctime <OLDER_CTIME>` — Only include files and directories older than the specified date. This compares ctime entries.
+* `--older-mtime <OLDER_MTIME>` — Only include files and directories older than the specified date. This compares mtime entries.
+* `--newer-ctime <NEWER_CTIME>` — Only include files and directories newer than the specified date. This compares ctime entries.
+* `--newer-mtime <NEWER_MTIME>` — Only include files and directories newer than the specified date. This compares mtime entries.
+* `--newer-ctime-than <file>` [alias: `newer-than`] — Only include files and directories newer than the specified file. This compares ctime entries.
+* `--newer-mtime-than <file>` — Only include files and directories newer than the specified file. This compares mtime entries.
+* `--older-ctime-than <file>` [alias: `older-than`] — Only include files and directories older than the specified file. This compares ctime entries.
+* `--older-mtime-than <file>` — Only include files and directories older than the specified file. This compares mtime entries.
 * `--missing-ctime <MISSING_CTIME>` — Behavior for entries without ctime when time filtering (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]
 * `--missing-mtime <MISSING_MTIME>` — Behavior for entries without mtime when time filtering (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]
 * `-q` — Force printing of non-graphic characters in file names as the character '?'
@@ -649,9 +649,9 @@ List files in archive
 
   Default value: `false`
 * `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions
-* `--exclude <PATTERN>` — Exclude path glob (unstable)
-* `--exclude-from <FILE>` — Read exclude files from given path (unstable)
-* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)
+* `--exclude <PATTERN>` — Exclude path glob
+* `--exclude-from <FILE>` — Read exclude files from given path
+* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)
 
   Default value: `false`
 * `--null` — Filenames or patterns are separated by null characters, not by newlines
@@ -692,14 +692,14 @@ Delete entry from archive
 ###### **Options:**
 
 * `--output <OUTPUT>` — Output file path
-* `--files-from <FILE>` — Read deleting files from given path (unstable)
-* `--files-from-stdin` — Read deleting files from stdin (unstable)
+* `--files-from <FILE>` — Read deleting files from given path
+* `--files-from-stdin` — Read deleting files from stdin
 
   Default value: `false`
-* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
-* `--exclude <PATTERN>` — Exclude path glob (unstable)
-* `--exclude-from <FILE>` — Read exclude files from given path (unstable)
-* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)
+* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions
+* `--exclude <PATTERN>` — Exclude path glob
+* `--exclude-from <FILE>` — Read exclude files from given path
+* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)
 
   Default value: `false`
 * `--null` — Filenames or patterns are separated by null characters, not by newlines
@@ -1176,10 +1176,10 @@ bsdtar-like CLI semantics for PNA archives
 
 ###### **Options:**
 
-* `--one-file-system` — Stay in the same file system when collecting files (unstable)
+* `--one-file-system` — Stay in the same file system when collecting files
 
   Default value: `false`
-* `--nodump` — Exclude files with the nodump flag (unstable)
+* `--nodump` — Exclude files with the nodump flag
 
   Default value: `false`
 * `-c`, `--create` — Create archive
@@ -1209,13 +1209,13 @@ bsdtar-like CLI semantics for PNA archives
 * `--no-overwrite` — Do not overwrite files. This is the inverse option of --overwrite
 
   Default value: `false`
-* `--keep-newer-files` — Skip extracting files if a newer version already exists (unstable)
+* `--keep-newer-files` — Skip extracting files if a newer version already exists
 
   Default value: `false`
-* `-U`, `--unlink-first` [alias: `unlink`] — Unlink files before creating them; also removes intervening directory symlinks (extract mode only) (unstable)
+* `-U`, `--unlink-first` [alias: `unlink`] — Unlink files before creating them; also removes intervening directory symlinks (extract mode only)
 
   Default value: `false`
-* `-k`, `--keep-old-files` — Skip extracting files if they already exist (unstable)
+* `-k`, `--keep-old-files` — Skip extracting files if they already exist
 
   Default value: `false`
 * `--keep-dir` — Include directories in archive
@@ -1233,7 +1233,7 @@ bsdtar-like CLI semantics for PNA archives
 * `--no-same-permissions` [aliases: `no-preserve-permissions`, `no-permissions`] — Do not store file permissions (mode bits) in the archive
 
   Default value: `false`
-* `-p`, `--same-permissions` [alias: `preserve-permissions`] — Restore file permissions (mode, ACLs, xattrs, fflags, mac-metadata, but NOT ownership) (extract only) (unstable)
+* `-p`, `--same-permissions` [alias: `preserve-permissions`] — Restore file permissions (mode, ACLs, xattrs, fflags, mac-metadata, but NOT ownership) (extract only)
 
   Default value: `false`
 * `--keep-xattr` [aliases: `preserve-xattrs`, `xattrs`] — Preserve extended attributes
@@ -1242,22 +1242,22 @@ bsdtar-like CLI semantics for PNA archives
 * `--no-keep-xattr` [aliases: `no-preserve-xattrs`, `no-xattrs`] — Do not archive extended attributes of files. This is the inverse option of --preserve-xattrs
 
   Default value: `false`
-* `--keep-acl` [aliases: `preserve-acls`, `acls`] — Preserve ACLs (unstable)
+* `--keep-acl` [aliases: `preserve-acls`, `acls`] — Preserve ACLs
 
   Default value: `false`
-* `--no-keep-acl` [aliases: `no-preserve-acls`, `no-acls`] — Do not archive ACLs. This is the inverse option of --keep-acl (unstable)
+* `--no-keep-acl` [aliases: `no-preserve-acls`, `no-acls`] — Do not archive ACLs. This is the inverse option of --keep-acl
 
   Default value: `false`
-* `--keep-fflags` [aliases: `preserve-fflags`, `fflags`] — Archiving the file flags of the files (unstable)
+* `--keep-fflags` [aliases: `preserve-fflags`, `fflags`] — Archiving the file flags of the files
 
   Default value: `false`
-* `--no-keep-fflags` [aliases: `no-preserve-fflags`, `no-fflags`] — Do not archive file flags of files. This is the inverse option of --keep-fflags (unstable)
+* `--no-keep-fflags` [aliases: `no-preserve-fflags`, `no-fflags`] — Do not archive file flags of files. This is the inverse option of --keep-fflags
 
   Default value: `false`
-* `--mac-metadata` — Archive and extract Mac metadata (extended attributes and ACLs) (unstable)
+* `--mac-metadata` — Archive and extract Mac metadata (extended attributes and ACLs)
 
   Default value: `false`
-* `--no-mac-metadata` — Do not archive or extract Mac metadata. This is the inverse option of --mac-metadata (unstable)
+* `--no-mac-metadata` — Do not archive or extract Mac metadata. This is the inverse option of --mac-metadata
 
   Default value: `false`
 * `--solid` — Compress multiple files together for better compression ratio
@@ -1282,19 +1282,19 @@ bsdtar-like CLI semantics for PNA archives
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read password from specified file
 * `--options <OPTIONS>` — Comma-separated list of options. Format: key=value or module:key=value. Supported: compression-level. Modules: deflate, zstd, xz
-* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
-* `--exclude <PATTERN>` — Exclude path glob (unstable)
-* `-X`, `--exclude-from <FILE>` — Read exclude files from given path (unstable)
-* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)
+* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions
+* `--exclude <PATTERN>` — Exclude path glob
+* `-X`, `--exclude-from <FILE>` — Read exclude files from given path
+* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)
 
   Default value: `false`
-* `--gitignore` — Ignore files from .gitignore (unstable)
+* `--gitignore` — Ignore files from .gitignore
 
   Default value: `false`
 * `-L`, `--follow-links` [alias: `dereference`] — Follow symbolic links
 
   Default value: `false`
-* `-H`, `--follow-command-links` — Follow symbolic links named on the command line (unstable)
+* `-H`, `--follow-command-links` — Follow symbolic links named on the command line
 
   Default value: `false`
 * `-l`, `--check-links` [alias: `check-links`] — Warn if not all links to each file are archived (create mode)
@@ -1302,12 +1302,12 @@ bsdtar-like CLI semantics for PNA archives
   Default value: `false`
 * `--out-dir <DIRECTORY>` — Output directory of extracted files
 * `--strip-components <N>` — Remove the specified number of leading path elements. Path names with fewer elements will be silently skipped
-* `--owner <NAME[:ID]>` — Use the provided owner, if uid is not provided, name can be either a user name or numeric id. See the --uname option for details (unstable).
+* `--owner <NAME[:ID]>` — Use the provided owner, if uid is not provided, name can be either a user name or numeric id. See the --uname option for details.
 * `--uname <NAME>` — On create, archiving user to the entries from given name. On extract, restore user from given name
 * `--gname <NAME>` — On create, archiving group to the entries from given name. On extract, restore group from given name
 * `--uid <ID>` — On create, this overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id. On extract, this overrides the user id in the archive; the user name in the archive will be ignored
 * `--gid <ID>` — On create, this overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id. On extract, this overrides the group id in the archive; the group name in the archive will be ignored
-* `--group <NAME[:ID]>` — Use the provided group, if gid is not provided, name can be either a group name or numeric id. See the --gname option for details (unstable).
+* `--group <NAME[:ID]>` — Use the provided group, if gid is not provided, name can be either a group name or numeric id. See the --gname option for details.
 * `--numeric-owner` — This is equivalent to --uname "" --gname "". On create, it causes user and group names to not be stored in the archive. On extract, it causes user and group names in the archive to be ignored in favor of the numeric user and group ids.
 
   Default value: `false`
@@ -1323,17 +1323,17 @@ bsdtar-like CLI semantics for PNA archives
 * `--clamp-mtime` — Clamp the modification time of the entries to the specified time by --mtime
 
   Default value: `false`
-* `--older-ctime <DATETIME>` — Only include files and directories older than the specified date (unstable). This compares ctime entries.
-* `--older-mtime <DATETIME>` — Only include files and directories older than the specified date (unstable). This compares mtime entries.
-* `--newer-ctime <DATETIME>` — Only include files and directories newer than the specified date (unstable). This compares ctime entries.
-* `--newer-mtime <DATETIME>` — Only include files and directories newer than the specified date (unstable). This compares mtime entries.
-* `--newer-ctime-than <FILE>` — Only include files and directories newer than the specified file (unstable). This compares ctime entries.
-* `--newer-mtime-than <FILE>` [alias: `newer-than`] — Only include files and directories newer than the specified file (unstable). This compares mtime entries.
-* `--older-ctime-than <FILE>` — Only include files and directories older than the specified file (unstable). This compares ctime entries.
-* `--older-mtime-than <FILE>` [alias: `older-than`] — Only include files and directories older than the specified file (unstable). This compares mtime entries.
-* `-T`, `--files-from <FILE>` — Read archiving files from given path (unstable)
-* `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option (unstable)
-* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option (unstable)
+* `--older-ctime <DATETIME>` — Only include files and directories older than the specified date. This compares ctime entries.
+* `--older-mtime <DATETIME>` — Only include files and directories older than the specified date. This compares mtime entries.
+* `--newer-ctime <DATETIME>` — Only include files and directories newer than the specified date. This compares ctime entries.
+* `--newer-mtime <DATETIME>` — Only include files and directories newer than the specified date. This compares mtime entries.
+* `--newer-ctime-than <FILE>` — Only include files and directories newer than the specified file. This compares ctime entries.
+* `--newer-mtime-than <FILE>` [alias: `newer-than`] — Only include files and directories newer than the specified file. This compares mtime entries.
+* `--older-ctime-than <FILE>` — Only include files and directories older than the specified file. This compares ctime entries.
+* `--older-mtime-than <FILE>` [alias: `older-than`] — Only include files and directories older than the specified file. This compares mtime entries.
+* `-T`, `--files-from <FILE>` — Read archiving files from given path
+* `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option
+* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option
 * `--same-owner` — Try extracting files with the same ownership as exists in the archive
 
   Default value: `false`
@@ -1350,7 +1350,7 @@ bsdtar-like CLI semantics for PNA archives
 * `--chroot` — chroot() to the current directory after processing any --cd options and before extracting any files (requires root privileges)
 
   Default value: `false`
-* `-P`, `--absolute-paths` — Do not strip leading '/' or '..' from member names and link targets (unstable)
+* `-P`, `--absolute-paths` — Do not strip leading '/' or '..' from member names and link targets
 
   Default value: `false`
 * `-f`, `--file <FILE>` — Read the archive from or write the archive to the specified file. The filename can be - for standard input or standard output.
@@ -1390,14 +1390,14 @@ Delete entry from archive
 ###### **Options:**
 
 * `--output <OUTPUT>` — Output file path
-* `--files-from <FILE>` — Read deleting files from given path (unstable)
-* `--files-from-stdin` — Read deleting files from stdin (unstable)
+* `--files-from <FILE>` — Read deleting files from given path
+* `--files-from-stdin` — Read deleting files from stdin
 
   Default value: `false`
-* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
-* `--exclude <PATTERN>` — Exclude path glob (unstable)
-* `--exclude-from <FILE>` — Read exclude files from given path (unstable)
-* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)
+* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions
+* `--exclude <PATTERN>` — Exclude path glob
+* `--exclude-from <FILE>` — Read exclude files from given path
+* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)
 
   Default value: `false`
 * `--null` — Filenames or patterns are separated by null characters, not by newlines
@@ -1443,10 +1443,10 @@ Update entries in archive
 
 ###### **Options:**
 
-* `--one-file-system` — Stay in the same file system when collecting files (unstable)
+* `--one-file-system` — Stay in the same file system when collecting files
 
   Default value: `false`
-* `--nodump` — Exclude files with the nodump flag (unstable)
+* `--nodump` — Exclude files with the nodump flag
 
   Default value: `false`
 * `-r`, `--recursive` [alias: `recursion`] — Add the directory to the archive recursively
@@ -1467,7 +1467,7 @@ Update entries in archive
 * `--no-keep-timestamp` [alias: `no-preserve-timestamps`] — Do not archive timestamp of files. This is the inverse option of --preserve-timestamps
 
   Default value: `false`
-* `--keep-permission` [alias: `preserve-permissions`] — Preserve file permissions (unstable on Windows)
+* `--keep-permission` [alias: `preserve-permissions`] — Preserve file permissions
 
   Default value: `false`
 * `--no-keep-permission` [alias: `no-preserve-permissions`] — Do not archive permissions of files. This is the inverse option of --preserve-permissions
@@ -1479,17 +1479,17 @@ Update entries in archive
 * `--no-keep-xattr` [alias: `no-preserve-xattrs`] — Do not archive extended attributes of files. This is the inverse option of --preserve-xattrs
 
   Default value: `false`
-* `--keep-acl` [alias: `preserve-acls`] — Preserve ACLs (unstable)
+* `--keep-acl` [alias: `preserve-acls`] — Preserve ACLs
 
   Default value: `false`
-* `--no-keep-acl` [alias: `no-preserve-acls`] — Do not archive ACLs. This is the inverse option of --keep-acl (unstable)
+* `--no-keep-acl` [alias: `no-preserve-acls`] — Do not archive ACLs. This is the inverse option of --keep-acl
 
   Default value: `false`
 * `--uname <NAME>` — Set user name for archive entries
 * `--gname <NAME>` — Set group name for archive entries
 * `--uid <ID>` — Overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id
 * `--gid <ID>` — Overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id
-* `--strip-components <N>` — Remove the specified number of leading path elements when storing paths (unstable)
+* `--strip-components <N>` — Remove the specified number of leading path elements when storing paths
 * `--numeric-owner` — This is equivalent to --uname "" --gname "". It causes user and group names to not be stored in the archive
 
   Default value: `false`
@@ -1509,22 +1509,22 @@ Update entries in archive
 * `--older-mtime <DATETIME>` — Only include files and directories older than the specified date. This compares mtime entries.
 * `--newer-ctime <DATETIME>` — Only include files and directories newer than the specified date. This compares ctime entries.
 * `--newer-mtime <DATETIME>` — Only include files and directories newer than the specified date. This compares mtime entries.
-* `--newer-ctime-than <FILE>` — Only include files and directories newer than the specified file (unstable). This compares ctime entries.
-* `--newer-mtime-than <FILE>` — Only include files and directories newer than the specified file (unstable). This compares mtime entries.
-* `--older-ctime-than <FILE>` — Only include files and directories older than the specified file (unstable). This compares ctime entries.
-* `--older-mtime-than <FILE>` — Only include files and directories older than the specified file (unstable). This compares mtime entries.
-* `--files-from <FILE>` — Read archiving files from given path (unstable)
-* `--files-from-stdin` — Read archiving files from stdin (unstable)
+* `--newer-ctime-than <FILE>` — Only include files and directories newer than the specified file. This compares ctime entries.
+* `--newer-mtime-than <FILE>` — Only include files and directories newer than the specified file. This compares mtime entries.
+* `--older-ctime-than <FILE>` — Only include files and directories older than the specified file. This compares ctime entries.
+* `--older-mtime-than <FILE>` — Only include files and directories older than the specified file. This compares mtime entries.
+* `--files-from <FILE>` — Read archiving files from given path
+* `--files-from-stdin` — Read archiving files from stdin
 
   Default value: `false`
-* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)
-* `--exclude <PATTERN>` — Exclude path glob (unstable)
-* `--exclude-from <FILE>` — Read exclude files from given path (unstable)
-* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)
+* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions
+* `--exclude <PATTERN>` — Exclude path glob
+* `--exclude-from <FILE>` — Read exclude files from given path
+* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)
 
   Default value: `false`
-* `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option (unstable)
-* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option (unstable)
+* `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option
+* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option
 * `-C`, `--cd <DIRECTORY>` [alias: `directory`] — Change directory before adding the following files
 * `--store` — No compression
 
@@ -1554,13 +1554,13 @@ Update entries in archive
 * `--null` — Filenames or patterns are separated by null characters, not by newlines
 
   Default value: `false`
-* `--gitignore` — Ignore files from .gitignore (unstable)
+* `--gitignore` — Ignore files from .gitignore
 
   Default value: `false`
 * `--follow-links` [alias: `dereference`] — Follow symbolic links
 
   Default value: `false`
-* `-H`, `--follow-command-links` — Follow symbolic links named on the command line (unstable)
+* `-H`, `--follow-command-links` — Follow symbolic links named on the command line
 
   Default value: `false`
 * `--sync` — Synchronize archive with source: remove entries for files that no longer exist in the source
