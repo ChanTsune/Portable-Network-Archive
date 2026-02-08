@@ -851,11 +851,13 @@ pub(crate) fn create_entry(
         metadata,
     } = item;
     let Some(entry_name) = pathname_editor.edit_entry_name(path) else {
+        log::debug!("Skip: {}", path.display());
         return Ok(None);
     };
     match store_as {
         StoreAs::Hardlink(source) => {
             let Some(reference) = pathname_editor.edit_hardlink(source) else {
+                log::debug!("Skip: {}", path.display());
                 return Ok(None);
             };
             let entry = EntryBuilder::new_hard_link(entry_name, reference)?;
@@ -1688,7 +1690,7 @@ fn transform_normal_entry(
     // Apply path transformation
     let original_name = entry.header().path();
     let Some(new_name) = pathname_editor.edit_entry_name(original_name.as_ref()) else {
-        // Entry path was stripped away entirely
+        log::debug!("Skip: {original_name}");
         return Ok(None);
     };
 
