@@ -67,7 +67,8 @@ pub(crate) struct ListCommand {
     #[arg(
         short = 'e',
         requires = "unstable",
-        help = "Display ACLs in a table (unstable)"
+        help_heading = "Unstable Options",
+        help = "Display ACLs in a table"
     )]
     show_acl: bool,
     #[arg(
@@ -79,7 +80,8 @@ pub(crate) struct ListCommand {
     #[arg(
         long = "private",
         requires = "unstable",
-        help = "Display private chunks in a table (unstable)"
+        help_heading = "Unstable Options",
+        help = "Display private chunks in a table"
     )]
     pub(crate) show_private: bool,
     #[arg(
@@ -102,25 +104,29 @@ pub(crate) struct ListCommand {
     #[arg(
         long,
         requires = "unstable",
-        help = "Only include files and directories older than the specified date (unstable). This compares ctime entries."
+        help_heading = "Unstable Options",
+        help = "Only include files and directories older than the specified date. This compares ctime entries."
     )]
     older_ctime: Option<DateTime>,
     #[arg(
         long,
         requires = "unstable",
-        help = "Only include files and directories older than the specified date (unstable). This compares mtime entries."
+        help_heading = "Unstable Options",
+        help = "Only include files and directories older than the specified date. This compares mtime entries."
     )]
     older_mtime: Option<DateTime>,
     #[arg(
         long,
         requires = "unstable",
-        help = "Only include files and directories newer than the specified date (unstable). This compares ctime entries."
+        help_heading = "Unstable Options",
+        help = "Only include files and directories newer than the specified date. This compares ctime entries."
     )]
     newer_ctime: Option<DateTime>,
     #[arg(
         long,
         requires = "unstable",
-        help = "Only include files and directories newer than the specified date (unstable). This compares mtime entries."
+        help_heading = "Unstable Options",
+        help = "Only include files and directories newer than the specified date. This compares mtime entries."
     )]
     newer_mtime: Option<DateTime>,
     #[arg(
@@ -128,14 +134,16 @@ pub(crate) struct ListCommand {
         value_name = "file",
         requires = "unstable",
         visible_alias = "newer-than",
-        help = "Only include files and directories newer than the specified file (unstable). This compares ctime entries."
+        help_heading = "Unstable Options",
+        help = "Only include files and directories newer than the specified file. This compares ctime entries."
     )]
     newer_ctime_than: Option<PathBuf>,
     #[arg(
         long,
         value_name = "file",
         requires = "unstable",
-        help = "Only include files and directories newer than the specified file (unstable). This compares mtime entries."
+        help_heading = "Unstable Options",
+        help = "Only include files and directories newer than the specified file. This compares mtime entries."
     )]
     newer_mtime_than: Option<PathBuf>,
     #[arg(
@@ -143,14 +151,16 @@ pub(crate) struct ListCommand {
         value_name = "file",
         requires = "unstable",
         visible_alias = "older-than",
-        help = "Only include files and directories older than the specified file (unstable). This compares ctime entries."
+        help_heading = "Unstable Options",
+        help = "Only include files and directories older than the specified file. This compares ctime entries."
     )]
     older_ctime_than: Option<PathBuf>,
     #[arg(
         long,
         value_name = "file",
         requires = "unstable",
-        help = "Only include files and directories older than the specified file (unstable). This compares mtime entries."
+        help_heading = "Unstable Options",
+        help = "Only include files and directories older than the specified file. This compares mtime entries."
     )]
     older_mtime_than: Option<PathBuf>,
     #[arg(
@@ -199,7 +209,8 @@ pub(crate) struct ListCommand {
         long,
         value_name = "PATTERN",
         requires = "unstable",
-        help = "Exclude path glob (unstable)",
+        help_heading = "Unstable Options",
+        help = "Exclude path glob",
         value_hint = ValueHint::AnyPath
     )]
     exclude: Vec<String>,
@@ -207,14 +218,16 @@ pub(crate) struct ListCommand {
         long,
         value_name = "FILE",
         requires = "unstable",
-        help = "Read exclude files from given path (unstable)",
+        help_heading = "Unstable Options",
+        help = "Read exclude files from given path",
         value_hint = ValueHint::FilePath
     )]
     exclude_from: Option<PathBuf>,
     #[arg(
         long,
         requires = "unstable",
-        help = "Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)"
+        help_heading = "Unstable Options",
+        help = "Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)"
     )]
     exclude_vcs: bool,
     #[arg(

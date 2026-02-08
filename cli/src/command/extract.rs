@@ -82,13 +82,15 @@ pub(crate) struct ExtractCommand {
     #[arg(
         long,
         requires = "unstable",
-        help = "Skip extracting files if a newer version already exists (unstable)"
+        help_heading = "Unstable Options",
+        help = "Skip extracting files if a newer version already exists"
     )]
     keep_newer_files: bool,
     #[arg(
         long,
         requires = "unstable",
-        help = "Skip extracting files if they already exist (unstable)"
+        help_heading = "Unstable Options",
+        help = "Skip extracting files if they already exist"
     )]
     keep_old_files: bool,
     #[arg(long, value_name = "DIRECTORY", help = "Output directory of extracted files", value_hint = ValueHint::DirPath)]
@@ -163,14 +165,16 @@ pub(crate) struct ExtractCommand {
         long,
         visible_alias = "preserve-acls",
         requires = "unstable",
-        help = "Restore ACLs (unstable)"
+        help_heading = "Unstable Options",
+        help = "Restore ACLs"
     )]
     keep_acl: bool,
     #[arg(
         long,
         visible_alias = "no-preserve-acls",
         requires = "unstable",
-        help = "Do not restore ACLs. This is the inverse option of --keep-acl (unstable)"
+        help_heading = "Unstable Options",
+        help = "Do not restore ACLs. This is the inverse option of --keep-acl"
     )]
     no_keep_acl: bool,
     #[arg(long, value_name = "NAME", help = "Restore user from given name")]
@@ -198,28 +202,32 @@ pub(crate) struct ExtractCommand {
         long,
         value_name = "DATETIME",
         requires = "unstable",
-        help = "Only include files and directories older than the specified date (unstable). This compares ctime entries."
+        help_heading = "Unstable Options",
+        help = "Only include files and directories older than the specified date. This compares ctime entries."
     )]
     older_ctime: Option<DateTime>,
     #[arg(
         long,
         value_name = "DATETIME",
         requires = "unstable",
-        help = "Only include files and directories older than the specified date (unstable). This compares mtime entries."
+        help_heading = "Unstable Options",
+        help = "Only include files and directories older than the specified date. This compares mtime entries."
     )]
     older_mtime: Option<DateTime>,
     #[arg(
         long,
         value_name = "DATETIME",
         requires = "unstable",
-        help = "Only include files and directories newer than the specified date (unstable). This compares ctime entries."
+        help_heading = "Unstable Options",
+        help = "Only include files and directories newer than the specified date. This compares ctime entries."
     )]
     newer_ctime: Option<DateTime>,
     #[arg(
         long,
         value_name = "DATETIME",
         requires = "unstable",
-        help = "Only include files and directories newer than the specified date (unstable). This compares mtime entries."
+        help_heading = "Unstable Options",
+        help = "Only include files and directories newer than the specified date. This compares mtime entries."
     )]
     newer_mtime: Option<DateTime>,
     #[arg(
@@ -227,14 +235,16 @@ pub(crate) struct ExtractCommand {
         value_name = "file",
         requires = "unstable",
         visible_alias = "newer-than",
-        help = "Only include files and directories newer than the specified file (unstable). This compares ctime entries."
+        help_heading = "Unstable Options",
+        help = "Only include files and directories newer than the specified file. This compares ctime entries."
     )]
     newer_ctime_than: Option<PathBuf>,
     #[arg(
         long,
         value_name = "file",
         requires = "unstable",
-        help = "Only include files and directories newer than the specified file (unstable). This compares mtime entries."
+        help_heading = "Unstable Options",
+        help = "Only include files and directories newer than the specified file. This compares mtime entries."
     )]
     newer_mtime_than: Option<PathBuf>,
     #[arg(
@@ -242,14 +252,16 @@ pub(crate) struct ExtractCommand {
         value_name = "file",
         requires = "unstable",
         visible_alias = "older-than",
-        help = "Only include files and directories older than the specified file (unstable). This compares ctime entries."
+        help_heading = "Unstable Options",
+        help = "Only include files and directories older than the specified file. This compares ctime entries."
     )]
     older_ctime_than: Option<PathBuf>,
     #[arg(
         long,
         value_name = "file",
         requires = "unstable",
-        help = "Only include files and directories older than the specified file (unstable). This compares mtime entries."
+        help_heading = "Unstable Options",
+        help = "Only include files and directories older than the specified file. This compares mtime entries."
     )]
     older_mtime_than: Option<PathBuf>,
     #[arg(
@@ -268,14 +280,16 @@ pub(crate) struct ExtractCommand {
         long,
         value_name = "PATTERN",
         requires = "unstable",
-        help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)"
+        help_heading = "Unstable Options",
+        help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions"
     )]
     include: Vec<String>,
     #[arg(
         long,
         value_name = "PATTERN",
         requires = "unstable",
-        help = "Exclude path glob (unstable)",
+        help_heading = "Unstable Options",
+        help = "Exclude path glob",
         value_hint = ValueHint::AnyPath
     )]
     exclude: Vec<String>,
@@ -283,21 +297,24 @@ pub(crate) struct ExtractCommand {
         long,
         value_name = "FILE",
         requires = "unstable",
-        help = "Read exclude files from given path (unstable)",
+        help_heading = "Unstable Options",
+        help = "Read exclude files from given path",
         value_hint = ValueHint::FilePath
     )]
     exclude_from: Option<PathBuf>,
     #[arg(
         long,
         requires = "unstable",
-        help = "Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)"
+        help_heading = "Unstable Options",
+        help = "Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)"
     )]
     exclude_vcs: bool,
     #[arg(
         long,
         value_name = "FILE",
         requires = "unstable",
-        help = "Read extraction patterns from given path (unstable)",
+        help_heading = "Unstable Options",
+        help = "Read extraction patterns from given path",
         value_hint = ValueHint::FilePath
     )]
     files_from: Option<PathBuf>,
@@ -316,7 +333,8 @@ pub(crate) struct ExtractCommand {
         short = 's',
         value_name = "PATTERN",
         requires = "unstable",
-        help = "Modify file or archive member names according to pattern that like BSD tar -s option (unstable)"
+        help_heading = "Unstable Options",
+        help = "Modify file or archive member names according to pattern that like BSD tar -s option"
     )]
     substitutions: Option<Vec<SubstitutionRule>>,
     #[arg(
@@ -324,7 +342,8 @@ pub(crate) struct ExtractCommand {
         visible_alias = "xform",
         value_name = "PATTERN",
         requires = "unstable",
-        help = "Modify file or archive member names according to pattern that like GNU tar -transform option (unstable)"
+        help_heading = "Unstable Options",
+        help = "Modify file or archive member names according to pattern that like GNU tar -transform option"
     )]
     transforms: Option<Vec<TransformRule>>,
     #[arg(
@@ -356,13 +375,15 @@ pub(crate) struct ExtractCommand {
     #[arg(
         long,
         requires = "unstable",
-        help = "Extract files atomically via temp file and rename (unstable)"
+        help_heading = "Unstable Options",
+        help = "Extract files atomically via temp file and rename"
     )]
     safe_writes: bool,
     #[arg(
         long,
         requires = "unstable",
-        help = "Disable atomic extraction. This is the inverse option of --safe-writes (unstable)"
+        help_heading = "Unstable Options",
+        help = "Disable atomic extraction. This is the inverse option of --safe-writes"
     )]
     no_safe_writes: bool,
     #[command(flatten)]
