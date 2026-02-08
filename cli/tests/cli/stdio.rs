@@ -1,6 +1,7 @@
 mod archive_inclusion;
 mod exclude_vcs;
 mod files_from;
+mod missing_file;
 #[cfg(unix)]
 mod mtree;
 mod option_auto_compress;
@@ -10,6 +11,7 @@ mod option_mac_metadata;
 mod option_no_recursive;
 mod option_options;
 mod option_same_permissions;
+mod option_substitution;
 mod option_update;
 mod strip_components;
 mod unlink_first;
