@@ -66,9 +66,6 @@ use std::{
     ),
     group(ArgGroup::new("safe-writes-flag").args(["safe_writes", "no_safe_writes"])),
 )]
-#[cfg_attr(windows, command(
-    group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission", "no_keep_permission"]).requires("unstable")),
-))]
 pub(crate) struct ExtractCommand {
     #[arg(long, help = "Overwrite file")]
     overwrite: bool,
@@ -138,14 +135,16 @@ pub(crate) struct ExtractCommand {
     #[arg(
         long,
         visible_alias = "preserve-permissions",
-        help = "Restore the permissions of the files (unstable on Windows)"
+        help = "Restore the permissions of the files"
     )]
+    #[cfg_attr(windows, arg(requires = "unstable", help_heading = "Unstable Options"))]
     keep_permission: bool,
     #[arg(
         long,
         visible_alias = "no-preserve-permissions",
         help = "Do not restore permissions of files. This is the inverse option of --preserve-permissions"
     )]
+    #[cfg_attr(windows, arg(requires = "unstable", help_heading = "Unstable Options"))]
     no_keep_permission: bool,
     #[arg(
         long,

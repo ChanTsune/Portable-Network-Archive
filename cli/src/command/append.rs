@@ -49,9 +49,6 @@ use std::{
     group(ArgGroup::new("mtime-older-than-source").args(["older_mtime", "older_mtime_than"])),
     group(ArgGroup::new("mtime-newer-than-source").args(["newer_mtime", "newer_mtime_than"])),
 )]
-#[cfg_attr(windows, command(
-    group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission", "no_keep_permission"]).requires("unstable")),
-))]
 pub(crate) struct AppendCommand {
     #[arg(
         long,
@@ -103,14 +100,16 @@ pub(crate) struct AppendCommand {
     #[arg(
         long,
         visible_alias = "preserve-permissions",
-        help = "Preserve file permissions (unstable on Windows)"
+        help = "Preserve file permissions"
     )]
+    #[cfg_attr(windows, arg(requires = "unstable", help_heading = "Unstable Options"))]
     keep_permission: bool,
     #[arg(
         long,
         visible_alias = "no-preserve-permissions",
         help = "Do not archive permissions of files. This is the inverse option of --preserve-permissions"
     )]
+    #[cfg_attr(windows, arg(requires = "unstable", help_heading = "Unstable Options"))]
     no_keep_permission: bool,
     #[arg(
         long,
