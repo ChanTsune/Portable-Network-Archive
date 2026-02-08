@@ -30,8 +30,9 @@ pub(crate) fn transform_mtree_entries<R: Read>(
     filter: &PathFilter<'_>,
     time_filters: &TimeFilters,
 ) -> io::Result<Vec<io::Result<Option<NormalEntry>>>> {
+    let normalized = normalize_mtree_input(reader)?;
     // Use empty cwd to avoid mtree2 joining paths with current working directory
-    let mtree = MTree::from_reader_with_cwd(reader, PathBuf::new());
+    let mtree = MTree::from_reader_with_cwd(io::Cursor::new(normalized), PathBuf::new());
     let mut results = Vec::new();
 
     for entry_result in mtree {
@@ -83,6 +84,98 @@ pub(crate) fn transform_mtree_entries<R: Read>(
     }
 
     Ok(results)
+}
+
+/// Normalizes mtree input for bsdtar compatibility before parsing with mtree2.
+///
+/// - Converts CRLF/CR line endings to LF
+/// - Rewrites `content=` keyword to `contents=` (libarchive alias)
+fn normalize_mtree_input(mut reader: impl Read) -> io::Result<Vec<u8>> {
+    let mut raw = Vec::new();
+    reader.read_to_end(&mut raw)?;
+    let normalized_line_endings = normalize_line_endings(&raw);
+    Ok(rewrite_content_keyword_alias(&normalized_line_endings))
+}
+
+fn normalize_line_endings(input: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(input.len());
+    let mut idx = 0;
+    while idx < input.len() {
+        if input[idx] == b'\r' {
+            if idx + 1 < input.len() && input[idx + 1] == b'\n' {
+                idx += 1;
+            }
+            out.push(b'\n');
+        } else {
+            out.push(input[idx]);
+        }
+        idx += 1;
+    }
+    out
+}
+
+fn rewrite_content_keyword_alias(input: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(input.len());
+    let mut line_start = 0;
+    while line_start < input.len() {
+        let mut line_end = line_start;
+        while line_end < input.len() && input[line_end] != b'\n' {
+            line_end += 1;
+        }
+
+        rewrite_content_keyword_line(&input[line_start..line_end], &mut out);
+        if line_end < input.len() {
+            out.push(b'\n');
+            line_end += 1;
+        }
+        line_start = line_end;
+    }
+    out
+}
+
+fn rewrite_content_keyword_line(line: &[u8], out: &mut Vec<u8>) {
+    if line.is_empty() || line[0] == b'#' {
+        out.extend_from_slice(line);
+        return;
+    }
+
+    let mut idx = 0;
+    while idx < line.len() && is_mtree_whitespace(line[idx]) {
+        idx += 1;
+    }
+    while idx < line.len() && !is_mtree_whitespace(line[idx]) {
+        idx += 1;
+    }
+    out.extend_from_slice(&line[..idx]);
+
+    while idx < line.len() {
+        let ws_start = idx;
+        while idx < line.len() && is_mtree_whitespace(line[idx]) {
+            idx += 1;
+        }
+        out.extend_from_slice(&line[ws_start..idx]);
+
+        let token_start = idx;
+        while idx < line.len() && !is_mtree_whitespace(line[idx]) {
+            idx += 1;
+        }
+        if token_start == idx {
+            break;
+        }
+
+        let token = &line[token_start..idx];
+        if token.starts_with(b"content=") {
+            out.extend_from_slice(b"contents=");
+            out.extend_from_slice(&token[b"content=".len()..]);
+        } else {
+            out.extend_from_slice(token);
+        }
+    }
+}
+
+#[inline]
+fn is_mtree_whitespace(byte: u8) -> bool {
+    matches!(byte, b' ' | b'\t')
 }
 
 /// Creates a single archive entry from an mtree entry.
@@ -433,5 +526,33 @@ mod tests {
 
         assert_eq!(entry2.path().to_str(), Some("file2.txt"));
         assert!(entry2.optional(), "file2.txt should be marked as optional");
+    }
+
+    #[test]
+    fn normalize_mtree_input_converts_crlf_and_content_alias() {
+        let input = b"#mtree\r\nf type=file content=bar/foo\r\n";
+        let normalized = normalize_mtree_input(&input[..]).unwrap();
+        assert_eq!(normalized, b"#mtree\nf type=file contents=bar/foo\n");
+    }
+
+    #[test]
+    fn normalize_mtree_input_keeps_existing_contents_keyword() {
+        let input = b"#mtree\nf type=file contents=bar/foo\n";
+        let normalized = normalize_mtree_input(&input[..]).unwrap();
+        assert_eq!(normalized, input);
+    }
+
+    #[test]
+    fn normalize_mtree_input_preserves_first_token() {
+        let input = b"#mtree\ncontent=file type=file contents=bar/foo\n";
+        let normalized = normalize_mtree_input(&input[..]).unwrap();
+        assert_eq!(normalized, input);
+    }
+
+    #[test]
+    fn normalize_mtree_input_handles_wrapped_crlf_line() {
+        let input = b"#mtree\r\nf uname=\\\r\nroot content=bar/foo\r\n";
+        let normalized = normalize_mtree_input(&input[..]).unwrap();
+        assert_eq!(normalized, b"#mtree\nf uname=\\\nroot contents=bar/foo\n");
     }
 }

@@ -157,6 +157,71 @@ fn stdio_mtree_contents_keyword() {
     assert_eq!(entry_names.len(), 1);
 }
 
+/// Precondition: An mtree manifest uses CRLF line endings, wrapped lines, and `content=` alias.
+/// Action: Create and extract archive from the mtree manifest.
+/// Expectation: Parsing succeeds and entries are created with expected payloads.
+#[test]
+fn stdio_mtree_crlf_wrapped_and_content_alias() {
+    setup();
+
+    let base = PathBuf::from("stdio_mtree_crlf_wrapped_and_content_alias");
+    fs::create_dir_all(base.join("bar")).unwrap();
+    fs::write(base.join("bar/foo"), "abc").unwrap();
+    fs::write(base.join("bar/goo"), "xyz").unwrap();
+
+    fs::write(
+        base.join("manifest.mtree"),
+        "#mtree\r\nf type=file uname=\\\r\nroot gname=root mode=0755 content=bar/foo\r\ng type=file uname=root gname=root mode=0755 content=bar/goo\r\n",
+    )
+    .unwrap();
+
+    let output_archive = base.join("output.pna");
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "experimental",
+            "stdio",
+            "--create",
+            "--unstable",
+            "--overwrite",
+            "-f",
+            output_archive.to_str().unwrap(),
+            "-C",
+            base.to_str().unwrap(),
+            "@manifest.mtree",
+        ])
+        .assert()
+        .success();
+
+    let entry_names: HashSet<String> = get_archive_entry_names(&output_archive)
+        .into_iter()
+        .collect();
+    assert!(entry_names.contains("f"), "Missing f");
+    assert!(entry_names.contains("g"), "Missing g");
+    assert_eq!(entry_names.len(), 2);
+
+    let out_dir = base.join("out");
+    fs::create_dir_all(&out_dir).unwrap();
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "experimental",
+            "stdio",
+            "--extract",
+            "--unstable",
+            "--overwrite",
+            "-f",
+            output_archive.to_str().unwrap(),
+            "--out-dir",
+            out_dir.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    assert_eq!(fs::read(out_dir.join("f")).unwrap(), b"abc");
+    assert_eq!(fs::read(out_dir.join("g")).unwrap(), b"xyz");
+}
+
 /// Precondition: An mtree manifest specifies directory and file entries.
 /// Action: Create archive from the mtree manifest.
 /// Expectation: The archive contains both directory and file entries.
