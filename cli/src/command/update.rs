@@ -57,13 +57,15 @@ pub(crate) struct UpdateCommand {
     #[arg(
         long,
         requires = "unstable",
-        help = "Stay in the same file system when collecting files (unstable)"
+        help_heading = "Unstable Options",
+        help = "Stay in the same file system when collecting files"
     )]
     one_file_system: bool,
     #[arg(
         long,
         requires = "unstable",
-        help = "Exclude files with the nodump flag (unstable)"
+        help_heading = "Unstable Options",
+        help = "Exclude files with the nodump flag"
     )]
     nodump: bool,
     #[arg(
@@ -127,14 +129,16 @@ pub(crate) struct UpdateCommand {
         long,
         visible_alias = "preserve-acls",
         requires = "unstable",
-        help = "Preserve ACLs (unstable)"
+        help_heading = "Unstable Options",
+        help = "Preserve ACLs"
     )]
     keep_acl: bool,
     #[arg(
         long,
         visible_alias = "no-preserve-acls",
         requires = "unstable",
-        help = "Do not archive ACLs. This is the inverse option of --keep-acl (unstable)"
+        help_heading = "Unstable Options",
+        help = "Do not archive ACLs. This is the inverse option of --keep-acl"
     )]
     no_keep_acl: bool,
     #[arg(long, value_name = "NAME", help = "Set user name for archive entries")]
@@ -157,7 +161,8 @@ pub(crate) struct UpdateCommand {
         long,
         value_name = "N",
         requires = "unstable",
-        help = "Remove the specified number of leading path elements when storing paths (unstable)"
+        help_heading = "Unstable Options",
+        help = "Remove the specified number of leading path elements when storing paths"
     )]
     strip_components: Option<usize>,
     #[arg(
@@ -229,56 +234,64 @@ pub(crate) struct UpdateCommand {
         long,
         value_name = "FILE",
         requires = "unstable",
-        help = "Only include files and directories newer than the specified file (unstable). This compares ctime entries."
+        help_heading = "Unstable Options",
+        help = "Only include files and directories newer than the specified file. This compares ctime entries."
     )]
     newer_ctime_than: Option<PathBuf>,
     #[arg(
         long,
         value_name = "FILE",
         requires = "unstable",
-        help = "Only include files and directories newer than the specified file (unstable). This compares mtime entries."
+        help_heading = "Unstable Options",
+        help = "Only include files and directories newer than the specified file. This compares mtime entries."
     )]
     newer_mtime_than: Option<PathBuf>,
     #[arg(
         long,
         value_name = "FILE",
         requires = "unstable",
-        help = "Only include files and directories older than the specified file (unstable). This compares ctime entries."
+        help_heading = "Unstable Options",
+        help = "Only include files and directories older than the specified file. This compares ctime entries."
     )]
     older_ctime_than: Option<PathBuf>,
     #[arg(
         long,
         value_name = "FILE",
         requires = "unstable",
-        help = "Only include files and directories older than the specified file (unstable). This compares mtime entries."
+        help_heading = "Unstable Options",
+        help = "Only include files and directories older than the specified file. This compares mtime entries."
     )]
     older_mtime_than: Option<PathBuf>,
     #[arg(
         long,
         value_name = "FILE",
         requires = "unstable",
-        help = "Read archiving files from given path (unstable)",
+        help_heading = "Unstable Options",
+        help = "Read archiving files from given path",
         value_hint = ValueHint::FilePath
     )]
     files_from: Option<PathBuf>,
     #[arg(
         long,
         requires = "unstable",
-        help = "Read archiving files from stdin (unstable)"
+        help_heading = "Unstable Options",
+        help = "Read archiving files from stdin"
     )]
     files_from_stdin: bool,
     #[arg(
         long,
         value_name = "PATTERN",
         requires = "unstable",
-        help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)"
+        help_heading = "Unstable Options",
+        help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions"
     )]
     include: Vec<String>,
     #[arg(
         long,
         value_name = "PATTERN",
         requires = "unstable",
-        help = "Exclude path glob (unstable)",
+        help_heading = "Unstable Options",
+        help = "Exclude path glob",
         value_hint = ValueHint::AnyPath
     )]
     exclude: Vec<String>,
@@ -286,21 +299,24 @@ pub(crate) struct UpdateCommand {
         long,
         value_name = "FILE",
         requires = "unstable",
-        help = "Read exclude files from given path (unstable)",
+        help_heading = "Unstable Options",
+        help = "Read exclude files from given path",
         value_hint = ValueHint::FilePath
     )]
     exclude_from: Option<PathBuf>,
     #[arg(
         long,
         requires = "unstable",
-        help = "Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)"
+        help_heading = "Unstable Options",
+        help = "Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)"
     )]
     exclude_vcs: bool,
     #[arg(
         short = 's',
         value_name = "PATTERN",
         requires = "unstable",
-        help = "Modify file or archive member names according to pattern that like BSD tar -s option (unstable)"
+        help_heading = "Unstable Options",
+        help = "Modify file or archive member names according to pattern that like BSD tar -s option"
     )]
     substitutions: Option<Vec<SubstitutionRule>>,
     #[arg(
@@ -308,7 +324,8 @@ pub(crate) struct UpdateCommand {
         visible_alias = "xform",
         value_name = "PATTERN",
         requires = "unstable",
-        help = "Modify file or archive member names according to pattern that like GNU tar -transform option (unstable)"
+        help_heading = "Unstable Options",
+        help = "Modify file or archive member names according to pattern that like GNU tar -transform option"
     )]
     transforms: Option<Vec<TransformRule>>,
     #[arg(
@@ -340,7 +357,8 @@ pub(crate) struct UpdateCommand {
     #[arg(
         long,
         requires = "unstable",
-        help = "Ignore files from .gitignore (unstable)"
+        help_heading = "Unstable Options",
+        help = "Ignore files from .gitignore"
     )]
     gitignore: bool,
     #[arg(long, visible_aliases = ["dereference"], help = "Follow symbolic links")]
@@ -349,7 +367,8 @@ pub(crate) struct UpdateCommand {
         short = 'H',
         long,
         requires = "unstable",
-        help = "Follow symbolic links named on the command line (unstable)"
+        help_heading = "Unstable Options",
+        help = "Follow symbolic links named on the command line"
     )]
     follow_command_links: bool,
     #[arg(

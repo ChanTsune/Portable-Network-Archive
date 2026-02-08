@@ -32,28 +32,32 @@ pub(crate) struct DeleteCommand {
         long,
         value_name = "FILE",
         requires = "unstable",
-        help = "Read deleting files from given path (unstable)",
+        help_heading = "Unstable Options",
+        help = "Read deleting files from given path",
         value_hint = ValueHint::FilePath
     )]
     files_from: Option<PathBuf>,
     #[arg(
         long,
         requires = "unstable",
-        help = "Read deleting files from stdin (unstable)"
+        help_heading = "Unstable Options",
+        help = "Read deleting files from stdin"
     )]
     files_from_stdin: bool,
     #[arg(
         long,
         value_name = "PATTERN",
         requires = "unstable",
-        help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions (unstable)"
+        help_heading = "Unstable Options",
+        help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions"
     )]
     include: Vec<String>,
     #[arg(
         long,
         value_name = "PATTERN",
         requires = "unstable",
-        help = "Exclude path glob (unstable)",
+        help_heading = "Unstable Options",
+        help = "Exclude path glob",
         value_hint = ValueHint::AnyPath
     )]
     exclude: Vec<String>,
@@ -61,14 +65,16 @@ pub(crate) struct DeleteCommand {
         long,
         value_name = "FILE",
         requires = "unstable",
-        help = "Read exclude files from given path (unstable)",
+        help_heading = "Unstable Options",
+        help = "Read exclude files from given path",
         value_hint = ValueHint::FilePath
     )]
     exclude_from: Option<PathBuf>,
     #[arg(
         long,
         requires = "unstable",
-        help = "Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`) (unstable)"
+        help_heading = "Unstable Options",
+        help = "Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)"
     )]
     exclude_vcs: bool,
     #[arg(
