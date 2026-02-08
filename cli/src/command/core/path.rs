@@ -1,7 +1,7 @@
 use pna::{EntryName, EntryReference};
 use std::{
     borrow::Cow,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 use super::PathTransformers;
@@ -47,7 +47,13 @@ impl PathnameEditor {
         } else {
             Cow::Borrowed(path)
         };
+        if is_effectively_empty_path(&transformed) {
+            return None;
+        }
         let stripped = strip_components(&transformed, self.strip_components)?;
+        if is_effectively_empty_path(&stripped) {
+            return None;
+        }
         let entry_name = EntryName::from_path_lossy_preserve_root(&stripped);
         if self.absolute_paths {
             Some(entry_name)
@@ -80,7 +86,13 @@ impl PathnameEditor {
         } else {
             Cow::Borrowed(target)
         };
+        if is_effectively_empty_path(&transformed) {
+            return None;
+        }
         let stripped = strip_components(&transformed, self.strip_components)?;
+        if is_effectively_empty_path(&stripped) {
+            return None;
+        }
         let entry_reference = EntryReference::from_path_lossy_preserve_root(&stripped);
         if self.absolute_paths {
             Some(entry_reference)
@@ -124,6 +136,11 @@ fn strip_components(path: &Path, count: Option<usize>) -> Option<Cow<'_, Path>> 
         return None;
     }
     Some(Cow::from(PathBuf::from_iter(components.skip(count))))
+}
+
+#[inline]
+fn is_effectively_empty_path(path: &Path) -> bool {
+    !path.components().any(|c| !matches!(c, Component::CurDir))
 }
 
 #[cfg(test)]
@@ -214,5 +231,14 @@ mod tests {
         let editor = PathnameEditor::new(Some(2), None, false);
         let result = editor.edit_symlink(Path::new("a/b/c"));
         assert_eq!(result.as_str(), "a/b/c"); // Not stripped
+    }
+
+    #[test]
+    fn editor_skips_empty_or_curdir_paths() {
+        let editor = PathnameEditor::new(None, None, false);
+        assert!(editor.edit_entry_name(Path::new("")).is_none());
+        assert!(editor.edit_entry_name(Path::new(".")).is_none());
+        assert!(editor.edit_hardlink(Path::new("")).is_none());
+        assert!(editor.edit_hardlink(Path::new(".")).is_none());
     }
 }
