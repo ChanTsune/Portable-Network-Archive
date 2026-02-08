@@ -13,4 +13,5 @@ mod option_options;
 mod option_same_permissions;
 mod option_update;
 mod strip_components;
+mod option_version;
 mod unlink_first;
