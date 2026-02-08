@@ -1,7 +1,7 @@
 use pna::{EntryName, EntryReference};
 use std::{
     borrow::Cow,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 use super::PathTransformers;
@@ -19,11 +19,6 @@ pub(crate) struct PathnameEditor {
 }
 
 impl PathnameEditor {
-    /// Create a PathnameEditor with the given configuration.
-    ///
-    /// `strip_components` sets the number of leading path components to remove when editing paths (use `None` to disable stripping).
-    /// `transformers` supplies optional path transformations to apply before stripping.
-    /// `absolute_paths` controls whether absolute paths are preserved (true) or sanitized (false).
     #[inline]
     pub(crate) const fn new(
         strip_components: Option<usize>,
@@ -37,9 +32,10 @@ impl PathnameEditor {
         }
     }
 
-    /// Edit the pathname for a regular archive entry using the editor's configured transformers, strip count, and absolute-path policy.
+    /// Edit the pathname for a regular archive entry.
     ///
-    /// The method applies any path transformations first (bsdtar order), then strips the configured number of leading components; if stripping removes the entire path, the entry is skipped. The resulting path is converted to an `EntryName` that preserves a root component, and is sanitized unless the editor is configured to preserve absolute paths.
+    /// Returns `None` (skip the entry) when the path becomes empty after
+    /// transformation or after stripping.
     pub(crate) fn edit_entry_name(&self, path: &Path) -> Option<EntryName> {
         // bsdtar order: substitution first, then strip
         let transformed: Cow<'_, Path> = if let Some(t) = &self.transformers {
@@ -47,7 +43,13 @@ impl PathnameEditor {
         } else {
             Cow::Borrowed(path)
         };
+        if is_effectively_empty_path(&transformed) {
+            return None;
+        }
         let stripped = strip_components(&transformed, self.strip_components)?;
+        if is_effectively_empty_path(&stripped) {
+            return None;
+        }
         let entry_name = EntryName::from_path_lossy_preserve_root(&stripped);
         if self.absolute_paths {
             Some(entry_name)
@@ -56,19 +58,10 @@ impl PathnameEditor {
         }
     }
 
-    /// Edit a hardlink target pathname according to the editor's configuration.
+    /// Edit a hardlink target pathname.
     ///
-    /// The method applies any configured path transformers, then strips the configured
-    /// number of leading components (if set). The resulting path is converted to an
-    /// `EntryReference` (preserving a leading root if present). If the editor is
-    /// configured to preserve absolute paths, the preserved `EntryReference` is
-    /// returned; otherwise a sanitized `EntryReference` is returned. If stripping
-    /// removes all components, `None` is returned to indicate the entry should be skipped.
-    ///
-    /// # Returns
-    ///
-    /// `Some(EntryReference)` with the edited reference, or `None` if the path was
-    /// stripped away (entry should be skipped).
+    /// Returns `None` (skip the entry) when the target becomes empty after
+    /// transformation or after stripping.
     pub(crate) fn edit_hardlink(&self, target: &Path) -> Option<EntryReference> {
         // bsdtar order: substitution first, then strip
         let transformed: Cow<'_, Path> = if let Some(t) = &self.transformers {
@@ -80,7 +73,13 @@ impl PathnameEditor {
         } else {
             Cow::Borrowed(target)
         };
+        if is_effectively_empty_path(&transformed) {
+            return None;
+        }
         let stripped = strip_components(&transformed, self.strip_components)?;
+        if is_effectively_empty_path(&stripped) {
+            return None;
+        }
         let entry_reference = EntryReference::from_path_lossy_preserve_root(&stripped);
         if self.absolute_paths {
             Some(entry_reference)
@@ -89,9 +88,11 @@ impl PathnameEditor {
         }
     }
 
-    /// Edit a symlink target path by applying any configured transformations and then either preserving or sanitizing absolute paths.
+    /// Edit a symlink target path.
     ///
-    /// Strip-component rules are not applied to symlink targets; only the editor's optional transformers and its absolute-paths configuration affect the result.
+    /// Unlike entry names and hardlink targets, symlink targets are never
+    /// skipped: the containing entry's name is validated separately via
+    /// `edit_entry_name`, and bsdtar does not strip or skip symlink targets.
     pub(crate) fn edit_symlink(&self, target: &Path) -> EntryReference {
         // Note: symlinks do not have strip_components applied (matching bsdtar behavior)
         let transformed: Cow<'_, Path> = if let Some(t) = &self.transformers {
@@ -124,6 +125,11 @@ fn strip_components(path: &Path, count: Option<usize>) -> Option<Cow<'_, Path>> 
         return None;
     }
     Some(Cow::from(PathBuf::from_iter(components.skip(count))))
+}
+
+#[inline]
+fn is_effectively_empty_path(path: &Path) -> bool {
+    path.components().all(|c| matches!(c, Component::CurDir))
 }
 
 #[cfg(test)]
@@ -214,5 +220,16 @@ mod tests {
         let editor = PathnameEditor::new(Some(2), None, false);
         let result = editor.edit_symlink(Path::new("a/b/c"));
         assert_eq!(result.as_str(), "a/b/c"); // Not stripped
+    }
+
+    #[test]
+    fn editor_skips_empty_or_curdir_paths() {
+        let editor = PathnameEditor::new(None, None, false);
+        assert!(editor.edit_entry_name(Path::new("")).is_none());
+        assert!(editor.edit_entry_name(Path::new(".")).is_none());
+        assert!(editor.edit_entry_name(Path::new("./.")).is_none());
+        assert!(editor.edit_hardlink(Path::new("")).is_none());
+        assert!(editor.edit_hardlink(Path::new(".")).is_none());
+        assert!(editor.edit_hardlink(Path::new("./.")).is_none());
     }
 }
