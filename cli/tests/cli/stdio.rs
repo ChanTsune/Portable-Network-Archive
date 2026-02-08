@@ -1,6 +1,7 @@
 mod archive_inclusion;
 mod exclude_vcs;
 mod files_from;
+mod missing_file;
 #[cfg(unix)]
 mod mtree;
 mod option_auto_compress;
