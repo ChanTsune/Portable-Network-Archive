@@ -103,7 +103,10 @@ impl CompressionAlgorithmArgs {
 #[derive(Args, Clone, Debug)]
 #[clap(disable_help_flag = true)]
 #[command(
+    display_name = "bsdtar",
     version,
+    // Reference bsdtar version this implementation targets
+    long_version = concat!("3.7.4 - portable-network-archive ", env!("CARGO_PKG_VERSION")),
     disable_version_flag = true,
     group(ArgGroup::new("keep-acl-flag").args(["keep_acl", "no_keep_acl"])),
     group(

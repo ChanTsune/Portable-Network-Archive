@@ -12,5 +12,6 @@ mod option_no_recursive;
 mod option_options;
 mod option_same_permissions;
 mod option_update;
+mod option_version;
 mod strip_components;
 mod unlink_first;
