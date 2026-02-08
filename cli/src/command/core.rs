@@ -31,6 +31,7 @@ use pna::{
     Archive, EntryBuilder, EntryPart, MIN_CHUNK_BYTES_SIZE, NormalEntry, PNA_HEADER, ReadEntry,
     SolidEntryBuilder, WriteOptions, prelude::*,
 };
+use std::error::Error;
 use std::{
     borrow::Cow,
     fmt, fs,
@@ -61,6 +62,29 @@ pub(crate) fn detect_format<R: io::BufRead>(reader: &mut R) -> io::Result<Source
     } else {
         SourceFormat::Mtree
     })
+}
+
+#[derive(Debug)]
+struct FastReadStop;
+
+impl std::fmt::Display for FastReadStop {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("fast-read completed")
+    }
+}
+
+impl Error for FastReadStop {}
+
+#[inline]
+pub(crate) fn fast_read_stop() -> io::Error {
+    io::Error::new(io::ErrorKind::Other, FastReadStop)
+}
+
+#[inline]
+pub(crate) fn is_fast_read_stop(err: &io::Error) -> bool {
+    err.get_ref()
+        .and_then(|inner| inner.downcast_ref::<FastReadStop>())
+        .is_some()
 }
 
 /// Options controlling how filesystem items are collected for archiving.

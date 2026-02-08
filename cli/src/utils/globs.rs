@@ -122,6 +122,36 @@ impl<'s> BsdGlobMatcher<'s> {
         matched_any
     }
 
+    /// Returns true if any *unsatisfied* pattern matches the given path.
+    /// Matching patterns are marked as satisfied.
+    #[inline]
+    pub(crate) fn matches_unsatisfied(&mut self, path: impl AsRef<str>) -> bool {
+        let path = path.as_ref();
+        let mut matched_any = false;
+        for (idx, pat) in self.patterns.iter().enumerate() {
+            if self.matched[idx] {
+                continue;
+            }
+            let matches = if self.no_recursive {
+                pat.match_inclusion(path)
+            } else {
+                pat.match_inclusion(path)
+                    || (!has_glob_meta(self.raw_patterns[idx])
+                        && prefix_match(self.raw_patterns[idx], path))
+            };
+            if matches {
+                self.matched[idx] = true;
+                matched_any = true;
+            }
+        }
+        matched_any
+    }
+
+    #[inline]
+    pub(crate) fn all_matched(&self) -> bool {
+        self.matched.iter().all(|matched| *matched)
+    }
+
     #[inline]
     pub(crate) fn ensure_all_matched(&self) -> anyhow::Result<()> {
         let mut any_unmatched = false;
