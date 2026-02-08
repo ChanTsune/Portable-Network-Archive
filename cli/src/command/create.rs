@@ -56,9 +56,6 @@ use std::{
     group(ArgGroup::new("overwrite-flag").args(["overwrite", "no_overwrite"])),
     group(ArgGroup::new("keep-permission-flag").args(["keep_permission", "no_keep_permission"])),
 )]
-#[cfg_attr(windows, command(
-    group(ArgGroup::new("windows-unstable-keep-permission").args(["keep_permission", "no_keep_permission"]).requires("unstable")),
-))]
 pub(crate) struct CreateCommand {
     #[arg(
         long,
@@ -117,14 +114,16 @@ pub(crate) struct CreateCommand {
     #[arg(
         long,
         visible_alias = "preserve-permissions",
-        help = "Preserve file permissions (unstable on Windows)"
+        help = "Preserve file permissions"
     )]
+    #[cfg_attr(windows, arg(requires = "unstable", help_heading = "Unstable Options"))]
     keep_permission: bool,
     #[arg(
         long,
         visible_alias = "no-preserve-permissions",
         help = "Do not archive permissions of files. This is the inverse option of --preserve-permissions"
     )]
+    #[cfg_attr(windows, arg(requires = "unstable", help_heading = "Unstable Options"))]
     no_keep_permission: bool,
     #[arg(
         long,
