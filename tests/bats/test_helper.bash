@@ -31,6 +31,33 @@ assert_link_count() {
   assert_equal "$actual" "$expected" "Expected $file to have $expected hard links, but got $actual"
 }
 
+# Mtime function (Linux, macOS, FreeBSD)
+file_mtime() {
+  local file=$1
+
+  if stat --version >/dev/null 2>&1; then
+    # GNU stat (Linux)
+    stat -c %Y "$file"
+  else
+    # BSD stat (macOS, FreeBSD)
+    stat -f %m "$file"
+  fi
+}
+
+# Set file mtime to epoch seconds (Linux, macOS, FreeBSD)
+set_file_mtime() {
+  local epoch=$1
+  local file=$2
+
+  if stat --version >/dev/null 2>&1; then
+    # GNU touch (Linux)
+    touch -d "@$epoch" "$file"
+  else
+    # BSD touch (macOS, FreeBSD)
+    TZ=UTC touch -t "$(date -u -r "$epoch" +%Y%m%d%H%M.%S)" "$file"
+  fi
+}
+
 # Create file and assert that exists
 assert_make_file() {
   local path=$1
