@@ -202,6 +202,8 @@ pub(crate) struct ListCommand {
     #[arg(
         long,
         value_name = "PATTERN",
+        requires = "unstable",
+        help_heading = "Unstable Options",
         help = "Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions"
     )]
     include: Vec<String>,
