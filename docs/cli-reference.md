@@ -1361,7 +1361,7 @@ bsdtar-like CLI semantics for PNA archives
 
   Default value: `false`
 * `--version` — Print version
-* `--help` — Print help
+* `-h`, `--help` — Print help
 * `--quiet` — Make some output more quiet
 
   Default value: `false`
