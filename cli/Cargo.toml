@@ -33,7 +33,7 @@ itertools = "0.14.0"
 jiff = "0.2.19"
 libc = "0.2.180"
 log = "0.4.29"
-memchr = "2.7.6"
+memchr = "2.8.0"
 memmap2 = { version = "0.9.9", optional = true }
 nom = "8.0.0"
 parse_datetime = "0.13.3"
