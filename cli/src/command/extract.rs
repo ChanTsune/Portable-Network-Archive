@@ -671,7 +671,7 @@ where
         let mut globs =
             BsdGlobMatcher::new(files.iter().map(|it| it.as_str())).with_no_recursive(no_recursive);
 
-        let mut link_entries = Vec::<(_, NormalEntry)>::new();
+        let mut link_entries = Vec::new();
 
         let (tx, rx) = std::sync::mpsc::channel();
 
@@ -692,7 +692,7 @@ where
                 item.header().data_kind(),
                 DataKind::SymbolicLink | DataKind::HardLink
             ) {
-                link_entries.push((name, item.into()));
+                link_entries.push((name, item));
                 return Ok(());
             }
             let item_path = item.name().to_string();
