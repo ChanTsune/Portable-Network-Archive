@@ -32,6 +32,7 @@ use std::os::macos::fs::FileTimesExt;
 use std::os::windows::fs::FileTimesExt;
 use std::{
     borrow::Cow,
+    collections::VecDeque,
     env, fs,
     io::{self, prelude::*},
     path::{Component, Path, PathBuf},
@@ -599,76 +600,65 @@ where
     let mut globs =
         BsdGlobMatcher::new(patterns.iter().map(|it| it.as_str())).with_no_recursive(no_recursive);
 
-    let prefetch = std::thread::available_parallelism()
-        .map(|n| n.get() * 2)
-        .unwrap_or(8);
-    let (order_tx, order_rx) = flume::bounded::<OrderedItem<Vec<u8>>>(prefetch);
+    let mut queue = VecDeque::<PendingItem<Vec<u8>>>::new();
+    let mut deferred_links = Vec::new();
 
-    std::thread::scope(|ts| {
-        let writer = ts.spawn(|| writer_loop(order_rx, &args));
-
-        let reader_result: anyhow::Result<()> = rayon::scope_fifo(|s| {
-            run_process_archive(reader, password_provider, |entry| {
-                let item = entry
-                    .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
-                let Some(name) = filter_entry(&item, &mut globs, &args) else {
-                    return Ok(());
-                };
-                if args.verbose {
-                    eprintln!("x {}", name);
+    rayon::scope_fifo(|s| {
+        run_process_archive(reader, password_provider, |entry| {
+            let item = entry
+                .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
+            let Some(name) = filter_entry(&item, &mut globs, &args) else {
+                return Ok(());
+            };
+            if args.verbose {
+                eprintln!("x {}", name);
+            }
+            if args.to_stdout {
+                return extract_entry_to_stdout(&item, password);
+            }
+            match item.header().data_kind() {
+                DataKind::File => {
+                    let (tx, rx) = flume::bounded(1);
+                    s.spawn_fifo(move |_| {
+                        let _ = tx.send(decompress_entry(item, password));
+                    });
+                    queue.push_back(PendingItem::File {
+                        name,
+                        decompressed_rx: rx,
+                    });
                 }
-                if args.to_stdout {
-                    return extract_entry_to_stdout(&item, password);
+                DataKind::Directory => {
+                    queue.push_back(PendingItem::Directory { name, entry: item });
                 }
-                match item.header().data_kind() {
-                    DataKind::File => {
-                        let (tx, rx) = flume::bounded(1);
-                        s.spawn_fifo(move |_| {
-                            let _ = tx.send(decompress_entry(item, password));
-                        });
-                        order_tx
-                            .send(OrderedItem::File {
-                                name,
-                                decompressed_rx: rx,
-                            })
-                            .map_err(|_| io::Error::other("writer stopped"))?;
-                    }
-                    DataKind::Directory => {
-                        order_tx
-                            .send(OrderedItem::Directory { name, entry: item })
-                            .map_err(|_| io::Error::other("writer stopped"))?;
-                    }
-                    DataKind::SymbolicLink | DataKind::HardLink => {
-                        let kind = item.header().data_kind();
-                        let target = {
-                            let r = item.reader(ReadOptions::with_password(password))?;
-                            io::read_to_string(r)?
-                        };
-                        order_tx
-                            .send(OrderedItem::Link {
-                                name,
-                                kind,
-                                target,
-                                entry: item,
-                            })
-                            .map_err(|_| io::Error::other("writer stopped"))?;
-                    }
+                DataKind::SymbolicLink | DataKind::HardLink => {
+                    let kind = item.header().data_kind();
+                    let target = {
+                        let r = item.reader(ReadOptions::with_password(password))?;
+                        io::read_to_string(r)?
+                    };
+                    queue.push_back(PendingItem::Link {
+                        name,
+                        kind,
+                        target,
+                        entry: item,
+                    });
                 }
-                Ok(())
-            })
-            .with_context(|| "streaming archive entries")?;
+            }
+            drain_ready(&mut queue, &mut deferred_links, &args)?;
             Ok(())
-        });
+        })
+        .with_context(|| "streaming archive entries")?;
+        Ok::<(), anyhow::Error>(())
+    })?;
 
-        drop(order_tx);
-        let writer_result = writer
-            .join()
-            .map_err(|_| anyhow::anyhow!("writer thread panicked"))?;
-        reader_result?;
-        writer_result?;
-        globs.ensure_all_matched()?;
-        Ok(())
-    })
+    // All rayon tasks complete — drain remaining items
+    drain_all(queue, &mut deferred_links, &args)?;
+    for (name, kind, target, entry) in deferred_links {
+        write_link_to_disk(&name, kind, &target, &entry, &args)
+            .with_context(|| format!("extracting deferred link {name}"))?;
+    }
+    globs.ensure_all_matched()?;
+    Ok(())
 }
 
 #[cfg(feature = "memmap")]
@@ -687,77 +677,65 @@ where
     let mut globs =
         BsdGlobMatcher::new(files.iter().map(|it| it.as_str())).with_no_recursive(no_recursive);
 
-    let prefetch = std::thread::available_parallelism()
-        .map(|n| n.get() * 2)
-        .unwrap_or(8);
-    let (order_tx, order_rx) = flume::bounded::<OrderedItem<Cow<'d, [u8]>>>(prefetch);
+    let mut queue = VecDeque::<PendingItem<Cow<'d, [u8]>>>::new();
+    let mut deferred_links = Vec::new();
 
-    std::thread::scope(|ts| {
-        let writer = ts.spawn(|| writer_loop(order_rx, &args));
-
-        let reader_result: anyhow::Result<()> = rayon::scope_fifo(|s| {
-            #[hooq::skip_all]
-            run_entries(archives, password_provider, |entry| {
-                let item = entry
-                    .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
-                let Some(name) = filter_entry(&item, &mut globs, &args) else {
-                    return Ok(());
-                };
-                if args.verbose {
-                    eprintln!("x {}", name);
+    rayon::scope_fifo(|s| {
+        #[hooq::skip_all]
+        run_entries(archives, password_provider, |entry| {
+            let item = entry
+                .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
+            let Some(name) = filter_entry(&item, &mut globs, &args) else {
+                return Ok(());
+            };
+            if args.verbose {
+                eprintln!("x {}", name);
+            }
+            if args.to_stdout {
+                return extract_entry_to_stdout(&item, password);
+            }
+            match item.header().data_kind() {
+                DataKind::File => {
+                    let (tx, rx) = flume::bounded(1);
+                    s.spawn_fifo(move |_| {
+                        let _ = tx.send(decompress_entry(item, password));
+                    });
+                    queue.push_back(PendingItem::File {
+                        name,
+                        decompressed_rx: rx,
+                    });
                 }
-                if args.to_stdout {
-                    return extract_entry_to_stdout(&item, password);
+                DataKind::Directory => {
+                    queue.push_back(PendingItem::Directory { name, entry: item });
                 }
-                match item.header().data_kind() {
-                    DataKind::File => {
-                        let (tx, rx) = flume::bounded(1);
-                        s.spawn_fifo(move |_| {
-                            let _ = tx.send(decompress_entry(item, password));
-                        });
-                        order_tx
-                            .send(OrderedItem::File {
-                                name,
-                                decompressed_rx: rx,
-                            })
-                            .map_err(|_| io::Error::other("writer stopped"))?;
-                    }
-                    DataKind::Directory => {
-                        order_tx
-                            .send(OrderedItem::Directory { name, entry: item })
-                            .map_err(|_| io::Error::other("writer stopped"))?;
-                    }
-                    DataKind::SymbolicLink | DataKind::HardLink => {
-                        let kind = item.header().data_kind();
-                        let target = {
-                            let r = item.reader(ReadOptions::with_password(password))?;
-                            io::read_to_string(r)?
-                        };
-                        order_tx
-                            .send(OrderedItem::Link {
-                                name,
-                                kind,
-                                target,
-                                entry: item,
-                            })
-                            .map_err(|_| io::Error::other("writer stopped"))?;
-                    }
+                DataKind::SymbolicLink | DataKind::HardLink => {
+                    let kind = item.header().data_kind();
+                    let target = {
+                        let r = item.reader(ReadOptions::with_password(password))?;
+                        io::read_to_string(r)?
+                    };
+                    queue.push_back(PendingItem::Link {
+                        name,
+                        kind,
+                        target,
+                        entry: item,
+                    });
                 }
-                Ok(())
-            })
-            .with_context(|| "streaming archive entries")?;
+            }
+            drain_ready(&mut queue, &mut deferred_links, &args)?;
             Ok(())
-        });
-
-        drop(order_tx);
-        let writer_result = writer
-            .join()
-            .map_err(|_| anyhow::anyhow!("writer thread panicked"))?;
-        reader_result?;
-        writer_result?;
-        globs.ensure_all_matched()?;
+        })
+        .with_context(|| "streaming archive entries")?;
         Ok::<(), anyhow::Error>(())
-    })
+    })?;
+
+    drain_all(queue, &mut deferred_links, &args)?;
+    for (name, kind, target, entry) in deferred_links {
+        write_link_to_disk(&name, kind, &target, &entry, &args)
+            .with_context(|| format!("extracting deferred link {name}"))?;
+    }
+    globs.ensure_all_matched()?;
+    Ok(())
 }
 
 #[inline]
@@ -916,7 +894,7 @@ where
     Ok(DecompressedFile { entry, data })
 }
 
-enum OrderedItem<T> {
+enum PendingItem<T> {
     File {
         name: EntryName,
         decompressed_rx: flume::Receiver<io::Result<DecompressedFile<T>>>,
@@ -933,43 +911,93 @@ enum OrderedItem<T> {
     },
 }
 
-fn writer_loop<T>(
-    rx: flume::Receiver<OrderedItem<T>>,
+/// Drains completed items from the front of the queue without blocking.
+fn drain_ready<T>(
+    queue: &mut VecDeque<PendingItem<T>>,
+    deferred_links: &mut Vec<(EntryName, DataKind, String, NormalEntry<T>)>,
     args: &OutputOption<'_>,
-) -> anyhow::Result<()>
+) -> io::Result<()>
 where
     T: AsRef<[u8]>,
     pna::RawChunk<T>: Chunk,
 {
-    let mut deferred_links = Vec::new();
-    for item in rx {
+    while let Some(item) = queue.pop_front() {
         match item {
-            OrderedItem::File {
+            PendingItem::File {
                 name,
                 decompressed_rx,
-            } => {
-                let file = decompressed_rx.recv().map_err(|_| {
-                    io::Error::new(io::ErrorKind::BrokenPipe, "decompress task lost")
-                })??;
-                write_file_to_disk(&name, file, args)
-                    .with_context(|| format!("extracting {name}"))?;
-            }
-            OrderedItem::Directory { name, entry } => {
-                write_directory_to_disk(&name, &entry, args)?;
-            }
-            OrderedItem::Link {
-                name,
-                kind,
-                target,
-                entry,
-            } => {
-                deferred_links.push((name, kind, target, entry));
-            }
+            } => match decompressed_rx.try_recv() {
+                Ok(result) => {
+                    let file = result?;
+                    write_file_to_disk(&name, file, args)?;
+                }
+                Err(flume::TryRecvError::Empty) => {
+                    queue.push_front(PendingItem::File {
+                        name,
+                        decompressed_rx,
+                    });
+                    break;
+                }
+                Err(flume::TryRecvError::Disconnected) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::BrokenPipe,
+                        "decompress task lost",
+                    ));
+                }
+            },
+            other => process_pending_item(other, deferred_links, args)?,
         }
     }
-    for (name, kind, target, entry) in deferred_links {
-        write_link_to_disk(&name, kind, &target, &entry, args)
-            .with_context(|| format!("extracting deferred link {name}"))?;
+    Ok(())
+}
+
+/// Drains all remaining items from the queue, blocking on each.
+/// Call after rayon::scope_fifo returns (all decompression tasks complete).
+fn drain_all<T>(
+    queue: VecDeque<PendingItem<T>>,
+    deferred_links: &mut Vec<(EntryName, DataKind, String, NormalEntry<T>)>,
+    args: &OutputOption<'_>,
+) -> io::Result<()>
+where
+    T: AsRef<[u8]>,
+    pna::RawChunk<T>: Chunk,
+{
+    for item in queue {
+        process_pending_item(item, deferred_links, args)?;
+    }
+    Ok(())
+}
+
+fn process_pending_item<T>(
+    item: PendingItem<T>,
+    deferred_links: &mut Vec<(EntryName, DataKind, String, NormalEntry<T>)>,
+    args: &OutputOption<'_>,
+) -> io::Result<()>
+where
+    T: AsRef<[u8]>,
+    pna::RawChunk<T>: Chunk,
+{
+    match item {
+        PendingItem::File {
+            name,
+            decompressed_rx,
+        } => {
+            let file = decompressed_rx
+                .recv()
+                .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "decompress task lost"))??;
+            write_file_to_disk(&name, file, args)?;
+        }
+        PendingItem::Directory { name, entry } => {
+            write_directory_to_disk(&name, &entry, args)?;
+        }
+        PendingItem::Link {
+            name,
+            kind,
+            target,
+            entry,
+        } => {
+            deferred_links.push((name, kind, target, entry));
+        }
     }
     Ok(())
 }
