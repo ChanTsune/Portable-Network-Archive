@@ -13,7 +13,6 @@ use crate::{
             PermissionStrategyResolver, SafeWriter, TimeFilterResolver, TimeFilters,
             TimestampStrategy, TimestampStrategyResolver, Umask, XattrStrategy, apply_chroot,
             collect_split_archives,
-            path_lock::{CompletionSender, PendingPaths},
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, run_process_archive,
         },
@@ -600,63 +599,76 @@ where
     let mut globs =
         BsdGlobMatcher::new(patterns.iter().map(|it| it.as_str())).with_no_recursive(no_recursive);
 
-    let mut link_entries = Vec::new();
-    let mut pending_paths = PendingPaths::default();
+    let prefetch = std::thread::available_parallelism()
+        .map(|n| n.get() * 2)
+        .unwrap_or(8);
+    let (order_tx, order_rx) = flume::bounded::<OrderedItem<Vec<u8>>>(prefetch);
 
-    let (tx, rx) = std::sync::mpsc::channel();
-    rayon::scope_fifo(|s| -> anyhow::Result<()> {
-        run_process_archive(reader, password_provider, |entry| {
-            let item = entry
-                .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
-            let Some(name) = filter_entry(&item, &mut globs, &args) else {
-                return Ok(());
-            };
-            if args.verbose {
-                eprintln!("x {}", name);
-            }
-            if args.to_stdout {
-                return extract_entry_to_stdout(&item, password);
-            }
-            if matches!(
-                item.header().data_kind(),
-                DataKind::SymbolicLink | DataKind::HardLink
-            ) {
-                link_entries.push((name, item));
-                return Ok(());
-            }
-            let path = build_output_path(args.out_dir.as_deref(), name.as_path());
-            let completion_tx = pending_paths.begin_write(path.as_ref())?;
+    std::thread::scope(|ts| {
+        let writer = ts.spawn(|| writer_loop(order_rx, &args));
 
-            let result = process_entry(item, &name, password, &args, completion_tx)?;
-            if let ProcessResult::WriteTask(task) = result {
-                let tx = tx.clone();
-                s.spawn_fifo(move |_| {
-                    tx.send(
-                        task.execute()
-                            .with_context(|| format!("extracting {}", name)),
-                    )
-                    .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
-                });
-            }
+        let reader_result: anyhow::Result<()> = rayon::scope_fifo(|s| {
+            run_process_archive(reader, password_provider, |entry| {
+                let item = entry
+                    .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
+                let Some(name) = filter_entry(&item, &mut globs, &args) else {
+                    return Ok(());
+                };
+                if args.verbose {
+                    eprintln!("x {}", name);
+                }
+                if args.to_stdout {
+                    return extract_entry_to_stdout(&item, password);
+                }
+                match item.header().data_kind() {
+                    DataKind::File => {
+                        let (tx, rx) = flume::bounded(1);
+                        s.spawn_fifo(move |_| {
+                            let _ = tx.send(decompress_entry(item, password));
+                        });
+                        order_tx
+                            .send(OrderedItem::File {
+                                name,
+                                decompressed_rx: rx,
+                            })
+                            .map_err(|_| io::Error::other("writer stopped"))?;
+                    }
+                    DataKind::Directory => {
+                        order_tx
+                            .send(OrderedItem::Directory { name, entry: item })
+                            .map_err(|_| io::Error::other("writer stopped"))?;
+                    }
+                    DataKind::SymbolicLink | DataKind::HardLink => {
+                        let kind = item.header().data_kind();
+                        let target = {
+                            let r = item.reader(ReadOptions::with_password(password))?;
+                            io::read_to_string(r)?
+                        };
+                        order_tx
+                            .send(OrderedItem::Link {
+                                name,
+                                kind,
+                                target,
+                                entry: item,
+                            })
+                            .map_err(|_| io::Error::other("writer stopped"))?;
+                    }
+                }
+                Ok(())
+            })
+            .with_context(|| "streaming archive entries")?;
             Ok(())
-        })
-        .with_context(|| "streaming archive entries")?;
-        Ok(())
-    })?;
-    drop(tx);
-    for result in rx {
-        result?;
-    }
-    for (name, item) in link_entries {
-        let path = build_output_path(args.out_dir.as_deref(), name.as_path());
-        let completion_tx = pending_paths.begin_write(path.as_ref())?;
-        process_entry(item, &name, password, &args, completion_tx)
-            .with_context(|| format!("extracting deferred link {name}"))?;
-    }
+        });
 
-    pending_paths.wait_all()?;
-    globs.ensure_all_matched()?;
-    Ok(())
+        drop(order_tx);
+        let writer_result = writer
+            .join()
+            .map_err(|_| anyhow::anyhow!("writer thread panicked"))?;
+        reader_result?;
+        writer_result?;
+        globs.ensure_all_matched()?;
+        Ok(())
+    })
 }
 
 #[cfg(feature = "memmap")]
@@ -675,65 +687,77 @@ where
     let mut globs =
         BsdGlobMatcher::new(files.iter().map(|it| it.as_str())).with_no_recursive(no_recursive);
 
-    let mut link_entries = Vec::new();
-    let mut pending_paths = PendingPaths::default();
+    let prefetch = std::thread::available_parallelism()
+        .map(|n| n.get() * 2)
+        .unwrap_or(8);
+    let (order_tx, order_rx) = flume::bounded::<OrderedItem<Cow<'d, [u8]>>>(prefetch);
 
-    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::scope(|ts| {
+        let writer = ts.spawn(|| writer_loop(order_rx, &args));
 
-    rayon::scope_fifo(|s| -> anyhow::Result<()> {
-        #[hooq::skip_all]
-        run_entries(archives, password_provider, |entry| {
-            let item = entry
-                .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
-            let Some(name) = filter_entry(&item, &mut globs, &args) else {
-                return Ok(());
-            };
-            if args.verbose {
-                eprintln!("x {}", name);
-            }
-            if args.to_stdout {
-                return extract_entry_to_stdout(&item, password);
-            }
-            if matches!(
-                item.header().data_kind(),
-                DataKind::SymbolicLink | DataKind::HardLink
-            ) {
-                link_entries.push((name, item));
-                return Ok(());
-            }
-            let path = build_output_path(args.out_dir.as_deref(), name.as_path());
-            let completion_tx = pending_paths.begin_write(path.as_ref())?;
-
-            let result = process_entry(item, &name, password, &args, completion_tx)?;
-            if let ProcessResult::WriteTask(task) = result {
-                let tx = tx.clone();
-                s.spawn_fifo(move |_| {
-                    tx.send(
-                        task.execute()
-                            .with_context(|| format!("extracting {}", name)),
-                    )
-                    .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
-                });
-            }
+        let reader_result: anyhow::Result<()> = rayon::scope_fifo(|s| {
+            #[hooq::skip_all]
+            run_entries(archives, password_provider, |entry| {
+                let item = entry
+                    .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
+                let Some(name) = filter_entry(&item, &mut globs, &args) else {
+                    return Ok(());
+                };
+                if args.verbose {
+                    eprintln!("x {}", name);
+                }
+                if args.to_stdout {
+                    return extract_entry_to_stdout(&item, password);
+                }
+                match item.header().data_kind() {
+                    DataKind::File => {
+                        let (tx, rx) = flume::bounded(1);
+                        s.spawn_fifo(move |_| {
+                            let _ = tx.send(decompress_entry(item, password));
+                        });
+                        order_tx
+                            .send(OrderedItem::File {
+                                name,
+                                decompressed_rx: rx,
+                            })
+                            .map_err(|_| io::Error::other("writer stopped"))?;
+                    }
+                    DataKind::Directory => {
+                        order_tx
+                            .send(OrderedItem::Directory { name, entry: item })
+                            .map_err(|_| io::Error::other("writer stopped"))?;
+                    }
+                    DataKind::SymbolicLink | DataKind::HardLink => {
+                        let kind = item.header().data_kind();
+                        let target = {
+                            let r = item.reader(ReadOptions::with_password(password))?;
+                            io::read_to_string(r)?
+                        };
+                        order_tx
+                            .send(OrderedItem::Link {
+                                name,
+                                kind,
+                                target,
+                                entry: item,
+                            })
+                            .map_err(|_| io::Error::other("writer stopped"))?;
+                    }
+                }
+                Ok(())
+            })
+            .with_context(|| "streaming archive entries")?;
             Ok(())
-        })
-        .with_context(|| "streaming archive entries")?;
-        Ok(())
-    })?;
-    drop(tx);
-    for result in rx {
-        result?;
-    }
+        });
 
-    for (name, item) in link_entries {
-        let path = build_output_path(args.out_dir.as_deref(), name.as_path());
-        let completion_tx = pending_paths.begin_write(path.as_ref())?;
-        process_entry(item, &name, password, &args, completion_tx)
-            .with_context(|| format!("extracting deferred link {name}"))?;
-    }
-    pending_paths.wait_all()?;
-    globs.ensure_all_matched()?;
-    Ok(())
+        drop(order_tx);
+        let writer_result = writer
+            .join()
+            .map_err(|_| anyhow::anyhow!("writer thread panicked"))?;
+        reader_result?;
+        writer_result?;
+        globs.ensure_all_matched()?;
+        Ok::<(), anyhow::Error>(())
+    })
 }
 
 #[inline]
@@ -871,179 +895,213 @@ where
     Ok(ExtractionDecision::Proceed { remove_existing })
 }
 
-fn process_entry<'a, T>(
-    item: NormalEntry<T>,
-    item_path: &EntryName,
-    password: Option<&'a [u8]>,
-    OutputOption {
-        overwrite_strategy,
-        allow_unsafe_links,
-        out_dir,
-        to_stdout: _,
-        filter: _,
-        keep_options,
-        pathname_editor,
-        unlink_first,
-        time_filters: _,
-        safe_writes,
-        verbose: _,
-    }: &'a OutputOption<'a>,
-    completion_tx: CompletionSender,
-) -> io::Result<ProcessResult<'a, T>>
+struct DecompressedFile<T> {
+    entry: NormalEntry<T>,
+    data: Vec<u8>,
+}
+
+fn decompress_entry<T>(
+    entry: NormalEntry<T>,
+    password: Option<&[u8]>,
+) -> io::Result<DecompressedFile<T>>
 where
     T: AsRef<[u8]>,
     pna::RawChunk<T>: Chunk,
 {
-    log::debug!("Extract: {}", item.name());
-    let path = build_output_path(out_dir.as_deref(), item_path.as_path());
+    let mut data = Vec::new();
+    {
+        let mut reader = entry.reader(ReadOptions::with_password(password))?;
+        reader.read_to_end(&mut data)?;
+    }
+    Ok(DecompressedFile { entry, data })
+}
 
-    log::debug!("start: {}", path.display());
+enum OrderedItem<T> {
+    File {
+        name: EntryName,
+        decompressed_rx: flume::Receiver<io::Result<DecompressedFile<T>>>,
+    },
+    Directory {
+        name: EntryName,
+        entry: NormalEntry<T>,
+    },
+    Link {
+        name: EntryName,
+        kind: DataKind,
+        target: String,
+        entry: NormalEntry<T>,
+    },
+}
 
-    let entry_kind = item.header().data_kind();
-    // Check overwrite strategy and prepare target
-    let ExtractionDecision::Proceed { remove_existing } =
-        check_and_prepare_target(&path, entry_kind, &item, *overwrite_strategy, *unlink_first)?
-    else {
-        let _ = completion_tx.send(Ok(()));
-        return Ok(ProcessResult::Skipped);
-    };
-
-    match entry_kind {
-        DataKind::File => {
-            if *safe_writes {
-                let mut safe_writer = SafeWriter::new(&path)?;
-                {
-                    let mut writer =
-                        io::BufWriter::with_capacity(64 * 1024, safe_writer.as_file_mut());
-                    let mut reader = item.reader(ReadOptions::with_password(password))?;
-                    io::copy(&mut reader, &mut writer)?;
-                    writer.flush()?;
-                }
-                // Set timestamps before persist; after rename we lose the file handle
-                restore_timestamps(safe_writer.as_file_mut(), item.metadata(), keep_options)?;
-                safe_writer.persist()?;
-            } else {
-                if remove_existing {
-                    utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
-                }
-                let file = utils::fs::file_create(&path, remove_existing)?;
-                return Ok(ProcessResult::WriteTask(WriteTask {
-                    path: path.to_path_buf(),
-                    password,
-                    keep_options,
-                    item,
-                    file,
-                    completion_tx,
-                }));
+fn writer_loop<T>(
+    rx: flume::Receiver<OrderedItem<T>>,
+    args: &OutputOption<'_>,
+) -> anyhow::Result<()>
+where
+    T: AsRef<[u8]>,
+    pna::RawChunk<T>: Chunk,
+{
+    let mut deferred_links = Vec::new();
+    for item in rx {
+        match item {
+            OrderedItem::File {
+                name,
+                decompressed_rx,
+            } => {
+                let file = decompressed_rx.recv().map_err(|_| {
+                    io::Error::new(io::ErrorKind::BrokenPipe, "decompress task lost")
+                })??;
+                write_file_to_disk(&name, file, args)
+                    .with_context(|| format!("extracting {name}"))?;
+            }
+            OrderedItem::Directory { name, entry } => {
+                write_directory_to_disk(&name, &entry, args)?;
+            }
+            OrderedItem::Link {
+                name,
+                kind,
+                target,
+                entry,
+            } => {
+                deferred_links.push((name, kind, target, entry));
             }
         }
-        DataKind::Directory => {
-            ensure_directory_components(&path, *unlink_first)?;
+    }
+    for (name, kind, target, entry) in deferred_links {
+        write_link_to_disk(&name, kind, &target, &entry, args)
+            .with_context(|| format!("extracting deferred link {name}"))?;
+    }
+    Ok(())
+}
+
+fn write_file_to_disk<T>(
+    item_path: &EntryName,
+    file: DecompressedFile<T>,
+    args: &OutputOption<'_>,
+) -> io::Result<()>
+where
+    T: AsRef<[u8]>,
+    pna::RawChunk<T>: Chunk,
+{
+    let DecompressedFile { entry, data } = file;
+    let path = build_output_path(args.out_dir.as_deref(), item_path.as_path());
+
+    let ExtractionDecision::Proceed { remove_existing } = check_and_prepare_target(
+        &path,
+        DataKind::File,
+        &entry,
+        args.overwrite_strategy,
+        args.unlink_first,
+    )?
+    else {
+        return Ok(());
+    };
+
+    if args.safe_writes {
+        let mut safe_writer = SafeWriter::new(&path)?;
+        {
+            let mut writer = io::BufWriter::with_capacity(64 * 1024, safe_writer.as_file_mut());
+            writer.write_all(&data)?;
+            writer.flush()?;
         }
+        restore_timestamps(
+            safe_writer.as_file_mut(),
+            entry.metadata(),
+            &args.keep_options,
+        )?;
+        safe_writer.persist()?;
+    } else {
+        if remove_existing {
+            utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
+        }
+        let f = utils::fs::file_create(&path, remove_existing)?;
+        let mut writer = io::BufWriter::with_capacity(64 * 1024, f);
+        writer.write_all(&data)?;
+        let mut f = writer.into_inner().map_err(|e| e.into_error())?;
+        restore_timestamps(&mut f, entry.metadata(), &args.keep_options)?;
+    }
+    restore_metadata(&entry, &path, &args.keep_options)
+}
+
+fn write_directory_to_disk<T>(
+    item_path: &EntryName,
+    entry: &NormalEntry<T>,
+    args: &OutputOption<'_>,
+) -> io::Result<()>
+where
+    T: AsRef<[u8]>,
+    pna::RawChunk<T>: Chunk,
+{
+    let path = build_output_path(args.out_dir.as_deref(), item_path.as_path());
+    ensure_directory_components(&path, args.unlink_first)?;
+    restore_metadata(entry, &path, &args.keep_options)
+}
+
+fn write_link_to_disk<T>(
+    item_path: &EntryName,
+    kind: DataKind,
+    target: &str,
+    entry: &NormalEntry<T>,
+    args: &OutputOption<'_>,
+) -> io::Result<()>
+where
+    T: AsRef<[u8]>,
+    pna::RawChunk<T>: Chunk,
+{
+    let path = build_output_path(args.out_dir.as_deref(), item_path.as_path());
+
+    let ExtractionDecision::Proceed { remove_existing } = check_and_prepare_target(
+        &path,
+        kind,
+        entry,
+        args.overwrite_strategy,
+        args.unlink_first,
+    )?
+    else {
+        return Ok(());
+    };
+
+    match kind {
         DataKind::SymbolicLink => {
-            let reader = item.reader(ReadOptions::with_password(password))?;
-            let original = io::read_to_string(reader)?;
-            let original = pathname_editor.edit_symlink(original.as_ref());
-            if !allow_unsafe_links && is_unsafe_link(&original) {
+            let original = args.pathname_editor.edit_symlink(target.as_ref());
+            if !args.allow_unsafe_links && is_unsafe_link(&original) {
                 log::warn!(
                     "Skipped extracting a symbolic link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
                 );
-                let _ = completion_tx.send(Ok(()));
-                return Ok(ProcessResult::Skipped);
+                return Ok(());
             }
-            // Symlinks/hardlinks cannot be atomically replaced; remove existing path first
-            if *safe_writes || remove_existing {
+            if args.safe_writes || remove_existing {
                 utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
             }
             utils::fs::symlink(original, &path)?;
         }
         DataKind::HardLink => {
-            let reader = item.reader(ReadOptions::with_password(password))?;
-            let original = io::read_to_string(reader)?;
-            let Some(original) = pathname_editor.edit_hardlink(original.as_ref()) else {
+            let Some(original) = args.pathname_editor.edit_hardlink(target.as_ref()) else {
                 log::warn!(
                     "Skipped extracting a hard link that pointed at a file which was skipped.: {}",
-                    original
+                    target
                 );
-                let _ = completion_tx.send(Ok(()));
-                return Ok(ProcessResult::Skipped);
+                return Ok(());
             };
-            if !allow_unsafe_links && is_unsafe_link(&original) {
+            if !args.allow_unsafe_links && is_unsafe_link(&original) {
                 log::warn!(
                     "Skipped extracting a hard link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
                 );
-                let _ = completion_tx.send(Ok(()));
-                return Ok(ProcessResult::Skipped);
+                return Ok(());
             }
-            let original = if let Some(out_dir) = out_dir {
+            let original = if let Some(out_dir) = &args.out_dir {
                 Cow::from(out_dir.join(original))
             } else {
                 Cow::from(original.as_path())
             };
-            // Symlinks/hardlinks cannot be atomically replaced; remove existing path first
-            if *safe_writes || remove_existing {
+            if args.safe_writes || remove_existing {
                 utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
             }
             fs::hard_link(original, &path)?;
         }
+        _ => {}
     }
-    restore_metadata(&item, &path, keep_options)?;
-    let _ = completion_tx.send(Ok(()));
-    log::debug!("end: {}", path.display());
-    Ok(ProcessResult::Complete)
-}
-
-#[allow(clippy::large_enum_variant)]
-enum ProcessResult<'a, T> {
-    Skipped,
-    Complete,
-    WriteTask(WriteTask<'a, T>),
-}
-
-struct WriteTask<'a, T> {
-    path: PathBuf,
-    password: Option<&'a [u8]>,
-    keep_options: &'a KeepOptions,
-    item: NormalEntry<T>,
-    file: fs::File,
-    completion_tx: CompletionSender,
-}
-
-impl<'a, T: AsRef<[u8]>> WriteTask<'a, T> {
-    fn execute(self) -> io::Result<()> {
-        let Self {
-            path,
-            password,
-            keep_options,
-            item,
-            file,
-            completion_tx,
-        } = self;
-        let result = Self::execute_inner(path, password, keep_options, item, file);
-        let _ = completion_tx.send(
-            result
-                .as_ref()
-                .map(|_| ())
-                .map_err(|e| io::Error::new(e.kind(), e.to_string())),
-        );
-        result
-    }
-
-    #[inline]
-    fn execute_inner(
-        path: PathBuf,
-        password: Option<&[u8]>,
-        keep_options: &KeepOptions,
-        item: NormalEntry<T>,
-        file: fs::File,
-    ) -> io::Result<()> {
-        let mut writer = io::BufWriter::with_capacity(64 * 1024, file);
-        let mut reader = item.reader(ReadOptions::with_password(password))?;
-        io::copy(&mut reader, &mut writer)?;
-        let mut file = writer.into_inner().map_err(|e| e.into_error())?;
-        restore_timestamps(&mut file, item.metadata(), keep_options)?;
-        restore_metadata(&item, &path, keep_options)
-    }
+    restore_metadata(entry, &path, &args.keep_options)
 }
 
 #[inline]

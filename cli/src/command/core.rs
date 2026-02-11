@@ -5,7 +5,6 @@ pub(crate) mod iter;
 pub(crate) mod mtree;
 pub(crate) mod path;
 mod path_filter;
-pub(crate) mod path_lock;
 mod path_transformer;
 pub(crate) mod permission;
 pub(crate) mod re;
