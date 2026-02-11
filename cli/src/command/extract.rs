@@ -641,9 +641,9 @@ where
             Ok(())
         })
         .with_context(|| "streaming archive entries")?;
-        drop(tx);
         Ok(())
     })?;
+    drop(tx);
     for result in rx {
         result?;
     }
@@ -671,16 +671,16 @@ pub(crate) fn run_extract_archive<'a, 'd, 'p, Provider>(
 where
     Provider: FnMut() -> Option<&'p [u8]> + Send,
 {
+    let password = password_provider();
+    let mut globs =
+        BsdGlobMatcher::new(files.iter().map(|it| it.as_str())).with_no_recursive(no_recursive);
+
+    let mut link_entries = Vec::new();
+    let mut pending_paths = PendingPaths::default();
+
+    let (tx, rx) = std::sync::mpsc::channel();
+
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
-        let password = password_provider();
-        let mut globs =
-            BsdGlobMatcher::new(files.iter().map(|it| it.as_str())).with_no_recursive(no_recursive);
-
-        let mut link_entries = Vec::new();
-        let mut pending_paths = PendingPaths::default();
-
-        let (tx, rx) = std::sync::mpsc::channel();
-
         #[hooq::skip_all]
         run_entries(archives, password_provider, |entry| {
             let item = entry
@@ -718,21 +718,22 @@ where
             Ok(())
         })
         .with_context(|| "streaming archive entries")?;
-        drop(tx);
-        for result in rx {
-            result?;
-        }
-
-        for (name, item) in link_entries {
-            let path = build_output_path(args.out_dir.as_deref(), name.as_path());
-            let completion_tx = pending_paths.begin_write(path.as_ref())?;
-            process_entry(item, &name, password, &args, completion_tx)
-                .with_context(|| format!("extracting deferred link {name}"))?;
-        }
-        pending_paths.wait_all()?;
-        globs.ensure_all_matched()?;
         Ok(())
-    })
+    })?;
+    drop(tx);
+    for result in rx {
+        result?;
+    }
+
+    for (name, item) in link_entries {
+        let path = build_output_path(args.out_dir.as_deref(), name.as_path());
+        let completion_tx = pending_paths.begin_write(path.as_ref())?;
+        process_entry(item, &name, password, &args, completion_tx)
+            .with_context(|| format!("extracting deferred link {name}"))?;
+    }
+    pending_paths.wait_all()?;
+    globs.ensure_all_matched()?;
+    Ok(())
 }
 
 #[inline]
