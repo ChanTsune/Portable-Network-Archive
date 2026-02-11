@@ -4,6 +4,7 @@ mod files_from;
 mod missing_file;
 #[cfg(unix)]
 mod mtree;
+mod old_style;
 mod option_auto_compress;
 mod option_block_size;
 mod option_check_links;
