@@ -602,6 +602,12 @@ where
 
     let mut queue = VecDeque::<PendingItem<Vec<u8>>>::new();
     let mut deferred_links = Vec::new();
+    // Backpressure limit: block when queue exceeds this.
+    // On single-threaded runtimes (WASM), set to MAX to avoid deadlock.
+    let max_pending = rayon::current_num_threads()
+        .checked_sub(1)
+        .and_then(|n| n.checked_mul(2))
+        .unwrap_or(usize::MAX);
 
     rayon::scope_fifo(|s| {
         run_process_archive(reader, password_provider, |entry| {
@@ -644,7 +650,7 @@ where
                     });
                 }
             }
-            drain_ready(&mut queue, &mut deferred_links, &args)?;
+            drain_ready(&mut queue, &mut deferred_links, &args, max_pending)?;
             Ok(())
         })
         .with_context(|| "streaming archive entries")?;
@@ -679,6 +685,10 @@ where
 
     let mut queue = VecDeque::<PendingItem<Cow<'d, [u8]>>>::new();
     let mut deferred_links = Vec::new();
+    let max_pending = rayon::current_num_threads()
+        .checked_sub(1)
+        .and_then(|n| n.checked_mul(2))
+        .unwrap_or(usize::MAX);
 
     rayon::scope_fifo(|s| {
         #[hooq::skip_all]
@@ -722,7 +732,7 @@ where
                     });
                 }
             }
-            drain_ready(&mut queue, &mut deferred_links, &args)?;
+            drain_ready(&mut queue, &mut deferred_links, &args, max_pending)?;
             Ok(())
         })
         .with_context(|| "streaming archive entries")?;
@@ -911,16 +921,23 @@ enum PendingItem<T> {
     },
 }
 
-/// Drains completed items from the front of the queue without blocking.
+/// Drains completed items from the front of the queue.
+///
+/// First drains all items whose decompression has already completed (non-blocking).
+/// Then, if the queue still exceeds `max_pending`, blocks on the front item to
+/// apply backpressure. On single-threaded runtimes (WASM) where `max_pending`
+/// is `usize::MAX`, this blocking path is never reached.
 fn drain_ready<T>(
     queue: &mut VecDeque<PendingItem<T>>,
     deferred_links: &mut Vec<(EntryName, DataKind, String, NormalEntry<T>)>,
     args: &OutputOption<'_>,
+    max_pending: usize,
 ) -> io::Result<()>
 where
     T: AsRef<[u8]>,
     pna::RawChunk<T>: Chunk,
 {
+    // Non-blocking drain of completed front items
     while let Some(item) = queue.pop_front() {
         match item {
             PendingItem::File {
@@ -947,6 +964,13 @@ where
             },
             other => process_pending_item(other, deferred_links, args)?,
         }
+    }
+    // Backpressure: block on front items until queue is within limit
+    while queue.len() >= max_pending {
+        let Some(item) = queue.pop_front() else {
+            break;
+        };
+        process_pending_item(item, deferred_links, args)?;
     }
     Ok(())
 }
