@@ -1,0 +1,168 @@
+name: bsdtar compatibility
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+    paths:
+      - 'cli/src/command/stdio.rs'
+      - 'cli/src/command/core/**'
+      - 'lib/**'
+      - 'pna/**'
+      - '.github/workflows/bsdtar-compat.yml'
+  pull_request:
+    branches: ["*"]
+    paths:
+      - 'cli/src/command/stdio.rs'
+      - 'cli/src/command/core/**'
+      - 'lib/**'
+      - 'pna/**'
+      - '.github/workflows/bsdtar-compat.yml'
+
+jobs:
+  bsdtar-reference:
+    name: Verify bsdtar_test passes with bsdtar
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Install build dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y libacl1-dev libssl-dev pkg-config autoconf automake libtool
+
+      - name: Clone libarchive
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: libarchive/libarchive
+          ref: v3.8.5
+          path: libarchive
+
+      - name: Build bsdtar and bsdtar_test
+        run: |
+          cd libarchive
+          ./build/autogen.sh
+          ./configure --enable-bsdtar --disable-bsdcpio --disable-bsdcat --disable-bsdunzip
+          make tar/test/list.h
+          make -j$(nproc) bsdtar_test bsdtar
+
+      - name: Run bsdtar_test with bsdtar
+        run: |
+          "${GITHUB_WORKSPACE}/libarchive/bsdtar_test" \
+            -p "${GITHUB_WORKSPACE}/libarchive/bsdtar" \
+            -r "${GITHUB_WORKSPACE}/libarchive/tar/test" \
+            -v
+
+  pna-stdio:
+    name: Test pna stdio with bsdtar_test
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout pna
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          path: pna
+
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y libacl1-dev libssl-dev pkg-config autoconf automake libtool
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
+
+      - name: Build pna
+        run: |
+          cargo build --locked --release --all-features -p portable-network-archive
+        working-directory: pna
+
+      - name: Clone libarchive
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: libarchive/libarchive
+          ref: v3.8.5
+          path: libarchive
+
+      - name: Build bsdtar_test
+        run: |
+          cd libarchive
+          ./build/autogen.sh
+          ./configure --enable-bsdtar --disable-bsdcpio --disable-bsdcat --disable-bsdunzip
+          make tar/test/list.h
+          make -j$(nproc) bsdtar_test
+
+      - name: Create pnatar wrapper
+        run: |
+          PNA_BIN="${GITHUB_WORKSPACE}/pna/target/release/pna"
+          printf '#!/bin/sh\nexec "%s" experimental stdio --unstable "$@"\n' "$PNA_BIN" > /usr/local/bin/pnatar
+          chmod +x /usr/local/bin/pnatar
+
+      - name: Run bsdtar_test with pnatar
+        id: bsdtar_test
+        continue-on-error: true
+        run: |
+          BSDTAR_TEST="${GITHUB_WORKSPACE}/libarchive/bsdtar_test"
+          REFDIR="${GITHUB_WORKSPACE}/libarchive/tar/test"
+          # Exclude tests that crash the process via NULL dereference in assertEqualMem
+          # after slurpfile() returns NULL for ustar archives pnatar cannot create.
+          # bsdtar_test runs in-process (no fork), so a SEGV kills the entire run.
+          #   #37 test_option_gid_gname
+          #   #38 test_option_group
+          #   #57 test_option_owner
+          #   #63 test_option_uid_uname
+          : > bsdtar_test_output.txt
+          for range in 0-36 39-56 58-62 64-75; do
+            "$BSDTAR_TEST" -p /usr/local/bin/pnatar -r "$REFDIR" -v "$range" 2>&1 | tee -a bsdtar_test_output.txt || true
+          done
+
+      - name: Generate summary
+        if: always()
+        run: |
+          echo "## bsdtar compatibility test results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ ! -f bsdtar_test_output.txt ]; then
+            echo "No test output found." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          if ! grep -q 'Tests run:' bsdtar_test_output.txt; then
+            echo "> **Warning**: Test run did not complete (possible crash)" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            LAST_TEST=$(grep -oP '^\s+\d+: \K\S+' bsdtar_test_output.txt | tail -1 || echo "unknown")
+            echo "Last test seen: \`${LAST_TEST}\`" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # Aggregate totals across multiple ranges
+          TOTAL=0 FAILED=0 ASSERTIONS=0 ASSERT_FAIL=0 SKIPS=0
+          while IFS= read -r val; do TOTAL=$((TOTAL + val)); done < <(grep -oP 'Tests run:\s+\K\d+' bsdtar_test_output.txt)
+          while IFS= read -r val; do FAILED=$((FAILED + val)); done < <(grep -oP 'Tests failed:\s+\K\d+' bsdtar_test_output.txt)
+          while IFS= read -r val; do ASSERTIONS=$((ASSERTIONS + val)); done < <(grep -oP 'Assertions checked:\s*\K\d+' bsdtar_test_output.txt)
+          while IFS= read -r val; do ASSERT_FAIL=$((ASSERT_FAIL + val)); done < <(grep -oP 'Assertions failed:\s+\K\d+' bsdtar_test_output.txt)
+          while IFS= read -r val; do SKIPS=$((SKIPS + val)); done < <(grep -oP 'Skips reported:\s+\K\d+' bsdtar_test_output.txt)
+          PASSED=$((TOTAL - FAILED))
+
+          echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Tests passed | **${PASSED}** / ${TOTAL} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Tests failed | ${FAILED} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Tests skipped | ${SKIPS} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Tests excluded (crash) | 4 |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Assertions passed | $((ASSERTIONS - ASSERT_FAIL)) / ${ASSERTIONS} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Assertions failed | ${ASSERT_FAIL} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          # List failing tests
+          FAILING=$(grep -oP '^\s+\d+: \K.*' bsdtar_test_output.txt | grep 'failure' || true)
+          if [ -n "$FAILING" ]; then
+            echo "<details><summary>Failing tests (${FAILED})</summary>" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "$FAILING" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "</details>" >> "$GITHUB_STEP_SUMMARY"
+          fi
