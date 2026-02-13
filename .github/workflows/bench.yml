@@ -25,7 +25,34 @@ jobs:
           channel: nightly
       - name: Run rust-bench
         run: |
-          cargo bench --locked --all-features
+          cargo bench --locked --all-features 2>&1 | tee bench_output.txt
+
+      - name: Generate summary
+        if: always()
+        run: |
+          echo "## Benchmark results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ ! -f bench_output.txt ]; then
+            echo "No benchmark output found." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo "| Benchmark | Low | Mid | High |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-----------|-----|-----|------|" >> "$GITHUB_STEP_SUMMARY"
+
+          awk 'BEGIN{name=""}
+            /^[a-zA-Z_]/{if(index($0,"time:")==0){name=$1;next}}
+            /time:/{
+              if($1=="time:"){nm=name}else{nm=$1}
+              n=split($0,a,"[")
+              if(n>=2){
+                sub(/\].*/,"",a[2])
+                m=split(a[2],p," ")
+                if(m>=6){printf "| %s | %s %s | %s %s | %s %s |\n",nm,p[1],p[2],p[3],p[4],p[5],p[6]}
+              }
+              name=""
+            }' bench_output.txt >> "$GITHUB_STEP_SUMMARY"
 
   cli-tests:
     name: Run cli bench
