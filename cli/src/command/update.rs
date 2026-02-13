@@ -458,6 +458,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
             PathTransformers::new(args.substitutions, args.transforms),
             false,
         ),
+        sparse: false,
     };
 
     let archives = collect_split_archives(&args.file.archive)?;

@@ -957,6 +957,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         write_option: cli_option,
         keep_options,
         solid: args.solid,
+        sparse: false,
         pathname_editor: PathnameEditor::new(
             args.strip_components,
             PathTransformers::new(args.substitutions, args.transforms),
@@ -1264,6 +1265,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             PathTransformers::new(args.substitutions, args.transforms),
             args.absolute_paths,
         ),
+        sparse: false,
     };
 
     // NOTE: "-" will use stdin/out
@@ -1418,6 +1420,7 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
             PathTransformers::new(args.substitutions, args.transforms),
             args.absolute_paths,
         ),
+        sparse: false,
     };
 
     // NOTE: "-" is not supported for update mode
