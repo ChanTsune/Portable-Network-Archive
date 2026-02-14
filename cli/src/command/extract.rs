@@ -13,7 +13,7 @@ use crate::{
             PermissionStrategyResolver, SafeWriter, TimeFilterResolver, TimeFilters,
             TimestampStrategy, TimestampStrategyResolver, Umask, XattrStrategy, apply_chroot,
             collect_split_archives,
-            path_lock::PathLocks,
+            path_lock::OrderedPathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, run_process_archive,
         },
@@ -494,7 +494,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
             PathTransformers::new(args.substitutions, args.transforms),
             false,
         ),
-        path_locks: Arc::new(PathLocks::default()),
+        ordered_path_locks: Arc::new(OrderedPathLocks::default()),
         unlink_first: false,
         time_filters,
         safe_writes: args.safe_writes && !args.no_safe_writes,
@@ -581,7 +581,7 @@ pub(crate) struct OutputOption<'a> {
     pub(crate) filter: PathFilter<'a>,
     pub(crate) keep_options: KeepOptions,
     pub(crate) pathname_editor: PathnameEditor,
-    pub(crate) path_locks: Arc<PathLocks>,
+    pub(crate) ordered_path_locks: Arc<OrderedPathLocks>,
     pub(crate) unlink_first: bool,
     pub(crate) time_filters: TimeFilters,
     pub(crate) safe_writes: bool,
@@ -605,8 +605,55 @@ where
 
     let mut link_entries = Vec::new();
 
-    let (tx, rx) = std::sync::mpsc::channel();
-    rayon::scope_fifo(|s| -> anyhow::Result<()> {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        let (tx, rx) = std::sync::mpsc::channel();
+        rayon::scope_fifo(|s| -> anyhow::Result<()> {
+            run_process_archive(reader, password_provider, |entry| {
+                let item = entry
+                    .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
+                let Some(name) = filter_entry(&item, &mut globs, &args) else {
+                    return Ok(());
+                };
+                if args.verbose {
+                    eprintln!("x {}", name);
+                }
+                if args.to_stdout {
+                    return extract_entry_to_stdout(&item, password);
+                }
+                if matches!(
+                    item.header().data_kind(),
+                    DataKind::SymbolicLink | DataKind::HardLink
+                ) {
+                    link_entries.push((name, item));
+                    return Ok(());
+                }
+                let path = build_output_path(args.out_dir.as_deref(), name.as_path());
+                let ticket = args.ordered_path_locks.register(&path);
+                let item_path = item.name().to_string();
+                let tx = tx.clone();
+                let args = args.clone();
+                s.spawn_fifo(move |_| {
+                    let _guard = ticket.wait_for_turn();
+                    tx.send(
+                        extract_entry(item, &name, password, &args)
+                            .with_context(|| format!("extracting {}", item_path)),
+                    )
+                    .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
+                });
+                Ok(())
+            })
+            .with_context(|| "streaming archive entries")?;
+            drop(tx);
+            Ok(())
+        })?;
+        for result in rx {
+            result?;
+        }
+    }
+
+    #[cfg(target_family = "wasm")]
+    {
         run_process_archive(reader, password_provider, |entry| {
             let item = entry
                 .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
@@ -626,25 +673,13 @@ where
                 link_entries.push((name, item));
                 return Ok(());
             }
-            let item_path = item.name().to_string();
-            let tx = tx.clone();
-            let args = args.clone();
-            s.spawn_fifo(move |_| {
-                tx.send(
-                    extract_entry(item, &name, password, &args)
-                        .with_context(|| format!("extracting {}", item_path)),
-                )
-                .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
-            });
+            extract_entry(item, &name, password, &args)
+                .map_err(|e| io::Error::new(e.kind(), format!("extracting {}: {e}", name)))?;
             Ok(())
         })
         .with_context(|| "streaming archive entries")?;
-        drop(tx);
-        Ok(())
-    })?;
-    for result in rx {
-        result?;
     }
+
     for (name, item) in link_entries {
         extract_entry(item, &name, password, &args)
             .with_context(|| format!("extracting deferred link {name}"))?;
@@ -666,15 +701,15 @@ pub(crate) fn run_extract_archive<'a, 'd, 'p, Provider>(
 where
     Provider: FnMut() -> Option<&'p [u8]> + Send,
 {
+    let password = password_provider();
+    let mut globs =
+        BsdGlobMatcher::new(files.iter().map(|it| it.as_str())).with_no_recursive(no_recursive);
+
+    let mut link_entries: Vec<(EntryName, NormalEntry<Vec<u8>>)> = Vec::new();
+
+    let (tx, rx) = std::sync::mpsc::channel();
+
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
-        let password = password_provider();
-        let mut globs =
-            BsdGlobMatcher::new(files.iter().map(|it| it.as_str())).with_no_recursive(no_recursive);
-
-        let mut link_entries = Vec::new();
-
-        let (tx, rx) = std::sync::mpsc::channel();
-
         #[hooq::skip_all]
         run_entries(archives, password_provider, |entry| {
             let item = entry
@@ -692,13 +727,16 @@ where
                 item.header().data_kind(),
                 DataKind::SymbolicLink | DataKind::HardLink
             ) {
-                link_entries.push((name, item));
+                link_entries.push((name, item.into()));
                 return Ok(());
             }
+            let path = build_output_path(args.out_dir.as_deref(), name.as_path());
+            let ticket = args.ordered_path_locks.register(&path);
             let item_path = item.name().to_string();
             let tx = tx.clone();
             let args = args.clone();
             s.spawn_fifo(move |_| {
+                let _guard = ticket.wait_for_turn();
                 tx.send(
                     extract_entry(item, &name, password, &args)
                         .with_context(|| format!("extracting {}", item_path)),
@@ -709,17 +747,18 @@ where
         })
         .with_context(|| "streaming archive entries")?;
         drop(tx);
-        for result in rx {
-            result?;
-        }
-
-        for (name, item) in link_entries {
-            extract_entry(item, &name, password, &args)
-                .with_context(|| format!("extracting deferred link {name}"))?;
-        }
-        globs.ensure_all_matched()?;
         Ok(())
-    })
+    })?;
+    for result in rx {
+        result?;
+    }
+
+    for (name, item) in link_entries {
+        extract_entry(item, &name, password, &args)
+            .with_context(|| format!("extracting deferred link {name}"))?;
+    }
+    globs.ensure_all_matched()?;
+    Ok(())
 }
 
 #[inline]
@@ -857,6 +896,8 @@ where
     Ok(ExtractionDecision::Proceed { remove_existing })
 }
 
+/// Caller must hold a [`PathOrderGuard`](super::core::path_lock::PathOrderGuard)
+/// for the entry's output path to guarantee archive-order writes.
 pub(crate) fn extract_entry<'a, T>(
     item: NormalEntry<T>,
     item_path: &EntryName,
@@ -869,7 +910,7 @@ pub(crate) fn extract_entry<'a, T>(
         filter: _,
         keep_options,
         pathname_editor,
-        path_locks,
+        ordered_path_locks: _,
         unlink_first,
         time_filters: _,
         safe_writes,
@@ -884,9 +925,6 @@ where
     let path = build_output_path(out_dir.as_deref(), item_path.as_path());
 
     let entry_kind = item.header().data_kind();
-
-    let path_lock = path_locks.get(path.as_ref());
-    let path_guard = path_lock.lock().expect("path lock mutex poisoned");
 
     log::debug!("start: {}", path.display());
 
@@ -908,7 +946,6 @@ where
                     io::copy(&mut reader, &mut writer)?;
                     writer.flush()?;
                 }
-                // Set timestamps before persist; after rename we lose the file handle
                 restore_timestamps(safe_writer.as_file_mut(), item.metadata(), keep_options)?;
                 safe_writer.persist()?;
             } else {
@@ -971,7 +1008,6 @@ where
         }
     }
     restore_metadata(&item, &path, keep_options)?;
-    drop(path_guard);
     log::debug!("end: {}", path.display());
     Ok(())
 }

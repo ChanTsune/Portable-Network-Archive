@@ -13,6 +13,7 @@ mod option_mtime;
 mod option_safe_writes;
 mod option_substitution;
 mod option_transform;
+mod overwrite_order;
 mod overwrite_symlink;
 mod password_from_file;
 mod sanitize_parent_components;
