@@ -3,8 +3,32 @@ on:
   workflow_dispatch:
   push:
     branches: ["main"]
+    paths:
+      - "lib/**"
+      - "pna/**"
+      - "cli/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "resources/test/**"
+      - "tests/bats/**"
+      - ".cargo/config.toml"
+      - "rust-toolchain.toml"
+      - ".github/actions/**"
+      - ".github/workflows/bench.yml"
   pull_request:
     branches: ["*"]
+    paths:
+      - "lib/**"
+      - "pna/**"
+      - "cli/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "resources/test/**"
+      - "tests/bats/**"
+      - ".cargo/config.toml"
+      - "rust-toolchain.toml"
+      - ".github/actions/**"
+      - ".github/workflows/bench.yml"
 
 jobs:
   rust-bench:
