@@ -9,10 +9,31 @@
 
 name: rust-clippy analyze
 on:
+  workflow_dispatch:
   push:
     branches: ["main"]
+    paths:
+      - "lib/**"
+      - "pna/**"
+      - "cli/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".cargo/config.toml"
+      - "rust-toolchain.toml"
+      - ".github/actions/**"
+      - ".github/workflows/rust-clippy.yml"
   pull_request:
     branches: ["main"]
+    paths:
+      - "lib/**"
+      - "pna/**"
+      - "cli/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".cargo/config.toml"
+      - "rust-toolchain.toml"
+      - ".github/actions/**"
+      - ".github/workflows/rust-clippy.yml"
   schedule:
     - cron: '29 14 * * 0'
 jobs:
