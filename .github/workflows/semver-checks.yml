@@ -3,8 +3,28 @@ on:
   workflow_dispatch:
   push:
     branches: ["main"]
+    paths:
+      - "lib/**"
+      - "pna/**"
+      - "cli/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".cargo/config.toml"
+      - "rust-toolchain.toml"
+      - ".github/actions/**"
+      - ".github/workflows/semver-checks.yml"
   pull_request:
     branches: ["*"]
+    paths:
+      - "lib/**"
+      - "pna/**"
+      - "cli/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".cargo/config.toml"
+      - "rust-toolchain.toml"
+      - ".github/actions/**"
+      - ".github/workflows/semver-checks.yml"
 
 jobs:
   semver-checks:
