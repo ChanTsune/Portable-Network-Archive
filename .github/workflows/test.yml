@@ -4,7 +4,29 @@ permissions:
 on:
   workflow_dispatch:
   pull_request:
+    paths:
+      - "lib/**"
+      - "pna/**"
+      - "cli/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "resources/test/**"
+      - ".cargo/config.toml"
+      - "rust-toolchain.toml"
+      - ".github/actions/**"
+      - ".github/workflows/test.yml"
   push:
+    paths:
+      - "lib/**"
+      - "pna/**"
+      - "cli/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "resources/test/**"
+      - ".cargo/config.toml"
+      - "rust-toolchain.toml"
+      - ".github/actions/**"
+      - ".github/workflows/test.yml"
 jobs:
   tier1:
     strategy:
