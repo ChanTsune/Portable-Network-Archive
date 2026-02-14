@@ -3,8 +3,28 @@ on:
   workflow_dispatch:
   push:
     branches: ["main"]
+    paths:
+      - "lib/**"
+      - "pna/**"
+      - "cli/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "resources/test/**"
+      - ".cargo/config.toml"
+      - "rust-toolchain.toml"
+      - ".github/workflows/vm.yml"
   pull_request:
     branches: ["*"]
+    paths:
+      - "lib/**"
+      - "pna/**"
+      - "cli/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "resources/test/**"
+      - ".cargo/config.toml"
+      - "rust-toolchain.toml"
+      - ".github/workflows/vm.yml"
 
 permissions:
   contents: read
