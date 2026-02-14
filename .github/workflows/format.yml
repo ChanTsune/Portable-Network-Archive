@@ -1,7 +1,30 @@
 name: format
 on:
+  workflow_dispatch:
   pull_request:
+    paths:
+      - "lib/**"
+      - "pna/**"
+      - "cli/**"
+      - "fuzz/**"
+      - "xtask/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".cargo/config.toml"
+      - "rust-toolchain.toml"
+      - ".github/workflows/format.yml"
   push:
+    paths:
+      - "lib/**"
+      - "pna/**"
+      - "cli/**"
+      - "fuzz/**"
+      - "xtask/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".cargo/config.toml"
+      - "rust-toolchain.toml"
+      - ".github/workflows/format.yml"
 permissions:
   contents: read
 jobs:
