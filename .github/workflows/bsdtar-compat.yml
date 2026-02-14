@@ -5,18 +5,26 @@ on:
   push:
     branches: ["main"]
     paths:
-      - 'cli/src/command/stdio.rs'
-      - 'cli/src/command/core/**'
-      - 'lib/**'
-      - 'pna/**'
+      - 'cli/src/**'
+      - 'cli/Cargo.toml'
+      - 'lib/src/**'
+      - 'lib/Cargo.toml'
+      - 'pna/src/**'
+      - 'pna/Cargo.toml'
+      - 'Cargo.lock'
+      - 'Cargo.toml'
       - '.github/workflows/bsdtar-compat.yml'
   pull_request:
     branches: ["*"]
     paths:
-      - 'cli/src/command/stdio.rs'
-      - 'cli/src/command/core/**'
-      - 'lib/**'
-      - 'pna/**'
+      - 'cli/src/**'
+      - 'cli/Cargo.toml'
+      - 'lib/src/**'
+      - 'lib/Cargo.toml'
+      - 'pna/src/**'
+      - 'pna/Cargo.toml'
+      - 'Cargo.lock'
+      - 'Cargo.toml'
       - '.github/workflows/bsdtar-compat.yml'
 
 jobs:
