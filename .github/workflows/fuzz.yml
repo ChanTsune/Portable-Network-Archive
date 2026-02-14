@@ -4,12 +4,33 @@ permissions:
   contents: read
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
+    paths:
+      - "lib/**"
+      - "pna/**"
+      - "cli/**"
+      - "fuzz/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".cargo/config.toml"
+      - "rust-toolchain.toml"
+      - ".github/workflows/fuzz.yml"
   pull_request:
     branches:
       - main
+    paths:
+      - "lib/**"
+      - "pna/**"
+      - "cli/**"
+      - "fuzz/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".cargo/config.toml"
+      - "rust-toolchain.toml"
+      - ".github/workflows/fuzz.yml"
 
 jobs:
   fuzz_target:
