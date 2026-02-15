@@ -335,7 +335,7 @@ impl EntryBuilder {
     ///
     /// # Returns
     ///
-    /// A mutable reference to the [EntryBuilder] with the last modified timestamp set.
+    /// A mutable reference to the [EntryBuilder] with the last accessed timestamp set.
     #[inline]
     pub fn accessed(&mut self, since_unix_epoch: impl Into<Option<Duration>>) -> &mut Self {
         self.accessed = since_unix_epoch.into();
@@ -362,7 +362,7 @@ impl EntryBuilder {
     ///
     /// # Arguments
     ///
-    /// * `store` - If true retention data of raw file size for entry, otherwise not.
+    /// * `store` - If true, stores the raw file size in the entry metadata; if false, omits it.
     ///
     /// # Returns
     ///
@@ -381,7 +381,7 @@ impl EntryBuilder {
     ///
     /// # Returns
     ///
-    /// A mutable reference to the [EntryBuilder] with the creation timestamp set.
+    /// A mutable reference to the [EntryBuilder] with the extended attribute added.
     #[inline]
     pub fn add_xattr(&mut self, xattr: ExtendedAttribute) -> &mut Self {
         self.xattrs.push(xattr);
@@ -396,7 +396,7 @@ impl EntryBuilder {
     ///
     /// # Returns
     ///
-    /// A mutable reference to the [EntryBuilder] with the creation timestamp set.
+    /// A mutable reference to the [EntryBuilder] with the extra chunk added.
     #[inline]
     pub fn add_extra_chunk<T: Into<RawChunk>>(&mut self, chunk: T) -> &mut Self {
         self.extra_chunks.push(chunk.into());
