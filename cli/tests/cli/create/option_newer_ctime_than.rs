@@ -53,6 +53,7 @@ fn create_with_newer_ctime_than() {
         "c",
         "create_newer_ctime_than/test.pna",
         "--overwrite",
+        "--no-keep-dir",
         "--unstable",
         "--newer-ctime-than",
         reference_file,

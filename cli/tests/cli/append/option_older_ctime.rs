@@ -69,6 +69,7 @@ fn append_with_older_ctime() {
         "--quiet",
         "append",
         "--keep-timestamp",
+        "--no-keep-dir",
         "--older-ctime",
         "2025-10-11T00:00:00Z",
         "append_with_older_ctime/append_with_older_ctime.pna",

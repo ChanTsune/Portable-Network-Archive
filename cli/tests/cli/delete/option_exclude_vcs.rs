@@ -37,6 +37,7 @@ fn delete_with_exclude_vcs() {
         "c",
         "delete_with_exclude_vcs/delete_with_exclude_vcs.pna",
         "--overwrite",
+        "--no-keep-dir",
         "delete_with_exclude_vcs/in/",
         "--unstable",
     ])
@@ -122,6 +123,7 @@ fn delete_without_exclude_vcs() {
         "c",
         "delete_without_exclude_vcs/delete_without_exclude_vcs.pna",
         "--overwrite",
+        "--no-keep-dir",
         "delete_without_exclude_vcs/in/",
         "--unstable",
     ])

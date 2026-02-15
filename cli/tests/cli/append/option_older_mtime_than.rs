@@ -54,6 +54,7 @@ fn append_with_older_mtime_than() {
         "pna",
         "--quiet",
         "append",
+        "--no-keep-dir",
         "--unstable",
         "--older-mtime-than",
         &reference_file,

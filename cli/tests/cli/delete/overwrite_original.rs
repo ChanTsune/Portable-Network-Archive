@@ -18,6 +18,7 @@ fn delete_overwrite() {
         "c",
         "delete_overwrite/delete_overwrite.pna",
         "--overwrite",
+        "--no-keep-dir",
         "delete_overwrite/in/",
     ])
     .unwrap()

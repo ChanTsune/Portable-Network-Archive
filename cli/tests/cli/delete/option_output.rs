@@ -18,6 +18,7 @@ fn delete_output() {
         "c",
         "delete_output/delete_output.pna",
         "--overwrite",
+        "--no-keep-dir",
         "delete_output/in/",
     ])
     .unwrap()

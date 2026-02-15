@@ -22,6 +22,7 @@ fn create_with_gitignore() {
         "--overwrite",
         "gitignore/source",
         "--gitignore",
+        "--no-keep-dir",
         "--unstable",
     ])
     .unwrap()
@@ -111,6 +112,7 @@ fn create_with_gitignore_subdirs_and_negation() {
         "--overwrite",
         "gitignore/complex/source",
         "--gitignore",
+        "--no-keep-dir",
         "--unstable",
     ])
     .unwrap()
@@ -177,6 +179,7 @@ fn create_with_gitignore_child_overrides_parent_ignore() {
         "--overwrite",
         "gitignore/child_overrides/source",
         "--gitignore",
+        "--no-keep-dir",
         "--unstable",
     ])
     .unwrap()
@@ -236,6 +239,7 @@ fn create_with_gitignore_multi_level_toggle() {
         "--overwrite",
         "gitignore/multi_toggle/source",
         "--gitignore",
+        "--no-keep-dir",
         "--unstable",
     ])
     .unwrap()
@@ -295,6 +299,7 @@ fn create_with_gitignore_last_match_wins() {
         "--overwrite",
         "gitignore/last_match/source",
         "--gitignore",
+        "--no-keep-dir",
         "--unstable",
     ])
     .unwrap()
@@ -348,6 +353,7 @@ fn create_with_gitignore_child_anchored_slash() {
         "--overwrite",
         "gitignore/child_anchor/source",
         "--gitignore",
+        "--no-keep-dir",
         "--unstable",
     ])
     .unwrap()
@@ -397,6 +403,7 @@ fn create_with_gitignore_pruned_dir_cannot_unignore_inside() {
         "--overwrite",
         "gitignore/pruned_dir/source",
         "--gitignore",
+        "--no-keep-dir",
         "--unstable",
     ])
     .unwrap()
@@ -451,6 +458,7 @@ fn create_with_gitignore_pruned_dir_unignore_with_parent_exceptions() {
         "--overwrite",
         "gitignore/pruned_dir_fix/source",
         "--gitignore",
+        "--no-keep-dir",
         "--unstable",
     ])
     .unwrap()
@@ -495,6 +503,7 @@ fn create_with_gitignore_excludes_gitignore_file_itself() {
         "--overwrite",
         "gitignore/self_exclude/source",
         "--gitignore",
+        "--no-keep-dir",
         "--unstable",
     ])
     .unwrap()
@@ -547,6 +556,7 @@ fn create_with_gitignore_sibling_scopes_do_not_leak() {
         "--overwrite",
         "gitignore/sibling_scope/source",
         "--gitignore",
+        "--no-keep-dir",
         "--unstable",
     ])
     .unwrap()
@@ -597,6 +607,7 @@ fn create_with_gitignore_comment_and_escape() {
         "--overwrite",
         "gitignore/comment_escape/source",
         "--gitignore",
+        "--no-keep-dir",
         "--unstable",
     ])
     .unwrap()
@@ -641,6 +652,7 @@ fn create_with_gitignore_literal_bang_pattern() {
         "--overwrite",
         "gitignore/literal_bang/source",
         "--gitignore",
+        "--no-keep-dir",
         "--unstable",
     ])
     .unwrap()

@@ -48,6 +48,7 @@ fn create_with_newer_mtime() {
         "--keep-timestamp",
         "--newer-mtime",
         "2025-10-11T00:00:00Z",
+        "--no-keep-dir",
         "--unstable",
     ])
     .unwrap()
