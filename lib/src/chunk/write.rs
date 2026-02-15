@@ -1,4 +1,5 @@
 use crate::chunk::{Chunk, ChunkExt, ChunkType};
+use core::num::NonZeroU32;
 #[cfg(feature = "unstable-async")]
 use futures_io::AsyncWrite;
 #[cfg(feature = "unstable-async")]
@@ -45,14 +46,19 @@ impl<W: AsyncWrite + Unpin> ChunkWriter<W> {
 pub(crate) struct ChunkStreamWriter<W> {
     ty: ChunkType,
     w: ChunkWriter<W>,
+    max_chunk_size: usize,
 }
 
 impl<W> ChunkStreamWriter<W> {
     #[inline]
-    pub(crate) const fn new(ty: ChunkType, inner: W) -> Self {
+    pub(crate) const fn new(ty: ChunkType, inner: W, max_chunk_size: Option<NonZeroU32>) -> Self {
         Self {
             ty,
             w: ChunkWriter::new(inner),
+            max_chunk_size: match max_chunk_size {
+                Some(n) => n.get() as usize,
+                None => u32::MAX as usize,
+            },
         }
     }
 
@@ -65,8 +71,12 @@ impl<W> ChunkStreamWriter<W> {
 impl<W: Write> Write for ChunkStreamWriter<W> {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.w.write_chunk((self.ty, buf))?;
-        Ok(buf.len())
+        if buf.is_empty() {
+            return Ok(0);
+        }
+        let chunk = &buf[..buf.len().min(self.max_chunk_size)];
+        self.w.write_chunk((self.ty, chunk))?;
+        Ok(chunk.len())
     }
 
     #[inline]
@@ -108,5 +118,76 @@ mod tests {
                 128
             ]
         );
+    }
+
+    #[test]
+    fn stream_writer_no_limit_writes_single_chunk() {
+        let mut writer = ChunkStreamWriter::new(ChunkType::FDAT, Vec::new(), None);
+        let n = writer.write(b"hello world").unwrap();
+        assert_eq!(n, 11);
+        let out = writer.into_inner();
+        assert_eq!(out.len(), 23);
+        assert_eq!(&out[0..4], &11u32.to_be_bytes());
+    }
+
+    #[test]
+    fn stream_writer_write_returns_at_most_max_chunk_size() {
+        let mut writer = ChunkStreamWriter::new(ChunkType::FDAT, Vec::new(), NonZeroU32::new(4));
+        let n = writer.write(b"abcdefghij").unwrap();
+        assert_eq!(n, 4);
+        let out = writer.into_inner();
+        assert_eq!(&out[0..4], &4u32.to_be_bytes());
+        assert_eq!(&out[8..12], b"abcd");
+        assert_eq!(out.len(), 16);
+    }
+
+    #[test]
+    fn stream_writer_write_all_splits_into_multiple_chunks() {
+        let mut writer = ChunkStreamWriter::new(ChunkType::FDAT, Vec::new(), NonZeroU32::new(4));
+        writer.write_all(b"abcdefghij").unwrap();
+        let out = writer.into_inner();
+
+        assert_eq!(&out[0..4], &4u32.to_be_bytes());
+        assert_eq!(&out[8..12], b"abcd");
+
+        assert_eq!(&out[16..20], &4u32.to_be_bytes());
+        assert_eq!(&out[24..28], b"efgh");
+
+        assert_eq!(&out[32..36], &2u32.to_be_bytes());
+        assert_eq!(&out[40..42], b"ij");
+
+        assert_eq!(out.len(), 16 + 16 + 14);
+    }
+
+    #[test]
+    fn stream_writer_empty_write_produces_no_output() {
+        let mut writer = ChunkStreamWriter::new(ChunkType::FDAT, Vec::new(), NonZeroU32::new(4));
+        let n = writer.write(b"").unwrap();
+        assert_eq!(n, 0);
+        let out = writer.into_inner();
+        assert_eq!(out.len(), 0);
+    }
+
+    #[test]
+    fn stream_writer_exact_max_produces_single_chunk() {
+        let mut writer = ChunkStreamWriter::new(ChunkType::FDAT, Vec::new(), NonZeroU32::new(4));
+        let n = writer.write(b"abcd").unwrap();
+        assert_eq!(n, 4);
+        let out = writer.into_inner();
+        assert_eq!(&out[0..4], &4u32.to_be_bytes());
+        assert_eq!(&out[8..12], b"abcd");
+        assert_eq!(out.len(), 16);
+    }
+
+    #[test]
+    fn stream_writer_one_over_max_produces_two_chunks() {
+        let mut writer = ChunkStreamWriter::new(ChunkType::FDAT, Vec::new(), NonZeroU32::new(4));
+        writer.write_all(b"abcde").unwrap();
+        let out = writer.into_inner();
+        assert_eq!(&out[0..4], &4u32.to_be_bytes());
+        assert_eq!(&out[8..12], b"abcd");
+        assert_eq!(&out[16..20], &1u32.to_be_bytes());
+        assert_eq!(&out[24..25], b"e");
+        assert_eq!(out.len(), 16 + 13);
     }
 }

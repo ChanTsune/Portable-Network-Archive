@@ -1,4 +1,5 @@
 use crate::chunk::{ChunkType, MIN_CHUNK_BYTES_SIZE, RawChunk, crc::Crc32};
+use core::num::NonZeroU32;
 #[cfg(feature = "unstable-async")]
 use futures_io::AsyncRead;
 #[cfg(feature = "unstable-async")]
@@ -9,9 +10,9 @@ use std::{
 };
 
 /// Allocate chunk data buffer with graceful OOM handling and optional size limit.
-fn allocate_chunk_data(length: u32, max_size: Option<u32>) -> io::Result<Vec<u8>> {
+fn allocate_chunk_data(length: u32, max_size: Option<NonZeroU32>) -> io::Result<Vec<u8>> {
     if let Some(max) = max_size
-        && length > max
+        && length > max.get()
     {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
@@ -33,11 +34,11 @@ fn allocate_chunk_data(length: u32, max_size: Option<u32>) -> io::Result<Vec<u8>
 
 pub(crate) struct ChunkReader<R> {
     pub(crate) r: R,
-    max_chunk_size: Option<u32>,
+    max_chunk_size: Option<NonZeroU32>,
 }
 
 impl<R> ChunkReader<R> {
-    pub(crate) fn new(reader: R, max_chunk_size: Option<u32>) -> Self {
+    pub(crate) fn new(reader: R, max_chunk_size: Option<NonZeroU32>) -> Self {
         Self {
             r: reader,
             max_chunk_size,
@@ -113,7 +114,10 @@ impl<R: Read + Seek> ChunkReader<R> {
     }
 }
 
-pub(crate) fn read_chunk<R: Read>(mut r: R, max_chunk_size: Option<u32>) -> io::Result<RawChunk> {
+pub(crate) fn read_chunk<R: Read>(
+    mut r: R,
+    max_chunk_size: Option<NonZeroU32>,
+) -> io::Result<RawChunk> {
     let mut crc_hasher = Crc32::new();
 
     // read chunk length
