@@ -16,7 +16,7 @@ use crate::{
 use futures_io::AsyncWrite;
 use std::{
     io::{self, prelude::*},
-    num::NonZeroUsize,
+    num::NonZeroU32,
 };
 #[cfg(feature = "unstable-async")]
 use std::{
@@ -405,36 +405,29 @@ impl EntryBuilder {
 
     /// Sets the maximum chunk size for data written to this entry.
     ///
-    /// This controls how the entry data is split into chunks when writing.
     /// The default is the maximum allowed chunk size (~4GB).
-    ///
-    /// # Arguments
-    ///
-    /// * `size` - The maximum size in bytes for each data chunk. Must be non-zero.
-    ///
-    /// # Returns
-    ///
-    /// A mutable reference to the [`EntryBuilder`] with the maximum chunk size set.
     ///
     /// # Examples
     ///
     /// ```rust
     /// # use std::io::{self, Write};
-    /// use std::num::NonZeroUsize;
+    /// use std::num::NonZeroU32;
     /// use libpna::{EntryBuilder, WriteOptions};
     ///
     /// # fn main() -> io::Result<()> {
     /// let mut builder = EntryBuilder::new_file("data.bin".into(), WriteOptions::store())?;
-    /// builder.max_chunk_size(NonZeroUsize::new(1024 * 1024).unwrap()); // 1MB chunks
+    /// builder.max_chunk_size(NonZeroU32::new(1024 * 1024).unwrap()); // 1MB chunks
     /// builder.write_all(b"file content")?;
     /// let entry = builder.build()?;
     /// # Ok(())
     /// # }
     /// ```
     #[inline]
-    pub fn max_chunk_size(&mut self, size: NonZeroUsize) -> &mut Self {
+    pub fn max_chunk_size(&mut self, size: NonZeroU32) -> &mut Self {
         if let Some(data) = &mut self.data {
-            data.get_mut().get_mut().set_max_chunk_size(size.get());
+            data.get_mut()
+                .get_mut()
+                .set_max_chunk_size(size.get() as usize);
         }
         self
     }
@@ -706,27 +699,18 @@ impl SolidEntryBuilder {
 
     /// Sets the maximum chunk size for data written to this solid entry.
     ///
-    /// This controls how the solid entry data is split into chunks when writing.
     /// The default is the maximum allowed chunk size (~4GB).
-    ///
-    /// # Arguments
-    ///
-    /// * `size` - The maximum size in bytes for each data chunk. Must be non-zero.
-    ///
-    /// # Returns
-    ///
-    /// A mutable reference to the [`SolidEntryBuilder`] with the maximum chunk size set.
     ///
     /// # Examples
     ///
     /// ```rust
     /// # use std::io::{self, Write};
-    /// use std::num::NonZeroUsize;
+    /// use std::num::NonZeroU32;
     /// use libpna::{EntryBuilder, SolidEntryBuilder, WriteOptions};
     ///
     /// # fn main() -> io::Result<()> {
     /// let mut solid_builder = SolidEntryBuilder::new(WriteOptions::store())?;
-    /// solid_builder.max_chunk_size(NonZeroUsize::new(1024 * 1024).unwrap()); // 1MB chunks
+    /// solid_builder.max_chunk_size(NonZeroU32::new(1024 * 1024).unwrap()); // 1MB chunks
     ///
     /// let file_entry = EntryBuilder::new_file("file.txt".into(), WriteOptions::store())?;
     /// solid_builder.add_entry(file_entry.build()?)?;
@@ -736,8 +720,11 @@ impl SolidEntryBuilder {
     /// # }
     /// ```
     #[inline]
-    pub fn max_chunk_size(&mut self, size: NonZeroUsize) -> &mut Self {
-        self.data.get_mut().get_mut().set_max_chunk_size(size.get());
+    pub fn max_chunk_size(&mut self, size: NonZeroU32) -> &mut Self {
+        self.data
+            .get_mut()
+            .get_mut()
+            .set_max_chunk_size(size.get() as usize);
         self
     }
 
@@ -829,6 +816,24 @@ mod tests {
             &entry.extra[0],
             &RawChunk::from_data(ChunkType::private(*b"abCd").unwrap(), []),
         );
+    }
+
+    #[test]
+    fn solid_entry_builder_write_file_with_max_chunk_size() {
+        let mut builder = SolidEntryBuilder::new(WriteOptions::store()).unwrap();
+        builder.max_chunk_size(NonZeroU32::new(8).unwrap());
+        builder
+            .write_file("entry".into(), Metadata::new(), |w| {
+                w.write_all(b"abcdefghijklmnopqrstuvwxyz")
+            })
+            .unwrap();
+        let solid_entry = builder.build_as_entry().unwrap();
+        let mut entries = solid_entry.entries(None).unwrap();
+        let entry = entries.next().unwrap().unwrap();
+        let mut reader = entry.reader(ReadOptions::builder().build()).unwrap();
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf).unwrap();
+        assert_eq!(b"abcdefghijklmnopqrstuvwxyz", &buf[..]);
     }
 
     #[test]
