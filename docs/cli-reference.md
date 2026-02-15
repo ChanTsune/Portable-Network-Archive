@@ -1191,6 +1191,9 @@ bsdtar-like CLI semantics for PNA archives
 * `-t`, `--list` — List files in archive
 
   Default value: `false`
+* `-q`, `--fast-read` — Performance optimization for list/extract: stop after the first match for each operand and ignore later duplicates
+
+  Default value: `false`
 * `-r`, `--append` — Append files to archive
 
   Default value: `false`
