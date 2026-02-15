@@ -4,8 +4,8 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            PathFilter, SplitArchiveReader, TimeFilterResolver, TimeFilters,
-            collect_split_archives, read_paths, run_read_entries,
+            PathFilter, ProcessAction, SplitArchiveReader, TimeFilterResolver, TimeFilters,
+            collect_split_archives, read_paths, run_read_entries, run_read_entries_stoppable,
         },
     },
     ext::*,
@@ -627,20 +627,62 @@ pub(crate) fn run_list_archive<'a>(
     files_globs: BsdGlobMatcher,
     filter: PathFilter<'a>,
     args: ListOptions,
+    fast_read: bool,
 ) -> anyhow::Result<()> {
-    let mut entries = Vec::new();
     let collect_opts = CollectOptions::from_list_options(&args);
 
-    run_read_entries(archive_provider, |entry| {
+    if !fast_read || files_globs.is_empty() {
+        let mut entries = Vec::new();
+        run_read_entries(archive_provider, |entry| {
+            match entry? {
+                ReadEntry::Solid(solid) if args.solid => {
+                    for entry in solid.entries(password)? {
+                        entries.push(TableRow::from_entry(
+                            &entry?,
+                            password,
+                            Some(solid.header()),
+                            collect_opts,
+                        )?)
+                    }
+                }
+                ReadEntry::Solid(_) => {
+                    log::warn!(
+                        "This archive contain solid mode entry. if you need to show it use --solid option."
+                    );
+                }
+                ReadEntry::Normal(item) => {
+                    entries.push(TableRow::from_entry(&item, password, None, collect_opts)?)
+                }
+            }
+            Ok(())
+        })?;
+        return print_entries(entries, files_globs, filter, args);
+    }
+
+    let mut entries = Vec::new();
+    let mut globs = files_globs;
+    let filter_ref = &filter;
+    run_read_entries_stoppable(archive_provider, |entry| {
         match entry? {
             ReadEntry::Solid(solid) if args.solid => {
                 for entry in solid.entries(password)? {
-                    entries.push(TableRow::from_entry(
-                        &entry?,
-                        password,
-                        Some(solid.header()),
-                        collect_opts,
-                    )?)
+                    let entry = entry?;
+                    let entry_path = entry.name().to_string();
+                    if !globs.matches_any_unsatisfied(&entry_path) {
+                        continue;
+                    }
+                    let row =
+                        TableRow::from_entry(&entry, password, Some(solid.header()), collect_opts)?;
+                    let time_ok = args
+                        .time_filters
+                        .matches_or_inactive(row.created, row.modified);
+                    if time_ok && !filter_ref.excluded(row.entry_type.name()) {
+                        globs.mark_satisfied(&entry_path);
+                        entries.push(row);
+                    }
+                    if globs.all_matched() {
+                        return Ok(ProcessAction::Stop);
+                    }
                 }
             }
             ReadEntry::Solid(_) => {
@@ -649,12 +691,35 @@ pub(crate) fn run_list_archive<'a>(
                 );
             }
             ReadEntry::Normal(item) => {
-                entries.push(TableRow::from_entry(&item, password, None, collect_opts)?)
+                let entry_path = item.name().to_string();
+                if !globs.matches_any_unsatisfied(&entry_path) {
+                    return Ok(ProcessAction::Continue);
+                }
+                let row = TableRow::from_entry(&item, password, None, collect_opts)?;
+                let time_ok = args
+                    .time_filters
+                    .matches_or_inactive(row.created, row.modified);
+                if time_ok && !filter_ref.excluded(row.entry_type.name()) {
+                    globs.mark_satisfied(&entry_path);
+                    entries.push(row);
+                }
+                if globs.all_matched() {
+                    return Ok(ProcessAction::Stop);
+                }
             }
         }
-        Ok(())
+        Ok(ProcessAction::Continue)
     })?;
-    print_entries(entries, files_globs, filter, args)
+
+    globs.ensure_all_matched()?;
+    if args.out_to_stderr {
+        let out = anstream::AutoStream::new(io::stderr().lock(), args.color.into());
+        print_formatted_entries(entries, &args, out)?;
+    } else {
+        let out = anstream::AutoStream::new(io::stdout().lock(), args.color.into());
+        print_formatted_entries(entries, &args, out)?;
+    }
+    Ok(())
 }
 
 fn print_entries<'a>(
