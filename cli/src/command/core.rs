@@ -63,6 +63,12 @@ pub(crate) fn detect_format<R: io::BufRead>(reader: &mut R) -> io::Result<Source
     })
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub(crate) enum ProcessAction {
+    Continue,
+    Stop,
+}
+
 /// Options controlling how filesystem items are collected for archiving.
 ///
 /// This struct groups all traversal and filtering options that were previously
@@ -1267,6 +1273,32 @@ where
     Ok(())
 }
 
+fn run_across_archive_stoppable<R, F>(
+    provider: impl IntoIterator<Item = R>,
+    mut processor: F,
+) -> io::Result<()>
+where
+    R: Read,
+    F: FnMut(&mut Archive<R>) -> io::Result<ProcessAction>,
+{
+    let mut iter = provider.into_iter();
+    let mut archive = Archive::read_header(iter.next().expect(""))?;
+    while let ProcessAction::Continue = processor(&mut archive)? {
+        if archive.has_next_archive() {
+            let next_reader = iter.next().ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "Archive is split, but no subsequent archives are found",
+                )
+            })?;
+            archive = archive.read_next_archive(next_reader)?;
+        } else {
+            break;
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn run_process_archive<'p, Provider, F>(
     archive_provider: impl IntoIterator<Item = impl Read>,
     mut password_provider: Provider,
@@ -1279,6 +1311,30 @@ where
     let password = password_provider();
     run_read_entries(archive_provider, |entry| match entry? {
         ReadEntry::Solid(solid) => solid.entries(password)?.try_for_each(&mut processor),
+        ReadEntry::Normal(regular) => processor(Ok(regular)),
+    })
+}
+
+pub(crate) fn run_process_archive_stoppable<'p, Provider, F>(
+    archive_provider: impl IntoIterator<Item = impl Read>,
+    mut password_provider: Provider,
+    mut processor: F,
+) -> io::Result<()>
+where
+    Provider: FnMut() -> Option<&'p [u8]>,
+    F: FnMut(io::Result<NormalEntry>) -> io::Result<ProcessAction>,
+{
+    let password = password_provider();
+    run_read_entries_stoppable(archive_provider, |entry| match entry? {
+        ReadEntry::Solid(solid) => {
+            for n in solid.entries(password)? {
+                match processor(n)? {
+                    ProcessAction::Continue => {}
+                    ProcessAction::Stop => return Ok(ProcessAction::Stop),
+                }
+            }
+            Ok(ProcessAction::Continue)
+        }
         ReadEntry::Normal(regular) => processor(Ok(regular)),
     })
 }
@@ -1344,6 +1400,76 @@ where
 }
 
 #[cfg(feature = "memmap")]
+fn run_across_archive_mem_stoppable<'d, F>(
+    archives: impl IntoIterator<Item = &'d [u8]>,
+    mut processor: F,
+) -> io::Result<()>
+where
+    F: FnMut(&mut Archive<&'d [u8]>) -> io::Result<ProcessAction>,
+{
+    let mut iter = archives.into_iter();
+    let mut archive = Archive::read_header_from_slice(iter.next().expect(""))?;
+    while let ProcessAction::Continue = processor(&mut archive)? {
+        if archive.has_next_archive() {
+            let next_reader = iter.next().ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "Archive is split, but no subsequent archives are found",
+                )
+            })?;
+            archive = archive.read_next_archive_from_slice(next_reader)?;
+        } else {
+            break;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(feature = "memmap")]
+fn run_read_entries_mem_stoppable<'d, F>(
+    archives: impl IntoIterator<Item = &'d [u8]>,
+    mut processor: F,
+) -> io::Result<()>
+where
+    F: FnMut(io::Result<ReadEntry<Cow<'d, [u8]>>>) -> io::Result<ProcessAction>,
+{
+    run_across_archive_mem_stoppable(archives, |archive| {
+        for entry in archive.entries_slice() {
+            match processor(entry)? {
+                ProcessAction::Continue => {}
+                ProcessAction::Stop => return Ok(ProcessAction::Stop),
+            }
+        }
+        Ok(ProcessAction::Continue)
+    })
+}
+
+#[cfg(feature = "memmap")]
+pub(crate) fn run_entries_stoppable<'d, 'p, Provider, F>(
+    archives: impl IntoIterator<Item = &'d [u8]>,
+    mut password_provider: Provider,
+    mut processor: F,
+) -> io::Result<()>
+where
+    Provider: FnMut() -> Option<&'p [u8]>,
+    F: FnMut(io::Result<NormalEntry<Cow<'d, [u8]>>>) -> io::Result<ProcessAction>,
+{
+    let password = password_provider();
+    run_read_entries_mem_stoppable(archives, |entry| match entry? {
+        ReadEntry::Solid(s) => {
+            for n in s.entries(password)? {
+                match processor(n.map(Into::into))? {
+                    ProcessAction::Continue => {}
+                    ProcessAction::Stop => return Ok(ProcessAction::Stop),
+                }
+            }
+            Ok(ProcessAction::Continue)
+        }
+        ReadEntry::Normal(r) => processor(Ok(r)),
+    })
+}
+
+#[cfg(feature = "memmap")]
 fn run_transform_entry<'d, 'p, W, Provider, F, Transform>(
     writer: W,
     archives: impl IntoIterator<Item = &'d [u8]>,
@@ -1377,6 +1503,24 @@ where
 {
     run_across_archive(archive_provider, |archive| {
         archive.entries().try_for_each(&mut processor)
+    })
+}
+
+pub(crate) fn run_read_entries_stoppable<F>(
+    archive_provider: impl IntoIterator<Item = impl Read>,
+    mut processor: F,
+) -> io::Result<()>
+where
+    F: FnMut(io::Result<ReadEntry>) -> io::Result<ProcessAction>,
+{
+    run_across_archive_stoppable(archive_provider, |archive| {
+        for entry in archive.entries() {
+            match processor(entry)? {
+                ProcessAction::Continue => {}
+                ProcessAction::Stop => return Ok(ProcessAction::Stop),
+            }
+        }
+        Ok(ProcessAction::Continue)
     })
 }
 

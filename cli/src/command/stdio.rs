@@ -157,6 +157,12 @@ pub(crate) struct StdioCommand {
     extract: bool,
     #[arg(short = 't', long, help = "List files in archive")]
     list: bool,
+    #[arg(
+        short = 'q',
+        long,
+        help = "Performance optimization for list/extract: stop after the first match for each operand and ignore later duplicates"
+    )]
+    fast_read: bool,
     #[arg(short = 'r', long, help = "Append files to archive")]
     append: bool,
     #[arg(short = 'u', long, help = "Update archive with newer files")]
@@ -1116,6 +1122,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: StdioCommand) -> anyhow::Resul
             || password.as_deref(),
             out_option,
             args.no_recursive,
+            args.fast_read,
         )
     } else {
         run_extract_archive_reader(
@@ -1124,6 +1131,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: StdioCommand) -> anyhow::Resul
             || password.as_deref(),
             out_option,
             args.no_recursive,
+            args.fast_read,
         )
     }
 }
@@ -1196,6 +1204,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
             files_globs,
             filter,
             list_options,
+            args.fast_read,
         )
     } else {
         crate::command::list::run_list_archive(
@@ -1204,6 +1213,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
             files_globs,
             filter,
             list_options,
+            args.fast_read,
         )
     }
 }
