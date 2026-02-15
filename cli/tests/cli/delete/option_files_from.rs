@@ -18,6 +18,7 @@ fn delete_with_files_from() {
         "c",
         "delete_files_from/delete_files_from.pna",
         "--overwrite",
+        "--no-keep-dir",
         "delete_files_from/in/",
     ])
     .unwrap()

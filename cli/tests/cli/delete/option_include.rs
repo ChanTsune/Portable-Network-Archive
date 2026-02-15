@@ -17,6 +17,7 @@ fn delete_with_include() {
         "c",
         "delete_with_include/include.pna",
         "--overwrite",
+        "--no-keep-dir",
         "delete_with_include/in/",
     ])
     .unwrap()

@@ -17,6 +17,7 @@ fn delete_with_exclude() {
         "c",
         "delete_output_exclude/delete_output_exclude.pna",
         "--overwrite",
+        "--no-keep-dir",
         "delete_output_exclude/in/",
     ])
     .unwrap()

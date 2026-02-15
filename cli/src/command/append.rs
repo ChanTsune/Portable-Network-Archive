@@ -78,7 +78,7 @@ pub(crate) struct AppendCommand {
         help = "Do not recursively add directories to the archives. This is the inverse option of --recursive"
     )]
     no_recursive: bool,
-    #[arg(long, help = "Include directories in archive")]
+    #[arg(long, help = "Include directories in archive (default)")]
     keep_dir: bool,
     #[arg(
         long,
@@ -474,7 +474,7 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
     }
     let collect_options = CollectOptions {
         recursive: !args.no_recursive,
-        keep_dir: args.keep_dir,
+        keep_dir: !args.no_keep_dir,
         gitignore: args.gitignore,
         nodump: args.nodump,
         follow_links: args.follow_links,

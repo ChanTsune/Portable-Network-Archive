@@ -206,7 +206,7 @@ pub(crate) struct StdioCommand {
         help = "Skip extracting files if they already exist"
     )]
     keep_old_files: bool,
-    #[arg(long, help = "Include directories in archive")]
+    #[arg(long, help = "Include directories in archive (default)")]
     keep_dir: bool,
     #[arg(
         long,
@@ -888,7 +888,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     validate_no_duplicate_stdin(&sources)?;
     let collect_options = CollectOptions {
         recursive: !args.no_recursive,
-        keep_dir: args.keep_dir,
+        keep_dir: !args.no_keep_dir,
         gitignore: args.gitignore,
         nodump: args.nodump,
         follow_links: args.follow_links,
@@ -1309,7 +1309,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     validate_no_duplicate_stdin(&sources)?;
     let collect_options = CollectOptions {
         recursive: args.recursive,
-        keep_dir: args.keep_dir,
+        keep_dir: !args.no_keep_dir,
         gitignore: args.gitignore,
         nodump: args.nodump,
         follow_links: args.follow_links,
@@ -1478,7 +1478,7 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
     .resolve()?;
     let collect_options = CollectOptions {
         recursive: !args.no_recursive,
-        keep_dir: args.keep_dir,
+        keep_dir: !args.no_keep_dir,
         gitignore: args.gitignore,
         nodump: args.nodump,
         follow_links: args.follow_links,

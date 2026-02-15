@@ -41,6 +41,7 @@ fn create_with_older_mtime_than() {
         "c",
         "create_older_mtime_than/test.pna",
         "--overwrite",
+        "--no-keep-dir",
         "--unstable",
         "--older-mtime-than",
         reference_file,

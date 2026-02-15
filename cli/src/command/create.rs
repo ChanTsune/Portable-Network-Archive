@@ -92,7 +92,7 @@ pub(crate) struct CreateCommand {
         help = "Do not overwrite files. This is the inverse option of --overwrite"
     )]
     no_overwrite: bool,
-    #[arg(long, help = "Include directories in archive")]
+    #[arg(long, help = "Include directories in archive (default)")]
     keep_dir: bool,
     #[arg(
         long,
@@ -473,7 +473,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     }
     let collect_options = CollectOptions {
         recursive: !args.no_recursive,
-        keep_dir: args.keep_dir,
+        keep_dir: !args.no_keep_dir,
         gitignore: args.gitignore,
         nodump: args.nodump,
         follow_links: args.follow_links,

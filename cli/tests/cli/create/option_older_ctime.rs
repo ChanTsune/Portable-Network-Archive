@@ -54,6 +54,7 @@ fn create_with_older_ctime() {
         "c",
         "create_with_older_ctime/create_with_older_ctime.pna",
         "--overwrite",
+        "--no-keep-dir",
         "create_with_older_ctime/in/",
         "--keep-timestamp",
         "--older-ctime",

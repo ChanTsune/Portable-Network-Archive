@@ -18,6 +18,7 @@ fn delete_with_files_from_null() {
         "c",
         "delete_files_from_null/delete_files_from_null.pna",
         "--overwrite",
+        "--no-keep-dir",
         "delete_files_from_null/in/",
     ])
     .unwrap()
@@ -101,6 +102,7 @@ fn delete_with_files_from_null_rejects_newline_separator() {
         "c",
         "delete_null_newline/delete_null_newline.pna",
         "--overwrite",
+        "--no-keep-dir",
         "delete_null_newline/in/",
     ])
     .unwrap()

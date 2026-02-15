@@ -61,6 +61,7 @@ fn append_with_older_ctime_than() {
         "pna",
         "--quiet",
         "append",
+        "--no-keep-dir",
         "--unstable",
         "--older-ctime-than",
         &reference_file,

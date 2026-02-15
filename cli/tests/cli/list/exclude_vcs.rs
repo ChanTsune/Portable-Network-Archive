@@ -53,6 +53,7 @@ fn list_with_exclude_vcs() {
         "list_with_exclude_vcs/list_with_exclude_vcs.pna",
         "--overwrite",
         "list_with_exclude_vcs/in/",
+        "--no-keep-dir",
         "--unstable",
     ])
     .assert()
@@ -149,6 +150,7 @@ fn list_without_exclude_vcs() {
         "list_without_exclude_vcs/list_without_exclude_vcs.pna",
         "--overwrite",
         "list_without_exclude_vcs/in/",
+        "--no-keep-dir",
         "--unstable",
     ])
     .assert()

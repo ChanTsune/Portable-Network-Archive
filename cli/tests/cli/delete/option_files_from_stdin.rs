@@ -19,6 +19,7 @@ fn delete_with_files_from_stdin() {
         "c",
         "delete_files_from_stdin/delete_files_from_stdin.pna",
         "--overwrite",
+        "--no-keep-dir",
         "delete_files_from_stdin/in/",
     ])
     .unwrap()

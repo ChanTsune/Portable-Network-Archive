@@ -19,6 +19,7 @@ fn delete_with_keep_solid() {
         "c",
         "delete_with_keep_solid/delete_with_keep_solid.pna",
         "--overwrite",
+        "--no-keep-dir",
         "--solid",
         "delete_with_keep_solid/in/",
     ])

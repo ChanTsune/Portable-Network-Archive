@@ -19,6 +19,7 @@ fn delete_with_unsolid() {
         "c",
         "delete_with_unsolid/delete_with_unsolid.pna",
         "--overwrite",
+        "--no-keep-dir",
         "--solid",
         "delete_with_unsolid/in/",
     ])

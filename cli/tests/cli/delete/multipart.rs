@@ -18,6 +18,7 @@ fn delete_from_multipart_archive() {
         "create",
         "delete_multipart/archive.pna",
         "--overwrite",
+        "--no-keep-dir",
         "delete_multipart/in/",
     ])
     .unwrap()
