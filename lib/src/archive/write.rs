@@ -9,6 +9,7 @@ use crate::{
     },
     io::TryIntoInner,
 };
+use core::num::NonZeroU32;
 #[cfg(feature = "unstable-async")]
 use futures_io::AsyncWrite;
 #[cfg(feature = "unstable-async")]
@@ -131,11 +132,18 @@ impl<W: Write> Archive<W> {
     where
         F: FnMut(&mut EntryDataWriter<&mut W>) -> io::Result<()>,
     {
-        write_file_entry(&mut self.inner, name, metadata, option, |w| {
-            let mut w = EntryDataWriter(w);
-            f(&mut w)?;
-            Ok(w.0)
-        })
+        write_file_entry(
+            &mut self.inner,
+            name,
+            metadata,
+            option,
+            self.max_chunk_size,
+            |w| {
+                let mut w = EntryDataWriter(w);
+                f(&mut w)?;
+                Ok(w.0)
+            },
+        )
     }
 
     /// Adds a new entry to the archive.
@@ -246,9 +254,12 @@ impl<W: Write> Archive<W> {
     pub fn split_to_next_archive<OW: Write>(mut self, writer: OW) -> io::Result<Archive<OW>> {
         let next_archive_number = self.header.archive_number + 1;
         let header = ArchiveHeader::new(0, 0, next_archive_number);
+        let max_chunk_size = self.max_chunk_size;
         self.add_next_archive_marker()?;
         self.finalize()?;
-        Archive::write_header_with(writer, header)
+        let mut archive = Archive::write_header_with(writer, header)?;
+        archive.max_chunk_size = max_chunk_size;
+        Ok(archive)
     }
 
     /// Writes the end-of-archive marker and finalizes the archive.
@@ -388,14 +399,16 @@ impl<W: Write> Archive<W> {
             (ChunkType::SDAT, c.iv.as_slice()).write_chunk_in(&mut self.inner)?;
         }
         self.inner.flush()?;
+        let max_chunk_size = self.max_chunk_size;
         let writer = get_writer(
-            ChunkStreamWriter::new(ChunkType::SDAT, self.inner),
+            ChunkStreamWriter::new(ChunkType::SDAT, self.inner, max_chunk_size),
             &context,
         )?;
 
         Ok(SolidArchive {
             archive_header: self.header,
             inner: writer,
+            max_chunk_size: None,
         })
     }
 }
@@ -466,11 +479,34 @@ impl<W: Write> SolidArchive<W> {
         F: FnMut(&mut SolidArchiveEntryDataWriter<W>) -> io::Result<()>,
     {
         let option = WriteOptions::store();
-        write_file_entry(&mut self.inner, name, metadata, option, |w| {
-            let mut w = SolidArchiveEntryDataWriter(w);
-            f(&mut w)?;
-            Ok(w.0)
-        })
+        write_file_entry(
+            &mut self.inner,
+            name,
+            metadata,
+            option,
+            self.max_chunk_size,
+            |w| {
+                let mut w = SolidArchiveEntryDataWriter(w);
+                f(&mut w)?;
+                Ok(w.0)
+            },
+        )
+    }
+
+    /// Sets the maximum chunk size for file data (FDAT) written via
+    /// [`write_file()`](SolidArchive::write_file).
+    ///
+    /// This controls the inner FDAT chunk splitting for individual entries within
+    /// the solid stream. The outer SDAT chunk size is fixed when `SolidArchive` is
+    /// constructed and cannot be changed afterward. To control the outer SDAT chunk
+    /// size, call [`Archive::set_max_chunk_size`] before
+    /// [`into_solid_archive()`](Archive::into_solid_archive).
+    ///
+    /// Pre-built entries added via [`add_entry()`](SolidArchive::add_entry) use their own
+    /// chunk size configured through [`EntryBuilder::max_chunk_size()`].
+    #[inline]
+    pub fn set_max_file_chunk_size(&mut self, size: NonZeroU32) {
+        self.max_chunk_size = Some(size);
     }
 
     /// Writes the end-of-archive marker and finalizes the archive.
@@ -518,6 +554,7 @@ pub(crate) fn write_file_entry<W, F>(
     name: EntryName,
     metadata: Metadata,
     option: impl WriteOption,
+    max_chunk_size: Option<NonZeroU32>,
     mut f: F,
 ) -> io::Result<()>
 where
@@ -558,7 +595,7 @@ where
         (ChunkType::FDAT, &c.iv[..]).write_chunk_in(inner)?;
     }
     let inner = {
-        let writer = ChunkStreamWriter::new(ChunkType::FDAT, inner);
+        let writer = ChunkStreamWriter::new(ChunkType::FDAT, inner, max_chunk_size);
         let writer = get_writer(writer, &context)?;
         let mut writer = f(writer)?;
         writer.flush()?;
@@ -640,6 +677,166 @@ mod tests {
             .read_to_end(&mut data)
             .expect("failed to read data");
         assert_eq!(&data[..], b"text");
+    }
+
+    fn count_chunks(archive: &[u8], ty: ChunkType) -> usize {
+        crate::chunk::read_chunks_from_slice(archive)
+            .unwrap()
+            .filter(|c| c.as_ref().unwrap().ty() == ty)
+            .count()
+    }
+
+    #[test]
+    fn archive_write_file_with_max_chunk_size() {
+        let option = WriteOptions::builder().build();
+        let mut writer = Archive::write_header(Vec::new()).expect("failed to write header");
+        writer.set_max_chunk_size(NonZeroU32::new(8).unwrap());
+        let large_data = b"abcdefghijklmnopqrstuvwxyz";
+        writer
+            .write_file(
+                EntryName::from_lossy("large.txt"),
+                Metadata::new(),
+                option,
+                |writer| writer.write_all(large_data),
+            )
+            .expect("failed to write");
+        let file = writer.finalize().expect("failed to finalize");
+
+        let fdat_count = count_chunks(&file, ChunkType::FDAT);
+        assert!(
+            fdat_count >= 4,
+            "26 bytes with max_chunk_size=8 should produce at least 4 FDAT chunks, got {fdat_count}"
+        );
+
+        let mut reader = Archive::read_header(&file[..]).expect("failed to read archive");
+        let mut entries = reader.entries_with_password(None);
+        let entry = entries
+            .next()
+            .expect("failed to get entry")
+            .expect("failed to read entry");
+        let mut data_reader = entry
+            .reader(ReadOptions::builder().build())
+            .expect("failed to read entry data");
+        let mut data = Vec::new();
+        data_reader
+            .read_to_end(&mut data)
+            .expect("failed to read data");
+        assert_eq!(&data[..], large_data);
+    }
+
+    #[test]
+    fn solid_archive_write_file_with_max_chunk_size() {
+        let option = WriteOptions::builder().build();
+        let mut archive = Archive::write_header(Vec::new()).expect("failed to write header");
+        archive.set_max_chunk_size(NonZeroU32::new(8).unwrap());
+        let mut writer = archive
+            .into_solid_archive(option)
+            .expect("failed to create solid archive");
+        let large_data = b"abcdefghijklmnopqrstuvwxyz";
+        writer
+            .write_file(
+                EntryName::from_lossy("large.txt"),
+                Metadata::new(),
+                |writer| writer.write_all(large_data),
+            )
+            .expect("failed to write");
+        let file = writer.finalize().expect("failed to finalize");
+
+        // Outer SDAT chunks should be split by max_chunk_size
+        let sdat_count = count_chunks(&file, ChunkType::SDAT);
+        assert!(
+            sdat_count >= 2,
+            "outer SDAT should be split with max_chunk_size=8, got {sdat_count}"
+        );
+
+        let mut reader = Archive::read_header(&file[..]).expect("failed to read archive");
+        let mut entries = reader.entries_with_password(None);
+        let entry = entries
+            .next()
+            .expect("failed to get entry")
+            .expect("failed to read entry");
+        let mut data_reader = entry
+            .reader(ReadOptions::builder().build())
+            .expect("failed to read entry data");
+        let mut data = Vec::new();
+        data_reader
+            .read_to_end(&mut data)
+            .expect("failed to read data");
+        assert_eq!(&data[..], large_data);
+    }
+
+    #[test]
+    fn solid_archive_set_max_file_chunk_size_after_creation() {
+        let option = WriteOptions::builder().build();
+        let mut writer =
+            Archive::write_solid_header(Vec::new(), option).expect("failed to write header");
+        writer.set_max_file_chunk_size(NonZeroU32::new(8).unwrap());
+        let large_data = b"abcdefghijklmnopqrstuvwxyz";
+        writer
+            .write_file(
+                EntryName::from_lossy("large.txt"),
+                Metadata::new(),
+                |writer| writer.write_all(large_data),
+            )
+            .expect("failed to write");
+        let file = writer.finalize().expect("failed to finalize");
+        let mut reader = Archive::read_header(&file[..]).expect("failed to read archive");
+        let mut entries = reader.entries_with_password(None);
+        let entry = entries
+            .next()
+            .expect("failed to get entry")
+            .expect("failed to read entry");
+        let mut data_reader = entry
+            .reader(ReadOptions::builder().build())
+            .expect("failed to read entry data");
+        let mut data = Vec::new();
+        data_reader
+            .read_to_end(&mut data)
+            .expect("failed to read data");
+        assert_eq!(&data[..], large_data);
+    }
+
+    #[test]
+    fn split_to_next_archive_preserves_max_chunk_size() {
+        let option = WriteOptions::builder().build();
+        let mut writer = Archive::write_header(Vec::new()).expect("failed to write header");
+        writer.set_max_chunk_size(NonZeroU32::new(8).unwrap());
+
+        let next_writer = writer
+            .split_to_next_archive(Vec::new())
+            .expect("failed to split");
+        let large_data = b"abcdefghijklmnopqrstuvwxyz";
+        let mut next_writer = next_writer;
+        next_writer
+            .write_file(
+                EntryName::from_lossy("large.txt"),
+                Metadata::new(),
+                option,
+                |writer| writer.write_all(large_data),
+            )
+            .expect("failed to write");
+        let file = next_writer.finalize().expect("failed to finalize");
+
+        let fdat_count = count_chunks(&file, ChunkType::FDAT);
+        assert!(
+            fdat_count >= 4,
+            "max_chunk_size should be preserved across split, got {fdat_count} FDAT chunks"
+        );
+
+        let mut reader = Archive::read_header(&file[..]).expect("failed to read archive");
+        let mut entries = reader.entries_with_password(None);
+        let entry = entries
+            .next()
+            .expect("failed to get entry")
+            .expect("failed to read entry");
+        let mut data_reader = entry
+            .reader(ReadOptions::builder().build())
+            .expect("failed to read entry data");
+        let mut data = Vec::new();
+        data_reader
+            .read_to_end(&mut data)
+            .expect("failed to read data");
+        assert_eq!(&data[..], large_data);
     }
 
     #[cfg(feature = "unstable-async")]

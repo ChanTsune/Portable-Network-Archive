@@ -576,6 +576,7 @@ pub struct SolidEntryBuilder {
     iv: Option<Vec<u8>>,
     data: CompressionWriter<CipherWriter<FlattenWriter>>,
     extra: Vec<RawChunk>,
+    max_file_chunk_size: Option<NonZeroU32>,
 }
 
 impl SolidEntryBuilder {
@@ -611,6 +612,7 @@ impl SolidEntryBuilder {
             phsf,
             data: writer,
             extra: Vec::new(),
+            max_file_chunk_size: None,
         })
     }
 
@@ -682,11 +684,18 @@ impl SolidEntryBuilder {
         F: FnMut(&mut SolidEntryDataWriter) -> io::Result<()>,
     {
         let option = WriteOptions::store();
-        write_file_entry(&mut self.data, name, metadata, option, |w| {
-            let mut writer = SolidEntryDataWriter(w);
-            f(&mut writer)?;
-            Ok(writer.0)
-        })
+        write_file_entry(
+            &mut self.data,
+            name,
+            metadata,
+            option,
+            self.max_file_chunk_size,
+            |w| {
+                let mut writer = SolidEntryDataWriter(w);
+                f(&mut writer)?;
+                Ok(writer.0)
+            },
+        )
     }
 
     /// Adds extra chunk to the solid entry.
@@ -729,6 +738,19 @@ impl SolidEntryBuilder {
     #[inline]
     pub fn max_chunk_size(&mut self, size: NonZeroUsize) -> &mut Self {
         self.data.get_mut().get_mut().set_max_chunk_size(size.get());
+        self
+    }
+
+    /// Sets the maximum chunk size for file data (FDAT) written via
+    /// [`write_file()`](SolidEntryBuilder::write_file).
+    ///
+    /// This is independent of [`max_chunk_size()`](SolidEntryBuilder::max_chunk_size),
+    /// which controls the outer data chunking.
+    ///
+    /// The default is the maximum allowed chunk size (~4GB).
+    #[inline]
+    pub fn max_file_chunk_size(&mut self, size: NonZeroU32) -> &mut Self {
+        self.max_file_chunk_size = Some(size);
         self
     }
 

@@ -7,6 +7,7 @@ use crate::{
     cipher::CipherWriter,
     compress::CompressionWriter,
 };
+use core::num::NonZeroU32;
 pub use header::*;
 use std::io::prelude::*;
 pub(crate) use {read::*, write::*};
@@ -65,10 +66,10 @@ pub(crate) use {read::*, write::*};
 pub struct Archive<T> {
     inner: T,
     header: ArchiveHeader,
+    max_chunk_size: Option<NonZeroU32>,
     // following fields are only use in reader mode
     next_archive: bool,
     buf: Vec<RawChunk>,
-    max_chunk_size: Option<u32>,
 }
 
 impl<T> Archive<T> {
@@ -80,24 +81,28 @@ impl<T> Archive<T> {
         Self {
             inner,
             header,
+            max_chunk_size: None,
             next_archive: false,
             buf,
-            max_chunk_size: None,
         }
     }
 
-    /// Sets the maximum chunk size limit for reading.
+    /// Sets the maximum chunk size limit.
     ///
-    /// When set, chunks larger than this size will be rejected with an error.
-    /// This can be used to protect against denial-of-service attacks from
-    /// maliciously crafted archives with extremely large chunks.
+    /// When set, this limit affects both reading and writing:
+    /// - **Reading**: Chunks larger than this size will be rejected with an error,
+    ///   protecting against maliciously crafted archives with extremely large chunks.
+    /// - **Writing**: Data written via [`write_file()`](Archive::write_file) will be
+    ///   split into chunks no larger than this size.
     ///
-    /// # Arguments
+    /// **Note**: This setting only affects the streaming write path
+    /// ([`write_file()`](Archive::write_file)). Pre-built entries added via
+    /// [`add_entry()`](Archive::add_entry) use their own chunk size configured
+    /// through [`EntryBuilder::max_chunk_size()`].
     ///
-    /// * `size` - The maximum allowed chunk size in bytes.
     #[inline]
-    pub fn set_max_chunk_size(&mut self, size: core::num::NonZeroU32) {
-        self.max_chunk_size = Some(size.get());
+    pub fn set_max_chunk_size(&mut self, size: NonZeroU32) {
+        self.max_chunk_size = Some(size);
     }
 
     /// Returns `true` if an [ANXT] chunk has appeared before calling this method.
@@ -190,6 +195,7 @@ impl<T> Archive<T> {
 pub struct SolidArchive<T: Write> {
     archive_header: ArchiveHeader,
     inner: CompressionWriter<CipherWriter<ChunkStreamWriter<T>>>,
+    max_chunk_size: Option<NonZeroU32>,
 }
 
 #[cfg(test)]
