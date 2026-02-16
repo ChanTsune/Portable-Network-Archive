@@ -30,8 +30,11 @@ fn build_duplicate_archive(path: impl AsRef<Path>) -> Vec<u8> {
     fs::read(path).unwrap()
 }
 
+/// Precondition: Archive contains duplicate entries for multiple operands.
+/// Action: List with `--fast-read` and multiple operands.
+/// Expectation: All matching entries are listed until every operand has been seen at least once.
 #[test]
-fn stdio_list_fast_read_first_match_only() {
+fn stdio_list_with_fast_read() {
     setup();
     let archive_data = build_duplicate_archive("stdio_fast_read_list/archive.pna");
 
@@ -40,11 +43,14 @@ fn stdio_list_fast_read_first_match_only() {
         .args(["experimental", "stdio", "--list", "-q", "a.txt", "b.txt"])
         .assert()
         .success()
-        .stdout("a.txt\nb.txt\n");
+        .stdout("a.txt\na.txt\nb.txt\n");
 }
 
+/// Precondition: Archive contains duplicate entries.
+/// Action: List with `--fast-read` but no operands.
+/// Expectation: All entries are listed (fast-read without operands has no stop condition).
 #[test]
-fn stdio_list_fast_read_no_operands() {
+fn stdio_list_with_fast_read_without_operands() {
     setup();
     let archive_data = build_duplicate_archive("stdio_fast_read_list_no_operands/archive.pna");
 
@@ -56,8 +62,12 @@ fn stdio_list_fast_read_no_operands() {
         .stdout("a.txt\na.txt\nb.txt\nb.txt\n");
 }
 
+/// Precondition: Archive contains duplicate entries for multiple operands.
+/// Action: Extract with `--fast-read` and multiple operands.
+/// Expectation: Matching entries are extracted (overwriting previous) until every operand
+///   has been seen; the last version before stopping is kept.
 #[test]
-fn stdio_extract_fast_read_keeps_first_entry() {
+fn stdio_extract_with_fast_read() {
     setup();
     let archive_data = build_duplicate_archive("stdio_fast_read_extract/archive.pna");
     let out_dir = PathBuf::from("stdio_fast_read_extract/out_fast");
@@ -79,7 +89,7 @@ fn stdio_extract_fast_read_keeps_first_entry() {
         .success();
 
     assert_eq!(
-        "first-a",
+        "second-a",
         fs::read_to_string(out_dir.join("a.txt")).unwrap()
     );
     assert_eq!(
@@ -88,8 +98,11 @@ fn stdio_extract_fast_read_keeps_first_entry() {
     );
 }
 
+/// Precondition: Archive contains duplicate entries for multiple operands.
+/// Action: Extract without `--fast-read`.
+/// Expectation: All entries are processed; the last version of each file wins.
 #[test]
-fn stdio_extract_default_last_entry_wins() {
+fn stdio_extract_without_fast_read() {
     setup();
     let archive_data = build_duplicate_archive("stdio_fast_read_extract_default/archive.pna");
     let out_dir = PathBuf::from("stdio_fast_read_extract_default/out_default");

@@ -668,7 +668,7 @@ pub(crate) fn run_list_archive<'a>(
                 for entry in solid.entries(password)? {
                     let entry = entry?;
                     let entry_path = entry.name().to_string();
-                    if !globs.matches_any_unsatisfied(&entry_path) {
+                    if !globs.matches_any_pattern(&entry_path) {
                         continue;
                     }
                     let row =
@@ -692,7 +692,7 @@ pub(crate) fn run_list_archive<'a>(
             }
             ReadEntry::Normal(item) => {
                 let entry_path = item.name().to_string();
-                if !globs.matches_any_unsatisfied(&entry_path) {
+                if !globs.matches_any_pattern(&entry_path) {
                     return Ok(ProcessAction::Continue);
                 }
                 let row = TableRow::from_entry(&item, password, None, collect_opts)?;
