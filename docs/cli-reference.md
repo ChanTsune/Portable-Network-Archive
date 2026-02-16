@@ -550,6 +550,9 @@ Extract files from archive
 * `--allow-unsafe-links` — Allow extracting symbolic links and hard links that contain root or parent paths
 
   Default value: `false`
+* `--no-allow-unsafe-links` — Do not allow extracting symbolic links and hard links that contain root or parent paths (default)
+
+  Default value: `false`
 * `--safe-writes` — Extract files atomically via temp file and rename
 
   Default value: `false`
@@ -1347,7 +1350,10 @@ bsdtar-like CLI semantics for PNA archives
 * `-O`, `--to-stdout` — Write extracted file data to standard output instead of the file system
 
   Default value: `false`
-* `--allow-unsafe-links` — Allow extracting symbolic links and hard links that contain root or parent paths
+* `--allow-unsafe-links` — Allow extracting symbolic links and hard links that contain root or parent paths (default)
+
+  Default value: `false`
+* `--no-allow-unsafe-links` — Do not allow extracting symbolic links and hard links that contain root or parent paths
 
   Default value: `false`
 * `--chroot` — chroot() to the current directory after processing any --cd options and before extracting any files (requires root privileges)
