@@ -124,11 +124,12 @@ impl<'s> BsdGlobMatcher<'s> {
         matched_any
     }
 
+    /// Returns true if any pattern matches the given path, regardless of
+    /// whether the pattern has already been satisfied.
     #[inline]
-    pub(crate) fn matches_any_unsatisfied(&self, path: impl AsRef<str>) -> bool {
+    pub(crate) fn matches_any_pattern(&self, path: impl AsRef<str>) -> bool {
         let path = path.as_ref();
-        (0..self.patterns.len())
-            .any(|idx| !self.matched[idx] && self.pattern_matches_path(idx, path))
+        (0..self.patterns.len()).any(|idx| self.pattern_matches_path(idx, path))
     }
 
     #[inline]
@@ -1138,72 +1139,8 @@ mod tests {
     }
 
     #[test]
-    fn bsd_glob_matches_any_unsatisfied_literal() {
-        let mut m = BsdGlobMatcher::new(["a.txt", "b.txt"]);
-        assert!(m.matches_any_unsatisfied("a.txt"));
-        // Check does NOT mark satisfied
-        assert!(m.matches_any_unsatisfied("a.txt"));
-        // Explicitly mark
-        m.mark_satisfied("a.txt");
-        assert!(!m.matches_any_unsatisfied("a.txt"));
-        assert!(m.matches_any_unsatisfied("b.txt"));
-        m.mark_satisfied("b.txt");
-        assert!(m.all_matched());
-    }
-
-    #[test]
-    fn bsd_glob_matches_any_unsatisfied_glob() {
-        let mut m = BsdGlobMatcher::new(["*.txt"]);
-        assert!(m.matches_any_unsatisfied("a.txt"));
-        // check does not mark
-        assert!(m.matches_any_unsatisfied("a.txt"));
-        m.mark_satisfied("a.txt");
-        // Glob pattern satisfied — subsequent .txt files are skipped
-        assert!(!m.matches_any_unsatisfied("b.txt"));
-        assert!(m.all_matched());
-    }
-
-    #[test]
-    fn bsd_glob_matches_any_unsatisfied_no_match() {
-        let m = BsdGlobMatcher::new(["missing.txt"]);
-        assert!(!m.matches_any_unsatisfied("other.txt"));
-        assert!(!m.all_matched());
-    }
-
-    #[test]
     fn bsd_glob_all_matched_empty() {
         let m = BsdGlobMatcher::new(std::iter::empty::<&str>());
-        assert!(m.all_matched());
-    }
-
-    #[test]
-    fn bsd_glob_matches_any_unsatisfied_mixed_literal_and_glob() {
-        let mut m = BsdGlobMatcher::new(["a.txt", "*.rs"]);
-        assert!(m.matches_any_unsatisfied("main.rs"));
-        m.mark_satisfied("main.rs");
-        assert!(!m.all_matched());
-        assert!(m.matches_any_unsatisfied("a.txt"));
-        m.mark_satisfied("a.txt");
-        assert!(m.all_matched());
-        // Further matches are ignored
-        assert!(!m.matches_any_unsatisfied("lib.rs"));
-        assert!(!m.matches_any_unsatisfied("a.txt"));
-    }
-
-    #[test]
-    fn check_does_not_mark_satisfied() {
-        let m = BsdGlobMatcher::new(["a.txt"]);
-        assert!(m.matches_any_unsatisfied("a.txt"));
-        assert!(m.matches_any_unsatisfied("a.txt"));
-        assert!(!m.all_matched());
-    }
-
-    #[test]
-    fn mark_satisfied_after_filter() {
-        let mut m = BsdGlobMatcher::new(["a.txt"]);
-        assert!(m.matches_any_unsatisfied("a.txt"));
-        // simulate filter pass
-        m.mark_satisfied("a.txt");
         assert!(m.all_matched());
     }
 
@@ -1220,5 +1157,181 @@ mod tests {
         let mut m = BsdGlobMatcher::new(["a.txt"]);
         m.mark_satisfied("b.txt");
         assert!(!m.all_matched());
+    }
+
+    #[test]
+    fn bsd_glob_matcher_no_recursive_exact_match() {
+        let mut m = BsdGlobMatcher::new(["dir/file.txt"]).with_no_recursive(true);
+        assert!(m.matches("dir/file.txt"));
+        assert!(m.all_matched());
+    }
+
+    #[test]
+    fn bsd_glob_matcher_no_recursive_blocks_prefix() {
+        let mut m = BsdGlobMatcher::new(["dir"]).with_no_recursive(true);
+        // With no_recursive, pattern "dir" should NOT match "dir/file.txt"
+        assert!(!m.matches("dir/file.txt"));
+        // But should still match exact "dir"
+        assert!(m.matches("dir"));
+        assert!(m.all_matched());
+    }
+
+    #[test]
+    fn bsd_glob_matcher_recursive_allows_prefix() {
+        let mut m = BsdGlobMatcher::new(["dir"]).with_no_recursive(false);
+        // With recursive (default), pattern "dir" SHOULD match "dir/file.txt"
+        assert!(m.matches("dir/file.txt"));
+        assert!(m.all_matched());
+    }
+
+    #[test]
+    fn bsd_glob_matcher_glob_meta_ignores_no_recursive() {
+        let mut m = BsdGlobMatcher::new(["dir/*.txt"]).with_no_recursive(true);
+        // Patterns with glob meta always use match_inclusion, ignoring prefix logic
+        assert!(m.matches("dir/file.txt"));
+        assert!(m.all_matched());
+    }
+
+    #[test]
+    fn bsd_glob_matcher_trailing_slash_normalization() {
+        let mut m = BsdGlobMatcher::new(["dir/"]).with_no_recursive(false);
+        // "dir/" should match "dir/file.txt" (trailing slash stripped)
+        assert!(m.matches("dir/file.txt"));
+        assert!(m.all_matched());
+    }
+
+    #[test]
+    fn bsd_glob_matcher_multiple_patterns() {
+        let mut m = BsdGlobMatcher::new(["*.txt", "*.rs"]);
+        assert!(m.matches("file.txt"));
+        assert!(!m.all_matched()); // *.rs not matched yet
+        assert!(m.matches("main.rs"));
+        assert!(m.all_matched());
+    }
+
+    #[test]
+    fn bsd_glob_matcher_matches_any_pattern_no_side_effect() {
+        let m = BsdGlobMatcher::new(["a.txt", "b.txt"]);
+        // matches_any_pattern should not modify matched state
+        assert!(m.matches_any_pattern("a.txt"));
+        assert!(!m.all_matched());
+    }
+
+    #[test]
+    fn bsd_glob_matcher_mark_satisfied_multiple_patterns() {
+        let mut m = BsdGlobMatcher::new(["dir", "file.txt"]);
+        m.mark_satisfied("dir/sub/file.txt");
+        // Should mark "dir" as matched (prefix match)
+        assert!(!m.all_matched()); // file.txt not matched
+    }
+
+    #[test]
+    fn has_glob_meta_true() {
+        assert!(has_glob_meta("*.txt"));
+        assert!(has_glob_meta("file?.txt"));
+        assert!(has_glob_meta("[abc]"));
+        assert!(has_glob_meta("{a,b}"));
+    }
+
+    #[test]
+    fn has_glob_meta_false() {
+        assert!(!has_glob_meta("file.txt"));
+        assert!(!has_glob_meta("dir/file.txt"));
+        assert!(!has_glob_meta(""));
+    }
+
+    #[test]
+    fn prefix_match_exact_not_prefix() {
+        // Exact match is handled elsewhere, prefix_match only for "pattern/..."
+        assert!(!prefix_match("dir", "dir"));
+    }
+
+    #[test]
+    fn prefix_match_true_cases() {
+        assert!(prefix_match("dir", "dir/file.txt"));
+        assert!(prefix_match("dir/", "dir/file.txt"));
+        assert!(prefix_match("a/b", "a/b/c/d"));
+    }
+
+    #[test]
+    fn prefix_match_false_cases() {
+        assert!(!prefix_match("dir", "directory"));
+        assert!(!prefix_match("dir", "dir2/file.txt"));
+        assert!(!prefix_match("dir", "other"));
+    }
+
+    #[test]
+    fn bsd_glob_pattern_match_inclusion_exact() {
+        let pat = BsdGlobPattern::new("file.txt");
+        assert!(pat.match_inclusion("file.txt"));
+    }
+
+    #[test]
+    fn bsd_glob_pattern_match_inclusion_wildcard() {
+        let pat = BsdGlobPattern::new("*.txt");
+        assert!(pat.match_inclusion("file.txt"));
+        assert!(pat.match_inclusion("readme.txt"));
+        assert!(!pat.match_inclusion("file.rs"));
+    }
+
+    #[test]
+    fn bsd_glob_pattern_match_exclusion_substring() {
+        let pat = BsdGlobPattern::new("test");
+        // Exclusion uses NO_ANCHOR_START | NO_ANCHOR_END
+        assert!(pat.match_exclusion("test"));
+        assert!(pat.match_exclusion("file_test"));
+        assert!(pat.match_exclusion("test_file"));
+        assert!(pat.match_exclusion("prefix_test_suffix"));
+    }
+
+    #[test]
+    fn bsd_glob_patterns_empty_matches_all() {
+        let pats = BsdGlobPatterns::new(std::iter::empty::<&str>());
+        assert!(pats.matches_inclusion("any.txt"));
+        assert!(pats.matches_inclusion("path/to/file"));
+    }
+
+    #[test]
+    fn bsd_glob_patterns_inclusion() {
+        let pats = BsdGlobPatterns::new(["*.txt", "*.rs"]);
+        assert!(pats.matches_inclusion("file.txt"));
+        assert!(pats.matches_inclusion("main.rs"));
+        assert!(!pats.matches_inclusion("file.md"));
+    }
+
+    #[test]
+    fn bsd_glob_patterns_exclusion() {
+        let pats = BsdGlobPatterns::new(["test", "tmp"]);
+        assert!(pats.matches_exclusion("test_file"));
+        assert!(pats.matches_exclusion("file_tmp"));
+        assert!(!pats.matches_exclusion("other"));
+    }
+
+    #[test]
+    fn ensure_all_matched_success() {
+        let mut m = BsdGlobMatcher::new(["a.txt"]);
+        m.mark_satisfied("a.txt");
+        assert!(m.ensure_all_matched().is_ok());
+    }
+
+    #[test]
+    fn ensure_all_matched_failure() {
+        let m = BsdGlobMatcher::new(["nonexistent.txt"]);
+        let result = m.ensure_all_matched();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn glob_patterns_ensure_all_matched_failure() {
+        let m = GlobPatterns::new(["nonexistent.txt"]).unwrap();
+        let result = m.ensure_all_matched();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn glob_patterns_matches_any_marks_matched() {
+        let mut m = GlobPatterns::new(["*.txt"]).unwrap();
+        assert!(m.matches_any("file.txt"));
+        assert!(m.ensure_all_matched().is_ok());
     }
 }

@@ -12,6 +12,7 @@ mod option_keep_timestamp;
 mod option_mtime;
 mod option_safe_writes;
 mod option_substitution;
+mod option_time_filters;
 mod option_transform;
 mod overwrite_order;
 mod overwrite_symlink;

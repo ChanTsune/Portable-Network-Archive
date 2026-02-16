@@ -960,7 +960,7 @@ fn filter_entry_fast_read<T: AsRef<[u8]>>(
 where
     pna::RawChunk<T>: Chunk,
 {
-    if !globs.matches_any_unsatisfied(item_path) {
+    if !globs.matches_any_pattern(item_path) {
         log::debug!("Skip: {item_path}");
         return FastReadFilterAction::Skip(ProcessAction::Continue);
     }
@@ -1597,4 +1597,92 @@ fn is_unsafe_link(reference: &EntryReference) -> bool {
             Component::ParentDir | Component::RootDir | Component::Prefix(_)
         )
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn overwrite_strategy_from_flags_overwrite() {
+        assert_eq!(
+            OverwriteStrategy::from_flags(true, false, false, false, OverwriteStrategy::Never),
+            OverwriteStrategy::Always
+        );
+    }
+
+    #[test]
+    fn overwrite_strategy_from_flags_no_overwrite() {
+        assert_eq!(
+            OverwriteStrategy::from_flags(false, true, false, false, OverwriteStrategy::Always),
+            OverwriteStrategy::Never
+        );
+    }
+
+    #[test]
+    fn overwrite_strategy_from_flags_keep_newer() {
+        assert_eq!(
+            OverwriteStrategy::from_flags(false, false, true, false, OverwriteStrategy::Never),
+            OverwriteStrategy::KeepNewer
+        );
+    }
+
+    #[test]
+    fn overwrite_strategy_from_flags_keep_older() {
+        assert_eq!(
+            OverwriteStrategy::from_flags(false, false, false, true, OverwriteStrategy::Never),
+            OverwriteStrategy::KeepOlder
+        );
+    }
+
+    #[test]
+    fn overwrite_strategy_from_flags_default() {
+        assert_eq!(
+            OverwriteStrategy::from_flags(false, false, false, false, OverwriteStrategy::KeepNewer),
+            OverwriteStrategy::KeepNewer
+        );
+    }
+
+    #[test]
+    fn overwrite_strategy_from_flags_priority() {
+        // overwrite takes precedence over all others
+        assert_eq!(
+            OverwriteStrategy::from_flags(true, true, true, true, OverwriteStrategy::Never),
+            OverwriteStrategy::Always
+        );
+        // no_overwrite takes precedence over keep_newer and keep_older
+        assert_eq!(
+            OverwriteStrategy::from_flags(false, true, true, true, OverwriteStrategy::Always),
+            OverwriteStrategy::Never
+        );
+        // keep_newer takes precedence over keep_older
+        assert_eq!(
+            OverwriteStrategy::from_flags(false, false, true, true, OverwriteStrategy::Always),
+            OverwriteStrategy::KeepNewer
+        );
+    }
+
+    #[test]
+    fn is_unsafe_link_parent_dir() {
+        let reference = EntryReference::from("../file.txt");
+        assert!(is_unsafe_link(&reference));
+    }
+
+    #[test]
+    fn is_unsafe_link_root_dir() {
+        let reference = EntryReference::from("/etc/passwd");
+        assert!(is_unsafe_link(&reference));
+    }
+
+    #[test]
+    fn is_unsafe_link_safe() {
+        let reference = EntryReference::from("dir/file.txt");
+        assert!(!is_unsafe_link(&reference));
+    }
+
+    #[test]
+    fn is_unsafe_link_current_dir_safe() {
+        let reference = EntryReference::from("./file.txt");
+        assert!(!is_unsafe_link(&reference));
+    }
 }

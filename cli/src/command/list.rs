@@ -668,7 +668,7 @@ pub(crate) fn run_list_archive<'a>(
                 for entry in solid.entries(password)? {
                     let entry = entry?;
                     let entry_path = entry.name().to_string();
-                    if !globs.matches_any_unsatisfied(&entry_path) {
+                    if !globs.matches_any_pattern(&entry_path) {
                         continue;
                     }
                     let row =
@@ -692,7 +692,7 @@ pub(crate) fn run_list_archive<'a>(
             }
             ReadEntry::Normal(item) => {
                 let entry_path = item.name().to_string();
-                if !globs.matches_any_unsatisfied(&entry_path) {
+                if !globs.matches_any_pattern(&entry_path) {
                     return Ok(ProcessAction::Continue);
                 }
                 let row = TableRow::from_entry(&item, password, None, collect_opts)?;
@@ -1464,5 +1464,304 @@ fn format_name<'a>(name: &'a str, kind: DataKind, options: &ListOptions) -> Cow<
         Cow::Owned(hide_control_chars(&name).to_string())
     } else {
         name
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn format_is_unstable_jsonl() {
+        assert!(Format::JsonL.is_unstable());
+    }
+
+    #[test]
+    fn format_is_unstable_bsdtar() {
+        assert!(Format::BsdTar.is_unstable());
+    }
+
+    #[test]
+    fn format_is_unstable_csv() {
+        assert!(Format::Csv.is_unstable());
+    }
+
+    #[test]
+    fn format_is_unstable_tsv() {
+        assert!(Format::Tsv.is_unstable());
+    }
+
+    #[test]
+    fn format_is_not_unstable_line() {
+        assert!(!Format::Line.is_unstable());
+    }
+
+    #[test]
+    fn format_is_not_unstable_table() {
+        assert!(!Format::Table.is_unstable());
+    }
+
+    #[test]
+    fn format_is_not_unstable_tree() {
+        assert!(!Format::Tree.is_unstable());
+    }
+
+    #[test]
+    fn entry_type_name_file() {
+        let entry = EntryType::File("test.txt".to_string());
+        assert_eq!(entry.name(), "test.txt");
+    }
+
+    #[test]
+    fn entry_type_name_directory() {
+        let entry = EntryType::Directory("dir".to_string());
+        assert_eq!(entry.name(), "dir");
+    }
+
+    #[test]
+    fn entry_type_name_symlink() {
+        let entry = EntryType::SymbolicLink("link".to_string(), "target".to_string());
+        assert_eq!(entry.name(), "link");
+    }
+
+    #[test]
+    fn entry_type_name_hardlink() {
+        let entry = EntryType::HardLink("link".to_string(), "target".to_string());
+        assert_eq!(entry.name(), "link");
+    }
+
+    #[test]
+    fn within_six_months_true() {
+        let now = SystemTime::now();
+        let recent = now - Duration::from_secs(60 * 60 * 24 * 30); // 30 days ago
+        assert!(within_six_months(now, recent));
+    }
+
+    #[test]
+    fn within_six_months_false() {
+        let now = SystemTime::now();
+        let old = now - Duration::from_secs(60 * 60 * 24 * 365); // 365 days ago
+        assert!(!within_six_months(now, old));
+    }
+
+    #[test]
+    fn within_six_months_boundary() {
+        let now = SystemTime::now();
+        let boundary = now - DURATION_SIX_MONTH;
+        assert!(within_six_months(now, boundary));
+    }
+
+    #[test]
+    fn hide_control_chars_clean_string() {
+        let display = hide_control_chars("normal text");
+        assert_eq!(display.to_string(), "normal text");
+    }
+
+    #[test]
+    fn hide_control_chars_with_newline() {
+        let display = hide_control_chars("text\nwith\nnewlines");
+        assert_eq!(display.to_string(), "text?with?newlines");
+    }
+
+    #[test]
+    fn hide_control_chars_with_tab() {
+        let display = hide_control_chars("text\twith\ttabs");
+        assert_eq!(display.to_string(), "text?with?tabs");
+    }
+
+    #[test]
+    fn hide_control_chars_with_null() {
+        let display = hide_control_chars("text\0with\0null");
+        assert_eq!(display.to_string(), "text?with?null");
+    }
+
+    #[test]
+    fn kind_char_file() {
+        let entry = EntryType::File("test".to_string());
+        assert_eq!(kind_char(&entry), '-');
+    }
+
+    #[test]
+    fn kind_char_directory() {
+        let entry = EntryType::Directory("test".to_string());
+        assert_eq!(kind_char(&entry), 'd');
+    }
+
+    #[test]
+    fn kind_char_symlink() {
+        let entry = EntryType::SymbolicLink("test".to_string(), "target".to_string());
+        assert_eq!(kind_char(&entry), 'l');
+    }
+
+    #[test]
+    fn kind_char_hardlink() {
+        let entry = EntryType::HardLink("test".to_string(), "target".to_string());
+        assert_eq!(kind_char(&entry), '-');
+    }
+
+    #[test]
+    fn permission_string_basic_file() {
+        let entry = EntryType::File("test".to_string());
+        let perm = 0b110100100; // rw-r--r--
+        let result = permission_string(&entry, perm, false, false);
+        assert_eq!(result, "-rw-r--r-- ");
+    }
+
+    #[test]
+    fn permission_string_with_xattr() {
+        let entry = EntryType::File("test".to_string());
+        let perm = 0b110100100;
+        let result = permission_string(&entry, perm, true, false);
+        assert_eq!(result, "-rw-r--r--@");
+    }
+
+    #[test]
+    fn permission_string_with_acl() {
+        let entry = EntryType::File("test".to_string());
+        let perm = 0b110100100;
+        let result = permission_string(&entry, perm, false, true);
+        assert_eq!(result, "-rw-r--r--+");
+    }
+
+    #[test]
+    fn permission_string_directory_executable() {
+        let entry = EntryType::Directory("test".to_string());
+        let perm = 0b111101101; // rwxr-xr-x
+        let result = permission_string(&entry, perm, false, false);
+        assert_eq!(result, "drwxr-xr-x ");
+    }
+
+    #[test]
+    fn has_glob_meta_true_in_list() {
+        assert!(has_glob_meta("*.txt"));
+        assert!(has_glob_meta("file?.txt"));
+        assert!(has_glob_meta("file[abc].txt"));
+        assert!(has_glob_meta("file{a,b}.txt"));
+    }
+
+    #[test]
+    fn has_glob_meta_false_in_list() {
+        assert!(!has_glob_meta("file.txt"));
+        assert!(!has_glob_meta("dir/file.txt"));
+    }
+
+    #[test]
+    fn collect_options_from_list_options_basic() {
+        let opts = ListOptions {
+            long: false,
+            header: false,
+            solid: false,
+            show_xattr: false,
+            show_acl: false,
+            show_fflags: false,
+            show_private: false,
+            time_format: TimeFormat::Auto(SystemTime::now()),
+            time_field: TimeField::Modified,
+            numeric_owner: false,
+            hide_control_chars: false,
+            classify: false,
+            format: None,
+            out_to_stderr: false,
+            color: ColorChoice::Never,
+            time_filters: TimeFilters {
+                newer_ctime: None,
+                older_ctime: None,
+                newer_mtime: None,
+                older_mtime: None,
+            },
+        };
+        let collect = CollectOptions::from_list_options(&opts);
+        assert!(!collect.xattrs);
+        assert!(!collect.acl);
+        assert!(!collect.privates);
+        assert!(!collect.fflags);
+        assert!(!collect.link_target); // long is false
+    }
+
+    #[test]
+    fn collect_options_link_target_with_long() {
+        let opts = ListOptions {
+            long: true,
+            header: false,
+            solid: false,
+            show_xattr: false,
+            show_acl: false,
+            show_fflags: false,
+            show_private: false,
+            time_format: TimeFormat::Auto(SystemTime::now()),
+            time_field: TimeField::Modified,
+            numeric_owner: false,
+            hide_control_chars: false,
+            classify: false,
+            format: None,
+            out_to_stderr: false,
+            color: ColorChoice::Never,
+            time_filters: TimeFilters {
+                newer_ctime: None,
+                older_ctime: None,
+                newer_mtime: None,
+                older_mtime: None,
+            },
+        };
+        let collect = CollectOptions::from_list_options(&opts);
+        assert!(collect.link_target); // long is true
+    }
+
+    #[test]
+    fn collect_options_link_target_with_table_format() {
+        let opts = ListOptions {
+            long: false,
+            header: false,
+            solid: false,
+            show_xattr: false,
+            show_acl: false,
+            show_fflags: false,
+            show_private: false,
+            time_format: TimeFormat::Auto(SystemTime::now()),
+            time_field: TimeField::Modified,
+            numeric_owner: false,
+            hide_control_chars: false,
+            classify: false,
+            format: Some(Format::Table),
+            out_to_stderr: false,
+            color: ColorChoice::Never,
+            time_filters: TimeFilters {
+                newer_ctime: None,
+                older_ctime: None,
+                newer_mtime: None,
+                older_mtime: None,
+            },
+        };
+        let collect = CollectOptions::from_list_options(&opts);
+        assert!(collect.link_target);
+    }
+
+    #[test]
+    fn collect_options_link_target_without_line_format() {
+        let opts = ListOptions {
+            long: false,
+            header: false,
+            solid: false,
+            show_xattr: false,
+            show_acl: false,
+            show_fflags: false,
+            show_private: false,
+            time_format: TimeFormat::Auto(SystemTime::now()),
+            time_field: TimeField::Modified,
+            numeric_owner: false,
+            hide_control_chars: false,
+            classify: false,
+            format: Some(Format::Line),
+            out_to_stderr: false,
+            color: ColorChoice::Never,
+            time_filters: TimeFilters {
+                newer_ctime: None,
+                older_ctime: None,
+                newer_mtime: None,
+                older_mtime: None,
+            },
+        };
+        let collect = CollectOptions::from_list_options(&opts);
+        assert!(!collect.link_target); // Line format doesn't need link targets
     }
 }
