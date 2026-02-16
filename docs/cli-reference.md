@@ -168,7 +168,7 @@ Create archive
 * `--no-overwrite` — Do not overwrite files. This is the inverse option of --overwrite
 
   Default value: `false`
-* `--keep-dir` — Include directories in archive
+* `--keep-dir` — Include directories in archive (default)
 
   Default value: `false`
 * `--no-keep-dir` — Do not archive directories. This is the inverse option of --keep-dir
@@ -320,7 +320,7 @@ Append files to archive
 * `--no-recursive` [alias: `no-recursion`] — Do not recursively add directories to the archives. This is the inverse option of --recursive
 
   Default value: `false`
-* `--keep-dir` — Include directories in archive
+* `--keep-dir` — Include directories in archive (default)
 
   Default value: `false`
 * `--no-keep-dir` — Do not archive directories. This is the inverse option of --keep-dir
@@ -1221,7 +1221,7 @@ bsdtar-like CLI semantics for PNA archives
 * `-k`, `--keep-old-files` — Skip extracting files if they already exist
 
   Default value: `false`
-* `--keep-dir` — Include directories in archive
+* `--keep-dir` — Include directories in archive (default)
 
   Default value: `false`
 * `--no-keep-dir` — Do not archive directories. This is the inverse option of --keep-dir
@@ -1458,7 +1458,7 @@ Update entries in archive
 * `--no-recursive` [alias: `no-recursion`] — Do not recursively add directories to the archives. This is the inverse option of --recursive
 
   Default value: `false`
-* `--keep-dir` — Include directories in archive
+* `--keep-dir` — Include directories in archive (default)
 
   Default value: `false`
 * `--no-keep-dir` — Do not archive directories. This is the inverse option of --keep-dir
