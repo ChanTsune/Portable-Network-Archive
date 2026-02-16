@@ -124,11 +124,12 @@ impl<'s> BsdGlobMatcher<'s> {
         matched_any
     }
 
+    /// Returns true if any pattern matches the given path, regardless of
+    /// whether the pattern has already been satisfied.
     #[inline]
-    pub(crate) fn matches_any_unsatisfied(&self, path: impl AsRef<str>) -> bool {
+    pub(crate) fn matches_any_pattern(&self, path: impl AsRef<str>) -> bool {
         let path = path.as_ref();
-        (0..self.patterns.len())
-            .any(|idx| !self.matched[idx] && self.pattern_matches_path(idx, path))
+        (0..self.patterns.len()).any(|idx| self.pattern_matches_path(idx, path))
     }
 
     #[inline]
@@ -1138,72 +1139,8 @@ mod tests {
     }
 
     #[test]
-    fn bsd_glob_matches_any_unsatisfied_literal() {
-        let mut m = BsdGlobMatcher::new(["a.txt", "b.txt"]);
-        assert!(m.matches_any_unsatisfied("a.txt"));
-        // Check does NOT mark satisfied
-        assert!(m.matches_any_unsatisfied("a.txt"));
-        // Explicitly mark
-        m.mark_satisfied("a.txt");
-        assert!(!m.matches_any_unsatisfied("a.txt"));
-        assert!(m.matches_any_unsatisfied("b.txt"));
-        m.mark_satisfied("b.txt");
-        assert!(m.all_matched());
-    }
-
-    #[test]
-    fn bsd_glob_matches_any_unsatisfied_glob() {
-        let mut m = BsdGlobMatcher::new(["*.txt"]);
-        assert!(m.matches_any_unsatisfied("a.txt"));
-        // check does not mark
-        assert!(m.matches_any_unsatisfied("a.txt"));
-        m.mark_satisfied("a.txt");
-        // Glob pattern satisfied — subsequent .txt files are skipped
-        assert!(!m.matches_any_unsatisfied("b.txt"));
-        assert!(m.all_matched());
-    }
-
-    #[test]
-    fn bsd_glob_matches_any_unsatisfied_no_match() {
-        let m = BsdGlobMatcher::new(["missing.txt"]);
-        assert!(!m.matches_any_unsatisfied("other.txt"));
-        assert!(!m.all_matched());
-    }
-
-    #[test]
     fn bsd_glob_all_matched_empty() {
         let m = BsdGlobMatcher::new(std::iter::empty::<&str>());
-        assert!(m.all_matched());
-    }
-
-    #[test]
-    fn bsd_glob_matches_any_unsatisfied_mixed_literal_and_glob() {
-        let mut m = BsdGlobMatcher::new(["a.txt", "*.rs"]);
-        assert!(m.matches_any_unsatisfied("main.rs"));
-        m.mark_satisfied("main.rs");
-        assert!(!m.all_matched());
-        assert!(m.matches_any_unsatisfied("a.txt"));
-        m.mark_satisfied("a.txt");
-        assert!(m.all_matched());
-        // Further matches are ignored
-        assert!(!m.matches_any_unsatisfied("lib.rs"));
-        assert!(!m.matches_any_unsatisfied("a.txt"));
-    }
-
-    #[test]
-    fn check_does_not_mark_satisfied() {
-        let m = BsdGlobMatcher::new(["a.txt"]);
-        assert!(m.matches_any_unsatisfied("a.txt"));
-        assert!(m.matches_any_unsatisfied("a.txt"));
-        assert!(!m.all_matched());
-    }
-
-    #[test]
-    fn mark_satisfied_after_filter() {
-        let mut m = BsdGlobMatcher::new(["a.txt"]);
-        assert!(m.matches_any_unsatisfied("a.txt"));
-        // simulate filter pass
-        m.mark_satisfied("a.txt");
         assert!(m.all_matched());
     }
 

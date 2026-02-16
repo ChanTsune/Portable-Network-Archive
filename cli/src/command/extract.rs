@@ -960,7 +960,7 @@ fn filter_entry_fast_read<T: AsRef<[u8]>>(
 where
     pna::RawChunk<T>: Chunk,
 {
-    if !globs.matches_any_unsatisfied(item_path) {
+    if !globs.matches_any_pattern(item_path) {
         log::debug!("Skip: {item_path}");
         return FastReadFilterAction::Skip(ProcessAction::Continue);
     }
