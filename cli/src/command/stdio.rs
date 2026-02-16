@@ -125,6 +125,7 @@ impl CompressionAlgorithmArgs {
     group(ArgGroup::new("keep-timestamp-flag").args(["keep_timestamp", "no_keep_timestamp"])),
     group(ArgGroup::new("action-flags").args(["create", "extract", "list", "append", "update"]).required(true)),
     group(ArgGroup::new("safe-writes-flag").args(["safe_writes", "no_safe_writes"])),
+    group(ArgGroup::new("unsafe-links-flag").args(["allow_unsafe_links", "no_allow_unsafe_links"])),
     group(
         ArgGroup::new("overwrite-flag")
             .args(["overwrite", "no_overwrite", "keep_newer_files", "keep_old_files"])
@@ -586,9 +587,14 @@ pub(crate) struct StdioCommand {
     to_stdout: bool,
     #[arg(
         long,
-        help = "Allow extracting symbolic links and hard links that contain root or parent paths"
+        help = "Allow extracting symbolic links and hard links that contain root or parent paths (default)"
     )]
     allow_unsafe_links: bool,
+    #[arg(
+        long,
+        help = "Do not allow extracting symbolic links and hard links that contain root or parent paths"
+    )]
+    no_allow_unsafe_links: bool,
     #[arg(
         long,
         requires = "extract",
@@ -1062,7 +1068,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: StdioCommand) -> anyhow::Resul
     .resolve();
     let out_option = OutputOption {
         overwrite_strategy,
-        allow_unsafe_links: args.allow_unsafe_links,
+        allow_unsafe_links: !args.no_allow_unsafe_links,
         out_dir: args.out_dir,
         to_stdout: args.to_stdout,
         filter,

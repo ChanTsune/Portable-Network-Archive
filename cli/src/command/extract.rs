@@ -67,6 +67,7 @@ use std::{
             .args(["overwrite", "no_overwrite", "keep_newer_files", "keep_old_files"])
     ),
     group(ArgGroup::new("safe-writes-flag").args(["safe_writes", "no_safe_writes"])),
+    group(ArgGroup::new("unsafe-links-flag").args(["allow_unsafe_links", "no_allow_unsafe_links"])),
 )]
 pub(crate) struct ExtractCommand {
     #[arg(long, help = "Overwrite file")]
@@ -371,6 +372,11 @@ pub(crate) struct ExtractCommand {
         help = "Allow extracting symbolic links and hard links that contain root or parent paths"
     )]
     allow_unsafe_links: bool,
+    #[arg(
+        long,
+        help = "Do not allow extracting symbolic links and hard links that contain root or parent paths (default)"
+    )]
+    no_allow_unsafe_links: bool,
     #[arg(
         long,
         requires = "unstable",
