@@ -1102,6 +1102,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: StdioCommand) -> anyhow::Resul
         time_filters,
         safe_writes: args.safe_writes && !args.no_safe_writes,
         verbose: args.verbose,
+        absolute_paths: args.absolute_paths,
     };
     let mut files = args.files;
     if let Some(path) = &args.files_from {

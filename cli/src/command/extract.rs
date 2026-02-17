@@ -505,6 +505,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         time_filters,
         safe_writes: args.safe_writes && !args.no_safe_writes,
         verbose: false,
+        absolute_paths: false,
     };
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(&working_dir)
@@ -594,6 +595,7 @@ pub(crate) struct OutputOption<'a> {
     pub(crate) time_filters: TimeFilters,
     pub(crate) safe_writes: bool,
     pub(crate) verbose: bool,
+    pub(crate) absolute_paths: bool,
 }
 
 pub(crate) fn run_extract_archive_reader<'a, 'p, Provider>(
@@ -1015,6 +1017,7 @@ fn check_and_prepare_target<T>(
     item: &NormalEntry<T>,
     overwrite_strategy: OverwriteStrategy,
     unlink_first: bool,
+    secure_symlinks: bool,
 ) -> io::Result<ExtractionDecision>
 where
     T: AsRef<[u8]>,
@@ -1022,6 +1025,7 @@ where
     let metadata = match fs::symlink_metadata(path) {
         Ok(meta) => Some(meta),
         Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(err) if err.kind() == io::ErrorKind::NotADirectory => None,
         Err(err) => return Err(err),
     };
 
@@ -1073,14 +1077,26 @@ where
 
     // Create parent directories
     if let Some(parent) = path.parent() {
-        ensure_directory_components(parent, unlink_first)?;
+        ensure_directory_components(parent, unlink_first, secure_symlinks)?;
     }
 
     // Handle type conflicts (symlink blocking file, file blocking directory)
     if let Some(meta) = metadata
         && (meta.is_symlink() || (meta.is_file() && entry_kind == DataKind::Directory))
     {
-        utils::io::ignore_not_found(utils::fs::remove_path(path))?;
+        let follow_symlink = !secure_symlinks
+            && meta.is_symlink()
+            && entry_kind == DataKind::Directory
+            && path.metadata().is_ok_and(|m| m.is_dir());
+        if !follow_symlink {
+            match utils::fs::remove_path(path) {
+                Ok(()) => {}
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+                // Concurrent extraction already replaced with directory
+                Err(e) if e.kind() == io::ErrorKind::IsADirectory => {}
+                Err(e) => return Err(e),
+            }
+        }
     }
 
     let remove_existing = should_overwrite_existing && !unlink_existing;
@@ -1106,6 +1122,7 @@ pub(crate) fn extract_entry<'a, T>(
         time_filters: _,
         safe_writes,
         verbose: _,
+        absolute_paths,
     }: &OutputOption<'a>,
 ) -> io::Result<()>
 where
@@ -1119,9 +1136,16 @@ where
 
     log::debug!("start: {}", path.display());
 
+    let secure_symlinks = !absolute_paths;
     // Check overwrite strategy and prepare target
-    let ExtractionDecision::Proceed { remove_existing } =
-        check_and_prepare_target(&path, entry_kind, &item, *overwrite_strategy, *unlink_first)?
+    let ExtractionDecision::Proceed { remove_existing } = check_and_prepare_target(
+        &path,
+        entry_kind,
+        &item,
+        *overwrite_strategy,
+        *unlink_first,
+        secure_symlinks,
+    )?
     else {
         return Ok(());
     };
@@ -1152,7 +1176,7 @@ where
             }
         }
         DataKind::Directory => {
-            ensure_directory_components(&path, *unlink_first)?;
+            ensure_directory_components(&path, *unlink_first, secure_symlinks)?;
         }
         DataKind::SymbolicLink => {
             let reader = item.reader(ReadOptions::with_password(password))?;
@@ -1538,12 +1562,23 @@ where
     Ok(())
 }
 
-fn ensure_directory_components(path: &Path, unlink_first: bool) -> io::Result<()> {
+fn ensure_directory_components(
+    path: &Path,
+    unlink_first: bool,
+    secure_symlinks: bool,
+) -> io::Result<()> {
     if path.as_os_str().is_empty() {
         return Ok(());
     }
-    if !unlink_first {
-        return fs::create_dir_all(path);
+    if !secure_symlinks {
+        match fs::create_dir_all(path) {
+            Ok(()) => return Ok(()),
+            // Symlink to non-directory in path or at final component
+            Err(err)
+                if err.kind() == io::ErrorKind::NotADirectory
+                    || err.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(err) => return Err(err),
+        }
     }
     let mut current = PathBuf::new();
     for component in path.components() {
@@ -1565,15 +1600,31 @@ fn ensure_directory_components(path: &Path, unlink_first: bool) -> io::Result<()
                 if meta.is_dir() {
                     continue;
                 }
-                utils::fs::remove_path_all(&current)?;
+                if !secure_symlinks
+                    && meta.is_symlink()
+                    && fs::metadata(&current).is_ok_and(|m| m.is_dir())
+                {
+                    continue;
+                }
+                if unlink_first {
+                    utils::fs::remove_path_all(&current)?;
+                } else {
+                    match utils::fs::remove_path(&current) {
+                        Ok(()) => {}
+                        Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+                        // Concurrent extraction already replaced with directory
+                        Err(e) if e.kind() == io::ErrorKind::IsADirectory => continue,
+                        Err(e) => return Err(e),
+                    }
+                }
             }
             Err(err) if err.kind() == io::ErrorKind::NotFound => {}
             Err(err) => return Err(err),
         }
-        if let Err(err) = fs::create_dir(&current) {
-            if err.kind() != io::ErrorKind::AlreadyExists {
-                return Err(err);
-            }
+        if let Err(err) = fs::create_dir(&current)
+            && err.kind() != io::ErrorKind::AlreadyExists
+        {
+            return Err(err);
         }
     }
     Ok(())
