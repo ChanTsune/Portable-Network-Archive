@@ -127,22 +127,37 @@ impl Cli {
 }
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
-#[command(group(ArgGroup::new("verbosity").args(["quiet", "verbose"])))]
+#[command(group(ArgGroup::new("verbosity").args(["quiet", "verbose", "log_level"])))]
 pub(crate) struct VerbosityArgs {
-    #[arg(long, global = true, help = "Make some output more quiet")]
+    #[arg(
+        long,
+        global = true,
+        help = "Make some output more quiet (alias for --log-level off)"
+    )]
     quiet: bool,
-    #[arg(long, global = true, help = "Make some output more verbose")]
+    #[arg(
+        long,
+        global = true,
+        help = "Make some output more verbose (alias for --log-level debug)"
+    )]
     verbose: bool,
+    #[arg(
+        long,
+        global = true,
+        value_name = "LEVEL",
+        default_value = "warn",
+        help = "Set the log level"
+    )]
+    log_level: LogLevel,
 }
 
 impl VerbosityArgs {
     #[inline]
-    #[allow(dead_code)]
     pub(crate) const fn log_level_filter(&self) -> LevelFilter {
         match (self.quiet, self.verbose) {
-            (true, false) => LevelFilter::Off,
-            (false, true) => LevelFilter::Debug,
-            (_, _) => LevelFilter::Info,
+            (true, _) => LevelFilter::Off,
+            (_, true) => LevelFilter::Debug,
+            (_, _) => self.log_level.as_level_filter(),
         }
     }
 }
@@ -430,5 +445,58 @@ mod tests {
         let ctx1 = GlobalContext::new(args.clone());
         let ctx2 = GlobalContext::new(args);
         assert_eq!(ctx1.is_root(), ctx2.is_root());
+    }
+
+    #[test]
+    fn quiet_and_log_level_conflict() {
+        let result = Cli::try_parse_from([
+            "pna",
+            "--quiet",
+            "--log-level",
+            "info",
+            "list",
+            "-f",
+            "a.pna",
+        ]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn verbose_and_log_level_conflict() {
+        let result = Cli::try_parse_from([
+            "pna",
+            "--verbose",
+            "--log-level",
+            "info",
+            "list",
+            "-f",
+            "a.pna",
+        ]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn quiet_and_verbose_conflict() {
+        let result = Cli::try_parse_from(["pna", "--quiet", "--verbose", "list", "-f", "a.pna"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn quiet_alone_accepted() {
+        let cli = Cli::try_parse_from(["pna", "--quiet", "list", "-f", "a.pna"]).unwrap();
+        assert_eq!(cli.global.verbosity.log_level_filter(), LevelFilter::Off);
+    }
+
+    #[test]
+    fn verbose_alone_accepted() {
+        let cli = Cli::try_parse_from(["pna", "--verbose", "list", "-f", "a.pna"]).unwrap();
+        assert_eq!(cli.global.verbosity.log_level_filter(), LevelFilter::Debug);
+    }
+
+    #[test]
+    fn log_level_alone_accepted() {
+        let cli =
+            Cli::try_parse_from(["pna", "--log-level", "debug", "list", "-f", "a.pna"]).unwrap();
+        assert_eq!(cli.global.verbosity.log_level_filter(), LevelFilter::Debug);
     }
 }

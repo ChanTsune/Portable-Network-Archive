@@ -9,7 +9,7 @@ const SHORT_OPTIONS_WITH_ARG: &[char] = &['b', 'C', 'f', 'I', 's', 'T', 'X'];
 /// Global long options that take a space-separated value.
 /// `--flag=value` form is already a single token and needs no special handling.
 /// Kept in sync with `Cli` clap definition via unit test.
-const GLOBAL_LONG_OPTIONS_WITH_ARG: &[&str] = &["--color"];
+const GLOBAL_LONG_OPTIONS_WITH_ARG: &[&str] = &["--color", "--log-level"];
 
 /// Global long options that are boolean flags (no value).
 /// Used to skip known global flags when detecting old-style candidates after `stdio`.
