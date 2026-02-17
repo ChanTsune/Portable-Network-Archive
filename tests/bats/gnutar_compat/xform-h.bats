@@ -2,7 +2,7 @@
 
 load '../test_helper.bash'
 
-EXECUTABLE="pna experimental stdio --unstable --keep-dir --overwrite"
+EXECUTABLE="pna --log-level error experimental stdio --unstable --keep-dir --overwrite"
 
 setup() {
   mkdir -p basedir

@@ -105,7 +105,7 @@ jobs:
       - name: Create pnatar wrapper
         run: |
           PNA_BIN="${GITHUB_WORKSPACE}/pna/target/release/pna"
-          printf '#!/bin/sh\nexec "%s" experimental stdio --unstable "$@"\n' "$PNA_BIN" > /usr/local/bin/pnatar
+          printf '#!/bin/sh\nexec "%s" --log-level error experimental stdio --unstable "$@"\n' "$PNA_BIN" > /usr/local/bin/pnatar
           chmod +x /usr/local/bin/pnatar
 
       - name: Run bsdtar_test with pnatar

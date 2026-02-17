@@ -2,7 +2,7 @@
 
 load '../test_helper.bash'
 
-EXECUTABLE="pna experimental stdio --unstable --keep-dir --overwrite"
+EXECUTABLE="pna --log-level error experimental stdio --unstable --keep-dir --overwrite"
 
 assert_is_symlink_with_target() {
   local link=$1
