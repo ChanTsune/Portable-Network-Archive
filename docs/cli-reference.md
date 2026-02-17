@@ -115,12 +115,18 @@ Portable-Network-Archive cli
 
 ###### **Options:**
 
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -274,12 +280,18 @@ Create archive
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read password from specified file
 * `-f`, `--file <FILE>` — Archive file path
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -422,12 +434,18 @@ Append files to archive
 * `--argon2 <PARAMS>` — Use argon2 for password hashing
 * `--pbkdf2 <PARAMS>` — Use pbkdf2 for password hashing
 * `-f`, `--file <FILE>` — Archive file path
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -560,12 +578,18 @@ Extract files from archive
 
   Default value: `false`
 * `-f`, `--file <FILE>` — Archive file path
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -664,12 +688,18 @@ List files in archive
 * `--password-file <FILE>` — Read password from specified file
 * `-f`, `--file <FILE>` — Archive file path
 * `--help` — Print help
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -717,12 +747,18 @@ Delete entry from archive
 
   Default value: `false`
 * `-f`, `--file <ARCHIVE>`
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -757,12 +793,18 @@ Split archive
 
   Default value: `false`
 * `--max-size <size>` — Maximum size in bytes of split archive (minimum 64B)
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -795,12 +837,18 @@ Concat archives
 
   Default value: `false`
 * `-f`, `--files <FILES>` — Archive files to concatenate
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -850,12 +898,18 @@ Strip entries metadata
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read password from specified file
 * `-f`, `--file <FILE>` — Archive file path
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -884,12 +938,18 @@ Sort entries in archive
   Default value: `name`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read password from specified file
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -918,12 +978,18 @@ Manipulate extended attributes
 
 ###### **Options:**
 
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -962,12 +1028,18 @@ Get extended attributes of entries
 
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read password from specified file
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -1007,12 +1079,18 @@ Set extended attributes of entries
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read password from specified file
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -1079,12 +1157,18 @@ Generate shell auto complete
 
 ###### **Options:**
 
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -1106,12 +1190,18 @@ Generate bug report template
 
 ###### **Options:**
 
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -1148,12 +1238,18 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 ###### **Options:**
 
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -1371,9 +1467,15 @@ bsdtar-like CLI semantics for PNA archives
   Default value: `false`
 * `--version` — Print version
 * `-h`, `--help` — Print help
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -1421,12 +1523,18 @@ Delete entry from archive
 
   Default value: `false`
 * `-f`, `--file <ARCHIVE>`
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -1575,12 +1683,18 @@ Update entries in archive
 * `--sync` — Synchronize archive with source: remove entries for files that no longer exist in the source
 
   Default value: `false`
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -1625,12 +1739,18 @@ Change owner
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read password from specified file
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -1666,12 +1786,18 @@ Change mode
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read password from specified file
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -1700,12 +1826,18 @@ Manipulate ACLs of entries
 
 ###### **Options:**
 
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -1738,12 +1870,18 @@ Get acl of entries
 * `-f`, `--file <ARCHIVE>`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read password from specified file
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -1785,12 +1923,18 @@ Set acl of entries
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read password from specified file
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -1860,12 +2004,18 @@ Migrate old format to latest format
 * `--password-file <FILE>` — Read password from specified file
 * `-f`, `--file <ARCHIVE>`
 * `--output <OUTPUT>` — Output file path
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -1893,12 +2043,18 @@ Chunk level operation
 
 ###### **Options:**
 
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -1928,12 +2084,18 @@ List chunks
   Default value: `false`
 * `-f`, `--file <ARCHIVE>`
 * `--help` — Print help
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -1990,12 +2152,18 @@ Sort entries in archive (stabilized, use `pna sort` command instead. this comman
   Default value: `name`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read password from specified file
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
@@ -2027,12 +2195,18 @@ Compare archive entries with filesystem
 * `--full-compare` — Compare directory mtime and ownership (by default, only mode is compared for directories)
 
   Default value: `false`
-* `--quiet` — Make some output more quiet
+* `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
-* `--verbose` — Make some output more verbose
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
 
   Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
 * `--color <WHEN>` — Control color output
 
   Default value: `auto`
