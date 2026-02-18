@@ -650,6 +650,15 @@ where
                         }
                         return Ok(ProcessAction::Continue);
                     }
+                    if item.header().data_kind() == DataKind::Directory {
+                        extract_entry(item, &name, password, &args).map_err(|e| {
+                            io::Error::new(e.kind(), format!("extracting {item_path}: {e}"))
+                        })?;
+                        if globs.all_matched() {
+                            return Ok(ProcessAction::Stop);
+                        }
+                        return Ok(ProcessAction::Continue);
+                    }
                     let path = build_output_path(args.out_dir.as_deref(), name.as_path());
                     let ticket = args.ordered_path_locks.register(&path);
                     let tx = tx.clone();
@@ -688,6 +697,13 @@ where
                         DataKind::SymbolicLink | DataKind::HardLink
                     ) {
                         link_entries.push((name, item));
+                        return Ok(());
+                    }
+                    if item.header().data_kind() == DataKind::Directory {
+                        let item_path = item.name().to_string();
+                        extract_entry(item, &name, password, &args).map_err(|e| {
+                            io::Error::new(e.kind(), format!("extracting {item_path}: {e}"))
+                        })?;
                         return Ok(());
                     }
                     let path = build_output_path(args.out_dir.as_deref(), name.as_path());
@@ -844,6 +860,15 @@ where
                     }
                     return Ok(ProcessAction::Continue);
                 }
+                if item.header().data_kind() == DataKind::Directory {
+                    extract_entry(item, &name, password, &args).map_err(|e| {
+                        io::Error::new(e.kind(), format!("extracting {item_path}: {e}"))
+                    })?;
+                    if globs.all_matched() {
+                        return Ok(ProcessAction::Stop);
+                    }
+                    return Ok(ProcessAction::Continue);
+                }
                 let path = build_output_path(args.out_dir.as_deref(), name.as_path());
                 let ticket = args.ordered_path_locks.register(&path);
                 let tx = tx.clone();
@@ -882,6 +907,13 @@ where
                     DataKind::SymbolicLink | DataKind::HardLink
                 ) {
                     link_entries.push((name, item.into()));
+                    return Ok(());
+                }
+                if item.header().data_kind() == DataKind::Directory {
+                    let item_path = item.name().to_string();
+                    extract_entry(item, &name, password, &args).map_err(|e| {
+                        io::Error::new(e.kind(), format!("extracting {item_path}: {e}"))
+                    })?;
                     return Ok(());
                 }
                 let path = build_output_path(args.out_dir.as_deref(), name.as_path());
@@ -1605,6 +1637,12 @@ fn ensure_directory_components(
                     && fs::metadata(&current).is_ok_and(|m| m.is_dir())
                 {
                     continue;
+                }
+                if secure_symlinks && meta.is_symlink() && !unlink_first {
+                    return Err(io::Error::other(format!(
+                        "Cannot extract through symlink {}",
+                        current.display()
+                    )));
                 }
                 if unlink_first {
                     utils::fs::remove_path_all(&current)?;
