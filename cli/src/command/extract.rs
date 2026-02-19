@@ -1070,14 +1070,14 @@ where
                     format!("{} already exists", path.display()),
                 ));
             }
-            OverwriteStrategy::KeepOlder => {
+            OverwriteStrategy::KeepOlder if !unlink_first => {
                 log::debug!(
                     "Skipped extracting {}: existing one kept by --keep-older",
                     path.display()
                 );
                 return Ok(ExtractionDecision::Skip);
             }
-            OverwriteStrategy::KeepNewer => {
+            OverwriteStrategy::KeepNewer if !unlink_first => {
                 if is_existing_newer(existing, item) {
                     log::debug!(
                         "Skipped extracting {}: newer one already exists (--keep-newer)",
@@ -1086,7 +1086,7 @@ where
                     return Ok(ExtractionDecision::Skip);
                 }
             }
-            OverwriteStrategy::Always | OverwriteStrategy::Never => (),
+            _ => (),
         }
     }
 
