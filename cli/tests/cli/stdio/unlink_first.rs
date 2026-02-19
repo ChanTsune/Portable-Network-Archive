@@ -260,3 +260,79 @@ fn unlink_first_with_keep_newer_files_replaces_newer_file() {
         "from_archive",
     );
 }
+
+/// Precondition: Intermediate directory is a symlink to a real directory.
+/// Action: Extract with `-P -U` (follow-symlinks + unlink-first).
+/// Expectation: The symlink is preserved and the file is written through it
+///              (bsdtar compat: -U skips unlink for directory entries when -P follows symlinks).
+#[test]
+fn unlink_first_with_follow_symlinks_preserves_symlinked_directory() {
+    setup();
+
+    let root = PathBuf::from("stdio_unlink_first_follow_PU");
+    let archive_path = root.join("archive.pna");
+    // Archive with explicit directory entry + file entry (matches bsdtar archive layout)
+    {
+        if let Some(parent) = archive_path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        let file = fs::File::create(&archive_path).unwrap();
+        let mut writer = Archive::write_header(file).unwrap();
+        writer
+            .add_entry(EntryBuilder::new_dir("dir".into()).build().unwrap())
+            .unwrap();
+        writer
+            .add_entry({
+                let mut builder =
+                    EntryBuilder::new_file("dir/file.txt".into(), WriteOptions::builder().build())
+                        .unwrap();
+                builder.write_all(b"payload").unwrap();
+                builder.build().unwrap()
+            })
+            .unwrap();
+        writer.finalize().unwrap();
+    }
+
+    let dist = root.join("dist");
+    fs::create_dir_all(&dist).unwrap();
+    let real_dir = dist.join("real_dir");
+    fs::create_dir_all(&real_dir).unwrap();
+
+    let link_dir = dist.join("dir");
+    if link_dir.symlink_metadata().is_ok() {
+        pna_fs::remove_path_all(&link_dir).unwrap();
+    }
+    pna_fs::symlink("real_dir", &link_dir).unwrap();
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "experimental",
+            "stdio",
+            "--extract",
+            "--unstable",
+            "--overwrite",
+            "--unlink-first",
+            "--absolute-paths",
+            "--file",
+            archive_path.to_str().unwrap(),
+            "--out-dir",
+            dist.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    // Symlink should be preserved (not replaced with a real directory)
+    assert!(
+        fs::symlink_metadata(&link_dir)
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+        "dir should still be a symlink"
+    );
+    // File should be written through the symlink into real_dir
+    assert_eq!(
+        fs::read_to_string(real_dir.join("file.txt")).unwrap(),
+        "payload"
+    );
+}

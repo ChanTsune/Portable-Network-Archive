@@ -1093,7 +1093,16 @@ where
     // Determine what cleanup is needed
     let (had_existing, existing_is_dir) = metadata
         .as_ref()
-        .map(|meta| (true, meta.is_dir()))
+        .map(|meta| {
+            // When -P is active and the existing item is a symlink, follow it to check
+            // if the target is a directory (matches bsdtar's stat()-based check).
+            let is_dir = if !secure_symlinks && meta.is_symlink() {
+                fs::metadata(path).is_ok_and(|m| m.is_dir())
+            } else {
+                meta.is_dir()
+            };
+            (true, is_dir)
+        })
         .unwrap_or((false, false));
     let unlink_existing =
         unlink_first && had_existing && (entry_kind != DataKind::Directory || !existing_is_dir);
