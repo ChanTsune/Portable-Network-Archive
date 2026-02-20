@@ -834,6 +834,10 @@ mod tests {
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf).unwrap();
         assert_eq!(b"abcdefghijklmnopqrstuvwxyz", &buf[..]);
+        assert!(
+            solid_entry.data.len() > 1,
+            "Data should be split into multiple chunks"
+        );
     }
 
     #[test]
