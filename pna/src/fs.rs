@@ -28,7 +28,19 @@ pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Resu
     }
     #[cfg(windows)]
     fn inner(original: &Path, link: &Path) -> io::Result<()> {
-        if original.is_dir() {
+        use std::borrow::Cow;
+        // Symlink targets are resolved relative to the link's parent directory,
+        // not the current working directory. Resolve before checking is_dir()
+        // so that relative targets pick the correct symlink type.
+        let is_dir = if original.is_relative() {
+            link.parent()
+                .map(|p| Cow::Owned(p.join(original)))
+                .unwrap_or(Cow::Borrowed(original))
+                .is_dir()
+        } else {
+            original.is_dir()
+        };
+        if is_dir {
             os::windows::fs::symlink_dir(original, link)
         } else {
             os::windows::fs::symlink_file(original, link)
