@@ -98,7 +98,7 @@ impl<T> Archive<T> {
     /// **Note**: This setting only affects the streaming write path
     /// ([`write_file()`](Archive::write_file)). Pre-built entries added via
     /// [`add_entry()`](Archive::add_entry) use their own chunk size configured
-    /// through [`EntryBuilder::max_chunk_size()`].
+    /// through [`EntryBuilder::max_chunk_size()`](crate::EntryBuilder::max_chunk_size).
     ///
     #[inline]
     pub fn set_max_chunk_size(&mut self, size: NonZeroU32) {
