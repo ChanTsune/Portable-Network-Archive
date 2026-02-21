@@ -99,11 +99,30 @@ impl OverwriteMode {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Substitution {
+    label: &'static str,
+    pattern: &'static str,
+}
+
+const SUBSTITUTIONS: &[Option<Substitution>] = &[
+    None,
+    Some(Substitution {
+        label: "s_lit",
+        pattern: "/target/subst_target/",
+    }),
+    Some(Substitution {
+        label: "s_re",
+        pattern: "/t[aeiou]rget/subst_target/",
+    }),
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ExtractOptions {
     overwrite_mode: OverwriteMode,
     unlink_first: bool,
     absolute_paths: bool,
     safe_writes: bool,
+    substitution: Option<Substitution>,
 }
 
 // ---------------------------------------------------------------------------
@@ -150,6 +169,10 @@ fn build_scenario_name(
     if opts.safe_writes {
         name.push_str("_safe");
     }
+    if let Some(subst) = opts.substitution {
+        name.push('_');
+        name.push_str(subst.label);
+    }
     match mtime {
         MtimeRelation::Irrelevant => {}
         MtimeRelation::ArchiveNewer => name.push_str("_arc_newer"),
@@ -167,30 +190,33 @@ fn generate_scenarios() -> Vec<GeneratedScenario> {
                 for unlink in [false, true] {
                     for abs_paths in [false, true] {
                         for safe_writes in [false, true] {
-                            let options = ExtractOptions {
-                                overwrite_mode: ow_mode,
-                                unlink_first: unlink,
-                                absolute_paths: abs_paths,
-                                safe_writes,
-                            };
+                            for substitution in SUBSTITUTIONS {
+                                let options = ExtractOptions {
+                                    overwrite_mode: ow_mode,
+                                    unlink_first: unlink,
+                                    absolute_paths: abs_paths,
+                                    safe_writes,
+                                    substitution: *substitution,
+                                };
 
-                            let mtime_variants = if ow_mode == OverwriteMode::KeepNewerFiles
-                                && pre != PreExisting::None
-                            {
-                                &[MtimeRelation::ArchiveNewer, MtimeRelation::ArchiveOlder][..]
-                            } else {
-                                &[MtimeRelation::Irrelevant][..]
-                            };
+                                let mtime_variants = if ow_mode == OverwriteMode::KeepNewerFiles
+                                    && pre != PreExisting::None
+                                {
+                                    &[MtimeRelation::ArchiveNewer, MtimeRelation::ArchiveOlder][..]
+                                } else {
+                                    &[MtimeRelation::Irrelevant][..]
+                                };
 
-                            for &mtime_rel in mtime_variants {
-                                let name = build_scenario_name(pre, entry, &options, mtime_rel);
-                                scenarios.push(GeneratedScenario {
-                                    name,
-                                    pre_existing: pre,
-                                    entry_type: entry,
-                                    options,
-                                    mtime_relation: mtime_rel,
-                                });
+                                for &mtime_rel in mtime_variants {
+                                    let name = build_scenario_name(pre, entry, &options, mtime_rel);
+                                    scenarios.push(GeneratedScenario {
+                                        name,
+                                        pre_existing: pre,
+                                        entry_type: entry,
+                                        options,
+                                        mtime_relation: mtime_rel,
+                                    });
+                                }
                             }
                         }
                     }
@@ -422,6 +448,10 @@ fn make_extract_args(opts: &ExtractOptions) -> Vec<&'static str> {
     }
     if opts.safe_writes {
         args.push("--safe-writes");
+    }
+    if let Some(subst) = opts.substitution {
+        args.push("-s");
+        args.push(subst.pattern);
     }
     args
 }
