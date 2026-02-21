@@ -6,7 +6,186 @@ use std::process::Command;
 use std::time::{Duration, SystemTime};
 use std::{fs, io};
 
-pub enum FileSpec {
+// ---------------------------------------------------------------------------
+// Axis 1: Pre-existing filesystem state at extraction target
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PreExisting {
+    None,
+    RegularFile,
+    Directory,
+    SymlinkToFile,
+    SymlinkToDir,
+}
+
+impl PreExisting {
+    const ALL: &[Self] = &[
+        Self::None,
+        Self::RegularFile,
+        Self::Directory,
+        Self::SymlinkToFile,
+        Self::SymlinkToDir,
+    ];
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::None => "None",
+            Self::RegularFile => "File",
+            Self::Directory => "Dir",
+            Self::SymlinkToFile => "SymFile",
+            Self::SymlinkToDir => "SymDir",
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Axis 2: Archive entry type being extracted
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ArchiveEntryType {
+    File,
+    Directory,
+    Symlink,
+}
+
+impl ArchiveEntryType {
+    const ALL: &[Self] = &[Self::File, Self::Directory, Self::Symlink];
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::File => "File",
+            Self::Directory => "Dir",
+            Self::Symlink => "Sym",
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Axis 3: Extract options
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OverwriteMode {
+    Default,
+    KeepOldFiles,
+    KeepNewerFiles,
+}
+
+impl OverwriteMode {
+    const ALL: &[Self] = &[Self::Default, Self::KeepOldFiles, Self::KeepNewerFiles];
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Default => "ow",
+            Self::KeepOldFiles => "keep_old",
+            Self::KeepNewerFiles => "keep_newer",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ExtractOptions {
+    overwrite_mode: OverwriteMode,
+    unlink_first: bool,
+    absolute_paths: bool,
+}
+
+// ---------------------------------------------------------------------------
+// Sub-axis: mtime relationship (only for KeepNewerFiles + pre-existing)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MtimeRelation {
+    Irrelevant,
+    ArchiveNewer,
+    ArchiveOlder,
+}
+
+// ---------------------------------------------------------------------------
+// Generated scenario
+// ---------------------------------------------------------------------------
+
+struct GeneratedScenario {
+    name: String,
+    pre_existing: PreExisting,
+    entry_type: ArchiveEntryType,
+    options: ExtractOptions,
+    mtime_relation: MtimeRelation,
+}
+
+fn build_scenario_name(
+    pre: PreExisting,
+    entry: ArchiveEntryType,
+    opts: &ExtractOptions,
+    mtime: MtimeRelation,
+) -> String {
+    let mut name = format!(
+        "{}_over_{}_{}",
+        entry.label(),
+        pre.label(),
+        opts.overwrite_mode.label()
+    );
+    if opts.unlink_first {
+        name.push_str("_U");
+    }
+    if opts.absolute_paths {
+        name.push_str("_P");
+    }
+    match mtime {
+        MtimeRelation::Irrelevant => {}
+        MtimeRelation::ArchiveNewer => name.push_str("_arc_newer"),
+        MtimeRelation::ArchiveOlder => name.push_str("_arc_older"),
+    }
+    name
+}
+
+fn generate_scenarios() -> Vec<GeneratedScenario> {
+    let mut scenarios = Vec::new();
+
+    for &pre in PreExisting::ALL {
+        for &entry in ArchiveEntryType::ALL {
+            for &ow_mode in OverwriteMode::ALL {
+                for unlink in [false, true] {
+                    for abs_paths in [false, true] {
+                        let options = ExtractOptions {
+                            overwrite_mode: ow_mode,
+                            unlink_first: unlink,
+                            absolute_paths: abs_paths,
+                        };
+
+                        let mtime_variants = if ow_mode == OverwriteMode::KeepNewerFiles
+                            && pre != PreExisting::None
+                        {
+                            &[MtimeRelation::ArchiveNewer, MtimeRelation::ArchiveOlder][..]
+                        } else {
+                            &[MtimeRelation::Irrelevant][..]
+                        };
+
+                        for &mtime_rel in mtime_variants {
+                            let name = build_scenario_name(pre, entry, &options, mtime_rel);
+                            scenarios.push(GeneratedScenario {
+                                name,
+                                pre_existing: pre,
+                                entry_type: entry,
+                                options,
+                                mtime_relation: mtime_rel,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+    scenarios
+}
+
+// ---------------------------------------------------------------------------
+// Materializers: axis values → FileSpec lists
+// ---------------------------------------------------------------------------
+
+enum FileSpec {
     File {
         path: &'static str,
         contents: &'static [u8],
@@ -19,18 +198,6 @@ pub enum FileSpec {
         path: &'static str,
         target: &'static str,
     },
-    Hardlink {
-        path: &'static str,
-        target: &'static str,
-    },
-}
-
-pub struct Scenario {
-    pub name: &'static str,
-    pub source_files: &'static [FileSpec],
-    pub pre_existing: &'static [FileSpec],
-    pub create_options: &'static [&'static str],
-    pub extract_options: &'static [&'static str],
 }
 
 fn materialize(root: &Path, specs: &[FileSpec]) -> io::Result<()> {
@@ -66,17 +233,113 @@ fn materialize(root: &Path, specs: &[FileSpec]) -> io::Result<()> {
                 }
                 unix_fs::symlink(target, &full)?;
             }
-            FileSpec::Hardlink { path, target } => {
-                let full = root.join(path);
-                if let Some(parent) = full.parent() {
-                    fs::create_dir_all(parent)?;
-                }
-                fs::hard_link(root.join(target), &full)?;
-            }
         }
     }
     Ok(())
 }
+
+const ARCHIVE_MTIME: i64 = 2_000_000_000;
+const EXISTING_MTIME: i64 = 1;
+const ARCHIVE_MTIME_OLD: i64 = 1;
+const EXISTING_MTIME_NEW: i64 = 2_000_000_000;
+
+fn make_source_files(entry_type: ArchiveEntryType, mtime: MtimeRelation) -> Vec<FileSpec> {
+    let mtime_epoch = match mtime {
+        MtimeRelation::ArchiveNewer => Some(ARCHIVE_MTIME),
+        MtimeRelation::ArchiveOlder => Some(ARCHIVE_MTIME_OLD),
+        MtimeRelation::Irrelevant => None,
+    };
+
+    match entry_type {
+        ArchiveEntryType::File => vec![FileSpec::File {
+            path: "target",
+            contents: b"from_archive",
+            mtime_epoch,
+        }],
+        ArchiveEntryType::Directory => vec![
+            FileSpec::Dir { path: "target" },
+            FileSpec::File {
+                path: "target/marker.txt",
+                contents: b"inside_dir",
+                mtime_epoch: None,
+            },
+        ],
+        ArchiveEntryType::Symlink => vec![
+            FileSpec::File {
+                path: "symlink_dest",
+                contents: b"symlink_target_content",
+                mtime_epoch: None,
+            },
+            FileSpec::Symlink {
+                path: "target",
+                target: "symlink_dest",
+            },
+        ],
+    }
+}
+
+fn make_pre_existing(pre: PreExisting, mtime: MtimeRelation) -> Vec<FileSpec> {
+    let existing_mtime = match mtime {
+        MtimeRelation::ArchiveNewer => Some(EXISTING_MTIME),
+        MtimeRelation::ArchiveOlder => Some(EXISTING_MTIME_NEW),
+        MtimeRelation::Irrelevant => None,
+    };
+
+    match pre {
+        PreExisting::None => vec![],
+        PreExisting::RegularFile => vec![FileSpec::File {
+            path: "target",
+            contents: b"existing_content",
+            mtime_epoch: existing_mtime,
+        }],
+        PreExisting::Directory => vec![
+            FileSpec::Dir { path: "target" },
+            FileSpec::File {
+                path: "target/old_marker.txt",
+                contents: b"was_here",
+                mtime_epoch: None,
+            },
+        ],
+        PreExisting::SymlinkToFile => vec![
+            FileSpec::File {
+                path: "real_file",
+                contents: b"real_file_content",
+                mtime_epoch: existing_mtime,
+            },
+            FileSpec::Symlink {
+                path: "target",
+                target: "real_file",
+            },
+        ],
+        PreExisting::SymlinkToDir => vec![
+            FileSpec::Dir { path: "real_dir" },
+            FileSpec::Symlink {
+                path: "target",
+                target: "real_dir",
+            },
+        ],
+    }
+}
+
+fn make_extract_args(opts: &ExtractOptions) -> Vec<&'static str> {
+    let mut args = Vec::new();
+    match opts.overwrite_mode {
+        OverwriteMode::Default => {}
+        OverwriteMode::KeepOldFiles => args.push("-k"),
+        OverwriteMode::KeepNewerFiles => args.push("--keep-newer-files"),
+    }
+    if opts.unlink_first {
+        args.push("-U");
+    }
+    if opts.absolute_paths {
+        args.push("-P");
+    }
+    args
+}
+
+// ---------------------------------------------------------------------------
+// Snapshot infrastructure (kept from original)
+// ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum FsEntry {
@@ -156,6 +419,10 @@ fn compare_snapshots(bsdtar: &FsSnapshot, pna: &FsSnapshot) -> Vec<Diff> {
     diffs
 }
 
+// ---------------------------------------------------------------------------
+// Command execution
+// ---------------------------------------------------------------------------
+
 fn run_cmd(cmd: &mut Command) -> Result<(), Box<dyn std::error::Error>> {
     let output = cmd.output()?;
     if !output.status.success() {
@@ -163,6 +430,17 @@ fn run_cmd(cmd: &mut Command) -> Result<(), Box<dyn std::error::Error>> {
         return Err(format!("command failed: {:?}\nstderr: {stderr}", cmd.get_program()).into());
     }
     Ok(())
+}
+
+struct CmdResult {
+    success: bool,
+}
+
+fn run_cmd_capture(cmd: &mut Command) -> io::Result<CmdResult> {
+    let output = cmd.output()?;
+    Ok(CmdResult {
+        success: output.status.success(),
+    })
 }
 
 fn find_pna_binary() -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -179,18 +457,33 @@ fn find_pna_binary() -> Result<PathBuf, Box<dyn std::error::Error>> {
     Ok(fs::canonicalize(path)?)
 }
 
-fn check_bsdtar() -> Result<(), Box<dyn std::error::Error>> {
-    Command::new("bsdtar")
+fn check_bsdtar(bsdtar_bin: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    Command::new(bsdtar_bin)
         .arg("--version")
         .output()
-        .map_err(|_| "bsdtar not found in PATH. Install libarchive.")?;
+        .map_err(|_| format!("{} not found in PATH", bsdtar_bin.display()))?;
     Ok(())
 }
 
+// ---------------------------------------------------------------------------
+// Scenario runner
+// ---------------------------------------------------------------------------
+
+enum ScenarioResult {
+    Pass,
+    Fail(Vec<Diff>),
+    ExitMismatch { bsdtar_ok: bool, pna_ok: bool },
+}
+
 fn run_scenario(
-    scenario: &Scenario,
+    scenario: &GeneratedScenario,
+    bsdtar_bin: &Path,
     pna_bin: &Path,
-) -> Result<Vec<Diff>, Box<dyn std::error::Error>> {
+) -> Result<ScenarioResult, Box<dyn std::error::Error>> {
+    let source_files = make_source_files(scenario.entry_type, scenario.mtime_relation);
+    let pre_existing = make_pre_existing(scenario.pre_existing, scenario.mtime_relation);
+    let extract_args = make_extract_args(&scenario.options);
+
     let work = tempfile::tempdir()?;
     let work = work.path();
 
@@ -201,23 +494,24 @@ fn run_scenario(
     fs::create_dir_all(&bsdtar_src)?;
     fs::create_dir_all(&bsdtar_dst)?;
 
-    materialize(&bsdtar_src, scenario.source_files)?;
-    materialize(&bsdtar_dst, scenario.pre_existing)?;
+    materialize(&bsdtar_src, &source_files)?;
+    materialize(&bsdtar_dst, &pre_existing)?;
 
-    let mut cmd = Command::new("bsdtar");
-    cmd.args(["-cf", bsdtar_archive.to_str().unwrap()])
-        .args(scenario.create_options)
-        .arg("-C")
-        .arg(&bsdtar_src)
-        .arg(".");
-    run_cmd(&mut cmd)?;
+    run_cmd(
+        Command::new(bsdtar_bin)
+            .args(["-cf", bsdtar_archive.to_str().unwrap()])
+            .arg("-C")
+            .arg(&bsdtar_src)
+            .arg("."),
+    )?;
 
-    let mut cmd = Command::new("bsdtar");
-    cmd.args(["-xf", bsdtar_archive.to_str().unwrap()])
-        .args(scenario.extract_options)
-        .arg("-C")
-        .arg(&bsdtar_dst);
-    run_cmd(&mut cmd)?;
+    let bsdtar_result = run_cmd_capture(
+        Command::new(bsdtar_bin)
+            .args(["-xf", bsdtar_archive.to_str().unwrap()])
+            .args(&extract_args)
+            .arg("-C")
+            .arg(&bsdtar_dst),
+    )?;
 
     let bsdtar_snap = FsSnapshot::capture(&bsdtar_dst)?;
 
@@ -228,240 +522,91 @@ fn run_scenario(
     fs::create_dir_all(&pna_src)?;
     fs::create_dir_all(&pna_dst)?;
 
-    materialize(&pna_src, scenario.source_files)?;
-    materialize(&pna_dst, scenario.pre_existing)?;
+    materialize(&pna_src, &source_files)?;
+    materialize(&pna_dst, &pre_existing)?;
 
-    let mut cmd = Command::new(pna_bin);
-    cmd.args(["experimental", "stdio", "--unstable"])
-        .args(["-cf", pna_archive.to_str().unwrap()])
-        .args(scenario.create_options)
-        .arg("-C")
-        .arg(&pna_src)
-        .arg(".");
-    run_cmd(&mut cmd)?;
+    run_cmd(
+        Command::new(pna_bin)
+            .args(["experimental", "stdio", "--unstable"])
+            .args(["-cf", pna_archive.to_str().unwrap()])
+            .arg("-C")
+            .arg(&pna_src)
+            .arg("."),
+    )?;
 
-    let mut cmd = Command::new(pna_bin);
-    cmd.args(["experimental", "stdio", "--unstable"])
-        .args(["-xf", pna_archive.to_str().unwrap()])
-        .args(scenario.extract_options)
-        .arg("-C")
-        .arg(&pna_dst);
-    run_cmd(&mut cmd)?;
+    let pna_result = run_cmd_capture(
+        Command::new(pna_bin)
+            .args(["experimental", "stdio", "--unstable"])
+            .args(["-xf", pna_archive.to_str().unwrap()])
+            .args(&extract_args)
+            .arg("-C")
+            .arg(&pna_dst),
+    )?;
 
     let pna_snap = FsSnapshot::capture(&pna_dst)?;
 
-    Ok(compare_snapshots(&bsdtar_snap, &pna_snap))
+    // --- Compare ---
+    if bsdtar_result.success != pna_result.success {
+        return Ok(ScenarioResult::ExitMismatch {
+            bsdtar_ok: bsdtar_result.success,
+            pna_ok: pna_result.success,
+        });
+    }
+
+    let diffs = compare_snapshots(&bsdtar_snap, &pna_snap);
+    if diffs.is_empty() {
+        Ok(ScenarioResult::Pass)
+    } else {
+        Ok(ScenarioResult::Fail(diffs))
+    }
 }
 
-static SCENARIOS: &[Scenario] = &[
-    Scenario {
-        name: "baseline",
-        source_files: &[
-            FileSpec::File {
-                path: "file.txt",
-                contents: b"hello",
-                mtime_epoch: None,
-            },
-            FileSpec::Dir { path: "dir" },
-            FileSpec::File {
-                path: "dir/nested.txt",
-                contents: b"nested",
-                mtime_epoch: None,
-            },
-        ],
-        pre_existing: &[],
-        create_options: &[],
-        extract_options: &[],
-    },
-    Scenario {
-        name: "existing_file_overwrite",
-        source_files: &[FileSpec::File {
-            path: "file.txt",
-            contents: b"from_archive",
-            mtime_epoch: None,
-        }],
-        pre_existing: &[FileSpec::File {
-            path: "file.txt",
-            contents: b"existing",
-            mtime_epoch: None,
-        }],
-        create_options: &[],
-        extract_options: &[],
-    },
-    Scenario {
-        name: "unlink_basic",
-        source_files: &[FileSpec::File {
-            path: "file.txt",
-            contents: b"from_archive",
-            mtime_epoch: None,
-        }],
-        pre_existing: &[FileSpec::File {
-            path: "file.txt",
-            contents: b"existing",
-            mtime_epoch: None,
-        }],
-        create_options: &[],
-        extract_options: &["-U"],
-    },
-    Scenario {
-        name: "unlink_symlink_file",
-        source_files: &[FileSpec::File {
-            path: "file.txt",
-            contents: b"from_archive",
-            mtime_epoch: None,
-        }],
-        pre_existing: &[FileSpec::Symlink {
-            path: "file.txt",
-            target: "/dev/null",
-        }],
-        create_options: &[],
-        extract_options: &["-U"],
-    },
-    Scenario {
-        name: "unlink_symlink_parent",
-        source_files: &[FileSpec::File {
-            path: "dir/file.txt",
-            contents: b"payload",
-            mtime_epoch: None,
-        }],
-        pre_existing: &[FileSpec::Symlink {
-            path: "dir",
-            target: "/tmp",
-        }],
-        create_options: &[],
-        extract_options: &["-U"],
-    },
-    Scenario {
-        name: "unlink_keep_old",
-        source_files: &[FileSpec::File {
-            path: "file.txt",
-            contents: b"from_archive",
-            mtime_epoch: None,
-        }],
-        pre_existing: &[FileSpec::File {
-            path: "file.txt",
-            contents: b"existing",
-            mtime_epoch: None,
-        }],
-        create_options: &[],
-        extract_options: &["-U", "-k"],
-    },
-    Scenario {
-        name: "unlink_keep_newer",
-        source_files: &[FileSpec::File {
-            path: "file.txt",
-            contents: b"from_archive",
-            mtime_epoch: Some(1),
-        }],
-        pre_existing: &[FileSpec::File {
-            path: "file.txt",
-            contents: b"newer_on_disk",
-            mtime_epoch: Some(2000000000),
-        }],
-        create_options: &[],
-        extract_options: &["-U", "--keep-newer-files"],
-    },
-    Scenario {
-        name: "keep_old_without_unlink",
-        source_files: &[FileSpec::File {
-            path: "file.txt",
-            contents: b"from_archive",
-            mtime_epoch: None,
-        }],
-        pre_existing: &[FileSpec::File {
-            path: "file.txt",
-            contents: b"existing",
-            mtime_epoch: None,
-        }],
-        create_options: &[],
-        extract_options: &["-k"],
-    },
-    Scenario {
-        name: "keep_newer_preserves",
-        source_files: &[FileSpec::File {
-            path: "file.txt",
-            contents: b"from_archive",
-            mtime_epoch: Some(1),
-        }],
-        pre_existing: &[FileSpec::File {
-            path: "file.txt",
-            contents: b"newer_on_disk",
-            mtime_epoch: Some(2000000000),
-        }],
-        create_options: &[],
-        extract_options: &["--keep-newer-files"],
-    },
-    Scenario {
-        name: "keep_newer_overwrites",
-        source_files: &[FileSpec::File {
-            path: "file.txt",
-            contents: b"from_archive",
-            mtime_epoch: Some(2000000000),
-        }],
-        pre_existing: &[FileSpec::File {
-            path: "file.txt",
-            contents: b"old_on_disk",
-            mtime_epoch: Some(1),
-        }],
-        create_options: &[],
-        extract_options: &["--keep-newer-files"],
-    },
-    Scenario {
-        name: "follow_symlink_P",
-        source_files: &[FileSpec::File {
-            path: "dir/file.txt",
-            contents: b"payload",
-            mtime_epoch: None,
-        }],
-        pre_existing: &[
-            FileSpec::Dir { path: "real_dir" },
-            FileSpec::Symlink {
-                path: "dir",
-                target: "real_dir",
-            },
-        ],
-        create_options: &[],
-        extract_options: &["-P"],
-    },
-    Scenario {
-        name: "unlink_follow_PU",
-        source_files: &[FileSpec::File {
-            path: "dir/file.txt",
-            contents: b"payload",
-            mtime_epoch: None,
-        }],
-        pre_existing: &[
-            FileSpec::Dir { path: "real_dir" },
-            FileSpec::Symlink {
-                path: "dir",
-                target: "real_dir",
-            },
-        ],
-        create_options: &[],
-        extract_options: &["-P", "-U"],
-    },
-];
+// ---------------------------------------------------------------------------
+// CLI entry point
+// ---------------------------------------------------------------------------
 
 #[derive(Parser)]
-pub struct BsdtarCompatArgs {}
+pub struct BsdtarCompatArgs {
+    /// Path to a bsdtar-compatible binary to use as the reference oracle
+    #[arg(long, default_value = "bsdtar")]
+    pub bsdtar: PathBuf,
 
-pub fn run(_args: BsdtarCompatArgs) -> Result<(), Box<dyn std::error::Error>> {
-    check_bsdtar()?;
+    /// Run only scenarios whose names contain this substring
+    #[arg(long)]
+    pub filter: Option<String>,
+}
+
+pub fn run(args: BsdtarCompatArgs) -> Result<(), Box<dyn std::error::Error>> {
+    let bsdtar_bin = &args.bsdtar;
+    check_bsdtar(bsdtar_bin)?;
     let pna_bin = find_pna_binary()?;
 
-    let total = SCENARIOS.len();
-    eprintln!("bsdtar-compat: running {total} scenarios");
+    let all_scenarios = generate_scenarios();
+    let scenarios: Vec<_> = match &args.filter {
+        Some(pattern) => all_scenarios
+            .iter()
+            .filter(|s| s.name.contains(pattern.as_str()))
+            .collect(),
+        None => all_scenarios.iter().collect(),
+    };
 
-    let mut passed = 0;
-    let mut failed = 0;
+    let total = scenarios.len();
+    eprintln!(
+        "bsdtar-compat: running {total} scenarios (of {} total)",
+        all_scenarios.len()
+    );
 
-    for scenario in SCENARIOS {
-        match run_scenario(scenario, &pna_bin) {
-            Ok(diffs) if diffs.is_empty() => {
+    let mut passed = 0usize;
+    let mut failed = 0usize;
+    let mut errors = 0usize;
+
+    for scenario in &scenarios {
+        match run_scenario(scenario, bsdtar_bin, &pna_bin) {
+            Ok(ScenarioResult::Pass) => {
                 eprintln!("[PASS] {}", scenario.name);
                 passed += 1;
             }
-            Ok(diffs) => {
+            Ok(ScenarioResult::Fail(diffs)) => {
                 eprintln!("[FAIL] {}", scenario.name);
                 for diff in &diffs {
                     eprintln!("  diff at {}:", diff.path.display());
@@ -476,17 +621,26 @@ pub fn run(_args: BsdtarCompatArgs) -> Result<(), Box<dyn std::error::Error>> {
                 }
                 failed += 1;
             }
+            Ok(ScenarioResult::ExitMismatch { bsdtar_ok, pna_ok }) => {
+                eprintln!(
+                    "[FAIL] {} (exit mismatch: bsdtar={}, pna={})",
+                    scenario.name,
+                    if bsdtar_ok { "ok" } else { "error" },
+                    if pna_ok { "ok" } else { "error" },
+                );
+                failed += 1;
+            }
             Err(e) => {
                 eprintln!("[ERROR] {}: {e}", scenario.name);
-                failed += 1;
+                errors += 1;
             }
         }
     }
 
     eprintln!("---");
-    eprintln!("{total} scenarios: {passed} passed, {failed} failed");
+    eprintln!("{total} scenarios: {passed} passed, {failed} failed, {errors} errors");
 
-    if failed > 0 {
+    if failed > 0 || errors > 0 {
         std::process::exit(1);
     }
     Ok(())
