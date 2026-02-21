@@ -52,10 +52,17 @@ enum ArchiveEntryType {
     Directory,
     Symlink,
     HardLink,
+    MultiFiles,
 }
 
 impl ArchiveEntryType {
-    const ALL: &[Self] = &[Self::File, Self::Directory, Self::Symlink, Self::HardLink];
+    const ALL: &[Self] = &[
+        Self::File,
+        Self::Directory,
+        Self::Symlink,
+        Self::HardLink,
+        Self::MultiFiles,
+    ];
 
     fn label(self) -> &'static str {
         match self {
@@ -63,6 +70,7 @@ impl ArchiveEntryType {
             Self::Directory => "Dir",
             Self::Symlink => "Sym",
             Self::HardLink => "HLink",
+            Self::MultiFiles => "Multi",
         }
     }
 }
@@ -315,6 +323,22 @@ fn make_source_files(entry_type: ArchiveEntryType, mtime: MtimeRelation) -> Vec<
             FileSpec::HardLink {
                 path: "target",
                 original: "link_original",
+            },
+        ],
+        ArchiveEntryType::MultiFiles => vec![
+            FileSpec::File {
+                path: "target",
+                contents: b"from_archive",
+                mtime_epoch,
+            },
+            FileSpec::Dir {
+                path: "subdir",
+                mtime_epoch: None,
+            },
+            FileSpec::File {
+                path: "subdir/nested.txt",
+                contents: b"nested_content",
+                mtime_epoch: None,
             },
         ],
     }
