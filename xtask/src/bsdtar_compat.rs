@@ -253,10 +253,241 @@ fn run_scenario(
     Ok(compare_snapshots(&bsdtar_snap, &pna_snap))
 }
 
+static SCENARIOS: &[Scenario] = &[
+    Scenario {
+        name: "baseline",
+        source_files: &[
+            FileSpec::File {
+                path: "file.txt",
+                contents: b"hello",
+                mtime_epoch: None,
+            },
+            FileSpec::Dir { path: "dir" },
+            FileSpec::File {
+                path: "dir/nested.txt",
+                contents: b"nested",
+                mtime_epoch: None,
+            },
+        ],
+        pre_existing: &[],
+        create_options: &[],
+        extract_options: &[],
+    },
+    Scenario {
+        name: "existing_file_overwrite",
+        source_files: &[FileSpec::File {
+            path: "file.txt",
+            contents: b"from_archive",
+            mtime_epoch: None,
+        }],
+        pre_existing: &[FileSpec::File {
+            path: "file.txt",
+            contents: b"existing",
+            mtime_epoch: None,
+        }],
+        create_options: &[],
+        extract_options: &[],
+    },
+    Scenario {
+        name: "unlink_basic",
+        source_files: &[FileSpec::File {
+            path: "file.txt",
+            contents: b"from_archive",
+            mtime_epoch: None,
+        }],
+        pre_existing: &[FileSpec::File {
+            path: "file.txt",
+            contents: b"existing",
+            mtime_epoch: None,
+        }],
+        create_options: &[],
+        extract_options: &["-U"],
+    },
+    Scenario {
+        name: "unlink_symlink_file",
+        source_files: &[FileSpec::File {
+            path: "file.txt",
+            contents: b"from_archive",
+            mtime_epoch: None,
+        }],
+        pre_existing: &[FileSpec::Symlink {
+            path: "file.txt",
+            target: "/dev/null",
+        }],
+        create_options: &[],
+        extract_options: &["-U"],
+    },
+    Scenario {
+        name: "unlink_symlink_parent",
+        source_files: &[FileSpec::File {
+            path: "dir/file.txt",
+            contents: b"payload",
+            mtime_epoch: None,
+        }],
+        pre_existing: &[FileSpec::Symlink {
+            path: "dir",
+            target: "/tmp",
+        }],
+        create_options: &[],
+        extract_options: &["-U"],
+    },
+    Scenario {
+        name: "unlink_keep_old",
+        source_files: &[FileSpec::File {
+            path: "file.txt",
+            contents: b"from_archive",
+            mtime_epoch: None,
+        }],
+        pre_existing: &[FileSpec::File {
+            path: "file.txt",
+            contents: b"existing",
+            mtime_epoch: None,
+        }],
+        create_options: &[],
+        extract_options: &["-U", "-k"],
+    },
+    Scenario {
+        name: "unlink_keep_newer",
+        source_files: &[FileSpec::File {
+            path: "file.txt",
+            contents: b"from_archive",
+            mtime_epoch: Some(1),
+        }],
+        pre_existing: &[FileSpec::File {
+            path: "file.txt",
+            contents: b"newer_on_disk",
+            mtime_epoch: Some(2000000000),
+        }],
+        create_options: &[],
+        extract_options: &["-U", "--keep-newer-files"],
+    },
+    Scenario {
+        name: "keep_old_without_unlink",
+        source_files: &[FileSpec::File {
+            path: "file.txt",
+            contents: b"from_archive",
+            mtime_epoch: None,
+        }],
+        pre_existing: &[FileSpec::File {
+            path: "file.txt",
+            contents: b"existing",
+            mtime_epoch: None,
+        }],
+        create_options: &[],
+        extract_options: &["-k"],
+    },
+    Scenario {
+        name: "keep_newer_preserves",
+        source_files: &[FileSpec::File {
+            path: "file.txt",
+            contents: b"from_archive",
+            mtime_epoch: Some(1),
+        }],
+        pre_existing: &[FileSpec::File {
+            path: "file.txt",
+            contents: b"newer_on_disk",
+            mtime_epoch: Some(2000000000),
+        }],
+        create_options: &[],
+        extract_options: &["--keep-newer-files"],
+    },
+    Scenario {
+        name: "keep_newer_overwrites",
+        source_files: &[FileSpec::File {
+            path: "file.txt",
+            contents: b"from_archive",
+            mtime_epoch: Some(2000000000),
+        }],
+        pre_existing: &[FileSpec::File {
+            path: "file.txt",
+            contents: b"old_on_disk",
+            mtime_epoch: Some(1),
+        }],
+        create_options: &[],
+        extract_options: &["--keep-newer-files"],
+    },
+    Scenario {
+        name: "follow_symlink_P",
+        source_files: &[FileSpec::File {
+            path: "dir/file.txt",
+            contents: b"payload",
+            mtime_epoch: None,
+        }],
+        pre_existing: &[
+            FileSpec::Dir { path: "real_dir" },
+            FileSpec::Symlink {
+                path: "dir",
+                target: "real_dir",
+            },
+        ],
+        create_options: &[],
+        extract_options: &["-P"],
+    },
+    Scenario {
+        name: "unlink_follow_PU",
+        source_files: &[FileSpec::File {
+            path: "dir/file.txt",
+            contents: b"payload",
+            mtime_epoch: None,
+        }],
+        pre_existing: &[
+            FileSpec::Dir { path: "real_dir" },
+            FileSpec::Symlink {
+                path: "dir",
+                target: "real_dir",
+            },
+        ],
+        create_options: &[],
+        extract_options: &["-P", "-U"],
+    },
+];
+
 #[derive(Parser)]
 pub struct BsdtarCompatArgs {}
 
 pub fn run(_args: BsdtarCompatArgs) -> Result<(), Box<dyn std::error::Error>> {
-    eprintln!("bsdtar-compat: not yet implemented");
+    check_bsdtar()?;
+    let pna_bin = find_pna_binary()?;
+
+    let total = SCENARIOS.len();
+    eprintln!("bsdtar-compat: running {total} scenarios");
+
+    let mut passed = 0;
+    let mut failed = 0;
+
+    for scenario in SCENARIOS {
+        match run_scenario(scenario, &pna_bin) {
+            Ok(diffs) if diffs.is_empty() => {
+                eprintln!("[PASS] {}", scenario.name);
+                passed += 1;
+            }
+            Ok(diffs) => {
+                eprintln!("[FAIL] {}", scenario.name);
+                for diff in &diffs {
+                    eprintln!("  diff at {}:", diff.path.display());
+                    match &diff.bsdtar {
+                        Some(e) => eprintln!("    bsdtar: {e}"),
+                        None => eprintln!("    bsdtar: (absent)"),
+                    }
+                    match &diff.pna {
+                        Some(e) => eprintln!("    pna:    {e}"),
+                        None => eprintln!("    pna:    (absent)"),
+                    }
+                }
+                failed += 1;
+            }
+            Err(e) => {
+                eprintln!("[ERROR] {}: {e}", scenario.name);
+                failed += 1;
+            }
+        }
+    }
+
+    eprintln!("---");
+    eprintln!("{total} scenarios: {passed} passed, {failed} failed");
+
+    if failed > 0 {
+        std::process::exit(1);
+    }
     Ok(())
 }
