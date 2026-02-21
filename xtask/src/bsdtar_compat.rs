@@ -17,6 +17,7 @@ enum PreExisting {
     Directory,
     SymlinkToFile,
     SymlinkToDir,
+    HardLink,
 }
 
 impl PreExisting {
@@ -26,6 +27,7 @@ impl PreExisting {
         Self::Directory,
         Self::SymlinkToFile,
         Self::SymlinkToDir,
+        Self::HardLink,
     ];
 
     fn label(self) -> &'static str {
@@ -35,6 +37,7 @@ impl PreExisting {
             Self::Directory => "Dir",
             Self::SymlinkToFile => "SymFile",
             Self::SymlinkToDir => "SymDir",
+            Self::HardLink => "HLink",
         }
     }
 }
@@ -198,6 +201,10 @@ enum FileSpec {
         path: &'static str,
         target: &'static str,
     },
+    HardLink {
+        path: &'static str,
+        original: &'static str,
+    },
 }
 
 fn materialize(root: &Path, specs: &[FileSpec]) -> io::Result<()> {
@@ -232,6 +239,14 @@ fn materialize(root: &Path, specs: &[FileSpec]) -> io::Result<()> {
                     fs::create_dir_all(parent)?;
                 }
                 unix_fs::symlink(target, &full)?;
+            }
+            FileSpec::HardLink { path, original } => {
+                let full = root.join(path);
+                let orig = root.join(original);
+                if let Some(parent) = full.parent() {
+                    fs::create_dir_all(parent)?;
+                }
+                fs::hard_link(&orig, &full)?;
             }
         }
     }
@@ -316,6 +331,17 @@ fn make_pre_existing(pre: PreExisting, mtime: MtimeRelation) -> Vec<FileSpec> {
             FileSpec::Symlink {
                 path: "target",
                 target: "real_dir",
+            },
+        ],
+        PreExisting::HardLink => vec![
+            FileSpec::File {
+                path: "target",
+                contents: b"existing_content",
+                mtime_epoch: existing_mtime,
+            },
+            FileSpec::HardLink {
+                path: "target_link",
+                original: "target",
             },
         ],
     }
