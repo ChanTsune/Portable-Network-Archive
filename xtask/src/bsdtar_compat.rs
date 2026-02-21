@@ -53,6 +53,7 @@ enum ArchiveEntryType {
     Symlink,
     HardLink,
     MultiFiles,
+    NestedPath,
 }
 
 impl ArchiveEntryType {
@@ -62,6 +63,7 @@ impl ArchiveEntryType {
         Self::Symlink,
         Self::HardLink,
         Self::MultiFiles,
+        Self::NestedPath,
     ];
 
     fn label(self) -> &'static str {
@@ -71,6 +73,7 @@ impl ArchiveEntryType {
             Self::Symlink => "Sym",
             Self::HardLink => "HLink",
             Self::MultiFiles => "Multi",
+            Self::NestedPath => "Nested",
         }
     }
 }
@@ -341,6 +344,11 @@ fn make_source_files(entry_type: ArchiveEntryType, mtime: MtimeRelation) -> Vec<
                 mtime_epoch: None,
             },
         ],
+        ArchiveEntryType::NestedPath => vec![FileSpec::File {
+            path: "target/sub/deep/file.txt",
+            contents: b"deep_content",
+            mtime_epoch,
+        }],
     }
 }
 
