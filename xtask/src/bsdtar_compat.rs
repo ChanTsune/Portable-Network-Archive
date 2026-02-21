@@ -1,6 +1,6 @@
 use clap::Parser;
 use std::collections::BTreeMap;
-use std::os::unix::fs as unix_fs;
+use std::os::unix::fs::{self as unix_fs, MetadataExt};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, SystemTime};
@@ -51,16 +51,18 @@ enum ArchiveEntryType {
     File,
     Directory,
     Symlink,
+    HardLink,
 }
 
 impl ArchiveEntryType {
-    const ALL: &[Self] = &[Self::File, Self::Directory, Self::Symlink];
+    const ALL: &[Self] = &[Self::File, Self::Directory, Self::Symlink, Self::HardLink];
 
     fn label(self) -> &'static str {
         match self {
             Self::File => "File",
             Self::Directory => "Dir",
             Self::Symlink => "Sym",
+            Self::HardLink => "HLink",
         }
     }
 }
@@ -196,6 +198,7 @@ enum FileSpec {
     },
     Dir {
         path: &'static str,
+        mtime_epoch: Option<i64>,
     },
     Symlink {
         path: &'static str,
@@ -205,6 +208,14 @@ enum FileSpec {
         path: &'static str,
         original: &'static str,
     },
+}
+
+fn epoch_to_system_time(epoch: i64) -> SystemTime {
+    if epoch >= 0 {
+        SystemTime::UNIX_EPOCH + Duration::from_secs(epoch as u64)
+    } else {
+        SystemTime::UNIX_EPOCH - Duration::from_secs(epoch.unsigned_abs())
+    }
 }
 
 fn materialize(root: &Path, specs: &[FileSpec]) -> io::Result<()> {
@@ -220,18 +231,18 @@ fn materialize(root: &Path, specs: &[FileSpec]) -> io::Result<()> {
                     fs::create_dir_all(parent)?;
                 }
                 fs::write(&full, contents)?;
-                if let Some(epoch) = mtime_epoch {
-                    let time = if *epoch >= 0 {
-                        SystemTime::UNIX_EPOCH + Duration::from_secs(*epoch as u64)
-                    } else {
-                        SystemTime::UNIX_EPOCH - Duration::from_secs(epoch.unsigned_abs())
-                    };
-                    let file = fs::File::options().write(true).open(&full)?;
-                    file.set_modified(time)?;
-                }
+                let epoch = mtime_epoch.unwrap_or(DEFAULT_MTIME);
+                let time = epoch_to_system_time(epoch);
+                let file = fs::File::options().write(true).open(&full)?;
+                file.set_modified(time)?;
             }
-            FileSpec::Dir { path } => {
-                fs::create_dir_all(root.join(path))?;
+            FileSpec::Dir { path, mtime_epoch } => {
+                let full = root.join(path);
+                fs::create_dir_all(&full)?;
+                let epoch = mtime_epoch.unwrap_or(DEFAULT_MTIME);
+                let time = epoch_to_system_time(epoch);
+                let dir = fs::File::open(&full)?;
+                dir.set_modified(time)?;
             }
             FileSpec::Symlink { path, target } => {
                 let full = root.join(path);
@@ -257,6 +268,8 @@ const ARCHIVE_MTIME: i64 = 2_000_000_000;
 const EXISTING_MTIME: i64 = 1;
 const ARCHIVE_MTIME_OLD: i64 = 1;
 const EXISTING_MTIME_NEW: i64 = 2_000_000_000;
+/// Fixed default mtime for deterministic comparison when mtime is irrelevant
+const DEFAULT_MTIME: i64 = 1_500_000_000;
 
 fn make_source_files(entry_type: ArchiveEntryType, mtime: MtimeRelation) -> Vec<FileSpec> {
     let mtime_epoch = match mtime {
@@ -272,11 +285,14 @@ fn make_source_files(entry_type: ArchiveEntryType, mtime: MtimeRelation) -> Vec<
             mtime_epoch,
         }],
         ArchiveEntryType::Directory => vec![
-            FileSpec::Dir { path: "target" },
+            FileSpec::Dir {
+                path: "target",
+                mtime_epoch,
+            },
             FileSpec::File {
                 path: "target/marker.txt",
                 contents: b"inside_dir",
-                mtime_epoch: None,
+                mtime_epoch,
             },
         ],
         ArchiveEntryType::Symlink => vec![
@@ -288,6 +304,17 @@ fn make_source_files(entry_type: ArchiveEntryType, mtime: MtimeRelation) -> Vec<
             FileSpec::Symlink {
                 path: "target",
                 target: "symlink_dest",
+            },
+        ],
+        ArchiveEntryType::HardLink => vec![
+            FileSpec::File {
+                path: "link_original",
+                contents: b"hardlink_content",
+                mtime_epoch,
+            },
+            FileSpec::HardLink {
+                path: "target",
+                original: "link_original",
             },
         ],
     }
@@ -308,11 +335,14 @@ fn make_pre_existing(pre: PreExisting, mtime: MtimeRelation) -> Vec<FileSpec> {
             mtime_epoch: existing_mtime,
         }],
         PreExisting::Directory => vec![
-            FileSpec::Dir { path: "target" },
+            FileSpec::Dir {
+                path: "target",
+                mtime_epoch: existing_mtime,
+            },
             FileSpec::File {
                 path: "target/old_marker.txt",
                 contents: b"was_here",
-                mtime_epoch: None,
+                mtime_epoch: existing_mtime,
             },
         ],
         PreExisting::SymlinkToFile => vec![
@@ -327,7 +357,10 @@ fn make_pre_existing(pre: PreExisting, mtime: MtimeRelation) -> Vec<FileSpec> {
             },
         ],
         PreExisting::SymlinkToDir => vec![
-            FileSpec::Dir { path: "real_dir" },
+            FileSpec::Dir {
+                path: "real_dir",
+                mtime_epoch: existing_mtime,
+            },
             FileSpec::Symlink {
                 path: "target",
                 target: "real_dir",
@@ -369,19 +402,35 @@ fn make_extract_args(opts: &ExtractOptions) -> Vec<&'static str> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum FsEntry {
-    File { contents: Vec<u8> },
-    Dir,
-    Symlink { target: PathBuf },
+    File {
+        contents: Vec<u8>,
+        mode: u32,
+        mtime_secs: i64,
+    },
+    Dir {
+        mode: u32,
+    },
+    Symlink {
+        target: PathBuf,
+    },
 }
 
 impl std::fmt::Display for FsEntry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            FsEntry::File { contents } => match std::str::from_utf8(contents) {
-                Ok(s) => write!(f, "File({s:?})"),
-                Err(_) => write!(f, "File({} bytes)", contents.len()),
+            FsEntry::File {
+                contents,
+                mode,
+                mtime_secs,
+            } => match std::str::from_utf8(contents) {
+                Ok(s) => write!(f, "File({s:?}, mode={mode:04o}, mtime={mtime_secs})"),
+                Err(_) => write!(
+                    f,
+                    "File({} bytes, mode={mode:04o}, mtime={mtime_secs})",
+                    contents.len()
+                ),
             },
-            FsEntry::Dir => write!(f, "Dir"),
+            FsEntry::Dir { mode } => write!(f, "Dir(mode={mode:04o})"),
             FsEntry::Symlink { target } => write!(f, "Symlink({})", target.display()),
         }
     }
@@ -410,11 +459,21 @@ impl FsSnapshot {
                 let target = fs::read_link(&path)?;
                 entries.insert(rel, FsEntry::Symlink { target });
             } else if meta.is_dir() {
-                entries.insert(rel.clone(), FsEntry::Dir);
+                let mode = meta.mode() & 0o7777;
+                entries.insert(rel.clone(), FsEntry::Dir { mode });
                 Self::walk(root, &path, entries)?;
             } else {
                 let contents = fs::read(&path)?;
-                entries.insert(rel, FsEntry::File { contents });
+                let mode = meta.mode() & 0o7777;
+                let mtime_secs = meta.mtime();
+                entries.insert(
+                    rel,
+                    FsEntry::File {
+                        contents,
+                        mode,
+                        mtime_secs,
+                    },
+                );
             }
         }
         Ok(())
