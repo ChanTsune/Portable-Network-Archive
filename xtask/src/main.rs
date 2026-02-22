@@ -1,6 +1,11 @@
-use std::{fs, path::PathBuf, process};
+use std::{
+    fs::{self, File},
+    io::{self, Read, Write},
+    path::{Path, PathBuf},
+    process,
+};
 
-use clap::{CommandFactory, Parser};
+use clap::{CommandFactory, Parser, ValueEnum};
 
 fn main() {
     if let Err(e) = run() {
@@ -14,6 +19,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     match args.command {
         Command::Mangen(args) => mangen(args),
         Command::Docgen(args) => docgen(args),
+        Command::Tar2pna(args) => tar2pna(args),
     }
 }
 
@@ -30,6 +36,8 @@ enum Command {
     Mangen(MangenArgs),
     /// Generate markdown documentation for the CLI
     Docgen(DocgenArgs),
+    /// Convert tar archive to PNA format
+    Tar2pna(Tar2pnaArgs),
 }
 
 #[derive(Parser)]
@@ -44,6 +52,34 @@ struct DocgenArgs {
     /// Output file path for markdown documentation
     #[arg(short, long, default_value = "target/doc/pna.md")]
     output: PathBuf,
+}
+
+#[derive(Parser)]
+struct Tar2pnaArgs {
+    /// Input tar archive path (.tar, .tar.gz, .tar.bz2, .tar.xz, .tar.lzma, .tar.Z)
+    input: PathBuf,
+    /// Output PNA archive path (defaults to input stem with .pna extension)
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+    /// Password for PNA encryption (AES-256-CTR)
+    #[arg(long)]
+    password: Option<String>,
+    /// PNA compression method
+    #[arg(short, long, default_value = "none")]
+    compression: CompressionMethod,
+}
+
+#[derive(Copy, Clone, Debug, Default, ValueEnum)]
+enum CompressionMethod {
+    #[default]
+    None,
+    #[value(alias = "store")]
+    Store,
+    #[value(alias = "deflate")]
+    Zlib,
+    #[value(alias = "zstandard")]
+    Zstd,
+    Xz,
 }
 
 fn mangen(args: MangenArgs) -> Result<(), Box<dyn std::error::Error>> {
@@ -79,4 +115,236 @@ fn docgen(args: DocgenArgs) -> Result<(), Box<dyn std::error::Error>> {
 
     eprintln!("Markdown documentation generated: {}", out_path.display());
     Ok(())
+}
+
+fn tar2pna(args: Tar2pnaArgs) -> Result<(), Box<dyn std::error::Error>> {
+    let (reader, mut child) = open_tar_reader(&args.input)?;
+    let mut tar = tar::Archive::new(reader);
+
+    let output_path = args.output.unwrap_or_else(|| {
+        let stem = tar_stem(&args.input);
+        args.input.with_file_name(format!("{stem}.pna"))
+    });
+    let write_options = build_write_options(args.compression, args.password.as_deref());
+
+    // Capture all fallible work so child.wait() always runs even on early errors
+    let convert_result = (|| -> Result<(), Box<dyn std::error::Error>> {
+        let output_file = File::create(&output_path)?;
+        let mut archive = libpna::Archive::write_header(output_file)?;
+        for entry_result in tar.entries()? {
+            let mut entry = entry_result?;
+            convert_entry(&mut entry, &mut archive, &write_options)?;
+        }
+        archive.finalize()?;
+        Ok(())
+    })();
+
+    // Close the pipe read end so a blocked decompressor gets SIGPIPE instead of deadlocking
+    drop(tar);
+
+    // Always wait on decompressor child to avoid zombies, even if conversion failed
+    if let Some(ref mut child) = child {
+        match child.wait() {
+            Ok(status) if !status.success() && convert_result.is_ok() => {
+                return Err(format!("decompressor exited with {status}").into());
+            }
+            Err(e) if convert_result.is_ok() => return Err(e.into()),
+            _ => {}
+        }
+    }
+    convert_result?;
+
+    eprintln!("PNA archive created: {}", output_path.display());
+    Ok(())
+}
+
+type TarReader = (Box<dyn Read>, Option<process::Child>);
+
+fn open_tar_reader(path: &Path) -> Result<TarReader, Box<dyn std::error::Error>> {
+    let name = path.to_string_lossy();
+
+    if name.ends_with(".tar.gz") || name.ends_with(".tgz") {
+        let file = File::open(path)?;
+        Ok((Box::new(flate2::read::GzDecoder::new(file)), None))
+    } else if name.ends_with(".tar.bz2") || name.ends_with(".tbz2") {
+        let file = File::open(path)?;
+        Ok((Box::new(bzip2::read::BzDecoder::new(file)), None))
+    } else if name.ends_with(".tar.xz") || name.ends_with(".txz") {
+        let file = File::open(path)?;
+        Ok((Box::new(liblzma::read::XzDecoder::new(file)), None))
+    } else if name.ends_with(".tar.lzma") {
+        let file = File::open(path)?;
+        let stream = liblzma::stream::Stream::new_lzma_decoder(u64::MAX)?;
+        Ok((
+            Box::new(liblzma::read::XzDecoder::new_stream(file, stream)),
+            None,
+        ))
+    } else if name.ends_with(".tar.Z") {
+        // No pure-Rust .Z (LZW compress) decoder available
+        let (stdout, child) = spawn_decompressor("gzip", path)?;
+        Ok((Box::new(stdout), Some(child)))
+    } else if name.ends_with(".tar") {
+        let file = File::open(path)?;
+        Ok((Box::new(file), None))
+    } else {
+        Err(format!("unsupported archive format: {name}").into())
+    }
+}
+
+fn spawn_decompressor(
+    cmd: &str,
+    path: &Path,
+) -> Result<(process::ChildStdout, process::Child), Box<dyn std::error::Error>> {
+    let mut child = process::Command::new(cmd)
+        .args(["-d", "-c"])
+        .arg(path)
+        .stdout(process::Stdio::piped())
+        .stderr(process::Stdio::inherit())
+        .spawn()
+        .map_err(|e| format!("failed to spawn {cmd}: {e}"))?;
+    let stdout = child.stdout.take().expect("stdout piped");
+    Ok((stdout, child))
+}
+
+/// Extract the archive stem, stripping `.tar.*` suffixes.
+fn tar_stem(path: &Path) -> String {
+    let name = path
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string();
+    for suffix in [
+        ".tar.gz",
+        ".tgz",
+        ".tar.bz2",
+        ".tbz2",
+        ".tar.xz",
+        ".txz",
+        ".tar.lzma",
+        ".tar.Z",
+        ".tar",
+    ] {
+        if let Some(stem) = name.strip_suffix(suffix) {
+            return stem.to_string();
+        }
+    }
+    name
+}
+
+fn build_write_options(method: CompressionMethod, password: Option<&str>) -> libpna::WriteOptions {
+    let compression = match method {
+        CompressionMethod::None | CompressionMethod::Store => libpna::Compression::No,
+        CompressionMethod::Zlib => libpna::Compression::Deflate,
+        CompressionMethod::Zstd => libpna::Compression::ZStandard,
+        CompressionMethod::Xz => libpna::Compression::XZ,
+    };
+    if let Some(pw) = password {
+        libpna::WriteOptions::builder()
+            .compression(compression)
+            .encryption(libpna::Encryption::Aes)
+            .cipher_mode(libpna::CipherMode::CTR)
+            .password(Some(pw))
+            .build()
+    } else if matches!(compression, libpna::Compression::No) {
+        libpna::WriteOptions::store()
+    } else {
+        libpna::WriteOptions::builder()
+            .compression(compression)
+            .build()
+    }
+}
+
+fn convert_entry<R: Read, W: Write>(
+    entry: &mut tar::Entry<'_, R>,
+    archive: &mut libpna::Archive<W>,
+    write_options: &libpna::WriteOptions,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let header = entry.header();
+    let entry_type = header.entry_type();
+    let path = entry.path()?.to_string_lossy().to_string();
+    let mtime = header.mtime().unwrap_or_else(|e| {
+        eprintln!("warning: {path}: failed to read mtime ({e}), defaulting to 0");
+        0
+    });
+    let mtime_duration = libpna::Duration::new(mtime as i64, 0);
+    let permission = build_permission(header, &path);
+
+    if entry_type.is_dir() {
+        let mut builder = libpna::EntryBuilder::new_dir(path.as_str().into());
+        builder.modified(mtime_duration);
+        builder.permission(permission);
+        archive.add_entry(builder.build()?)?;
+    } else if entry_type.is_symlink() {
+        let link = entry
+            .link_name()?
+            .ok_or("symlink missing link name")?
+            .to_string_lossy()
+            .to_string();
+        let mut builder = libpna::EntryBuilder::new_symlink(
+            path.as_str().into(),
+            libpna::EntryReference::from(link.as_str()),
+        )?;
+        builder.modified(mtime_duration);
+        builder.permission(permission);
+        archive.add_entry(builder.build()?)?;
+    } else if entry_type.is_hard_link() {
+        let link = entry
+            .link_name()?
+            .ok_or("hardlink missing link name")?
+            .to_string_lossy()
+            .to_string();
+        let mut builder = libpna::EntryBuilder::new_hard_link(
+            path.as_str().into(),
+            libpna::EntryReference::from(link.as_str()),
+        )?;
+        builder.modified(mtime_duration);
+        builder.permission(permission);
+        archive.add_entry(builder.build()?)?;
+    } else if entry_type.is_file() {
+        let mut builder =
+            libpna::EntryBuilder::new_file(path.as_str().into(), write_options.clone())?;
+        io::copy(entry, &mut builder)?;
+        builder.modified(mtime_duration);
+        builder.permission(permission);
+        archive.add_entry(builder.build()?)?;
+    } else {
+        eprintln!(
+            "warning: skipping unsupported entry type {:?}: {path}",
+            entry_type
+        );
+    }
+
+    Ok(())
+}
+
+fn build_permission(header: &tar::Header, path: &str) -> libpna::Permission {
+    let uid = header.uid().unwrap_or_else(|e| {
+        eprintln!("warning: {path}: failed to read uid ({e}), defaulting to 0");
+        0
+    });
+    let gid = header.gid().unwrap_or_else(|e| {
+        eprintln!("warning: {path}: failed to read gid ({e}), defaulting to 0");
+        0
+    });
+    let mode = (header.mode().unwrap_or_else(|e| {
+        eprintln!("warning: {path}: failed to read mode ({e}), defaulting to 0o644");
+        0o644
+    }) & 0o7777) as u16;
+    let uname = match header.username() {
+        Ok(Some(name)) => name.to_string(),
+        Ok(None) => String::new(),
+        Err(e) => {
+            eprintln!("warning: {path}: username is not valid UTF-8 ({e})");
+            String::new()
+        }
+    };
+    let gname = match header.groupname() {
+        Ok(Some(name)) => name.to_string(),
+        Ok(None) => String::new(),
+        Err(e) => {
+            eprintln!("warning: {path}: groupname is not valid UTF-8 ({e})");
+            String::new()
+        }
+    };
+    libpna::Permission::new(uid, uname, gid, gname, mode)
 }

@@ -12,7 +12,12 @@ dist = false
 release = false
 
 [dependencies]
+bzip2 = "0.5"
 clap = { version = "4.5", features = ["derive"] }
 clap-markdown = { git = "https://github.com/ChanTsune/clap-markdown.git", branch = "issue/54" }
 clap_mangen = "0.2"
+flate2 = "1.1"
+libpna = { path = "../lib" }
+liblzma = { version = "0.4", features = ["static"] }
 portable-network-archive = { path = "../cli", default-features = false }
+tar = "0.4"
