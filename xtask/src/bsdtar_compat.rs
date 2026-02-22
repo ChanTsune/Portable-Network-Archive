@@ -124,6 +124,7 @@ struct ExtractOptions {
     safe_writes: bool,
     no_preserve_mtime: bool,
     preserve_permissions: bool,
+    no_same_owner: bool,
     substitution: Option<Substitution>,
 }
 
@@ -177,6 +178,9 @@ fn build_scenario_name(
     if opts.preserve_permissions {
         name.push_str("_p");
     }
+    if opts.no_same_owner {
+        name.push_str("_nosame");
+    }
     if let Some(subst) = opts.substitution {
         name.push('_');
         name.push_str(subst.label);
@@ -200,40 +204,43 @@ fn generate_scenarios() -> Vec<GeneratedScenario> {
                         for safe_writes in [false, true] {
                             for no_mtime in [false, true] {
                                 for perm in [false, true] {
-                                    for substitution in SUBSTITUTIONS {
-                                        let options = ExtractOptions {
-                                            overwrite_mode: ow_mode,
-                                            unlink_first: unlink,
-                                            absolute_paths: abs_paths,
-                                            safe_writes,
-                                            no_preserve_mtime: no_mtime,
-                                            preserve_permissions: perm,
-                                            substitution: *substitution,
-                                        };
+                                    for no_same_owner in [false, true] {
+                                        for substitution in SUBSTITUTIONS {
+                                            let options = ExtractOptions {
+                                                overwrite_mode: ow_mode,
+                                                unlink_first: unlink,
+                                                absolute_paths: abs_paths,
+                                                safe_writes,
+                                                no_preserve_mtime: no_mtime,
+                                                preserve_permissions: perm,
+                                                no_same_owner,
+                                                substitution: *substitution,
+                                            };
 
-                                        let mtime_variants = if ow_mode
-                                            == OverwriteMode::KeepNewerFiles
-                                            && pre != PreExisting::None
-                                        {
-                                            &[
-                                                MtimeRelation::ArchiveNewer,
-                                                MtimeRelation::ArchiveOlder,
-                                            ][..]
-                                        } else {
-                                            &[MtimeRelation::Irrelevant][..]
-                                        };
+                                            let mtime_variants = if ow_mode
+                                                == OverwriteMode::KeepNewerFiles
+                                                && pre != PreExisting::None
+                                            {
+                                                &[
+                                                    MtimeRelation::ArchiveNewer,
+                                                    MtimeRelation::ArchiveOlder,
+                                                ][..]
+                                            } else {
+                                                &[MtimeRelation::Irrelevant][..]
+                                            };
 
-                                        for &mtime_rel in mtime_variants {
-                                            let name = build_scenario_name(
-                                                pre, entry, &options, mtime_rel,
-                                            );
-                                            scenarios.push(GeneratedScenario {
-                                                name,
-                                                pre_existing: pre,
-                                                entry_type: entry,
-                                                options,
-                                                mtime_relation: mtime_rel,
-                                            });
+                                            for &mtime_rel in mtime_variants {
+                                                let name = build_scenario_name(
+                                                    pre, entry, &options, mtime_rel,
+                                                );
+                                                scenarios.push(GeneratedScenario {
+                                                    name,
+                                                    pre_existing: pre,
+                                                    entry_type: entry,
+                                                    options,
+                                                    mtime_relation: mtime_rel,
+                                                });
+                                            }
                                         }
                                     }
                                 }
@@ -474,6 +481,9 @@ fn make_extract_args(opts: &ExtractOptions) -> Vec<&'static str> {
     }
     if opts.preserve_permissions {
         args.push("-p");
+    }
+    if opts.no_same_owner {
+        args.push("--no-same-owner");
     }
     if let Some(subst) = opts.substitution {
         args.push("-s");
