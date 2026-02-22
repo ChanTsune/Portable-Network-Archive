@@ -131,6 +131,20 @@ const STRIP_COMPONENTS_OPTIONS: &[Option<StripComponents>] = &[
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct ExcludePattern {
+    label: &'static str,
+    patterns: &'static [&'static str],
+}
+
+const EXCLUDE_PATTERNS: &[Option<ExcludePattern>] = &[
+    None,
+    Some(ExcludePattern {
+        label: "excl",
+        patterns: &["./target"],
+    }),
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ExtractOptions {
     overwrite_mode: OverwriteMode,
     unlink_first: bool,
@@ -140,6 +154,7 @@ struct ExtractOptions {
     preserve_permissions: bool,
     no_same_owner: bool,
     strip_components: Option<StripComponents>,
+    exclude: Option<ExcludePattern>,
     substitution: Option<Substitution>,
 }
 
@@ -200,6 +215,10 @@ fn build_scenario_name(
         name.push('_');
         name.push_str(strip.label);
     }
+    if let Some(excl) = opts.exclude {
+        name.push('_');
+        name.push_str(excl.label);
+    }
     if let Some(subst) = opts.substitution {
         name.push('_');
         name.push_str(subst.label);
@@ -225,42 +244,45 @@ fn generate_scenarios() -> Vec<GeneratedScenario> {
                                 for perm in [false, true] {
                                     for no_same_owner in [false, true] {
                                         for strip_components in STRIP_COMPONENTS_OPTIONS {
-                                            for substitution in SUBSTITUTIONS {
-                                                let options = ExtractOptions {
-                                                    overwrite_mode: ow_mode,
-                                                    unlink_first: unlink,
-                                                    absolute_paths: abs_paths,
-                                                    safe_writes,
-                                                    no_preserve_mtime: no_mtime,
-                                                    preserve_permissions: perm,
-                                                    no_same_owner,
-                                                    strip_components: *strip_components,
-                                                    substitution: *substitution,
-                                                };
+                                            for exclude in EXCLUDE_PATTERNS {
+                                                for substitution in SUBSTITUTIONS {
+                                                    let options = ExtractOptions {
+                                                        overwrite_mode: ow_mode,
+                                                        unlink_first: unlink,
+                                                        absolute_paths: abs_paths,
+                                                        safe_writes,
+                                                        no_preserve_mtime: no_mtime,
+                                                        preserve_permissions: perm,
+                                                        no_same_owner,
+                                                        strip_components: *strip_components,
+                                                        exclude: *exclude,
+                                                        substitution: *substitution,
+                                                    };
 
-                                                let mtime_variants = if ow_mode
-                                                    == OverwriteMode::KeepNewerFiles
-                                                    && pre != PreExisting::None
-                                                {
-                                                    &[
-                                                        MtimeRelation::ArchiveNewer,
-                                                        MtimeRelation::ArchiveOlder,
-                                                    ][..]
-                                                } else {
-                                                    &[MtimeRelation::Irrelevant][..]
-                                                };
+                                                    let mtime_variants = if ow_mode
+                                                        == OverwriteMode::KeepNewerFiles
+                                                        && pre != PreExisting::None
+                                                    {
+                                                        &[
+                                                            MtimeRelation::ArchiveNewer,
+                                                            MtimeRelation::ArchiveOlder,
+                                                        ][..]
+                                                    } else {
+                                                        &[MtimeRelation::Irrelevant][..]
+                                                    };
 
-                                                for &mtime_rel in mtime_variants {
-                                                    let name = build_scenario_name(
-                                                        pre, entry, &options, mtime_rel,
-                                                    );
-                                                    scenarios.push(GeneratedScenario {
-                                                        name,
-                                                        pre_existing: pre,
-                                                        entry_type: entry,
-                                                        options,
-                                                        mtime_relation: mtime_rel,
-                                                    });
+                                                    for &mtime_rel in mtime_variants {
+                                                        let name = build_scenario_name(
+                                                            pre, entry, &options, mtime_rel,
+                                                        );
+                                                        scenarios.push(GeneratedScenario {
+                                                            name,
+                                                            pre_existing: pre,
+                                                            entry_type: entry,
+                                                            options,
+                                                            mtime_relation: mtime_rel,
+                                                        });
+                                                    }
                                                 }
                                             }
                                         }
@@ -510,6 +532,12 @@ fn make_extract_args(opts: &ExtractOptions) -> Vec<&'static str> {
     if let Some(strip) = opts.strip_components {
         args.push("--strip-components");
         args.push(strip.value);
+    }
+    if let Some(excl) = opts.exclude {
+        for pattern in excl.patterns {
+            args.push("--exclude");
+            args.push(pattern);
+        }
     }
     if let Some(subst) = opts.substitution {
         args.push("-s");
