@@ -622,7 +622,7 @@ pub(crate) struct StdioCommand {
         help = "Filenames or patterns are separated by null characters, not by newlines"
     )]
     null: bool,
-    #[arg(short, help = "Verbose")]
+    #[arg(id = "stdio_verbose", short = 'v', help = "Verbose")]
     verbose: bool,
     #[arg(short = 'B', long, hide = true)]
     read_full_blocks: bool,
