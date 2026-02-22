@@ -117,6 +117,20 @@ const SUBSTITUTIONS: &[Option<Substitution>] = &[
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct StripComponents {
+    label: &'static str,
+    value: &'static str,
+}
+
+const STRIP_COMPONENTS_OPTIONS: &[Option<StripComponents>] = &[
+    None,
+    Some(StripComponents {
+        label: "strip1",
+        value: "1",
+    }),
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ExtractOptions {
     overwrite_mode: OverwriteMode,
     unlink_first: bool,
@@ -125,6 +139,7 @@ struct ExtractOptions {
     no_preserve_mtime: bool,
     preserve_permissions: bool,
     no_same_owner: bool,
+    strip_components: Option<StripComponents>,
     substitution: Option<Substitution>,
 }
 
@@ -181,6 +196,10 @@ fn build_scenario_name(
     if opts.no_same_owner {
         name.push_str("_nosame");
     }
+    if let Some(strip) = opts.strip_components {
+        name.push('_');
+        name.push_str(strip.label);
+    }
     if let Some(subst) = opts.substitution {
         name.push('_');
         name.push_str(subst.label);
@@ -205,41 +224,44 @@ fn generate_scenarios() -> Vec<GeneratedScenario> {
                             for no_mtime in [false, true] {
                                 for perm in [false, true] {
                                     for no_same_owner in [false, true] {
-                                        for substitution in SUBSTITUTIONS {
-                                            let options = ExtractOptions {
-                                                overwrite_mode: ow_mode,
-                                                unlink_first: unlink,
-                                                absolute_paths: abs_paths,
-                                                safe_writes,
-                                                no_preserve_mtime: no_mtime,
-                                                preserve_permissions: perm,
-                                                no_same_owner,
-                                                substitution: *substitution,
-                                            };
+                                        for strip_components in STRIP_COMPONENTS_OPTIONS {
+                                            for substitution in SUBSTITUTIONS {
+                                                let options = ExtractOptions {
+                                                    overwrite_mode: ow_mode,
+                                                    unlink_first: unlink,
+                                                    absolute_paths: abs_paths,
+                                                    safe_writes,
+                                                    no_preserve_mtime: no_mtime,
+                                                    preserve_permissions: perm,
+                                                    no_same_owner,
+                                                    strip_components: *strip_components,
+                                                    substitution: *substitution,
+                                                };
 
-                                            let mtime_variants = if ow_mode
-                                                == OverwriteMode::KeepNewerFiles
-                                                && pre != PreExisting::None
-                                            {
-                                                &[
-                                                    MtimeRelation::ArchiveNewer,
-                                                    MtimeRelation::ArchiveOlder,
-                                                ][..]
-                                            } else {
-                                                &[MtimeRelation::Irrelevant][..]
-                                            };
+                                                let mtime_variants = if ow_mode
+                                                    == OverwriteMode::KeepNewerFiles
+                                                    && pre != PreExisting::None
+                                                {
+                                                    &[
+                                                        MtimeRelation::ArchiveNewer,
+                                                        MtimeRelation::ArchiveOlder,
+                                                    ][..]
+                                                } else {
+                                                    &[MtimeRelation::Irrelevant][..]
+                                                };
 
-                                            for &mtime_rel in mtime_variants {
-                                                let name = build_scenario_name(
-                                                    pre, entry, &options, mtime_rel,
-                                                );
-                                                scenarios.push(GeneratedScenario {
-                                                    name,
-                                                    pre_existing: pre,
-                                                    entry_type: entry,
-                                                    options,
-                                                    mtime_relation: mtime_rel,
-                                                });
+                                                for &mtime_rel in mtime_variants {
+                                                    let name = build_scenario_name(
+                                                        pre, entry, &options, mtime_rel,
+                                                    );
+                                                    scenarios.push(GeneratedScenario {
+                                                        name,
+                                                        pre_existing: pre,
+                                                        entry_type: entry,
+                                                        options,
+                                                        mtime_relation: mtime_rel,
+                                                    });
+                                                }
                                             }
                                         }
                                     }
@@ -484,6 +506,10 @@ fn make_extract_args(opts: &ExtractOptions) -> Vec<&'static str> {
     }
     if opts.no_same_owner {
         args.push("--no-same-owner");
+    }
+    if let Some(strip) = opts.strip_components {
+        args.push("--strip-components");
+        args.push(strip.value);
     }
     if let Some(subst) = opts.substitution {
         args.push("-s");
