@@ -1470,6 +1470,9 @@ bsdtar-like CLI semantics for PNA archives
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
+
+  Default value: `false`
 * `--log-level <LEVEL>` — Set the log level
 
   Default value: `warn`
