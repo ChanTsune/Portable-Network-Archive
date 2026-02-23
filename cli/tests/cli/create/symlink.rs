@@ -3,6 +3,7 @@ use clap::Parser;
 use portable_network_archive::cli;
 use std::{
     fs,
+    io::Read,
     path::{Path, PathBuf},
 };
 
@@ -74,13 +75,34 @@ fn symlink_no_follow() {
                 assert_eq!(entry.header().data_kind(), pna::DataKind::File)
             }
             "symlink_no_follow/source/dir/in_dir_link.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
+                let mut target = Vec::new();
+                entry
+                    .reader(pna::ReadOptions::with_password::<&[u8]>(None))
+                    .unwrap()
+                    .read_to_end(&mut target)
+                    .unwrap();
+                assert_eq!(String::from_utf8(target).unwrap(), "in_dir_text.txt");
             }
             "symlink_no_follow/source/link_dir" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
+                let mut target = Vec::new();
+                entry
+                    .reader(pna::ReadOptions::with_password::<&[u8]>(None))
+                    .unwrap()
+                    .read_to_end(&mut target)
+                    .unwrap();
+                assert_eq!(String::from_utf8(target).unwrap(), "dir");
             }
             "symlink_no_follow/source/link.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
+                let mut target = Vec::new();
+                entry
+                    .reader(pna::ReadOptions::with_password::<&[u8]>(None))
+                    .unwrap()
+                    .read_to_end(&mut target)
+                    .unwrap();
+                assert_eq!(String::from_utf8(target).unwrap(), "text.txt");
             }
             path => unreachable!("unexpected entry found: {path}"),
         },
@@ -108,6 +130,18 @@ fn symlink_no_follow() {
     assert_eq!(
         fs::read_to_string("symlink_no_follow/dist/dir/in_dir_text.txt").unwrap(),
         fs::read_to_string("symlink_no_follow/dist/link_dir/in_dir_text.txt").unwrap(),
+    );
+    assert_eq!(
+        fs::read_link("symlink_no_follow/dist/link.txt").unwrap(),
+        Path::new("text.txt"),
+    );
+    assert_eq!(
+        fs::read_link("symlink_no_follow/dist/link_dir").unwrap(),
+        Path::new("dir"),
+    );
+    assert_eq!(
+        fs::read_link("symlink_no_follow/dist/dir/in_dir_link.txt").unwrap(),
+        Path::new("in_dir_text.txt"),
     );
 }
 
@@ -222,10 +256,24 @@ fn broken_symlink_no_follow() {
                 assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
             }
             "broken_symlink_no_follow/source/broken.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
+                let mut target = Vec::new();
+                entry
+                    .reader(pna::ReadOptions::with_password::<&[u8]>(None))
+                    .unwrap()
+                    .read_to_end(&mut target)
+                    .unwrap();
+                assert_eq!(String::from_utf8(target).unwrap(), "missing.txt");
             }
             "broken_symlink_no_follow/source/broken_dir" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
+                let mut target = Vec::new();
+                entry
+                    .reader(pna::ReadOptions::with_password::<&[u8]>(None))
+                    .unwrap()
+                    .read_to_end(&mut target)
+                    .unwrap();
+                assert_eq!(String::from_utf8(target).unwrap(), "missing_dir");
             }
             path => unreachable!("unexpected entry found: {path}"),
         },
@@ -249,6 +297,14 @@ fn broken_symlink_no_follow() {
 
     assert!(PathBuf::from("broken_symlink_no_follow/dist/broken.txt").is_symlink());
     assert!(PathBuf::from("broken_symlink_no_follow/dist/broken_dir").is_symlink());
+    assert_eq!(
+        fs::read_link("broken_symlink_no_follow/dist/broken.txt").unwrap(),
+        Path::new("missing.txt"),
+    );
+    assert_eq!(
+        fs::read_link("broken_symlink_no_follow/dist/broken_dir").unwrap(),
+        Path::new("missing_dir"),
+    );
 }
 
 // FIXME: On GitHub Actions Windows runner disabled due to insufficient privileges for execution
@@ -282,10 +338,24 @@ fn broken_symlink_follow() {
                 assert_eq!(entry.header().data_kind(), pna::DataKind::Directory)
             }
             "broken_symlink_follow/source/broken.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
+                let mut target = Vec::new();
+                entry
+                    .reader(pna::ReadOptions::with_password::<&[u8]>(None))
+                    .unwrap()
+                    .read_to_end(&mut target)
+                    .unwrap();
+                assert_eq!(String::from_utf8(target).unwrap(), "missing.txt");
             }
             "broken_symlink_follow/source/broken_dir" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
+                let mut target = Vec::new();
+                entry
+                    .reader(pna::ReadOptions::with_password::<&[u8]>(None))
+                    .unwrap()
+                    .read_to_end(&mut target)
+                    .unwrap();
+                assert_eq!(String::from_utf8(target).unwrap(), "missing_dir");
             }
             path => unreachable!("unexpected entry found: {path}"),
         },
@@ -309,6 +379,14 @@ fn broken_symlink_follow() {
 
     assert!(PathBuf::from("broken_symlink_follow/dist/broken.txt").is_symlink());
     assert!(PathBuf::from("broken_symlink_follow/dist/broken_dir").is_symlink());
+    assert_eq!(
+        fs::read_link("broken_symlink_follow/dist/broken.txt").unwrap(),
+        Path::new("missing.txt"),
+    );
+    assert_eq!(
+        fs::read_link("broken_symlink_follow/dist/broken_dir").unwrap(),
+        Path::new("missing_dir"),
+    );
 }
 
 /// Precondition: top-level input is a file symlink (depth 0).
@@ -344,7 +422,14 @@ fn symlink_depth0_no_follow_file() {
         "symlink_depth0_no_follow_file/symlink_depth0_no_follow_file.pna",
         |entry| match entry.header().path().as_str() {
             "symlink_depth0_no_follow_file/link.txt" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
+                let mut target = Vec::new();
+                entry
+                    .reader(pna::ReadOptions::with_password::<&[u8]>(None))
+                    .unwrap()
+                    .read_to_end(&mut target)
+                    .unwrap();
+                assert_eq!(String::from_utf8(target).unwrap(), "target.txt");
             }
             path => unreachable!("unexpected entry found: {path}"),
         },
@@ -367,6 +452,10 @@ fn symlink_depth0_no_follow_file() {
     .unwrap();
 
     assert!(PathBuf::from("symlink_depth0_no_follow_file/dist/link.txt").is_symlink());
+    assert_eq!(
+        fs::read_link("symlink_depth0_no_follow_file/dist/link.txt").unwrap(),
+        Path::new("target.txt"),
+    );
 }
 
 /// Precondition: top-level input is a directory symlink (depth 0) with `--no-keep-dir`.
@@ -404,7 +493,14 @@ fn symlink_depth0_no_follow_dir() {
         "symlink_depth0_no_follow_dir/symlink_depth0_no_follow_dir.pna",
         |entry| match entry.header().path().as_str() {
             "symlink_depth0_no_follow_dir/link_dir" => {
-                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink)
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
+                let mut target = Vec::new();
+                entry
+                    .reader(pna::ReadOptions::with_password::<&[u8]>(None))
+                    .unwrap()
+                    .read_to_end(&mut target)
+                    .unwrap();
+                assert_eq!(String::from_utf8(target).unwrap(), "dir");
             }
             path => unreachable!("unexpected entry found: {path}"),
         },
@@ -427,6 +523,10 @@ fn symlink_depth0_no_follow_dir() {
     .unwrap();
 
     assert!(PathBuf::from("symlink_depth0_no_follow_dir/dist/link_dir").is_symlink());
+    assert_eq!(
+        fs::read_link("symlink_depth0_no_follow_dir/dist/link_dir").unwrap(),
+        Path::new("dir"),
+    );
 }
 
 /// Precondition: fixture with nested dir and file symlinks.
@@ -461,6 +561,13 @@ fn symlink_follow_command_line_partial() {
             }
             "symlink_follow_partial/source/dir/in_dir_link.txt" => {
                 assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
+                let mut target = Vec::new();
+                entry
+                    .reader(pna::ReadOptions::with_password::<&[u8]>(None))
+                    .unwrap()
+                    .read_to_end(&mut target)
+                    .unwrap();
+                assert_eq!(String::from_utf8(target).unwrap(), "in_dir_text.txt");
             }
             "symlink_follow_partial/source/dir/in_dir_text.txt" => {
                 assert_eq!(entry.header().data_kind(), pna::DataKind::File);
@@ -470,6 +577,13 @@ fn symlink_follow_command_line_partial() {
             }
             "symlink_follow_partial/source/link_dir/in_dir_link.txt" => {
                 assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
+                let mut target = Vec::new();
+                entry
+                    .reader(pna::ReadOptions::with_password::<&[u8]>(None))
+                    .unwrap()
+                    .read_to_end(&mut target)
+                    .unwrap();
+                assert_eq!(String::from_utf8(target).unwrap(), "in_dir_text.txt");
             }
             "symlink_follow_partial/source/link_dir/in_dir_text.txt" => {
                 assert_eq!(entry.header().data_kind(), pna::DataKind::File);
