@@ -1,4 +1,4 @@
-use crate::utils::{EmbedExt, TestResources, setup};
+use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 #[cfg(unix)]
@@ -81,6 +81,14 @@ fn extract_preserves_executable_permission() {
     .execute()
     .unwrap();
 
+    archive::for_each_entry("extract_perm_755/archive.pna", |entry| {
+        if entry.header().path().as_str().ends_with("raw/text.txt") {
+            let perm = entry.metadata().permission().unwrap();
+            assert_eq!(perm.permissions() & 0o777, 0o755);
+        }
+    })
+    .unwrap();
+
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -129,6 +137,14 @@ fn extract_preserves_readonly_permission() {
     .execute()
     .unwrap();
 
+    archive::for_each_entry("extract_perm_644/archive.pna", |entry| {
+        if entry.header().path().as_str().ends_with("raw/text.txt") {
+            let perm = entry.metadata().permission().unwrap();
+            assert_eq!(perm.permissions() & 0o777, 0o644);
+        }
+    })
+    .unwrap();
+
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -175,6 +191,14 @@ fn extract_preserves_private_permission() {
     ])
     .unwrap()
     .execute()
+    .unwrap();
+
+    archive::for_each_entry("extract_perm_600/archive.pna", |entry| {
+        if entry.header().path().as_str().ends_with("raw/text.txt") {
+            let perm = entry.metadata().permission().unwrap();
+            assert_eq!(perm.permissions() & 0o777, 0o600);
+        }
+    })
     .unwrap();
 
     cli::Cli::try_parse_from([
@@ -290,6 +314,14 @@ fn extract_preserves_full_permission() {
     .execute()
     .unwrap();
 
+    archive::for_each_entry("extract_perm_777/archive.pna", |entry| {
+        if entry.header().path().as_str().ends_with("raw/text.txt") {
+            let perm = entry.metadata().permission().unwrap();
+            assert_eq!(perm.permissions() & 0o777, 0o777);
+        }
+    })
+    .unwrap();
+
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -341,6 +373,31 @@ fn extract_preserves_mixed_permissions() {
     .execute()
     .unwrap();
 
+    archive::for_each_entry("extract_perm_mixed/archive.pna", |entry| {
+        if entry.header().path().as_str().ends_with("raw/text.txt") {
+            assert_eq!(
+                entry.metadata().permission().unwrap().permissions() & 0o777,
+                0o755
+            );
+        } else if entry.header().path().as_str().ends_with("raw/empty.txt") {
+            assert_eq!(
+                entry.metadata().permission().unwrap().permissions() & 0o777,
+                0o644
+            );
+        } else if entry
+            .header()
+            .path()
+            .as_str()
+            .ends_with("raw/images/icon.png")
+        {
+            assert_eq!(
+                entry.metadata().permission().unwrap().permissions() & 0o777,
+                0o600
+            );
+        }
+    })
+    .unwrap();
+
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -377,4 +434,57 @@ fn extract_preserves_mixed_permissions() {
         0o600,
         "icon.png should have permission 0o600"
     );
+}
+
+/// Precondition: An archive contains a directory with permission 0o750 (rwxr-x---).
+/// Action: Extract with `--keep-permission`.
+/// Expectation: The extracted directory has permission 0o750 on the filesystem.
+#[test]
+#[cfg(unix)]
+fn extract_preserves_directory_permission() {
+    setup();
+    TestResources::extract_in("raw/", "extract_dir_perm/in/").unwrap();
+
+    set_permissions_or_skip!("extract_dir_perm/in/raw/images", 0o750);
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "extract_dir_perm/archive.pna",
+        "--overwrite",
+        "extract_dir_perm/in/",
+        "--keep-permission",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    archive::for_each_entry("extract_dir_perm/archive.pna", |entry| {
+        if entry.header().path().as_str().ends_with("raw/images") {
+            assert_eq!(entry.header().data_kind(), pna::DataKind::Directory);
+            let perm = entry.metadata().permission().unwrap();
+            assert_eq!(perm.permissions() & 0o777, 0o750);
+        }
+    })
+    .unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "extract_dir_perm/archive.pna",
+        "--overwrite",
+        "--out-dir",
+        "extract_dir_perm/out/",
+        "--keep-permission",
+        "--strip-components",
+        "2",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let meta = fs::symlink_metadata("extract_dir_perm/out/raw/images").unwrap();
+    assert_eq!(meta.permissions().mode() & 0o777, 0o750,);
 }
