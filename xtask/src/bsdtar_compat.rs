@@ -194,22 +194,22 @@ fn build_scenario_name(
         opts.overwrite_mode.label()
     );
     if opts.unlink_first {
-        name.push_str("_U");
+        name.push_str("_unlink-first");
     }
     if opts.absolute_paths {
-        name.push_str("_P");
+        name.push_str("_absolute-paths");
     }
     if opts.safe_writes {
-        name.push_str("_safe");
+        name.push_str("_safe-writes");
     }
     if opts.no_preserve_mtime {
-        name.push_str("_m");
+        name.push_str("_no-preserve-mtime");
     }
     if opts.preserve_permissions {
-        name.push_str("_p");
+        name.push_str("_preserve-permissions");
     }
     if opts.no_same_owner {
-        name.push_str("_nosame");
+        name.push_str("_no-same-owner");
     }
     if let Some(strip) = opts.strip_components {
         name.push('_');
