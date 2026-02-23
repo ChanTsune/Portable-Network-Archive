@@ -1,7 +1,8 @@
-use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, archive, diff::diff, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 use std::fs;
+use std::path::Path;
 
 #[test]
 fn archive_keep_all() {
@@ -44,5 +45,36 @@ fn archive_keep_all() {
     .execute()
     .unwrap();
 
+    let mut entry_paths = std::collections::HashSet::new();
+    archive::for_each_entry("archive_keep_all/keep_all.pna", |entry| {
+        entry_paths.insert(entry.header().path().to_string());
+    })
+    .unwrap();
+    assert!(entry_paths.iter().any(|p| p.ends_with("raw/text.txt")));
+    assert!(entry_paths.iter().any(|p| p.ends_with("raw/empty.txt")));
+    assert!(
+        entry_paths
+            .iter()
+            .any(|p| p.ends_with("raw/images/icon.png"))
+    );
+
     diff("archive_keep_all/in/", "archive_keep_all/out/").unwrap();
+
+    assert_eq!(
+        fs::read("archive_keep_all/out/raw/text.txt").unwrap(),
+        fs::read("archive_keep_all/in/raw/text.txt").unwrap(),
+    );
+    assert_eq!(
+        fs::read("archive_keep_all/out/raw/empty.txt").unwrap(),
+        fs::read("archive_keep_all/in/raw/empty.txt").unwrap(),
+    );
+    assert_eq!(
+        fs::read("archive_keep_all/out/raw/images/icon.png").unwrap(),
+        fs::read("archive_keep_all/in/raw/images/icon.png").unwrap(),
+    );
+    assert!(Path::new("archive_keep_all/out/raw").is_dir());
+    assert!(Path::new("archive_keep_all/out/raw/images").is_dir());
+    assert!(Path::new("archive_keep_all/out/raw/text.txt").is_file());
+    assert!(Path::new("archive_keep_all/out/raw/empty.txt").is_file());
+    assert!(Path::new("archive_keep_all/out/raw/images/icon.png").is_file());
 }
