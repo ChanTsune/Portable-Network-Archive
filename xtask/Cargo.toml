@@ -21,3 +21,5 @@ libpna = { path = "../lib" }
 liblzma = { version = "0.4", features = ["static"] }
 portable-network-archive = { path = "../cli", default-features = false }
 tar = "0.4"
+time = "0.3.47"
+zip = "8.1.0"

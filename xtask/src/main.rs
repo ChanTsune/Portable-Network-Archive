@@ -20,6 +20,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         Command::Mangen(args) => mangen(args),
         Command::Docgen(args) => docgen(args),
         Command::Tar2pna(args) => tar2pna(args),
+        Command::Zip2pna(args) => zip2pna(args),
     }
 }
 
@@ -38,6 +39,8 @@ enum Command {
     Docgen(DocgenArgs),
     /// Convert tar archive to PNA format
     Tar2pna(Tar2pnaArgs),
+    /// Convert ZIP archive to PNA format
+    Zip2pna(Zip2pnaArgs),
 }
 
 #[derive(Parser)]
@@ -57,6 +60,21 @@ struct DocgenArgs {
 #[derive(Parser)]
 struct Tar2pnaArgs {
     /// Input tar archive path (.tar, .tar.gz, .tar.bz2, .tar.xz, .tar.lzma, .tar.Z)
+    input: PathBuf,
+    /// Output PNA archive path (defaults to input stem with .pna extension)
+    #[arg(short, long)]
+    output: Option<PathBuf>,
+    /// Password for PNA encryption (AES-256-CTR)
+    #[arg(long)]
+    password: Option<String>,
+    /// PNA compression method
+    #[arg(short, long, default_value = "none")]
+    compression: CompressionMethod,
+}
+
+#[derive(Parser)]
+struct Zip2pnaArgs {
+    /// Input ZIP archive path (.zip)
     input: PathBuf,
     /// Output PNA archive path (defaults to input stem with .pna extension)
     #[arg(short, long)]
@@ -347,4 +365,113 @@ fn build_permission(header: &tar::Header, path: &str) -> libpna::Permission {
         }
     };
     libpna::Permission::new(uid, uname, gid, gname, mode)
+}
+
+fn zip2pna(args: Zip2pnaArgs) -> Result<(), Box<dyn std::error::Error>> {
+    let file = File::open(&args.input)?;
+    let mut zip = zip::ZipArchive::new(file)?;
+
+    let output_path = args.output.unwrap_or_else(|| {
+        let stem = zip_stem(&args.input);
+        args.input.with_file_name(format!("{stem}.pna"))
+    });
+    let write_options = build_write_options(args.compression, args.password.as_deref());
+
+    let output_file = File::create(&output_path)?;
+    let mut archive = libpna::Archive::write_header(output_file)?;
+
+    for i in 0..zip.len() {
+        let mut entry = match &args.password {
+            Some(password) => zip.by_index_decrypt(i, password.as_bytes())?,
+            None => zip.by_index(i)?,
+        };
+        convert_zip_entry(&mut entry, &mut archive, &write_options)?;
+    }
+
+    archive.finalize()?;
+    eprintln!("PNA archive created: {}", output_path.display());
+    Ok(())
+}
+
+fn zip_stem(path: &Path) -> String {
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    name.strip_suffix(".zip").unwrap_or(&name).to_string()
+}
+
+fn convert_zip_entry<R: Read + io::Seek, W: Write>(
+    entry: &mut zip::read::ZipFile<'_, R>,
+    archive: &mut libpna::Archive<W>,
+    write_options: &libpna::WriteOptions,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let path = entry.name().to_string();
+    let mtime = zip_last_modified(entry, &path);
+    let permission = build_zip_permission(entry);
+
+    if entry.is_dir() {
+        let mut builder = libpna::EntryBuilder::new_dir(path.as_str().into());
+        builder.modified(mtime);
+        if let Some(perm) = permission {
+            builder.permission(perm);
+        }
+        archive.add_entry(builder.build()?)?;
+    } else if entry.is_symlink() {
+        let mut target = String::new();
+        entry.read_to_string(&mut target)?;
+        let mut builder = libpna::EntryBuilder::new_symlink(
+            path.as_str().into(),
+            libpna::EntryReference::from(target.as_str()),
+        )?;
+        builder.modified(mtime);
+        if let Some(perm) = permission {
+            builder.permission(perm);
+        }
+        archive.add_entry(builder.build()?)?;
+    } else if entry.is_file() {
+        let mut builder =
+            libpna::EntryBuilder::new_file(path.as_str().into(), write_options.clone())?;
+        io::copy(entry, &mut builder)?;
+        builder.modified(mtime);
+        if let Some(perm) = permission {
+            builder.permission(perm);
+        }
+        archive.add_entry(builder.build()?)?;
+    } else {
+        eprintln!("warning: skipping unsupported entry: {path}");
+    }
+
+    Ok(())
+}
+
+fn zip_last_modified<R: Read + io::Seek>(
+    entry: &zip::read::ZipFile<'_, R>,
+    path: &str,
+) -> libpna::Duration {
+    // ExtendedTimestamp carries UTC, avoiding MS-DOS timestamp's timezone ambiguity
+    for field in entry.extra_data_fields() {
+        if let zip::extra_fields::ExtraField::ExtendedTimestamp(ts) = field
+            && let Some(mtime) = ts.mod_time()
+        {
+            return libpna::Duration::new(mtime as i64, 0);
+        }
+    }
+    // MS-DOS timestamps have no timezone; assume_utc() is lossy but consistent
+    let Some(dt) = entry.last_modified() else {
+        return libpna::Duration::new(0, 0);
+    };
+    match time::PrimitiveDateTime::try_from(dt) {
+        Ok(pdt) => libpna::Duration::new(pdt.assume_utc().unix_timestamp(), 0),
+        Err(e) => {
+            eprintln!("warning: {path}: invalid timestamp ({e}), defaulting to 0");
+            libpna::Duration::new(0, 0)
+        }
+    }
+}
+
+fn build_zip_permission<R: Read + io::Seek>(
+    entry: &zip::read::ZipFile<'_, R>,
+) -> Option<libpna::Permission> {
+    entry.unix_mode().map(|mode| {
+        let mode_bits = (mode & 0o7777) as u16;
+        libpna::Permission::new(0, String::new(), 0, String::new(), mode_bits)
+    })
 }
