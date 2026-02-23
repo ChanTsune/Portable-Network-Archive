@@ -1,5 +1,5 @@
 #![cfg(feature = "acl")]
-use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, archive, diff::diff, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 
@@ -20,6 +20,12 @@ fn archive_keep_acl() {
     .unwrap()
     .execute()
     .unwrap();
+    let mut entry_paths = std::collections::HashSet::new();
+    archive::for_each_entry("keep_acl/keep_acl.pna", |entry| {
+        entry_paths.insert(entry.header().path().to_string());
+    })
+    .unwrap();
+    assert!(!entry_paths.is_empty());
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
