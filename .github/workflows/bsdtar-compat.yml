@@ -11,6 +11,8 @@ on:
       - 'lib/Cargo.toml'
       - 'pna/src/**'
       - 'pna/Cargo.toml'
+      - 'xtask/src/**'
+      - 'xtask/Cargo.toml'
       - 'Cargo.lock'
       - 'Cargo.toml'
       - '.github/workflows/bsdtar-compat.yml'
@@ -23,6 +25,8 @@ on:
       - 'lib/Cargo.toml'
       - 'pna/src/**'
       - 'pna/Cargo.toml'
+      - 'xtask/src/**'
+      - 'xtask/Cargo.toml'
       - 'Cargo.lock'
       - 'Cargo.toml'
       - '.github/workflows/bsdtar-compat.yml'
@@ -77,7 +81,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y libacl1-dev libssl-dev pkg-config autoconf automake libtool
+          sudo apt install -y libacl1-dev libssl-dev pkg-config autoconf automake libtool sharutils
 
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1.15.2
@@ -108,12 +112,44 @@ jobs:
           printf '#!/bin/sh\nexec "%s" --log-level error experimental stdio --unstable "$@"\n' "$PNA_BIN" > /usr/local/bin/pnatar
           chmod +x /usr/local/bin/pnatar
 
+      - name: Build tar2pna
+        run: cargo build --locked --release -p xtask
+        working-directory: pna
+
+      - name: Convert tar reference files to PNA
+        run: |
+          set -euo pipefail
+          LIBARCHIVE_REFDIR="${GITHUB_WORKSPACE}/libarchive/tar/test"
+          PNA_REFDIR="${GITHUB_WORKSPACE}/pna_refdir"
+          WORKDIR="$(mktemp -d)"
+          TAR2PNA="${GITHUB_WORKSPACE}/pna/target/release/xtask"
+
+          mkdir -p "$PNA_REFDIR"
+          cp "$LIBARCHIVE_REFDIR"/*.uu "$PNA_REFDIR/"
+
+          for tar_name in \
+            test_extract.tar.gz \
+            test_extract.tar.Z \
+            test_option_s.tar.Z \
+            test_print_longpath.tar.Z \
+            test_option_keep_newer_files.tar.Z
+          do
+            cd "$WORKDIR"
+            uudecode "$LIBARCHIVE_REFDIR/${tar_name}.uu"
+            base="${tar_name%%.*}"
+            "$TAR2PNA" tar2pna "$WORKDIR/$tar_name" -o "$WORKDIR/${base}.pna"
+            cp "$WORKDIR/${base}.pna" "$WORKDIR/$tar_name"
+            uuencode "$WORKDIR/$tar_name" "$tar_name" > "$PNA_REFDIR/${tar_name}.uu"
+            rm -f "$WORKDIR/$tar_name" "$WORKDIR/${base}.pna"
+          done
+          rm -rf "$WORKDIR"
+
       - name: Run bsdtar_test with pnatar
         id: bsdtar_test
         continue-on-error: true
         run: |
           BSDTAR_TEST="${GITHUB_WORKSPACE}/libarchive/bsdtar_test"
-          REFDIR="${GITHUB_WORKSPACE}/libarchive/tar/test"
+          REFDIR="${GITHUB_WORKSPACE}/pna_refdir"
           # Exclude tests that crash the process via NULL dereference in assertEqualMem
           # after slurpfile() returns NULL for ustar archives pnatar cannot create.
           # bsdtar_test runs in-process (no fork), so a SEGV kills the entire run.
