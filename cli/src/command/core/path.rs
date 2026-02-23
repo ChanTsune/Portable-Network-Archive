@@ -16,6 +16,8 @@ pub(crate) struct PathnameEditor {
     strip_components: Option<usize>,
     transformers: Option<PathTransformers>,
     absolute_paths: bool,
+    /// When true, keep `Component::CurDir` (`.`) during sanitization (bsdtar-compat).
+    preserve_curdir: bool,
 }
 
 impl PathnameEditor {
@@ -24,11 +26,13 @@ impl PathnameEditor {
         strip_components: Option<usize>,
         transformers: Option<PathTransformers>,
         absolute_paths: bool,
+        preserve_curdir: bool,
     ) -> Self {
         Self {
             strip_components,
             transformers,
             absolute_paths,
+            preserve_curdir,
         }
     }
 
@@ -43,16 +47,18 @@ impl PathnameEditor {
         } else {
             Cow::Borrowed(path)
         };
-        if is_effectively_empty_path(&transformed) {
+        if is_effectively_empty_path(&transformed, self.preserve_curdir) {
             return None;
         }
         let stripped = strip_components(&transformed, self.strip_components)?;
-        if is_effectively_empty_path(&stripped) {
+        if is_effectively_empty_path(&stripped, self.preserve_curdir) {
             return None;
         }
         let entry_name = EntryName::from_path_lossy_preserve_root(&stripped);
         if self.absolute_paths {
             Some(entry_name)
+        } else if self.preserve_curdir {
+            Some(sanitize_preserve_curdir(entry_name))
         } else {
             Some(entry_name.sanitize())
         }
@@ -73,16 +79,18 @@ impl PathnameEditor {
         } else {
             Cow::Borrowed(target)
         };
-        if is_effectively_empty_path(&transformed) {
+        if is_effectively_empty_path(&transformed, self.preserve_curdir) {
             return None;
         }
         let stripped = strip_components(&transformed, self.strip_components)?;
-        if is_effectively_empty_path(&stripped) {
+        if is_effectively_empty_path(&stripped, self.preserve_curdir) {
             return None;
         }
         let entry_reference = EntryReference::from_path_lossy_preserve_root(&stripped);
         if self.absolute_paths {
             Some(entry_reference)
+        } else if self.preserve_curdir {
+            Some(sanitize_preserve_curdir_reference(entry_reference))
         } else {
             Some(entry_reference.sanitize())
         }
@@ -107,6 +115,8 @@ impl PathnameEditor {
         let entry_reference = EntryReference::from_path_lossy_preserve_root(&transformed);
         if self.absolute_paths {
             entry_reference
+        } else if self.preserve_curdir {
+            sanitize_preserve_curdir_reference(entry_reference)
         } else {
             entry_reference.sanitize()
         }
@@ -127,9 +137,32 @@ fn strip_components(path: &Path, count: Option<usize>) -> Option<Cow<'_, Path>> 
     Some(Cow::from(PathBuf::from_iter(components.skip(count))))
 }
 
+/// CLI-side sanitization that keeps `CurDir` (`.`) components.
+fn sanitize_preserve_curdir(name: EntryName) -> EntryName {
+    let path = Path::new(name.as_str());
+    let sanitized: PathBuf = path
+        .components()
+        .filter(|c| matches!(c, Component::Normal(_) | Component::CurDir))
+        .collect();
+    EntryName::from_path_lossy_preserve_root(&sanitized)
+}
+
+fn sanitize_preserve_curdir_reference(reference: EntryReference) -> EntryReference {
+    let path = Path::new(reference.as_str());
+    let sanitized: PathBuf = path
+        .components()
+        .filter(|c| matches!(c, Component::Normal(_) | Component::CurDir))
+        .collect();
+    EntryReference::from_path_lossy_preserve_root(&sanitized)
+}
+
 #[inline]
-fn is_effectively_empty_path(path: &Path) -> bool {
-    path.components().all(|c| matches!(c, Component::CurDir))
+fn is_effectively_empty_path(path: &Path, preserve_curdir: bool) -> bool {
+    if preserve_curdir {
+        path.as_os_str().is_empty()
+    } else {
+        path.components().all(|c| matches!(c, Component::CurDir))
+    }
 }
 
 #[cfg(test)]
@@ -177,21 +210,21 @@ mod tests {
 
     #[test]
     fn editor_no_transforms() {
-        let editor = PathnameEditor::new(None, None, false);
+        let editor = PathnameEditor::new(None, None, false, false);
         let name = editor.edit_entry_name(Path::new("a/b/c")).unwrap();
         assert_eq!(name.as_str(), "a/b/c");
     }
 
     #[test]
     fn editor_strip_only() {
-        let editor = PathnameEditor::new(Some(1), None, false);
+        let editor = PathnameEditor::new(Some(1), None, false, false);
         let name = editor.edit_entry_name(Path::new("a/b/c")).unwrap();
         assert_eq!(name.as_str(), "b/c");
     }
 
     #[test]
     fn editor_strip_insufficient_components() {
-        let editor = PathnameEditor::new(Some(5), None, false);
+        let editor = PathnameEditor::new(Some(5), None, false, false);
         assert!(editor.edit_entry_name(Path::new("a/b")).is_none());
         assert!(editor.edit_hardlink(Path::new("a/b")).is_none());
     }
@@ -207,7 +240,7 @@ mod tests {
         // Format: /pattern/replacement/flags - first char is the delimiter
         let rules = SubstitutionRules::new(vec!["/old/new/".parse().unwrap()]);
         let transformers = Some(PathTransformers::BsdSubstitutions(rules));
-        let editor = PathnameEditor::new(Some(1), transformers, false);
+        let editor = PathnameEditor::new(Some(1), transformers, false, false);
 
         // With bsdtar order: "old/a/b" -> "new/a/b" -> strip 1 -> "a/b"
         let result = editor.edit_entry_name(Path::new("old/a/b")).unwrap();
@@ -217,19 +250,56 @@ mod tests {
     #[test]
     fn editor_symlink_no_strip() {
         // Symlink targets should NOT have strip-components applied (bsdtar behavior)
-        let editor = PathnameEditor::new(Some(2), None, false);
+        let editor = PathnameEditor::new(Some(2), None, false, false);
         let result = editor.edit_symlink(Path::new("a/b/c"));
         assert_eq!(result.as_str(), "a/b/c"); // Not stripped
     }
 
     #[test]
     fn editor_skips_empty_or_curdir_paths() {
-        let editor = PathnameEditor::new(None, None, false);
+        let editor = PathnameEditor::new(None, None, false, false);
         assert!(editor.edit_entry_name(Path::new("")).is_none());
         assert!(editor.edit_entry_name(Path::new(".")).is_none());
         assert!(editor.edit_entry_name(Path::new("./.")).is_none());
         assert!(editor.edit_hardlink(Path::new("")).is_none());
         assert!(editor.edit_hardlink(Path::new(".")).is_none());
         assert!(editor.edit_hardlink(Path::new("./.")).is_none());
+    }
+
+    #[test]
+    fn editor_preserve_curdir_keeps_dot_prefix() {
+        let editor = PathnameEditor::new(None, None, false, true);
+        let name = editor.edit_entry_name(Path::new("./a/b")).unwrap();
+        assert_eq!(name.as_str(), "./a/b");
+    }
+
+    #[test]
+    fn editor_preserve_curdir_with_strip_components() {
+        // ./target/sub -> strip 1 -> sub (strips the "." component)
+        let editor = PathnameEditor::new(Some(1), None, false, true);
+        let name = editor.edit_entry_name(Path::new("./target/sub")).unwrap();
+        assert_eq!(name.as_str(), "target/sub");
+    }
+
+    #[test]
+    fn editor_preserve_curdir_bare_dot_is_valid() {
+        // In bsdtar-compat mode, "." is a valid directory entry
+        let editor = PathnameEditor::new(None, None, false, true);
+        let name = editor.edit_entry_name(Path::new(".")).unwrap();
+        assert_eq!(name.as_str(), ".");
+    }
+
+    #[test]
+    fn editor_preserve_curdir_hardlink() {
+        let editor = PathnameEditor::new(None, None, false, true);
+        let reference = editor.edit_hardlink(Path::new("./a/b")).unwrap();
+        assert_eq!(reference.as_str(), "./a/b");
+    }
+
+    #[test]
+    fn editor_preserve_curdir_symlink() {
+        let editor = PathnameEditor::new(None, None, false, true);
+        let reference = editor.edit_symlink(Path::new("./a/b"));
+        assert_eq!(reference.as_str(), "./a/b");
     }
 }

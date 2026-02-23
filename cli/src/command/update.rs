@@ -457,6 +457,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
             args.strip_components,
             PathTransformers::new(args.substitutions, args.transforms),
             false,
+            false,
         ),
     };
 

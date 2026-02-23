@@ -973,6 +973,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
             args.strip_components,
             PathTransformers::new(args.substitutions, args.transforms),
             args.absolute_paths,
+            true,
         ),
     };
     if let Some(file) = archive_file {
@@ -1096,6 +1097,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: StdioCommand) -> anyhow::Resul
             args.strip_components,
             PathTransformers::new(args.substitutions, args.transforms),
             args.absolute_paths,
+            true,
         ),
         ordered_path_locks: Arc::new(OrderedPathLocks::default()),
         unlink_first: args.unlink_first,
@@ -1280,6 +1282,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             args.strip_components,
             PathTransformers::new(args.substitutions, args.transforms),
             args.absolute_paths,
+            true,
         ),
     };
 
@@ -1434,6 +1437,7 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
             args.strip_components,
             PathTransformers::new(args.substitutions, args.transforms),
             args.absolute_paths,
+            true,
         ),
     };
 
