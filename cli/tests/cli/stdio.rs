@@ -17,5 +17,6 @@ mod option_same_permissions;
 mod option_substitution;
 mod option_update;
 mod option_version;
+mod path_traversal;
 mod strip_components;
 mod unlink_first;

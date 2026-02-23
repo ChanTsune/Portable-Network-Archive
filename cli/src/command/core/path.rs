@@ -370,6 +370,16 @@ mod tests {
     // --- Edge cases: symlink targets preserve ParentDir (bsdtar stores verbatim) ---
 
     #[test]
+    fn editor_preserve_curdir_symlink_strips_root_from_absolute_target() {
+        // Unlike EntryReference::sanitize() which re-inserts RootDir, the CLI-side
+        // sanitizer strips it unconditionally — this is the security boundary for
+        // absolute symlink targets when absolute_paths=false.
+        let editor = PathnameEditor::new(None, None, false, true);
+        let reference = editor.edit_symlink(Path::new("/etc/hostname"));
+        assert_eq!(reference.as_str(), "etc/hostname");
+    }
+
+    #[test]
     fn editor_preserve_curdir_symlink_preserves_parent_dir() {
         // bsdtar preserves .. in symlink targets verbatim
         let editor = PathnameEditor::new(None, None, false, true);
@@ -391,6 +401,23 @@ mod tests {
         assert_eq!(reference.as_str(), "./a/../b");
     }
 
+    // --- Edge cases: absolute_paths interaction ---
+
+    #[test]
+    fn editor_absolute_paths_takes_priority_over_preserve_curdir() {
+        // absolute_paths=true must bypass all sanitization, even when preserve_curdir=true.
+        // Guards against if/else-if branch reordering.
+        let editor = PathnameEditor::new(None, None, true, true);
+        let name = editor.edit_entry_name(Path::new("/etc/passwd")).unwrap();
+        assert_eq!(name.as_str(), "/etc/passwd");
+
+        let reference = editor.edit_symlink(Path::new("/etc/hostname"));
+        assert_eq!(reference.as_str(), "/etc/hostname");
+
+        let reference = editor.edit_hardlink(Path::new("/etc/hosts")).unwrap();
+        assert_eq!(reference.as_str(), "/etc/hosts");
+    }
+
     // --- Edge cases: hardlink targets ---
 
     #[test]
@@ -403,6 +430,8 @@ mod tests {
 
     #[test]
     fn editor_preserve_curdir_hardlink_bare_parent_dir() {
+        // ParentDir is kept because is_unsafe_link() guards at extraction time,
+        // not at sanitization time — matching bsdtar's separation of concerns.
         let editor = PathnameEditor::new(None, None, false, true);
         let reference = editor.edit_hardlink(Path::new("..")).unwrap();
         assert_eq!(reference.as_str(), "..");
