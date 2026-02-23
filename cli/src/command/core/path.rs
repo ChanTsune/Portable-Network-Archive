@@ -55,13 +55,17 @@ impl PathnameEditor {
             return None;
         }
         let entry_name = EntryName::from_path_lossy_preserve_root(&stripped);
-        if self.absolute_paths {
-            Some(entry_name)
+        let sanitized = if self.absolute_paths {
+            entry_name
         } else if self.preserve_curdir {
-            Some(sanitize_preserve_curdir(entry_name))
+            sanitize_preserve_curdir(entry_name)
         } else {
-            Some(entry_name.sanitize())
+            entry_name.sanitize()
+        };
+        if sanitized.as_str().is_empty() {
+            return None;
         }
+        Some(sanitized)
     }
 
     /// Edit a hardlink target pathname.
@@ -87,13 +91,17 @@ impl PathnameEditor {
             return None;
         }
         let entry_reference = EntryReference::from_path_lossy_preserve_root(&stripped);
-        if self.absolute_paths {
-            Some(entry_reference)
+        let sanitized = if self.absolute_paths {
+            entry_reference
         } else if self.preserve_curdir {
-            Some(sanitize_preserve_curdir_reference(entry_reference))
+            sanitize_preserve_curdir_reference(entry_reference)
         } else {
-            Some(entry_reference.sanitize())
+            entry_reference.sanitize()
+        };
+        if sanitized.as_str().is_empty() {
+            return None;
         }
+        Some(sanitized)
     }
 
     /// Edit a symlink target path.
@@ -151,7 +159,12 @@ fn sanitize_preserve_curdir_reference(reference: EntryReference) -> EntryReferen
     let path = Path::new(reference.as_str());
     let sanitized: PathBuf = path
         .components()
-        .filter(|c| matches!(c, Component::Normal(_) | Component::CurDir))
+        .filter(|c| {
+            matches!(
+                c,
+                Component::Normal(_) | Component::CurDir | Component::ParentDir
+            )
+        })
         .collect();
     EntryReference::from_path_lossy_preserve_root(&sanitized)
 }
@@ -275,7 +288,7 @@ mod tests {
 
     #[test]
     fn editor_preserve_curdir_with_strip_components() {
-        // ./target/sub -> strip 1 -> sub (strips the "." component)
+        // ./target/sub -> strip 1 -> target/sub (the "." component counts as one stripped level)
         let editor = PathnameEditor::new(Some(1), None, false, true);
         let name = editor.edit_entry_name(Path::new("./target/sub")).unwrap();
         assert_eq!(name.as_str(), "target/sub");
@@ -301,5 +314,112 @@ mod tests {
         let editor = PathnameEditor::new(None, None, false, true);
         let reference = editor.edit_symlink(Path::new("./a/b"));
         assert_eq!(reference.as_str(), "./a/b");
+    }
+
+    // --- Edge cases: path traversal under preserve_curdir ---
+
+    #[test]
+    fn editor_preserve_curdir_strips_parent_dir_from_entry_name() {
+        // ParentDir is stripped from entry names for security, even in bsdtar-compat mode
+        let editor = PathnameEditor::new(None, None, false, true);
+        let name = editor.edit_entry_name(Path::new("../a/b")).unwrap();
+        assert_eq!(name.as_str(), "a/b");
+    }
+
+    #[test]
+    fn editor_preserve_curdir_bare_parent_dir_produces_none() {
+        // ".." has no Normal or CurDir components; post-sanitization empty check returns None
+        let editor = PathnameEditor::new(None, None, false, true);
+        assert!(editor.edit_entry_name(Path::new("..")).is_none());
+    }
+
+    #[test]
+    fn editor_preserve_curdir_only_parent_dirs_produces_none() {
+        let editor = PathnameEditor::new(None, None, false, true);
+        assert!(editor.edit_entry_name(Path::new("../../..")).is_none());
+    }
+
+    #[test]
+    fn editor_preserve_curdir_strips_root_from_absolute_path() {
+        let editor = PathnameEditor::new(None, None, false, true);
+        let name = editor.edit_entry_name(Path::new("/etc/passwd")).unwrap();
+        assert_eq!(name.as_str(), "etc/passwd");
+    }
+
+    #[test]
+    fn editor_preserve_curdir_bare_root_produces_none() {
+        let editor = PathnameEditor::new(None, None, false, true);
+        assert!(editor.edit_entry_name(Path::new("/")).is_none());
+    }
+
+    #[test]
+    fn editor_preserve_curdir_mixed_curdir_and_parent_dir() {
+        // CurDir kept, ParentDir stripped from entry names
+        let editor = PathnameEditor::new(None, None, false, true);
+        let name = editor.edit_entry_name(Path::new("./a/../b")).unwrap();
+        assert_eq!(name.as_str(), "./a/b");
+    }
+
+    #[test]
+    fn editor_preserve_curdir_empty_string_produces_none() {
+        let editor = PathnameEditor::new(None, None, false, true);
+        assert!(editor.edit_entry_name(Path::new("")).is_none());
+        assert!(editor.edit_hardlink(Path::new("")).is_none());
+    }
+
+    // --- Edge cases: symlink targets preserve ParentDir (bsdtar stores verbatim) ---
+
+    #[test]
+    fn editor_preserve_curdir_symlink_preserves_parent_dir() {
+        // bsdtar preserves .. in symlink targets verbatim
+        let editor = PathnameEditor::new(None, None, false, true);
+        let reference = editor.edit_symlink(Path::new("../lib"));
+        assert_eq!(reference.as_str(), "../lib");
+    }
+
+    #[test]
+    fn editor_preserve_curdir_symlink_preserves_deep_parent_dir() {
+        let editor = PathnameEditor::new(None, None, false, true);
+        let reference = editor.edit_symlink(Path::new("../../include/header.h"));
+        assert_eq!(reference.as_str(), "../../include/header.h");
+    }
+
+    #[test]
+    fn editor_preserve_curdir_symlink_mixed_curdir_and_parent_dir() {
+        let editor = PathnameEditor::new(None, None, false, true);
+        let reference = editor.edit_symlink(Path::new("./a/../b"));
+        assert_eq!(reference.as_str(), "./a/../b");
+    }
+
+    // --- Edge cases: hardlink targets ---
+
+    #[test]
+    fn editor_preserve_curdir_hardlink_preserves_parent_dir() {
+        // EntryReference preserves ParentDir (matching EntryReference::sanitize behavior)
+        let editor = PathnameEditor::new(None, None, false, true);
+        let reference = editor.edit_hardlink(Path::new("../a")).unwrap();
+        assert_eq!(reference.as_str(), "../a");
+    }
+
+    #[test]
+    fn editor_preserve_curdir_hardlink_bare_parent_dir() {
+        let editor = PathnameEditor::new(None, None, false, true);
+        let reference = editor.edit_hardlink(Path::new("..")).unwrap();
+        assert_eq!(reference.as_str(), "..");
+    }
+
+    #[test]
+    fn editor_preserve_curdir_hardlink_bare_root_produces_none() {
+        let editor = PathnameEditor::new(None, None, false, true);
+        assert!(editor.edit_hardlink(Path::new("/")).is_none());
+    }
+
+    // --- Edge cases: strip_components interaction ---
+
+    #[test]
+    fn editor_preserve_curdir_strip_consumes_all_components() {
+        // ./a has 2 components (CurDir + Normal), strip 2 returns None
+        let editor = PathnameEditor::new(Some(2), None, false, true);
+        assert!(editor.edit_entry_name(Path::new("./a")).is_none());
     }
 }
