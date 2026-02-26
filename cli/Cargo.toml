@@ -36,7 +36,7 @@ log = "0.4.29"
 memchr = "2.8.0"
 memmap2 = { version = "0.9.10", optional = true }
 nom = "8.0.0"
-parse_datetime = "0.13.3"
+parse_datetime = "0.14.0"
 path-slash = "0.2.1"
 pna = { version = "0.31.0", path = "../pna" }
 rayon = "1.11.0"
