@@ -148,25 +148,35 @@ fn strip_components(path: &Path, count: Option<usize>) -> Option<Cow<'_, Path>> 
 /// CLI-side sanitization that keeps `CurDir` (`.`) components.
 fn sanitize_preserve_curdir(name: EntryName) -> EntryName {
     let path = Path::new(name.as_str());
-    let sanitized: PathBuf = path
-        .components()
-        .filter(|c| matches!(c, Component::Normal(_) | Component::CurDir))
-        .collect();
-    EntryName::from_path_lossy_preserve_root(&sanitized)
+    let sanitized = join_components_forward_slash(
+        path.components()
+            .filter(|c| matches!(c, Component::Normal(_) | Component::CurDir)),
+    );
+    EntryName::from_utf8_preserve_root(&sanitized)
 }
 
 fn sanitize_preserve_curdir_reference(reference: EntryReference) -> EntryReference {
     let path = Path::new(reference.as_str());
-    let sanitized: PathBuf = path
-        .components()
-        .filter(|c| {
-            matches!(
-                c,
-                Component::Normal(_) | Component::CurDir | Component::ParentDir
-            )
-        })
-        .collect();
-    EntryReference::from_path_lossy_preserve_root(&sanitized)
+    let sanitized = join_components_forward_slash(path.components().filter(|c| {
+        matches!(
+            c,
+            Component::Normal(_) | Component::CurDir | Component::ParentDir
+        )
+    }));
+    EntryReference::from_utf8_preserve_root(&sanitized)
+}
+
+/// Join path components with `/` separator to produce platform-independent archive paths.
+fn join_components_forward_slash<'a>(mut iter: impl Iterator<Item = Component<'a>>) -> String {
+    let Some(first) = iter.next() else {
+        return String::new();
+    };
+    let mut result = first.as_os_str().to_string_lossy().into_owned();
+    for component in iter {
+        result.push('/');
+        result.push_str(&component.as_os_str().to_string_lossy());
+    }
+    result
 }
 
 #[inline]
