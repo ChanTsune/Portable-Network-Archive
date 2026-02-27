@@ -41,19 +41,7 @@ impl PathnameEditor {
     /// Returns `None` (skip the entry) when the path becomes empty after
     /// transformation or after stripping.
     pub(crate) fn edit_entry_name(&self, path: &Path) -> Option<EntryName> {
-        // bsdtar order: substitution first, then strip
-        let transformed: Cow<'_, Path> = if let Some(t) = &self.transformers {
-            Cow::Owned(PathBuf::from(t.apply(path.to_string_lossy(), false, false)))
-        } else {
-            Cow::Borrowed(path)
-        };
-        if is_effectively_empty_path(&transformed, self.preserve_curdir) {
-            return None;
-        }
-        let stripped = strip_components(&transformed, self.strip_components)?;
-        if is_effectively_empty_path(&stripped, self.preserve_curdir) {
-            return None;
-        }
+        let stripped = self.transform_and_strip(path, false, false)?;
         let entry_name = EntryName::from_path_lossy_preserve_root(&stripped);
         let sanitized = if self.absolute_paths {
             entry_name
@@ -62,14 +50,7 @@ impl PathnameEditor {
         } else {
             entry_name.sanitize()
         };
-        if sanitized.as_str().is_empty() {
-            return None;
-        }
-        // bsdtar-compat: SECURE_NODOTDOT — reject entry names containing ".."
-        if self.preserve_curdir && !self.absolute_paths && contains_parent_dir(&sanitized) {
-            log::warn!("Path contains '..', skipping: {}", sanitized.as_str());
-            return None;
-        }
+        self.check_nodotdot(sanitized.as_str(), "skipping")?;
         Some(sanitized)
     }
 
@@ -78,23 +59,7 @@ impl PathnameEditor {
     /// Returns `None` (skip the entry) when the target becomes empty after
     /// transformation or after stripping.
     pub(crate) fn edit_hardlink(&self, target: &Path) -> Option<EntryReference> {
-        // bsdtar order: substitution first, then strip
-        let transformed: Cow<'_, Path> = if let Some(t) = &self.transformers {
-            Cow::Owned(PathBuf::from(t.apply(
-                target.to_string_lossy(),
-                false,
-                true,
-            )))
-        } else {
-            Cow::Borrowed(target)
-        };
-        if is_effectively_empty_path(&transformed, self.preserve_curdir) {
-            return None;
-        }
-        let stripped = strip_components(&transformed, self.strip_components)?;
-        if is_effectively_empty_path(&stripped, self.preserve_curdir) {
-            return None;
-        }
+        let stripped = self.transform_and_strip(target, false, true)?;
         let entry_reference = EntryReference::from_path_lossy_preserve_root(&stripped);
         let sanitized = if self.absolute_paths {
             entry_reference
@@ -103,18 +68,7 @@ impl PathnameEditor {
         } else {
             entry_reference.sanitize()
         };
-        if sanitized.as_str().is_empty() {
-            return None;
-        }
-        // bsdtar-compat: SECURE_NODOTDOT applies to hardlink targets
-        if self.preserve_curdir && !self.absolute_paths && reference_contains_parent_dir(&sanitized)
-        {
-            log::warn!(
-                "Path contains '..', skipping hardlink: {}",
-                sanitized.as_str()
-            );
-            return None;
-        }
+        self.check_nodotdot(sanitized.as_str(), "skipping hardlink")?;
         Some(sanitized)
     }
 
@@ -135,14 +89,54 @@ impl PathnameEditor {
             Cow::Borrowed(target)
         };
         let entry_reference = EntryReference::from_path_lossy_preserve_root(&transformed);
-        if self.absolute_paths {
-            entry_reference
-        } else if self.preserve_curdir {
-            // bsdtar passes symlink targets verbatim (no cleanup_pathname_fsobj)
+        if self.absolute_paths || self.preserve_curdir {
             entry_reference
         } else {
             entry_reference.sanitize()
         }
+    }
+
+    /// Apply substitution transforms and strip leading components.
+    ///
+    /// Returns `None` when the path becomes empty after transformation or stripping.
+    fn transform_and_strip(
+        &self,
+        path: &Path,
+        is_symlink: bool,
+        is_hardlink: bool,
+    ) -> Option<PathBuf> {
+        let transformed: Cow<'_, Path> = if let Some(t) = &self.transformers {
+            Cow::Owned(PathBuf::from(t.apply(
+                path.to_string_lossy(),
+                is_symlink,
+                is_hardlink,
+            )))
+        } else {
+            Cow::Borrowed(path)
+        };
+        if is_effectively_empty_path(&transformed, self.preserve_curdir) {
+            return None;
+        }
+        let stripped = strip_components(&transformed, self.strip_components)?;
+        if is_effectively_empty_path(&stripped, self.preserve_curdir) {
+            return None;
+        }
+        Some(stripped.into_owned())
+    }
+
+    /// bsdtar-compat: SECURE_NODOTDOT -- reject paths containing `..`.
+    ///
+    /// Returns `None` when the sanitized path is empty or contains `..` in
+    /// preserve_curdir mode without absolute_paths.
+    fn check_nodotdot(&self, sanitized: &str, context: &str) -> Option<()> {
+        if sanitized.is_empty() {
+            return None;
+        }
+        if self.preserve_curdir && !self.absolute_paths && has_parent_dir_component(sanitized) {
+            log::warn!("Path contains '..', {}: {}", context, sanitized);
+            return None;
+        }
+        Some(())
     }
 }
 
@@ -165,8 +159,8 @@ fn strip_components(path: &Path, count: Option<usize>) -> Option<Cow<'_, Path>> 
 /// Matches bsdtar's `strip_absolute_path()`: strips `RootDir`/`Prefix` and any
 /// leading `..`/`.` that directly follow (mirroring bsdtar's `/../` and `/./` loop),
 /// then preserves `..` so the caller can apply SECURE_NODOTDOT rejection separately.
-fn sanitize_preserve_curdir(name: EntryName) -> EntryName {
-    let path = Path::new(name.as_str());
+fn sanitize_preserve_curdir_str(s: &str) -> String {
+    let path = Path::new(s);
     let was_absolute = path.has_root();
     let filtered = path.components().filter(|c| {
         matches!(
@@ -174,49 +168,32 @@ fn sanitize_preserve_curdir(name: EntryName) -> EntryName {
             Component::Normal(_) | Component::CurDir | Component::ParentDir
         )
     });
-    let sanitized = if was_absolute {
+    if was_absolute {
         // bsdtar's strip_absolute_path loop consumes leading /../ and /./ after /
         join_components_forward_slash(
             filtered.skip_while(|c| matches!(c, Component::ParentDir | Component::CurDir)),
         )
     } else {
         join_components_forward_slash(filtered)
-    };
+    }
+}
+
+fn sanitize_preserve_curdir(name: EntryName) -> EntryName {
+    let sanitized = sanitize_preserve_curdir_str(name.as_str());
     if sanitized.is_empty() {
         return EntryName::from_utf8_preserve_root(".");
     }
     EntryName::from_utf8_preserve_root(&sanitized)
 }
 
-fn contains_parent_dir(name: &EntryName) -> bool {
-    Path::new(name.as_str())
-        .components()
-        .any(|c| matches!(c, Component::ParentDir))
-}
-
-fn reference_contains_parent_dir(reference: &EntryReference) -> bool {
-    Path::new(reference.as_str())
-        .components()
-        .any(|c| matches!(c, Component::ParentDir))
-}
-
 fn sanitize_preserve_curdir_reference(reference: EntryReference) -> EntryReference {
-    let path = Path::new(reference.as_str());
-    let was_absolute = path.has_root();
-    let filtered = path.components().filter(|c| {
-        matches!(
-            c,
-            Component::Normal(_) | Component::CurDir | Component::ParentDir
-        )
-    });
-    let sanitized = if was_absolute {
-        join_components_forward_slash(
-            filtered.skip_while(|c| matches!(c, Component::ParentDir | Component::CurDir)),
-        )
-    } else {
-        join_components_forward_slash(filtered)
-    };
-    EntryReference::from_utf8_preserve_root(&sanitized)
+    EntryReference::from_utf8_preserve_root(&sanitize_preserve_curdir_str(reference.as_str()))
+}
+
+fn has_parent_dir_component(s: &str) -> bool {
+    Path::new(s)
+        .components()
+        .any(|c| matches!(c, Component::ParentDir))
 }
 
 /// Join path components with `/` separator to produce platform-independent archive paths.
