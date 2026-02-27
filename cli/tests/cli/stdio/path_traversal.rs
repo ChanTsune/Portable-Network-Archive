@@ -183,7 +183,7 @@ fn stdio_extract_allows_symlink_with_parent_dir_target_by_default() {
 }
 
 /// Precondition: Archive contains a symlink with an absolute target path
-/// Action: Extract with stdio -x and --no-allow-unsafe-links
+/// Action: Extract with stdio -x (default: unsafe links allowed)
 /// Expectation: Symlink is created but target has root stripped (sanitization removes RootDir)
 #[test]
 fn stdio_extract_symlink_with_absolute_target_sanitized() {

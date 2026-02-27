@@ -411,6 +411,15 @@ mod tests {
         assert_eq!(reference.as_str(), "./a/../b");
     }
 
+    #[test]
+    fn editor_preserve_curdir_symlink_bare_root() {
+        // Bare "/" has only RootDir component, which is stripped — returns empty string.
+        // edit_symlink does not guard against empty (unlike edit_entry_name/edit_hardlink).
+        let editor = PathnameEditor::new(None, None, false, true);
+        let reference = editor.edit_symlink(Path::new("/"));
+        assert_eq!(reference.as_str(), "");
+    }
+
     // --- Edge cases: absolute_paths interaction ---
 
     #[test]
