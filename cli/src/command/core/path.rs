@@ -162,18 +162,27 @@ fn strip_components(path: &Path, count: Option<usize>) -> Option<Cow<'_, Path>> 
 
 /// CLI-side sanitization that keeps `CurDir` (`.`) and `ParentDir` (`..`) components.
 ///
-/// Matches bsdtar's `cleanup_pathname_fsobj()`: strips only `RootDir` and `Prefix`,
-/// preserves `..` so the caller can apply SECURE_NODOTDOT rejection separately.
+/// Matches bsdtar's `strip_absolute_path()`: strips `RootDir`/`Prefix` and any
+/// leading `..`/`.` that directly follow (mirroring bsdtar's `/../` and `/./` loop),
+/// then preserves `..` so the caller can apply SECURE_NODOTDOT rejection separately.
 fn sanitize_preserve_curdir(name: EntryName) -> EntryName {
     let path = Path::new(name.as_str());
-    let sanitized = join_components_forward_slash(path.components().filter(|c| {
+    let was_absolute = path.has_root();
+    let filtered = path.components().filter(|c| {
         matches!(
             c,
             Component::Normal(_) | Component::CurDir | Component::ParentDir
         )
-    }));
+    });
+    let sanitized = if was_absolute {
+        // bsdtar's strip_absolute_path loop consumes leading /../ and /./ after /
+        join_components_forward_slash(
+            filtered.skip_while(|c| matches!(c, Component::ParentDir | Component::CurDir)),
+        )
+    } else {
+        join_components_forward_slash(filtered)
+    };
     if sanitized.is_empty() {
-        // bsdtar converts bare "/" to "." via cleanup_pathname_fsobj
         return EntryName::from_utf8_preserve_root(".");
     }
     EntryName::from_utf8_preserve_root(&sanitized)
@@ -193,12 +202,20 @@ fn reference_contains_parent_dir(reference: &EntryReference) -> bool {
 
 fn sanitize_preserve_curdir_reference(reference: EntryReference) -> EntryReference {
     let path = Path::new(reference.as_str());
-    let sanitized = join_components_forward_slash(path.components().filter(|c| {
+    let was_absolute = path.has_root();
+    let filtered = path.components().filter(|c| {
         matches!(
             c,
             Component::Normal(_) | Component::CurDir | Component::ParentDir
         )
-    }));
+    });
+    let sanitized = if was_absolute {
+        join_components_forward_slash(
+            filtered.skip_while(|c| matches!(c, Component::ParentDir | Component::CurDir)),
+        )
+    } else {
+        join_components_forward_slash(filtered)
+    };
     EntryReference::from_utf8_preserve_root(&sanitized)
 }
 
@@ -507,6 +524,30 @@ mod tests {
     fn editor_preserve_curdir_hardlink_bare_root_produces_none() {
         let editor = PathnameEditor::new(None, None, false, true);
         assert!(editor.edit_hardlink(Path::new("/")).is_none());
+    }
+
+    // --- Edge cases: leading /../ stripping (bsdtar strip_absolute_path compat) ---
+
+    #[test]
+    fn editor_preserve_curdir_strips_leading_dotdot_after_root() {
+        // bsdtar's strip_absolute_path consumes leading /../ as part of absolute prefix
+        let editor = PathnameEditor::new(None, None, false, true);
+        let name = editor.edit_entry_name(Path::new("/../a")).unwrap();
+        assert_eq!(name.as_str(), "a");
+    }
+
+    #[test]
+    fn editor_preserve_curdir_strips_multiple_leading_dotdot_after_root() {
+        let editor = PathnameEditor::new(None, None, false, true);
+        let name = editor.edit_entry_name(Path::new("/../../a")).unwrap();
+        assert_eq!(name.as_str(), "a");
+    }
+
+    #[test]
+    fn editor_preserve_curdir_hardlink_strips_leading_dotdot_after_root() {
+        let editor = PathnameEditor::new(None, None, false, true);
+        let reference = editor.edit_hardlink(Path::new("/../a")).unwrap();
+        assert_eq!(reference.as_str(), "a");
     }
 
     // --- Edge cases: strip_components interaction ---
