@@ -65,6 +65,11 @@ impl PathnameEditor {
         if sanitized.as_str().is_empty() {
             return None;
         }
+        // bsdtar-compat: SECURE_NODOTDOT — reject entry names containing ".."
+        if self.preserve_curdir && !self.absolute_paths && contains_parent_dir(&sanitized) {
+            log::warn!("Path contains '..', skipping: {}", sanitized.as_str());
+            return None;
+        }
         Some(sanitized)
     }
 
@@ -145,14 +150,25 @@ fn strip_components(path: &Path, count: Option<usize>) -> Option<Cow<'_, Path>> 
     Some(Cow::from(PathBuf::from_iter(components.skip(count))))
 }
 
-/// CLI-side sanitization that keeps `CurDir` (`.`) components.
+/// CLI-side sanitization that keeps `CurDir` (`.`) and `ParentDir` (`..`) components.
+///
+/// Matches bsdtar's `cleanup_pathname_fsobj()`: strips only `RootDir` and `Prefix`,
+/// preserves `..` so the caller can apply SECURE_NODOTDOT rejection separately.
 fn sanitize_preserve_curdir(name: EntryName) -> EntryName {
     let path = Path::new(name.as_str());
-    let sanitized = join_components_forward_slash(
-        path.components()
-            .filter(|c| matches!(c, Component::Normal(_) | Component::CurDir)),
-    );
+    let sanitized = join_components_forward_slash(path.components().filter(|c| {
+        matches!(
+            c,
+            Component::Normal(_) | Component::CurDir | Component::ParentDir
+        )
+    }));
     EntryName::from_utf8_preserve_root(&sanitized)
+}
+
+fn contains_parent_dir(name: &EntryName) -> bool {
+    Path::new(name.as_str())
+        .components()
+        .any(|c| matches!(c, Component::ParentDir))
 }
 
 fn sanitize_preserve_curdir_reference(reference: EntryReference) -> EntryReference {
@@ -329,16 +345,15 @@ mod tests {
     // --- Edge cases: path traversal under preserve_curdir ---
 
     #[test]
-    fn editor_preserve_curdir_strips_parent_dir_from_entry_name() {
-        // ParentDir is stripped from entry names for security, even in bsdtar-compat mode
+    fn editor_preserve_curdir_rejects_entry_with_parent_dir() {
+        // bsdtar-compat: SECURE_NODOTDOT rejects entry names containing ".."
         let editor = PathnameEditor::new(None, None, false, true);
-        let name = editor.edit_entry_name(Path::new("../a/b")).unwrap();
-        assert_eq!(name.as_str(), "a/b");
+        assert!(editor.edit_entry_name(Path::new("../a/b")).is_none());
     }
 
     #[test]
     fn editor_preserve_curdir_bare_parent_dir_produces_none() {
-        // ".." has no Normal or CurDir components; post-sanitization empty check returns None
+        // bsdtar-compat: SECURE_NODOTDOT rejects bare ".."
         let editor = PathnameEditor::new(None, None, false, true);
         assert!(editor.edit_entry_name(Path::new("..")).is_none());
     }
@@ -364,10 +379,9 @@ mod tests {
 
     #[test]
     fn editor_preserve_curdir_mixed_curdir_and_parent_dir() {
-        // CurDir kept, ParentDir stripped from entry names
+        // bsdtar-compat: SECURE_NODOTDOT rejects any path containing ".."
         let editor = PathnameEditor::new(None, None, false, true);
-        let name = editor.edit_entry_name(Path::new("./a/../b")).unwrap();
-        assert_eq!(name.as_str(), "./a/b");
+        assert!(editor.edit_entry_name(Path::new("./a/../b")).is_none());
     }
 
     #[test]
@@ -435,6 +449,14 @@ mod tests {
 
         let reference = editor.edit_hardlink(Path::new("/etc/hosts")).unwrap();
         assert_eq!(reference.as_str(), "/etc/hosts");
+    }
+
+    #[test]
+    fn editor_preserve_curdir_absolute_paths_allows_parent_dir() {
+        // -P disables SECURE_NODOTDOT: ".." in entry names is allowed
+        let editor = PathnameEditor::new(None, None, true, true);
+        let name = editor.edit_entry_name(Path::new("a/../b")).unwrap();
+        assert_eq!(name.as_str(), "a/../b");
     }
 
     // --- Edge cases: hardlink targets ---

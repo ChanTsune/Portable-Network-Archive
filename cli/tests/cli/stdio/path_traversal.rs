@@ -5,6 +5,28 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+fn build_archive_with_file(archive_path: &Path, file_name: &str, file_content: &[u8]) {
+    if let Some(parent) = archive_path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    let file = fs::File::create(archive_path).unwrap();
+    let mut writer = Archive::write_header(file).unwrap();
+
+    writer
+        .add_entry({
+            let mut builder = EntryBuilder::new_file(
+                EntryName::from_utf8_preserve_root(file_name),
+                WriteOptions::builder().build(),
+            )
+            .unwrap();
+            builder.write_all(file_content).unwrap();
+            builder.build().unwrap()
+        })
+        .unwrap();
+
+    writer.finalize().unwrap();
+}
+
 fn build_archive_with_file_and_symlink(
     archive_path: &Path,
     file_name: &str,
@@ -464,5 +486,82 @@ fn stdio_extract_hardlink_with_safe_target() {
     assert!(
         same_file::is_same_file(out_dir.join("file.txt"), out_dir.join("link.txt")).unwrap(),
         "hardlink should share inode with target"
+    );
+}
+
+// --- SECURE_NODOTDOT: entry names with ".." ---
+
+/// Precondition: Archive contains a file whose entry name includes ".." traversal
+/// Action: Extract with stdio -x (default: SECURE_NODOTDOT enabled)
+/// Expectation: Entry is skipped (rejected by NODOTDOT check)
+#[test]
+fn stdio_extract_rejects_entry_with_dotdot() {
+    setup();
+
+    let root = PathBuf::from("stdio_extract_rejects_entry_dotdot");
+    let archive_path = root.join("archive.pna");
+    let out_dir = root.join("out");
+
+    build_archive_with_file(&archive_path, "./a/../b/file.txt", b"content");
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "experimental",
+            "stdio",
+            "--extract",
+            "--unstable",
+            "--overwrite",
+            "--file",
+            archive_path.to_str().unwrap(),
+            "--out-dir",
+            out_dir.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    assert!(
+        !out_dir.join("b/file.txt").exists(),
+        "entry with .. should be rejected by SECURE_NODOTDOT"
+    );
+    assert!(
+        !out_dir.join("a/../b/file.txt").exists(),
+        "entry with .. should not be extracted at all"
+    );
+}
+
+/// Precondition: Archive contains a file whose entry name includes ".." traversal
+/// Action: Extract with stdio -x and --absolute-paths (-P disables NODOTDOT)
+/// Expectation: Entry is extracted (.. resolves at filesystem level)
+#[test]
+fn stdio_extract_allows_entry_with_dotdot_with_absolute_paths() {
+    setup();
+
+    let root = PathBuf::from("stdio_extract_allows_entry_dotdot_abs");
+    let archive_path = root.join("archive.pna");
+    let out_dir = root.join("out");
+
+    build_archive_with_file(&archive_path, "./a/../b/file.txt", b"content");
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "experimental",
+            "stdio",
+            "--extract",
+            "--unstable",
+            "--overwrite",
+            "--absolute-paths",
+            "--file",
+            archive_path.to_str().unwrap(),
+            "--out-dir",
+            out_dir.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    assert!(
+        out_dir.join("b/file.txt").exists(),
+        "entry should be extracted (.. resolved by filesystem)"
     );
 }
