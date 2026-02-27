@@ -83,7 +83,7 @@ assert_cmd = "2.1.2"
 predicates = "3.1.3"
 
 [target.'cfg(unix)'.dev-dependencies]
-serial_test = { version = "3.3.1", default-features = false }
+serial_test = { version = "3.4.0", default-features = false }
 
 [features]
 acl = [
