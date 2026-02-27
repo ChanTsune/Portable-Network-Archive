@@ -206,12 +206,12 @@ fn stdio_extract_allows_symlink_with_parent_dir_target_by_default() {
 
 /// Precondition: Archive contains a symlink with an absolute target path
 /// Action: Extract with stdio -x (default: unsafe links allowed)
-/// Expectation: Symlink is created but target has root stripped (sanitization removes RootDir)
+/// Expectation: Symlink is created with absolute target preserved (bsdtar passes verbatim)
 #[test]
-fn stdio_extract_symlink_with_absolute_target_sanitized() {
+fn stdio_extract_symlink_with_absolute_target_preserved() {
     setup();
 
-    let root = PathBuf::from("stdio_extract_symlink_abs_sanitized");
+    let root = PathBuf::from("stdio_extract_symlink_abs_preserved_default");
     let archive_path = root.join("archive.pna");
     let out_dir = root.join("out");
 
@@ -223,7 +223,7 @@ fn stdio_extract_symlink_with_absolute_target_sanitized() {
         "/etc/hostname",
     );
 
-    // Default stdio behavior: unsafe links allowed, but sanitizer strips root
+    // Default stdio: allow_unsafe_links=true, symlink targets passed verbatim (bsdtar-compat)
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
@@ -247,8 +247,8 @@ fn stdio_extract_symlink_with_absolute_target_sanitized() {
     let target = fs::read_link(&link_path).unwrap();
     assert_eq!(
         target,
-        Path::new("etc/hostname"),
-        "absolute symlink target should have root stripped by sanitization"
+        Path::new("/etc/hostname"),
+        "absolute symlink target should be preserved verbatim (bsdtar-compat)"
     );
 }
 
@@ -349,18 +349,17 @@ fn stdio_extract_blocks_hardlink_with_parent_dir_target() {
     );
 }
 
-/// Precondition: Archive contains a hardlink whose target has .. that resolves within out_dir
-/// Action: Extract with stdio -x (default: unsafe links allowed)
-/// Expectation: Hardlink is created (.. resolves within out_dir)
+/// Precondition: Archive contains a hardlink whose target has .. traversal
+/// Action: Extract with stdio -x (default: SECURE_NODOTDOT enabled)
+/// Expectation: Hardlink is not created (rejected by NODOTDOT)
 #[test]
-fn stdio_extract_allows_hardlink_with_parent_dir_target_by_default() {
+fn stdio_extract_rejects_hardlink_with_dotdot_by_default() {
     setup();
 
-    let root = PathBuf::from("stdio_extract_allows_hardlink_parent_default");
+    let root = PathBuf::from("stdio_extract_rejects_hardlink_dotdot_default");
     let archive_path = root.join("archive.pna");
     let out_dir = root.join("out");
 
-    // Target ./a/../a/file.txt has .. but resolves to ./a/file.txt within out_dir
     build_archive_with_file_and_hardlink(
         &archive_path,
         "./a/file.txt",
@@ -386,8 +385,54 @@ fn stdio_extract_allows_hardlink_with_parent_dir_target_by_default() {
         .success();
 
     assert!(
+        out_dir.join("a/file.txt").exists(),
+        "regular file should be extracted"
+    );
+    assert!(
+        !out_dir.join("link.txt").exists(),
+        "hardlink with .. should be rejected by SECURE_NODOTDOT"
+    );
+}
+
+/// Precondition: Archive contains a hardlink whose target has .. traversal
+/// Action: Extract with stdio -x and --absolute-paths (-P disables NODOTDOT)
+/// Expectation: Hardlink is created (.. resolves at filesystem level)
+#[test]
+fn stdio_extract_allows_hardlink_with_dotdot_with_absolute_paths() {
+    setup();
+
+    let root = PathBuf::from("stdio_extract_allows_hardlink_dotdot_abs");
+    let archive_path = root.join("archive.pna");
+    let out_dir = root.join("out");
+
+    build_archive_with_file_and_hardlink(
+        &archive_path,
+        "./a/file.txt",
+        b"content",
+        "./link.txt",
+        "./a/../a/file.txt",
+    );
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "experimental",
+            "stdio",
+            "--extract",
+            "--unstable",
+            "--overwrite",
+            "--absolute-paths",
+            "--file",
+            archive_path.to_str().unwrap(),
+            "--out-dir",
+            out_dir.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    assert!(
         out_dir.join("link.txt").exists(),
-        "hardlink should be created (default allows unsafe links)"
+        "hardlink should be created (-P disables NODOTDOT)"
     );
     assert!(
         same_file::is_same_file(out_dir.join("a/file.txt"), out_dir.join("link.txt")).unwrap(),

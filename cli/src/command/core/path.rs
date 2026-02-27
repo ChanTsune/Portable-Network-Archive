@@ -106,6 +106,15 @@ impl PathnameEditor {
         if sanitized.as_str().is_empty() {
             return None;
         }
+        // bsdtar-compat: SECURE_NODOTDOT applies to hardlink targets
+        if self.preserve_curdir && !self.absolute_paths && reference_contains_parent_dir(&sanitized)
+        {
+            log::warn!(
+                "Path contains '..', skipping hardlink: {}",
+                sanitized.as_str()
+            );
+            return None;
+        }
         Some(sanitized)
     }
 
@@ -129,7 +138,8 @@ impl PathnameEditor {
         if self.absolute_paths {
             entry_reference
         } else if self.preserve_curdir {
-            sanitize_preserve_curdir_reference(entry_reference)
+            // bsdtar passes symlink targets verbatim (no cleanup_pathname_fsobj)
+            entry_reference
         } else {
             entry_reference.sanitize()
         }
@@ -162,11 +172,21 @@ fn sanitize_preserve_curdir(name: EntryName) -> EntryName {
             Component::Normal(_) | Component::CurDir | Component::ParentDir
         )
     }));
+    if sanitized.is_empty() {
+        // bsdtar converts bare "/" to "." via cleanup_pathname_fsobj
+        return EntryName::from_utf8_preserve_root(".");
+    }
     EntryName::from_utf8_preserve_root(&sanitized)
 }
 
 fn contains_parent_dir(name: &EntryName) -> bool {
     Path::new(name.as_str())
+        .components()
+        .any(|c| matches!(c, Component::ParentDir))
+}
+
+fn reference_contains_parent_dir(reference: &EntryReference) -> bool {
+    Path::new(reference.as_str())
         .components()
         .any(|c| matches!(c, Component::ParentDir))
 }
@@ -372,9 +392,11 @@ mod tests {
     }
 
     #[test]
-    fn editor_preserve_curdir_bare_root_produces_none() {
+    fn editor_preserve_curdir_bare_root_becomes_dot() {
+        // bsdtar converts "/" to "." via cleanup_pathname_fsobj
         let editor = PathnameEditor::new(None, None, false, true);
-        assert!(editor.edit_entry_name(Path::new("/")).is_none());
+        let name = editor.edit_entry_name(Path::new("/")).unwrap();
+        assert_eq!(name.as_str(), ".");
     }
 
     #[test]
@@ -394,13 +416,12 @@ mod tests {
     // --- Edge cases: symlink targets preserve ParentDir (bsdtar stores verbatim) ---
 
     #[test]
-    fn editor_preserve_curdir_symlink_strips_root_from_absolute_target() {
-        // Unlike EntryReference::sanitize() which re-inserts RootDir, the CLI-side
-        // sanitizer strips it unconditionally — this is the security boundary for
-        // absolute symlink targets when absolute_paths=false.
+    fn editor_preserve_curdir_symlink_preserves_absolute_target() {
+        // bsdtar passes symlink targets verbatim — no cleanup_pathname_fsobj.
+        // is_unsafe_link() guards at extraction time when allow_unsafe_links=false.
         let editor = PathnameEditor::new(None, None, false, true);
         let reference = editor.edit_symlink(Path::new("/etc/hostname"));
-        assert_eq!(reference.as_str(), "etc/hostname");
+        assert_eq!(reference.as_str(), "/etc/hostname");
     }
 
     #[test]
@@ -427,11 +448,10 @@ mod tests {
 
     #[test]
     fn editor_preserve_curdir_symlink_bare_root() {
-        // Bare "/" has only RootDir component, which is stripped — returns empty string.
-        // edit_symlink does not guard against empty (unlike edit_entry_name/edit_hardlink).
+        // bsdtar passes symlink targets verbatim — "/" is preserved as-is.
         let editor = PathnameEditor::new(None, None, false, true);
         let reference = editor.edit_symlink(Path::new("/"));
-        assert_eq!(reference.as_str(), "");
+        assert_eq!(reference.as_str(), "/");
     }
 
     // --- Edge cases: absolute_paths interaction ---
@@ -462,20 +482,25 @@ mod tests {
     // --- Edge cases: hardlink targets ---
 
     #[test]
-    fn editor_preserve_curdir_hardlink_preserves_parent_dir() {
-        // EntryReference preserves ParentDir (matching EntryReference::sanitize behavior)
+    fn editor_preserve_curdir_hardlink_rejects_parent_dir() {
+        // bsdtar-compat: SECURE_NODOTDOT applies to hardlink targets
         let editor = PathnameEditor::new(None, None, false, true);
-        let reference = editor.edit_hardlink(Path::new("../a")).unwrap();
-        assert_eq!(reference.as_str(), "../a");
+        assert!(editor.edit_hardlink(Path::new("../a")).is_none());
     }
 
     #[test]
-    fn editor_preserve_curdir_hardlink_bare_parent_dir() {
-        // ParentDir is kept because is_unsafe_link() guards at extraction time,
-        // not at sanitization time — matching bsdtar's separation of concerns.
+    fn editor_preserve_curdir_hardlink_bare_parent_dir_produces_none() {
+        // bsdtar-compat: SECURE_NODOTDOT rejects bare ".."
         let editor = PathnameEditor::new(None, None, false, true);
-        let reference = editor.edit_hardlink(Path::new("..")).unwrap();
-        assert_eq!(reference.as_str(), "..");
+        assert!(editor.edit_hardlink(Path::new("..")).is_none());
+    }
+
+    #[test]
+    fn editor_preserve_curdir_hardlink_absolute_paths_allows_parent_dir() {
+        // -P disables SECURE_NODOTDOT for hardlink targets
+        let editor = PathnameEditor::new(None, None, true, true);
+        let reference = editor.edit_hardlink(Path::new("a/../b")).unwrap();
+        assert_eq!(reference.as_str(), "a/../b");
     }
 
     #[test]
