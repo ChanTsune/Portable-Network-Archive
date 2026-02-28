@@ -782,9 +782,8 @@ fn bsd_tar_list_entries_to(
     for row in entries {
         let nlink = 0; // BSD tar show always 0
         let permission = row.permission_mode();
-        let has_xattr = !row.xattrs.is_empty();
         let has_acl = !row.acl.is_empty();
-        let perm = bsdtar_permission_string(&row.entry_type, permission, has_acl);
+        let perm = PermissionDisplay::bsdtar(&row.entry_type, permission, has_acl);
         let size = row.raw_size.unwrap_or(0);
         let mtime = bsd_tar_time(now, row.modified.unwrap_or(now));
         let (uname, gname) = match &row.permission {
@@ -1155,63 +1154,64 @@ const fn kind_char(kind: &EntryType) -> char {
     }
 }
 
-const fn bsdtar_kind_char(kind: &EntryType) -> char {
-    match kind {
-        EntryType::File(_) => '-',
-        EntryType::HardLink(_, _) => 'h',
-        EntryType::Directory(_) => 'd',
-        EntryType::SymbolicLink(_, _) => 'l',
+struct PermissionDisplay {
+    kind: char,
+    permission: u16,
+    indicator: char,
+}
+
+impl PermissionDisplay {
+    const fn new(kind: &EntryType, permission: u16, has_xattr: bool, has_acl: bool) -> Self {
+        Self {
+            kind: kind_char(kind),
+            permission,
+            indicator: if has_xattr {
+                '@'
+            } else if has_acl {
+                '+'
+            } else {
+                ' '
+            },
+        }
+    }
+
+    /// Match bsdtar's `archive_entry_strmode`: `'h'` for hardlinks,
+    /// only `'+'` for ACL (no `'@'` for xattr).
+    const fn bsdtar(kind: &EntryType, permission: u16, has_acl: bool) -> Self {
+        Self {
+            kind: match kind {
+                EntryType::File(_) => '-',
+                EntryType::HardLink(_, _) => 'h',
+                EntryType::Directory(_) => 'd',
+                EntryType::SymbolicLink(_, _) => 'l',
+            },
+            permission,
+            indicator: if has_acl { '+' } else { ' ' },
+        }
     }
 }
 
-fn permission_string(kind: &EntryType, permission: u16, has_xattr: bool, has_acl: bool) -> String {
-    #[inline(always)]
-    const fn paint(permission: u16, c: char, bit: u16) -> char {
-        if permission & bit != 0 { c } else { '-' }
+impl fmt::Display for PermissionDisplay {
+    #[inline]
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        #[inline(always)]
+        const fn paint(permission: u16, c: char, bit: u16) -> char {
+            if permission & bit != 0 { c } else { '-' }
+        }
+        use core::fmt::Write;
+        let p = self.permission;
+        f.write_char(self.kind)?;
+        f.write_char(paint(p, 'r', 0b100000000))?; // owner_read
+        f.write_char(paint(p, 'w', 0b010000000))?; // owner_write
+        f.write_char(paint(p, 'x', 0b001000000))?; // owner_exec
+        f.write_char(paint(p, 'r', 0b000100000))?; // group_read
+        f.write_char(paint(p, 'w', 0b000010000))?; // group_write
+        f.write_char(paint(p, 'x', 0b000001000))?; // group_exec
+        f.write_char(paint(p, 'r', 0b000000100))?; // other_read
+        f.write_char(paint(p, 'w', 0b000000010))?; // other_write
+        f.write_char(paint(p, 'x', 0b000000001))?; // other_exec
+        f.write_char(self.indicator)
     }
-
-    format!(
-        "{}{}{}{}{}{}{}{}{}{}{}",
-        kind_char(kind),
-        paint(permission, 'r', 0b100000000), // owner_read
-        paint(permission, 'w', 0b010000000), // owner_write
-        paint(permission, 'x', 0b001000000), // owner_exec
-        paint(permission, 'r', 0b000100000), // group_read
-        paint(permission, 'w', 0b000010000), // group_write
-        paint(permission, 'x', 0b000001000), // group_exec
-        paint(permission, 'r', 0b000000100), // other_read
-        paint(permission, 'w', 0b000000010), // other_write
-        paint(permission, 'x', 0b000000001), // other_exec
-        if has_xattr {
-            '@'
-        } else if has_acl {
-            '+'
-        } else {
-            ' '
-        },
-    )
-}
-
-fn bsdtar_permission_string(kind: &EntryType, permission: u16, has_acl: bool) -> String {
-    #[inline(always)]
-    const fn paint(permission: u16, c: char, bit: u16) -> char {
-        if permission & bit != 0 { c } else { '-' }
-    }
-
-    format!(
-        "{}{}{}{}{}{}{}{}{}{}{}",
-        bsdtar_kind_char(kind),
-        paint(permission, 'r', 0b100000000),
-        paint(permission, 'w', 0b010000000),
-        paint(permission, 'x', 0b001000000),
-        paint(permission, 'r', 0b000100000),
-        paint(permission, 'w', 0b000010000),
-        paint(permission, 'x', 0b000001000),
-        paint(permission, 'r', 0b000000100),
-        paint(permission, 'w', 0b000000010),
-        paint(permission, 'x', 0b000000001),
-        if has_acl { '+' } else { ' ' },
-    )
 }
 
 #[derive(Serialize, Debug)]
@@ -1269,12 +1269,13 @@ fn json_line_entries_to(
                 .map_or_else(String::new, |it| it.gname().to_string());
             FileInfo {
                 filename: it.entry_type.name(),
-                permissions: permission_string(
+                permissions: PermissionDisplay::new(
                     &it.entry_type,
                     permission_mode,
                     !it.xattrs.is_empty(),
                     !it.acl.is_empty(),
-                ),
+                )
+                .to_string(),
                 owner,
                 group,
                 raw_size: it.raw_size.unwrap_or_default(),
@@ -1381,12 +1382,15 @@ fn delimited_entries_to(
 
             [
                 Some(row.entry_type.name().to_string()),
-                Some(permission_string(
-                    &row.entry_type,
-                    permission_mode,
-                    !row.xattrs.is_empty(),
-                    !row.acl.is_empty(),
-                )),
+                Some(
+                    PermissionDisplay::new(
+                        &row.entry_type,
+                        permission_mode,
+                        !row.xattrs.is_empty(),
+                        !row.acl.is_empty(),
+                    )
+                    .to_string(),
+                ),
                 Some(owner),
                 Some(group),
                 Some(row.raw_size.unwrap_or(0).to_string()),
