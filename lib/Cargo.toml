@@ -28,8 +28,8 @@ futures-util = { version = "0.3.32", features = ["io"], optional = true }
 liblzma = { version = "0.4.6", features = ["static"] }
 password-hash = { version = "0.5.0", default-features = false }
 pbkdf2 = { version = "0.12.2", features = ["simple"] }
-rand = "0.8.5"
-rand_chacha = "0.3.1"
+rand = "0.10.0"
+rand_chacha = "0.10.0"
 time = "0.3.47"
 zstd = { version = "0.13.3", default-features = false }
 
