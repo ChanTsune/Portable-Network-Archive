@@ -90,11 +90,9 @@ impl PathnameEditor {
 
     /// Edit a symlink target path.
     ///
-    /// Unlike entry names and hardlink targets, symlink targets are never
-    /// skipped: the containing entry's name is validated separately via
-    /// `edit_entry_name`, and bsdtar does not strip or skip symlink targets.
+    /// Only user-specified substitutions (`-s`) are applied.
+    /// Leading `/` and `--strip-components` are NOT applied, matching bsdtar.
     pub(crate) fn edit_symlink(&self, target: &Path) -> EntryReference {
-        // Note: symlinks do not have strip_components applied (matching bsdtar behavior)
         let transformed: Cow<'_, Path> = if let Some(t) = &self.transformers {
             Cow::Owned(PathBuf::from(t.apply(
                 target.to_string_lossy(),
@@ -104,12 +102,7 @@ impl PathnameEditor {
         } else {
             Cow::Borrowed(target)
         };
-        let entry_reference = EntryReference::from_path_lossy_preserve_root(&transformed);
-        if self.absolute_paths {
-            entry_reference
-        } else {
-            entry_reference.sanitize()
-        }
+        EntryReference::from_path_lossy_preserve_root(&transformed)
     }
 }
 
