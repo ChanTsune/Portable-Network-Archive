@@ -15,10 +15,10 @@ use std::str::{self, Utf8Error};
 /// use libpna::EntryReference;
 ///
 /// assert_eq!("uer/bin", EntryReference::from("uer/bin"));
-/// assert_eq!("/user/bin", EntryReference::from("/user/bin"));
-/// assert_eq!("/user/bin", EntryReference::from("/user/bin/"));
+/// assert_eq!("user/bin", EntryReference::from("/user/bin"));
+/// assert_eq!("user/bin", EntryReference::from("/user/bin/"));
 /// assert_eq!("../user/bin", EntryReference::from("../user/bin/"));
-/// assert_eq!("/", EntryReference::from("/"));
+/// assert_eq!("", EntryReference::from("/"));
 /// ```
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct EntryReference(String);
@@ -47,7 +47,7 @@ impl EntryReference {
     /// use libpna::EntryReference;
     ///
     /// assert_eq!("foo.txt", EntryReference::from_lossy("foo.txt"));
-    /// assert_eq!("/foo.txt", EntryReference::from_lossy("/foo.txt"));
+    /// assert_eq!("foo.txt", EntryReference::from_lossy("/foo.txt"));
     /// assert_eq!("./foo.txt", EntryReference::from_lossy("./foo.txt"));
     /// assert_eq!("../foo.txt", EntryReference::from_lossy("../foo.txt"));
     /// ```
@@ -126,10 +126,6 @@ impl EntryReference {
     #[inline]
     pub fn sanitize(&self) -> Self {
         let path = Utf8Path::new(&self.0);
-        let has_root = path.has_root();
-        let has_prefix = path
-            .components()
-            .any(|it| matches!(&it, Utf8Component::Prefix(_)));
         let p = path.components().filter_map(|it| match it {
             Utf8Component::Prefix(p) => Some(p.as_str()),
             Utf8Component::RootDir => None,
@@ -137,11 +133,7 @@ impl EntryReference {
             Utf8Component::ParentDir => Some(".."),
             Utf8Component::Normal(n) => Some(n),
         });
-        let mut s = join_with_capacity(p, "/", path.as_str().len());
-        if !has_prefix && has_root {
-            s.insert(0, '/');
-        };
-        Self(s)
+        Self(join_with_capacity(p, "/", path.as_str().len()))
     }
 
     #[inline]
@@ -218,7 +210,7 @@ impl From<&str> for EntryReference {
     /// ```
     /// use libpna::EntryReference;
     ///
-    /// assert_eq!("/path/with/root", EntryReference::from("/path/with/root"));
+    /// assert_eq!("path/with/root", EntryReference::from("/path/with/root"));
     /// ```
     #[inline]
     fn from(value: &str) -> Self {
@@ -456,11 +448,11 @@ mod tests {
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
     #[test]
-    fn keep_root() {
-        assert_eq!("/test.txt", EntryReference::from("/test.txt"));
-        assert_eq!("/test/test.txt", EntryReference::from("/test/test.txt"));
-        assert_eq!("/", EntryReference::from("/"));
-        assert_eq!("/", EntryReference::from("///"));
+    fn strip_root() {
+        assert_eq!("test.txt", EntryReference::from("/test.txt"));
+        assert_eq!("test/test.txt", EntryReference::from("/test/test.txt"));
+        assert_eq!("", EntryReference::from("/"));
+        assert_eq!("", EntryReference::from("///"));
     }
 
     #[test]
@@ -550,7 +542,7 @@ mod tests {
         // Multiple slashes
         assert_eq!("test/test.txt", EntryReference::from("test//test.txt"));
         assert_eq!("test/test.txt", EntryReference::from("test///test.txt"));
-        assert_eq!("/test/test.txt", EntryReference::from("///test///test.txt"));
+        assert_eq!("test/test.txt", EntryReference::from("///test///test.txt"));
     }
 
     #[test]
@@ -582,7 +574,7 @@ mod tests {
         // Only current dir
         assert_eq!(".", EntryReference::from_utf8_preserve_root(".").sanitize());
         // Only root
-        assert_eq!("/", EntryReference::from_utf8_preserve_root("/").sanitize());
+        assert_eq!("", EntryReference::from_utf8_preserve_root("/").sanitize());
         // Multiple parent dirs
         assert_eq!(
             "../../..",
@@ -590,7 +582,7 @@ mod tests {
         );
         // Mixed with normal component
         assert_eq!(
-            "/../foo",
+            "../foo",
             EntryReference::from_utf8_preserve_root("/../foo").sanitize()
         );
         assert_eq!(
