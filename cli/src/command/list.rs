@@ -784,7 +784,7 @@ fn bsd_tar_list_entries_to(
         let permission = row.permission_mode();
         let has_xattr = !row.xattrs.is_empty();
         let has_acl = !row.acl.is_empty();
-        let perm = permission_string(&row.entry_type, permission, has_xattr, has_acl);
+        let perm = bsdtar_permission_string(&row.entry_type, permission, has_acl);
         let size = row.raw_size.unwrap_or(0);
         let mtime = bsd_tar_time(now, row.modified.unwrap_or(now));
         let (uname, gname) = match &row.permission {
@@ -1155,6 +1155,15 @@ const fn kind_char(kind: &EntryType) -> char {
     }
 }
 
+const fn bsdtar_kind_char(kind: &EntryType) -> char {
+    match kind {
+        EntryType::File(_) => '-',
+        EntryType::HardLink(_, _) => 'h',
+        EntryType::Directory(_) => 'd',
+        EntryType::SymbolicLink(_, _) => 'l',
+    }
+}
+
 fn permission_string(kind: &EntryType, permission: u16, has_xattr: bool, has_acl: bool) -> String {
     #[inline(always)]
     const fn paint(permission: u16, c: char, bit: u16) -> char {
@@ -1180,6 +1189,28 @@ fn permission_string(kind: &EntryType, permission: u16, has_xattr: bool, has_acl
         } else {
             ' '
         },
+    )
+}
+
+fn bsdtar_permission_string(kind: &EntryType, permission: u16, has_acl: bool) -> String {
+    #[inline(always)]
+    const fn paint(permission: u16, c: char, bit: u16) -> char {
+        if permission & bit != 0 { c } else { '-' }
+    }
+
+    format!(
+        "{}{}{}{}{}{}{}{}{}{}{}",
+        bsdtar_kind_char(kind),
+        paint(permission, 'r', 0b100000000),
+        paint(permission, 'w', 0b010000000),
+        paint(permission, 'x', 0b001000000),
+        paint(permission, 'r', 0b000100000),
+        paint(permission, 'w', 0b000010000),
+        paint(permission, 'x', 0b000001000),
+        paint(permission, 'r', 0b000000100),
+        paint(permission, 'w', 0b000000010),
+        paint(permission, 'x', 0b000000001),
+        if has_acl { '+' } else { ' ' },
     )
 }
 
