@@ -29,7 +29,12 @@ use crate::{
 };
 use clap::{ArgGroup, Args, Parser, ValueHint};
 use pna::Archive;
-use std::{env, io, path::PathBuf, sync::Arc, time::SystemTime};
+use std::{
+    env, io,
+    path::PathBuf,
+    sync::{Arc, atomic::AtomicBool},
+    time::SystemTime,
+};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(group(ArgGroup::new("stdio_compression_method").args(["store", "deflate", "zstd", "xz"])))]
@@ -1103,6 +1108,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: StdioCommand) -> anyhow::Resul
         safe_writes: args.safe_writes && !args.no_safe_writes,
         verbose: args.verbose,
         absolute_paths: args.absolute_paths,
+        warned_lead_slash: Arc::new(AtomicBool::new(false)),
     };
     let mut files = args.files;
     if let Some(path) = &args.files_from {

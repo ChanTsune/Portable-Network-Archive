@@ -862,7 +862,7 @@ pub(crate) fn create_entry(
     };
     match store_as {
         StoreAs::Hardlink(source) => {
-            let Some(reference) = pathname_editor.edit_hardlink(source) else {
+            let Some((reference, _)) = pathname_editor.edit_hardlink(source) else {
                 log::debug!("Skip: {}", path.display());
                 return Ok(None);
             };

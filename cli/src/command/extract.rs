@@ -36,7 +36,10 @@ use std::{
     env, fs,
     io::{self, prelude::*},
     path::{Component, Path, PathBuf},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     time::Instant,
 };
 
@@ -506,6 +509,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         safe_writes: args.safe_writes && !args.no_safe_writes,
         verbose: false,
         absolute_paths: false,
+        warned_lead_slash: Arc::new(AtomicBool::new(false)),
     };
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(&working_dir)
@@ -596,6 +600,7 @@ pub(crate) struct OutputOption<'a> {
     pub(crate) safe_writes: bool,
     pub(crate) verbose: bool,
     pub(crate) absolute_paths: bool,
+    pub(crate) warned_lead_slash: Arc<AtomicBool>,
 }
 
 pub(crate) fn run_extract_archive_reader<'a, 'p, Provider>(
@@ -1164,6 +1169,7 @@ pub(crate) fn extract_entry<'a, T>(
         safe_writes,
         verbose: _,
         absolute_paths,
+        warned_lead_slash,
     }: &OutputOption<'a>,
 ) -> io::Result<()>
 where
@@ -1238,13 +1244,17 @@ where
         DataKind::HardLink => {
             let reader = item.reader(ReadOptions::with_password(password))?;
             let original = io::read_to_string(reader)?;
-            let Some(original) = pathname_editor.edit_hardlink(original.as_ref()) else {
+            let Some((original, had_root)) = pathname_editor.edit_hardlink(original.as_ref())
+            else {
                 log::warn!(
                     "Skipped extracting a hard link that pointed at a file which was skipped.: {}",
                     original
                 );
                 return Ok(());
             };
+            if had_root && !warned_lead_slash.swap(true, Ordering::Relaxed) {
+                eprintln!("bsdtar: Removing leading '/' from member names");
+            }
             if !allow_unsafe_links && is_unsafe_link(&original) {
                 log::warn!(
                     "Skipped extracting a hard link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
