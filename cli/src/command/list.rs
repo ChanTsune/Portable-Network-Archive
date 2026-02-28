@@ -775,8 +775,8 @@ fn bsd_tar_list_entries_to(
     mut out: impl Write,
 ) -> io::Result<()> {
     let now = SystemTime::now();
-    let mut uname_width = 6;
-    let mut gname_width = 6;
+    let mut u_width = 6usize;
+    let mut gs_width = 13usize;
     for row in entries {
         let nlink = 0; // BSD tar show always 0
         let permission = row.permission_mode();
@@ -788,7 +788,7 @@ fn bsd_tar_list_entries_to(
         let (uname, gname) = match &row.permission {
             Some(p) => (
                 if options.numeric_owner || p.uname().is_empty() {
-                    Cow::Owned(p.uid().to_string())
+                    Cow::Owned(format!("{} ", p.uid()))
                 } else {
                     Cow::Borrowed(p.uname())
                 },
@@ -801,14 +801,17 @@ fn bsd_tar_list_entries_to(
             None => (Cow::default(), Cow::default()),
         };
         let name = row.entry_type.bsd_long_style_display();
-        uname_width = uname_width.max(uname.len());
-        gname_width = gname_width.max(gname.len());
+        u_width = u_width.max(uname.len());
+        let gname_len = gname.len();
+        let size_str = size.to_string();
+        gs_width = gs_width.max(gname_len + size_str.len() + 1);
+        let size_width = gs_width - gname_len;
 
         // permission nlink uname gname size mtime name link
         // ex: -rw-r--r--  0 1000   1000        0 Jan  1  1980 f
         writeln!(
             out,
-            "{perm}  {nlink} {uname:<uname_width$} {gname:<gname_width$} {size:8} {mtime} {name}"
+            "{perm} {nlink} {uname:<u_width$} {gname}{size_str:>size_width$} {mtime} {name}"
         )?;
     }
     Ok(())
