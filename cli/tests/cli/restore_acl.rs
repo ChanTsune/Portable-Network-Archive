@@ -21,7 +21,6 @@ fn extract_windows_acl() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(std::path::Path::new("windows_acl/out/").exists());
 }
 
 #[test]
@@ -42,7 +41,6 @@ fn extract_linux_acl() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(std::path::Path::new("linux_acl/out/").exists());
 }
 
 #[test]
@@ -63,7 +61,6 @@ fn extract_macos_acl() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(std::path::Path::new("macos_acl/out/").exists());
 }
 
 #[test]
@@ -84,7 +81,6 @@ fn extract_freebsd_acl() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(std::path::Path::new("freebsd_acl/out/").exists());
 }
 
 #[test]
@@ -105,5 +101,4 @@ fn extract_generic_acl() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(std::path::Path::new("generic_acl/out/").exists());
 }

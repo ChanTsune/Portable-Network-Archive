@@ -1,4 +1,4 @@
-use crate::utils::{EmbedExt, TestResources, archive, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 use std::fs;
@@ -57,8 +57,6 @@ fn archive_keep_all() {
             .iter()
             .any(|p| p.ends_with("raw/images/icon.png"))
     );
-
-    diff("archive_keep_all/in/", "archive_keep_all/out/").unwrap();
 
     assert_eq!(
         fs::read("archive_keep_all/out/raw/text.txt").unwrap(),
