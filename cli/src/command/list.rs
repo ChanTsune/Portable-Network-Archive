@@ -519,6 +519,7 @@ fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::R
         numeric_owner: args.numeric_owner,
         hide_control_chars: args.hide_control_chars,
         classify: args.classify,
+        dir_trailing_slash: false,
         format: args.format,
         out_to_stderr: false,
         color: ctx.color(),
@@ -615,6 +616,7 @@ pub(crate) struct ListOptions {
     pub(crate) numeric_owner: bool,
     pub(crate) hide_control_chars: bool,
     pub(crate) classify: bool,
+    pub(crate) dir_trailing_slash: bool,
     pub(crate) format: Option<Format>,
     pub(crate) out_to_stderr: bool,
     pub(crate) color: ColorChoice,
@@ -843,7 +845,11 @@ impl<'a> Display for SimpleListDisplay<'a> {
                 Display::fmt(name, f)
             }?;
             match &path.entry_type {
-                EntryType::Directory(_) if self.options.classify => f.write_char('/')?,
+                EntryType::Directory(_)
+                    if self.options.dir_trailing_slash || self.options.classify =>
+                {
+                    f.write_char('/')?
+                }
                 EntryType::SymbolicLink(_, _) if self.options.classify => f.write_char('@')?,
                 _ => (),
             };
