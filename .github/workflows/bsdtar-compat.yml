@@ -128,11 +128,19 @@ jobs:
           cp "$LIBARCHIVE_REFDIR"/*.uu "$PNA_REFDIR/"
 
           for tar_name in \
+            test_extract.tar.bz2 \
             test_extract.tar.gz \
+            test_extract.tar.lzma \
+            test_extract.tar.xz \
             test_extract.tar.Z \
+            test_leading_slash.tar \
+            test_list_item.tar \
+            test_option_keep_newer_files.tar.Z \
             test_option_s.tar.Z \
-            test_print_longpath.tar.Z \
-            test_option_keep_newer_files.tar.Z
+            test_patterns_2.tar \
+            test_patterns_3.tar \
+            test_patterns_4.tar \
+            test_print_longpath.tar.Z
           do
             cd "$WORKDIR"
             uudecode "$LIBARCHIVE_REFDIR/${tar_name}.uu"
