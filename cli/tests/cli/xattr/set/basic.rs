@@ -203,6 +203,47 @@ fn xattr_empty_value() {
     .unwrap();
 }
 
+/// Precondition: An archive with multiple entries exists.
+/// Action: Set an xattr on a specific entry via `pna xattr set`.
+/// Expectation: The xattr data is correctly stored in the archive entry.
+#[test]
+fn xattr_set_preserved_in_archive() {
+    setup();
+    TestResources::extract_in("zstd.pna", "xattr_set_preserved/").unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "xattr",
+        "set",
+        "xattr_set_preserved/zstd.pna",
+        "--name",
+        "user.roundtrip",
+        "--value",
+        "preserved_value",
+        "raw/empty.txt",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let mut found = false;
+    archive::for_each_entry("xattr_set_preserved/zstd.pna", |entry| {
+        if entry.name() == "raw/empty.txt" {
+            found = true;
+            assert_eq!(
+                entry.xattrs(),
+                &[pna::ExtendedAttribute::new(
+                    "user.roundtrip".into(),
+                    b"preserved_value".into()
+                )]
+            );
+        }
+    })
+    .unwrap();
+    assert!(found, "raw/empty.txt entry not found in archive");
+}
+
 /// Precondition: An archive entry has extended attributes set.
 /// Action: Extract with `--keep-xattr`, then re-create from extracted files with `--keep-xattr`.
 /// Expectation: The xattr data in the new archive matches the original.
@@ -226,19 +267,6 @@ fn xattr_round_trip_preservation() {
     ])
     .unwrap()
     .execute()
-    .unwrap();
-
-    archive::for_each_entry("xattr_roundtrip/zstd.pna", |entry| {
-        if entry.name() == "raw/empty.txt" {
-            assert_eq!(
-                entry.xattrs(),
-                &[pna::ExtendedAttribute::new(
-                    "user.roundtrip".into(),
-                    b"preserved_value".into()
-                )]
-            );
-        }
-    })
     .unwrap();
 
     cli::Cli::try_parse_from([
