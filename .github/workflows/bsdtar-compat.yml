@@ -116,13 +116,13 @@ jobs:
         run: cargo build --locked --release -p xtask
         working-directory: pna
 
-      - name: Convert tar reference files to PNA
+      - name: Convert reference files to PNA
         run: |
           set -euo pipefail
           LIBARCHIVE_REFDIR="${GITHUB_WORKSPACE}/libarchive/tar/test"
           PNA_REFDIR="${GITHUB_WORKSPACE}/pna_refdir"
           WORKDIR="$(mktemp -d)"
-          TAR2PNA="${GITHUB_WORKSPACE}/pna/target/release/xtask"
+          XTASK="${GITHUB_WORKSPACE}/pna/target/release/xtask"
 
           mkdir -p "$PNA_REFDIR"
           cp "$LIBARCHIVE_REFDIR"/*.uu "$PNA_REFDIR/"
@@ -137,10 +137,22 @@ jobs:
             cd "$WORKDIR"
             uudecode "$LIBARCHIVE_REFDIR/${tar_name}.uu"
             base="${tar_name%%.*}"
-            "$TAR2PNA" tar2pna "$WORKDIR/$tar_name" -o "$WORKDIR/${base}.pna"
+            "$XTASK" tar2pna "$WORKDIR/$tar_name" -o "$WORKDIR/${base}.pna"
             cp "$WORKDIR/${base}.pna" "$WORKDIR/$tar_name"
             uuencode "$WORKDIR/$tar_name" "$tar_name" > "$PNA_REFDIR/${tar_name}.uu"
             rm -f "$WORKDIR/$tar_name" "$WORKDIR/${base}.pna"
+          done
+
+          for zip_name in \
+            test_option_passphrase.zip
+          do
+            cd "$WORKDIR"
+            uudecode "$LIBARCHIVE_REFDIR/${zip_name}.uu"
+            base="${zip_name%%.*}"
+            "$XTASK" zip2pna "$WORKDIR/$zip_name" --password pass1 -o "$WORKDIR/${base}.pna"
+            cp "$WORKDIR/${base}.pna" "$WORKDIR/$zip_name"
+            uuencode "$WORKDIR/$zip_name" "$zip_name" > "$PNA_REFDIR/${zip_name}.uu"
+            rm -f "$WORKDIR/$zip_name" "$WORKDIR/${base}.pna"
           done
           rm -rf "$WORKDIR"
 
