@@ -22,22 +22,22 @@ fn list_format_bsdtar() {
         .assert();
 
     assert.stdout(concat!(
-        "drwxr-xr-x   0 root   root          0 Jan 26  2025 raw/images/\n",
-        "drwxr-xr-x   0 root   root          0 Jan 26  2025 raw/\n",
-        "drwxr-xr-x   0 root   root          0 Jan 26  2025 raw/first/second/third/\n",
-        "drwxr-xr-x   0 root   root          0 Jan 26  2025 raw/pna/\n",
-        "drwxr-xr-x   0 root   root          0 Jan 26  2025 raw/first/second/\n",
-        "drwxr-xr-x   0 root   root          0 Jan 26  2025 raw/first/\n",
-        "drwxr-xr-x   0 root   root          0 Jan 26  2025 raw/parent/\n",
-        "-rw-r--r--   0 root   root          0 Jan 26  2025 raw/empty.txt\n",
-        "-rw-r--r--   0 root   root          0 Jan 26  2025 raw/parent/child.txt\n",
-        "-rw-r--r--   0 root   root         40 Jan 26  2025 raw/pna/empty.pna\n",
-        "-rw-r--r--   0 root   root       1984 Jan 26  2025 raw/images/icon.svg\n",
-        "-rw-r--r--   0 root   root         10 Jan 26  2025 raw/text.txt\n",
-        "-rw-r--r--   0 root   root      51475 Jan 26  2025 raw/images/icon.png\n",
-        "-rw-r--r--   0 root   root      57032 Jan 26  2025 raw/pna/nest.pna\n",
-        "-rw-r--r--   0 root   root          3 Jan 26  2025 raw/first/second/third/pna.txt\n",
-        "-rw-r--r--   0 root   root    4194442 Jan 26  2025 raw/images/icon.bmp\n",
+        "drwxr-xr-x  0 root   root        0 Jan 26  2025 raw/images/\n",
+        "drwxr-xr-x  0 root   root        0 Jan 26  2025 raw/\n",
+        "drwxr-xr-x  0 root   root        0 Jan 26  2025 raw/first/second/third/\n",
+        "drwxr-xr-x  0 root   root        0 Jan 26  2025 raw/pna/\n",
+        "drwxr-xr-x  0 root   root        0 Jan 26  2025 raw/first/second/\n",
+        "drwxr-xr-x  0 root   root        0 Jan 26  2025 raw/first/\n",
+        "drwxr-xr-x  0 root   root        0 Jan 26  2025 raw/parent/\n",
+        "-rw-r--r--  0 root   root        0 Jan 26  2025 raw/empty.txt\n",
+        "-rw-r--r--  0 root   root        0 Jan 26  2025 raw/parent/child.txt\n",
+        "-rw-r--r--  0 root   root       40 Jan 26  2025 raw/pna/empty.pna\n",
+        "-rw-r--r--  0 root   root     1984 Jan 26  2025 raw/images/icon.svg\n",
+        "-rw-r--r--  0 root   root       10 Jan 26  2025 raw/text.txt\n",
+        "-rw-r--r--  0 root   root    51475 Jan 26  2025 raw/images/icon.png\n",
+        "-rw-r--r--  0 root   root    57032 Jan 26  2025 raw/pna/nest.pna\n",
+        "-rw-r--r--  0 root   root        3 Jan 26  2025 raw/first/second/third/pna.txt\n",
+        "-rw-r--r--  0 root   root  4194442 Jan 26  2025 raw/images/icon.bmp\n",
     ));
 }
 
@@ -64,8 +64,8 @@ fn list_format_bsdtar_with_filter() {
         .assert();
 
     assert.stdout(concat!(
-        "-rw-r--r--   0 root   root          0 Jan 26  2025 raw/empty.txt\n",
-        "-rw-r--r--   0 root   root         10 Jan 26  2025 raw/text.txt\n",
+        "-rw-r--r--  0 root   root        0 Jan 26  2025 raw/empty.txt\n",
+        "-rw-r--r--  0 root   root       10 Jan 26  2025 raw/text.txt\n",
     ));
 }
 
@@ -91,10 +91,10 @@ fn list_format_bsdtar_with_directory_filter() {
         .assert();
 
     assert.stdout(concat!(
-        "drwxr-xr-x   0 root   root          0 Jan 26  2025 raw/images/\n",
-        "-rw-r--r--   0 root   root       1984 Jan 26  2025 raw/images/icon.svg\n",
-        "-rw-r--r--   0 root   root      51475 Jan 26  2025 raw/images/icon.png\n",
-        "-rw-r--r--   0 root   root    4194442 Jan 26  2025 raw/images/icon.bmp\n",
+        "drwxr-xr-x  0 root   root        0 Jan 26  2025 raw/images/\n",
+        "-rw-r--r--  0 root   root     1984 Jan 26  2025 raw/images/icon.svg\n",
+        "-rw-r--r--  0 root   root    51475 Jan 26  2025 raw/images/icon.png\n",
+        "-rw-r--r--  0 root   root  4194442 Jan 26  2025 raw/images/icon.bmp\n",
     ));
 }
 
@@ -120,21 +120,21 @@ fn list_format_bsdtar_solid() {
         .assert();
 
     assert.stdout(concat!(
-        "drwxr-xr-x   0 root   root          0 Jan 26  2025 raw/\n",
-        "-rw-r--r--   0 root   root          0 Jan 26  2025 raw/empty.txt\n",
-        "drwxr-xr-x   0 root   root          0 Jan 26  2025 raw/first/\n",
-        "drwxr-xr-x   0 root   root          0 Jan 26  2025 raw/first/second/\n",
-        "drwxr-xr-x   0 root   root          0 Jan 26  2025 raw/images/\n",
-        "-rw-r--r--   0 root   root       1984 Jan 26  2025 raw/images/icon.svg\n",
-        "drwxr-xr-x   0 root   root          0 Jan 26  2025 raw/first/second/third/\n",
-        "drwxr-xr-x   0 root   root          0 Jan 26  2025 raw/pna/\n",
-        "-rw-r--r--   0 root   root      51475 Jan 26  2025 raw/images/icon.png\n",
-        "drwxr-xr-x   0 root   root          0 Jan 26  2025 raw/parent/\n",
-        "-rw-r--r--   0 root   root          3 Jan 26  2025 raw/first/second/third/pna.txt\n",
-        "-rw-r--r--   0 root   root          0 Jan 26  2025 raw/parent/child.txt\n",
-        "-rw-r--r--   0 root   root         40 Jan 26  2025 raw/pna/empty.pna\n",
-        "-rw-r--r--   0 root   root         10 Jan 26  2025 raw/text.txt\n",
-        "-rw-r--r--   0 root   root      57032 Jan 26  2025 raw/pna/nest.pna\n",
-        "-rw-r--r--   0 root   root    4194442 Jan 26  2025 raw/images/icon.bmp\n",
+        "drwxr-xr-x  0 root   root        0 Jan 26  2025 raw/\n",
+        "-rw-r--r--  0 root   root        0 Jan 26  2025 raw/empty.txt\n",
+        "drwxr-xr-x  0 root   root        0 Jan 26  2025 raw/first/\n",
+        "drwxr-xr-x  0 root   root        0 Jan 26  2025 raw/first/second/\n",
+        "drwxr-xr-x  0 root   root        0 Jan 26  2025 raw/images/\n",
+        "-rw-r--r--  0 root   root     1984 Jan 26  2025 raw/images/icon.svg\n",
+        "drwxr-xr-x  0 root   root        0 Jan 26  2025 raw/first/second/third/\n",
+        "drwxr-xr-x  0 root   root        0 Jan 26  2025 raw/pna/\n",
+        "-rw-r--r--  0 root   root    51475 Jan 26  2025 raw/images/icon.png\n",
+        "drwxr-xr-x  0 root   root        0 Jan 26  2025 raw/parent/\n",
+        "-rw-r--r--  0 root   root        3 Jan 26  2025 raw/first/second/third/pna.txt\n",
+        "-rw-r--r--  0 root   root        0 Jan 26  2025 raw/parent/child.txt\n",
+        "-rw-r--r--  0 root   root       40 Jan 26  2025 raw/pna/empty.pna\n",
+        "-rw-r--r--  0 root   root       10 Jan 26  2025 raw/text.txt\n",
+        "-rw-r--r--  0 root   root    57032 Jan 26  2025 raw/pna/nest.pna\n",
+        "-rw-r--r--  0 root   root  4194442 Jan 26  2025 raw/images/icon.bmp\n",
     ));
 }
