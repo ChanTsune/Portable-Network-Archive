@@ -19,7 +19,7 @@ pub use self::{
 };
 pub(crate) use self::{private::*, read::*, write::*};
 use crate::{
-    Duration,
+    Acl, Duration,
     chunk::{
         Chunk, ChunkExt, ChunkReader, ChunkType, MIN_CHUNK_BYTES_SIZE, RawChunk, chunk_data_split,
     },
@@ -593,6 +593,7 @@ pub struct NormalEntry<T = Vec<u8>> {
     pub(crate) data: Vec<T>,
     pub(crate) metadata: Metadata,
     pub(crate) xattrs: Vec<ExtendedAttribute>,
+    pub(crate) acls: Vec<Acl>,
 }
 
 impl<T> TryFrom<RawEntry<T>> for NormalEntry<T>
@@ -644,6 +645,7 @@ where
         let mut mtime_ns = None;
         let mut atime_ns = None;
         let mut permission = None;
+        let mut acls = vec![];
         for chunk in chunks {
             match chunk.ty {
                 ChunkType::FEND => break,
@@ -666,6 +668,7 @@ where
                 ChunkType::aTNS => atime_ns = Some(nanos(chunk.data())?),
                 ChunkType::fPRM => permission = Some(Permission::try_from_bytes(chunk.data())?),
                 ChunkType::xATR => xattrs.push(ExtendedAttribute::try_from_bytes(chunk.data())?),
+                ChunkType::fACL => acls.push(Acl::try_from_bytes(chunk.data())?),
                 _ => {
                     if chunk.ty.is_critical() {
                         return Err(io::Error::new(
@@ -695,6 +698,7 @@ where
             },
             data,
             xattrs,
+            acls,
         })
     }
 }
@@ -761,6 +765,9 @@ where
         }
         for xattr in &self.xattrs {
             total += (ChunkType::xATR, xattr.to_bytes()).write_chunk_in(writer)?;
+        }
+        for acl in &self.acls {
+            total += (ChunkType::fACL, acl.to_bytes()).write_chunk_in(writer)?;
         }
         total += (ChunkType::FEND, []).write_chunk_in(writer)?;
         Ok(total)
@@ -838,6 +845,9 @@ where
         }
         for xattr in self.xattrs {
             vec.push(RawChunk::from_data(ChunkType::xATR, xattr.to_bytes()));
+        }
+        for acl in self.acls {
+            vec.push(RawChunk::from_data(ChunkType::fACL, acl.to_bytes()));
         }
         vec.push(RawChunk::from_data(ChunkType::FEND, Vec::new()));
         vec
@@ -1056,6 +1066,7 @@ impl<'a> From<NormalEntry<Cow<'a, [u8]>>> for NormalEntry<Vec<u8>> {
             data: value.data.into_iter().map(Into::into).collect(),
             metadata: value.metadata,
             xattrs: value.xattrs,
+            acls: value.acls,
         }
     }
 }
@@ -1070,6 +1081,7 @@ impl<'a> From<NormalEntry<&'a [u8]>> for NormalEntry<Vec<u8>> {
             data: value.data.into_iter().map(Into::into).collect(),
             metadata: value.metadata,
             xattrs: value.xattrs,
+            acls: value.acls,
         }
     }
 }
@@ -1084,6 +1096,7 @@ impl From<NormalEntry<Vec<u8>>> for NormalEntry<Cow<'_, [u8]>> {
             data: value.data.into_iter().map(Into::into).collect(),
             metadata: value.metadata,
             xattrs: value.xattrs,
+            acls: value.acls,
         }
     }
 }
@@ -1098,6 +1111,7 @@ impl<'a> From<NormalEntry<&'a [u8]>> for NormalEntry<Cow<'a, [u8]>> {
             data: value.data.into_iter().map(Into::into).collect(),
             metadata: value.metadata,
             xattrs: value.xattrs,
+            acls: value.acls,
         }
     }
 }
