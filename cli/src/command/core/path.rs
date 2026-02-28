@@ -62,7 +62,8 @@ impl PathnameEditor {
     ///
     /// Returns `None` (skip the entry) when the target becomes empty after
     /// transformation or after stripping.
-    pub(crate) fn edit_hardlink(&self, target: &Path) -> Option<EntryReference> {
+    /// The `bool` indicates whether a leading root component was stripped.
+    pub(crate) fn edit_hardlink(&self, target: &Path) -> Option<(EntryReference, bool)> {
         // bsdtar order: substitution first, then strip
         let transformed: Cow<'_, Path> = if let Some(t) = &self.transformers {
             Cow::Owned(PathBuf::from(t.apply(
@@ -82,9 +83,10 @@ impl PathnameEditor {
         }
         let entry_reference = EntryReference::from_path_lossy_preserve_root(&stripped);
         if self.absolute_paths {
-            Some(entry_reference)
+            Some((entry_reference, false))
         } else {
-            Some(entry_reference.sanitize())
+            let had_root = stripped.has_root();
+            Some((entry_reference.sanitize(), had_root))
         }
     }
 
