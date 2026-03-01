@@ -35,7 +35,7 @@ env:
 jobs:
   solaris-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 70
     name: Test on Solaris
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -89,7 +89,7 @@ jobs:
 
   FreeBSD-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 50
     name: Test on FreeBSD
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -115,7 +115,7 @@ jobs:
 
   OpenBSD-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 80
     name: Test on OpenBSD
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
