@@ -119,10 +119,11 @@ impl EntryReference {
         Self::new_preserve_root(path.to_string_lossy().into())
     }
 
-    /// Returns a sanitized relative reference containing only normal path components.
+    /// Returns a sanitized reference with root separators removed.
     ///
-    /// This discards prefixes, root separators, `.` and `..`, mirroring the safety
-    /// behavior used for archive member names.
+    /// Unlike [`EntryName::sanitize`](super::EntryName), this preserves prefixes, `.` and `..`
+    /// components because hardlink targets may legitimately contain relative
+    /// traversals.
     #[inline]
     pub fn sanitize(&self) -> Self {
         let path = Utf8Path::new(&self.0);
