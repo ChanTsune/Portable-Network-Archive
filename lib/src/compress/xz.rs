@@ -10,7 +10,7 @@ impl XZCompressionLevel {
     const DEFAULT: Self = Self(6);
     /// Minimum compression level for xz.
     const MIN: Self = Self(0);
-    /// Minimum compression level for xz.
+    /// Maximum compression level for xz.
     const MAX: Self = Self(9);
 
     #[inline]

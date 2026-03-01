@@ -113,10 +113,7 @@ impl EntryName {
     /// Creates an [EntryName] from a path, preserving absolute path components.
     ///
     /// This method is similar to the `From` implementations for path-like types, but preserves absolute path components.
-    ///
-    /// # Errors
-    ///
-    /// Returns an [`EntryNameError`] if it cannot be represented as valid UTF-8.
+    /// Invalid UTF-8 sequences are replaced with the Unicode replacement character.
     ///
     /// # Examples
     ///
