@@ -133,7 +133,7 @@ impl Display for OwnerType {
     }
 }
 
-/// An error which can be returned when parsing an integer.
+/// An error which can be returned when parsing an ACE (Access Control Entry).
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum ParseAceError {
     Encode(Utf8Error),

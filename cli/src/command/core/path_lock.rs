@@ -65,7 +65,7 @@ impl Drop for PathOrderGuard {
     }
 }
 
-/// Waits until `current_seq == seq`, then advances it past `seq`.
+/// Waits until `current_seq >= seq`, then sets it to `seq + 1`.
 /// Uses poison-recovery to prevent double-panic during unwinding.
 fn advance_seq(state: &PathOrderState, seq: usize) {
     let mut current = state.current_seq.lock().unwrap_or_else(|e| e.into_inner());
