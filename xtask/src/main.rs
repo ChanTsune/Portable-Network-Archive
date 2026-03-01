@@ -286,9 +286,10 @@ fn convert_entry<R: Read, W: Write>(
     });
     let mtime_duration = libpna::Duration::new(mtime as i64, 0);
     let permission = build_permission(header, &path);
+    let entry_name = libpna::EntryName::from_utf8_preserve_root(&path);
 
     if entry_type.is_dir() {
-        let mut builder = libpna::EntryBuilder::new_dir(path.as_str().into());
+        let mut builder = libpna::EntryBuilder::new_dir(entry_name);
         builder.modified(mtime_duration);
         builder.permission(permission);
         archive.add_entry(builder.build()?)?;
@@ -299,8 +300,8 @@ fn convert_entry<R: Read, W: Write>(
             .to_string_lossy()
             .to_string();
         let mut builder = libpna::EntryBuilder::new_symlink(
-            path.as_str().into(),
-            libpna::EntryReference::from(link.as_str()),
+            entry_name,
+            libpna::EntryReference::from_utf8_preserve_root(&link),
         )?;
         builder.modified(mtime_duration);
         builder.permission(permission);
@@ -312,15 +313,14 @@ fn convert_entry<R: Read, W: Write>(
             .to_string_lossy()
             .to_string();
         let mut builder = libpna::EntryBuilder::new_hard_link(
-            path.as_str().into(),
-            libpna::EntryReference::from(link.as_str()),
+            entry_name,
+            libpna::EntryReference::from_utf8_preserve_root(&link),
         )?;
         builder.modified(mtime_duration);
         builder.permission(permission);
         archive.add_entry(builder.build()?)?;
     } else if entry_type.is_file() {
-        let mut builder =
-            libpna::EntryBuilder::new_file(path.as_str().into(), write_options.clone())?;
+        let mut builder = libpna::EntryBuilder::new_file(entry_name, write_options)?;
         io::copy(entry, &mut builder)?;
         builder.modified(mtime_duration);
         builder.permission(permission);
@@ -406,9 +406,10 @@ fn convert_zip_entry<R: Read + io::Seek, W: Write>(
     let path = entry.name().to_string();
     let mtime = zip_last_modified(entry, &path);
     let permission = build_zip_permission(entry);
+    let entry_name = libpna::EntryName::from_utf8_preserve_root(&path);
 
     if entry.is_dir() {
-        let mut builder = libpna::EntryBuilder::new_dir(path.as_str().into());
+        let mut builder = libpna::EntryBuilder::new_dir(entry_name);
         builder.modified(mtime);
         if let Some(perm) = permission {
             builder.permission(perm);
@@ -418,8 +419,8 @@ fn convert_zip_entry<R: Read + io::Seek, W: Write>(
         let mut target = String::new();
         entry.read_to_string(&mut target)?;
         let mut builder = libpna::EntryBuilder::new_symlink(
-            path.as_str().into(),
-            libpna::EntryReference::from(target.as_str()),
+            entry_name,
+            libpna::EntryReference::from_utf8_preserve_root(&target),
         )?;
         builder.modified(mtime);
         if let Some(perm) = permission {
@@ -427,8 +428,7 @@ fn convert_zip_entry<R: Read + io::Seek, W: Write>(
         }
         archive.add_entry(builder.build()?)?;
     } else if entry.is_file() {
-        let mut builder =
-            libpna::EntryBuilder::new_file(path.as_str().into(), write_options.clone())?;
+        let mut builder = libpna::EntryBuilder::new_file(entry_name, write_options)?;
         io::copy(entry, &mut builder)?;
         builder.modified(mtime);
         if let Some(perm) = permission {
