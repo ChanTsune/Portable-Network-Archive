@@ -846,7 +846,7 @@ impl ExtractionPermissionStrategyResolver {
         (
             mode_strategy,
             owner_strategy,
-            XattrStrategy::from_flags(self.keep_xattr || p_enables, self.no_keep_xattr),
+            XattrStrategy::from_flags(self.keep_xattr || p_enables, self.no_keep_xattr, false),
             AclStrategy::from_flags(self.keep_acl || p_enables, self.no_keep_acl),
             FflagsStrategy::from_flags(self.keep_fflags || p_enables, self.no_keep_fflags),
             MacMetadataStrategy::from_flags(self.mac_metadata || p_enables, self.no_mac_metadata),
@@ -962,7 +962,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         .resolve(),
         mode_strategy,
         owner_strategy,
-        xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
+        xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr, true),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
         fflags_strategy: FflagsStrategy::from_flags(args.keep_fflags, args.no_keep_fflags),
         mac_metadata_strategy: MacMetadataStrategy::from_flags(
@@ -1272,7 +1272,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         .resolve(),
         mode_strategy,
         owner_strategy,
-        xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
+        xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr, true),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
         fflags_strategy: FflagsStrategy::from_flags(args.keep_fflags, args.no_keep_fflags),
         mac_metadata_strategy: MacMetadataStrategy::from_flags(
@@ -1426,7 +1426,7 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
         .resolve(),
         mode_strategy,
         owner_strategy,
-        xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
+        xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr, true),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
         fflags_strategy: FflagsStrategy::from_flags(args.keep_fflags, args.no_keep_fflags),
         mac_metadata_strategy: MacMetadataStrategy::from_flags(
