@@ -59,7 +59,7 @@ struct DocgenArgs {
 
 #[derive(Parser)]
 struct Tar2pnaArgs {
-    /// Input tar archive path (.tar, .tar.gz, .tar.bz2, .tar.xz, .tar.lzma, .tar.Z)
+    /// Input tar archive path (.tar, .tar.gz, .tar.bz2, .tar.xz, .tar.lzma, .tar.zst, .tar.Z)
     input: PathBuf,
     /// Output PNA archive path (defaults to input stem with .pna extension)
     #[arg(short, long)]
@@ -190,6 +190,9 @@ fn open_tar_reader(path: &Path) -> Result<TarReader, Box<dyn std::error::Error>>
     } else if name.ends_with(".tar.xz") || name.ends_with(".txz") {
         let file = File::open(path)?;
         Ok((Box::new(liblzma::read::XzDecoder::new(file)), None))
+    } else if name.ends_with(".tar.zst") || name.ends_with(".tzst") {
+        let file = File::open(path)?;
+        Ok((Box::new(zstd::Decoder::new(file)?), None))
     } else if name.ends_with(".tar.lzma") {
         let file = File::open(path)?;
         let stream = liblzma::stream::Stream::new_lzma_decoder(u64::MAX)?;
@@ -239,6 +242,8 @@ fn tar_stem(path: &Path) -> String {
         ".tar.xz",
         ".txz",
         ".tar.lzma",
+        ".tar.zst",
+        ".tzst",
         ".tar.Z",
         ".tar",
     ] {

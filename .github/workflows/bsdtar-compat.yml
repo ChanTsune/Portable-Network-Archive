@@ -133,6 +133,7 @@ jobs:
             test_extract.tar.lzma \
             test_extract.tar.xz \
             test_extract.tar.Z \
+            test_extract.tar.zst \
             test_leading_slash.tar \
             test_list_item.tar \
             test_option_keep_newer_files.tar.Z \

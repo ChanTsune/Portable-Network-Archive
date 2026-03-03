@@ -3411,6 +3411,7 @@ dependencies = [
  "tar",
  "time",
  "zip",
+ "zstd",
 ]
 
 [[package]]
