@@ -182,6 +182,25 @@ jobs:
             "$BSDTAR_TEST" -p /usr/local/bin/pnatar -r "$REFDIR" -v "$range" 2>&1 | tee -a bsdtar_test_output.txt || true
           done
 
+      - name: Collect test artifacts
+        if: always() && steps.bsdtar_test.outcome != 'skipped'
+        run: |
+          mkdir -p artifact-staging
+          cp -f bsdtar_test_output.txt artifact-staging/ || true
+          cp -rf /tmp/bsdtar* artifact-staging/ 2>/dev/null || true
+          PNA_BIN="${GITHUB_WORKSPACE}/pna/target/release/pna"
+          cd artifact-staging
+          "$PNA_BIN" create -f "${GITHUB_WORKSPACE}/bsdtar-test-artifacts.pna" .
+          cd "${GITHUB_WORKSPACE}"
+
+      - name: Upload test artifacts
+        if: always() && steps.bsdtar_test.outcome != 'skipped'
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: bsdtar-test-artifacts
+          path: bsdtar-test-artifacts.pna
+          retention-days: 7
+
       - name: Generate summary
         if: always()
         run: |
