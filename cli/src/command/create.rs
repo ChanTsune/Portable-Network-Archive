@@ -517,7 +517,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         .resolve(),
         mode_strategy,
         owner_strategy,
-        xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr),
+        xattr_strategy: XattrStrategy::from_flags(args.keep_xattr, args.no_keep_xattr, false),
         acl_strategy: AclStrategy::from_flags(args.keep_acl, args.no_keep_acl),
         fflags_strategy: FflagsStrategy::Never,
         mac_metadata_strategy: MacMetadataStrategy::Never,

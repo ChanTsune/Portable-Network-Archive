@@ -157,10 +157,14 @@ pub(crate) enum XattrStrategy {
 }
 
 impl XattrStrategy {
-    pub(crate) const fn from_flags(keep_xattr: bool, no_keep_xattr: bool) -> Self {
+    pub(crate) const fn from_flags(
+        keep_xattr: bool,
+        no_keep_xattr: bool,
+        default_preserve: bool,
+    ) -> Self {
         if no_keep_xattr {
             Self::Never
-        } else if keep_xattr {
+        } else if keep_xattr || default_preserve {
             Self::Always
         } else {
             Self::Never
