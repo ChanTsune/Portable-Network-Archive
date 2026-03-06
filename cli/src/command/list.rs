@@ -311,6 +311,7 @@ impl Display for EntryTypeBsdLongStyleDisplay<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self.0 {
             EntryType::File(name) => Display::fmt(&name, f),
+            EntryType::Directory(name) if name.ends_with('/') => Display::fmt(&name, f),
             EntryType::Directory(name) => write!(f, "{name}/"),
             EntryType::SymbolicLink(name, link_to) => {
                 write!(f, "{name} -> {link_to}")
@@ -844,8 +845,9 @@ impl<'a> Display for SimpleListDisplay<'a> {
                 Display::fmt(name, f)
             }?;
             match &path.entry_type {
-                EntryType::Directory(_)
-                    if self.options.dir_trailing_slash || self.options.classify =>
+                EntryType::Directory(name)
+                    if (self.options.dir_trailing_slash || self.options.classify)
+                        && !name.ends_with('/') =>
                 {
                     f.write_char('/')?
                 }
@@ -1018,7 +1020,9 @@ fn detail_list_entries_to(
 
 fn detailed_format_name(entry: EntryType, options: &ListOptions) -> String {
     let name = match entry {
-        EntryType::Directory(path) if options.classify => format!("{path}/"),
+        EntryType::Directory(path) if options.classify && !path.ends_with('/') => {
+            format!("{path}/")
+        }
         EntryType::SymbolicLink(name, link_to) if options.classify => {
             format!("{name}@ -> {link_to}")
         }
