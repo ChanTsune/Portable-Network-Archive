@@ -502,6 +502,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
             args.strip_components,
             PathTransformers::new(args.substitutions, args.transforms),
             false,
+            false,
         ),
         ordered_path_locks: Arc::new(OrderedPathLocks::default()),
         unlink_first: false,
