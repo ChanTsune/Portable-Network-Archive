@@ -526,6 +526,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         args.strip_components,
         PathTransformers::new(args.substitutions, args.transforms),
         false,
+        false,
     );
     let password = password.as_deref();
     let write_option = entry_option(args.compression, args.cipher, args.hash, password);

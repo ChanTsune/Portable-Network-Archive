@@ -445,6 +445,7 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
             args.strip_components,
             PathTransformers::new(args.substitutions, args.transforms),
             false,
+            false,
         ),
     };
 
