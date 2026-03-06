@@ -1,7 +1,8 @@
 #![cfg(any(unix, windows))]
-use crate::utils::{EmbedExt, TestResources, archive, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
 use portable_network_archive::cli;
+use std::fs;
 
 #[test]
 fn archive_create_uname_gname() {
@@ -51,11 +52,42 @@ fn archive_create_uname_gname() {
     .execute()
     .unwrap();
 
-    diff(
-        "archive_create_uname_gname/in/",
-        "archive_create_uname_gname/out/",
-    )
-    .unwrap();
+    assert_eq!(
+        fs::read("archive_create_uname_gname/out/raw/text.txt").unwrap(),
+        fs::read("archive_create_uname_gname/in/raw/text.txt").unwrap(),
+    );
+    assert_eq!(
+        fs::read("archive_create_uname_gname/out/raw/empty.txt").unwrap(),
+        fs::read("archive_create_uname_gname/in/raw/empty.txt").unwrap(),
+    );
+    assert_eq!(
+        fs::read("archive_create_uname_gname/out/raw/first/second/third/pna.txt").unwrap(),
+        fs::read("archive_create_uname_gname/in/raw/first/second/third/pna.txt").unwrap(),
+    );
+    assert_eq!(
+        fs::read("archive_create_uname_gname/out/raw/images/icon.bmp").unwrap(),
+        fs::read("archive_create_uname_gname/in/raw/images/icon.bmp").unwrap(),
+    );
+    assert_eq!(
+        fs::read("archive_create_uname_gname/out/raw/images/icon.png").unwrap(),
+        fs::read("archive_create_uname_gname/in/raw/images/icon.png").unwrap(),
+    );
+    assert_eq!(
+        fs::read("archive_create_uname_gname/out/raw/images/icon.svg").unwrap(),
+        fs::read("archive_create_uname_gname/in/raw/images/icon.svg").unwrap(),
+    );
+    assert_eq!(
+        fs::read("archive_create_uname_gname/out/raw/parent/child.txt").unwrap(),
+        fs::read("archive_create_uname_gname/in/raw/parent/child.txt").unwrap(),
+    );
+    assert_eq!(
+        fs::read("archive_create_uname_gname/out/raw/pna/empty.pna").unwrap(),
+        fs::read("archive_create_uname_gname/in/raw/pna/empty.pna").unwrap(),
+    );
+    assert_eq!(
+        fs::read("archive_create_uname_gname/out/raw/pna/nest.pna").unwrap(),
+        fs::read("archive_create_uname_gname/in/raw/pna/nest.pna").unwrap(),
+    );
 }
 
 #[test]
@@ -103,5 +135,40 @@ fn archive_create_uid_gid() {
     .execute()
     .unwrap();
 
-    diff("archive_create_uid_gid/in/", "archive_create_uid_gid/out/").unwrap();
+    assert_eq!(
+        fs::read("archive_create_uid_gid/out/raw/text.txt").unwrap(),
+        fs::read("archive_create_uid_gid/in/raw/text.txt").unwrap(),
+    );
+    assert_eq!(
+        fs::read("archive_create_uid_gid/out/raw/empty.txt").unwrap(),
+        fs::read("archive_create_uid_gid/in/raw/empty.txt").unwrap(),
+    );
+    assert_eq!(
+        fs::read("archive_create_uid_gid/out/raw/first/second/third/pna.txt").unwrap(),
+        fs::read("archive_create_uid_gid/in/raw/first/second/third/pna.txt").unwrap(),
+    );
+    assert_eq!(
+        fs::read("archive_create_uid_gid/out/raw/images/icon.bmp").unwrap(),
+        fs::read("archive_create_uid_gid/in/raw/images/icon.bmp").unwrap(),
+    );
+    assert_eq!(
+        fs::read("archive_create_uid_gid/out/raw/images/icon.png").unwrap(),
+        fs::read("archive_create_uid_gid/in/raw/images/icon.png").unwrap(),
+    );
+    assert_eq!(
+        fs::read("archive_create_uid_gid/out/raw/images/icon.svg").unwrap(),
+        fs::read("archive_create_uid_gid/in/raw/images/icon.svg").unwrap(),
+    );
+    assert_eq!(
+        fs::read("archive_create_uid_gid/out/raw/parent/child.txt").unwrap(),
+        fs::read("archive_create_uid_gid/in/raw/parent/child.txt").unwrap(),
+    );
+    assert_eq!(
+        fs::read("archive_create_uid_gid/out/raw/pna/empty.pna").unwrap(),
+        fs::read("archive_create_uid_gid/in/raw/pna/empty.pna").unwrap(),
+    );
+    assert_eq!(
+        fs::read("archive_create_uid_gid/out/raw/pna/nest.pna").unwrap(),
+        fs::read("archive_create_uid_gid/in/raw/pna/nest.pna").unwrap(),
+    );
 }
