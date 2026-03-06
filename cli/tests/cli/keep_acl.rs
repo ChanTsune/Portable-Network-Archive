@@ -1,7 +1,8 @@
 #![cfg(feature = "acl")]
-use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
 use portable_network_archive::cli;
+use std::fs;
 
 #[test]
 fn archive_keep_acl() {
@@ -20,6 +21,18 @@ fn archive_keep_acl() {
     .unwrap()
     .execute()
     .unwrap();
+    let mut entry_paths = std::collections::HashSet::new();
+    archive::for_each_entry("keep_acl/keep_acl.pna", |entry| {
+        entry_paths.insert(entry.header().path().to_string());
+    })
+    .unwrap();
+    assert!(entry_paths.iter().any(|p| p.ends_with("raw/text.txt")));
+    assert!(entry_paths.iter().any(|p| p.ends_with("raw/empty.txt")));
+    assert!(
+        entry_paths
+            .iter()
+            .any(|p| p.ends_with("raw/images/icon.png"))
+    );
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -37,5 +50,16 @@ fn archive_keep_acl() {
     .execute()
     .unwrap();
 
-    diff("keep_acl/in/", "keep_acl/out/").unwrap();
+    assert_eq!(
+        fs::read("keep_acl/out/raw/text.txt").unwrap(),
+        fs::read("keep_acl/in/raw/text.txt").unwrap(),
+    );
+    assert_eq!(
+        fs::read("keep_acl/out/raw/empty.txt").unwrap(),
+        fs::read("keep_acl/in/raw/empty.txt").unwrap(),
+    );
+    assert_eq!(
+        fs::read("keep_acl/out/raw/images/icon.png").unwrap(),
+        fs::read("keep_acl/in/raw/images/icon.png").unwrap(),
+    );
 }

@@ -1,7 +1,7 @@
 use pna::prelude::*;
 use std::{
     fs::File,
-    io::{self, Write},
+    io::{self, Read, Write},
     path::Path,
 };
 
@@ -141,4 +141,14 @@ where
         f(entry?);
     }
     Ok(())
+}
+
+pub fn read_symlink_target(entry: &pna::NormalEntry) -> String {
+    let mut target = Vec::new();
+    entry
+        .reader(pna::ReadOptions::with_password::<&[u8]>(None))
+        .unwrap()
+        .read_to_end(&mut target)
+        .unwrap();
+    String::from_utf8(target).unwrap()
 }
