@@ -215,3 +215,66 @@ fn stdio_update_ignore_zeros_controls_concatenated_archive_handling() {
         ]
     );
 }
+
+#[test]
+fn stdio_create_ignore_zeros_controls_archive_inclusion_handling() {
+    setup();
+    let base = PathBuf::from("stdio_create_ignore_zeros");
+    let archive_source = base.join("ab-cat.pna");
+    let archive_without = base.join("without_ignore.pna");
+    let archive_with = base.join("with_ignore.pna");
+
+    fs::create_dir_all(&base).unwrap();
+    fs::write(base.join("c.txt"), "third").unwrap();
+    fs::write(&archive_source, build_concatenated_archives()).unwrap();
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    cmd.args([
+        "experimental",
+        "stdio",
+        "--create",
+        "--file",
+        archive_without.to_str().unwrap(),
+        "--cd",
+        base.to_str().unwrap(),
+        "@ab-cat.pna",
+        "c.txt",
+    ])
+    .assert()
+    .success()
+    .stderr("");
+
+    assert_eq!(
+        read_archive_entries(&archive_without),
+        vec![
+            ("a.txt".to_string(), "first".to_string()),
+            ("c.txt".to_string(), "third".to_string()),
+        ]
+    );
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    cmd.args([
+        "experimental",
+        "stdio",
+        "--create",
+        "--ignore-zeros",
+        "--file",
+        archive_with.to_str().unwrap(),
+        "--cd",
+        base.to_str().unwrap(),
+        "@ab-cat.pna",
+        "c.txt",
+    ])
+    .assert()
+    .success()
+    .stderr("");
+
+    assert_eq!(
+        read_archive_entries(&archive_with),
+        vec![
+            ("a.txt".to_string(), "first".to_string()),
+            ("b.txt".to_string(), "second".to_string()),
+            ("c.txt".to_string(), "third".to_string()),
+        ]
+    );
+}
