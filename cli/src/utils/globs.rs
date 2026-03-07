@@ -170,18 +170,7 @@ fn has_glob_meta(pattern: &str) -> bool {
 
 #[inline]
 fn prefix_match(pattern: &str, path: &str) -> bool {
-    // Normalize pattern by stripping trailing slash for bsdtar compatibility.
-    // bsdtar treats "dir/" and "dir" identically for prefix matching.
-    let pattern = pattern.strip_suffix('/').unwrap_or(pattern);
-    if !path.starts_with(pattern) {
-        return false;
-    }
-    // Exact match is already handled by match_inclusion; here we only care
-    // about "pattern/…" forms.
-    path.as_bytes()
-        .get(pattern.len())
-        .map(|next| *next == b'/')
-        .unwrap_or(false)
+    archive_pathmatch(pattern, path, PathMatch::NO_ANCHOR_END)
 }
 
 /// BSD tar command like globs.
@@ -1175,5 +1164,18 @@ mod tests {
         let mut m = BsdGlobMatcher::new(["a.txt"]);
         m.mark_satisfied("b.txt");
         assert!(!m.all_matched());
+    }
+
+    #[test]
+    fn prefix_match_normalizes_leading_current_dir() {
+        assert!(prefix_match("./tmp/foo/baz", "tmp/foo/baz/bar"));
+        assert!(prefix_match("./tmp/foo/baz/", "tmp/foo/baz/bar"));
+        assert!(prefix_match("tmp/foo/baz", "./tmp/foo/baz/bar"));
+    }
+
+    #[test]
+    fn prefix_match_remains_start_anchored() {
+        assert!(!prefix_match("./tmp/foo/bar", "/tmp/foo/bar/baz"));
+        assert!(!prefix_match("tmp/foo/bar", "a/tmp/foo/bar/baz"));
     }
 }
