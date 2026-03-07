@@ -545,6 +545,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
             &filter,
             &time_filters,
             password,
+            false,
         )?;
     } else {
         create_archive_file(
@@ -554,6 +555,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
             &filter,
             &time_filters,
             password,
+            false,
             false,
         )?;
     }
@@ -584,6 +586,7 @@ pub(crate) fn create_archive_file<W, F>(
     time_filters: &TimeFilters,
     password: Option<&[u8]>,
     verbose: bool,
+    allow_concatenated_archives: bool,
 ) -> anyhow::Result<()>
 where
     W: Write,
@@ -605,6 +608,7 @@ where
         filter,
         time_filters,
         password,
+        allow_concatenated_archives,
     );
 
     let file = get_writer()?;
@@ -646,6 +650,7 @@ fn create_archive_with_split(
     filter: &PathFilter<'_>,
     time_filters: &TimeFilters,
     password: Option<&[u8]>,
+    allow_concatenated_archives: bool,
 ) -> anyhow::Result<()> {
     let option = if solid {
         WriteOptions::store()
@@ -663,6 +668,7 @@ fn create_archive_with_split(
         filter,
         time_filters,
         password,
+        allow_concatenated_archives,
     );
     if solid {
         let mut entries_builder = SolidEntryBuilder::new(write_option)?;

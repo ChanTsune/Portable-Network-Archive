@@ -676,7 +676,7 @@ fn run_stdio(ctx: &GlobalContext, args: StdioCommand) -> anyhow::Result<()> {
             "Option '--read-full-blocks' is accepted for compatibility but will be ignored."
         );
     }
-    if args.ignore_zeros && !args.list && !args.extract && !args.update {
+    if args.ignore_zeros && !args.list && !args.extract && !args.update && !args.create {
         log::warn!("Option '--ignore-zeros' is accepted for compatibility but will be ignored.");
     }
     if args.auto_compress {
@@ -989,6 +989,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
             &time_filters,
             password,
             args.verbose,
+            args.ignore_zeros,
         )
     } else {
         create_archive_file(
@@ -999,6 +1000,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
             &time_filters,
             password,
             args.verbose,
+            args.ignore_zeros,
         )
     }
 }

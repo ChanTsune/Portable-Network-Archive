@@ -522,6 +522,7 @@ pub(crate) fn spawn_entry_results(
     filter: &PathFilter<'_>,
     time_filters: &TimeFilters,
     password: Option<&[u8]>,
+    allow_concatenated_archives: bool,
 ) -> std::sync::mpsc::Receiver<(usize, EntryResult)> {
     let (tx, rx) = std::sync::mpsc::channel();
     rayon::scope_fifo(|s| {
@@ -545,6 +546,7 @@ pub(crate) fn spawn_entry_results(
                         filter,
                         time_filters,
                         password,
+                        allow_concatenated_archives,
                     );
                     tx.send((idx, EntryResult::Batch(result)))
                         .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
@@ -1792,26 +1794,27 @@ pub(crate) fn transform_archive_entries<R: io::Read>(
     filter: &PathFilter<'_>,
     time_filters: &TimeFilters,
     password: Option<&[u8]>,
+    allow_concatenated_archives: bool,
 ) -> io::Result<Vec<io::Result<Option<NormalEntry>>>> {
-    let mut archive = Archive::read_header(reader)?;
     let mut results = Vec::new();
-
-    for entry_result in archive.entries().extract_solid_entries(password) {
-        match entry_result {
-            Ok(entry) => {
-                if filter.excluded(entry.header().path()) {
-                    continue;
-                }
-                let ctime = entry.metadata().created_time();
-                let mtime = entry.metadata().modified_time();
-                if !time_filters.matches_or_inactive(ctime, mtime) {
-                    continue;
-                }
-                results.push(transform_normal_entry(entry, create_options));
+    run_process_archive(
+        std::iter::once(reader),
+        || password,
+        |entry| {
+            let entry = entry?;
+            if filter.excluded(entry.header().path()) {
+                return Ok(());
             }
-            Err(e) => results.push(Err(e)),
-        }
-    }
+            let ctime = entry.metadata().created_time();
+            let mtime = entry.metadata().modified_time();
+            if !time_filters.matches_or_inactive(ctime, mtime) {
+                return Ok(());
+            }
+            results.push(transform_normal_entry(entry, create_options));
+            Ok(())
+        },
+        allow_concatenated_archives,
+    )?;
 
     Ok(results)
 }
@@ -1828,6 +1831,7 @@ pub(crate) fn read_archive_source(
     filter: &PathFilter<'_>,
     time_filters: &TimeFilters,
     password: Option<&[u8]>,
+    allow_concatenated_archives: bool,
 ) -> io::Result<Vec<io::Result<Option<NormalEntry>>>> {
     fn process_source<R: io::BufRead>(
         mut reader: R,
@@ -1836,14 +1840,20 @@ pub(crate) fn read_archive_source(
         filter: &PathFilter<'_>,
         time_filters: &TimeFilters,
         password: Option<&[u8]>,
+        allow_concatenated_archives: bool,
     ) -> io::Result<Vec<io::Result<Option<NormalEntry>>>> {
         let format = detect_format(&mut reader)
             .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", source_name, e)))?;
 
         match format {
-            SourceFormat::Pna => {
-                transform_archive_entries(reader, create_options, filter, time_filters, password)
-            }
+            SourceFormat::Pna => transform_archive_entries(
+                reader,
+                create_options,
+                filter,
+                time_filters,
+                password,
+                allow_concatenated_archives,
+            ),
             SourceFormat::Mtree => {
                 mtree::transform_mtree_entries(reader, create_options, filter, time_filters)
             }
@@ -1863,6 +1873,7 @@ pub(crate) fn read_archive_source(
                 filter,
                 time_filters,
                 password,
+                allow_concatenated_archives,
             )
         }
         ArchiveSource::Stdin => {
@@ -1874,6 +1885,7 @@ pub(crate) fn read_archive_source(
                 filter,
                 time_filters,
                 password,
+                allow_concatenated_archives,
             )
         }
     }
@@ -1889,19 +1901,34 @@ pub(crate) fn read_archive_source(
     filter: &PathFilter<'_>,
     time_filters: &TimeFilters,
     password: Option<&[u8]>,
+    allow_concatenated_archives: bool,
 ) -> io::Result<Vec<io::Result<Option<NormalEntry>>>> {
     match source {
         ArchiveSource::File(path) => {
             let file = fs::File::open(path)
                 .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", path.display(), e)))?;
             let reader = io::BufReader::with_capacity(64 * 1024, file);
-            transform_archive_entries(reader, create_options, filter, time_filters, password)
-                .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", path.display(), e)))
+            transform_archive_entries(
+                reader,
+                create_options,
+                filter,
+                time_filters,
+                password,
+                allow_concatenated_archives,
+            )
+            .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", path.display(), e)))
         }
         ArchiveSource::Stdin => {
             let reader = io::BufReader::new(io::stdin().lock());
-            transform_archive_entries(reader, create_options, filter, time_filters, password)
-                .map_err(|e| io::Error::new(e.kind(), format!("<stdin>: {}", e)))
+            transform_archive_entries(
+                reader,
+                create_options,
+                filter,
+                time_filters,
+                password,
+                allow_concatenated_archives,
+            )
+            .map_err(|e| io::Error::new(e.kind(), format!("<stdin>: {}", e)))
         }
     }
 }

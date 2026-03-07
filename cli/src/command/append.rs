@@ -509,7 +509,14 @@ pub(crate) fn run_append_archive(
     password: Option<&[u8]>,
     verbose: bool,
 ) -> anyhow::Result<()> {
-    let rx = spawn_entry_results(target_items, create_options, filter, time_filters, password);
+    let rx = spawn_entry_results(
+        target_items,
+        create_options,
+        filter,
+        time_filters,
+        password,
+        false,
+    );
     drain_entry_results(rx, |entry| {
         if verbose {
             eprintln!("a {}", entry.name());
