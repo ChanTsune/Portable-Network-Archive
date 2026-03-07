@@ -23,6 +23,43 @@ fn build_concatenated_archives() -> Vec<u8> {
     archives
 }
 
+fn build_concatenated_then_split_archive(base: &Path) -> PathBuf {
+    let split_dir = base.join("split");
+    let source_archive = base.join("source.pna");
+    let part1 = split_dir.join("source.part1.pna");
+
+    fs::create_dir_all(&split_dir).unwrap();
+    fs::write(
+        &source_archive,
+        build_archive(&[("split.txt", vec![b'x'; 4096].as_slice())]),
+    )
+    .unwrap();
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    cmd.args([
+        "--quiet",
+        "split",
+        source_archive.to_str().unwrap(),
+        "--overwrite",
+        "--max-size",
+        "200",
+        "--out-dir",
+        split_dir.to_str().unwrap(),
+    ])
+    .assert()
+    .success()
+    .stderr("");
+
+    assert!(split_dir.join("source.part2.pna").exists());
+
+    let original_part1 = fs::read(&part1).unwrap();
+    let mut mixed_part1 = build_archive(&[("a.txt", b"first" as &[u8])]);
+    mixed_part1.extend(original_part1);
+    fs::write(&part1, mixed_part1).unwrap();
+
+    part1
+}
+
 fn read_archive_entries(path: impl AsRef<Path>) -> Vec<(String, String)> {
     let mut archive = Archive::read_header(fs::File::open(path).unwrap()).unwrap();
     archive
@@ -308,6 +345,69 @@ fn stdio_create_ignore_zeros_controls_archive_inclusion_handling() {
 }
 
 #[test]
+fn stdio_create_ignore_zeros_controls_stdin_archive_inclusion_handling() {
+    setup();
+    let base = PathBuf::from("stdio_create_ignore_zeros_stdin_inclusion");
+    let archive_without = base.join("without_ignore.pna");
+    let archive_with = base.join("with_ignore.pna");
+
+    fs::create_dir_all(&base).unwrap();
+    fs::write(base.join("c.txt"), "third").unwrap();
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    cmd.write_stdin(build_concatenated_archives())
+        .args([
+            "experimental",
+            "stdio",
+            "--create",
+            "--file",
+            archive_without.to_str().unwrap(),
+            "--cd",
+            base.to_str().unwrap(),
+            "@-",
+            "c.txt",
+        ])
+        .assert()
+        .success()
+        .stderr("");
+
+    assert_eq!(
+        read_archive_entries(&archive_without),
+        vec![
+            ("a.txt".to_string(), "first".to_string()),
+            ("c.txt".to_string(), "third".to_string()),
+        ]
+    );
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    cmd.write_stdin(build_concatenated_archives())
+        .args([
+            "experimental",
+            "stdio",
+            "--create",
+            "--ignore-zeros",
+            "--file",
+            archive_with.to_str().unwrap(),
+            "--cd",
+            base.to_str().unwrap(),
+            "@-",
+            "c.txt",
+        ])
+        .assert()
+        .success()
+        .stderr("");
+
+    assert_eq!(
+        read_archive_entries(&archive_with),
+        vec![
+            ("a.txt".to_string(), "first".to_string()),
+            ("b.txt".to_string(), "second".to_string()),
+            ("c.txt".to_string(), "third".to_string()),
+        ]
+    );
+}
+
+#[test]
 fn stdio_append_ignore_zeros_controls_existing_concatenated_archive_handling() {
     setup();
     let base = PathBuf::from("stdio_append_ignore_zeros_existing");
@@ -364,6 +464,70 @@ fn stdio_append_ignore_zeros_controls_existing_concatenated_archive_handling() {
         vec![
             ("a.txt".to_string(), "first".to_string()),
             ("b.txt".to_string(), "second".to_string()),
+            ("c.txt".to_string(), "third".to_string()),
+        ]
+    );
+}
+
+#[test]
+fn stdio_update_ignore_zeros_handles_concatenated_archive_before_split_archive() {
+    setup();
+    let base = PathBuf::from("stdio_update_ignore_zeros_mixed_split");
+    let without_base = base.join("without");
+    let with_base = base.join("with");
+    let archive_without = build_concatenated_then_split_archive(&without_base);
+    let archive_with = build_concatenated_then_split_archive(&with_base);
+    let in_dir = base.join("in");
+    let consolidated_without = without_base.join("split/source.pna");
+    let consolidated_with = with_base.join("split/source.pna");
+
+    fs::create_dir_all(&in_dir).unwrap();
+    fs::write(in_dir.join("c.txt"), "third").unwrap();
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    cmd.args([
+        "experimental",
+        "stdio",
+        "--update",
+        "--file",
+        archive_without.to_str().unwrap(),
+        "--cd",
+        in_dir.to_str().unwrap(),
+        "c.txt",
+    ])
+    .assert()
+    .success()
+    .stderr("");
+
+    assert_eq!(
+        read_archive_entries(&consolidated_without),
+        vec![
+            ("a.txt".to_string(), "first".to_string()),
+            ("c.txt".to_string(), "third".to_string()),
+        ]
+    );
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    cmd.args([
+        "experimental",
+        "stdio",
+        "--update",
+        "--ignore-zeros",
+        "--file",
+        archive_with.to_str().unwrap(),
+        "--cd",
+        in_dir.to_str().unwrap(),
+        "c.txt",
+    ])
+    .assert()
+    .success()
+    .stderr("");
+
+    assert_eq!(
+        read_archive_entries(&consolidated_with),
+        vec![
+            ("a.txt".to_string(), "first".to_string()),
+            ("split.txt".to_string(), "x".repeat(4096)),
             ("c.txt".to_string(), "third".to_string()),
         ]
     );
@@ -431,6 +595,45 @@ fn stdio_append_ignore_zeros_controls_stdin_base_archive_handling() {
             ("c.txt".to_string(), "third".to_string()),
         ]
     );
+}
+
+#[test]
+fn stdio_append_ignore_zeros_handles_concatenated_archive_before_split_archive() {
+    setup();
+    let base = PathBuf::from("stdio_append_ignore_zeros_mixed_split");
+    let archive = build_concatenated_then_split_archive(&base);
+
+    fs::write(base.join("c.txt"), "third").unwrap();
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    cmd.args([
+        "experimental",
+        "stdio",
+        "--append",
+        "--ignore-zeros",
+        "--file",
+        archive.to_str().unwrap(),
+        "--cd",
+        base.to_str().unwrap(),
+        "c.txt",
+    ])
+    .assert()
+    .success()
+    .stderr("");
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    cmd.args([
+        "experimental",
+        "stdio",
+        "--list",
+        "--ignore-zeros",
+        "--file",
+        archive.to_str().unwrap(),
+    ])
+    .assert()
+    .success()
+    .stdout("a.txt\nsplit.txt\nc.txt\n")
+    .stderr("");
 }
 
 #[test]
