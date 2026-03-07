@@ -676,7 +676,7 @@ fn run_stdio(ctx: &GlobalContext, args: StdioCommand) -> anyhow::Result<()> {
             "Option '--read-full-blocks' is accepted for compatibility but will be ignored."
         );
     }
-    if args.ignore_zeros && !args.list && !args.extract {
+    if args.ignore_zeros && !args.list && !args.extract && !args.update {
         log::warn!("Option '--ignore-zeros' is accepted for compatibility but will be ignored.");
     }
     if args.auto_compress {
@@ -1538,6 +1538,7 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
         &mut out_archive,
         TransformStrategyUnSolid,
         args.verbose,
+        args.ignore_zeros,
     )?;
     out_archive.finalize()?;
     drop(source);
