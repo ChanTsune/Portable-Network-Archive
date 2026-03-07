@@ -20,6 +20,7 @@ use clap::{ArgGroup, Parser, ValueHint};
 use pna::{Archive, prelude::*};
 use std::{
     env, fs, io,
+    io::{Seek, SeekFrom},
     path::{Path, PathBuf},
 };
 
@@ -448,7 +449,7 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         ),
     };
 
-    let archive = open_archive_then_seek_to_end(&archive_path)?;
+    let archive = open_archive_then_seek_to_end(&archive_path, false)?;
 
     let mut files = args.file.files();
     if args.files_from_stdin {
@@ -497,6 +498,7 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         &time_filters,
         password,
         false,
+        false,
     )
 }
 
@@ -508,6 +510,7 @@ pub(crate) fn run_append_archive(
     time_filters: &TimeFilters,
     password: Option<&[u8]>,
     verbose: bool,
+    allow_concatenated_archives: bool,
 ) -> anyhow::Result<()> {
     let rx = spawn_entry_results(
         target_items,
@@ -515,7 +518,7 @@ pub(crate) fn run_append_archive(
         filter,
         time_filters,
         password,
-        false,
+        allow_concatenated_archives,
     );
     drain_entry_results(rx, |entry| {
         if verbose {
@@ -530,6 +533,52 @@ pub(crate) fn run_append_archive(
 #[inline]
 pub(crate) fn open_archive_then_seek_to_end(
     path: impl AsRef<Path>,
+    allow_concatenated_archives: bool,
 ) -> io::Result<Archive<fs::File>> {
-    Archive::open_multipart_for_append(path, |base, index| base.with_part(index))
+    if !allow_concatenated_archives {
+        return Archive::open_multipart_for_append(path, |base, index| base.with_part(index));
+    }
+
+    let base = path.as_ref();
+    let mut current_path = base.to_path_buf();
+    let mut current_offset = 0;
+    let mut part_index = 1;
+
+    loop {
+        let mut scan_file = fs::File::open(&current_path)?;
+        if current_offset != 0 {
+            scan_file.seek(SeekFrom::Start(current_offset))?;
+        }
+        let mut archive = Archive::read_header(scan_file)?;
+        for entry in archive.raw_entries() {
+            entry?;
+        }
+        if archive.has_next_archive() {
+            part_index += 1;
+            current_path = base.with_part(part_index);
+            current_offset = 0;
+            continue;
+        }
+
+        let mut scan_file = archive.into_inner();
+        let next_offset = scan_file.stream_position()?;
+        match Archive::read_header(scan_file) {
+            Ok(_) => {
+                current_offset = next_offset;
+            }
+            Err(err) if err.kind() == io::ErrorKind::UnexpectedEof => {
+                let mut file = fs::OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .open(&current_path)?;
+                if current_offset != 0 {
+                    file.seek(SeekFrom::Start(current_offset))?;
+                }
+                let mut archive = Archive::read_header(file)?;
+                archive.seek_to_end()?;
+                return Ok(archive);
+            }
+            Err(err) => return Err(err),
+        }
+    }
 }

@@ -16,7 +16,7 @@ use crate::{
             collect_split_archives,
             path_lock::OrderedPathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
-            read_paths, validate_no_duplicate_stdin,
+            read_paths, run_across_archive, validate_no_duplicate_stdin,
         },
         create::{CreationContext, create_archive_file},
         extract::{OutputOption, OverwriteStrategy, run_extract_archive_reader},
@@ -675,9 +675,6 @@ fn run_stdio(ctx: &GlobalContext, args: StdioCommand) -> anyhow::Result<()> {
         log::warn!(
             "Option '--read-full-blocks' is accepted for compatibility but will be ignored."
         );
-    }
-    if args.ignore_zeros && !args.list && !args.extract && !args.update && !args.create {
-        log::warn!("Option '--ignore-zeros' is accepted for compatibility but will be ignored.");
     }
     if args.auto_compress {
         log::warn!("Option '--auto-compress' is accepted for compatibility but will be ignored.");
@@ -1350,7 +1347,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     };
     let mut resolver = HardlinkResolver::new(collect_options.follow_links);
     if let Some(file) = &archive_path {
-        let archive = open_archive_then_seek_to_end(file)?;
+        let archive = open_archive_then_seek_to_end(file, args.ignore_zeros)?;
         let target_items = collect_items_from_sources(sources, &collect_options, &mut resolver)?;
         run_append_archive(
             &create_options,
@@ -1360,16 +1357,22 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             &time_filters,
             password,
             args.verbose,
+            args.ignore_zeros,
         )
     } else {
         let target_items = collect_items_from_sources(sources, &collect_options, &mut resolver)?;
         let mut output_archive = Archive::write_header(io::stdout().lock())?;
-        {
-            let mut input_archive = Archive::read_header(io::stdin().lock())?;
-            for entry in input_archive.raw_entries() {
-                output_archive.add_entry(entry?)?;
-            }
-        }
+        run_across_archive(
+            std::iter::once(io::stdin().lock()),
+            #[hooq::skip_all]
+            |input_archive| {
+                for entry in input_archive.raw_entries() {
+                    output_archive.add_entry(entry?)?;
+                }
+                Ok(())
+            },
+            args.ignore_zeros,
+        )?;
         run_append_archive(
             &create_options,
             output_archive,
@@ -1378,6 +1381,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
             &time_filters,
             password,
             args.verbose,
+            args.ignore_zeros,
         )
     }
 }
