@@ -374,7 +374,15 @@ fn archive_pathmatch(mut p: &str, mut s: &str, mut flags: PathMatch) -> bool {
 
     /* If start is unanchored, try to match start of each path element. */
     if flags.contains(PathMatch::NO_ANCHOR_START) {
-        if let Some(_s) = s.strip_prefix('/') {
+        if s.starts_with('/') && !p.starts_with('/') {
+            // A relative pattern must not match an absolute path solely by
+            // dropping the leading '/'. Start searching after the first real
+            // path component instead, so "tmp/foo" does not match "/tmp/foo"
+            // but still matches "/a/tmp/foo".
+            let rooted = pm_slashskip(s);
+            let Some((_, _s)) = rooted.split_once('/') else {
+                return false;
+            };
             s = _s;
         }
         loop {
@@ -1016,6 +1024,16 @@ mod tests {
         assert!(archive_pathmatch(
             "b/c/d",
             "/a/b/c/d",
+            PathMatch::NO_ANCHOR_START
+        ));
+        assert!(!archive_pathmatch(
+            "tmp/foo/bar",
+            "/tmp/foo/bar",
+            PathMatch::NO_ANCHOR_START
+        ));
+        assert!(!archive_pathmatch(
+            "./tmp/foo/bar",
+            "/tmp/foo/bar",
             PathMatch::NO_ANCHOR_START
         ));
 
