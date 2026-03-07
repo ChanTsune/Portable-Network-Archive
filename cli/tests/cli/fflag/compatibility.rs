@@ -8,7 +8,7 @@ use predicates::prelude::PredicateBooleanExt;
 #[test]
 fn fflag_compatibility_single_flag() {
     setup();
-    TestResources::extract_in("fflag_single.pna", ".").unwrap();
+    TestResources::extract_in("zstd_keep_fflags.pna", ".").unwrap();
 
     cargo_bin_cmd!("pna")
         .args([
@@ -17,12 +17,12 @@ fn fflag_compatibility_single_flag() {
             "fflag",
             "get",
             "-f",
-            "fflag_single.pna",
-            "*",
+            "zstd_keep_fflags.pna",
+            "file1.txt",
         ])
         .assert()
         .success()
-        .stdout(predicates::str::contains("testfile.txt"))
+        .stdout(predicates::str::contains("file1.txt"))
         .stdout(predicates::str::contains("uchg"));
 }
 
@@ -32,7 +32,7 @@ fn fflag_compatibility_single_flag() {
 #[test]
 fn fflag_compatibility_multi_flag() {
     setup();
-    TestResources::extract_in("fflag_multi.pna", ".").unwrap();
+    TestResources::extract_in("zstd_keep_fflags.pna", ".").unwrap();
 
     cargo_bin_cmd!("pna")
         .args([
@@ -41,8 +41,8 @@ fn fflag_compatibility_multi_flag() {
             "fflag",
             "get",
             "-f",
-            "fflag_multi.pna",
-            "*",
+            "zstd_keep_fflags.pna",
+            "testfile.txt",
         ])
         .assert()
         .success()
@@ -58,7 +58,7 @@ fn fflag_compatibility_multi_flag() {
 #[test]
 fn fflag_compatibility_multi_entry() {
     setup();
-    TestResources::extract_in("fflag_multi_entry.pna", ".").unwrap();
+    TestResources::extract_in("zstd_keep_fflags.pna", ".").unwrap();
 
     let output = cargo_bin_cmd!("pna")
         .args([
@@ -67,7 +67,7 @@ fn fflag_compatibility_multi_entry() {
             "fflag",
             "get",
             "-f",
-            "fflag_multi_entry.pna",
+            "zstd_keep_fflags.pna",
             "--long",
             "*",
         ])
@@ -99,7 +99,7 @@ fn fflag_compatibility_multi_entry() {
 #[test]
 fn fflag_compatibility_dump_format() {
     setup();
-    TestResources::extract_in("fflag_multi.pna", ".").unwrap();
+    TestResources::extract_in("zstd_keep_fflags.pna", ".").unwrap();
 
     cargo_bin_cmd!("pna")
         .args([
@@ -108,9 +108,9 @@ fn fflag_compatibility_dump_format() {
             "fflag",
             "get",
             "-f",
-            "fflag_multi.pna",
+            "zstd_keep_fflags.pna",
             "--dump",
-            "*",
+            "testfile.txt",
         ])
         .assert()
         .success()
@@ -124,9 +124,9 @@ fn fflag_compatibility_dump_format() {
 #[test]
 fn fflag_compatibility_filter_by_name() {
     setup();
-    TestResources::extract_in("fflag_multi_entry.pna", ".").unwrap();
+    TestResources::extract_in("zstd_keep_fflags.pna", ".").unwrap();
 
-    // Filter for uchg - should only show file1.txt
+    // Filter for schg - should only show file3.txt
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
@@ -134,16 +134,17 @@ fn fflag_compatibility_filter_by_name() {
             "fflag",
             "get",
             "-f",
-            "fflag_multi_entry.pna",
+            "zstd_keep_fflags.pna",
             "--name",
-            "uchg",
+            "schg",
             "*",
         ])
         .assert()
         .success()
-        .stdout(predicates::str::contains("file1.txt"))
+        .stdout(predicates::str::contains("file3.txt"))
+        .stdout(predicates::str::contains("file1.txt").not())
         .stdout(predicates::str::contains("file2.txt").not())
-        .stdout(predicates::str::contains("file3.txt").not());
+        .stdout(predicates::str::contains("testfile.txt").not());
 }
 
 /// Precondition: A snapshot archive with fflags.
@@ -152,9 +153,9 @@ fn fflag_compatibility_filter_by_name() {
 #[test]
 fn fflag_compatibility_add_flags() {
     setup();
-    TestResources::extract_in("fflag_single.pna", ".").unwrap();
+    TestResources::extract_in("zstd_keep_fflags.pna", ".").unwrap();
 
-    // Add nodump to existing uchg
+    // Add nodump to existing uchg on file1
     cargo_bin_cmd!("pna")
         .args([
             "--quiet",
@@ -162,9 +163,9 @@ fn fflag_compatibility_add_flags() {
             "fflag",
             "set",
             "-f",
-            "fflag_single.pna",
+            "zstd_keep_fflags.pna",
             "nodump",
-            "testfile.txt",
+            "file1.txt",
         ])
         .assert()
         .success();
@@ -177,8 +178,8 @@ fn fflag_compatibility_add_flags() {
             "fflag",
             "get",
             "-f",
-            "fflag_single.pna",
-            "testfile.txt",
+            "zstd_keep_fflags.pna",
+            "file1.txt",
         ])
         .assert()
         .success()
