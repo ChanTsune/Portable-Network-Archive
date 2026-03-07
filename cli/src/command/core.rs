@@ -1328,6 +1328,7 @@ pub(crate) fn run_process_archive<'p, Provider, F>(
     archive_provider: impl IntoIterator<Item = impl Read>,
     mut password_provider: Provider,
     mut processor: F,
+    allow_concatenated_archives: bool,
 ) -> io::Result<()>
 where
     Provider: FnMut() -> Option<&'p [u8]>,
@@ -1340,7 +1341,7 @@ where
             ReadEntry::Solid(solid) => solid.entries(password)?.try_for_each(&mut processor),
             ReadEntry::Normal(regular) => processor(Ok(regular)),
         },
-        false,
+        allow_concatenated_archives,
     )
 }
 
@@ -1348,6 +1349,7 @@ pub(crate) fn run_process_archive_stoppable<'p, Provider, F>(
     archive_provider: impl IntoIterator<Item = impl Read>,
     mut password_provider: Provider,
     mut processor: F,
+    allow_concatenated_archives: bool,
 ) -> io::Result<()>
 where
     Provider: FnMut() -> Option<&'p [u8]>,
@@ -1368,7 +1370,7 @@ where
             }
             ReadEntry::Normal(regular) => processor(Ok(regular)),
         },
-        false,
+        allow_concatenated_archives,
     )
 }
 
