@@ -245,6 +245,7 @@ fn stdio_update_ignore_zeros_controls_concatenated_archive_handling() {
     cmd.args([
         "experimental",
         "stdio",
+        "--no-xattrs",
         "--update",
         "--file",
         archive_without.to_str().unwrap(),
@@ -268,6 +269,7 @@ fn stdio_update_ignore_zeros_controls_concatenated_archive_handling() {
     cmd.args([
         "experimental",
         "stdio",
+        "--no-xattrs",
         "--unstable",
         "--update",
         "--ignore-zeros",
@@ -307,6 +309,7 @@ fn stdio_create_ignore_zeros_controls_archive_inclusion_handling() {
     cmd.args([
         "experimental",
         "stdio",
+        "--no-xattrs",
         "--create",
         "--file",
         archive_without.to_str().unwrap(),
@@ -331,6 +334,7 @@ fn stdio_create_ignore_zeros_controls_archive_inclusion_handling() {
     cmd.args([
         "experimental",
         "stdio",
+        "--no-xattrs",
         "--unstable",
         "--create",
         "--ignore-zeros",
@@ -370,6 +374,7 @@ fn stdio_create_ignore_zeros_controls_stdin_archive_inclusion_handling() {
         .args([
             "experimental",
             "stdio",
+            "--no-xattrs",
             "--create",
             "--file",
             archive_without.to_str().unwrap(),
@@ -395,6 +400,7 @@ fn stdio_create_ignore_zeros_controls_stdin_archive_inclusion_handling() {
         .args([
             "experimental",
             "stdio",
+            "--no-xattrs",
             "--unstable",
             "--create",
             "--ignore-zeros",
@@ -436,6 +442,7 @@ fn stdio_append_ignore_zeros_controls_existing_concatenated_archive_handling() {
     cmd.args([
         "experimental",
         "stdio",
+        "--no-xattrs",
         "--append",
         "--file",
         archive_without.to_str().unwrap(),
@@ -459,6 +466,7 @@ fn stdio_append_ignore_zeros_controls_existing_concatenated_archive_handling() {
     cmd.args([
         "experimental",
         "stdio",
+        "--no-xattrs",
         "--unstable",
         "--append",
         "--ignore-zeros",
@@ -501,6 +509,7 @@ fn stdio_update_ignore_zeros_handles_concatenated_archive_before_split_archive()
     cmd.args([
         "experimental",
         "stdio",
+        "--no-xattrs",
         "--update",
         "--file",
         archive_without.to_str().unwrap(),
@@ -524,6 +533,7 @@ fn stdio_update_ignore_zeros_handles_concatenated_archive_before_split_archive()
     cmd.args([
         "experimental",
         "stdio",
+        "--no-xattrs",
         "--unstable",
         "--update",
         "--ignore-zeros",
@@ -562,6 +572,7 @@ fn stdio_append_ignore_zeros_controls_stdin_base_archive_handling() {
         .args([
             "experimental",
             "stdio",
+            "--no-xattrs",
             "--append",
             "--cd",
             in_dir.to_str().unwrap(),
@@ -588,6 +599,7 @@ fn stdio_append_ignore_zeros_controls_stdin_base_archive_handling() {
         .args([
             "experimental",
             "stdio",
+            "--no-xattrs",
             "--unstable",
             "--append",
             "--ignore-zeros",
@@ -624,6 +636,7 @@ fn stdio_append_ignore_zeros_handles_concatenated_archive_before_split_archive()
     cmd.args([
         "experimental",
         "stdio",
+        "--no-xattrs",
         "--unstable",
         "--append",
         "--ignore-zeros",
