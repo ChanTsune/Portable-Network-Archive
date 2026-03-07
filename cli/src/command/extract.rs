@@ -527,6 +527,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         output_options,
         true,
         false,
+        false,
     )
     .with_context(|| format!("extracting entries from '{}'", PathWithCwd::new(&archive)))?;
 
@@ -611,6 +612,7 @@ pub(crate) fn run_extract_archive_reader<'a, 'p, Provider>(
     args: OutputOption<'a>,
     no_recursive: bool,
     fast_read: bool,
+    allow_concatenated_archives: bool,
 ) -> anyhow::Result<()>
 where
     Provider: FnMut() -> Option<&'p [u8]> + Send,
@@ -627,7 +629,134 @@ where
         let (tx, rx) = std::sync::mpsc::channel();
         rayon::scope_fifo(|s| -> anyhow::Result<()> {
             if fast_read && !globs.is_empty() {
-                run_process_archive_stoppable(reader, password_provider, |entry| {
+                run_process_archive_stoppable(
+                    reader,
+                    password_provider,
+                    |entry| {
+                        let item = entry.map_err(|e| {
+                            io::Error::new(e.kind(), format!("reading archive entry: {e}"))
+                        })?;
+                        let item_path = item.name().to_string();
+                        let name =
+                            match filter_entry_fast_read(&item, &item_path, &mut globs, &args) {
+                                FastReadFilterAction::Skip(action) => return Ok(action),
+                                FastReadFilterAction::Accept(name) => name,
+                            };
+                        if args.verbose {
+                            eprintln!("x {}", name);
+                        }
+                        if args.to_stdout {
+                            extract_entry_to_stdout(&item, password)?;
+                            if globs.all_matched() {
+                                return Ok(ProcessAction::Stop);
+                            }
+                            return Ok(ProcessAction::Continue);
+                        }
+                        if matches!(
+                            item.header().data_kind(),
+                            DataKind::SymbolicLink | DataKind::HardLink
+                        ) {
+                            link_entries.push((name, item));
+                            if globs.all_matched() {
+                                return Ok(ProcessAction::Stop);
+                            }
+                            return Ok(ProcessAction::Continue);
+                        }
+                        if item.header().data_kind() == DataKind::Directory {
+                            extract_entry(item, &name, password, &args).map_err(|e| {
+                                io::Error::new(e.kind(), format!("extracting {item_path}: {e}"))
+                            })?;
+                            if globs.all_matched() {
+                                return Ok(ProcessAction::Stop);
+                            }
+                            return Ok(ProcessAction::Continue);
+                        }
+                        let path = build_output_path(args.out_dir.as_deref(), name.as_path());
+                        let ticket = args.ordered_path_locks.register(&path);
+                        let tx = tx.clone();
+                        let args = args.clone();
+                        let all_matched = globs.all_matched();
+                        s.spawn_fifo(move |_| {
+                            let _guard = ticket.wait_for_turn();
+                            tx.send(
+                                extract_entry(item, &name, password, &args)
+                                    .with_context(|| format!("extracting {}", item_path)),
+                            )
+                            .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
+                        });
+                        if all_matched {
+                            return Ok(ProcessAction::Stop);
+                        }
+                        Ok(ProcessAction::Continue)
+                    },
+                    allow_concatenated_archives,
+                )
+                .with_context(|| "streaming archive entries")?;
+            } else {
+                run_process_archive(
+                    reader,
+                    password_provider,
+                    |entry| {
+                        let item = entry.map_err(|e| {
+                            io::Error::new(e.kind(), format!("reading archive entry: {e}"))
+                        })?;
+                        let Some(name) = filter_entry(&item, &mut globs, &args) else {
+                            return Ok(());
+                        };
+                        if args.verbose {
+                            eprintln!("x {}", name);
+                        }
+                        if args.to_stdout {
+                            return extract_entry_to_stdout(&item, password);
+                        }
+                        if matches!(
+                            item.header().data_kind(),
+                            DataKind::SymbolicLink | DataKind::HardLink
+                        ) {
+                            link_entries.push((name, item));
+                            return Ok(());
+                        }
+                        if item.header().data_kind() == DataKind::Directory {
+                            let item_path = item.name().to_string();
+                            extract_entry(item, &name, password, &args).map_err(|e| {
+                                io::Error::new(e.kind(), format!("extracting {item_path}: {e}"))
+                            })?;
+                            return Ok(());
+                        }
+                        let path = build_output_path(args.out_dir.as_deref(), name.as_path());
+                        let ticket = args.ordered_path_locks.register(&path);
+                        let item_path = item.name().to_string();
+                        let tx = tx.clone();
+                        let args = args.clone();
+                        s.spawn_fifo(move |_| {
+                            let _guard = ticket.wait_for_turn();
+                            tx.send(
+                                extract_entry(item, &name, password, &args)
+                                    .with_context(|| format!("extracting {}", item_path)),
+                            )
+                            .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
+                        });
+                        Ok(())
+                    },
+                    allow_concatenated_archives,
+                )
+                .with_context(|| "streaming archive entries")?;
+            }
+            drop(tx);
+            Ok(())
+        })?;
+        for result in rx {
+            result?;
+        }
+    }
+
+    #[cfg(target_family = "wasm")]
+    {
+        if fast_read && !globs.is_empty() {
+            run_process_archive_stoppable(
+                reader,
+                password_provider,
+                |entry| {
                     let item = entry.map_err(|e| {
                         io::Error::new(e.kind(), format!("reading archive entry: {e}"))
                     })?;
@@ -656,36 +785,22 @@ where
                         }
                         return Ok(ProcessAction::Continue);
                     }
-                    if item.header().data_kind() == DataKind::Directory {
-                        extract_entry(item, &name, password, &args).map_err(|e| {
-                            io::Error::new(e.kind(), format!("extracting {item_path}: {e}"))
-                        })?;
-                        if globs.all_matched() {
-                            return Ok(ProcessAction::Stop);
-                        }
-                        return Ok(ProcessAction::Continue);
-                    }
-                    let path = build_output_path(args.out_dir.as_deref(), name.as_path());
-                    let ticket = args.ordered_path_locks.register(&path);
-                    let tx = tx.clone();
-                    let args = args.clone();
-                    let all_matched = globs.all_matched();
-                    s.spawn_fifo(move |_| {
-                        let _guard = ticket.wait_for_turn();
-                        tx.send(
-                            extract_entry(item, &name, password, &args)
-                                .with_context(|| format!("extracting {}", item_path)),
-                        )
-                        .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
-                    });
-                    if all_matched {
+                    extract_entry(item, &name, password, &args).map_err(|e| {
+                        io::Error::new(e.kind(), format!("extracting {}: {e}", item_path))
+                    })?;
+                    if globs.all_matched() {
                         return Ok(ProcessAction::Stop);
                     }
                     Ok(ProcessAction::Continue)
-                })
-                .with_context(|| "streaming archive entries")?;
-            } else {
-                run_process_archive(reader, password_provider, |entry| {
+                },
+                allow_concatenated_archives,
+            )
+            .with_context(|| "streaming archive entries")?;
+        } else {
+            run_process_archive(
+                reader,
+                password_provider,
+                |entry| {
                     let item = entry.map_err(|e| {
                         io::Error::new(e.kind(), format!("reading archive entry: {e}"))
                     })?;
@@ -705,102 +820,13 @@ where
                         link_entries.push((name, item));
                         return Ok(());
                     }
-                    if item.header().data_kind() == DataKind::Directory {
-                        let item_path = item.name().to_string();
-                        extract_entry(item, &name, password, &args).map_err(|e| {
-                            io::Error::new(e.kind(), format!("extracting {item_path}: {e}"))
-                        })?;
-                        return Ok(());
-                    }
-                    let path = build_output_path(args.out_dir.as_deref(), name.as_path());
-                    let ticket = args.ordered_path_locks.register(&path);
-                    let item_path = item.name().to_string();
-                    let tx = tx.clone();
-                    let args = args.clone();
-                    s.spawn_fifo(move |_| {
-                        let _guard = ticket.wait_for_turn();
-                        tx.send(
-                            extract_entry(item, &name, password, &args)
-                                .with_context(|| format!("extracting {}", item_path)),
-                        )
-                        .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
-                    });
+                    extract_entry(item, &name, password, &args).map_err(|e| {
+                        io::Error::new(e.kind(), format!("extracting {}: {e}", name))
+                    })?;
                     Ok(())
-                })
-                .with_context(|| "streaming archive entries")?;
-            }
-            drop(tx);
-            Ok(())
-        })?;
-        for result in rx {
-            result?;
-        }
-    }
-
-    #[cfg(target_family = "wasm")]
-    {
-        if fast_read && !globs.is_empty() {
-            run_process_archive_stoppable(reader, password_provider, |entry| {
-                let item = entry
-                    .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
-                let item_path = item.name().to_string();
-                let name = match filter_entry_fast_read(&item, &item_path, &mut globs, &args) {
-                    FastReadFilterAction::Skip(action) => return Ok(action),
-                    FastReadFilterAction::Accept(name) => name,
-                };
-                if args.verbose {
-                    eprintln!("x {}", name);
-                }
-                if args.to_stdout {
-                    extract_entry_to_stdout(&item, password)?;
-                    if globs.all_matched() {
-                        return Ok(ProcessAction::Stop);
-                    }
-                    return Ok(ProcessAction::Continue);
-                }
-                if matches!(
-                    item.header().data_kind(),
-                    DataKind::SymbolicLink | DataKind::HardLink
-                ) {
-                    link_entries.push((name, item));
-                    if globs.all_matched() {
-                        return Ok(ProcessAction::Stop);
-                    }
-                    return Ok(ProcessAction::Continue);
-                }
-                extract_entry(item, &name, password, &args).map_err(|e| {
-                    io::Error::new(e.kind(), format!("extracting {}: {e}", item_path))
-                })?;
-                if globs.all_matched() {
-                    return Ok(ProcessAction::Stop);
-                }
-                Ok(ProcessAction::Continue)
-            })
-            .with_context(|| "streaming archive entries")?;
-        } else {
-            run_process_archive(reader, password_provider, |entry| {
-                let item = entry
-                    .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
-                let Some(name) = filter_entry(&item, &mut globs, &args) else {
-                    return Ok(());
-                };
-                if args.verbose {
-                    eprintln!("x {}", name);
-                }
-                if args.to_stdout {
-                    return extract_entry_to_stdout(&item, password);
-                }
-                if matches!(
-                    item.header().data_kind(),
-                    DataKind::SymbolicLink | DataKind::HardLink
-                ) {
-                    link_entries.push((name, item));
-                    return Ok(());
-                }
-                extract_entry(item, &name, password, &args)
-                    .map_err(|e| io::Error::new(e.kind(), format!("extracting {}: {e}", name)))?;
-                Ok(())
-            })
+                },
+                allow_concatenated_archives,
+            )
             .with_context(|| "streaming archive entries")?;
         }
     }

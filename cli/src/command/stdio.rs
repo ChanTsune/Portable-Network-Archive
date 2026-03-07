@@ -676,7 +676,7 @@ fn run_stdio(ctx: &GlobalContext, args: StdioCommand) -> anyhow::Result<()> {
             "Option '--read-full-blocks' is accepted for compatibility but will be ignored."
         );
     }
-    if args.ignore_zeros && !args.list {
+    if args.ignore_zeros && !args.list && !args.extract {
         log::warn!("Option '--ignore-zeros' is accepted for compatibility but will be ignored.");
     }
     if args.auto_compress {
@@ -1138,6 +1138,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: StdioCommand) -> anyhow::Resul
             out_option,
             args.no_recursive,
             args.fast_read,
+            args.ignore_zeros,
         )
     } else {
         run_extract_archive_reader(
@@ -1147,6 +1148,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: StdioCommand) -> anyhow::Resul
             out_option,
             args.no_recursive,
             args.fast_read,
+            args.ignore_zeros,
         )
     }
 }

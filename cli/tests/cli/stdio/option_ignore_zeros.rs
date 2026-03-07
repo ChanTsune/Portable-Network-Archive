@@ -1,7 +1,7 @@
 use crate::utils::setup;
 use assert_cmd::cargo::cargo_bin_cmd;
 use pna::{Archive, EntryBuilder, WriteOptions};
-use std::io::Write;
+use std::{fs, io::Write, path::PathBuf};
 
 fn build_archive(entries: &[(&str, &[u8])]) -> Vec<u8> {
     let mut archive = Archive::write_header(Vec::new()).unwrap();
@@ -60,4 +60,77 @@ fn stdio_list_ignore_zeros_with_fast_read_continues_into_next_archive() {
         .success()
         .stdout("b.txt\n")
         .stderr("");
+}
+
+#[test]
+fn stdio_extract_ignore_zeros_controls_concatenated_archive_handling() {
+    setup();
+    let archive_data = build_concatenated_archives();
+    let out_without = PathBuf::from("stdio_extract_ignore_zeros_without_flag/out");
+    let out_with = PathBuf::from("stdio_extract_ignore_zeros_with_flag/out");
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    cmd.write_stdin(archive_data.clone())
+        .args([
+            "experimental",
+            "stdio",
+            "--extract",
+            "--out-dir",
+            out_without.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stderr("");
+
+    assert_eq!(
+        "first",
+        fs::read_to_string(out_without.join("a.txt")).unwrap()
+    );
+    assert!(!out_without.join("b.txt").exists());
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    cmd.write_stdin(archive_data)
+        .args([
+            "experimental",
+            "stdio",
+            "--extract",
+            "--ignore-zeros",
+            "--out-dir",
+            out_with.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .stderr("");
+
+    assert_eq!("first", fs::read_to_string(out_with.join("a.txt")).unwrap());
+    assert_eq!(
+        "second",
+        fs::read_to_string(out_with.join("b.txt")).unwrap()
+    );
+}
+
+#[test]
+fn stdio_extract_ignore_zeros_with_fast_read_continues_into_next_archive() {
+    setup();
+    let archive_data = build_concatenated_archives();
+    let out_dir = PathBuf::from("stdio_extract_ignore_zeros_fast_read/out");
+
+    let mut cmd = cargo_bin_cmd!("pna");
+    cmd.write_stdin(archive_data)
+        .args([
+            "experimental",
+            "stdio",
+            "--extract",
+            "--ignore-zeros",
+            "--fast-read",
+            "--out-dir",
+            out_dir.to_str().unwrap(),
+            "b.txt",
+        ])
+        .assert()
+        .success()
+        .stderr("");
+
+    assert!(!out_dir.join("a.txt").exists());
+    assert_eq!("second", fs::read_to_string(out_dir.join("b.txt")).unwrap());
 }

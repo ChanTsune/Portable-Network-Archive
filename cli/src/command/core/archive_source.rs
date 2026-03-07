@@ -81,7 +81,7 @@ impl SplitArchiveReader {
         password: Option<&[u8]>,
         processor: impl FnMut(io::Result<NormalEntry>) -> io::Result<()>,
     ) -> io::Result<()> {
-        super::run_process_archive(self.files.drain(..), || password, processor)
+        super::run_process_archive(self.files.drain(..), || password, processor, false)
     }
 
     #[cfg(feature = "memmap")]
