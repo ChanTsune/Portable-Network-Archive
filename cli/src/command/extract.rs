@@ -1732,10 +1732,7 @@ fn search_group(name: &str, id: u64) -> io::Result<Group> {
 
 #[inline]
 fn is_unsafe_link(reference: &EntryReference) -> bool {
-    reference.as_path().components().any(|it| {
-        matches!(
-            it,
-            Component::ParentDir | Component::RootDir | Component::Prefix(_)
-        )
-    })
+    let (rewritten, had_root) =
+        crate::command::core::path::strip_absolute_path_bsdtar(reference.as_str());
+    had_root || crate::command::core::path::has_parent_dir_component(rewritten.as_ref())
 }
