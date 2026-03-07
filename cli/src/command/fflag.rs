@@ -218,17 +218,20 @@ fn parse_flag_op(flag: &str) -> FlagOp {
 
 impl FlagOperations {
     fn apply(&self, current_flags: &[String]) -> Vec<String> {
-        let mut flags: HashSet<String> = current_flags.iter().cloned().collect();
+        let mut flags: HashSet<String> = current_flags
+            .iter()
+            .map(|flag| normalize_flag_name(flag))
+            .collect();
 
         // Apply clears first, then sets
         for op in &self.0 {
             if let FlagOp::Clear(flag) = op {
-                flags.remove(flag);
+                flags.remove(&normalize_flag_name(flag));
             }
         }
         for op in &self.0 {
             if let FlagOp::Set(flag) = op {
-                flags.insert(flag.clone());
+                flags.insert(normalize_flag_name(flag));
             }
         }
 
@@ -561,6 +564,16 @@ mod tests {
         let result = ops.apply(&current);
         assert!(!result.contains(&"uchg".to_string()));
         assert!(result.contains(&"schg".to_string()));
+        assert!(result.contains(&"nodump".to_string()));
+    }
+
+    #[test]
+    fn apply_flag_operations_normalizes_existing_aliases() {
+        let ops: FlagOperations = "nouchg".parse().unwrap();
+        let current = vec!["uimmutable".to_string(), "nodump".to_string()];
+        let result = ops.apply(&current);
+        assert!(!result.contains(&"uimmutable".to_string()));
+        assert!(!result.contains(&"uchg".to_string()));
         assert!(result.contains(&"nodump".to_string()));
     }
 
