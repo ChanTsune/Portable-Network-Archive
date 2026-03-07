@@ -106,15 +106,21 @@ impl SplitArchiveReader {
     pub(crate) fn for_each_read_entry(
         &mut self,
         processor: impl FnMut(io::Result<ReadEntry>) -> io::Result<()>,
+        allow_concatenated_archives: bool,
     ) -> io::Result<()> {
-        super::run_read_entries(self.files.drain(..), processor, false)
+        super::run_read_entries(self.files.drain(..), processor, allow_concatenated_archives)
     }
 
     #[cfg(feature = "memmap")]
     pub(crate) fn for_each_read_entry<'s>(
         &'s mut self,
         processor: impl FnMut(io::Result<ReadEntry<Cow<'s, [u8]>>>) -> io::Result<()>,
+        allow_concatenated_archives: bool,
     ) -> io::Result<()> {
-        super::run_read_entries_mem(self.mmaps.iter().map(|m| m.as_ref()), processor, false)
+        super::run_read_entries_mem(
+            self.mmaps.iter().map(|m| m.as_ref()),
+            processor,
+            allow_concatenated_archives,
+        )
     }
 }

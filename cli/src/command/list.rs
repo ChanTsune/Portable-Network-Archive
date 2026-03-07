@@ -573,6 +573,7 @@ fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::R
         }
             Ok(())
         },
+        false,
     )?;
     print_entries(entries, files_globs, filter, options)
 }

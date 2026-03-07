@@ -517,6 +517,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
             &mut out_archive,
             TransformStrategyUnSolid,
             false,
+            false,
         ),
         SolidEntriesTransformStrategy::KeepSolid => run_update_archive(
             &mut source,
@@ -526,6 +527,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
             sync,
             &mut out_archive,
             TransformStrategyKeepSolid,
+            false,
             false,
         ),
     }?;
@@ -547,6 +549,7 @@ pub(crate) fn run_update_archive<Strategy, W>(
     out_archive: &mut Archive<W>,
     _strategy: Strategy,
     verbose: bool,
+    allow_concatenated_archives: bool,
 ) -> anyhow::Result<()>
 where
     Strategy: TransformStrategy,
@@ -561,35 +564,39 @@ where
         .collect::<IndexMap<_, _>>();
 
     rayon::scope_fifo(|s| -> anyhow::Result<()> {
-        source.for_each_read_entry(|entry| {
-            Strategy::transform(out_archive, password, entry, |entry| {
-                let entry = entry?;
-                if let Some((idx, item)) = target_files_mapping.shift_remove(entry.header().path())
-                {
-                    let need_update =
-                        is_newer_than_archive(&item.metadata, entry.metadata()).unwrap_or(true);
-                    if need_update {
-                        let tx = tx.clone();
-                        let create_options = create_options.clone();
-                        s.spawn_fifo(move |_| {
-                            log::debug!("Updating: {}", item.path.display());
-                            tx.send((idx, create_entry(&item, &create_options)))
-                                .unwrap_or_else(|_| {
-                                    unreachable!("receiver is held by scope owner")
-                                });
-                        });
+        source.for_each_read_entry(
+            |entry| {
+                Strategy::transform(out_archive, password, entry, |entry| {
+                    let entry = entry?;
+                    if let Some((idx, item)) =
+                        target_files_mapping.shift_remove(entry.header().path())
+                    {
+                        let need_update =
+                            is_newer_than_archive(&item.metadata, entry.metadata()).unwrap_or(true);
+                        if need_update {
+                            let tx = tx.clone();
+                            let create_options = create_options.clone();
+                            s.spawn_fifo(move |_| {
+                                log::debug!("Updating: {}", item.path.display());
+                                tx.send((idx, create_entry(&item, &create_options)))
+                                    .unwrap_or_else(|_| {
+                                        unreachable!("receiver is held by scope owner")
+                                    });
+                            });
+                            Ok(None)
+                        } else {
+                            Ok(Some(entry))
+                        }
+                    } else if sync {
+                        log::debug!("Removing (sync): {}", entry.header().path());
                         Ok(None)
                     } else {
                         Ok(Some(entry))
                     }
-                } else if sync {
-                    log::debug!("Removing (sync): {}", entry.header().path());
-                    Ok(None)
-                } else {
-                    Ok(Some(entry))
-                }
-            })
-        })?;
+                })
+            },
+            allow_concatenated_archives,
+        )?;
 
         // NOTE: Add new entries
         for (_, (idx, item)) in target_files_mapping {
