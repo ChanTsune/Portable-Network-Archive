@@ -635,7 +635,13 @@ fn stdio_extract_preserves_backslashes_after_windows_unc_prefix() {
         .assert()
         .success();
 
+    #[cfg(windows)]
+    assert!(out_dir.join("server/share/file35").exists());
+
+    #[cfg(not(windows))]
     assert!(out_dir.join(r"server\share\file35").exists());
+
+    #[cfg(not(windows))]
     assert!(!out_dir.join("server/share/file35").exists());
 }
 

@@ -681,6 +681,16 @@ mod tests {
     #[test]
     fn editor_preserve_curdir_handles_windows_style_absolute_paths() {
         let editor = PathnameEditor::new(None, None, false, true);
+        #[cfg(windows)]
+        let expected_unc_backslash = "server/share/file35";
+        #[cfg(not(windows))]
+        let expected_unc_backslash = "server\\share\\file35";
+
+        #[cfg(windows)]
+        let expected_mixed_unc_backslash = "server/share/file52";
+        #[cfg(not(windows))]
+        let expected_mixed_unc_backslash = "server\\share\\file52";
+
         assert_eq!(
             "file04",
             editor
@@ -696,14 +706,14 @@ mod tests {
                 .as_str()
         );
         assert_eq!(
-            "server\\share\\file35",
+            expected_unc_backslash,
             editor
                 .edit_entry_name(Path::new("\\\\?\\UNC\\server\\share\\file35"))
                 .unwrap()
                 .as_str()
         );
         assert_eq!(
-            "server\\share\\file52",
+            expected_mixed_unc_backslash,
             editor
                 .edit_entry_name(Path::new("\\/?/uNc/server\\share\\file52"))
                 .unwrap()
