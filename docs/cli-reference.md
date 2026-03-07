@@ -1465,6 +1465,9 @@ bsdtar-like CLI semantics for PNA archives
 * `-v` — Verbose
 
   Default value: `false`
+* `--ignore-zeros` — Continue reading concatenated archives after the first archive ends instead of stopping at the first archive boundary
+
+  Default value: `false`
 * `--version` — Print version
 * `-h`, `--help` — Print help
 * `--quiet` — Make some output more quiet (alias for --log-level off)
