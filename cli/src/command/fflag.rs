@@ -6,8 +6,8 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            TransformStrategyKeepSolid, TransformStrategyUnSolid, collect_split_archives,
-            run_entries, run_transform_entry,
+            SplitArchiveReader, TransformStrategyKeepSolid, TransformStrategyUnSolid,
+            collect_split_archives,
         },
     },
     ext::NormalEntryExt,
@@ -31,7 +31,7 @@ pub(crate) struct FflagCommand {
 
 impl Command for FflagCommand {
     #[inline]
-    fn execute(self, ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
+    fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
         match self.command {
             FflagCommands::Get(cmd) => cmd.execute(ctx),
             FflagCommands::Set(cmd) => cmd.execute(ctx),
@@ -70,7 +70,7 @@ pub(crate) struct GetFflagCommand {
 
 impl Command for GetFflagCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
+    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
         archive_get_fflag(self)
     }
 }
@@ -107,7 +107,7 @@ pub(crate) struct SetFflagCommand {
 
 impl Command for SetFflagCommand {
     #[inline]
-    fn execute(self, _ctx: &crate::cli::GlobalArgs) -> anyhow::Result<()> {
+    fn execute(self, _ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
         archive_set_fflag(self)
     }
 }
@@ -290,33 +290,32 @@ impl<'a> FilterOption<'a> {
 
 #[hooq::hooq(anyhow)]
 fn archive_get_fflag(args: GetFflagCommand) -> anyhow::Result<()> {
-    let password = ask_password(args.password)?;
-    if args.file.files.is_empty() {
+    let GetFflagCommand {
+        file,
+        name,
+        dump,
+        regex_match,
+        long,
+        password,
+    } = args;
+    let password = ask_password(password)?;
+    if file.files.is_empty() {
         return Ok(());
     }
-    let files = &args.file.files;
+    let FileArgs { archive, files } = file;
     let mut globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))?;
     let filter = FilterOption::new(
-        args.dump,
-        args.long,
-        args.name.as_deref(),
-        args.regex_match.as_deref(),
+        dump,
+        long,
+        name.as_deref(),
+        regex_match.as_deref(),
     )
     .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-    let archives = collect_split_archives(&args.file.archive)?;
+    let mut source = SplitArchiveReader::new(collect_split_archives(archive)?)?;
 
-    #[cfg(feature = "memmap")]
-    let mmaps = archives
-        .into_iter()
-        .map(crate::utils::mmap::Mmap::try_from)
-        .collect::<io::Result<Vec<_>>>()?;
-    #[cfg(feature = "memmap")]
-    let archives = mmaps.iter().map(|m| m.as_ref());
-
-    run_entries(
-        archives,
-        || password.as_deref(),
+    source.for_each_entry(
+        password.as_deref(),
         #[hooq::skip_all]
         |entry| {
             let entry = entry?;
@@ -377,41 +376,30 @@ fn archive_set_fflag(args: SetFflagCommand) -> anyhow::Result<()> {
         }
     };
 
-    let archives = collect_split_archives(&args.archive)?;
-
-    #[cfg(feature = "memmap")]
-    let mmaps = archives
-        .into_iter()
-        .map(crate::utils::mmap::Mmap::try_from)
-        .collect::<io::Result<Vec<_>>>()?;
-    #[cfg(feature = "memmap")]
-    let archives = mmaps.iter().map(|m| m.as_ref());
+    let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive)?)?;
 
     let output_path = args.archive.remove_part();
     let mut temp_file =
         NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
 
     match args.transform_strategy.strategy() {
-        SolidEntriesTransformStrategy::UnSolid => run_transform_entry(
+        SolidEntriesTransformStrategy::UnSolid => source.transform_entries(
             temp_file.as_file_mut(),
-            archives,
-            || password.as_deref(),
+            password.as_deref(),
             #[hooq::skip_all]
             |entry| Ok(Some(set_strategy.transform_entry(entry?))),
             TransformStrategyUnSolid,
         ),
-        SolidEntriesTransformStrategy::KeepSolid => run_transform_entry(
+        SolidEntriesTransformStrategy::KeepSolid => source.transform_entries(
             temp_file.as_file_mut(),
-            archives,
-            || password.as_deref(),
+            password.as_deref(),
             #[hooq::skip_all]
             |entry| Ok(Some(set_strategy.transform_entry(entry?))),
             TransformStrategyKeepSolid,
         ),
     }?;
 
-    #[cfg(feature = "memmap")]
-    drop(mmaps);
+    drop(source);
 
     temp_file.persist(output_path)?;
 
