@@ -635,7 +635,12 @@ pub(crate) struct StdioCommand {
     format: Option<String>,
     #[arg(long, hide = true)]
     posix: bool,
-    #[arg(long, hide = true)]
+    #[arg(
+        long,
+        requires = "unstable",
+        help_heading = "Unstable Options",
+        help = "Continue reading concatenated archives after the first archive ends instead of stopping at the first archive boundary"
+    )]
     ignore_zeros: bool,
     #[arg(long, hide = true)]
     safe_writes: bool,
