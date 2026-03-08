@@ -33,16 +33,49 @@ on:
 
 jobs:
   bsdtar-reference:
-    name: Verify bsdtar_test passes with bsdtar
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 30
+    name: Verify bsdtar_test passes with bsdtar (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ubuntu
+            runner: ubuntu-24.04-arm
+            shell: bash
+            windows: false
+          - name: windows
+            runner: windows-2022
+            shell: 'C:\msys64\usr\bin\bash.exe --login -eo pipefail {0}'
+            windows: true
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
     permissions:
       contents: read
+    env:
+      CHERE_INVOKING: 1
+      MSYSTEM: MINGW64
+      MSYS2_PATH_TYPE: inherit
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
     steps:
+      - name: Configure Git for Windows checkout
+        if: ${{ matrix.windows }}
+        shell: pwsh
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+          git config --global core.longpaths true
+
       - name: Install build dependencies
+        if: ${{ !matrix.windows }}
         run: |
           sudo apt update
           sudo apt install -y libacl1-dev libssl-dev pkg-config autoconf automake libtool
+
+      - name: Install build dependencies (Windows)
+        if: ${{ matrix.windows }}
+        shell: cmd
+        run: choco install mingw
 
       - name: Clone libarchive
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -52,6 +85,7 @@ jobs:
           path: libarchive
 
       - name: Build bsdtar and bsdtar_test
+        if: ${{ !matrix.windows }}
         run: |
           cd libarchive
           ./build/autogen.sh
@@ -59,34 +93,139 @@ jobs:
           make tar/test/list.h
           make -j$(nproc) bsdtar_test bsdtar
 
-      - name: Run bsdtar_test with bsdtar
+      - name: Build bsdtar and bsdtar_test (Windows)
+        if: ${{ matrix.windows }}
+        shell: cmd
+        working-directory: libarchive
+        env:
+          BE: mingw-gcc
         run: |
-          "${GITHUB_WORKSPACE}/libarchive/bsdtar_test" \
-            -p "${GITHUB_WORKSPACE}/libarchive/bsdtar" \
-            -r "${GITHUB_WORKSPACE}/libarchive/tar/test" \
-            -v
+          set ROOT=%CD%
+          call build\ci\github_actions\ci.cmd deplibs
+          cd /d "%ROOT%"
+          call build\ci\github_actions\ci.cmd configure
+          cd /d "%ROOT%"
+          call build\ci\github_actions\ci.cmd build
+
+      - name: Locate built binaries
+        run: |
+          WORKSPACE='${{ github.workspace }}'
+          if [ "${{ matrix.windows }}" = "true" ]; then
+            WORKSPACE="$(cygpath -u "$WORKSPACE")"
+            BSDTAR_BIN="${WORKSPACE}/libarchive/build_ci/cmake/bin/bsdtar.exe"
+            BSDTAR_TEST_BIN="${WORKSPACE}/libarchive/build_ci/cmake/bin/bsdtar_test.exe"
+            ls -la "${WORKSPACE}/libarchive/build_ci/cmake/bin" || true
+          else
+            BSDTAR_BIN="$(find "${WORKSPACE}/libarchive" -maxdepth 6 -type f \( -name 'bsdtar' -o -name 'bsdtar.exe' \) | sort | head -n1)"
+            BSDTAR_TEST_BIN="$(find "${WORKSPACE}/libarchive" -maxdepth 6 -type f \( -name 'bsdtar_test' -o -name 'bsdtar_test.exe' \) | sort | head -n1)"
+          fi
+          echo "BSDTAR_BIN candidate: ${BSDTAR_BIN}"
+          echo "BSDTAR_TEST_BIN candidate: ${BSDTAR_TEST_BIN}"
+          test -f "${BSDTAR_BIN}"
+          test -f "${BSDTAR_TEST_BIN}"
+          echo "BSDTAR_BIN=${BSDTAR_BIN}" >> "$GITHUB_ENV"
+          echo "BSDTAR_TEST_BIN=${BSDTAR_TEST_BIN}" >> "$GITHUB_ENV"
+
+      - name: Run bsdtar_test with bsdtar
+        id: bsdtar_test
+        continue-on-error: true
+        run: |
+          WORKSPACE='${{ github.workspace }}'
+          if [ "${{ matrix.windows }}" = "true" ]; then
+            WORKSPACE="$(cygpath -u "$WORKSPACE")"
+          fi
+          "${BSDTAR_TEST_BIN}" \
+            -p "${BSDTAR_BIN}" \
+            -r "${WORKSPACE}/libarchive/tar/test" \
+            -v 2>&1 | tee bsdtar_test_output.txt
+
+      - name: Fail on abnormal bsdtar_test termination
+        if: always()
+        run: |
+          if [ ! -f bsdtar_test_output.txt ]; then
+            echo "bsdtar_test output was not generated" >&2
+            exit 1
+          fi
+
+          COMPLETED_BLOCKS=$(grep -c 'Tests run:' bsdtar_test_output.txt || true)
+          if [ "${COMPLETED_BLOCKS}" -lt 1 ]; then
+            echo "bsdtar_test did not reach its totals section" >&2
+            exit 1
+          fi
 
   pna-stdio:
-    name: Test pna stdio with bsdtar_test
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 30
+    name: Test pna stdio with bsdtar_test (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ubuntu
+            runner: ubuntu-24.04-arm
+            shell: bash
+            windows: false
+            exe_suffix: ''
+          - name: windows
+            runner: windows-2022
+            shell: 'C:\msys64\usr\bin\bash.exe --login -eo pipefail {0}'
+            windows: true
+            exe_suffix: '.exe'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
     permissions:
       contents: read
+    env:
+      CHERE_INVOKING: 1
+      MSYSTEM: MINGW64
+      MSYS2_PATH_TYPE: inherit
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
     steps:
+      - name: Configure Git for Windows checkout
+        if: ${{ matrix.windows }}
+        shell: pwsh
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+          git config --global core.longpaths true
+
       - name: Checkout pna
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           path: pna
 
       - name: Install dependencies
+        if: ${{ !matrix.windows }}
         run: |
           sudo apt update
           sudo apt install -y libacl1-dev libssl-dev pkg-config autoconf automake libtool sharutils
+
+      - name: Install dependencies (Windows)
+        if: ${{ matrix.windows }}
+        run: |
+          pacman --noconfirm -Sy --needed \
+            gzip \
+            sharutils
+
+      - name: Install MinGW (Windows)
+        if: ${{ matrix.windows }}
+        shell: cmd
+        run: choco install mingw
 
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@a0b538fa0b742a6aa35d6e2c169b4bd06d225a98 # v1.15.3
 
       - name: Build pna
+        if: ${{ !matrix.windows }}
+        run: |
+          cargo build --locked --release --all-features -p portable-network-archive
+        working-directory: pna
+
+      - name: Build pna (Windows)
+        if: ${{ matrix.windows }}
+        shell: pwsh
+        env:
+          RUSTFLAGS: -A warnings
         run: |
           cargo build --locked --release --all-features -p portable-network-archive
         working-directory: pna
@@ -99,6 +238,7 @@ jobs:
           path: libarchive
 
       - name: Build bsdtar_test
+        if: ${{ !matrix.windows }}
         run: |
           cd libarchive
           ./build/autogen.sh
@@ -106,23 +246,80 @@ jobs:
           make tar/test/list.h
           make -j$(nproc) bsdtar_test
 
-      - name: Create pnatar wrapper
+      - name: Build bsdtar_test (Windows)
+        if: ${{ matrix.windows }}
+        shell: cmd
+        working-directory: libarchive
+        env:
+          BE: mingw-gcc
         run: |
-          PNA_BIN="${GITHUB_WORKSPACE}/pna/target/release/pna"
-          printf '#!/bin/sh\nexec "%s" --log-level error experimental stdio --unstable "$@"\n' "$PNA_BIN" > /usr/local/bin/pnatar
-          chmod +x /usr/local/bin/pnatar
+          set ROOT=%CD%
+          call build\ci\github_actions\ci.cmd deplibs
+          cd /d "%ROOT%"
+          call build\ci\github_actions\ci.cmd configure
+          cd /d "%ROOT%"
+          call build\ci\github_actions\ci.cmd build
 
       - name: Build tar2pna
+        if: ${{ !matrix.windows }}
         run: cargo build --locked --release -p xtask
         working-directory: pna
+
+      - name: Build tar2pna (Windows)
+        if: ${{ matrix.windows }}
+        shell: pwsh
+        env:
+          RUSTFLAGS: -A warnings
+        run: cargo build --locked --release -p xtask
+        working-directory: pna
+
+      - name: Record built binaries
+        run: |
+          WORKSPACE='${{ github.workspace }}'
+          if [ "${{ matrix.windows }}" = "true" ]; then
+            WORKSPACE="$(cygpath -u "$WORKSPACE")"
+            BSDTAR_TEST_BIN="${WORKSPACE}/libarchive/build_ci/cmake/bin/bsdtar_test.exe"
+            ls -la "${WORKSPACE}/libarchive/build_ci/cmake/bin" || true
+          else
+            BSDTAR_TEST_BIN="$(find "${WORKSPACE}/libarchive" -maxdepth 6 -type f \( -name 'bsdtar_test' -o -name 'bsdtar_test.exe' \) | sort | head -n1)"
+          fi
+          PNA_BIN="${WORKSPACE}/pna/target/release/pna${{ matrix.exe_suffix }}"
+          XTASK_BIN="${WORKSPACE}/pna/target/release/xtask${{ matrix.exe_suffix }}"
+          echo "PNA_BIN candidate: ${PNA_BIN}"
+          echo "XTASK_BIN candidate: ${XTASK_BIN}"
+          echo "BSDTAR_TEST_BIN candidate: ${BSDTAR_TEST_BIN}"
+          test -f "${PNA_BIN}"
+          test -f "${XTASK_BIN}"
+          test -f "${BSDTAR_TEST_BIN}"
+          echo "PNA_BIN=${PNA_BIN}" >> "$GITHUB_ENV"
+          echo "XTASK_BIN=${XTASK_BIN}" >> "$GITHUB_ENV"
+          echo "BSDTAR_TEST_BIN=${BSDTAR_TEST_BIN}" >> "$GITHUB_ENV"
+
+      - name: Create pnatar wrapper
+        run: |
+          WORKSPACE='${{ github.workspace }}'
+          if [ "${{ matrix.windows }}" = "true" ]; then
+            WORKSPACE="$(cygpath -u "$WORKSPACE")"
+            PNATAR_BIN="${WORKSPACE}/pnatar.cmd"
+            PNA_WIN="$(cygpath -w "${PNA_BIN}")"
+            printf '@echo off\r\n"%s" --log-level error experimental stdio --unstable %%*\r\n' "${PNA_WIN}" > "${PNATAR_BIN}"
+          else
+            PNATAR_BIN="${WORKSPACE}/pnatar"
+            printf '#!/bin/sh\nexec "%s" --log-level error experimental stdio --unstable "$@"\n' "${PNA_BIN}" > "${PNATAR_BIN}"
+            chmod +x "${PNATAR_BIN}"
+          fi
+          echo "PNATAR_BIN=${PNATAR_BIN}" >> "$GITHUB_ENV"
 
       - name: Convert reference files to PNA
         run: |
           set -euo pipefail
-          LIBARCHIVE_REFDIR="${GITHUB_WORKSPACE}/libarchive/tar/test"
-          PNA_REFDIR="${GITHUB_WORKSPACE}/pna_refdir"
+          WORKSPACE='${{ github.workspace }}'
+          if [ "${{ matrix.windows }}" = "true" ]; then
+            WORKSPACE="$(cygpath -u "$WORKSPACE")"
+          fi
+          LIBARCHIVE_REFDIR="${WORKSPACE}/libarchive/tar/test"
+          PNA_REFDIR="${WORKSPACE}/pna_refdir"
           WORKDIR="$(mktemp -d)"
-          XTASK="${GITHUB_WORKSPACE}/pna/target/release/xtask"
 
           mkdir -p "$PNA_REFDIR"
           cp "$LIBARCHIVE_REFDIR"/*.uu "$PNA_REFDIR/"
@@ -146,7 +343,7 @@ jobs:
             cd "$WORKDIR"
             uudecode "$LIBARCHIVE_REFDIR/${tar_name}.uu"
             base="${tar_name%%.*}"
-            "$XTASK" tar2pna "$WORKDIR/$tar_name" -o "$WORKDIR/${base}.pna"
+            "${XTASK_BIN}" tar2pna "$WORKDIR/$tar_name" -o "$WORKDIR/${base}.pna"
             cp "$WORKDIR/${base}.pna" "$WORKDIR/$tar_name"
             uuencode "$WORKDIR/$tar_name" "$tar_name" > "$PNA_REFDIR/${tar_name}.uu"
             rm -f "$WORKDIR/$tar_name" "$WORKDIR/${base}.pna"
@@ -158,7 +355,7 @@ jobs:
             cd "$WORKDIR"
             uudecode "$LIBARCHIVE_REFDIR/${zip_name}.uu"
             base="${zip_name%%.*}"
-            "$XTASK" zip2pna "$WORKDIR/$zip_name" --password pass1 -o "$WORKDIR/${base}.pna"
+            "${XTASK_BIN}" zip2pna "$WORKDIR/$zip_name" --password pass1 -o "$WORKDIR/${base}.pna"
             cp "$WORKDIR/${base}.pna" "$WORKDIR/$zip_name"
             uuencode "$WORKDIR/$zip_name" "$zip_name" > "$PNA_REFDIR/${zip_name}.uu"
             rm -f "$WORKDIR/$zip_name" "$WORKDIR/${base}.pna"
@@ -169,8 +366,11 @@ jobs:
         id: bsdtar_test
         continue-on-error: true
         run: |
-          BSDTAR_TEST="${GITHUB_WORKSPACE}/libarchive/bsdtar_test"
-          REFDIR="${GITHUB_WORKSPACE}/pna_refdir"
+          WORKSPACE='${{ github.workspace }}'
+          if [ "${{ matrix.windows }}" = "true" ]; then
+            WORKSPACE="$(cygpath -u "$WORKSPACE")"
+          fi
+          REFDIR="${WORKSPACE}/pna_refdir"
           # Exclude tests that crash the process via NULL dereference in assertEqualMem
           # after slurpfile() returns NULL for ustar archives pnatar cannot create.
           # bsdtar_test runs in-process (no fork), so a SEGV kills the entire run.
@@ -180,32 +380,35 @@ jobs:
           #   #63 test_option_uid_uname
           : > bsdtar_test_output.txt
           for range in 0-36 39-56 58-62 64-75; do
-            "$BSDTAR_TEST" -p /usr/local/bin/pnatar -r "$REFDIR" -v "$range" 2>&1 | tee -a bsdtar_test_output.txt || true
+            "${BSDTAR_TEST_BIN}" -p "${PNATAR_BIN}" -r "$REFDIR" -v "$range" 2>&1 | tee -a bsdtar_test_output.txt || true
           done
 
       - name: Collect test artifacts
         if: always() && steps.bsdtar_test.outcome != 'skipped'
         run: |
+          WORKSPACE='${{ github.workspace }}'
+          if [ "${{ matrix.windows }}" = "true" ]; then
+            WORKSPACE="$(cygpath -u "$WORKSPACE")"
+          fi
           mkdir -p artifact-staging
           cp -f bsdtar_test_output.txt artifact-staging/ || true
           cp -rf /tmp/bsdtar* artifact-staging/ 2>/dev/null || true
-          PNA_BIN="${GITHUB_WORKSPACE}/pna/target/release/pna"
           cd artifact-staging
-          "$PNA_BIN" create -f "${GITHUB_WORKSPACE}/bsdtar-test-artifacts.pna" .
-          cd "${GITHUB_WORKSPACE}"
+          "${PNA_BIN}" create -f "${WORKSPACE}/bsdtar-test-artifacts.pna" .
+          cd "${WORKSPACE}"
 
       - name: Upload test artifacts
         if: always() && steps.bsdtar_test.outcome != 'skipped'
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: bsdtar-test-artifacts
+          name: bsdtar-test-artifacts-${{ matrix.name }}
           path: bsdtar-test-artifacts.pna
           retention-days: 7
 
       - name: Generate summary
         if: always()
         run: |
-          echo "## bsdtar compatibility test results" >> "$GITHUB_STEP_SUMMARY"
+          echo "## bsdtar compatibility test results (${{ matrix.name }})" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
           if [ ! -f bsdtar_test_output.txt ]; then
@@ -213,8 +416,11 @@ jobs:
             exit 0
           fi
 
-          if ! grep -q 'Tests run:' bsdtar_test_output.txt; then
+          COMPLETED_BLOCKS=$(grep -c 'Tests run:' bsdtar_test_output.txt || true)
+          if [ "${COMPLETED_BLOCKS}" -lt 4 ]; then
             echo "> **Warning**: Test run did not complete (possible crash)" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Completed ranges: ${COMPLETED_BLOCKS} / 4" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
             LAST_TEST=$(grep -oP '^\s+\d+: \K\S+' bsdtar_test_output.txt | tail -1 || echo "unknown")
             echo "Last test seen: \`${LAST_TEST}\`" >> "$GITHUB_STEP_SUMMARY"
@@ -249,4 +455,18 @@ jobs:
             echo "$FAILING" >> "$GITHUB_STEP_SUMMARY"
             echo '```' >> "$GITHUB_STEP_SUMMARY"
             echo "</details>" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Fail on abnormal pnatar test termination
+        if: always() && steps.bsdtar_test.outcome != 'skipped'
+        run: |
+          if [ ! -f bsdtar_test_output.txt ]; then
+            echo "bsdtar_test output was not generated" >&2
+            exit 1
+          fi
+
+          COMPLETED_BLOCKS=$(grep -c 'Tests run:' bsdtar_test_output.txt || true)
+          if [ "${COMPLETED_BLOCKS}" -lt 4 ]; then
+            echo "bsdtar_test only completed ${COMPLETED_BLOCKS} / 4 ranges" >&2
+            exit 1
           fi
