@@ -4,7 +4,7 @@ use std::ffi::OsString;
 /// it never takes an argument. (In new-style mode, clap handles the optional
 /// compression level via `Option<Option<XzLevel>>`.)
 /// Kept in sync with `StdioCommand` clap definition via unit test.
-const SHORT_OPTIONS_WITH_ARG: &[char] = &['b', 'C', 'f', 'I', 's', 'T', 'X'];
+const SHORT_OPTIONS_WITH_ARG: &[char] = &['b', 'C', 'f', 'I', 's', 'T', 'W', 'X'];
 
 /// Global long options that take a space-separated value.
 /// `--flag=value` form is already a single token and needs no special handling.
@@ -63,6 +63,40 @@ pub fn expand_stdio_old_style_args(args: Vec<OsString>) -> Vec<OsString> {
     }
 
     result.extend(remaining.cloned());
+    result
+}
+
+/// Expands bsdtar `-W <long_option>` syntax for the `experimental stdio` subcommand.
+///
+/// In bsdtar, `-W <name>` is equivalent to `--<name>`, and `-W <name>=<value>` is
+/// equivalent to `--<name>=<value>`.
+pub fn expand_stdio_w_option(args: Vec<OsString>) -> Vec<OsString> {
+    let Some(i) = skip_to_keyword(&args, 1, "experimental") else {
+        return args;
+    };
+    let Some(after_stdio) = skip_to_keyword(&args, i, "stdio") else {
+        return args;
+    };
+
+    let mut result = args[..after_stdio].to_vec();
+    let mut iter = args[after_stdio..].iter();
+    let mut past_double_dash = false;
+    while let Some(arg) = iter.next() {
+        if !past_double_dash && arg == "--" {
+            past_double_dash = true;
+            result.push(arg.clone());
+        } else if !past_double_dash && arg == "-W" {
+            if let Some(next) = iter.next() {
+                let mut long_form = OsString::from("--");
+                long_form.push(next);
+                result.push(long_form);
+            } else {
+                result.push(arg.clone());
+            }
+        } else {
+            result.push(arg.clone());
+        }
+    }
     result
 }
 
@@ -620,7 +654,12 @@ mod tests {
             .collect();
         clap_arg_shorts.sort();
         clap_arg_shorts.dedup();
-        let mut expected = SHORT_OPTIONS_WITH_ARG.to_vec();
+        // `W` is handled by expand_stdio_w_option preprocessing, not by clap
+        let mut expected: Vec<char> = SHORT_OPTIONS_WITH_ARG
+            .iter()
+            .copied()
+            .filter(|&c| c != 'W')
+            .collect();
         expected.sort();
         assert_eq!(
             clap_arg_shorts, expected,
@@ -780,6 +819,249 @@ mod tests {
                 "-x",
                 "-f",
                 "archive.pna",
+            ]),
+        );
+    }
+
+    #[test]
+    fn w_option_help() {
+        let args = s(&["pna", "experimental", "stdio", "-W", "help"]);
+        assert_eq!(
+            expand_stdio_w_option(args),
+            s(&["pna", "experimental", "stdio", "--help"]),
+        );
+    }
+
+    #[test]
+    fn w_option_version() {
+        let args = s(&["pna", "experimental", "stdio", "-W", "version"]);
+        assert_eq!(
+            expand_stdio_w_option(args),
+            s(&["pna", "experimental", "stdio", "--version"]),
+        );
+    }
+
+    #[test]
+    fn w_option_with_equals_value() {
+        let args = s(&[
+            "pna",
+            "experimental",
+            "stdio",
+            "-x",
+            "-W",
+            "strip-components=3",
+            "-f",
+            "a.pna",
+        ]);
+        assert_eq!(
+            expand_stdio_w_option(args),
+            s(&[
+                "pna",
+                "experimental",
+                "stdio",
+                "-x",
+                "--strip-components=3",
+                "-f",
+                "a.pna",
+            ]),
+        );
+    }
+
+    #[test]
+    fn w_option_multiple() {
+        let args = s(&[
+            "pna",
+            "experimental",
+            "stdio",
+            "-x",
+            "-W",
+            "same-owner",
+            "-W",
+            "keep-old-files",
+            "-f",
+            "a.pna",
+        ]);
+        assert_eq!(
+            expand_stdio_w_option(args),
+            s(&[
+                "pna",
+                "experimental",
+                "stdio",
+                "-x",
+                "--same-owner",
+                "--keep-old-files",
+                "-f",
+                "a.pna",
+            ]),
+        );
+    }
+
+    #[test]
+    fn w_option_trailing_no_arg() {
+        let args = s(&["pna", "experimental", "stdio", "-x", "-W"]);
+        assert_eq!(
+            expand_stdio_w_option(args),
+            s(&["pna", "experimental", "stdio", "-x", "-W"]),
+        );
+    }
+
+    #[test]
+    fn w_option_no_stdio_passthrough() {
+        let args = s(&["pna", "create", "-W", "help"]);
+        assert_eq!(expand_stdio_w_option(args.clone()), args);
+    }
+
+    #[test]
+    fn w_option_with_unstable() {
+        let args = s(&["pna", "experimental", "stdio", "--unstable", "-W", "help"]);
+        assert_eq!(
+            expand_stdio_w_option(args),
+            s(&["pna", "experimental", "stdio", "--unstable", "--help"]),
+        );
+    }
+
+    #[test]
+    fn w_option_after_old_style_expansion() {
+        let args = s(&["pna", "experimental", "stdio", "-x", "-W", "help"]);
+        assert_eq!(
+            expand_stdio_w_option(args),
+            s(&["pna", "experimental", "stdio", "-x", "--help"]),
+        );
+    }
+
+    #[test]
+    fn w_option_after_double_dash_passthrough() {
+        let args = s(&["pna", "experimental", "stdio", "-x", "--", "-W", "file"]);
+        assert_eq!(expand_stdio_w_option(args.clone()), args);
+    }
+
+    #[test]
+    fn w_option_double_dash_before_experimental_passthrough() {
+        let args = s(&["pna", "--", "experimental", "stdio", "-W", "help"]);
+        assert_eq!(expand_stdio_w_option(args.clone()), args);
+    }
+
+    #[test]
+    fn w_option_double_dash_between_experimental_and_stdio() {
+        let args = s(&["pna", "experimental", "--", "stdio", "-W", "help"]);
+        assert_eq!(expand_stdio_w_option(args.clone()), args);
+    }
+
+    #[test]
+    fn w_option_non_stdio_experimental_subcommand_passthrough() {
+        let args = s(&["pna", "experimental", "delete", "-W", "help"]);
+        assert_eq!(expand_stdio_w_option(args.clone()), args);
+    }
+
+    #[test]
+    fn w_option_empty_args() {
+        let args: Vec<OsString> = vec![];
+        assert_eq!(expand_stdio_w_option(args.clone()), args);
+    }
+
+    #[test]
+    fn w_option_binary_name_only() {
+        let args = s(&["pna"]);
+        assert_eq!(expand_stdio_w_option(args.clone()), args);
+    }
+
+    #[test]
+    fn w_option_no_args_after_stdio() {
+        let args = s(&["pna", "experimental", "stdio"]);
+        assert_eq!(expand_stdio_w_option(args.clone()), args);
+    }
+
+    #[test]
+    fn w_option_single_token_not_matched() {
+        let args = s(&["pna", "experimental", "stdio", "-Whelp"]);
+        assert_eq!(expand_stdio_w_option(args.clone()), args);
+    }
+
+    #[test]
+    fn w_option_global_flag_with_value_before_experimental() {
+        let args = s(&[
+            "pna",
+            "--color",
+            "always",
+            "experimental",
+            "stdio",
+            "-W",
+            "help",
+        ]);
+        assert_eq!(
+            expand_stdio_w_option(args),
+            s(&[
+                "pna",
+                "--color",
+                "always",
+                "experimental",
+                "stdio",
+                "--help",
+            ]),
+        );
+    }
+
+    #[test]
+    fn w_option_global_flag_between_experimental_and_stdio() {
+        let args = s(&[
+            "pna",
+            "experimental",
+            "--color",
+            "always",
+            "stdio",
+            "-W",
+            "help",
+        ]);
+        assert_eq!(
+            expand_stdio_w_option(args),
+            s(&[
+                "pna",
+                "experimental",
+                "--color",
+                "always",
+                "stdio",
+                "--help",
+            ]),
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn w_option_non_utf8_value() {
+        use std::os::unix::ffi::OsStringExt;
+        let mut args = s(&["pna", "experimental", "stdio", "-W"]);
+        args.push(OsString::from_vec(vec![0xFF, 0xFE]));
+        let result = expand_stdio_w_option(args);
+        let mut expected_long = OsString::from("--");
+        expected_long.push(OsString::from_vec(vec![0xFF, 0xFE]));
+        let mut expected = s(&["pna", "experimental", "stdio"]);
+        expected.push(expected_long);
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn pipeline_old_style_with_w_and_value() {
+        let args = s(&[
+            "pna",
+            "experimental",
+            "stdio",
+            "xW",
+            "same-owner",
+            "-f",
+            "a.pna",
+        ]);
+        let args = expand_stdio_old_style_args(args);
+        let args = expand_stdio_w_option(args);
+        assert_eq!(
+            args,
+            s(&[
+                "pna",
+                "experimental",
+                "stdio",
+                "-x",
+                "--same-owner",
+                "-f",
+                "a.pna"
             ]),
         );
     }

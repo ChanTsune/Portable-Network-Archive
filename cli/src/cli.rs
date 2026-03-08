@@ -2,7 +2,7 @@ mod old_style;
 pub mod value;
 
 #[doc(hidden)]
-pub use old_style::expand_stdio_old_style_args;
+pub use old_style::{expand_stdio_old_style_args, expand_stdio_w_option};
 
 use crate::{
     command::{
