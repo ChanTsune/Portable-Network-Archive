@@ -5,6 +5,15 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+fn sorted_entry_names(dir: &Path) -> Vec<String> {
+    let mut names = fs::read_dir(dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .collect::<Vec<_>>();
+    names.sort();
+    names
+}
+
 fn build_archive_with_file(archive_path: &Path, file_name: &str, file_content: &[u8]) {
     if let Some(parent) = archive_path.parent() {
         fs::create_dir_all(parent).unwrap();
@@ -566,7 +575,7 @@ fn stdio_extract_rewrites_windows_drive_prefixed_entry_name() {
         .success();
 
     assert!(out_dir.join("file04").exists());
-    assert!(!out_dir.join("c:").exists());
+    assert_eq!(sorted_entry_names(&out_dir), vec!["file04"]);
 }
 
 /// Precondition: Archive contains a file whose entry name uses a Windows UNC API prefix.
