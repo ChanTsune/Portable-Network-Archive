@@ -5,6 +5,7 @@ use portable_network_archive::cli;
 fn main() -> anyhow::Result<()> {
     let args: Vec<_> = std::env::args_os().collect();
     let args = cli::expand_stdio_old_style_args(args);
+    let args = cli::expand_stdio_w_option(args);
     let cli = cli::Cli::parse_from(args);
     cli.init_logger()?;
     cli.execute()
