@@ -8,6 +8,21 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+fn normalize_link_target(target: &str) -> String {
+    #[cfg(windows)]
+    {
+        target.replace('\\', "/")
+    }
+    #[cfg(not(windows))]
+    {
+        target.to_string()
+    }
+}
+
+fn normalize_link_path(path: &Path) -> String {
+    normalize_link_target(&path.to_string_lossy())
+}
+
 fn init_broken_resource(dir: &Path) {
     if dir.exists() {
         fs::remove_dir_all(dir).unwrap();
@@ -22,7 +37,7 @@ fn archive_entries(path: &Path) -> HashMap<String, (DataKind, Option<String>)> {
     for_each_entry(path, |entry| {
         let kind = entry.header().data_kind();
         let link_target = match kind {
-            DataKind::SymbolicLink => Some(read_symlink_target(&entry)),
+            DataKind::SymbolicLink => Some(normalize_link_target(&read_symlink_target(&entry))),
             _ => None,
         };
         entries.insert(entry.header().path().to_string(), (kind, link_target));
@@ -51,7 +66,10 @@ fn assert_symlink(path: impl AsRef<Path>, target: &str) {
         "{} should be a symlink",
         path.display()
     );
-    assert_eq!(fs::read_link(path).unwrap(), Path::new(target));
+    assert_eq!(
+        normalize_link_path(&fs::read_link(path).unwrap()),
+        normalize_link_target(target)
+    );
 }
 
 #[test]
