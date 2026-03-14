@@ -32,6 +32,20 @@ fn init_broken_resource(dir: &Path) {
     pna::fs::symlink(Path::new("missing_dir"), dir.join("broken_dir")).unwrap();
 }
 
+fn init_h_upper_resource(dir: &Path) {
+    if dir.exists() {
+        fs::remove_dir_all(dir).unwrap();
+    }
+    fs::create_dir_all(dir.join("d1")).unwrap();
+    fs::write(dir.join("d1/file1"), b"d1/file1").unwrap();
+    fs::write(dir.join("d1/file2"), b"d1/file2").unwrap();
+    pna::fs::symlink(Path::new("d1"), dir.join("ld1")).unwrap();
+    pna::fs::symlink(Path::new("file1"), dir.join("d1/link1")).unwrap();
+    pna::fs::symlink(Path::new("fileX"), dir.join("d1/linkX")).unwrap();
+    pna::fs::symlink(Path::new("d1/file2"), dir.join("link2")).unwrap();
+    pna::fs::symlink(Path::new("d1/fileY"), dir.join("linkY")).unwrap();
+}
+
 fn archive_entries(path: &Path) -> HashMap<String, (DataKind, Option<String>)> {
     let mut entries = HashMap::new();
     for_each_entry(path, |entry| {
@@ -141,4 +155,166 @@ fn stdio_broken_symlink_no_follow_roundtrip() {
 
     assert_symlink(out_dir.join("source/broken.txt"), "missing.txt");
     assert_symlink(out_dir.join("source/broken_dir"), "missing_dir");
+}
+
+#[test]
+fn stdio_option_h_follows_only_command_line_symlinks() {
+    setup();
+
+    let base = PathBuf::from("stdio_option_h_upper");
+    let input = base.join("in");
+    init_h_upper_resource(&input);
+
+    let test1_archive = base.join("test1.pna");
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "experimental",
+            "stdio",
+            "--create",
+            "--overwrite",
+            "--unstable",
+            "-f",
+            test1_archive.to_str().unwrap(),
+            "-C",
+            input.to_str().unwrap(),
+            ".",
+        ])
+        .assert()
+        .success();
+
+    let test1_out = base.join("test1_out");
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "experimental",
+            "stdio",
+            "--extract",
+            "--overwrite",
+            "--unstable",
+            "-f",
+            test1_archive.to_str().unwrap(),
+            "--out-dir",
+            test1_out.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+    assert_symlink(test1_out.join("ld1"), "d1");
+    assert_symlink(test1_out.join("d1/link1"), "file1");
+    assert_symlink(test1_out.join("d1/linkX"), "fileX");
+    assert_symlink(test1_out.join("link2"), "d1/file2");
+    assert_symlink(test1_out.join("linkY"), "d1/fileY");
+
+    let test2_archive = base.join("test2.pna");
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "experimental",
+            "stdio",
+            "--create",
+            "--overwrite",
+            "--unstable",
+            "-f",
+            test2_archive.to_str().unwrap(),
+            "-H",
+            "-C",
+            input.to_str().unwrap(),
+            ".",
+        ])
+        .assert()
+        .success();
+
+    let test2_out = base.join("test2_out");
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "experimental",
+            "stdio",
+            "--extract",
+            "--overwrite",
+            "--unstable",
+            "-f",
+            test2_archive.to_str().unwrap(),
+            "--out-dir",
+            test2_out.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+    assert_symlink(test2_out.join("ld1"), "d1");
+    assert_symlink(test2_out.join("d1/link1"), "file1");
+    assert_symlink(test2_out.join("d1/linkX"), "fileX");
+    assert_symlink(test2_out.join("link2"), "d1/file2");
+    assert_symlink(test2_out.join("linkY"), "d1/fileY");
+
+    let test3_archive = base.join("test3.pna");
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "experimental",
+            "stdio",
+            "--create",
+            "--overwrite",
+            "--unstable",
+            "-f",
+            test3_archive.to_str().unwrap(),
+            "-H",
+            "-C",
+            input.to_str().unwrap(),
+            "ld1",
+            "d1",
+            "link2",
+            "linkY",
+        ])
+        .assert()
+        .success();
+
+    let test3_entries = archive_entries(&test3_archive);
+    assert_eq!(
+        test3_entries.get("ld1").map(|it| it.0),
+        Some(DataKind::Directory)
+    );
+    assert_eq!(
+        test3_entries.get("d1/link1"),
+        Some(&(DataKind::SymbolicLink, Some("file1".to_string())))
+    );
+    assert_eq!(
+        test3_entries.get("d1/linkX"),
+        Some(&(DataKind::SymbolicLink, Some("fileX".to_string())))
+    );
+    assert_eq!(
+        test3_entries.get("link2").map(|it| it.0),
+        Some(DataKind::File)
+    );
+    assert_eq!(
+        test3_entries.get("linkY"),
+        Some(&(DataKind::SymbolicLink, Some("d1/fileY".to_string())))
+    );
+
+    let test3_out = base.join("test3_out");
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "experimental",
+            "stdio",
+            "--extract",
+            "--overwrite",
+            "--unstable",
+            "-f",
+            test3_archive.to_str().unwrap(),
+            "--out-dir",
+            test3_out.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+    assert!(
+        test3_out.join("ld1").is_dir(),
+        "ld1 should be extracted as a directory"
+    );
+    assert_symlink(test3_out.join("d1/link1"), "file1");
+    assert_symlink(test3_out.join("d1/linkX"), "fileX");
+    assert_eq!(
+        fs::read_to_string(test3_out.join("link2")).unwrap(),
+        "d1/file2"
+    );
+    assert_symlink(test3_out.join("linkY"), "d1/fileY");
 }
