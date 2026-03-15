@@ -9,6 +9,10 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
+    groups:
+      vmactions:
+        patterns:
+          - "vmactions/*"
   - package-ecosystem: "cargo"
     directory: "/"
     schedule:
@@ -19,6 +23,11 @@ updates:
           - "rand"
           - "rand_chacha"
           - "getrandom"
+      password-hashing-crates:
+        patterns:
+          - "argon2"
+          - "password-hash"
+          - "pbkdf2"
       rustcrypto-crates:
         patterns:
           - "aes"
