@@ -1896,6 +1896,7 @@ dependencies = [
  "tabled",
  "termtree",
  "thiserror",
+ "typed-path",
  "walkdir",
  "windows 0.62.2",
  "xattr",
