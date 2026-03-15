@@ -298,14 +298,18 @@ jobs:
       - name: Create pnatar wrapper
         run: |
           WORKSPACE='${{ github.workspace }}'
+          PNATAR_SCRIPT_REL='pna/.github/scripts/pnatar-wrapper.sh'
           if [ "${{ matrix.windows }}" = "true" ]; then
             WORKSPACE="$(cygpath -u "$WORKSPACE")"
             PNATAR_BIN="${WORKSPACE}/pnatar.cmd"
+            PNATAR_SH="${WORKSPACE}/${PNATAR_SCRIPT_REL}"
+            PNATAR_SH_WIN="$(cygpath -w "${PNATAR_SH}")"
             PNA_WIN="$(cygpath -w "${PNA_BIN}")"
-            printf '@echo off\r\n"%s" --log-level error experimental stdio --unstable %%*\r\n' "${PNA_WIN}" > "${PNATAR_BIN}"
+            printf '@echo off\r\n"C:\\msys64\\usr\\bin\\bash.exe" "%s" "%s" %%*\r\n' "${PNATAR_SH_WIN}" "${PNA_WIN}" > "${PNATAR_BIN}"
           else
             PNATAR_BIN="${WORKSPACE}/pnatar"
-            printf '#!/bin/sh\nexec "%s" --log-level error experimental stdio --unstable "$@"\n' "${PNA_BIN}" > "${PNATAR_BIN}"
+            PNATAR_SH="${WORKSPACE}/${PNATAR_SCRIPT_REL}"
+            printf '#!/bin/sh\nexec bash "%s" "%s" "$@"\n' "${PNATAR_SH}" "${PNA_BIN}" > "${PNATAR_BIN}"
             chmod +x "${PNATAR_BIN}"
           fi
           echo "PNATAR_BIN=${PNATAR_BIN}" >> "$GITHUB_ENV"
