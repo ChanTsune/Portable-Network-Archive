@@ -41,11 +41,12 @@ jobs:
           - name: ubuntu
             runner: ubuntu-24.04-arm
             shell: bash
-            windows: false
+          - name: macos
+            runner: macos-latest
+            shell: bash
           - name: windows
             runner: windows-2022
             shell: 'C:\msys64\usr\bin\bash.exe --login -eo pipefail {0}'
-            windows: true
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     permissions:
@@ -59,21 +60,26 @@ jobs:
         shell: ${{ matrix.shell }}
     steps:
       - name: Configure Git for Windows checkout
-        if: ${{ matrix.windows }}
+        if: ${{ matrix.name == 'windows' }}
         shell: pwsh
         run: |
           git config --global core.autocrlf false
           git config --global core.eol lf
           git config --global core.longpaths true
 
-      - name: Install build dependencies
-        if: ${{ !matrix.windows }}
+      - name: Install build dependencies (Ubuntu)
+        if: ${{ matrix.name == 'ubuntu' }}
         run: |
           sudo apt update
           sudo apt install -y libacl1-dev libssl-dev pkg-config autoconf automake libtool
 
+      - name: Install build dependencies (macOS)
+        if: ${{ matrix.name == 'macos' }}
+        run: |
+          brew install autoconf automake libtool make pkg-config
+
       - name: Install build dependencies (Windows)
-        if: ${{ matrix.windows }}
+        if: ${{ matrix.name == 'windows' }}
         shell: cmd
         run: choco install mingw
 
@@ -85,16 +91,21 @@ jobs:
           path: libarchive
 
       - name: Build bsdtar and bsdtar_test
-        if: ${{ !matrix.windows }}
+        if: ${{ matrix.name != 'windows' }}
         run: |
           cd libarchive
+          JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu)"
+          MAKE="$(command -v gmake || command -v make)"
+          if [ "${{ matrix.name }}" = "macos" ]; then
+            export LIBTOOLIZE=glibtoolize
+          fi
           ./build/autogen.sh
           ./configure --enable-bsdtar --disable-bsdcpio --disable-bsdcat --disable-bsdunzip
-          make tar/test/list.h
-          make -j$(nproc) bsdtar_test bsdtar
+          "${MAKE}" tar/test/list.h
+          "${MAKE}" -j"${JOBS}" bsdtar_test bsdtar
 
       - name: Build bsdtar and bsdtar_test (Windows)
-        if: ${{ matrix.windows }}
+        if: ${{ matrix.name == 'windows' }}
         shell: cmd
         working-directory: libarchive
         env:
@@ -110,14 +121,14 @@ jobs:
       - name: Locate built binaries
         run: |
           WORKSPACE='${{ github.workspace }}'
-          if [ "${{ matrix.windows }}" = "true" ]; then
+          if [ "${{ matrix.name }}" = "windows" ]; then
             WORKSPACE="$(cygpath -u "$WORKSPACE")"
             BSDTAR_BIN="${WORKSPACE}/libarchive/build_ci/cmake/bin/bsdtar.exe"
             BSDTAR_TEST_BIN="${WORKSPACE}/libarchive/build_ci/cmake/bin/bsdtar_test.exe"
             ls -la "${WORKSPACE}/libarchive/build_ci/cmake/bin" || true
           else
-            BSDTAR_BIN="$(find "${WORKSPACE}/libarchive" -maxdepth 6 -type f \( -name 'bsdtar' -o -name 'bsdtar.exe' \) | sort | head -n1)"
-            BSDTAR_TEST_BIN="$(find "${WORKSPACE}/libarchive" -maxdepth 6 -type f \( -name 'bsdtar_test' -o -name 'bsdtar_test.exe' \) | sort | head -n1)"
+            BSDTAR_BIN="$(find "${WORKSPACE}/libarchive" -type f \( -name 'bsdtar' -o -name 'bsdtar.exe' \) | sort | head -n1)"
+            BSDTAR_TEST_BIN="$(find "${WORKSPACE}/libarchive" -type f \( -name 'bsdtar_test' -o -name 'bsdtar_test.exe' \) | sort | head -n1)"
           fi
           echo "BSDTAR_BIN candidate: ${BSDTAR_BIN}"
           echo "BSDTAR_TEST_BIN candidate: ${BSDTAR_TEST_BIN}"
@@ -131,7 +142,7 @@ jobs:
         continue-on-error: true
         run: |
           WORKSPACE='${{ github.workspace }}'
-          if [ "${{ matrix.windows }}" = "true" ]; then
+          if [ "${{ matrix.name }}" = "windows" ]; then
             WORKSPACE="$(cygpath -u "$WORKSPACE")"
           fi
           "${BSDTAR_TEST_BIN}" \
@@ -162,12 +173,14 @@ jobs:
           - name: ubuntu
             runner: ubuntu-24.04-arm
             shell: bash
-            windows: false
+            exe_suffix: ''
+          - name: macos
+            runner: macos-latest
+            shell: bash
             exe_suffix: ''
           - name: windows
             runner: windows-2022
             shell: 'C:\msys64\usr\bin\bash.exe --login -eo pipefail {0}'
-            windows: true
             exe_suffix: '.exe'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
@@ -182,7 +195,7 @@ jobs:
         shell: ${{ matrix.shell }}
     steps:
       - name: Configure Git for Windows checkout
-        if: ${{ matrix.windows }}
+        if: ${{ matrix.name == 'windows' }}
         shell: pwsh
         run: |
           git config --global core.autocrlf false
@@ -194,21 +207,26 @@ jobs:
         with:
           path: pna
 
-      - name: Install dependencies
-        if: ${{ !matrix.windows }}
+      - name: Install dependencies (Ubuntu)
+        if: ${{ matrix.name == 'ubuntu' }}
         run: |
           sudo apt update
           sudo apt install -y libacl1-dev libssl-dev pkg-config autoconf automake libtool sharutils
 
+      - name: Install dependencies (macOS)
+        if: ${{ matrix.name == 'macos' }}
+        run: |
+          brew install autoconf automake libtool make pkg-config
+
       - name: Install dependencies (Windows)
-        if: ${{ matrix.windows }}
+        if: ${{ matrix.name == 'windows' }}
         run: |
           pacman --noconfirm -Sy --needed \
             gzip \
             sharutils
 
       - name: Install MinGW (Windows)
-        if: ${{ matrix.windows }}
+        if: ${{ matrix.name == 'windows' }}
         shell: cmd
         run: choco install mingw
 
@@ -216,13 +234,13 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@150fca883cd4034361b621bd4e6a9d34e5143606 # v1.15.4
 
       - name: Build pna
-        if: ${{ !matrix.windows }}
+        if: ${{ matrix.name != 'windows' }}
         run: |
           cargo build --locked --release --all-features -p portable-network-archive
         working-directory: pna
 
       - name: Build pna (Windows)
-        if: ${{ matrix.windows }}
+        if: ${{ matrix.name == 'windows' }}
         shell: pwsh
         env:
           RUSTFLAGS: -A warnings
@@ -238,16 +256,21 @@ jobs:
           path: libarchive
 
       - name: Build bsdtar_test
-        if: ${{ !matrix.windows }}
+        if: ${{ matrix.name != 'windows' }}
         run: |
           cd libarchive
+          JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu)"
+          MAKE="$(command -v gmake || command -v make)"
+          if [ "${{ matrix.name }}" = "macos" ]; then
+            export LIBTOOLIZE=glibtoolize
+          fi
           ./build/autogen.sh
           ./configure --enable-bsdtar --disable-bsdcpio --disable-bsdcat --disable-bsdunzip
-          make tar/test/list.h
-          make -j$(nproc) bsdtar_test
+          "${MAKE}" tar/test/list.h
+          "${MAKE}" -j"${JOBS}" bsdtar_test
 
       - name: Build bsdtar_test (Windows)
-        if: ${{ matrix.windows }}
+        if: ${{ matrix.name == 'windows' }}
         shell: cmd
         working-directory: libarchive
         env:
@@ -261,12 +284,12 @@ jobs:
           call build\ci\github_actions\ci.cmd build
 
       - name: Build tar2pna
-        if: ${{ !matrix.windows }}
+        if: ${{ matrix.name != 'windows' }}
         run: cargo build --locked --release -p xtask
         working-directory: pna
 
       - name: Build tar2pna (Windows)
-        if: ${{ matrix.windows }}
+        if: ${{ matrix.name == 'windows' }}
         shell: pwsh
         env:
           RUSTFLAGS: -A warnings
@@ -276,12 +299,12 @@ jobs:
       - name: Record built binaries
         run: |
           WORKSPACE='${{ github.workspace }}'
-          if [ "${{ matrix.windows }}" = "true" ]; then
+          if [ "${{ matrix.name }}" = "windows" ]; then
             WORKSPACE="$(cygpath -u "$WORKSPACE")"
             BSDTAR_TEST_BIN="${WORKSPACE}/libarchive/build_ci/cmake/bin/bsdtar_test.exe"
             ls -la "${WORKSPACE}/libarchive/build_ci/cmake/bin" || true
           else
-            BSDTAR_TEST_BIN="$(find "${WORKSPACE}/libarchive" -maxdepth 6 -type f \( -name 'bsdtar_test' -o -name 'bsdtar_test.exe' \) | sort | head -n1)"
+            BSDTAR_TEST_BIN="$(find "${WORKSPACE}/libarchive" -type f \( -name 'bsdtar_test' -o -name 'bsdtar_test.exe' \) | sort | head -n1)"
           fi
           PNA_BIN="${WORKSPACE}/pna/target/release/pna${{ matrix.exe_suffix }}"
           XTASK_BIN="${WORKSPACE}/pna/target/release/xtask${{ matrix.exe_suffix }}"
@@ -298,7 +321,7 @@ jobs:
       - name: Create pnatar wrapper
         run: |
           WORKSPACE='${{ github.workspace }}'
-          if [ "${{ matrix.windows }}" = "true" ]; then
+          if [ "${{ matrix.name }}" = "windows" ]; then
             WORKSPACE="$(cygpath -u "$WORKSPACE")"
             PNATAR_BIN="${WORKSPACE}/pnatar.cmd"
             PNA_WIN="$(cygpath -w "${PNA_BIN}")"
@@ -314,7 +337,7 @@ jobs:
         run: |
           set -euo pipefail
           WORKSPACE='${{ github.workspace }}'
-          if [ "${{ matrix.windows }}" = "true" ]; then
+          if [ "${{ matrix.name }}" = "windows" ]; then
             WORKSPACE="$(cygpath -u "$WORKSPACE")"
           fi
           LIBARCHIVE_REFDIR="${WORKSPACE}/libarchive/tar/test"
@@ -367,7 +390,7 @@ jobs:
         continue-on-error: true
         run: |
           WORKSPACE='${{ github.workspace }}'
-          if [ "${{ matrix.windows }}" = "true" ]; then
+          if [ "${{ matrix.name }}" = "windows" ]; then
             WORKSPACE="$(cygpath -u "$WORKSPACE")"
           fi
           REFDIR="${WORKSPACE}/pna_refdir"
@@ -387,7 +410,7 @@ jobs:
         if: always() && steps.bsdtar_test.outcome != 'skipped'
         run: |
           WORKSPACE='${{ github.workspace }}'
-          if [ "${{ matrix.windows }}" = "true" ]; then
+          if [ "${{ matrix.name }}" = "windows" ]; then
             WORKSPACE="$(cygpath -u "$WORKSPACE")"
           fi
           mkdir -p artifact-staging
@@ -422,18 +445,33 @@ jobs:
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "Completed ranges: ${COMPLETED_BLOCKS} / 4" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            LAST_TEST=$(grep -oP '^\s+\d+: \K\S+' bsdtar_test_output.txt | tail -1 || echo "unknown")
+            LAST_TEST=$(awk '
+              /^[[:space:]]+[0-9]+: / {
+                line = $0
+                sub(/^[[:space:]]+[0-9]+: /, "", line)
+                split(line, fields, /[[:space:]]+/)
+                if (fields[1] != "") {
+                  last = fields[1]
+                }
+              }
+              END {
+                if (last != "") {
+                  print last
+                } else {
+                  print "unknown"
+                }
+              }
+            ' bsdtar_test_output.txt)
             echo "Last test seen: \`${LAST_TEST}\`" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
           # Aggregate totals across multiple ranges
-          TOTAL=0 FAILED=0 ASSERTIONS=0 ASSERT_FAIL=0 SKIPS=0
-          while IFS= read -r val; do TOTAL=$((TOTAL + val)); done < <(grep -oP 'Tests run:\s+\K\d+' bsdtar_test_output.txt)
-          while IFS= read -r val; do FAILED=$((FAILED + val)); done < <(grep -oP 'Tests failed:\s+\K\d+' bsdtar_test_output.txt)
-          while IFS= read -r val; do ASSERTIONS=$((ASSERTIONS + val)); done < <(grep -oP 'Assertions checked:\s*\K\d+' bsdtar_test_output.txt)
-          while IFS= read -r val; do ASSERT_FAIL=$((ASSERT_FAIL + val)); done < <(grep -oP 'Assertions failed:\s+\K\d+' bsdtar_test_output.txt)
-          while IFS= read -r val; do SKIPS=$((SKIPS + val)); done < <(grep -oP 'Skips reported:\s+\K\d+' bsdtar_test_output.txt)
+          TOTAL=$(awk '/Tests run:/ { sum += $3 } END { print sum + 0 }' bsdtar_test_output.txt)
+          FAILED=$(awk '/Tests failed:/ { sum += $3 } END { print sum + 0 }' bsdtar_test_output.txt)
+          ASSERTIONS=$(awk '/Assertions checked:/ { sum += $3 } END { print sum + 0 }' bsdtar_test_output.txt)
+          ASSERT_FAIL=$(awk '/Assertions failed:/ { sum += $3 } END { print sum + 0 }' bsdtar_test_output.txt)
+          SKIPS=$(awk '/Skips reported:/ { sum += $3 } END { print sum + 0 }' bsdtar_test_output.txt)
           PASSED=$((TOTAL - FAILED))
 
           echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
@@ -447,7 +485,13 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
           # List failing tests
-          FAILING=$(grep -oP '^\s+\d+: \K.*' bsdtar_test_output.txt | grep 'failure' || true)
+          FAILING=$(awk '
+            /^[[:space:]]+[0-9]+: / && /failure/ {
+              line = $0
+              sub(/^[[:space:]]+[0-9]+: /, "", line)
+              print line
+            }
+          ' bsdtar_test_output.txt)
           if [ -n "$FAILING" ]; then
             echo "<details><summary>Failing tests (${FAILED})</summary>" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
