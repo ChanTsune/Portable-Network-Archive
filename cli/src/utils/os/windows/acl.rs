@@ -1,6 +1,9 @@
 use crate::{
     chunk::{self, AcePlatform, Identifier, OwnerType},
-    utils::os::windows::security::{SecurityDescriptor, Sid, SidType},
+    utils::os::windows::{
+        fs::open_read_metadata,
+        security::{SecurityDescriptor, Sid, SidType},
+    },
 };
 use field_offset::offset_of;
 use std::{io, mem, path::Path, ptr::null_mut};
@@ -38,6 +41,15 @@ pub fn get_facl<P: AsRef<Path>>(path: P) -> io::Result<chunk::Acl> {
     })
 }
 
+pub fn get_facl_nofollow<P: AsRef<Path>>(path: P) -> io::Result<chunk::Acl> {
+    let acl = ACL::try_from_nofollow(path.as_ref())?;
+    let ace_list = acl.get_d_acl()?;
+    Ok(chunk::Acl {
+        platform: AcePlatform::Windows,
+        entries: ace_list.into_iter().map(Into::into).collect(),
+    })
+}
+
 #[allow(non_camel_case_types)]
 type PACE_HEADER = *mut ACE_HEADER;
 
@@ -49,6 +61,13 @@ impl ACL {
     pub fn try_from(path: &Path) -> io::Result<Self> {
         Ok(Self {
             security_descriptor: SecurityDescriptor::try_from(path)?,
+        })
+    }
+
+    pub fn try_from_nofollow(path: &Path) -> io::Result<Self> {
+        let handle = open_read_metadata(path, false)?;
+        Ok(Self {
+            security_descriptor: SecurityDescriptor::try_from_handle(handle.raw(), path)?,
         })
     }
 

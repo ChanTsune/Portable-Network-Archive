@@ -916,7 +916,8 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
         filter: &filter,
         time_filters: &time_filters,
     };
-    let mut resolver = HardlinkResolver::new(collect_options.follow_links);
+    let mut resolver =
+        HardlinkResolver::new(collect_options.follow_links || collect_options.follow_command_links);
     let target_items = collect_items_from_sources(sources, &collect_options, &mut resolver)?;
     if args.check_links {
         for (path, expected, archived) in resolver.incomplete_links() {
@@ -1353,7 +1354,8 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
         filter: &filter,
         time_filters: &time_filters,
     };
-    let mut resolver = HardlinkResolver::new(collect_options.follow_links);
+    let mut resolver =
+        HardlinkResolver::new(collect_options.follow_links || collect_options.follow_command_links);
     if let Some(file) = &archive_path {
         let archive = open_archive_then_seek_to_end(file, args.ignore_zeros)?;
         let target_items = collect_items_from_sources(sources, &collect_options, &mut resolver)?;
@@ -1530,7 +1532,8 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
         filter: &filter,
         time_filters: &time_filters,
     };
-    let mut resolver = HardlinkResolver::new(collect_options.follow_links);
+    let mut resolver =
+        HardlinkResolver::new(collect_options.follow_links || collect_options.follow_command_links);
     let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?;
 
     let archives = collect_split_archives(&archive_path)?;
