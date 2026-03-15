@@ -41,7 +41,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Test in Solaris
         id: test
-        uses: vmactions/solaris-vm@69d382b4a775b25ea5955e6c1730e9d05047ca0d # v1.3.1
+        uses: vmactions/solaris-vm@0a231b94365d1911cf62097ef342f6b30d95598f # v1.3.2
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
@@ -68,7 +68,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Test in NetBSD
         id: test
-        uses: vmactions/NetBSD-vm@e04aec09540429f9cebb0e7941f7cd0c0fc3b44f # v1.3.6
+        uses: vmactions/NetBSD-vm@ca7ff0556959998c82761c34ea0c3c99fa084c48 # v1.3.7
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
@@ -95,7 +95,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Test in FreeBSD
         id: test
-        uses: vmactions/freebsd-vm@c9f815bc7aa0d34c9fdd0619b034a32d6ca7b57e # v1.4.2
+        uses: vmactions/freebsd-vm@4807432c7cab1c3f97688665332c0b932062d31f # v1.4.3
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
@@ -121,7 +121,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Test in OpenBSD
         id: test
-        uses: vmactions/OpenBSD-vm@9a8e4351a4a0dc6238e7c69276dcbf6c03bea576 # v1.3.6
+        uses: vmactions/OpenBSD-vm@3fafb45f2e2e696249c583835939323fe1c3448c # v1.3.7
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
@@ -172,7 +172,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Test in OmniOS
         id: test
-        uses: vmactions/omnios-vm@8c95371c73e913746b40f808c9eab96fe278b6a7 # v1.2.6
+        uses: vmactions/omnios-vm@68da93c6d9812b29fc90c5b5141b093f84a590fb # v1.2.7
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
