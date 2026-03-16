@@ -5,6 +5,15 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+fn sorted_entry_names(dir: &Path) -> Vec<String> {
+    let mut names = fs::read_dir(dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .collect::<Vec<_>>();
+    names.sort();
+    names
+}
+
 fn build_archive_with_file(archive_path: &Path, file_name: &str, file_content: &[u8]) {
     if let Some(parent) = archive_path.parent() {
         fs::create_dir_all(parent).unwrap();
@@ -532,6 +541,153 @@ fn stdio_extract_hardlink_with_safe_target() {
         same_file::is_same_file(out_dir.join("file.txt"), out_dir.join("link.txt")).unwrap(),
         "hardlink should share inode with target"
     );
+}
+
+// --- Windows-style entry name handling ---
+
+/// Precondition: Archive contains a file whose entry name starts with a Windows drive prefix.
+/// Action: Extract with stdio -x.
+/// Expectation: The drive prefix is stripped and the file is extracted relative to out_dir.
+#[test]
+fn stdio_extract_rewrites_windows_drive_prefixed_entry_name() {
+    setup();
+
+    let root = PathBuf::from("stdio_extract_windows_drive_entry");
+    let archive_path = root.join("archive.pna");
+    let out_dir = root.join("out");
+
+    build_archive_with_file(&archive_path, "c:/file04", b"content");
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "experimental",
+            "stdio",
+            "--extract",
+            "--unstable",
+            "--overwrite",
+            "--file",
+            archive_path.to_str().unwrap(),
+            "--out-dir",
+            out_dir.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    assert!(out_dir.join("file04").exists());
+    assert_eq!(sorted_entry_names(&out_dir), vec!["file04"]);
+}
+
+/// Precondition: Archive contains a file whose entry name uses a Windows UNC API prefix.
+/// Action: Extract with stdio -x.
+/// Expectation: The UNC API prefix is stripped while the server/share prefix remains part of the extracted path.
+#[test]
+fn stdio_extract_rewrites_windows_unc_prefixed_entry_name() {
+    setup();
+
+    let root = PathBuf::from("stdio_extract_windows_unc_entry");
+    let archive_path = root.join("archive.pna");
+    let out_dir = root.join("out");
+
+    build_archive_with_file(&archive_path, "//?/UNC/server/share/file15", b"content");
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "experimental",
+            "stdio",
+            "--extract",
+            "--unstable",
+            "--overwrite",
+            "--file",
+            archive_path.to_str().unwrap(),
+            "--out-dir",
+            out_dir.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    assert!(out_dir.join("server/share/file15").exists());
+    assert!(!out_dir.join("?/UNC/server/share/file15").exists());
+}
+
+/// Precondition: Archive contains a file whose entry name uses a backslash UNC API prefix.
+/// Action: Extract with stdio -x on POSIX.
+/// Expectation: The API prefix is stripped but the remaining backslashes are preserved literally.
+#[test]
+fn stdio_extract_preserves_backslashes_after_windows_unc_prefix() {
+    setup();
+
+    let root = PathBuf::from("stdio_extract_windows_unc_backslash_entry");
+    let archive_path = root.join("archive.pna");
+    let out_dir = root.join("out");
+
+    build_archive_with_file(
+        &archive_path,
+        "\\\\?\\UNC\\server\\share\\file35",
+        b"content",
+    );
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "experimental",
+            "stdio",
+            "--extract",
+            "--unstable",
+            "--overwrite",
+            "--file",
+            archive_path.to_str().unwrap(),
+            "--out-dir",
+            out_dir.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    #[cfg(windows)]
+    assert!(out_dir.join("server/share/file35").exists());
+
+    #[cfg(not(windows))]
+    assert!(out_dir.join(r"server\share\file35").exists());
+
+    #[cfg(not(windows))]
+    assert!(!out_dir.join("server/share/file35").exists());
+}
+
+/// Precondition: Archive contains a file whose entry name becomes `..` traversal after removing a Windows prefix.
+/// Action: Extract with stdio -x.
+/// Expectation: The entry is skipped by the SECURE_NODOTDOT-compatible check.
+#[test]
+fn stdio_extract_skips_windows_style_parent_dir_entry_name() {
+    setup();
+
+    let root = PathBuf::from("stdio_extract_windows_parent_dir_entry");
+    let archive_path = root.join("archive.pna");
+    let out_dir = root.join("out");
+
+    build_archive_with_file(&archive_path, "\\\\?\\UNC\\..\\file37", b"content");
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "experimental",
+            "stdio",
+            "--extract",
+            "--unstable",
+            "--overwrite",
+            "--file",
+            archive_path.to_str().unwrap(),
+            "--out-dir",
+            out_dir.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    assert!(
+        !out_dir.exists() || fs::read_dir(&out_dir).unwrap().next().is_none(),
+        "entry should be skipped after UNC prefix removal exposes parent traversal"
+    );
+    assert!(!out_dir.join(r"..\file37").exists());
 }
 
 // --- SECURE_NODOTDOT: entry names with ".." ---
