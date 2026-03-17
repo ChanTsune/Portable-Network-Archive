@@ -1,5 +1,7 @@
 #[cfg(windows)]
 use anyhow::Context;
+#[cfg(any(windows, test))]
+use std::io;
 
 /// Expands bsdtar-style wildcard operands for filesystem inputs on Windows.
 ///
@@ -35,7 +37,7 @@ fn expand_bsdtar_windows_globs_inner(paths: Vec<String>) -> anyhow::Result<Vec<S
         expanded.extend(
             matches
                 .into_iter()
-                .map(|name| format!("{}{}", parts.output_prefix, name)),
+                .map(|name| format_expanded_windows_path(parts.output_prefix, &name)),
         );
     }
     Ok(expanded)
@@ -51,6 +53,35 @@ fn normalize_windows_separators(path: &str) -> String {
     path.chars()
         .map(|c| if c == '/' { '\\' } else { c })
         .collect()
+}
+
+#[cfg(any(windows, test))]
+fn format_expanded_windows_path(output_prefix: &str, name: &str) -> String {
+    if output_prefix.is_empty() && name.starts_with('@') {
+        format!("./{name}")
+    } else {
+        format!("{output_prefix}{name}")
+    }
+}
+
+#[cfg(any(windows, test))]
+fn encode_windows_search_pattern(search_pattern: &str) -> io::Result<Vec<u16>> {
+    #[cfg(windows)]
+    {
+        crate::utils::str::encode_wide(std::ffi::OsStr::new(search_pattern))
+    }
+    #[cfg(all(test, not(windows)))]
+    {
+        if search_pattern.contains('\0') {
+            return Err(io::Error::other(
+                "Value cannot pass to platform, because contains null character",
+            ));
+        }
+        Ok(search_pattern
+            .encode_utf16()
+            .chain(std::iter::once(0))
+            .collect())
+    }
 }
 
 #[cfg(any(windows, test))]
@@ -86,11 +117,7 @@ impl<'a> WindowsGlobParts<'a> {
 #[cfg(windows)]
 fn find_matches(search_pattern: &str) -> anyhow::Result<Vec<String>> {
     use scopeguard::defer;
-    use std::{
-        ffi::{OsStr, OsString},
-        io,
-        os::windows::ffi::{OsStrExt, OsStringExt},
-    };
+    use std::{ffi::OsString, io, os::windows::ffi::OsStringExt};
     use windows::{
         Win32::{
             Foundation::{
@@ -112,10 +139,7 @@ fn find_matches(search_pattern: &str) -> anyhow::Result<Vec<String>> {
             .into_owned()
     }
 
-    let pattern = OsStr::new(search_pattern)
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect::<Vec<_>>();
+    let pattern = encode_windows_search_pattern(search_pattern)?;
     let mut data = WIN32_FIND_DATAW::default();
     let handle = match unsafe { FindFirstFileW(PCWSTR(pattern.as_ptr()), &mut data) } {
         Ok(handle) => handle,
@@ -155,6 +179,8 @@ fn find_matches(search_pattern: &str) -> anyhow::Result<Vec<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::command::core::ItemSource;
+    use std::path::Path;
 
     #[test]
     fn parse_basename_wildcard_with_forward_slash() {
@@ -193,6 +219,41 @@ mod tests {
     #[test]
     fn normalizes_forward_slashes() {
         assert_eq!(normalize_windows_separators("a/b/c"), r"a\b\c");
+    }
+
+    #[test]
+    fn expanded_current_directory_at_name_is_escaped_for_filesystem_semantics() {
+        assert_eq!(
+            format_expanded_windows_path("", "@archive.pna"),
+            "./@archive.pna"
+        );
+        assert_eq!(format_expanded_windows_path("", "@-"), "./@-");
+    }
+
+    #[test]
+    fn expanded_current_directory_at_name_stays_filesystem_source() {
+        let expanded = format_expanded_windows_path("", "@archive.pna");
+        assert!(matches!(
+            ItemSource::parse(&expanded),
+            ItemSource::Filesystem(path) if path == Path::new("./@archive.pna")
+        ));
+    }
+
+    #[test]
+    fn expanded_nested_at_name_is_not_rewritten() {
+        assert_eq!(
+            format_expanded_windows_path("dir/", "@archive.pna"),
+            "dir/@archive.pna"
+        );
+        assert_eq!(
+            format_expanded_windows_path("C:", "@archive.pna"),
+            "C:@archive.pna"
+        );
+    }
+
+    #[test]
+    fn windows_search_pattern_rejects_embedded_nul() {
+        assert!(encode_windows_search_pattern("a\0b*").is_err());
     }
 
     #[cfg(not(windows))]
