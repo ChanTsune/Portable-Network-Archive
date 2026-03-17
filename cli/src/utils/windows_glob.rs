@@ -50,9 +50,7 @@ fn contains_windows_glob_meta(path: &str) -> bool {
 
 #[cfg(any(windows, test))]
 fn normalize_windows_separators(path: &str) -> String {
-    path.chars()
-        .map(|c| if c == '/' { '\\' } else { c })
-        .collect()
+    path.replace('/', "\\")
 }
 
 #[cfg(any(windows, test))]
@@ -129,14 +127,8 @@ fn find_matches(search_pattern: &str) -> anyhow::Result<Vec<String>> {
     };
 
     fn file_name(data: &WIN32_FIND_DATAW) -> String {
-        let len = data
-            .cFileName
-            .iter()
-            .position(|&ch| ch == 0)
-            .unwrap_or(data.cFileName.len());
-        OsString::from_wide(&data.cFileName[..len])
-            .to_string_lossy()
-            .into_owned()
+        let name = unsafe { PCWSTR::from_raw(data.cFileName.as_ptr()).as_wide() };
+        OsString::from_wide(name).to_string_lossy().into_owned()
     }
 
     let pattern = encode_windows_search_pattern(search_pattern)?;
