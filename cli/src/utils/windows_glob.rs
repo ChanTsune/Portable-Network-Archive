@@ -89,7 +89,6 @@ fn find_matches(search_pattern: &str) -> anyhow::Result<Vec<String>> {
         Win32::{
             Foundation::{
                 ERROR_FILE_NOT_FOUND, ERROR_NO_MORE_FILES, ERROR_PATH_NOT_FOUND, GetLastError,
-                INVALID_HANDLE_VALUE,
             },
             Storage::FileSystem::{FindClose, FindFirstFileW, FindNextFileW, WIN32_FIND_DATAW},
         },
@@ -112,13 +111,15 @@ fn find_matches(search_pattern: &str) -> anyhow::Result<Vec<String>> {
         .chain(std::iter::once(0))
         .collect::<Vec<_>>();
     let mut data = WIN32_FIND_DATAW::default();
-    let handle = unsafe { FindFirstFileW(PCWSTR(pattern.as_ptr()), &mut data) };
-    if handle == INVALID_HANDLE_VALUE {
-        return match unsafe { GetLastError() } {
-            ERROR_FILE_NOT_FOUND | ERROR_PATH_NOT_FOUND => Ok(Vec::new()),
-            err => Err(io::Error::from_raw_os_error(err.0 as i32).into()),
-        };
-    }
+    let handle = match unsafe { FindFirstFileW(PCWSTR(pattern.as_ptr()), &mut data) } {
+        Ok(handle) => handle,
+        Err(_) => {
+            return match unsafe { GetLastError() } {
+                ERROR_FILE_NOT_FOUND | ERROR_PATH_NOT_FOUND => Ok(Vec::new()),
+                err => Err(io::Error::from_raw_os_error(err.0 as i32).into()),
+            };
+        }
+    };
     defer! {
         unsafe {
             let _ = FindClose(handle);
@@ -132,13 +133,12 @@ fn find_matches(search_pattern: &str) -> anyhow::Result<Vec<String>> {
             matches.push(name);
         }
 
-        if unsafe { FindNextFileW(handle, &mut data) }.as_bool() {
-            continue;
-        }
-
-        match unsafe { GetLastError() } {
-            ERROR_NO_MORE_FILES => break,
-            err => return Err(io::Error::from_raw_os_error(err.0 as i32).into()),
+        match unsafe { FindNextFileW(handle, &mut data) } {
+            Ok(()) => continue,
+            Err(_) => match unsafe { GetLastError() } {
+                ERROR_NO_MORE_FILES => break,
+                err => return Err(io::Error::from_raw_os_error(err.0 as i32).into()),
+            },
         }
     }
 
