@@ -395,20 +395,72 @@ jobs:
         id: bsdtar_test
         continue-on-error: true
         run: |
+          set -euo pipefail
           WORKSPACE='${{ github.workspace }}'
           if [ "${{ matrix.name }}" = "windows" ]; then
             WORKSPACE="$(cygpath -u "$WORKSPACE")"
           fi
           REFDIR="${WORKSPACE}/pna_refdir"
-          # Exclude tests that crash the process via NULL dereference in assertEqualMem
-          # after slurpfile() returns NULL for ustar archives pnatar cannot create.
-          # bsdtar_test runs in-process (no fork), so a SEGV kills the entire run.
-          #   #37 test_option_gid_gname
-          #   #38 test_option_group
-          #   #57 test_option_owner
-          #   #63 test_option_uid_uname
+          # Exclude tests whose tar-specific owner/group header expectations
+          # do not apply to pnatar output. bsdtar_test numbering differs by OS,
+          # so resolve the current ids dynamically from `bsdtar_test -l`.
+          TEST_LIST="$("${BSDTAR_TEST_BIN}" -l)"
+          TOTAL_TESTS="$(printf '%s\n' "$TEST_LIST" | awk '
+            /^[[:space:]]*[0-9]+:[[:space:]]+/ {
+              sub(":", "", $1)
+              last = $1
+            }
+            END {
+              if (last == "") {
+                exit 1
+              }
+              print last + 1
+            }
+          ')"
+          find_test_id() {
+            local test_name="$1"
+            local test_id
+
+            test_id="$(printf '%s\n' "$TEST_LIST" | awk -v name="$test_name" '
+              /^[[:space:]]*[0-9]+:[[:space:]]+/ {
+                sub(/\r$/, "", $2)
+                if ($2 == name) {
+                  sub(":", "", $1)
+                  print $1
+                  exit
+                }
+              }
+            ')"
+            if [ -z "$test_id" ]; then
+              echo "Failed to resolve excluded bsdtar_test id for ${test_name}" >&2
+              printf '%s\n' "$TEST_LIST" >&2
+              exit 1
+            fi
+            printf '%s\n' "$test_id"
+          }
+          EXCLUDED_IDS=(
+            "$(find_test_id test_option_gid_gname)"
+            "$(find_test_id test_option_group)"
+            "$(find_test_id test_option_owner)"
+            "$(find_test_id test_option_uid_uname)"
+          )
+          TEST_RANGES=()
+          range_start=0
+          for excluded_id in "${EXCLUDED_IDS[@]}"; do
+            if [ "$range_start" -lt "$excluded_id" ]; then
+              TEST_RANGES+=("${range_start}-$((excluded_id - 1))")
+            fi
+            range_start=$((excluded_id + 1))
+          done
+          if [ "$range_start" -lt "$TOTAL_TESTS" ]; then
+            TEST_RANGES+=("${range_start}-$((TOTAL_TESTS - 1))")
+          fi
+          echo "Excluded bsdtar_test ids: ${EXCLUDED_IDS[*]}"
+          echo "Running bsdtar_test ranges: ${TEST_RANGES[*]}"
+          echo "EXPECTED_RANGE_BLOCKS=${#TEST_RANGES[@]}" >> "$GITHUB_ENV"
+          echo "EXCLUDED_TEST_COUNT=${#EXCLUDED_IDS[@]}" >> "$GITHUB_ENV"
           : > bsdtar_test_output.txt
-          for range in 0-36 39-56 58-62 64-75; do
+          for range in "${TEST_RANGES[@]}"; do
             "${BSDTAR_TEST_BIN}" -p "${PNATAR_BIN}" -r "$REFDIR" -v "$range" 2>&1 | tee -a bsdtar_test_output.txt || true
           done
 
@@ -437,6 +489,8 @@ jobs:
       - name: Generate summary
         if: always()
         run: |
+          EXPECTED_RANGE_BLOCKS="${EXPECTED_RANGE_BLOCKS:-4}"
+          EXCLUDED_TEST_COUNT="${EXCLUDED_TEST_COUNT:-4}"
           echo "## bsdtar compatibility test results (${{ matrix.name }})" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
@@ -446,10 +500,10 @@ jobs:
           fi
 
           COMPLETED_BLOCKS=$(grep -c 'Tests run:' bsdtar_test_output.txt || true)
-          if [ "${COMPLETED_BLOCKS}" -lt 4 ]; then
+          if [ "${COMPLETED_BLOCKS}" -lt "${EXPECTED_RANGE_BLOCKS}" ]; then
             echo "> **Warning**: Test run did not complete (possible crash)" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "Completed ranges: ${COMPLETED_BLOCKS} / 4" >> "$GITHUB_STEP_SUMMARY"
+            echo "Completed ranges: ${COMPLETED_BLOCKS} / ${EXPECTED_RANGE_BLOCKS}" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
             LAST_TEST=$(awk '
               /^[[:space:]]+[0-9]+: / {
@@ -472,25 +526,11 @@ jobs:
             exit 0
           fi
 
-          # Derive counts from individual test result lines
-          # Execution lines: "  N: test_name" (no parentheses)
-          # Failure lines:   "  N: test_name (X failures)" (with count)
-          TOTAL=$(awk '/^[[:space:]]+[0-9]+: / && !/failure/ { n++ } END { print n + 0 }' bsdtar_test_output.txt)
-          FAILING=$(awk '
-            /^[[:space:]]+[0-9]+: / && /failure/ {
-              line = $0
-              sub(/^[[:space:]]+[0-9]+: /, "", line)
-              print line
-            }
-          ' bsdtar_test_output.txt)
-          if [ -n "$FAILING" ]; then
-            FAILED=$(echo "$FAILING" | wc -l | tr -d ' ')
-          else
-            FAILED=0
-          fi
-          ASSERT_FAIL=$(awk '/^[[:space:]]+[0-9]+: / && /failure/ {
-            gsub(/.*\(/, ""); gsub(/ .*/, ""); sum += $0
-          } END { print sum + 0 }' bsdtar_test_output.txt)
+          # Aggregate totals across multiple ranges
+          TOTAL=$(awk '/Tests run:/ { sum += $3 } END { print sum + 0 }' bsdtar_test_output.txt)
+          FAILED=$(awk '/Tests failed:/ { sum += $3 } END { print sum + 0 }' bsdtar_test_output.txt)
+          ASSERTIONS=$(awk '/Assertions checked:/ { sum += $3 } END { print sum + 0 }' bsdtar_test_output.txt)
+          ASSERT_FAIL=$(awk '/Assertions failed:/ { sum += $3 } END { print sum + 0 }' bsdtar_test_output.txt)
           SKIPS=$(awk '/Skips reported:/ { sum += $3 } END { print sum + 0 }' bsdtar_test_output.txt)
           PASSED=$((TOTAL - FAILED))
 
@@ -499,10 +539,19 @@ jobs:
           echo "| Tests passed | **${PASSED}** / ${TOTAL} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Tests failed | ${FAILED} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Tests skipped | ${SKIPS} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Tests excluded (crash) | 4 |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Tests excluded (owner/group metadata) | ${EXCLUDED_TEST_COUNT} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Assertions passed | $((ASSERTIONS - ASSERT_FAIL)) / ${ASSERTIONS} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Assertions failed | ${ASSERT_FAIL} |" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
+          # List failing tests
+          FAILING=$(awk '
+            /^[[:space:]]+[0-9]+: / && /failure/ {
+              line = $0
+              sub(/^[[:space:]]+[0-9]+: /, "", line)
+              print line
+            }
+          ' bsdtar_test_output.txt)
           if [ -n "$FAILING" ]; then
             echo "<details><summary>Failing tests (${FAILED})</summary>" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
@@ -515,13 +564,14 @@ jobs:
       - name: Fail on abnormal pnatar test termination
         if: always() && steps.bsdtar_test.outcome != 'skipped'
         run: |
+          EXPECTED_RANGE_BLOCKS="${EXPECTED_RANGE_BLOCKS:-4}"
           if [ ! -f bsdtar_test_output.txt ]; then
             echo "bsdtar_test output was not generated" >&2
             exit 1
           fi
 
           COMPLETED_BLOCKS=$(grep -c 'Tests run:' bsdtar_test_output.txt || true)
-          if [ "${COMPLETED_BLOCKS}" -lt 4 ]; then
-            echo "bsdtar_test only completed ${COMPLETED_BLOCKS} / 4 ranges" >&2
+          if [ "${COMPLETED_BLOCKS}" -lt "${EXPECTED_RANGE_BLOCKS}" ]; then
+            echo "bsdtar_test only completed ${COMPLETED_BLOCKS} / ${EXPECTED_RANGE_BLOCKS} ranges" >&2
             exit 1
           fi
