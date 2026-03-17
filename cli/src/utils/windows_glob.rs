@@ -62,9 +62,15 @@ struct WindowsGlobParts<'a> {
 #[cfg(any(windows, test))]
 impl<'a> WindowsGlobParts<'a> {
     fn parse(path: &'a str) -> Option<Self> {
-        let split_at = path.rfind(['/', '\\']);
-        let output_prefix = split_at.map(|i| &path[..=i]).unwrap_or_default();
-        let basename = split_at.map(|i| &path[i + 1..]).unwrap_or(path);
+        let (volume_prefix, rest) = match path.as_bytes() {
+            [drive, b':', ..] if drive.is_ascii_alphabetic() => (&path[..2], &path[2..]),
+            _ => ("", path),
+        };
+        let split_at = rest.rfind(['/', '\\']);
+        let output_prefix = split_at
+            .map(|i| &path[..volume_prefix.len() + i + 1])
+            .unwrap_or(volume_prefix);
+        let basename = split_at.map(|i| &rest[i + 1..]).unwrap_or(rest);
 
         if !contains_windows_glob_meta(basename) {
             return None;
@@ -142,6 +148,7 @@ fn find_matches(search_pattern: &str) -> anyhow::Result<Vec<String>> {
         }
     }
 
+    matches.sort_unstable();
     Ok(matches)
 }
 
@@ -161,6 +168,20 @@ mod tests {
         let parts = WindowsGlobParts::parse(r"aaa\xx*").unwrap();
         assert_eq!(parts.output_prefix, "aaa\\");
         assert_eq!(parts.search_pattern, r"aaa\xx*");
+    }
+
+    #[test]
+    fn parse_drive_relative_wildcard_preserves_volume_prefix() {
+        let parts = WindowsGlobParts::parse("C:*.txt").unwrap();
+        assert_eq!(parts.output_prefix, "C:");
+        assert_eq!(parts.search_pattern, "C:*.txt");
+    }
+
+    #[test]
+    fn parse_drive_relative_wildcard_with_directory_preserves_prefix() {
+        let parts = WindowsGlobParts::parse(r"C:dir\*.txt").unwrap();
+        assert_eq!(parts.output_prefix, "C:dir\\");
+        assert_eq!(parts.search_pattern, r"C:dir\*.txt");
     }
 
     #[test]

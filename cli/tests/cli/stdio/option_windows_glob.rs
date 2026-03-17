@@ -74,7 +74,7 @@ fn create_stdio_archive(base: &Path, patterns: &[&str]) -> std::path::PathBuf {
 }
 
 #[cfg(windows)]
-fn list_stdio_archive(archive_path: &Path) -> BTreeSet<String> {
+fn list_stdio_archive_ordered(archive_path: &Path) -> Vec<String> {
     let mut list_cmd = cargo_bin_cmd!("pna");
     let output = list_cmd
         .args([
@@ -99,12 +99,32 @@ fn list_stdio_archive(archive_path: &Path) -> BTreeSet<String> {
 }
 
 #[cfg(windows)]
+fn list_stdio_archive(archive_path: &Path) -> BTreeSet<String> {
+    list_stdio_archive_ordered(archive_path)
+        .into_iter()
+        .collect()
+}
+
+#[cfg(windows)]
 fn assert_windows_glob_archive(base_name: &str, patterns: &[&str], expected: &[&str]) {
     setup();
     let base = Path::new(base_name);
     let archive_path = create_stdio_archive(base, patterns);
     let actual = list_stdio_archive(&archive_path);
     let expected = expected.iter().map(|entry| entry.to_string()).collect();
+    assert_eq!(actual, expected);
+}
+
+#[cfg(windows)]
+fn assert_windows_glob_archive_ordered(base_name: &str, patterns: &[&str], expected: &[&str]) {
+    setup();
+    let base = Path::new(base_name);
+    let archive_path = create_stdio_archive(base, patterns);
+    let actual = list_stdio_archive_ordered(&archive_path);
+    let expected = expected
+        .iter()
+        .map(|entry| entry.to_string())
+        .collect::<Vec<_>>();
     assert_eq!(actual, expected);
 }
 
@@ -214,16 +234,16 @@ fn stdio_create_expands_backslash_directory_glob() {
 #[cfg(windows)]
 #[test]
 fn stdio_create_expands_multiple_windows_globs() {
-    assert_windows_glob_archive(
+    assert_windows_glob_archive_ordered(
         "stdio_windows_glob_multiple",
         &[r"fff\a?ca", r"aaa\xx*"],
         &[
+            "fff/abca",
+            "fff/acca",
             "aaa/xxa/",
             "aaa/xxa/file1",
             "aaa/xxb/",
             "aaa/xxb/file1",
-            "fff/abca",
-            "fff/acca",
         ],
     );
 }
