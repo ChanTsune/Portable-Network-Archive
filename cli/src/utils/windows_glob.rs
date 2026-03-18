@@ -1,6 +1,8 @@
 #[cfg(windows)]
 use anyhow::Context;
 #[cfg(any(windows, test))]
+use std::borrow::Cow;
+#[cfg(any(windows, test))]
 use std::io;
 
 /// Expands bsdtar-style wildcard operands for filesystem inputs on Windows.
@@ -49,8 +51,12 @@ fn contains_windows_glob_meta(path: &str) -> bool {
 }
 
 #[cfg(any(windows, test))]
-fn normalize_windows_separators(path: &str) -> String {
-    path.replace('/', "\\")
+fn normalize_windows_separators(path: &str) -> Cow<'_, str> {
+    if path.contains('/') {
+        Cow::Owned(path.replace('/', "\\"))
+    } else {
+        Cow::Borrowed(path)
+    }
 }
 
 #[cfg(any(windows, test))]
@@ -85,7 +91,7 @@ fn encode_windows_search_pattern(search_pattern: &str) -> io::Result<Vec<u16>> {
 #[cfg(any(windows, test))]
 struct WindowsGlobParts<'a> {
     output_prefix: &'a str,
-    search_pattern: String,
+    search_pattern: Cow<'a, str>,
 }
 
 #[cfg(any(windows, test))]
