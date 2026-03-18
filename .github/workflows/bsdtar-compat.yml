@@ -526,11 +526,25 @@ jobs:
             exit 0
           fi
 
-          # Aggregate totals across multiple ranges
-          TOTAL=$(awk '/Tests run:/ { sum += $3 } END { print sum + 0 }' bsdtar_test_output.txt)
-          FAILED=$(awk '/Tests failed:/ { sum += $3 } END { print sum + 0 }' bsdtar_test_output.txt)
-          ASSERTIONS=$(awk '/Assertions checked:/ { sum += $3 } END { print sum + 0 }' bsdtar_test_output.txt)
-          ASSERT_FAIL=$(awk '/Assertions failed:/ { sum += $3 } END { print sum + 0 }' bsdtar_test_output.txt)
+          # Derive counts from individual test result lines.
+          # Execution lines: "  N: test_name" (no parentheses)
+          # Failure lines:   "  N: test_name (X failures)" (with count)
+          TOTAL=$(awk '/^[[:space:]]+[0-9]+: / && !/failure/ { n++ } END { print n + 0 }' bsdtar_test_output.txt)
+          FAILING=$(awk '
+            /^[[:space:]]+[0-9]+: / && /failure/ {
+              line = $0
+              sub(/^[[:space:]]+[0-9]+: /, "", line)
+              print line
+            }
+          ' bsdtar_test_output.txt)
+          if [ -n "$FAILING" ]; then
+            FAILED=$(echo "$FAILING" | wc -l | tr -d ' ')
+          else
+            FAILED=0
+          fi
+          ASSERT_FAIL=$(awk '/^[[:space:]]+[0-9]+: / && /failure/ {
+            gsub(/.*\(/, ""); gsub(/ .*/, ""); sum += $0
+          } END { print sum + 0 }' bsdtar_test_output.txt)
           SKIPS=$(awk '/Skips reported:/ { sum += $3 } END { print sum + 0 }' bsdtar_test_output.txt)
           PASSED=$((TOTAL - FAILED))
 
@@ -540,18 +554,10 @@ jobs:
           echo "| Tests failed | ${FAILED} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Tests skipped | ${SKIPS} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Tests excluded (owner/group metadata) | ${EXCLUDED_TEST_COUNT} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Assertions passed | $((ASSERTIONS - ASSERT_FAIL)) / ${ASSERTIONS} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Assertions failed | ${ASSERT_FAIL} |" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
           # List failing tests
-          FAILING=$(awk '
-            /^[[:space:]]+[0-9]+: / && /failure/ {
-              line = $0
-              sub(/^[[:space:]]+[0-9]+: /, "", line)
-              print line
-            }
-          ' bsdtar_test_output.txt)
           if [ -n "$FAILING" ]; then
             echo "<details><summary>Failing tests (${FAILED})</summary>" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
