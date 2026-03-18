@@ -902,6 +902,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
     }
+    files = utils::expand_bsdtar_windows_globs(files)?;
     // Parse sources AFTER changing directory so @archive paths are affected by -C
     let sources = ItemSource::parse_many(&files);
     validate_no_duplicate_stdin(&sources)?;
@@ -1339,6 +1340,7 @@ fn run_append(args: StdioCommand) -> anyhow::Result<()> {
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
     }
+    files = utils::expand_bsdtar_windows_globs(files)?;
     // Parse sources AFTER changing directory so @archive paths are affected by -C
     let sources = ItemSource::parse_many(&files);
     validate_no_duplicate_stdin(&sources)?;
@@ -1506,6 +1508,7 @@ fn run_update(args: StdioCommand) -> anyhow::Result<()> {
     if let Some(working_dir) = args.working_dir {
         env::set_current_dir(working_dir)?;
     }
+    files = utils::expand_bsdtar_windows_globs(files)?;
     let time_filters = TimeFilterResolver {
         newer_ctime_than: args.newer_ctime_than.as_deref(),
         older_ctime_than: args.older_ctime_than.as_deref(),
