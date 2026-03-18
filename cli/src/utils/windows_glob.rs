@@ -127,8 +127,9 @@ fn find_matches(search_pattern: &str) -> anyhow::Result<Vec<String>> {
     };
 
     fn file_name(data: &WIN32_FIND_DATAW) -> String {
-        let name = unsafe { PCWSTR::from_raw(data.cFileName.as_ptr()).as_wide() };
-        OsString::from_wide(name).to_string_lossy().into_owned()
+        let name = PCWSTR::from_raw(data.cFileName.as_ptr());
+        let wide = unsafe { name.as_wide() };
+        OsString::from_wide(wide).to_string_lossy().into_owned()
     }
 
     let pattern = encode_windows_search_pattern(search_pattern)?;
