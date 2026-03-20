@@ -534,4 +534,111 @@ mod tests {
         let editor = PathnameEditor::new(Some(2), None, false, true);
         assert!(editor.edit_entry_name(Path::new("./a")).is_none());
     }
+
+    // --- Windows path prefix stripping (bsdtar test_windows compat) ---
+    //
+    // bsdtar's strip_absolute_path() strips Windows API prefixes, drive letters,
+    // and leading separators. On Windows, Rust's Path::components() correctly
+    // parses these as Prefix/RootDir components, which sanitize_preserve_curdir
+    // filters out — producing the same result as bsdtar.
+    //
+    // These 8 types correspond to bsdtar's test_windows.c mkfullpath() types.
+
+    #[cfg(windows)]
+    #[test]
+    fn editor_windows_type0_forward_slash_absolute() {
+        // Type 0: /path/to/file — leading / stripped
+        let editor = PathnameEditor::new(None, None, false, true);
+        let name = editor
+            .edit_entry_name(Path::new("/msys64/tmp/file"))
+            .unwrap();
+        assert_eq!(name.as_str(), "msys64/tmp/file");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn editor_windows_type1_backslash_absolute() {
+        // Type 1: \path\to\file — leading \ stripped
+        let editor = PathnameEditor::new(None, None, false, true);
+        let name = editor
+            .edit_entry_name(Path::new("\\msys64\\tmp\\file"))
+            .unwrap();
+        assert_eq!(name.as_str(), "msys64/tmp/file");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn editor_windows_type2_drive_forward_slash() {
+        // Type 2: C:/path/to/file — C: and / stripped
+        let editor = PathnameEditor::new(None, None, false, true);
+        let name = editor
+            .edit_entry_name(Path::new("C:/msys64/tmp/file"))
+            .unwrap();
+        assert_eq!(name.as_str(), "msys64/tmp/file");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn editor_windows_type3_drive_backslash() {
+        // Type 3: C:\path\to\file — C: and \ stripped
+        let editor = PathnameEditor::new(None, None, false, true);
+        let name = editor
+            .edit_entry_name(Path::new("C:\\msys64\\tmp\\file"))
+            .unwrap();
+        assert_eq!(name.as_str(), "msys64/tmp/file");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn editor_windows_type4_device_forward_slash() {
+        // Type 4: //./C:/path/to/file — //./ and C: and / stripped
+        let editor = PathnameEditor::new(None, None, false, true);
+        let name = editor
+            .edit_entry_name(Path::new("//./C:/msys64/tmp/file"))
+            .unwrap();
+        assert_eq!(name.as_str(), "msys64/tmp/file");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn editor_windows_type5_device_backslash() {
+        // Type 5: \\.\C:\path\to\file — \\.\ and C: and \ stripped
+        let editor = PathnameEditor::new(None, None, false, true);
+        let name = editor
+            .edit_entry_name(Path::new("\\\\.\\C:\\msys64\\tmp\\file"))
+            .unwrap();
+        assert_eq!(name.as_str(), "msys64/tmp/file");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn editor_windows_type6_verbatim_forward_slash() {
+        // Type 6: //?/C:/path/to/file — //?/ and C: and / stripped
+        let editor = PathnameEditor::new(None, None, false, true);
+        let name = editor
+            .edit_entry_name(Path::new("//?/C:/msys64/tmp/file"))
+            .unwrap();
+        assert_eq!(name.as_str(), "msys64/tmp/file");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn editor_windows_type7_verbatim_backslash() {
+        // Type 7: \\?\C:\path\to\file — \\?\ and C: and \ stripped
+        let editor = PathnameEditor::new(None, None, false, true);
+        let name = editor
+            .edit_entry_name(Path::new("\\\\?\\C:\\msys64\\tmp\\file"))
+            .unwrap();
+        assert_eq!(name.as_str(), "msys64/tmp/file");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn editor_windows_backslash_to_forward_slash_conversion() {
+        // bsdtar converts \ to / in entry names; pna's join_components_forward_slash
+        // achieves the same by reconstructing paths with / separators.
+        let editor = PathnameEditor::new(None, None, false, true);
+        let name = editor.edit_entry_name(Path::new("C:\\a\\b\\c")).unwrap();
+        assert_eq!(name.as_str(), "a/b/c");
+    }
 }
