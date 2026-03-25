@@ -1,11 +1,14 @@
 use crate::utils::setup;
 use assert_cmd::cargo::cargo_bin_cmd;
 use pna::{Archive, EntryBuilder, ReadOptions, WriteOptions};
+use predicates::prelude::*;
 use std::{
     fs,
     io::{Cursor, Read, Write},
     path::{Path, PathBuf},
 };
+
+const STDIO_DEPRECATION_WARNING: &str = "experimental stdio` was stabilized as";
 
 fn build_archive(entries: &[(&str, &[u8])]) -> Vec<u8> {
     let mut archive = Archive::write_header(Vec::new()).unwrap();
@@ -114,7 +117,7 @@ fn stdio_list_ignore_zeros_controls_concatenated_archive_handling() {
         .assert()
         .success()
         .stdout("a.txt\n")
-        .stderr("");
+        .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
 
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.write_stdin(archive_data)
@@ -128,7 +131,7 @@ fn stdio_list_ignore_zeros_controls_concatenated_archive_handling() {
         .assert()
         .success()
         .stdout("a.txt\nb.txt\n")
-        .stderr("");
+        .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
 }
 
 #[test]
@@ -150,7 +153,7 @@ fn stdio_list_ignore_zeros_with_fast_read_continues_into_next_archive() {
         .assert()
         .success()
         .stdout("b.txt\n")
-        .stderr("");
+        .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
 }
 
 #[test]
@@ -171,7 +174,7 @@ fn stdio_extract_ignore_zeros_controls_concatenated_archive_handling() {
         ])
         .assert()
         .success()
-        .stderr("");
+        .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
 
     assert_eq!(
         "first",
@@ -192,7 +195,7 @@ fn stdio_extract_ignore_zeros_controls_concatenated_archive_handling() {
         ])
         .assert()
         .success()
-        .stderr("");
+        .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
 
     assert_eq!("first", fs::read_to_string(out_with.join("a.txt")).unwrap());
     assert_eq!(
@@ -222,7 +225,7 @@ fn stdio_extract_ignore_zeros_with_fast_read_continues_into_next_archive() {
         ])
         .assert()
         .success()
-        .stderr("");
+        .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
 
     assert!(!out_dir.join("a.txt").exists());
     assert_eq!("second", fs::read_to_string(out_dir.join("b.txt")).unwrap());
@@ -255,7 +258,7 @@ fn stdio_update_ignore_zeros_controls_concatenated_archive_handling() {
     ])
     .assert()
     .success()
-    .stderr("");
+    .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
 
     assert_eq!(
         read_archive_entries(&archive_without),
@@ -281,7 +284,7 @@ fn stdio_update_ignore_zeros_controls_concatenated_archive_handling() {
     ])
     .assert()
     .success()
-    .stderr("");
+    .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
 
     assert_eq!(
         read_archive_entries(&archive_with),
@@ -320,7 +323,7 @@ fn stdio_create_ignore_zeros_controls_archive_inclusion_handling() {
     ])
     .assert()
     .success()
-    .stderr("");
+    .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
 
     assert_eq!(
         read_archive_entries(&archive_without),
@@ -347,7 +350,7 @@ fn stdio_create_ignore_zeros_controls_archive_inclusion_handling() {
     ])
     .assert()
     .success()
-    .stderr("");
+    .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
 
     assert_eq!(
         read_archive_entries(&archive_with),
@@ -385,7 +388,7 @@ fn stdio_create_ignore_zeros_controls_stdin_archive_inclusion_handling() {
         ])
         .assert()
         .success()
-        .stderr("");
+        .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
 
     assert_eq!(
         read_archive_entries(&archive_without),
@@ -413,7 +416,7 @@ fn stdio_create_ignore_zeros_controls_stdin_archive_inclusion_handling() {
         ])
         .assert()
         .success()
-        .stderr("");
+        .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
 
     assert_eq!(
         read_archive_entries(&archive_with),
@@ -452,7 +455,7 @@ fn stdio_append_ignore_zeros_controls_existing_concatenated_archive_handling() {
     ])
     .assert()
     .success()
-    .stderr("");
+    .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
 
     assert_eq!(
         read_all_archive_entries(&archive_without),
@@ -478,7 +481,7 @@ fn stdio_append_ignore_zeros_controls_existing_concatenated_archive_handling() {
     ])
     .assert()
     .success()
-    .stderr("");
+    .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
 
     assert_eq!(
         read_all_archive_entries(&archive_with),
@@ -519,7 +522,7 @@ fn stdio_update_ignore_zeros_handles_concatenated_archive_before_split_archive()
     ])
     .assert()
     .success()
-    .stderr("");
+    .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
 
     assert_eq!(
         read_archive_entries(&consolidated_without),
@@ -545,7 +548,7 @@ fn stdio_update_ignore_zeros_handles_concatenated_archive_before_split_archive()
     ])
     .assert()
     .success()
-    .stderr("");
+    .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
 
     assert_eq!(
         read_archive_entries(&consolidated_with),
@@ -580,7 +583,7 @@ fn stdio_append_ignore_zeros_controls_stdin_base_archive_handling() {
         ])
         .assert()
         .success()
-        .stderr("")
+        .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING))
         .get_output()
         .stdout
         .clone();
@@ -609,7 +612,7 @@ fn stdio_append_ignore_zeros_controls_stdin_base_archive_handling() {
         ])
         .assert()
         .success()
-        .stderr("")
+        .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING))
         .get_output()
         .stdout
         .clone();
@@ -648,7 +651,7 @@ fn stdio_append_ignore_zeros_handles_concatenated_archive_before_split_archive()
     ])
     .assert()
     .success()
-    .stderr("");
+    .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
 
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
@@ -663,7 +666,7 @@ fn stdio_append_ignore_zeros_handles_concatenated_archive_before_split_archive()
     .assert()
     .success()
     .stdout("a.txt\nsplit.txt\nc.txt\n")
-    .stderr("");
+    .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
 }
 
 #[test]
@@ -696,7 +699,7 @@ fn stdio_append_ignore_zeros_controls_archive_inclusion_handling() {
     ])
     .assert()
     .success()
-    .stderr("");
+    .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
 
     assert_eq!(
         read_archive_entries(&archive_without),
@@ -721,7 +724,7 @@ fn stdio_append_ignore_zeros_controls_archive_inclusion_handling() {
     ])
     .assert()
     .success()
-    .stderr("");
+    .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
 
     assert_eq!(
         read_archive_entries(&archive_with),
