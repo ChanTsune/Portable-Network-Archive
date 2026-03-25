@@ -179,41 +179,35 @@ impl FromStr for FlagOperations {
             .map(|f| f.trim().to_lowercase())
             .filter(|f| !f.is_empty())
             .map(|f| parse_flag_op(&f))
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(Self(ops))
     }
 }
 
-fn parse_flag_op(flag: &str) -> FlagOp {
+fn parse_flag_op(flag: &str) -> Result<FlagOp, String> {
     // Special case: "dump" clears "nodump"
     if flag == "dump" {
-        return FlagOp::Clear("nodump".into());
+        return Ok(FlagOp::Clear("nodump".into()));
     }
     // "no" prefix clears the flag (except for "nodump" which sets the flag)
     if let Some(base) = flag.strip_prefix("no") {
         // "nodump" is a flag itself, not "no" + "dump"
         if base == "dump" {
-            return FlagOp::Set(normalize_flag_name(flag));
+            return Ok(FlagOp::Set(normalize_flag_name(flag)));
         }
-        if is_known_flag(base) || is_known_flag(flag) {
-            // If base is known, it's a clear operation
-            if is_known_flag(base) {
-                return FlagOp::Clear(normalize_flag_name(base));
-            }
+        if is_known_flag(base) {
+            return Ok(FlagOp::Clear(normalize_flag_name(base)));
         }
-        // Check if the full "no*" form is itself a known flag
         if is_known_flag(flag) {
-            return FlagOp::Set(normalize_flag_name(flag));
+            return Ok(FlagOp::Set(normalize_flag_name(flag)));
         }
-        // Unknown but has "no" prefix - treat as clear
-        log::warn!("Unknown flag: {}", base);
-        return FlagOp::Clear(base.into());
+        return Err(format!("Unknown flag: '{base}'"));
     }
     // No "no" prefix - set the flag
     if !is_known_flag(flag) {
-        log::warn!("Unknown flag: {}", flag);
+        return Err(format!("Unknown flag: '{flag}'"));
     }
-    FlagOp::Set(normalize_flag_name(flag))
+    Ok(FlagOp::Set(normalize_flag_name(flag)))
 }
 
 impl FlagOperations {
@@ -365,10 +359,11 @@ fn archive_set_fflag(args: SetFflagCommand) -> anyhow::Result<()> {
         return Ok(());
     } else {
         let globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))?;
-        SetFflagStrategy::Apply {
-            globs,
-            operations: args.flags.unwrap_or_default(),
+        let operations = args.flags.unwrap_or_default();
+        if operations.0.is_empty() {
+            anyhow::bail!("No flag operations specified");
         }
+        SetFflagStrategy::Apply { globs, operations }
     };
 
     let mut source = SplitArchiveReader::new(collect_split_archives(&args.archive)?)?;
@@ -482,7 +477,17 @@ fn parse_fflag_dump(reader: impl io::BufRead) -> io::Result<HashMap<String, Vec<
                     .filter(|f| !f.is_empty())
                     .collect();
                 result.insert(file.clone(), flags);
+            } else {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("Expected 'flags=...' but got: '{line}'"),
+                ));
             }
+        } else {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Unexpected line before '# file:' header: '{line}'"),
+            ));
         }
     }
     Ok(result)
@@ -494,24 +499,49 @@ mod tests {
 
     #[test]
     fn parse_flag_op_set() {
-        assert_eq!(parse_flag_op("uchg"), FlagOp::Set("uchg".into()));
-        assert_eq!(parse_flag_op("schg"), FlagOp::Set("schg".into()));
-        assert_eq!(parse_flag_op("hidden"), FlagOp::Set("hidden".into()));
+        assert_eq!(parse_flag_op("uchg").unwrap(), FlagOp::Set("uchg".into()));
+        assert_eq!(parse_flag_op("schg").unwrap(), FlagOp::Set("schg".into()));
+        assert_eq!(
+            parse_flag_op("hidden").unwrap(),
+            FlagOp::Set("hidden".into())
+        );
     }
 
     #[test]
     fn parse_flag_op_clear() {
-        assert_eq!(parse_flag_op("nouchg"), FlagOp::Clear("uchg".into()));
-        assert_eq!(parse_flag_op("noschg"), FlagOp::Clear("schg".into()));
-        assert_eq!(parse_flag_op("nohidden"), FlagOp::Clear("hidden".into()));
+        assert_eq!(
+            parse_flag_op("nouchg").unwrap(),
+            FlagOp::Clear("uchg".into())
+        );
+        assert_eq!(
+            parse_flag_op("noschg").unwrap(),
+            FlagOp::Clear("schg".into())
+        );
+        assert_eq!(
+            parse_flag_op("nohidden").unwrap(),
+            FlagOp::Clear("hidden".into())
+        );
     }
 
     #[test]
     fn parse_flag_op_nodump_special() {
         // "nodump" is a flag itself
-        assert_eq!(parse_flag_op("nodump"), FlagOp::Set("nodump".into()));
+        assert_eq!(
+            parse_flag_op("nodump").unwrap(),
+            FlagOp::Set("nodump".into())
+        );
         // "dump" clears "nodump"
-        assert_eq!(parse_flag_op("dump"), FlagOp::Clear("nodump".into()));
+        assert_eq!(
+            parse_flag_op("dump").unwrap(),
+            FlagOp::Clear("nodump".into())
+        );
+    }
+
+    #[test]
+    fn parse_flag_op_unknown_flag() {
+        assert!(parse_flag_op("xyzzy").is_err());
+        assert!(parse_flag_op("file.txt").is_err());
+        assert!(parse_flag_op("noxyzzy").is_err());
     }
 
     #[test]
