@@ -37,7 +37,7 @@ use std::{
 };
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-#[command(group(ArgGroup::new("stdio_compression_method").args(["store", "deflate", "zstd", "xz"])))]
+#[command(group(ArgGroup::new("bsdtar_compression_method").args(["store", "deflate", "zstd", "xz"])))]
 struct CompressionAlgorithmArgs {
     #[arg(long, help = "No compression")]
     store: bool,
@@ -142,7 +142,7 @@ impl CompressionAlgorithmArgs {
     group(ArgGroup::new("keep-fflags-flag").args(["keep_fflags", "no_keep_fflags"])),
     group(ArgGroup::new("mac-metadata-flag").args(["mac_metadata", "no_mac_metadata"])),
 )]
-pub(crate) struct StdioCommand {
+pub(crate) struct BsdtarCommand {
     #[arg(
         long,
         requires = "unstable",
@@ -627,7 +627,7 @@ pub(crate) struct StdioCommand {
         help = "Filenames or patterns are separated by null characters, not by newlines"
     )]
     null: bool,
-    #[arg(id = "stdio_verbose", short = 'v', help = "Verbose")]
+    #[arg(id = "bsdtar_verbose", short = 'v', help = "Verbose")]
     verbose: bool,
     #[arg(short = 'B', long, hide = true)]
     read_full_blocks: bool,
@@ -661,15 +661,15 @@ pub(crate) struct StdioCommand {
     help: (),
 }
 
-impl Command for StdioCommand {
+impl Command for BsdtarCommand {
     #[inline]
     fn execute(self, ctx: &GlobalContext) -> anyhow::Result<()> {
-        run_stdio(ctx, self)
+        run_bsdtar(ctx, self)
     }
 }
 
 #[hooq::hooq(anyhow)]
-fn run_stdio(ctx: &GlobalContext, args: StdioCommand) -> anyhow::Result<()> {
+fn run_bsdtar(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Result<()> {
     if let Some(format) = &args.format {
         log::warn!("Option '--format {format}' is accepted for compatibility but will be ignored.");
     }
@@ -727,7 +727,7 @@ fn build_write_options(
     option_builder.build()
 }
 
-/// Resolves permission strategies for stdio creation operations (create/append/update).
+/// Resolves permission strategies for bsdtar creation operations (create/append/update).
 /// Creation defaults: store mode + owner by default (bsdtar behavior).
 struct CreationPermissionStrategyResolver {
     no_same_permissions: bool,
@@ -770,7 +770,7 @@ impl CreationPermissionStrategyResolver {
     }
 }
 
-/// Resolves permission strategies for stdio extraction operations.
+/// Resolves permission strategies for bsdtar extraction operations.
 /// Extraction defaults: root preserves exact permissions, non-root applies umask (bsdtar behavior).
 /// -p/--same-permissions enables mode + ACL + xattr + fflags + mac-metadata (but NOT owner)
 /// Flag priority: --no-same-permissions > -p > individual flags; individual --no-* always wins
@@ -857,7 +857,7 @@ impl ExtractionPermissionStrategyResolver {
 }
 
 #[hooq::hooq(anyhow)]
-fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
+fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
@@ -1009,7 +1009,7 @@ fn run_create_archive(args: StdioCommand) -> anyhow::Result<()> {
 }
 
 #[hooq::hooq(anyhow)]
-fn run_extract_archive(ctx: &GlobalContext, args: StdioCommand) -> anyhow::Result<()> {
+fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
 
     let mut exclude = args.exclude;
@@ -1158,7 +1158,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: StdioCommand) -> anyhow::Resul
 }
 
 #[hooq::hooq(anyhow)]
-fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
+fn run_list_archive(args: BsdtarCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     let time_filters = TimeFilterResolver {
         newer_ctime_than: args.newer_ctime_than.as_deref(),
@@ -1243,7 +1243,7 @@ fn run_list_archive(args: StdioCommand) -> anyhow::Result<()> {
 }
 
 #[hooq::hooq(anyhow)]
-fn run_append(args: StdioCommand) -> anyhow::Result<()> {
+fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
@@ -1405,7 +1405,7 @@ fn resolve_name_id(
     }
 }
 
-fn run_update(args: StdioCommand) -> anyhow::Result<()> {
+fn run_update(args: BsdtarCommand) -> anyhow::Result<()> {
     let current_dir = env::current_dir()?;
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
