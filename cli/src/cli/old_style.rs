@@ -178,13 +178,13 @@ mod tests {
     }
 
     #[test]
-    fn no_stdio_passthrough() {
+    fn unrelated_command_passthrough() {
         let args = s(&["pna", "create", "-f", "archive.pna", "dir"]);
         assert_eq!(expand_bsdtar_old_style_args(args.clone()), args);
     }
 
     #[test]
-    fn no_experimental_passthrough() {
+    fn bare_stdio_without_parent_passthrough() {
         let args = s(&["pna", "stdio", "cvf", "archive.pna"]);
         assert_eq!(expand_bsdtar_old_style_args(args.clone()), args);
     }
@@ -599,7 +599,7 @@ mod tests {
     }
 
     #[test]
-    fn short_flag_after_stdio_means_new_style() {
+    fn short_flag_after_subcommand_means_new_style() {
         // `-x -C target ...` is new-style; must NOT expand `target` as old-style.
         let args = s(&[
             "pna",
@@ -618,7 +618,7 @@ mod tests {
     }
 
     #[test]
-    fn unknown_long_flag_after_stdio_means_new_style() {
+    fn unknown_long_flag_after_subcommand_means_new_style() {
         // `--extract` is a bsdtar option, not a global flag — must be new-style.
         let args = s(&[
             "pna",

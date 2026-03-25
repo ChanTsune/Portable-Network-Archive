@@ -166,8 +166,8 @@ jobs:
             exit 1
           fi
 
-  pna-stdio:
-    name: Test pna stdio with bsdtar_test (${{ matrix.name }})
+  pna-compat-bsdtar:
+    name: Test pna compat bsdtar with bsdtar_test (${{ matrix.name }})
     strategy:
       fail-fast: false
       matrix:
@@ -323,18 +323,16 @@ jobs:
       - name: Create pnatar wrapper
         run: |
           WORKSPACE='${{ github.workspace }}'
-          PNATAR_SCRIPT_REL='pna/.github/scripts/pnatar-wrapper.sh'
           if [ "${{ matrix.name }}" = "windows" ]; then
             WORKSPACE="$(cygpath -u "$WORKSPACE")"
             PNATAR_BIN="${WORKSPACE}/pnatar.cmd"
-            PNATAR_SH="${WORKSPACE}/${PNATAR_SCRIPT_REL}"
+            PNATAR_SH="${WORKSPACE}/pna/.github/scripts/pnatar-wrapper.sh"
             PNATAR_SH_WIN="$(cygpath -w "${PNATAR_SH}")"
             PNA_WIN="$(cygpath -w "${PNA_BIN}")"
             printf '@echo off\r\n"C:\\msys64\\usr\\bin\\bash.exe" "%s" "%s" %%*\r\n' "${PNATAR_SH_WIN}" "${PNA_WIN}" > "${PNATAR_BIN}"
           else
             PNATAR_BIN="${WORKSPACE}/pnatar"
-            PNATAR_SH="${WORKSPACE}/${PNATAR_SCRIPT_REL}"
-            printf '#!/bin/sh\nexec bash "%s" "%s" "$@"\n' "${PNATAR_SH}" "${PNA_BIN}" > "${PNATAR_BIN}"
+            printf '#!/bin/sh\nexec "%s" --log-level error compat bsdtar --unstable "$@"\n' "${PNA_BIN}" > "${PNATAR_BIN}"
             chmod +x "${PNATAR_BIN}"
           fi
           echo "PNATAR_BIN=${PNATAR_BIN}" >> "$GITHUB_ENV"
@@ -401,9 +399,10 @@ jobs:
             WORKSPACE="$(cygpath -u "$WORKSPACE")"
           fi
           REFDIR="${WORKSPACE}/pna_refdir"
-          # Exclude tests whose tar-specific owner/group header expectations
-          # do not apply to pnatar output. bsdtar_test numbering differs by OS,
-          # so resolve the current ids dynamically from `bsdtar_test -l`.
+          # Exclude tests that directly compare raw tar binary bytes at specific
+          # ustar header offsets (uid/gid/uname/gname fields). These can never
+          # pass against pnatar because it produces PNA-format output, not tar.
+          # bsdtar_test numbering differs by OS, so resolve ids dynamically.
           TEST_LIST="$("${BSDTAR_TEST_BIN}" -l)"
           TOTAL_TESTS="$(printf '%s\n' "$TEST_LIST" | awk '
             /^[[:space:]]*[0-9]+:[[:space:]]+/ {
