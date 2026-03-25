@@ -21,3 +21,4 @@ mod option_version;
 mod path_traversal;
 mod strip_components;
 mod unlink_first;
+mod windows_glob;
