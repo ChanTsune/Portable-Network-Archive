@@ -1,9 +1,11 @@
 mod acl;
 pub mod append;
+pub(crate) mod bsdtar;
 pub mod bugreport;
 mod chmod;
 mod chown;
 mod chunk;
+pub(super) mod compat;
 pub mod complete;
 pub(crate) mod concat;
 pub(crate) mod core;
@@ -16,7 +18,6 @@ pub mod list;
 mod migrate;
 pub mod sort;
 pub mod split;
-pub(crate) mod stdio;
 pub(crate) mod strip;
 pub mod update;
 pub mod xattr;
@@ -76,6 +77,7 @@ impl Cli {
             Commands::Xattr(cmd) => cmd.execute(ctx),
             Commands::Complete(cmd) => cmd.execute(ctx),
             Commands::BugReport(cmd) => cmd.execute(ctx),
+            Commands::Compat(cmd) => cmd.execute(ctx),
             Commands::Experimental(cmd) => cmd.execute(ctx),
         }
     }
