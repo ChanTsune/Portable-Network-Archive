@@ -8,7 +8,7 @@ use predicates::prelude::PredicateBooleanExt;
 #[test]
 fn fflag_compatibility_single_flag() {
     setup();
-    TestResources::extract_in("zstd_keep_fflags.pna", ".").unwrap();
+    TestResources::extract_in("zstd_keep_fflags.pna", "fflag_compat_single_flag/").unwrap();
 
     cargo_bin_cmd!("pna")
         .args([
@@ -17,7 +17,7 @@ fn fflag_compatibility_single_flag() {
             "fflag",
             "get",
             "-f",
-            "zstd_keep_fflags.pna",
+            "fflag_compat_single_flag/zstd_keep_fflags.pna",
             "file1.txt",
         ])
         .assert()
@@ -32,7 +32,7 @@ fn fflag_compatibility_single_flag() {
 #[test]
 fn fflag_compatibility_multi_flag() {
     setup();
-    TestResources::extract_in("zstd_keep_fflags.pna", ".").unwrap();
+    TestResources::extract_in("zstd_keep_fflags.pna", "fflag_compat_multi_flag/").unwrap();
 
     cargo_bin_cmd!("pna")
         .args([
@@ -41,7 +41,7 @@ fn fflag_compatibility_multi_flag() {
             "fflag",
             "get",
             "-f",
-            "zstd_keep_fflags.pna",
+            "fflag_compat_multi_flag/zstd_keep_fflags.pna",
             "testfile.txt",
         ])
         .assert()
@@ -58,7 +58,7 @@ fn fflag_compatibility_multi_flag() {
 #[test]
 fn fflag_compatibility_multi_entry() {
     setup();
-    TestResources::extract_in("zstd_keep_fflags.pna", ".").unwrap();
+    TestResources::extract_in("zstd_keep_fflags.pna", "fflag_compat_multi_entry/").unwrap();
 
     let output = cargo_bin_cmd!("pna")
         .args([
@@ -67,7 +67,7 @@ fn fflag_compatibility_multi_entry() {
             "fflag",
             "get",
             "-f",
-            "zstd_keep_fflags.pna",
+            "fflag_compat_multi_entry/zstd_keep_fflags.pna",
             "--long",
             "*",
         ])
@@ -99,7 +99,7 @@ fn fflag_compatibility_multi_entry() {
 #[test]
 fn fflag_compatibility_dump_format() {
     setup();
-    TestResources::extract_in("zstd_keep_fflags.pna", ".").unwrap();
+    TestResources::extract_in("zstd_keep_fflags.pna", "fflag_compat_dump_format/").unwrap();
 
     cargo_bin_cmd!("pna")
         .args([
@@ -108,7 +108,7 @@ fn fflag_compatibility_dump_format() {
             "fflag",
             "get",
             "-f",
-            "zstd_keep_fflags.pna",
+            "fflag_compat_dump_format/zstd_keep_fflags.pna",
             "--dump",
             "testfile.txt",
         ])
@@ -124,7 +124,7 @@ fn fflag_compatibility_dump_format() {
 #[test]
 fn fflag_compatibility_filter_by_name() {
     setup();
-    TestResources::extract_in("zstd_keep_fflags.pna", ".").unwrap();
+    TestResources::extract_in("zstd_keep_fflags.pna", "fflag_compat_filter_by_name/").unwrap();
 
     // Filter for schg - should only show file3.txt
     cargo_bin_cmd!("pna")
@@ -134,7 +134,7 @@ fn fflag_compatibility_filter_by_name() {
             "fflag",
             "get",
             "-f",
-            "zstd_keep_fflags.pna",
+            "fflag_compat_filter_by_name/zstd_keep_fflags.pna",
             "--name",
             "schg",
             "*",
