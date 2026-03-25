@@ -2,14 +2,15 @@ mod old_style;
 pub mod value;
 
 #[doc(hidden)]
-pub use old_style::{expand_stdio_old_style_args, expand_stdio_w_option};
+pub use old_style::{expand_bsdtar_old_style_args, expand_bsdtar_w_option};
 
 use crate::{
     command::{
-        append::AppendCommand, bugreport::BugReportCommand, complete::CompleteCommand,
-        concat::ConcatCommand, core::Umask, create::CreateCommand, delete::DeleteCommand,
-        experimental::ExperimentalCommand, extract::ExtractCommand, list::ListCommand,
-        sort::SortCommand, split::SplitCommand, strip::StripCommand, xattr::XattrCommand,
+        append::AppendCommand, bugreport::BugReportCommand, compat::CompatCommand,
+        complete::CompleteCommand, concat::ConcatCommand, core::Umask, create::CreateCommand,
+        delete::DeleteCommand, experimental::ExperimentalCommand, extract::ExtractCommand,
+        list::ListCommand, sort::SortCommand, split::SplitCommand, strip::StripCommand,
+        xattr::XattrCommand,
     },
     utils::{fs::current_umask, process::is_running_as_root},
 };
@@ -200,6 +201,8 @@ pub(crate) enum Commands {
     Complete(CompleteCommand),
     #[command(about = "Generate bug report template")]
     BugReport(BugReportCommand),
+    #[command(about = "Compatibility interface for other archive tools")]
+    Compat(CompatCommand),
     #[command(
         about = "Unstable experimental commands; behavior and interface may change or be removed"
     )]
