@@ -12,7 +12,18 @@ impl Command for ExperimentalCommand {
     #[inline]
     fn execute(self, ctx: &crate::cli::GlobalContext) -> anyhow::Result<()> {
         match self.command {
-            ExperimentalCommands::Stdio(cmd) => cmd.execute(ctx),
+            ExperimentalCommands::Stdio(cmd) => {
+                log::warn!(
+                    "`{0} experimental stdio` was stabilized as `{0} compat bsdtar`. \
+                     Use `{0} compat bsdtar` instead.",
+                    std::env::current_exe()
+                        .ok()
+                        .and_then(|it| it.file_name().map(|n| n.to_os_string()))
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                );
+                cmd.execute(ctx)
+            }
             ExperimentalCommands::Delete(cmd) => {
                 log::warn!(
                     "`{0} experimental delete` subcommand was stabilized, use `{0} delete` instead.",
@@ -48,8 +59,10 @@ impl Command for ExperimentalCommand {
 
 #[derive(Subcommand, Clone, Debug)]
 pub(crate) enum ExperimentalCommands {
-    #[command(about = "bsdtar-like CLI semantics for PNA archives")]
-    Stdio(command::stdio::StdioCommand),
+    #[command(
+        about = "bsdtar-compatible interface for PNA archives (stabilized, use `pna compat bsdtar` instead)"
+    )]
+    Stdio(command::bsdtar::BsdtarCommand),
     #[command(about = "Delete entry from archive")]
     Delete(command::delete::DeleteCommand),
     #[command(about = "Update entries in archive")]
