@@ -304,13 +304,8 @@ fn archive_get_fflag(args: GetFflagCommand) -> anyhow::Result<()> {
     }
     let FileArgs { archive, files } = file;
     let mut globs = GlobPatterns::new(files.iter().map(|it| it.as_str()))?;
-    let filter = FilterOption::new(
-        dump,
-        long,
-        name.as_deref(),
-        regex_match.as_deref(),
-    )
-    .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+    let filter = FilterOption::new(dump, long, name.as_deref(), regex_match.as_deref())
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
     let mut source = SplitArchiveReader::new(collect_split_archives(archive)?)?;
 

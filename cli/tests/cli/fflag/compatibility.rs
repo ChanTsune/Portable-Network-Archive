@@ -153,7 +153,7 @@ fn fflag_compatibility_filter_by_name() {
 #[test]
 fn fflag_compatibility_add_flags() {
     setup();
-    TestResources::extract_in("zstd_keep_fflags.pna", ".").unwrap();
+    TestResources::extract_in("zstd_keep_fflags.pna", "fflag_compat_add_flags/").unwrap();
 
     // Add nodump to existing uchg on file1
     cargo_bin_cmd!("pna")
@@ -163,7 +163,7 @@ fn fflag_compatibility_add_flags() {
             "fflag",
             "set",
             "-f",
-            "zstd_keep_fflags.pna",
+            "fflag_compat_add_flags/zstd_keep_fflags.pna",
             "nodump",
             "file1.txt",
         ])
@@ -178,7 +178,7 @@ fn fflag_compatibility_add_flags() {
             "fflag",
             "get",
             "-f",
-            "zstd_keep_fflags.pna",
+            "fflag_compat_add_flags/zstd_keep_fflags.pna",
             "file1.txt",
         ])
         .assert()
