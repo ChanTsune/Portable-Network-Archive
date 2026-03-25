@@ -23,6 +23,11 @@ This document contains the help content for the `pna` command-line program.
 * [`pna xattr help help`↴](#pna-xattr-help-help)
 * [`pna complete`↴](#pna-complete)
 * [`pna bug-report`↴](#pna-bug-report)
+* [`pna compat`↴](#pna-compat)
+* [`pna compat bsdtar`↴](#pna-compat-bsdtar)
+* [`pna compat help`↴](#pna-compat-help)
+* [`pna compat help bsdtar`↴](#pna-compat-help-bsdtar)
+* [`pna compat help help`↴](#pna-compat-help-help)
 * [`pna experimental`↴](#pna-experimental)
 * [`pna experimental stdio`↴](#pna-experimental-stdio)
 * [`pna experimental delete`↴](#pna-experimental-delete)
@@ -74,6 +79,8 @@ This document contains the help content for the `pna` command-line program.
 * [`pna help xattr set`↴](#pna-help-xattr-set)
 * [`pna help complete`↴](#pna-help-complete)
 * [`pna help bug-report`↴](#pna-help-bug-report)
+* [`pna help compat`↴](#pna-help-compat)
+* [`pna help compat bsdtar`↴](#pna-help-compat-bsdtar)
 * [`pna help experimental`↴](#pna-help-experimental)
 * [`pna help experimental stdio`↴](#pna-help-experimental-stdio)
 * [`pna help experimental delete`↴](#pna-help-experimental-delete)
@@ -110,6 +117,7 @@ Portable-Network-Archive cli
 * `xattr` — Manipulate extended attributes
 * `complete` — Generate shell auto complete
 * `bug-report` — Generate bug report template
+* `compat` — Compatibility interface for other archive tools
 * `experimental` — Unstable experimental commands; behavior and interface may change or be removed
 * `help` — Print this message or the help of the given subcommand(s)
 
@@ -1215,6 +1223,305 @@ Generate bug report template
 
 
 
+## `pna compat`
+
+Compatibility interface for other archive tools
+
+**Usage:** `pna compat [OPTIONS]
+       pna compat <COMMAND>`
+
+###### **Subcommands:**
+
+* `bsdtar` — bsdtar-compatible interface for PNA archives
+* `help` — Print this message or the help of the given subcommand(s)
+
+###### **Options:**
+
+* `--quiet` — Make some output more quiet (alias for --log-level off)
+
+  Default value: `false`
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
+
+  Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
+* `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
+
+  Default value: `false`
+* `-h`, `--help` — Print help
+
+
+
+## `pna compat bsdtar`
+
+bsdtar-compatible interface for PNA archives
+
+**Usage:** `pna compat bsdtar [OPTIONS] <--create|--extract|--list|--append|--update> [FILES]...`
+
+###### **Arguments:**
+
+* `<FILES>` — Files or patterns
+
+###### **Options:**
+
+* `--one-file-system` — Stay in the same file system when collecting files
+
+  Default value: `false`
+* `--nodump` — Exclude files with the nodump flag
+
+  Default value: `false`
+* `-c`, `--create` — Create archive
+
+  Default value: `false`
+* `-x`, `--extract` — Extract archive
+
+  Default value: `false`
+* `-t`, `--list` — List files in archive
+
+  Default value: `false`
+* `-q`, `--fast-read` — Performance optimization for list/extract: stop after the first match for each operand and ignore later duplicates
+
+  Default value: `false`
+* `-r`, `--append` — Append files to archive
+
+  Default value: `false`
+* `-u`, `--update` — Update archive with newer files
+
+  Default value: `false`
+* `--recursive` [alias: `recursion`] — Add directories to the archive recursively
+
+  Default value: `true`
+* `-n`, `--no-recursive` [aliases: `norecurse`, `no-recursion`] — Do not recursively add directories to the archives. This is the inverse option of --recursive
+
+  Default value: `false`
+* `--overwrite` — Overwrite file
+
+  Default value: `false`
+* `--no-overwrite` — Do not overwrite files. This is the inverse option of --overwrite
+
+  Default value: `false`
+* `--keep-newer-files` — Skip extracting files if a newer version already exists
+
+  Default value: `false`
+* `-U`, `--unlink-first` [alias: `unlink`] — Unlink files before creating them; also removes intervening directory symlinks (extract mode only)
+
+  Default value: `false`
+* `-k`, `--keep-old-files` — Skip extracting files if they already exist
+
+  Default value: `false`
+* `--keep-dir` — Include directories in archive (default)
+
+  Default value: `false`
+* `--no-keep-dir` — Do not archive directories. This is the inverse option of --keep-dir
+
+  Default value: `false`
+* `--keep-timestamp` [alias: `preserve-timestamps`] — Preserve file timestamps
+
+  Default value: `false`
+* `-m`, `--no-keep-timestamp` [aliases: `no-preserve-timestamps`, `modification_time`] — Do not archive timestamp of files. This is the inverse option of --preserve-timestamps
+
+  Default value: `false`
+* `--no-same-permissions` [aliases: `no-preserve-permissions`, `no-permissions`] — Do not store file permissions (mode bits) in the archive
+
+  Default value: `false`
+* `-p`, `--same-permissions` [alias: `preserve-permissions`] — Restore file permissions (mode, ACLs, xattrs, fflags, mac-metadata, but NOT ownership) (extract only)
+
+  Default value: `false`
+* `--keep-xattr` [aliases: `preserve-xattrs`, `xattrs`] — Preserve extended attributes
+
+  Default value: `false`
+* `--no-keep-xattr` [aliases: `no-preserve-xattrs`, `no-xattrs`] — Do not archive extended attributes of files. This is the inverse option of --preserve-xattrs
+
+  Default value: `false`
+* `--keep-acl` [aliases: `preserve-acls`, `acls`] — Preserve ACLs
+
+  Default value: `false`
+* `--no-keep-acl` [aliases: `no-preserve-acls`, `no-acls`] — Do not archive ACLs. This is the inverse option of --keep-acl
+
+  Default value: `false`
+* `--keep-fflags` [aliases: `preserve-fflags`, `fflags`] — Archiving the file flags of the files
+
+  Default value: `false`
+* `--no-keep-fflags` [aliases: `no-preserve-fflags`, `no-fflags`] — Do not archive file flags of files. This is the inverse option of --keep-fflags
+
+  Default value: `false`
+* `--mac-metadata` — Archive and extract Mac metadata (extended attributes and ACLs)
+
+  Default value: `false`
+* `--no-mac-metadata` — Do not archive or extract Mac metadata. This is the inverse option of --mac-metadata
+
+  Default value: `false`
+* `--solid` — Compress multiple files together for better compression ratio
+
+  Default value: `false`
+* `--store` — No compression
+
+  Default value: `false`
+* `--deflate <level>` [alias: `zlib`] — Use deflate for compression [possible level: 1-9, min, max]
+* `--zstd <level>` — Use zstd for compression [possible level: 1-21, min, max]
+* `-J`, `--xz <level>` — Use xz for compression [possible level: 0-9, min, max]
+* `--aes <cipher mode>` — Use aes for encryption
+
+  Possible values: `cbc`, `ctr`
+
+* `--camellia <cipher mode>` — Use camellia for encryption
+
+  Possible values: `cbc`, `ctr`
+
+* `--argon2 <PARAMS>` — Use argon2 for password hashing
+* `--pbkdf2 <PARAMS>` — Use pbkdf2 for password hashing
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
+* `--password-file <FILE>` — Read password from specified file
+* `--options <OPTIONS>` — Comma-separated list of options. Format: key=value or module:key=value. Supported: compression-level. Modules: deflate, zstd, xz
+* `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions
+* `--exclude <PATTERN>` — Exclude path glob
+* `-X`, `--exclude-from <FILE>` — Read exclude files from given path
+* `--exclude-vcs` — Exclude files or directories internally used by version control systems (`Arch`, `Bazaar`, `CVS`, `Darcs`, `Mercurial`, `RCS`, `SCCS`, `SVN`, `git`)
+
+  Default value: `false`
+* `--gitignore` — Ignore files from .gitignore
+
+  Default value: `false`
+* `-L`, `--follow-links` [alias: `dereference`] — Follow symbolic links
+
+  Default value: `false`
+* `-H`, `--follow-command-links` — Follow symbolic links named on the command line
+
+  Default value: `false`
+* `-l`, `--check-links` [alias: `check-links`] — Warn if not all links to each file are archived (create mode)
+
+  Default value: `false`
+* `--out-dir <DIRECTORY>` — Output directory of extracted files
+* `--strip-components <N>` — Remove the specified number of leading path elements. Path names with fewer elements will be silently skipped
+* `--owner <NAME[:ID]>` — Use the provided owner, if uid is not provided, name can be either a user name or numeric id. See the --uname option for details.
+* `--uname <NAME>` — On create, archiving user to the entries from given name. On extract, restore user from given name
+* `--gname <NAME>` — On create, archiving group to the entries from given name. On extract, restore group from given name
+* `--uid <ID>` — On create, this overrides the user id read from disk; if --uname is not also specified, the user name will be set to match the user id. On extract, this overrides the user id in the archive; the user name in the archive will be ignored
+* `--gid <ID>` — On create, this overrides the group id read from disk; if --gname is not also specified, the group name will be set to match the group id. On extract, this overrides the group id in the archive; the group name in the archive will be ignored
+* `--group <NAME[:ID]>` — Use the provided group, if gid is not provided, name can be either a group name or numeric id. See the --gname option for details.
+* `--numeric-owner` — This is equivalent to --uname "" --gname "". On create, it causes user and group names to not be stored in the archive. On extract, it causes user and group names in the archive to be ignored in favor of the numeric user and group ids.
+
+  Default value: `false`
+* `--ctime <DATETIME>` — Overrides the creation time
+* `--clamp-ctime` — Clamp the creation time of the entries to the specified time by --ctime
+
+  Default value: `false`
+* `--atime <DATETIME>` — Overrides the access time
+* `--clamp-atime` — Clamp the access time of the entries to the specified time by --atime
+
+  Default value: `false`
+* `--mtime <DATETIME>` — Overrides the modification time
+* `--clamp-mtime` — Clamp the modification time of the entries to the specified time by --mtime
+
+  Default value: `false`
+* `--older-ctime <DATETIME>` — Only include files and directories older than the specified date. This compares ctime entries.
+* `--older-mtime <DATETIME>` — Only include files and directories older than the specified date. This compares mtime entries.
+* `--newer-ctime <DATETIME>` — Only include files and directories newer than the specified date. This compares ctime entries.
+* `--newer-mtime <DATETIME>` — Only include files and directories newer than the specified date. This compares mtime entries.
+* `--newer-ctime-than <FILE>` — Only include files and directories newer than the specified file. This compares ctime entries.
+* `--newer-mtime-than <FILE>` [alias: `newer-than`] — Only include files and directories newer than the specified file. This compares mtime entries.
+* `--older-ctime-than <FILE>` — Only include files and directories older than the specified file. This compares ctime entries.
+* `--older-mtime-than <FILE>` [alias: `older-than`] — Only include files and directories older than the specified file. This compares mtime entries.
+* `-T`, `--files-from <FILE>` — Read archiving files from given path
+* `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option
+* `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option
+* `--same-owner` — Try extracting files with the same ownership as exists in the archive
+
+  Default value: `false`
+* `--no-same-owner` — Extract files as yourself
+
+  Default value: `false`
+* `-C`, `--cd <DIRECTORY>` [alias: `directory`] — Change directory before adding the following files
+* `-O`, `--to-stdout` — Write extracted file data to standard output instead of the file system
+
+  Default value: `false`
+* `--allow-unsafe-links` — Allow extracting symbolic links and hard links that contain root or parent paths (default)
+
+  Default value: `false`
+* `--no-allow-unsafe-links` — Do not allow extracting symbolic links and hard links that contain root or parent paths
+
+  Default value: `false`
+* `--chroot` — chroot() to the current directory after processing any --cd options and before extracting any files (requires root privileges)
+
+  Default value: `false`
+* `-P`, `--absolute-paths` — Do not strip leading '/' or '..' from member names and link targets
+
+  Default value: `false`
+* `-f`, `--file <FILE>` — Read the archive from or write the archive to the specified file. The filename can be - for standard input or standard output.
+* `--null` — Filenames or patterns are separated by null characters, not by newlines
+
+  Default value: `false`
+* `-v` — Verbose
+
+  Default value: `false`
+* `--ignore-zeros` — Continue reading concatenated archives after the first archive ends instead of stopping at the first archive boundary
+
+  Default value: `false`
+* `--version` — Print version
+* `-h`, `--help` — Print help
+* `--quiet` — Make some output more quiet (alias for --log-level off)
+
+  Default value: `false`
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
+
+  Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
+* `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
+
+  Default value: `false`
+
+
+
+## `pna compat help`
+
+Print this message or the help of the given subcommand(s)
+
+**Usage:** `pna compat help [COMMAND]`
+
+###### **Subcommands:**
+
+* `bsdtar` — bsdtar-compatible interface for PNA archives
+* `help` — Print this message or the help of the given subcommand(s)
+
+
+
+## `pna compat help bsdtar`
+
+bsdtar-compatible interface for PNA archives
+
+**Usage:** `pna compat help bsdtar`
+
+
+
+## `pna compat help help`
+
+Print this message or the help of the given subcommand(s)
+
+**Usage:** `pna compat help help`
+
+
+
 ## `pna experimental`
 
 Unstable experimental commands; behavior and interface may change or be removed
@@ -1224,7 +1531,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 ###### **Subcommands:**
 
-* `stdio` — bsdtar-like CLI semantics for PNA archives
+* `stdio` — bsdtar-compatible interface for PNA archives (stabilized, use `pna compat bsdtar` instead)
 * `delete` — Delete entry from archive
 * `update` — Update entries in archive
 * `chown` — Change owner
@@ -1265,7 +1572,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 ## `pna experimental stdio`
 
-bsdtar-like CLI semantics for PNA archives
+bsdtar-compatible interface for PNA archives (stabilized, use `pna compat bsdtar` instead)
 
 **Usage:** `pna experimental stdio [OPTIONS] <--create|--extract|--list|--append|--update> [FILES]...`
 
@@ -2234,7 +2541,7 @@ Print this message or the help of the given subcommand(s)
 
 ###### **Subcommands:**
 
-* `stdio` — bsdtar-like CLI semantics for PNA archives
+* `stdio` — bsdtar-compatible interface for PNA archives (stabilized, use `pna compat bsdtar` instead)
 * `delete` — Delete entry from archive
 * `update` — Update entries in archive
 * `chown` — Change owner
@@ -2250,7 +2557,7 @@ Print this message or the help of the given subcommand(s)
 
 ## `pna experimental help stdio`
 
-bsdtar-like CLI semantics for PNA archives
+bsdtar-compatible interface for PNA archives (stabilized, use `pna compat bsdtar` instead)
 
 **Usage:** `pna experimental help stdio`
 
@@ -2389,6 +2696,7 @@ Print this message or the help of the given subcommand(s)
 * `xattr` — Manipulate extended attributes
 * `complete` — Generate shell auto complete
 * `bug-report` — Generate bug report template
+* `compat` — Compatibility interface for other archive tools
 * `experimental` — Unstable experimental commands; behavior and interface may change or be removed
 * `help` — Print this message or the help of the given subcommand(s)
 
@@ -2511,6 +2819,26 @@ Generate bug report template
 
 
 
+## `pna help compat`
+
+Compatibility interface for other archive tools
+
+**Usage:** `pna help compat [COMMAND]`
+
+###### **Subcommands:**
+
+* `bsdtar` — bsdtar-compatible interface for PNA archives
+
+
+
+## `pna help compat bsdtar`
+
+bsdtar-compatible interface for PNA archives
+
+**Usage:** `pna help compat bsdtar`
+
+
+
 ## `pna help experimental`
 
 Unstable experimental commands; behavior and interface may change or be removed
@@ -2519,7 +2847,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 ###### **Subcommands:**
 
-* `stdio` — bsdtar-like CLI semantics for PNA archives
+* `stdio` — bsdtar-compatible interface for PNA archives (stabilized, use `pna compat bsdtar` instead)
 * `delete` — Delete entry from archive
 * `update` — Update entries in archive
 * `chown` — Change owner
@@ -2534,7 +2862,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 ## `pna help experimental stdio`
 
-bsdtar-like CLI semantics for PNA archives
+bsdtar-compatible interface for PNA archives (stabilized, use `pna compat bsdtar` instead)
 
 **Usage:** `pna help experimental stdio`
 
