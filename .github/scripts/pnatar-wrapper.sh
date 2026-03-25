@@ -30,4 +30,4 @@ done
 export MSYS_NO_PATHCONV=1
 export MSYS2_ARG_CONV_EXCL='*'
 
-exec "$pna_bin" --log-level error experimental stdio --unstable "${expanded[@]}"
+exec "$pna_bin" --log-level error compat bsdtar --unstable "${expanded[@]}"
