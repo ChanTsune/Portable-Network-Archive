@@ -1232,7 +1232,7 @@ Compatibility interface for other archive tools
 
 ###### **Subcommands:**
 
-* `bsdtar` — bsdtar-compatible interface for PNA archives
+* `bsdtar` — bsdtar-like CLI semantics for PNA archives
 * `help` — Print this message or the help of the given subcommand(s)
 
 ###### **Options:**
@@ -1264,7 +1264,7 @@ Compatibility interface for other archive tools
 
 ## `pna compat bsdtar`
 
-bsdtar-compatible interface for PNA archives
+bsdtar-like CLI semantics for PNA archives
 
 **Usage:** `pna compat bsdtar [OPTIONS] <--create|--extract|--list|--append|--update> [FILES]...`
 
@@ -1501,14 +1501,14 @@ Print this message or the help of the given subcommand(s)
 
 ###### **Subcommands:**
 
-* `bsdtar` — bsdtar-compatible interface for PNA archives
+* `bsdtar` — bsdtar-like CLI semantics for PNA archives
 * `help` — Print this message or the help of the given subcommand(s)
 
 
 
 ## `pna compat help bsdtar`
 
-bsdtar-compatible interface for PNA archives
+bsdtar-like CLI semantics for PNA archives
 
 **Usage:** `pna compat help bsdtar`
 
@@ -1531,7 +1531,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 ###### **Subcommands:**
 
-* `stdio` — bsdtar-compatible interface for PNA archives (stabilized, use `pna compat bsdtar` instead)
+* `stdio` — bsdtar-like CLI semantics for PNA archives (stabilized, use `pna compat bsdtar` instead)
 * `delete` — Delete entry from archive
 * `update` — Update entries in archive
 * `chown` — Change owner
@@ -1572,7 +1572,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 ## `pna experimental stdio`
 
-bsdtar-compatible interface for PNA archives (stabilized, use `pna compat bsdtar` instead)
+bsdtar-like CLI semantics for PNA archives (stabilized, use `pna compat bsdtar` instead)
 
 **Usage:** `pna experimental stdio [OPTIONS] <--create|--extract|--list|--append|--update> [FILES]...`
 
@@ -2541,7 +2541,7 @@ Print this message or the help of the given subcommand(s)
 
 ###### **Subcommands:**
 
-* `stdio` — bsdtar-compatible interface for PNA archives (stabilized, use `pna compat bsdtar` instead)
+* `stdio` — bsdtar-like CLI semantics for PNA archives (stabilized, use `pna compat bsdtar` instead)
 * `delete` — Delete entry from archive
 * `update` — Update entries in archive
 * `chown` — Change owner
@@ -2557,7 +2557,7 @@ Print this message or the help of the given subcommand(s)
 
 ## `pna experimental help stdio`
 
-bsdtar-compatible interface for PNA archives (stabilized, use `pna compat bsdtar` instead)
+bsdtar-like CLI semantics for PNA archives (stabilized, use `pna compat bsdtar` instead)
 
 **Usage:** `pna experimental help stdio`
 
@@ -2827,13 +2827,13 @@ Compatibility interface for other archive tools
 
 ###### **Subcommands:**
 
-* `bsdtar` — bsdtar-compatible interface for PNA archives
+* `bsdtar` — bsdtar-like CLI semantics for PNA archives
 
 
 
 ## `pna help compat bsdtar`
 
-bsdtar-compatible interface for PNA archives
+bsdtar-like CLI semantics for PNA archives
 
 **Usage:** `pna help compat bsdtar`
 
@@ -2847,7 +2847,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 ###### **Subcommands:**
 
-* `stdio` — bsdtar-compatible interface for PNA archives (stabilized, use `pna compat bsdtar` instead)
+* `stdio` — bsdtar-like CLI semantics for PNA archives (stabilized, use `pna compat bsdtar` instead)
 * `delete` — Delete entry from archive
 * `update` — Update entries in archive
 * `chown` — Change owner
@@ -2862,7 +2862,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 
 ## `pna help experimental stdio`
 
-bsdtar-compatible interface for PNA archives (stabilized, use `pna compat bsdtar` instead)
+bsdtar-like CLI semantics for PNA archives (stabilized, use `pna compat bsdtar` instead)
 
 **Usage:** `pna help experimental stdio`
 
