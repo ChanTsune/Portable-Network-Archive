@@ -11,8 +11,9 @@ pub(crate) mod os;
 mod path;
 pub(crate) mod process;
 pub(crate) mod str;
+mod windows_glob;
 
-pub(crate) use {globs::*, path::*};
+pub(crate) use {globs::*, path::*, windows_glob::*};
 
 /// Version Control System file names.
 pub(crate) const VCS_FILES: &[&str] = &[
