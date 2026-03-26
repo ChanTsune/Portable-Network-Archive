@@ -93,25 +93,27 @@ cargo install portable-network-archive
 cargo install --git https://github.com/ChanTsune/Portable-Network-Archive.git portable-network-archive
 ```
 
-## Basic Usage
+## Usage
 
-Note on archive argument style
-- The positional archive argument `<ARCHIVE>` is deprecated since version 0.28.0. Use `-f/--file <ARCHIVE>` instead. The positional form is still accepted for backward compatibility and will emit a warning. It will be removed in a future release.
+### PNA-native style
 
-Create an archive:
 ```sh
-pna create -f <ARCHIVE> [FILES]...
+pna create -f archive.pna file1.txt file2.txt
+pna extract -f archive.pna
+pna list -f archive.pna
 ```
 
-Extract an archive:
+### tar-like style
+
+If you prefer tar-like syntax, a bsdtar-compatible interface is available:
+
 ```sh
-pna extract -f <ARCHIVE>
+pna compat bsdtar -cf archive.pna file1.txt file2.txt
+pna compat bsdtar -xf archive.pna
+pna compat bsdtar -tf archive.pna
 ```
 
-List archive contents:
-```sh
-pna list -f <ARCHIVE>
-```
+Both styles produce PNA-format archives. Note that `compat bsdtar` preserves permissions, ownership, and timestamps by default (matching bsdtar behavior), while PNA-native commands require explicit flags to preserve them.
 
 For more commands and options:
 ```sh
