@@ -3,6 +3,7 @@ use std::{
     borrow::Cow,
     path::{Component, Path, PathBuf},
 };
+use typed_path::{Utf8WindowsComponent, Utf8WindowsPath};
 
 use super::PathTransformers;
 
@@ -42,7 +43,8 @@ impl PathnameEditor {
     /// transformation or after stripping.
     pub(crate) fn edit_entry_name(&self, path: &Path) -> Option<EntryName> {
         let stripped = self.transform_and_strip(path, false, false)?;
-        let entry_name = EntryName::from_path_lossy_preserve_root(&stripped);
+        let rewritten = self.rewrite_path_for_extraction(&stripped);
+        let entry_name = EntryName::from_utf8_preserve_root(rewritten.path.as_ref());
         let sanitized = if self.absolute_paths {
             entry_name
         } else if self.preserve_curdir {
@@ -61,8 +63,9 @@ impl PathnameEditor {
     /// The `bool` indicates whether a leading root component was stripped.
     pub(crate) fn edit_hardlink(&self, target: &Path) -> Option<(EntryReference, bool)> {
         let stripped = self.transform_and_strip(target, false, true)?;
-        let entry_reference = EntryReference::from_path_lossy_preserve_root(&stripped);
-        let had_root = !self.absolute_paths && stripped.has_root();
+        let rewritten = self.rewrite_path_for_extraction(&stripped);
+        let entry_reference = EntryReference::from_utf8_preserve_root(rewritten.path.as_ref());
+        let had_root = rewritten.had_root;
         let sanitized = if self.absolute_paths {
             entry_reference
         } else if self.preserve_curdir {
@@ -119,6 +122,43 @@ impl PathnameEditor {
         Some(stripped.into_owned())
     }
 
+    /// Rewrite the path by stripping Windows-style absolute prefixes (drive letters,
+    /// UNC/API prefixes) and leading root separators, matching bsdtar's
+    /// `strip_absolute_path()` behavior. When `absolute_paths` is true, the path
+    /// is returned unchanged.
+    #[inline]
+    fn rewrite_path_for_extraction<'a>(&self, path: &'a Path) -> RewrittenPath<'a> {
+        let raw = path.to_string_lossy();
+        if self.absolute_paths {
+            RewrittenPath {
+                path: raw,
+                had_root: false,
+            }
+        } else {
+            match raw {
+                Cow::Borrowed(s) => {
+                    let (stripped, had_root) = strip_absolute_path_bsdtar(s);
+                    RewrittenPath {
+                        path: Cow::Borrowed(stripped),
+                        had_root,
+                    }
+                }
+                Cow::Owned(s) => {
+                    let (stripped, had_root) = strip_absolute_path_bsdtar(&s);
+                    let offset = s.len() - stripped.len();
+                    let mut owned = s;
+                    if offset > 0 {
+                        owned.drain(..offset);
+                    }
+                    RewrittenPath {
+                        path: Cow::Owned(owned),
+                        had_root,
+                    }
+                }
+            }
+        }
+    }
+
     /// bsdtar-compat: SECURE_NODOTDOT -- reject paths containing `..`.
     ///
     /// Returns `None` when the sanitized path is empty or contains `..` in
@@ -135,6 +175,13 @@ impl PathnameEditor {
     }
 }
 
+/// `had_root` indicates whether any absolute prefix (root separator, drive
+/// letter, or Windows API prefix) was consumed during rewriting.
+struct RewrittenPath<'a> {
+    path: Cow<'a, str>,
+    had_root: bool,
+}
+
 fn strip_components(path: &Path, count: Option<usize>) -> Option<Cow<'_, Path>> {
     let Some(count) = count else {
         return Some(Cow::Borrowed(path));
@@ -149,28 +196,22 @@ fn strip_components(path: &Path, count: Option<usize>) -> Option<Cow<'_, Path>> 
     Some(Cow::from(PathBuf::from_iter(components.skip(count))))
 }
 
-/// CLI-side sanitization that keeps `CurDir` (`.`) and `ParentDir` (`..`) components.
+/// CLI-side sanitization that retains `CurDir` (`.`) and `ParentDir` (`..`)
+/// while stripping `RootDir` and `Prefix` components via [`std::path::Path::components`].
 ///
-/// Matches bsdtar's `strip_absolute_path()`: strips `RootDir`/`Prefix` and any
-/// leading `..`/`.` that directly follow (mirroring bsdtar's `/../` and `/./` loop),
-/// then preserves `..` so the caller can apply SECURE_NODOTDOT rejection separately.
+/// Absolute path prefix stripping (Windows drive letters, UNC prefixes,
+/// leading `/../` sequences) is handled upstream by [`strip_absolute_path_bsdtar`];
+/// this function handles residual host-path normalization. On Unix,
+/// backslash-containing segments are treated as literal `Normal` components by
+/// the standard library, which preserves them as-is.
 fn sanitize_preserve_curdir_str(s: &str) -> String {
     let path = Path::new(s);
-    let was_absolute = path.has_root();
-    let filtered = path.components().filter(|c| {
+    join_components_forward_slash(path.components().filter(|c| {
         matches!(
             c,
             Component::Normal(_) | Component::CurDir | Component::ParentDir
         )
-    });
-    if was_absolute {
-        // bsdtar's strip_absolute_path loop consumes leading /../ and /./ after /
-        join_components_forward_slash(
-            filtered.skip_while(|c| matches!(c, Component::ParentDir | Component::CurDir)),
-        )
-    } else {
-        join_components_forward_slash(filtered)
-    }
+    }))
 }
 
 fn sanitize_preserve_curdir(name: EntryName) -> EntryName {
@@ -185,10 +226,127 @@ fn sanitize_preserve_curdir_reference(reference: EntryReference) -> EntryReferen
     EntryReference::from_utf8_preserve_root(&sanitize_preserve_curdir_str(reference.as_str()))
 }
 
+/// Returns `true` if the path is unsafe as a link reference.
+///
+/// A link is unsafe if it contains an absolute path component (root separator,
+/// drive letter, or Windows API prefix) or a parent directory (`..`) component
+/// under either host or Windows path semantics.
+pub(crate) fn is_unsafe_link_path(s: &str) -> bool {
+    let (rewritten, had_root) = strip_absolute_path_bsdtar(s);
+    had_root || has_parent_dir_component(rewritten)
+}
+
+/// Returns `true` if the path contains a `..` (parent directory) component
+/// under either host path semantics or Windows path semantics.
+///
+/// The dual check ensures that Windows-style `..` preceded by backslash
+/// separators (e.g., `..\\file`) is detected even on non-Windows hosts where
+/// `std::path::Path` treats backslashes as literal characters.
 fn has_parent_dir_component(s: &str) -> bool {
     Path::new(s)
         .components()
         .any(|c| matches!(c, Component::ParentDir))
+        || Utf8WindowsPath::new(s)
+            .components()
+            .any(|c| matches!(c, Utf8WindowsComponent::ParentDir))
+}
+
+/// bsdtar-compatible stripping of absolute path prefixes.
+///
+/// Strips Windows API prefixes (`\\?\`, `\\.\`), UNC prefixes (`\\?\UNC\`),
+/// drive letters (`C:`), and leading separators (including consuming `/../`
+/// and `/./` sequences that follow a root).
+///
+/// Returns the remaining path after stripping and a flag indicating whether
+/// any prefix or root separator was consumed.
+///
+/// # Security invariant
+///
+/// This function may leave `..` components in the output (e.g., from `D:..`).
+/// Callers **must** check the result with [`has_parent_dir_component`] to
+/// detect path traversal, or use [`is_unsafe_link_path`] which combines both.
+fn strip_absolute_path_bsdtar(path: &str) -> (&str, bool) {
+    let mut rest = path;
+    let mut had_root = false;
+
+    if matches_windows_api_prefix(rest) {
+        if matches_unc_api_prefix(rest) {
+            rest = &rest[8..];
+        } else {
+            rest = &rest[4..];
+        }
+        had_root = true;
+    }
+
+    loop {
+        let mut advanced = false;
+
+        if is_drive_letter_prefix(rest) {
+            rest = &rest[2..];
+            had_root = true;
+            advanced = true;
+        }
+
+        while let Some(sep) = rest.chars().next() {
+            if !is_path_separator(sep) {
+                break;
+            }
+
+            let bytes = rest.as_bytes();
+            if bytes.len() >= 4
+                && bytes[1] == b'.'
+                && bytes[2] == b'.'
+                && is_path_separator(bytes[3] as char)
+            {
+                rest = &rest[3..];
+            } else if bytes.len() >= 3 && bytes[1] == b'.' && is_path_separator(bytes[2] as char) {
+                rest = &rest[2..];
+            } else {
+                rest = &rest[1..];
+            }
+            had_root = true;
+            advanced = true;
+        }
+
+        if !advanced {
+            break;
+        }
+    }
+
+    (rest, had_root)
+}
+
+#[inline]
+fn matches_windows_api_prefix(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    bytes.len() >= 4
+        && is_path_separator(bytes[0] as char)
+        && is_path_separator(bytes[1] as char)
+        && matches!(bytes[2], b'.' | b'?')
+        && is_path_separator(bytes[3] as char)
+}
+
+#[inline]
+fn matches_unc_api_prefix(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    bytes.len() >= 8
+        && matches_windows_api_prefix(path)
+        && bytes[2] == b'?'
+        && matches!(bytes[4], b'U' | b'u')
+        && matches!(bytes[5], b'N' | b'n')
+        && matches!(bytes[6], b'C' | b'c')
+        && is_path_separator(bytes[7] as char)
+}
+
+#[inline]
+fn is_drive_letter_prefix(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
+}
+
+#[inline]
+fn is_path_separator(c: char) -> bool {
+    matches!(c, '/' | '\\')
 }
 
 /// Join path components with `/` separator to produce platform-independent archive paths.
@@ -539,8 +697,10 @@ mod tests {
     //
     // bsdtar's strip_absolute_path() strips Windows API prefixes, drive letters,
     // and leading separators. On Windows, Rust's Path::components() correctly
-    // parses these as Prefix/RootDir components, which sanitize_preserve_curdir
-    // filters out — producing the same result as bsdtar.
+    // parses these as Prefix/RootDir components. The `rewrite_path_for_extraction`
+    // method calls `strip_absolute_path_bsdtar` to handle this at the string
+    // level before host-path normalization. The cross-platform tests below this
+    // section cover the same scenarios without #[cfg(windows)].
     //
     // These 8 types correspond to bsdtar's test_windows.c mkfullpath() types.
 
@@ -640,5 +800,360 @@ mod tests {
         let editor = PathnameEditor::new(None, None, false, true);
         let name = editor.edit_entry_name(Path::new("C:\\a\\b\\c")).unwrap();
         assert_eq!(name.as_str(), "a/b/c");
+    }
+
+    #[test]
+    fn strip_absolute_path_bsdtar_handles_windows_prefixes() {
+        let (path, had_root) = strip_absolute_path_bsdtar("c:/file04");
+        assert_eq!("file04", path);
+        assert!(had_root);
+
+        let (path, had_root) = strip_absolute_path_bsdtar("//?/UNC/server/share/file15");
+        assert_eq!("server/share/file15", path);
+        assert!(had_root);
+
+        let (path, had_root) = strip_absolute_path_bsdtar("\\\\?\\UNC\\server\\share\\file35");
+        assert_eq!("server\\share\\file35", path);
+        assert!(had_root);
+
+        let (path, had_root) = strip_absolute_path_bsdtar("\\/?/uNc/server\\share\\file52");
+        assert_eq!("server\\share\\file52", path);
+        assert!(had_root);
+
+        let (path, had_root) = strip_absolute_path_bsdtar("D:../file05");
+        assert_eq!("../file05", path);
+        assert!(had_root);
+
+        let (path, had_root) = strip_absolute_path_bsdtar("c:../..\\file43");
+        assert_eq!("../..\\file43", path);
+        assert!(had_root);
+    }
+
+    #[test]
+    fn has_parent_dir_component_detects_windows_style_paths() {
+        assert!(has_parent_dir_component("..\\file37"));
+        assert!(has_parent_dir_component("../..\\file43"));
+        let (rewritten, _) = strip_absolute_path_bsdtar("\\\\?\\UNC\\..\\file37");
+        assert!(has_parent_dir_component(rewritten));
+        assert!(!has_parent_dir_component("server\\share\\file35"));
+    }
+
+    #[test]
+    fn editor_preserve_curdir_handles_windows_style_absolute_paths() {
+        let editor = PathnameEditor::new(None, None, false, true);
+        #[cfg(windows)]
+        let expected_unc_backslash = "server/share/file35";
+        #[cfg(not(windows))]
+        let expected_unc_backslash = "server\\share\\file35";
+
+        #[cfg(windows)]
+        let expected_mixed_unc_backslash = "server/share/file52";
+        #[cfg(not(windows))]
+        let expected_mixed_unc_backslash = "server\\share\\file52";
+
+        assert_eq!(
+            "file04",
+            editor
+                .edit_entry_name(Path::new("c:/file04"))
+                .unwrap()
+                .as_str()
+        );
+        assert_eq!(
+            "server/share/file15",
+            editor
+                .edit_entry_name(Path::new("//?/UNC/server/share/file15"))
+                .unwrap()
+                .as_str()
+        );
+        assert_eq!(
+            expected_unc_backslash,
+            editor
+                .edit_entry_name(Path::new("\\\\?\\UNC\\server\\share\\file35"))
+                .unwrap()
+                .as_str()
+        );
+        assert_eq!(
+            expected_mixed_unc_backslash,
+            editor
+                .edit_entry_name(Path::new("\\/?/uNc/server\\share\\file52"))
+                .unwrap()
+                .as_str()
+        );
+    }
+
+    #[test]
+    fn editor_preserve_curdir_rejects_windows_style_parent_dir_paths() {
+        let editor = PathnameEditor::new(None, None, false, true);
+        assert!(editor.edit_entry_name(Path::new("D:../file05")).is_none());
+        assert!(
+            editor
+                .edit_entry_name(Path::new("\\\\?\\UNC\\..\\file37"))
+                .is_none()
+        );
+        assert!(
+            editor
+                .edit_entry_name(Path::new("c:../..\\file43"))
+                .is_none()
+        );
+        assert!(
+            editor
+                .edit_entry_name(Path::new("\\/?\\UnC\\../file54"))
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn editor_preserve_curdir_hardlink_tracks_windows_root_stripping() {
+        let editor = PathnameEditor::new(None, None, false, true);
+        let (reference, had_root) = editor.edit_hardlink(Path::new("c:/etc/hosts")).unwrap();
+        assert_eq!(reference.as_str(), "etc/hosts");
+        assert!(had_root);
+    }
+
+    // --- B1: strip_absolute_path_bsdtar boundary values ---
+
+    #[test]
+    fn strip_absolute_path_bsdtar_empty_string() {
+        let (path, had_root) = strip_absolute_path_bsdtar("");
+        assert_eq!("", path);
+        assert!(!had_root);
+    }
+
+    #[test]
+    fn strip_absolute_path_bsdtar_single_forward_slash() {
+        let (path, had_root) = strip_absolute_path_bsdtar("/");
+        assert_eq!("", path);
+        assert!(had_root);
+    }
+
+    #[test]
+    fn strip_absolute_path_bsdtar_single_backslash() {
+        let (path, had_root) = strip_absolute_path_bsdtar("\\");
+        assert_eq!("", path);
+        assert!(had_root);
+    }
+
+    #[test]
+    fn strip_absolute_path_bsdtar_multiple_separators() {
+        let (path, had_root) = strip_absolute_path_bsdtar("///");
+        assert_eq!("", path);
+        assert!(had_root);
+
+        let (path, had_root) = strip_absolute_path_bsdtar("\\\\");
+        assert_eq!("", path);
+        assert!(had_root);
+    }
+
+    #[test]
+    fn strip_absolute_path_bsdtar_drive_letter_only() {
+        let (path, had_root) = strip_absolute_path_bsdtar("c:");
+        assert_eq!("", path);
+        assert!(had_root);
+    }
+
+    #[test]
+    fn strip_absolute_path_bsdtar_terminal_dotdot() {
+        // bsdtar: "/.."-at-end -- p[3]=='\0' is not a separator, so only "/"
+        // is stripped, leaving "..". The ".." is caught by has_parent_dir_component.
+        let (path, had_root) = strip_absolute_path_bsdtar("/..");
+        assert_eq!("..", path);
+        assert!(had_root);
+
+        let (path, had_root) = strip_absolute_path_bsdtar("\\..");
+        assert_eq!("..", path);
+        assert!(had_root);
+    }
+
+    #[test]
+    fn strip_absolute_path_bsdtar_terminal_dot() {
+        // bsdtar: "/."-at-end -- p[2]=='\0' is not a separator, so only "/"
+        // is stripped, leaving ".".
+        let (path, had_root) = strip_absolute_path_bsdtar("/.");
+        assert_eq!(".", path);
+        assert!(had_root);
+
+        let (path, had_root) = strip_absolute_path_bsdtar("\\.");
+        assert_eq!(".", path);
+        assert!(had_root);
+    }
+
+    #[test]
+    fn strip_absolute_path_bsdtar_prefix_exactly_4_bytes() {
+        let (path, had_root) = strip_absolute_path_bsdtar("//?/");
+        assert_eq!("", path);
+        assert!(had_root);
+    }
+
+    #[test]
+    fn strip_absolute_path_bsdtar_unc_prefix_exactly_8_bytes() {
+        let (path, had_root) = strip_absolute_path_bsdtar("//?/UNC/");
+        assert_eq!("", path);
+        assert!(had_root);
+    }
+
+    #[test]
+    fn strip_absolute_path_bsdtar_safe_relative_paths() {
+        let (path, had_root) = strip_absolute_path_bsdtar("file.txt");
+        assert_eq!("file.txt", path);
+        assert!(!had_root);
+
+        let (path, had_root) = strip_absolute_path_bsdtar("a/b/c");
+        assert_eq!("a/b/c", path);
+        assert!(!had_root);
+
+        let (path, had_root) = strip_absolute_path_bsdtar("./a/b");
+        assert_eq!("./a/b", path);
+        assert!(!had_root);
+    }
+
+    #[test]
+    fn strip_absolute_path_bsdtar_leading_separator_with_content() {
+        let (path, had_root) = strip_absolute_path_bsdtar("/file");
+        assert_eq!("file", path);
+        assert!(had_root);
+
+        let (path, had_root) = strip_absolute_path_bsdtar("\\file");
+        assert_eq!("file", path);
+        assert!(had_root);
+    }
+
+    // --- B2: device prefix (\\.\) tests ---
+
+    #[test]
+    fn strip_absolute_path_bsdtar_device_prefix_with_drive() {
+        // \\.\C:\file -- device prefix (4 bytes stripped), then drive letter
+        let (path, had_root) = strip_absolute_path_bsdtar("\\\\.\\C:\\file");
+        assert_eq!("file", path);
+        assert!(had_root);
+
+        // //./C:/file -- forward-slash variant
+        let (path, had_root) = strip_absolute_path_bsdtar("//./C:/file");
+        assert_eq!("file", path);
+        assert!(had_root);
+    }
+
+    #[test]
+    fn strip_absolute_path_bsdtar_device_prefix_only() {
+        // \\.\ alone (4 bytes + trailing separator)
+        let (path, had_root) = strip_absolute_path_bsdtar("\\\\.\\");
+        assert_eq!("", path);
+        assert!(had_root);
+    }
+
+    #[test]
+    fn strip_absolute_path_bsdtar_device_unc_prefix() {
+        // \\.\UNC\ is treated as a 4-byte API prefix (\\.\), NOT as an 8-byte
+        // UNC prefix. Only \\?\ triggers the UNC check (matches_unc_api_prefix
+        // requires bytes[2] == b'?'). After stripping \\.\, "UNC\..." remains
+        // and "UNC" is not a drive letter, so it stays.
+        let (path, had_root) = strip_absolute_path_bsdtar("\\\\.\\UNC\\server\\share\\file");
+        assert_eq!("UNC\\server\\share\\file", path);
+        assert!(had_root);
+    }
+
+    #[test]
+    fn strip_absolute_path_bsdtar_device_prefix_with_traversal() {
+        // \\.\..\secret -- device prefix (4 bytes) stripped, "..\secret" remains.
+        // The ".." is NOT consumed because it doesn't follow a separator;
+        // has_parent_dir_component catches it downstream.
+        let (path, had_root) = strip_absolute_path_bsdtar("\\\\.\\..\\secret");
+        assert_eq!("..\\secret", path);
+        assert!(had_root);
+        assert!(has_parent_dir_component(path));
+    }
+
+    // --- B3+B4: is_unsafe_link equivalent (strip + has_parent_dir combined) ---
+    // is_unsafe_link is: had_root || has_parent_dir_component(rewritten)
+    // We test the same logic directly here.
+
+    #[test]
+    fn strip_then_parent_dir_detects_drive_dotdot_backslash() {
+        let (rewritten, had_root) = strip_absolute_path_bsdtar("c:..\\file");
+        assert!(had_root, "drive letter should be stripped");
+        assert!(has_parent_dir_component(rewritten), ".. should be detected");
+    }
+
+    #[test]
+    fn strip_then_parent_dir_detects_slash_dotdot_backslash() {
+        // /..\ is consumed as /../ equivalent (both separators recognized),
+        // so .. does not remain — had_root alone catches it.
+        let (rewritten, had_root) = strip_absolute_path_bsdtar("/..\\file");
+        assert!(had_root, "leading slash and /..\\ should be stripped");
+        assert_eq!("file", rewritten);
+    }
+
+    #[test]
+    fn strip_then_parent_dir_detects_drive_slash_dotdot_backslash() {
+        // c:/../ is fully consumed: drive letter, slash, and /../ sequence.
+        let (rewritten, had_root) = strip_absolute_path_bsdtar("c:/..\\file");
+        assert!(had_root, "drive letter, slash and /..\\ should be stripped");
+        assert_eq!("file", rewritten);
+    }
+
+    #[test]
+    fn strip_then_parent_dir_detects_device_prefix_dotdot() {
+        let (rewritten, had_root) = strip_absolute_path_bsdtar("\\\\?\\..\\file");
+        assert!(had_root, "device prefix should be stripped");
+        assert!(has_parent_dir_component(rewritten), ".. should be detected");
+    }
+
+    #[test]
+    fn strip_then_parent_dir_allows_safe_path() {
+        let (rewritten, had_root) = strip_absolute_path_bsdtar("a/b/c");
+        assert!(!had_root);
+        assert!(!has_parent_dir_component(rewritten));
+    }
+
+    #[test]
+    fn is_unsafe_link_path_detects_all_unsafe_patterns() {
+        // Windows drive prefix
+        assert!(is_unsafe_link_path("C:/file"));
+        // POSIX absolute
+        assert!(is_unsafe_link_path("/etc/passwd"));
+        // Backslash parent traversal
+        assert!(is_unsafe_link_path("..\\file"));
+        // Forward slash parent traversal
+        assert!(is_unsafe_link_path("../file"));
+        // Windows UNC with embedded dotdot
+        assert!(is_unsafe_link_path("\\\\?\\UNC\\..\\file"));
+        // Drive-relative with dotdot
+        assert!(is_unsafe_link_path("D:../file"));
+    }
+
+    #[test]
+    fn is_unsafe_link_path_allows_safe_patterns() {
+        assert!(!is_unsafe_link_path("a/b/c"));
+        assert!(!is_unsafe_link_path("file.txt"));
+        assert!(!is_unsafe_link_path("./a/b"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rewrite_path_strips_prefix_from_non_utf8_path() {
+        use std::ffi::OsStr;
+        use std::os::unix::ffi::OsStrExt;
+        // b"/\xff/file" — leading '/' + non-UTF-8 byte + "/file"
+        let path = Path::new(OsStr::from_bytes(b"/\xff/file"));
+        let editor = PathnameEditor::new(None, None, false, true);
+        let rewritten = editor.rewrite_path_for_extraction(path);
+        assert!(rewritten.had_root);
+        assert!(rewritten.path.contains("file"));
+        assert!(!rewritten.path.starts_with('/'));
+    }
+
+    #[test]
+    fn has_parent_dir_component_adversarial_cases() {
+        // mid-path backslash dotdot
+        assert!(has_parent_dir_component("foo\\..\\bar"));
+        // standalone dotdot
+        assert!(has_parent_dir_component(".."));
+        // dotdot with mixed separators
+        assert!(has_parent_dir_component("a/b\\../c"));
+        // trailing separator after dotdot
+        assert!(has_parent_dir_component("../"));
+        // NOT parent dir: "..name" is a normal component
+        assert!(!has_parent_dir_component("a/..name"));
+        // NOT parent dir: "..." is a normal component
+        assert!(!has_parent_dir_component("a/.../b"));
     }
 }

@@ -1732,10 +1732,5 @@ fn search_group(name: &str, id: u64) -> io::Result<Group> {
 
 #[inline]
 fn is_unsafe_link(reference: &EntryReference) -> bool {
-    reference.as_path().components().any(|it| {
-        matches!(
-            it,
-            Component::ParentDir | Component::RootDir | Component::Prefix(_)
-        )
-    })
+    crate::command::core::path::is_unsafe_link_path(reference.as_str())
 }
