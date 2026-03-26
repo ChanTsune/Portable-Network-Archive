@@ -60,7 +60,7 @@ impl Command for ExperimentalCommand {
 #[derive(Subcommand, Clone, Debug)]
 pub(crate) enum ExperimentalCommands {
     #[command(
-        about = "bsdtar-compatible interface for PNA archives (stabilized, use `pna compat bsdtar` instead)"
+        about = "bsdtar-like CLI semantics for PNA archives (stabilized, use `pna compat bsdtar` instead)"
     )]
     Stdio(command::bsdtar::BsdtarCommand),
     #[command(about = "Delete entry from archive")]

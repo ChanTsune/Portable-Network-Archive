@@ -19,6 +19,6 @@ impl Command for CompatCommand {
 
 #[derive(Subcommand, Clone, Debug)]
 pub(crate) enum CompatCommands {
-    #[command(about = "bsdtar-compatible interface for PNA archives")]
+    #[command(about = "bsdtar-like CLI semantics for PNA archives")]
     Bsdtar(command::bsdtar::BsdtarCommand),
 }
