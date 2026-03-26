@@ -145,7 +145,7 @@ fn stdio_extract_blocks_symlink_with_parent_dir_target() {
             out_dir.to_str().unwrap(),
         ])
         .assert()
-        .success();
+        .failure();
 
     assert!(
         out_dir.join("b/file.txt").exists(),
@@ -337,7 +337,7 @@ fn stdio_extract_blocks_hardlink_with_parent_dir_target() {
             out_dir.to_str().unwrap(),
         ])
         .assert()
-        .success();
+        .failure();
 
     assert!(
         out_dir.join("a/file.txt").exists(),
@@ -382,7 +382,7 @@ fn stdio_extract_rejects_hardlink_with_dotdot_by_default() {
             out_dir.to_str().unwrap(),
         ])
         .assert()
-        .success();
+        .failure();
 
     assert!(
         out_dir.join("a/file.txt").exists(),
@@ -563,7 +563,7 @@ fn stdio_extract_rejects_entry_with_dotdot() {
             out_dir.to_str().unwrap(),
         ])
         .assert()
-        .success();
+        .failure();
 
     assert!(
         !out_dir.join("b/file.txt").exists(),

@@ -19,7 +19,7 @@ use crate::{
             read_paths, run_across_archive, validate_no_duplicate_stdin,
         },
         create::{CreationContext, create_archive_file},
-        extract::{OutputOption, OverwriteStrategy, run_extract_archive_reader},
+        extract::{Outcome, OutputOption, OverwriteStrategy, run_extract_archive_reader},
         list::{Format, ListOptions, TimeField, TimeFormat},
         update::run_update_archive,
     },
@@ -1133,7 +1133,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
         env::set_current_dir(working_dir)?;
     }
     apply_chroot(args.chroot)?;
-    if let Some(archives) = archives {
+    let outcome = if let Some(archives) = archives {
         run_extract_archive_reader(
             archives
                 .into_iter()
@@ -1144,7 +1144,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
             args.no_recursive,
             args.fast_read,
             args.ignore_zeros,
-        )
+        )?
     } else {
         run_extract_archive_reader(
             std::iter::repeat_with(|| io::stdin().lock()),
@@ -1154,8 +1154,12 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
             args.no_recursive,
             args.fast_read,
             args.ignore_zeros,
-        )
+        )?
+    };
+    if outcome == Outcome::Warn {
+        anyhow::bail!("One or more entries were not extracted due to path security violations");
     }
+    Ok(())
 }
 
 #[hooq::hooq(anyhow)]
