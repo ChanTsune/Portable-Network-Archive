@@ -91,6 +91,7 @@ jobs:
           repository: libarchive/libarchive
           ref: v3.8.5
           path: libarchive
+          persist-credentials: false
 
       - name: Build bsdtar and bsdtar_test
         if: ${{ matrix.name != 'windows' }}
@@ -208,6 +209,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           path: pna
+          persist-credentials: false
 
       - name: Install dependencies (Ubuntu)
         if: ${{ matrix.name == 'ubuntu' }}
@@ -256,6 +258,7 @@ jobs:
           repository: libarchive/libarchive
           ref: v3.8.5
           path: libarchive
+          persist-credentials: false
 
       - name: Build bsdtar_test
         if: ${{ matrix.name != 'windows' }}
