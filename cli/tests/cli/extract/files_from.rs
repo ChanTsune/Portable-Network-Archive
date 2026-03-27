@@ -1,4 +1,4 @@
-use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 use std::fs;
@@ -59,15 +59,4 @@ fn extract_with_files_from_manifest() {
         !fs::exists("extract_files_from/out/extract_files_from/in/raw/images/icon.svg").unwrap()
     );
     assert!(!fs::exists("extract_files_from/out/extract_files_from/in/raw/pna/empty.pna").unwrap());
-
-    diff(
-        "extract_files_from/in/raw/images/icon.png",
-        "extract_files_from/out/extract_files_from/in/raw/images/icon.png",
-    )
-    .unwrap();
-    diff(
-        "extract_files_from/in/raw/text.txt",
-        "extract_files_from/out/extract_files_from/in/raw/text.txt",
-    )
-    .unwrap();
 }

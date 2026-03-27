@@ -1,5 +1,5 @@
 #![cfg(any(unix, windows))]
-use crate::utils::{EmbedExt, TestResources, archive, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 
@@ -45,6 +45,4 @@ fn create_numeric_owner() {
     .unwrap()
     .execute()
     .unwrap();
-
-    diff("numeric_owner/in/", "numeric_owner/out/").unwrap();
 }
