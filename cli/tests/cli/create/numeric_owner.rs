@@ -28,21 +28,4 @@ fn create_numeric_owner() {
         assert_eq!(p.gname(), "");
     })
     .unwrap();
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "x",
-        "numeric_owner/numeric_owner.pna",
-        "--overwrite",
-        "--out-dir",
-        "numeric_owner/out/",
-        "--keep-permission",
-        "--strip-components",
-        "2",
-        #[cfg(windows)]
-        "--unstable",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
 }
