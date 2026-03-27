@@ -2,6 +2,9 @@ use crate::utils::{EmbedExt, TestResources, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 
+/// Precondition: An archive contains entries with permission metadata.
+/// Action: Run `pna experimental chown` targeting both an existing and a non-existent entry.
+/// Expectation: The command returns an error because at least one requested path is absent.
 #[test]
 fn fail_with_missing_file() {
     setup();
