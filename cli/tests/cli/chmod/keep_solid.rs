@@ -38,8 +38,10 @@ fn chmod_keep_solid() {
     .execute()
     .unwrap();
 
+    let mut found = false;
     archive::for_each_entry("chmod_keep_solid.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
+            found = true;
             let perm = entry
                 .metadata()
                 .permission()
@@ -52,4 +54,5 @@ fn chmod_keep_solid() {
         }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
 }

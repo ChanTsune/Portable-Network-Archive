@@ -37,8 +37,10 @@ fn chmod_symbolic_all_implicit_add_execute() {
     .execute()
     .unwrap();
 
+    let mut found = false;
     archive::for_each_entry("chmod_sym_all_add_x.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
+            found = true;
             let perm = entry
                 .metadata()
                 .permission()
@@ -51,6 +53,7 @@ fn chmod_symbolic_all_implicit_add_execute() {
         }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
 }
 
 /// Precondition: An archive contains a file with permission 0o666 (rw-rw-rw-).
@@ -84,8 +87,10 @@ fn chmod_symbolic_all_explicit_add_execute() {
     .execute()
     .unwrap();
 
+    let mut found = false;
     archive::for_each_entry("chmod_sym_a_add_x.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
+            found = true;
             let perm = entry
                 .metadata()
                 .permission()
@@ -98,6 +103,7 @@ fn chmod_symbolic_all_explicit_add_execute() {
         }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
 }
 
 /// Precondition: An archive contains a file with permission 0o777 (rwxrwxrwx).
@@ -131,8 +137,10 @@ fn chmod_symbolic_all_remove_write() {
     .execute()
     .unwrap();
 
+    let mut found = false;
     archive::for_each_entry("chmod_sym_a_rm_w.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
+            found = true;
             let perm = entry
                 .metadata()
                 .permission()
@@ -145,6 +153,7 @@ fn chmod_symbolic_all_remove_write() {
         }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
 }
 
 /// Precondition: An archive contains a file with permission 0o000 (---------).
@@ -179,8 +188,10 @@ fn chmod_symbolic_all_set_readwrite() {
     .execute()
     .unwrap();
 
+    let mut found = false;
     archive::for_each_entry("chmod_sym_all_set_rw.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
+            found = true;
             let perm = entry
                 .metadata()
                 .permission()
@@ -193,4 +204,5 @@ fn chmod_symbolic_all_set_readwrite() {
         }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
 }

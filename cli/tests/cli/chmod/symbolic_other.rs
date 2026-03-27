@@ -36,8 +36,10 @@ fn chmod_symbolic_other_add_read() {
     .execute()
     .unwrap();
 
+    let mut found = false;
     archive::for_each_entry("chmod_sym_o_add_r.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
+            found = true;
             let perm = entry
                 .metadata()
                 .permission()
@@ -50,6 +52,7 @@ fn chmod_symbolic_other_add_read() {
         }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
 }
 
 /// Precondition: An archive contains a file with permission 0o777 (rwxrwxrwx).
@@ -83,8 +86,10 @@ fn chmod_symbolic_other_remove_all() {
     .execute()
     .unwrap();
 
+    let mut found = false;
     archive::for_each_entry("chmod_sym_o_rm_rwx.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
+            found = true;
             let perm = entry
                 .metadata()
                 .permission()
@@ -97,6 +102,7 @@ fn chmod_symbolic_other_remove_all() {
         }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
 }
 
 /// Precondition: An archive contains a file with permission 0o777 (rwxrwxrwx).
@@ -130,8 +136,10 @@ fn chmod_symbolic_other_set_none() {
     .execute()
     .unwrap();
 
+    let mut found = false;
     archive::for_each_entry("chmod_sym_o_set_none.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
+            found = true;
             let perm = entry
                 .metadata()
                 .permission()
@@ -144,4 +152,5 @@ fn chmod_symbolic_other_set_none() {
         }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
 }

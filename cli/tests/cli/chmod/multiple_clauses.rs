@@ -36,8 +36,10 @@ fn chmod_multiple_clauses_standard_754() {
     .execute()
     .unwrap();
 
+    let mut found = false;
     archive::for_each_entry("chmod_multi_754.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
+            found = true;
             let perm = entry
                 .metadata()
                 .permission()
@@ -50,6 +52,7 @@ fn chmod_multiple_clauses_standard_754() {
         }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
 }
 
 /// Precondition: An archive contains a file with permission 0o777 (rwxrwxrwx).
@@ -83,8 +86,10 @@ fn chmod_multiple_clauses_restrictive() {
     .execute()
     .unwrap();
 
+    let mut found = false;
     archive::for_each_entry("chmod_multi_640.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
+            found = true;
             let perm = entry
                 .metadata()
                 .permission()
@@ -97,6 +102,7 @@ fn chmod_multiple_clauses_restrictive() {
         }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
 }
 
 /// Precondition: An archive contains a file with permission 0o644 (rw-r--r--).
@@ -130,8 +136,10 @@ fn chmod_multiple_clauses_mixed_operations() {
     .execute()
     .unwrap();
 
+    let mut found = false;
     archive::for_each_entry("chmod_multi_mixed.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
+            found = true;
             let perm = entry
                 .metadata()
                 .permission()
@@ -144,6 +152,7 @@ fn chmod_multiple_clauses_mixed_operations() {
         }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
 }
 
 /// Precondition: An archive contains a file with permission 0o777 (rwxrwxrwx).
@@ -177,8 +186,10 @@ fn chmod_multiple_clauses_combined_targets() {
     .execute()
     .unwrap();
 
+    let mut found = false;
     archive::for_each_entry("chmod_multi_combined.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
+            found = true;
             let perm = entry
                 .metadata()
                 .permission()
@@ -191,4 +202,5 @@ fn chmod_multiple_clauses_combined_targets() {
         }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
 }

@@ -237,8 +237,10 @@ fn chmod_verify_archive_metadata() {
     .execute()
     .unwrap();
 
+    let mut found = false;
     archive::for_each_entry("chmod_verify_meta.pna", |entry| {
         if entry.header().path() == "test.txt" {
+            found = true;
             let perm = entry
                 .metadata()
                 .permission()
@@ -251,4 +253,5 @@ fn chmod_verify_archive_metadata() {
         }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
 }
