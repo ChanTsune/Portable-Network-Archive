@@ -1,4 +1,4 @@
-use crate::utils::{EmbedExt, TestResources, setup};
+use crate::utils::{EmbedExt, TestResources, archive, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
 
@@ -26,9 +26,13 @@ fn concat_with_overwrite_succeeds() {
     .assert()
     .success();
 
-    // Verify output file was overwritten (should be a valid PNA now)
-    let content = fs::read("concat_overwrite_yes/output.pna").unwrap();
-    assert_ne!(content, b"dummy content");
+    // Verify output is a valid PNA archive with at least one entry
+    let mut count = 0usize;
+    archive::for_each_entry("concat_overwrite_yes/output.pna", |_| {
+        count += 1;
+    })
+    .unwrap();
+    assert!(count > 0, "concatenated archive should contain entries");
 }
 
 /// Precondition: Output file already exists.
