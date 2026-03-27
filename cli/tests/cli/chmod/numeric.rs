@@ -36,8 +36,10 @@ fn chmod_numeric_mode() {
     .execute()
     .unwrap();
 
+    let mut found = false;
     archive::for_each_entry("chmod_numeric.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
+            found = true;
             let perm = entry
                 .metadata()
                 .permission()
@@ -50,4 +52,5 @@ fn chmod_numeric_mode() {
         }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
 }

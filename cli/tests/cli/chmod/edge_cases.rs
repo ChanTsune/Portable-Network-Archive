@@ -36,8 +36,10 @@ fn chmod_edge_set_no_permissions() {
     .execute()
     .unwrap();
 
+    let mut found = false;
     archive::for_each_entry("chmod_edge_000.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
+            found = true;
             let perm = entry
                 .metadata()
                 .permission()
@@ -50,6 +52,7 @@ fn chmod_edge_set_no_permissions() {
         }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
 }
 
 /// Precondition: An archive contains a file with permission 0o000 (---------).
@@ -83,8 +86,10 @@ fn chmod_edge_set_full_permissions() {
     .execute()
     .unwrap();
 
+    let mut found = false;
     archive::for_each_entry("chmod_edge_777.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
+            found = true;
             let perm = entry
                 .metadata()
                 .permission()
@@ -97,6 +102,7 @@ fn chmod_edge_set_full_permissions() {
         }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
 }
 
 /// Precondition: An archive contains a file with permission 0o644 (rw-r--r--).
@@ -130,8 +136,10 @@ fn chmod_edge_idempotent_operation() {
     .execute()
     .unwrap();
 
+    let mut found = false;
     archive::for_each_entry("chmod_edge_idem.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
+            found = true;
             let perm = entry
                 .metadata()
                 .permission()
@@ -144,6 +152,7 @@ fn chmod_edge_idempotent_operation() {
         }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
 }
 
 /// Precondition: An archive contains a file with permission 0o755 (rwxr-xr-x).
@@ -177,8 +186,10 @@ fn chmod_edge_symbolic_clear_all() {
     .execute()
     .unwrap();
 
+    let mut found = false;
     archive::for_each_entry("chmod_edge_clear.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
+            found = true;
             let perm = entry
                 .metadata()
                 .permission()
@@ -191,6 +202,7 @@ fn chmod_edge_symbolic_clear_all() {
         }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
 }
 
 /// Precondition: An archive contains a file with permission 0o000 (---------).
@@ -224,8 +236,10 @@ fn chmod_edge_symbolic_full_permissions() {
     .execute()
     .unwrap();
 
+    let mut found = false;
     archive::for_each_entry("chmod_edge_full.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
+            found = true;
             let perm = entry
                 .metadata()
                 .permission()
@@ -238,6 +252,7 @@ fn chmod_edge_symbolic_full_permissions() {
         }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
 }
 
 /// Precondition: An archive contains a file with permission 0o755 (rwxr-xr-x).
@@ -272,8 +287,10 @@ fn chmod_edge_idempotent_add_execute() {
     .execute()
     .unwrap();
 
+    let mut found = false;
     archive::for_each_entry("chmod_edge_idem_x.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
+            found = true;
             let perm = entry
                 .metadata()
                 .permission()
@@ -286,6 +303,7 @@ fn chmod_edge_idempotent_add_execute() {
         }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
 }
 
 /// Precondition: An archive contains a file with permission 0o644 (rw-r--r--).
@@ -320,8 +338,10 @@ fn chmod_edge_idempotent_remove_execute() {
     .execute()
     .unwrap();
 
+    let mut found = false;
     archive::for_each_entry("chmod_edge_idem_no_x.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
+            found = true;
             let perm = entry
                 .metadata()
                 .permission()
@@ -334,4 +354,5 @@ fn chmod_edge_idempotent_remove_execute() {
         }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
 }

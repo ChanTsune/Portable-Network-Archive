@@ -41,8 +41,10 @@ fn chmod_with_password() {
     .execute()
     .unwrap();
 
+    let mut found = false;
     archive::for_each_entry_with_password("chmod_password.pna", Some(PASSWORD), |entry| {
         if entry.header().path() == ENTRY_PATH {
+            found = true;
             let perm = entry
                 .metadata()
                 .permission()
@@ -55,4 +57,5 @@ fn chmod_with_password() {
         }
     })
     .unwrap();
+    assert!(found, "target entry not found in archive");
 }
