@@ -129,8 +129,9 @@ fn xattr_set_wrong_password_no_effect() {
     .execute()
     .unwrap();
 
-    // Attempt to set xattr with wrong password (should not affect the archive)
-    let _ = cli::Cli::try_parse_from([
+    // Attempt to set xattr with wrong password — may succeed or fail,
+    // but must not corrupt the archive or alter existing xattrs.
+    let _result = cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "xattr",
