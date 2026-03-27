@@ -7,6 +7,7 @@ use crate::utils::{archive::for_each_entry, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use std::collections::HashSet;
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 fn get_archive_entry_names(path: &Path) -> Vec<String> {
@@ -103,12 +104,19 @@ fn stdio_mtree_with_set_directive() {
         .assert()
         .success();
 
-    let entry_names: HashSet<String> = get_archive_entry_names(&output_archive)
-        .into_iter()
-        .collect();
-    assert!(entry_names.contains("app.txt"));
-    assert!(entry_names.contains("config.txt"));
-    assert_eq!(entry_names.len(), 2);
+    let mut seen = HashSet::new();
+    for_each_entry(&output_archive, |entry| {
+        let path = entry.header().path().to_string();
+        let mode = entry.metadata().permission().map(|p| p.permissions());
+        match path.as_str() {
+            "app.txt" => assert_eq!(mode, Some(0o755)),
+            "config.txt" => assert_eq!(mode, Some(0o644)),
+            _ => panic!("unexpected entry: {path}"),
+        }
+        seen.insert(path);
+    })
+    .unwrap();
+    assert_eq!(seen.len(), 2);
 }
 
 /// Precondition: An mtree manifest uses contents= to specify alternate file source.
@@ -149,12 +157,20 @@ fn stdio_mtree_contents_keyword() {
         .assert()
         .success();
 
-    let entry_names: HashSet<String> = get_archive_entry_names(&output_archive)
-        .into_iter()
-        .collect();
-    // Entry should be named usr/bin/app, not build/compiled.bin
-    assert!(entry_names.contains("usr/bin/app"), "Missing usr/bin/app");
-    assert_eq!(entry_names.len(), 1);
+    let mut found = false;
+    for_each_entry(&output_archive, |entry| {
+        assert_eq!(entry.header().path().as_str(), "usr/bin/app");
+        let mut content = String::new();
+        entry
+            .reader(pna::ReadOptions::with_password::<&[u8]>(None))
+            .unwrap()
+            .read_to_string(&mut content)
+            .unwrap();
+        assert_eq!(content, "binary content");
+        found = true;
+    })
+    .unwrap();
+    assert!(found, "usr/bin/app entry not found");
 }
 
 /// Precondition: An mtree manifest uses CRLF line endings, wrapped lines, and `content=` alias.
@@ -307,11 +323,29 @@ fn stdio_mtree_symlink_entry() {
         .assert()
         .success();
 
-    let entry_names: HashSet<String> = get_archive_entry_names(&output_archive)
-        .into_iter()
-        .collect();
-    assert!(entry_names.contains("target.txt"));
-    assert!(entry_names.contains("link.txt"));
+    let mut seen = HashSet::new();
+    for_each_entry(&output_archive, |entry| {
+        let path = entry.header().path().to_string();
+        match path.as_str() {
+            "target.txt" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::File);
+            }
+            "link.txt" => {
+                assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
+                let mut target = String::new();
+                entry
+                    .reader(pna::ReadOptions::with_password::<&[u8]>(None))
+                    .unwrap()
+                    .read_to_string(&mut target)
+                    .unwrap();
+                assert_eq!(target, "target.txt");
+            }
+            other => panic!("unexpected entry: {other}"),
+        }
+        seen.insert(path);
+    })
+    .unwrap();
+    assert_eq!(seen.len(), 2);
 }
 
 /// Precondition: Both an mtree manifest and standalone files exist.
