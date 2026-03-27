@@ -19,18 +19,22 @@ runs:
       id: get_commits
       shell: bash
       run: |
-        commits=$(gh pr view ${{ inputs.pr_number }} --json commits --jq '.commits[].messageHeadline')
-        if echo "$commits" | grep -q "${{ inputs.message_contains }}"; then
-          echo "matched=true" >> $GITHUB_ENV
+        commits=$(gh pr view "$PR_NUMBER" --json commits --jq '.commits[].messageHeadline')
+        if echo "$commits" | grep -qF "$MESSAGE_CONTAINS"; then
+          echo "matched=true" >> "$GITHUB_ENV"
         else
-          echo "matched=false" >> $GITHUB_ENV
+          echo "matched=false" >> "$GITHUB_ENV"
         fi
       env:
         GH_TOKEN: ${{ github.token }}
+        PR_NUMBER: ${{ inputs.pr_number }}
+        MESSAGE_CONTAINS: ${{ inputs.message_contains }}
     - name: Add label based on commit content
       if: env.matched == 'true'
       shell: bash
       run: |
-        gh pr edit ${{ inputs.pr_number }} --add-label "${{ inputs.label_name }}"
+        gh pr edit "$PR_NUMBER" --add-label "$LABEL_NAME"
       env:
         GH_TOKEN: ${{ github.token }}
+        PR_NUMBER: ${{ inputs.pr_number }}
+        LABEL_NAME: ${{ inputs.label_name }}

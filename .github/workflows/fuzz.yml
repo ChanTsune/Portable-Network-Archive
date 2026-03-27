@@ -63,8 +63,10 @@ jobs:
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz
       - name: Run fuzzing
+        env:
+          FUZZ_TARGET: ${{ matrix.fuzz_target }}
         run: |
-          cargo fuzz run --release ${{ matrix.fuzz_target }} -- -max_total_time=300
+          cargo fuzz run --release "$FUZZ_TARGET" -- -max_total_time=300
       - name: Upload crash artifacts
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
