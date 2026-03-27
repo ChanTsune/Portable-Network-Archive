@@ -4,7 +4,9 @@ use assert_cmd::cargo::cargo_bin_cmd;
 use predicates::prelude::{PredicateBooleanExt, predicate};
 use std::fs;
 
-/// --options with global compression-level creates archive successfully.
+/// Precondition: A file exists in the filesystem.
+/// Action: Run `pna compat bsdtar` --create with `--options` specifying a global compression level.
+/// Expectation: The archive is created successfully.
 #[test]
 fn stdio_options_global_compression_level() {
     setup();
@@ -23,7 +25,9 @@ fn stdio_options_global_compression_level() {
         .success();
 }
 
-/// --options with module-specific compression-level creates archive successfully.
+/// Precondition: A file exists in the filesystem.
+/// Action: Run `pna compat bsdtar` --create with `--options` specifying a module-scoped compression level.
+/// Expectation: The archive is created successfully.
 #[test]
 fn stdio_options_module_compression_level() {
     setup();
@@ -42,7 +46,9 @@ fn stdio_options_module_compression_level() {
         .success();
 }
 
-/// Flag-level compression (--zstd=N) shows deprecation warning.
+/// Precondition: A file exists in the filesystem.
+/// Action: Run `pna compat bsdtar` --create with a deprecated flag-level compression option.
+/// Expectation: The command succeeds but emits a deprecation warning.
 #[test]
 fn stdio_flag_level_shows_deprecation_warning() {
     setup();
@@ -63,7 +69,9 @@ fn stdio_flag_level_shows_deprecation_warning() {
         ));
 }
 
-/// --options without flag-level does not show deprecation warning.
+/// Precondition: A file exists in the filesystem.
+/// Action: Run `pna compat bsdtar` --create with `--options` for compression level.
+/// Expectation: The command succeeds without any deprecation warning.
 #[test]
 fn stdio_options_no_deprecation_warning() {
     setup();
@@ -83,7 +91,9 @@ fn stdio_options_no_deprecation_warning() {
         .stderr(predicate::str::contains("deprecated").not());
 }
 
-/// Invalid --options value shows error with context.
+/// Precondition: A file exists in the filesystem.
+/// Action: Run `pna compat bsdtar` --create with an invalid `--options` value.
+/// Expectation: The command fails with an error message that includes context about the invalid option.
 #[test]
 fn stdio_options_invalid_value_shows_context() {
     setup();
