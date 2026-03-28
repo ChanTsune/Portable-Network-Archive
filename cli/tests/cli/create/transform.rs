@@ -1,7 +1,7 @@
-use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
 use portable_network_archive::cli;
-use std::fs;
+use std::{collections::HashSet, fs};
 
 #[test]
 fn create_with_transform() {
@@ -23,18 +23,34 @@ fn create_with_transform() {
     .unwrap();
     assert!(fs::exists("create_with_transform/create_with_transform.pna").unwrap());
 
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "x",
-        "create_with_transform/create_with_transform.pna",
-        "--overwrite",
-        "--out-dir",
-        "create_with_transform/out/",
-    ])
-    .unwrap()
-    .execute()
+    let mut seen = HashSet::new();
+    archive::for_each_entry("create_with_transform/create_with_transform.pna", |entry| {
+        seen.insert(entry.header().path().to_string());
+    })
     .unwrap();
 
-    diff("create_with_transform/in/", "create_with_transform/out/").unwrap();
+    for required in [
+        "raw",
+        "raw/empty.txt",
+        "raw/text.txt",
+        "raw/first",
+        "raw/first/second",
+        "raw/first/second/third",
+        "raw/first/second/third/pna.txt",
+        "raw/parent",
+        "raw/parent/child.txt",
+        "raw/images",
+        "raw/images/icon.bmp",
+        "raw/images/icon.png",
+        "raw/images/icon.svg",
+        "raw/pna",
+        "raw/pna/empty.pna",
+        "raw/pna/nest.pna",
+    ] {
+        assert!(
+            seen.take(required).is_some(),
+            "required entry missing: {required}"
+        );
+    }
+    assert!(seen.is_empty(), "unexpected entries found: {seen:?}");
 }

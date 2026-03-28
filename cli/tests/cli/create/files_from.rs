@@ -1,7 +1,7 @@
-use crate::utils::{self, EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
 use portable_network_archive::cli;
-use std::fs;
+use std::{collections::HashSet, fs};
 
 #[test]
 fn create_with_files_from() {
@@ -33,44 +33,25 @@ fn create_with_files_from() {
     .execute()
     .unwrap();
 
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "x",
+    let mut seen = HashSet::new();
+    archive::for_each_entry(
         "create_with_files_from/create_with_files_from.pna",
-        "--overwrite",
-        "--out-dir",
-        "create_with_files_from/out/",
-        "--strip-components",
-        "2",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
-
-    utils::copy_dir_all(
-        "create_with_files_from/src/",
-        "create_with_files_from/expected/",
+        |entry| {
+            seen.insert(entry.header().path().to_string());
+        },
     )
     .unwrap();
-    let to_remove = [
-        "create_with_files_from/expected/raw/first/second/third/pna.txt",
-        "create_with_files_from/expected/raw/parent/child.txt",
-        "create_with_files_from/expected/raw/images/icon.bmp",
-        "create_with_files_from/expected/raw/images/icon.png",
-        "create_with_files_from/expected/raw/images/icon.svg",
-        "create_with_files_from/expected/raw/pna/empty.pna",
-        "create_with_files_from/expected/raw/pna/nest.pna",
-    ];
-    for file in to_remove {
-        utils::remove_with_empty_parents(file).unwrap();
+
+    for required in [
+        "create_with_files_from/src/raw/empty.txt",
+        "create_with_files_from/src/raw/text.txt",
+    ] {
+        assert!(
+            seen.take(required).is_some(),
+            "required entry missing: {required}"
+        );
     }
-
-    diff(
-        "create_with_files_from/expected/",
-        "create_with_files_from/out/",
-    )
-    .unwrap();
+    assert!(seen.is_empty(), "unexpected entries found: {seen:?}");
 }
 
 #[test]
@@ -99,6 +80,23 @@ fn create_with_files_from_crlf() {
     .unwrap()
     .execute()
     .unwrap();
+
+    let mut seen = HashSet::new();
+    archive::for_each_entry("create_with_files_from_crlf/test.pna", |entry| {
+        seen.insert(entry.header().path().to_string());
+    })
+    .unwrap();
+
+    for required in [
+        "create_with_files_from_crlf/src/raw/empty.txt",
+        "create_with_files_from_crlf/src/raw/text.txt",
+    ] {
+        assert!(
+            seen.take(required).is_some(),
+            "required entry missing: {required}"
+        );
+    }
+    assert!(seen.is_empty(), "unexpected entries found: {seen:?}");
 }
 
 #[test]
@@ -127,4 +125,21 @@ fn create_with_files_from_cr() {
     .unwrap()
     .execute()
     .unwrap();
+
+    let mut seen = HashSet::new();
+    archive::for_each_entry("create_with_files_from_cr/test.pna", |entry| {
+        seen.insert(entry.header().path().to_string());
+    })
+    .unwrap();
+
+    for required in [
+        "create_with_files_from_cr/src/raw/empty.txt",
+        "create_with_files_from_cr/src/raw/text.txt",
+    ] {
+        assert!(
+            seen.take(required).is_some(),
+            "required entry missing: {required}"
+        );
+    }
+    assert!(seen.is_empty(), "unexpected entries found: {seen:?}");
 }

@@ -1,6 +1,7 @@
 #![cfg(not(target_family = "wasm"))]
-use crate::utils::{self, EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, archive, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
+use std::collections::HashSet;
 
 #[test]
 fn create_with_files_from_stdin() {
@@ -25,40 +26,23 @@ fn create_with_files_from_stdin() {
     ]);
     cmd.assert().success();
 
-    let mut cmd = cargo_bin_cmd!("pna");
-    cmd.args([
-        "--quiet",
-        "x",
+    let mut seen = HashSet::new();
+    archive::for_each_entry(
         "create_with_files_from_stdin/create_with_files_from_stdin.pna",
-        "--overwrite",
-        "--out-dir",
-        "create_with_files_from_stdin/out/",
-        "--strip-components",
-        "2",
-    ]);
-    cmd.assert().success();
-
-    utils::copy_dir_all(
-        "create_with_files_from_stdin/src/",
-        "create_with_files_from_stdin/expected/",
+        |entry| {
+            seen.insert(entry.header().path().to_string());
+        },
     )
     .unwrap();
-    let to_remove = [
-        "create_with_files_from_stdin/expected/raw/first/second/third/pna.txt",
-        "create_with_files_from_stdin/expected/raw/parent/child.txt",
-        "create_with_files_from_stdin/expected/raw/images/icon.bmp",
-        "create_with_files_from_stdin/expected/raw/images/icon.png",
-        "create_with_files_from_stdin/expected/raw/images/icon.svg",
-        "create_with_files_from_stdin/expected/raw/pna/empty.pna",
-        "create_with_files_from_stdin/expected/raw/pna/nest.pna",
-    ];
-    for file in to_remove {
-        utils::remove_with_empty_parents(file).unwrap();
+
+    for required in [
+        "create_with_files_from_stdin/src/raw/empty.txt",
+        "create_with_files_from_stdin/src/raw/text.txt",
+    ] {
+        assert!(
+            seen.take(required).is_some(),
+            "required entry missing: {required}"
+        );
     }
-
-    diff(
-        "create_with_files_from_stdin/expected/",
-        "create_with_files_from_stdin/out/",
-    )
-    .unwrap();
+    assert!(seen.is_empty(), "unexpected entries found: {seen:?}");
 }

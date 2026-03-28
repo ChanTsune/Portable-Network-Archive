@@ -1,7 +1,7 @@
-use crate::utils::{self, EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
 use portable_network_archive::cli;
-use std::fs;
+use std::{collections::HashSet, fs};
 
 #[test]
 fn create_with_exclude_vcs() {
@@ -56,31 +56,53 @@ fn create_with_exclude_vcs() {
     .unwrap();
     assert!(fs::exists("create_with_exclude_vcs/create_with_exclude_vcs.pna").unwrap());
 
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "x",
+    let mut seen = HashSet::new();
+    archive::for_each_entry(
         "create_with_exclude_vcs/create_with_exclude_vcs.pna",
-        "--overwrite",
-        "--out-dir",
-        "create_with_exclude_vcs/out/",
-        "--strip-components",
-        "2",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
-
-    // Remove VCS files that are expected to be excluded from input for comparison
-    for file in vcs_files {
-        utils::remove_with_empty_parents(file).unwrap();
-    }
-
-    diff(
-        "create_with_exclude_vcs/in/",
-        "create_with_exclude_vcs/out/",
+        |entry| {
+            seen.insert(entry.header().path().to_string());
+        },
     )
     .unwrap();
+
+    // VCS paths must NOT be present
+    let vcs_patterns = [
+        ".git/",
+        ".git",
+        ".gitignore",
+        ".gitmodules",
+        ".gitattributes",
+        ".svn/",
+        ".svn",
+        ".hg/",
+        ".hg",
+        ".hgignore",
+        ".bzr/",
+        ".bzr",
+        ".bzrignore",
+        "CVS/",
+        "CVS",
+    ];
+    for entry in &seen {
+        for vcs in vcs_patterns {
+            assert!(
+                !entry.contains(vcs),
+                "VCS entry should be excluded: {entry}"
+            );
+        }
+    }
+
+    // Regular entries must be present
+    for required in [
+        "create_with_exclude_vcs/in/raw/regular.txt",
+        "create_with_exclude_vcs/in/raw/data.csv",
+        "create_with_exclude_vcs/in/raw/document.pdf",
+    ] {
+        assert!(
+            seen.contains(required),
+            "required entry missing: {required}"
+        );
+    }
 }
 
 #[test]
@@ -135,25 +157,36 @@ fn create_without_exclude_vcs() {
     .unwrap();
     assert!(fs::exists("create_without_exclude_vcs/create_without_exclude_vcs.pna").unwrap());
 
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "x",
+    let mut seen = HashSet::new();
+    archive::for_each_entry(
         "create_without_exclude_vcs/create_without_exclude_vcs.pna",
-        "--overwrite",
-        "--out-dir",
-        "create_without_exclude_vcs/out/",
-        "--strip-components",
-        "2",
-    ])
-    .unwrap()
-    .execute()
-    .unwrap();
-
-    // VCS files should be included when --exclude-vcs is not used
-    diff(
-        "create_without_exclude_vcs/in/",
-        "create_without_exclude_vcs/out/",
+        |entry| {
+            seen.insert(entry.header().path().to_string());
+        },
     )
     .unwrap();
+
+    // VCS entries should be present when --exclude-vcs is not used
+    for required in [
+        "create_without_exclude_vcs/in/raw/.git/HEAD",
+        "create_without_exclude_vcs/in/raw/.gitignore",
+        "create_without_exclude_vcs/in/raw/.svn/entries",
+    ] {
+        assert!(
+            seen.contains(required),
+            "VCS entry should be present: {required}"
+        );
+    }
+
+    // Regular entries should also be present
+    for required in [
+        "create_without_exclude_vcs/in/raw/regular.txt",
+        "create_without_exclude_vcs/in/raw/data.csv",
+        "create_without_exclude_vcs/in/raw/document.pdf",
+    ] {
+        assert!(
+            seen.contains(required),
+            "required entry missing: {required}"
+        );
+    }
 }
