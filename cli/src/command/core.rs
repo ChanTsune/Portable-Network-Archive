@@ -972,11 +972,15 @@ pub(crate) fn apply_metadata(
     }
     #[cfg(windows)]
     if let OwnerStrategy::Preserve { options } = &keep_options.owner_strategy {
-        use crate::utils::os::windows::{fs::stat, security::SecurityDescriptor};
+        use crate::utils::os::windows::{
+            fs::{file_information, mode_from_file_information, open_read_metadata},
+            security::SecurityDescriptor,
+        };
 
-        let sd = SecurityDescriptor::try_from(path)?;
-        let stat = stat(sd.path.as_ptr() as _)?;
-        let mode = stat.st_mode;
+        let handle = open_read_metadata(path, !meta.file_type().is_symlink())?;
+        let info = file_information(handle.raw())?;
+        let sd = SecurityDescriptor::try_from_handle(handle.raw(), path)?;
+        let mode = mode_from_file_information(path, &info, meta.file_type().is_symlink());
         let user = sd.owner_sid()?;
         let group = sd.group_sid()?;
         // Get owner info: use overrides from OwnerStrategy
@@ -1007,7 +1011,15 @@ pub(crate) fn apply_metadata(
         if let AclStrategy::Always = keep_options.acl_strategy {
             use crate::chunk;
             use pna::RawChunk;
-            match utils::acl::get_facl(path) {
+            #[cfg(windows)]
+            let acl_result = if meta.file_type().is_symlink() {
+                utils::os::windows::acl::get_facl_nofollow(path)
+            } else {
+                utils::acl::get_facl(path)
+            };
+            #[cfg(not(windows))]
+            let acl_result = utils::acl::get_facl(path);
+            match acl_result {
                 Ok(acl) => {
                     entry
                         .add_extra_chunk(RawChunk::from_data(chunk::faCl, acl.platform.to_bytes()));
