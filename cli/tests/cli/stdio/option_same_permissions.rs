@@ -65,9 +65,8 @@ impl Drop for UmaskGuard {
 // Flag Validation Tests
 // =============================================================================
 
-/// Precondition: A file exists in the filesystem.
-/// Action: Run `pna compat bsdtar` --create with the removed `--keep-permission` flag.
-/// Expectation: The command fails because the flag is no longer recognized.
+/// Test: --keep-permission flag is removed from stdio
+/// Expectation: Command fails with "unexpected argument" error
 #[test]
 fn stdio_keep_permission_flag_removed() {
     setup();
@@ -85,9 +84,8 @@ fn stdio_keep_permission_flag_removed() {
         .stderr(predicate::str::contains("unexpected argument"));
 }
 
-/// Precondition: A file exists in the filesystem.
-/// Action: Run `pna compat bsdtar` --create with the removed `--no-keep-permission` flag.
-/// Expectation: The command fails because the flag is no longer recognized.
+/// Test: --no-keep-permission flag is removed from stdio
+/// Expectation: Command fails with "unexpected argument" error
 #[test]
 fn stdio_no_keep_permission_flag_removed() {
     setup();
@@ -105,9 +103,8 @@ fn stdio_no_keep_permission_flag_removed() {
         .stderr(predicate::str::contains("unexpected argument"));
 }
 
-/// Precondition: An archive exists and is ready for extraction.
-/// Action: Run `pna compat bsdtar` --extract with `--same-permissions` but without `--unstable`.
-/// Expectation: The command fails because the option requires the unstable flag.
+/// Test: -p/--same-permissions requires --unstable
+/// Expectation: Command fails without --unstable
 #[test]
 fn stdio_same_permissions_requires_unstable() {
     setup();
@@ -139,9 +136,10 @@ fn stdio_same_permissions_requires_unstable() {
         .stderr(predicate::str::contains("--unstable"));
 }
 
-/// Precondition: A file exists in the filesystem.
-/// Action: Run `pna compat bsdtar` --create with `--same-permissions`.
-/// Expectation: The command succeeds because the option is silently ignored in create mode.
+/// Test: -p/--same-permissions is accepted in create mode but has no effect
+/// Note: Due to clap's `requires_all` behavior with boolean flags, -p is technically
+/// accepted in create mode but is ignored (it only affects extraction semantics).
+/// This matches bsdtar behavior where -p is silently ignored in create mode.
 #[test]
 fn stdio_same_permissions_accepted_in_create_mode_but_ignored() {
     setup();
@@ -160,9 +158,8 @@ fn stdio_same_permissions_accepted_in_create_mode_but_ignored() {
         .success();
 }
 
-/// Precondition: A file exists in the filesystem.
-/// Action: Run `pna compat bsdtar` --create with `--no-same-permissions`.
-/// Expectation: The command succeeds.
+/// Test: --no-same-permissions is accepted for creation
+/// Expectation: Command succeeds with --no-same-permissions
 #[test]
 fn stdio_no_same_permissions_accepted_for_creation() {
     setup();
@@ -179,9 +176,8 @@ fn stdio_no_same_permissions_accepted_for_creation() {
         .success();
 }
 
-/// Precondition: A file exists in the filesystem.
-/// Action: Run `pna compat bsdtar` --create with `--no-same-owner`.
-/// Expectation: The command succeeds.
+/// Test: --no-same-owner is accepted for creation
+/// Expectation: Command succeeds with --no-same-owner
 #[test]
 fn stdio_no_same_owner_accepted_for_creation() {
     setup();
@@ -198,9 +194,8 @@ fn stdio_no_same_owner_accepted_for_creation() {
         .success();
 }
 
-/// Precondition: A file exists in the filesystem.
-/// Action: Run `pna compat bsdtar` --create with both `--no-same-permissions` and `--no-same-owner`.
-/// Expectation: The command succeeds with both flags combined.
+/// Test: Both --no-same-permissions and --no-same-owner can be used together
+/// Expectation: Command succeeds with both flags
 #[test]
 fn stdio_no_same_permissions_and_no_same_owner_together() {
     setup();
@@ -222,9 +217,8 @@ fn stdio_no_same_permissions_and_no_same_owner_together() {
 // Extraction with -p flag tests
 // =============================================================================
 
-/// Precondition: An archive exists with file entries.
-/// Action: Run `pna compat bsdtar` --extract with `-p` and `--unstable`.
-/// Expectation: The command succeeds and the option is recognized.
+/// Test: -p flag is accepted with --unstable for extraction
+/// Expectation: Command succeeds
 #[test]
 fn stdio_extract_with_same_permissions_flag() {
     setup();
@@ -257,9 +251,8 @@ fn stdio_extract_with_same_permissions_flag() {
         .success();
 }
 
-/// Precondition: An archive exists with file entries.
-/// Action: Run `pna compat bsdtar` --extract with `-p` and `--same-owner`.
-/// Expectation: The command succeeds and both options are recognized.
+/// Test: -p with --same-owner is accepted
+/// Expectation: Command succeeds
 #[test]
 fn stdio_extract_with_same_permissions_and_same_owner() {
     setup();
@@ -293,9 +286,8 @@ fn stdio_extract_with_same_permissions_and_same_owner() {
         .success();
 }
 
-/// Precondition: An archive exists with file entries.
-/// Action: Run `pna compat bsdtar` --extract with `-p` and `--no-acls`.
-/// Expectation: The command succeeds; the individual flag overrides the umbrella option.
+/// Test: -p with --no-acls is accepted (individual flag overrides -p)
+/// Expectation: Command succeeds
 #[test]
 fn stdio_extract_same_permissions_with_no_acls() {
     setup();
@@ -329,9 +321,8 @@ fn stdio_extract_same_permissions_with_no_acls() {
         .success();
 }
 
-/// Precondition: An archive exists with file entries.
-/// Action: Run `pna compat bsdtar` --extract with `--same-permissions` (long form).
-/// Expectation: The command succeeds and the long-form option is recognized.
+/// Test: Long form --same-permissions is accepted
+/// Expectation: Command succeeds
 #[test]
 fn stdio_extract_with_long_same_permissions_flag() {
     setup();
@@ -364,9 +355,8 @@ fn stdio_extract_with_long_same_permissions_flag() {
         .success();
 }
 
-/// Precondition: An archive exists with file entries.
-/// Action: Run `pna compat bsdtar` --extract with `--preserve-permissions`.
-/// Expectation: The command succeeds because the alias is accepted.
+/// Test: --preserve-permissions alias is accepted
+/// Expectation: Command succeeds
 #[test]
 fn stdio_extract_with_preserve_permissions_alias() {
     setup();
@@ -403,9 +393,8 @@ fn stdio_extract_with_preserve_permissions_alias() {
 // Flag Combination Tests (全肯定+個別否定, 全否定+個別肯定)
 // =============================================================================
 
-/// Precondition: An archive exists with file entries.
-/// Action: Run `pna compat bsdtar` --extract with both `-p` and `--no-same-permissions`.
-/// Expectation: The command succeeds; `--no-same-permissions` takes precedence over `-p`.
+/// Test: -p --no-same-permissions (全肯定 + 全否定 → 全否定が勝つ)
+/// Expectation: Command succeeds, --no-same-permissions overrides -p
 #[test]
 fn stdio_extract_same_permissions_overridden_by_no_same_permissions() {
     setup();
@@ -439,9 +428,8 @@ fn stdio_extract_same_permissions_overridden_by_no_same_permissions() {
         .success();
 }
 
-/// Precondition: An archive exists with file entries.
-/// Action: Run `pna compat bsdtar` --extract with `--no-same-permissions` and `--keep-xattr`.
-/// Expectation: The command succeeds; the individual flag overrides the umbrella negation.
+/// Test: --no-same-permissions --keep-xattr (全否定 + 個別肯定 → 個別肯定が有効)
+/// Expectation: Command succeeds, --keep-xattr still enables xattr despite --no-same-permissions
 #[test]
 fn stdio_extract_no_same_permissions_with_keep_xattr() {
     setup();
@@ -475,9 +463,8 @@ fn stdio_extract_no_same_permissions_with_keep_xattr() {
         .success();
 }
 
-/// Precondition: An archive exists with file entries.
-/// Action: Run `pna compat bsdtar` --extract with `--no-same-permissions` alone.
-/// Expectation: The command succeeds.
+/// Test: --no-same-permissions alone in extraction (without -p)
+/// Expectation: Command succeeds (flag is valid in extraction mode)
 #[test]
 fn stdio_extract_no_same_permissions_alone() {
     setup();

@@ -1,5 +1,5 @@
 #![cfg(not(target_family = "wasm"))]
-use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, diff::assert_dirs_equal, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
 
@@ -55,14 +55,16 @@ fn update_with_files_from_stdin() {
             "--overwrite",
             "--out-dir",
             "update_files_from_stdin/out/",
+            // Strip "update_files_from_stdin/in/" prefix so extracted paths align with input tree
+            "--strip-components",
+            "2",
         ])
         .assert()
         .success();
 
     // Check if expected files exist after extraction
-    diff(
+    assert_dirs_equal(
         "update_files_from_stdin/in/",
         "update_files_from_stdin/out/",
-    )
-    .unwrap();
+    );
 }

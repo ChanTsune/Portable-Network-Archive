@@ -1,5 +1,5 @@
 use crate::utils::{
-    EmbedExt, TestResources, archive::for_each_entry_with_password, diff::diff, setup,
+    EmbedExt, TestResources, archive::for_each_entry_with_password, diff::assert_dirs_equal, setup,
 };
 use clap::Parser;
 use portable_network_archive::cli;
@@ -80,7 +80,7 @@ fn update_encrypted_archive() {
     .execute()
     .unwrap();
 
-    diff("update_encrypted/in/", "update_encrypted/out/").unwrap();
+    assert_dirs_equal("update_encrypted/in/", "update_encrypted/out/");
 }
 
 /// Precondition: An encrypted archive contains initial files.
@@ -161,7 +161,7 @@ fn update_encrypted_add_entry() {
     .execute()
     .unwrap();
 
-    diff("update_encrypted_add/in/", "update_encrypted_add/out/").unwrap();
+    assert_dirs_equal("update_encrypted_add/in/", "update_encrypted_add/out/");
 }
 
 /// Precondition: An encrypted archive with multiple files exists.
@@ -237,7 +237,7 @@ fn update_encrypted_keep_unchanged() {
     .execute()
     .unwrap();
 
-    diff("update_encrypted_keep/in/", "update_encrypted_keep/out/").unwrap();
+    assert_dirs_equal("update_encrypted_keep/in/", "update_encrypted_keep/out/");
 }
 
 /// Precondition: An encrypted archive created with AES-CBC mode.
@@ -314,11 +314,10 @@ fn update_encrypted_aes_cbc() {
     .execute()
     .unwrap();
 
-    diff(
+    assert_dirs_equal(
         "update_encrypted_aes_cbc/in/",
         "update_encrypted_aes_cbc/out/",
-    )
-    .unwrap();
+    );
 }
 
 /// Precondition: An encrypted archive created with Camellia-CTR.
@@ -395,11 +394,10 @@ fn update_encrypted_camellia_ctr() {
     .execute()
     .unwrap();
 
-    diff(
+    assert_dirs_equal(
         "update_encrypted_camellia/in/",
         "update_encrypted_camellia/out/",
-    )
-    .unwrap();
+    );
 }
 
 /// Precondition: An encrypted archive created with PBKDF2 key derivation.
@@ -478,11 +476,10 @@ fn update_encrypted_pbkdf2() {
     .execute()
     .unwrap();
 
-    diff(
+    assert_dirs_equal(
         "update_encrypted_pbkdf2/in/",
         "update_encrypted_pbkdf2/out/",
-    )
-    .unwrap();
+    );
 }
 
 /// Precondition: An encrypted archive with known file content.

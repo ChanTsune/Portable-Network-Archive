@@ -51,10 +51,16 @@ fn extract_with_files_from_manifest() {
     .execute()
     .unwrap();
 
-    assert!(
-        fs::exists("extract_files_from/out/extract_files_from/in/raw/images/icon.png").unwrap()
+    // Manifest-listed files should be extracted with correct content
+    assert_eq!(
+        fs::read("extract_files_from/in/raw/images/icon.png").unwrap(),
+        fs::read("extract_files_from/out/extract_files_from/in/raw/images/icon.png").unwrap(),
     );
-    assert!(fs::exists("extract_files_from/out/extract_files_from/in/raw/text.txt").unwrap());
+    assert_eq!(
+        fs::read("extract_files_from/in/raw/text.txt").unwrap(),
+        fs::read("extract_files_from/out/extract_files_from/in/raw/text.txt").unwrap(),
+    );
+    // Non-listed files should not be extracted
     assert!(
         !fs::exists("extract_files_from/out/extract_files_from/in/raw/images/icon.svg").unwrap()
     );

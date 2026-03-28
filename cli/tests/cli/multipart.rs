@@ -1,4 +1,4 @@
-use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, diff::assert_dirs_equal, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 
@@ -35,5 +35,5 @@ fn multipart_archive() {
     .execute()
     .unwrap();
 
-    diff("./multipart_archive/in/", "./multipart_archive/out/").unwrap();
+    assert_dirs_equal("./multipart_archive/in/", "./multipart_archive/out/");
 }

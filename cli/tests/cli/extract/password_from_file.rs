@@ -1,4 +1,4 @@
-use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, diff::assert_dirs_equal, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 use std::fs;
@@ -44,9 +44,8 @@ fn extract_with_password_file() {
     .execute()
     .unwrap();
 
-    diff(
+    assert_dirs_equal(
         "extract_with_password_file/in/",
         "extract_with_password_file/out/",
-    )
-    .unwrap();
+    );
 }

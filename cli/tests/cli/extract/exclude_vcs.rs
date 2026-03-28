@@ -1,4 +1,4 @@
-use crate::utils::{self, EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{self, EmbedExt, TestResources, diff::assert_dirs_equal, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 use std::fs;
@@ -78,11 +78,10 @@ fn extract_with_exclude_vcs() {
         utils::remove_with_empty_parents(file).unwrap();
     }
 
-    diff(
+    assert_dirs_equal(
         "extract_with_exclude_vcs/in/",
         "extract_with_exclude_vcs/out/",
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -155,9 +154,8 @@ fn extract_without_exclude_vcs() {
     .unwrap();
 
     // VCS files should be included when --exclude-vcs is not used
-    diff(
+    assert_dirs_equal(
         "extract_without_exclude_vcs/in/",
         "extract_without_exclude_vcs/out/",
-    )
-    .unwrap();
+    );
 }

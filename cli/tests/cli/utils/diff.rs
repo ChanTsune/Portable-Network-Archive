@@ -1,97 +1,117 @@
-use path_slash::*;
+use path_slash::PathExt as _;
 use std::{
-    collections::{HashMap, HashSet},
-    fs, io,
+    collections::BTreeMap,
+    fs,
     path::{Path, PathBuf},
 };
 
-#[derive(thiserror::Error, Debug, Eq, PartialEq, Hash, Clone)]
-pub enum DiffError {
-    #[error("`{1}` is only in `{0}`")]
-    OnlyIn(String, String),
-    #[error("files differ: `{0}` and `{1}` ")]
-    DifferentContent(String, String),
-    #[error("file type differ `{0}` and `{1}` ")]
-    DifferentType(String, String),
-}
+/// Two directory trees must be structurally and content-identical.
+/// Panics with a descriptive message on any difference.
+/// Does NOT compare metadata (permissions, timestamps, xattrs).
+pub fn assert_dirs_equal(expected: impl AsRef<Path>, actual: impl AsRef<Path>) {
+    let expected = expected.as_ref();
+    let actual = actual.as_ref();
+    let expected_entries = collect_entries(expected);
+    let actual_entries = collect_entries(actual);
 
-impl DiffError {
-    #[inline]
-    pub fn only_in(dir: impl ToString, item: impl ToString) -> Self {
-        Self::OnlyIn(dir.to_string(), item.to_string())
-    }
-    #[inline]
-    pub fn different_content(dir: impl ToString, item: impl ToString) -> Self {
-        Self::DifferentContent(dir.to_string(), item.to_string())
-    }
-    #[inline]
-    pub fn different_type(dir: impl ToString, item: impl ToString) -> Self {
-        Self::DifferentType(dir.to_string(), item.to_string())
-    }
-}
-
-pub fn diff<P1: AsRef<Path>, P2: AsRef<Path>>(
-    dir1: P1,
-    dir2: P2,
-) -> io::Result<HashSet<DiffError>> {
-    diff_dirs(dir1.as_ref(), dir2.as_ref())
-}
-
-fn diff_dirs(dir1: &Path, dir2: &Path) -> io::Result<HashSet<DiffError>> {
-    let mut differences = HashSet::new();
-    let entries1 = read_dir_recursively(dir1)?;
-    let entries2 = read_dir_recursively(dir2)?;
-
-    let entries1_set: HashSet<_> = entries1.keys().collect();
-    let entries2_set: HashSet<_> = entries2.keys().collect();
-
-    // Files only in dir1
-    for entry in entries1_set.difference(&entries2_set) {
-        differences.insert(DiffError::only_in(dir1.display(), entry.display()));
-    }
-
-    // Files only in dir2
-    for entry in entries2_set.difference(&entries1_set) {
-        differences.insert(DiffError::only_in(dir2.display(), entry.display()));
-    }
-
-    // Compare common files
-    for entry in entries1_set.intersection(&entries2_set) {
-        let path1 = dir1.join(entries1_set.get(entry).unwrap());
-        let path2 = dir2.join(entries2_set.get(entry).unwrap());
-        if path1.is_file() && path2.is_file() {
-            if !compare_files(&path1, &path2)? {
-                differences.insert(DiffError::different_content(
-                    path1.display(),
-                    path2.display(),
-                ));
+    // Pass 1: Check expected entries exist in actual and compare
+    for (rel, expected_kind) in &expected_entries {
+        let actual_kind = actual_entries.get(rel).unwrap_or_else(|| {
+            panic!(
+                "missing in actual: {} (expected in {})",
+                rel.display(),
+                actual.display()
+            )
+        });
+        let expected_path = expected.join(rel);
+        let actual_path = actual.join(rel);
+        assert_eq!(
+            expected_kind,
+            actual_kind,
+            "type mismatch at {}: expected {:?}, got {:?}",
+            rel.display(),
+            expected_kind,
+            actual_kind
+        );
+        match expected_kind {
+            EntryKind::File => {
+                let expected_bytes = fs::read(&expected_path).unwrap_or_else(|e| {
+                    panic!("failed to read {}: {}", expected_path.display(), e)
+                });
+                let actual_bytes = fs::read(&actual_path)
+                    .unwrap_or_else(|e| panic!("failed to read {}: {}", actual_path.display(), e));
+                assert!(
+                    expected_bytes == actual_bytes,
+                    "content differs at {}:\n  expected: {} ({} bytes)\n  actual:   {} ({} bytes)",
+                    rel.display(),
+                    expected_path.display(),
+                    expected_bytes.len(),
+                    actual_path.display(),
+                    actual_bytes.len()
+                );
             }
-        } else if (path1.is_file() && path2.is_dir()) || (path1.is_dir() && path2.is_file()) {
-            differences.insert(DiffError::different_type(path1.display(), path2.display()));
+            EntryKind::Symlink => {
+                let expected_target = fs::read_link(&expected_path).unwrap_or_else(|e| {
+                    panic!("failed to read symlink {}: {}", expected_path.display(), e)
+                });
+                let actual_target = fs::read_link(&actual_path).unwrap_or_else(|e| {
+                    panic!("failed to read symlink {}: {}", actual_path.display(), e)
+                });
+                assert_eq!(
+                    expected_target,
+                    actual_target,
+                    "symlink target differs at {}",
+                    rel.display()
+                );
+            }
+            EntryKind::Dir => {} // existence already verified
         }
     }
 
-    Ok(differences)
-}
-
-fn read_dir_recursively(dir: &Path) -> io::Result<HashMap<PathBuf, PathBuf>> {
-    let mut entries = HashMap::new();
-    for entry in walkdir::WalkDir::new(dir)
-        .into_iter()
-        .filter_map(Result::ok)
-    {
-        // Convert path to forward slashes for cross-platform compatibility
-        let path = PathBuf::from(entry.path().to_slash_lossy().as_ref());
-        if path.is_file() || path.is_dir() {
-            let relative_path = path.strip_prefix(dir).unwrap();
-            entries.insert(relative_path.to_path_buf(), path);
-        }
+    // Pass 2: Check for unexpected entries in actual
+    for rel in actual_entries.keys() {
+        assert!(
+            expected_entries.contains_key(rel),
+            "unexpected in actual: {} (not in {})",
+            rel.display(),
+            expected.display()
+        );
     }
-    Ok(entries)
 }
 
-fn compare_files(file1: &Path, file2: &Path) -> io::Result<bool> {
-    let buffer1 = fs::read(file1)?;
-    let buffer2 = fs::read(file2)?;
-    Ok(buffer1 == buffer2)
+#[derive(Debug, PartialEq, Eq)]
+enum EntryKind {
+    File,
+    Dir,
+    Symlink,
+}
+
+fn collect_entries(dir: &Path) -> BTreeMap<PathBuf, EntryKind> {
+    let mut entries = BTreeMap::new();
+    for entry in walkdir::WalkDir::new(dir).follow_links(false).min_depth(1) {
+        let entry = entry.unwrap_or_else(|e| panic!("failed to walk {}: {}", dir.display(), e));
+        let ft = entry.file_type();
+        let rel = entry.path().strip_prefix(dir).unwrap();
+        let rel = PathBuf::from(
+            rel.to_slash()
+                .unwrap_or_else(|| panic!("non-UTF-8 path: {}", rel.display()))
+                .into_owned(),
+        );
+        let kind = if ft.is_symlink() {
+            EntryKind::Symlink
+        } else if ft.is_file() {
+            EntryKind::File
+        } else if ft.is_dir() {
+            EntryKind::Dir
+        } else {
+            panic!("unsupported file type at {}", entry.path().display());
+        };
+        let prev = entries.insert(rel.clone(), kind);
+        assert!(
+            prev.is_none(),
+            "duplicate entry after normalization: {}",
+            rel.display()
+        );
+    }
+    entries
 }

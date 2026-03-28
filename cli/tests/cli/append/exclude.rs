@@ -1,8 +1,4 @@
-use crate::utils::{
-    EmbedExt, TestResources,
-    diff::{DiffError, diff},
-    setup,
-};
+use crate::utils::{EmbedExt, TestResources, diff::assert_dirs_equal, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 
@@ -56,13 +52,9 @@ fn append_exclude() {
     .unwrap()
     .execute()
     .unwrap();
-    // check completely extracted
-    let result = diff("append_exclude/in/", "append_exclude/out/").unwrap();
-
-    assert_eq!(
-        result,
-        maplit::hashset! {
-            DiffError::only_in("append_exclude/in/","extra/zstd.pna")
-        }
-    );
+    // Verify common subtree matches
+    assert_dirs_equal("append_exclude/in/raw/", "append_exclude/out/raw/");
+    // Verify excluded file is absent, non-excluded file is present
+    assert!(std::fs::exists("append_exclude/out/extra/store.pna").unwrap());
+    assert!(!std::fs::exists("append_exclude/out/extra/zstd.pna").unwrap());
 }

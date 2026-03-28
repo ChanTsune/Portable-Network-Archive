@@ -15,7 +15,7 @@ mod option_older_ctime_than;
 mod option_older_mtime;
 mod option_older_mtime_than;
 
-use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, diff::assert_dirs_equal, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 
@@ -65,7 +65,7 @@ fn archive_append() {
     .execute()
     .unwrap();
     // check completely extracted
-    diff("archive_append/in/", "archive_append/out/").unwrap();
+    assert_dirs_equal("archive_append/in/", "archive_append/out/");
 }
 
 #[test]
@@ -116,5 +116,5 @@ fn archive_append_split() {
     .execute()
     .unwrap();
     // check completely extracted
-    diff("archive_append_split/in/", "archive_append_split/out/").unwrap();
+    assert_dirs_equal("archive_append_split/in/", "archive_append_split/out/");
 }

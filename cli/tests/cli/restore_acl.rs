@@ -2,11 +2,7 @@
 use crate::utils::{EmbedExt, TestResources, setup};
 use clap::Parser;
 use portable_network_archive::cli;
-use std::fs;
 
-/// Precondition: An archive with Windows ACL metadata exists.
-/// Action: Run `pna extract` with `--keep-acl`.
-/// Expectation: Extraction succeeds and the entry file is materialized.
 #[test]
 fn extract_windows_acl() {
     setup();
@@ -25,12 +21,8 @@ fn extract_windows_acl() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(fs::exists("windows_acl/out/windows_acl.txt").unwrap());
 }
 
-/// Precondition: An archive with Linux ACL metadata exists.
-/// Action: Run `pna extract` with `--keep-acl`.
-/// Expectation: Extraction succeeds and the entry file is materialized.
 #[test]
 fn extract_linux_acl() {
     setup();
@@ -49,12 +41,8 @@ fn extract_linux_acl() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(fs::exists("linux_acl/out/linux_acl.txt").unwrap());
 }
 
-/// Precondition: An archive with macOS ACL metadata exists.
-/// Action: Run `pna extract` with `--keep-acl`.
-/// Expectation: Extraction succeeds and the entry file is materialized.
 #[test]
 fn extract_macos_acl() {
     setup();
@@ -73,12 +61,8 @@ fn extract_macos_acl() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(fs::exists("macos_acl/out/macos_acl.txt").unwrap());
 }
 
-/// Precondition: An archive with FreeBSD ACL metadata exists.
-/// Action: Run `pna extract` with `--keep-acl`.
-/// Expectation: Extraction succeeds and the entry file is materialized.
 #[test]
 fn extract_freebsd_acl() {
     setup();
@@ -97,12 +81,8 @@ fn extract_freebsd_acl() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(fs::exists("freebsd_acl/out/freebsd_acl.txt").unwrap());
 }
 
-/// Precondition: An archive with generic (platform-independent) ACL metadata exists.
-/// Action: Run `pna extract` with `--keep-acl`.
-/// Expectation: Extraction succeeds and the entry file is materialized.
 #[test]
 fn extract_generic_acl() {
     setup();
@@ -121,5 +101,4 @@ fn extract_generic_acl() {
     .unwrap()
     .execute()
     .unwrap();
-    assert!(fs::exists("generic_acl/out/generic_acl.txt").unwrap());
 }

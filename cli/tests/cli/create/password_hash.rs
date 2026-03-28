@@ -1,4 +1,4 @@
-use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, diff::assert_dirs_equal, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 
@@ -39,7 +39,7 @@ fn aes_ctr_argon2_archive() {
     .execute()
     .unwrap();
 
-    diff("aes_argon2_ctr/in/", "aes_argon2_ctr/out/").unwrap();
+    assert_dirs_equal("aes_argon2_ctr/in/", "aes_argon2_ctr/out/");
 }
 
 #[test]
@@ -82,11 +82,10 @@ fn aes_ctr_argon2_with_params_archive() {
     .execute()
     .unwrap();
 
-    diff(
+    assert_dirs_equal(
         "aes_argon2_with_params_ctr/in/",
         "aes_argon2_with_params_ctr/out/",
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -126,7 +125,7 @@ fn aes_ctr_pbkdf2_archive() {
     .execute()
     .unwrap();
 
-    diff("aes_pbkdf2_ctr/in/", "aes_pbkdf2_ctr/out/").unwrap();
+    assert_dirs_equal("aes_pbkdf2_ctr/in/", "aes_pbkdf2_ctr/out/");
 }
 
 #[test]
@@ -167,9 +166,8 @@ fn aes_ctr_pbkdf2_with_params_archive() {
     .execute()
     .unwrap();
 
-    diff(
+    assert_dirs_equal(
         "aes_pbkdf2_with_params_ctr/in/",
         "aes_pbkdf2_with_params_ctr/out/",
-    )
-    .unwrap();
+    );
 }

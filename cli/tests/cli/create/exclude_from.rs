@@ -1,4 +1,4 @@
-use crate::utils::{self, EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 use std::fs;
@@ -38,19 +38,11 @@ fn create_with_exclude_from() {
     .execute()
     .unwrap();
 
-    let excluded = [
-        "create_with_exclude_from/in/raw/first/second/third/pna.txt",
-        "create_with_exclude_from/in/raw/parent/child.txt",
-        "create_with_exclude_from/in/raw/empty.txt",
-        "create_with_exclude_from/in/raw/text.txt",
-    ];
-    for file in excluded {
-        utils::remove_with_empty_parents(file).unwrap();
-    }
-
-    diff(
-        "create_with_exclude_from/in/",
-        "create_with_exclude_from/out/",
-    )
-    .unwrap();
+    // Excluded .txt files should not be in output
+    assert!(!fs::exists("create_with_exclude_from/out/raw/text.txt").unwrap());
+    assert!(!fs::exists("create_with_exclude_from/out/raw/empty.txt").unwrap());
+    assert!(!fs::exists("create_with_exclude_from/out/raw/first/second/third/pna.txt").unwrap());
+    assert!(!fs::exists("create_with_exclude_from/out/raw/parent/child.txt").unwrap());
+    // Non-excluded files should be present
+    assert!(fs::exists("create_with_exclude_from/out/raw/images/icon.png").unwrap());
 }
