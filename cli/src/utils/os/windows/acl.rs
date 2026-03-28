@@ -55,6 +55,9 @@ impl ACL {
     pub fn get_d_acl(&self) -> io::Result<Vec<ACLEntry>> {
         let mut result = Vec::new();
         let p_acl = self.security_descriptor.p_dacl;
+        if p_acl.is_null() {
+            return Ok(result);
+        }
         let count = unsafe { *p_acl }.AceCount as u32;
         for i in 0..count {
             let mut header: PACE_HEADER = null_mut();
