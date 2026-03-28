@@ -485,7 +485,8 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         filter: &filter,
         time_filters: &time_filters,
     };
-    let mut resolver = HardlinkResolver::new(collect_options.follow_links);
+    let mut resolver =
+        HardlinkResolver::new(collect_options.follow_links || collect_options.follow_command_links);
     let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?
         .into_iter()
         .map(CollectedItem::Filesystem)

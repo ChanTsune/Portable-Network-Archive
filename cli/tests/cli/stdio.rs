@@ -9,6 +9,7 @@ mod option_block_size;
 mod option_check_links;
 mod option_exclude_vcs;
 mod option_fast_read;
+mod option_h;
 mod option_help;
 mod option_ignore_zeros;
 mod option_mac_metadata;
