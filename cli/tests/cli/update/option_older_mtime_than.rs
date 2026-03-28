@@ -3,10 +3,9 @@ use clap::Parser;
 use portable_network_archive::cli;
 use std::{collections::HashSet, fs, thread, time::Duration};
 
-/// Precondition: Archive contains `file_to_update`. Prepare a reference file whose mtime is after
-/// the rewritten file plus a newer file that should be ignored.
-/// Action: Run `pna experimental update` with `--older-mtime-than reference.txt`.
-/// Expectation: Only files whose mtime < reference (file_to_update) are processed; newer files are skipped.
+/// Precondition: An archive exists with files to update, and the source tree contains a reference file and files with varying modification times.
+/// Action: Run `pna experimental update` with `--older-mtime-than` pointing to the reference file.
+/// Expectation: Only files whose modification time is older than the reference file are processed in the archive.
 #[test]
 fn update_with_older_mtime_than() {
     setup();

@@ -6,10 +6,10 @@ use clap::Parser;
 use portable_network_archive::cli;
 use std::{collections::HashSet, fs, thread, time::Duration};
 
-/// Precondition: Archive contains `file_to_update`. Prepare a reference file whose ctime is *after*
-/// the rewritten file so `file_to_update` remains older, plus a newer file that should be skipped.
-/// Action: Run `pna experimental update` with `--older-ctime-than reference.txt`.
-/// Expectation: Only files whose ctime < reference (i.e., `file_to_update`) are processed; newer files are ignored.
+/// Precondition: An archive exists with files to update, and the source tree contains a reference file and files with varying creation times.
+/// Action: Run `pna experimental update` with `--older-ctime-than` pointing to the reference file.
+/// Expectation: Only files whose creation time is older than the reference file are processed in the archive.
+/// Note: This test requires filesystem support for creation time (birth time).
 #[test]
 fn update_with_older_ctime_than() {
     setup();

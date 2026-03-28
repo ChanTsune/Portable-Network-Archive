@@ -29,11 +29,9 @@ fn init_resources(path: impl AsRef<std::path::Path>) {
     not_keep.set_times(time).unwrap();
 }
 
-/// Precondition: The source tree contains files whose modification times are both newer and older
-///               than `2025-10-11T00:00:00Z`.
-/// Action: Run `pna create` with `--older-mtime 2025-10-11T00:00:00Z` to build an archive.
-/// Expectation: The archive contains only entries whose modification times are older than
-///              `2025-10-11T00:00:00Z`.
+/// Precondition: The source tree contains files whose modification times span both sides of a threshold.
+/// Action: Run `pna create` with `--older-mtime` specifying a timestamp threshold.
+/// Expectation: The archive contains only entries whose modification times are older than the threshold.
 #[test]
 fn create_with_older_mtime() {
     setup();

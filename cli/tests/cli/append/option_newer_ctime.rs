@@ -53,11 +53,9 @@ fn init_sources(path: impl AsRef<std::path::Path>) {
     skip_file.set_times(times).unwrap();
 }
 
-/// Precondition: The append target is an empty archive, and the source tree has files whose
-///               creation times are both newer and older than `2025-10-11T00:00:00Z`.
-/// Action: Run `pna append` with `--newer-ctime 2025-10-11T00:00:00Z` to append into the archive.
-/// Expectation: The archive contains only entries whose creation times are newer than
-///              `2025-10-11T00:00:00Z`.
+/// Precondition: The append target is an empty archive, and the source tree has files whose creation times span both sides of a threshold.
+/// Action: Run `pna append` with `--newer-ctime` specifying a timestamp threshold.
+/// Expectation: The archive contains only entries whose creation times are newer than the threshold.
 #[test]
 fn append_with_newer_ctime() {
     setup();
