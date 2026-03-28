@@ -5,11 +5,12 @@ use std::ptr::null_mut;
 use std::str::FromStr;
 use std::{io, mem};
 use windows::Win32::Foundation::{
-    CloseHandle, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, HLOCAL, INVALID_HANDLE_VALUE, LocalFree,
+    CloseHandle, ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS, HANDLE, HLOCAL, INVALID_HANDLE_VALUE,
+    LocalFree,
 };
 use windows::Win32::Security::Authorization::{
-    ConvertSidToStringSidW, ConvertStringSidToSidW, GetNamedSecurityInfoW, SE_FILE_OBJECT,
-    SetNamedSecurityInfoW,
+    ConvertSidToStringSidW, ConvertStringSidToSidW, GetNamedSecurityInfoW, GetSecurityInfo,
+    SE_FILE_OBJECT, SetNamedSecurityInfoW, SetSecurityInfo,
 };
 use windows::Win32::Security::{
     ACL as Win32ACL, AdjustTokenPrivileges, CopySid, DACL_SECURITY_INFORMATION,
@@ -70,6 +71,38 @@ impl SecurityDescriptor {
         })
     }
 
+    pub fn try_from_handle(handle: HANDLE, path: &Path) -> io::Result<Self> {
+        let os_str = encode_wide(path.as_os_str())?;
+        let mut p_security_descriptor = PSECURITY_DESCRIPTOR::default();
+        let mut p_dacl: PACL = null_mut();
+        let mut p_sacl: PACL = null_mut();
+        let mut p_sid_owner: PSID = PSID::default();
+        let mut p_sid_group: PSID = PSID::default();
+        let error = unsafe {
+            GetSecurityInfo(
+                handle,
+                SE_FILE_OBJECT,
+                DACL_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | OWNER_SECURITY_INFORMATION,
+                Some(&mut p_sid_owner as _),
+                Some(&mut p_sid_group as _),
+                Some(&mut p_dacl as _),
+                Some(&mut p_sacl as _),
+                Some(&mut p_security_descriptor as _),
+            )
+        };
+        if error != ERROR_SUCCESS {
+            return Err(windows::core::Error::from_hresult(error.to_hresult()).into());
+        }
+        Ok(Self {
+            path: os_str,
+            p_security_descriptor,
+            p_sid_owner,
+            p_sid_group,
+            p_sacl,
+            p_dacl,
+        })
+    }
+
     pub fn apply(
         &self,
         owner: Option<PSID>,
@@ -95,6 +128,45 @@ impl SecurityDescriptor {
         let status = unsafe {
             SetNamedSecurityInfoW(
                 PCWSTR::from_raw(self.path.as_ptr()),
+                SE_FILE_OBJECT,
+                securityinfo,
+                owner,
+                group,
+                pacl,
+                None,
+            )
+        };
+        if status != ERROR_SUCCESS {
+            return Err(windows::core::Error::from_hresult(status.to_hresult()).into());
+        }
+        Ok(())
+    }
+
+    pub fn apply_by_handle(
+        handle: HANDLE,
+        owner: Option<PSID>,
+        group: Option<PSID>,
+        pacl: Option<*const Win32ACL>,
+    ) -> io::Result<()> {
+        if owner.is_some() || group.is_some() {
+            set_privilege(SE_TAKE_OWNERSHIP_NAME)?;
+            set_privilege(SE_SECURITY_NAME)?;
+            set_privilege(SE_BACKUP_NAME)?;
+            set_privilege(SE_RESTORE_NAME)?;
+        }
+        let mut securityinfo = OBJECT_SECURITY_INFORMATION::default();
+        if owner.is_some() {
+            securityinfo |= OWNER_SECURITY_INFORMATION;
+        }
+        if group.is_some() {
+            securityinfo |= GROUP_SECURITY_INFORMATION;
+        }
+        if pacl.is_some() {
+            securityinfo |= DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION;
+        }
+        let status = unsafe {
+            SetSecurityInfo(
+                handle,
                 SE_FILE_OBJECT,
                 securityinfo,
                 owner,
