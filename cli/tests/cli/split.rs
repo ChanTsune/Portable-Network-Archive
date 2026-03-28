@@ -155,3 +155,109 @@ fn split_archive_first_chunk_exceeds_remaining() {
     // Verify extracted content matches original
     diff(test_dir, "split_first_chunk_test/out/").unwrap();
 }
+
+/// Precondition: A valid archive exists.
+/// Action: Run `pna split` with `--max-size` below the minimum threshold.
+/// Expectation: The command returns an error indicating the minimum size requirement.
+#[test]
+fn split_fails_with_too_small_max_size() {
+    setup();
+    TestResources::extract_in("zstd.pna", "split_too_small/").unwrap();
+
+    let result = cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "split",
+        "-f",
+        "split_too_small/zstd.pna",
+        "--max-size",
+        "50",
+        "--out-dir",
+        "split_too_small/out/",
+    ])
+    .unwrap()
+    .execute();
+
+    let err = result.unwrap_err();
+    assert!(
+        err.to_string().contains("must be at least"),
+        "error should mention minimum size requirement: {err}"
+    );
+}
+
+/// Precondition: An archive has already been split to an output directory.
+/// Action: Run `pna split` again to the same output without `--overwrite`.
+/// Expectation: The command returns an error because output files already exist.
+#[test]
+fn split_fails_without_overwrite_when_output_exists() {
+    setup();
+    TestResources::extract_in("zstd.pna", "split_no_overwrite/").unwrap();
+
+    // First split succeeds
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "split",
+        "-f",
+        "split_no_overwrite/zstd.pna",
+        "--overwrite",
+        "--max-size",
+        "100kb",
+        "--out-dir",
+        "split_no_overwrite/out/",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    // Confirm first split produced output files
+    assert!(
+        fs::read_dir("split_no_overwrite/out/").unwrap().count() > 0,
+        "first split should have produced output files"
+    );
+
+    // Second split without --overwrite should fail
+    let result = cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "split",
+        "-f",
+        "split_no_overwrite/zstd.pna",
+        "--max-size",
+        "100kb",
+        "--out-dir",
+        "split_no_overwrite/out/",
+    ])
+    .unwrap()
+    .execute();
+
+    assert!(
+        result.is_err(),
+        "split without --overwrite should fail when output exists"
+    );
+}
+
+/// Precondition: No archive exists at the specified path.
+/// Action: Run `pna split` with a non-existent archive path.
+/// Expectation: The command returns an error.
+#[test]
+fn split_fails_with_missing_archive() {
+    setup();
+
+    let result = cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "split",
+        "-f",
+        "split_missing/nonexistent.pna",
+        "--max-size",
+        "100kb",
+    ])
+    .unwrap()
+    .execute();
+
+    assert!(
+        result.is_err(),
+        "split should fail with non-existent archive"
+    );
+}
