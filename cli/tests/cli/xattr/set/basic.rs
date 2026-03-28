@@ -248,9 +248,13 @@ fn xattr_set_preserved_in_archive() {
 /// Action: Extract with `--keep-xattr`, then re-create from extracted files with `--keep-xattr`.
 /// Expectation: The xattr data in the new archive matches the original.
 #[test]
-#[ignore]
+#[cfg(unix)]
 fn xattr_round_trip_preservation() {
     setup();
+    if !xattr::SUPPORTED_PLATFORM {
+        eprintln!("Skipping xattr_round_trip_preservation: platform does not support xattr");
+        return;
+    }
     TestResources::extract_in("zstd.pna", "xattr_roundtrip/").unwrap();
 
     cli::Cli::try_parse_from([
@@ -282,6 +286,17 @@ fn xattr_round_trip_preservation() {
     .unwrap()
     .execute()
     .unwrap();
+
+    // If the filesystem does not support xattrs, the extract above could not
+    // have preserved them; skip the round-trip verification.
+    match xattr::get("xattr_roundtrip/out/raw/empty.txt", "user.roundtrip") {
+        Ok(Some(_)) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
+            eprintln!("Skipping xattr round-trip verification: filesystem does not support xattrs");
+            return;
+        }
+        other => panic!("Unexpected xattr::get result: {:?}", other),
+    }
 
     cli::Cli::try_parse_from([
         "pna",
