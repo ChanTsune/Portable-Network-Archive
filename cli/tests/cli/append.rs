@@ -1,9 +1,9 @@
 mod atime;
 mod ctime;
 mod entry_order;
-mod exclude;
-mod exclude_vcs;
 mod mtime;
+mod option_exclude;
+mod option_exclude_vcs;
 #[cfg(any(windows, target_os = "macos"))]
 mod option_newer_ctime;
 mod option_newer_ctime_than;
