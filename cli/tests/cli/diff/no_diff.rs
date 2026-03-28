@@ -1,9 +1,9 @@
 use crate::utils::{EmbedExt, TestResources, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 
-/// Precondition: the source tree contains file and directory.
-/// Action: run `pna create` to build an archive, then compare by `pna experimental diff`.
-/// Expectation: no difference detected.
+/// Precondition: The source tree contains files and directories.
+/// Action: Run `pna create` to build an archive, then compare with `pna experimental diff`.
+/// Expectation: No differences are detected.
 #[test]
 fn diff_to_current_dir() {
     setup();
