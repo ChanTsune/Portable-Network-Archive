@@ -28,22 +28,23 @@ pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Resu
     }
     #[cfg(windows)]
     fn inner(original: &Path, link: &Path) -> io::Result<()> {
-        use std::borrow::Cow;
+        let original = normalize_windows_separators(original);
+        let link = normalize_windows_separators(link);
         // Symlink targets are resolved relative to the link's parent directory,
         // not the current working directory. Resolve before checking is_dir()
         // so that relative targets pick the correct symlink type.
         let is_dir = if original.is_relative() {
             link.parent()
-                .map(|p| Cow::Owned(p.join(original)))
-                .unwrap_or(Cow::Borrowed(original))
+                .map(|p| p.join(original.as_ref()))
+                .unwrap_or_else(|| original.as_ref().to_path_buf())
                 .is_dir()
         } else {
             original.is_dir()
         };
         if is_dir {
-            os::windows::fs::symlink_dir(original, link)
+            os::windows::fs::symlink_dir(original.as_ref(), link.as_ref())
         } else {
-            os::windows::fs::symlink_file(original, link)
+            os::windows::fs::symlink_file(original.as_ref(), link.as_ref())
         }
     }
     #[cfg(target_os = "wasi")]
@@ -51,6 +52,37 @@ pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Resu
         os::wasi::fs::symlink_path(original, link)
     }
     inner(original.as_ref(), link.as_ref())
+}
+
+/// Replaces forward-slash separators with backslashes for Windows path APIs.
+///
+/// Windows symlink reparse points store the target verbatim; non-canonical
+/// `/` separators break resolution under `\\?\` extended-length paths and
+/// confuse downstream tools that read the reparse buffer (e.g. bsdtar,
+/// GNU tar, 7-Zip all normalize on extract). Goes through UTF-16 to preserve
+/// non-UTF-8 OsString sequences (WTF-16) byte-for-byte.
+#[cfg(windows)]
+fn normalize_windows_separators(path: &Path) -> std::borrow::Cow<'_, Path> {
+    use std::borrow::Cow;
+    use std::ffi::OsString;
+    use std::os::windows::ffi::{OsStrExt, OsStringExt};
+    use std::path::PathBuf;
+
+    let wide: Vec<u16> = path.as_os_str().encode_wide().collect();
+    if !wide.iter().any(|&unit| unit == u16::from(b'/')) {
+        return Cow::Borrowed(path);
+    }
+    let normalized = wide
+        .into_iter()
+        .map(|unit| {
+            if unit == u16::from(b'/') {
+                u16::from(b'\\')
+            } else {
+                unit
+            }
+        })
+        .collect::<Vec<_>>();
+    Cow::Owned(PathBuf::from(OsString::from_wide(&normalized)))
 }
 
 /// Removes a path by dispatching based on file type.
@@ -145,4 +177,75 @@ pub fn remove_path_all<P: AsRef<Path>>(path: P) -> io::Result<()> {
 #[inline]
 pub fn remove_path<P: AsRef<Path>>(path: P) -> io::Result<()> {
     remove_path_with(path.as_ref(), fs::remove_dir)
+}
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use super::normalize_windows_separators;
+    use std::borrow::Cow;
+    use std::ffi::OsString;
+    use std::os::windows::ffi::{OsStrExt, OsStringExt};
+    use std::path::{Path, PathBuf};
+
+    fn wide_units_of(path: &Path) -> Vec<u16> {
+        path.as_os_str().encode_wide().collect()
+    }
+
+    #[test]
+    fn returns_borrowed_when_no_forward_slash() {
+        let input = Path::new(r"foo\bar\baz");
+        let result = normalize_windows_separators(input);
+        assert!(matches!(result, Cow::Borrowed(_)));
+        assert_eq!(result.as_ref(), input);
+    }
+
+    #[test]
+    fn converts_basic_forward_slash_to_backslash() {
+        let result = normalize_windows_separators(Path::new("foo/bar"));
+        assert!(matches!(result, Cow::Owned(_)));
+        assert_eq!(result.as_ref(), Path::new(r"foo\bar"));
+    }
+
+    #[test]
+    fn preserves_existing_backslashes_in_mixed_input() {
+        let result = normalize_windows_separators(Path::new(r"a/b\c/d"));
+        assert_eq!(result.as_ref(), Path::new(r"a\b\c\d"));
+    }
+
+    #[test]
+    fn empty_path_returns_borrowed() {
+        let input = Path::new("");
+        let result = normalize_windows_separators(input);
+        assert!(matches!(result, Cow::Borrowed(_)));
+        assert_eq!(result.as_ref(), input);
+    }
+
+    #[test]
+    fn single_forward_slash_is_converted() {
+        let result = normalize_windows_separators(Path::new("/"));
+        assert_eq!(result.as_ref(), Path::new(r"\"));
+    }
+
+    #[test]
+    fn extended_length_path_with_forward_slashes_is_normalized() {
+        let result = normalize_windows_separators(Path::new(r"\\?\C:/foo/bar"));
+        assert_eq!(result.as_ref(), Path::new(r"\\?\C:\foo\bar"));
+    }
+
+    #[test]
+    fn lone_surrogate_is_preserved_while_slash_is_converted() {
+        let units: [u16; 3] = [0xD800, u16::from(b'/'), u16::from(b'a')];
+        let input = PathBuf::from(OsString::from_wide(&units));
+        let result = normalize_windows_separators(&input);
+        assert_eq!(
+            wide_units_of(result.as_ref()),
+            vec![0xD800, u16::from(b'\\'), u16::from(b'a')]
+        );
+    }
+
+    #[test]
+    fn unicode_characters_are_preserved() {
+        let result = normalize_windows_separators(Path::new("日本語/フォルダ"));
+        assert_eq!(result.as_ref(), Path::new(r"日本語\フォルダ"));
+    }
 }
