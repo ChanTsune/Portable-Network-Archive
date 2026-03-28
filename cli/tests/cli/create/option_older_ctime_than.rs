@@ -3,10 +3,10 @@ use clap::Parser;
 use portable_network_archive::cli;
 use std::{collections::HashSet, fs, thread, time::Duration};
 
-/// Precondition: Create three files (older, reference, newer) with strictly increasing ctime.
-/// Action: Run `pna create` with `--older-ctime-than reference.txt`, specifying all three files.
-/// Expectation: Files with ctime < reference.txt are included (older only); reference and newer are excluded.
-/// Note: Requires filesystem support for creation/birth time.
+/// Precondition: The source tree contains files with strictly ordered creation times and a reference file.
+/// Action: Run `pna create` with `--older-ctime-than` pointing to the reference file.
+/// Expectation: Only files whose creation time is older than the reference file are included in the archive.
+/// Note: This test requires filesystem support for creation time (birth time).
 #[test]
 fn create_with_older_ctime_than() {
     setup();

@@ -6,9 +6,9 @@ use clap::Parser;
 use portable_network_archive::cli;
 use std::{collections::HashSet, fs, thread, time::Duration};
 
-/// Precondition: Create three files (older, reference, newer) with strictly increasing mtime.
-/// Action: Run `pna create` with `--older-mtime-than reference.txt`, specifying all three files.
-/// Expectation: Files with mtime < reference.txt are included (older only); reference and newer are excluded.
+/// Precondition: The source tree contains files with strictly ordered modification times and a reference file.
+/// Action: Run `pna create` with `--older-mtime-than` pointing to the reference file.
+/// Expectation: Only files whose modification time is older than the reference file are included in the archive.
 #[test]
 fn create_with_older_mtime_than() {
     setup();

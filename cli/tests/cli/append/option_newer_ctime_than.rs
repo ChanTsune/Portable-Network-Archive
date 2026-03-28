@@ -3,9 +3,9 @@ use clap::Parser;
 use portable_network_archive::cli;
 use std::{collections::HashSet, fs, thread, time::Duration};
 
-/// Precondition: Create an archive with an older file, then prepare reference and newer files.
-/// Action: Run `pna append` with `--newer-ctime-than reference.txt`, specifying older, reference, and newer files.
-/// Expectation: Files with ctime > reference are appended (newer only); older and reference are not re-added.
+/// Precondition: An archive exists with an older file, and the source tree contains a reference file and a newer file.
+/// Action: Run `pna append` with `--newer-ctime-than` pointing to the reference file.
+/// Expectation: Only files whose creation time is newer than the reference file are appended to the archive.
 /// Note: This test requires filesystem support for creation time (birth time).
 #[test]
 fn append_with_newer_ctime_than() {
