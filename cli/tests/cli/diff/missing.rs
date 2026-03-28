@@ -2,10 +2,9 @@ use crate::utils::{EmbedExt, TestResources, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
 
-/// Precondition: the source tree contains file and directory.
-/// Action: run `pna create` with `--exclude` to build an archive, then compare by
-///         `pna experimental diff`.
-/// Expectation: no difference detected.
+/// Precondition: The source tree contains files and directories.
+/// Action: Run `pna create` with `--exclude` to build an archive, then compare with `pna experimental diff`.
+/// Expectation: No differences are detected.
 #[test]
 fn diff_missing_in_archive() {
     setup();
@@ -39,10 +38,9 @@ fn diff_missing_in_archive() {
     assert.stdout("");
 }
 
-/// Precondition: the source tree contains file and directory.
-/// Action: run `pna create` to build an archive and remove *.svg from filesystem, then compare by
-///         `pna experimental diff`.
-/// Expectation: detect missing file.
+/// Precondition: The source tree contains files and directories.
+/// Action: Run `pna create` to build an archive, remove a file from the filesystem, then compare with `pna experimental diff`.
+/// Expectation: The missing file is detected.
 #[test]
 fn diff_missing_in_disk() {
     setup();
