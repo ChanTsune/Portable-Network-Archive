@@ -1,4 +1,4 @@
-use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, diff::assert_dirs_equal, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 
@@ -33,7 +33,7 @@ fn solid_store_archive() {
     .unwrap()
     .execute()
     .unwrap();
-    diff("solid_store/in/", "solid_store/out/").unwrap();
+    assert_dirs_equal("solid_store/in/", "solid_store/out/");
 }
 
 #[test]
@@ -68,7 +68,7 @@ fn solid_zstd_archive() {
     .execute()
     .unwrap();
 
-    diff("solid_zstd/in/", "solid_zstd/out/").unwrap();
+    assert_dirs_equal("solid_zstd/in/", "solid_zstd/out/");
 }
 
 #[test]
@@ -103,7 +103,7 @@ fn solid_xz_archive() {
     .execute()
     .unwrap();
 
-    diff("solid_xz/in/", "solid_xz/out/").unwrap();
+    assert_dirs_equal("solid_xz/in/", "solid_xz/out/");
 }
 
 #[test]
@@ -137,5 +137,5 @@ fn solid_deflate_archive() {
     .unwrap()
     .execute()
     .unwrap();
-    diff("solid_deflate/in/", "solid_deflate/out/").unwrap();
+    assert_dirs_equal("solid_deflate/in/", "solid_deflate/out/");
 }

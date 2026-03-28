@@ -1,4 +1,4 @@
-use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, diff::assert_dirs_equal, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 use std::fs;
@@ -55,7 +55,7 @@ fn split_archive() {
     .unwrap();
 
     // check completely extracted
-    diff("split_archive/in/", "split_archive/out/").unwrap();
+    assert_dirs_equal("split_archive/in/", "split_archive/out/");
 }
 
 /// Test that split works when an entry's first chunk exceeds remaining space in current archive
@@ -153,7 +153,7 @@ fn split_archive_first_chunk_exceeds_remaining() {
     .unwrap();
 
     // Verify extracted content matches original
-    diff(test_dir, "split_first_chunk_test/out/").unwrap();
+    assert_dirs_equal(test_dir, "split_first_chunk_test/out/");
 }
 
 /// Precondition: A valid archive exists.

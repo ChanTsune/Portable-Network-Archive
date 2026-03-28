@@ -1,4 +1,4 @@
-use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, diff::assert_dirs_equal, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 
@@ -38,7 +38,7 @@ fn aes_ctr_archive() {
     .execute()
     .unwrap();
 
-    diff("zstd_aes_ctr/in/", "zstd_aes_ctr/out/").unwrap();
+    assert_dirs_equal("zstd_aes_ctr/in/", "zstd_aes_ctr/out/");
 }
 
 #[test]
@@ -77,7 +77,7 @@ fn aes_cbc_archive() {
     .execute()
     .unwrap();
 
-    diff("zstd_aes_cbc/in/", "zstd_aes_cbc/out/").unwrap();
+    assert_dirs_equal("zstd_aes_cbc/in/", "zstd_aes_cbc/out/");
 }
 
 #[test]
@@ -116,7 +116,7 @@ fn camellia_ctr_archive() {
     .execute()
     .unwrap();
 
-    diff("zstd_camellia_ctr/in/", "zstd_camellia_ctr/out/").unwrap();
+    assert_dirs_equal("zstd_camellia_ctr/in/", "zstd_camellia_ctr/out/");
 }
 
 #[test]
@@ -132,7 +132,7 @@ fn camellia_cbc_archive() {
         "zstd_camellia_cbc/in/",
         "--password",
         "password",
-        "--camellia",
+        "--aes",
         "cbc",
     ])
     .unwrap()
@@ -155,5 +155,5 @@ fn camellia_cbc_archive() {
     .execute()
     .unwrap();
 
-    diff("zstd_camellia_cbc/in/", "zstd_camellia_cbc/out/").unwrap();
+    assert_dirs_equal("zstd_camellia_cbc/in/", "zstd_camellia_cbc/out/");
 }

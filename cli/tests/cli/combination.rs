@@ -1,4 +1,4 @@
-use crate::utils::{EmbedExt, LibSourceCode, diff::diff, setup};
+use crate::utils::{EmbedExt, LibSourceCode, diff::assert_dirs_equal, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use itertools::Itertools;
 
@@ -64,11 +64,10 @@ fn combination_fs() {
             "--unstable",
         ]);
         cmd.assert().success();
-        diff(
+        assert_dirs_equal(
             "combination_fs/in/",
             format!("combination_fs/out/{joined_options}"),
-        )
-        .unwrap();
+        );
     }
     for keep in FS_KEEP_OPTIONS {
         for compress in COMPRESSION_OPTIONS {
@@ -137,11 +136,10 @@ fn combination_stdio() {
             "--unstable",
         ]);
         cmd.assert().success();
-        diff(
+        assert_dirs_equal(
             "combination_stdio/in/",
             format!("combination_stdio/out/{joined_options}"),
-        )
-        .unwrap();
+        );
     }
     for keep in STDIO_KEEP_OPTIONS {
         for compress in COMPRESSION_OPTIONS {

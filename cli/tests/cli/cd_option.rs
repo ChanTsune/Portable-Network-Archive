@@ -1,4 +1,4 @@
-use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, diff::assert_dirs_equal, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
 
@@ -35,7 +35,7 @@ fn create_extract_with_cd() {
     cmd.assert().success();
 
     // check completely extracted
-    diff("create_extract_with_cd/in/", "create_extract_with_cd/out/").unwrap();
+    assert_dirs_equal("create_extract_with_cd/in/", "create_extract_with_cd/out/");
 }
 
 #[test]
@@ -87,7 +87,7 @@ fn append_with_cd() {
     cmd.assert().success();
 
     // check completely extracted
-    diff("append_with_cd/in/", "append_with_cd/out/").unwrap();
+    assert_dirs_equal("append_with_cd/in/", "append_with_cd/out/");
 }
 
 #[test]
@@ -140,7 +140,7 @@ fn update_with_cd() {
     cmd.assert().success();
 
     // check completely extracted
-    diff("update_with_cd/in/", "update_with_cd/out/").unwrap();
+    assert_dirs_equal("update_with_cd/in/", "update_with_cd/out/");
 }
 
 #[test]
@@ -175,5 +175,5 @@ fn stdio_with_cd() {
     ]);
     cmd.assert().success();
 
-    diff("stdio_with_cd/in/", "stdio_with_cd/out/").unwrap();
+    assert_dirs_equal("stdio_with_cd/in/", "stdio_with_cd/out/");
 }

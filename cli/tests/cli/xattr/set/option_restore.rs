@@ -1,4 +1,4 @@
-use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, diff::assert_dirs_equal, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 
 /// Precondition: An archive exists and xattr dump is provided via stdin.
@@ -61,7 +61,7 @@ fn xattr_set_restore() {
     .assert()
     .success();
 
-    diff("xattr_set_restore/in/", "xattr_set_restore/out/").unwrap();
+    assert_dirs_equal("xattr_set_restore/in/", "xattr_set_restore/out/");
 
     #[cfg(unix)]
     if xattr::SUPPORTED_PLATFORM {

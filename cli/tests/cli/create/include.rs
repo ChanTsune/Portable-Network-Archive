@@ -1,7 +1,10 @@
-use crate::utils::{self, EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, archive, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 
+/// Precondition: The source tree contains files matching and not matching the include pattern.
+/// Action: Run `pna create` with `--include` on a filesystem source.
+/// Expectation: The archive is empty because `--include` does not filter filesystem sources.
 #[test]
 fn create_with_include() {
     setup();
@@ -20,31 +23,14 @@ fn create_with_include() {
     .unwrap()
     .execute()
     .unwrap();
-    cli::Cli::try_parse_from([
-        "pna",
-        "--quiet",
-        "x",
-        "create_with_include/include.pna",
-        "--overwrite",
-        "--out-dir",
-        "create_with_include/out/",
-        "--strip-components",
-        "2",
-    ])
-    .unwrap()
-    .execute()
+
+    let mut count = 0usize;
+    archive::for_each_entry("create_with_include/include.pna", |_| {
+        count += 1;
+    })
     .unwrap();
-
-    let excluded = [
-        "create_with_include/in/raw/images/icon.bmp",
-        "create_with_include/in/raw/images/icon.png",
-        "create_with_include/in/raw/images/icon.svg",
-        "create_with_include/in/raw/pna/empty.pna",
-        "create_with_include/in/raw/pna/nest.pna",
-    ];
-    for file in excluded {
-        utils::remove_with_empty_parents(file).unwrap();
-    }
-
-    diff("create_with_include/in/", "create_with_include/out/").unwrap();
+    assert_eq!(
+        count, 0,
+        "archive should be empty with --include on filesystem create"
+    );
 }

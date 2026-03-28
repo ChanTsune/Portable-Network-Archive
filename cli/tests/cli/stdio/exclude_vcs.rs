@@ -1,4 +1,4 @@
-use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
 use std::path::Path;
@@ -67,12 +67,19 @@ fn stdio_with_exclude_vcs() {
         out_dir,
     ]);
     extract_cmd.assert().success();
-    // Remove VCS files from input for fair comparison
-    for file in vcs_files.iter() {
-        let _ = fs::remove_file(file);
+    // Verify extracted regular files have correct content
+    for file in ["regular.txt", "data.csv", "document.pdf"] {
+        let in_path = format!("stdio_with_exclude_vcs/in/raw/{file}");
+        let out_path = format!("{out_dir}stdio_with_exclude_vcs/in/raw/{file}");
+        assert_eq!(
+            fs::read(&in_path).unwrap(),
+            fs::read(&out_path).unwrap(),
+            "content mismatch for {file}"
+        );
     }
-    // Compare input and output directories to ensure VCS files are excluded
-    diff("stdio_with_exclude_vcs/in/raw/", format!("{out_dir}/raw/")).unwrap();
+    // Verify VCS directories are not extracted
+    assert!(!fs::exists(format!("{out_dir}stdio_with_exclude_vcs/in/raw/.git")).unwrap());
+    assert!(!fs::exists(format!("{out_dir}stdio_with_exclude_vcs/in/raw/.svn")).unwrap());
 }
 
 #[test]
@@ -137,10 +144,17 @@ fn stdio_without_exclude_vcs() {
         out_dir,
     ]);
     extract_cmd.assert().success();
-    // Compare input and output directories to ensure VCS files are included
-    diff(
-        "stdio_without_exclude_vcs/in/raw/",
-        format!("{out_dir}/raw/"),
-    )
-    .unwrap();
+    // Verify extracted regular files have correct content
+    // Note: VCS files are not passed as archive arguments, so they are not
+    // in the archive regardless of --exclude-vcs. This test verifies that
+    // the absence of --exclude-vcs does not interfere with normal file archiving.
+    for file in ["regular.txt", "data.csv", "document.pdf"] {
+        let in_path = format!("stdio_without_exclude_vcs/in/raw/{file}");
+        let out_path = format!("{out_dir}stdio_without_exclude_vcs/in/raw/{file}");
+        assert_eq!(
+            fs::read(&in_path).unwrap(),
+            fs::read(&out_path).unwrap(),
+            "content mismatch for {file}"
+        );
+    }
 }

@@ -1,7 +1,7 @@
 #[cfg(not(target_family = "wasm"))]
 mod option_overwrite;
 
-use crate::utils::{EmbedExt, TestResources, diff::diff, setup};
+use crate::utils::{EmbedExt, TestResources, diff::assert_dirs_equal, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 
@@ -60,5 +60,5 @@ fn concat_archive() {
     .unwrap()
     .execute()
     .unwrap();
-    diff("concat_archive/in", "concat_archive/out").unwrap();
+    assert_dirs_equal("concat_archive/in", "concat_archive/out");
 }

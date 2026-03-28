@@ -3,10 +3,6 @@ use clap::Parser;
 use portable_network_archive::cli;
 use std::collections::HashMap;
 
-/// Precondition: An archive contains entries with permission metadata.
-/// Action: Run `pna experimental chown` with `--no-owner-lookup` to change owner by name.
-/// Expectation: The target entry has updated uname/gname with uid/gid set to MAX;
-///              non-target entries retain their original permissions.
 #[test]
 fn chown_no_owner_lookup() {
     setup();

@@ -35,9 +35,7 @@ fn get_archive_entry_names(path: &Path) -> Vec<String> {
     names
 }
 
-/// Precondition: An existing archive contains entries and a filesystem file exists.
-/// Action: Run `pna compat bsdtar` --create with `@archive` inclusion and a filesystem file.
-/// Expectation: The output archive contains entries from both the included archive and the filesystem file.
+/// Test basic @archive inclusion: create a new archive including entries from an existing archive.
 #[test]
 fn stdio_archive_inclusion_basic() {
     setup();
@@ -96,9 +94,7 @@ fn stdio_archive_inclusion_basic() {
     assert_eq!(entry_names.len(), 3);
 }
 
-/// Precondition: Two separate archives exist, each containing distinct entries.
-/// Action: Run `pna compat bsdtar` --create with multiple `@archive` inclusions.
-/// Expectation: The output archive contains entries from all included archives.
+/// Test multiple @archive inclusions from different source archives.
 #[test]
 fn stdio_archive_inclusion_multiple() {
     setup();
@@ -149,9 +145,7 @@ fn stdio_archive_inclusion_multiple() {
     assert_eq!(entry_names.len(), 3);
 }
 
-/// Precondition: An existing archive contains entries and a filesystem file exists.
-/// Action: Run `pna compat bsdtar` --create with `--solid` and `@archive` inclusion.
-/// Expectation: The solid archive contains entries from both sources and extracts correctly.
+/// Test @archive inclusion with solid mode enabled.
 #[test]
 fn stdio_archive_inclusion_solid() {
     setup();
@@ -227,9 +221,7 @@ fn stdio_archive_inclusion_solid() {
     );
 }
 
-/// Precondition: An archive exists with initial entries and a separate source archive exists.
-/// Action: Run `pna compat bsdtar` --append with `@archive` inclusion.
-/// Expectation: The archive contains both original and newly included entries.
+/// Test @archive inclusion in append mode.
 #[test]
 fn stdio_archive_inclusion_append() {
     setup();
@@ -269,9 +261,7 @@ fn stdio_archive_inclusion_append() {
     assert_eq!(entry_names.len(), 2);
 }
 
-/// Precondition: No archive exists at the referenced `@archive` path.
-/// Action: Run `pna compat bsdtar` --create with a nonexistent `@archive` inclusion.
-/// Expectation: The command fails with an error.
+/// Test that @archive with non-existent file produces an error.
 #[test]
 fn stdio_archive_inclusion_nonexistent() {
     setup();
@@ -296,9 +286,7 @@ fn stdio_archive_inclusion_nonexistent() {
         .failure();
 }
 
-/// Precondition: A source archive contains an entry with non-trivial content.
-/// Action: Run `pna compat bsdtar` --create with `@archive` inclusion, then extract.
-/// Expectation: The extracted content matches the original entry data.
+/// Test @archive inclusion preserves entry data correctly.
 #[test]
 fn stdio_archive_inclusion_data_integrity() {
     setup();
