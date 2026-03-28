@@ -518,7 +518,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     }
     apply_chroot(args.chroot)?;
     #[cfg(not(feature = "memmap"))]
-    run_extract_archive_reader(
+    let outcome = run_extract_archive_reader(
         archives
             .into_iter()
             .map(|it| io::BufReader::with_capacity(64 * 1024, it)),
@@ -541,7 +541,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let archives = mmaps.iter().map(|m| m.as_ref());
 
     #[cfg(feature = "memmap")]
-    run_extract_archive(
+    let outcome = run_extract_archive(
         archives,
         files,
         || password.as_deref(),
@@ -554,6 +554,9 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         "Successfully extracted an archive in {}",
         DurationDisplay(start.elapsed())
     );
+    if outcome == Outcome::Warn {
+        anyhow::bail!("One or more entries were not extracted due to path security violations");
+    }
     Ok(())
 }
 
@@ -613,7 +616,7 @@ pub(crate) fn run_extract_archive_reader<'a, 'p, Provider>(
     no_recursive: bool,
     fast_read: bool,
     allow_concatenated_archives: bool,
-) -> anyhow::Result<()>
+) -> anyhow::Result<Outcome>
 where
     Provider: FnMut() -> Option<&'p [u8]> + Send,
 {
@@ -623,6 +626,7 @@ where
         BsdGlobMatcher::new(patterns.iter().map(|it| it.as_str())).with_no_recursive(no_recursive);
 
     let mut link_entries = Vec::new();
+    let had_security_skip = Arc::new(AtomicBool::new(false));
 
     #[cfg(not(target_family = "wasm"))]
     {
@@ -640,6 +644,10 @@ where
                         let name =
                             match filter_entry_fast_read(&item, &item_path, &mut globs, &args) {
                                 FastReadFilterAction::Skip(action) => return Ok(action),
+                                FastReadFilterAction::SecuritySkip(action) => {
+                                    had_security_skip.store(true, Ordering::Relaxed);
+                                    return Ok(action);
+                                }
                                 FastReadFilterAction::Accept(name) => name,
                             };
                         if args.verbose {
@@ -663,9 +671,13 @@ where
                             return Ok(ProcessAction::Continue);
                         }
                         if item.header().data_kind() == DataKind::Directory {
-                            extract_entry(item, &name, password, &args).map_err(|e| {
-                                io::Error::new(e.kind(), format!("extracting {item_path}: {e}"))
-                            })?;
+                            let result =
+                                extract_entry(item, &name, password, &args).map_err(|e| {
+                                    io::Error::new(e.kind(), format!("extracting {item_path}: {e}"))
+                                })?;
+                            if result == ExtractResult::SecuritySkipped {
+                                had_security_skip.store(true, Ordering::Relaxed);
+                            }
                             if globs.all_matched() {
                                 return Ok(ProcessAction::Stop);
                             }
@@ -676,10 +688,16 @@ where
                         let tx = tx.clone();
                         let args = args.clone();
                         let all_matched = globs.all_matched();
+                        let had_security_skip = had_security_skip.clone();
                         s.spawn_fifo(move |_| {
                             let _guard = ticket.wait_for_turn();
                             tx.send(
                                 extract_entry(item, &name, password, &args)
+                                    .map(|r| {
+                                        if r == ExtractResult::SecuritySkipped {
+                                            had_security_skip.store(true, Ordering::Relaxed);
+                                        }
+                                    })
                                     .with_context(|| format!("extracting {}", item_path)),
                             )
                             .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
@@ -700,8 +718,13 @@ where
                         let item = entry.map_err(|e| {
                             io::Error::new(e.kind(), format!("reading archive entry: {e}"))
                         })?;
-                        let Some(name) = filter_entry(&item, &mut globs, &args) else {
-                            return Ok(());
+                        let name = match filter_entry(&item, &mut globs, &args) {
+                            FilterResult::Skipped => return Ok(()),
+                            FilterResult::SecuritySkipped => {
+                                had_security_skip.store(true, Ordering::Relaxed);
+                                return Ok(());
+                            }
+                            FilterResult::Accept(name) => name,
                         };
                         if args.verbose {
                             eprintln!("x {}", name);
@@ -718,9 +741,13 @@ where
                         }
                         if item.header().data_kind() == DataKind::Directory {
                             let item_path = item.name().to_string();
-                            extract_entry(item, &name, password, &args).map_err(|e| {
-                                io::Error::new(e.kind(), format!("extracting {item_path}: {e}"))
-                            })?;
+                            let result =
+                                extract_entry(item, &name, password, &args).map_err(|e| {
+                                    io::Error::new(e.kind(), format!("extracting {item_path}: {e}"))
+                                })?;
+                            if result == ExtractResult::SecuritySkipped {
+                                had_security_skip.store(true, Ordering::Relaxed);
+                            }
                             return Ok(());
                         }
                         let path = build_output_path(args.out_dir.as_deref(), name.as_path());
@@ -728,10 +755,16 @@ where
                         let item_path = item.name().to_string();
                         let tx = tx.clone();
                         let args = args.clone();
+                        let had_security_skip = had_security_skip.clone();
                         s.spawn_fifo(move |_| {
                             let _guard = ticket.wait_for_turn();
                             tx.send(
                                 extract_entry(item, &name, password, &args)
+                                    .map(|r| {
+                                        if r == ExtractResult::SecuritySkipped {
+                                            had_security_skip.store(true, Ordering::Relaxed);
+                                        }
+                                    })
                                     .with_context(|| format!("extracting {}", item_path)),
                             )
                             .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
@@ -763,6 +796,10 @@ where
                     let item_path = item.name().to_string();
                     let name = match filter_entry_fast_read(&item, &item_path, &mut globs, &args) {
                         FastReadFilterAction::Skip(action) => return Ok(action),
+                        FastReadFilterAction::SecuritySkip(action) => {
+                            had_security_skip.store(true, Ordering::Relaxed);
+                            return Ok(action);
+                        }
                         FastReadFilterAction::Accept(name) => name,
                     };
                     if args.verbose {
@@ -785,9 +822,12 @@ where
                         }
                         return Ok(ProcessAction::Continue);
                     }
-                    extract_entry(item, &name, password, &args).map_err(|e| {
+                    let result = extract_entry(item, &name, password, &args).map_err(|e| {
                         io::Error::new(e.kind(), format!("extracting {}: {e}", item_path))
                     })?;
+                    if result == ExtractResult::SecuritySkipped {
+                        had_security_skip.store(true, Ordering::Relaxed);
+                    }
                     if globs.all_matched() {
                         return Ok(ProcessAction::Stop);
                     }
@@ -804,8 +844,13 @@ where
                     let item = entry.map_err(|e| {
                         io::Error::new(e.kind(), format!("reading archive entry: {e}"))
                     })?;
-                    let Some(name) = filter_entry(&item, &mut globs, &args) else {
-                        return Ok(());
+                    let name = match filter_entry(&item, &mut globs, &args) {
+                        FilterResult::Skipped => return Ok(()),
+                        FilterResult::SecuritySkipped => {
+                            had_security_skip.store(true, Ordering::Relaxed);
+                            return Ok(());
+                        }
+                        FilterResult::Accept(name) => name,
                     };
                     if args.verbose {
                         eprintln!("x {}", name);
@@ -820,9 +865,12 @@ where
                         link_entries.push((name, item));
                         return Ok(());
                     }
-                    extract_entry(item, &name, password, &args).map_err(|e| {
+                    let result = extract_entry(item, &name, password, &args).map_err(|e| {
                         io::Error::new(e.kind(), format!("extracting {}: {e}", name))
                     })?;
+                    if result == ExtractResult::SecuritySkipped {
+                        had_security_skip.store(true, Ordering::Relaxed);
+                    }
                     Ok(())
                 },
                 allow_concatenated_archives,
@@ -832,12 +880,19 @@ where
     }
 
     for (name, item) in link_entries {
-        extract_entry(item, &name, password, &args)
+        let result = extract_entry(item, &name, password, &args)
             .with_context(|| format!("extracting deferred link {name}"))?;
+        if result == ExtractResult::SecuritySkipped {
+            had_security_skip.store(true, Ordering::Relaxed);
+        }
     }
 
     globs.ensure_all_matched()?;
-    Ok(())
+    if had_security_skip.load(Ordering::Relaxed) {
+        Ok(Outcome::Warn)
+    } else {
+        Ok(Outcome::Success)
+    }
 }
 
 #[cfg(feature = "memmap")]
@@ -849,7 +904,7 @@ pub(crate) fn run_extract_archive<'a, 'd, 'p, Provider>(
     args: OutputOption<'a>,
     no_recursive: bool,
     fast_read: bool,
-) -> anyhow::Result<()>
+) -> anyhow::Result<Outcome>
 where
     Provider: FnMut() -> Option<&'p [u8]> + Send,
 {
@@ -858,6 +913,7 @@ where
         BsdGlobMatcher::new(files.iter().map(|it| it.as_str())).with_no_recursive(no_recursive);
 
     let mut link_entries: Vec<(EntryName, NormalEntry<Vec<u8>>)> = Vec::new();
+    let had_security_skip = Arc::new(AtomicBool::new(false));
 
     let (tx, rx) = std::sync::mpsc::channel();
 
@@ -870,6 +926,10 @@ where
                 let item_path = item.name().to_string();
                 let name = match filter_entry_fast_read(&item, &item_path, &mut globs, &args) {
                     FastReadFilterAction::Skip(action) => return Ok(action),
+                    FastReadFilterAction::SecuritySkip(action) => {
+                        had_security_skip.store(true, Ordering::Relaxed);
+                        return Ok(action);
+                    }
                     FastReadFilterAction::Accept(name) => name,
                 };
                 if args.verbose {
@@ -893,9 +953,12 @@ where
                     return Ok(ProcessAction::Continue);
                 }
                 if item.header().data_kind() == DataKind::Directory {
-                    extract_entry(item, &name, password, &args).map_err(|e| {
+                    let result = extract_entry(item, &name, password, &args).map_err(|e| {
                         io::Error::new(e.kind(), format!("extracting {item_path}: {e}"))
                     })?;
+                    if result == ExtractResult::SecuritySkipped {
+                        had_security_skip.store(true, Ordering::Relaxed);
+                    }
                     if globs.all_matched() {
                         return Ok(ProcessAction::Stop);
                     }
@@ -906,10 +969,16 @@ where
                 let tx = tx.clone();
                 let args = args.clone();
                 let all_matched = globs.all_matched();
+                let had_security_skip = had_security_skip.clone();
                 s.spawn_fifo(move |_| {
                     let _guard = ticket.wait_for_turn();
                     tx.send(
                         extract_entry(item, &name, password, &args)
+                            .map(|r| {
+                                if r == ExtractResult::SecuritySkipped {
+                                    had_security_skip.store(true, Ordering::Relaxed);
+                                }
+                            })
                             .with_context(|| format!("extracting {}", item_path)),
                     )
                     .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
@@ -925,8 +994,13 @@ where
             run_entries(archives, password_provider, |entry| {
                 let item = entry
                     .map_err(|e| io::Error::new(e.kind(), format!("reading archive entry: {e}")))?;
-                let Some(name) = filter_entry(&item, &mut globs, &args) else {
-                    return Ok(());
+                let name = match filter_entry(&item, &mut globs, &args) {
+                    FilterResult::Skipped => return Ok(()),
+                    FilterResult::SecuritySkipped => {
+                        had_security_skip.store(true, Ordering::Relaxed);
+                        return Ok(());
+                    }
+                    FilterResult::Accept(name) => name,
                 };
                 if args.verbose {
                     eprintln!("x {}", name);
@@ -943,9 +1017,12 @@ where
                 }
                 if item.header().data_kind() == DataKind::Directory {
                     let item_path = item.name().to_string();
-                    extract_entry(item, &name, password, &args).map_err(|e| {
+                    let result = extract_entry(item, &name, password, &args).map_err(|e| {
                         io::Error::new(e.kind(), format!("extracting {item_path}: {e}"))
                     })?;
+                    if result == ExtractResult::SecuritySkipped {
+                        had_security_skip.store(true, Ordering::Relaxed);
+                    }
                     return Ok(());
                 }
                 let path = build_output_path(args.out_dir.as_deref(), name.as_path());
@@ -953,10 +1030,16 @@ where
                 let item_path = item.name().to_string();
                 let tx = tx.clone();
                 let args = args.clone();
+                let had_security_skip = had_security_skip.clone();
                 s.spawn_fifo(move |_| {
                     let _guard = ticket.wait_for_turn();
                     tx.send(
                         extract_entry(item, &name, password, &args)
+                            .map(|r| {
+                                if r == ExtractResult::SecuritySkipped {
+                                    had_security_skip.store(true, Ordering::Relaxed);
+                                }
+                            })
                             .with_context(|| format!("extracting {}", item_path)),
                     )
                     .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
@@ -973,11 +1056,19 @@ where
     }
 
     for (name, item) in link_entries {
-        extract_entry(item, &name, password, &args)
+        let result = extract_entry(item, &name, password, &args)
             .with_context(|| format!("extracting deferred link {name}"))?;
+        if result == ExtractResult::SecuritySkipped {
+            had_security_skip.store(true, Ordering::Relaxed);
+        }
     }
     globs.ensure_all_matched()?;
-    Ok(())
+    let outcome = if had_security_skip.load(Ordering::Relaxed) {
+        Outcome::Warn
+    } else {
+        Outcome::Success
+    };
+    Ok(outcome)
 }
 
 #[inline]
@@ -994,33 +1085,73 @@ fn filter_entry<T: AsRef<[u8]>>(
     item: &NormalEntry<T>,
     globs: &mut BsdGlobMatcher<'_>,
     args: &OutputOption<'_>,
-) -> Option<EntryName>
+) -> FilterResult
 where
     pna::RawChunk<T>: Chunk,
 {
     let item_name = item.name();
     if !globs.is_empty() && !globs.matches(item_name) {
         log::debug!("Skip: {item_name}");
-        return None;
+        return FilterResult::Skipped;
     }
     if args.filter.excluded(item_name) {
         log::debug!("Skip: {item_name}");
-        return None;
+        return FilterResult::Skipped;
     }
     if !entry_matches_time_filters(item, &args.time_filters) {
         log::debug!("Skip: {item_name}");
-        return None;
+        return FilterResult::Skipped;
     }
-    let name = args.pathname_editor.edit_entry_name(item_name.as_path());
-    if name.is_none() {
+    let Some(name) = args.pathname_editor.edit_entry_name(item_name.as_path()) else {
+        // Distinguish security-related skips (path traversal) from benign skips
+        // (path became empty after sanitization, e.g. "." entries).
+        if item_name
+            .as_path()
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+        {
+            log::warn!("Skipping entry with unsafe path: {item_name}");
+            return FilterResult::SecuritySkipped;
+        }
         log::debug!("Skip: {item_name}");
-    }
-    name
+        return FilterResult::Skipped;
+    };
+    FilterResult::Accept(name)
+}
+
+/// Outcome of an extraction operation, tracking whether security warnings occurred.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum Outcome {
+    #[default]
+    Success,
+    Warn,
+}
+
+/// Result of filtering an entry before extraction.
+enum FilterResult {
+    /// Entry accepted for extraction.
+    Accept(EntryName),
+    /// Entry skipped by user-specified filters (glob, exclude, time).
+    Skipped,
+    /// Entry skipped due to path security violation (traversal, empty after strip).
+    SecuritySkipped,
+}
+
+/// Result of extracting a single entry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ExtractResult {
+    /// Entry successfully extracted.
+    Extracted,
+    /// Entry skipped by overwrite strategy (keep-newer, keep-older).
+    Skipped,
+    /// Entry skipped due to unsafe link target.
+    SecuritySkipped,
 }
 
 enum FastReadFilterAction {
     Accept(EntryName),
     Skip(ProcessAction),
+    SecuritySkip(ProcessAction),
 }
 
 fn filter_entry_fast_read<T: AsRef<[u8]>>(
@@ -1049,6 +1180,15 @@ where
         };
     }
     let Some(name) = args.pathname_editor.edit_entry_name(item.name().as_path()) else {
+        if item
+            .name()
+            .as_path()
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+        {
+            log::warn!("Skipping entry with unsafe path: {item_path}");
+            return FastReadFilterAction::SecuritySkip(ProcessAction::Continue);
+        }
         log::debug!("Skip: {item_path}");
         return FastReadFilterAction::Skip(ProcessAction::Continue);
     };
@@ -1198,7 +1338,7 @@ pub(crate) fn extract_entry<'a, T>(
         absolute_paths,
         warned_lead_slash,
     }: &OutputOption<'a>,
-) -> io::Result<()>
+) -> io::Result<ExtractResult>
 where
     T: AsRef<[u8]>,
     pna::RawChunk<T>: Chunk,
@@ -1221,7 +1361,7 @@ where
         secure_symlinks,
     )?
     else {
-        return Ok(());
+        return Ok(ExtractResult::Skipped);
     };
 
     match entry_kind {
@@ -1260,7 +1400,7 @@ where
                 log::warn!(
                     "Skipped extracting a symbolic link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
                 );
-                return Ok(());
+                return Ok(ExtractResult::SecuritySkipped);
             }
             // Symlinks/hardlinks cannot be atomically replaced; remove existing path first
             if *safe_writes || remove_existing {
@@ -1277,7 +1417,7 @@ where
                     "Skipped extracting a hard link that pointed at a file which was skipped.: {}",
                     original
                 );
-                return Ok(());
+                return Ok(ExtractResult::SecuritySkipped);
             };
             if had_root && !warned_lead_slash.swap(true, Ordering::Relaxed) {
                 eprintln!("bsdtar: Removing leading '/' from member names");
@@ -1286,7 +1426,7 @@ where
                 log::warn!(
                     "Skipped extracting a hard link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
                 );
-                return Ok(());
+                return Ok(ExtractResult::SecuritySkipped);
             }
             let original = if let Some(out_dir) = out_dir {
                 Cow::from(out_dir.join(original))
@@ -1302,7 +1442,7 @@ where
     }
     restore_metadata(&item, &path, keep_options)?;
     log::debug!("end: {}", path.display());
-    Ok(())
+    Ok(ExtractResult::Extracted)
 }
 
 #[inline]
