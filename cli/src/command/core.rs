@@ -42,6 +42,7 @@ pub(crate) use time_filter::{TimeFilter, TimeFilters};
 
 /// Detected format of an @archive source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(not(unix), allow(dead_code))]
 pub(crate) enum SourceFormat {
     /// PNA archive format (detected by magic bytes)
     Pna,
@@ -53,6 +54,7 @@ pub(crate) enum SourceFormat {
 ///
 /// Returns `SourceFormat::Pna` if the data starts with PNA magic bytes,
 /// otherwise returns `SourceFormat::Mtree`.
+#[cfg_attr(not(unix), allow(dead_code))]
 pub(crate) fn detect_format<R: io::BufRead>(reader: &mut R) -> io::Result<SourceFormat> {
     let buf = reader.fill_buf()?;
 
@@ -755,31 +757,30 @@ pub(crate) fn collect_items_with_state(
                     ));
                 };
 
-                if let Some((store_as, metadata)) = store {
-                    if options
+                if let Some((store_as, metadata)) = store
+                    && options
                         .time_filters
                         .matches_or_inactive(metadata.created().ok(), metadata.modified().ok())
-                    {
-                        out.push(CollectedEntry {
-                            path: path.to_path_buf(),
-                            store_as,
-                            metadata,
-                        });
-                    }
+                {
+                    out.push(CollectedEntry {
+                        path: path.to_path_buf(),
+                        store_as,
+                        metadata,
+                    });
                 }
             }
             Err(e) => {
-                if let Some(ioe) = e.io_error() {
-                    if let Some(path) = e.path() {
-                        let metadata = fs::symlink_metadata(path)?;
-                        if is_broken_symlink_error(&metadata, ioe) {
-                            out.push(CollectedEntry {
-                                path: path.to_path_buf(),
-                                store_as: StoreAs::Symlink,
-                                metadata,
-                            });
-                            continue;
-                        }
+                if let Some(ioe) = e.io_error()
+                    && let Some(path) = e.path()
+                {
+                    let metadata = fs::symlink_metadata(path)?;
+                    if is_broken_symlink_error(&metadata, ioe) {
+                        out.push(CollectedEntry {
+                            path: path.to_path_buf(),
+                            store_as: StoreAs::Symlink,
+                            metadata,
+                        });
+                        continue;
                     }
                 }
                 return Err(io::Error::other(e));
@@ -1040,23 +1041,21 @@ pub(crate) fn apply_metadata(
         log::warn!("Please enable `acl` feature and rebuild and install pna.");
     }
     #[cfg(unix)]
-    if !skip_xattr_acl {
-        if let XattrStrategy::Always = keep_options.xattr_strategy {
-            match utils::os::unix::fs::xattrs::get_xattrs(path) {
-                Ok(xattrs) => {
-                    for attr in xattrs {
-                        entry.add_xattr(attr);
-                    }
+    if !skip_xattr_acl && matches!(keep_options.xattr_strategy, XattrStrategy::Always) {
+        match utils::os::unix::fs::xattrs::get_xattrs(path) {
+            Ok(xattrs) => {
+                for attr in xattrs {
+                    entry.add_xattr(attr);
                 }
-                Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
-                    log::warn!(
-                        "Extended attributes are not supported on filesystem for '{}': {}",
-                        path.display(),
-                        e
-                    );
-                }
-                Err(e) => return Err(e),
             }
+            Err(e) if e.kind() == std::io::ErrorKind::Unsupported => {
+                log::warn!(
+                    "Extended attributes are not supported on filesystem for '{}': {}",
+                    path.display(),
+                    e
+                );
+            }
+            Err(e) => return Err(e),
         }
     }
     #[cfg(not(unix))]
@@ -1986,17 +1985,17 @@ fn transform_normal_entry(
     } = &keep_options.owner_strategy
     {
         // Only apply if at least one override is specified
-        if uid.is_some() || gid.is_some() || uname.is_some() || gname.is_some() {
-            if let Some(perm) = metadata.permission() {
-                let new_perm = pna::Permission::new(
-                    uid.map(u64::from).unwrap_or_else(|| perm.uid()),
-                    uname.clone().unwrap_or_else(|| perm.uname().to_string()),
-                    gid.map(u64::from).unwrap_or_else(|| perm.gid()),
-                    gname.clone().unwrap_or_else(|| perm.gname().to_string()),
-                    perm.permissions(),
-                );
-                metadata = metadata.with_permission(Some(new_perm));
-            }
+        if (uid.is_some() || gid.is_some() || uname.is_some() || gname.is_some())
+            && let Some(perm) = metadata.permission()
+        {
+            let new_perm = pna::Permission::new(
+                uid.map(u64::from).unwrap_or_else(|| perm.uid()),
+                uname.clone().unwrap_or_else(|| perm.uname().to_string()),
+                gid.map(u64::from).unwrap_or_else(|| perm.gid()),
+                gname.clone().unwrap_or_else(|| perm.gname().to_string()),
+                perm.permissions(),
+            );
+            metadata = metadata.with_permission(Some(new_perm));
         }
     }
 

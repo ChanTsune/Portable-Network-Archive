@@ -1,6 +1,10 @@
+#[cfg(unix)]
 use crate::utils::setup;
+#[cfg(unix)]
 use assert_cmd::cargo::cargo_bin_cmd;
+#[cfg(unix)]
 use predicates::prelude::*;
+#[cfg(unix)]
 use std::fs;
 
 /// Precondition: A file with multiple hard links exists.

@@ -41,6 +41,7 @@ pub fn get_facl<P: AsRef<Path>>(path: P) -> io::Result<chunk::Acl> {
 #[allow(non_camel_case_types)]
 type PACE_HEADER = *mut ACE_HEADER;
 
+#[allow(clippy::upper_case_acronyms)]
 pub struct ACL {
     security_descriptor: SecurityDescriptor,
 }
@@ -61,7 +62,7 @@ impl ACL {
         let count = unsafe { *p_acl }.AceCount as u32;
         for i in 0..count {
             let mut header: PACE_HEADER = null_mut();
-            unsafe { GetAce(p_acl, i, mem::transmute(&mut header)) }?;
+            unsafe { GetAce(p_acl, i, &mut header as *mut _ as *mut _) }?;
             if header.is_null() {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
@@ -159,6 +160,7 @@ impl AceType {
     }
 }
 
+#[allow(clippy::upper_case_acronyms)]
 pub struct ACLEntry {
     pub ace_type: AceType,
     pub sid: Sid,

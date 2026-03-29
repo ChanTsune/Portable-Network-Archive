@@ -8,6 +8,7 @@ use crate::{
 };
 
 use clap::Parser;
+#[cfg(unix)]
 use pna::prelude::MetadataTimeExt;
 use pna::{DataKind, NormalEntry, ReadOptions};
 use same_file::is_same_file;
@@ -15,6 +16,7 @@ use same_file::is_same_file;
 use std::os::unix::fs::MetadataExt;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
+#[cfg(unix)]
 use std::time::SystemTime;
 use std::{
     fmt, fs,
@@ -85,12 +87,16 @@ enum DiffKind {
     /// File contents differ (same size)
     ContentsDiffer,
     /// Permission mode differs
+    #[cfg(unix)]
     ModeDiffers,
     /// Modification time differs
+    #[cfg(unix)]
     MtimeDiffers,
     /// User ID differs
+    #[cfg(unix)]
     UidDiffers,
     /// Group ID differs
+    #[cfg(unix)]
     GidDiffers,
     /// File type mismatch (e.g., file vs directory)
     TypeMismatch,
@@ -125,9 +131,13 @@ impl fmt::Display for DiffMessage<'_> {
             }
             DiffKind::SizeDiffers => write!(f, "{}: Size differs", self.path),
             DiffKind::ContentsDiffer => write!(f, "{}: Contents differ", self.path),
+            #[cfg(unix)]
             DiffKind::ModeDiffers => write!(f, "{}: Mode differs", self.path),
+            #[cfg(unix)]
             DiffKind::MtimeDiffers => write!(f, "{}: Mod time differs", self.path),
+            #[cfg(unix)]
             DiffKind::UidDiffers => write!(f, "{}: Uid differs", self.path),
+            #[cfg(unix)]
             DiffKind::GidDiffers => write!(f, "{}: Gid differs", self.path),
             DiffKind::TypeMismatch => write!(f, "{}: File type mismatch", self.path),
             DiffKind::SymlinkDiffers => write!(f, "{}: Symlink differs", self.path),
@@ -140,10 +150,12 @@ impl fmt::Display for DiffMessage<'_> {
 #[derive(Clone, Debug, Default)]
 struct CompareOptions {
     /// Compare directory mtime and ownership (not just mode)
+    #[cfg_attr(not(unix), allow(dead_code))]
     full_compare: bool,
 }
 
 /// Compare two SystemTime values with 1-second tolerance for filesystem precision.
+#[cfg(unix)]
 fn times_equal(a: SystemTime, b: SystemTime) -> bool {
     match a.duration_since(b) {
         Ok(d) => d.as_secs() == 0,

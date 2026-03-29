@@ -136,10 +136,10 @@ impl AclEntries {
         if self.owner != ace.owner_type {
             return false;
         }
-        if let Some(allow) = self.allow {
-            if allow != ace.allow {
-                return false;
-            }
+        if let Some(allow) = self.allow
+            && allow != ace.allow
+        {
+            return false;
         }
         true
     }

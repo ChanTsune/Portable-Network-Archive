@@ -63,7 +63,7 @@ mod tests {
     #[test]
     fn file_chown() {
         let path = "chown.txt";
-        std::fs::write(&path, "chown").unwrap();
+        std::fs::write(path, "chown").unwrap();
         let sd = SecurityDescriptor::try_from(path.as_ref()).unwrap();
         lchown::<_, Sid>(path.as_ref(), Some(sd.owner_sid().unwrap()), None).unwrap();
         lchown::<Sid, _>(path.as_ref(), None, Some(sd.group_sid().unwrap())).unwrap();

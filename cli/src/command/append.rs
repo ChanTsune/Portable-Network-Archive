@@ -503,6 +503,7 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn run_append_archive(
     create_options: &CreateOptions,
     mut archive: Archive<impl io::Write>,

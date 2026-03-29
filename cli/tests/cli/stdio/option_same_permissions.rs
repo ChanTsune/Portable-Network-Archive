@@ -4,7 +4,9 @@
 //! Phase 1: Creation defaults (mode+owner stored by default)
 //! Phase 2: Extraction with -p flag (restores mode+ACL+xattr+fflags+mac-meta, NOT owner)
 
-use crate::utils::{archive, setup};
+#[cfg(unix)]
+use crate::utils::archive;
+use crate::utils::setup;
 use assert_cmd::cargo::cargo_bin_cmd;
 use predicates::prelude::predicate;
 #[cfg(unix)]
