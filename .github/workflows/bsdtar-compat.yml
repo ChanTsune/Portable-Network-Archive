@@ -16,6 +16,7 @@ on:
       - 'Cargo.lock'
       - 'Cargo.toml'
       - '.github/workflows/bsdtar-compat.yml'
+      - '.github/scripts/jsonify-bsdtar-output.py'
   pull_request:
     branches: ["*"]
     paths:
@@ -30,6 +31,7 @@ on:
       - 'Cargo.lock'
       - 'Cargo.toml'
       - '.github/workflows/bsdtar-compat.yml'
+      - '.github/scripts/jsonify-bsdtar-output.py'
 
 jobs:
   bsdtar-reference:
@@ -482,6 +484,10 @@ jobs:
           path: bsdtar-test-artifacts.pna
           retention-days: 7
 
+      - name: Parse test results
+        if: always() && steps.bsdtar_test.outcome != 'skipped'
+        run: python3 pna/.github/scripts/jsonify-bsdtar-output.py bsdtar_test_output.txt > bsdtar_test_result.json
+
       - name: Generate summary
         if: always()
         run: |
@@ -490,59 +496,27 @@ jobs:
           echo "## bsdtar compatibility test results (${{ matrix.name }})" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
-          if [ ! -f bsdtar_test_output.txt ]; then
+          if [ ! -f bsdtar_test_result.json ]; then
             echo "No test output found." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
-          COMPLETED_BLOCKS=$(grep -c 'Tests run:' bsdtar_test_output.txt || true)
+          COMPLETED_BLOCKS=$(jq '.completed_blocks' bsdtar_test_result.json)
           if [ "${COMPLETED_BLOCKS}" -lt "${EXPECTED_RANGE_BLOCKS}" ]; then
             echo "> **Warning**: Test run did not complete (possible crash)" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo "Completed ranges: ${COMPLETED_BLOCKS} / ${EXPECTED_RANGE_BLOCKS}" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            LAST_TEST=$(awk '
-              /^[[:space:]]+[0-9]+: / {
-                line = $0
-                sub(/^[[:space:]]+[0-9]+: /, "", line)
-                split(line, fields, /[[:space:]]+/)
-                if (fields[1] != "") {
-                  last = fields[1]
-                }
-              }
-              END {
-                if (last != "") {
-                  print last
-                } else {
-                  print "unknown"
-                }
-              }
-            ' bsdtar_test_output.txt)
+            LAST_TEST=$(jq -r '.tests[-1].name // "unknown"' bsdtar_test_result.json)
             echo "Last test seen: \`${LAST_TEST}\`" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
-          # Derive counts from individual test result lines.
-          # Execution lines: "  N: test_name" (no parentheses)
-          # Failure lines:   "  N: test_name (X failures)" (with count)
-          TOTAL=$(awk '/^[[:space:]]+[0-9]+: / && !/failure/ { n++ } END { print n + 0 }' bsdtar_test_output.txt)
-          FAILING=$(awk '
-            /^[[:space:]]+[0-9]+: / && /failure/ {
-              line = $0
-              sub(/^[[:space:]]+[0-9]+: /, "", line)
-              print line
-            }
-          ' bsdtar_test_output.txt)
-          if [ -n "$FAILING" ]; then
-            FAILED=$(echo "$FAILING" | wc -l | tr -d ' ')
-          else
-            FAILED=0
-          fi
-          ASSERT_FAIL=$(awk '/^[[:space:]]+[0-9]+: / && /failure/ {
-            gsub(/.*\(/, ""); gsub(/ .*/, ""); sum += $0
-          } END { print sum + 0 }' bsdtar_test_output.txt)
-          SKIPS=$(awk '/Skips reported:/ { sum += $3 } END { print sum + 0 }' bsdtar_test_output.txt)
-          PASSED=$((TOTAL - FAILED))
+          TOTAL=$(jq '.summary.total' bsdtar_test_result.json)
+          PASSED=$(jq '.summary.passed' bsdtar_test_result.json)
+          FAILED=$(jq '.summary.failed' bsdtar_test_result.json)
+          SKIPS=$(jq '.summary.skipped' bsdtar_test_result.json)
+          ASSERT_FAIL=$(jq '.summary.assertions_failed' bsdtar_test_result.json)
 
           echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
           echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
@@ -553,8 +527,8 @@ jobs:
           echo "| Assertions failed | ${ASSERT_FAIL} |" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
-          # List failing tests
-          if [ -n "$FAILING" ]; then
+          if [ "${FAILED}" -gt 0 ]; then
+            FAILING=$(jq -r '.tests[] | select(.status == "failed") | "\(.name) (\(.failures) failures)"' bsdtar_test_result.json)
             echo "<details><summary>Failing tests (${FAILED})</summary>" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
             echo '```' >> "$GITHUB_STEP_SUMMARY"
@@ -567,13 +541,12 @@ jobs:
         if: always() && steps.bsdtar_test.outcome != 'skipped'
         run: |
           EXPECTED_RANGE_BLOCKS="${EXPECTED_RANGE_BLOCKS:-4}"
-          if [ ! -f bsdtar_test_output.txt ]; then
-            echo "bsdtar_test output was not generated" >&2
+          if [ ! -f bsdtar_test_result.json ]; then
+            echo "bsdtar_test result was not generated" >&2
             exit 1
           fi
-
-          COMPLETED_BLOCKS=$(grep -c 'Tests run:' bsdtar_test_output.txt || true)
-          if [ "${COMPLETED_BLOCKS}" -lt "${EXPECTED_RANGE_BLOCKS}" ]; then
-            echo "bsdtar_test only completed ${COMPLETED_BLOCKS} / ${EXPECTED_RANGE_BLOCKS} ranges" >&2
+          completed=$(jq '.completed_blocks' bsdtar_test_result.json)
+          if [ "$completed" -lt "${EXPECTED_RANGE_BLOCKS}" ]; then
+            echo "bsdtar_test only completed ${completed} / ${EXPECTED_RANGE_BLOCKS} ranges" >&2
             exit 1
           fi
