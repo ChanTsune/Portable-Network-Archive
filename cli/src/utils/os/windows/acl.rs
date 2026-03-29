@@ -1,9 +1,13 @@
 use crate::{
     chunk::{self, AcePlatform, Identifier, OwnerType},
-    utils::os::windows::security::{SecurityDescriptor, Sid, SidType},
+    utils::os::windows::{
+        fs::{open_read_metadata, open_write_dacl},
+        security::{SecurityDescriptor, Sid, SidType},
+    },
 };
 use field_offset::offset_of;
 use std::{io, mem, path::Path, ptr::null_mut};
+use windows::Win32::Foundation::HANDLE;
 use windows::Win32::Security::{
     ACCESS_ALLOWED_ACE, ACCESS_DENIED_ACE, ACE_FLAGS, ACE_HEADER, ACL as Win32ACL, ACL_REVISION_DS,
     AddAccessAllowedAceEx, AddAccessDeniedAceEx, CONTAINER_INHERIT_ACE, GetAce, INHERIT_ONLY_ACE,
@@ -38,6 +42,29 @@ pub fn get_facl<P: AsRef<Path>>(path: P) -> io::Result<chunk::Acl> {
     })
 }
 
+pub fn set_facl_nofollow<P: AsRef<Path>>(path: P, ace_list: chunk::Acl) -> io::Result<()> {
+    let path = path.as_ref();
+    let handle = open_write_dacl(path, false)?;
+    let acl = ACL::try_from_handle(handle.raw(), path)?;
+    let group_sid = acl.security_descriptor.group_sid()?;
+    let owner_sid = acl.security_descriptor.owner_sid()?;
+    let acl_entries = ace_list
+        .entries
+        .into_iter()
+        .map(|it| it.into_acl_entry_with(&owner_sid, &group_sid))
+        .collect::<Vec<_>>();
+    acl.set_d_acl_by_handle(handle.raw(), &acl_entries)
+}
+
+pub fn get_facl_nofollow<P: AsRef<Path>>(path: P) -> io::Result<chunk::Acl> {
+    let acl = ACL::try_from_nofollow(path.as_ref())?;
+    let ace_list = acl.get_d_acl()?;
+    Ok(chunk::Acl {
+        platform: AcePlatform::Windows,
+        entries: ace_list.into_iter().map(Into::into).collect(),
+    })
+}
+
 #[allow(non_camel_case_types)]
 type PACE_HEADER = *mut ACE_HEADER;
 
@@ -49,6 +76,19 @@ impl ACL {
     pub fn try_from(path: &Path) -> io::Result<Self> {
         Ok(Self {
             security_descriptor: SecurityDescriptor::try_from(path)?,
+        })
+    }
+
+    pub fn try_from_nofollow(path: &Path) -> io::Result<Self> {
+        let handle = open_read_metadata(path, false)?;
+        Ok(Self {
+            security_descriptor: SecurityDescriptor::try_from_handle(handle.raw(), path)?,
+        })
+    }
+
+    pub fn try_from_handle(handle: HANDLE, path: &Path) -> io::Result<Self> {
+        Ok(Self {
+            security_descriptor: SecurityDescriptor::try_from_handle(handle, path)?,
         })
     }
 
@@ -109,37 +149,47 @@ impl ACL {
     }
 
     pub fn set_d_acl(&self, acl_entries: &[ACLEntry]) -> io::Result<()> {
-        let acl_size = acl_entries.iter().map(|it| it.size as usize).sum::<usize>()
-            + mem::size_of::<Win32ACL>();
-        let mut new_acl_buffer = Vec::<u8>::with_capacity(acl_size);
-        let new_acl = new_acl_buffer.as_mut_ptr();
-        unsafe { InitializeAcl(new_acl as _, acl_size as u32, ACL_REVISION_DS) }?;
-        for ace in acl_entries {
-            match ace.ace_type {
-                AceType::AccessAllow => unsafe {
-                    AddAccessAllowedAceEx(
-                        new_acl as _,
-                        ACL_REVISION_DS,
-                        ACE_FLAGS(ace.flags as u32),
-                        ace.mask,
-                        ace.sid.as_psid(),
-                    )
-                },
-                AceType::AccessDeny => unsafe {
-                    AddAccessDeniedAceEx(
-                        new_acl as _,
-                        ACL_REVISION_DS,
-                        ACE_FLAGS(ace.flags as u32),
-                        ace.mask,
-                        ace.sid.as_psid(),
-                    )
-                },
-                AceType::Unknown(n) => return Err(io::Error::other(format!("{}", n))),
-            }?;
-        }
+        let buffer = build_acl_buffer(acl_entries)?;
         self.security_descriptor
-            .apply(None, None, Some(new_acl as _))
+            .apply(None, None, Some(buffer.as_ptr() as _))
     }
+
+    pub fn set_d_acl_by_handle(&self, handle: HANDLE, acl_entries: &[ACLEntry]) -> io::Result<()> {
+        let buffer = build_acl_buffer(acl_entries)?;
+        SecurityDescriptor::apply_by_handle(handle, None, None, Some(buffer.as_ptr() as _))
+    }
+}
+
+fn build_acl_buffer(acl_entries: &[ACLEntry]) -> io::Result<Vec<u8>> {
+    let acl_size =
+        acl_entries.iter().map(|it| it.size as usize).sum::<usize>() + mem::size_of::<Win32ACL>();
+    let mut buffer = Vec::<u8>::with_capacity(acl_size);
+    let ptr = buffer.as_mut_ptr();
+    unsafe { InitializeAcl(ptr as _, acl_size as u32, ACL_REVISION_DS) }?;
+    for ace in acl_entries {
+        match ace.ace_type {
+            AceType::AccessAllow => unsafe {
+                AddAccessAllowedAceEx(
+                    ptr as _,
+                    ACL_REVISION_DS,
+                    ACE_FLAGS(ace.flags as u32),
+                    ace.mask,
+                    ace.sid.as_psid(),
+                )
+            },
+            AceType::AccessDeny => unsafe {
+                AddAccessDeniedAceEx(
+                    ptr as _,
+                    ACL_REVISION_DS,
+                    ACE_FLAGS(ace.flags as u32),
+                    ace.mask,
+                    ace.sid.as_psid(),
+                )
+            },
+            AceType::Unknown(n) => return Err(io::Error::other(format!("{}", n))),
+        }?;
+    }
+    Ok(buffer)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

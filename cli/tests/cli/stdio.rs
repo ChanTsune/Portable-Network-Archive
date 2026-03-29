@@ -20,5 +20,6 @@ mod option_update;
 mod option_version;
 mod path_traversal;
 mod strip_components;
+mod symlink;
 mod unlink_first;
 mod windows_glob;
