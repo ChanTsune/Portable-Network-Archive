@@ -1,5 +1,8 @@
+#[cfg(unix)]
 use crate::utils::{EmbedExt, TestResources, archive, setup};
+#[cfg(unix)]
 use clap::Parser;
+#[cfg(unix)]
 use portable_network_archive::cli;
 #[cfg(unix)]
 use std::fs;
