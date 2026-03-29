@@ -19,6 +19,7 @@ clap_mangen = "0.2"
 flate2 = "1.1"
 libpna = { path = "../lib" }
 liblzma = { version = "0.4", features = ["static"] }
+lz4_flex = "0.13"
 portable-network-archive = { path = "../cli", default-features = false }
 tar = "0.4"
 time = "0.3.47"
