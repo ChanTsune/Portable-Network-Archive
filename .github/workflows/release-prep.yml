@@ -50,12 +50,13 @@ jobs:
       - name: Compute next version and build temp release config
         id: prep
         shell: bash
+        env:
+          INPUT_CRATE: ${{ inputs.crate }}
         run: |
           set -euo pipefail
-          CRATE="${{ inputs.crate }}"
           CONFIG=/tmp/release-config.toml
 
-          if [ "$CRATE" != "all" ]; then
+          if [ "$INPUT_CRATE" != "all" ]; then
             COMMIT_MSG=':bookmark: Bump {{crate_name}} version to {{version}}'
           else
             COMMIT_MSG=':bookmark: Bump version to {{version}}'
@@ -67,42 +68,44 @@ jobs:
       - name: Run cargo release (no tag/push)
         env:
           CARGO_TERM_COLOR: always
+          INPUT_CRATE: ${{ inputs.crate }}
+          INPUT_LEVEL: ${{ inputs.level }}
+          INPUT_DEPENDENT_VERSION: ${{ inputs.dependent_version }}
+          RELEASE_CONFIG: ${{ steps.prep.outputs.config }}
         run: |
           set -euo pipefail
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          CRATE="${{ inputs.crate }}"
-          DEP_FLAG="--dependent-version ${{ inputs.dependent_version }}"
-          EXCLUDES="--exclude portable-network-archive-fuzz --exclude xtask"
-          if [ "$CRATE" = "all" ]; then
-            PKG_FLAG="--workspace"
+          if [ "$INPUT_CRATE" = "all" ]; then
+            PKG_ARGS=(--workspace)
           else
-            PKG_FLAG="-p $CRATE"
+            PKG_ARGS=(-p "$INPUT_CRATE")
           fi
 
           cargo release \
-            ${{ inputs.level }} \
-            $PKG_FLAG \
+            "$INPUT_LEVEL" \
+            "${PKG_ARGS[@]}" \
             --no-publish \
             --no-push \
             --no-tag \
             --execute \
             --no-confirm \
-            $EXCLUDES \
-            $DEP_FLAG \
-            --config "${{ steps.prep.outputs.config }}"
+            --exclude portable-network-archive-fuzz \
+            --exclude xtask \
+            --dependent-version "$INPUT_DEPENDENT_VERSION" \
+            --config "$RELEASE_CONFIG"
 
       - name: Get new version
         id: version
         shell: bash
+        env:
+          INPUT_CRATE: ${{ inputs.crate }}
         run: |
           set -euo pipefail
-          CRATE="${{ inputs.crate }}"
-
-          if [ "$CRATE" = "all" ]; then
+          if [ "$INPUT_CRATE" = "all" ]; then
             TARGET_CRATE="portable-network-archive"
           else
-            TARGET_CRATE="$CRATE"
+            TARGET_CRATE="$INPUT_CRATE"
           fi
 
           NEW_VERSION=$(cargo metadata --format-version 1 --no-deps | jq -r --arg name "$TARGET_CRATE" '.packages[] | select(.name == $name) | .version')
@@ -110,8 +113,12 @@ jobs:
 
       - name: Set PR branch name
         id: branch
+        env:
+          INPUT_CRATE: ${{ inputs.crate }}
+          INPUT_LEVEL: ${{ inputs.level }}
+          NEW_VERSION: ${{ steps.version.outputs.value }}
         run: |
-          BRANCH="release/${{ inputs.crate }}/${{ inputs.level }}-${{ steps.version.outputs.value }}"
+          BRANCH="release/${INPUT_CRATE}/${INPUT_LEVEL}-${NEW_VERSION}"
           echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
 
       - name: Create draft PR
