@@ -1389,19 +1389,17 @@ where
     let skip_xattr_acl = false;
 
     #[cfg(unix)]
-    if !skip_xattr_acl {
-        if let XattrStrategy::Always = keep_options.xattr_strategy {
-            match utils::os::unix::fs::xattrs::set_xattrs(path, item.xattrs()) {
-                Ok(()) => {}
-                Err(e) if e.kind() == io::ErrorKind::Unsupported => {
-                    log::warn!(
-                        "Extended attributes are not supported on filesystem for '{}': {}",
-                        path.display(),
-                        e
-                    );
-                }
-                Err(e) => return Err(e),
+    if !skip_xattr_acl && matches!(keep_options.xattr_strategy, XattrStrategy::Always) {
+        match utils::os::unix::fs::xattrs::set_xattrs(path, item.xattrs()) {
+            Ok(()) => {}
+            Err(e) if e.kind() == io::ErrorKind::Unsupported => {
+                log::warn!(
+                    "Extended attributes are not supported on filesystem for '{}': {}",
+                    path.display(),
+                    e
+                );
             }
+            Err(e) => return Err(e),
         }
     }
     #[cfg(not(unix))]
@@ -1434,30 +1432,34 @@ where
     }
     // macOS metadata (AppleDouble) - restores xattrs, ACLs, resource forks via copyfile()
     #[cfg(target_os = "macos")]
-    if let MacMetadataStrategy::Always = keep_options.mac_metadata_strategy {
-        if let Some(apple_double_data) = item.mac_metadata() {
-            match utils::os::unix::fs::copyfile::unpack_apple_double(apple_double_data, path) {
-                Ok(()) => {
-                    log::debug!("Unpacked macOS metadata for '{}'", path.display());
-                }
-                Err(e) => {
-                    log::warn!(
-                        "Failed to restore macOS metadata for '{}': {}",
-                        path.display(),
-                        e
-                    );
-                }
+    if matches!(
+        keep_options.mac_metadata_strategy,
+        MacMetadataStrategy::Always
+    ) && let Some(apple_double_data) = item.mac_metadata()
+    {
+        match utils::os::unix::fs::copyfile::unpack_apple_double(apple_double_data, path) {
+            Ok(()) => {
+                log::debug!("Unpacked macOS metadata for '{}'", path.display());
+            }
+            Err(e) => {
+                log::warn!(
+                    "Failed to restore macOS metadata for '{}': {}",
+                    path.display(),
+                    e
+                );
             }
         }
     }
     #[cfg(not(target_os = "macos"))]
-    if let MacMetadataStrategy::Always = keep_options.mac_metadata_strategy {
-        if item.mac_metadata().is_some() {
-            log::warn!(
-                "macOS metadata present but cannot be restored on this platform: '{}'",
-                path.display()
-            );
-        }
+    if matches!(
+        keep_options.mac_metadata_strategy,
+        MacMetadataStrategy::Always
+    ) && item.mac_metadata().is_some()
+    {
+        log::warn!(
+            "macOS metadata present but cannot be restored on this platform: '{}'",
+            path.display()
+        );
     }
     Ok(())
 }
@@ -1484,25 +1486,25 @@ fn restore_acls(path: &Path, acls: Acls, acl_strategy: AclStrategy) -> io::Resul
         use itertools::Itertools;
 
         let platform = AcePlatform::CURRENT;
-        if let Some((platform, acl)) = acls.into_iter().find_or_first(|(p, _)| p.eq(&platform)) {
-            if !acl.is_empty() {
-                match utils::acl::set_facl(
-                    path,
-                    acl_convert_current_platform(Acl {
-                        platform,
-                        entries: acl,
-                    }),
-                ) {
-                    Ok(()) => {}
-                    Err(e) if e.kind() == io::ErrorKind::Unsupported => {
-                        log::warn!(
-                            "ACL not supported on this filesystem, skipping '{}': {}",
-                            path.display(),
-                            e
-                        );
-                    }
-                    Err(e) => return Err(e),
+        if let Some((platform, acl)) = acls.into_iter().find_or_first(|(p, _)| p.eq(&platform))
+            && !acl.is_empty()
+        {
+            match utils::acl::set_facl(
+                path,
+                acl_convert_current_platform(Acl {
+                    platform,
+                    entries: acl,
+                }),
+            ) {
+                Ok(()) => {}
+                Err(e) if e.kind() == io::ErrorKind::Unsupported => {
+                    log::warn!(
+                        "ACL not supported on this filesystem, skipping '{}': {}",
+                        path.display(),
+                        e
+                    );
                 }
+                Err(e) => return Err(e),
             }
         }
     }
