@@ -16,7 +16,6 @@ on:
       - 'Cargo.lock'
       - 'Cargo.toml'
       - '.github/workflows/bsdtar-compat.yml'
-      - '.github/scripts/pnatar-wrapper.sh'
   pull_request:
     branches: ["*"]
     paths:
@@ -31,7 +30,6 @@ on:
       - 'Cargo.lock'
       - 'Cargo.toml'
       - '.github/workflows/bsdtar-compat.yml'
-      - '.github/scripts/pnatar-wrapper.sh'
 
 jobs:
   bsdtar-reference:
