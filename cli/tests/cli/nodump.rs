@@ -1,6 +1,10 @@
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd"))]
 use crate::utils::{archive, setup};
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd"))]
 use clap::Parser;
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd"))]
 use portable_network_archive::cli;
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd"))]
 use std::{fs, path::Path, process::Command as StdCommand};
 
 #[cfg(any(target_os = "linux", target_os = "macos", target_os = "freebsd"))]
