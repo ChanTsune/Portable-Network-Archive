@@ -1,5 +1,3 @@
-#[cfg(windows)]
-use scopeguard;
 use std::collections::HashMap;
 use std::io;
 use std::path::{Path, PathBuf};

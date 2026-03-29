@@ -42,6 +42,7 @@ pub(crate) use time_filter::{TimeFilter, TimeFilters};
 
 /// Detected format of an @archive source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(not(unix), allow(dead_code))]
 pub(crate) enum SourceFormat {
     /// PNA archive format (detected by magic bytes)
     Pna,
@@ -53,6 +54,7 @@ pub(crate) enum SourceFormat {
 ///
 /// Returns `SourceFormat::Pna` if the data starts with PNA magic bytes,
 /// otherwise returns `SourceFormat::Mtree`.
+#[cfg_attr(not(unix), allow(dead_code))]
 pub(crate) fn detect_format<R: io::BufRead>(reader: &mut R) -> io::Result<SourceFormat> {
     let buf = reader.fill_buf()?;
 
