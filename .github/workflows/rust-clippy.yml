@@ -4,7 +4,7 @@
 # documentation.
 # rust-clippy is a tool that runs a bunch of lints to catch common
 # mistakes in your Rust code and help improve your Rust code.
-# More details at https://github.com/rust-lang/rust-clippy 
+# More details at https://github.com/rust-lang/rust-clippy
 # and https://rust-lang.github.io/rust-clippy/
 
 name: rust-clippy analyze
@@ -38,8 +38,12 @@ on:
     - cron: '29 14 * * 0'
 jobs:
   rust-clippy-analyze:
-    name: Run rust-clippy analyzing
-    runs-on: ubuntu-latest
+    name: Run rust-clippy analysis (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     permissions:
       contents: read
@@ -48,18 +52,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: ./.github/actions/setup-rust
-      - name: install dependencies
+      - name: Install dependencies (Linux)
+        if: startsWith(matrix.os, 'ubuntu')
         run: |
           sudo apt update
           sudo apt install -y libacl1-dev
-      - name: Install required cargo
+      - name: Install SARIF tools
         run: cargo install clippy-sarif sarif-fmt
       - name: Run rust-clippy
+        shell: bash
         run: |
           cargo clippy --locked --all-targets --all-features --message-format=json | clippy-sarif | tee rust-clippy-results.sarif | sarif-fmt
-        continue-on-error: true
       - name: Upload analysis results to GitHub
+        if: always()
         uses: github/codeql-action/upload-sarif@38697555549f1db7851b81482ff19f1fa5c4fedc # v4.34.1
         with:
           sarif_file: rust-clippy-results.sarif
+          category: clippy-${{ matrix.os }}
           wait-for-processing: true
