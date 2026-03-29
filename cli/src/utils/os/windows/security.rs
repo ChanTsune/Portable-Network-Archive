@@ -24,6 +24,7 @@ use windows::Win32::Security::{
 use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 use windows::core::{PCWSTR, PWSTR};
 
+#[allow(clippy::upper_case_acronyms)]
 pub(crate) type PACL = *mut Win32ACL;
 
 pub struct SecurityDescriptor {
@@ -295,7 +296,7 @@ impl Display for Sid {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut raw_str = PWSTR::null();
         unsafe { ConvertSidToStringSidW(self.as_psid(), &mut raw_str) }
-            .map_err(|_| std::fmt::Error::default())?;
+            .map_err(|_| std::fmt::Error)?;
         let r = Display::fmt(&unsafe { raw_str.display() }, f);
         unsafe { LocalFree(Some(HLOCAL(raw_str.as_ptr() as _))) };
         r
@@ -355,7 +356,7 @@ fn set_privilege(privilege_name: PCWSTR) -> windows::core::Result<()> {
             &mut h_token,
         )
     }?;
-    let status = unsafe { AdjustTokenPrivileges(h_token, false, Some(&mut tkp), 0, None, None) };
+    let status = unsafe { AdjustTokenPrivileges(h_token, false, Some(&tkp), 0, None, None) };
     unsafe { CloseHandle(h_token) }?;
     status
 }
