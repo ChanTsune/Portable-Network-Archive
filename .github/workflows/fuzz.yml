@@ -44,7 +44,7 @@ jobs:
       - id: fuzz_target
         name: Detect fuzz target
         run: |
-          echo fuzz_target=$(ls fuzz/fuzz_targets | jq -Rsc 'split("\n")[0:-1] | map(select(test("\\.rs$"))) | map(sub("\\.rs$"; ""))') >> "$GITHUB_OUTPUT"
+          echo "fuzz_target=$(find fuzz/fuzz_targets -maxdepth 1 -name '*.rs' -exec basename {} .rs \; | sort | jq -nRc '[inputs]')" >> "$GITHUB_OUTPUT"
 
   fuzz:
     name: Run cargo fuzz
