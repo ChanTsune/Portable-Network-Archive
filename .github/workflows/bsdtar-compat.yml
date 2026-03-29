@@ -354,6 +354,7 @@ jobs:
           for tar_name in \
             test_extract.tar.bz2 \
             test_extract.tar.gz \
+            test_extract.tar.lz4 \
             test_extract.tar.lzma \
             test_extract.tar.xz \
             test_extract.tar.Z \
