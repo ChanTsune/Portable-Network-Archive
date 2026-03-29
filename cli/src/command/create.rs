@@ -574,6 +574,7 @@ pub(crate) struct CreationContext {
     pub(crate) pathname_editor: PathnameEditor,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn create_archive_file<W, F>(
     mut get_writer: F,
     CreationContext {
