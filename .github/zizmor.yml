@@ -6,6 +6,10 @@ rules:
   undocumented-permissions:
     ignore:
       - release.yml
+  # docs.yml needs persist-credentials for git push
+  artipacked:
+    ignore:
+      - docs.yml
   template-injection:
     ignore:
       - release.yml

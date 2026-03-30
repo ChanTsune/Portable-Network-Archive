@@ -65,6 +65,8 @@ jobs:
           "$env:USERPROFILE\.cargo\bin" | Out-File -Append -Encoding ascii $env:GITHUB_PATH
           "CARGO_HOME=$env:USERPROFILE\.cargo" | Out-File -Append -Encoding ascii $env:GITHUB_ENV
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - id: install_rust
         uses: ./.github/actions/setup-rust
         with:
@@ -101,6 +103,8 @@ jobs:
     container: ${{ matrix.container }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: run test
         if: startsWith(matrix.target, 'x86_64-unknown-redox')
         run: |
@@ -130,6 +134,8 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - id: install_rust
         uses: ./.github/actions/setup-rust
         with:
@@ -172,6 +178,8 @@ jobs:
           sudo apt update
           sudo apt install -y libacl1-dev
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - id: install_rust
         uses: ./.github/actions/setup-rust
         with:

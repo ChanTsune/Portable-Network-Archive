@@ -39,6 +39,8 @@ jobs:
     name: Test on Solaris
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Test in Solaris
         id: test
         uses: vmactions/solaris-vm@0a231b94365d1911cf62097ef342f6b30d95598f # v1.3.2
@@ -67,6 +69,8 @@ jobs:
     name: Test on NetBSD
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Test in NetBSD
         id: test
         uses: vmactions/NetBSD-vm@ca7ff0556959998c82761c34ea0c3c99fa084c48 # v1.3.7
@@ -95,6 +99,8 @@ jobs:
     name: Test on FreeBSD
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Test in FreeBSD
         id: test
         uses: vmactions/freebsd-vm@7ca82f79fe3078fecded6d3a2bff094995447bbd # v1.4.4
@@ -122,6 +128,8 @@ jobs:
     name: Test on OpenBSD
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Test in OpenBSD
         id: test
         uses: vmactions/OpenBSD-vm@3fafb45f2e2e696249c583835939323fe1c3448c # v1.3.7
@@ -174,6 +182,8 @@ jobs:
     name: Test on OmniOS
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Test in OmniOS
         id: test
         uses: vmactions/omnios-vm@68da93c6d9812b29fc90c5b5141b093f84a590fb # v1.2.7
