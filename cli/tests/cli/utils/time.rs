@@ -3,6 +3,8 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+pub const DURATION_24_HOURS: Duration = Duration::from_secs(24 * 60 * 60);
+
 /// Waits until the file at `path` has a timestamp newer than `baseline`.
 /// The `get_time` function extracts the relevant timestamp from metadata.
 pub fn wait_until_time_newer_than<F>(path: &str, baseline: SystemTime, get_time: F) -> bool
