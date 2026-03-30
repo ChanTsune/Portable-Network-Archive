@@ -53,14 +53,16 @@ jobs:
         shell: bash
         run: |
           # Add break label when semver checks not pass (has breaking changes)
-          gh pr edit ${{ github.event.pull_request.number }} --add-label 'break'
+          gh pr edit "$PR_NUMBER" --add-label 'break'
         env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           GH_TOKEN: ${{ github.token }}
       - name: Remove break label on success
         if: success() && github.event_name == 'pull_request'
         shell: bash
         run: |
           # Remove the label when semver checks pass (no breaking changes)
-          gh pr edit ${{ github.event.pull_request.number }} --remove-label 'break' || true
+          gh pr edit "$PR_NUMBER" --remove-label 'break' || true
         env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           GH_TOKEN: ${{ github.token }}

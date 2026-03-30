@@ -57,6 +57,7 @@ jobs:
       CHERE_INVOKING: 1
       MSYSTEM: MINGW64
       MSYS2_PATH_TYPE: inherit
+      MATRIX_NAME: ${{ matrix.name }}
     defaults:
       run:
         shell: ${{ matrix.shell }}
@@ -99,7 +100,7 @@ jobs:
           cd libarchive
           JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu)"
           MAKE="$(command -v gmake || command -v make)"
-          if [ "${{ matrix.name }}" = "macos" ]; then
+          if [ "$MATRIX_NAME" = "macos" ]; then
             export LIBTOOLIZE=glibtoolize
           fi
           ./build/autogen.sh
@@ -123,8 +124,8 @@ jobs:
 
       - name: Locate built binaries
         run: |
-          WORKSPACE='${{ github.workspace }}'
-          if [ "${{ matrix.name }}" = "windows" ]; then
+          WORKSPACE="$GITHUB_WORKSPACE"
+          if [ "$MATRIX_NAME" = "windows" ]; then
             WORKSPACE="$(cygpath -u "$WORKSPACE")"
             BSDTAR_BIN="${WORKSPACE}/libarchive/build_ci/cmake/bin/bsdtar.exe"
             BSDTAR_TEST_BIN="${WORKSPACE}/libarchive/build_ci/cmake/bin/bsdtar_test.exe"
@@ -144,8 +145,8 @@ jobs:
         id: bsdtar_test
         continue-on-error: true
         run: |
-          WORKSPACE='${{ github.workspace }}'
-          if [ "${{ matrix.name }}" = "windows" ]; then
+          WORKSPACE="$GITHUB_WORKSPACE"
+          if [ "$MATRIX_NAME" = "windows" ]; then
             WORKSPACE="$(cygpath -u "$WORKSPACE")"
           fi
           "${BSDTAR_TEST_BIN}" \
@@ -193,6 +194,8 @@ jobs:
       CHERE_INVOKING: 1
       MSYSTEM: MINGW64
       MSYS2_PATH_TYPE: inherit
+      MATRIX_NAME: ${{ matrix.name }}
+      EXE_SUFFIX: ${EXE_SUFFIX}
     defaults:
       run:
         shell: ${{ matrix.shell }}
@@ -266,7 +269,7 @@ jobs:
           cd libarchive
           JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu)"
           MAKE="$(command -v gmake || command -v make)"
-          if [ "${{ matrix.name }}" = "macos" ]; then
+          if [ "$MATRIX_NAME" = "macos" ]; then
             export LIBTOOLIZE=glibtoolize
           fi
           ./build/autogen.sh
@@ -303,16 +306,16 @@ jobs:
 
       - name: Record built binaries
         run: |
-          WORKSPACE='${{ github.workspace }}'
-          if [ "${{ matrix.name }}" = "windows" ]; then
+          WORKSPACE="$GITHUB_WORKSPACE"
+          if [ "$MATRIX_NAME" = "windows" ]; then
             WORKSPACE="$(cygpath -u "$WORKSPACE")"
             BSDTAR_TEST_BIN="${WORKSPACE}/libarchive/build_ci/cmake/bin/bsdtar_test.exe"
             ls -la "${WORKSPACE}/libarchive/build_ci/cmake/bin" || true
           else
             BSDTAR_TEST_BIN="$(find "${WORKSPACE}/libarchive" -type f \( -name 'bsdtar_test' -o -name 'bsdtar_test.exe' \) | sort | head -n1)"
           fi
-          PNA_BIN="${WORKSPACE}/pna/target/release/pna${{ matrix.exe_suffix }}"
-          XTASK_BIN="${WORKSPACE}/pna/target/release/xtask${{ matrix.exe_suffix }}"
+          PNA_BIN="${WORKSPACE}/pna/target/release/pna${EXE_SUFFIX}"
+          XTASK_BIN="${WORKSPACE}/pna/target/release/xtask${EXE_SUFFIX}"
           echo "PNA_BIN candidate: ${PNA_BIN}"
           echo "XTASK_BIN candidate: ${XTASK_BIN}"
           echo "BSDTAR_TEST_BIN candidate: ${BSDTAR_TEST_BIN}"
@@ -325,8 +328,8 @@ jobs:
 
       - name: Create pnatar wrapper
         run: |
-          WORKSPACE='${{ github.workspace }}'
-          if [ "${{ matrix.name }}" = "windows" ]; then
+          WORKSPACE="$GITHUB_WORKSPACE"
+          if [ "$MATRIX_NAME" = "windows" ]; then
             WORKSPACE="$(cygpath -u "$WORKSPACE")"
             PNATAR_BIN="${WORKSPACE}/pnatar.cmd"
             PNA_WIN="$(cygpath -w "${PNA_BIN}")"
@@ -341,8 +344,8 @@ jobs:
       - name: Convert reference files to PNA
         run: |
           set -euo pipefail
-          WORKSPACE='${{ github.workspace }}'
-          if [ "${{ matrix.name }}" = "windows" ]; then
+          WORKSPACE="$GITHUB_WORKSPACE"
+          if [ "$MATRIX_NAME" = "windows" ]; then
             WORKSPACE="$(cygpath -u "$WORKSPACE")"
           fi
           LIBARCHIVE_REFDIR="${WORKSPACE}/libarchive/tar/test"
@@ -396,8 +399,8 @@ jobs:
         continue-on-error: true
         run: |
           set -euo pipefail
-          WORKSPACE='${{ github.workspace }}'
-          if [ "${{ matrix.name }}" = "windows" ]; then
+          WORKSPACE="$GITHUB_WORKSPACE"
+          if [ "$MATRIX_NAME" = "windows" ]; then
             WORKSPACE="$(cygpath -u "$WORKSPACE")"
           fi
           REFDIR="${WORKSPACE}/pna_refdir"
@@ -468,8 +471,8 @@ jobs:
       - name: Collect test artifacts
         if: always() && steps.bsdtar_test.outcome != 'skipped'
         run: |
-          WORKSPACE='${{ github.workspace }}'
-          if [ "${{ matrix.name }}" = "windows" ]; then
+          WORKSPACE="$GITHUB_WORKSPACE"
+          if [ "$MATRIX_NAME" = "windows" ]; then
             WORKSPACE="$(cygpath -u "$WORKSPACE")"
           fi
           mkdir -p artifact-staging
@@ -496,7 +499,7 @@ jobs:
         run: |
           EXPECTED_RANGE_BLOCKS="${EXPECTED_RANGE_BLOCKS:-4}"
           EXCLUDED_TEST_COUNT="${EXCLUDED_TEST_COUNT:-4}"
-          echo "## bsdtar compatibility test results (${{ matrix.name }})" >> "$GITHUB_STEP_SUMMARY"
+          echo "## bsdtar compatibility test results ($MATRIX_NAME)" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
           if [ ! -f bsdtar_test_result.json ]; then
