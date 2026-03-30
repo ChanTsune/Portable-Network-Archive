@@ -28,3 +28,8 @@ rules:
   anonymous-definition:
     ignore:
       - release.yml
+  # peter-evans/create-pull-request auto-commits workspace changes and creates a PR;
+  # this cannot be replaced by `gh pr create` alone
+  superfluous-actions:
+    ignore:
+      - release-prep.yml
