@@ -84,7 +84,7 @@ pub(crate) fn lchown<P: AsRef<Path>>(
 ) -> io::Result<()> {
     #[cfg(windows)]
     fn inner(path: &Path, owner: Option<User>, group: Option<Group>) -> io::Result<()> {
-        windows::fs::lchown(path.as_ref(), owner.map(|it| it.0), group.map(|it| it.0))
+        windows::fs::lchown(path, owner.map(|it| it.0), group.map(|it| it.0))
     }
     #[cfg(unix)]
     fn inner(path: &Path, owner: Option<User>, group: Option<Group>) -> io::Result<()> {

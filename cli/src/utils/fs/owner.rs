@@ -37,6 +37,7 @@ impl User {
     }
 
     #[inline]
+    #[allow(unused_variables)]
     pub(crate) fn from_uid(uid: u64) -> io::Result<Self> {
         #[cfg(unix)]
         {
@@ -97,6 +98,7 @@ impl Group {
     }
 
     #[inline]
+    #[allow(unused_variables)]
     pub(crate) fn from_gid(gid: u64) -> io::Result<Self> {
         #[cfg(unix)]
         {
