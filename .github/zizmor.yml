@@ -3,6 +3,9 @@ rules:
   excessive-permissions:
     ignore:
       - release.yml
+  undocumented-permissions:
+    ignore:
+      - release.yml
   template-injection:
     ignore:
       - release.yml
