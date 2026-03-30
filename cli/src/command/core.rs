@@ -22,7 +22,6 @@ use crate::{
     cli::{CipherAlgorithmArgs, CompressionAlgorithmArgs, HashAlgorithmArgs, MissingTimePolicy},
     utils::{self, PathPartExt, fs::HardlinkResolver},
 };
-use anyhow::Context;
 pub(crate) use iter::ReorderByIndex;
 pub(crate) use path_filter::PathFilter;
 use path_slash::*;
@@ -1762,6 +1761,7 @@ pub(crate) fn apply_chroot(chroot: bool) -> anyhow::Result<()> {
     }
     #[cfg(all(unix, not(target_os = "fuchsia")))]
     {
+        use anyhow::Context;
         std::os::unix::fs::chroot(
             std::env::current_dir().with_context(|| "resolving current directory before chroot")?,
         )
