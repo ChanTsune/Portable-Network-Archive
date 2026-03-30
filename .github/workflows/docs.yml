@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   update-docs:
+    name: Update docs
     runs-on: ubuntu-latest
     permissions:
       contents: write # commit and push generated docs

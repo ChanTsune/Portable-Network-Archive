@@ -29,6 +29,7 @@ on:
       - ".github/workflows/test.yml"
 jobs:
   tier1:
+    name: Tier 1
     strategy:
       fail-fast: false
       matrix:
@@ -92,6 +93,7 @@ jobs:
           RUST_BACKTRACE: 1
 
   tier3_cross:
+    name: Tier 3 Cross-compile
     strategy:
       fail-fast: false
       matrix:
@@ -120,6 +122,7 @@ jobs:
           CARGO_TARGET_X86_64_UNKNOWN_REDOX_RUNNER: "redoxer exec --folder ."
 
   tier3:
+    name: Tier 3
     strategy:
       fail-fast: false
       matrix:
@@ -148,6 +151,7 @@ jobs:
           RUST_BACKTRACE: 1
 
   msrv:
+    name: MSRV
     timeout-minutes: 60
     strategy:
       fail-fast: false

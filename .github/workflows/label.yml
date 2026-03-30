@@ -3,6 +3,7 @@ on: [pull_request]
 
 jobs:
   label:
+    name: Label PR
     runs-on: ubuntu-slim
     timeout-minutes: 60
     permissions:

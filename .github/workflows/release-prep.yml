@@ -30,6 +30,7 @@ on:
 
 jobs:
   prepare:
+    name: Prepare release
     runs-on: ubuntu-latest
     permissions:
       contents: write # push version bump commit
