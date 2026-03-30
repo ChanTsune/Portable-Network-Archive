@@ -6,8 +6,6 @@ use std::path::{Path, PathBuf};
 use std::os::unix::fs::MetadataExt;
 
 #[cfg(windows)]
-use std::os::windows::prelude::*;
-#[cfg(windows)]
 use windows::{
     Win32::Storage::FileSystem::{
         BY_HANDLE_FILE_INFORMATION, CreateFileW, FILE_FLAG_BACKUP_SEMANTICS,
