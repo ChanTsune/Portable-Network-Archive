@@ -29,6 +29,7 @@ permissions:
   contents: read # checkout
 jobs:
   rust_check_format:
+    name: Check format
     runs-on: ubuntu-slim
     timeout-minutes: 60
     steps:
@@ -41,6 +42,7 @@ jobs:
         env:
           RUST_BACKTRACE: 1
   rust_check_doc:
+    name: Check documentation
     runs-on: ubuntu-slim
     timeout-minutes: 60
     steps:
