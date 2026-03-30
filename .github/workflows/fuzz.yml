@@ -1,7 +1,7 @@
 name: Fuzzing with cargo fuzz
 
 permissions:
-  contents: read
+  contents: read # checkout
 
 on:
   workflow_dispatch:

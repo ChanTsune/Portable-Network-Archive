@@ -1,6 +1,6 @@
 name: test
 permissions:
-  contents: read
+  contents: read # checkout
 on:
   workflow_dispatch:
   pull_request:
