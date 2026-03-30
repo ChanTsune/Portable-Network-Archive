@@ -27,7 +27,7 @@ on:
       - ".github/workflows/vm.yml"
 
 permissions:
-  contents: read
+  contents: read # checkout
 
 env:
   RUST_BACKTRACE: 1

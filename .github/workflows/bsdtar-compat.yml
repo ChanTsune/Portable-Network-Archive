@@ -52,7 +52,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     permissions:
-      contents: read
+      contents: read # checkout
     env:
       CHERE_INVOKING: 1
       MSYSTEM: MINGW64
@@ -188,7 +188,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
     permissions:
-      contents: read
+      contents: read # checkout
     env:
       CHERE_INVOKING: 1
       MSYSTEM: MINGW64

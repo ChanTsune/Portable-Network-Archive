@@ -26,7 +26,7 @@ on:
       - "rust-toolchain.toml"
       - ".github/workflows/format.yml"
 permissions:
-  contents: read
+  contents: read # checkout
 jobs:
   rust_check_format:
     runs-on: ubuntu-slim
