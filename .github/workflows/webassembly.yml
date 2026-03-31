@@ -75,22 +75,28 @@ jobs:
       - if: ${{ startsWith(matrix.target, 'wasm32-wasi') }}
         name: Run test
         run: |
-          cargo test -p libpna --locked --target ${{ matrix.target }} -- --nocapture
+          cargo test -p libpna --locked --target "$TARGET" -- --nocapture
+        env:
+          TARGET: ${{ matrix.target }}
       - if: ${{ startsWith(matrix.target, 'wasm32-wasip1') && startsWith(matrix.rust, 'nightly')}}
         name: Run test
         run: |
-          cargo test --locked --target ${{ matrix.target }} -- --nocapture
+          cargo test --locked --target "$TARGET" -- --nocapture
+        env:
+          TARGET: ${{ matrix.target }}
       - if: ${{ startsWith(matrix.target, 'wasm32-unknown-emscripten') && !startsWith(matrix.rust, 'nightly') }}
         name: Run test
         run: |
-          cargo test -p libpna --locked --target ${{ matrix.target }} -- --skip test_readme_deps --skip test_html_root_url
+          cargo test -p libpna --locked --target "$TARGET" -- --skip test_readme_deps --skip test_html_root_url
         env:
+          TARGET: ${{ matrix.target }}
           RUSTFLAGS: "-C link-arg=-sINITIAL_MEMORY=512MB -C link-arg=-sTOTAL_STACK=16MB"
       - name: Run on Node.js
         if: ${{ startsWith(matrix.target, 'wasm32-unknown-emscripten') && startsWith(matrix.rust, 'nightly') }}
         run: |
-          cargo run -p portable-network-archive --locked --target ${{ matrix.target }} --release -- --help
+          cargo run -p portable-network-archive --locked --target "$TARGET" --release -- --help
         env:
+          TARGET: ${{ matrix.target }}
           RUSTFLAGS: "-C link-arg=-sINITIAL_MEMORY=512MB -C link-arg=-sTOTAL_STACK=16MB"
       - if: ${{ endsWith(matrix.target, 'unknown') }}
         name: get wasm-bindgen version
@@ -104,10 +110,13 @@ jobs:
       - if: ${{ endsWith(matrix.target, 'unknown') }}
         name: Install wasm-bindgen-cli from crates.io
         run: |
-          cargo binstall --no-confirm --force wasm-bindgen-cli --version ${{ steps.get_version.outputs.version }}
+          cargo binstall --no-confirm --force wasm-bindgen-cli --version "$WASM_BINDGEN_VERSION"
         env:
+          WASM_BINDGEN_VERSION: ${{ steps.get_version.outputs.version }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # For ease GitHub API rate limits
       - if: ${{ endsWith(matrix.target, 'unknown') }}
         name: Run test
         run: |
-          cargo test -p libpna --locked --target ${{ matrix.target }} --release
+          cargo test -p libpna --locked --target "$TARGET" --release
+        env:
+          TARGET: ${{ matrix.target }}

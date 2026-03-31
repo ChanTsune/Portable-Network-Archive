@@ -110,11 +110,12 @@ jobs:
       - name: run test
         if: startsWith(matrix.target, 'x86_64-unknown-redox')
         run: |
-          export PATH=$PATH:/root/.redoxer/${{ matrix.target }}/toolchain/bin
+          export PATH=$PATH:/root/.redoxer/"$TARGET"/toolchain/bin
           rustup default nightly
-          rustup target add ${{ matrix.target }}
-          cargo build -p portable-network-archive --locked --target ${{ matrix.target }}
+          rustup target add "$TARGET"
+          cargo build -p portable-network-archive --locked --target "$TARGET"
         env:
+          TARGET: ${{ matrix.target }}
           RUST_BACKTRACE: 1
           AR_x86_64_unknown_redox: "x86_64-unknown-redox-ar"
           CC_x86_64_unknown_redox: "x86_64-unknown-redox-gcc"
@@ -146,8 +147,9 @@ jobs:
           target: ${{ matrix.target }}
       - name: run test
         run: |
-          cargo check --locked --target ${{ matrix.target }}
+          cargo check --locked --target "$TARGET"
         env:
+          TARGET: ${{ matrix.target }}
           RUST_BACKTRACE: 1
 
   msrv:
@@ -204,6 +206,7 @@ jobs:
           restore-keys: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}"
       - name: run test
         run: |
-          cargo hack test --locked --release --feature-powerset --exclude-features wasm -p ${{ matrix.crate }} -- --test-threads=1
+          cargo hack test --locked --release --feature-powerset --exclude-features wasm -p "$CRATE" -- --test-threads=1
         env:
+          CRATE: ${{ matrix.crate }}
           RUST_BACKTRACE: 1
