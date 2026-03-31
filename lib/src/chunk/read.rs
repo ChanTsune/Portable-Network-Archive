@@ -83,9 +83,10 @@ impl<R: AsyncRead + Unpin> ChunkReader<R> {
         if crc != crc_hasher.finalize() {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "Broken chunk"));
         }
+        let ty = ChunkType::new(ty)?;
         Ok(RawChunk {
             length,
-            ty: ChunkType(ty),
+            ty,
             data,
             crc,
         })
@@ -110,7 +111,7 @@ impl<R: Read + Seek> ChunkReader<R> {
         self.r
             .seek(SeekFrom::Current(mem::size_of::<u32>() as i64))?;
 
-        Ok((ChunkType(ty), MIN_CHUNK_BYTES_SIZE + length as usize))
+        Ok((ChunkType::new(ty)?, MIN_CHUNK_BYTES_SIZE + length as usize))
     }
 }
 
@@ -145,9 +146,10 @@ pub(crate) fn read_chunk<R: Read>(
     if crc != crc_hasher.finalize() {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "Broken chunk"));
     }
+    let ty = ChunkType::new(ty)?;
     Ok(RawChunk {
         length,
-        ty: ChunkType(ty),
+        ty,
         data,
         crc,
     })
@@ -183,10 +185,11 @@ pub(crate) fn read_chunk_from_slice(bytes: &[u8]) -> io::Result<(RawChunk<&[u8]>
     if crc != crc_hasher.finalize() {
         return Err(io::Error::new(io::ErrorKind::InvalidData, "Broken chunk"));
     }
+    let ty = ChunkType::new(*ty)?;
     Ok((
         RawChunk {
             length,
-            ty: ChunkType(*ty),
+            ty,
             data,
             crc,
         },

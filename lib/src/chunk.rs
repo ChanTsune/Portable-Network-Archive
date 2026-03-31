@@ -82,7 +82,7 @@ pub(crate) trait ChunkExt: Chunk {
     #[inline]
     fn write_chunk_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         writer.write_all(&self.length().to_be_bytes())?;
-        writer.write_all(&self.ty().0)?;
+        writer.write_all(self.ty().as_bytes())?;
         writer.write_all(self.data())?;
         writer.write_all(&self.crc().to_be_bytes())?;
         Ok(self.bytes_len())
@@ -101,7 +101,7 @@ pub(crate) trait ChunkExt: Chunk {
     fn to_bytes(&self) -> Vec<u8> {
         let mut vec = Vec::with_capacity(self.bytes_len());
         vec.extend_from_slice(&self.length().to_be_bytes());
-        vec.extend_from_slice(&self.ty().0);
+        vec.extend_from_slice(self.ty().as_bytes());
         vec.extend_from_slice(self.data());
         vec.extend_from_slice(&self.crc().to_be_bytes());
         vec
