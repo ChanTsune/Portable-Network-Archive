@@ -1,6 +1,7 @@
 use std::{
     error::Error,
     fmt::{self, Debug, Display, Formatter},
+    io,
 };
 
 /// [ChunkType] validation error.
@@ -29,6 +30,13 @@ impl Display for ChunkTypeError {
 }
 
 impl Error for ChunkTypeError {}
+
+impl From<ChunkTypeError> for io::Error {
+    #[inline]
+    fn from(e: ChunkTypeError) -> Self {
+        io::Error::new(io::ErrorKind::InvalidData, e)
+    }
+}
 
 /// A 4-byte chunk type code.
 ///
@@ -79,7 +87,7 @@ impl Error for ChunkTypeError {}
 /// assert!(my_chunk.is_private());
 /// ```
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct ChunkType(pub(crate) [u8; 4]);
+pub struct ChunkType([u8; 4]);
 
 impl ChunkType {
     // -- Critical chunks --
@@ -152,6 +160,30 @@ impl ChunkType {
     #[inline]
     pub const fn len(&self) -> usize {
         self.0.len()
+    }
+
+    /// Returns the raw 4-byte chunk type code.
+    #[inline]
+    pub(crate) const fn as_bytes(&self) -> &[u8; 4] {
+        &self.0
+    }
+
+    /// Creates a [`ChunkType`] from raw bytes, validating that all bytes are ASCII alphabetic.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ChunkTypeError::NonAsciiAlphabetic`] if any byte is not in `a..=z` or `A..=Z`.
+    #[inline]
+    pub(crate) const fn new(ty: [u8; 4]) -> Result<Self, ChunkTypeError> {
+        // NOTE: use a while statement for const context.
+        let mut idx = 0;
+        while idx < ty.len() {
+            if !ty[idx].is_ascii_alphabetic() {
+                return Err(ChunkTypeError::NonAsciiAlphabetic);
+            }
+            idx += 1;
+        }
+        Ok(Self(ty))
     }
 
     /// Creates private [ChunkType].
@@ -323,5 +355,23 @@ mod tests {
     #[test]
     fn is_safe_to_copy() {
         assert!(!ChunkType::AHED.is_safe_to_copy());
+    }
+
+    #[test]
+    fn new_rejects_non_ascii() {
+        assert_eq!(
+            ChunkType::new(*b"AB\x00D"),
+            Err(ChunkTypeError::NonAsciiAlphabetic)
+        );
+        assert_eq!(
+            ChunkType::new(*b"AB1D"),
+            Err(ChunkTypeError::NonAsciiAlphabetic)
+        );
+    }
+
+    #[test]
+    fn new_accepts_valid() {
+        assert!(ChunkType::new(*b"AHED").is_ok());
+        assert!(ChunkType::new(*b"myTy").is_ok());
     }
 }

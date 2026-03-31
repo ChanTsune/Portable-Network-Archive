@@ -56,7 +56,7 @@ pub trait Chunk {
     #[inline]
     fn crc(&self) -> u32 {
         let mut crc = Crc32::new();
-        crc.update(&self.ty().0);
+        crc.update(self.ty().as_bytes());
         crc.update(self.data());
         crc.finalize()
     }

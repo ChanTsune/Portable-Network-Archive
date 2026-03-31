@@ -32,7 +32,7 @@ impl<W: AsyncWrite + Unpin> ChunkWriter<W> {
         self.w.write_all(&length.to_be_bytes()).await?;
 
         // write a chunk type
-        self.w.write_all(&chunk.ty().0).await?;
+        self.w.write_all(chunk.ty().as_bytes()).await?;
 
         // write data
         self.w.write_all(chunk.data()).await?;
