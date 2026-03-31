@@ -195,7 +195,7 @@ jobs:
       MSYSTEM: MINGW64
       MSYS2_PATH_TYPE: inherit
       MATRIX_NAME: ${{ matrix.name }}
-      EXE_SUFFIX: ${EXE_SUFFIX}
+      EXE_SUFFIX: ${{ matrix.exe_suffix }}
     defaults:
       run:
         shell: ${{ matrix.shell }}
