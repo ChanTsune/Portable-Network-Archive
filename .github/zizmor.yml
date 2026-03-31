@@ -48,3 +48,6 @@ rules:
   misfeature:
     ignore:
       - bsdtar-compat.yml
+  # concurrency groups silently replace pending runs; not suitable for all workflows
+  concurrency-limits:
+    disable: true
