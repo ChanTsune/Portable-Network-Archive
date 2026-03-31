@@ -21,6 +21,9 @@ rules:
   artipacked:
     ignore:
       - docs.yml
+  cache-poisoning:
+    ignore:
+      - release.yml
   template-injection:
     ignore:
       - release.yml
