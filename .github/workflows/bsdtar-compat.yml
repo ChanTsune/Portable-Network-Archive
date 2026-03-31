@@ -83,7 +83,6 @@ jobs:
 
       - name: Install build dependencies (Windows)
         if: ${{ matrix.name == 'windows' }}
-        shell: cmd
         run: choco install mingw
 
       - name: Clone libarchive
@@ -234,7 +233,6 @@ jobs:
 
       - name: Install MinGW (Windows)
         if: ${{ matrix.name == 'windows' }}
-        shell: cmd
         run: choco install mingw
 
       - name: Setup Rust

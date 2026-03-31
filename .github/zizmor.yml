@@ -44,3 +44,7 @@ rules:
   superfluous-actions:
     ignore:
       - release-prep.yml
+  # libarchive build scripts (ci.cmd) require CMD shell
+  misfeature:
+    ignore:
+      - bsdtar-compat.yml
