@@ -202,14 +202,13 @@ impl ChunkType {
 
     /// Creates a custom [`ChunkType`] without validation.
     ///
-    /// # Panics
-    /// Panics if the chunk type contains non-UTF-8 characters and it is
-    /// formatted with `Display`.
-    /// ```no_run
+    /// # Display behavior
+    /// If bytes are invalid UTF-8, they are rendered as lowercase hex bytes.
+    /// ```rust
     /// # use libpna::ChunkType;
     ///
     /// let custom_chunk_type = unsafe { ChunkType::from_unchecked([0xe3, 0x81, 0x82, 0xe3]) };
-    /// format!("{}", custom_chunk_type);
+    /// assert_eq!(format!("{}", custom_chunk_type), "[e3, 81, 82, e3]");
     /// ```
     ///
     /// # Safety
@@ -282,13 +281,10 @@ impl Debug for ChunkType {
 impl Display for ChunkType {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        // SAFETY: A field checked to be ASCII alphabetic in the constructor.
-        debug_assert!(
-            self.0.iter().all(|b| b.is_ascii_alphabetic()),
-            "ChunkType invariant violated: contains non-ASCII alphabetic bytes {:?}",
-            self.0
-        );
-        Display::fmt(unsafe { std::str::from_utf8_unchecked(&self.0) }, f)
+        match std::str::from_utf8(&self.0) {
+            Ok(s) => Display::fmt(s, f),
+            Err(_) => write!(f, "{:02x?}", self.0),
+        }
     }
 }
 
