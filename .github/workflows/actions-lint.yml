@@ -5,10 +5,14 @@ on:
     paths:
       - ".github/workflows/**"
       - ".github/actions/**"
+      - ".github/actionlint.yaml"
+      - ".github/zizmor.yml"
   push:
     paths:
       - ".github/workflows/**"
       - ".github/actions/**"
+      - ".github/actionlint.yaml"
+      - ".github/zizmor.yml"
   schedule:
     - cron: '15 13 * * 0'
 jobs:
