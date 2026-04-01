@@ -420,7 +420,7 @@ impl PartialEq<EntryReference> for &str {
     }
 }
 
-/// Error of invalid [EntryReference].
+/// An error returned when an [`EntryReference`] cannot be constructed from invalid input.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct EntryReferenceError(Utf8Error);
 
