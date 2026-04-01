@@ -43,7 +43,7 @@ mod private {
 /// A trait representing an entry in a PNA archive.
 pub trait Entry: SealedEntryExt {}
 
-/// Chunks from `FHED` to `FEND`, containing `FHED` and `FEND`
+/// Chunks from `FHED` to `FEND`, containing `FHED` and `FEND`.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) struct RawEntry<T = Vec<u8>>(pub(crate) Vec<RawChunk<T>>);
 
@@ -1110,7 +1110,7 @@ impl<T> EntryPart<T>
 where
     RawChunk<T>: Chunk,
 {
-    /// Length in bytes
+    /// Length in bytes.
     #[inline]
     pub fn bytes_len(&self) -> usize {
         self.0.iter().map(|chunk| chunk.bytes_len()).sum()

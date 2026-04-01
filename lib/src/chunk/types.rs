@@ -91,53 +91,53 @@ pub struct ChunkType([u8; 4]);
 
 impl ChunkType {
     // -- Critical chunks --
-    /// Archive header
+    /// Archive header.
     pub const AHED: ChunkType = ChunkType(*b"AHED");
-    /// Archive end marker
+    /// Archive end marker.
     pub const AEND: ChunkType = ChunkType(*b"AEND");
-    /// Archive next part marker
+    /// Archive next part marker.
     pub const ANXT: ChunkType = ChunkType(*b"ANXT");
-    /// Entry header
+    /// Entry header.
     pub const FHED: ChunkType = ChunkType(*b"FHED");
-    /// Password hash string format
+    /// Password hash string format.
     pub const PHSF: ChunkType = ChunkType(*b"PHSF");
-    /// Entry data stream
+    /// Entry data stream.
     pub const FDAT: ChunkType = ChunkType(*b"FDAT");
-    /// Entry data stream end marker
+    /// Entry data stream end marker.
     pub const FEND: ChunkType = ChunkType(*b"FEND");
-    /// Solid mode data header
+    /// Solid mode data header.
     pub const SHED: ChunkType = ChunkType(*b"SHED");
-    /// Solid mode data stream
+    /// Solid mode data stream.
     pub const SDAT: ChunkType = ChunkType(*b"SDAT");
-    /// Solid mode data stream end marker
+    /// Solid mode data stream end marker.
     pub const SEND: ChunkType = ChunkType(*b"SEND");
 
     // -- Auxiliary chunks --
-    /// Raw file size
+    /// Raw file size.
     #[allow(non_upper_case_globals)]
     pub const fSIZ: ChunkType = ChunkType(*b"fSIZ");
-    /// Creation datetime
+    /// Creation datetime.
     #[allow(non_upper_case_globals)]
     pub const cTIM: ChunkType = ChunkType(*b"cTIM");
-    /// Last modified datetime
+    /// Last modified datetime.
     #[allow(non_upper_case_globals)]
     pub const mTIM: ChunkType = ChunkType(*b"mTIM");
-    /// Last accessed datetime
+    /// Last accessed datetime.
     #[allow(non_upper_case_globals)]
     pub const aTIM: ChunkType = ChunkType(*b"aTIM");
-    /// Nanoseconds for creation datetime
+    /// Nanoseconds for creation datetime.
     #[allow(non_upper_case_globals)]
     pub const cTNS: ChunkType = ChunkType(*b"cTNS");
-    /// Nanoseconds for last modified datetime
+    /// Nanoseconds for last modified datetime.
     #[allow(non_upper_case_globals)]
     pub const mTNS: ChunkType = ChunkType(*b"mTNS");
-    /// Nanoseconds for last accessed datetime
+    /// Nanoseconds for last accessed datetime.
     #[allow(non_upper_case_globals)]
     pub const aTNS: ChunkType = ChunkType(*b"aTNS");
-    /// Entry permissions
+    /// Entry permissions.
     #[allow(non_upper_case_globals)]
     pub const fPRM: ChunkType = ChunkType(*b"fPRM");
-    /// Extended attribute
+    /// Extended attribute.
     #[allow(non_upper_case_globals)]
     pub const xATR: ChunkType = ChunkType(*b"xATR");
 
