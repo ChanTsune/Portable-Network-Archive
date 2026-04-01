@@ -165,3 +165,63 @@ impl SafeDir {
         self.inner.rename(from, &self.inner, to)
     }
 }
+
+/// Split a path into its parent directory and file name components.
+/// Used by *at-style operations that need to open the parent dir fd
+/// and then operate on the file name relative to it.
+#[cfg(unix)]
+fn split_parent(path: &Path) -> (&Path, &std::ffi::OsStr) {
+    let parent = path.parent().unwrap_or(Path::new(""));
+    let name = path.file_name().unwrap_or(path.as_os_str());
+    (parent, name)
+}
+
+#[cfg(unix)]
+impl SafeDir {
+    pub(crate) fn set_ownership(
+        &self,
+        path: &Path,
+        uid: Option<u32>,
+        gid: Option<u32>,
+        no_follow: bool,
+    ) -> io::Result<()> {
+        use nix::fcntl::AtFlags;
+        use nix::unistd::{Gid, Uid, fchownat};
+        use std::os::unix::io::AsFd;
+
+        let (parent, name) = split_parent(path);
+        let parent_dir = if parent.as_os_str().is_empty() {
+            self.inner.try_clone()?
+        } else {
+            self.inner.open_dir(parent)?
+        };
+        let flag = if no_follow {
+            AtFlags::AT_SYMLINK_NOFOLLOW
+        } else {
+            AtFlags::empty()
+        };
+        fchownat(
+            parent_dir.as_fd(),
+            name,
+            uid.map(Uid::from_raw),
+            gid.map(Gid::from_raw),
+            flag,
+        )
+        .map_err(io::Error::from)
+    }
+
+    pub(crate) fn set_xattr(&self, path: &Path, name: &str, value: &[u8]) -> io::Result<()> {
+        use xattr::FileExt;
+        // Open the file within the cap-std sandbox, then use fd-based xattr operations
+        let file = self.inner.open(path)?;
+        let std_file = file.into_std();
+        std_file.set_xattr(name, value)
+    }
+
+    pub(crate) fn get_xattr(&self, path: &Path, name: &str) -> io::Result<Option<Vec<u8>>> {
+        use xattr::FileExt;
+        let file = self.inner.open(path)?;
+        let std_file = file.into_std();
+        std_file.get_xattr(name)
+    }
+}
