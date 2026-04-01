@@ -9,6 +9,7 @@ pub(crate) mod path_lock;
 mod path_transformer;
 pub(crate) mod permission;
 pub(crate) mod re;
+pub(crate) mod safe_dir;
 pub(crate) mod safe_writer;
 pub(crate) mod time_filter;
 pub(crate) mod timestamp;
