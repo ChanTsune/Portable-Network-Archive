@@ -88,10 +88,12 @@ jobs:
           key: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}-${{ hashFiles('**/Cargo.lock') }}"
           restore-keys: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}"
       - name: run test
+        shell: bash
         run: |
-          cargo hack test --locked --release --feature-powerset --exclude-features wasm --exclude portable-network-archive-fuzz --exclude xtask -- --test-threads=1
+          cargo hack test --locked --release --feature-powerset --exclude-features "$EXCLUDE_FEATURES" --exclude portable-network-archive-fuzz --exclude xtask -- --test-threads=1
         env:
           RUST_BACKTRACE: 1
+          EXCLUDE_FEATURES: ${{ contains(matrix.os, 'riscv') && 'wasm,zlib-ng' || 'wasm' }}
       - name: Save rust build cache
         if: github.ref_name == github.event.repository.default_branch && steps.restore-rust-build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
