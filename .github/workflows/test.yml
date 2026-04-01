@@ -57,7 +57,7 @@ jobs:
         if: startsWith(matrix.os, 'ubuntu')
         run: |
           sudo apt update
-          sudo apt install -y libacl1-dev
+          sudo apt install -y cmake libacl1-dev
       - name: Install Rustup
         if: ${{ matrix.os == 'windows-11-arm' }}
         shell: pwsh
@@ -183,7 +183,7 @@ jobs:
         if: startsWith(matrix.os, 'ubuntu')
         run: |
           sudo apt update
-          sudo apt install -y libacl1-dev
+          sudo apt install -y cmake libacl1-dev
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
