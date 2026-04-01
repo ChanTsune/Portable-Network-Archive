@@ -104,12 +104,12 @@ impl Metadata {
         self
     }
 
-    /// Raw file size of entry data in bytes
+    /// Raw file size of entry data in bytes.
     #[inline]
     pub const fn raw_file_size(&self) -> Option<u128> {
         self.raw_file_size
     }
-    /// Compressed size of entry data in bytes
+    /// Compressed size of entry data in bytes.
     #[inline]
     pub const fn compressed_size(&self) -> usize {
         self.compressed_size
@@ -129,7 +129,7 @@ impl Metadata {
     pub const fn accessed(&self) -> Option<Duration> {
         self.accessed
     }
-    /// An owner, group, and permissions for an entry
+    /// An owner, group, and permissions for an entry.
     #[inline]
     pub const fn permission(&self) -> Option<&Permission> {
         self.permission.as_ref()
