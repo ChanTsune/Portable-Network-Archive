@@ -1127,7 +1127,7 @@ where
 impl EntryPart<&[u8]> {
     /// Split [EntryPart] into two parts if this entry can be split into smaller than the given value.
     ///
-    /// ## Errors
+    /// # Errors
     /// If it can't split into smaller than the given value,
     /// it returns an error containing the original value.
     #[inline]

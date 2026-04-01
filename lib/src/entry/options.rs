@@ -365,7 +365,7 @@ impl HashAlgorithm {
     /// **Note:** Prefer [`argon2id()`](Self::argon2id) for new archives.
     /// PBKDF2 is provided for compatibility with systems where Argon2 is unavailable.
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```rust
     /// use libpna::{WriteOptions, Encryption, HashAlgorithm};
@@ -388,7 +388,7 @@ impl HashAlgorithm {
     ///
     /// **Note:** Prefer [`argon2id_with()`](Self::argon2id_with) for new archives.
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```rust
     /// use libpna::{WriteOptions, Encryption, HashAlgorithm};
@@ -409,7 +409,7 @@ impl HashAlgorithm {
     /// **Recommended** for all new archives. Argon2id is memory-hard, providing
     /// better resistance against GPU/ASIC brute-force attacks compared to PBKDF2.
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```rust
     /// use libpna::{WriteOptions, Encryption, HashAlgorithm};
@@ -435,7 +435,7 @@ impl HashAlgorithm {
     ///
     /// **Recommended** for all new archives when custom tuning is needed.
     ///
-    /// # Example
+    /// # Examples
     ///
     /// ```rust
     /// use libpna::{WriteOptions, Encryption, HashAlgorithm};
