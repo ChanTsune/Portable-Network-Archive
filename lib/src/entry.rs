@@ -1125,7 +1125,7 @@ where
 }
 
 impl EntryPart<&[u8]> {
-    /// Splits this [`EntryPart`] into two parts if it can be split into smaller than the given value.
+    /// Splits this [`EntryPart`] into two parts if its length exceeds the given value.
     ///
     /// # Errors
     /// If it can't split into smaller than the given value,
