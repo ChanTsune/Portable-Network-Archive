@@ -448,7 +448,7 @@ impl PartialEq<EntryName> for &str {
     }
 }
 
-/// Error of invalid [EntryName].
+/// An error returned when an [`EntryName`] cannot be constructed from invalid input.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct EntryNameError(Utf8Error);
 

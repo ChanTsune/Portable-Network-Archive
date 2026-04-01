@@ -453,7 +453,7 @@ impl<R: Read> Iterator for NormalEntries<'_, R> {
 }
 
 impl<R: Read + Seek> Archive<R> {
-    /// Seek the cursor to the end of the archive marker.
+    /// Seeks the cursor to the end of the archive marker.
     ///
     /// # Errors
     /// Returns an error if this function failed to seek or contains a broken chunk.

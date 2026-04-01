@@ -54,7 +54,7 @@ impl<W: Write> Write for SolidArchiveEntryDataWriter<'_, W> {
 }
 
 impl<W: Write> Archive<W> {
-    /// Writes the archive header to the given `Write` object and return a new [Archive].
+    /// Writes the archive header to the given `Write` object and returns a new [Archive].
     ///
     /// # Arguments
     ///
@@ -225,7 +225,7 @@ impl<W: Write> Archive<W> {
         (ChunkType::ANXT, []).write_chunk_in(&mut self.inner)
     }
 
-    /// Split to the next archive.
+    /// Splits to the next archive.
     ///
     /// # Examples
     /// ```no_run
@@ -295,7 +295,7 @@ impl<W: Write> Archive<W> {
 
 #[cfg(feature = "unstable-async")]
 impl<W: AsyncWrite + Unpin> Archive<W> {
-    /// Writes the archive header to the given object and return a new [Archive].
+    /// Writes the archive header to the given object and returns a new [Archive].
     /// This API is unstable.
     ///
     /// # Errors
@@ -348,7 +348,7 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
 }
 
 impl<W: Write> Archive<W> {
-    /// Writes the archive header to the given `Write` object and return a new [SolidArchive].
+    /// Writes the archive header to the given `Write` object and returns a new [SolidArchive].
     ///
     /// # Arguments
     ///
