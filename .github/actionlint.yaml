@@ -5,3 +5,6 @@ paths:
   ".github/workflows/*.lock.yml":
     ignore:
       - ".*"
+self-hosted-runner:
+  labels:
+    - ubuntu-24.04-riscv
