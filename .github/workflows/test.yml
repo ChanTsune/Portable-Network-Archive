@@ -88,10 +88,12 @@ jobs:
           key: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}-${{ hashFiles('**/Cargo.lock') }}"
           restore-keys: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}"
       - name: run test
+        shell: bash
         run: |
-          cargo hack test --locked --release --feature-powerset --exclude-features wasm -- --test-threads=1
+          cargo hack test --locked --release --feature-powerset --exclude-features "$EXCLUDE_FEATURES" -- --test-threads=1
         env:
           RUST_BACKTRACE: 1
+          EXCLUDE_FEATURES: ${{ contains(matrix.os, 'riscv') && 'wasm,zlib-ng' || 'wasm' }}
 
   tier3_cross:
     name: Tier 3 Cross-compile
