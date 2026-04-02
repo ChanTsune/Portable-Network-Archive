@@ -11,14 +11,15 @@ use super::{ChunkType, Crc32};
 /// This trait provides the basic interface for working with chunks in a PNA archive.
 ///
 /// # Examples
-/// ```no_run
+///
+/// ```
 /// use libpna::{Chunk, ChunkType, RawChunk};
 ///
-/// fn process_chunk<C: Chunk>(chunk: &C) {
-///     println!("Chunk type: {:?}", chunk.ty());
-///     println!("Data length: {}", chunk.length());
-///     println!("CRC32: {:08x}", chunk.crc());
-/// }
+/// let chunk = RawChunk::from((ChunkType::FDAT, vec![1, 2, 3]));
+/// assert_eq!(chunk.ty(), ChunkType::FDAT);
+/// assert_eq!(chunk.length(), 3);
+/// assert_eq!(chunk.data(), &[1, 2, 3]);
+/// assert_eq!(chunk.crc(), 2776590148);
 /// ```
 pub trait Chunk {
     /// Returns the length of the chunk's data payload in bytes.
