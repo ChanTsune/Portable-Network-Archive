@@ -1,6 +1,6 @@
 use std::fs::{self, File};
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::time::SystemTime;
 
 #[derive(Clone, Debug)]
@@ -21,8 +21,25 @@ impl SafeDir {
         })
     }
 
-    fn resolve(&self, path: &Path) -> PathBuf {
-        self.base_path.join(path)
+    fn resolve(&self, path: &Path) -> io::Result<PathBuf> {
+        for component in path.components() {
+            match component {
+                Component::ParentDir => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!("path contains '..': {}", path.display()),
+                    ));
+                }
+                Component::RootDir | Component::Prefix(_) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!("path is absolute: {}", path.display()),
+                    ));
+                }
+                _ => {}
+            }
+        }
+        Ok(self.base_path.join(path))
     }
 
     // -- File / Directory operations --
@@ -33,7 +50,7 @@ impl SafeDir {
         #[allow(unused_variables)] mode: u32,
         exclusive: bool,
     ) -> io::Result<File> {
-        let full = self.resolve(path);
+        let full = self.resolve(path)?;
         let mut opts = fs::OpenOptions::new();
         opts.write(true).create(true).truncate(!exclusive);
         if exclusive {
@@ -52,7 +69,7 @@ impl SafeDir {
         path: &Path,
         #[allow(unused_variables)] mode: u32,
     ) -> io::Result<()> {
-        let full = self.resolve(path);
+        let full = self.resolve(path)?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::DirBuilderExt;
@@ -72,7 +89,7 @@ impl SafeDir {
         if path.as_os_str().is_empty() {
             return Ok(());
         }
-        let full = self.resolve(path);
+        let full = self.resolve(path)?;
         #[cfg(unix)]
         {
             use std::os::unix::fs::DirBuilderExt;
@@ -87,7 +104,7 @@ impl SafeDir {
     // -- Link operations --
 
     pub(crate) fn symlink_contents(&self, target: &str, link: &Path) -> io::Result<()> {
-        let full = self.resolve(link);
+        let full = self.resolve(link)?;
         #[cfg(unix)]
         {
             std::os::unix::fs::symlink(target, &full)
@@ -111,13 +128,13 @@ impl SafeDir {
     }
 
     pub(crate) fn hard_link(&self, src: &Path, link: &Path) -> io::Result<()> {
-        fs::hard_link(self.resolve(src), self.resolve(link))
+        fs::hard_link(self.resolve(src)?, self.resolve(link)?)
     }
 
     // -- Metadata operations --
 
     pub(crate) fn symlink_metadata(&self, path: &Path) -> io::Result<fs::Metadata> {
-        fs::symlink_metadata(self.resolve(path))
+        fs::symlink_metadata(self.resolve(path)?)
     }
 
     pub(crate) fn set_permissions(
@@ -129,7 +146,7 @@ impl SafeDir {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let full = self.resolve(path);
+            let full = self.resolve(path)?;
             let perm = fs::Permissions::from_mode(mode);
             if no_follow {
                 // lchmod is not supported by the libc crate (BSD only).
@@ -140,7 +157,10 @@ impl SafeDir {
             fs::set_permissions(&full, perm)
         }
         #[cfg(not(unix))]
-        Ok(())
+        {
+            let _ = self.resolve(path)?;
+            Ok(())
+        }
     }
 
     pub(crate) fn set_times(
@@ -150,7 +170,7 @@ impl SafeDir {
         mtime: Option<SystemTime>,
         no_follow: bool,
     ) -> io::Result<()> {
-        let full = self.resolve(path);
+        let full = self.resolve(path)?;
         if no_follow {
             // utimensat with AT_SYMLINK_NOFOLLOW requires nix's "fs" feature,
             // which is enabled for linux/android/macos/freebsd in Cargo.toml.
@@ -170,19 +190,19 @@ impl SafeDir {
     // -- Delete / Rename operations --
 
     pub(crate) fn remove_file(&self, path: &Path) -> io::Result<()> {
-        fs::remove_file(self.resolve(path))
+        fs::remove_file(self.resolve(path)?)
     }
 
     pub(crate) fn remove_dir(&self, path: &Path) -> io::Result<()> {
-        fs::remove_dir(self.resolve(path))
+        fs::remove_dir(self.resolve(path)?)
     }
 
     pub(crate) fn remove_dir_all(&self, path: &Path) -> io::Result<()> {
-        fs::remove_dir_all(self.resolve(path))
+        fs::remove_dir_all(self.resolve(path)?)
     }
 
     pub(crate) fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
-        fs::rename(self.resolve(from), self.resolve(to))
+        fs::rename(self.resolve(from)?, self.resolve(to)?)
     }
 }
 
@@ -266,7 +286,7 @@ impl SafeDir {
             use nix::fcntl::{AT_FDCWD, AtFlags};
             use nix::unistd::{Gid, Uid, fchownat};
 
-            let full = self.resolve(path);
+            let full = self.resolve(path)?;
             let flag = if no_follow {
                 AtFlags::AT_SYMLINK_NOFOLLOW
             } else {
@@ -285,7 +305,7 @@ impl SafeDir {
         {
             // Redox does not support fchownat; use libc::chown/lchown.
             use std::os::unix::ffi::OsStrExt;
-            let full = self.resolve(path);
+            let full = self.resolve(path)?;
             let c_path = std::ffi::CString::new(full.as_os_str().as_bytes())
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
             let raw_uid = uid.map_or(!0u32, |u| u) as libc::uid_t;
@@ -303,11 +323,11 @@ impl SafeDir {
     }
 
     pub(crate) fn set_xattr(&self, path: &Path, name: &str, value: &[u8]) -> io::Result<()> {
-        xattr::set(self.resolve(path), name, value)
+        xattr::set(self.resolve(path)?, name, value)
     }
 
     #[allow(dead_code)]
     pub(crate) fn get_xattr(&self, path: &Path, name: &str) -> io::Result<Option<Vec<u8>>> {
-        xattr::get(self.resolve(path), name)
+        xattr::get(self.resolve(path)?, name)
     }
 }
