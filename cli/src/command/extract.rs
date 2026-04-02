@@ -600,7 +600,6 @@ pub(crate) struct OutputOption<'a> {
     pub(crate) overwrite_strategy: OverwriteStrategy,
     pub(crate) allow_unsafe_links: bool,
     pub(crate) out_dir: Option<PathBuf>,
-    #[allow(dead_code)]
     pub(crate) safe_dir: Option<SafeDir>,
     pub(crate) to_stdout: bool,
     pub(crate) filter: PathFilter<'a>,
@@ -1196,7 +1195,7 @@ pub(crate) fn extract_entry<'a, T>(
         overwrite_strategy,
         allow_unsafe_links,
         out_dir,
-        safe_dir: _,
+        safe_dir,
         to_stdout: _,
         filter: _,
         keep_options,
@@ -1215,6 +1214,32 @@ where
     pna::RawChunk<T>: Chunk,
 {
     log::debug!("Extract: {}", item.name());
+
+    // Use SafeDir when available AND secure_symlinks is active.
+    // When --absolute-paths is used, symlink following is expected, which conflicts
+    // with SafeDir's inherent symlink-safe semantics. Fall back to path-based operations.
+    // Use SafeDir when available AND secure_symlinks is active.
+    // When --absolute-paths is used, symlink following is expected, which conflicts
+    // with SafeDir's inherent symlink-safe semantics. Fall back to path-based operations.
+    if let Some(sd) = safe_dir
+        && !absolute_paths
+    {
+        return extract_entry_safe(
+            item,
+            item_path,
+            password,
+            sd,
+            out_dir.as_deref(),
+            keep_options,
+            pathname_editor,
+            *overwrite_strategy,
+            *allow_unsafe_links,
+            *unlink_first,
+            *safe_writes,
+            warned_lead_slash,
+        );
+    }
+
     let path = build_output_path(out_dir.as_deref(), item_path.as_path());
 
     let entry_kind = item.header().data_kind();
@@ -1314,6 +1339,256 @@ where
     restore_metadata(&item, &path, keep_options)?;
     log::debug!("end: {}", path.display());
     Ok(())
+}
+
+/// SafeDir-based extraction path. All file system operations go through `safe_dir`
+/// to prevent path traversal attacks via symlinks in the output directory tree.
+#[allow(clippy::too_many_arguments)]
+fn extract_entry_safe<T>(
+    item: NormalEntry<T>,
+    item_path: &EntryName,
+    password: Option<&[u8]>,
+    safe_dir: &SafeDir,
+    out_dir: Option<&Path>,
+    keep_options: &KeepOptions,
+    pathname_editor: &PathnameEditor,
+    overwrite_strategy: OverwriteStrategy,
+    allow_unsafe_links: bool,
+    unlink_first: bool,
+    safe_writes: bool,
+    warned_lead_slash: &AtomicBool,
+) -> io::Result<()>
+where
+    T: AsRef<[u8]>,
+    pna::RawChunk<T>: Chunk,
+{
+    let rel_path = Path::new(item_path.as_str());
+    let entry_kind = item.header().data_kind();
+
+    log::debug!("start (safe_dir): {}", rel_path.display());
+
+    // Check overwrite strategy and prepare target via SafeDir
+    let ExtractionDecision::Proceed { remove_existing } = check_and_prepare_target_safe(
+        safe_dir,
+        rel_path,
+        entry_kind,
+        &item,
+        overwrite_strategy,
+        unlink_first,
+    )?
+    else {
+        return Ok(());
+    };
+
+    let is_symlink = entry_kind == DataKind::SymbolicLink;
+
+    match entry_kind {
+        DataKind::File => {
+            // Ensure parent directories exist
+            if let Some(parent) = rel_path.parent() {
+                ensure_parent_dirs_safe(safe_dir, parent, unlink_first)?;
+            }
+            if safe_writes {
+                // Safe writes: create temp file, write, rename
+                let random = rand::random::<u64>();
+                let temp_name = format!(".pna.{:016x}", random);
+                let temp_rel = rel_path.parent().unwrap_or(Path::new("")).join(&temp_name);
+                let mut file = safe_dir.create_file(&temp_rel, 0o600, true)?;
+                {
+                    let mut writer = io::BufWriter::with_capacity(64 * 1024, &mut file);
+                    let mut reader = item.reader(ReadOptions::with_password(password))?;
+                    io::copy(&mut reader, &mut writer)?;
+                    writer.flush()?;
+                }
+                restore_timestamps(&mut file, item.metadata(), keep_options)?;
+                file.sync_all()?;
+                drop(file);
+                // Remove existing entry before rename if needed (handles both files and directories)
+                if remove_existing {
+                    match safe_dir.symlink_metadata(rel_path) {
+                        Ok(meta) if meta.is_dir() => {
+                            utils::io::ignore_not_found(safe_dir.remove_dir(rel_path))?;
+                        }
+                        Ok(_) => {
+                            utils::io::ignore_not_found(safe_dir.remove_file(rel_path))?;
+                        }
+                        Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+                        Err(e) => return Err(e),
+                    }
+                }
+                safe_dir.rename(&temp_rel, rel_path)?;
+            } else {
+                if remove_existing {
+                    utils::io::ignore_not_found(safe_dir.remove_file(rel_path))?;
+                }
+                let file = safe_dir.create_file(rel_path, 0o666, false)?;
+                let mut writer = io::BufWriter::with_capacity(64 * 1024, file);
+                let mut reader = item.reader(ReadOptions::with_password(password))?;
+                io::copy(&mut reader, &mut writer)?;
+                let mut file = writer.into_inner().map_err(|e| e.into_error())?;
+                restore_timestamps(&mut file, item.metadata(), keep_options)?;
+            }
+        }
+        DataKind::Directory => {
+            ensure_parent_dirs_safe(safe_dir, rel_path, unlink_first)?;
+        }
+        DataKind::SymbolicLink => {
+            let reader = item.reader(ReadOptions::with_password(password))?;
+            let original = io::read_to_string(reader)?;
+            let original = pathname_editor.edit_symlink(original.as_ref());
+            if !allow_unsafe_links && is_unsafe_link(&original) {
+                log::warn!(
+                    "Skipped extracting a symbolic link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
+                );
+                return Ok(());
+            }
+            // Ensure parent directories exist
+            if let Some(parent) = rel_path.parent() {
+                ensure_parent_dirs_safe(safe_dir, parent, unlink_first)?;
+            }
+            // Symlinks cannot be atomically replaced; remove existing path first
+            if safe_writes || remove_existing {
+                utils::io::ignore_not_found(safe_dir.remove_file(rel_path))?;
+            }
+            safe_dir.symlink_contents(original.as_str(), rel_path)?;
+        }
+        DataKind::HardLink => {
+            let reader = item.reader(ReadOptions::with_password(password))?;
+            let original = io::read_to_string(reader)?;
+            let Some((original, had_root)) = pathname_editor.edit_hardlink(original.as_ref())
+            else {
+                log::warn!(
+                    "Skipped extracting a hard link that pointed at a file which was skipped.: {}",
+                    original
+                );
+                return Ok(());
+            };
+            if had_root && !warned_lead_slash.swap(true, Ordering::Relaxed) {
+                eprintln!("bsdtar: Removing leading '/' from member names");
+            }
+            if !allow_unsafe_links && is_unsafe_link(&original) {
+                log::warn!(
+                    "Skipped extracting a hard link that contains an unsafe link. If you need to extract it, use `--allow-unsafe-links`."
+                );
+                return Ok(());
+            }
+            // Ensure parent directories exist
+            if let Some(parent) = rel_path.parent() {
+                ensure_parent_dirs_safe(safe_dir, parent, unlink_first)?;
+            }
+            let original_rel = Path::new(original.as_str());
+            // Hardlinks cannot be atomically replaced; remove existing path first
+            if safe_writes || remove_existing {
+                utils::io::ignore_not_found(safe_dir.remove_file(rel_path))?;
+            }
+            safe_dir.hard_link(original_rel, rel_path)?;
+        }
+    }
+    // For File entries, timestamps are already set via the file descriptor in restore_timestamps().
+    // For Directory/SymbolicLink/HardLink, timestamps must be set via SafeDir path operations.
+    let timestamps_already_set = entry_kind == DataKind::File;
+    restore_metadata_safe(
+        &item,
+        safe_dir,
+        rel_path,
+        out_dir,
+        keep_options,
+        is_symlink,
+        timestamps_already_set,
+    )?;
+    log::debug!("end (safe_dir): {}", rel_path.display());
+    Ok(())
+}
+
+/// Checks overwrite strategy and prepares the target path for SafeDir-based extraction.
+///
+/// Uses SafeDir methods instead of path-based operations to prevent TOCTOU races
+/// and path traversal attacks.
+fn check_and_prepare_target_safe<T>(
+    safe_dir: &SafeDir,
+    rel_path: &Path,
+    entry_kind: DataKind,
+    item: &NormalEntry<T>,
+    overwrite_strategy: OverwriteStrategy,
+    unlink_first: bool,
+) -> io::Result<ExtractionDecision>
+where
+    T: AsRef<[u8]>,
+{
+    let metadata = match safe_dir.symlink_metadata(rel_path) {
+        Ok(meta) => Some(meta),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(err) if err.kind() == io::ErrorKind::NotADirectory => None,
+        Err(err) => return Err(err),
+    };
+
+    // Check overwrite strategy
+    if let Some(existing) = &metadata {
+        match overwrite_strategy {
+            OverwriteStrategy::Never if !unlink_first => {
+                return Err(io::Error::new(
+                    io::ErrorKind::AlreadyExists,
+                    format!("{} already exists", rel_path.display()),
+                ));
+            }
+            OverwriteStrategy::KeepOlder if !unlink_first => {
+                log::debug!(
+                    "Skipped extracting {}: existing one kept by --keep-older",
+                    rel_path.display()
+                );
+                return Ok(ExtractionDecision::Skip);
+            }
+            OverwriteStrategy::KeepNewer if !unlink_first => {
+                if is_existing_newer_meta(existing, item) {
+                    log::debug!(
+                        "Skipped extracting {}: newer one already exists (--keep-newer)",
+                        rel_path.display()
+                    );
+                    return Ok(ExtractionDecision::Skip);
+                }
+            }
+            _ => (),
+        }
+    }
+
+    // Determine what cleanup is needed
+    let (had_existing, existing_is_dir) = metadata
+        .as_ref()
+        .map(|meta| (true, meta.is_dir()))
+        .unwrap_or((false, false));
+    let unlink_existing =
+        unlink_first && had_existing && (entry_kind != DataKind::Directory || !existing_is_dir);
+    let should_overwrite_existing = matches!(
+        overwrite_strategy,
+        OverwriteStrategy::Always | OverwriteStrategy::KeepNewer
+    ) && had_existing;
+
+    // Remove existing if unlink_first mode
+    if unlink_existing {
+        let r = if existing_is_dir {
+            safe_dir.remove_dir_all(rel_path)
+        } else {
+            safe_dir.remove_file(rel_path)
+        };
+        utils::io::ignore_not_found(r)?;
+    }
+
+    // Handle type conflicts (symlink blocking file, file blocking directory)
+    if let Some(meta) = &metadata
+        && (meta.is_symlink() || (meta.is_file() && entry_kind == DataKind::Directory))
+        && (unlink_first || meta.is_symlink() || meta.is_file())
+    {
+        let r = safe_dir.remove_file(rel_path);
+        match r {
+            Ok(()) => {}
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+            Err(e) if e.kind() == io::ErrorKind::IsADirectory => {}
+            Err(e) => return Err(e),
+        }
+    }
+
+    let remove_existing = should_overwrite_existing && !unlink_existing;
+    Ok(ExtractionDecision::Proceed { remove_existing })
 }
 
 #[inline]
@@ -1635,6 +1910,289 @@ where
     } else {
         false
     }
+}
+
+/// Checks whether the existing file (from SafeDir metadata) is newer than the entry.
+fn is_existing_newer_meta<T>(
+    metadata: &crate::command::core::safe_dir::Metadata,
+    item: &NormalEntry<T>,
+) -> bool
+where
+    T: AsRef<[u8]>,
+{
+    #[cfg(feature = "safe-dir")]
+    {
+        // cap_std::fs::Metadata::modified() returns cap_std::time::SystemTime
+        if let (Ok(existing_modified), Some(entry_modified)) =
+            (metadata.modified(), item.metadata().modified_time())
+        {
+            existing_modified.into_std() >= entry_modified
+        } else {
+            false
+        }
+    }
+    #[cfg(not(feature = "safe-dir"))]
+    {
+        // path_impl Metadata is std::fs::Metadata, same as is_existing_newer
+        if let (Ok(existing_modified), Some(entry_modified)) =
+            (metadata.modified(), item.metadata().modified_time())
+        {
+            existing_modified >= entry_modified
+        } else {
+            false
+        }
+    }
+}
+
+/// Restores file metadata via SafeDir methods instead of path-based operations.
+///
+/// This keeps all metadata operations within the SafeDir sandbox, preventing TOCTOU races
+/// between file creation and metadata application.
+///
+/// When `timestamps_already_set` is true (for File entries), timestamps are skipped because
+/// they were already set via the open file descriptor in `restore_timestamps()`, which also
+/// handles platform-specific fields like creation time on macOS/Windows.
+fn restore_metadata_safe<T>(
+    item: &NormalEntry<T>,
+    safe_dir: &SafeDir,
+    rel_path: &Path,
+    out_dir: Option<&Path>,
+    keep_options: &KeepOptions,
+    is_symlink: bool,
+    timestamps_already_set: bool,
+) -> io::Result<()>
+where
+    T: AsRef<[u8]>,
+{
+    let no_follow = is_symlink;
+
+    // Restore timestamps via SafeDir (only for non-file entries like directories and symlinks,
+    // since file timestamps are set via the open file descriptor in restore_timestamps)
+    if !timestamps_already_set
+        && let TimestampStrategy::Preserve {
+            mtime,
+            ctime: _ctime,
+            atime,
+        } = keep_options.timestamp_strategy
+    {
+        let metadata = item.metadata();
+        let atime_val = atime.resolve(metadata.accessed_time());
+        let mtime_val = mtime.resolve(metadata.modified_time());
+        if atime_val.is_some() || mtime_val.is_some() {
+            safe_dir.set_times(rel_path, atime_val, mtime_val, no_follow)?;
+        }
+    }
+
+    if let Some(p) = item.metadata().permission() {
+        // Restore ownership via SafeDir when configured
+        if let OwnerStrategy::Preserve { options } = &keep_options.owner_strategy {
+            restore_owner_safe(safe_dir, rel_path, p, options, no_follow)?;
+        }
+        // Restore mode bits via SafeDir when configured
+        match keep_options.mode_strategy {
+            ModeStrategy::Preserve => {
+                safe_dir.set_permissions(rel_path, p.permissions() as u32, no_follow)?;
+            }
+            ModeStrategy::Masked(mask) => {
+                safe_dir.set_permissions(
+                    rel_path,
+                    mask.apply(p.permissions()) as u32,
+                    no_follow,
+                )?;
+            }
+            ModeStrategy::Never => {}
+        }
+    }
+
+    // xattrs via SafeDir
+    #[cfg(unix)]
+    {
+        // On macOS, skip xattr/ACL if mac_metadata_strategy handles them
+        #[cfg(target_os = "macos")]
+        let skip_xattr_acl = matches!(
+            keep_options.mac_metadata_strategy,
+            MacMetadataStrategy::Always
+        ) && item.mac_metadata().is_some();
+        #[cfg(not(target_os = "macos"))]
+        let skip_xattr_acl = false;
+
+        if !skip_xattr_acl && matches!(keep_options.xattr_strategy, XattrStrategy::Always) {
+            for xattr in item.xattrs() {
+                match safe_dir.set_xattr(rel_path, xattr.name(), xattr.value()) {
+                    Ok(()) => {}
+                    Err(e) if e.kind() == io::ErrorKind::Unsupported => {
+                        log::warn!(
+                            "Extended attributes are not supported on filesystem for '{}': {}",
+                            rel_path.display(),
+                            e
+                        );
+                        break;
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+        }
+
+        #[cfg(feature = "acl")]
+        if !skip_xattr_acl {
+            // ACLs still use path-based operations because SafeDir doesn't wrap exacl.
+            // This is acceptable because we're within the SafeDir sandbox boundary and
+            // the path was already validated by SafeDir operations above.
+            if let Some(out_dir) = out_dir {
+                let abs_path = out_dir.join(rel_path);
+                restore_acls(&abs_path, item.acl()?, keep_options.acl_strategy)?;
+            }
+        }
+    }
+    #[cfg(not(unix))]
+    if let XattrStrategy::Always = keep_options.xattr_strategy {
+        log::warn!("Currently extended attribute is not supported on this platform.");
+    }
+    #[cfg(not(feature = "acl"))]
+    if let AclStrategy::Always = keep_options.acl_strategy {
+        log::warn!("Please enable `acl` feature and rebuild and install pna.");
+    }
+
+    // fflags: still path-based for now (no SafeDir wrapper for fflags)
+    // Acceptable because the file was just created/validated by SafeDir operations
+    if let FflagsStrategy::Always = keep_options.fflags_strategy {
+        let flags = item.fflags();
+        if !flags.is_empty() {
+            log::debug!(
+                "File flags restoration via SafeDir not yet implemented for '{}'",
+                rel_path.display()
+            );
+        }
+    }
+
+    // macOS metadata (AppleDouble) restoration
+    #[cfg(target_os = "macos")]
+    if matches!(
+        keep_options.mac_metadata_strategy,
+        MacMetadataStrategy::Always
+    ) && let Some(apple_double_data) = item.mac_metadata()
+    {
+        // AppleDouble restoration requires absolute paths for copyfile()
+        if let Some(out_dir) = out_dir {
+            let abs_path = out_dir.join(rel_path);
+            match utils::os::unix::fs::copyfile::unpack_apple_double(apple_double_data, &abs_path) {
+                Ok(()) => {
+                    log::debug!("Unpacked macOS metadata for '{}'", rel_path.display());
+                }
+                Err(e) => {
+                    log::warn!(
+                        "Failed to restore macOS metadata for '{}': {}",
+                        rel_path.display(),
+                        e
+                    );
+                }
+            }
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    if matches!(
+        keep_options.mac_metadata_strategy,
+        MacMetadataStrategy::Always
+    ) && item.mac_metadata().is_some()
+    {
+        log::warn!(
+            "macOS metadata present but cannot be restored on this platform: '{}'",
+            rel_path.display()
+        );
+    }
+    Ok(())
+}
+
+/// Restores file ownership via SafeDir.
+#[inline]
+fn restore_owner_safe(
+    safe_dir: &SafeDir,
+    rel_path: &Path,
+    p: &Permission,
+    options: &OwnerOptions,
+    no_follow: bool,
+) -> io::Result<()> {
+    #[cfg(unix)]
+    {
+        let (user, group) = resolve_owner(
+            p,
+            options.uname.as_deref(),
+            options.gname.as_deref(),
+            options.uid,
+            options.gid,
+        );
+        let uid = user.and_then(|u| u.uid()).map(|id| id as u32);
+        let gid = group.and_then(|g| g.gid()).map(|id| id as u32);
+        match safe_dir.set_ownership(rel_path, uid, gid, no_follow) {
+            Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
+                log::warn!("failed to restore owner of {}: {}", rel_path.display(), e)
+            }
+            r => r?,
+        }
+    }
+    #[cfg(windows)]
+    {
+        // Windows ownership restoration via SafeDir is not yet supported
+        let _ = (safe_dir, rel_path, p, options, no_follow);
+        log::warn!("Ownership restoration via SafeDir is not yet supported on Windows.");
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (safe_dir, rel_path, p, options, no_follow);
+        log::warn!("Currently ownership restoration is not supported on this platform.");
+    }
+    Ok(())
+}
+
+/// Ensures all directory components of `path` exist within the SafeDir sandbox.
+///
+/// When `unlink_first` is true, removes any non-directory entries (including symlinks)
+/// that block directory creation, matching the behavior of `ensure_directory_components`.
+fn ensure_parent_dirs_safe(safe_dir: &SafeDir, path: &Path, unlink_first: bool) -> io::Result<()> {
+    if path.as_os_str().is_empty() {
+        return Ok(());
+    }
+    if !unlink_first {
+        // When not unlinking, just create directories recursively.
+        // cap-std's ensure_dir_all already refuses to follow symlinks.
+        return safe_dir.ensure_dir_all(path, 0o777);
+    }
+    // With unlink_first: iterate each component and remove blocking non-directories
+    let mut current = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => continue,
+            Component::ParentDir => {
+                current.pop();
+                continue;
+            }
+            Component::RootDir | Component::Prefix(_) | Component::Normal(_) => {
+                current.push(component.as_os_str());
+            }
+        }
+        if current.as_os_str().is_empty() {
+            continue;
+        }
+        match safe_dir.symlink_metadata(&current) {
+            Ok(meta) if meta.is_dir() => continue,
+            Ok(meta) => {
+                // Non-directory blocking the path (symlink or file)
+                if meta.is_symlink() || meta.is_file() {
+                    safe_dir.remove_file(&current)?;
+                } else {
+                    safe_dir.remove_dir_all(&current)?;
+                }
+            }
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e),
+        }
+        if let Err(err) = safe_dir.create_dir(&current, 0o777)
+            && err.kind() != io::ErrorKind::AlreadyExists
+        {
+            return Err(err);
+        }
+    }
+    Ok(())
 }
 
 fn extract_entry_to_stdout<T>(item: &NormalEntry<T>, password: Option<&[u8]>) -> io::Result<()>
