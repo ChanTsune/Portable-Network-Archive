@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::fs::File;
 use std::io;
 use std::path::Path;
@@ -8,8 +6,6 @@ use std::time::SystemTime;
 #[derive(Debug)]
 pub(crate) struct SafeDir {
     inner: cap_std::fs::Dir,
-    #[allow(dead_code)]
-    secure_symlinks: bool,
 }
 
 impl Clone for SafeDir {
@@ -20,18 +16,14 @@ impl Clone for SafeDir {
 }
 
 impl SafeDir {
-    pub(crate) fn open(path: &Path, secure_symlinks: bool) -> io::Result<Self> {
+    pub(crate) fn open(path: &Path) -> io::Result<Self> {
         let inner = cap_std::fs::Dir::open_ambient_dir(path, cap_std::ambient_authority())?;
-        Ok(Self {
-            inner,
-            secure_symlinks,
-        })
+        Ok(Self { inner })
     }
 
     pub(crate) fn try_clone(&self) -> io::Result<Self> {
         Ok(Self {
             inner: self.inner.try_clone()?,
-            secure_symlinks: self.secure_symlinks,
         })
     }
 
@@ -228,6 +220,7 @@ impl SafeDir {
         std_file.set_xattr(name, value)
     }
 
+    #[allow(dead_code)]
     pub(crate) fn get_xattr(&self, path: &Path, name: &str) -> io::Result<Option<Vec<u8>>> {
         use xattr::FileExt;
         let file = self.inner.open(path)?;

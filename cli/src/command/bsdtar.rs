@@ -1081,7 +1081,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
     .resolve();
     let safe_dir = if let Some(dir) = args.out_dir.as_deref() {
         fs::create_dir_all(dir)?;
-        Some(SafeDir::open(dir, !args.absolute_paths)?)
+        Some(SafeDir::open(dir)?)
     } else {
         None
     };

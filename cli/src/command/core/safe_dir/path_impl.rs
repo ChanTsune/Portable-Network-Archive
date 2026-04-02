@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::fs::{self, File};
 use std::io;
 use std::path::{Path, PathBuf};
@@ -8,23 +6,18 @@ use std::time::SystemTime;
 #[derive(Clone, Debug)]
 pub(crate) struct SafeDir {
     base_path: PathBuf,
-    #[allow(dead_code)]
-    secure_symlinks: bool,
 }
 
 impl SafeDir {
-    pub(crate) fn open(path: &Path, secure_symlinks: bool) -> io::Result<Self> {
+    pub(crate) fn open(path: &Path) -> io::Result<Self> {
         let base_path = path.to_path_buf();
-        Ok(Self {
-            base_path,
-            secure_symlinks,
-        })
+        Ok(Self { base_path })
     }
 
+    #[allow(dead_code)]
     pub(crate) fn try_clone(&self) -> io::Result<Self> {
         Ok(Self {
             base_path: self.base_path.clone(),
-            secure_symlinks: self.secure_symlinks,
         })
     }
 
@@ -313,6 +306,7 @@ impl SafeDir {
         xattr::set(self.resolve(path), name, value)
     }
 
+    #[allow(dead_code)]
     pub(crate) fn get_xattr(&self, path: &Path, name: &str) -> io::Result<Option<Vec<u8>>> {
         xattr::get(self.resolve(path), name)
     }
