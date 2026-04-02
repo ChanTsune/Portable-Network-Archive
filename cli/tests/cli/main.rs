@@ -29,6 +29,7 @@ mod multipart;
 mod nodump;
 mod restore_acl;
 mod restore_acl_0_19_1;
+mod safe_dir;
 mod solid_mode;
 mod sort;
 mod split;
