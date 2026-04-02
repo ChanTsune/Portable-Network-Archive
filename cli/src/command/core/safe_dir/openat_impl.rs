@@ -1,12 +1,22 @@
+#![allow(dead_code)]
+
 use std::fs::File;
 use std::io;
 use std::path::Path;
 use std::time::SystemTime;
 
+#[derive(Debug)]
 pub(crate) struct SafeDir {
     inner: cap_std::fs::Dir,
     #[allow(dead_code)]
     secure_symlinks: bool,
+}
+
+impl Clone for SafeDir {
+    fn clone(&self) -> Self {
+        self.try_clone()
+            .expect("SafeDir: failed to clone directory handle")
+    }
 }
 
 impl SafeDir {

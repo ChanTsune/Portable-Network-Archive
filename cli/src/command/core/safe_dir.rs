@@ -13,6 +13,8 @@ pub(crate) use path_impl::SafeDir;
 /// When the `safe-dir` feature is enabled, this is [`cap_std::fs::Metadata`].
 /// Otherwise, it is [`std::fs::Metadata`].
 #[cfg(feature = "safe-dir")]
+#[allow(dead_code)]
 pub(crate) type Metadata = cap_std::fs::Metadata;
 #[cfg(not(feature = "safe-dir"))]
+#[allow(dead_code)]
 pub(crate) type Metadata = std::fs::Metadata;

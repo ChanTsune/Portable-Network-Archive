@@ -824,6 +824,7 @@ fn copy_buffered(file: fs::File, writer: &mut impl Write) -> io::Result<()> {
 }
 
 #[inline]
+#[allow(clippy::collapsible_if)]
 pub(crate) fn write_from_path(writer: &mut impl Write, path: impl AsRef<Path>) -> io::Result<()> {
     let path = path.as_ref();
     let mut file = fs::File::open(path)?;

@@ -16,7 +16,9 @@ use crate::{
             collect_split_archives,
             path_lock::OrderedPathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
-            read_paths, run_across_archive, validate_no_duplicate_stdin,
+            read_paths, run_across_archive,
+            safe_dir::SafeDir,
+            validate_no_duplicate_stdin,
         },
         create::{CreationContext, create_archive_file},
         extract::{OutputOption, OverwriteStrategy, run_extract_archive_reader},
@@ -30,7 +32,7 @@ use crate::{
 use clap::{ArgGroup, Args, Parser, ValueHint};
 use pna::Archive;
 use std::{
-    env, io,
+    env, fs, io,
     path::PathBuf,
     sync::{Arc, atomic::AtomicBool},
     time::SystemTime,
@@ -1077,10 +1079,17 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
         no_mac_metadata: args.no_mac_metadata,
     }
     .resolve();
+    let safe_dir = if let Some(dir) = args.out_dir.as_deref() {
+        fs::create_dir_all(dir)?;
+        Some(SafeDir::open(dir, !args.absolute_paths)?)
+    } else {
+        None
+    };
     let out_option = OutputOption {
         overwrite_strategy,
         allow_unsafe_links: !args.no_allow_unsafe_links,
         out_dir: args.out_dir,
+        safe_dir,
         to_stdout: args.to_stdout,
         filter,
         keep_options: KeepOptions {

@@ -1,8 +1,11 @@
+#![allow(dead_code)]
+
 use std::fs::{self, File};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
+#[derive(Clone, Debug)]
 pub(crate) struct SafeDir {
     base_path: PathBuf,
     #[allow(dead_code)]
@@ -62,7 +65,7 @@ impl SafeDir {
             use std::os::unix::fs::DirBuilderExt;
             let mut builder = fs::DirBuilder::new();
             builder.mode(mode);
-            return builder.create(&full);
+            builder.create(&full)
         }
         #[cfg(not(unix))]
         fs::create_dir(&full)
@@ -82,7 +85,7 @@ impl SafeDir {
             use std::os::unix::fs::DirBuilderExt;
             let mut builder = fs::DirBuilder::new();
             builder.recursive(true).mode(mode);
-            return builder.create(&full);
+            builder.create(&full)
         }
         #[cfg(not(unix))]
         fs::create_dir_all(&full)
@@ -276,14 +279,14 @@ impl SafeDir {
             } else {
                 AtFlags::empty()
             };
-            return fchownat(
+            fchownat(
                 AT_FDCWD,
                 full.as_path(),
                 uid.map(Uid::from_raw),
                 gid.map(Gid::from_raw),
                 flag,
             )
-            .map_err(io::Error::from);
+            .map_err(io::Error::from)
         }
         #[cfg(target_os = "redox")]
         {

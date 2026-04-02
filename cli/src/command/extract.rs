@@ -16,6 +16,7 @@ use crate::{
             path_lock::OrderedPathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, run_process_archive, run_process_archive_stoppable,
+            safe_dir::SafeDir,
         },
     },
     utils::{
@@ -491,10 +492,17 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         fflags_strategy: FflagsStrategy::Never,
         mac_metadata_strategy: MacMetadataStrategy::Never,
     };
+    let safe_dir = if let Some(dir) = args.out_dir.as_deref() {
+        fs::create_dir_all(dir)?;
+        Some(SafeDir::open(dir, true)?)
+    } else {
+        None
+    };
     let output_options = OutputOption {
         overwrite_strategy,
         allow_unsafe_links: args.allow_unsafe_links,
         out_dir: args.out_dir,
+        safe_dir,
         to_stdout: false,
         filter,
         keep_options,
@@ -592,6 +600,8 @@ pub(crate) struct OutputOption<'a> {
     pub(crate) overwrite_strategy: OverwriteStrategy,
     pub(crate) allow_unsafe_links: bool,
     pub(crate) out_dir: Option<PathBuf>,
+    #[allow(dead_code)]
+    pub(crate) safe_dir: Option<SafeDir>,
     pub(crate) to_stdout: bool,
     pub(crate) filter: PathFilter<'a>,
     pub(crate) keep_options: KeepOptions,
@@ -1186,6 +1196,7 @@ pub(crate) fn extract_entry<'a, T>(
         overwrite_strategy,
         allow_unsafe_links,
         out_dir,
+        safe_dir: _,
         to_stdout: _,
         filter: _,
         keep_options,
