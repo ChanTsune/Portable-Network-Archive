@@ -492,11 +492,10 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         fflags_strategy: FflagsStrategy::Never,
         mac_metadata_strategy: MacMetadataStrategy::Never,
     };
-    let safe_dir = if let Some(dir) = args.out_dir.as_deref() {
+    let safe_dir = {
+        let dir = args.out_dir.as_deref().unwrap_or(Path::new("."));
         fs::create_dir_all(dir)?;
         Some(SafeDir::open(dir)?)
-    } else {
-        None
     };
     let output_options = OutputOption {
         overwrite_strategy,

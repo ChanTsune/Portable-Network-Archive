@@ -33,7 +33,7 @@ use clap::{ArgGroup, Args, Parser, ValueHint};
 use pna::Archive;
 use std::{
     env, fs, io,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, atomic::AtomicBool},
     time::SystemTime,
 };
@@ -1079,11 +1079,10 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
         no_mac_metadata: args.no_mac_metadata,
     }
     .resolve();
-    let safe_dir = if let Some(dir) = args.out_dir.as_deref() {
+    let safe_dir = {
+        let dir = args.out_dir.as_deref().unwrap_or(Path::new("."));
         fs::create_dir_all(dir)?;
         Some(SafeDir::open(dir)?)
-    } else {
-        None
     };
     let out_option = OutputOption {
         overwrite_strategy,
