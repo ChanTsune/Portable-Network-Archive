@@ -198,7 +198,7 @@ fn set_times_follow(
     atime: Option<SystemTime>,
     mtime: Option<SystemTime>,
 ) -> io::Result<()> {
-    let file = fs::OpenOptions::new().write(true).open(full)?;
+    let file = fs::OpenOptions::new().read(true).open(full)?;
     let mut times = fs::FileTimes::new();
     if let Some(a) = atime {
         times = times.set_accessed(a);
