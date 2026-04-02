@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 use std::io;
 use std::sync::OnceLock;
 
-/// Represents the entry information header that expressed in the [FHED] chunk.
+/// Represents the entry information header expressed in the [FHED] chunk.
 ///
 /// [FHED]: crate::ChunkType::FHED
 #[derive(Clone, Debug)]
@@ -85,7 +85,7 @@ impl EntryHeader {
         }
     }
 
-    /// Path of the entry that sanitized to remove path traversal characters by [`EntryName::sanitize`].
+    /// Path of the entry, sanitized to remove path traversal characters by [`EntryName::sanitize`].
     #[inline]
     pub fn path(&self) -> &EntryName {
         self.sanitized_path.get_or_init(|| self.name.sanitize())
@@ -219,7 +219,7 @@ impl TryFrom<&[u8]> for EntryHeader {
     }
 }
 
-/// Represents the entry information header that expressed in the [SHED] chunk.
+/// Represents the entry information header expressed in the [SHED] chunk.
 ///
 /// [SHED]: crate::ChunkType::SHED
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
