@@ -601,10 +601,6 @@ impl WriteOptions {
 
     /// Returns a builder for [WriteOptions].
     ///
-    /// # Returns
-    ///
-    /// [WriteOptionsBuilder] Builder object for [WriteOptions].
-    ///
     /// # Examples
     ///
     /// ```rust
@@ -618,10 +614,6 @@ impl WriteOptions {
     }
 
     /// Converts [WriteOptions] into a [WriteOptionsBuilder].
-    ///
-    /// # Returns
-    ///
-    /// [WriteOptionsBuilder]: Builder object for [WriteOptions].
     ///
     /// # Examples
     /// ```rust
@@ -834,10 +826,6 @@ impl ReadOptions {
 
     /// Returns a builder for [ReadOptions].
     ///
-    /// # Returns
-    ///
-    /// [ReadOptionsBuilder]: Builder object for [ReadOptions].
-    ///
     /// # Examples
     /// ```rust
     /// use libpna::ReadOptions;
@@ -850,10 +838,6 @@ impl ReadOptions {
     }
 
     /// Converts [ReadOptions] into a [ReadOptionsBuilder].
-    ///
-    /// # Returns
-    ///
-    /// [ReadOptionsBuilder]: Builder object for [ReadOptions].
     ///
     /// # Examples
     /// ```rust

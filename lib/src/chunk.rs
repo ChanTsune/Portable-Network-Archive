@@ -41,10 +41,6 @@ pub(crate) trait ChunkExt: Chunk {
     ///
     /// This includes the length of the data field plus the fixed sizes of the
     /// length, type, and CRC fields.
-    ///
-    /// # Returns
-    ///
-    /// The total size of the chunk in bytes.
     #[inline]
     fn bytes_len(&self) -> usize {
         MIN_CHUNK_BYTES_SIZE + self.data().len()
@@ -54,10 +50,6 @@ pub(crate) trait ChunkExt: Chunk {
     ///
     /// Stream chunks, such as `FDAT` (File Data) and `SDAT` (Solid Data),
     /// contain file content data.
-    ///
-    /// # Returns
-    ///
-    /// `true` if the chunk is a stream chunk, `false` otherwise.
     #[inline]
     fn is_stream_chunk(&self) -> bool {
         self.ty() == ChunkType::FDAT || self.ty() == ChunkType::SDAT
@@ -67,14 +59,6 @@ pub(crate) trait ChunkExt: Chunk {
     ///
     /// This method serializes the chunk, including its length, type, data, and
     /// CRC, and writes the resulting bytes to the specified writer.
-    ///
-    /// # Arguments
-    ///
-    /// * `writer` - The writer to which the chunk will be written.
-    ///
-    /// # Returns
-    ///
-    /// The total number of bytes written to the writer.
     ///
     /// # Errors
     ///
@@ -92,10 +76,6 @@ pub(crate) trait ChunkExt: Chunk {
     ///
     /// This method serializes the entire chunk into a byte vector, which can be
     /// useful for buffering or network transmission.
-    ///
-    /// # Returns
-    ///
-    /// A `Vec<u8>` containing the serialized chunk data.
     #[allow(dead_code)]
     #[inline]
     fn to_bytes(&self) -> Vec<u8> {

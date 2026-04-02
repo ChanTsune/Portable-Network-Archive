@@ -35,14 +35,6 @@ async fn read_pna_header_async<R: futures_io::AsyncRead + Unpin>(mut reader: R) 
 impl<R: Read> Archive<R> {
     /// Reads the archive header from the provided reader and returns a new [Archive].
     ///
-    /// # Arguments
-    ///
-    /// * `reader` - The [Read] object to read the header from.
-    ///
-    /// # Returns
-    ///
-    /// A new [`io::Result<Archive<R>>`].
-    ///
     /// # Errors
     ///
     /// Returns an error if an I/O error occurs while reading the header from the reader.
@@ -67,9 +59,7 @@ impl<R: Read> Archive<R> {
 
     /// Reads the next raw entry (from `FHED` to `FEND` chunk) from the archive.
     ///
-    /// # Returns
-    ///
-    /// An [`io::Result<Option<RawEntry>>`]. Returns `Ok(None)` if there are no more items to read.
+    /// Returns `Ok(None)` when no more entries remain.
     ///
     /// # Errors
     ///
@@ -97,9 +87,7 @@ impl<R: Read> Archive<R> {
 
     /// Reads the next entry from the archive.
     ///
-    /// # Returns
-    ///
-    /// An [`io::Result<Option<ReadEntry>>`]. Returns `Ok(None)` if there are no more entries to read.
+    /// Returns `Ok(None)` when no more entries remain.
     ///
     /// # Errors
     ///
@@ -109,10 +97,6 @@ impl<R: Read> Archive<R> {
     }
 
     /// Returns an iterator over raw entries in the archive.
-    ///
-    /// # Returns
-    ///
-    /// An iterator over raw entries in the archive.
     ///
     /// # Examples
     /// ```no_run
@@ -140,10 +124,6 @@ impl<R: Read> Archive<R> {
     /// # Deprecated
     ///
     /// Use [`Archive::entries()`] followed by `skip_solid()` instead.
-    ///
-    /// # Returns
-    ///
-    /// An iterator over the entries in the archive.
     #[inline]
     #[deprecated(
         since = "0.28.1",
@@ -153,15 +133,8 @@ impl<R: Read> Archive<R> {
         self.entries().skip_solid()
     }
 
-    /// Returns an iterator over the entries in the archive, including entries in solid mode.
-    ///
-    /// # Arguments
-    ///
-    /// * `password` - a password for solid mode entry.
-    ///
-    /// # Returns
-    ///
-    /// An iterator over the entries in the archive.
+    /// Returns an iterator over entries including those in solid mode, decrypting
+    /// solid entries with the provided password.
     #[inline]
     pub fn entries_with_password<'a>(
         &'a mut self,
@@ -171,14 +144,6 @@ impl<R: Read> Archive<R> {
     }
 
     /// Reads the next archive from the provided reader and returns a new [`Archive`].
-    ///
-    /// # Arguments
-    ///
-    /// * `reader` - The reader to read from.
-    ///
-    /// # Returns
-    ///
-    /// A new [`Archive`].
     ///
     /// # Errors
     ///
@@ -203,10 +168,6 @@ impl<R: Read> Archive<R> {
 
 impl<R> Archive<R> {
     /// Returns an iterator over the entries in the archive.
-    ///
-    /// # Returns
-    ///
-    /// An iterator over the entries in the archive.
     ///
     /// # Examples
     /// ```no_run
@@ -364,10 +325,6 @@ impl<'r, R> Entries<'r, R> {
 
 impl<'r, R: Read> Entries<'r, R> {
     /// Returns an iterator over the entries in the archive, excluding entries in solid mode.
-    ///
-    /// # Returns
-    ///
-    /// An iterator over the entries in the archive.
     #[inline]
     pub fn skip_solid(self) -> impl Iterator<Item = io::Result<NormalEntry>> + 'r {
         self.filter_map(|it| match it {

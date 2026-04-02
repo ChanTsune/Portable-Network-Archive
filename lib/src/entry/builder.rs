@@ -168,29 +168,12 @@ impl EntryBuilder {
     }
 
     /// Creates a new directory with the given name.
-    ///
-    /// # Arguments
-    ///
-    /// * `name` - The name of the entry to create.
-    ///
-    /// # Returns
-    ///
-    /// A new [EntryBuilder].
     #[inline]
     pub const fn new_dir(name: EntryName) -> Self {
         Self::new(EntryHeader::for_dir(name))
     }
 
     /// Creates a new file with the given name and write options.
-    ///
-    /// # Arguments
-    ///
-    /// * `name` - The name of the entry to create.
-    /// * `option` - The options for writing the entry.
-    ///
-    /// # Returns
-    ///
-    /// A Result containing the new [EntryBuilder], or an I/O error if creation fails.
     ///
     /// # Errors
     ///
@@ -237,15 +220,6 @@ impl EntryBuilder {
 
     /// Creates a new symbolic link with the given name and link.
     ///
-    /// # Arguments
-    ///
-    /// * `name` - The name of the entry to create.
-    /// * `source` - The entry reference the symlink points to.
-    ///
-    /// # Returns
-    ///
-    /// A new [EntryBuilder].
-    ///
     /// # Errors
     ///
     /// Returns an error if initialization fails.
@@ -268,15 +242,6 @@ impl EntryBuilder {
 
     /// Creates a new hard link with the given name and link.
     ///
-    /// # Arguments
-    ///
-    /// * `name` - The name of the entry to create.
-    /// * `link` - The name of the entry reference.
-    ///
-    /// # Returns
-    ///
-    /// A new [EntryBuilder].
-    ///
     /// # Errors
     ///
     /// Returns an error if initialization fails.
@@ -298,14 +263,6 @@ impl EntryBuilder {
     }
 
     /// Sets the creation timestamp of the entry.
-    ///
-    /// # Arguments
-    ///
-    /// * `since_unix_epoch` - The duration since the Unix epoch to set the creation timestamp to.
-    ///
-    /// # Returns
-    ///
-    /// A mutable reference to the [EntryBuilder] with the creation timestamp set.
     #[inline]
     pub fn created(&mut self, since_unix_epoch: impl Into<Option<Duration>>) -> &mut Self {
         self.created = since_unix_epoch.into();
@@ -313,14 +270,6 @@ impl EntryBuilder {
     }
 
     /// Sets the last modified timestamp of the entry.
-    ///
-    /// # Arguments
-    ///
-    /// * `since_unix_epoch` - The duration since the Unix epoch to set the last modified timestamp to.
-    ///
-    /// # Returns
-    ///
-    /// A mutable reference to the [EntryBuilder] with the last modified timestamp set.
     #[inline]
     pub fn modified(&mut self, since_unix_epoch: impl Into<Option<Duration>>) -> &mut Self {
         self.last_modified = since_unix_epoch.into();
@@ -328,14 +277,6 @@ impl EntryBuilder {
     }
 
     /// Sets the last accessed timestamp of the entry.
-    ///
-    /// # Arguments
-    ///
-    /// * `since_unix_epoch` - The duration since the Unix epoch to set the last accessed timestamp to.
-    ///
-    /// # Returns
-    ///
-    /// A mutable reference to the [EntryBuilder] with the last accessed timestamp set.
     #[inline]
     pub fn accessed(&mut self, since_unix_epoch: impl Into<Option<Duration>>) -> &mut Self {
         self.accessed = since_unix_epoch.into();
@@ -343,30 +284,15 @@ impl EntryBuilder {
     }
 
     /// Sets the permission of the entry to the given owner, group, and permissions.
-    ///
-    /// # Arguments
-    ///
-    /// * `permission` - A [Permission] struct containing the owner, group, and
-    ///   permissions to set for the entry.
-    ///
-    /// # Returns
-    ///
-    /// A mutable reference to the [EntryBuilder] with the permission set.
     #[inline]
     pub fn permission(&mut self, permission: impl Into<Option<Permission>>) -> &mut Self {
         self.permission = permission.into();
         self
     }
 
-    /// Sets retention of raw file size data for entry.
+    /// Sets whether to store the raw file size in the entry metadata.
     ///
-    /// # Arguments
-    ///
-    /// * `store` - If true, stores the raw file size in the entry metadata; if false, omits it.
-    ///
-    /// # Returns
-    ///
-    /// A mutable reference to the [EntryBuilder] with the store set.
+    /// When `true`, the raw file size is recorded; when `false`, it is omitted.
     #[inline]
     pub fn file_size(&mut self, store: bool) -> &mut Self {
         self.store_file_size = store;
@@ -374,14 +300,6 @@ impl EntryBuilder {
     }
 
     /// Adds [ExtendedAttribute] to the entry.
-    ///
-    /// # Arguments
-    ///
-    /// * `xattr` - The extended attribute.
-    ///
-    /// # Returns
-    ///
-    /// A mutable reference to the [EntryBuilder] with the extended attribute added.
     #[inline]
     pub fn add_xattr(&mut self, xattr: ExtendedAttribute) -> &mut Self {
         self.xattrs.push(xattr);
@@ -389,14 +307,6 @@ impl EntryBuilder {
     }
 
     /// Adds extra chunk to the entry.
-    ///
-    /// # Arguments
-    ///
-    /// * `chunk` - The extra chunk.
-    ///
-    /// # Returns
-    ///
-    /// A mutable reference to the [EntryBuilder] with the extra chunk added.
     #[inline]
     pub fn add_extra_chunk<T: Into<RawChunk>>(&mut self, chunk: T) -> &mut Self {
         self.extra_chunks.push(chunk.into());
@@ -433,10 +343,6 @@ impl EntryBuilder {
     }
 
     /// Builds the entry and returns a Result containing the new [NormalEntry].
-    ///
-    /// # Returns
-    ///
-    /// A Result containing the new [NormalEntry], or an I/O error if the build fails.
     ///
     /// # Errors
     ///
@@ -575,14 +481,6 @@ pub struct SolidEntryBuilder {
 impl SolidEntryBuilder {
     /// Creates a new [SolidEntryBuilder] with the given option.
     ///
-    /// # Arguments
-    ///
-    /// * `option` - The option for specifying solid entry's the compression and encryption settings.
-    ///
-    /// # Returns
-    ///
-    /// A new [SolidEntryBuilder].
-    ///
     /// # Errors
     ///
     /// Returns an error if initialization fails.
@@ -610,10 +508,6 @@ impl SolidEntryBuilder {
     }
 
     /// Adds an entry to the solid archive.
-    ///
-    /// # Arguments
-    ///
-    /// * `entry` - The entry to add to the archive.
     ///
     /// # Errors
     ///

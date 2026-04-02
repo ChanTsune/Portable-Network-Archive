@@ -56,14 +56,6 @@ impl<W: Write> Write for SolidArchiveEntryDataWriter<'_, W> {
 impl<W: Write> Archive<W> {
     /// Writes the archive header to the given `Write` object and returns a new [Archive].
     ///
-    /// # Arguments
-    ///
-    /// * `write` - The [Write] object to write the header to.
-    ///
-    /// # Returns
-    ///
-    /// A new [`io::Result<Archive<W>>`]
-    ///
     /// # Examples
     ///
     /// ```no_run
@@ -148,10 +140,6 @@ impl<W: Write> Archive<W> {
 
     /// Adds a new entry to the archive.
     ///
-    /// # Arguments
-    ///
-    /// * `entry` - The entry to add to the archive.
-    ///
     /// # Examples
     ///
     /// ```no_run
@@ -179,10 +167,6 @@ impl<W: Write> Archive<W> {
     }
 
     /// Adds a part of an entry to the archive.
-    ///
-    /// # Arguments
-    ///
-    /// * `entry_part` - The part of an entry to add to the archive.
     ///
     /// # Examples
     ///
@@ -348,16 +332,8 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
 }
 
 impl<W: Write> Archive<W> {
-    /// Writes the archive header to the given `Write` object and returns a new [SolidArchive].
-    ///
-    /// # Arguments
-    ///
-    /// * `write` - The [Write] object to write the header to.
-    /// * `option` - The [WriteOptions] object of a solid mode option.
-    ///
-    /// # Returns
-    ///
-    /// A new [`io::Result<SolidArchive<W>>`]
+    /// Writes the archive header and creates a new [SolidArchive] with the specified
+    /// compression and encryption options for solid mode.
     ///
     /// # Examples
     ///
@@ -415,10 +391,6 @@ impl<W: Write> Archive<W> {
 
 impl<W: Write> SolidArchive<W> {
     /// Adds a new entry to the archive.
-    ///
-    /// # Arguments
-    ///
-    /// * `entry` - The entry to add to the archive.
     ///
     /// # Examples
     ///
