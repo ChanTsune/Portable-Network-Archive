@@ -129,7 +129,7 @@ impl Metadata {
     pub const fn accessed(&self) -> Option<Duration> {
         self.accessed
     }
-    /// An owner, group, and permissions for an entry.
+    /// Returns the owner, group, and permission bits for the entry.
     #[inline]
     pub const fn permission(&self) -> Option<&Permission> {
         self.permission.as_ref()
@@ -143,7 +143,7 @@ impl Default for Metadata {
     }
 }
 
-/// Permission struct represents an owner, group, and permissions for an entry.
+/// Owner, group, and permission bits for an archive entry.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Permission {
     uid: u64,
