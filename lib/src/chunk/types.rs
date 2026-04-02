@@ -7,11 +7,11 @@ use std::{
 /// [ChunkType] validation error.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum ChunkTypeError {
-    /// Contains non-ascii alphabet error.
+    /// Value contains a non-ASCII-alphabetic byte.
     NonAsciiAlphabetic,
-    /// The second character is not lowercase error.
+    /// The second byte is not lowercase.
     NonPrivateChunkType,
-    /// The third character is not uppercase error.
+    /// The third byte is not uppercase.
     Reserved,
 }
 
@@ -190,10 +190,10 @@ impl ChunkType {
     ///
     /// # Errors
     ///
-    /// This function will return an error in the following cases:
-    /// - Value contains non-ASCII alphabet characters
-    /// - The second character is not lowercase
-    /// - The third character is not uppercase
+    /// Returns an error if:
+    /// - Any byte is not an ASCII alphabetic character.
+    /// - The second byte is not lowercase.
+    /// - The third byte is not uppercase.
     ///
     /// # Examples
     ///
