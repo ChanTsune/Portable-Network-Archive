@@ -45,7 +45,7 @@ jobs:
           - stable
           - beta
           - nightly
-    timeout-minutes: 60
+    timeout-minutes: ${{ contains(matrix.os, 'riscv') && 120 || 60 }}
     runs-on: ${{ matrix.os }}
     steps:
       - name: git autocrlf false
