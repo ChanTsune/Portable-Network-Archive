@@ -1854,7 +1854,7 @@ dependencies = [
 
 [[package]]
 name = "portable-network-archive"
-version = "0.32.0"
+version = "0.32.1"
 dependencies = [
  "anstream",
  "anyhow",
