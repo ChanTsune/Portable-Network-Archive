@@ -1214,14 +1214,15 @@ where
 {
     log::debug!("Extract: {}", item.name());
 
-    // Use SafeDir when available AND secure_symlinks is active.
+    // Use SafeDir when available, secure_symlinks is active, AND the implementation
+    // provides kernel-level sandbox enforcement (openat2/RESOLVE_BENEATH).
     // When --absolute-paths is used, symlink following is expected, which conflicts
     // with SafeDir's inherent symlink-safe semantics. Fall back to path-based operations.
-    // Use SafeDir when available AND secure_symlinks is active.
-    // When --absolute-paths is used, symlink following is expected, which conflicts
-    // with SafeDir's inherent symlink-safe semantics. Fall back to path-based operations.
+    // When is_sandbox_enforced() is false (path_impl fallback), fall through to the
+    // legacy extraction path which has its own symlink-safe checks.
     if let Some(sd) = safe_dir
         && !absolute_paths
+        && sd.is_sandbox_enforced()
     {
         return extract_entry_safe(
             item,

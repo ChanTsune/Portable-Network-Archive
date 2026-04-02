@@ -14,6 +14,12 @@ impl SafeDir {
         Ok(Self { inner })
     }
 
+    /// Returns `true` because the openat implementation uses kernel-level
+    /// symlink-safe operations (`openat2` / `RESOLVE_BENEATH`) via cap-std.
+    pub(crate) fn is_sandbox_enforced(&self) -> bool {
+        true
+    }
+
     #[allow(dead_code)]
     pub(crate) fn try_clone(&self) -> io::Result<Self> {
         Ok(Self {

@@ -14,6 +14,13 @@ impl SafeDir {
         Ok(Self { base_path })
     }
 
+    /// Returns `false` because this fallback implementation uses path-based
+    /// operations without kernel-level symlink-safe enforcement.
+    /// Callers should fall through to legacy safe extraction when this returns `false`.
+    pub(crate) fn is_sandbox_enforced(&self) -> bool {
+        false
+    }
+
     #[allow(dead_code)]
     pub(crate) fn try_clone(&self) -> io::Result<Self> {
         Ok(Self {
