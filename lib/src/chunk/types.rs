@@ -186,7 +186,7 @@ impl ChunkType {
         Ok(Self(ty))
     }
 
-    /// Creates private [ChunkType].
+    /// Creates a private [`ChunkType`].
     ///
     /// # Errors
     ///
