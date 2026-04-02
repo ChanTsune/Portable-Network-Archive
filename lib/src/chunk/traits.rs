@@ -25,34 +25,18 @@ pub trait Chunk {
     ///
     /// This value corresponds to the `length` field stored in the chunk structure
     /// and indicates the size of the data returned by the `data()` method.
-    ///
-    /// # Returns
-    ///
-    /// The length of the chunk's data.
     #[inline]
     fn length(&self) -> u32 {
         self.data().len() as u32
     }
 
     /// Returns the type of the chunk.
-    ///
-    /// # Returns
-    ///
-    /// The [`ChunkType`] identifying the kind of this chunk.
     fn ty(&self) -> ChunkType;
 
     /// Returns the data of the chunk.
-    ///
-    /// # Returns
-    ///
-    /// A reference to the chunk data.
     fn data(&self) -> &[u8];
 
-    /// Returns the CRC32 checksum of the chunk.
-    ///
-    /// # Returns
-    ///
-    /// The CRC32 checksum, typically calculated over the chunk's type and data.
+    /// Returns the CRC32 checksum calculated over the chunk's type and data fields.
     #[inline]
     fn crc(&self) -> u32 {
         let mut crc = Crc32::new();

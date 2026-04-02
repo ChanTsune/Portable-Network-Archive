@@ -18,14 +18,6 @@ pub(crate) fn read_header_from_slice(bytes: &[u8]) -> io::Result<&[u8]> {
 impl<'d> Archive<&'d [u8]> {
     /// Reads the archive header from the provided bytes and returns a new [`Archive`].
     ///
-    /// # Arguments
-    ///
-    /// * `bytes` - The [`&[u8]`] slice to read the header from.
-    ///
-    /// # Returns
-    ///
-    /// A new [`io::Result<Archive<&[u8]>>`].
-    ///
     /// # Errors
     ///
     /// Returns an error if an I/O error occurs while reading the header from the bytes.
@@ -50,9 +42,7 @@ impl<'d> Archive<&'d [u8]> {
 
     /// Reads the next raw entry (from `FHED` to `FEND` chunk) from the archive.
     ///
-    /// # Returns
-    ///
-    /// An [`io::Result<Option<RawEntry>>`]. Returns `Ok(None)` if there are no more items to read.
+    /// Returns `Ok(None)` when no more entries remain.
     ///
     /// # Errors
     ///
@@ -82,9 +72,7 @@ impl<'d> Archive<&'d [u8]> {
 
     /// Reads the next entry from the archive.
     ///
-    /// # Returns
-    ///
-    /// An [`io::Result<Option<ReadEntry>>`]. Returns `Ok(None)` if there are no more entries to read.
+    /// Returns `Ok(None)` when no more entries remain.
     ///
     /// # Errors
     ///
@@ -96,10 +84,6 @@ impl<'d> Archive<&'d [u8]> {
     }
 
     /// Returns an iterator over the entries in the archive.
-    ///
-    /// # Returns
-    ///
-    /// An iterator over the entries in the archive.
     ///
     /// # Examples
     /// ```no_run
@@ -130,10 +114,6 @@ impl<'d> Archive<&'d [u8]> {
 
     /// Returns an iterator over raw entries in the archive.
     ///
-    /// # Returns
-    ///
-    /// An iterator over raw entries in the archive.
-    ///
     /// # Examples
     ///
     /// ```no_run
@@ -159,19 +139,11 @@ impl<'d> Archive<&'d [u8]> {
         RawEntries::<'s, 'd>(self)
     }
 
-    /// Reads the next archive from the provided reader and returns a new [`Archive`].
-    ///
-    /// # Arguments
-    ///
-    /// * `bytes` - The [`&[u8]`] to read from.
-    ///
-    /// # Returns
-    ///
-    /// A new [`Archive`].
+    /// Reads the next archive from the provided bytes and returns a new [`Archive`].
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading from the reader.
+    /// Returns an error if an I/O error occurs while reading from the bytes.
     #[inline]
     pub fn read_next_archive_from_slice(self, bytes: &[u8]) -> io::Result<Archive<&[u8]>> {
         let current_header = self.header;

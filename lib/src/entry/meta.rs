@@ -154,15 +154,10 @@ pub struct Permission {
 }
 
 impl Permission {
-    /// Creates a new permission instance with the given values.
+    /// Creates a new [`Permission`] with the given user, group, and permission bits.
     ///
-    /// # Arguments
-    ///
-    /// - `uid`: The user id
-    /// - `uname`: The user name
-    /// - `gid`: The group id
-    /// - `gname`: The group name
-    /// - `permission`: The permission bits
+    /// The `uid`/`gid` are numeric POSIX IDs, `uname`/`gname` are the
+    /// corresponding names, and `permission` holds the file mode bits (e.g. `0o755`).
     ///
     /// # Examples
     ///

@@ -143,10 +143,6 @@ impl ChunkType {
 
     /// Returns the length of the chunk type code.
     ///
-    /// # Returns
-    ///
-    /// An integer value representing the length of the chunk type code.
-    ///
     /// # Examples
     ///
     /// ```rust
