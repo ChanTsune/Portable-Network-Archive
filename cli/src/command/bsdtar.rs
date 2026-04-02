@@ -1082,7 +1082,7 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
     let safe_dir = {
         let dir = args.out_dir.as_deref().unwrap_or(Path::new("."));
         fs::create_dir_all(dir)?;
-        Some(SafeDir::open(dir)?)
+        Some(Arc::new(SafeDir::open(dir)?))
     };
     let out_option = OutputOption {
         overwrite_strategy,

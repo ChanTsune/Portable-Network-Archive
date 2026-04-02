@@ -495,7 +495,7 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
     let safe_dir = {
         let dir = args.out_dir.as_deref().unwrap_or(Path::new("."));
         fs::create_dir_all(dir)?;
-        Some(SafeDir::open(dir)?)
+        Some(Arc::new(SafeDir::open(dir)?))
     };
     let output_options = OutputOption {
         overwrite_strategy,
@@ -599,7 +599,7 @@ pub(crate) struct OutputOption<'a> {
     pub(crate) overwrite_strategy: OverwriteStrategy,
     pub(crate) allow_unsafe_links: bool,
     pub(crate) out_dir: Option<PathBuf>,
-    pub(crate) safe_dir: Option<SafeDir>,
+    pub(crate) safe_dir: Option<Arc<SafeDir>>,
     pub(crate) to_stdout: bool,
     pub(crate) filter: PathFilter<'a>,
     pub(crate) keep_options: KeepOptions,

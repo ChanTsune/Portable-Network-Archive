@@ -8,19 +8,13 @@ pub(crate) struct SafeDir {
     inner: cap_std::fs::Dir,
 }
 
-impl Clone for SafeDir {
-    fn clone(&self) -> Self {
-        self.try_clone()
-            .expect("SafeDir: failed to clone directory handle")
-    }
-}
-
 impl SafeDir {
     pub(crate) fn open(path: &Path) -> io::Result<Self> {
         let inner = cap_std::fs::Dir::open_ambient_dir(path, cap_std::ambient_authority())?;
         Ok(Self { inner })
     }
 
+    #[allow(dead_code)]
     pub(crate) fn try_clone(&self) -> io::Result<Self> {
         Ok(Self {
             inner: self.inner.try_clone()?,

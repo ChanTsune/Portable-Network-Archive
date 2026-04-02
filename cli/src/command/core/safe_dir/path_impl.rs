@@ -3,7 +3,7 @@ use std::io;
 use std::path::{Component, Path, PathBuf};
 use std::time::SystemTime;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct SafeDir {
     base_path: PathBuf,
 }
