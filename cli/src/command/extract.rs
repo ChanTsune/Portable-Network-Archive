@@ -1419,7 +1419,7 @@ where
                 safe_dir.rename(&temp_rel, rel_path)?;
             } else {
                 if remove_existing {
-                    utils::io::ignore_not_found(safe_dir.remove_file(rel_path))?;
+                    utils::io::ignore_not_found(safe_dir.remove_path_all(rel_path))?;
                 }
                 let file = safe_dir.create_file(rel_path, 0o666, false)?;
                 let mut writer = io::BufWriter::with_capacity(64 * 1024, file);
@@ -1448,7 +1448,7 @@ where
             }
             // Symlinks cannot be atomically replaced; remove existing path first
             if safe_writes || remove_existing {
-                utils::io::ignore_not_found(safe_dir.remove_file(rel_path))?;
+                utils::io::ignore_not_found(safe_dir.remove_path_all(rel_path))?;
             }
             safe_dir.symlink_contents(original.as_str(), rel_path)?;
         }
@@ -1479,7 +1479,7 @@ where
             let original_rel = Path::new(original.as_str());
             // Hardlinks cannot be atomically replaced; remove existing path first
             if safe_writes || remove_existing {
-                utils::io::ignore_not_found(safe_dir.remove_file(rel_path))?;
+                utils::io::ignore_not_found(safe_dir.remove_path_all(rel_path))?;
             }
             safe_dir.hard_link(original_rel, rel_path)?;
         }
@@ -1988,7 +1988,11 @@ where
         if let OwnerStrategy::Preserve { options } = &keep_options.owner_strategy {
             restore_owner_safe(safe_dir, rel_path, p, options, no_follow)?;
         }
-        // Restore mode bits via SafeDir when configured
+        // Restore mode bits via SafeDir when configured.
+        // On Unix, SafeDir handles permissions via fd-based operations.
+        // On non-Unix (Windows), SafeDir's set_permissions is a no-op, so
+        // fall back to path-based chmod using the absolute path.
+        #[cfg(unix)]
         match keep_options.mode_strategy {
             ModeStrategy::Preserve => {
                 safe_dir.set_permissions(rel_path, p.permissions() as u32, no_follow)?;
@@ -2001,6 +2005,19 @@ where
                 )?;
             }
             ModeStrategy::Never => {}
+        }
+        #[cfg(not(unix))]
+        {
+            let abs_path = out_dir.unwrap_or(Path::new(".")).join(rel_path);
+            match keep_options.mode_strategy {
+                ModeStrategy::Preserve => {
+                    utils::fs::chmod(&abs_path, p.permissions())?;
+                }
+                ModeStrategy::Masked(mask) => {
+                    utils::fs::chmod(&abs_path, mask.apply(p.permissions()))?;
+                }
+                ModeStrategy::Never => {}
+            }
         }
     }
 
@@ -2038,10 +2055,8 @@ where
             // ACLs still use path-based operations because SafeDir doesn't wrap exacl.
             // This is acceptable because we're within the SafeDir sandbox boundary and
             // the path was already validated by SafeDir operations above.
-            if let Some(out_dir) = out_dir {
-                let abs_path = out_dir.join(rel_path);
-                restore_acls(&abs_path, item.acl()?, keep_options.acl_strategy)?;
-            }
+            let abs_path = out_dir.unwrap_or(Path::new(".")).join(rel_path);
+            restore_acls(&abs_path, item.acl()?, keep_options.acl_strategy)?;
         }
     }
     #[cfg(not(unix))]
@@ -2053,15 +2068,23 @@ where
         log::warn!("Please enable `acl` feature and rebuild and install pna.");
     }
 
-    // fflags: still path-based for now (no SafeDir wrapper for fflags)
-    // Acceptable because the file was just created/validated by SafeDir operations
+    // fflags: path-based because SafeDir does not wrap platform fflags APIs.
+    // Acceptable because the file was just created/validated by SafeDir operations.
     if let FflagsStrategy::Always = keep_options.fflags_strategy {
         let flags = item.fflags();
         if !flags.is_empty() {
-            log::debug!(
-                "File flags restoration via SafeDir not yet implemented for '{}'",
-                rel_path.display()
-            );
+            let abs_path = out_dir.unwrap_or(Path::new(".")).join(rel_path);
+            match utils::fs::set_flags(&abs_path, &flags) {
+                Ok(()) => {}
+                Err(e) if e.kind() == io::ErrorKind::Unsupported => {
+                    log::warn!(
+                        "File flags are not supported on filesystem for '{}': {}",
+                        rel_path.display(),
+                        e
+                    );
+                }
+                Err(e) => return Err(e),
+            }
         }
     }
 
@@ -2073,19 +2096,17 @@ where
     ) && let Some(apple_double_data) = item.mac_metadata()
     {
         // AppleDouble restoration requires absolute paths for copyfile()
-        if let Some(out_dir) = out_dir {
-            let abs_path = out_dir.join(rel_path);
-            match utils::os::unix::fs::copyfile::unpack_apple_double(apple_double_data, &abs_path) {
-                Ok(()) => {
-                    log::debug!("Unpacked macOS metadata for '{}'", rel_path.display());
-                }
-                Err(e) => {
-                    log::warn!(
-                        "Failed to restore macOS metadata for '{}': {}",
-                        rel_path.display(),
-                        e
-                    );
-                }
+        let abs_path = out_dir.unwrap_or(Path::new(".")).join(rel_path);
+        match utils::os::unix::fs::copyfile::unpack_apple_double(apple_double_data, &abs_path) {
+            Ok(()) => {
+                log::debug!("Unpacked macOS metadata for '{}'", rel_path.display());
+            }
+            Err(e) => {
+                log::warn!(
+                    "Failed to restore macOS metadata for '{}': {}",
+                    rel_path.display(),
+                    e
+                );
             }
         }
     }

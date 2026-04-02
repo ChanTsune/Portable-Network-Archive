@@ -92,8 +92,27 @@ impl SafeDir {
         }
         #[cfg(windows)]
         {
-            // On Windows, determine symlink type by checking if target looks like a directory
-            if std::path::Path::new(target).extension().is_none() {
+            // On Windows, we must choose between symlink_dir and symlink_file.
+            // Resolve the target relative to the link's parent directory (within
+            // the sandbox) and check whether it is an existing directory.
+            // Default to file symlink when the target does not exist or cannot
+            // be resolved.
+            let target_path = std::path::Path::new(target);
+            let is_dir = if target_path.is_relative() {
+                let resolved = link
+                    .parent()
+                    .map(|p| p.join(target_path))
+                    .unwrap_or_else(|| target_path.to_path_buf());
+                self.inner
+                    .metadata(&resolved)
+                    .map(|m| m.is_dir())
+                    .unwrap_or(false)
+            } else {
+                // Absolute targets: check via std::fs since they are outside
+                // the sandbox boundary.
+                target_path.is_dir()
+            };
+            if is_dir {
                 self.inner.symlink_dir(target, link)
             } else {
                 self.inner.symlink_file(target, link)
@@ -161,6 +180,16 @@ impl SafeDir {
 
     pub(crate) fn remove_dir_all(&self, path: &Path) -> io::Result<()> {
         self.inner.remove_dir_all(path)
+    }
+
+    /// Removes an entry regardless of type: directories are removed recursively,
+    /// symlinks and files are removed via `remove_file`.
+    pub(crate) fn remove_path_all(&self, path: &Path) -> io::Result<()> {
+        match self.symlink_metadata(path) {
+            Ok(meta) if meta.is_dir() => self.inner.remove_dir_all(path),
+            Ok(_) => self.inner.remove_file(path),
+            Err(e) => Err(e),
+        }
     }
 
     pub(crate) fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {

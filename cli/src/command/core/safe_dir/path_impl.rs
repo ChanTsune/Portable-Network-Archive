@@ -118,7 +118,20 @@ impl SafeDir {
         }
         #[cfg(windows)]
         {
-            if std::path::Path::new(target).extension().is_none() {
+            // On Windows, we must choose between symlink_dir and symlink_file.
+            // Resolve the target relative to the link's parent directory and
+            // check whether it is an existing directory.
+            // Default to file symlink when the target does not exist.
+            let target_path = std::path::Path::new(target);
+            let is_dir = if target_path.is_relative() {
+                full.parent()
+                    .map(|p| p.join(target_path))
+                    .unwrap_or_else(|| target_path.to_path_buf())
+                    .is_dir()
+            } else {
+                target_path.is_dir()
+            };
+            if is_dir {
                 std::os::windows::fs::symlink_dir(target, &full)
             } else {
                 std::os::windows::fs::symlink_file(target, &full)
@@ -206,6 +219,18 @@ impl SafeDir {
 
     pub(crate) fn remove_dir_all(&self, path: &Path) -> io::Result<()> {
         fs::remove_dir_all(self.resolve(path)?)
+    }
+
+    /// Removes an entry regardless of type: directories are removed recursively,
+    /// symlinks and files are removed via `remove_file`.
+    pub(crate) fn remove_path_all(&self, path: &Path) -> io::Result<()> {
+        let full = self.resolve(path)?;
+        let metadata = fs::symlink_metadata(&full)?;
+        if metadata.is_dir() {
+            fs::remove_dir_all(full)
+        } else {
+            fs::remove_file(full)
+        }
     }
 
     pub(crate) fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
