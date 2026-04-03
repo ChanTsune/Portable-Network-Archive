@@ -299,7 +299,7 @@ impl EntryBuilder {
         self
     }
 
-    /// Adds [ExtendedAttribute] to the entry.
+    /// Adds an [`ExtendedAttribute`] to the entry.
     #[inline]
     pub fn add_xattr(&mut self, xattr: ExtendedAttribute) -> &mut Self {
         self.xattrs.push(xattr);
@@ -342,7 +342,7 @@ impl EntryBuilder {
         self
     }
 
-    /// Builds the entry and returns a Result containing the new [NormalEntry].
+    /// Consumes this builder and returns the constructed [`NormalEntry`].
     ///
     /// # Errors
     ///
@@ -479,7 +479,7 @@ pub struct SolidEntryBuilder {
 }
 
 impl SolidEntryBuilder {
-    /// Creates a new [SolidEntryBuilder] with the given option.
+    /// Creates a new [`SolidEntryBuilder`] with the given option.
     ///
     /// # Errors
     ///
@@ -650,7 +650,7 @@ impl SolidEntryBuilder {
         })
     }
 
-    /// Builds the solid entry as an [Entry].
+    /// Consumes this builder and returns the constructed [`Entry`].
     ///
     /// # Errors
     ///
