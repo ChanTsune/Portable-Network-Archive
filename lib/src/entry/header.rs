@@ -85,31 +85,31 @@ impl EntryHeader {
         }
     }
 
-    /// Path of the entry, sanitized to remove path traversal characters by [`EntryName::sanitize`].
+    /// Returns the sanitized path of this entry, with path traversal characters removed by [`EntryName::sanitize`].
     #[inline]
     pub fn path(&self) -> &EntryName {
         self.sanitized_path.get_or_init(|| self.name.sanitize())
     }
 
-    /// Type of the entry.
+    /// Returns the data kind of this entry.
     #[inline]
     pub const fn data_kind(&self) -> DataKind {
         self.data_kind
     }
 
-    /// Compression method of the entry.
+    /// Returns the compression method of this entry.
     #[inline]
     pub const fn compression(&self) -> Compression {
         self.compression
     }
 
-    /// Encryption method of the entry.
+    /// Returns the encryption method of this entry.
     #[inline]
     pub const fn encryption(&self) -> Encryption {
         self.encryption
     }
 
-    /// Cipher mode of the entry's encryption method.
+    /// Returns the cipher mode of this entry's encryption method.
     #[inline]
     pub const fn cipher_mode(&self) -> CipherMode {
         self.cipher_mode
@@ -246,19 +246,19 @@ impl SolidHeader {
         }
     }
 
-    /// Compression method of the solid entry.
+    /// Returns the compression method of this solid entry.
     #[inline]
     pub const fn compression(&self) -> Compression {
         self.compression
     }
 
-    /// Encryption method of the solid entry.
+    /// Returns the encryption method of this solid entry.
     #[inline]
     pub const fn encryption(&self) -> Encryption {
         self.encryption
     }
 
-    /// Cipher mode of the solid entry's encryption method.
+    /// Returns the cipher mode of this solid entry's encryption method.
     #[inline]
     pub const fn cipher_mode(&self) -> CipherMode {
         self.cipher_mode

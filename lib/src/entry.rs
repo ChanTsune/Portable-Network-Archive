@@ -363,31 +363,31 @@ where
 impl<T> Entry for SolidEntry<T> where SolidEntry<T>: SealedEntryExt {}
 
 impl<T> SolidEntry<T> {
-    /// Returns solid mode information header reference.
+    /// Returns the header of this solid entry.
     #[inline]
     pub fn header(&self) -> &SolidHeader {
         &self.header
     }
 
-    /// Compression method of the solid entry.
+    /// Returns the compression method of this solid entry.
     #[inline]
     pub const fn compression(&self) -> Compression {
         self.header.compression
     }
 
-    /// Encryption method of the solid entry.
+    /// Returns the encryption method of this solid entry.
     #[inline]
     pub const fn encryption(&self) -> Encryption {
         self.header.encryption
     }
 
-    /// Cipher mode of the solid entry's encryption method.
+    /// Returns the cipher mode of this solid entry's encryption method.
     #[inline]
     pub const fn cipher_mode(&self) -> CipherMode {
         self.header.cipher_mode
     }
 
-    /// Extra chunks.
+    /// Returns the extra chunks of this solid entry.
     #[inline]
     pub fn extra_chunks(&self) -> &[RawChunk<T>] {
         &self.extra
@@ -854,7 +854,7 @@ where
 impl<T> Entry for NormalEntry<T> where NormalEntry<T>: SealedEntryExt {}
 
 impl<T> NormalEntry<T> {
-    /// Information in the header of the entry.
+    /// Returns the header of this entry.
     #[inline]
     pub fn header(&self) -> &EntryHeader {
         &self.header
@@ -872,43 +872,43 @@ impl<T> NormalEntry<T> {
         &self.header.name
     }
 
-    /// Type of the entry.
+    /// Returns the data kind of this entry.
     #[inline]
     pub const fn data_kind(&self) -> DataKind {
         self.header.data_kind
     }
 
-    /// Compression method of the entry.
+    /// Returns the compression method of this entry.
     #[inline]
     pub const fn compression(&self) -> Compression {
         self.header.compression
     }
 
-    /// Encryption method of the entry.
+    /// Returns the encryption method of this entry.
     #[inline]
     pub const fn encryption(&self) -> Encryption {
         self.header.encryption
     }
 
-    /// Cipher mode of the entry's encryption method.
+    /// Returns the cipher mode of this entry's encryption method.
     #[inline]
     pub const fn cipher_mode(&self) -> CipherMode {
         self.header.cipher_mode
     }
 
-    /// Metadata of the entry.
+    /// Returns the metadata of this entry.
     #[inline]
     pub fn metadata(&self) -> &Metadata {
         &self.metadata
     }
 
-    /// Extended attributes of the entry.
+    /// Returns the extended attributes of this entry.
     #[inline]
     pub fn xattrs(&self) -> &[ExtendedAttribute] {
         &self.xattrs
     }
 
-    /// Extra chunks.
+    /// Returns the extra chunks of this entry.
     #[inline]
     pub fn extra_chunks(&self) -> &[RawChunk<T>] {
         &self.extra
@@ -1112,7 +1112,7 @@ impl<T> EntryPart<T>
 where
     RawChunk<T>: Chunk,
 {
-    /// Length in bytes.
+    /// Returns the total length of this entry part in bytes.
     #[inline]
     pub fn bytes_len(&self) -> usize {
         self.0.iter().map(|chunk| chunk.bytes_len()).sum()
