@@ -83,7 +83,13 @@ jobs:
 
       - name: Install build dependencies (Windows)
         if: ${{ matrix.name == 'windows' }}
-        run: choco install mingw
+        run: |
+          pacman --noconfirm -Sy --needed \
+            mingw-w64-x86_64-gcc \
+            mingw-w64-x86_64-make
+          echo 'C:/msys64/mingw64/bin' >> "$GITHUB_PATH"
+          gcc --version
+          mingw32-make --version
 
       - name: Clone libarchive
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -229,11 +235,12 @@ jobs:
         run: |
           pacman --noconfirm -Sy --needed \
             gzip \
-            sharutils
-
-      - name: Install MinGW (Windows)
-        if: ${{ matrix.name == 'windows' }}
-        run: choco install mingw
+            sharutils \
+            mingw-w64-x86_64-gcc \
+            mingw-w64-x86_64-make
+          echo 'C:/msys64/mingw64/bin' >> "$GITHUB_PATH"
+          gcc --version
+          mingw32-make --version
 
       - name: Setup Rust
         uses: actions-rust-lang/setup-rust-toolchain@150fca883cd4034361b621bd4e6a9d34e5143606 # v1.15.4
