@@ -9,6 +9,7 @@ use std::io;
 ///
 /// bsdtar only performs command-line wildcard expansion on Windows. On Unix,
 /// callers are expected to rely on the shell and operands are left untouched.
+#[cfg_attr(not(windows), allow(dead_code))]
 pub(crate) fn expand_bsdtar_windows_globs(paths: Vec<String>) -> anyhow::Result<Vec<String>> {
     #[cfg(windows)]
     {
