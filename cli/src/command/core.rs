@@ -358,6 +358,8 @@ pub(crate) struct CreateOptions {
 #[derive(Clone, Debug)]
 pub(crate) struct CollectedEntry {
     pub(crate) path: PathBuf,
+    #[expect(dead_code, reason = "will be consumed in a follow-up commit")]
+    pub(crate) fs_path: PathBuf,
     pub(crate) store_as: StoreAs,
     pub(crate) metadata: fs::Metadata,
 }
@@ -682,6 +684,7 @@ pub(crate) fn collect_items_with_state(
     options: &CollectOptions<'_>,
     hardlink_resolver: &mut HardlinkResolver,
 ) -> io::Result<Vec<CollectedEntry>> {
+    let cwd = std::env::current_dir()?;
     let mut ig = ignore::Ignore::default();
     let mut out = Vec::new();
 
@@ -794,6 +797,7 @@ pub(crate) fn collect_items_with_state(
                 {
                     out.push(CollectedEntry {
                         path: archive_path.to_path_buf(),
+                        fs_path: cwd.join(entry_path),
                         store_as,
                         metadata,
                     });
@@ -808,6 +812,7 @@ pub(crate) fn collect_items_with_state(
                         let link_target_type = detect_symlink_target_type(path, &metadata)?;
                         out.push(CollectedEntry {
                             path: path.to_path_buf(),
+                            fs_path: cwd.join(path),
                             store_as: StoreAs::Symlink(link_target_type),
                             metadata,
                         });
@@ -933,6 +938,7 @@ pub(crate) fn create_entry(
 ) -> io::Result<Option<NormalEntry>> {
     let CollectedEntry {
         path,
+        fs_path: _,
         store_as,
         metadata,
     } = item;
