@@ -358,7 +358,6 @@ pub(crate) struct CreateOptions {
 #[derive(Clone, Debug)]
 pub(crate) struct CollectedEntry {
     pub(crate) path: PathBuf,
-    #[expect(dead_code, reason = "will be consumed in a follow-up commit")]
     pub(crate) fs_path: PathBuf,
     pub(crate) store_as: StoreAs,
     pub(crate) metadata: fs::Metadata,
@@ -938,7 +937,7 @@ pub(crate) fn create_entry(
 ) -> io::Result<Option<NormalEntry>> {
     let CollectedEntry {
         path,
-        fs_path: _,
+        fs_path,
         store_as,
         metadata,
     } = item;
@@ -953,38 +952,38 @@ pub(crate) fn create_entry(
                 return Ok(None);
             };
             let mut entry = HardLinkEntryBuilder::new(entry_name, reference)?;
-            entry.metadata(build_entry_metadata(path, keep_options, metadata)?);
-            for chunk in collect_extra_chunks(path, keep_options, metadata)? {
+            entry.metadata(build_entry_metadata(fs_path, keep_options, metadata)?);
+            for chunk in collect_extra_chunks(fs_path, keep_options, metadata)? {
                 entry.add_extra_chunk(chunk);
             }
             entry.build()
         }
         StoreAs::Symlink(link_target_type) => {
-            let source = fs::read_link(path)?;
+            let source = fs::read_link(fs_path)?;
             let reference = pathname_editor.edit_symlink(&source);
             let mut entry = SymlinkEntryBuilder::new(entry_name, reference)?;
             entry.metadata(
-                build_entry_metadata(path, keep_options, metadata)?
+                build_entry_metadata(fs_path, keep_options, metadata)?
                     .with_link_target_type(Some(*link_target_type)),
             );
-            for chunk in collect_extra_chunks(path, keep_options, metadata)? {
+            for chunk in collect_extra_chunks(fs_path, keep_options, metadata)? {
                 entry.add_extra_chunk(chunk);
             }
             entry.build()
         }
         StoreAs::File => {
             let mut entry = FileEntryBuilder::new_with_options(entry_name, option)?;
-            write_from_path(&mut entry, path)?;
-            entry.metadata(build_entry_metadata(path, keep_options, metadata)?);
-            for chunk in collect_extra_chunks(path, keep_options, metadata)? {
+            write_from_path(&mut entry, fs_path)?;
+            entry.metadata(build_entry_metadata(fs_path, keep_options, metadata)?);
+            for chunk in collect_extra_chunks(fs_path, keep_options, metadata)? {
                 entry.add_extra_chunk(chunk);
             }
             entry.build()
         }
         StoreAs::Dir => {
             let mut entry = DirEntryBuilder::new(entry_name);
-            entry.metadata(build_entry_metadata(path, keep_options, metadata)?);
-            for chunk in collect_extra_chunks(path, keep_options, metadata)? {
+            entry.metadata(build_entry_metadata(fs_path, keep_options, metadata)?);
+            for chunk in collect_extra_chunks(fs_path, keep_options, metadata)? {
                 entry.add_extra_chunk(chunk);
             }
             entry.build()
