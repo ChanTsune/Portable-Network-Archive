@@ -105,7 +105,7 @@ impl<T> Archive<T> {
         self.max_chunk_size = Some(size);
     }
 
-    /// Returns `true` if an [ANXT] chunk has appeared before calling this method.
+    /// Returns `true` if an [ANXT] chunk has been encountered during reading.
     ///
     /// [ANXT]: crate::chunk::ChunkType::ANXT
     #[inline]
