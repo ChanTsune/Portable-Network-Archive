@@ -891,7 +891,6 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
         missing_mtime: MissingTimePolicy::Include,
     }
     .resolve()?;
-    files = utils::expand_bsdtar_windows_globs(files)?;
     let sources = ItemSource::parse_many(&files);
     validate_no_duplicate_stdin(&sources)?;
     let collect_options = CollectOptions {
@@ -1340,7 +1339,6 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
         missing_mtime: MissingTimePolicy::Include,
     }
     .resolve()?;
-    files = utils::expand_bsdtar_windows_globs(files)?;
     let sources = ItemSource::parse_many(&files);
     validate_no_duplicate_stdin(&sources)?;
     let collect_options = CollectOptions {
@@ -1504,7 +1502,6 @@ fn run_update(args: BsdtarCommand) -> anyhow::Result<()> {
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
 
-    files = utils::expand_bsdtar_windows_globs(files)?;
     let sources = ItemSource::parse_many(&files);
     validate_no_duplicate_stdin(&sources)?;
     let time_filters = TimeFilterResolver {

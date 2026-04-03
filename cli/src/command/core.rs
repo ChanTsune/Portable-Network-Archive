@@ -593,8 +593,15 @@ pub(crate) fn collect_items_from_sources(
                     .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", dir.display(), e)))?;
             }
             ItemSource::Filesystem(path) => {
-                let items = collect_items_with_state(&path, options, hardlink_resolver)?;
-                results.extend(items.into_iter().map(CollectedItem::Filesystem));
+                let expanded = crate::utils::expand_bsdtar_windows_globs(vec![
+                    path.to_string_lossy().into_owned(),
+                ])
+                .map_err(|e| io::Error::other(e.to_string()))?;
+                for p in expanded {
+                    let items =
+                        collect_items_with_state(Path::new(&p), options, hardlink_resolver)?;
+                    results.extend(items.into_iter().map(CollectedItem::Filesystem));
+                }
             }
             ItemSource::Archive(ArchiveSource::File(path)) => {
                 let abs = if path.is_relative() {
