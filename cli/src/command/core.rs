@@ -371,7 +371,6 @@ pub(crate) struct CreateOptions {
 #[derive(Clone, Debug)]
 pub(crate) struct CollectedEntry {
     pub(crate) path: PathBuf,
-    #[expect(dead_code, reason = "will be consumed in a follow-up commit")]
     pub(crate) fs_path: PathBuf,
     pub(crate) store_as: StoreAs,
     pub(crate) metadata: fs::Metadata,
@@ -864,7 +863,7 @@ pub(crate) fn create_entry(
 ) -> io::Result<Option<NormalEntry>> {
     let CollectedEntry {
         path,
-        fs_path: _,
+        fs_path,
         store_as,
         metadata,
     } = item;
@@ -879,22 +878,22 @@ pub(crate) fn create_entry(
                 return Ok(None);
             };
             let entry = EntryBuilder::new_hard_link(entry_name, reference)?;
-            apply_metadata(entry, path, keep_options, metadata)?.build()
+            apply_metadata(entry, fs_path, keep_options, metadata)?.build()
         }
         StoreAs::Symlink => {
-            let source = fs::read_link(path)?;
+            let source = fs::read_link(fs_path)?;
             let reference = pathname_editor.edit_symlink(&source);
             let entry = EntryBuilder::new_symlink(entry_name, reference)?;
-            apply_metadata(entry, path, keep_options, metadata)?.build()
+            apply_metadata(entry, fs_path, keep_options, metadata)?.build()
         }
         StoreAs::File => {
             let mut entry = EntryBuilder::new_file(entry_name, option)?;
-            write_from_path(&mut entry, path)?;
-            apply_metadata(entry, path, keep_options, metadata)?.build()
+            write_from_path(&mut entry, fs_path)?;
+            apply_metadata(entry, fs_path, keep_options, metadata)?.build()
         }
         StoreAs::Dir => {
             let entry = EntryBuilder::new_dir(entry_name);
-            apply_metadata(entry, path, keep_options, metadata)?.build()
+            apply_metadata(entry, fs_path, keep_options, metadata)?.build()
         }
     }
     .map(Some)
