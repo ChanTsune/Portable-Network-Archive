@@ -61,7 +61,7 @@ impl EntryReference {
         Self::new_from_utf8(&path.to_string_lossy())
     }
 
-    /// Creates an [EntryReference] from a UTF-8 string while preserving absolute
+    /// Creates an [`EntryReference`] from a UTF-8 string while preserving absolute
     /// roots, prefixes, and parent components.
     ///
     /// # Examples
@@ -83,7 +83,7 @@ impl EntryReference {
         Self(path)
     }
 
-    /// Creates an [EntryReference] from a path, preserving absolute path components.
+    /// Creates an [`EntryReference`] from a path, preserving absolute path components.
     ///
     /// # Errors
     ///
@@ -103,7 +103,7 @@ impl EntryReference {
         Ok(Self::from_utf8_preserve_root(path))
     }
 
-    /// Creates an [EntryReference] from a path, preserving absolute path components.
+    /// Creates an [`EntryReference`] from a path, preserving absolute path components.
     ///
     /// Any invalid UTF-8 sequences are replaced.
     ///
@@ -142,7 +142,7 @@ impl EntryReference {
         self.0.as_bytes()
     }
 
-    /// Extracts a string slice containing the entire [EntryReference].
+    /// Extracts a string slice containing the entire [`EntryReference`].
     ///
     /// # Examples
     ///

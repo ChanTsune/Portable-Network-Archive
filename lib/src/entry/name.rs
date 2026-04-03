@@ -62,7 +62,7 @@ impl EntryName {
         Self::from_path_lossy_preserve_root(p).sanitize()
     }
 
-    /// Creates an [EntryName] from a path, preserving absolute path components.
+    /// Creates an [`EntryName`] from a path, preserving absolute path components.
     ///
     /// This method is similar to the `From` implementations for path-like types, but preserves absolute path components.
     ///
@@ -87,7 +87,7 @@ impl EntryName {
         Self(path)
     }
 
-    /// Creates an [EntryName] from a path, preserving absolute path components.
+    /// Creates an [`EntryName`] from a path, preserving absolute path components.
     ///
     /// This method is similar to the `From` implementations for path-like types, but preserves absolute path components.
     ///
@@ -110,7 +110,7 @@ impl EntryName {
         Ok(Self::from_utf8_preserve_root(path))
     }
 
-    /// Creates an [EntryName] from a path, preserving absolute path components.
+    /// Creates an [`EntryName`] from a path, preserving absolute path components.
     ///
     /// This method is similar to the `From` implementations for path-like types, but preserves absolute path components.
     /// Invalid UTF-8 sequences are replaced with the Unicode replacement character.
@@ -158,7 +158,7 @@ impl EntryName {
         self.0.as_bytes()
     }
 
-    /// Extracts a string slice containing the entire [EntryName].
+    /// Extracts a string slice containing the entire [`EntryName`].
     ///
     /// # Examples
     ///
