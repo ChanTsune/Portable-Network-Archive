@@ -593,13 +593,21 @@ pub(crate) fn collect_items_from_sources(
                     .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", dir.display(), e)))?;
             }
             ItemSource::Filesystem(path) => {
-                let expanded = crate::utils::expand_bsdtar_windows_globs(vec![
-                    path.to_string_lossy().into_owned(),
-                ])
-                .map_err(|e| io::Error::other(e.to_string()))?;
-                for p in expanded {
-                    let items =
-                        collect_items_with_state(Path::new(&p), options, hardlink_resolver)?;
+                #[cfg(windows)]
+                {
+                    let expanded = crate::utils::expand_bsdtar_windows_globs(vec![
+                        path.to_string_lossy().into_owned(),
+                    ])
+                    .map_err(|e| io::Error::other(format!("{e:#}")))?;
+                    for p in expanded {
+                        let items =
+                            collect_items_with_state(Path::new(&p), options, hardlink_resolver)?;
+                        results.extend(items.into_iter().map(CollectedItem::Filesystem));
+                    }
+                }
+                #[cfg(not(windows))]
+                {
+                    let items = collect_items_with_state(&path, options, hardlink_resolver)?;
                     results.extend(items.into_iter().map(CollectedItem::Filesystem));
                 }
             }

@@ -1480,4 +1480,26 @@ mod tests {
             s(&["pna", "compat", "bsdtar", "--unstable", "\0CD\0dir", "file"]),
         );
     }
+
+    #[test]
+    fn encode_cd_after_old_style_c_cf_expansion() {
+        // Simulates output of expand_bsdtar_old_style_args for "cCf dir archive file"
+        let args = s(&[
+            "pna", "compat", "bsdtar", "-c", "-C", "dir", "-f", "archive", "file",
+        ]);
+        let result = encode_bsdtar_cd_args(args);
+        assert_eq!(
+            result,
+            s(&[
+                "pna",
+                "compat",
+                "bsdtar",
+                "-c",
+                "\0CD\0dir",
+                "-f",
+                "archive",
+                "file",
+            ]),
+        );
+    }
 }
