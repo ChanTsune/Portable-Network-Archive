@@ -411,11 +411,14 @@ pub(crate) enum ItemSource {
     Filesystem(PathBuf),
     /// An archive to include entries from.
     Archive(ArchiveSource),
+    /// A directory change instruction encoded by the pre-processing step.
+    ChangeDir(PathBuf),
 }
 
 impl ItemSource {
     /// Parses a single CLI argument into an `ItemSource`.
     ///
+    /// - `\0CD\0path` → `ChangeDir(path)` (internal sentinel from `-C` pre-processing)
     /// - `@` or `@-` → `Archive(Stdin)`
     /// - `@path` → `Archive(File(path))`
     /// - `path` → `Filesystem(path)`
@@ -426,7 +429,9 @@ impl ItemSource {
     /// relative to the current working directory at the time they are accessed,
     /// which means they are affected by the -C option.
     pub(crate) fn parse(arg: &str) -> Self {
-        if let Some(archive_path) = arg.strip_prefix('@') {
+        if let Some(dir) = arg.strip_prefix(crate::cli::CD_SENTINEL) {
+            Self::ChangeDir(PathBuf::from(dir))
+        } else if let Some(archive_path) = arg.strip_prefix('@') {
             if archive_path.is_empty() || archive_path == "-" {
                 Self::Archive(ArchiveSource::Stdin)
             } else {
@@ -590,6 +595,7 @@ pub(crate) fn collect_items_from_sources(
             ItemSource::Archive(archive_source) => {
                 results.push(CollectedItem::ArchiveMarker(archive_source));
             }
+            ItemSource::ChangeDir(_dir) => { /* handled in Task 5 */ }
         }
     }
 
@@ -2232,6 +2238,20 @@ mod tests {
         fn validate_no_duplicate_stdin_empty() {
             let sources: Vec<ItemSource> = vec![];
             assert!(super::validate_no_duplicate_stdin(&sources).is_ok());
+        }
+
+        #[test]
+        fn parse_change_dir() {
+            let item = ItemSource::parse("\0CD\0mydir");
+            assert!(matches!(item, ItemSource::ChangeDir(ref p) if p == Path::new("mydir")));
+        }
+
+        #[test]
+        fn parse_change_dir_absolute() {
+            let item = ItemSource::parse("\0CD\0/absolute/dir");
+            assert!(
+                matches!(item, ItemSource::ChangeDir(ref p) if p == Path::new("/absolute/dir"))
+            );
         }
     }
 
