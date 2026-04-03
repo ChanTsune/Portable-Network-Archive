@@ -580,7 +580,7 @@ pub struct WriteOptions {
 }
 
 impl WriteOptions {
-    /// A new [WriteOptions] to simply store.
+    /// A new [`WriteOptions`] to simply store.
     ///
     /// # Examples
     ///
@@ -599,7 +599,7 @@ impl WriteOptions {
         }
     }
 
-    /// Returns a builder for [WriteOptions].
+    /// Returns a builder for [`WriteOptions`].
     ///
     /// # Examples
     ///
@@ -613,7 +613,7 @@ impl WriteOptions {
         WriteOptionsBuilder::new()
     }
 
-    /// Converts [WriteOptions] into a [WriteOptionsBuilder].
+    /// Converts [`WriteOptions`] into a [`WriteOptionsBuilder`].
     ///
     /// # Examples
     /// ```rust
@@ -824,7 +824,7 @@ impl ReadOptions {
         }
     }
 
-    /// Returns a builder for [ReadOptions].
+    /// Returns a builder for [`ReadOptions`].
     ///
     /// # Examples
     /// ```rust
@@ -837,7 +837,7 @@ impl ReadOptions {
         ReadOptionsBuilder::new()
     }
 
-    /// Converts [ReadOptions] into a [ReadOptionsBuilder].
+    /// Converts [`ReadOptions`] into a [`ReadOptionsBuilder`].
     ///
     /// # Examples
     /// ```rust

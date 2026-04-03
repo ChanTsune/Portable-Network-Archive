@@ -54,7 +54,7 @@ impl<W: Write> Write for SolidArchiveEntryDataWriter<'_, W> {
 }
 
 impl<W: Write> Archive<W> {
-    /// Writes the archive header to the given `Write` object and returns a new [Archive].
+    /// Writes the archive header to the given `Write` object and returns a new [`Archive`].
     ///
     /// # Examples
     ///
@@ -279,7 +279,7 @@ impl<W: Write> Archive<W> {
 
 #[cfg(feature = "unstable-async")]
 impl<W: AsyncWrite + Unpin> Archive<W> {
-    /// Writes the archive header to the given object and returns a new [Archive].
+    /// Writes the archive header to the given object and returns a new [`Archive`].
     /// This API is unstable.
     ///
     /// # Errors
@@ -332,7 +332,7 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
 }
 
 impl<W: Write> Archive<W> {
-    /// Writes the archive header and creates a new [SolidArchive] with the specified
+    /// Writes the archive header and creates a new [`SolidArchive`] with the specified
     /// compression and encryption options for solid mode.
     ///
     /// # Examples

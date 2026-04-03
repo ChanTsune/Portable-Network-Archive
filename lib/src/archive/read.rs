@@ -33,7 +33,7 @@ async fn read_pna_header_async<R: futures_io::AsyncRead + Unpin>(mut reader: R) 
 }
 
 impl<R: Read> Archive<R> {
-    /// Reads the archive header from the provided reader and returns a new [Archive].
+    /// Reads the archive header from the provided reader and returns a new [`Archive`].
     ///
     /// # Errors
     ///
@@ -199,7 +199,7 @@ impl<R> Archive<R> {
 
 #[cfg(feature = "unstable-async")]
 impl<R: futures_io::AsyncRead + Unpin> Archive<R> {
-    /// Reads the archive header from the provided reader and returns a new [Archive].
+    /// Reads the archive header from the provided reader and returns a new [`Archive`].
     /// This API is unstable.
     ///
     /// # Errors

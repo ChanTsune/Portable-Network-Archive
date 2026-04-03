@@ -13,9 +13,9 @@ use std::io::prelude::*;
 pub(crate) use {read::*, write::*};
 
 /// An object providing access to a PNA file.
-/// An instance of an [Archive] can be read and/or written.
+/// An instance of an [`Archive`] can be read and/or written.
 ///
-/// The [Archive] struct provides two main modes of operation:
+/// The [`Archive`] struct provides two main modes of operation:
 /// - Read mode: Allows reading entries from an existing PNA file
 /// - Write mode: Enables creating new entries and writing data to the archive
 ///
