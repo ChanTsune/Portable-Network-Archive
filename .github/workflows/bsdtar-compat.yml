@@ -87,7 +87,7 @@ jobs:
           pacman --noconfirm -Sy --needed \
             mingw-w64-x86_64-gcc \
             mingw-w64-x86_64-make
-          echo 'C:/msys64/mingw64/bin' >> "$GITHUB_PATH"
+          cygpath -w /mingw64/bin >> "$(cygpath "$GITHUB_PATH")"
           gcc --version
           mingw32-make --version
 
@@ -238,7 +238,7 @@ jobs:
             sharutils \
             mingw-w64-x86_64-gcc \
             mingw-w64-x86_64-make
-          echo 'C:/msys64/mingw64/bin' >> "$GITHUB_PATH"
+          cygpath -w /mingw64/bin >> "$(cygpath "$GITHUB_PATH")"
           gcc --version
           mingw32-make --version
 
