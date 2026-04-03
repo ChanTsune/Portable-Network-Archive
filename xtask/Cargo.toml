@@ -15,7 +15,7 @@ release = false
 bzip2 = "0.6"
 clap = { version = "4.5", features = ["derive"] }
 clap-markdown = { git = "https://github.com/ChanTsune/clap-markdown.git", branch = "issue/54" }
-clap_mangen = "0.2"
+clap_mangen = "0.3"
 flate2 = "1.1"
 libpna = { path = "../lib" }
 liblzma = { version = "0.4", features = ["static"] }
