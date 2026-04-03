@@ -1,3 +1,5 @@
+//! Types for representing entries in a PNA archive.
+
 mod attr;
 mod builder;
 mod header;
