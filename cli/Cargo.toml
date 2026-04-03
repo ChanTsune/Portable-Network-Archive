@@ -54,7 +54,7 @@ walkdir = "2.5.0"
 
 [target.'cfg(unix)'.dependencies]
 mtree2 = "0.6.15"
-nix = { version = "0.31.1", features = ["user"] }
+nix = { version = "0.31.2", features = ["user"] }
 xattr = "1.6.1"
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "macos"))'.dependencies]
