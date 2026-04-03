@@ -46,15 +46,15 @@ pub(crate) type DecryptCbcCamellia256Reader<R> =
 /// It supports both block ciphers (AES-256 and Camellia-256 in CBC mode) and stream ciphers
 /// (AES-256 and Camellia-256 in CTR mode).
 pub(crate) enum CipherWriter<W: Write> {
-    /// No encryption, data is written as-is
+    /// No encryption, data is written as-is.
     No(W),
-    /// AES-256 encryption in CBC mode
+    /// AES-256 encryption in CBC mode.
     CbcAes(EncryptCbcAes256Writer<W>),
-    /// Camellia-256 encryption in CBC mode
+    /// Camellia-256 encryption in CBC mode.
     CbcCamellia(EncryptCbcCamellia256Writer<W>),
-    /// AES-256 encryption in CTR mode
+    /// AES-256 encryption in CTR mode.
     CtrAes(Ctr128BEWriter<W, Aes256>),
-    /// Camellia-256 encryption in CTR mode
+    /// Camellia-256 encryption in CTR mode.
     CtrCamellia(Ctr128BEWriter<W, Camellia256>),
 }
 
@@ -114,15 +114,15 @@ impl<W: Write> TryIntoInner<W> for CipherWriter<W> {
 /// It supports both block ciphers (AES-256 and Camellia-256 in CBC mode) and stream ciphers
 /// (AES-256 and Camellia-256 in CTR mode).
 pub(crate) enum DecryptReader<R: Read> {
-    /// No decryption, data is read as-is
+    /// No decryption, data is read as-is.
     No(R),
-    /// AES-256 decryption in CBC mode
+    /// AES-256 decryption in CBC mode.
     CbcAes(DecryptCbcAes256Reader<R>),
-    /// Camellia-256 decryption in CBC mode
+    /// Camellia-256 decryption in CBC mode.
     CbcCamellia(DecryptCbcCamellia256Reader<R>),
-    /// AES-256 decryption in CTR mode
+    /// AES-256 decryption in CTR mode.
     CtrAes(Ctr128BEReader<R, Aes256>),
-    /// Camellia-256 decryption in CTR mode
+    /// Camellia-256 decryption in CTR mode.
     CtrCamellia(Ctr128BEReader<R, Camellia256>),
 }
 

@@ -17,13 +17,13 @@ pub(crate) mod zstandard;
 /// - Zstandard
 /// - XZ (LZMA2)
 pub(crate) enum CompressionWriter<W: Write> {
-    /// No compression, data is written as-is
+    /// No compression, data is written as-is.
     No(W),
-    /// Deflate compression using zlib
+    /// Deflate compression using zlib.
     Deflate(ZlibEncoder<W>),
-    /// Zstandard compression
+    /// Zstandard compression.
     ZStd(ZstdEncoder<'static, W>),
-    /// XZ compression using LZMA2
+    /// XZ compression using LZMA2.
     Xz(XzEncoder<W>),
 }
 
@@ -82,13 +82,13 @@ impl<W: Write> TryIntoInner<W> for CompressionWriter<W> {
 /// - Zstandard
 /// - XZ (LZMA2)
 pub(crate) enum DecompressReader<R: Read> {
-    /// No decompression, data is read as-is
+    /// No decompression, data is read as-is.
     No(R),
-    /// Deflate decompression using zlib
+    /// Deflate decompression using zlib.
     Deflate(ZlibDecoder<R>),
-    /// Zstandard decompression
+    /// Zstandard decompression.
     ZStd(ZStdDecoder<'static, BufReader<R>>),
-    /// XZ decompression using LZMA2
+    /// XZ decompression using LZMA2.
     Xz(XzDecoder<R>),
 }
 
