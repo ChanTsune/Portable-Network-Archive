@@ -10,7 +10,7 @@ pub(crate) const CD_SENTINEL: &str = "\0CD\0";
 /// it never takes an argument. (In new-style mode, clap handles the optional
 /// compression level via `Option<Option<XzLevel>>`.)
 /// Kept in sync with `BsdtarCommand` clap definition via unit test.
-const SHORT_OPTIONS_WITH_ARG: &[char] = &['b', 'C', 'f', 'I', 's', 'T', 'W', 'X'];
+const SHORT_OPTIONS_WITH_ARG: &[char] = &['b', 'f', 'I', 's', 'T', 'W', 'X'];
 
 /// Global long options that take a space-separated value.
 /// `--flag=value` form is already a single token and needs no special handling.
