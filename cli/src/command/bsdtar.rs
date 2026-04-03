@@ -12,8 +12,7 @@ use crate::{
             MacMetadataStrategy, ModeStrategy, OwnerOptions, OwnerStrategy, PathFilter,
             PathTransformers, PathnameEditor, SplitArchiveReader, TimeFilterResolver,
             TimestampStrategyResolver, TransformStrategyUnSolid, Umask, XattrStrategy,
-            apply_chroot, collect_items_from_paths, collect_items_from_sources,
-            collect_split_archives,
+            apply_chroot, collect_items_from_sources, collect_split_archives,
             path_lock::OrderedPathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, run_across_archive, validate_no_duplicate_stdin,
@@ -27,7 +26,9 @@ use crate::{
         self, BsdGlobMatcher, PathPartExt, VCS_FILES, env::NamedTempFile, fs::HardlinkResolver,
     },
 };
+use anyhow::Context;
 use clap::{ArgGroup, Args, Parser, ValueHint};
+use itertools::Itertools;
 use pna::Archive;
 use std::{
     env, io,
@@ -574,15 +575,6 @@ pub(crate) struct BsdtarCommand {
     #[arg(long, help = "Extract files as yourself")]
     no_same_owner: bool,
     #[arg(
-        short = 'C',
-        long = "cd",
-        visible_aliases = ["directory"],
-        value_name = "DIRECTORY",
-        help = "Change directory before adding the following files",
-        value_hint = ValueHint::DirPath
-    )]
-    working_dir: Option<PathBuf>,
-    #[arg(
         short = 'O',
         long = "to-stdout",
         requires = "unstable",
@@ -899,11 +891,7 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
         missing_mtime: MissingTimePolicy::Include,
     }
     .resolve()?;
-    if let Some(working_dir) = args.working_dir {
-        env::set_current_dir(working_dir)?;
-    }
     files = utils::expand_bsdtar_windows_globs(files)?;
-    // Parse sources AFTER changing directory so @archive paths are affected by -C
     let sources = ItemSource::parse_many(&files);
     validate_no_duplicate_stdin(&sources)?;
     let collect_options = CollectOptions {
@@ -1129,9 +1117,19 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
     } else {
         None
     };
-    if let Some(working_dir) = args.working_dir {
-        env::set_current_dir(working_dir)?;
+    // Separate -C directory changes from file patterns
+    let (cd_dirs, file_patterns): (Vec<_>, Vec<_>) = files.into_iter().partition_map(|f| {
+        if let Some(dir) = f.strip_prefix(crate::cli::CD_SENTINEL) {
+            itertools::Either::Left(PathBuf::from(dir))
+        } else {
+            itertools::Either::Right(f)
+        }
+    });
+    for dir in &cd_dirs {
+        env::set_current_dir(dir)
+            .with_context(|| format!("changing directory to {}", dir.display()))?;
     }
+    let files = file_patterns;
     apply_chroot(args.chroot)?;
     if let Some(archives) = archives {
         run_extract_archive_reader(
@@ -1198,7 +1196,12 @@ fn run_list_archive(args: BsdtarCommand) -> anyhow::Result<()> {
         color: ColorChoice::Auto,
         time_filters,
     };
-    let files_globs = BsdGlobMatcher::new(args.files.iter().map(|it| it.as_str()))
+    let files: Vec<_> = args
+        .files
+        .into_iter()
+        .filter(|f| !f.starts_with(crate::cli::CD_SENTINEL))
+        .collect();
+    let files_globs = BsdGlobMatcher::new(files.iter().map(|it| it.as_str()))
         .with_no_recursive(args.no_recursive);
 
     let mut exclude = args.exclude;
@@ -1337,11 +1340,7 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
         missing_mtime: MissingTimePolicy::Include,
     }
     .resolve()?;
-    if let Some(working_dir) = args.working_dir {
-        env::set_current_dir(working_dir)?;
-    }
     files = utils::expand_bsdtar_windows_globs(files)?;
-    // Parse sources AFTER changing directory so @archive paths are affected by -C
     let sources = ItemSource::parse_many(&files);
     validate_no_duplicate_stdin(&sources)?;
     let collect_options = CollectOptions {
@@ -1505,10 +1504,9 @@ fn run_update(args: BsdtarCommand) -> anyhow::Result<()> {
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
 
-    if let Some(working_dir) = args.working_dir {
-        env::set_current_dir(working_dir)?;
-    }
     files = utils::expand_bsdtar_windows_globs(files)?;
+    let sources = ItemSource::parse_many(&files);
+    validate_no_duplicate_stdin(&sources)?;
     let time_filters = TimeFilterResolver {
         newer_ctime_than: args.newer_ctime_than.as_deref(),
         older_ctime_than: args.older_ctime_than.as_deref(),
@@ -1534,7 +1532,14 @@ fn run_update(args: BsdtarCommand) -> anyhow::Result<()> {
         time_filters: &time_filters,
     };
     let mut resolver = HardlinkResolver::new(collect_options.follow_links);
-    let target_items = collect_items_from_paths(&files, &collect_options, &mut resolver)?;
+    let collected = collect_items_from_sources(sources, &collect_options, &mut resolver)?;
+    let target_items = collected
+        .into_iter()
+        .filter_map(|item| match item {
+            crate::command::core::CollectedItem::Filesystem(entry) => Some(entry),
+            crate::command::core::CollectedItem::ArchiveMarker(_) => None,
+        })
+        .collect();
 
     let archives = collect_split_archives(&archive_path)?;
 

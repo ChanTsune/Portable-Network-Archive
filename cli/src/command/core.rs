@@ -32,7 +32,7 @@ use pna::{
 };
 use std::{
     borrow::Cow,
-    fmt, fs,
+    env, fmt, fs,
     io::{self, prelude::*},
     path::{Path, PathBuf},
     time::SystemTime,
@@ -588,14 +588,25 @@ pub(crate) fn collect_items_from_sources(
 
     for source in sources {
         match source {
+            ItemSource::ChangeDir(dir) => {
+                env::set_current_dir(&dir)
+                    .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", dir.display(), e)))?;
+            }
             ItemSource::Filesystem(path) => {
                 let items = collect_items_with_state(&path, options, hardlink_resolver)?;
                 results.extend(items.into_iter().map(CollectedItem::Filesystem));
             }
-            ItemSource::Archive(archive_source) => {
-                results.push(CollectedItem::ArchiveMarker(archive_source));
+            ItemSource::Archive(ArchiveSource::File(path)) => {
+                let abs = if path.is_relative() {
+                    env::current_dir()?.join(&path)
+                } else {
+                    path
+                };
+                results.push(CollectedItem::ArchiveMarker(ArchiveSource::File(abs)));
             }
-            ItemSource::ChangeDir(_dir) => { /* handled in Task 5 */ }
+            ItemSource::Archive(source @ ArchiveSource::Stdin) => {
+                results.push(CollectedItem::ArchiveMarker(source));
+            }
         }
     }
 
@@ -840,20 +851,20 @@ pub(crate) fn write_from_path(writer: &mut impl Write, path: impl AsRef<Path>) -
         .metadata()
         .ok()
         .and_then(|meta| usize::try_from(meta.len()).ok());
+    if let Some(size) = file_size
+        && size < IN_MEMORY_THRESHOLD
+    {
+        // NOTE: Use read_exact with pre-sized buffer to avoid fstat and dynamic allocation
+        let mut contents = vec![0u8; size];
+        file.read_exact(&mut contents)?;
+        writer.write_all(&contents)?;
+        return Ok(());
+    }
+    #[cfg(feature = "memmap")]
     if let Some(size) = file_size {
-        if size < IN_MEMORY_THRESHOLD {
-            // NOTE: Use read_exact with pre-sized buffer to avoid fstat and dynamic allocation
-            let mut contents = vec![0u8; size];
-            file.read_exact(&mut contents)?;
-            writer.write_all(&contents)?;
-            return Ok(());
-        }
-        #[cfg(feature = "memmap")]
-        {
-            let mmap = utils::mmap::Mmap::map_with_size(file, size)?;
-            writer.write_all(&mmap[..])?;
-            return Ok(());
-        }
+        let mmap = utils::mmap::Mmap::map_with_size(file, size)?;
+        writer.write_all(&mmap[..])?;
+        return Ok(());
     }
     // Fallback for large files without memmap, or when size is unknown
     copy_buffered(file, writer)
