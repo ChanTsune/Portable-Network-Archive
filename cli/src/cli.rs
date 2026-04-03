@@ -2,7 +2,7 @@ mod old_style;
 pub mod value;
 
 #[doc(hidden)]
-pub use old_style::{expand_bsdtar_old_style_args, expand_bsdtar_w_option};
+pub use old_style::{encode_bsdtar_cd_args, expand_bsdtar_old_style_args, expand_bsdtar_w_option};
 
 use crate::{
     command::{
