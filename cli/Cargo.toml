@@ -16,7 +16,7 @@ anyhow = { version = "1.0.102", features = ["backtrace"] }
 base64 = "0.22.1"
 bitflags = "2.11.0"
 bstr = "1.12.1"
-bugreport = { version = "0.5.1", default-features = false, features = ["collector_operating_system", "format_markdown"] }
+bugreport = { version = "0.6.0", default-features = false, features = ["collector_operating_system", "format_markdown"] }
 bytesize = "2.3.1"
 chrono = "0.4.44"
 clap = { version = "4.5.60", features = ["derive"] }
