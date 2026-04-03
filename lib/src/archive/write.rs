@@ -37,6 +37,11 @@ impl<W: Write> Write for EntryDataWriter<W> {
     }
 }
 
+/// A writer for individual file entries within a solid archive.
+///
+/// This type is passed to the closure in [`SolidArchive::write_file`] and implements
+/// [`Write`](std::io::Write), allowing callers to stream file data into the solid
+/// archive's shared compression and encryption pipeline.
 pub struct SolidArchiveEntryDataWriter<'w, W: Write>(
     InternalArchiveDataWriter<&'w mut InternalArchiveDataWriter<W>>,
 );
