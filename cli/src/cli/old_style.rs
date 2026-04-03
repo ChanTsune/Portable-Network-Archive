@@ -9,8 +9,10 @@ pub(crate) const CD_SENTINEL: &str = "\0CD\0";
 /// `-J` is excluded from `SHORT_OPTIONS_WITH_ARG` because in bsdtar old-style syntax
 /// it never takes an argument. (In new-style mode, clap handles the optional
 /// compression level via `Option<Option<XzLevel>>`.)
+/// `-C` and `-W` are listed here for old-style expansion but are consumed by
+/// `encode_bsdtar_cd_args` / `expand_bsdtar_w_option` before clap sees them.
 /// Kept in sync with `BsdtarCommand` clap definition via unit test.
-const SHORT_OPTIONS_WITH_ARG: &[char] = &['b', 'f', 'I', 's', 'T', 'W', 'X'];
+const SHORT_OPTIONS_WITH_ARG: &[char] = &['b', 'C', 'f', 'I', 's', 'T', 'W', 'X'];
 
 /// Global long options that take a space-separated value.
 /// `--flag=value` form is already a single token and needs no special handling.
@@ -769,11 +771,12 @@ mod tests {
             .collect();
         clap_arg_shorts.sort();
         clap_arg_shorts.dedup();
-        // `W` is handled by expand_bsdtar_w_option preprocessing, not by clap
+        // `C` and `W` are handled by preprocessing (encode_bsdtar_cd_args /
+        // expand_bsdtar_w_option), not by clap
         let mut expected: Vec<char> = SHORT_OPTIONS_WITH_ARG
             .iter()
             .copied()
-            .filter(|&c| c != 'W')
+            .filter(|&c| c != 'C' && c != 'W')
             .collect();
         expected.sort();
         assert_eq!(
