@@ -37,7 +37,7 @@ use pna::{
 use std::{
     borrow::Cow,
     collections::HashMap,
-    fmt, fs,
+    env, fmt, fs,
     io::{self, prelude::*},
     path::{Path, PathBuf},
     time::SystemTime,
@@ -575,14 +575,25 @@ pub(crate) fn collect_items_from_sources(
 
     for source in sources {
         match source {
+            ItemSource::ChangeDir(dir) => {
+                env::set_current_dir(&dir)
+                    .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", dir.display(), e)))?;
+            }
             ItemSource::Filesystem(path) => {
                 let items = collect_items_with_state(&path, options, hardlink_resolver)?;
                 results.extend(items.into_iter().map(CollectedItem::Filesystem));
             }
-            ItemSource::Archive(archive_source) => {
-                results.push(CollectedItem::ArchiveMarker(archive_source));
+            ItemSource::Archive(ArchiveSource::File(path)) => {
+                let abs = if path.is_relative() {
+                    env::current_dir()?.join(&path)
+                } else {
+                    path
+                };
+                results.push(CollectedItem::ArchiveMarker(ArchiveSource::File(abs)));
             }
-            ItemSource::ChangeDir(_dir) => { /* handled in Task 5 */ }
+            ItemSource::Archive(source @ ArchiveSource::Stdin) => {
+                results.push(CollectedItem::ArchiveMarker(source));
+            }
         }
     }
 
