@@ -167,13 +167,13 @@ impl EntryBuilder {
         }
     }
 
-    /// Creates a new directory with the given name.
+    /// Creates a new [`EntryBuilder`] for a directory entry.
     #[inline]
     pub const fn new_dir(name: EntryName) -> Self {
         Self::new(EntryHeader::for_dir(name))
     }
 
-    /// Creates a new file with the given name and write options.
+    /// Creates a new [`EntryBuilder`] for a file entry with the given write options.
     ///
     /// # Errors
     ///
@@ -218,7 +218,7 @@ impl EntryBuilder {
         })
     }
 
-    /// Creates a new symbolic link with the given name and link.
+    /// Creates a new [`EntryBuilder`] for a symbolic link entry pointing to the given source.
     ///
     /// # Errors
     ///
@@ -229,8 +229,8 @@ impl EntryBuilder {
     /// use libpna::{EntryBuilder, EntryName, EntryReference};
     ///
     /// let builder = EntryBuilder::new_symlink(
-    ///     EntryName::try_from("path/of/target").unwrap(),
-    ///     EntryReference::try_from("path/of/source").unwrap(),
+    ///     EntryName::try_from("path/of/link").unwrap(),
+    ///     EntryReference::try_from("path/of/target").unwrap(),
     /// )
     /// .unwrap();
     /// let entry = builder.build().unwrap();
@@ -240,7 +240,7 @@ impl EntryBuilder {
         Self::new_link(EntryHeader::for_symlink(name), source)
     }
 
-    /// Creates a new hard link with the given name and link.
+    /// Creates a new [`EntryBuilder`] for a hard link entry pointing to the given source.
     ///
     /// # Errors
     ///
@@ -251,8 +251,8 @@ impl EntryBuilder {
     /// use libpna::{EntryBuilder, EntryName, EntryReference};
     ///
     /// let builder = EntryBuilder::new_hard_link(
-    ///     EntryName::try_from("path/of/target").unwrap(),
-    ///     EntryReference::try_from("path/of/source").unwrap(),
+    ///     EntryName::try_from("path/of/link").unwrap(),
+    ///     EntryReference::try_from("path/of/target").unwrap(),
     /// )
     /// .unwrap();
     /// let entry = builder.build().unwrap();
