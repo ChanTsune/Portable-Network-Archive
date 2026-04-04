@@ -433,9 +433,18 @@ impl ItemSource {
     /// relative to the current working directory at the time they are accessed,
     /// which means they are affected by the -C option.
     pub(crate) fn parse(arg: &str) -> Self {
+        Self::parse_with(arg, true)
+    }
+
+    /// Parses a single CLI argument with control over `@archive` recognition.
+    ///
+    /// When `recognize_archives` is `false`, the `@` prefix is not treated as
+    /// an archive inclusion marker — the argument becomes a filesystem path.
+    /// This is used by modes (e.g., update) that do not support `@archive`.
+    pub(crate) fn parse_with(arg: &str, recognize_archives: bool) -> Self {
         if let Some(dir) = arg.strip_prefix(crate::cli::CD_SENTINEL) {
             Self::ChangeDir(PathBuf::from(dir))
-        } else if let Some(archive_path) = arg.strip_prefix('@') {
+        } else if recognize_archives && let Some(archive_path) = arg.strip_prefix('@') {
             if archive_path.is_empty() || archive_path == "-" {
                 Self::Archive(ArchiveSource::Stdin)
             } else {
@@ -449,6 +458,11 @@ impl ItemSource {
     /// Parses multiple CLI arguments into `ItemSource` values.
     pub(crate) fn parse_many(args: &[String]) -> Vec<Self> {
         args.iter().map(|s| Self::parse(s)).collect()
+    }
+
+    /// Parses multiple CLI arguments without recognizing `@archive` syntax.
+    pub(crate) fn parse_many_no_archives(args: &[String]) -> Vec<Self> {
+        args.iter().map(|s| Self::parse_with(s, false)).collect()
     }
 }
 
