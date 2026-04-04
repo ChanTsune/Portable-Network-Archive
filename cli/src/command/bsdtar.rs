@@ -8,9 +8,9 @@ use crate::{
         append::{open_archive_then_seek_to_end, run_append_archive},
         ask_password,
         core::{
-            AclStrategy, CollectOptions, CreateOptions, FflagsStrategy, ItemSource, KeepOptions,
-            MacMetadataStrategy, ModeStrategy, OwnerOptions, OwnerStrategy, PathFilter,
-            PathTransformers, PathnameEditor, SplitArchiveReader, StagedArchive,
+            AclStrategy, CollectOptions, CollectedItem, CreateOptions, FflagsStrategy, ItemSource,
+            KeepOptions, MacMetadataStrategy, ModeStrategy, OwnerOptions, OwnerStrategy,
+            PathFilter, PathTransformers, PathnameEditor, SplitArchiveReader, StagedArchive,
             TimeFilterResolver, TimestampStrategyResolver, TransformStrategyUnSolid, Umask,
             XattrStrategy, apply_chroot, collect_items_from_sources, collect_split_archives,
             path_lock::OrderedPathLocks,
@@ -859,7 +859,7 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
     file.take_if(|it| it == "-");
     let archive_file = file.take().map(|p| current_dir.join(p));
     let mut files = args.files;
-    if files.is_empty() && args.files_from.is_none() {
+    if files.iter().all(|f| f.starts_with(crate::cli::CD_SENTINEL)) && args.files_from.is_none() {
         anyhow::bail!("create mode requires at least one input path or @archive source");
     }
     if let Some(path) = args.files_from {
@@ -1525,8 +1525,7 @@ fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
         exclude.iter().map(|s| s.as_str()).chain(vcs_patterns),
     );
 
-    let sources = ItemSource::parse_many(&files);
-    validate_no_duplicate_stdin(&sources)?;
+    let sources = ItemSource::parse_many_no_archives(&files);
     let time_filters = TimeFilterResolver {
         newer_ctime_than: args.newer_ctime_than.as_deref(),
         older_ctime_than: args.older_ctime_than.as_deref(),
@@ -1552,14 +1551,16 @@ fn run_update(args: BsdtarCommand, umask: Umask) -> anyhow::Result<()> {
         time_filters: &time_filters,
     };
     let mut resolver = HardlinkResolver::new(collect_options.follow_links);
-    let collected = collect_items_from_sources(sources, &collect_options, &mut resolver)?;
-    let target_items = collected
-        .into_iter()
-        .filter_map(|item| match item {
-            crate::command::core::CollectedItem::Filesystem(entry) => Some(entry),
-            crate::command::core::CollectedItem::ArchiveMarker(_) => None,
-        })
-        .collect();
+    let target_items: Vec<_> =
+        collect_items_from_sources(sources, &collect_options, &mut resolver)?
+            .into_iter()
+            .filter_map(|item| match item {
+                CollectedItem::Filesystem(entry) => Some(entry),
+                // ChangeDir is consumed inline; no ArchiveMarker is produced
+                // because parse_many_no_archives treats @ as filesystem paths.
+                CollectedItem::ArchiveMarker(_) => None,
+            })
+            .collect();
 
     let archives = collect_split_archives(&archive_path)?;
 
