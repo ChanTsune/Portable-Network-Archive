@@ -16,6 +16,7 @@ targets = [
     "aarch64-apple-darwin",
     "aarch64-unknown-linux-gnu",
     "aarch64-pc-windows-msvc",
+    "riscv64gc-unknown-linux-gnu",
     "x86_64-apple-darwin",
     "x86_64-unknown-linux-gnu",
     # "x86_64-unknown-linux-musl",
@@ -40,10 +41,11 @@ features = ["acl", "memmap"]
 
 [dist.github-custom-runners]
 aarch64-unknown-linux-gnu = "ubuntu-22.04-arm"
+riscv64gc-unknown-linux-gnu = "ubuntu-24.04-riscv"
 x86_64-unknown-linux-gnu = "ubuntu-22.04"
 # x86_64-unknown-linux-musl = "ubuntu-22.04"
 aarch64-pc-windows-msvc = "windows-11-arm"
 x86_64-pc-windows-msvc = "windows-2022"
 
 [dist.dependencies.apt]
-libacl1-dev = { stage = ["build", "run"], targets = ["aarch64-unknown-linux-gnu", "x86_64-unknown-linux-gnu"] }
+libacl1-dev = { stage = ["build", "run"], targets = ["aarch64-unknown-linux-gnu", "riscv64gc-unknown-linux-gnu", "x86_64-unknown-linux-gnu"] }
