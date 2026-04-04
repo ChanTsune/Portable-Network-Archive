@@ -81,7 +81,7 @@ criterion = { version = "0.8.2", default-features = false, features = ["cargo_be
 
 [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
 assert_cmd = "2.2.0"
-predicates = "3.1.3"
+predicates = "3.1.4"
 
 [target.'cfg(unix)'.dev-dependencies]
 serial_test = { version = "3.4.0", default-features = false }
