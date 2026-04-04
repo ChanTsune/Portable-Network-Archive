@@ -264,3 +264,137 @@ fn stdio_create_cd_affects_archive_inclusion() {
     );
     assert_eq!(entry_names.len(), 2);
 }
+
+/// Precondition: An archive contains entries a.txt and b.txt.
+/// Action: Extract with `-C <target_dir>` to redirect output.
+/// Expectation: Files appear in the target directory with correct content.
+#[test]
+fn stdio_extract_with_cd() {
+    setup();
+
+    let base = fs::canonicalize(".").unwrap().join("stdio_extract_with_cd");
+    if base.exists() {
+        fs::remove_dir_all(&base).unwrap();
+    }
+    fs::create_dir_all(&base).unwrap();
+
+    // Create archive with two entries
+    let archive = base.join("test.pna");
+    create_test_archive(&archive, &[("a.txt", "alpha"), ("b.txt", "beta")]);
+
+    // Create target extraction directory
+    let target = base.join("out");
+    fs::create_dir_all(&target).unwrap();
+
+    // Extract with -C pointing to target directory
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "experimental",
+            "stdio",
+            "--extract",
+            "--unstable",
+            "-f",
+            archive.to_str().unwrap(),
+            "-C",
+            target.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    // Verify files landed in the target directory
+    assert_eq!(fs::read_to_string(target.join("a.txt")).unwrap(), "alpha");
+    assert_eq!(fs::read_to_string(target.join("b.txt")).unwrap(), "beta");
+}
+
+/// Precondition: Archive contains a.txt. Directory sub/ contains b.txt.
+/// Action: Update archive with `-C <sub> b.txt`.
+/// Expectation: Archive contains both a.txt and b.txt.
+#[test]
+fn stdio_update_with_cd() {
+    setup();
+
+    let base = fs::canonicalize(".").unwrap().join("stdio_update_with_cd");
+    if base.exists() {
+        fs::remove_dir_all(&base).unwrap();
+    }
+    fs::create_dir_all(&base).unwrap();
+
+    // Create initial archive with a.txt
+    let archive = base.join("test.pna");
+    create_test_archive(&archive, &[("a.txt", "content a")]);
+
+    // Create sub directory with b.txt
+    let sub_dir = base.join("sub");
+    fs::create_dir_all(&sub_dir).unwrap();
+    fs::write(sub_dir.join("b.txt"), "content b").unwrap();
+
+    // Update archive: -C sub b.txt
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "experimental",
+            "stdio",
+            "--update",
+            "--unstable",
+            "-f",
+            archive.to_str().unwrap(),
+            "-C",
+            sub_dir.to_str().unwrap(),
+            "b.txt",
+        ])
+        .assert()
+        .success();
+
+    // Verify the archive now contains both entries
+    let entry_names: HashSet<String> = get_archive_entry_names(&archive).into_iter().collect();
+    assert!(entry_names.contains("a.txt"), "Missing a.txt");
+    assert!(entry_names.contains("b.txt"), "Missing b.txt");
+    assert_eq!(entry_names.len(), 2);
+}
+
+/// Precondition: Archive contains a.txt. Directory sub/ contains b.txt.
+/// Action: Append to archive with `-C <sub> b.txt`.
+/// Expectation: Archive contains both a.txt and b.txt.
+#[test]
+fn stdio_append_with_cd() {
+    setup();
+
+    let base = fs::canonicalize(".").unwrap().join("stdio_append_with_cd");
+    if base.exists() {
+        fs::remove_dir_all(&base).unwrap();
+    }
+    fs::create_dir_all(&base).unwrap();
+
+    // Create initial archive with a.txt
+    let archive = base.join("test.pna");
+    create_test_archive(&archive, &[("a.txt", "content a")]);
+
+    // Create sub directory with b.txt
+    let sub_dir = base.join("sub");
+    fs::create_dir_all(&sub_dir).unwrap();
+    fs::write(sub_dir.join("b.txt"), "content b").unwrap();
+
+    // Append to archive: -C sub b.txt
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "experimental",
+            "stdio",
+            "--append",
+            "--unstable",
+            "-f",
+            archive.to_str().unwrap(),
+            "-C",
+            sub_dir.to_str().unwrap(),
+            "b.txt",
+        ])
+        .assert()
+        .success();
+
+    // Verify the archive now contains both entries
+    let entry_names: HashSet<String> = get_archive_entry_names(&archive).into_iter().collect();
+    assert!(entry_names.contains("a.txt"), "Missing a.txt");
+    assert!(entry_names.contains("b.txt"), "Missing b.txt");
+    assert_eq!(entry_names.len(), 2);
+}
