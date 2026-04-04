@@ -1,3 +1,5 @@
+//! I/O helper types for streaming reads and writes.
+
 mod finish;
 
 pub(crate) use self::finish::TryIntoInner;

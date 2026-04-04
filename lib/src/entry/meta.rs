@@ -1,3 +1,5 @@
+//! Metadata and permission types for archive entries.
+
 use crate::Duration;
 use std::io::{self, Read};
 

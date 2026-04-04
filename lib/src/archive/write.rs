@@ -1,3 +1,5 @@
+//! Archive writing and entry serialization.
+
 use crate::{
     archive::{Archive, ArchiveHeader, PNA_HEADER, SolidArchive},
     chunk::{Chunk, ChunkExt, ChunkStreamWriter, ChunkType, RawChunk},

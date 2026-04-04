@@ -1,3 +1,5 @@
+//! Extended attribute types for PNA archive entries.
+
 use std::{io, mem, str};
 
 /// Represents a single extended attribute of a file entry.

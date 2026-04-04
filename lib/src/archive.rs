@@ -1,3 +1,5 @@
+//! Archive reading and writing for PNA files.
+
 mod header;
 mod read;
 mod write;

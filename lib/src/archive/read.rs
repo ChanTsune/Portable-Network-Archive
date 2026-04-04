@@ -1,3 +1,5 @@
+//! Archive reading and entry iteration.
+
 mod slice;
 
 use crate::{

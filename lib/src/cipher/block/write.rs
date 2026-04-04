@@ -1,3 +1,5 @@
+//! CBC block cipher encryption writer.
+
 use arrayvec::ArrayVec;
 use cipher::block_padding::Padding;
 use cipher::{Block, BlockCipher, BlockEncryptMut, BlockSizeUser, KeyIvInit};

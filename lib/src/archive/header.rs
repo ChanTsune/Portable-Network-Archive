@@ -1,3 +1,5 @@
+//! Archive header constants and validation.
+
 use std::io;
 
 /// The magic number of Portable-Network-Archive.

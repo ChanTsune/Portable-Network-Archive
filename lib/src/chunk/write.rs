@@ -1,3 +1,5 @@
+//! Chunk writing and serialization to byte streams.
+
 use crate::chunk::{Chunk, ChunkExt, ChunkType};
 use core::num::NonZeroU32;
 #[cfg(feature = "unstable-async")]

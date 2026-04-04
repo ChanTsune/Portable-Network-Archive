@@ -1,3 +1,5 @@
+//! Trait for extracting the inner writer from layered I/O types.
+
 use std::io;
 
 pub(crate) trait TryIntoInner<T> {

@@ -1,3 +1,5 @@
+//! Chunk reading and deserialization from byte streams and slices.
+
 use crate::chunk::{ChunkType, MIN_CHUNK_BYTES_SIZE, RawChunk, crc::Crc32};
 use core::num::NonZeroU32;
 #[cfg(feature = "unstable-async")]

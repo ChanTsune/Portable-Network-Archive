@@ -1,3 +1,5 @@
+//! XZ compression level type and conversions.
+
 use crate::entry::{CompressionLevel, CompressionLevelImpl};
 use std::{num::ParseIntError, str::FromStr};
 

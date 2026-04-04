@@ -1,3 +1,5 @@
+//! Extension trait for SystemTime providing signed duration calculations.
+
 use crate::Duration;
 use std::time::SystemTime;
 

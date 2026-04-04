@@ -1,3 +1,5 @@
+//! Deflate compression level type and conversions.
+
 use crate::{CompressionLevel, entry::CompressionLevelImpl};
 use flate2::Compression;
 use std::{

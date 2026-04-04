@@ -1,3 +1,5 @@
+//! Random salt and initialization vector generation.
+
 use password_hash::SaltString;
 use rand::prelude::*;
 use rand_chacha::ChaCha20Rng;

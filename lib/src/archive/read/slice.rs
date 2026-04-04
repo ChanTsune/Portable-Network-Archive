@@ -1,3 +1,5 @@
+//! Slice-based archive reading for memory-mapped access.
+
 use crate::{
     Archive, Chunk, ChunkType, Entry, NormalEntry, PNA_HEADER, RawChunk, ReadEntry,
     archive::ArchiveHeader, chunk::read_chunk_from_slice, entry::RawEntry,

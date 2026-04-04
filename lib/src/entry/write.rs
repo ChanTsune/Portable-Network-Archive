@@ -1,3 +1,5 @@
+//! Entry compression and encryption writing.
+
 use crate::{
     Cipher, CipherAlgorithm, HashAlgorithm,
     cipher::{CipherWriter, Ctr128BEWriter, EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},

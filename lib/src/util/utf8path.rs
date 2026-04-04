@@ -1,3 +1,5 @@
+//! UTF-8 path normalization helpers.
+
 use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
 
 #[inline]

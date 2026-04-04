@@ -1,3 +1,5 @@
+//! Builder types for constructing archive entries.
+
 use crate::{
     Duration,
     archive::{InternalArchiveDataWriter, InternalDataWriter, write_file_entry},
