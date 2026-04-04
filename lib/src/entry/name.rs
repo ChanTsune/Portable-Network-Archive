@@ -35,14 +35,14 @@ impl EntryName {
         Ok(Self::new_from_utf8(name))
     }
 
-    /// Creates an [`EntryName`] from a struct impl <code>[Into]<[PathBuf]></code>.
+    /// Creates an [`EntryName`] from a type implementing [`Into<PathBuf>`].
     ///
     /// Any non-Unicode sequences are replaced with
     /// [`U+FFFD REPLACEMENT CHARACTER`][U+FFFD] and
-    /// any path components not match with [Component::Normal] are removed.
+    /// any path components that do not match [`Component::Normal`] are removed.
     ///
     /// [U+FFFD]: core::char::REPLACEMENT_CHARACTER
-    /// [Component::Normal]: std::path::Component::Normal
+    /// [`Component::Normal`]: std::path::Component::Normal
     /// # Examples
     /// ```rust
     /// use libpna::EntryName;
