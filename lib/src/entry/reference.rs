@@ -35,7 +35,7 @@ impl EntryReference {
         Ok(Self::new_from_utf8(path))
     }
 
-    /// Creates an [`EntryReference`] from a struct impl <code>[Into]<[PathBuf]></code>.
+    /// Creates an [`EntryReference`] from a type implementing [`Into<PathBuf>`].
     ///
     /// Any non-Unicode sequences are replaced with
     /// [`U+FFFD REPLACEMENT CHARACTER`][U+FFFD].
