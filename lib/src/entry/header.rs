@@ -4,9 +4,9 @@ use std::hash::{Hash, Hasher};
 use std::io;
 use std::sync::OnceLock;
 
-/// Represents the entry information header expressed in the [FHED] chunk.
+/// Represents the entry information header expressed in the [`FHED`] chunk.
 ///
-/// [FHED]: crate::ChunkType::FHED
+/// [`FHED`]: crate::ChunkType::FHED
 #[derive(Clone, Debug)]
 pub struct EntryHeader {
     pub(crate) major: u8,
@@ -219,9 +219,9 @@ impl TryFrom<&[u8]> for EntryHeader {
     }
 }
 
-/// Represents the entry information header expressed in the [SHED] chunk.
+/// Represents the entry information header expressed in the [`SHED`] chunk.
 ///
-/// [SHED]: crate::ChunkType::SHED
+/// [`SHED`]: crate::ChunkType::SHED
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct SolidHeader {
     pub(crate) major: u8,

@@ -130,7 +130,7 @@ impl<'r> futures_io::AsyncRead for EntryDataReader<'r> {
     }
 }
 
-/// A [NormalEntry] or [SolidEntry] read from an archive.
+/// A [`NormalEntry`] or [`SolidEntry`] read from an archive.
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum ReadEntry<T = Vec<u8>> {
@@ -395,11 +395,11 @@ impl<T> SolidEntry<T> {
 }
 
 impl<T: AsRef<[u8]>> SolidEntry<T> {
-    /// Returns an iterator over the entries in the [SolidEntry].
+    /// Returns an iterator over the entries in the [`SolidEntry`].
     ///
     /// # Errors
     ///
-    /// Returns an error if an I/O error occurs while reading from the [SolidEntry].
+    /// Returns an error if an I/O error occurs while reading from the [`SolidEntry`].
     ///
     /// # Examples
     ///
@@ -1104,7 +1104,7 @@ impl<'a> From<NormalEntry<&'a [u8]>> for NormalEntry<Cow<'a, [u8]>> {
     }
 }
 
-/// A structure representing the split [Entry] for archive splitting.
+/// A structure representing the split [`Entry`] for archive splitting.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct EntryPart<T = Vec<u8>>(pub(crate) Vec<RawChunk<T>>);
 

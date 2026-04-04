@@ -4,7 +4,7 @@ use std::{
     io,
 };
 
-/// [ChunkType] validation error.
+/// [`ChunkType`] validation error.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum ChunkTypeError {
     /// Value contains a non-ASCII-alphabetic byte.

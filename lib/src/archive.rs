@@ -105,9 +105,9 @@ impl<T> Archive<T> {
         self.max_chunk_size = Some(size);
     }
 
-    /// Returns `true` if an [ANXT] chunk has been encountered during reading.
+    /// Returns `true` if an [`ANXT`] chunk has been encountered during reading.
     ///
-    /// [ANXT]: crate::chunk::ChunkType::ANXT
+    /// [`ANXT`]: crate::chunk::ChunkType::ANXT
     #[inline]
     pub const fn has_next_archive(&self) -> bool {
         self.next_archive
