@@ -718,3 +718,62 @@ fn stdio_archive_inclusion_solid_with_filter() {
         "exclude.log should not be extracted"
     );
 }
+
+/// Precondition: An archive exists and a file whose name starts with @ exists on disk.
+/// Action: Run bsdtar update mode with `@file` as an operand — note the leading `@`.
+/// Expectation: The `@` is NOT interpreted as archive inclusion. The file is added to
+///   the archive as a regular filesystem entry named `@file`.
+#[test]
+fn stdio_update_treats_at_prefix_as_filesystem_path() {
+    setup();
+
+    let base = PathBuf::from("stdio_update_at_prefix_as_path");
+    if base.exists() {
+        fs::remove_dir_all(&base).unwrap();
+    }
+    fs::create_dir_all(&base).unwrap();
+
+    let archive_path = base.join("archive.pna");
+    create_test_archive(&archive_path, &[("original.txt", "original")]);
+
+    // Create a file whose name literally starts with @
+    fs::write(base.join("@data.txt"), "at-content").unwrap();
+
+    // Decoy: if @data.txt were misinterpreted as archive inclusion of "data.txt",
+    // this archive's entries would leak into the result.
+    create_test_archive(&base.join("data.txt"), &[("canary.txt", "canary")]);
+
+    // Pass "@data.txt" — a positional arg starting with @.
+    // -C is infrastructure to make the relative path resolvable.
+    // The actual thing under test is that "@data.txt" is treated as a literal
+    // filesystem path, not parsed as an @archive inclusion reference.
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "compat",
+            "bsdtar",
+            "--unstable",
+            "-uf",
+            archive_path.to_str().unwrap(),
+            "-C",
+            base.to_str().unwrap(),
+            "@data.txt",
+        ])
+        .assert()
+        .success();
+
+    let entry_names: HashSet<String> = get_archive_entry_names(&archive_path).into_iter().collect();
+    assert!(
+        entry_names.contains("original.txt"),
+        "original entry should be preserved"
+    );
+    assert!(
+        entry_names.contains("@data.txt"),
+        "@ prefix should be part of the entry name, not stripped as archive inclusion"
+    );
+    assert!(
+        !entry_names.contains("canary.txt"),
+        "@data.txt must not be interpreted as archive inclusion of data.txt"
+    );
+    assert_eq!(entry_names.len(), 2, "exactly 2 entries expected");
+}
