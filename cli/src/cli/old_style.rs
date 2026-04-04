@@ -165,6 +165,13 @@ fn split_w_option(arg: &OsStr) -> Option<(Option<&OsStr>, Option<&OsStr>)> {
 ///
 /// Returns `args` unchanged when the bsdtar subcommand is not detected.
 pub fn encode_bsdtar_cd_args(args: Vec<OsString>) -> Vec<OsString> {
+    fn make_cd_sentinel(value: &std::ffi::OsStr) -> OsString {
+        let mut s = OsString::with_capacity(CD_SENTINEL.len() + value.len());
+        s.push(CD_SENTINEL);
+        s.push(value);
+        s
+    }
+
     let Some(after_subcommand) = find_bsdtar_subcommand(&args) else {
         return args;
     };
@@ -189,25 +196,23 @@ pub fn encode_bsdtar_cd_args(args: Vec<OsString>) -> Vec<OsString> {
 
         // `--cd=value` or `--directory=value`
         if let Some(rest) = bytes.strip_prefix(b"--cd=") {
-            let mut sentinel = OsString::from(CD_SENTINEL);
             // SAFETY: rest comes from valid OsString bytes after stripping an ASCII prefix
-            sentinel.push(unsafe { std::ffi::OsStr::from_encoded_bytes_unchecked(rest) });
-            result.push(sentinel);
+            result.push(make_cd_sentinel(unsafe {
+                std::ffi::OsStr::from_encoded_bytes_unchecked(rest)
+            }));
             continue;
         }
         if let Some(rest) = bytes.strip_prefix(b"--directory=") {
-            let mut sentinel = OsString::from(CD_SENTINEL);
-            sentinel.push(unsafe { std::ffi::OsStr::from_encoded_bytes_unchecked(rest) });
-            result.push(sentinel);
+            result.push(make_cd_sentinel(unsafe {
+                std::ffi::OsStr::from_encoded_bytes_unchecked(rest)
+            }));
             continue;
         }
 
         // `--cd dir` or `--directory dir`
         if arg == "--cd" || arg == "--directory" {
             if let Some(value) = iter.next() {
-                let mut sentinel = OsString::from(CD_SENTINEL);
-                sentinel.push(value);
-                result.push(sentinel);
+                result.push(make_cd_sentinel(value));
             } else {
                 // Trailing `--cd` with no value — pass through for clap to report an error
                 result.push(arg.clone());
@@ -218,9 +223,7 @@ pub fn encode_bsdtar_cd_args(args: Vec<OsString>) -> Vec<OsString> {
         // `-C dir` (exactly `-C`)
         if arg == "-C" {
             if let Some(value) = iter.next() {
-                let mut sentinel = OsString::from(CD_SENTINEL);
-                sentinel.push(value);
-                result.push(sentinel);
+                result.push(make_cd_sentinel(value));
             } else {
                 result.push(arg.clone());
             }
@@ -232,9 +235,9 @@ pub fn encode_bsdtar_cd_args(args: Vec<OsString>) -> Vec<OsString> {
             && !rest.is_empty()
             && !rest.starts_with(b"-")
         {
-            let mut sentinel = OsString::from(CD_SENTINEL);
-            sentinel.push(unsafe { std::ffi::OsStr::from_encoded_bytes_unchecked(rest) });
-            result.push(sentinel);
+            result.push(make_cd_sentinel(unsafe {
+                std::ffi::OsStr::from_encoded_bytes_unchecked(rest)
+            }));
             continue;
         }
 
