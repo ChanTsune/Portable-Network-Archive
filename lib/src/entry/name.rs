@@ -91,6 +91,10 @@ impl EntryName {
     ///
     /// This method is similar to the `From` implementations for path-like types, but preserves absolute path components.
     ///
+    /// # Errors
+    ///
+    /// Returns [`EntryNameError`] if the path cannot be represented as valid UTF-8.
+    ///
     /// # Examples
     ///
     /// ```rust
@@ -100,10 +104,6 @@ impl EntryName {
     /// assert_eq!("./foo.txt", EntryName::from_path_preserve_root("./foo.txt".as_ref()).unwrap());
     /// assert_eq!("bar/../foo.txt", EntryName::from_path_preserve_root("bar/../foo.txt".as_ref()).unwrap());
     /// ```
-    ///
-    /// # Errors
-    ///
-    /// Returns [`EntryNameError`] if the path cannot be represented as valid UTF-8.
     #[inline]
     pub fn from_path_preserve_root(name: &Path) -> Result<Self, EntryNameError> {
         let path = str::from_utf8(name.as_os_str().as_encoded_bytes())?;
