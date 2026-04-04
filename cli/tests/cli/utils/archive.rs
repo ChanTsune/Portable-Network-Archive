@@ -164,11 +164,9 @@ pub fn create_test_archive(path: impl AsRef<Path>, entries: &[(&str, &str)]) {
     for (name, contents) in entries {
         writer
             .add_entry({
-                let mut builder = pna::EntryBuilder::new_file(
-                    (*name).into(),
-                    pna::WriteOptions::builder().build(),
-                )
-                .unwrap();
+                let mut builder =
+                    pna::EntryBuilder::new_file((*name).into(), pna::WriteOptions::store())
+                        .unwrap();
                 builder.write_all(contents.as_bytes()).unwrap();
                 builder.build().unwrap()
             })
