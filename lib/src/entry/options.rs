@@ -317,9 +317,9 @@ impl TryFrom<u8> for Encryption {
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[repr(u8)]
 pub enum CipherMode {
-    /// Cipher Block Chaining Mode
+    /// Cipher Block Chaining mode.
     CBC = 0,
-    /// Counter Mode
+    /// Counter mode.
     CTR = 1,
 }
 
@@ -339,18 +339,18 @@ impl TryFrom<u8> for CipherMode {
 /// Password hash algorithm parameters.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub(crate) enum HashAlgorithmParams {
-    /// Pbkdf2 with sha256
+    /// PBKDF2 with SHA-256.
     Pbkdf2Sha256 {
-        /// Pbkdf2 rounds, if `None` use default rounds.
+        /// PBKDF2 rounds, if `None` use default rounds.
         rounds: Option<u32>,
     },
-    /// Argon2Id
+    /// Argon2id.
     Argon2Id {
-        /// Argon2Id time_cost, if `None` use default time_cost.
+        /// Argon2id time_cost, if `None` use default time_cost.
         time_cost: Option<u32>,
-        /// Argon2Id memory_cost, if `None` use default memory_cost.
+        /// Argon2id memory_cost, if `None` use default memory_cost.
         memory_cost: Option<u32>,
-        /// Argon2Id parallelism_cost, if `None` use default parallelism_cost.
+        /// Argon2id parallelism_cost, if `None` use default parallelism_cost.
         parallelism_cost: Option<u32>,
     },
 }
