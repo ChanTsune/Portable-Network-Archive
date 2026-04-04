@@ -370,7 +370,11 @@ pub(crate) struct CreateOptions {
 
 #[derive(Clone, Debug)]
 pub(crate) struct CollectedEntry {
+    /// Relative path used as the archive entry name (as given on the CLI).
     pub(crate) path: PathBuf,
+    /// Absolute filesystem path for reading file data and metadata.
+    /// Captured as `cwd.join(path)` at collection time so it remains valid
+    /// even after subsequent `-C` directory changes.
     pub(crate) fs_path: PathBuf,
     pub(crate) store_as: StoreAs,
     pub(crate) metadata: fs::Metadata,
@@ -594,20 +598,18 @@ pub(crate) fn collect_items_from_sources(
             }
             ItemSource::Filesystem(path) => {
                 #[cfg(windows)]
-                {
-                    let expanded = crate::utils::expand_bsdtar_windows_globs(vec![
-                        path.to_string_lossy().into_owned(),
-                    ])
-                    .map_err(|e| io::Error::other(format!("{e:#}")))?;
-                    for p in expanded {
-                        let items =
-                            collect_items_with_state(Path::new(&p), options, hardlink_resolver)?;
-                        results.extend(items.into_iter().map(CollectedItem::Filesystem));
-                    }
-                }
+                let paths: Vec<PathBuf> = crate::utils::expand_bsdtar_windows_globs(vec![
+                    path.to_string_lossy().into_owned(),
+                ])
+                .map_err(|e| io::Error::other(format!("{e:#}")))?
+                .into_iter()
+                .map(PathBuf::from)
+                .collect();
                 #[cfg(not(windows))]
-                {
-                    let items = collect_items_with_state(&path, options, hardlink_resolver)?;
+                let paths = [path];
+
+                for p in &paths {
+                    let items = collect_items_with_state(p, options, hardlink_resolver)?;
                     results.extend(items.into_iter().map(CollectedItem::Filesystem));
                 }
             }
