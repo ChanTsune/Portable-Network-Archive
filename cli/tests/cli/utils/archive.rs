@@ -152,3 +152,37 @@ pub fn read_symlink_target(entry: &pna::NormalEntry) -> String {
         .unwrap();
     String::from_utf8(target).unwrap()
 }
+
+/// Creates a simple archive with named text entries.
+pub fn create_test_archive(path: impl AsRef<Path>, entries: &[(&str, &str)]) {
+    let path = path.as_ref();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).unwrap();
+    }
+    let file = File::create(path).unwrap();
+    let mut writer = pna::Archive::write_header(file).unwrap();
+    for (name, contents) in entries {
+        writer
+            .add_entry({
+                let mut builder = pna::EntryBuilder::new_file(
+                    (*name).into(),
+                    pna::WriteOptions::builder().build(),
+                )
+                .unwrap();
+                builder.write_all(contents.as_bytes()).unwrap();
+                builder.build().unwrap()
+            })
+            .unwrap();
+    }
+    writer.finalize().unwrap();
+}
+
+/// Collects all entry names from an archive.
+pub fn get_archive_entry_names(path: impl AsRef<Path>) -> Vec<String> {
+    let mut names = Vec::new();
+    for_each_entry(path, |entry| {
+        names.push(entry.header().path().to_string());
+    })
+    .unwrap();
+    names
+}

@@ -1,39 +1,11 @@
-use crate::utils::{archive::for_each_entry, setup};
+use crate::utils::{
+    archive::{create_test_archive, get_archive_entry_names},
+    setup,
+};
 use assert_cmd::cargo::cargo_bin_cmd;
-use pna::{Archive, EntryBuilder, WriteOptions};
 use std::collections::HashSet;
 use std::fs;
-use std::io::Write;
-use std::path::{Path, PathBuf};
-
-fn create_test_archive(path: &Path, entries: &[(&str, &str)]) {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).unwrap();
-    }
-    let file = fs::File::create(path).unwrap();
-    let mut writer = Archive::write_header(file).unwrap();
-    for (name, contents) in entries {
-        writer
-            .add_entry({
-                let mut builder =
-                    EntryBuilder::new_file((*name).into(), WriteOptions::builder().build())
-                        .unwrap();
-                builder.write_all(contents.as_bytes()).unwrap();
-                builder.build().unwrap()
-            })
-            .unwrap();
-    }
-    writer.finalize().unwrap();
-}
-
-fn get_archive_entry_names(path: &Path) -> Vec<String> {
-    let mut names = Vec::new();
-    for_each_entry(path, |entry| {
-        names.push(entry.header().path().to_string());
-    })
-    .unwrap();
-    names
-}
+use std::path::PathBuf;
 
 /// Test basic @archive inclusion: create a new archive including entries from an existing archive.
 #[test]
