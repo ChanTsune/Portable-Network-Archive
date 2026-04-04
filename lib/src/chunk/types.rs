@@ -1,3 +1,5 @@
+//! Chunk type codes and validation for PNA archive chunks.
+
 use std::{
     error::Error,
     fmt::{self, Debug, Display, Formatter},

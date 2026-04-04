@@ -1,3 +1,5 @@
+//! Stream cipher encryption writer.
+
 use cipher::{
     BlockSizeUser, KeyIvInit, StreamCipher, StreamCipherCoreWrapper,
     typenum::{IsLess, Le, NonZero, U256},

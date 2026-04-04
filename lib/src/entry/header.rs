@@ -1,3 +1,5 @@
+//! Entry header types for normal and solid mode entries.
+
 use super::{CipherMode, Compression, DataKind, Encryption, EntryName};
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};

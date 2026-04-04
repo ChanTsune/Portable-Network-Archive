@@ -1,3 +1,5 @@
+//! Entry decryption and decompression reading.
+
 use crate::{
     CipherMode, Compression, Encryption,
     cipher::{Ctr128BEReader, DecryptCbcAes256Reader, DecryptCbcCamellia256Reader, DecryptReader},

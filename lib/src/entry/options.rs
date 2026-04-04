@@ -1,3 +1,5 @@
+//! Read and write options for archive entries.
+
 use crate::{compress, error::UnknownValueError};
 pub(crate) use private::*;
 use std::str::FromStr;

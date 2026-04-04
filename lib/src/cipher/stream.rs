@@ -1,3 +1,5 @@
+//! Stream cipher reader and writer implementations.
+
 mod read;
 mod write;
 

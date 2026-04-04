@@ -1,3 +1,5 @@
+//! Compression and decompression implementations for PNA archives.
+
 use crate::io::TryIntoInner;
 use flate2::{read::ZlibDecoder, write::ZlibEncoder};
 use liblzma::{read::XzDecoder, write::XzEncoder};

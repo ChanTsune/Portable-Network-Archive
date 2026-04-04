@@ -1,3 +1,5 @@
+//! Error types for PNA archive operations.
+
 use std::{
     error::Error,
     fmt::{Display, Formatter},

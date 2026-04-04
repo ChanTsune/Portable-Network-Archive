@@ -1,3 +1,5 @@
+//! String join utility with pre-allocated capacity.
+
 pub(crate) fn join_with_capacity(
     mut iter: impl Iterator<Item = impl AsRef<str>>,
     sep: &str,

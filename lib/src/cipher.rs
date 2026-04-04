@@ -1,3 +1,5 @@
+//! Cipher implementations for PNA archive encryption and decryption.
+
 mod block;
 mod stream;
 

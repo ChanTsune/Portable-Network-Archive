@@ -1,3 +1,5 @@
+//! CBC block cipher decryption reader.
+
 use arrayvec::ArrayVec;
 use cipher::block_padding::Padding;
 use cipher::{Block, BlockCipher, BlockDecryptMut, BlockSizeUser, KeyIvInit};

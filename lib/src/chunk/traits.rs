@@ -1,3 +1,5 @@
+//! Chunk trait defining the interface for PNA archive chunks.
+
 use super::{ChunkType, Crc32};
 
 /// A trait representing a chunk in a PNA archive.

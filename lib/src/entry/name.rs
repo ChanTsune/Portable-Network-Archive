@@ -1,3 +1,5 @@
+//! UTF-8 encoded entry name type and conversions.
+
 use crate::util::{str::join_with_capacity, utf8path::normalize_utf8path};
 use camino::{Utf8Component, Utf8Path};
 use std::borrow::Cow;
