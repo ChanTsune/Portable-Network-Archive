@@ -3,20 +3,14 @@
 //! Tests verify that `@manifest.mtree` syntax works correctly for creating
 //! archives from mtree manifest files.
 
-use crate::utils::{archive::for_each_entry, setup};
+use crate::utils::{
+    archive::{for_each_entry, get_archive_entry_names},
+    setup,
+};
 use assert_cmd::cargo::cargo_bin_cmd;
 use std::collections::HashSet;
 use std::fs;
-use std::path::{Path, PathBuf};
-
-fn get_archive_entry_names(path: &Path) -> Vec<String> {
-    let mut names = Vec::new();
-    for_each_entry(path, |entry| {
-        names.push(entry.header().path().to_string());
-    })
-    .unwrap();
-    names
-}
+use std::path::PathBuf;
 
 /// Precondition: An mtree manifest specifies a single entry.
 /// Action: Create archive from the mtree manifest.
