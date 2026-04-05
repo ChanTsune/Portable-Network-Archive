@@ -582,7 +582,7 @@ pub struct WriteOptions {
 }
 
 impl WriteOptions {
-    /// A new [`WriteOptions`] to simply store.
+    /// Creates a [`WriteOptions`] that stores data without compression or encryption.
     ///
     /// # Examples
     ///

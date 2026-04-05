@@ -3,7 +3,7 @@
 use crate::entry::{CompressionLevel, CompressionLevelImpl};
 use std::{num::ParseIntError, str::FromStr};
 
-/// Represents a XZ compression level.
+/// Represents an XZ compression level.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct XZCompressionLevel(u32);
 

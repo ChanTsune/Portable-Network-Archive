@@ -105,7 +105,7 @@ impl EntryReference {
         Ok(Self::from_utf8_preserve_root(path))
     }
 
-    /// Creates an [`EntryReference`] from a path, preserving absolute path components.
+    /// Creates an [`EntryReference`] from a path with lossy UTF-8 conversion, preserving absolute path components.
     ///
     /// Any invalid UTF-8 sequences are replaced.
     ///
