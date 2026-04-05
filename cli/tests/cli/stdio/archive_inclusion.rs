@@ -713,7 +713,7 @@ fn stdio_update_treats_at_prefix_as_filesystem_path() {
 
     // Decoy: if @data.txt were misinterpreted as archive inclusion of "data.txt",
     // this archive's entries would leak into the result.
-    create_test_archive(&base.join("data.txt"), &[("canary.txt", "canary")]);
+    create_test_archive(base.join("data.txt"), &[("canary.txt", "canary")]);
 
     // Pass "@data.txt" — a positional arg starting with @.
     // -C is infrastructure to make the relative path resolvable.
