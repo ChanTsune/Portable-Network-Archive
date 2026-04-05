@@ -14,7 +14,8 @@ pub use header::*;
 use std::io::prelude::*;
 pub(crate) use {read::*, write::*};
 
-/// An object providing access to a PNA file.
+/// Provides read and write access to a PNA file.
+///
 /// An instance of an [`Archive`] can be read and/or written.
 ///
 /// The [`Archive`] struct provides two main modes of operation:
@@ -159,7 +160,7 @@ impl<T> Archive<T> {
     }
 }
 
-/// An object that provides write access to solid mode PNA files.
+/// Provides write access to solid mode PNA files.
 ///
 /// In solid mode, all entries are compressed together as a single unit,
 /// which typically results in better compression ratios compared to

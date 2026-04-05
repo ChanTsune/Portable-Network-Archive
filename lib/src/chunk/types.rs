@@ -257,26 +257,27 @@ impl ChunkType {
 
     // -- Chunk type determination --
 
-    /// Returns true if the chunk is critical.
+    /// Returns `true` if the chunk is critical.
     #[inline]
     pub const fn is_critical(&self) -> bool {
         self.0[0] & 32 == 0
     }
 
-    /// Returns true if the chunk is private.
+    /// Returns `true` if the chunk is private.
     #[inline]
     pub const fn is_private(&self) -> bool {
         self.0[1] & 32 != 0
     }
 
-    /// Checks whether the reserved bit of the chunk name is set.
+    /// Returns `true` if the reserved bit of the chunk name is set.
+    ///
     /// If it is set, the chunk name is invalid.
     #[inline]
     pub const fn is_set_reserved(&self) -> bool {
         self.0[2] & 32 != 0
     }
 
-    /// Returns true if the chunk is safe to copy if unknown.
+    /// Returns `true` if the chunk is safe to copy if unknown.
     #[inline]
     pub const fn is_safe_to_copy(&self) -> bool {
         self.0[3] & 32 != 0
