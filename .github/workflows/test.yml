@@ -36,6 +36,7 @@ jobs:
         os:
           - ubuntu-latest
           - ubuntu-22.04-arm # TODO: use ubuntu-24.04-arm if https://github.com/rust-lang/rust/issues/135867 resolved
+          - ubuntu-24.04-riscv
           - windows-latest
           - windows-11-arm
           - macos-latest
@@ -44,7 +45,7 @@ jobs:
           - stable
           - beta
           - nightly
-    timeout-minutes: 60
+    timeout-minutes: ${{ contains(matrix.os, 'riscv') && 120 || 60 }}
     runs-on: ${{ matrix.os }}
     steps:
       - name: git autocrlf false
@@ -56,7 +57,7 @@ jobs:
         if: startsWith(matrix.os, 'ubuntu')
         run: |
           sudo apt update
-          sudo apt install -y libacl1-dev
+          sudo apt install -y cmake libacl1-dev
       - name: Install Rustup
         if: ${{ matrix.os == 'windows-11-arm' }}
         shell: pwsh
@@ -87,10 +88,12 @@ jobs:
           key: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}-${{ hashFiles('**/Cargo.lock') }}"
           restore-keys: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}"
       - name: run test
+        shell: bash
         run: |
-          cargo hack test --locked --release --feature-powerset --exclude-features wasm -- --test-threads=1
+          cargo hack test --locked --release --feature-powerset --exclude-features "$EXCLUDE_FEATURES" -- --test-threads=1
         env:
           RUST_BACKTRACE: 1
+          EXCLUDE_FEATURES: ${{ contains(matrix.os, 'riscv') && 'wasm,zlib-ng' || 'wasm' }}
 
   tier3_cross:
     name: Tier 3 Cross-compile
@@ -182,7 +185,7 @@ jobs:
         if: startsWith(matrix.os, 'ubuntu')
         run: |
           sudo apt update
-          sudo apt install -y libacl1-dev
+          sudo apt install -y cmake libacl1-dev
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
