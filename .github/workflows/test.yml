@@ -88,7 +88,7 @@ jobs:
           restore-keys: "${{ matrix.os }}-${{ steps.install_rust.outputs.version }}"
       - name: run test
         run: |
-          cargo hack test --locked --release --feature-powerset --exclude-features wasm -- --test-threads=1
+          cargo hack test --locked --release --feature-powerset --exclude-features wasm --exclude portable-network-archive-fuzz --exclude xtask -- --test-threads=1
         env:
           RUST_BACKTRACE: 1
 
@@ -147,7 +147,7 @@ jobs:
           target: ${{ matrix.target }}
       - name: run test
         run: |
-          cargo check --locked --target "$TARGET"
+          cargo check --locked --target "$TARGET" --workspace --exclude portable-network-archive-fuzz --exclude xtask
         env:
           TARGET: ${{ matrix.target }}
           RUST_BACKTRACE: 1
