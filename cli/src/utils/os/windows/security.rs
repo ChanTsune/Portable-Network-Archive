@@ -281,15 +281,6 @@ impl Sid {
     pub(crate) fn as_psid(&self) -> PSID {
         PSID(self.as_ptr() as _)
     }
-
-    pub(crate) fn to_psid(&self) -> windows::core::Result<PSID> {
-        let mut raw_str = PWSTR::null();
-        unsafe { ConvertSidToStringSidW(self.as_psid(), &mut raw_str) }?;
-        let mut psid = PSID::default();
-        unsafe { ConvertStringSidToSidW(raw_str, &mut psid as _) }?;
-        unsafe { LocalFree(Some(HLOCAL(raw_str.as_ptr() as _))) };
-        Ok(psid)
-    }
 }
 
 impl Display for Sid {

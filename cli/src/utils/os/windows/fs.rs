@@ -28,9 +28,11 @@ pub(crate) fn lchown<U: Into<Sid>, G: Into<Sid>>(
     group: Option<G>,
 ) -> io::Result<()> {
     let sd = SecurityDescriptor::try_from(path)?;
+    let owner_sid = owner.map(Into::into);
+    let group_sid = group.map(Into::into);
     sd.apply(
-        owner.and_then(|it| it.into().to_psid().ok()),
-        group.and_then(|it| it.into().to_psid().ok()),
+        owner_sid.as_ref().map(Sid::as_psid),
+        group_sid.as_ref().map(Sid::as_psid),
         None,
     )
 }
