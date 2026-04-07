@@ -91,6 +91,7 @@ jobs:
         env:
           TARGET: ${{ matrix.target }}
           RUSTFLAGS: "-C link-arg=-sINITIAL_MEMORY=512MB -C link-arg=-sTOTAL_STACK=16MB"
+          RUSTDOCFLAGS: "-C link-arg=-sINITIAL_MEMORY=512MB -C link-arg=-sTOTAL_STACK=16MB"
       - name: Run on Node.js
         if: ${{ startsWith(matrix.target, 'wasm32-unknown-emscripten') && startsWith(matrix.rust, 'nightly') }}
         run: |
