@@ -2,10 +2,11 @@
 
 use crate::{compress, error::UnknownValueError};
 pub(crate) use private::*;
-use std::str::FromStr;
+use std::{fmt, io, str::FromStr};
 
 mod private {
     use super::*;
+    use std::fmt;
 
     /// Compression options.
     #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -16,20 +17,49 @@ mod private {
         XZ(compress::xz::XZCompressionLevel),
     }
 
+    /// Password variant used in cipher options.
+    ///
+    /// Holds either a raw password that needs hashing, or an already-hashed key.
+    #[derive(Clone)]
+    pub(crate) enum CipherPassword {
+        Raw(Password),
+        Hashed(super::HashedPassword),
+    }
+
+    impl fmt::Debug for CipherPassword {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::Raw(_) => f.write_str("CipherPassword::Raw([REDACTED])"),
+                Self::Hashed(_) => f.write_str("CipherPassword::Hashed([REDACTED])"),
+            }
+        }
+    }
+
     /// Cipher options.
-    #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+    #[derive(Clone)]
     pub struct Cipher {
-        pub(crate) password: Password,
+        pub(crate) password: CipherPassword,
         pub(crate) hash_algorithm: HashAlgorithm,
         pub(crate) cipher_algorithm: CipherAlgorithm,
         pub(crate) mode: CipherMode,
+    }
+
+    impl fmt::Debug for Cipher {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.debug_struct("Cipher")
+                .field("password", &self.password)
+                .field("hash_algorithm", &self.hash_algorithm)
+                .field("cipher_algorithm", &self.cipher_algorithm)
+                .field("mode", &self.mode)
+                .finish()
+        }
     }
 
     impl Cipher {
         /// Creates a new [Cipher].
         #[inline]
         pub(crate) const fn new(
-            password: Password,
+            password: CipherPassword,
             hash_algorithm: HashAlgorithm,
             cipher_algorithm: CipherAlgorithm,
             mode: CipherMode,
@@ -79,7 +109,10 @@ mod private {
 
         #[inline]
         fn password(&self) -> Option<&[u8]> {
-            self.cipher().map(|it| it.password.as_bytes())
+            self.cipher().and_then(|it| match &it.password {
+                CipherPassword::Raw(p) => Some(p.as_bytes()),
+                CipherPassword::Hashed(_) => None,
+            })
         }
     }
 
@@ -127,6 +160,48 @@ mod private {
         fn password(&self) -> Option<&[u8]> {
             self.password.as_deref()
         }
+    }
+}
+
+/// A pre-hashed password for efficient encrypted archive creation.
+///
+/// Derives the password hash once using the specified [`HashAlgorithm`], producing a
+/// 32-byte key suitable for AES-256 and Camellia-256. The result can be reused across
+/// any number of entries, avoiding redundant key derivation.
+///
+/// # Examples
+///
+/// ```rust
+/// use libpna::{HashedPassword, HashAlgorithm};
+///
+/// let hp = HashedPassword::new(b"password", HashAlgorithm::argon2id()).unwrap();
+/// ```
+#[derive(Clone)]
+pub struct HashedPassword {
+    pub(crate) key: password_hash::Output,
+    pub(crate) phsf: String,
+}
+
+impl HashedPassword {
+    /// Derives a password hash once. Reusable for any number of entries.
+    /// Key length is 32 bytes (suitable for AES-256 and Camellia-256).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if password hashing fails (e.g., invalid algorithm parameters).
+    #[inline]
+    pub fn new(password: impl AsRef<[u8]>, hash_algorithm: HashAlgorithm) -> io::Result<Self> {
+        crate::hash::new_hashed_password(password.as_ref(), hash_algorithm)
+    }
+}
+
+impl fmt::Debug for HashedPassword {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("HashedPassword")
+            .field("phsf", &"[REDACTED]")
+            .field("key", &"[REDACTED]")
+            .finish()
     }
 }
 
@@ -575,7 +650,7 @@ impl TryFrom<u8> for DataKind {
 /// When reading an archive, use [`ReadOptions`] to provide the password for decryption.
 /// The compression algorithm and cipher mode are stored in the archive metadata, so you
 /// only need to provide the password.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Clone, Debug)]
 pub struct WriteOptions {
     compress: Compress,
     cipher: Option<Cipher>,
@@ -631,14 +706,14 @@ impl WriteOptions {
 }
 
 /// Builder for [`WriteOptions`].
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Clone, Debug)]
 pub struct WriteOptionsBuilder {
     compression: Compression,
     compression_level: CompressionLevel,
     encryption: Encryption,
     cipher_mode: CipherMode,
     hash_algorithm: HashAlgorithm,
-    password: Option<Vec<u8>>,
+    password: Option<CipherPassword>,
 }
 
 impl Default for WriteOptionsBuilder {
@@ -663,7 +738,7 @@ impl From<WriteOptions> for WriteOptionsBuilder {
             encryption: value.encryption(),
             cipher_mode: value.cipher_mode(),
             hash_algorithm: value.hash_algorithm(),
-            password: value.password().map(|p| p.to_vec()),
+            password: value.cipher.map(|c| c.password),
         }
     }
 }
@@ -732,7 +807,19 @@ impl WriteOptionsBuilder {
     /// ```
     #[inline]
     pub fn password<B: AsRef<[u8]>>(&mut self, password: Option<B>) -> &mut Self {
-        self.password = password.map(|it| it.as_ref().to_vec());
+        self.password = password.map(|it| CipherPassword::Raw(it.as_ref().into()));
+        self
+    }
+
+    /// Sets a pre-hashed password for encryption.
+    ///
+    /// Use this instead of [`password()`](Self::password) when writing many entries with the
+    /// same password to avoid repeated key derivation.
+    ///
+    /// Calling this clears any previously set raw password, and vice versa.
+    #[inline]
+    pub fn hashed_password(&mut self, hashed: &HashedPassword) -> &mut Self {
+        self.password = Some(CipherPassword::Hashed(hashed.clone()));
         self
     }
 
@@ -770,10 +857,7 @@ impl WriteOptionsBuilder {
     pub fn build(&self) -> WriteOptions {
         let cipher = if self.encryption != Encryption::No {
             Some(Cipher::new(
-                self.password
-                    .as_deref()
-                    .expect("Password was not provided.")
-                    .into(),
+                self.password.clone().expect("Password was not provided."),
                 self.hash_algorithm,
                 match self.encryption {
                     Encryption::Aes => CipherAlgorithm::Aes,
