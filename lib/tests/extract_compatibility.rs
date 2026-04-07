@@ -10,7 +10,8 @@ fn extract_all(bytes: &[u8], password: Option<&[u8]>) {
         }
         let path = item.header().path().as_str();
         let mut dist = Vec::new();
-        let mut reader = item.reader(ReadOptions::with_password(password)).unwrap();
+        let mut read_options = ReadOptions::with_password(password);
+        let mut reader = item.reader(&mut read_options).unwrap();
         io::copy(&mut reader, &mut dist).unwrap();
         match path {
             "raw/first/second/third/pna.txt" => {

@@ -109,7 +109,8 @@ pub fn extract_single_entry(
     name: &str,
 ) -> io::Result<Option<pna::NormalEntry>> {
     let mut archive = pna::Archive::open(path)?;
-    let entries = archive.entries().extract_solid_entries(None);
+    let mut read_options = pna::ReadOptions::with_password::<&[u8]>(None);
+    let entries = archive.entries().extract_solid_entries(&mut read_options);
     for entry in entries {
         let entry = entry?;
         if entry.header().path() == name {
@@ -136,7 +137,8 @@ where
 {
     let password = password.into().map(|p| p.as_bytes());
     let mut archive = pna::Archive::open(path)?;
-    let entries = archive.entries().extract_solid_entries(password);
+    let mut read_options = pna::ReadOptions::with_password(password);
+    let entries = archive.entries().extract_solid_entries(&mut read_options);
     for entry in entries {
         f(entry?);
     }
@@ -146,7 +148,7 @@ where
 pub fn read_symlink_target(entry: &pna::NormalEntry) -> String {
     let mut target = Vec::new();
     entry
-        .reader(pna::ReadOptions::with_password::<&[u8]>(None))
+        .reader(&mut pna::ReadOptions::with_password::<&[u8]>(None))
         .unwrap()
         .read_to_end(&mut target)
         .unwrap();

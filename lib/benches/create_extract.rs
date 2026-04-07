@@ -41,10 +41,11 @@ fn bench_read_archive(b: &mut Bencher, mut options: WriteOptionsBuilder) {
 
     b.iter(|| {
         let mut reader = Archive::read_header(vec.as_slice()).unwrap();
+        let mut read_options = ReadOptions::with_password(Some("password"));
         for item in reader.entries().skip_solid() {
             let mut buf = Vec::with_capacity(1000);
             item.unwrap()
-                .reader(ReadOptions::with_password(Some("password")))
+                .reader(&mut read_options)
                 .unwrap()
                 .read_to_end(&mut buf)
                 .unwrap();
@@ -73,7 +74,7 @@ fn bench_read_archive_from_slice(b: &mut Bencher, mut options: WriteOptionsBuild
             match item.unwrap() {
                 ReadEntry::Solid(_) => (),
                 ReadEntry::Normal(item) => {
-                    item.reader(ReadOptions::with_password(Some("password")))
+                    item.reader(&mut ReadOptions::with_password(Some("password")))
                         .unwrap()
                         .read_to_end(&mut buf)
                         .unwrap();
@@ -308,7 +309,7 @@ fn bench_read_empty_archive(c: &mut Criterion) {
             for entry in reader.entries().skip_solid() {
                 let item = entry.expect("failed to read entry");
                 io::read_to_string(
-                    item.reader(ReadOptions::builder().build())
+                    item.reader(&mut ReadOptions::builder().build())
                         .expect("failed to read entry"),
                 )
                 .expect("failed to make string");

@@ -197,11 +197,12 @@ impl<'a, 'r> Entries<'a, 'r> {
     /// # fn main() -> io::Result<()> {
     /// let file = fs::read("foo.pna")?;
     /// let mut archive = Archive::read_header_from_slice(&file[..])?;
+    /// let mut read_options = ReadOptions::with_password(Some(b"password"));
     /// for entry in archive
     ///     .entries_slice()
-    ///     .extract_solid_entries(Some(b"password"))
+    ///     .extract_solid_entries(&mut read_options)
     /// {
-    ///     let mut reader = entry?.reader(ReadOptions::builder().build());
+    ///     let entry = entry?;
     ///     // process the entry
     /// }
     /// #    Ok(())
@@ -210,14 +211,11 @@ impl<'a, 'r> Entries<'a, 'r> {
     #[inline]
     pub fn extract_solid_entries(
         self,
-        password: Option<&'r [u8]>,
-    ) -> impl Iterator<Item = io::Result<NormalEntry>> + 'a
-    where
-        'a: 'r,
-    {
+        option: &'a mut crate::ReadOptions,
+    ) -> impl Iterator<Item = io::Result<NormalEntry>> + 'a {
         self.flat_map(move |f| match f {
             Ok(ReadEntry::Normal(r)) => vec![Ok(r.into())],
-            Ok(ReadEntry::Solid(r)) => match r.entries(password) {
+            Ok(ReadEntry::Solid(r)) => match r.entries(option) {
                 Ok(entries) => entries.collect(),
                 Err(e) => vec![Err(e)],
             },
@@ -271,7 +269,8 @@ mod tests {
         let mut entries = archive.entries_slice();
         let solid_entry = entries.next().unwrap().unwrap();
         if let ReadEntry::Solid(solid_entry) = solid_entry {
-            let mut entries = solid_entry.entries(None).unwrap();
+            let mut read_options = crate::ReadOptions::builder().build();
+            let mut entries = solid_entry.entries(&mut read_options).unwrap();
             assert!(entries.next().is_some());
             assert!(entries.next().is_some());
             assert!(entries.next().is_some());

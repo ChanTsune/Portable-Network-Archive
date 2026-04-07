@@ -27,7 +27,7 @@ fn main() -> io::Result<()> {
     for entry in archive.entries().skip_solid() {
         let entry = entry?;
         let mut file = File::create(entry.header().path().as_path())?;
-        let mut reader = entry.reader(ReadOptions::builder().build())?;
+        let mut reader = entry.reader(&mut ReadOptions::builder().build())?;
         copy(&mut reader, &mut file)?;
     }
     Ok(())

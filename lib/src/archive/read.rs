@@ -140,9 +140,9 @@ impl<R: Read> Archive<R> {
     #[inline]
     pub fn entries_with_password<'a>(
         &'a mut self,
-        password: Option<&'a [u8]>,
+        option: &'a mut crate::ReadOptions,
     ) -> impl Iterator<Item = io::Result<NormalEntry>> + 'a {
-        self.entries().extract_solid_entries(password)
+        self.entries().extract_solid_entries(option)
     }
 
     /// Reads the next archive from the provided reader and returns a new [`Archive`].
@@ -312,16 +312,17 @@ impl<'r, R> Entries<'r, R> {
     /// # fn main() -> io::Result<()> {
     /// let file = fs::File::open("foo.pna")?;
     /// let mut archive = Archive::read_header(file)?;
-    /// for entry in archive.entries().extract_solid_entries(Some(b"password")) {
-    ///     let mut reader = entry?.reader(ReadOptions::builder().build());
+    /// let mut read_options = ReadOptions::with_password(Some(b"password"));
+    /// for entry in archive.entries().extract_solid_entries(&mut read_options) {
+    ///     let entry = entry?;
     ///     // process the entry
     /// }
     /// #    Ok(())
     /// # }
     /// ```
     #[inline]
-    pub fn extract_solid_entries(self, password: Option<&'r [u8]>) -> NormalEntries<'r, R> {
-        NormalEntries::new(self.reader, password)
+    pub fn extract_solid_entries(self, option: &'r mut crate::ReadOptions) -> NormalEntries<'r, R> {
+        NormalEntries::new(self.reader, option)
     }
 }
 
@@ -367,16 +368,16 @@ impl<R: futures_io::AsyncRead + Unpin> futures_util::Stream for Entries<'_, R> {
 /// An iterator over the entries in the archive.
 pub struct NormalEntries<'r, R> {
     reader: &'r mut Archive<R>,
-    password: Option<&'r [u8]>,
+    option: &'r mut crate::ReadOptions,
     solid_iter: Option<crate::entry::SolidIntoEntries>,
 }
 
 impl<'r, R> NormalEntries<'r, R> {
     #[inline]
-    pub(crate) fn new(reader: &'r mut Archive<R>, password: Option<&'r [u8]>) -> Self {
+    pub(crate) fn new(reader: &'r mut Archive<R>, option: &'r mut crate::ReadOptions) -> Self {
         Self {
             reader,
-            password,
+            option,
             solid_iter: None,
         }
     }
@@ -397,7 +398,7 @@ impl<R: Read> Iterator for NormalEntries<'_, R> {
 
             match self.reader.read_entry() {
                 Ok(Some(ReadEntry::Normal(entry))) => return Some(Ok(entry)),
-                Ok(Some(ReadEntry::Solid(entry))) => match entry.into_entries(self.password) {
+                Ok(Some(ReadEntry::Solid(entry))) => match entry.into_entries(self.option) {
                     Ok(iter) => {
                         self.solid_iter = Some(iter);
                         continue;
@@ -495,19 +496,20 @@ mod tests {
         let input = include_bytes!("../../../resources/test/zstd.pna");
         let file = io::Cursor::new(input).compat();
         let mut archive = Archive::read_header_async(file).await?;
+        let mut read_options = ReadOptions::builder().build();
         while let Some(entry) = archive.read_entry_async().await? {
             match entry {
                 ReadEntry::Solid(solid_entry) => {
-                    for entry in solid_entry.entries(None)? {
+                    for entry in solid_entry.entries(&mut read_options)? {
                         let entry = entry?;
                         let mut file = io::Cursor::new(Vec::new());
-                        let mut reader = entry.reader(ReadOptions::builder().build())?.compat();
+                        let mut reader = entry.reader(&mut read_options)?.compat();
                         tokio::io::copy(&mut reader, &mut file).await?;
                     }
                 }
                 ReadEntry::Normal(entry) => {
                     let mut file = io::Cursor::new(Vec::new());
-                    let mut reader = entry.reader(ReadOptions::builder().build())?.compat();
+                    let mut reader = entry.reader(&mut read_options)?.compat();
                     tokio::io::copy(&mut reader, &mut file).await?;
                 }
             }

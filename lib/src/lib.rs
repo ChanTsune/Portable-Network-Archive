@@ -51,7 +51,7 @@
 //!         println!("Entry: {}", entry.header().path().as_path().display());
 //!
 //!         // Read file contents
-//!         let mut reader = entry.reader(ReadOptions::builder().build())?;
+//!         let mut reader = entry.reader(&mut ReadOptions::builder().build())?;
 //!         let mut contents = Vec::new();
 //!         reader.read_to_end(&mut contents)?;
 //!     }

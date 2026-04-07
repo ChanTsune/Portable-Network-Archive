@@ -56,10 +56,11 @@ pub(crate) use {read::*, write::*};
 /// # fn main() -> io::Result<()> {
 /// let file = File::open("foo.pna")?;
 /// let mut archive = Archive::read_header(file)?;
+/// let mut read_options = ReadOptions::builder().build();
 /// for entry in archive.entries().skip_solid() {
 ///     let entry = entry?;
 ///     let mut file = File::create(entry.header().path().as_path())?;
-///     let mut reader = entry.reader(ReadOptions::builder().build())?;
+///     let mut reader = entry.reader(&mut read_options)?;
 ///     copy(&mut reader, &mut file)?;
 /// }
 /// #     Ok(())
@@ -360,11 +361,11 @@ mod tests {
     }
 
     fn archive(src: &[u8], options: WriteOptions) -> io::Result<()> {
-        let read_options = ReadOptions::with_password(options.password());
+        let mut read_options = ReadOptions::with_password(options.password());
         let archive = create_archive(src, options)?;
         let mut archive_reader = Archive::read_header(archive.as_slice())?;
         let item = archive_reader.entries().skip_solid().next().unwrap()?;
-        let mut reader = item.reader(read_options)?;
+        let mut reader = item.reader(&mut read_options)?;
         let mut dist = Vec::new();
         io::copy(&mut reader, &mut dist)?;
         assert_eq!(src, dist.as_slice());
@@ -394,10 +395,12 @@ mod tests {
         let mut entries = archive.entries();
         let entry = entries.next().unwrap().unwrap();
         if let ReadEntry::Solid(entry) = entry {
-            let mut entries = entry.entries(password.as_deref()).unwrap();
+            let mut read_options = ReadOptions::with_password(password.as_deref());
+            let mut entries = entry.entries(&mut read_options).unwrap();
             for i in 0..200 {
                 let entry = entries.next().unwrap().unwrap();
-                let mut reader = entry.reader(ReadOptions::builder().build()).unwrap();
+                let mut read_opts = ReadOptions::builder().build();
+                let mut reader = entry.reader(&mut read_opts).unwrap();
                 let mut body = Vec::new();
                 reader.read_to_end(&mut body).unwrap();
                 assert_eq!(format!("text{i}").repeat(i).as_bytes(), &body[..]);
@@ -446,7 +449,8 @@ mod tests {
         };
 
         let mut archive_reader = Archive::read_header(archive.as_slice()).unwrap();
-        let mut entries = archive_reader.entries_with_password(Some(b"password"));
+        let mut read_options = ReadOptions::with_password(Some(b"password"));
+        let mut entries = archive_reader.entries_with_password(&mut read_options);
         entries.next().unwrap().expect("failed to read entry");
         entries.next().unwrap().expect("failed to read entry");
         assert!(entries.next().is_none());
@@ -525,7 +529,8 @@ mod tests {
 
         let mut archive = Archive::read_header(buf.as_slice()).unwrap();
 
-        let mut entries = archive.entries_with_password(None);
+        let mut read_options = ReadOptions::builder().build();
+        let mut entries = archive.entries_with_password(&mut read_options);
         let read_entry = entries.next().unwrap().unwrap();
 
         assert_eq!(
