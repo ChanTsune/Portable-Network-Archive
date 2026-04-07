@@ -433,7 +433,7 @@ impl TableRow {
                     // Only read link target if needed (requires decompression)
                     if collect.link_target {
                         entry
-                            .reader(ReadOptions::with_password(password))
+                            .reader(&mut ReadOptions::with_password(password))
                             .and_then(io::read_to_string)
                             .unwrap_or_else(|_| "-".into())
                     } else {
@@ -445,7 +445,7 @@ impl TableRow {
                     // Only read link target if needed (requires decompression)
                     if collect.link_target {
                         entry
-                            .reader(ReadOptions::with_password(password))
+                            .reader(&mut ReadOptions::with_password(password))
                             .and_then(io::read_to_string)
                             .unwrap_or_else(|_| "-".into())
                     } else {
@@ -559,12 +559,13 @@ fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::R
     let password = password.as_deref();
     let mut entries = Vec::new();
     let collect_opts = CollectOptions::from_list_options(&options);
+    let mut read_options = ReadOptions::with_password(password);
     source.for_each_read_entry(
         #[hooq::skip_all]
         |entry| {
         match entry? {
             ReadEntry::Solid(solid) if options.solid => {
-                for entry in solid.entries(password)? {
+                for entry in solid.entries(&mut read_options)? {
                     entries.push(TableRow::from_entry(
                         &entry?,
                         password,
@@ -646,6 +647,8 @@ pub(crate) fn run_list_archive<'a>(
 ) -> anyhow::Result<()> {
     let collect_opts = CollectOptions::from_list_options(&args);
 
+    let mut read_options = ReadOptions::with_password(password);
+
     if !fast_read || files_globs.is_empty() {
         let mut entries = Vec::new();
         run_read_entries(
@@ -653,7 +656,7 @@ pub(crate) fn run_list_archive<'a>(
             |entry| {
                 match entry? {
                     ReadEntry::Solid(solid) if args.solid => {
-                        for entry in solid.entries(password)? {
+                        for entry in solid.entries(&mut read_options)? {
                             entries.push(TableRow::from_entry(
                                 &entry?,
                                 password,
@@ -686,7 +689,7 @@ pub(crate) fn run_list_archive<'a>(
         |entry| {
             match entry? {
                 ReadEntry::Solid(solid) if args.solid => {
-                    for entry in solid.entries(password)? {
+                    for entry in solid.entries(&mut read_options)? {
                         let entry = entry?;
                         let entry_path = entry.name().to_string();
                         if !globs.matches_any_pattern(&entry_path) {

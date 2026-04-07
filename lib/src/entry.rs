@@ -3,6 +3,7 @@
 mod attr;
 mod builder;
 mod header;
+mod key_cache;
 mod meta;
 mod name;
 mod options;
@@ -10,6 +11,7 @@ mod read;
 mod reference;
 mod write;
 
+pub(crate) use self::key_cache::KeyCache;
 pub use self::{
     attr::*,
     builder::{EntryBuilder, SolidEntryBuilder},
@@ -411,12 +413,13 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
     /// # fn main() -> io::Result<()> {
     /// let file = fs::File::open("foo.pna")?;
     /// let mut archive = Archive::read_header(file)?;
+    /// let mut read_options = ReadOptions::with_password(Some(b"password"));
     /// for entry in archive.entries() {
     ///     match entry? {
     ///         ReadEntry::Solid(solid_entry) => {
-    ///             for entry in solid_entry.entries(Some(b"password"))? {
+    ///             for entry in solid_entry.entries(&mut read_options)? {
     ///                 let entry = entry?;
-    ///                 let mut reader = entry.reader(ReadOptions::builder().build());
+    ///                 let mut reader = entry.reader(&mut read_options);
     ///                 // process the entry
     ///             }
     ///         }
@@ -431,14 +434,15 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
     #[inline]
     pub fn entries(
         &self,
-        password: Option<&[u8]>,
+        option: &mut ReadOptions,
     ) -> io::Result<impl Iterator<Item = io::Result<NormalEntry>> + '_> {
         let reader = decrypt_reader(
             ChainReader::new(self.data.iter().map(AsRef::as_ref as fn(&T) -> &[u8])),
             self.header.encryption,
             self.header.cipher_mode,
             self.phsf.as_deref(),
-            password,
+            option.password.as_deref(),
+            &mut option.cache,
         )?;
         let reader = decompress_reader(reader, self.header.compression)?;
 
@@ -454,7 +458,7 @@ where
     ///
     /// This variant owns the underlying buffers, enabling streaming without borrowing from `self`.
     #[inline]
-    pub(crate) fn into_entries(self, password: Option<&[u8]>) -> io::Result<SolidIntoEntries> {
+    pub(crate) fn into_entries(self, option: &mut ReadOptions) -> io::Result<SolidIntoEntries> {
         let bufs = self
             .data
             .into_iter()
@@ -466,7 +470,8 @@ where
             self.header.encryption,
             self.header.cipher_mode,
             self.phsf.as_deref(),
-            password,
+            option.password.as_deref(),
+            &mut option.cache,
         )?;
         let reader = decompress_reader(reader, self.header.compression)?;
         Ok(SolidIntoEntries(EntryReader(reader)))
@@ -1029,9 +1034,10 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
     /// # fn main() -> io::Result<()> {
     /// let file = fs::File::open("foo.pna")?;
     /// let mut archive = Archive::read_header(file)?;
+    /// let mut read_options = ReadOptions::builder().build();
     /// for entry in archive.entries().skip_solid() {
     ///     let entry = entry?;
-    ///     let mut reader = entry.reader(ReadOptions::builder().build())?;
+    ///     let mut reader = entry.reader(&mut read_options)?;
     ///     let name = entry.header().path();
     ///     let mut dist_file = fs::File::create(name)?;
     ///     io::copy(&mut reader, &mut dist_file)?;
@@ -1040,7 +1046,7 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
     /// # }
     /// ```
     #[inline]
-    pub fn reader(&self, option: impl ReadOption) -> io::Result<EntryDataReader<'_>> {
+    pub fn reader(&self, option: &mut ReadOptions) -> io::Result<EntryDataReader<'_>> {
         let raw_data_reader = ChainReader::new(
             self.data
                 .iter()
@@ -1052,7 +1058,8 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
             self.header.encryption,
             self.header.cipher_mode,
             self.phsf.as_deref(),
-            option.password(),
+            option.password.as_deref(),
+            &mut option.cache,
         )?;
         let reader = decompress_reader(decrypt_reader, self.header.compression)?;
         Ok(EntryDataReader(EntryReader(reader)))

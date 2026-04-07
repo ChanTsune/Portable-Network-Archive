@@ -67,10 +67,10 @@ fn read_archive_entries(path: impl AsRef<Path>) -> Vec<(String, String)> {
     let mut archive = Archive::read_header(fs::File::open(path).unwrap()).unwrap();
     archive
         .entries()
-        .extract_solid_entries(None)
+        .extract_solid_entries(&mut ReadOptions::builder().build())
         .map(|entry| {
             let entry = entry.unwrap();
-            let mut reader = entry.reader(ReadOptions::builder().build()).unwrap();
+            let mut reader = entry.reader(&mut ReadOptions::builder().build()).unwrap();
             let mut content = String::new();
             reader.read_to_string(&mut content).unwrap();
             (entry.name().to_string(), content)
@@ -88,13 +88,18 @@ fn read_all_archive_entries_from_bytes(bytes: &[u8]) -> Vec<(String, String)> {
             Err(err) if err.kind() == std::io::ErrorKind::UnexpectedEof => break,
             Err(err) => panic!("unexpected archive read error: {err}"),
         };
-        entries.extend(archive.entries().extract_solid_entries(None).map(|entry| {
-            let entry = entry.unwrap();
-            let mut reader = entry.reader(ReadOptions::builder().build()).unwrap();
-            let mut content = String::new();
-            reader.read_to_string(&mut content).unwrap();
-            (entry.name().to_string(), content)
-        }));
+        entries.extend(
+            archive
+                .entries()
+                .extract_solid_entries(&mut ReadOptions::builder().build())
+                .map(|entry| {
+                    let entry = entry.unwrap();
+                    let mut reader = entry.reader(&mut ReadOptions::builder().build()).unwrap();
+                    let mut content = String::new();
+                    reader.read_to_string(&mut content).unwrap();
+                    (entry.name().to_string(), content)
+                }),
+        );
         let _ = archive.into_inner();
     }
 

@@ -1,5 +1,6 @@
 //! Read and write options for archive entries.
 
+use super::KeyCache;
 use crate::{compress, error::UnknownValueError};
 pub(crate) use private::*;
 use std::{fmt, io, str::FromStr};
@@ -140,25 +141,6 @@ mod private {
         #[inline]
         fn cipher(&self) -> Option<&Cipher> {
             T::cipher(self)
-        }
-    }
-
-    /// Entry read option getter trait.
-    pub trait ReadOption {
-        fn password(&self) -> Option<&[u8]>;
-    }
-
-    impl<T: ReadOption> ReadOption for &T {
-        #[inline]
-        fn password(&self) -> Option<&[u8]> {
-            T::password(self)
-        }
-    }
-
-    impl ReadOption for ReadOptions {
-        #[inline]
-        fn password(&self) -> Option<&[u8]> {
-            self.password.as_deref()
         }
     }
 }
@@ -882,9 +864,20 @@ impl WriteOptionsBuilder {
 }
 
 /// Options for reading an entry.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Clone)]
 pub struct ReadOptions {
-    password: Option<Vec<u8>>,
+    pub(crate) password: Option<Vec<u8>>,
+    pub(crate) cache: KeyCache,
+}
+
+impl fmt::Debug for ReadOptions {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ReadOptions")
+            .field("password", &self.password.as_ref().map(|_| "[REDACTED]"))
+            .field("cache", &self.cache)
+            .finish()
+    }
 }
 
 impl ReadOptions {
@@ -907,6 +900,7 @@ impl ReadOptions {
     pub fn with_password<B: AsRef<[u8]>>(password: Option<B>) -> Self {
         Self {
             password: password.map(|p| p.as_ref().to_vec()),
+            cache: KeyCache::default(),
         }
     }
 
@@ -939,7 +933,7 @@ impl ReadOptions {
 }
 
 /// Builder for [`ReadOptions`].
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct ReadOptionsBuilder {
     password: Option<Vec<u8>>,
 }
@@ -965,6 +959,59 @@ impl ReadOptionsBuilder {
     pub fn build(&self) -> ReadOptions {
         ReadOptions {
             password: self.password.clone(),
+            cache: KeyCache::default(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn write_options_round_trip_raw_password() {
+        let opts = WriteOptions::builder()
+            .encryption(Encryption::Aes)
+            .password(Some("secret"))
+            .build();
+        let rebuilt = opts.into_builder().build();
+        assert_eq!(rebuilt.encryption(), Encryption::Aes);
+    }
+
+    #[test]
+    fn write_options_round_trip_hashed_password() {
+        let hashed = HashedPassword::new(b"secret", HashAlgorithm::argon2id()).unwrap();
+        let opts = WriteOptions::builder()
+            .encryption(Encryption::Aes)
+            .hashed_password(&hashed)
+            .build();
+        // Round-trip must not panic
+        let rebuilt = opts.into_builder().build();
+        assert_eq!(rebuilt.encryption(), Encryption::Aes);
+    }
+
+    #[test]
+    fn hashed_password_last_wins_over_raw() {
+        let hashed = HashedPassword::new(b"secret", HashAlgorithm::argon2id()).unwrap();
+        let opts = WriteOptions::builder()
+            .encryption(Encryption::Aes)
+            .password(Some("raw"))
+            .hashed_password(&hashed)
+            .build();
+        // Should use hashed path — password() returns None
+        assert!(opts.password().is_none());
+        assert_eq!(opts.encryption(), Encryption::Aes);
+    }
+
+    #[test]
+    fn raw_password_last_wins_over_hashed() {
+        let hashed = HashedPassword::new(b"secret", HashAlgorithm::argon2id()).unwrap();
+        let opts = WriteOptions::builder()
+            .encryption(Encryption::Aes)
+            .hashed_password(&hashed)
+            .password(Some("raw"))
+            .build();
+        // Should use raw path — password() returns Some
+        assert!(opts.password().is_some());
     }
 }

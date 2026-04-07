@@ -614,13 +614,14 @@ mod tests {
             .expect("failed to write");
         let file = writer.finalize().expect("failed to finalize");
         let mut reader = Archive::read_header(&file[..]).expect("failed to read archive");
-        let mut entries = reader.entries_with_password(None);
+        let mut read_options = ReadOptions::builder().build();
+        let mut entries = reader.entries_with_password(&mut read_options);
         let entry = entries
             .next()
             .expect("failed to get entry")
             .expect("failed to read entry");
         let mut data_reader = entry
-            .reader(ReadOptions::builder().build())
+            .reader(&mut ReadOptions::builder().build())
             .expect("failed to read entry data");
         let mut data = Vec::new();
         data_reader
@@ -643,13 +644,14 @@ mod tests {
             .expect("failed to write");
         let file = writer.finalize().expect("failed to finalize");
         let mut reader = Archive::read_header(&file[..]).expect("failed to read archive");
-        let mut entries = reader.entries_with_password(None);
+        let mut read_options = ReadOptions::builder().build();
+        let mut entries = reader.entries_with_password(&mut read_options);
         let entry = entries
             .next()
             .expect("failed to get entry")
             .expect("failed to read entry");
         let mut data_reader = entry
-            .reader(ReadOptions::builder().build())
+            .reader(&mut ReadOptions::builder().build())
             .expect("failed to read entry data");
         let mut data = Vec::new();
         data_reader
@@ -688,13 +690,14 @@ mod tests {
         );
 
         let mut reader = Archive::read_header(&file[..]).expect("failed to read archive");
-        let mut entries = reader.entries_with_password(None);
+        let mut read_options = ReadOptions::builder().build();
+        let mut entries = reader.entries_with_password(&mut read_options);
         let entry = entries
             .next()
             .expect("failed to get entry")
             .expect("failed to read entry");
         let mut data_reader = entry
-            .reader(ReadOptions::builder().build())
+            .reader(&mut ReadOptions::builder().build())
             .expect("failed to read entry data");
         let mut data = Vec::new();
         data_reader
@@ -729,13 +732,14 @@ mod tests {
         );
 
         let mut reader = Archive::read_header(&file[..]).expect("failed to read archive");
-        let mut entries = reader.entries_with_password(None);
+        let mut read_options = ReadOptions::builder().build();
+        let mut entries = reader.entries_with_password(&mut read_options);
         let entry = entries
             .next()
             .expect("failed to get entry")
             .expect("failed to read entry");
         let mut data_reader = entry
-            .reader(ReadOptions::builder().build())
+            .reader(&mut ReadOptions::builder().build())
             .expect("failed to read entry data");
         let mut data = Vec::new();
         data_reader
@@ -760,13 +764,14 @@ mod tests {
             .expect("failed to write");
         let file = writer.finalize().expect("failed to finalize");
         let mut reader = Archive::read_header(&file[..]).expect("failed to read archive");
-        let mut entries = reader.entries_with_password(None);
+        let mut read_options = ReadOptions::builder().build();
+        let mut entries = reader.entries_with_password(&mut read_options);
         let entry = entries
             .next()
             .expect("failed to get entry")
             .expect("failed to read entry");
         let mut data_reader = entry
-            .reader(ReadOptions::builder().build())
+            .reader(&mut ReadOptions::builder().build())
             .expect("failed to read entry data");
         let mut data = Vec::new();
         data_reader
@@ -803,13 +808,14 @@ mod tests {
         );
 
         let mut reader = Archive::read_header(&file[..]).expect("failed to read archive");
-        let mut entries = reader.entries_with_password(None);
+        let mut read_options = ReadOptions::builder().build();
+        let mut entries = reader.entries_with_password(&mut read_options);
         let entry = entries
             .next()
             .expect("failed to get entry")
             .expect("failed to read entry");
         let mut data_reader = entry
-            .reader(ReadOptions::builder().build())
+            .reader(&mut ReadOptions::builder().build())
             .expect("failed to read entry data");
         let mut data = Vec::new();
         data_reader

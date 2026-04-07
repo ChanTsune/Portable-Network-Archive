@@ -1353,11 +1353,12 @@ where
         return Ok(());
     };
 
+    let mut read_options = ReadOptions::with_password(password);
     if *safe_writes {
         let mut safe_writer = SafeWriter::new(&path)?;
         {
             let mut writer = io::BufWriter::with_capacity(64 * 1024, safe_writer.as_file_mut());
-            let mut reader = item.reader(ReadOptions::with_password(password))?;
+            let mut reader = item.reader(&mut read_options)?;
             io::copy(&mut reader, &mut writer)?;
             writer.flush()?;
         }
@@ -1369,7 +1370,7 @@ where
         }
         let file = utils::fs::file_create(&path, remove_existing)?;
         let mut writer = io::BufWriter::with_capacity(64 * 1024, file);
-        let mut reader = item.reader(ReadOptions::with_password(password))?;
+        let mut reader = item.reader(&mut read_options)?;
         io::copy(&mut reader, &mut writer)?;
         let mut file = writer.into_inner().map_err(|e| e.into_error())?;
         restore_timestamps(&mut file, item.metadata(), keep_options)?;
@@ -1418,9 +1419,10 @@ where
         return Ok(());
     };
 
+    let mut read_options = ReadOptions::with_password(password);
     match item.header().data_kind() {
         DataKind::SymbolicLink => {
-            let reader = item.reader(ReadOptions::with_password(password))?;
+            let reader = item.reader(&mut read_options)?;
             let original = io::read_to_string(reader)?;
             let original = pathname_editor.edit_symlink(original.as_ref());
             if !allow_unsafe_links && is_unsafe_link(&original) {
@@ -1436,7 +1438,7 @@ where
             symlink_with_type(&original, &path, link_target_type)?;
         }
         DataKind::HardLink => {
-            let reader = item.reader(ReadOptions::with_password(password))?;
+            let reader = item.reader(&mut read_options)?;
             let original = io::read_to_string(reader)?;
             let Some((original, had_root)) = pathname_editor.edit_hardlink(original.as_ref())
             else {
@@ -1881,7 +1883,8 @@ where
         return Ok(());
     }
 
-    let mut reader = item.reader(ReadOptions::with_password(password))?;
+    let mut read_options = ReadOptions::with_password(password);
+    let mut reader = item.reader(&mut read_options)?;
     let mut stdout = io::stdout().lock();
     io::copy(&mut reader, &mut stdout)?;
     stdout.flush()?;

@@ -2,6 +2,8 @@
 use std::borrow::Cow;
 use std::{fs, io};
 
+#[cfg(feature = "memmap")]
+use pna::ReadOptions;
 use pna::{NormalEntry, ReadEntry};
 
 use super::TransformStrategy;
@@ -90,11 +92,12 @@ impl SplitArchiveReader {
         password: Option<&[u8]>,
         mut processor: impl FnMut(io::Result<NormalEntry<Cow<'s, [u8]>>>) -> io::Result<()>,
     ) -> io::Result<()> {
+        let mut read_options = ReadOptions::with_password(password);
         super::run_read_entries_mem(
             self.mmaps.iter().map(|m| m.as_ref()),
             |entry| match entry? {
                 ReadEntry::Solid(s) => s
-                    .entries(password)?
+                    .entries(&mut read_options)?
                     .try_for_each(|r| processor(r.map(Into::into))),
                 ReadEntry::Normal(n) => processor(Ok(n)),
             },

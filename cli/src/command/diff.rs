@@ -269,6 +269,7 @@ fn compare_entry<T: AsRef<[u8]>>(
     let data_kind = entry.header().data_kind();
     let path = entry.header().path();
     let path_str = path.as_str();
+    let mut read_options = ReadOptions::with_password(password);
     let meta = match fs::symlink_metadata(path) {
         Ok(meta) => meta,
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
@@ -292,7 +293,7 @@ fn compare_entry<T: AsRef<[u8]>>(
                 println!("{}", DiffKind::SizeDiffers.display(path_str));
             } else {
                 let fs_file = fs::File::open(path)?;
-                let archive_reader = entry.reader(ReadOptions::with_password(password))?;
+                let archive_reader = entry.reader(&mut read_options)?;
                 if !streams_equal(fs_file, archive_reader)? {
                     println!("{}", DiffKind::ContentsDiffer.display(path_str));
                 }
@@ -306,7 +307,7 @@ fn compare_entry<T: AsRef<[u8]>>(
         }
         DataKind::SymbolicLink if meta.is_symlink() => {
             let link = fs::read_link(path)?;
-            let mut reader = entry.reader(ReadOptions::with_password(password))?;
+            let mut reader = entry.reader(&mut read_options)?;
             let mut link_str = String::new();
             reader.read_to_string(&mut link_str)?;
             if link.as_path() != Path::new(&link_str) {
@@ -317,7 +318,7 @@ fn compare_entry<T: AsRef<[u8]>>(
             println!("{}", DiffKind::TypeMismatch.display(path_str));
         }
         DataKind::HardLink if meta.is_file() => {
-            let mut reader = entry.reader(ReadOptions::with_password(password))?;
+            let mut reader = entry.reader(&mut read_options)?;
             let mut target = String::new();
             reader.read_to_string(&mut target)?;
 
