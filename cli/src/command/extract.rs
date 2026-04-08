@@ -1408,7 +1408,8 @@ where
     }
     #[cfg(feature = "acl")]
     if !skip_xattr_acl {
-        restore_acls(path, item.acl()?, keep_options.acl_strategy)?;
+        let follow_links = item.header().data_kind() != DataKind::SymbolicLink;
+        restore_acls(path, item.acl()?, keep_options.acl_strategy, follow_links)?;
     }
     #[cfg(not(feature = "acl"))]
     if let AclStrategy::Always = keep_options.acl_strategy {
@@ -1474,7 +1475,12 @@ where
 /// On supported platforms, if the target filesystem does not support ACLs (e.g., FAT32),
 /// a warning is logged for that path and the operation continues.
 #[cfg(feature = "acl")]
-fn restore_acls(path: &Path, acls: Acls, acl_strategy: AclStrategy) -> io::Result<()> {
+fn restore_acls(
+    path: &Path,
+    acls: Acls,
+    acl_strategy: AclStrategy,
+    follow_links: bool,
+) -> io::Result<()> {
     #[cfg(any(
         target_os = "linux",
         target_os = "freebsd",
@@ -1495,6 +1501,7 @@ fn restore_acls(path: &Path, acls: Acls, acl_strategy: AclStrategy) -> io::Resul
                     platform,
                     entries: acl,
                 }),
+                follow_links,
             ) {
                 Ok(()) => {}
                 Err(e) if e.kind() == io::ErrorKind::Unsupported => {

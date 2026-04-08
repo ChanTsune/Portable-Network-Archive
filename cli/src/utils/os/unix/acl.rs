@@ -2,14 +2,26 @@ use crate::chunk::{Ace, AcePlatform, Acl, Flag, Identifier, OwnerType, Permissio
 use std::io;
 use std::path::Path;
 
-pub fn set_facl<P: AsRef<Path>>(path: P, acl: Acl) -> io::Result<()> {
+fn acl_option(follow_links: bool) -> Option<exacl::AclOption> {
+    (!follow_links).then_some(exacl::AclOption::SYMLINK_ACL)
+}
+
+pub fn set_facl<P: AsRef<Path>>(path: P, acl: Acl, follow_links: bool) -> io::Result<()> {
     let path = path.as_ref();
+    #[cfg(target_os = "linux")]
+    if !follow_links && path.symlink_metadata()?.file_type().is_symlink() {
+        return Ok(());
+    }
     let mut acl_entries: Vec<exacl::AclEntry> =
         acl.entries.into_iter().map(Into::into).collect::<Vec<_>>();
     #[cfg(target_os = "macos")]
     {
         use std::os::unix::fs::MetadataExt;
-        let meta = std::fs::metadata(path)?;
+        let meta = if follow_links {
+            std::fs::metadata(path)?
+        } else {
+            std::fs::symlink_metadata(path)?
+        };
 
         acl_entries = acl_entries
             .into_iter()
@@ -40,7 +52,7 @@ pub fn set_facl<P: AsRef<Path>>(path: P, acl: Acl) -> io::Result<()> {
             }
         }
         if !exist_user || !exist_group || !exist_other {
-            let facl = exacl::getfacl(path, None)?;
+            let facl = exacl::getfacl(path, acl_option(follow_links))?;
             if !exist_user {
                 acl_entries.push(
                     facl.iter()
@@ -82,11 +94,19 @@ pub fn set_facl<P: AsRef<Path>>(path: P, acl: Acl) -> io::Result<()> {
             }
         }
     }
-    exacl::setfacl(&[path], &acl_entries, None)
+    exacl::setfacl(&[path], &acl_entries, acl_option(follow_links))
 }
 
-pub fn get_facl<P: AsRef<Path>>(path: P) -> io::Result<Acl> {
-    let ace_list = exacl::getfacl(path.as_ref(), None)?;
+pub fn get_facl<P: AsRef<Path>>(path: P, follow_links: bool) -> io::Result<Acl> {
+    let path = path.as_ref();
+    #[cfg(target_os = "linux")]
+    if !follow_links && path.symlink_metadata()?.file_type().is_symlink() {
+        return Ok(Acl {
+            platform: AcePlatform::CURRENT,
+            entries: vec![],
+        });
+    }
+    let ace_list = exacl::getfacl(path, acl_option(follow_links))?;
     Ok(Acl {
         platform: AcePlatform::CURRENT,
         entries: ace_list.into_iter().map(Into::into).collect(),

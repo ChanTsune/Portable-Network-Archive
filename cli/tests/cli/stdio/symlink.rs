@@ -156,3 +156,53 @@ fn stdio_broken_symlink_no_follow_roundtrip() {
     assert_symlink(out_dir.join("source/broken.txt"), "missing.txt");
     assert_symlink(out_dir.join("source/broken_dir"), "missing_dir");
 }
+
+/// Precondition: Directory contains broken symlinks
+/// Action: Create archive, then extract with --same-permissions
+/// Expectation: Broken symlinks are restored with preserved permissions
+#[test]
+fn stdio_broken_symlink_preserve_permissions() {
+    setup();
+
+    let base = PathBuf::from("stdio_broken_symlink_preserve_permissions");
+    let source = base.join("source");
+    let archive = base.join("archive.pna");
+    let out_dir = base.join("out");
+    init_broken_resource(&source);
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "experimental",
+            "stdio",
+            "--create",
+            "--overwrite",
+            "-f",
+            archive.to_str().unwrap(),
+            "-C",
+            base.to_str().unwrap(),
+            "source",
+        ])
+        .assert()
+        .success();
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "experimental",
+            "stdio",
+            "--unstable",
+            "--extract",
+            "--overwrite",
+            "-f",
+            archive.to_str().unwrap(),
+            "--out-dir",
+            out_dir.to_str().unwrap(),
+            "-p",
+        ])
+        .assert()
+        .success();
+
+    assert_symlink(out_dir.join("source/broken.txt"), "missing.txt");
+    assert_symlink(out_dir.join("source/broken_dir"), "missing_dir");
+}
