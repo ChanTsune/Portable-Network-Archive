@@ -132,6 +132,7 @@
     clippy::missing_errors_doc,
     clippy::missing_safety_doc
 )]
+pub(crate) mod acl;
 pub(crate) mod archive;
 pub(crate) mod chunk;
 pub(crate) mod cipher;
@@ -145,6 +146,7 @@ pub mod prelude;
 pub(crate) mod random;
 pub(crate) mod util;
 
+pub use acl::*;
 pub use archive::*;
 pub use chunk::*;
 pub use entry::*;

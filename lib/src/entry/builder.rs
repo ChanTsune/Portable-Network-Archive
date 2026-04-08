@@ -1,7 +1,7 @@
 //! Builder types for constructing archive entries.
 
 use crate::{
-    Duration,
+    Acl, Duration,
     archive::{InternalArchiveDataWriter, InternalDataWriter, write_file_entry},
     chunk::RawChunk,
     cipher::CipherWriter,
@@ -148,6 +148,7 @@ pub struct EntryBuilder {
     store_file_size: bool,
     file_size: u128,
     xattrs: Vec<ExtendedAttribute>,
+    acls: Vec<Acl>,
     extra_chunks: Vec<RawChunk>,
 }
 
@@ -165,6 +166,7 @@ impl EntryBuilder {
             store_file_size: true,
             file_size: 0,
             xattrs: Vec::new(),
+            acls: Vec::new(),
             extra_chunks: Vec::new(),
         }
     }
@@ -308,6 +310,21 @@ impl EntryBuilder {
         self
     }
 
+    /// Adds [`Acl`] to the entry.
+    ///
+    /// # Arguments
+    ///
+    /// * `acl` - The access control list.
+    ///
+    /// # Returns
+    ///
+    /// A mutable reference to the [`EntryBuilder`] with the ACL added.
+    #[inline]
+    pub fn add_acl(&mut self, acl: Acl) -> &mut Self {
+        self.acls.push(acl);
+        self
+    }
+
     /// Adds extra chunk to the entry.
     #[inline]
     pub fn add_extra_chunk<T: Into<RawChunk>>(&mut self, chunk: T) -> &mut Self {
@@ -378,6 +395,7 @@ impl EntryBuilder {
             data,
             metadata,
             xattrs: self.xattrs,
+            acls: self.acls,
         })
     }
 }
