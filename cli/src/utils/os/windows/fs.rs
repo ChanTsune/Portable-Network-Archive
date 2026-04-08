@@ -1,6 +1,6 @@
 pub(crate) mod owner;
 
-use super::security::{SecurityDescriptor, Sid};
+use super::security::{Sid, apply_security_info};
 use crate::utils::str::encode_wide;
 use std::io;
 use std::mem::size_of;
@@ -23,6 +23,7 @@ const MODE_READ_BITS: u16 = 0o444;
 const MODE_WRITE_BITS: u16 = 0o222;
 const MODE_EXEC_BITS: u16 = 0o111;
 
+#[derive(Debug)]
 pub(crate) struct FileHandle(HANDLE);
 
 impl FileHandle {
@@ -132,7 +133,7 @@ pub(crate) fn lchown<U: Into<Sid>, G: Into<Sid>>(
     let owner_sid = owner.map(Into::into);
     let group_sid = group.map(Into::into);
     let handle = open_path(path, (READ_CONTROL | WRITE_OWNER).0, false)?;
-    SecurityDescriptor::apply_by_handle(
+    apply_security_info(
         handle.raw(),
         owner_sid.as_ref().map(Sid::as_psid),
         group_sid.as_ref().map(Sid::as_psid),
@@ -185,12 +186,14 @@ pub(crate) fn chmod(path: &Path, mode: u16) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::utils::os::windows::security::SecurityDescriptor;
 
     #[test]
     fn file_chown() {
         let path = "chown.txt";
         std::fs::write(path, "chown").unwrap();
-        let sd = SecurityDescriptor::try_from(path.as_ref()).unwrap();
+        let handle = open_read_metadata(path.as_ref(), true).unwrap();
+        let sd = SecurityDescriptor::try_from_handle(handle).unwrap();
         lchown::<_, Sid>(path.as_ref(), Some(sd.owner_sid().unwrap()), None).unwrap();
         lchown::<Sid, _>(path.as_ref(), None, Some(sd.group_sid().unwrap())).unwrap();
         lchown(

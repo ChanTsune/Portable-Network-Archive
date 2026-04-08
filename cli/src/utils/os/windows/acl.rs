@@ -1,13 +1,12 @@
 use crate::{
     chunk::{self, AcePlatform, Identifier, OwnerType},
     utils::os::windows::{
-        fs::{open_read_metadata, open_write_dacl},
+        fs::{FileHandle, open_read_metadata, open_write_dacl},
         security::{SecurityDescriptor, Sid, SidType},
     },
 };
 use field_offset::offset_of;
 use std::{io, mem, path::Path, ptr::null_mut};
-use windows::Win32::Foundation::HANDLE;
 use windows::Win32::Security::{
     ACCESS_ALLOWED_ACE, ACCESS_DENIED_ACE, ACE_FLAGS, ACE_HEADER, ACL as Win32ACL, ACL_REVISION_DS,
     AddAccessAllowedAceEx, AddAccessDeniedAceEx, CONTAINER_INHERIT_ACE, GetAce, INHERIT_ONLY_ACE,
@@ -21,8 +20,13 @@ use windows::Win32::Storage::FileSystem::{
 };
 use windows::Win32::System::SystemServices::{ACCESS_ALLOWED_ACE_TYPE, ACCESS_DENIED_ACE_TYPE};
 
-pub fn set_facl<P: AsRef<Path>>(path: P, ace_list: chunk::Acl) -> io::Result<()> {
-    let acl = ACL::try_from(path.as_ref())?;
+pub fn set_facl<P: AsRef<Path>>(
+    path: P,
+    ace_list: chunk::Acl,
+    follow_links: bool,
+) -> io::Result<()> {
+    let handle = open_write_dacl(path.as_ref(), follow_links)?;
+    let acl = ACL::try_from_handle(handle)?;
     let group_sid = acl.security_descriptor.group_sid()?;
     let owner_sid = acl.security_descriptor.owner_sid()?;
     let acl_entries = ace_list
@@ -33,31 +37,9 @@ pub fn set_facl<P: AsRef<Path>>(path: P, ace_list: chunk::Acl) -> io::Result<()>
     acl.set_d_acl(&acl_entries)
 }
 
-pub fn get_facl<P: AsRef<Path>>(path: P) -> io::Result<chunk::Acl> {
-    let acl = ACL::try_from(path.as_ref())?;
-    let ace_list = acl.get_d_acl()?;
-    Ok(chunk::Acl {
-        platform: AcePlatform::Windows,
-        entries: ace_list.into_iter().map(Into::into).collect(),
-    })
-}
-
-pub fn set_facl_nofollow<P: AsRef<Path>>(path: P, ace_list: chunk::Acl) -> io::Result<()> {
-    let path = path.as_ref();
-    let handle = open_write_dacl(path, false)?;
-    let acl = ACL::try_from_handle(handle.raw(), path)?;
-    let group_sid = acl.security_descriptor.group_sid()?;
-    let owner_sid = acl.security_descriptor.owner_sid()?;
-    let acl_entries = ace_list
-        .entries
-        .into_iter()
-        .map(|it| it.into_acl_entry_with(&owner_sid, &group_sid))
-        .collect::<Vec<_>>();
-    acl.set_d_acl_by_handle(handle.raw(), &acl_entries)
-}
-
-pub fn get_facl_nofollow<P: AsRef<Path>>(path: P) -> io::Result<chunk::Acl> {
-    let acl = ACL::try_from_nofollow(path.as_ref())?;
+pub fn get_facl<P: AsRef<Path>>(path: P, follow_links: bool) -> io::Result<chunk::Acl> {
+    let handle = open_read_metadata(path.as_ref(), follow_links)?;
+    let acl = ACL::try_from_handle(handle)?;
     let ace_list = acl.get_d_acl()?;
     Ok(chunk::Acl {
         platform: AcePlatform::Windows,
@@ -74,22 +56,9 @@ pub struct ACL {
 }
 
 impl ACL {
-    pub fn try_from(path: &Path) -> io::Result<Self> {
+    pub fn try_from_handle(handle: FileHandle) -> io::Result<Self> {
         Ok(Self {
-            security_descriptor: SecurityDescriptor::try_from(path)?,
-        })
-    }
-
-    pub fn try_from_nofollow(path: &Path) -> io::Result<Self> {
-        let handle = open_read_metadata(path, false)?;
-        Ok(Self {
-            security_descriptor: SecurityDescriptor::try_from_handle(handle.raw(), path)?,
-        })
-    }
-
-    pub fn try_from_handle(handle: HANDLE, path: &Path) -> io::Result<Self> {
-        Ok(Self {
-            security_descriptor: SecurityDescriptor::try_from_handle(handle, path)?,
+            security_descriptor: SecurityDescriptor::try_from_handle(handle)?,
         })
     }
 
@@ -154,11 +123,6 @@ impl ACL {
         self.security_descriptor
             .apply(None, None, Some(buffer.as_ptr() as _))
     }
-
-    pub fn set_d_acl_by_handle(&self, handle: HANDLE, acl_entries: &[ACLEntry]) -> io::Result<()> {
-        let buffer = build_acl_buffer(acl_entries)?;
-        SecurityDescriptor::apply_by_handle(handle, None, None, Some(buffer.as_ptr() as _))
-    }
 }
 
 fn build_acl_buffer(acl_entries: &[ACLEntry]) -> io::Result<Vec<u8>> {
@@ -167,6 +131,7 @@ fn build_acl_buffer(acl_entries: &[ACLEntry]) -> io::Result<Vec<u8>> {
     let mut buffer = Vec::<u8>::with_capacity(acl_size);
     let ptr = buffer.as_mut_ptr();
     unsafe { InitializeAcl(ptr as _, acl_size as u32, ACL_REVISION_DS) }?;
+    unsafe { buffer.set_len(acl_size) };
     for ace in acl_entries {
         match ace.ace_type {
             AceType::AccessAllow => unsafe {
@@ -382,9 +347,10 @@ mod tests {
                         | chunk::Permission::EXECUTE,
                 }],
             }),
+            true,
         )
         .unwrap();
-        let acl = get_facl(file.path).unwrap();
+        let acl = get_facl(file.path, true).unwrap();
         assert_eq!(acl.entries.len(), 1);
 
         assert_eq!(
@@ -418,7 +384,7 @@ mod tests {
     fn get_acl() {
         let file = AutoRemoveFile::new("default.txt");
         file.write("default").unwrap();
-        let acl = get_facl(file.path).unwrap();
+        let acl = get_facl(file.path, true).unwrap();
         assert_ne!(acl.entries.len(), 0);
     }
 }

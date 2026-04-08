@@ -979,7 +979,7 @@ pub(crate) fn apply_metadata(
 
         let handle = open_read_metadata(path, !meta.file_type().is_symlink())?;
         let info = file_information(handle.raw())?;
-        let sd = SecurityDescriptor::try_from_handle(handle.raw(), path)?;
+        let sd = SecurityDescriptor::try_from_handle(handle)?;
         let mode = mode_from_file_information(path, &info, meta.file_type().is_symlink());
         let user = sd.owner_sid()?;
         let group = sd.group_sid()?;
@@ -1011,14 +1011,8 @@ pub(crate) fn apply_metadata(
         if let AclStrategy::Always = keep_options.acl_strategy {
             use crate::chunk;
             use pna::RawChunk;
-            #[cfg(windows)]
-            let acl_result = if meta.file_type().is_symlink() {
-                utils::os::windows::acl::get_facl_nofollow(path)
-            } else {
-                utils::acl::get_facl(path)
-            };
-            #[cfg(not(windows))]
-            let acl_result = utils::acl::get_facl(path);
+            let follow_links = !meta.file_type().is_symlink();
+            let acl_result = utils::acl::get_facl(path, follow_links);
             match acl_result {
                 Ok(acl) => {
                     entry
