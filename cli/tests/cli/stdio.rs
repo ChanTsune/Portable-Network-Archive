@@ -6,6 +6,7 @@ mod mtree;
 mod old_style;
 mod option_auto_compress;
 mod option_block_size;
+mod option_cd;
 mod option_check_links;
 mod option_exclude_vcs;
 mod option_fast_read;

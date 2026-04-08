@@ -32,7 +32,7 @@ use pna::{
 };
 use std::{
     borrow::Cow,
-    fmt, fs,
+    env, fmt, fs,
     io::{self, prelude::*},
     path::{Path, PathBuf},
     time::SystemTime,
@@ -370,9 +370,31 @@ pub(crate) struct CreateOptions {
 
 #[derive(Clone, Debug)]
 pub(crate) struct CollectedEntry {
+    /// Relative path used as the archive entry name (as given on the CLI).
     pub(crate) path: PathBuf,
+    /// Absolute filesystem path for reading file data and metadata.
+    /// Captured as `cwd.join(path)` at collection time so it remains valid
+    /// even after subsequent `-C` directory changes.
+    pub(crate) fs_path: PathBuf,
     pub(crate) store_as: StoreAs,
     pub(crate) metadata: fs::Metadata,
+}
+
+impl CollectedEntry {
+    pub(crate) fn new(
+        path: PathBuf,
+        cwd: &Path,
+        store_as: StoreAs,
+        metadata: fs::Metadata,
+    ) -> Self {
+        let fs_path = cwd.join(&path);
+        Self {
+            path,
+            fs_path,
+            store_as,
+            metadata,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -400,6 +422,15 @@ impl fmt::Display for ArchiveSource {
     }
 }
 
+/// Controls how `ItemSource::parse_with` interprets the `@` prefix.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ParseMode {
+    /// Recognizes `@path` as archive inclusion and `@-`/`@` as stdin.
+    Full,
+    /// Treats `@` as a literal character — all arguments become filesystem paths.
+    NoArchives,
+}
+
 /// Represents a CLI file argument that can be either a filesystem path or an archive inclusion.
 ///
 /// Archive inclusions start with '@' and reference entries from an existing archive.
@@ -410,11 +441,14 @@ pub(crate) enum ItemSource {
     Filesystem(PathBuf),
     /// An archive to include entries from.
     Archive(ArchiveSource),
+    /// A directory change instruction encoded by the pre-processing step.
+    ChangeDir(PathBuf),
 }
 
 impl ItemSource {
     /// Parses a single CLI argument into an `ItemSource`.
     ///
+    /// - `\0CD\0path` → `ChangeDir(path)` (internal sentinel from `-C` pre-processing)
     /// - `@` or `@-` → `Archive(Stdin)`
     /// - `@path` → `Archive(File(path))`
     /// - `path` → `Filesystem(path)`
@@ -425,7 +459,20 @@ impl ItemSource {
     /// relative to the current working directory at the time they are accessed,
     /// which means they are affected by the -C option.
     pub(crate) fn parse(arg: &str) -> Self {
-        if let Some(archive_path) = arg.strip_prefix('@') {
+        Self::parse_with(arg, ParseMode::Full)
+    }
+
+    /// Parses a single CLI argument with control over `@archive` recognition.
+    ///
+    /// When `mode` is [`ParseMode::NoArchives`], the `@` prefix is not treated
+    /// as an archive inclusion marker — the argument becomes a filesystem path.
+    /// This is used by modes (e.g., update) that do not support `@archive`.
+    pub(crate) fn parse_with(arg: &str, mode: ParseMode) -> Self {
+        if let Some(dir) = arg.strip_prefix(crate::cli::CD_SENTINEL) {
+            Self::ChangeDir(PathBuf::from(dir))
+        } else if mode == ParseMode::Full
+            && let Some(archive_path) = arg.strip_prefix('@')
+        {
             if archive_path.is_empty() || archive_path == "-" {
                 Self::Archive(ArchiveSource::Stdin)
             } else {
@@ -439,6 +486,13 @@ impl ItemSource {
     /// Parses multiple CLI arguments into `ItemSource` values.
     pub(crate) fn parse_many(args: &[String]) -> Vec<Self> {
         args.iter().map(|s| Self::parse(s)).collect()
+    }
+
+    /// Parses multiple CLI arguments without recognizing `@archive` syntax.
+    pub(crate) fn parse_many_no_archives(args: &[String]) -> Vec<Self> {
+        args.iter()
+            .map(|s| Self::parse_with(s, ParseMode::NoArchives))
+            .collect()
     }
 }
 
@@ -582,12 +636,37 @@ pub(crate) fn collect_items_from_sources(
 
     for source in sources {
         match source {
-            ItemSource::Filesystem(path) => {
-                let items = collect_items_with_state(&path, options, hardlink_resolver)?;
-                results.extend(items.into_iter().map(CollectedItem::Filesystem));
+            ItemSource::ChangeDir(dir) => {
+                env::set_current_dir(&dir)
+                    .map_err(|e| io::Error::new(e.kind(), format!("{}: {}", dir.display(), e)))?;
             }
-            ItemSource::Archive(archive_source) => {
-                results.push(CollectedItem::ArchiveMarker(archive_source));
+            ItemSource::Filesystem(path) => {
+                #[cfg(windows)]
+                let paths: Vec<PathBuf> = crate::utils::expand_bsdtar_windows_globs(vec![
+                    path.to_string_lossy().into_owned(),
+                ])
+                .map_err(|e| io::Error::other(format!("{e:#}")))?
+                .into_iter()
+                .map(PathBuf::from)
+                .collect();
+                #[cfg(not(windows))]
+                let paths = [path];
+
+                for p in &paths {
+                    let items = collect_items_with_state(p, options, hardlink_resolver)?;
+                    results.extend(items.into_iter().map(CollectedItem::Filesystem));
+                }
+            }
+            ItemSource::Archive(ArchiveSource::File(path)) => {
+                let abs = if path.is_relative() {
+                    env::current_dir()?.join(&path)
+                } else {
+                    path
+                };
+                results.push(CollectedItem::ArchiveMarker(ArchiveSource::File(abs)));
+            }
+            ItemSource::Archive(source @ ArchiveSource::Stdin) => {
+                results.push(CollectedItem::ArchiveMarker(source));
             }
         }
     }
@@ -672,6 +751,7 @@ pub(crate) fn collect_items_with_state(
     options: &CollectOptions<'_>,
     hardlink_resolver: &mut HardlinkResolver,
 ) -> io::Result<Vec<CollectedEntry>> {
+    let cwd = std::env::current_dir()?;
     let mut ig = ignore::Ignore::default();
     let mut out = Vec::new();
 
@@ -761,11 +841,12 @@ pub(crate) fn collect_items_with_state(
                         .time_filters
                         .matches_or_inactive(metadata.created().ok(), metadata.modified().ok())
                 {
-                    out.push(CollectedEntry {
-                        path: path.to_path_buf(),
+                    out.push(CollectedEntry::new(
+                        path.to_path_buf(),
+                        &cwd,
                         store_as,
                         metadata,
-                    });
+                    ));
                 }
             }
             Err(e) => {
@@ -774,11 +855,12 @@ pub(crate) fn collect_items_with_state(
                 {
                     let metadata = fs::symlink_metadata(path)?;
                     if is_broken_symlink_error(&metadata, ioe) {
-                        out.push(CollectedEntry {
-                            path: path.to_path_buf(),
-                            store_as: StoreAs::Symlink,
+                        out.push(CollectedEntry::new(
+                            path.to_path_buf(),
+                            &cwd,
+                            StoreAs::Symlink,
                             metadata,
-                        });
+                        ));
                         continue;
                     }
                 }
@@ -830,20 +912,20 @@ pub(crate) fn write_from_path(writer: &mut impl Write, path: impl AsRef<Path>) -
         .metadata()
         .ok()
         .and_then(|meta| usize::try_from(meta.len()).ok());
+    if let Some(size) = file_size
+        && size < IN_MEMORY_THRESHOLD
+    {
+        // NOTE: Use read_exact with pre-sized buffer to avoid fstat and dynamic allocation
+        let mut contents = vec![0u8; size];
+        file.read_exact(&mut contents)?;
+        writer.write_all(&contents)?;
+        return Ok(());
+    }
+    #[cfg(feature = "memmap")]
     if let Some(size) = file_size {
-        if size < IN_MEMORY_THRESHOLD {
-            // NOTE: Use read_exact with pre-sized buffer to avoid fstat and dynamic allocation
-            let mut contents = vec![0u8; size];
-            file.read_exact(&mut contents)?;
-            writer.write_all(&contents)?;
-            return Ok(());
-        }
-        #[cfg(feature = "memmap")]
-        {
-            let mmap = utils::mmap::Mmap::map_with_size(file, size)?;
-            writer.write_all(&mmap[..])?;
-            return Ok(());
-        }
+        let mmap = utils::mmap::Mmap::map_with_size(file, size)?;
+        writer.write_all(&mmap[..])?;
+        return Ok(());
     }
     // Fallback for large files without memmap, or when size is unknown
     copy_buffered(file, writer)
@@ -859,6 +941,7 @@ pub(crate) fn create_entry(
 ) -> io::Result<Option<NormalEntry>> {
     let CollectedEntry {
         path,
+        fs_path,
         store_as,
         metadata,
     } = item;
@@ -873,22 +956,22 @@ pub(crate) fn create_entry(
                 return Ok(None);
             };
             let entry = EntryBuilder::new_hard_link(entry_name, reference)?;
-            apply_metadata(entry, path, keep_options, metadata)?.build()
+            apply_metadata(entry, fs_path, keep_options, metadata)?.build()
         }
         StoreAs::Symlink => {
-            let source = fs::read_link(path)?;
+            let source = fs::read_link(fs_path)?;
             let reference = pathname_editor.edit_symlink(&source);
             let entry = EntryBuilder::new_symlink(entry_name, reference)?;
-            apply_metadata(entry, path, keep_options, metadata)?.build()
+            apply_metadata(entry, fs_path, keep_options, metadata)?.build()
         }
         StoreAs::File => {
             let mut entry = EntryBuilder::new_file(entry_name, option)?;
-            write_from_path(&mut entry, path)?;
-            apply_metadata(entry, path, keep_options, metadata)?.build()
+            write_from_path(&mut entry, fs_path)?;
+            apply_metadata(entry, fs_path, keep_options, metadata)?.build()
         }
         StoreAs::Dir => {
             let entry = EntryBuilder::new_dir(entry_name);
-            apply_metadata(entry, path, keep_options, metadata)?.build()
+            apply_metadata(entry, fs_path, keep_options, metadata)?.build()
         }
     }
     .map(Some)
@@ -2233,6 +2316,20 @@ mod tests {
         fn validate_no_duplicate_stdin_empty() {
             let sources: Vec<ItemSource> = vec![];
             assert!(super::validate_no_duplicate_stdin(&sources).is_ok());
+        }
+
+        #[test]
+        fn parse_change_dir() {
+            let item = ItemSource::parse("\0CD\0mydir");
+            assert!(matches!(item, ItemSource::ChangeDir(ref p) if p == Path::new("mydir")));
+        }
+
+        #[test]
+        fn parse_change_dir_absolute() {
+            let item = ItemSource::parse("\0CD\0/absolute/dir");
+            assert!(
+                matches!(item, ItemSource::ChangeDir(ref p) if p == Path::new("/absolute/dir"))
+            );
         }
     }
 

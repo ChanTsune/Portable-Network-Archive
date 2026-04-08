@@ -13,6 +13,7 @@ pub(crate) mod process;
 pub(crate) mod str;
 mod windows_glob;
 
+#[allow(unused_imports)]
 pub(crate) use {globs::*, path::*, windows_glob::*};
 
 /// Version Control System file names.

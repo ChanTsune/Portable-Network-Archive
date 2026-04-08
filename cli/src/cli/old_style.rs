@@ -1,8 +1,16 @@
 use std::ffi::OsString;
 
+/// Sentinel prefix for encoded `-C`/`--cd`/`--directory` arguments.
+///
+/// NUL bytes cannot appear in file paths, so this prefix unambiguously marks
+/// a positional directory-change argument produced by [`encode_bsdtar_cd_args`].
+pub(crate) const CD_SENTINEL: &str = "\0CD\0";
+
 /// `-J` is excluded from `SHORT_OPTIONS_WITH_ARG` because in bsdtar old-style syntax
 /// it never takes an argument. (In new-style mode, clap handles the optional
 /// compression level via `Option<Option<XzLevel>>`.)
+/// `-C` and `-W` are listed here for old-style expansion but are consumed by
+/// `encode_bsdtar_cd_args` / `expand_bsdtar_w_option` before clap sees them.
 /// Kept in sync with `BsdtarCommand` clap definition via unit test.
 const SHORT_OPTIONS_WITH_ARG: &[char] = &['b', 'C', 'f', 'I', 's', 'T', 'W', 'X'];
 
@@ -110,6 +118,105 @@ pub fn expand_bsdtar_w_option(args: Vec<OsString>) -> Vec<OsString> {
             result.push(arg.clone());
         }
     }
+    result
+}
+
+/// Encodes `-C`/`--cd`/`--directory` arguments into sentinel-prefixed positional tokens
+/// for the `compat bsdtar` subcommand (and the deprecated `experimental stdio` subcommand).
+///
+/// This converts directory-change options into `\0CD\0{dir}` tokens so that
+/// later processing stages can treat them as positional arguments that carry
+/// their directory value inline.
+///
+/// Recognized forms (after the bsdtar subcommand position):
+/// - `-C dir` (separate tokens)
+/// - `-Cdir` (concatenated short form)
+/// - `--cd dir` / `--directory dir` (long form with separate value)
+/// - `--cd=dir` / `--directory=dir` (long form with `=`)
+///
+/// Arguments after `--` are never encoded.
+///
+/// Returns `args` unchanged when the bsdtar subcommand is not detected.
+pub fn encode_bsdtar_cd_args(args: Vec<OsString>) -> Vec<OsString> {
+    fn make_cd_sentinel(value: &std::ffi::OsStr) -> OsString {
+        let mut s = OsString::with_capacity(CD_SENTINEL.len() + value.len());
+        s.push(CD_SENTINEL);
+        s.push(value);
+        s
+    }
+
+    let Some(after_subcommand) = find_bsdtar_subcommand(&args) else {
+        return args;
+    };
+
+    let mut result = args[..after_subcommand].to_vec();
+    let mut iter = args[after_subcommand..].iter();
+    let mut past_double_dash = false;
+
+    while let Some(arg) = iter.next() {
+        if past_double_dash {
+            result.push(arg.clone());
+            continue;
+        }
+
+        if arg == "--" {
+            past_double_dash = true;
+            result.push(arg.clone());
+            continue;
+        }
+
+        let bytes = arg.as_encoded_bytes();
+
+        // `--cd=value` or `--directory=value`
+        if let Some(rest) = bytes.strip_prefix(b"--cd=") {
+            // SAFETY: rest comes from valid OsString bytes after stripping an ASCII prefix
+            result.push(make_cd_sentinel(unsafe {
+                std::ffi::OsStr::from_encoded_bytes_unchecked(rest)
+            }));
+            continue;
+        }
+        if let Some(rest) = bytes.strip_prefix(b"--directory=") {
+            result.push(make_cd_sentinel(unsafe {
+                std::ffi::OsStr::from_encoded_bytes_unchecked(rest)
+            }));
+            continue;
+        }
+
+        // `--cd dir` or `--directory dir`
+        if arg == "--cd" || arg == "--directory" {
+            if let Some(value) = iter.next() {
+                result.push(make_cd_sentinel(value));
+            } else {
+                // Trailing `--cd` with no value — pass through for clap to report an error
+                result.push(arg.clone());
+            }
+            continue;
+        }
+
+        // `-C dir` (exactly `-C`)
+        if arg == "-C" {
+            if let Some(value) = iter.next() {
+                result.push(make_cd_sentinel(value));
+            } else {
+                result.push(arg.clone());
+            }
+            continue;
+        }
+
+        // `-Cdir` (concatenated short form)
+        if let Some(rest) = bytes.strip_prefix(b"-C")
+            && !rest.is_empty()
+            && !rest.starts_with(b"-")
+        {
+            result.push(make_cd_sentinel(unsafe {
+                std::ffi::OsStr::from_encoded_bytes_unchecked(rest)
+            }));
+            continue;
+        }
+
+        result.push(arg.clone());
+    }
+
     result
 }
 
@@ -667,11 +774,12 @@ mod tests {
             .collect();
         clap_arg_shorts.sort();
         clap_arg_shorts.dedup();
-        // `W` is handled by expand_bsdtar_w_option preprocessing, not by clap
+        // `C` and `W` are handled by preprocessing (encode_bsdtar_cd_args /
+        // expand_bsdtar_w_option), not by clap
         let mut expected: Vec<char> = SHORT_OPTIONS_WITH_ARG
             .iter()
             .copied()
-            .filter(|&c| c != 'W')
+            .filter(|&c| c != 'C' && c != 'W')
             .collect();
         expected.sort();
         assert_eq!(
@@ -1281,5 +1389,120 @@ mod tests {
     fn compat_bsdtar_w_option_after_double_dash_passthrough() {
         let args = s(&["pna", "compat", "bsdtar", "-x", "--", "-W", "file"]);
         assert_eq!(expand_bsdtar_w_option(args.clone()), args);
+    }
+
+    #[test]
+    fn encode_cd_separate_form() {
+        let args = s(&[
+            "pna", "compat", "bsdtar", "-c", "-f", "out", "-C", "dir", "file",
+        ]);
+        let result = encode_bsdtar_cd_args(args);
+        assert_eq!(
+            result,
+            s(&[
+                "pna",
+                "compat",
+                "bsdtar",
+                "-c",
+                "-f",
+                "out",
+                "\0CD\0dir",
+                "file"
+            ]),
+        );
+    }
+
+    #[test]
+    fn encode_cd_concatenated_form() {
+        let args = s(&["pna", "compat", "bsdtar", "-c", "-Cdir", "file"]);
+        let result = encode_bsdtar_cd_args(args);
+        assert_eq!(
+            result,
+            s(&["pna", "compat", "bsdtar", "-c", "\0CD\0dir", "file"]),
+        );
+    }
+
+    #[test]
+    fn encode_cd_long_form() {
+        let args = s(&["pna", "compat", "bsdtar", "--cd", "dir", "file"]);
+        let result = encode_bsdtar_cd_args(args);
+        assert_eq!(result, s(&["pna", "compat", "bsdtar", "\0CD\0dir", "file"]),);
+    }
+
+    #[test]
+    fn encode_cd_long_eq_form() {
+        let args = s(&["pna", "compat", "bsdtar", "--directory=dir", "file"]);
+        let result = encode_bsdtar_cd_args(args);
+        assert_eq!(result, s(&["pna", "compat", "bsdtar", "\0CD\0dir", "file"]),);
+    }
+
+    #[test]
+    fn encode_cd_multiple() {
+        let args = s(&[
+            "pna", "compat", "bsdtar", "-C", "d1", "f1", "-C", "d2", "f2",
+        ]);
+        let result = encode_bsdtar_cd_args(args);
+        assert_eq!(
+            result,
+            s(&[
+                "pna", "compat", "bsdtar", "\0CD\0d1", "f1", "\0CD\0d2", "f2"
+            ]),
+        );
+    }
+
+    #[test]
+    fn encode_cd_after_double_dash() {
+        let args = s(&["pna", "compat", "bsdtar", "--", "-C", "dir"]);
+        let result = encode_bsdtar_cd_args(args);
+        assert_eq!(result, s(&["pna", "compat", "bsdtar", "--", "-C", "dir"]),);
+    }
+
+    #[test]
+    fn encode_cd_not_bsdtar() {
+        let args = s(&["pna", "create", "-C", "dir", "file"]);
+        let result = encode_bsdtar_cd_args(args);
+        assert_eq!(result, s(&["pna", "create", "-C", "dir", "file"]));
+    }
+
+    #[test]
+    fn encode_cd_experimental_stdio() {
+        let args = s(&["pna", "experimental", "stdio", "-C", "dir", "file"]);
+        let result = encode_bsdtar_cd_args(args);
+        assert_eq!(
+            result,
+            s(&["pna", "experimental", "stdio", "\0CD\0dir", "file"]),
+        );
+    }
+
+    #[test]
+    fn encode_cd_with_unstable_flag() {
+        let args = s(&["pna", "compat", "bsdtar", "--unstable", "-C", "dir", "file"]);
+        let result = encode_bsdtar_cd_args(args);
+        assert_eq!(
+            result,
+            s(&["pna", "compat", "bsdtar", "--unstable", "\0CD\0dir", "file"]),
+        );
+    }
+
+    #[test]
+    fn encode_cd_after_old_style_c_cf_expansion() {
+        // Simulates output of expand_bsdtar_old_style_args for "cCf dir archive file"
+        let args = s(&[
+            "pna", "compat", "bsdtar", "-c", "-C", "dir", "-f", "archive", "file",
+        ]);
+        let result = encode_bsdtar_cd_args(args);
+        assert_eq!(
+            result,
+            s(&[
+                "pna",
+                "compat",
+                "bsdtar",
+                "-c",
+                "\0CD\0dir",
+                "-f",
+                "archive",
+                "file",
+            ]),
+        );
     }
 }
