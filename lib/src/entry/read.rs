@@ -4,6 +4,7 @@ use crate::{
     CipherMode, Compression, Encryption,
     cipher::{Ctr128BEReader, DecryptCbcAes256Reader, DecryptCbcCamellia256Reader, DecryptReader},
     compress::DecompressReader,
+    entry::KeyCache,
     hash::derive_password_hash,
 };
 use aes::Aes256;
@@ -18,6 +19,7 @@ pub(crate) fn decrypt_reader<R: Read>(
     cipher_mode: CipherMode,
     phsf: Option<&str>,
     password: Option<&[u8]>,
+    cache: &mut KeyCache,
 ) -> io::Result<DecryptReader<R>> {
     Ok(match encryption {
         Encryption::No => DecryptReader::No(reader),
@@ -25,16 +27,22 @@ pub(crate) fn decrypt_reader<R: Read>(
             let s = phsf.ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidData, "`PHSF` chunk not found")
             })?;
-            let phsf = derive_password_hash(
-                s,
-                password.ok_or_else(|| {
-                    io::Error::new(io::ErrorKind::InvalidInput, "Password was not provided")
-                })?,
-            )?;
-            let hash = phsf
-                .hash
-                .ok_or_else(|| io::Error::new(io::ErrorKind::Unsupported, "Failed to get hash"))?;
-            let key = hash.as_bytes();
+            let key = if let Some(cached) = cache.get(s) {
+                cached
+            } else {
+                let phsf_output = derive_password_hash(
+                    s,
+                    password.ok_or_else(|| {
+                        io::Error::new(io::ErrorKind::InvalidInput, "Password was not provided")
+                    })?,
+                )?;
+                let hash = phsf_output.hash.ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::Unsupported, "Failed to get hash")
+                })?;
+                cache.insert(s.to_string(), hash);
+                hash
+            };
+            let key = key.as_bytes();
             match (encryption, cipher_mode) {
                 (Encryption::Aes, CipherMode::CBC) => {
                     let mut iv = vec![0; Aes256::block_size()];

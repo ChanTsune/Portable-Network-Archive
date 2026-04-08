@@ -34,10 +34,14 @@ fuzz_target!(|data: (&[u8], usize)| {
     let archive_bytes = archive.finalize().unwrap();
     let mut archive = Archive::read_header_from_slice(&archive_bytes).unwrap();
 
-    for entry in archive.entries_slice().extract_solid_entries(None) {
+    let mut read_option = ReadOptions::builder().build();
+    let entries: Vec<_> = archive
+        .entries_slice()
+        .extract_solid_entries(&mut read_option)
+        .collect();
+    for entry in entries {
         let entry = entry.unwrap();
-        let read_option = ReadOptions::builder().build();
-        let mut reader = entry.reader(read_option).unwrap();
+        let mut reader = entry.reader(&mut read_option).unwrap();
         let mut buf = Vec::with_capacity(data.len());
         reader.read_to_end(&mut buf).unwrap();
         assert_eq!(data, buf);

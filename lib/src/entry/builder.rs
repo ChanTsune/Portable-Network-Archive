@@ -724,9 +724,10 @@ mod tests {
             })
             .unwrap();
         let solid_entry = builder.build_as_entry().unwrap();
-        let mut entries = solid_entry.entries(None).unwrap();
+        let mut read_options = ReadOptions::builder().build();
+        let mut entries = solid_entry.entries(&mut read_options).unwrap();
         let entry = entries.next().unwrap().unwrap();
-        let mut reader = entry.reader(ReadOptions::builder().build()).unwrap();
+        let mut reader = entry.reader(&mut ReadOptions::builder().build()).unwrap();
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf).unwrap();
         assert_eq!(b"abcdefghijklmnopqrstuvwxyz", &buf[..]);
@@ -746,9 +747,10 @@ mod tests {
             .unwrap();
         let solid_entry = builder.build_as_entry().unwrap();
 
-        let mut entries = solid_entry.entries(None).unwrap();
+        let mut read_options = ReadOptions::builder().build();
+        let mut entries = solid_entry.entries(&mut read_options).unwrap();
         let entry = entries.next().unwrap().unwrap();
-        let mut reader = entry.reader(ReadOptions::builder().build()).unwrap();
+        let mut reader = entry.reader(&mut ReadOptions::builder().build()).unwrap();
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf).unwrap();
 

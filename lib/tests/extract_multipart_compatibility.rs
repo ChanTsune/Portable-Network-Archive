@@ -13,7 +13,8 @@ fn extract_all(follows: &[&[u8]], password: Option<&str>) {
             }
             let path = item.header().path().to_string();
             let mut dist = Vec::new();
-            let mut reader = item.reader(ReadOptions::with_password(password)).unwrap();
+            let mut read_options = ReadOptions::with_password(password);
+            let mut reader = item.reader(&mut read_options).unwrap();
             io::copy(&mut reader, &mut dist).unwrap();
             match &*path {
                 "multipart_test.txt" => assert_eq!(

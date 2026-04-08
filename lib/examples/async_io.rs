@@ -38,16 +38,17 @@ async fn extract(path: String) -> io::Result<()> {
     while let Some(entry) = archive.read_entry_async().await? {
         match entry {
             ReadEntry::Solid(solid_entry) => {
-                for entry in solid_entry.entries(None)? {
+                let mut read_options = ReadOptions::builder().build();
+                for entry in solid_entry.entries(&mut read_options)? {
                     let entry = entry?;
                     let mut file = io::Cursor::new(Vec::new());
-                    let mut reader = entry.reader(ReadOptions::builder().build())?.compat();
+                    let mut reader = entry.reader(&mut ReadOptions::builder().build())?.compat();
                     tokio::io::copy(&mut reader, &mut file).await?;
                 }
             }
             ReadEntry::Normal(entry) => {
                 let mut file = io::Cursor::new(Vec::new());
-                let mut reader = entry.reader(ReadOptions::builder().build())?.compat();
+                let mut reader = entry.reader(&mut ReadOptions::builder().build())?.compat();
                 tokio::io::copy(&mut reader, &mut file).await?;
             }
         }
