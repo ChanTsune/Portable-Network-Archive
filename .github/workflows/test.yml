@@ -79,7 +79,7 @@ jobs:
           cache-key: ${{ matrix.os }}
       - name: Restore rust build cache
         id: restore-rust-build-cache
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: |
             target/*
@@ -91,6 +91,14 @@ jobs:
           cargo hack test --locked --release --feature-powerset --exclude-features wasm --exclude portable-network-archive-fuzz --exclude xtask -- --test-threads=1
         env:
           RUST_BACKTRACE: 1
+      - name: Save rust build cache
+        if: github.ref_name == github.event.repository.default_branch && steps.restore-rust-build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            target/*
+            !target/tmp
+          key: "${{ steps.restore-rust-build-cache.outputs.cache-primary-key }}"
 
   tier3_cross:
     name: Tier 3 Cross-compile
@@ -197,7 +205,7 @@ jobs:
           cache-key: ${{ matrix.os }}
       - name: Restore rust build cache
         id: restore-rust-build-cache
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: |
             target/*
@@ -210,3 +218,11 @@ jobs:
         env:
           CRATE: ${{ matrix.crate }}
           RUST_BACKTRACE: 1
+      - name: Save rust build cache
+        if: github.ref_name == github.event.repository.default_branch && steps.restore-rust-build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            target/*
+            !target/tmp
+          key: "${{ steps.restore-rust-build-cache.outputs.cache-primary-key }}"
