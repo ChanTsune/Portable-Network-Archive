@@ -175,6 +175,70 @@ pub fn create_test_archive(path: impl AsRef<Path>, entries: &[(&str, &str)]) {
     writer.finalize().unwrap();
 }
 
+/// Definition for creating a symlink entry with optional metadata
+pub struct SymlinkEntryDef<'a> {
+    pub path: &'a str,
+    pub target: &'a str,
+    pub permission: Option<u16>,
+    pub modified: Option<pna::Duration>,
+    pub accessed: Option<pna::Duration>,
+    pub created: Option<pna::Duration>,
+}
+
+/// Creates an archive containing both file and symlink entries with specific metadata.
+/// This bypasses filesystem requirements by constructing entries programmatically.
+pub fn create_archive_with_symlinks(
+    archive_path: impl AsRef<Path>,
+    file_entries: &[FileEntryDef],
+    symlink_entries: &[SymlinkEntryDef],
+) -> io::Result<()> {
+    let file = File::create(archive_path)?;
+    let mut archive = pna::Archive::write_header(file)?;
+
+    for entry_def in file_entries {
+        let mut builder =
+            pna::EntryBuilder::new_file(entry_def.path.into(), pna::WriteOptions::store())?;
+        builder.permission(pna::Permission::new(
+            1000,
+            "user".into(),
+            1000,
+            "group".into(),
+            entry_def.permission,
+        ));
+        builder.write_all(entry_def.content)?;
+        let entry = builder.build()?;
+        archive.add_entry(entry)?;
+    }
+
+    for symlink_def in symlink_entries {
+        let mut builder =
+            pna::EntryBuilder::new_symlink(symlink_def.path.into(), symlink_def.target.into())?;
+        if let Some(mode) = symlink_def.permission {
+            builder.permission(pna::Permission::new(
+                1000,
+                "user".into(),
+                1000,
+                "group".into(),
+                mode,
+            ));
+        }
+        if let Some(m) = symlink_def.modified {
+            builder.modified(m);
+        }
+        if let Some(a) = symlink_def.accessed {
+            builder.accessed(a);
+        }
+        if let Some(c) = symlink_def.created {
+            builder.created(c);
+        }
+        let entry = builder.build()?;
+        archive.add_entry(entry)?;
+    }
+
+    archive.finalize()?;
+    Ok(())
+}
+
 /// Collects all entry names from an archive.
 pub fn get_archive_entry_names(path: impl AsRef<Path>) -> Vec<String> {
     let mut names = Vec::new();

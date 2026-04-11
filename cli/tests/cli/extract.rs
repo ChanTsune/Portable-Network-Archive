@@ -17,3 +17,4 @@ mod option_transform;
 mod overwrite_order;
 mod overwrite_symlink;
 mod sanitize_parent_components;
+mod symlink_metadata;

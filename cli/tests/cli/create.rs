@@ -32,5 +32,6 @@ mod option_substitution;
 mod option_transform;
 mod sanitize_parent_components;
 mod symlink;
+mod symlink_metadata;
 mod user_group;
 mod without_overwrite;
