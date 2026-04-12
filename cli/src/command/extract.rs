@@ -1229,8 +1229,9 @@ where
 
 /// Extracts a regular file entry from the archive to the filesystem.
 ///
-/// Caller must hold a [`PathOrderGuard`](super::core::path_lock::PathOrderGuard)
-/// for the entry's output path to guarantee archive-order writes.
+/// In parallel extraction contexts, the caller must hold a
+/// [`PathOrderGuard`](super::core::path_lock::PathOrderGuard) for the entry's
+/// output path to guarantee archive-order writes.
 pub(crate) fn extract_file_entry<'a, T>(
     item: NormalEntry<T>,
     item_path: &EntryName,
@@ -1249,6 +1250,12 @@ where
     T: AsRef<[u8]>,
     pna::RawChunk<T>: Chunk,
 {
+    if item.header().data_kind() != DataKind::File {
+        unreachable!(
+            "extract_file_entry called with {:?}",
+            item.header().data_kind()
+        );
+    }
     let Some((path, remove_existing)) = prepare_extraction(
         &item,
         item_path,
@@ -1305,6 +1312,12 @@ where
     T: AsRef<[u8]>,
     pna::RawChunk<T>: Chunk,
 {
+    if item.header().data_kind() != DataKind::Directory {
+        unreachable!(
+            "extract_directory_entry called with {:?}",
+            item.header().data_kind()
+        );
+    }
     let Some((path, _)) = prepare_extraction(
         &item,
         item_path,
@@ -1325,7 +1338,8 @@ where
 /// Extracts a symbolic link or hard link entry from the archive.
 ///
 /// Called from the deferred link loop after all files and directories have been
-/// extracted, ensuring that link targets exist.
+/// extracted, ensuring that link targets exist. Links cannot be atomically
+/// replaced via write-then-rename, so existing paths are removed before creation.
 pub(crate) fn extract_link_entry<'a, T>(
     item: NormalEntry<T>,
     item_path: &EntryName,
@@ -1405,9 +1419,7 @@ where
             }
             fs::hard_link(original, &path)?;
         }
-        kind => {
-            debug_assert!(false, "extract_link_entry called with {kind:?}");
-        }
+        kind => unreachable!("extract_link_entry called with {kind:?}"),
     }
 
     restore_metadata(&item, &path, keep_options)?;
