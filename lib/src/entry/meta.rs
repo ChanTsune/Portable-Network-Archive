@@ -1,6 +1,6 @@
 //! Metadata and permission types for archive entries.
 
-use crate::Duration;
+use crate::{Duration, UnknownValueError};
 use std::io::{self, Read};
 
 /// Metadata information about an entry.
@@ -26,6 +26,7 @@ pub struct Metadata {
     pub(crate) modified: Option<Duration>,
     pub(crate) accessed: Option<Duration>,
     pub(crate) permission: Option<Permission>,
+    pub(crate) link_target_type: Option<LinkTargetType>,
 }
 
 impl Metadata {
@@ -39,6 +40,7 @@ impl Metadata {
             modified: None,
             accessed: None,
             permission: None,
+            link_target_type: None,
         }
     }
 
@@ -106,6 +108,14 @@ impl Metadata {
         self
     }
 
+    /// Sets the link target type of the entry.
+    /// Only meaningful for symbolic link and hard link entries.
+    #[inline]
+    pub const fn with_link_target_type(mut self, link_target_type: Option<LinkTargetType>) -> Self {
+        self.link_target_type = link_target_type;
+        self
+    }
+
     /// Returns the raw file size of this entry's data in bytes.
     #[inline]
     pub const fn raw_file_size(&self) -> Option<u128> {
@@ -135,6 +145,16 @@ impl Metadata {
     #[inline]
     pub const fn permission(&self) -> Option<&Permission> {
         self.permission.as_ref()
+    }
+
+    /// Returns the link target type for this entry, if present.
+    ///
+    /// - `None`: fLTP chunk was absent.
+    /// - `Some(Unknown)`: fLTP chunk present but target type undetermined.
+    /// - `Some(File)` / `Some(Directory)`: known target type.
+    #[inline]
+    pub const fn link_target_type(&self) -> Option<LinkTargetType> {
+        self.link_target_type
     }
 }
 
@@ -313,6 +333,71 @@ impl Permission {
     }
 }
 
+/// Link target type for link entries.
+///
+/// Stored in the `fLTP` ancillary chunk. Indicates whether the link target
+/// is a file or a directory. The semantic interpretation depends on the
+/// entry's [`DataKind`](crate::DataKind):
+///
+/// | `DataKind` | `Unknown` | `File` | `Directory` |
+/// |---|---|---|---|
+/// | `SymbolicLink` | Symlink (target unknown) | File symlink | Directory symlink |
+/// | `HardLink` | Hard link (target unknown) | File hard link | Directory hard link |
+///
+/// `HardLink` + `Directory` represents a directory hard link — a hard link
+/// whose target is a directory. On systems that prohibit hard links to
+/// directories, implementations may fall back to a symbolic link.
+///
+/// # Value assignments
+///
+/// - `Unknown` (0): Explicit unknown — the target type was not determined.
+/// - `File` (1): Target is a file.
+/// - `Directory` (2): Target is a directory.
+/// - Values 3–63 are reserved for future public extensions.
+/// - Values 64–255 are reserved for private extensions.
+/// - Both ranges are currently unrecognized and fall back to `None`.
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[repr(u8)]
+pub enum LinkTargetType {
+    /// Link target type is unknown.
+    Unknown = 0,
+    /// Link target is a file.
+    File = 1,
+    /// Link target is a directory.
+    Directory = 2,
+}
+
+impl TryFrom<u8> for LinkTargetType {
+    type Error = UnknownValueError;
+
+    #[inline]
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::Unknown),
+            1 => Ok(Self::File),
+            2 => Ok(Self::Directory),
+            value => Err(UnknownValueError(value)),
+        }
+    }
+}
+
+impl LinkTargetType {
+    pub(crate) fn to_bytes(self) -> [u8; 1] {
+        [self as u8]
+    }
+
+    /// Parse fLTP chunk data.
+    ///
+    /// - Known values (0, 1, 2): `Ok(Some(variant))`
+    /// - Unrecognized values (3-255): `Ok(None)` (graceful fallback)
+    /// - Insufficient data: `Err`
+    pub(crate) fn try_from_bytes(mut bytes: &[u8]) -> io::Result<Option<Self>> {
+        let mut buf = [0u8; 1];
+        bytes.read_exact(&mut buf)?;
+        Ok(Self::try_from(buf[0]).ok())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -323,5 +408,66 @@ mod tests {
     fn permission() {
         let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
         assert_eq!(perm, Permission::try_from_bytes(&perm.to_bytes()).unwrap());
+    }
+
+    #[test]
+    fn link_target_type_roundtrip_unknown() {
+        let ltp = LinkTargetType::Unknown;
+        assert_eq!(
+            Some(ltp),
+            LinkTargetType::try_from_bytes(&ltp.to_bytes()).unwrap()
+        );
+    }
+
+    #[test]
+    fn link_target_type_roundtrip_file() {
+        let ltp = LinkTargetType::File;
+        assert_eq!(
+            Some(ltp),
+            LinkTargetType::try_from_bytes(&ltp.to_bytes()).unwrap()
+        );
+    }
+
+    #[test]
+    fn link_target_type_roundtrip_directory() {
+        let ltp = LinkTargetType::Directory;
+        assert_eq!(
+            Some(ltp),
+            LinkTargetType::try_from_bytes(&ltp.to_bytes()).unwrap()
+        );
+    }
+
+    #[test]
+    fn link_target_type_unknown_values_return_none() {
+        assert_eq!(LinkTargetType::try_from_bytes(&[0x03]).unwrap(), None);
+        assert_eq!(LinkTargetType::try_from_bytes(&[0xFF]).unwrap(), None);
+    }
+
+    #[test]
+    fn link_target_type_empty_bytes() {
+        assert!(LinkTargetType::try_from_bytes(&[]).is_err());
+    }
+
+    #[test]
+    fn link_target_type_try_from_u8() {
+        assert_eq!(
+            LinkTargetType::try_from(0u8).unwrap(),
+            LinkTargetType::Unknown
+        );
+        assert_eq!(LinkTargetType::try_from(1u8).unwrap(), LinkTargetType::File);
+        assert_eq!(
+            LinkTargetType::try_from(2u8).unwrap(),
+            LinkTargetType::Directory
+        );
+        assert!(LinkTargetType::try_from(3u8).is_err());
+    }
+
+    #[test]
+    fn link_target_type_trailing_bytes_ignored() {
+        // read_exact reads only 1 byte; trailing bytes are silently ignored
+        assert_eq!(
+            LinkTargetType::try_from_bytes(&[0x01, 0xFF, 0xFF]).unwrap(),
+            Some(LinkTargetType::File),
+        );
     }
 }

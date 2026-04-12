@@ -75,6 +75,7 @@ impl From<ChunkTypeError> for io::Error {
 /// - **Timestamps**: [`cTIM`](Self::cTIM), [`mTIM`](Self::mTIM), [`aTIM`](Self::aTIM)
 ///   (seconds), [`cTNS`](Self::cTNS), [`mTNS`](Self::mTNS), [`aTNS`](Self::aTNS) (nanoseconds)
 /// - **File info**: [`fSIZ`](Self::fSIZ) (size), [`fPRM`](Self::fPRM) (permissions)
+/// - **Link info**: [`fLTP`](Self::fLTP) (link target type)
 /// - **Extended attributes**: [`xATR`](Self::xATR)
 ///
 /// # Creating Private Chunks
@@ -142,6 +143,9 @@ impl ChunkType {
     /// Extended attribute.
     #[allow(non_upper_case_globals)]
     pub const xATR: ChunkType = ChunkType(*b"xATR");
+    /// Link target type.
+    #[allow(non_upper_case_globals)]
+    pub const fLTP: ChunkType = ChunkType(*b"fLTP");
 
     /// Returns the length of the chunk type code.
     ///
