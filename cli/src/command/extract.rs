@@ -663,7 +663,7 @@ where
                             return Ok(ProcessAction::Continue);
                         }
                         if item.header().data_kind() == DataKind::Directory {
-                            extract_entry(item, &name, password, &args).map_err(|e| {
+                            extract_directory_entry(item, &name, &args).map_err(|e| {
                                 io::Error::new(e.kind(), format!("extracting {item_path}: {e}"))
                             })?;
                             if globs.all_matched() {
@@ -679,7 +679,7 @@ where
                         s.spawn_fifo(move |_| {
                             let _guard = ticket.wait_for_turn();
                             tx.send(
-                                extract_entry(item, &name, password, &args)
+                                extract_file_entry(item, &name, password, &args)
                                     .with_context(|| format!("extracting {}", item_path)),
                             )
                             .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
@@ -718,7 +718,7 @@ where
                         }
                         if item.header().data_kind() == DataKind::Directory {
                             let item_path = item.name().to_string();
-                            extract_entry(item, &name, password, &args).map_err(|e| {
+                            extract_directory_entry(item, &name, &args).map_err(|e| {
                                 io::Error::new(e.kind(), format!("extracting {item_path}: {e}"))
                             })?;
                             return Ok(());
@@ -731,7 +731,7 @@ where
                         s.spawn_fifo(move |_| {
                             let _guard = ticket.wait_for_turn();
                             tx.send(
-                                extract_entry(item, &name, password, &args)
+                                extract_file_entry(item, &name, password, &args)
                                     .with_context(|| format!("extracting {}", item_path)),
                             )
                             .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
@@ -785,7 +785,16 @@ where
                         }
                         return Ok(ProcessAction::Continue);
                     }
-                    extract_entry(item, &name, password, &args).map_err(|e| {
+                    if item.header().data_kind() == DataKind::Directory {
+                        extract_directory_entry(item, &name, &args).map_err(|e| {
+                            io::Error::new(e.kind(), format!("extracting {}: {e}", item_path))
+                        })?;
+                        if globs.all_matched() {
+                            return Ok(ProcessAction::Stop);
+                        }
+                        return Ok(ProcessAction::Continue);
+                    }
+                    extract_file_entry(item, &name, password, &args).map_err(|e| {
                         io::Error::new(e.kind(), format!("extracting {}: {e}", item_path))
                     })?;
                     if globs.all_matched() {
@@ -820,7 +829,14 @@ where
                         link_entries.push((name, item));
                         return Ok(());
                     }
-                    extract_entry(item, &name, password, &args).map_err(|e| {
+                    if item.header().data_kind() == DataKind::Directory {
+                        let item_path = item.name().to_string();
+                        extract_directory_entry(item, &name, &args).map_err(|e| {
+                            io::Error::new(e.kind(), format!("extracting {item_path}: {e}"))
+                        })?;
+                        return Ok(());
+                    }
+                    extract_file_entry(item, &name, password, &args).map_err(|e| {
                         io::Error::new(e.kind(), format!("extracting {}: {e}", name))
                     })?;
                     Ok(())
@@ -832,7 +848,7 @@ where
     }
 
     for (name, item) in link_entries {
-        extract_entry(item, &name, password, &args)
+        extract_link_entry(item, &name, password, &args)
             .with_context(|| format!("extracting deferred link {name}"))?;
     }
 
@@ -893,7 +909,7 @@ where
                     return Ok(ProcessAction::Continue);
                 }
                 if item.header().data_kind() == DataKind::Directory {
-                    extract_entry(item, &name, password, &args).map_err(|e| {
+                    extract_directory_entry(item, &name, &args).map_err(|e| {
                         io::Error::new(e.kind(), format!("extracting {item_path}: {e}"))
                     })?;
                     if globs.all_matched() {
@@ -909,7 +925,7 @@ where
                 s.spawn_fifo(move |_| {
                     let _guard = ticket.wait_for_turn();
                     tx.send(
-                        extract_entry(item, &name, password, &args)
+                        extract_file_entry(item, &name, password, &args)
                             .with_context(|| format!("extracting {}", item_path)),
                     )
                     .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
@@ -943,7 +959,7 @@ where
                 }
                 if item.header().data_kind() == DataKind::Directory {
                     let item_path = item.name().to_string();
-                    extract_entry(item, &name, password, &args).map_err(|e| {
+                    extract_directory_entry(item, &name, &args).map_err(|e| {
                         io::Error::new(e.kind(), format!("extracting {item_path}: {e}"))
                     })?;
                     return Ok(());
@@ -956,7 +972,7 @@ where
                 s.spawn_fifo(move |_| {
                     let _guard = ticket.wait_for_turn();
                     tx.send(
-                        extract_entry(item, &name, password, &args)
+                        extract_file_entry(item, &name, password, &args)
                             .with_context(|| format!("extracting {}", item_path)),
                     )
                     .unwrap_or_else(|_| unreachable!("receiver is held by scope owner"));
@@ -973,7 +989,7 @@ where
     }
 
     for (name, item) in link_entries {
-        extract_entry(item, &name, password, &args)
+        extract_link_entry(item, &name, password, &args)
             .with_context(|| format!("extracting deferred link {name}"))?;
     }
     globs.ensure_all_matched()?;
@@ -1176,9 +1192,141 @@ where
     Ok(ExtractionDecision::Proceed { remove_existing })
 }
 
+/// Shared preamble for entry extraction: builds the output path, runs overwrite
+/// policy checks, and prepares the target.
+///
+/// Returns `None` if the entry should be skipped by overwrite policy, otherwise
+/// returns the resolved output path and the `remove_existing` flag.
+fn prepare_extraction<'a, T>(
+    item: &NormalEntry<T>,
+    item_path: &'a EntryName,
+    out_dir: Option<&'a Path>,
+    overwrite_strategy: OverwriteStrategy,
+    unlink_first: bool,
+    absolute_paths: bool,
+) -> io::Result<Option<(Cow<'a, Path>, bool)>>
+where
+    T: AsRef<[u8]>,
+{
+    log::debug!("Extract: {}", item.name());
+    let path = build_output_path(out_dir, item_path.as_path());
+    let entry_kind = item.header().data_kind();
+    log::debug!("start: {}", path.display());
+    let secure_symlinks = !absolute_paths;
+    let ExtractionDecision::Proceed { remove_existing } = check_and_prepare_target(
+        &path,
+        entry_kind,
+        item,
+        overwrite_strategy,
+        unlink_first,
+        secure_symlinks,
+    )?
+    else {
+        return Ok(None);
+    };
+    Ok(Some((path, remove_existing)))
+}
+
+/// Extracts a regular file entry from the archive to the filesystem.
+///
 /// Caller must hold a [`PathOrderGuard`](super::core::path_lock::PathOrderGuard)
 /// for the entry's output path to guarantee archive-order writes.
-pub(crate) fn extract_entry<'a, T>(
+pub(crate) fn extract_file_entry<'a, T>(
+    item: NormalEntry<T>,
+    item_path: &EntryName,
+    password: Option<&'a [u8]>,
+    OutputOption {
+        overwrite_strategy,
+        out_dir,
+        keep_options,
+        unlink_first,
+        safe_writes,
+        absolute_paths,
+        ..
+    }: &OutputOption<'a>,
+) -> io::Result<()>
+where
+    T: AsRef<[u8]>,
+    pna::RawChunk<T>: Chunk,
+{
+    let Some((path, remove_existing)) = prepare_extraction(
+        &item,
+        item_path,
+        out_dir.as_deref(),
+        *overwrite_strategy,
+        *unlink_first,
+        *absolute_paths,
+    )?
+    else {
+        return Ok(());
+    };
+
+    if *safe_writes {
+        let mut safe_writer = SafeWriter::new(&path)?;
+        {
+            let mut writer = io::BufWriter::with_capacity(64 * 1024, safe_writer.as_file_mut());
+            let mut reader = item.reader(ReadOptions::with_password(password))?;
+            io::copy(&mut reader, &mut writer)?;
+            writer.flush()?;
+        }
+        restore_timestamps(safe_writer.as_file_mut(), item.metadata(), keep_options)?;
+        safe_writer.persist()?;
+    } else {
+        if remove_existing {
+            utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
+        }
+        let file = utils::fs::file_create(&path, remove_existing)?;
+        let mut writer = io::BufWriter::with_capacity(64 * 1024, file);
+        let mut reader = item.reader(ReadOptions::with_password(password))?;
+        io::copy(&mut reader, &mut writer)?;
+        let mut file = writer.into_inner().map_err(|e| e.into_error())?;
+        restore_timestamps(&mut file, item.metadata(), keep_options)?;
+    }
+
+    restore_metadata(&item, &path, keep_options)?;
+    log::debug!("end: {}", path.display());
+    Ok(())
+}
+
+/// Extracts a directory entry: ensures the directory exists on disk and restores its metadata.
+pub(crate) fn extract_directory_entry<'a, T>(
+    item: NormalEntry<T>,
+    item_path: &EntryName,
+    OutputOption {
+        overwrite_strategy,
+        out_dir,
+        keep_options,
+        unlink_first,
+        absolute_paths,
+        ..
+    }: &OutputOption<'a>,
+) -> io::Result<()>
+where
+    T: AsRef<[u8]>,
+    pna::RawChunk<T>: Chunk,
+{
+    let Some((path, _)) = prepare_extraction(
+        &item,
+        item_path,
+        out_dir.as_deref(),
+        *overwrite_strategy,
+        *unlink_first,
+        *absolute_paths,
+    )?
+    else {
+        return Ok(());
+    };
+    ensure_directory_components(&path, *unlink_first, !absolute_paths)?;
+    restore_metadata(&item, &path, keep_options)?;
+    log::debug!("end: {}", path.display());
+    Ok(())
+}
+
+/// Extracts a symbolic link or hard link entry from the archive.
+///
+/// Called from the deferred link loop after all files and directories have been
+/// extracted, ensuring that link targets exist.
+pub(crate) fn extract_link_entry<'a, T>(
     item: NormalEntry<T>,
     item_path: &EntryName,
     password: Option<&'a [u8]>,
@@ -1186,72 +1334,32 @@ pub(crate) fn extract_entry<'a, T>(
         overwrite_strategy,
         allow_unsafe_links,
         out_dir,
-        to_stdout: _,
-        filter: _,
         keep_options,
         pathname_editor,
-        ordered_path_locks: _,
         unlink_first,
-        time_filters: _,
         safe_writes,
-        verbose: _,
         absolute_paths,
         warned_lead_slash,
+        ..
     }: &OutputOption<'a>,
 ) -> io::Result<()>
 where
     T: AsRef<[u8]>,
     pna::RawChunk<T>: Chunk,
 {
-    log::debug!("Extract: {}", item.name());
-    let path = build_output_path(out_dir.as_deref(), item_path.as_path());
-
-    let entry_kind = item.header().data_kind();
-
-    log::debug!("start: {}", path.display());
-
-    let secure_symlinks = !absolute_paths;
-    // Check overwrite strategy and prepare target
-    let ExtractionDecision::Proceed { remove_existing } = check_and_prepare_target(
-        &path,
-        entry_kind,
+    let Some((path, remove_existing)) = prepare_extraction(
         &item,
+        item_path,
+        out_dir.as_deref(),
         *overwrite_strategy,
         *unlink_first,
-        secure_symlinks,
+        *absolute_paths,
     )?
     else {
         return Ok(());
     };
 
-    match entry_kind {
-        DataKind::File => {
-            if *safe_writes {
-                let mut safe_writer = SafeWriter::new(&path)?;
-                {
-                    let mut writer =
-                        io::BufWriter::with_capacity(64 * 1024, safe_writer.as_file_mut());
-                    let mut reader = item.reader(ReadOptions::with_password(password))?;
-                    io::copy(&mut reader, &mut writer)?;
-                    writer.flush()?;
-                }
-                restore_timestamps(safe_writer.as_file_mut(), item.metadata(), keep_options)?;
-                safe_writer.persist()?;
-            } else {
-                if remove_existing {
-                    utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
-                }
-                let file = utils::fs::file_create(&path, remove_existing)?;
-                let mut writer = io::BufWriter::with_capacity(64 * 1024, file);
-                let mut reader = item.reader(ReadOptions::with_password(password))?;
-                io::copy(&mut reader, &mut writer)?;
-                let mut file = writer.into_inner().map_err(|e| e.into_error())?;
-                restore_timestamps(&mut file, item.metadata(), keep_options)?;
-            }
-        }
-        DataKind::Directory => {
-            ensure_directory_components(&path, *unlink_first, secure_symlinks)?;
-        }
+    match item.header().data_kind() {
         DataKind::SymbolicLink => {
             let reader = item.reader(ReadOptions::with_password(password))?;
             let original = io::read_to_string(reader)?;
@@ -1262,7 +1370,6 @@ where
                 );
                 return Ok(());
             }
-            // Symlinks/hardlinks cannot be atomically replaced; remove existing path first
             if *safe_writes || remove_existing {
                 utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
             }
@@ -1293,13 +1400,16 @@ where
             } else {
                 Cow::from(original.as_path())
             };
-            // Symlinks/hardlinks cannot be atomically replaced; remove existing path first
             if *safe_writes || remove_existing {
                 utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
             }
             fs::hard_link(original, &path)?;
         }
+        kind => {
+            debug_assert!(false, "extract_link_entry called with {kind:?}");
+        }
     }
+
     restore_metadata(&item, &path, keep_options)?;
     log::debug!("end: {}", path.display());
     Ok(())
