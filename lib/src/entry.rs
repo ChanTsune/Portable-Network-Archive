@@ -646,6 +646,7 @@ where
         let mut mtime_ns = None;
         let mut atime_ns = None;
         let mut permission = None;
+        let mut link_target_type = None;
         for chunk in chunks {
             match chunk.ty {
                 ChunkType::FEND => break,
@@ -668,6 +669,7 @@ where
                 ChunkType::aTNS => atime_ns = Some(nanos(chunk.data())?),
                 ChunkType::fPRM => permission = Some(Permission::try_from_bytes(chunk.data())?),
                 ChunkType::xATR => xattrs.push(ExtendedAttribute::try_from_bytes(chunk.data())?),
+                ChunkType::fLTP => link_target_type = LinkTargetType::try_from_bytes(chunk.data())?,
                 _ => {
                     if chunk.ty.is_critical() {
                         return Err(io::Error::new(
@@ -694,6 +696,7 @@ where
                 modified: mtime,
                 accessed: atime,
                 permission,
+                link_target_type,
             },
             data,
             xattrs,
@@ -717,6 +720,7 @@ where
             modified,
             accessed,
             permission,
+            link_target_type,
         } = &self.metadata;
 
         total += (ChunkType::FHED, self.header.to_bytes()).write_chunk_in(writer)?;
@@ -761,6 +765,9 @@ where
         if let Some(p) = permission {
             total += (ChunkType::fPRM, p.to_bytes()).write_chunk_in(writer)?;
         }
+        if let Some(ltp) = link_target_type {
+            total += (ChunkType::fLTP, ltp.to_bytes()).write_chunk_in(writer)?;
+        }
         for xattr in &self.xattrs {
             total += (ChunkType::xATR, xattr.to_bytes()).write_chunk_in(writer)?;
         }
@@ -782,6 +789,7 @@ where
             modified,
             accessed,
             permission,
+            link_target_type,
         } = self.metadata;
         let mut vec = Vec::new();
         vec.push(RawChunk::from_data(ChunkType::FHED, self.header.to_bytes()));
@@ -837,6 +845,9 @@ where
         }
         if let Some(p) = permission {
             vec.push(RawChunk::from_data(ChunkType::fPRM, p.to_bytes()));
+        }
+        if let Some(ltp) = link_target_type {
+            vec.push(RawChunk::from_data(ChunkType::fLTP, ltp.to_bytes()));
         }
         for xattr in self.xattrs {
             vec.push(RawChunk::from_data(ChunkType::xATR, xattr.to_bytes()));

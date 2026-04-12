@@ -7,9 +7,9 @@ use crate::{
     cipher::CipherWriter,
     compress::CompressionWriter,
     entry::{
-        DataKind, Entry, EntryHeader, EntryName, EntryReference, ExtendedAttribute, Metadata,
-        NormalEntry, Permission, SolidEntry, SolidHeader, WriteCipher, WriteOption, WriteOptions,
-        get_writer, get_writer_context, private::SealedEntryExt,
+        DataKind, Entry, EntryHeader, EntryName, EntryReference, ExtendedAttribute, LinkTargetType,
+        Metadata, NormalEntry, Permission, SolidEntry, SolidHeader, WriteCipher, WriteOption,
+        WriteOptions, get_writer, get_writer_context, private::SealedEntryExt,
     },
     io::{FlattenWriter, TryIntoInner},
 };
@@ -145,6 +145,7 @@ pub struct EntryBuilder {
     last_modified: Option<Duration>,
     accessed: Option<Duration>,
     permission: Option<Permission>,
+    link_target_type: Option<LinkTargetType>,
     store_file_size: bool,
     file_size: u128,
     xattrs: Vec<ExtendedAttribute>,
@@ -162,6 +163,7 @@ impl EntryBuilder {
             last_modified: None,
             accessed: None,
             permission: None,
+            link_target_type: None,
             store_file_size: true,
             file_size: 0,
             xattrs: Vec::new(),
@@ -292,6 +294,22 @@ impl EntryBuilder {
         self
     }
 
+    /// Sets the link target type for link entries.
+    ///
+    /// Combined with [`DataKind`](crate::DataKind), this determines the link type:
+    /// - `SymbolicLink` + `File` → file symlink
+    /// - `SymbolicLink` + `Directory` → directory symlink
+    /// - `HardLink` + `File` → file hard link
+    /// - `HardLink` + `Directory` → directory hard link
+    #[inline]
+    pub fn link_target_type(
+        &mut self,
+        link_target_type: impl Into<Option<LinkTargetType>>,
+    ) -> &mut Self {
+        self.link_target_type = link_target_type.into();
+        self
+    }
+
     /// Sets whether to store the raw file size in the entry metadata.
     ///
     /// When `true`, the raw file size is recorded; when `false`, it is omitted.
@@ -370,6 +388,7 @@ impl EntryBuilder {
             modified: self.last_modified,
             accessed: self.accessed,
             permission: self.permission,
+            link_target_type: self.link_target_type,
         };
         Ok(NormalEntry {
             header: self.header,
@@ -680,6 +699,8 @@ impl SolidEntryBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::entry::RawEntry;
+    use crate::entry::private::SealedEntryExt;
     use crate::{ChunkType, ReadOptions};
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
@@ -753,5 +774,60 @@ mod tests {
         reader.read_to_end(&mut buf).unwrap();
 
         assert_eq!("テストデータ".as_bytes(), &buf[..]);
+    }
+
+    #[test]
+    fn fltp_symlink_roundtrip() {
+        let mut builder =
+            EntryBuilder::new_symlink("link_name".into(), "target_dir".into()).unwrap();
+        builder.link_target_type(LinkTargetType::Directory);
+        let entry = builder.build().unwrap();
+        let chunks = entry.into_chunks();
+        let raw = RawEntry(chunks);
+        let restored = NormalEntry::try_from(raw).unwrap();
+        assert_eq!(
+            restored.metadata().link_target_type(),
+            Some(LinkTargetType::Directory)
+        );
+    }
+
+    #[test]
+    fn fltp_hardlink_roundtrip() {
+        let mut builder =
+            EntryBuilder::new_hard_link("dir_hardlink".into(), "target_dir".into()).unwrap();
+        builder.link_target_type(LinkTargetType::Directory);
+        let entry = builder.build().unwrap();
+        let chunks = entry.into_chunks();
+        let raw = RawEntry(chunks);
+        let restored = NormalEntry::try_from(raw).unwrap();
+        assert_eq!(
+            restored.metadata().link_target_type(),
+            Some(LinkTargetType::Directory)
+        );
+    }
+
+    #[test]
+    fn fltp_absent_returns_none() {
+        let builder = EntryBuilder::new_symlink("link_name".into(), "target".into()).unwrap();
+        let entry = builder.build().unwrap();
+        let chunks = entry.into_chunks();
+        let raw = RawEntry(chunks);
+        let restored = NormalEntry::try_from(raw).unwrap();
+        assert_eq!(restored.metadata().link_target_type(), None);
+    }
+
+    #[test]
+    fn fltp_on_regular_file_is_preserved() {
+        let mut builder =
+            EntryBuilder::new_file("regular.txt".into(), WriteOptions::store()).unwrap();
+        builder.link_target_type(LinkTargetType::File);
+        let entry = builder.build().unwrap();
+        let chunks = entry.into_chunks();
+        let raw = RawEntry(chunks);
+        let restored = NormalEntry::try_from(raw).unwrap();
+        assert_eq!(
+            restored.metadata().link_target_type(),
+            Some(LinkTargetType::File)
+        );
     }
 }
