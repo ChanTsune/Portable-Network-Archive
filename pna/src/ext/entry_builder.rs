@@ -57,6 +57,7 @@ impl EntryBuilderExt for EntryBuilder {
             .modified(metadata.modified())
             .accessed(metadata.accessed())
             .permission(metadata.permission().cloned())
+            .link_target_type(metadata.link_target_type())
     }
 
     /// Sets the created time using [`SystemTime`].
