@@ -623,6 +623,7 @@ where
         BsdGlobMatcher::new(patterns.iter().map(|it| it.as_str())).with_no_recursive(no_recursive);
 
     let mut link_entries = Vec::new();
+    let mut dir_metadata = Vec::new();
 
     #[cfg(not(target_family = "wasm"))]
     {
@@ -663,9 +664,9 @@ where
                             return Ok(ProcessAction::Continue);
                         }
                         if item.header().data_kind() == DataKind::Directory {
-                            extract_directory_entry(item, &name, &args).map_err(|e| {
-                                io::Error::new(e.kind(), format!("extracting {item_path}: {e}"))
-                            })?;
+                            if extract_directory_structure(&item, &name, &args)? {
+                                dir_metadata.push((name, item));
+                            }
                             if globs.all_matched() {
                                 return Ok(ProcessAction::Stop);
                             }
@@ -717,10 +718,9 @@ where
                             return Ok(());
                         }
                         if item.header().data_kind() == DataKind::Directory {
-                            let item_path = item.name().to_string();
-                            extract_directory_entry(item, &name, &args).map_err(|e| {
-                                io::Error::new(e.kind(), format!("extracting {item_path}: {e}"))
-                            })?;
+                            if extract_directory_structure(&item, &name, &args)? {
+                                dir_metadata.push((name, item));
+                            }
                             return Ok(());
                         }
                         let path = build_output_path(args.out_dir.as_deref(), name.as_path());
@@ -786,9 +786,9 @@ where
                         return Ok(ProcessAction::Continue);
                     }
                     if item.header().data_kind() == DataKind::Directory {
-                        extract_directory_entry(item, &name, &args).map_err(|e| {
-                            io::Error::new(e.kind(), format!("extracting {}: {e}", item_path))
-                        })?;
+                        if extract_directory_structure(&item, &name, &args)? {
+                            dir_metadata.push((name, item));
+                        }
                         if globs.all_matched() {
                             return Ok(ProcessAction::Stop);
                         }
@@ -830,10 +830,9 @@ where
                         return Ok(());
                     }
                     if item.header().data_kind() == DataKind::Directory {
-                        let item_path = item.name().to_string();
-                        extract_directory_entry(item, &name, &args).map_err(|e| {
-                            io::Error::new(e.kind(), format!("extracting {item_path}: {e}"))
-                        })?;
+                        if extract_directory_structure(&item, &name, &args)? {
+                            dir_metadata.push((name, item));
+                        }
                         return Ok(());
                     }
                     extract_file_entry(item, &name, password, &args).map_err(|e| {
@@ -850,6 +849,16 @@ where
     for (name, item) in link_entries {
         extract_link_entry(item, &name, password, &args)
             .with_context(|| format!("extracting deferred link {name}"))?;
+    }
+
+    // Apply deferred directory metadata (deepest paths first, so child metadata
+    // is set before parents — prevents restrictive parent permissions from blocking)
+    dir_metadata
+        .sort_by_cached_key(|(name, _)| std::cmp::Reverse(name.as_path().components().count()));
+    for (name, item) in dir_metadata {
+        let path = build_output_path(args.out_dir.as_deref(), name.as_path());
+        restore_metadata(&item, &path, &args.keep_options)
+            .with_context(|| format!("restoring deferred directory metadata {name}"))?;
     }
 
     globs.ensure_all_matched()?;
@@ -874,6 +883,7 @@ where
         BsdGlobMatcher::new(files.iter().map(|it| it.as_str())).with_no_recursive(no_recursive);
 
     let mut link_entries: Vec<(EntryName, NormalEntry<Vec<u8>>)> = Vec::new();
+    let mut dir_metadata: Vec<(EntryName, NormalEntry<Vec<u8>>)> = Vec::new();
 
     let (tx, rx) = std::sync::mpsc::channel();
 
@@ -909,9 +919,9 @@ where
                     return Ok(ProcessAction::Continue);
                 }
                 if item.header().data_kind() == DataKind::Directory {
-                    extract_directory_entry(item, &name, &args).map_err(|e| {
-                        io::Error::new(e.kind(), format!("extracting {item_path}: {e}"))
-                    })?;
+                    if extract_directory_structure(&item, &name, &args)? {
+                        dir_metadata.push((name, item.into()));
+                    }
                     if globs.all_matched() {
                         return Ok(ProcessAction::Stop);
                     }
@@ -958,10 +968,9 @@ where
                     return Ok(());
                 }
                 if item.header().data_kind() == DataKind::Directory {
-                    let item_path = item.name().to_string();
-                    extract_directory_entry(item, &name, &args).map_err(|e| {
-                        io::Error::new(e.kind(), format!("extracting {item_path}: {e}"))
-                    })?;
+                    if extract_directory_structure(&item, &name, &args)? {
+                        dir_metadata.push((name, item.into()));
+                    }
                     return Ok(());
                 }
                 let path = build_output_path(args.out_dir.as_deref(), name.as_path());
@@ -992,6 +1001,17 @@ where
         extract_link_entry(item, &name, password, &args)
             .with_context(|| format!("extracting deferred link {name}"))?;
     }
+
+    // Apply deferred directory metadata (deepest paths first, so child metadata
+    // is set before parents — prevents restrictive parent permissions from blocking)
+    dir_metadata
+        .sort_by_cached_key(|(name, _)| std::cmp::Reverse(name.as_path().components().count()));
+    for (name, item) in dir_metadata {
+        let path = build_output_path(args.out_dir.as_deref(), name.as_path());
+        restore_metadata(&item, &path, &args.keep_options)
+            .with_context(|| format!("restoring deferred directory metadata {name}"))?;
+    }
+
     globs.ensure_all_matched()?;
     Ok(())
 }
@@ -1192,11 +1212,49 @@ where
     Ok(ExtractionDecision::Proceed { remove_existing })
 }
 
+/// Creates a directory and runs overwrite policy checks, but defers metadata restoration.
+///
+/// Returns `true` if the directory was created and metadata should be deferred.
+/// Returns `false` if the directory was skipped by overwrite policy.
+fn extract_directory_structure<T>(
+    item: &NormalEntry<T>,
+    item_path: &EntryName,
+    args: &OutputOption<'_>,
+) -> io::Result<bool>
+where
+    T: AsRef<[u8]>,
+    pna::RawChunk<T>: Chunk,
+{
+    if item.header().data_kind() != DataKind::Directory {
+        unreachable!(
+            "extract_directory_structure called with {:?}",
+            item.header().data_kind()
+        );
+    }
+    let path = build_output_path(args.out_dir.as_deref(), item_path.as_path());
+    let secure_symlinks = !args.absolute_paths;
+
+    let ExtractionDecision::Proceed { .. } = check_and_prepare_target(
+        &path,
+        DataKind::Directory,
+        item,
+        args.overwrite_strategy,
+        args.unlink_first,
+        secure_symlinks,
+    )?
+    else {
+        return Ok(false);
+    };
+
+    ensure_directory_components(&path, args.unlink_first, secure_symlinks)?;
+    Ok(true)
+}
+
 /// Shared preamble for entry extraction: builds the output path, runs overwrite
 /// policy checks, and prepares the target.
 ///
-/// Returns `None` if the entry should be skipped by overwrite policy, otherwise
-/// returns the resolved output path and the `remove_existing` flag.
+/// Returns `None` if the entry should be skipped by overwrite policy,
+/// otherwise returns the resolved output path and `remove_existing` flag.
 fn prepare_extraction<'a, T>(
     item: &NormalEntry<T>,
     item_path: &'a EntryName,
@@ -1290,46 +1348,6 @@ where
         restore_timestamps(&mut file, item.metadata(), keep_options)?;
     }
 
-    restore_metadata(&item, &path, keep_options)?;
-    log::debug!("end: {}", path.display());
-    Ok(())
-}
-
-/// Extracts a directory entry: ensures the directory exists on disk and restores its metadata.
-pub(crate) fn extract_directory_entry<'a, T>(
-    item: NormalEntry<T>,
-    item_path: &EntryName,
-    OutputOption {
-        overwrite_strategy,
-        out_dir,
-        keep_options,
-        unlink_first,
-        absolute_paths,
-        ..
-    }: &OutputOption<'a>,
-) -> io::Result<()>
-where
-    T: AsRef<[u8]>,
-    pna::RawChunk<T>: Chunk,
-{
-    if item.header().data_kind() != DataKind::Directory {
-        unreachable!(
-            "extract_directory_entry called with {:?}",
-            item.header().data_kind()
-        );
-    }
-    let Some((path, _)) = prepare_extraction(
-        &item,
-        item_path,
-        out_dir.as_deref(),
-        *overwrite_strategy,
-        *unlink_first,
-        *absolute_paths,
-    )?
-    else {
-        return Ok(());
-    };
-    ensure_directory_components(&path, *unlink_first, !absolute_paths)?;
     restore_metadata(&item, &path, keep_options)?;
     log::debug!("end: {}", path.display());
     Ok(())
@@ -1474,10 +1492,70 @@ fn restore_timestamps(
     Ok(())
 }
 
-/// Restores file metadata (permissions, extended attributes, ACLs, and macOS metadata) for an extracted entry according to the provided keep options.
+/// Restores timestamps on a path without requiring an open file handle.
 ///
-/// - Ownership is restored when `owner_strategy` is `Preserve`
-/// - Mode bits are restored when `mode_strategy` is `Preserve`
+/// Uses `filetime::set_symlink_file_times` which does not follow symlinks,
+/// making it suitable for entries where an open file handle is not available.
+///
+/// Note: creation time cannot be set via this API and is silently skipped.
+/// On macOS/Windows, this means non-file entries lose their creation timestamp
+/// — a limitation of the `filetime` crate's path-based interface.
+#[cfg(not(target_family = "wasm"))]
+#[inline]
+fn restore_path_timestamps(
+    path: &Path,
+    metadata: &pna::Metadata,
+    keep_options: &KeepOptions,
+) -> io::Result<()> {
+    if let TimestampStrategy::Preserve {
+        mtime,
+        ctime: _,
+        atime,
+    } = keep_options.timestamp_strategy
+    {
+        let atime = atime
+            .resolve(metadata.accessed_time())
+            .map(filetime::FileTime::from_system_time);
+        let mtime = mtime
+            .resolve(metadata.modified_time())
+            .map(filetime::FileTime::from_system_time);
+        if atime.is_some() || mtime.is_some() {
+            // set_symlink_file_times always sets both timestamps; when one is absent,
+            // read the current value from the filesystem to avoid clobbering it to epoch.
+            let (fallback_atime, fallback_mtime) = if atime.is_none() || mtime.is_none() {
+                let existing = fs::symlink_metadata(path).ok();
+                (
+                    existing
+                        .as_ref()
+                        .map(filetime::FileTime::from_last_access_time),
+                    existing
+                        .as_ref()
+                        .map(filetime::FileTime::from_last_modification_time),
+                )
+            } else {
+                (None, None)
+            };
+            filetime::set_symlink_file_times(
+                path,
+                atime
+                    .or(fallback_atime)
+                    .unwrap_or(filetime::FileTime::zero()),
+                mtime
+                    .or(fallback_mtime)
+                    .unwrap_or(filetime::FileTime::zero()),
+            )?;
+        }
+    }
+    Ok(())
+}
+
+/// Restores entry metadata (timestamps for non-file entries, ownership, permissions, extended attributes, ACLs, and macOS metadata) according to the provided keep options.
+///
+/// - Timestamps are restored for non-file entries (symlinks, directories, hardlinks) via path-based API;
+///   regular files are handled earlier by `restore_timestamps()` with an open file handle
+/// - Ownership is restored via `lchown` when `owner_strategy` is `Preserve` (does not follow symlinks)
+/// - Mode bits are restored when `mode_strategy` is `Preserve`, but skipped for symlinks since
+///   `chmod()` follows symlinks and would corrupt the target's permissions
 /// - These are independent: `--keep-permission --no-same-owner` restores mode but not ownership
 fn restore_metadata<T>(
     item: &NormalEntry<T>,
@@ -1487,16 +1565,27 @@ fn restore_metadata<T>(
 where
     T: AsRef<[u8]>,
 {
+    // Restore timestamps for non-file entries (symlinks, directories, hardlinks).
+    // Regular files are handled by restore_timestamps() with an open file handle.
+    // On WASM, path-based timestamp restoration is not supported (filetime limitation).
+    #[cfg(not(target_family = "wasm"))]
+    if item.header().data_kind() != DataKind::File {
+        restore_path_timestamps(path, item.metadata(), keep_options)?;
+    }
     if let Some(p) = item.metadata().permission() {
         // Restore ownership when owner_strategy is Preserve (independent of mode)
         if let OwnerStrategy::Preserve { options } = &keep_options.owner_strategy {
             restore_owner(path, p, options)?;
         }
         // Restore mode bits when configured.
-        match keep_options.mode_strategy {
-            ModeStrategy::Preserve => restore_mode(path, p)?,
-            ModeStrategy::Masked(mask) => restore_mode_masked(path, p, mask)?,
-            ModeStrategy::Never => {}
+        // Skip for symlinks: symlink permissions are not settable via chmod() on most
+        // platforms, and chmod() follows symlinks, which would corrupt the target's permissions.
+        if item.header().data_kind() != DataKind::SymbolicLink {
+            match keep_options.mode_strategy {
+                ModeStrategy::Preserve => restore_mode(path, p)?,
+                ModeStrategy::Masked(mask) => restore_mode_masked(path, p, mask)?,
+                ModeStrategy::Never => {}
+            }
         }
     }
     // On macOS, when mac_metadata_strategy is Always and the entry has mac_metadata,
