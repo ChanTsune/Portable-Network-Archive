@@ -89,6 +89,55 @@ fn extract_keep_timestamp_restores_file_times() {
     );
 }
 
+/// Precondition: Archive contains a directory entry with known mtime and atime.
+/// Action: Extract with `--keep-timestamp`.
+/// Expectation: The extracted directory's mtime and atime match the archived values.
+#[test]
+fn extract_keep_timestamp_restores_directory_times() {
+    setup();
+
+    let base = "extract_keep_timestamp_restores_directory_times";
+    let archive_path = format!("{base}/archive.pna");
+    fs::create_dir_all(base).unwrap();
+
+    let atime_epoch = pna::Duration::seconds(1_704_067_200); // 2024-01-01T00:00:00Z
+    let mtime_epoch = pna::Duration::seconds(1_704_153_600); // 2024-01-02T00:00:00Z
+
+    // Build archive programmatically with a directory entry having explicit timestamps
+    let file = fs::File::create(&archive_path).unwrap();
+    let mut archive = pna::Archive::write_header(file).unwrap();
+    let mut dir_builder = pna::EntryBuilder::new_dir("mydir".into());
+    dir_builder.modified(mtime_epoch);
+    dir_builder.accessed(atime_epoch);
+    archive.add_entry(dir_builder.build().unwrap()).unwrap();
+    // Add a file inside the directory so extraction creates the directory
+    let mut file_builder =
+        pna::EntryBuilder::new_file("mydir/file.txt".into(), pna::WriteOptions::store()).unwrap();
+    file_builder.write_all(b"content").unwrap();
+    archive.add_entry(file_builder.build().unwrap()).unwrap();
+    archive.finalize().unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        &archive_path,
+        "--overwrite",
+        "--out-dir",
+        &format!("{base}/out"),
+        "--keep-timestamp",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let atime = SystemTime::UNIX_EPOCH + Duration::from_secs(1_704_067_200);
+    let mtime = SystemTime::UNIX_EPOCH + Duration::from_secs(1_704_153_600);
+    let (modified, accessed, _) = extract_time(format!("{base}/out/mydir"));
+    assert_same_second(modified, mtime, "directory mtime");
+    assert_same_second(accessed, atime, "directory atime");
+}
+
 /// Precondition: Archive contains a file entry and a hardlink entry pointing to it, both with known timestamps.
 /// Action: Extract with `--keep-timestamp`.
 /// Expectation: The hardlink's mtime matches the archived value and shares the same inode as the target.

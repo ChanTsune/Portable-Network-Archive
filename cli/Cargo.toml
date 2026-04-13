@@ -52,6 +52,9 @@ typed-path = "0.12"
 rand = "0.8.5"
 walkdir = "2.5.0"
 
+[target.'cfg(not(target_family = "wasm"))'.dependencies]
+filetime = "0.2"
+
 [target.'cfg(unix)'.dependencies]
 mtree2 = "0.6.15"
 nix = { version = "0.31.2", features = ["user"] }
@@ -71,7 +74,6 @@ windows = { version = "0.62.2", features = [
 field-offset = { version = "0.3.6", optional = true }
 
 [dev-dependencies]
-filetime = "0.2"
 maplit = "1.0.2"
 path-slash = "0.2.1"
 rust-embed = { version = "8.11.0", features = ["debug-embed"] }
