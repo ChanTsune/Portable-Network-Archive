@@ -1,16 +1,13 @@
 //! Stream cipher encryption writer.
 
-use cipher::{
-    BlockSizeUser, KeyIvInit, StreamCipher, StreamCipherCoreWrapper,
-    typenum::{IsLess, Le, NonZero, U256},
-};
+use block_buffer::BlockSizes;
+use cipher::{KeyIvInit, StreamCipher, StreamCipherCore, StreamCipherCoreWrapper};
 use std::io::{self, Write};
 
 pub(crate) struct StreamCipherWriter<W, T>
 where
-    T: BlockSizeUser,
-    T::BlockSize: IsLess<U256>,
-    Le<T::BlockSize, U256>: NonZero,
+    T: StreamCipherCore,
+    T::BlockSize: BlockSizes,
 {
     w: W,
     cipher: StreamCipherCoreWrapper<T>,
@@ -19,9 +16,8 @@ where
 impl<W, T> StreamCipherWriter<W, T>
 where
     W: Write,
-    T: BlockSizeUser,
-    T::BlockSize: IsLess<U256>,
-    Le<T::BlockSize, U256>: NonZero,
+    T: StreamCipherCore,
+    T::BlockSize: BlockSizes,
     StreamCipherCoreWrapper<T>: KeyIvInit,
 {
     pub(crate) fn new(w: W, key: &[u8], iv: &[u8]) -> io::Result<Self> {
@@ -45,9 +41,8 @@ where
 impl<W, T> Write for StreamCipherWriter<W, T>
 where
     W: Write,
-    T: BlockSizeUser,
-    T::BlockSize: IsLess<U256>,
-    Le<T::BlockSize, U256>: NonZero,
+    T: StreamCipherCore,
+    T::BlockSize: BlockSizes,
     StreamCipherCoreWrapper<T>: StreamCipher,
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {

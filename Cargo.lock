@@ -1479,6 +1479,7 @@ dependencies = [
  "aes 0.9.0",
  "argon2",
  "arrayvec",
+ "block-buffer 0.12.0",
  "camellia",
  "camino",
  "cbc",

@@ -144,19 +144,20 @@ impl<R: Read> Read for DecryptReader<R> {
 mod tests {
     use super::*;
     use cipher::{
-        BlockCipher, BlockDecryptMut, BlockEncryptMut, BlockSizeUser, KeyIvInit, KeySizeUser,
+        BlockCipherDecrypt, BlockCipherEncrypt, BlockModeDecrypt, BlockModeEncrypt, BlockSizeUser,
+        KeyIvInit, KeySizeUser,
     };
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
     fn encrypt_cbc<Cipher>(key: &[u8], iv: &[u8], data: &[u8]) -> io::Result<Vec<u8>>
     where
-        Cipher: BlockEncryptMut + BlockCipher,
-        cbc::Encryptor<Cipher>: KeyIvInit,
+        Cipher: BlockCipherEncrypt,
+        cbc::Encryptor<Cipher>: BlockModeEncrypt + KeyIvInit,
     {
         let encryptor = cbc::Encryptor::<Cipher>::new_from_slices(key, iv)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-        let mut d = encryptor.encrypt_padded_vec_mut::<Pkcs7>(data);
+        let mut d = encryptor.encrypt_padded_vec::<Pkcs7>(data);
         let mut e = Vec::from(iv);
         e.append(&mut d);
         Ok(e)
@@ -164,14 +165,14 @@ mod tests {
 
     fn decrypt_cbc<Cipher>(key: &[u8], data: &[u8]) -> io::Result<Vec<u8>>
     where
-        Cipher: BlockDecryptMut + BlockCipher,
-        cbc::Decryptor<Cipher>: KeyIvInit,
+        Cipher: BlockCipherDecrypt,
+        cbc::Decryptor<Cipher>: BlockModeDecrypt + KeyIvInit,
     {
         let decryptor =
             cbc::Decryptor::<Cipher>::new_from_slices(key, &data[0..Cipher::block_size()])
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
         let data = decryptor
-            .decrypt_padded_vec_mut::<Pkcs7>(&data[Cipher::block_size()..])
+            .decrypt_padded_vec::<Pkcs7>(&data[Cipher::block_size()..])
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         Ok(data)
     }

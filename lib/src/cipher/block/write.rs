@@ -2,14 +2,15 @@
 
 use arrayvec::ArrayVec;
 use cipher::block_padding::Padding;
-use cipher::{Block, BlockCipher, BlockEncryptMut, BlockSizeUser, KeyIvInit};
+use cipher::{Block, BlockCipherEncrypt, BlockModeEncrypt, BlockSizeUser, KeyIvInit};
 use std::io::{self, Write};
 use std::marker::PhantomData;
 
 pub(crate) struct CbcBlockCipherEncryptWriter<W, C, P>
 where
-    C: BlockEncryptMut + BlockCipher,
-    P: Padding<<C as BlockSizeUser>::BlockSize>,
+    C: BlockCipherEncrypt,
+    cbc::Encryptor<C>: BlockModeEncrypt,
+    P: Padding,
 {
     w: W,
     c: cbc::Encryptor<C>,
@@ -20,8 +21,9 @@ where
 impl<W, C, P> CbcBlockCipherEncryptWriter<W, C, P>
 where
     W: Write,
-    C: BlockEncryptMut + BlockCipher,
-    P: Padding<<C as BlockSizeUser>::BlockSize>,
+    C: BlockCipherEncrypt,
+    cbc::Encryptor<C>: BlockModeEncrypt,
+    P: Padding,
     cbc::Encryptor<C>: KeyIvInit,
 {
     pub(crate) fn new(w: W, key: &[u8], iv: &[u8]) -> io::Result<Self> {
@@ -39,15 +41,17 @@ where
 impl<W, C, P> CbcBlockCipherEncryptWriter<W, C, P>
 where
     W: Write,
-    C: BlockEncryptMut + BlockCipher,
-    P: Padding<<C as BlockSizeUser>::BlockSize>,
+    C: BlockCipherEncrypt,
+    cbc::Encryptor<C>: BlockModeEncrypt,
+    P: Padding,
 {
     fn encrypt_write_with_padding(mut self) -> io::Result<W> {
         let pos = self.buf.len();
         unsafe { self.buf.set_len(cbc::Encryptor::<C>::block_size()) };
-        let block = Block::<cbc::Encryptor<C>>::from_mut_slice(&mut self.buf);
+        let block = <&mut Block<cbc::Encryptor<C>>>::try_from(self.buf.as_mut_slice())
+            .expect("buf length equals block size");
         P::pad(block, pos);
-        self.c.encrypt_block_inout_mut(block.into());
+        self.c.encrypt_block_inout(block.into());
         self.w.write_all(block.as_slice())?;
         Ok(self.w)
     }
@@ -56,8 +60,9 @@ where
 impl<W, C, P> Write for CbcBlockCipherEncryptWriter<W, C, P>
 where
     W: Write,
-    C: BlockEncryptMut + BlockCipher,
-    P: Padding<<C as BlockSizeUser>::BlockSize>,
+    C: BlockCipherEncrypt,
+    cbc::Encryptor<C>: BlockModeEncrypt,
+    P: Padding,
 {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let block_size = cbc::Encryptor::<C>::block_size();
@@ -75,8 +80,9 @@ where
                 .expect("buffer capacity exceeded: crypto block size invariant violated");
             total_written += remaining;
 
-            let inout_block = Block::<cbc::Encryptor<C>>::from_mut_slice(&mut self.buf);
-            self.c.encrypt_block_inout_mut(inout_block.into());
+            let inout_block = <&mut Block<cbc::Encryptor<C>>>::try_from(self.buf.as_mut_slice())
+                .expect("buf length equals block size");
+            self.c.encrypt_block_inout(inout_block.into());
             self.w.write_all(inout_block.as_slice())?;
             self.buf.clear();
         }
@@ -85,8 +91,9 @@ where
         let chunks = buf[total_written..].chunks_exact(block_size);
         let remainder = chunks.remainder();
         for b in chunks {
-            let in_block = Block::<cbc::Encryptor<C>>::from_slice(b);
-            self.c.encrypt_block_b2b_mut(in_block, &mut out_block);
+            let in_block = <&Block<cbc::Encryptor<C>>>::try_from(b)
+                .expect("chunks_exact yields exact block-sized slices");
+            self.c.encrypt_block_b2b(in_block, &mut out_block);
             self.w.write_all(out_block.as_slice())?;
             total_written += b.len();
         }
@@ -105,8 +112,9 @@ where
 impl<W, C, P> CbcBlockCipherEncryptWriter<W, C, P>
 where
     W: Write,
-    C: BlockEncryptMut + BlockCipher,
-    P: Padding<<C as BlockSizeUser>::BlockSize>,
+    C: BlockCipherEncrypt,
+    cbc::Encryptor<C>: BlockModeEncrypt,
+    P: Padding,
 {
     #[inline]
     pub(crate) fn get_mut(&mut self) -> &mut W {

@@ -2,14 +2,15 @@
 
 use arrayvec::ArrayVec;
 use cipher::block_padding::Padding;
-use cipher::{Block, BlockCipher, BlockDecryptMut, BlockSizeUser, KeyIvInit};
+use cipher::{Block, BlockCipherDecrypt, BlockModeDecrypt, BlockSizeUser, KeyIvInit};
 use std::io::{self, Read};
 use std::marker::PhantomData;
 
 pub(crate) struct CbcBlockCipherDecryptReader<R, C, P>
 where
-    C: BlockDecryptMut + BlockCipher,
-    P: Padding<<C as BlockSizeUser>::BlockSize>,
+    C: BlockCipherDecrypt,
+    cbc::Decryptor<C>: BlockModeDecrypt,
+    P: Padding,
 {
     r: R,
     c: cbc::Decryptor<C>,
@@ -22,8 +23,9 @@ where
 impl<R, C, P> CbcBlockCipherDecryptReader<R, C, P>
 where
     R: Read,
-    C: BlockDecryptMut + BlockCipher,
-    P: Padding<<C as BlockSizeUser>::BlockSize>,
+    C: BlockCipherDecrypt,
+    cbc::Decryptor<C>: BlockModeDecrypt,
+    P: Padding,
     cbc::Decryptor<C>: KeyIvInit,
 {
     pub(crate) fn new(mut r: R, key: &[u8], iv: &[u8]) -> io::Result<Self> {
@@ -47,8 +49,9 @@ where
 impl<R, C, P> Read for CbcBlockCipherDecryptReader<R, C, P>
 where
     R: Read,
-    C: BlockDecryptMut + BlockCipher,
-    P: Padding<<C as BlockSizeUser>::BlockSize>,
+    C: BlockCipherDecrypt,
+    cbc::Decryptor<C>: BlockModeDecrypt,
+    P: Padding,
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let buf_len = buf.len();
@@ -71,8 +74,9 @@ where
         let block_size = cbc::Decryptor::<C>::block_size();
         let mut out_block = Block::<cbc::Decryptor<C>>::default();
         for chunk in buf[total_written..].chunks_mut(block_size) {
-            let in_block = Block::<cbc::Decryptor<C>>::from_slice(&self.buf);
-            self.c.decrypt_block_b2b_mut(in_block, &mut out_block);
+            let in_block = <&Block<cbc::Decryptor<C>>>::try_from(self.buf.as_slice())
+                .expect("buf length equals block size");
+            self.c.decrypt_block_b2b(in_block, &mut out_block);
 
             let buf_slice = self.buf.as_mut_slice();
             let mut filled = 0;

@@ -1,16 +1,13 @@
 //! Stream cipher decryption reader.
 
-use cipher::{
-    BlockSizeUser, KeyIvInit, StreamCipher, StreamCipherCoreWrapper,
-    typenum::{IsLess, Le, NonZero, U256},
-};
+use block_buffer::BlockSizes;
+use cipher::{KeyIvInit, StreamCipher, StreamCipherCore, StreamCipherCoreWrapper};
 use std::io::{self, Read};
 
 pub(crate) struct StreamCipherReader<R, T>
 where
-    T: BlockSizeUser,
-    T::BlockSize: IsLess<U256>,
-    Le<T::BlockSize, U256>: NonZero,
+    T: StreamCipherCore,
+    T::BlockSize: BlockSizes,
 {
     r: R,
     cipher: StreamCipherCoreWrapper<T>,
@@ -19,9 +16,8 @@ where
 impl<R, T> StreamCipherReader<R, T>
 where
     R: Read,
-    T: BlockSizeUser,
-    T::BlockSize: IsLess<U256>,
-    Le<T::BlockSize, U256>: NonZero,
+    T: StreamCipherCore,
+    T::BlockSize: BlockSizes,
     StreamCipherCoreWrapper<T>: KeyIvInit,
 {
     pub(crate) fn new(r: R, key: &[u8], iv: &[u8]) -> io::Result<Self> {
@@ -36,9 +32,8 @@ where
 impl<R, T> Read for StreamCipherReader<R, T>
 where
     R: Read,
-    T: BlockSizeUser,
-    T::BlockSize: IsLess<U256>,
-    Le<T::BlockSize, U256>: NonZero,
+    T: StreamCipherCore,
+    T::BlockSize: BlockSizes,
     StreamCipherCoreWrapper<T>: StreamCipher,
 {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
