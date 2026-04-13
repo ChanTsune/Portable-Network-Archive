@@ -141,7 +141,7 @@ dependencies = [
  "base64ct",
  "blake2",
  "cpufeatures",
- "password-hash",
+ "password-hash 0.5.0",
 ]
 
 [[package]]
@@ -1419,7 +1419,7 @@ dependencies = [
  "futures-util",
  "getrandom 0.2.15",
  "liblzma",
- "password-hash",
+ "password-hash 0.6.1",
  "pbkdf2",
  "rand",
  "rand_chacha",
@@ -1725,6 +1725,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "password-hash"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aab41826031698d6ffcd9cff78ef56ef998e39dc7e5067cdfebe373842d4723b"
+
+[[package]]
 name = "path-slash"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1738,7 +1744,7 @@ checksum = "f8ed6a7761f76e3b9f92dfb0a60a6a6477c61024b775147ff0973a02653abaf2"
 dependencies = [
  "digest",
  "hmac",
- "password-hash",
+ "password-hash 0.5.0",
  "rayon",
  "sha2",
 ]
