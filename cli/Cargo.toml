@@ -49,7 +49,7 @@ tabled = { version = "0.20.0", default-features = false, features = ["std", "ans
 termtree = "0.5"
 thiserror = "2.0.18"
 typed-path = "0.12"
-rand = "0.8.5"
+rand = "0.9.3"
 walkdir = "2.5.0"
 
 [target.'cfg(unix)'.dependencies]
