@@ -39,7 +39,7 @@ nom = "8.0.0"
 parse_datetime = "0.14.0"
 path-slash = "0.2.1"
 pna = { version = "0.32.0", path = "../pna" }
-rayon = "1.11.0"
+rayon = "1.12.0"
 regex = "1.12.3"
 same-file = "1.0.6"
 scopeguard = "1.2.0"
