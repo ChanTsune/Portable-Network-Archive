@@ -68,6 +68,7 @@ jobs:
           toolchain: ${{ matrix.rust }}
           rustflags: ''
           cache-key: ${{ matrix.target }}
+          cache-save-if: ${{ github.ref_name == github.event.repository.default_branch }}
       - if: ${{ startsWith(matrix.target, 'wasm32-wasi') }}
         name: Setup wasmtime
         uses: bytecodealliance/actions/wasmtime/setup@9152e710e9f7182e4c29ad218e4f335a7b203613 # v1.1.3
