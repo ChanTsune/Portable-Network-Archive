@@ -31,7 +31,7 @@ ignore = "0.4.25"
 indexmap = "2.14.0"
 itertools = "0.14.0"
 jiff = "0.2.23"
-libc = "0.2.180"
+libc = "0.2.185"
 log = "0.4.29"
 memchr = "2.8.0"
 memmap2 = { version = "0.9.10", optional = true }
