@@ -1,8 +1,8 @@
 //! Compression and decompression implementations for PNA archives.
 
 use crate::io::TryIntoInner;
-use flate2::{read::ZlibDecoder, write::ZlibEncoder};
-use liblzma::{read::XzDecoder, write::XzEncoder};
+use flate2::{bufread::ZlibDecoder, write::ZlibEncoder};
+use liblzma::{bufread::XzDecoder, write::XzEncoder};
 use std::io::{BufReader, Read, Result, Write};
 use zstd::stream::{read::Decoder as ZStdDecoder, write::Encoder as ZstdEncoder};
 
@@ -85,13 +85,13 @@ impl<W: Write> TryIntoInner<W> for CompressionWriter<W> {
 /// - XZ (LZMA2)
 pub(crate) enum DecompressReader<R: Read> {
     /// No decompression, data is read as-is.
-    No(R),
+    No(BufReader<R>),
     /// Deflate decompression using zlib.
-    Deflate(ZlibDecoder<R>),
+    Deflate(ZlibDecoder<BufReader<R>>),
     /// Zstandard decompression.
     ZStd(ZStdDecoder<'static, BufReader<R>>),
     /// XZ decompression using LZMA2.
-    Xz(XzDecoder<R>),
+    Xz(XzDecoder<BufReader<R>>),
 }
 
 impl<R: Read> Read for DecompressReader<R> {

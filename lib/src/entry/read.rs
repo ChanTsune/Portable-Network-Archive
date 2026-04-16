@@ -61,16 +61,21 @@ pub(crate) fn decrypt_reader<R: Read>(
     })
 }
 
+const DECOMPRESS_BUFFER_SIZE: usize = 32 * 1024;
+
 /// Decompress reader according to a compression type.
 pub(crate) fn decompress_reader<R: Read>(
     reader: R,
     compression: Compression,
 ) -> io::Result<DecompressReader<R>> {
+    let reader = io::BufReader::with_capacity(DECOMPRESS_BUFFER_SIZE, reader);
     Ok(match compression {
         Compression::No => DecompressReader::No(reader),
-        Compression::Deflate => DecompressReader::Deflate(flate2::read::ZlibDecoder::new(reader)),
-        Compression::ZStandard => DecompressReader::ZStd(zstd::Decoder::new(reader)?),
-        Compression::XZ => DecompressReader::Xz(liblzma::read::XzDecoder::new(reader)),
+        Compression::Deflate => {
+            DecompressReader::Deflate(flate2::bufread::ZlibDecoder::new(reader))
+        }
+        Compression::ZStandard => DecompressReader::ZStd(zstd::Decoder::with_buffer(reader)?),
+        Compression::XZ => DecompressReader::Xz(liblzma::bufread::XzDecoder::new(reader)),
     })
 }
 
