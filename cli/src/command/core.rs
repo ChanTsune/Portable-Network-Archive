@@ -27,8 +27,8 @@ pub(crate) use path_filter::PathFilter;
 use path_slash::*;
 pub(crate) use path_transformer::PathTransformers;
 use pna::{
-    Archive, EntryBuilder, EntryPart, MIN_CHUNK_BYTES_SIZE, NormalEntry, PNA_HEADER, ReadEntry,
-    SolidEntryBuilder, WriteOptions, prelude::*,
+    Archive, EntryBuilder, EntryPart, LinkTargetType, MIN_CHUNK_BYTES_SIZE, NormalEntry,
+    PNA_HEADER, ReadEntry, SolidEntryBuilder, WriteOptions, prelude::*,
 };
 use std::{
     borrow::Cow,
@@ -379,7 +379,7 @@ pub(crate) struct CollectedEntry {
 pub(crate) enum StoreAs {
     File,
     Dir,
-    Symlink,
+    Symlink(LinkTargetType),
     Hardlink(PathBuf),
 }
 
@@ -736,7 +736,9 @@ pub(crate) fn collect_items_with_state(
 
                 // Classify entry and maybe add it to output
                 let store = if is_symlink {
-                    Some((StoreAs::Symlink, fs::symlink_metadata(path)?))
+                    let meta = fs::symlink_metadata(path)?;
+                    let link_target_type = detect_symlink_target_type(path, &meta)?;
+                    Some((StoreAs::Symlink(link_target_type), meta))
                 } else if is_file {
                     if let Some(linked) = hardlink_resolver.resolve(path).ok().flatten() {
                         Some((StoreAs::Hardlink(linked), fs::symlink_metadata(path)?))
@@ -774,9 +776,10 @@ pub(crate) fn collect_items_with_state(
                 {
                     let metadata = fs::symlink_metadata(path)?;
                     if is_broken_symlink_error(&metadata, ioe) {
+                        let link_target_type = detect_symlink_target_type(path, &metadata)?;
                         out.push(CollectedEntry {
                             path: path.to_path_buf(),
-                            store_as: StoreAs::Symlink,
+                            store_as: StoreAs::Symlink(link_target_type),
                             metadata,
                         });
                         continue;
@@ -792,6 +795,48 @@ pub(crate) fn collect_items_with_state(
 #[inline]
 fn is_broken_symlink_error(meta: &fs::Metadata, err: &io::Error) -> bool {
     meta.is_symlink() && err.kind() == io::ErrorKind::NotFound
+}
+
+/// Detects the target type of a symlink for the fLTP chunk.
+///
+/// On Windows, uses `FileTypeExt` on the link's own metadata to classify the
+/// symlink flavor recorded in the reparse point. Reparse points that are
+/// neither `symlink_file` nor `symlink_dir` (junction points, unknown reparse
+/// tags) degrade to `Unknown` for parity with the Unix path. On Unix, calls
+/// `fs::metadata(link_path)` which follows the symlink chain and stats the
+/// final target. A broken symlink (`NotFound`) degrades to `Unknown` since
+/// the target is confirmed absent and cannot be classified as file or
+/// directory. Other stat failures (permission denied, I/O error, etc.) are
+/// propagated — operators need to know when archive metadata is incomplete
+/// for actionable reasons.
+#[cfg(windows)]
+fn detect_symlink_target_type(
+    _link_path: &Path,
+    link_metadata: &fs::Metadata,
+) -> io::Result<LinkTargetType> {
+    use std::os::windows::fs::FileTypeExt;
+    let ft = link_metadata.file_type();
+    Ok(if ft.is_symlink_dir() {
+        LinkTargetType::Directory
+    } else if ft.is_symlink_file() {
+        LinkTargetType::File
+    } else {
+        LinkTargetType::Unknown
+    })
+}
+
+#[cfg(not(windows))]
+fn detect_symlink_target_type(
+    link_path: &Path,
+    _link_metadata: &fs::Metadata,
+) -> io::Result<LinkTargetType> {
+    match fs::metadata(link_path) {
+        Ok(m) if m.is_dir() => Ok(LinkTargetType::Directory),
+        Ok(m) if m.is_file() => Ok(LinkTargetType::File),
+        Ok(_) => Ok(LinkTargetType::Unknown),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(LinkTargetType::Unknown),
+        Err(e) => Err(e),
+    }
 }
 
 pub(crate) fn collect_split_archives(first: impl AsRef<Path>) -> io::Result<Vec<fs::File>> {
@@ -875,10 +920,11 @@ pub(crate) fn create_entry(
             let entry = EntryBuilder::new_hard_link(entry_name, reference)?;
             apply_metadata(entry, path, keep_options, metadata)?.build()
         }
-        StoreAs::Symlink => {
+        StoreAs::Symlink(link_target_type) => {
             let source = fs::read_link(path)?;
             let reference = pathname_editor.edit_symlink(&source);
-            let entry = EntryBuilder::new_symlink(entry_name, reference)?;
+            let mut entry = EntryBuilder::new_symlink(entry_name, reference)?;
+            entry.link_target_type(*link_target_type);
             apply_metadata(entry, path, keep_options, metadata)?.build()
         }
         StoreAs::File => {
