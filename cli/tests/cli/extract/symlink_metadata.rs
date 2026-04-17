@@ -28,6 +28,7 @@ fn extract_symlink_preserves_permission_in_archive() {
             modified: None,
             accessed: None,
             created: None,
+            link_target_type: None,
         }],
     )
     .unwrap();
@@ -84,6 +85,7 @@ fn extract_symlink_does_not_modify_target_permissions() {
             modified: None,
             accessed: None,
             created: None,
+            link_target_type: None,
         }],
     )
     .unwrap();
@@ -138,6 +140,7 @@ fn extract_symlink_with_keep_timestamp() {
             modified: Some(epoch_2024),
             accessed: Some(epoch_2024),
             created: Some(epoch_2024),
+            link_target_type: None,
         }],
     )
     .unwrap();
@@ -204,6 +207,7 @@ fn extract_broken_symlink_preserves_target_path() {
             modified: None,
             accessed: None,
             created: None,
+            link_target_type: None,
         }],
     )
     .unwrap();
@@ -257,6 +261,7 @@ fn extract_broken_symlink_with_keep_timestamp() {
             modified: Some(epoch_2024),
             accessed: None,
             created: None,
+            link_target_type: None,
         }],
     )
     .unwrap();
@@ -330,6 +335,7 @@ fn extract_symlink_with_partial_timestamps() {
             modified: Some(epoch_2024),
             accessed: None, // intentionally absent
             created: None,
+            link_target_type: None,
         }],
     )
     .unwrap();
@@ -407,6 +413,7 @@ fn extract_symlink_with_all_preservation_flags() {
             modified: Some(epoch),
             accessed: Some(epoch),
             created: Some(epoch),
+            link_target_type: None,
         }],
     )
     .unwrap();
