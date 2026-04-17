@@ -26,7 +26,10 @@ use crate::{
 };
 use anyhow::Context;
 use clap::{ArgGroup, Parser, ValueHint};
-use pna::{DataKind, EntryName, EntryReference, NormalEntry, Permission, ReadOptions, prelude::*};
+use pna::{
+    DataKind, EntryName, EntryReference, LinkTargetType, NormalEntry, Permission, ReadOptions,
+    prelude::*,
+};
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::FileTimesExt;
 #[cfg(windows)]
@@ -1417,7 +1420,8 @@ where
             if *safe_writes || remove_existing {
                 utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
             }
-            utils::fs::symlink(original, &path)?;
+            let link_target_type = item.metadata().link_target_type();
+            symlink_with_type(&original, &path, link_target_type)?;
         }
         DataKind::HardLink => {
             let reader = item.reader(ReadOptions::with_password(password))?;
@@ -1965,4 +1969,39 @@ fn search_group(name: &str, id: u64) -> io::Result<Group> {
 #[inline]
 fn is_unsafe_link(reference: &EntryReference) -> bool {
     crate::command::core::path::is_unsafe_link_path(reference.as_str())
+}
+
+/// Create a symbolic link. On Windows, dispatches on the archive's fLTP
+/// (link target type) chunk to pick `symlink_file` vs `symlink_dir`. On
+/// other platforms, delegates to `pna::fs::symlink` and ignores fLTP,
+/// since there is no API-level distinction between target types.
+#[cfg(windows)]
+fn symlink_with_type<P: AsRef<Path>, Q: AsRef<Path>>(
+    original: P,
+    link: Q,
+    link_target_type: Option<LinkTargetType>,
+) -> io::Result<()> {
+    fn inner(original: &Path, link: &Path, ltp: Option<LinkTargetType>) -> io::Result<()> {
+        // Match is exhaustive over `Option<LinkTargetType>` — no wildcard — so
+        // a future libpna variant addition triggers a compile error instead of
+        // silently routing to the fallback.
+        match ltp {
+            Some(LinkTargetType::File) => std::os::windows::fs::symlink_file(original, link),
+            Some(LinkTargetType::Directory) => std::os::windows::fs::symlink_dir(original, link),
+            // Unknown (archive signals "can't classify") and None (no fLTP
+            // chunk) share behavior: defer to pna::fs::symlink's heuristic
+            // dispatch.
+            Some(LinkTargetType::Unknown) | None => pna::fs::symlink(original, link),
+        }
+    }
+    inner(original.as_ref(), link.as_ref(), link_target_type)
+}
+
+#[cfg(not(windows))]
+fn symlink_with_type<P: AsRef<Path>, Q: AsRef<Path>>(
+    original: P,
+    link: Q,
+    _link_target_type: Option<LinkTargetType>,
+) -> io::Result<()> {
+    pna::fs::symlink(original, link)
 }
