@@ -183,6 +183,7 @@ pub struct SymlinkEntryDef<'a> {
     pub modified: Option<pna::Duration>,
     pub accessed: Option<pna::Duration>,
     pub created: Option<pna::Duration>,
+    pub link_target_type: Option<pna::LinkTargetType>,
 }
 
 /// Creates an archive containing both file and symlink entries with specific metadata.
@@ -213,6 +214,9 @@ pub fn create_archive_with_symlinks(
     for symlink_def in symlink_entries {
         let mut builder =
             pna::EntryBuilder::new_symlink(symlink_def.path.into(), symlink_def.target.into())?;
+        if let Some(ltp) = symlink_def.link_target_type {
+            builder.link_target_type(ltp);
+        }
         if let Some(mode) = symlink_def.permission {
             builder.permission(pna::Permission::new(
                 1000,
