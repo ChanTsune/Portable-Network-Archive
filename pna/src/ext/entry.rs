@@ -176,7 +176,28 @@ impl EntryFsExt for NormalEntry {
         if meta.file_type().is_symlink() {
             let target = fs::read_link(path)?;
             let reference = target.as_path().try_into().map_err(io::Error::other)?;
-            let builder = EntryBuilder::new_symlink(name, reference)?;
+            let mut builder = EntryBuilder::new_symlink(name, reference)?;
+            #[cfg(windows)]
+            let ltp = {
+                use std::os::windows::fs::FileTypeExt;
+                let ft = meta.file_type();
+                if ft.is_symlink_dir() {
+                    libpna::LinkTargetType::Directory
+                } else if ft.is_symlink_file() {
+                    libpna::LinkTargetType::File
+                } else {
+                    libpna::LinkTargetType::Unknown
+                }
+            };
+            #[cfg(not(windows))]
+            let ltp = match fs::metadata(path) {
+                Ok(m) if m.is_dir() => libpna::LinkTargetType::Directory,
+                Ok(m) if m.is_file() => libpna::LinkTargetType::File,
+                Ok(_) => libpna::LinkTargetType::Unknown,
+                Err(e) if e.kind() == io::ErrorKind::NotFound => libpna::LinkTargetType::Unknown,
+                Err(e) => return Err(e),
+            };
+            builder.link_target_type(ltp);
             builder.build()
         } else if meta.is_file() {
             let mut file = fs::File::open(path)?;
