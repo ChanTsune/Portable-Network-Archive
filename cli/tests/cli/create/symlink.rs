@@ -2,6 +2,7 @@ use crate::utils::{archive, setup};
 use clap::Parser;
 use portable_network_archive::cli;
 use std::{
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
 };
@@ -35,7 +36,7 @@ fn init_broken_resource<P: AsRef<Path>>(dir: P) {
 
     // Create broken symlinks that point to non-existent targets
     pna::fs::symlink(Path::new("missing.txt"), dir.join("broken.txt")).unwrap();
-    pna::fs::symlink(Path::new("missing_dir"), dir.join("broken_dir")).unwrap();
+    pna::fs::symlink(Path::new("missing_target"), dir.join("broken_link")).unwrap();
 }
 
 /// Precondition: The source tree contains regular files, directories, and symlinks (all valid).
@@ -240,9 +241,9 @@ fn broken_symlink_no_follow() {
                 assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
                 assert_eq!(archive::read_symlink_target(&entry), "missing.txt");
             }
-            "broken_symlink_no_follow/source/broken_dir" => {
+            "broken_symlink_no_follow/source/broken_link" => {
                 assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
-                assert_eq!(archive::read_symlink_target(&entry), "missing_dir");
+                assert_eq!(archive::read_symlink_target(&entry), "missing_target");
             }
             path => unreachable!("unexpected entry found: {path}"),
         },
@@ -265,14 +266,14 @@ fn broken_symlink_no_follow() {
     .unwrap();
 
     assert!(PathBuf::from("broken_symlink_no_follow/dist/broken.txt").is_symlink());
-    assert!(PathBuf::from("broken_symlink_no_follow/dist/broken_dir").is_symlink());
+    assert!(PathBuf::from("broken_symlink_no_follow/dist/broken_link").is_symlink());
     assert_eq!(
         fs::read_link("broken_symlink_no_follow/dist/broken.txt").unwrap(),
         Path::new("missing.txt"),
     );
     assert_eq!(
-        fs::read_link("broken_symlink_no_follow/dist/broken_dir").unwrap(),
-        Path::new("missing_dir"),
+        fs::read_link("broken_symlink_no_follow/dist/broken_link").unwrap(),
+        Path::new("missing_target"),
     );
 }
 
@@ -310,9 +311,9 @@ fn broken_symlink_follow() {
                 assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
                 assert_eq!(archive::read_symlink_target(&entry), "missing.txt");
             }
-            "broken_symlink_follow/source/broken_dir" => {
+            "broken_symlink_follow/source/broken_link" => {
                 assert_eq!(entry.header().data_kind(), pna::DataKind::SymbolicLink);
-                assert_eq!(archive::read_symlink_target(&entry), "missing_dir");
+                assert_eq!(archive::read_symlink_target(&entry), "missing_target");
             }
             path => unreachable!("unexpected entry found: {path}"),
         },
@@ -335,14 +336,14 @@ fn broken_symlink_follow() {
     .unwrap();
 
     assert!(PathBuf::from("broken_symlink_follow/dist/broken.txt").is_symlink());
-    assert!(PathBuf::from("broken_symlink_follow/dist/broken_dir").is_symlink());
+    assert!(PathBuf::from("broken_symlink_follow/dist/broken_link").is_symlink());
     assert_eq!(
         fs::read_link("broken_symlink_follow/dist/broken.txt").unwrap(),
         Path::new("missing.txt"),
     );
     assert_eq!(
-        fs::read_link("broken_symlink_follow/dist/broken_dir").unwrap(),
-        Path::new("missing_dir"),
+        fs::read_link("broken_symlink_follow/dist/broken_link").unwrap(),
+        Path::new("missing_target"),
     );
 }
 
@@ -531,4 +532,112 @@ fn symlink_follow_command_line_partial() {
         }
     })
     .unwrap();
+}
+
+/// Precondition: The source tree contains symlinks to both a file and a directory.
+/// Action: Run `pna create` to create an archive.
+/// Expectation: Each symlink entry carries fLTP metadata matching its target type.
+#[test]
+fn create_sets_fltp_on_symlinks() {
+    setup();
+    init_resource("create_sets_fltp_on_symlinks/source");
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "create_sets_fltp_on_symlinks/test.pna",
+        "--overwrite",
+        "--keep-dir",
+        "create_sets_fltp_on_symlinks/source",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let mut expected: HashMap<&str, Option<pna::LinkTargetType>> = HashMap::from([
+        ("create_sets_fltp_on_symlinks/source", None),
+        ("create_sets_fltp_on_symlinks/source/text.txt", None),
+        ("create_sets_fltp_on_symlinks/source/dir", None),
+        (
+            "create_sets_fltp_on_symlinks/source/dir/in_dir_text.txt",
+            None,
+        ),
+        (
+            "create_sets_fltp_on_symlinks/source/link.txt",
+            Some(pna::LinkTargetType::File),
+        ),
+        (
+            "create_sets_fltp_on_symlinks/source/dir/in_dir_link.txt",
+            Some(pna::LinkTargetType::File),
+        ),
+        (
+            "create_sets_fltp_on_symlinks/source/link_dir",
+            Some(pna::LinkTargetType::Directory),
+        ),
+    ]);
+    archive::for_each_entry("create_sets_fltp_on_symlinks/test.pna", |entry| {
+        let path = entry.header().path().to_string();
+        let expected_ltp = expected
+            .remove(path.as_str())
+            .unwrap_or_else(|| panic!("unexpected entry found: {path}"));
+        assert_eq!(entry.metadata().link_target_type(), expected_ltp, "{path}",);
+    })
+    .unwrap();
+    assert!(
+        expected.is_empty(),
+        "missing expected entries: {expected:?}",
+    );
+}
+
+/// Precondition: The source tree contains broken symlinks (targets do not exist).
+/// Action: Run `pna create` to create an archive.
+/// Expectation: On Unix the stat fallback hits `NotFound`, which degrades to
+/// `Unknown` since the target is confirmed absent. On Windows the link-side
+/// metadata classifies the symlink via its reparse-point flavor (File for
+/// symlink_file, Directory for symlink_dir).
+#[test]
+fn create_broken_symlink_has_unknown_fltp() {
+    setup();
+    init_broken_resource("create_broken_symlink_has_unknown_fltp/source");
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "c",
+        "create_broken_symlink_has_unknown_fltp/test.pna",
+        "--overwrite",
+        "--keep-dir",
+        "create_broken_symlink_has_unknown_fltp/source",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    #[cfg(windows)]
+    let broken_ltp: Option<pna::LinkTargetType> = Some(pna::LinkTargetType::File);
+    #[cfg(not(windows))]
+    let broken_ltp: Option<pna::LinkTargetType> = Some(pna::LinkTargetType::Unknown);
+
+    let mut expected: HashMap<&str, Option<pna::LinkTargetType>> = HashMap::from([
+        ("create_broken_symlink_has_unknown_fltp/source", None),
+        (
+            "create_broken_symlink_has_unknown_fltp/source/broken.txt",
+            broken_ltp,
+        ),
+        (
+            "create_broken_symlink_has_unknown_fltp/source/broken_link",
+            broken_ltp,
+        ),
+    ]);
+    archive::for_each_entry("create_broken_symlink_has_unknown_fltp/test.pna", |entry| {
+        let path = entry.header().path().to_string();
+        let expected_ltp = expected
+            .remove(path.as_str())
+            .unwrap_or_else(|| panic!("unexpected entry found: {path}"));
+        assert_eq!(entry.metadata().link_target_type(), expected_ltp, "{path}",);
+    })
+    .unwrap();
+    assert!(
+        expected.is_empty(),
+        "missing expected entries: {expected:?}",
+    );
 }
