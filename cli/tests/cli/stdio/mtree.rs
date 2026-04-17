@@ -8,7 +8,7 @@ use crate::utils::{
     setup,
 };
 use assert_cmd::cargo::cargo_bin_cmd;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 
@@ -259,9 +259,11 @@ fn stdio_mtree_directory_entry() {
     assert!(entry_names.contains("subdir/file.txt"));
 }
 
-/// Precondition: An mtree manifest specifies symlink entries with link= keyword.
+/// Precondition: An mtree manifest specifies symlink entries with the `link=` keyword.
 /// Action: Create archive from the mtree manifest.
-/// Expectation: The archive contains the symlink entries.
+/// Expectation: The archive contains the symlink entries, and the symlink entry
+/// has no fLTP because the manifest's `link=` directive overrides the on-disk
+/// target — fLTP would otherwise describe a different path than what is archived.
 #[cfg(unix)]
 #[test]
 fn stdio_mtree_symlink_entry() {
@@ -301,11 +303,96 @@ fn stdio_mtree_symlink_entry() {
         .assert()
         .success();
 
-    let entry_names: HashSet<String> = get_archive_entry_names(&output_archive)
-        .into_iter()
-        .collect();
-    assert!(entry_names.contains("target.txt"));
-    assert!(entry_names.contains("link.txt"));
+    // The mtree `link=` directive overrides the on-disk target, so fLTP must
+    // be omitted to keep archive contents and metadata consistent.
+    let mut expected: HashMap<&str, Option<pna::LinkTargetType>> =
+        HashMap::from([("target.txt", None), ("link.txt", None)]);
+    for_each_entry(&output_archive, |entry| {
+        let path = entry.header().path().to_string();
+        let expected_ltp = expected
+            .remove(path.as_str())
+            .unwrap_or_else(|| panic!("unexpected entry found: {path}"));
+        assert_eq!(entry.metadata().link_target_type(), expected_ltp, "{path}",);
+    })
+    .unwrap();
+    assert!(
+        expected.is_empty(),
+        "missing expected entries: {expected:?}",
+    );
+}
+
+/// Precondition: An mtree manifest specifies type=link entries WITHOUT a link= directive,
+/// backed by real filesystem symlinks.
+/// Action: Create archive from the mtree manifest.
+/// Expectation: No symlink entry carries fLTP metadata. The mtree format does
+/// not represent link target type, and `pna compat bsdtar` is for bsdtar
+/// compatibility, so PNA-specific fLTP metadata is intentionally not emitted.
+#[cfg(unix)]
+#[test]
+fn stdio_mtree_symlink_entry_has_no_fltp() {
+    setup();
+
+    let base = PathBuf::from("stdio_mtree_symlink_entry_has_no_fltp");
+    // Clean up from previous runs (symlinks cause AlreadyExists errors)
+    let _ = fs::remove_dir_all(&base);
+    fs::create_dir_all(base.join("dir")).unwrap();
+
+    // Create a regular file, a subdirectory, and symlinks to each.
+    fs::write(base.join("text.txt"), "file content").unwrap();
+    fs::write(base.join("dir/inside.txt"), "nested").unwrap();
+    std::os::unix::fs::symlink("text.txt", base.join("link_to_file")).unwrap();
+    std::os::unix::fs::symlink("dir", base.join("link_to_dir")).unwrap();
+
+    // mtree declares both as type=link without link= directive.
+    // Note: type=dir entry is placed last because mtree2's relative-form parser
+    // pushes a directory entry onto its cwd stack, which would prefix subsequent
+    // relative entries (and mtree2 cannot pop a single-level cwd back to empty).
+    fs::write(
+        base.join("manifest.mtree"),
+        "#mtree\n\
+         text.txt type=file\n\
+         link_to_file type=link\n\
+         link_to_dir type=link\n\
+         dir type=dir\n",
+    )
+    .unwrap();
+
+    let output_archive = base.join("output.pna");
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "experimental",
+            "stdio",
+            "--create",
+            "--unstable",
+            "--overwrite",
+            "-f",
+            output_archive.to_str().unwrap(),
+            "-C",
+            base.to_str().unwrap(),
+            "@manifest.mtree",
+        ])
+        .assert()
+        .success();
+
+    let mut expected: HashMap<&str, Option<pna::LinkTargetType>> = HashMap::from([
+        ("text.txt", None),
+        ("dir", None),
+        ("link_to_file", None),
+        ("link_to_dir", None),
+    ]);
+    for_each_entry(&output_archive, |entry| {
+        let path = entry.header().path().to_string();
+        let expected_ltp = expected
+            .remove(path.as_str())
+            .unwrap_or_else(|| panic!("unexpected entry found: {path}"));
+        assert_eq!(entry.metadata().link_target_type(), expected_ltp, "{path}",);
+    })
+    .unwrap();
+    assert!(
+        expected.is_empty(),
+        "missing expected entries: {expected:?}",
+    );
 }
 
 /// Precondition: Both an mtree manifest and standalone files exist.
