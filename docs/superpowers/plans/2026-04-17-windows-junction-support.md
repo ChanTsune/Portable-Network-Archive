@@ -77,7 +77,6 @@
 
 | Path | Responsibility |
 |---|---|
-| `cli/src/utils/os/windows/fs/mod.rs` | Module shim declaring `reparse` and `junction` submodules. |
 | `cli/src/utils/os/windows/fs/reparse.rs` | `#[cfg(windows)]` reparse-point FFI primitives: `ReparsePoint` enum, `parse_reparse_buffer` (private parser), `read_reparse_point(path) -> ReparsePoint`, `create_junction(link, target) -> io::Result<()>`. |
 | `cli/src/utils/os/windows/fs/junction.rs` | `#[cfg(windows)]` high-level wrapper: `detect_junction(path) -> io::Result<Option<PathBuf>>`. Maps `ERROR_NOT_A_REPARSE_POINT` (raw OS error 4390) to `Ok(None)`. |
 | `cli/tests/cli/junction.rs` | Integration tests T11–T16. Windows-gated round-trip tests use `#[cfg(windows)]`; cross-platform extract tests use a libpna-constructed fixture. |
@@ -87,7 +86,7 @@
 | Path | Change |
 |---|---|
 | `cli/Cargo.toml` | Extend the existing `windows` dependency `features` array with `Win32_Foundation`, `Win32_Security`, `Win32_System_Ioctl`, `Win32_System_IO`. |
-| `cli/src/utils/os/windows/mod.rs` | Declare `pub mod fs;`. |
+| `cli/src/utils/os/windows/fs.rs` | Add `pub(crate) mod reparse;` (Task 1.1) and `pub(crate) mod junction;` (Task 1.4) near the existing `pub(crate) mod owner;` declaration. No other existing items (`FileHandle`, `chmod`, `lchown`, `open_read_metadata`, etc.) are touched. |
 | `cli/src/command/core/path.rs` | Extract a private helper `fn transform_link_target_preserving_root(&self, target: &Path) -> EntryReference` from the body of `edit_symlink`. Change `edit_symlink` to delegate to it. Add `pub(crate) fn edit_junction(&self, target: &Path) -> EntryReference` that also delegates. |
 | `cli/src/command/core.rs` | Add `StoreAs::Junction(PathBuf)` variant (unconditional, dead on non-Windows). Insert junction detection before the existing symlink classification. Add a `create_entry` arm for `StoreAs::Junction`. Add `classify_junction` helper with `#[cfg(windows)]` / `#[cfg(not(windows))]` arms. |
 | `cli/src/command/extract.rs` | Inside `DataKind::HardLink` arm, branch on `item.metadata().link_target_type()`; when `Some(Directory)`, call `pathname_editor.edit_junction(target)`, resolve relative targets against `out_dir + link parent`, require `--allow-unsafe-links`, then call the new `create_junction_or_fallback` helper (Windows: `cli::utils::os::windows::fs::reparse::create_junction`; non-Windows: `utils::fs::symlink` with original stored string). |
@@ -110,15 +109,14 @@ Goal: expose a minimal, testable set of wrappers over NTFS reparse points inside
 #### Task 1.1: Create module skeletons, Cargo feature bump, and reparse-buffer parser
 
 **Files:**
-- Create: `cli/src/utils/os/windows/fs/mod.rs`
 - Create: `cli/src/utils/os/windows/fs/reparse.rs`
-- Modify: `cli/src/utils/os/windows/mod.rs` (add `pub mod fs;`)
+- Modify: `cli/src/utils/os/windows/fs.rs` (add `pub(crate) mod reparse;` submodule declaration; do **not** rename or move any existing item — `FileHandle`, `chmod`, `lchown`, `open_read_metadata`, and `pub(crate) mod owner;` all stay as-is)
 - Modify: `cli/Cargo.toml` (extend `windows` features)
 
 - [ ] **Step 1: Call `aegis_compile_context`**
 
 Call `aegis_compile_context` with:
-- `target_files: ["cli/src/utils/os/windows/fs/mod.rs", "cli/src/utils/os/windows/fs/reparse.rs", "cli/src/utils/os/windows/mod.rs", "cli/Cargo.toml"]`
+- `target_files: ["cli/src/utils/os/windows/fs/reparse.rs", "cli/src/utils/os/windows/fs.rs", "cli/Cargo.toml"]`
 - `plan: "Add Windows reparse-point primitives module in cli with a private parse_reparse_buffer and ReparsePoint enum"`
 - `command: "scaffold"`
 
@@ -156,11 +154,14 @@ windows = { version = "0.62.2", features = [
 
 - [ ] **Step 3: Create the module skeletons with only the parser tests (no parser implementation yet)**
 
-Create `cli/src/utils/os/windows/fs/mod.rs`:
+Modify `cli/src/utils/os/windows/fs.rs` to add a `reparse` submodule declaration next to the existing `pub(crate) mod owner;` line at the top of the file. Do **not** yet declare `junction` — its file is created in Task 1.4, and a forward declaration without the file would fail to compile. The resulting prologue should look like:
 
 ```rust
-pub mod junction;
-pub mod reparse;
+pub(crate) mod owner;
+pub(crate) mod reparse;
+
+use super::security::{Sid, apply_security_info};
+// ... existing use lines and body unchanged ...
 ```
 
 Create `cli/src/utils/os/windows/fs/reparse.rs`:
@@ -168,9 +169,11 @@ Create `cli/src/utils/os/windows/fs/reparse.rs`:
 ```rust
 //! Windows NTFS reparse-point primitives.
 //!
-//! This module is Windows-only. All items are behind `#[cfg(windows)]` at the
-//! module declaration site (`cli/src/utils/os/windows/mod.rs` is itself
-//! already Windows-gated by the parent `os::windows` module).
+//! This module is Windows-only. It is declared from
+//! `cli/src/utils/os/windows/fs.rs`, which in turn is reached from
+//! `cli/src/utils/os/windows.rs` — both ancestors are already gated on
+//! `cfg(windows)` by `cli/src/utils/os.rs`, so no `#[cfg]` attribute on
+//! individual items is required here.
 
 use std::{io, path::PathBuf};
 
@@ -263,8 +266,6 @@ mod tests {
     }
 }
 ```
-
-Modify `cli/src/utils/os/windows/mod.rs` to add `pub mod fs;` near the other `pub mod` declarations (follow existing style).
 
 - [ ] **Step 4: Run the tests to confirm failure**
 
@@ -373,7 +374,7 @@ Expected: all three tests PASS.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add cli/Cargo.toml cli/src/utils/os/windows/mod.rs cli/src/utils/os/windows/fs/mod.rs cli/src/utils/os/windows/fs/reparse.rs
+git add cli/Cargo.toml cli/src/utils/os/windows/fs.rs cli/src/utils/os/windows/fs/reparse.rs
 git commit -m ":sparkles: Add Windows reparse buffer parser in CLI"
 ```
 
@@ -659,14 +660,17 @@ git commit -m ":sparkles: Create NTFS junctions via FSCTL_SET_REPARSE_POINT"
 
 **Files:**
 - Create: `cli/src/utils/os/windows/fs/junction.rs`
+- Modify: `cli/src/utils/os/windows/fs.rs` (add `pub(crate) mod junction;` next to the `pub(crate) mod reparse;` declaration from Task 1.1)
 
 - [ ] **Step 1: Call `aegis_compile_context`**
 
-`target_files: ["cli/src/utils/os/windows/fs/junction.rs"]`, `plan: "Add detect_junction helper that maps ERROR_NOT_A_REPARSE_POINT to Ok(None)"`, `command: "scaffold"`.
+`target_files: ["cli/src/utils/os/windows/fs/junction.rs", "cli/src/utils/os/windows/fs.rs"]`, `plan: "Add detect_junction helper that maps ERROR_NOT_A_REPARSE_POINT to Ok(None)"`, `command: "scaffold"`.
 
-- [ ] **Step 2: Write the test and skeleton**
+- [ ] **Step 2: Declare the submodule and write the test skeleton**
 
-Create `cli/src/utils/os/windows/fs/junction.rs`:
+First, add `pub(crate) mod junction;` to `cli/src/utils/os/windows/fs.rs` right below the existing `pub(crate) mod reparse;` declaration added in Task 1.1.
+
+Then create `cli/src/utils/os/windows/fs/junction.rs`:
 
 ```rust
 //! Windows junction detection for the CLI create path.
@@ -751,7 +755,7 @@ Expected: no errors.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add cli/src/utils/os/windows/fs/junction.rs
+git add cli/src/utils/os/windows/fs.rs cli/src/utils/os/windows/fs/junction.rs
 git commit -m ":sparkles: Add detect_junction helper for CLI"
 ```
 
