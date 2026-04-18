@@ -17,6 +17,6 @@ mod option_transform;
 mod overwrite_order;
 mod overwrite_symlink;
 mod sanitize_parent_components;
-#[cfg(any(windows, unix))]
+#[cfg(windows)]
 mod symlink_link_target_type;
 mod symlink_metadata;
