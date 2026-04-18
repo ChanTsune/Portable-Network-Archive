@@ -15,6 +15,7 @@ rust-version = "1.88"
 libpna = { version = "0.32.0", path = "../lib" }
 
 [dev-dependencies]
+tempfile = "3"
 version-sync = "0.9.5"
 
 [features]

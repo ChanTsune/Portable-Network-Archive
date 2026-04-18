@@ -214,9 +214,7 @@ pub fn create_archive_with_symlinks(
     for symlink_def in symlink_entries {
         let mut builder =
             pna::EntryBuilder::new_symlink(symlink_def.path.into(), symlink_def.target.into())?;
-        if let Some(ltp) = symlink_def.link_target_type {
-            builder.link_target_type(ltp);
-        }
+        builder.link_target_type(symlink_def.link_target_type);
         if let Some(mode) = symlink_def.permission {
             builder.permission(pna::Permission::new(
                 1000,
