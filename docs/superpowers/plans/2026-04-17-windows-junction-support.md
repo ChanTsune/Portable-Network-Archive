@@ -424,6 +424,28 @@ fn read_reparse_point_on_junction() -> io::Result<()> {
 }
 ```
 
+Also append a pure-Rust unit test for the `io_error_from_win32` helper so the HRESULT/Win32 round-trip is verified without needing Windows CI:
+
+```rust
+#[test]
+fn io_error_from_win32_extracts_win32_code() {
+    // HRESULT_FROM_WIN32(ERROR_NOT_A_REPARSE_POINT = 4390) == 0x80071126.
+    let hr = windows::core::HRESULT(0x8007_1126u32 as i32);
+    let err = super::io_error_from_win32(WinError::from(hr));
+    assert_eq!(err.raw_os_error(), Some(4390));
+}
+
+#[test]
+fn io_error_from_win32_passes_through_non_win32_hresults() {
+    // E_FAIL (0x80004005) has facility FACILITY_NULL (0x0), not FACILITY_WIN32.
+    let hr = windows::core::HRESULT(0x8000_4005u32 as i32);
+    let err = super::io_error_from_win32(WinError::from(hr));
+    assert_eq!(err.raw_os_error(), Some(0x8000_4005u32 as i32));
+}
+```
+
+(Import `windows::core::Error as WinError` inside the tests module, or reference it via `super::WinError` if the helper re-exports it.)
+
 `tempfile` is already in `cli/Cargo.toml` `[dev-dependencies]` (verify with `grep '^tempfile' cli/Cargo.toml`; if missing, add `tempfile = "3"`).
 
 - [ ] **Step 3: Run to confirm failure**
@@ -439,7 +461,7 @@ Add to `cli/src/utils/os/windows/fs/reparse.rs` (below `parse_reparse_buffer`):
 use std::{os::windows::ffi::OsStrExt, path::Path};
 
 use windows::{
-    core::PCWSTR,
+    core::{Error as WinError, PCWSTR},
     Win32::{
         Foundation::{CloseHandle, GENERIC_READ, HANDLE},
         Storage::FileSystem::{
@@ -449,6 +471,34 @@ use windows::{
         System::{Ioctl::FSCTL_GET_REPARSE_POINT, IO::DeviceIoControl},
     },
 };
+
+/// Convert a [`windows::core::Error`] into an [`io::Error`] whose
+/// [`raw_os_error()`](io::Error::raw_os_error) returns the canonical Win32
+/// error code (e.g. `ERROR_NOT_A_REPARSE_POINT` = 4390) rather than the
+/// HRESULT-encoded form that the `windows` crate uses internally.
+///
+/// Background: `windows::core::Error::from_win32()` wraps a Win32 error via
+/// `HRESULT_FROM_WIN32(dwErr) = 0x80070000 | dwErr`, so for
+/// `ERROR_NOT_A_REPARSE_POINT` (4390) the HRESULT payload is `0x80071126`
+/// which, as an `i32`, is `-2147020506`. Passing that value through
+/// `io::Error::from_raw_os_error` preserves the HRESULT bits, and downstream
+/// comparisons like `err.raw_os_error() == Some(4390)` silently never match.
+///
+/// This helper detects HRESULTs whose facility is `FACILITY_WIN32` (0x7),
+/// extracts the low 16 bits as the Win32 code, and passes anything else
+/// through unchanged. Use this in preference to
+/// `io::Error::from_raw_os_error(e.code().0)` everywhere the `windows` crate
+/// surfaces a `Result<_, windows::core::Error>`.
+fn io_error_from_win32(e: WinError) -> io::Error {
+    let hr = e.code().0 as u32;
+    let facility = (hr >> 16) & 0x1FFF;
+    let raw = if facility == 0x0007 {
+        (hr & 0xFFFF) as i32
+    } else {
+        e.code().0
+    };
+    io::Error::from_raw_os_error(raw)
+}
 
 /// Read the reparse data at `path`. Returns `ReparsePoint::Other(tag)` for tags
 /// we do not handle.
@@ -473,7 +523,7 @@ pub fn read_reparse_point(path: &Path) -> io::Result<ReparsePoint> {
             None,
         )
     }
-    .map_err(|e| io::Error::from_raw_os_error(e.code().0))?;
+    .map_err(io_error_from_win32)?;
 
     let mut buf = vec![0u8; MAXIMUM_REPARSE_DATA_BUFFER_SIZE];
     let mut bytes_returned: u32 = 0;
@@ -493,7 +543,7 @@ pub fn read_reparse_point(path: &Path) -> io::Result<ReparsePoint> {
     // Always attempt to close the handle; do not let a close failure mask an
     // earlier DeviceIoControl error.
     let close_result = unsafe { CloseHandle(handle) };
-    ioctl_result.map_err(|e| io::Error::from_raw_os_error(e.code().0))?;
+    ioctl_result.map_err(io_error_from_win32)?;
     let _ = close_result;
 
     buf.truncate(bytes_returned as usize);
@@ -594,7 +644,7 @@ pub fn create_junction(link: &Path, target: &Path) -> io::Result<()> {
         )
     }
     .map_err(|e| {
-        let err = io::Error::from_raw_os_error(e.code().0);
+        let err = io_error_from_win32(e);
         let _ = std::fs::remove_dir(link);
         err
     })?;
@@ -635,7 +685,7 @@ pub fn create_junction(link: &Path, target: &Path) -> io::Result<()> {
     let close_result = unsafe { CloseHandle(handle) };
 
     if let Err(e) = ioctl_result {
-        let err = io::Error::from_raw_os_error(e.code().0);
+        let err = io_error_from_win32(e);
         let _ = std::fs::remove_dir(link);
         return Err(err);
     }
