@@ -421,7 +421,7 @@ fn pm(mut p: &str, mut s: &str, flags: PathMatch) -> bool {
                     return true;
                 }
                 while !s.is_empty() {
-                    if archive_pathmatch(p, s, flags) {
+                    if pm(p, s, flags) {
                         return true;
                     }
                     s = skip_first_char(s);
@@ -1141,6 +1141,48 @@ mod tests {
         assert!(archive_pathmatch(
             "b/c/d$",
             "a/b/c/d",
+            PathMatch::NO_ANCHOR_START | PathMatch::NO_ANCHOR_END
+        ));
+
+        /* Anchor characters within pattern not special. */
+        assert!(!archive_pathmatch(
+            "*^*",
+            "a/b/c",
+            PathMatch::NO_ANCHOR_START | PathMatch::NO_ANCHOR_END
+        ));
+        assert!(archive_pathmatch(
+            "*^*",
+            "a^b",
+            PathMatch::NO_ANCHOR_START | PathMatch::NO_ANCHOR_END
+        ));
+        assert!(!archive_pathmatch(
+            "*$*",
+            "a/b/c",
+            PathMatch::NO_ANCHOR_START | PathMatch::NO_ANCHOR_END
+        ));
+        assert!(archive_pathmatch(
+            "*$*",
+            "a$b",
+            PathMatch::NO_ANCHOR_START | PathMatch::NO_ANCHOR_END
+        ));
+        assert!(!archive_pathmatch(
+            "a*/^b/c",
+            "a/b/c",
+            PathMatch::NO_ANCHOR_START | PathMatch::NO_ANCHOR_END
+        ));
+        assert!(archive_pathmatch(
+            "a*/^b/c",
+            "a/^b/c",
+            PathMatch::NO_ANCHOR_START | PathMatch::NO_ANCHOR_END
+        ));
+        assert!(!archive_pathmatch(
+            "a*/b$/c",
+            "a/b/c",
+            PathMatch::NO_ANCHOR_START | PathMatch::NO_ANCHOR_END
+        ));
+        assert!(archive_pathmatch(
+            "a*/b$/c",
+            "a/b$/c",
             PathMatch::NO_ANCHOR_START | PathMatch::NO_ANCHOR_END
         ));
     }
