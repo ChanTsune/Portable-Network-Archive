@@ -45,6 +45,7 @@
 | Extract changes break existing hardlink tests | Keep the old HardLink code path untouched; add a separate inner branch gated on `fLTP == Some(Directory)` |
 | Symlink fallback on non-Windows creates a user-visible behavior change | Not applicable — no archive created with prior pna versions contains the encoding `HardLink + fLTP=Directory + absolute target` |
 | Path traversal via junction target (`..`, `/etc/passwd`) | Junction target is always treated as unsafe; `--allow-unsafe-links` required (same gate as unsafe symlinks) |
+| Follow-link metadata restoration mutating the **external** junction target (chmod/chown/ACL/xattrs/fflags) | Junction entries bypass the default `restore_metadata()` path and use `restore_link_timestamps_no_follow` (option A from the Codex adversarial review). The regression is fenced by test T19. A proper no-follow implementation (option C) is captured as a follow-up plan in the Out-of-Scope section. |
 | Non-UTF-8 Windows paths lost via `Path::display()` | Use `target.as_os_str().encode_wide()` to build the NT substitute name; never pass through `Display`/`to_string_lossy` |
 | `EntryReference` normalizing absolute paths | Use `EntryReference::from_utf8_preserve_root` / `from_path_lossy_preserve_root` (verified at `lib/src/entry/reference.rs:462-476` that `C:\drive\path` and `/abs/path` are preserved verbatim) |
 
@@ -70,6 +71,7 @@
 | T16 | Extract without `--allow-unsafe-links` → warn + skip | cross-platform | integration | same |
 | T17 | Existing hardlink tests regression-free | cross-platform | existing | `cli/tests/cli/hardlink.rs`, `cli/tests/cli/extract/hardlink.rs` |
 | T18 | Existing symlink tests regression-free | cross-platform | existing | `cli/tests/cli/extract/symlink*.rs` |
+| T19 | Extract with `--keep-permission` does **not** mutate the external junction target (security regression fence) | cross-platform | integration | `cli/tests/cli/junction.rs` (Task 4.4) |
 
 ## File Structure
 
@@ -1183,6 +1185,17 @@ DataKind::HardLink => {
             utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
         }
         create_junction_or_fallback(&path, target_str)?;
+
+        // SAFETY: The default `restore_metadata()` call at the end of this
+        // function would apply chmod/chown/ACL/xattr/fflags to the junction
+        // via follow-link syscalls, which would mutate the EXTERNAL
+        // directory the junction points at (outside the extraction root).
+        // For the MVP we bypass the full metadata restore and only apply
+        // no-follow timestamp restoration. See
+        // `restore_link_timestamps_no_follow` for the follow-up plan that
+        // properly restores junction-owned metadata.
+        restore_link_timestamps_no_follow(&path, item.metadata(), keep_options)?;
+        return Ok(());
     } else {
         // Existing hardlink path — unchanged behavior.
         let Some((original, had_root)) = pathname_editor.edit_hardlink(original.as_ref())
@@ -1255,6 +1268,74 @@ fn create_junction_or_fallback(link: &Path, target: &str) -> io::Result<()> {
     }
 }
 ```
+
+Also add the no-follow timestamp helper near the bottom of `extract.rs` (next to the other helpers):
+
+```rust
+/// Restore only the timestamps of a junction or fallback-symlink entry,
+/// without following the link.
+///
+/// # Why not the full `restore_metadata()` path?
+///
+/// `DataKind::HardLink + fLTP=Directory` encodes a Windows junction (or a
+/// fallback symlink on non-Windows). The default `restore_metadata()` uses
+/// `chmod`, `chown`, `set_facl(follow_links=true)`, `setxattr`, `set_flags`,
+/// and macOS `copyfile` — every one of those follows links. If we let them
+/// run against the junction path, they would mutate the **external**
+/// directory the junction points at (outside the extraction root), which is
+/// a security hole.
+///
+/// For the MVP we bypass the full metadata path for junction entries and
+/// apply only timestamps through `filetime::set_symlink_file_times`, which
+/// opens the reparse point itself with `FILE_FLAG_OPEN_REPARSE_POINT` on
+/// Windows and uses `utimensat(AT_SYMLINK_NOFOLLOW)` / `lutimes` on Unix.
+///
+/// # TODO: junction-aware no-follow metadata (deferred follow-up)
+///
+/// A full implementation should restore mode/owner/ACL/xattr/fflags on the
+/// junction itself using no-follow APIs:
+/// - Unix: `lchmod` (BSD), `lchown`, `lsetxattr`, `lremovexattr`.
+/// - Linux: mode-on-symlink is not supported by the kernel; either skip
+///   silently or gate behind `#[cfg(target_os = "linux")]` with a `warn!`.
+/// - Windows: open the reparse point via `FILE_FLAG_OPEN_REPARSE_POINT` and
+///   apply ACL/security info with `SetSecurityInfo` on that handle; mode is
+///   expressed via the Windows security descriptor, not `chmod`.
+/// - ACL restoration must pass `follow_links = false` into `restore_acls`
+///   (currently that path silently returns on Windows non-symlink entries,
+///   which would need generalization).
+///
+/// When implemented, replace this helper with a junction-aware branch of
+/// `restore_metadata` that keeps the safety invariant but preserves all
+/// attributes.
+fn restore_link_timestamps_no_follow<T>(
+    path: &Path,
+    metadata: &pna::Metadata<T>,
+    keep_options: &KeepOptions,
+) -> io::Result<()>
+where
+    T: AsRef<[u8]>,
+{
+    #[cfg(not(target_family = "wasm"))]
+    {
+        // Reuse the existing `restore_path_timestamps` helper if and only if
+        // it already uses `filetime::set_symlink_file_times`. Inspect
+        // `restore_path_timestamps` at implementation time: if it uses the
+        // follow-link `set_file_times`, introduce a sibling
+        // `restore_path_timestamps_no_follow` that calls
+        // `filetime::set_symlink_file_times` instead. Do NOT reuse the
+        // follow-link version for junction entries.
+        utils::fs::restore_path_timestamps_no_follow(path, metadata, keep_options)?;
+    }
+    #[cfg(target_family = "wasm")]
+    {
+        // No no-follow timestamp API on WASM target; skip silently.
+        let _ = (path, metadata, keep_options);
+    }
+    Ok(())
+}
+```
+
+If `utils::fs::restore_path_timestamps_no_follow` does not yet exist, add it alongside the existing `restore_path_timestamps` in the same module. The implementation difference is one line — `set_file_times` → `set_symlink_file_times` — and the signature is identical.
 
 Ensure the top of `extract.rs` imports `LinkTargetType` from `pna`. If it is already imported in the module's `use` block (grep confirms it is imported near the top), no change needed.
 
@@ -1434,6 +1515,108 @@ Expected: PASS on Windows CI.
 ```bash
 git add cli/tests/cli/junction.rs
 git commit -m ":white_check_mark: End-to-end junction round trip via CLI"
+```
+
+---
+
+#### Task 4.4: Security regression — `--keep-permission` must not mutate the external junction target
+
+**Files:**
+- Modify: `cli/tests/cli/junction.rs`
+
+This test locks in the MVP safety contract: even when the user passes
+attribute-restoration flags that would normally invoke `chmod` / `chown`
+/ `set_facl`, the **external directory** that the junction points at must
+not be touched. It is the regression fence for the `critical` finding
+raised by Codex's adversarial review.
+
+- [ ] **Step 1: Write the failing test**
+
+Append to `cli/tests/cli/junction.rs`:
+
+```rust
+/// Precondition: archive with a HardLink+fLTP=Directory entry pointing at
+/// an existing external directory whose owner/mode the user has already
+/// set. The archive's recorded metadata intentionally differs from the
+/// target's current metadata.
+/// Action: extract with `--allow-unsafe-links --keep-permission`
+/// (`--same-owner` / `--keep-acl` on Unix; equivalent flags elsewhere).
+/// Expectation: the junction or fallback symlink is created, but the
+/// external target directory's mode/owner/ACL remain untouched. This pins
+/// the "junction extract does not mutate its external target" invariant.
+#[test]
+fn extract_junction_does_not_mutate_external_target() {
+    use std::os::unix::fs::PermissionsExt; // Unix-only assertion; Windows uses its own block below.
+
+    let tmp = tempfile::tempdir().unwrap();
+    let target = tmp.path().join("external_target");
+    std::fs::create_dir(&target).unwrap();
+
+    // Pre-set a recognizable mode on the external target.
+    #[cfg(unix)]
+    {
+        let mut perms = std::fs::metadata(&target).unwrap().permissions();
+        perms.set_mode(0o700);
+        std::fs::set_permissions(&target, perms).unwrap();
+    }
+    let baseline_mode = std::fs::metadata(&target).unwrap().permissions();
+
+    let archive_path = tmp.path().join("fixture.pna");
+    let target_str = target.to_string_lossy().into_owned();
+    std::fs::write(&archive_path, build_junction_fixture(&target_str)).unwrap();
+
+    let out_dir = tmp.path().join("out");
+    std::fs::create_dir(&out_dir).unwrap();
+    let status = Command::new(env!("CARGO_BIN_EXE_pna"))
+        .args(["extract", "-f"])
+        .arg(&archive_path)
+        .arg("--out-dir")
+        .arg(&out_dir)
+        .arg("--allow-unsafe-links")
+        .arg("--keep-permission")
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    // The link must exist.
+    let link = out_dir.join("link_dir");
+    let link_meta = std::fs::symlink_metadata(&link).unwrap();
+    assert!(link_meta.file_type().is_symlink() || {
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::FileTypeExt;
+            link_meta.file_type().is_symlink_dir()
+        }
+        #[cfg(not(windows))]
+        {
+            false
+        }
+    });
+
+    // The external target's metadata must be byte-for-byte unchanged.
+    let after_mode = std::fs::metadata(&target).unwrap().permissions();
+    assert_eq!(
+        baseline_mode, after_mode,
+        "extract --keep-permission must NOT mutate the external junction target"
+    );
+}
+```
+
+- [ ] **Step 2: Run to confirm failure, then pass**
+
+Run before the Task 4.1 fix is in place: this test fails because
+`restore_metadata` follows the junction and mutates `external_target`'s
+mode.
+
+Run after Task 4.1's early-return + `restore_link_timestamps_no_follow`
+wiring is in place: this test passes. Expected PASS on both Unix
+(fallback symlink) and Windows (real junction).
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add cli/tests/cli/junction.rs
+git commit -m ":white_check_mark: Pin junction extract does-not-mutate-target invariant"
 ```
 
 ---
@@ -1662,6 +1845,29 @@ This is explicitly deferred. When the base junction support merges, open a separ
 
 **Expose reparse-point types publicly for downstream consumers.** If a third-party crate wants to reuse `ReparsePoint` / `read_reparse_point` from the CLI, the items could be promoted into `pna` behind a new feature flag (e.g. `pna` with `windows-fs`). For now they stay CLI-private because `pna` must not carry a platform-specific build dependency.
 
+**Junction-aware no-follow metadata restoration (option C).** The MVP takes
+option (A) from the Codex adversarial review: junction entries bypass the
+default `restore_metadata()` and restore only no-follow timestamps via
+`restore_link_timestamps_no_follow`. This closes the critical hole of
+mutating the junction's external target, but it also means junction-owned
+mode, ownership, ACLs, xattrs, fflags, and macOS AppleDouble data are not
+restored. A follow-up plan should:
+
+- Add `lchmod` / `lchown` / `lsetxattr` / `lremovexattr` based paths on
+  Unix (and gate `lchmod` behind `cfg(any(target_os = "freebsd",
+  target_os = "netbsd", ...))` where the syscall exists).
+- On Windows, open the reparse point with
+  `FILE_FLAG_OPEN_REPARSE_POINT` and apply the security descriptor via
+  `SetSecurityInfo` on that handle (no follow) for ACL restoration.
+- Generalize `restore_acls` so `follow_links = false` is honored on the
+  Windows path, not just on the symlink path.
+- Keep the do-not-mutate-external-target invariant (locked by the
+  `extract_junction_does_not_mutate_external_target` test) passing.
+
+The plan's `restore_link_timestamps_no_follow` helper carries a
+`TODO: junction-aware no-follow metadata (deferred follow-up)` block so
+implementers of that follow-up have a single anchor.
+
 ---
 
 ## Self-Review Checklist
@@ -1679,8 +1885,9 @@ This is explicitly deferred. When the base junction support merges, open a separ
 - [x] Docs update (Task 6.1)
 - [x] `PathnameEditor::edit_junction` with shared helper (Task 2.1)
 - [x] No `pna` / `libpna` modifications (by construction)
+- [x] Junction extract does not mutate its external target (Task 4.1 early return + `restore_link_timestamps_no_follow`; regression-fenced by Task 4.4)
 
-**Placeholder scan:** no `TBD` / `TODO` / "similar to task N". Code blocks show full implementations.
+**Placeholder scan:** no `TBD` / `TODO` inside task steps. The documented `TODO: junction-aware no-follow metadata (deferred follow-up)` inside `restore_link_timestamps_no_follow` is an **intentional** pointer to the follow-up plan captured in the Out-of-Scope section.
 
 **Type consistency:**
 - `ReparsePoint` variants are identical in Phase 1 tests and Phase 4 tests.
@@ -1689,6 +1896,7 @@ This is explicitly deferred. When the base junction support merges, open a separ
 - `detect_junction` returns `io::Result<Option<PathBuf>>` consistently.
 - `PathnameEditor::edit_junction` returns `EntryReference`, identical to `edit_symlink`.
 - `create_junction_or_fallback` takes `(&Path, &str)`; callers pass `transformed.as_str()`.
+- `restore_link_timestamps_no_follow` takes `(&Path, &pna::Metadata<T>, &KeepOptions)` and is only called from the junction branch of Task 4.1; it is the single chokepoint the follow-up plan will extend.
 
 **Feedback memory check:**
 - `feedback_plan_for_plans` ✓ (this plan was itself adversarially grilled before writing).
