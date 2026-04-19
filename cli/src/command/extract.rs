@@ -1160,6 +1160,8 @@ where
                 );
                 return Ok(ExtractionDecision::Skip);
             }
+            // TODO(rust-1.95): collapse into outer match
+            #[allow(clippy::collapsible_match)]
             OverwriteStrategy::KeepNewer if !unlink_first => {
                 if is_existing_newer(existing, item) {
                     log::debug!(
