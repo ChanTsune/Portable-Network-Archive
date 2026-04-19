@@ -77,11 +77,11 @@ impl PathnameEditor {
         Some((sanitized, had_root))
     }
 
-    /// Edit a symlink target path.
-    ///
-    /// Only user-specified substitutions (`-s`) are applied.
-    /// Leading `/` and `--strip-components` are NOT applied, matching bsdtar.
-    pub(crate) fn edit_symlink(&self, target: &Path) -> EntryReference {
+    /// Apply user-specified substitutions to a link target while preserving
+    /// absolute path components and skipping `--strip-components`, matching
+    /// bsdtar symlink semantics. Shared between [`edit_symlink`](Self::edit_symlink)
+    /// and [`edit_junction`](Self::edit_junction).
+    fn transform_link_target_preserving_root(&self, target: &Path) -> EntryReference {
         let transformed: Cow<'_, Path> = if let Some(t) = &self.transformers {
             Cow::Owned(PathBuf::from(t.apply(
                 target.to_string_lossy(),
@@ -92,6 +92,25 @@ impl PathnameEditor {
             Cow::Borrowed(target)
         };
         EntryReference::from_path_lossy_preserve_root(&transformed)
+    }
+
+    /// Edit a symlink target path.
+    ///
+    /// Only user-specified substitutions (`-s`) are applied.
+    /// Leading `/` and `--strip-components` are NOT applied, matching bsdtar.
+    pub(crate) fn edit_symlink(&self, target: &Path) -> EntryReference {
+        self.transform_link_target_preserving_root(target)
+    }
+
+    /// Edit a Windows-junction target path.
+    ///
+    /// Semantically identical to [`edit_symlink`](Self::edit_symlink) for the
+    /// moment (same substitution treatment, same preservation of absolute path
+    /// components). A separate public method is introduced so that any future
+    /// divergence between symlink-target and junction-target handling can be
+    /// added without touching every call site.
+    pub(crate) fn edit_junction(&self, target: &Path) -> EntryReference {
+        self.transform_link_target_preserving_root(target)
     }
 
     /// Apply substitution transforms and strip leading components.
@@ -1155,5 +1174,34 @@ mod tests {
         assert!(!has_parent_dir_component("a/..name"));
         // NOT parent dir: "..." is a normal component
         assert!(!has_parent_dir_component("a/.../b"));
+    }
+
+    #[test]
+    fn edit_junction_preserves_unix_absolute() {
+        let editor = PathnameEditor::new(None, None, false, false);
+        let out = editor.edit_junction(Path::new("/abs/target"));
+        assert_eq!(out.as_str(), "/abs/target");
+    }
+
+    #[test]
+    fn edit_junction_preserves_windows_absolute() {
+        let editor = PathnameEditor::new(None, None, false, false);
+        let out = editor.edit_junction(Path::new("C:\\abs\\target"));
+        assert_eq!(out.as_str(), "C:\\abs\\target");
+    }
+
+    #[test]
+    fn edit_junction_preserves_relative_unchanged() {
+        let editor = PathnameEditor::new(None, None, false, false);
+        let out = editor.edit_junction(Path::new("rel/target"));
+        assert_eq!(out.as_str(), "rel/target");
+    }
+
+    #[test]
+    fn edit_junction_does_not_apply_strip_components() {
+        let editor = PathnameEditor::new(Some(1), None, false, false);
+        let out = editor.edit_junction(Path::new("/abs/target"));
+        // strip_components does NOT apply to junction targets, matching symlink semantics.
+        assert_eq!(out.as_str(), "/abs/target");
     }
 }
