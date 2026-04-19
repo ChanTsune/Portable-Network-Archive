@@ -688,9 +688,7 @@ pub(crate) fn run_list_archive<'a>(
                             Some(solid.header()),
                             collect_opts,
                         )?;
-                        let time_ok = args
-                            .time_filters
-                            .matches_or_inactive(row.created, row.modified);
+                        let time_ok = args.time_filters.matches(row.created, row.modified);
                         if time_ok && !filter_ref.excluded(row.entry_type.name()) {
                             globs.mark_satisfied(&entry_path);
                             entries.push(row);
@@ -711,9 +709,7 @@ pub(crate) fn run_list_archive<'a>(
                         return Ok(ProcessAction::Continue);
                     }
                     let row = TableRow::from_entry(&item, password, None, collect_opts)?;
-                    let time_ok = args
-                        .time_filters
-                        .matches_or_inactive(row.created, row.modified);
+                    let time_ok = args.time_filters.matches(row.created, row.modified);
                     if time_ok && !filter_ref.excluded(row.entry_type.name()) {
                         globs.mark_satisfied(&entry_path);
                         entries.push(row);
@@ -749,9 +745,7 @@ fn print_entries<'a>(
         .into_iter()
         .filter(|r| {
             let matched = globs.is_empty() || globs.matches(r.entry_type.name());
-            let time_ok = options
-                .time_filters
-                .matches_or_inactive(r.created, r.modified);
+            let time_ok = options.time_filters.matches(r.created, r.modified);
             matched && time_ok && !filter.excluded(r.entry_type.name())
         })
         .collect::<Vec<_>>();

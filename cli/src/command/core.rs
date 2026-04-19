@@ -37,7 +37,7 @@ use std::{
     path::{Path, PathBuf},
     time::SystemTime,
 };
-pub(crate) use time_filter::{TimeFilter, TimeFilters};
+pub(crate) use time_filter::{TimeFilter, TimeFilters, TimeRange};
 
 /// Detected format of an @archive source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -117,29 +117,31 @@ impl TimeFilterResolver<'_> {
             })
         }
 
+        let ctime_newer = match self.newer_ctime_than {
+            Some(p) => Some(resolve_ctime(p)?),
+            None => self.newer_ctime,
+        };
+        let ctime_older = match self.older_ctime_than {
+            Some(p) => Some(resolve_ctime(p)?),
+            None => self.older_ctime,
+        };
+        let mtime_newer = match self.newer_mtime_than {
+            Some(p) => Some(fs::metadata(p)?.modified()?),
+            None => self.newer_mtime,
+        };
+        let mtime_older = match self.older_mtime_than {
+            Some(p) => Some(fs::metadata(p)?.modified()?),
+            None => self.older_mtime,
+        };
         Ok(TimeFilters {
-            ctime: TimeFilter {
-                newer_than: match self.newer_ctime_than {
-                    Some(p) => Some(resolve_ctime(p)?),
-                    None => self.newer_ctime,
-                },
-                older_than: match self.older_ctime_than {
-                    Some(p) => Some(resolve_ctime(p)?),
-                    None => self.older_ctime,
-                },
-                missing_policy: self.missing_ctime,
-            },
-            mtime: TimeFilter {
-                newer_than: match self.newer_mtime_than {
-                    Some(p) => Some(fs::metadata(p)?.modified()?),
-                    None => self.newer_mtime,
-                },
-                older_than: match self.older_mtime_than {
-                    Some(p) => Some(fs::metadata(p)?.modified()?),
-                    None => self.older_mtime,
-                },
-                missing_policy: self.missing_mtime,
-            },
+            ctime: TimeFilter::new(
+                TimeRange::new_strict(ctime_newer, ctime_older),
+                self.missing_ctime,
+            ),
+            mtime: TimeFilter::new(
+                TimeRange::new_strict(mtime_newer, mtime_older),
+                self.missing_mtime,
+            ),
         })
     }
 }
@@ -761,7 +763,7 @@ pub(crate) fn collect_items_with_state(
                 if let Some((store_as, metadata)) = store
                     && options
                         .time_filters
-                        .matches_or_inactive(metadata.created().ok(), metadata.modified().ok())
+                        .matches(metadata.created().ok(), metadata.modified().ok())
                 {
                     out.push(CollectedEntry {
                         path: path.to_path_buf(),
@@ -1858,7 +1860,7 @@ pub(crate) fn transform_archive_entries<R: io::Read>(
             }
             let ctime = entry.metadata().created_time();
             let mtime = entry.metadata().modified_time();
-            if !time_filters.matches_or_inactive(ctime, mtime) {
+            if !time_filters.matches(ctime, mtime) {
                 return Ok(());
             }
             results.push(transform_normal_entry(entry, create_options));
@@ -2070,16 +2072,14 @@ mod tests {
 
     fn empty_time_filters() -> TimeFilters {
         TimeFilters {
-            ctime: TimeFilter {
-                newer_than: None,
-                older_than: None,
-                missing_policy: MissingTimePolicy::Include,
-            },
-            mtime: TimeFilter {
-                newer_than: None,
-                older_than: None,
-                missing_policy: MissingTimePolicy::Include,
-            },
+            ctime: TimeFilter::new(
+                TimeRange::new_strict(None, None),
+                MissingTimePolicy::Include,
+            ),
+            mtime: TimeFilter::new(
+                TimeRange::new_strict(None, None),
+                MissingTimePolicy::Include,
+            ),
         }
     }
 
