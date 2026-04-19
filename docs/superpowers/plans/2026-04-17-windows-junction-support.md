@@ -679,13 +679,16 @@ pub(crate) fn create_junction(link: &Path, target: &Path) -> io::Result<()> {
     let print_wide: Vec<u16> = target.as_os_str().encode_wide().collect();
 
     // The reparse buffer header stores byte lengths in `u16` fields. Guard
-    // against silent truncation / wrapping: 16-bit byte lengths and the
-    // 8-byte offset header together must fit in `u16`.
+    // against silent truncation / wrapping: 16-bit byte lengths, the 8-byte
+    // offset header, and the two UTF-16 NUL terminators (one after
+    // SubstituteName, one after PrintName) together must fit in `u16`.
     let subst_byte_count = subst_wide.len() * 2;
     let print_byte_count = print_wide.len() * 2;
     let total_payload = 8_usize
         .checked_add(subst_byte_count)
-        .and_then(|n| n.checked_add(print_byte_count));
+        .and_then(|n| n.checked_add(2)) // NUL terminator after SubstituteName
+        .and_then(|n| n.checked_add(print_byte_count))
+        .and_then(|n| n.checked_add(2)); // NUL terminator after PrintName
     if total_payload.is_none_or(|n| n > u16::MAX as usize) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -718,19 +721,24 @@ pub(crate) fn create_junction(link: &Path, target: &Path) -> io::Result<()> {
 
     let mut buf = Vec::<u8>::new();
     buf.extend(&0xA000_0003u32.to_le_bytes()); // ReparseTag = IO_REPARSE_TAG_MOUNT_POINT
-    let data_len: u16 = 8 + subst_bytes_len + print_bytes_len;
+    // PathBuffer layout: [SubstituteName][NUL u16][PrintName][NUL u16].
+    // Length fields exclude the NUL terminators; offsets skip them.
+    let data_len: u16 = 8 + subst_bytes_len + 2 + print_bytes_len + 2;
+    let print_offset: u16 = subst_bytes_len + 2;
     buf.extend(&data_len.to_le_bytes()); // ReparseDataLength
     buf.extend(&0u16.to_le_bytes()); // Reserved
     buf.extend(&0u16.to_le_bytes()); // SubstituteNameOffset
     buf.extend(&subst_bytes_len.to_le_bytes()); // SubstituteNameLength
-    buf.extend(&subst_bytes_len.to_le_bytes()); // PrintNameOffset (right after subst)
+    buf.extend(&print_offset.to_le_bytes()); // PrintNameOffset (after subst + NUL)
     buf.extend(&print_bytes_len.to_le_bytes()); // PrintNameLength
     for u in &subst_wide {
         buf.extend(&u.to_le_bytes());
     }
+    buf.extend(&0u16.to_le_bytes()); // NUL terminator after SubstituteName
     for u in &print_wide {
         buf.extend(&u.to_le_bytes());
     }
+    buf.extend(&0u16.to_le_bytes()); // NUL terminator after PrintName
 
     let mut bytes_returned = 0u32;
     let ioctl_result = unsafe {
