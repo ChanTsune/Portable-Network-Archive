@@ -1038,7 +1038,7 @@ where
     pna::RawChunk<T>: Chunk,
 {
     let metadata = item.metadata();
-    filters.matches_or_inactive(metadata.created_time(), metadata.modified_time())
+    filters.matches(metadata.created_time(), metadata.modified_time())
 }
 
 fn filter_entry<T: AsRef<[u8]>>(

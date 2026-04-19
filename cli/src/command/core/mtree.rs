@@ -57,7 +57,7 @@ pub(crate) fn transform_mtree_entries<R: Read>(
                 };
                 // For ctime filtering, fall back to mtime since mtree never has ctime
                 // This matches bsdtar behavior (time_excluded() in archive_match.c)
-                if !time_filters.matches_or_inactive(mtime, mtime) {
+                if !time_filters.matches(mtime, mtime) {
                     continue;
                 }
                 match create_entry_from_mtree(&entry, create_options) {
