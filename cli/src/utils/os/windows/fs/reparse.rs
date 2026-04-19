@@ -6,7 +6,23 @@
 //! `cfg(windows)` by `cli/src/utils/os.rs`, so no `#[cfg]` attribute on
 //! individual items is required here.
 
-use std::{io, path::PathBuf};
+use std::{
+    io,
+    os::windows::ffi::OsStrExt,
+    path::{Path, PathBuf},
+};
+
+use windows::{
+    Win32::{
+        Foundation::{CloseHandle, GENERIC_READ, HANDLE},
+        Storage::FileSystem::{
+            CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_FLAG_BACKUP_SEMANTICS,
+            FILE_FLAG_OPEN_REPARSE_POINT, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
+        },
+        System::{IO::DeviceIoControl, Ioctl::FSCTL_GET_REPARSE_POINT},
+    },
+    core::{Error as WinError, PCWSTR},
+};
 
 /// Parsed contents of a reparse point.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -105,9 +121,88 @@ pub(crate) fn parse_reparse_buffer(buf: &[u8]) -> io::Result<ReparsePoint> {
     }
 }
 
+/// Convert a [`windows::core::Error`] into an [`io::Error`] whose
+/// [`raw_os_error()`](io::Error::raw_os_error) returns the canonical Win32
+/// error code (e.g. `ERROR_NOT_A_REPARSE_POINT` = 4390) rather than the
+/// HRESULT-encoded form that the `windows` crate uses internally.
+///
+/// Background: `windows::core::Error::from_win32()` wraps a Win32 error via
+/// `HRESULT_FROM_WIN32(dwErr) = 0x80070000 | dwErr`, so for
+/// `ERROR_NOT_A_REPARSE_POINT` (4390) the HRESULT payload is `0x80071126`
+/// which, as an `i32`, is `-2147020506`. Passing that value through
+/// `io::Error::from_raw_os_error` preserves the HRESULT bits, and downstream
+/// comparisons like `err.raw_os_error() == Some(4390)` silently never match.
+///
+/// This helper detects HRESULTs whose facility is `FACILITY_WIN32` (0x7),
+/// extracts the low 16 bits as the Win32 code, and passes anything else
+/// through unchanged. Use this in preference to
+/// `io::Error::from_raw_os_error(e.code().0)` everywhere the `windows` crate
+/// surfaces a `Result<_, windows::core::Error>`.
+fn io_error_from_win32(e: WinError) -> io::Error {
+    let hr = e.code().0 as u32;
+    let facility = (hr >> 16) & 0x1FFF;
+    let raw = if facility == 0x0007 {
+        (hr & 0xFFFF) as i32
+    } else {
+        e.code().0
+    };
+    io::Error::from_raw_os_error(raw)
+}
+
+/// Read the reparse data at `path`. Returns `ReparsePoint::Other(tag)` for tags
+/// we do not handle.
+///
+/// Returns an `io::Error` whose raw OS error is `ERROR_NOT_A_REPARSE_POINT`
+/// (4390) when `path` is not a reparse point. Callers who want to treat that
+/// condition as "not a junction" should inspect `err.raw_os_error()`.
+pub fn read_reparse_point(path: &Path) -> io::Result<ReparsePoint> {
+    const MAXIMUM_REPARSE_DATA_BUFFER_SIZE: usize = 16 * 1024;
+
+    let mut wide: Vec<u16> = path.as_os_str().encode_wide().collect();
+    wide.push(0);
+
+    let handle: HANDLE = unsafe {
+        CreateFileW(
+            PCWSTR(wide.as_ptr()),
+            GENERIC_READ.0,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            None,
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+            None,
+        )
+    }
+    .map_err(io_error_from_win32)?;
+
+    let mut buf = vec![0u8; MAXIMUM_REPARSE_DATA_BUFFER_SIZE];
+    let mut bytes_returned: u32 = 0;
+
+    let ioctl_result = unsafe {
+        DeviceIoControl(
+            handle,
+            FSCTL_GET_REPARSE_POINT,
+            None,
+            0,
+            Some(buf.as_mut_ptr().cast()),
+            buf.len() as u32,
+            Some(&mut bytes_returned),
+            None,
+        )
+    };
+    // Always attempt to close the handle; do not let a close failure mask an
+    // earlier DeviceIoControl error.
+    let close_result = unsafe { CloseHandle(handle) };
+    ioctl_result.map_err(io_error_from_win32)?;
+    let _ = close_result;
+
+    buf.truncate(bytes_returned as usize);
+    parse_reparse_buffer(&buf)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use windows::core::Error as WinError;
 
     /// Build a REPARSE_DATA_BUFFER for a junction pointing at `C:\target`.
     fn sample_junction_buffer() -> Vec<u8> {
@@ -244,5 +339,48 @@ mod tests {
         buf[0..4].copy_from_slice(&0xA000_000Cu32.to_le_bytes());
         let err = parse_reparse_buffer(&buf).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn read_reparse_point_on_junction() -> io::Result<()> {
+        use std::process::Command;
+        let tmp = tempfile::tempdir()?;
+        let target = tmp.path().join("target");
+        std::fs::create_dir(&target)?;
+        let link = tmp.path().join("link");
+        let status = Command::new("cmd")
+            .args(["/C", "mklink", "/J"])
+            .arg(&link)
+            .arg(&target)
+            .status()?;
+        assert!(status.success(), "mklink /J failed");
+
+        let rp = super::read_reparse_point(&link)?;
+        match rp {
+            ReparsePoint::Junction(t) => {
+                assert!(
+                    t.as_os_str().to_string_lossy().ends_with("target"),
+                    "unexpected junction target {t:?}"
+                );
+            }
+            other => panic!("expected Junction, got {other:?}"),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn io_error_from_win32_extracts_win32_code() {
+        // HRESULT_FROM_WIN32(ERROR_NOT_A_REPARSE_POINT = 4390) == 0x80071126.
+        let hr = windows::core::HRESULT(0x8007_1126u32 as i32);
+        let err = super::io_error_from_win32(WinError::from(hr));
+        assert_eq!(err.raw_os_error(), Some(4390));
+    }
+
+    #[test]
+    fn io_error_from_win32_passes_through_non_win32_hresults() {
+        // E_FAIL (0x80004005) has facility FACILITY_NULL (0x0), not FACILITY_WIN32.
+        let hr = windows::core::HRESULT(0x8000_4005u32 as i32);
+        let err = super::io_error_from_win32(WinError::from(hr));
+        assert_eq!(err.raw_os_error(), Some(0x8000_4005u32 as i32));
     }
 }
