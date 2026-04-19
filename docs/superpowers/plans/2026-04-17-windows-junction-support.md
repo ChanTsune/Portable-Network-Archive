@@ -643,6 +643,8 @@ Expected: FAIL with `cannot find function create_junction in module super`.
 Add to `cli/src/utils/os/windows/fs/reparse.rs`:
 
 ```rust
+use std::os::windows::ffi::OsStrExt;
+
 use windows::Win32::{
     Foundation::GENERIC_WRITE,
     System::Ioctl::FSCTL_SET_REPARSE_POINT,
@@ -653,10 +655,13 @@ use windows::Win32::{
 /// `link` must not already exist; `target` must be an absolute path to a
 /// directory.
 ///
-/// Path bytes are preserved exactly via `OsStr::encode_wide`; `Path::display`
-/// and `to_string_lossy` are deliberately not used because they would drop
-/// unpaired UTF-16 surrogates.
-pub fn create_junction(link: &Path, target: &Path) -> io::Result<()> {
+/// The path `link` itself is routed through the shared
+/// `crate::utils::str::encode_wide` helper, which rejects embedded NUL
+/// bytes before null-terminating. The reparse buffer's `SubstituteName`
+/// and `PrintName` fields are built with raw `OsStr::encode_wide()` (no
+/// NUL terminator, no lossy conversion) so non-Unicode path bytes are
+/// preserved exactly.
+pub(crate) fn create_junction(link: &Path, target: &Path) -> io::Result<()> {
     if !target.is_absolute() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -666,11 +671,10 @@ pub fn create_junction(link: &Path, target: &Path) -> io::Result<()> {
     std::fs::create_dir(link)?;
 
     // Open the freshly-created directory with read+write and reparse semantics.
-    let mut link_wide: Vec<u16> = link.as_os_str().encode_wide().collect();
-    link_wide.push(0);
+    let link_wide = encode_wide(link.as_os_str())?;
     let handle: HANDLE = unsafe {
         CreateFileW(
-            PCWSTR(link_wide.as_ptr()),
+            PCWSTR::from_raw(link_wide.as_ptr()),
             GENERIC_READ.0 | GENERIC_WRITE.0,
             FILE_SHARE_READ | FILE_SHARE_WRITE,
             None,
@@ -685,7 +689,7 @@ pub fn create_junction(link: &Path, target: &Path) -> io::Result<()> {
         err
     })?;
 
-    // SubstituteName = \??\ + target (as raw UTF-16, no lossy conversion)
+    // SubstituteName = \??\ + target (as raw UTF-16, no NUL terminator, no lossy conversion).
     let mut subst_wide: Vec<u16> = r"\??\".encode_utf16().collect();
     subst_wide.extend(target.as_os_str().encode_wide());
     let print_wide: Vec<u16> = target.as_os_str().encode_wide().collect();
@@ -696,14 +700,18 @@ pub fn create_junction(link: &Path, target: &Path) -> io::Result<()> {
     let mut buf = Vec::<u8>::new();
     buf.extend(&0xA000_0003u32.to_le_bytes()); // ReparseTag = IO_REPARSE_TAG_MOUNT_POINT
     let data_len: u16 = 8 + subst_bytes_len + print_bytes_len;
-    buf.extend(&data_len.to_le_bytes());       // ReparseDataLength
-    buf.extend(&0u16.to_le_bytes());           // Reserved
-    buf.extend(&0u16.to_le_bytes());           // SubstituteNameOffset
+    buf.extend(&data_len.to_le_bytes()); // ReparseDataLength
+    buf.extend(&0u16.to_le_bytes()); // Reserved
+    buf.extend(&0u16.to_le_bytes()); // SubstituteNameOffset
     buf.extend(&subst_bytes_len.to_le_bytes()); // SubstituteNameLength
     buf.extend(&subst_bytes_len.to_le_bytes()); // PrintNameOffset (right after subst)
     buf.extend(&print_bytes_len.to_le_bytes()); // PrintNameLength
-    for u in &subst_wide { buf.extend(&u.to_le_bytes()); }
-    for u in &print_wide { buf.extend(&u.to_le_bytes()); }
+    for u in &subst_wide {
+        buf.extend(&u.to_le_bytes());
+    }
+    for u in &print_wide {
+        buf.extend(&u.to_le_bytes());
+    }
 
     let mut bytes_returned = 0u32;
     let ioctl_result = unsafe {

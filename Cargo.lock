@@ -1950,6 +1950,7 @@ dependencies = [
  "serde_json",
  "serial_test",
  "tabled",
+ "tempfile",
  "termtree",
  "thiserror",
  "typed-path",

@@ -8,17 +8,21 @@
 
 use std::{
     io,
+    os::windows::ffi::OsStrExt,
     path::{Path, PathBuf},
 };
 
 use windows::{
     Win32::{
-        Foundation::{CloseHandle, GENERIC_READ, HANDLE},
+        Foundation::{CloseHandle, GENERIC_READ, GENERIC_WRITE, HANDLE},
         Storage::FileSystem::{
             CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_FLAG_BACKUP_SEMANTICS,
             FILE_FLAG_OPEN_REPARSE_POINT, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
         },
-        System::{IO::DeviceIoControl, Ioctl::FSCTL_GET_REPARSE_POINT},
+        System::{
+            IO::DeviceIoControl,
+            Ioctl::{FSCTL_GET_REPARSE_POINT, FSCTL_SET_REPARSE_POINT},
+        },
     },
     core::{Error as WinError, PCWSTR},
 };
@@ -197,6 +201,93 @@ pub(crate) fn read_reparse_point(path: &Path) -> io::Result<ReparsePoint> {
 
     buf.truncate(bytes_returned as usize);
     parse_reparse_buffer(&buf)
+}
+
+/// Create a junction at `link` pointing to the absolute `target`.
+///
+/// `link` must not already exist; `target` must be an absolute path to a
+/// directory.
+///
+/// The path `link` itself is routed through the shared
+/// `crate::utils::str::encode_wide` helper, which rejects embedded NUL
+/// bytes before null-terminating. The reparse buffer's `SubstituteName`
+/// and `PrintName` fields are built with raw `OsStr::encode_wide()` (no
+/// NUL terminator, no lossy conversion) so non-Unicode path bytes are
+/// preserved exactly.
+pub(crate) fn create_junction(link: &Path, target: &Path) -> io::Result<()> {
+    if !target.is_absolute() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "junction target must be absolute",
+        ));
+    }
+    std::fs::create_dir(link)?;
+
+    // Open the freshly-created directory with read+write and reparse semantics.
+    let link_wide = encode_wide(link.as_os_str())?;
+    let handle: HANDLE = unsafe {
+        CreateFileW(
+            PCWSTR::from_raw(link_wide.as_ptr()),
+            GENERIC_READ.0 | GENERIC_WRITE.0,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            None,
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+            None,
+        )
+    }
+    .map_err(|e| {
+        let err = io_error_from_win32(e);
+        let _ = std::fs::remove_dir(link);
+        err
+    })?;
+
+    // SubstituteName = \??\ + target (as raw UTF-16, no NUL terminator, no lossy conversion).
+    let mut subst_wide: Vec<u16> = r"\??\".encode_utf16().collect();
+    subst_wide.extend(target.as_os_str().encode_wide());
+    let print_wide: Vec<u16> = target.as_os_str().encode_wide().collect();
+
+    let subst_bytes_len = (subst_wide.len() * 2) as u16;
+    let print_bytes_len = (print_wide.len() * 2) as u16;
+
+    let mut buf = Vec::<u8>::new();
+    buf.extend(&0xA000_0003u32.to_le_bytes()); // ReparseTag = IO_REPARSE_TAG_MOUNT_POINT
+    let data_len: u16 = 8 + subst_bytes_len + print_bytes_len;
+    buf.extend(&data_len.to_le_bytes()); // ReparseDataLength
+    buf.extend(&0u16.to_le_bytes()); // Reserved
+    buf.extend(&0u16.to_le_bytes()); // SubstituteNameOffset
+    buf.extend(&subst_bytes_len.to_le_bytes()); // SubstituteNameLength
+    buf.extend(&subst_bytes_len.to_le_bytes()); // PrintNameOffset (right after subst)
+    buf.extend(&print_bytes_len.to_le_bytes()); // PrintNameLength
+    for u in &subst_wide {
+        buf.extend(&u.to_le_bytes());
+    }
+    for u in &print_wide {
+        buf.extend(&u.to_le_bytes());
+    }
+
+    let mut bytes_returned = 0u32;
+    let ioctl_result = unsafe {
+        DeviceIoControl(
+            handle,
+            FSCTL_SET_REPARSE_POINT,
+            Some(buf.as_ptr().cast()),
+            buf.len() as u32,
+            None,
+            0,
+            Some(&mut bytes_returned),
+            None,
+        )
+    };
+    let close_result = unsafe { CloseHandle(handle) };
+
+    if let Err(e) = ioctl_result {
+        let err = io_error_from_win32(e);
+        let _ = std::fs::remove_dir(link);
+        return Err(err);
+    }
+    let _ = close_result;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -382,5 +473,24 @@ mod tests {
         let hr = windows::core::HRESULT(0x8000_4005u32 as i32);
         let err = super::io_error_from_win32(WinError::from(hr));
         assert_eq!(err.raw_os_error(), Some(0x8000_4005u32 as i32));
+    }
+
+    #[test]
+    fn create_junction_round_trip() -> io::Result<()> {
+        let tmp = tempfile::tempdir()?;
+        let target = tmp.path().join("target");
+        std::fs::create_dir(&target)?;
+        let link = tmp.path().join("junction");
+        super::create_junction(&link, &target)?;
+
+        let rp = super::read_reparse_point(&link)?;
+        match rp {
+            ReparsePoint::Junction(t) => assert!(
+                t.as_os_str().to_string_lossy().ends_with("target"),
+                "unexpected junction target {t:?}"
+            ),
+            other => panic!("expected Junction, got {other:?}"),
+        }
+        Ok(())
     }
 }
