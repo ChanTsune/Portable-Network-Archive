@@ -1,3 +1,4 @@
+pub(crate) mod junction;
 pub(crate) mod owner;
 pub(crate) mod reparse;
 
