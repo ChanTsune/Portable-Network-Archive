@@ -221,6 +221,33 @@ pub(crate) fn create_junction(link: &Path, target: &Path) -> io::Result<()> {
             "junction target must be absolute",
         ));
     }
+
+    // Build and size-validate the reparse-buffer payload before any filesystem
+    // mutation so an oversized target never leaves a half-created junction
+    // directory behind.
+    //
+    // SubstituteName = \??\ + target (as raw UTF-16, no NUL terminator, no lossy conversion).
+    let mut subst_wide: Vec<u16> = r"\??\".encode_utf16().collect();
+    subst_wide.extend(target.as_os_str().encode_wide());
+    let print_wide: Vec<u16> = target.as_os_str().encode_wide().collect();
+
+    // The reparse buffer header stores byte lengths in `u16` fields. Guard
+    // against silent truncation / wrapping: 16-bit byte lengths and the
+    // 8-byte offset header together must fit in `u16`.
+    let subst_byte_count = subst_wide.len() * 2;
+    let print_byte_count = print_wide.len() * 2;
+    let total_payload = 8_usize
+        .checked_add(subst_byte_count)
+        .and_then(|n| n.checked_add(print_byte_count));
+    if total_payload.is_none_or(|n| n > u16::MAX as usize) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "junction target too long for reparse buffer",
+        ));
+    }
+    let subst_bytes_len = subst_byte_count as u16;
+    let print_bytes_len = print_byte_count as u16;
+
     std::fs::create_dir(link)?;
 
     // Open the freshly-created directory with read+write and reparse semantics.
@@ -241,14 +268,6 @@ pub(crate) fn create_junction(link: &Path, target: &Path) -> io::Result<()> {
         let _ = std::fs::remove_dir(link);
         err
     })?;
-
-    // SubstituteName = \??\ + target (as raw UTF-16, no NUL terminator, no lossy conversion).
-    let mut subst_wide: Vec<u16> = r"\??\".encode_utf16().collect();
-    subst_wide.extend(target.as_os_str().encode_wide());
-    let print_wide: Vec<u16> = target.as_os_str().encode_wide().collect();
-
-    let subst_bytes_len = (subst_wide.len() * 2) as u16;
-    let print_bytes_len = (print_wide.len() * 2) as u16;
 
     let mut buf = Vec::<u8>::new();
     buf.extend(&0xA000_0003u32.to_le_bytes()); // ReparseTag = IO_REPARSE_TAG_MOUNT_POINT
