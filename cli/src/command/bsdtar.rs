@@ -484,6 +484,7 @@ pub(crate) struct BsdtarCommand {
         long,
         value_name = "DATETIME",
         requires = "unstable",
+        visible_alias = "older",
         help_heading = "Unstable Options",
         help = "Only include files and directories older than the specified date. This compares mtime entries."
     )]
@@ -500,6 +501,7 @@ pub(crate) struct BsdtarCommand {
         long,
         value_name = "DATETIME",
         requires = "unstable",
+        visible_alias = "newer",
         help_heading = "Unstable Options",
         help = "Only include files and directories newer than the specified date. This compares mtime entries."
     )]
