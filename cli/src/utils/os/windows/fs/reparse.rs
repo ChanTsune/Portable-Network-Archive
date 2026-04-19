@@ -8,7 +8,6 @@
 
 use std::{
     io,
-    os::windows::ffi::OsStrExt,
     path::{Path, PathBuf},
 };
 
@@ -23,6 +22,8 @@ use windows::{
     },
     core::{Error as WinError, PCWSTR},
 };
+
+use crate::utils::str::encode_wide;
 
 /// Parsed contents of a reparse point.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -155,15 +156,14 @@ fn io_error_from_win32(e: WinError) -> io::Error {
 /// Returns an `io::Error` whose raw OS error is `ERROR_NOT_A_REPARSE_POINT`
 /// (4390) when `path` is not a reparse point. Callers who want to treat that
 /// condition as "not a junction" should inspect `err.raw_os_error()`.
-pub fn read_reparse_point(path: &Path) -> io::Result<ReparsePoint> {
+pub(crate) fn read_reparse_point(path: &Path) -> io::Result<ReparsePoint> {
     const MAXIMUM_REPARSE_DATA_BUFFER_SIZE: usize = 16 * 1024;
 
-    let mut wide: Vec<u16> = path.as_os_str().encode_wide().collect();
-    wide.push(0);
+    let wide = encode_wide(path.as_os_str())?;
 
     let handle: HANDLE = unsafe {
         CreateFileW(
-            PCWSTR(wide.as_ptr()),
+            PCWSTR::from_raw(wide.as_ptr()),
             GENERIC_READ.0,
             FILE_SHARE_READ | FILE_SHARE_WRITE,
             None,

@@ -66,8 +66,8 @@ pub enum ReparsePoint {
     Other(u32),
 }
 
-pub fn read_reparse_point(path: &Path) -> io::Result<ReparsePoint>;
-pub fn create_junction(link: &Path, target: &Path) -> io::Result<()>;
+pub(crate) fn read_reparse_point(path: &Path) -> io::Result<ReparsePoint>;
+pub(crate) fn create_junction(link: &Path, target: &Path) -> io::Result<()>;
 
 // Private, but unit-testable cross-platform via its byte-in byte-out signature.
 fn parse_reparse_buffer(buf: &[u8]) -> io::Result<ReparsePoint>;

@@ -491,7 +491,7 @@ Expected: FAIL with `cannot find function read_reparse_point in module super`.
 Add to `cli/src/utils/os/windows/fs/reparse.rs` (below `parse_reparse_buffer`):
 
 ```rust
-use std::{os::windows::ffi::OsStrExt, path::Path};
+use std::path::Path;
 
 use windows::{
     core::{Error as WinError, PCWSTR},
@@ -504,6 +504,8 @@ use windows::{
         System::{Ioctl::FSCTL_GET_REPARSE_POINT, IO::DeviceIoControl},
     },
 };
+
+use crate::utils::str::encode_wide;
 
 /// Convert a [`windows::core::Error`] into an [`io::Error`] whose
 /// [`raw_os_error()`](io::Error::raw_os_error) returns the canonical Win32
@@ -539,15 +541,16 @@ fn io_error_from_win32(e: WinError) -> io::Error {
 /// Returns an `io::Error` whose raw OS error is `ERROR_NOT_A_REPARSE_POINT`
 /// (4390) when `path` is not a reparse point. Callers who want to treat that
 /// condition as "not a junction" should inspect `err.raw_os_error()`.
-pub fn read_reparse_point(path: &Path) -> io::Result<ReparsePoint> {
+pub(crate) fn read_reparse_point(path: &Path) -> io::Result<ReparsePoint> {
     const MAXIMUM_REPARSE_DATA_BUFFER_SIZE: usize = 16 * 1024;
 
-    let mut wide: Vec<u16> = path.as_os_str().encode_wide().collect();
-    wide.push(0);
+    // Reuse the shared helper, which rejects embedded NUL bytes before
+    // null-terminating — a silent CreateFileW truncation otherwise.
+    let wide = encode_wide(path.as_os_str())?;
 
     let handle: HANDLE = unsafe {
         CreateFileW(
-            PCWSTR(wide.as_ptr()),
+            PCWSTR::from_raw(wide.as_ptr()),
             GENERIC_READ.0,
             FILE_SHARE_READ | FILE_SHARE_WRITE,
             None,
