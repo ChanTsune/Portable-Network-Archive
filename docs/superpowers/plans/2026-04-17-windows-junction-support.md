@@ -2,33 +2,16 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Detect Windows junctions during PNA archive creation and restore them during extraction, using the `DataKind::HardLink + fLTP=Directory` encoding with an external target path (absolute on CREATE; both absolute and relative accepted on EXTRACT for forward compatibility).
+**Design spec:** [`docs/superpowers/specs/2026-04-19-windows-junction-support-design.md`](../specs/2026-04-19-windows-junction-support-design.md). Read it first for problem framing, goal, non-goals, architecture, interfaces, data flow, safety invariants, error-handling strategy, testing strategy, rejected alternatives, and deferred follow-ups. This plan is the step-by-step execution path for the agreed design.
 
-**Architecture:** No change to `libpna` or `pna` (`pna` stays platform-dependency-free). All Windows reparse-point FFI primitives live in `cli/src/utils/os/windows/fs/{reparse,junction}.rs` behind `#[cfg(windows)]`. A new `StoreAs::Junction(PathBuf)` enum variant is declared unconditionally for exhaustive matching but is only produced on Windows. A new `PathnameEditor::edit_junction` method applies user-specified path transforms to junction targets by delegating to a private helper shared with `edit_symlink` (same semantics: transforms applied, `--strip-components` and leading-slash removal skipped, absolute paths preserved). On Windows extract we create a real junction via `FSCTL_SET_REPARSE_POINT`; on non-Windows we fall back to a symbolic link per the PNA spec's `MAY` clause at `chunk_specifications/index.md:332-336`.
-
-**Tech Stack:** Rust 2024 (MSRV 1.88), existing `windows = "0.62.2"` dependency (already declared in `cli/Cargo.toml:67-73` under `[target.'cfg(windows)'.dependencies]`) with four additional features (`Win32_Foundation`, `Win32_Security`, `Win32_System_Ioctl`, `Win32_System_IO`), existing `fLTP` / `FHED` chunk types (no format changes), existing `--allow-unsafe-links` flag. No changes to `pna/Cargo.toml` or `libpna`.
+**Tech stack (execution snapshot):** Rust 2024, MSRV 1.88. Existing `windows = "0.62.2"` dependency in `cli/Cargo.toml:67-73`; this plan adds four features (`Win32_Foundation`, `Win32_Security`, `Win32_System_Ioctl`, `Win32_System_IO`). No changes to `pna/Cargo.toml` or `libpna`.
 
 ---
 
-## Scope
+## Scope reference
 
-**In scope (Phase 1-6):**
-- Junction detection on Windows during `create` (NTFS reparse tag = `IO_REPARSE_TAG_MOUNT_POINT`)
-- Reparse buffer parsing to extract `SubstituteName`, strip `\??\` prefix → UTF-8 path
-- Encoding: `DataKind::HardLink` + `fLTP=Directory` + entry data = external target path (MVP CREATE: always absolute; EXTRACT: accepts both absolute and relative)
-- Extract branch: on Windows create junction via `FSCTL_SET_REPARSE_POINT`; on non-Windows create symbolic link
-- Extract accepts both absolute and relative stored targets (forward compatibility for a future CREATE-side relative-path optimization, deferred to a separate plan)
-- `--allow-unsafe-links` gates extraction of junction entries (junction target is always treated as unsafe)
-- Unknown reparse tags (neither mount point nor symlink) during classification → `Ok(None)` with debug log, entry falls through to existing symlink handling
-- Regression-free for existing hardlink and symlink tests
-- `PathnameEditor::edit_junction` (public) delegates to a private helper that is also used by `edit_symlink`
-
-**Out of scope (deferred):**
-- Relative-path optimization on the CREATE side when junction target is inside the archive input set (user directive Q2 — separate future plan)
-- Other reparse tags (`IO_REPARSE_TAG_CLOUD_*` OneDrive placeholders, App Execution Aliases, etc.)
-- PNA specification document changes (user directive Q6 — implementation defines the encoding; the spec's existing "directory hard link = junction" text stays as-is)
-- Windows UNC junctions (the kernel forbids UNC targets for `IO_REPARSE_TAG_MOUNT_POINT`; we do not need to handle them on write, but we must not panic on read)
-- `bsdtar compat` subcommand special handling (if junctions flow through its pipeline, they are tolerated — no explicit skip added)
+- **In scope:** see spec §2 (Goal) and §4 (Architecture). This plan executes that scope.
+- **Out of scope / deferred:** see spec §3 (Non-goals) and §11 (Follow-ups).
 
 ## Prerequisites per Task
 
@@ -36,69 +19,42 @@
 2. **TDD order.** Each task writes the failing test first, runs it to confirm the failure, implements the minimum change, re-runs, then commits. This order is non-negotiable — `feedback_no_impl_without_plan` applies.
 3. **Commit message.** Follow the project convention at `CLAUDE.md`'s emoji table. Do not add `Co-Authored-By` lines (global `CLAUDE.md`).
 
-## Risk Summary
+## Risks and safety invariants
 
-| Risk | Mitigation |
+See spec §7 (Safety invariants I1–I4) and §8 (Error handling). The plan's task steps enforce them at these anchors:
+
+- **I1** (UTF-16 gate on junction target) — Task 1.1 (`parse_reparse_buffer` rejects invalid UTF-16).
+- **I2** (junction extract must not mutate the external target) — Task 4.1 (early return after `restore_link_timestamps_no_follow`). Regression fence in Task 4.4.
+- **I3** (junction classified before symlink on Windows) — Task 3.1.
+- **I4** (`--allow-unsafe-links` required) — Task 4.1.
+
+## Testing coverage
+
+Spec §9 defines tests T1–T19. This plan lands them in the following files:
+
+| Test set | File |
 |---|---|
-| `DeviceIoControl` unsafe FFI mistakes → UB | Use `windows = "0.62.2"` Rust bindings; wrap all raw pointer math in small helpers; unit-test the reparse-buffer parser with hand-crafted byte slices |
-| Junction detection accidentally catches `IO_REPARSE_TAG_SYMLINK` | Strict tag match in `parse_reparse_buffer`; `detect_junction` filters to `ReparsePoint::Junction` only |
-| Extract changes break existing hardlink tests | Keep the old HardLink code path untouched; add a separate inner branch gated on `fLTP == Some(Directory)` |
-| Symlink fallback on non-Windows creates a user-visible behavior change | Not applicable — no archive created with prior pna versions contains the encoding `HardLink + fLTP=Directory + absolute target` |
-| Path traversal via junction target (`..`, `/etc/passwd`) | Junction target is always treated as unsafe; `--allow-unsafe-links` required (same gate as unsafe symlinks) |
-| Follow-link metadata restoration mutating the **external** junction target (chmod/chown/ACL/xattrs/fflags) | Junction entries bypass the default `restore_metadata()` path and use `restore_link_timestamps_no_follow` (option A from the Codex adversarial review). The regression is fenced by test T19. A proper no-follow implementation (option C) is captured as a follow-up plan in the Out-of-Scope section. |
-| Non-UTF-8 Windows paths lost via `Path::display()` | Use `target.as_os_str().encode_wide()` to build the NT substitute name; never pass through `Display`/`to_string_lossy` |
-| `EntryReference` normalizing absolute paths | Use `EntryReference::from_utf8_preserve_root` / `from_path_lossy_preserve_root` (verified at `lib/src/entry/reference.rs:462-476` that `C:\drive\path` and `/abs/path` are preserved verbatim) |
+| T1–T5 (reparse parser + FFI round-trip) | `cli/src/utils/os/windows/fs/reparse.rs` tests module |
+| T6–T7 (junction classification) | `cli/src/utils/os/windows/fs/junction.rs` tests module |
+| T8–T10 (`PathnameEditor::edit_junction`) | `cli/src/command/core/path.rs` tests module |
+| T11–T16, T19 (integration + security fence) | `cli/tests/cli/junction.rs` |
+| T17–T18 (regression, existing) | `cli/tests/cli/hardlink.rs`, `cli/tests/cli/extract/hardlink.rs`, `cli/tests/cli/extract/symlink*.rs` |
 
-## Testing Matrix (matrix-first per `feedback_test_matrix_first`)
+## File touch points
 
-| # | Scenario | Platform | Test kind | Location |
-|---|---|---|---|---|
-| T1 | Reparse buffer parser — junction SubstituteName extraction and `\??\` strip | Windows | unit | `cli/src/utils/os/windows/fs/reparse.rs` |
-| T2 | Reparse buffer parser — truncated buffer yields `InvalidData` error | Windows | unit | same |
-| T3 | Reparse buffer parser — unknown tag yields `ReparsePoint::Other(tag)` | Windows | unit | same |
-| T4 | `read_reparse_point` on a real junction via `mklink /J` | Windows | unit | same |
-| T5 | `create_junction` round-trip with `read_reparse_point` | Windows | unit | `cli/src/utils/os/windows/fs/reparse.rs` |
-| T6 | `detect_junction` returns `Some(target)` for junction | Windows | unit | `cli/src/utils/os/windows/fs/junction.rs` |
-| T7 | `detect_junction` returns `Ok(None)` for regular directory (via `ERROR_NOT_A_REPARSE_POINT` mapping) | Windows | unit | same |
-| T8 | `PathnameEditor::edit_junction` preserves absolute path `C:\abs\target` while applying transforms | cross-platform | unit | `cli/src/command/core/path.rs` |
-| T9 | `PathnameEditor::edit_junction` preserves Unix-style absolute `/abs/target` | cross-platform | unit | same |
-| T10 | `PathnameEditor::edit_junction` leaves relative path unchanged (no strip, no sanitize) | cross-platform | unit | same |
-| T11 | `create_entry` classifies junction and emits HardLink + fLTP=Directory + absolute path | Windows | integration | `cli/tests/cli/junction.rs` |
-| T12 | Full round-trip: create archive from junction → extract → junction recreated | Windows | integration | same |
-| T13 | Extract HardLink+fLTP=Directory on non-Windows with absolute target → symlink created | Unix | integration | same (using libpna-built fixture) |
-| T14 | Extract HardLink+fLTP=Directory with relative target on Windows → junction resolved against extract root | Windows | integration | same |
-| T15 | Extract HardLink+fLTP=Directory with relative target on non-Windows → symlink with relative target | Unix | integration | same |
-| T16 | Extract without `--allow-unsafe-links` → warn + skip | cross-platform | integration | same |
-| T17 | Existing hardlink tests regression-free | cross-platform | existing | `cli/tests/cli/hardlink.rs`, `cli/tests/cli/extract/hardlink.rs` |
-| T18 | Existing symlink tests regression-free | cross-platform | existing | `cli/tests/cli/extract/symlink*.rs` |
-| T19 | Extract with `--keep-permission` does **not** mutate the external junction target (security regression fence) | cross-platform | integration | `cli/tests/cli/junction.rs` (Task 4.4) |
-
-## File Structure
-
-### New files
-
-| Path | Responsibility |
+| Action | Path |
 |---|---|
-| `cli/src/utils/os/windows/fs/reparse.rs` | `#[cfg(windows)]` reparse-point FFI primitives: `ReparsePoint` enum, `parse_reparse_buffer` (private parser), `read_reparse_point(path) -> ReparsePoint`, `create_junction(link, target) -> io::Result<()>`. |
-| `cli/src/utils/os/windows/fs/junction.rs` | `#[cfg(windows)]` high-level wrapper: `detect_junction(path) -> io::Result<Option<PathBuf>>`. Maps `ERROR_NOT_A_REPARSE_POINT` (raw OS error 4390) to `Ok(None)`. |
-| `cli/tests/cli/junction.rs` | Integration tests T11–T16. Windows-gated round-trip tests use `#[cfg(windows)]`; cross-platform extract tests use a libpna-constructed fixture. |
+| Create | `cli/src/utils/os/windows/fs/reparse.rs` |
+| Create | `cli/src/utils/os/windows/fs/junction.rs` |
+| Create | `cli/tests/cli/junction.rs` |
+| Modify | `cli/Cargo.toml` (add four `windows` crate features) |
+| Modify | `cli/src/utils/os/windows/fs.rs` (add `pub(crate) mod reparse;` and `pub(crate) mod junction;` next to the existing `pub(crate) mod owner;`; no other change) |
+| Modify | `cli/src/command/core/path.rs` (extract shared helper, add `edit_junction`) |
+| Modify | `cli/src/command/core.rs` (add `StoreAs::Junction`, classifier, create arm) |
+| Modify | `cli/src/command/extract.rs` (junction branch + `create_junction_or_fallback` + `restore_link_timestamps_no_follow`) |
+| Modify | `cli/tests/cli/main.rs` (register `mod junction;`) |
 
-### Modified files
-
-| Path | Change |
-|---|---|
-| `cli/Cargo.toml` | Extend the existing `windows` dependency `features` array with `Win32_Foundation`, `Win32_Security`, `Win32_System_Ioctl`, `Win32_System_IO`. |
-| `cli/src/utils/os/windows/fs.rs` | Add `pub(crate) mod reparse;` (Task 1.1) and `pub(crate) mod junction;` (Task 1.4) near the existing `pub(crate) mod owner;` declaration. No other existing items (`FileHandle`, `chmod`, `lchown`, `open_read_metadata`, etc.) are touched. |
-| `cli/src/command/core/path.rs` | Extract a private helper `fn transform_link_target_preserving_root(&self, target: &Path) -> EntryReference` from the body of `edit_symlink`. Change `edit_symlink` to delegate to it. Add `pub(crate) fn edit_junction(&self, target: &Path) -> EntryReference` that also delegates. |
-| `cli/src/command/core.rs` | Add `StoreAs::Junction(PathBuf)` variant (unconditional, dead on non-Windows). Insert junction detection before the existing symlink classification. Add a `create_entry` arm for `StoreAs::Junction`. Add `classify_junction` helper with `#[cfg(windows)]` / `#[cfg(not(windows))]` arms. |
-| `cli/src/command/extract.rs` | Inside `DataKind::HardLink` arm, branch on `item.metadata().link_target_type()`; when `Some(Directory)`, call `pathname_editor.edit_junction(target)`, resolve relative targets against `out_dir + link parent`, require `--allow-unsafe-links`, then call the new `create_junction_or_fallback` helper (Windows: `cli::utils::os::windows::fs::reparse::create_junction`; non-Windows: `utils::fs::symlink` with original stored string). |
-| `cli/tests/cli/main.rs` (or equivalent test-module registrar) | Register `mod junction;`. |
-
-### Files **not** modified
-
-- `lib/` — `libpna` already round-trips HardLink + fLTP=Directory (verified by existing tests `builder_hardlink_with_link_target_type_directory` at `lib/src/entry/builder.rs:783`, `:798`).
-- `pna/` — platform-neutral; no Windows dependency is ever introduced here.
-- PNA specification repository — no changes per Q6.
+No changes to `lib/`, `pna/`, or the PNA specification repository.
 
 ---
 
@@ -1883,78 +1839,47 @@ After push, run `gh run list --branch feat/windows-junction-support --limit 5` o
 
 ---
 
-## Out-of-Scope Follow-up (placeholder for a separate plan)
+## Out-of-scope follow-ups
 
-**Relative-path optimization in CREATE (user directive Q2):** when a junction's absolute target is within the archive input set, rewrite the stored path as relative to the archive root. Requires:
-
-- A normalization step during file walk that maps absolute paths → archive entry names.
-- Either a marker in the entry (private `fLTP` value in range 64–255, or an ancillary chunk) or a convention tying relative paths to archive-internal semantics and absolute paths to external semantics.
-- No change needed at EXTRACT time: the extract branch added in Task 4.1 already handles both absolute and relative stored paths.
-
-This is explicitly deferred. When the base junction support merges, open a separate plan using the same spec shape.
-
-**Expose reparse-point types publicly for downstream consumers.** If a third-party crate wants to reuse `ReparsePoint` / `read_reparse_point` from the CLI, the items could be promoted into `pna` behind a new feature flag (e.g. `pna` with `windows-fs`). For now they stay CLI-private because `pna` must not carry a platform-specific build dependency.
-
-**Junction-aware no-follow metadata restoration (option C).** The MVP takes
-option (A) from the Codex adversarial review: junction entries bypass the
-default `restore_metadata()` and restore only no-follow timestamps via
-`restore_link_timestamps_no_follow`. This closes the critical hole of
-mutating the junction's external target, but it also means junction-owned
-mode, ownership, ACLs, xattrs, fflags, and macOS AppleDouble data are not
-restored. A follow-up plan should:
-
-- Add `lchmod` / `lchown` / `lsetxattr` / `lremovexattr` based paths on
-  Unix (and gate `lchmod` behind `cfg(any(target_os = "freebsd",
-  target_os = "netbsd", ...))` where the syscall exists).
-- On Windows, open the reparse point with
-  `FILE_FLAG_OPEN_REPARSE_POINT` and apply the security descriptor via
-  `SetSecurityInfo` on that handle (no follow) for ACL restoration.
-- Generalize `restore_acls` so `follow_links = false` is honored on the
-  Windows path, not just on the symlink path.
-- Keep the do-not-mutate-external-target invariant (locked by the
-  `extract_junction_does_not_mutate_external_target` test) passing.
-
-The plan's `restore_link_timestamps_no_follow` helper carries a
-`TODO: junction-aware no-follow metadata (deferred follow-up)` block so
-implementers of that follow-up have a single anchor.
+Captured in spec §11. In short: relative-path CREATE optimization, junction-aware no-follow metadata (Option C), and public reparse-point API.
 
 ---
 
 ## Self-Review Checklist
 
-**Spec coverage:**
-- [x] Junction detection on Windows (Task 1.4, Task 3.1)
-- [x] Recording as HardLink + fLTP=Directory (Task 3.1)
-- [x] Absolute target encoding (`\??\` stripped, Task 1.1)
-- [x] Extract on Windows → junction (Task 4.1, 4.3)
-- [x] Extract on non-Windows → symlink fallback (Task 4.1, 4.2)
-- [x] Extract accepts both absolute and relative stored targets (Task 4.1)
-- [x] `--allow-unsafe-links` gating (Task 4.1, 4.2)
-- [x] Unknown reparse tag → debug log (Task 3.1 Step 5, Task 5.1)
-- [x] Regression-free for existing hardlink/symlink (Task 3.1 Step 9, Task 4.1 Step 5, Task 5.2)
-- [x] Docs update (Task 6.1)
-- [x] `PathnameEditor::edit_junction` with shared helper (Task 2.1)
-- [x] No `pna` / `libpna` modifications (by construction)
-- [x] Junction extract does not mutate its external target (Task 4.1 early return + `restore_link_timestamps_no_follow`; regression-fenced by Task 4.4)
+**Spec coverage (WHAT is implemented and WHERE):**
+- [x] Junction detection on Windows — Task 1.4 (primitive), Task 3.1 (classifier)
+- [x] CREATE: record junction as HardLink + fLTP=Directory — Task 3.1
+- [x] Reparse buffer parser with `\??\` strip — Task 1.1
+- [x] EXTRACT Windows → real junction — Task 4.1, 4.3
+- [x] EXTRACT non-Windows → symlink fallback — Task 4.1, 4.2
+- [x] EXTRACT accepts absolute and relative targets — Task 4.1
+- [x] `--allow-unsafe-links` gate — Task 4.1, 4.2
+- [x] Unknown reparse tag → debug log + fall-through — Task 3.1 Step 5, Task 5.1
+- [x] Regression-free for existing hardlink/symlink — Task 3.1 Step 9, Task 4.1 Step 5, Task 5.2
+- [x] Help-text + regenerated docs — Task 6.1
+- [x] `PathnameEditor::edit_junction` with shared helper — Task 2.1
+- [x] No `pna` / `libpna` modifications — by construction
+- [x] Safety invariant I2 (junction extract does not mutate external target) — Task 4.1 early return + `restore_link_timestamps_no_follow`; regression fence in Task 4.4
 
-**Placeholder scan:** no `TBD` / `TODO` inside task steps. The documented `TODO: junction-aware no-follow metadata (deferred follow-up)` inside `restore_link_timestamps_no_follow` is an **intentional** pointer to the follow-up plan captured in the Out-of-Scope section.
+**Placeholder scan:** no `TBD` / `TODO` inside task steps. A single `TODO: junction-aware no-follow metadata (deferred follow-up)` block inside `restore_link_timestamps_no_follow` is intentional and aligned with spec §11.
 
-**Type consistency:**
-- `ReparsePoint` variants are identical in Phase 1 tests and Phase 4 tests.
-- `StoreAs::Junction(PathBuf)` matches in create (Task 3.1) and any exhaustive matches (Task 3.1 Step 8, Task 5.2).
-- `LinkTargetType::Directory` is the fLTP value throughout.
-- `detect_junction` returns `io::Result<Option<PathBuf>>` consistently.
-- `PathnameEditor::edit_junction` returns `EntryReference`, identical to `edit_symlink`.
-- `create_junction_or_fallback` takes `(&Path, &str)`; callers pass `transformed.as_str()`.
-- `restore_link_timestamps_no_follow` takes `(&Path, &pna::Metadata<T>, &KeepOptions)` and is only called from the junction branch of Task 4.1; it is the single chokepoint the follow-up plan will extend.
+**Type consistency across tasks:**
+- `ReparsePoint` enum — Task 1.1 (parser) and Task 1.2 (FFI wrapper) use identical variants.
+- `StoreAs::Junction(PathBuf)` — introduced in Task 3.1 Step 4, consumed in Task 3.1 Step 7.
+- `LinkTargetType::Directory` is the fLTP throughout.
+- `detect_junction` signature `fn(&Path) -> io::Result<Option<PathBuf>>` matches at definition (Task 1.4) and at every call site (Task 3.1).
+- `PathnameEditor::edit_junction` returns `EntryReference`, consumed in Task 4.1 via `.as_str()`.
+- `create_junction_or_fallback(&Path, &str)` signature matches both call site (Task 4.1) and helper definition.
+- `restore_link_timestamps_no_follow(&Path, &pna::Metadata<T>, &KeepOptions)` is defined and called only in Task 4.1; it is the single chokepoint the Option C follow-up will extend.
 
 **Feedback memory check:**
-- `feedback_plan_for_plans` ✓ (this plan was itself adversarially grilled before writing).
-- `feedback_no_impl_without_plan` ✓ (plan produced before any code).
-- `feedback_test_matrix_first` ✓ (matrix at top of file, 18 cases).
+- `feedback_plan_for_plans` ✓ (plan + spec both adversarially grilled before committing).
+- `feedback_no_impl_without_plan` ✓ (spec and plan exist before any production code).
+- `feedback_test_matrix_first` ✓ (T1–T19 matrix in spec §9, file anchors above).
 - `feedback_stop_at_push` ✓ (Task 6.2 Step 6 stops at push).
 - `feedback_check_ci_after_push` ✓ (Task 6.2 Step 6).
 - `feedback_subagent_opus_only` ✓ (subagents for implementation/review dispatched with `model: "opus"`).
-- `feedback_safe_bulk_edit` ✓ (no `replace_all` in the plan; all edits are targeted).
-- `feedback_confirm_irreversible` ✓ (no destructive operations beyond the final `git push`).
+- `feedback_safe_bulk_edit` ✓ (no `replace_all`; all edits are targeted).
+- `feedback_confirm_irreversible` ✓ (only the final `git push` is non-local).
 - `feedback_verify_claims` ✓ (`preserve_root` API and `windows` crate features were verified via source / `cargo check` before committing this plan).
