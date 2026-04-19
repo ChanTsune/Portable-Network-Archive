@@ -171,4 +171,78 @@ mod tests {
         let parsed = parse_reparse_buffer(&buf).unwrap();
         assert_eq!(parsed, ReparsePoint::Other(0x8000_0023));
     }
+
+    /// Build a REPARSE_DATA_BUFFER for a symbolic link pointing at `subst`.
+    fn sample_symlink_buffer(subst: &str, is_relative: bool) -> Vec<u8> {
+        // SymbolicLinkReparseBuffer layout:
+        //   ReparseTag          u32 = 0xA000_000C
+        //   ReparseDataLength   u16
+        //   Reserved            u16 = 0
+        //   SubstituteNameOffset u16
+        //   SubstituteNameLength u16
+        //   PrintNameOffset     u16
+        //   PrintNameLength     u16
+        //   Flags               u32 (bit 0 = SYMLINK_FLAG_RELATIVE)
+        //   PathBuffer          [u16 UTF-16 LE, no null terminator]
+        let subst_utf16: Vec<u8> = subst.encode_utf16().flat_map(|u| u.to_le_bytes()).collect();
+        let print_utf16 = subst_utf16.clone();
+        let mut path_buffer = subst_utf16.clone();
+        path_buffer.extend(&print_utf16);
+
+        let subst_offset: u16 = 0;
+        let subst_len: u16 = subst_utf16.len() as u16;
+        let print_offset: u16 = subst_len;
+        let print_len: u16 = print_utf16.len() as u16;
+        let flags: u32 = if is_relative { 0x1 } else { 0x0 };
+
+        let mut buf = Vec::new();
+        buf.extend(&0xA000_000Cu32.to_le_bytes()); // IO_REPARSE_TAG_SYMLINK
+        let data_len: u16 = (12 + path_buffer.len()) as u16; // 4 offsets/lens + Flags + PathBuffer
+        buf.extend(&data_len.to_le_bytes());
+        buf.extend(&0u16.to_le_bytes()); // Reserved
+        buf.extend(&subst_offset.to_le_bytes());
+        buf.extend(&subst_len.to_le_bytes());
+        buf.extend(&print_offset.to_le_bytes());
+        buf.extend(&print_len.to_le_bytes());
+        buf.extend(&flags.to_le_bytes());
+        buf.extend(&path_buffer);
+        buf
+    }
+
+    #[test]
+    fn parses_absolute_symlink_and_strips_nt_prefix() {
+        let buf = sample_symlink_buffer(r"\??\C:\target", false);
+        let parsed = parse_reparse_buffer(&buf).unwrap();
+        assert_eq!(
+            parsed,
+            ReparsePoint::Symlink {
+                target: PathBuf::from(r"C:\target"),
+                is_relative: false,
+            }
+        );
+    }
+
+    #[test]
+    fn parses_relative_symlink_without_stripping() {
+        let buf = sample_symlink_buffer(r"..\target", true);
+        let parsed = parse_reparse_buffer(&buf).unwrap();
+        assert_eq!(
+            parsed,
+            ReparsePoint::Symlink {
+                target: PathBuf::from(r"..\target"),
+                is_relative: true,
+            }
+        );
+    }
+
+    #[test]
+    fn truncated_symlink_buffer_errors() {
+        // Tag(4) + DataLength(2) + Reserved(2) + 4 offsets/lens(8) = 16 bytes.
+        // Flags word would start at offset 16; truncate before it so the symlink
+        // arm's length guard fires with InvalidData.
+        let mut buf = vec![0u8; 16];
+        buf[0..4].copy_from_slice(&0xA000_000Cu32.to_le_bytes());
+        let err = parse_reparse_buffer(&buf).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+    }
 }
