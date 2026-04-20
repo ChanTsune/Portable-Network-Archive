@@ -178,3 +178,69 @@ fn extract_junction_with_allow_unsafe_links_creates_link() {
         );
     }
 }
+
+/// Precondition: a directory tree containing a real junction created via
+/// `mklink /J`, plus its target materialized on disk.
+/// Action: `pna create` over the tree, then `pna extract --allow-unsafe-links`
+/// into a fresh output directory.
+/// Expectation: the round-tripped link is a reparse-point flavored entry
+/// (`FileTypeExt::is_symlink()` or `is_symlink_dir()`) AND `dir /AL`
+/// identifies it as `JUNCTION`.
+#[test]
+#[cfg(windows)]
+fn round_trip_junction_via_cli() {
+    let tmp = tempfile::tempdir().unwrap();
+    let target = tmp.path().join("target_dir");
+    std::fs::create_dir(&target).unwrap();
+    std::fs::write(target.join("payload.txt"), b"payload").unwrap();
+    let junction = tmp.path().join("link_dir");
+    mklink_junction(&junction, &target);
+
+    let archive_path = tmp.path().join("rt.pna");
+    assert!(
+        std::process::Command::new(env!("CARGO_BIN_EXE_pna"))
+            .current_dir(tmp.path())
+            .args(["create", "-f"])
+            .arg(&archive_path)
+            .args(["link_dir", "target_dir"])
+            .status()
+            .unwrap()
+            .success()
+    );
+
+    let out_dir = tmp.path().join("out");
+    std::fs::create_dir(&out_dir).unwrap();
+    assert!(
+        std::process::Command::new(env!("CARGO_BIN_EXE_pna"))
+            .args(["extract", "-f"])
+            .arg(&archive_path)
+            .arg("--out-dir")
+            .arg(&out_dir)
+            .arg("--allow-unsafe-links")
+            .status()
+            .unwrap()
+            .success()
+    );
+
+    let link = out_dir.join("link_dir");
+    let meta = std::fs::symlink_metadata(&link).unwrap();
+    use std::os::windows::fs::FileTypeExt;
+    assert!(
+        meta.file_type().is_symlink() || meta.file_type().is_symlink_dir(),
+        "expected a reparse point, got {:?}",
+        meta.file_type()
+    );
+
+    // Deep-verify the reparse tag via cmd (avoids needing to expose internal
+    // helpers across crate boundaries).
+    let output = std::process::Command::new("cmd")
+        .args(["/C", "dir", "/AL"])
+        .arg(&out_dir)
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("JUNCTION"),
+        "expected directory listing to mark link_dir as JUNCTION; got {stdout}"
+    );
+}
