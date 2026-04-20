@@ -225,10 +225,10 @@ fn round_trip_junction_via_cli() {
     let link = out_dir.join("link_dir");
     let meta = std::fs::symlink_metadata(&link).unwrap();
     use std::os::windows::fs::FileTypeExt;
+    let ft = meta.file_type();
     assert!(
-        meta.file_type().is_symlink() || meta.file_type().is_symlink_dir(),
-        "expected a reparse point, got {:?}",
-        meta.file_type()
+        ft.is_symlink() || ft.is_symlink_dir(),
+        "expected a reparse point, got {ft:?}"
     );
 
     // Deep-verify the reparse tag via cmd (avoids needing to expose internal
