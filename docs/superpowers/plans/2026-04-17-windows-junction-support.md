@@ -1174,11 +1174,13 @@ Find the existing `match store_as` around line 914 (after the `Hardlink` arm). I
 
 ```rust
 StoreAs::Junction(target) => {
-    // Junction target is an external absolute path; it is NOT an archive
-    // entry name. The libpna HardLink + fLTP=Directory encoding round-trips
-    // this path verbatim.
-    let reference = EntryReference::from_path_lossy_preserve_root(target.as_path());
-    let mut entry = EntryBuilder::new_hard_link(entry_name.clone(), reference)?;
+    // Invariant I1 (spec §7): read_reparse_point → parse_reparse_buffer
+    // guarantees valid UTF-16 → UTF-8, so `to_str()` cannot legitimately
+    // fail here. Using `to_str().unwrap()` (not lossy conversion) means a
+    // future regression that violates the invariant fails loudly at create
+    // time instead of silently writing a corrupted target.
+    let reference = EntryReference::from_utf8_preserve_root(target.to_str().unwrap());
+    let mut entry = EntryBuilder::new_hard_link(entry_name, reference)?;
     entry.link_target_type(LinkTargetType::Directory);
     apply_metadata(entry, path, keep_options, metadata)?.build()
 }
@@ -1186,7 +1188,7 @@ StoreAs::Junction(target) => {
 
 Note: `apply_metadata` is the existing helper that wires timestamps, ownership, xattrs, etc. onto the builder. Verify the exact call convention against the adjacent `Hardlink` arm and match it.
 
-Verify `EntryReference::from_path_lossy_preserve_root` exists (it does — see `lib/src/entry/reference.rs:120`). If for any reason a stricter constructor is needed, use `from_utf8_preserve_root(&target.to_string_lossy())` instead — both produce the same result for valid UTF-8 paths.
+Use `EntryReference::from_utf8_preserve_root` (not `from_path_lossy_preserve_root`): invariant I1 guarantees valid UTF-8, and the stricter constructor's `&str` signature documents the invariant at the call site. `to_str().unwrap()` is the load-bearing unwrap that makes an I1 regression fail loudly at create time rather than silently writing a corrupted target.
 
 - [ ] **Step 8: Update any other `match StoreAs` sites**
 
