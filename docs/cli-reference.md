@@ -1425,9 +1425,9 @@ bsdtar-like CLI semantics for PNA archives
 
   Default value: `false`
 * `--older-ctime <DATETIME>` — Only include files and directories older than the specified date. This compares ctime entries.
-* `--older-mtime <DATETIME>` — Only include files and directories older than the specified date. This compares mtime entries.
+* `--older-mtime <DATETIME>` [alias: `older`] — Only include files and directories older than the specified date. This compares mtime entries.
 * `--newer-ctime <DATETIME>` — Only include files and directories newer than the specified date. This compares ctime entries.
-* `--newer-mtime <DATETIME>` — Only include files and directories newer than the specified date. This compares mtime entries.
+* `--newer-mtime <DATETIME>` [alias: `newer`] — Only include files and directories newer than the specified date. This compares mtime entries.
 * `--newer-ctime-than <FILE>` — Only include files and directories newer than the specified file. This compares ctime entries.
 * `--newer-mtime-than <FILE>` [alias: `newer-than`] — Only include files and directories newer than the specified file. This compares mtime entries.
 * `--older-ctime-than <FILE>` — Only include files and directories older than the specified file. This compares ctime entries.
@@ -1733,9 +1733,9 @@ bsdtar-like CLI semantics for PNA archives (stabilized, use `pna compat bsdtar` 
 
   Default value: `false`
 * `--older-ctime <DATETIME>` — Only include files and directories older than the specified date. This compares ctime entries.
-* `--older-mtime <DATETIME>` — Only include files and directories older than the specified date. This compares mtime entries.
+* `--older-mtime <DATETIME>` [alias: `older`] — Only include files and directories older than the specified date. This compares mtime entries.
 * `--newer-ctime <DATETIME>` — Only include files and directories newer than the specified date. This compares ctime entries.
-* `--newer-mtime <DATETIME>` — Only include files and directories newer than the specified date. This compares mtime entries.
+* `--newer-mtime <DATETIME>` [alias: `newer`] — Only include files and directories newer than the specified date. This compares mtime entries.
 * `--newer-ctime-than <FILE>` — Only include files and directories newer than the specified file. This compares ctime entries.
 * `--newer-mtime-than <FILE>` [alias: `newer-than`] — Only include files and directories newer than the specified file. This compares mtime entries.
 * `--older-ctime-than <FILE>` — Only include files and directories older than the specified file. This compares ctime entries.
