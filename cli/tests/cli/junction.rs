@@ -244,3 +244,90 @@ fn round_trip_junction_via_cli() {
         "expected directory listing to mark link_dir as JUNCTION; got {stdout}"
     );
 }
+
+/// Precondition: archive with a HardLink+fLTP=Directory entry whose target is
+/// an external directory the test has pre-populated with a recognizable mode.
+/// Action: extract with `--allow-unsafe-links --keep-permission`.
+/// Expectation: the junction (Windows) or fallback symlink (non-Windows) is
+/// created in the extraction root, AND the external target directory's
+/// permissions are byte-for-byte unchanged from the pre-extract state. This
+/// pins the "junction extract does not apply follow-link metadata syscalls"
+/// invariant (I2) from the spec §7. If a regression re-introduces the default
+/// restore_metadata() call for junction entries, this assertion fires.
+///
+/// Gated off WASM because wasi-preview1 does not expose symlink creation
+/// (the fallback path this test exercises).
+#[test]
+#[cfg(not(target_family = "wasm"))]
+fn extract_junction_does_not_mutate_external_target() {
+    setup();
+    let base = "extract_junction_does_not_mutate_external_target";
+    let _ = fs::remove_dir_all(base);
+    let target_rel = format!("{base}/external_target");
+    let out_dir = format!("{base}/out");
+    fs::create_dir_all(&target_rel).unwrap();
+    fs::create_dir_all(&out_dir).unwrap();
+
+    // Pre-set a recognizable mode on the external target so a follow-link
+    // chmod regression would change the observed permissions.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(&target_rel).unwrap().permissions();
+        perms.set_mode(0o700);
+        fs::set_permissions(&target_rel, perms).unwrap();
+    }
+    // Canonicalize so the stored target matches what the kernel sees
+    // (Windows FSCTL + non-Windows ancestor-symlink handling).
+    let target_abs = fs::canonicalize(&target_rel).unwrap();
+    let target_str = target_abs.to_string_lossy().into_owned();
+    let baseline_perms = fs::metadata(&target_abs).unwrap().permissions();
+
+    let archive_path = format!("{base}/{base}.pna");
+    fs::write(&archive_path, build_junction_fixture(&target_str)).unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        &archive_path,
+        "--out-dir",
+        &out_dir,
+        "--allow-unsafe-links",
+        "--keep-permission",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    // The link must exist.
+    let link = std::path::Path::new(&out_dir).join("link_dir");
+    let link_meta = fs::symlink_metadata(&link).unwrap();
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::FileTypeExt;
+        let ft = link_meta.file_type();
+        assert!(
+            ft.is_symlink() || ft.is_symlink_dir() || ft.is_symlink_file(),
+            "expected a reparse-point flavored link at {}; got {ft:?}",
+            link.display()
+        );
+    }
+    #[cfg(not(windows))]
+    {
+        assert!(
+            link_meta.file_type().is_symlink(),
+            "expected a symlink at {}; got {:?}",
+            link.display(),
+            link_meta.file_type()
+        );
+    }
+
+    // The external target's permissions must be byte-for-byte unchanged.
+    let after_perms = fs::metadata(&target_abs).unwrap().permissions();
+    assert_eq!(
+        baseline_perms, after_perms,
+        "I2 violation: extract --keep-permission mutated the external junction target's permissions"
+    );
+}

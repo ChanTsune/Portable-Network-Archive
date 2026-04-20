@@ -1675,82 +1675,98 @@ raised by Codex's adversarial review.
 Append to `cli/tests/cli/junction.rs`:
 
 ```rust
-/// Precondition: archive with a HardLink+fLTP=Directory entry pointing at
-/// an existing external directory whose owner/mode the user has already
-/// set. The archive's recorded metadata intentionally differs from the
-/// target's current metadata.
-/// Action: extract with `--allow-unsafe-links --keep-permission`
-/// (`--same-owner` / `--keep-acl` on Unix; equivalent flags elsewhere).
-/// Expectation: the junction or fallback symlink is created, but the
-/// external target directory's mode/owner/ACL remain untouched. This pins
-/// the "junction extract does not mutate its external target" invariant.
+/// Precondition: archive with a HardLink+fLTP=Directory entry whose target is
+/// an external directory the test has pre-populated with a recognizable mode.
+/// Action: extract with `--allow-unsafe-links --keep-permission`.
+/// Expectation: the junction (Windows) or fallback symlink (non-Windows) is
+/// created in the extraction root, AND the external target directory's
+/// permissions are byte-for-byte unchanged from the pre-extract state. This
+/// pins the "junction extract does not apply follow-link metadata syscalls"
+/// invariant (I2) from the spec §7. If a regression re-introduces the default
+/// restore_metadata() call for junction entries, this assertion fires.
+///
+/// Gated off WASM because wasi-preview1 does not expose symlink creation
+/// (the fallback path this test exercises).
 #[test]
+#[cfg(not(target_family = "wasm"))]
 fn extract_junction_does_not_mutate_external_target() {
-    use std::os::unix::fs::PermissionsExt; // Unix-only assertion; Windows uses its own block below.
+    setup();
+    let base = "extract_junction_does_not_mutate_external_target";
+    let _ = fs::remove_dir_all(base);
+    let target_rel = format!("{base}/external_target");
+    let out_dir = format!("{base}/out");
+    fs::create_dir_all(&target_rel).unwrap();
+    fs::create_dir_all(&out_dir).unwrap();
 
-    let tmp = tempfile::tempdir().unwrap();
-    let target = tmp.path().join("external_target");
-    std::fs::create_dir(&target).unwrap();
-
-    // Pre-set a recognizable mode on the external target.
+    // Pre-set a recognizable mode on the external target so a follow-link
+    // chmod regression would change the observed permissions.
     #[cfg(unix)]
     {
-        let mut perms = std::fs::metadata(&target).unwrap().permissions();
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(&target_rel).unwrap().permissions();
         perms.set_mode(0o700);
-        std::fs::set_permissions(&target, perms).unwrap();
+        fs::set_permissions(&target_rel, perms).unwrap();
     }
-    let baseline_mode = std::fs::metadata(&target).unwrap().permissions();
+    // Canonicalize so the stored target matches what the kernel sees
+    // (Windows FSCTL + non-Windows ancestor-symlink handling).
+    let target_abs = fs::canonicalize(&target_rel).unwrap();
+    let target_str = target_abs.to_string_lossy().into_owned();
+    let baseline_perms = fs::metadata(&target_abs).unwrap().permissions();
 
-    let archive_path = tmp.path().join("fixture.pna");
-    let target_str = target.to_string_lossy().into_owned();
-    std::fs::write(&archive_path, build_junction_fixture(&target_str)).unwrap();
+    let archive_path = format!("{base}/{base}.pna");
+    fs::write(&archive_path, build_junction_fixture(&target_str)).unwrap();
 
-    let out_dir = tmp.path().join("out");
-    std::fs::create_dir(&out_dir).unwrap();
-    let status = Command::new(env!("CARGO_BIN_EXE_pna"))
-        .args(["extract", "-f"])
-        .arg(&archive_path)
-        .arg("--out-dir")
-        .arg(&out_dir)
-        .arg("--allow-unsafe-links")
-        .arg("--keep-permission")
-        .status()
-        .unwrap();
-    assert!(status.success());
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        &archive_path,
+        "--out-dir",
+        &out_dir,
+        "--allow-unsafe-links",
+        "--keep-permission",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
 
     // The link must exist.
-    let link = out_dir.join("link_dir");
-    let link_meta = std::fs::symlink_metadata(&link).unwrap();
-    assert!(link_meta.file_type().is_symlink() || {
-        #[cfg(windows)]
-        {
-            use std::os::windows::fs::FileTypeExt;
-            link_meta.file_type().is_symlink_dir()
-        }
-        #[cfg(not(windows))]
-        {
-            false
-        }
-    });
+    let link = std::path::Path::new(&out_dir).join("link_dir");
+    let link_meta = fs::symlink_metadata(&link).unwrap();
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::FileTypeExt;
+        let ft = link_meta.file_type();
+        assert!(
+            ft.is_symlink() || ft.is_symlink_dir() || ft.is_symlink_file(),
+            "expected a reparse-point flavored link at {}; got {ft:?}",
+            link.display()
+        );
+    }
+    #[cfg(not(windows))]
+    {
+        assert!(
+            link_meta.file_type().is_symlink(),
+            "expected a symlink at {}; got {:?}",
+            link.display(),
+            link_meta.file_type()
+        );
+    }
 
-    // The external target's metadata must be byte-for-byte unchanged.
-    let after_mode = std::fs::metadata(&target).unwrap().permissions();
+    // The external target's permissions must be byte-for-byte unchanged.
+    let after_perms = fs::metadata(&target_abs).unwrap().permissions();
     assert_eq!(
-        baseline_mode, after_mode,
-        "extract --keep-permission must NOT mutate the external junction target"
+        baseline_perms, after_perms,
+        "I2 violation: extract --keep-permission mutated the external junction target's permissions"
     );
 }
 ```
 
-- [ ] **Step 2: Run to confirm failure, then pass**
+- [ ] **Step 2: Run to confirm it passes**
 
-Run before the Task 4.1 fix is in place: this test fails because
-`restore_metadata` follows the junction and mutates `external_target`'s
-mode.
-
-Run after Task 4.1's early-return + `restore_link_timestamps_no_follow`
-wiring is in place: this test passes. Expected PASS on both Unix
-(fallback symlink) and Windows (real junction).
+Expected PASS on both Unix (fallback symlink) and Windows (real junction)
+— the fix is in place at Task 4.1.
 
 - [ ] **Step 3: Commit**
 
