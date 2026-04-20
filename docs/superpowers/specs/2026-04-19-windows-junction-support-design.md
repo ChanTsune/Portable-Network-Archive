@@ -135,14 +135,14 @@ walk(input set)
 create_entry(StoreAs::Junction(target)):
     EntryBuilder::new_hard_link(
         entry_name,
-        EntryReference::from_utf8_preserve_root(target.to_str().unwrap())
+        pathname_editor.edit_junction(target),
     )
     .link_target_type(LinkTargetType::Directory)
     .apply_metadata(...)
     .build()
 ```
 
-The `target.to_str()` call is an expression of invariant I1 (§7). The surrounding parser rejects non-UTF-16 reparse buffers, so `to_str()` cannot legitimately fail. A hypothetical future regression is caught by the `unwrap()`.
+`edit_junction` is the canonical create-side entry point for junction targets. It applies user-specified `-s` / `--transform` substitutions on the same footing as `edit_symlink` does for symbolic-link targets, then builds an `EntryReference` via the shared helper. Invariant I1 (§7) guarantees the target is valid UTF-8 before it reaches this point, so the helper's internal `to_string_lossy` is effectively lossless for real inputs.
 
 ### Extract
 
@@ -190,7 +190,7 @@ The `windows` crate returns failures as `windows::core::Error`, whose payload is
 
 ### Non-UTF-8 defensive handling
 
-`EntryReference::from_utf8_preserve_root` requires UTF-8 by signature. Combined with invariant I1, the create path can safely call `target.to_str().unwrap()` with a load-bearing but inert unwrap — it documents the invariant and produces a loud failure if the invariant is ever broken. `EntryReference::from_path_lossy_preserve_root` is deliberately not used because its name advertises a lossy contract this design does not want.
+Junction targets reach the create path through `PathnameEditor::edit_junction`, which applies user-specified `-s` / `--transform` substitutions and then delegates to the shared `transform_link_target_preserving_root` helper that `edit_symlink` also uses. That helper converts via `to_string_lossy` internally, but invariant I1 guarantees the target is valid UTF-8 by the time it reaches `edit_junction`, so the conversion is effectively lossless for real inputs. If a future change were to let a non-UTF-8 `PathBuf` through, the lossy fallback degrades gracefully (replacement characters) rather than panicking — the loud-failure surface for an I1 violation is `parse_reparse_buffer`'s `String::from_utf16` gate upstream, not the create path.
 
 ### Metadata restoration (MVP Option A)
 

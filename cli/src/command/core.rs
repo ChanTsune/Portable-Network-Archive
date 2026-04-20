@@ -27,8 +27,8 @@ pub(crate) use path_filter::PathFilter;
 use path_slash::*;
 pub(crate) use path_transformer::PathTransformers;
 use pna::{
-    Archive, EntryBuilder, EntryPart, EntryReference, LinkTargetType, MIN_CHUNK_BYTES_SIZE,
-    NormalEntry, PNA_HEADER, ReadEntry, SolidEntryBuilder, WriteOptions, prelude::*,
+    Archive, EntryBuilder, EntryPart, LinkTargetType, MIN_CHUNK_BYTES_SIZE, NormalEntry,
+    PNA_HEADER, ReadEntry, SolidEntryBuilder, WriteOptions, prelude::*,
 };
 use std::{
     borrow::Cow,
@@ -966,12 +966,13 @@ pub(crate) fn create_entry(
             apply_metadata(entry, path, keep_options, metadata)?.build()
         }
         StoreAs::Junction(target) => {
-            // Invariant I1 (spec §7): read_reparse_point → parse_reparse_buffer
-            // guarantees valid UTF-16 → UTF-8, so `to_str()` cannot legitimately
-            // fail here. Using `to_str().unwrap()` (not lossy conversion) means a
-            // future regression that violates the invariant fails loudly at create
-            // time instead of silently writing a corrupted target.
-            let reference = EntryReference::from_utf8_preserve_root(target.to_str().unwrap());
+            // Route the target through PathnameEditor::edit_junction so user-
+            // specified `-s` / `--transform` substitutions apply to junction
+            // targets on the same footing as symlink targets. Invariant I1
+            // (spec §7) guarantees the target is valid UTF-8, so the shared
+            // helper's `from_path_lossy_preserve_root` is effectively
+            // lossless for real inputs.
+            let reference = pathname_editor.edit_junction(target);
             let mut entry = EntryBuilder::new_hard_link(entry_name, reference)?;
             entry.link_target_type(LinkTargetType::Directory);
             apply_metadata(entry, path, keep_options, metadata)?.build()
