@@ -120,7 +120,10 @@ fn extract_junction_without_allow_unsafe_links_skips() {
 /// Expectation: on Windows a real junction/reparse-point is created; on
 /// non-Windows a symbolic link is created whose target string equals the
 /// stored absolute path verbatim.
+///
+/// Gated off WASM because wasi-preview1 does not expose symlink creation.
 #[test]
+#[cfg(not(target_family = "wasm"))]
 fn extract_junction_with_allow_unsafe_links_creates_link() {
     setup();
     let base = "extract_junction_with_allow_unsafe_links_creates_link";
