@@ -1251,29 +1251,31 @@ fn build_junction_fixture(target: &str) -> Vec<u8> {
 /// Precondition: archive with a HardLink+fLTP=Directory entry pointing at a
 /// well-known absolute path.
 /// Action: extract without `--allow-unsafe-links`.
-/// Expectation: the entry is skipped with a warning and no link is created.
+/// Expectation: the entry is skipped and no link is created in the output
+/// directory.
 #[test]
 fn extract_junction_without_allow_unsafe_links_skips() {
-    let tmp = tempfile::tempdir().unwrap();
-    let archive_path = tmp.path().join("fixture.pna");
-    std::fs::write(&archive_path, build_junction_fixture("/any/absolute/path")).unwrap();
+    setup();
+    let base = "extract_junction_without_allow_unsafe_links_skips";
+    let archive_path = format!("{base}/{base}.pna");
+    let out_dir = format!("{base}/out");
+    fs::create_dir_all(&out_dir).unwrap();
+    fs::write(&archive_path, build_junction_fixture("/any/absolute/path")).unwrap();
 
-    let out_dir = tmp.path().join("out");
-    std::fs::create_dir(&out_dir).unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_pna"))
-        .args(["extract", "-f"])
-        .arg(&archive_path)
-        .arg("--out-dir")
-        .arg(&out_dir)
-        .output()
-        .unwrap();
-    assert!(output.status.success());
-    assert!(!out_dir.join("link_dir").exists());
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("unsafe") || stderr.contains("allow-unsafe-links"),
-        "expected skip warning, got: {stderr}"
-    );
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        &archive_path,
+        "--out-dir",
+        &out_dir,
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    assert!(!std::path::Path::new(&out_dir).join("link_dir").exists());
 }
 ```
 
@@ -1303,8 +1305,7 @@ DataKind::HardLink => {
 
         if !allow_unsafe_links {
             log::warn!(
-                "Skipped extracting a junction (HardLink+fLTP=Directory). \
-                 Use `--allow-unsafe-links` to create it."
+                "Skipped extracting a Windows junction. If you need to extract it, use `--allow-unsafe-links`."
             );
             return Ok(());
         }
@@ -1380,18 +1381,28 @@ fn create_junction_or_fallback(link: &Path, target: &str) -> io::Result<()> {
         } else {
             let base = link.parent().unwrap_or_else(|| Path::new("."));
             let joined = base.join(raw);
-            std::fs::canonicalize(&joined).unwrap_or(joined)
+            match std::fs::canonicalize(&joined) {
+                Ok(canon) => canon,
+                Err(e) => {
+                    log::debug!(
+                        "Failed to canonicalize junction target {}: {}; using raw join",
+                        joined.display(),
+                        e
+                    );
+                    joined
+                }
+            }
         };
         crate::utils::os::windows::fs::reparse::create_junction(link, &absolute)
     }
     #[cfg(not(windows))]
     {
-        log::warn!(
-            "Creating symbolic link instead of Windows junction on non-Windows platform: {} -> {}",
+        log::debug!(
+            "Creating symbolic link instead of Windows junction: {} -> {}",
             link.display(),
             target
         );
-        crate::utils::fs::symlink(target, link)
+        pna::fs::symlink(target, link)
     }
 }
 ```

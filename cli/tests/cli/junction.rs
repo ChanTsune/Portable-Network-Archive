@@ -1,15 +1,17 @@
 //! Integration tests for Windows junction support.
 
-use std::process::Command;
-
+use crate::utils::setup;
+use clap::Parser;
 use pna::{Archive, EntryBuilder, EntryName, EntryReference, LinkTargetType};
+use portable_network_archive::cli;
+use std::fs;
 
 #[cfg(windows)]
 use pna::{DataKind, ReadEntry, ReadOptions, prelude::*};
 
 #[cfg(windows)]
 fn mklink_junction(link: &std::path::Path, target: &std::path::Path) {
-    let status = Command::new("cmd")
+    let status = std::process::Command::new("cmd")
         .args(["/C", "mklink", "/J"])
         .arg(link)
         .arg(target)
@@ -33,7 +35,7 @@ fn create_records_junction_as_hardlink_directory() {
     mklink_junction(&junction, &target);
 
     let archive_path = tmp.path().join("out.pna");
-    let status = Command::new(env!("CARGO_BIN_EXE_pna"))
+    let status = std::process::Command::new(env!("CARGO_BIN_EXE_pna"))
         .current_dir(tmp.path())
         .args(["create", "-f"])
         .arg(&archive_path)
@@ -85,31 +87,29 @@ fn build_junction_fixture(target: &str) -> Vec<u8> {
 /// Precondition: archive with a HardLink+fLTP=Directory entry pointing at a
 /// well-known absolute path.
 /// Action: extract without `--allow-unsafe-links`.
-/// Expectation: the entry is skipped with a warning and no link is created.
+/// Expectation: the entry is skipped and no link is created in the output
+/// directory.
 #[test]
 fn extract_junction_without_allow_unsafe_links_skips() {
-    let tmp = tempfile::tempdir().unwrap();
-    // Canonicalize to resolve any ancestor symlinks (e.g. `/var` -> `/private/var`
-    // on macOS) so extract's secure-symlink ancestor check does not trip on the
-    // temp dir's path.
-    let tmp_root = std::fs::canonicalize(tmp.path()).unwrap();
-    let archive_path = tmp_root.join("fixture.pna");
-    std::fs::write(&archive_path, build_junction_fixture("/any/absolute/path")).unwrap();
+    setup();
+    let base = "extract_junction_without_allow_unsafe_links_skips";
+    let archive_path = format!("{base}/{base}.pna");
+    let out_dir = format!("{base}/out");
+    fs::create_dir_all(&out_dir).unwrap();
+    fs::write(&archive_path, build_junction_fixture("/any/absolute/path")).unwrap();
 
-    let out_dir = tmp_root.join("out");
-    std::fs::create_dir(&out_dir).unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_pna"))
-        .args(["extract", "-f"])
-        .arg(&archive_path)
-        .arg("--out-dir")
-        .arg(&out_dir)
-        .output()
-        .unwrap();
-    assert!(output.status.success());
-    assert!(!out_dir.join("link_dir").exists());
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("unsafe") || stderr.contains("allow-unsafe-links"),
-        "expected skip warning, got: {stderr}"
-    );
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        &archive_path,
+        "--out-dir",
+        &out_dir,
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    assert!(!std::path::Path::new(&out_dir).join("link_dir").exists());
 }

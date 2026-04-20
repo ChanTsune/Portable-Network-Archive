@@ -1439,8 +1439,7 @@ where
 
                 if !allow_unsafe_links {
                     log::warn!(
-                        "Skipped extracting a junction (HardLink+fLTP=Directory). \
-                         Use `--allow-unsafe-links` to create it."
+                        "Skipped extracting a Windows junction. If you need to extract it, use `--allow-unsafe-links`."
                     );
                     return Ok(());
                 }
@@ -2064,14 +2063,24 @@ fn create_junction_or_fallback(link: &Path, target: &str) -> io::Result<()> {
         } else {
             let base = link.parent().unwrap_or_else(|| Path::new("."));
             let joined = base.join(raw);
-            std::fs::canonicalize(&joined).unwrap_or(joined)
+            match std::fs::canonicalize(&joined) {
+                Ok(canon) => canon,
+                Err(e) => {
+                    log::debug!(
+                        "Failed to canonicalize junction target {}: {}; using raw join",
+                        joined.display(),
+                        e
+                    );
+                    joined
+                }
+            }
         };
         crate::utils::os::windows::fs::reparse::create_junction(link, &absolute)
     }
     #[cfg(not(windows))]
     {
-        log::warn!(
-            "Creating symbolic link instead of Windows junction on non-Windows platform: {} -> {}",
+        log::debug!(
+            "Creating symbolic link instead of Windows junction: {} -> {}",
             link.display(),
             target
         );
