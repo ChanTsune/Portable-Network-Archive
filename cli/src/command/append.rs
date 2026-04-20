@@ -49,6 +49,8 @@ use std::{
     group(ArgGroup::new("ctime-newer-than-source").args(["newer_ctime", "newer_ctime_than"])),
     group(ArgGroup::new("mtime-older-than-source").args(["older_mtime", "older_mtime_than"])),
     group(ArgGroup::new("mtime-newer-than-source").args(["newer_mtime", "newer_mtime_than"])),
+    group(ArgGroup::new("ctime-filter").args(["older_ctime", "older_ctime_than", "newer_ctime", "newer_ctime_than"]).multiple(true)),
+    group(ArgGroup::new("mtime-filter").args(["older_mtime", "older_mtime_than", "newer_mtime", "newer_mtime_than"]).multiple(true)),
 )]
 pub(crate) struct AppendCommand {
     #[arg(
@@ -271,6 +273,20 @@ pub(crate) struct AppendCommand {
     older_mtime_than: Option<PathBuf>,
     #[arg(
         long,
+        visible_alias = "src-missing-ctime",
+        requires_all = ["unstable", "ctime-filter"],
+        help = "Behavior for source entries without ctime when time filtering (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]"
+    )]
+    source_missing_ctime: Option<MissingTimePolicy>,
+    #[arg(
+        long,
+        visible_alias = "src-missing-mtime",
+        requires_all = ["unstable", "mtime-filter"],
+        help = "Behavior for source entries without mtime when time filtering (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]"
+    )]
+    source_missing_mtime: Option<MissingTimePolicy>,
+    #[arg(
+        long,
         value_name = "FILE",
         requires = "unstable",
         help_heading = "Unstable Options",
@@ -435,8 +451,12 @@ fn append_to_archive(args: AppendCommand) -> anyhow::Result<()> {
         older_mtime_than: args.older_mtime_than.as_deref(),
         newer_mtime: args.newer_mtime.map(|it| it.to_system_time()),
         older_mtime: args.older_mtime.map(|it| it.to_system_time()),
-        missing_ctime: MissingTimePolicy::Include,
-        missing_mtime: MissingTimePolicy::Include,
+        missing_ctime: args
+            .source_missing_ctime
+            .unwrap_or(MissingTimePolicy::Include),
+        missing_mtime: args
+            .source_missing_mtime
+            .unwrap_or(MissingTimePolicy::Include),
     }
     .resolve()?;
     let create_options = CreateOptions {
