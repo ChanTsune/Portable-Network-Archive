@@ -113,3 +113,65 @@ fn extract_junction_without_allow_unsafe_links_skips() {
 
     assert!(!std::path::Path::new(&out_dir).join("link_dir").exists());
 }
+
+/// Precondition: archive with a HardLink+fLTP=Directory entry pointing at an
+/// existing absolute path that the test has materialized on disk.
+/// Action: extract with `--allow-unsafe-links`.
+/// Expectation: on Windows a real junction/reparse-point is created; on
+/// non-Windows a symbolic link is created whose target string equals the
+/// stored absolute path verbatim.
+#[test]
+fn extract_junction_with_allow_unsafe_links_creates_link() {
+    setup();
+    let base = "extract_junction_with_allow_unsafe_links_creates_link";
+    let _ = fs::remove_dir_all(base);
+    let target_rel = format!("{base}/actual_target");
+    let out_dir = format!("{base}/out");
+    fs::create_dir_all(&target_rel).unwrap();
+    fs::create_dir_all(&out_dir).unwrap();
+    // The fixture stores the junction target as an absolute path string.
+    // `canonicalize` resolves any ancestor symlinks so that on Windows the
+    // kernel accepts the path verbatim at `FSCTL_SET_REPARSE_POINT` time.
+    let target_abs = fs::canonicalize(&target_rel).unwrap();
+    let target_str = target_abs.to_string_lossy().into_owned();
+
+    let archive_path = format!("{base}/{base}.pna");
+    fs::write(&archive_path, build_junction_fixture(&target_str)).unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        &archive_path,
+        "--out-dir",
+        &out_dir,
+        "--allow-unsafe-links",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let link = std::path::Path::new(&out_dir).join("link_dir");
+    let meta = fs::symlink_metadata(&link).unwrap();
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::FileTypeExt;
+        let ft = meta.file_type();
+        assert!(
+            ft.is_symlink() || ft.is_symlink_dir() || ft.is_symlink_file(),
+            "expected a reparse-point flavored link at {}; got {:?}",
+            link.display(),
+            ft
+        );
+    }
+    #[cfg(not(windows))]
+    {
+        assert!(meta.file_type().is_symlink());
+        assert_eq!(
+            fs::read_link(&link).unwrap(),
+            std::path::PathBuf::from(&target_str)
+        );
+    }
+}

@@ -1500,63 +1500,67 @@ Append to `cli/tests/cli/junction.rs`:
 
 ```rust
 /// Precondition: archive with a HardLink+fLTP=Directory entry pointing at an
-/// existing absolute path.
+/// existing absolute path that the test has materialized on disk.
 /// Action: extract with `--allow-unsafe-links`.
-/// Expectation: on Windows a junction is created; on non-Windows a symlink
-/// whose target string is exactly the stored absolute path.
+/// Expectation: on Windows a real junction/reparse-point is created; on
+/// non-Windows a symbolic link is created whose target string equals the
+/// stored absolute path verbatim.
 #[test]
 fn extract_junction_with_allow_unsafe_links_creates_link() {
-    let tmp = tempfile::tempdir().unwrap();
-    let target = tmp.path().join("actual_target");
-    std::fs::create_dir(&target).unwrap();
-    let archive_path = tmp.path().join("fixture.pna");
-    let target_str = target.to_string_lossy().into_owned();
-    std::fs::write(&archive_path, build_junction_fixture(&target_str)).unwrap();
+    setup();
+    let base = "extract_junction_with_allow_unsafe_links_creates_link";
+    let _ = fs::remove_dir_all(base);
+    let target_rel = format!("{base}/actual_target");
+    let out_dir = format!("{base}/out");
+    fs::create_dir_all(&target_rel).unwrap();
+    fs::create_dir_all(&out_dir).unwrap();
+    // The fixture stores the junction target as an absolute path string.
+    // `canonicalize` resolves any ancestor symlinks so that on Windows the
+    // kernel accepts the path verbatim at `FSCTL_SET_REPARSE_POINT` time.
+    let target_abs = fs::canonicalize(&target_rel).unwrap();
+    let target_str = target_abs.to_string_lossy().into_owned();
 
-    let out_dir = tmp.path().join("out");
-    std::fs::create_dir(&out_dir).unwrap();
-    let status = Command::new(env!("CARGO_BIN_EXE_pna"))
-        .args(["extract", "-f"])
-        .arg(&archive_path)
-        .arg("--out-dir")
-        .arg(&out_dir)
-        .arg("--allow-unsafe-links")
-        .status()
-        .unwrap();
-    assert!(status.success());
+    let archive_path = format!("{base}/{base}.pna");
+    fs::write(&archive_path, build_junction_fixture(&target_str)).unwrap();
 
-    let link = out_dir.join("link_dir");
-    let meta = std::fs::symlink_metadata(&link).unwrap();
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        &archive_path,
+        "--out-dir",
+        &out_dir,
+        "--allow-unsafe-links",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let link = std::path::Path::new(&out_dir).join("link_dir");
+    let meta = fs::symlink_metadata(&link).unwrap();
 
     #[cfg(windows)]
     {
-        use crate::junction::ReparseHandle as _; // no-op, keep imports consistent
-        use portable_network_archive::utils as _; // keep public-only usage
-        // Use the public reparse helpers to verify junction flavor.
-        // (Cross-crate test access; if not public, fall back to FileType check below.)
-        let _ = meta;
-        // At minimum, the created link must be a reparse point; extended
-        // verification happens in the Windows-only round_trip_junction_via_cli
-        // test.
-        let ft = std::fs::symlink_metadata(&link).unwrap().file_type();
         use std::os::windows::fs::FileTypeExt;
+        let ft = meta.file_type();
         assert!(
             ft.is_symlink() || ft.is_symlink_dir() || ft.is_symlink_file(),
-            "expected a reparse-point flavored symlink-like file"
+            "expected a reparse-point flavored link at {}; got {:?}",
+            link.display(),
+            ft
         );
     }
     #[cfg(not(windows))]
     {
         assert!(meta.file_type().is_symlink());
         assert_eq!(
-            std::fs::read_link(&link).unwrap(),
-            PathBuf::from(&target_str)
+            fs::read_link(&link).unwrap(),
+            std::path::PathBuf::from(&target_str)
         );
     }
 }
 ```
-
-If the Windows-side `use` aliases above cause compile issues because the referenced types are not public outside the crate, simplify the Windows branch to only assert `meta.file_type().is_symlink()` (or the `_dir`/`_file` variants). The full junction-flavor assertion is already covered by `round_trip_junction_via_cli` in Task 4.3.
 
 - [ ] **Step 2: Run**
 
