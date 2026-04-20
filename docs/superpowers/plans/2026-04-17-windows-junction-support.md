@@ -1413,9 +1413,13 @@ Also add the no-follow timestamp helper near the bottom of `extract.rs` (next to
 /// a security hole.
 ///
 /// For the MVP we bypass the full metadata path for junction entries and
-/// apply only timestamps through `filetime::set_symlink_file_times`, which
-/// opens the reparse point itself with `FILE_FLAG_OPEN_REPARSE_POINT` on
-/// Windows and uses `utimensat(AT_SYMLINK_NOFOLLOW)` / `lutimes` on Unix.
+/// apply only timestamps through the existing `restore_path_timestamps`
+/// helper in the same file, which already uses
+/// `filetime::set_symlink_file_times` and thus opens the reparse point
+/// itself with `FILE_FLAG_OPEN_REPARSE_POINT` on Windows and uses
+/// `utimensat(AT_SYMLINK_NOFOLLOW)` / `lutimes` on Unix. Because the
+/// existing helper is already no-follow, simple delegation is sufficient —
+/// no new `utils::fs` function is required.
 ///
 /// # TODO: junction-aware no-follow metadata (deferred follow-up)
 ///
@@ -1434,35 +1438,26 @@ Also add the no-follow timestamp helper near the bottom of `extract.rs` (next to
 /// When implemented, replace this helper with a junction-aware branch of
 /// `restore_metadata` that keeps the safety invariant but preserves all
 /// attributes.
-fn restore_link_timestamps_no_follow<T>(
+#[cfg(not(target_family = "wasm"))]
+#[inline]
+fn restore_link_timestamps_no_follow(
     path: &Path,
-    metadata: &pna::Metadata<T>,
+    metadata: &pna::Metadata,
     keep_options: &KeepOptions,
-) -> io::Result<()>
-where
-    T: AsRef<[u8]>,
-{
-    #[cfg(not(target_family = "wasm"))]
-    {
-        // Reuse the existing `restore_path_timestamps` helper if and only if
-        // it already uses `filetime::set_symlink_file_times`. Inspect
-        // `restore_path_timestamps` at implementation time: if it uses the
-        // follow-link `set_file_times`, introduce a sibling
-        // `restore_path_timestamps_no_follow` that calls
-        // `filetime::set_symlink_file_times` instead. Do NOT reuse the
-        // follow-link version for junction entries.
-        utils::fs::restore_path_timestamps_no_follow(path, metadata, keep_options)?;
-    }
-    #[cfg(target_family = "wasm")]
-    {
-        // No no-follow timestamp API on WASM target; skip silently.
-        let _ = (path, metadata, keep_options);
-    }
+) -> io::Result<()> {
+    restore_path_timestamps(path, metadata, keep_options)
+}
+
+#[cfg(target_family = "wasm")]
+#[inline]
+fn restore_link_timestamps_no_follow(
+    _path: &Path,
+    _metadata: &pna::Metadata,
+    _keep_options: &KeepOptions,
+) -> io::Result<()> {
     Ok(())
 }
 ```
-
-If `utils::fs::restore_path_timestamps_no_follow` does not yet exist, add it alongside the existing `restore_path_timestamps` in the same module. The implementation difference is one line — `set_file_times` → `set_symlink_file_times` — and the signature is identical.
 
 Ensure the top of `extract.rs` imports `LinkTargetType` from `pna`. If it is already imported in the module's `use` block (grep confirms it is imported near the top), no change needed.
 
