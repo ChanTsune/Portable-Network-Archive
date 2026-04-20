@@ -1234,16 +1234,36 @@ Append to `cli/tests/cli/junction.rs` (outside the `#[cfg(windows)]` block — t
 /// Build an in-memory archive containing one HardLink+fLTP=Directory entry
 /// whose target is the supplied path string (interpreted verbatim).
 fn build_junction_fixture(target: &str) -> Vec<u8> {
+    build_junction_fixture_with_optional_permission(target, None)
+}
+
+/// Like [`build_junction_fixture`] but stamps a [`Permission`] chunk with the
+/// given mode. Used by the I2 security fence so that extract with
+/// `--keep-permission` would fire `restore_mode` — which, under a regression
+/// that drops Task 4.1's early return, would follow the link and mutate the
+/// external target's mode.
+fn build_junction_fixture_with_permission(target: &str, mode: u16) -> Vec<u8> {
+    build_junction_fixture_with_optional_permission(
+        target,
+        Some(Permission::new(0, String::new(), 0, String::new(), mode)),
+    )
+}
+
+fn build_junction_fixture_with_optional_permission(
+    target: &str,
+    permission: Option<Permission>,
+) -> Vec<u8> {
     let mut out = Vec::new();
     let mut archive = Archive::write_header(&mut out).unwrap();
-    let name: EntryName = "link_dir".parse().unwrap();
+    let name = EntryName::from_utf8_preserve_root("link_dir");
     let reference = EntryReference::from_utf8_preserve_root(target);
     let mut builder = EntryBuilder::new_hard_link(name, reference).unwrap();
     builder.link_target_type(LinkTargetType::Directory);
+    if let Some(p) = permission {
+        builder.permission(p);
+    }
     let entry = builder.build().unwrap();
-    archive
-        .add_entry(entry, WriteOptions::builder().build())
-        .unwrap();
+    archive.add_entry(entry).unwrap();
     archive.finalize().unwrap();
     out
 }
@@ -1713,8 +1733,20 @@ fn extract_junction_does_not_mutate_external_target() {
     let target_str = target_abs.to_string_lossy().into_owned();
     let baseline_perms = fs::metadata(&target_abs).unwrap().permissions();
 
+    // Stamp a Permission chunk with a mode DIFFERENT from the external
+    // target's pre-set mode (0o700). Without this the fence is decorative:
+    // `restore_metadata`'s chmod branch is skipped when
+    // `item.metadata().permission()` is None, so a junction without a
+    // Permission chunk slips through even if the Task 4.1 early-return is
+    // removed. With mode 0o755 stamped, a regression `chmod(link, 0o755)`
+    // follows the link and changes the external target's mode, firing the
+    // `baseline_perms != after_perms` assertion below.
     let archive_path = format!("{base}/{base}.pna");
-    fs::write(&archive_path, build_junction_fixture(&target_str)).unwrap();
+    fs::write(
+        &archive_path,
+        build_junction_fixture_with_permission(&target_str, 0o755),
+    )
+    .unwrap();
 
     cli::Cli::try_parse_from([
         "pna",
