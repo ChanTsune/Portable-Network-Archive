@@ -1758,6 +1758,8 @@ fn extract_junction_does_not_mutate_external_target() {
         &out_dir,
         "--allow-unsafe-links",
         "--keep-permission",
+        #[cfg(windows)]
+        "--unstable",
     ])
     .unwrap()
     .execute()
