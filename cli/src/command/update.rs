@@ -272,6 +272,22 @@ pub(crate) struct UpdateCommand {
     older_mtime_than: Option<PathBuf>,
     #[arg(
         long,
+        visible_alias = "arc-missing-ctime",
+        requires = "unstable",
+        help_heading = "Unstable Options",
+        help = "Behavior for archive entries without ctime during update staleness judgment (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]"
+    )]
+    archive_missing_ctime: Option<MissingTimePolicy>,
+    #[arg(
+        long,
+        visible_alias = "arc-missing-mtime",
+        requires = "unstable",
+        help_heading = "Unstable Options",
+        help = "Behavior for archive entries without mtime during update staleness judgment (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]"
+    )]
+    archive_missing_mtime: Option<MissingTimePolicy>,
+    #[arg(
+        long,
         value_name = "FILE",
         requires = "unstable",
         help_heading = "Unstable Options",
@@ -450,6 +466,9 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
         missing_mtime: MissingTimePolicy::Include,
     }
     .resolve()?;
+    let archive_missing_mtime = args
+        .archive_missing_mtime
+        .unwrap_or(MissingTimePolicy::Include);
     let create_options = CreateOptions {
         option,
         keep_options,
@@ -515,6 +534,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
             &create_options,
             target_items,
             sync,
+            archive_missing_mtime,
             &mut out_archive,
             TransformStrategyUnSolid,
             false,
@@ -526,6 +546,7 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
             &create_options,
             target_items,
             sync,
+            archive_missing_mtime,
             &mut out_archive,
             TransformStrategyKeepSolid,
             false,
@@ -547,6 +568,7 @@ pub(crate) fn run_update_archive<Strategy, W>(
     create_options: &CreateOptions,
     target_items: Vec<CollectedEntry>,
     sync: bool,
+    archive_missing_mtime: MissingTimePolicy,
     out_archive: &mut Archive<W>,
     _strategy: Strategy,
     verbose: bool,
@@ -572,8 +594,12 @@ where
                     if let Some((idx, item)) =
                         target_files_mapping.shift_remove(entry.header().path())
                     {
-                        let need_update =
-                            is_newer_than_archive(&item.metadata, entry.metadata()).unwrap_or(true);
+                        let need_update = is_newer_than_archive(
+                            archive_missing_mtime,
+                            &item.metadata,
+                            entry.metadata(),
+                        )
+                        .unwrap_or(true);
                         if need_update {
                             let tx = tx.clone();
                             let create_options = create_options.clone();
@@ -626,8 +652,17 @@ where
 }
 
 #[inline]
-fn is_newer_than_archive(fs_meta: &fs::Metadata, metadata: &Metadata) -> Option<bool> {
+fn is_newer_than_archive(
+    archive_missing_mtime: MissingTimePolicy,
+    fs_meta: &fs::Metadata,
+    metadata: &Metadata,
+) -> Option<bool> {
     let fs_mtime = fs_meta.modified().ok()?;
-    let archive_mtime = metadata.modified_time()?;
+    let archive_mtime = match (metadata.modified_time(), archive_missing_mtime) {
+        (Some(t), _) => t,
+        (None, MissingTimePolicy::Include) => return Some(true),
+        (None, MissingTimePolicy::Exclude) => return Some(false),
+        (None, MissingTimePolicy::Assume(t)) => t,
+    };
     Some(archive_mtime < fs_mtime)
 }
