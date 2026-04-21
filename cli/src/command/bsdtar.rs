@@ -1551,6 +1551,7 @@ fn run_update(args: BsdtarCommand) -> anyhow::Result<()> {
         &create_options,
         target_items,
         false,
+        MissingTimePolicy::Include,
         &mut out_archive,
         TransformStrategyUnSolid,
         args.verbose,
