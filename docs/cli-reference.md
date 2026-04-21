@@ -548,8 +548,8 @@ Extract files from archive
 * `--newer-mtime-than <file>` — Only include files and directories newer than the specified file. This compares mtime entries.
 * `--older-ctime-than <file>` [alias: `older-than`] — Only include files and directories older than the specified file. This compares ctime entries.
 * `--older-mtime-than <file>` — Only include files and directories older than the specified file. This compares mtime entries.
-* `--missing-ctime <MISSING_CTIME>` — Behavior for entries without ctime when time filtering (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]
-* `--missing-mtime <MISSING_MTIME>` — Behavior for entries without mtime when time filtering (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]
+* `--archive-missing-ctime <ARCHIVE_MISSING_CTIME>` [alias: `arc-missing-ctime`] — Behavior for archive entries without ctime when time filtering (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]
+* `--archive-missing-mtime <ARCHIVE_MISSING_MTIME>` [alias: `arc-missing-mtime`] — Behavior for archive entries without mtime when time filtering (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]
 * `--include <PATTERN>` — Process only files or directories that match the specified pattern. Note that exclusions specified with --exclude take precedence over inclusions
 * `--exclude <PATTERN>` — Exclude path glob
 * `--exclude-from <FILE>` — Read exclude files from given path
@@ -669,8 +669,8 @@ List files in archive
 * `--newer-mtime-than <file>` — Only include files and directories newer than the specified file. This compares mtime entries.
 * `--older-ctime-than <file>` [alias: `older-than`] — Only include files and directories older than the specified file. This compares ctime entries.
 * `--older-mtime-than <file>` — Only include files and directories older than the specified file. This compares mtime entries.
-* `--missing-ctime <MISSING_CTIME>` — Behavior for entries without ctime when time filtering (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]
-* `--missing-mtime <MISSING_MTIME>` — Behavior for entries without mtime when time filtering (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]
+* `--archive-missing-ctime <ARCHIVE_MISSING_CTIME>` [alias: `arc-missing-ctime`] — Behavior for archive entries without ctime when time filtering (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]
+* `--archive-missing-mtime <ARCHIVE_MISSING_MTIME>` [alias: `arc-missing-mtime`] — Behavior for archive entries without mtime when time filtering (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]
 * `-q` — Force printing of non-graphic characters in file names as the character '?'
 
   Default value: `false`
