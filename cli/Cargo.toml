@@ -66,10 +66,14 @@ nix = { version = "0.31.1", features = ["user", "fs", "ioctl"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62.2", features = [
-  "Win32_Storage_FileSystem",
+  "Win32_Foundation",
+  "Win32_Security",
   "Win32_Security_Authorization",
-  "Win32_System_WindowsProgramming",
+  "Win32_Storage_FileSystem",
+  "Win32_System_IO",
+  "Win32_System_Ioctl",
   "Win32_System_Threading",
+  "Win32_System_WindowsProgramming",
 ] }
 field-offset = { version = "0.3.6", optional = true }
 
@@ -78,6 +82,7 @@ maplit = "1.0.2"
 path-slash = "0.2.1"
 rust-embed = { version = "8.11.0", features = ["debug-embed"] }
 scopeguard = "1.2.0"
+tempfile = "3"
 walkdir = "2.5.0"
 criterion = { version = "0.8.2", default-features = false, features = ["cargo_bench_support", "plotters"] }
 

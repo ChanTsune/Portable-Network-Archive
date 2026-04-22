@@ -594,12 +594,12 @@ pub(crate) struct BsdtarCommand {
     to_stdout: bool,
     #[arg(
         long,
-        help = "Allow extracting symbolic links and hard links that contain root or parent paths (default)"
+        help = "Allow extracting symbolic links, hard links, or Windows junctions whose target points outside the extraction root (default)"
     )]
     allow_unsafe_links: bool,
     #[arg(
         long,
-        help = "Do not allow extracting symbolic links and hard links that contain root or parent paths"
+        help = "Do not allow extracting symbolic links, hard links, or Windows junctions whose target points outside the extraction root"
     )]
     no_allow_unsafe_links: bool,
     #[arg(

@@ -381,12 +381,12 @@ pub(crate) struct ExtractCommand {
     chroot: bool,
     #[arg(
         long,
-        help = "Allow extracting symbolic links and hard links that contain root or parent paths"
+        help = "Allow extracting symbolic links, hard links, or Windows junctions whose target points outside the extraction root"
     )]
     allow_unsafe_links: bool,
     #[arg(
         long,
-        help = "Do not allow extracting symbolic links and hard links that contain root or parent paths (default)"
+        help = "Do not allow extracting symbolic links, hard links, or Windows junctions whose target points outside the extraction root (default)"
     )]
     no_allow_unsafe_links: bool,
     #[arg(
@@ -1438,6 +1438,41 @@ where
         DataKind::HardLink => {
             let reader = item.reader(ReadOptions::with_password(password))?;
             let original = io::read_to_string(reader)?;
+            let is_directory_link = matches!(
+                item.metadata().link_target_type(),
+                Some(LinkTargetType::Directory)
+            );
+
+            if is_directory_link {
+                // Encoded junction: apply user transforms but preserve absolute
+                // paths and do NOT sanitize (no edit_hardlink).
+                let transformed = pathname_editor.edit_junction(Path::new(original.as_str()));
+                let target_str = transformed.as_str();
+
+                if !allow_unsafe_links {
+                    log::warn!(
+                        "Skipped extracting a Windows junction. If you need to extract it, use `--allow-unsafe-links`."
+                    );
+                    return Ok(());
+                }
+                if *safe_writes || remove_existing {
+                    utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
+                }
+                create_junction_or_fallback(&path, target_str)?;
+
+                // SAFETY (Invariant I2): the default `restore_metadata()` call
+                // at the end of this function would apply chmod/chown/ACL/
+                // xattr/fflags to the junction via follow-link syscalls,
+                // mutating the EXTERNAL directory the junction points at
+                // (outside the extraction root). For the MVP we bypass the
+                // full metadata restore and only apply no-follow timestamp
+                // restoration. See `restore_link_timestamps_no_follow` for
+                // the follow-up that would properly restore junction-owned
+                // metadata.
+                restore_link_timestamps_no_follow(&path, item.metadata(), keep_options)?;
+                return Ok(());
+            }
+
             let Some((original, had_root)) = pathname_editor.edit_hardlink(original.as_ref())
             else {
                 log::warn!(
@@ -2016,4 +2051,105 @@ fn symlink_with_type<P: AsRef<Path>, Q: AsRef<Path>>(
     _link_target_type: Option<LinkTargetType>,
 ) -> io::Result<()> {
     pna::fs::symlink(original, link)
+}
+
+/// Create the link for a HardLink+fLTP=Directory entry.
+///
+/// On Windows, builds a real junction. On non-Windows, falls back to a
+/// symbolic link per the PNA spec `chunk_specifications/index.md:332-336`
+/// MAY clause. Accepts both absolute and relative stored targets:
+///
+/// - On Windows, relative targets are resolved against `link`'s parent then
+///   canonicalized to an absolute path (kernel requires absolute for
+///   junctions). If canonicalization fails (e.g. the target does not exist),
+///   the join result is passed through; `create_junction` will then fail with
+///   a descriptive I/O error.
+/// - On non-Windows, the raw stored string is passed to `symlink` verbatim
+///   so the resulting symlink is identical to what the archive encoded.
+fn create_junction_or_fallback(link: &Path, target: &str) -> io::Result<()> {
+    #[cfg(windows)]
+    {
+        let raw = Path::new(target);
+        let absolute = if raw.is_absolute() {
+            raw.to_path_buf()
+        } else {
+            let base = link.parent().unwrap_or_else(|| Path::new("."));
+            let joined = base.join(raw);
+            match std::fs::canonicalize(&joined) {
+                Ok(canon) => canon,
+                Err(e) => {
+                    log::debug!(
+                        "Failed to canonicalize junction target {}: {}; using raw join",
+                        joined.display(),
+                        e
+                    );
+                    joined
+                }
+            }
+        };
+        crate::utils::os::windows::fs::reparse::create_junction(link, &absolute)
+    }
+    #[cfg(not(windows))]
+    {
+        log::debug!(
+            "Creating symbolic link instead of Windows junction: {} -> {}",
+            link.display(),
+            target
+        );
+        pna::fs::symlink(target, link)
+    }
+}
+
+/// Restore only the timestamps of a junction or fallback-symlink entry,
+/// without following the link.
+///
+/// # Why not the full `restore_metadata()` path?
+///
+/// `DataKind::HardLink + fLTP=Directory` encodes a Windows junction (or a
+/// fallback symlink on non-Windows). The default `restore_metadata()` uses
+/// `chmod`, `chown`, `set_facl(follow_links=true)`, `setxattr`, `set_flags`,
+/// and macOS `copyfile` — every one of those follows links. If we let them
+/// run against the junction path, they would mutate the **external**
+/// directory the junction points at (outside the extraction root), which is
+/// a security hole (Invariant I2, spec §7).
+///
+/// For the MVP we bypass the full metadata path for junction entries and
+/// apply only timestamps through the existing `restore_path_timestamps`
+/// helper, which already uses `filetime::set_symlink_file_times` and thus
+/// opens the reparse point itself with `FILE_FLAG_OPEN_REPARSE_POINT` on
+/// Windows / uses `utimensat(AT_SYMLINK_NOFOLLOW)` / `lutimes` on Unix.
+/// Delegation is sufficient — no separate `utils::fs` helper is required.
+///
+/// # TODO: junction-aware no-follow metadata (deferred follow-up, spec §11)
+///
+/// A full implementation should restore mode/owner/ACL/xattr/fflags on the
+/// junction itself using no-follow APIs:
+/// - Unix: `lchmod` (BSD), `lchown`, `lsetxattr`, `lremovexattr`.
+/// - Linux: mode-on-symlink is not supported by the kernel; either skip
+///   silently or gate behind `#[cfg(target_os = "linux")]` with a `warn!`.
+/// - Windows: open the reparse point via `FILE_FLAG_OPEN_REPARSE_POINT` and
+///   apply ACL/security info with `SetSecurityInfo` on that handle; mode is
+///   expressed via the Windows security descriptor, not `chmod`.
+/// - ACL restoration must pass `follow_links = false` into `restore_acls`.
+///
+/// When implemented, replace this helper with a junction-aware branch of
+/// `restore_metadata` that keeps Invariant I2 but preserves all attributes.
+#[cfg(not(target_family = "wasm"))]
+#[inline]
+fn restore_link_timestamps_no_follow(
+    path: &Path,
+    metadata: &pna::Metadata,
+    keep_options: &KeepOptions,
+) -> io::Result<()> {
+    restore_path_timestamps(path, metadata, keep_options)
+}
+
+#[cfg(target_family = "wasm")]
+#[inline]
+fn restore_link_timestamps_no_follow(
+    _path: &Path,
+    _metadata: &pna::Metadata,
+    _keep_options: &KeepOptions,
+) -> io::Result<()> {
+    Ok(())
 }

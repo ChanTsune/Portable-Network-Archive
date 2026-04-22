@@ -383,6 +383,11 @@ pub(crate) enum StoreAs {
     Dir,
     Symlink(LinkTargetType),
     Hardlink(PathBuf),
+    /// Windows NTFS junction. The inner `PathBuf` is the **external** target
+    /// path (typically absolute). This variant is only produced on Windows
+    /// but is declared unconditionally so that `match` arms remain exhaustive
+    /// on every platform.
+    Junction(PathBuf),
 }
 
 /// Source of an archive to include (file path or stdin).
@@ -739,8 +744,12 @@ pub(crate) fn collect_items_with_state(
                 // Classify entry and maybe add it to output
                 let store = if is_symlink {
                     let meta = fs::symlink_metadata(path)?;
-                    let link_target_type = detect_symlink_target_type(path, &meta)?;
-                    Some((StoreAs::Symlink(link_target_type), meta))
+                    if let Some(target) = classify_junction(path)? {
+                        Some((StoreAs::Junction(target), meta))
+                    } else {
+                        let link_target_type = detect_symlink_target_type(path, &meta)?;
+                        Some((StoreAs::Symlink(link_target_type), meta))
+                    }
                 } else if is_file {
                     if let Some(linked) = hardlink_resolver.resolve(path).ok().flatten() {
                         Some((StoreAs::Hardlink(linked), fs::symlink_metadata(path)?))
@@ -841,6 +850,26 @@ fn detect_symlink_target_type(
     }
 }
 
+/// Returns the junction target if `path` is a Windows junction, or `None` for
+/// any non-junction path (including regular directories, symlinks, and
+/// unknown reparse tags). Errors inside the probe are swallowed to a debug
+/// log so classification still falls through to the existing symlink handler.
+#[cfg(windows)]
+fn classify_junction(path: &Path) -> io::Result<Option<PathBuf>> {
+    match crate::utils::os::windows::fs::junction::detect_junction(path) {
+        Ok(v) => Ok(v),
+        Err(e) => {
+            log::debug!("Failed to inspect reparse point {}: {}", path.display(), e);
+            Ok(None)
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn classify_junction(_path: &Path) -> io::Result<Option<PathBuf>> {
+    Ok(None)
+}
+
 pub(crate) fn collect_split_archives(first: impl AsRef<Path>) -> io::Result<Vec<fs::File>> {
     let first = first.as_ref();
     let mut archives = Vec::new();
@@ -936,6 +965,18 @@ pub(crate) fn create_entry(
         }
         StoreAs::Dir => {
             let entry = EntryBuilder::new_dir(entry_name);
+            apply_metadata(entry, path, keep_options, metadata)?.build()
+        }
+        StoreAs::Junction(target) => {
+            // Route the target through PathnameEditor::edit_junction so user-
+            // specified `-s` / `--transform` substitutions apply to junction
+            // targets on the same footing as symlink targets. Invariant I1
+            // (spec §7) guarantees the target is valid UTF-8, so the shared
+            // helper's `from_path_lossy_preserve_root` is effectively
+            // lossless for real inputs.
+            let reference = pathname_editor.edit_junction(target);
+            let mut entry = EntryBuilder::new_hard_link(entry_name, reference)?;
+            entry.link_target_type(LinkTargetType::Directory);
             apply_metadata(entry, path, keep_options, metadata)?.build()
         }
     }

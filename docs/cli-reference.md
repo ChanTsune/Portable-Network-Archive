@@ -573,10 +573,10 @@ Extract files from archive
 * `--chroot` — chroot() to the current directory after processing any --cd options and before extracting any files (requires root privileges)
 
   Default value: `false`
-* `--allow-unsafe-links` — Allow extracting symbolic links and hard links that contain root or parent paths
+* `--allow-unsafe-links` — Allow extracting symbolic links, hard links, or Windows junctions whose target points outside the extraction root
 
   Default value: `false`
-* `--no-allow-unsafe-links` — Do not allow extracting symbolic links and hard links that contain root or parent paths (default)
+* `--no-allow-unsafe-links` — Do not allow extracting symbolic links, hard links, or Windows junctions whose target points outside the extraction root (default)
 
   Default value: `false`
 * `--safe-writes` — Extract files atomically via temp file and rename
@@ -1445,10 +1445,10 @@ bsdtar-like CLI semantics for PNA archives
 * `-O`, `--to-stdout` — Write extracted file data to standard output instead of the file system
 
   Default value: `false`
-* `--allow-unsafe-links` — Allow extracting symbolic links and hard links that contain root or parent paths (default)
+* `--allow-unsafe-links` — Allow extracting symbolic links, hard links, or Windows junctions whose target points outside the extraction root (default)
 
   Default value: `false`
-* `--no-allow-unsafe-links` — Do not allow extracting symbolic links and hard links that contain root or parent paths
+* `--no-allow-unsafe-links` — Do not allow extracting symbolic links, hard links, or Windows junctions whose target points outside the extraction root
 
   Default value: `false`
 * `--chroot` — chroot() to the current directory after processing any --cd options and before extracting any files (requires root privileges)
@@ -1753,10 +1753,10 @@ bsdtar-like CLI semantics for PNA archives (stabilized, use `pna compat bsdtar` 
 * `-O`, `--to-stdout` — Write extracted file data to standard output instead of the file system
 
   Default value: `false`
-* `--allow-unsafe-links` — Allow extracting symbolic links and hard links that contain root or parent paths (default)
+* `--allow-unsafe-links` — Allow extracting symbolic links, hard links, or Windows junctions whose target points outside the extraction root (default)
 
   Default value: `false`
-* `--no-allow-unsafe-links` — Do not allow extracting symbolic links and hard links that contain root or parent paths
+* `--no-allow-unsafe-links` — Do not allow extracting symbolic links, hard links, or Windows junctions whose target points outside the extraction root
 
   Default value: `false`
 * `--chroot` — chroot() to the current directory after processing any --cd options and before extracting any files (requires root privileges)
