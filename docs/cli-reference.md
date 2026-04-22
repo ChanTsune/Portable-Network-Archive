@@ -1532,7 +1532,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 ###### **Subcommands:**
 
 * `stdio` — bsdtar-like CLI semantics for PNA archives (stabilized, use `pna compat bsdtar` instead)
-* `delete` — Delete entry from archive
+* `delete` — Delete entry from archive (stabilized, use `pna delete` command instead. this command will be removed in the future)
 * `update` — Update entries in archive
 * `chown` — Change owner
 * `chmod` — Change mode
@@ -1803,7 +1803,7 @@ bsdtar-like CLI semantics for PNA archives (stabilized, use `pna compat bsdtar` 
 
 ## `pna experimental delete`
 
-Delete entry from archive
+Delete entry from archive (stabilized, use `pna delete` command instead. this command will be removed in the future)
 
 **Usage:** `pna experimental delete [OPTIONS] --file <ARCHIVE> [FILES]...`
 
@@ -2544,7 +2544,7 @@ Print this message or the help of the given subcommand(s)
 ###### **Subcommands:**
 
 * `stdio` — bsdtar-like CLI semantics for PNA archives (stabilized, use `pna compat bsdtar` instead)
-* `delete` — Delete entry from archive
+* `delete` — Delete entry from archive (stabilized, use `pna delete` command instead. this command will be removed in the future)
 * `update` — Update entries in archive
 * `chown` — Change owner
 * `chmod` — Change mode
@@ -2567,7 +2567,7 @@ bsdtar-like CLI semantics for PNA archives (stabilized, use `pna compat bsdtar` 
 
 ## `pna experimental help delete`
 
-Delete entry from archive
+Delete entry from archive (stabilized, use `pna delete` command instead. this command will be removed in the future)
 
 **Usage:** `pna experimental help delete`
 
@@ -2850,7 +2850,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 ###### **Subcommands:**
 
 * `stdio` — bsdtar-like CLI semantics for PNA archives (stabilized, use `pna compat bsdtar` instead)
-* `delete` — Delete entry from archive
+* `delete` — Delete entry from archive (stabilized, use `pna delete` command instead. this command will be removed in the future)
 * `update` — Update entries in archive
 * `chown` — Change owner
 * `chmod` — Change mode
@@ -2872,7 +2872,7 @@ bsdtar-like CLI semantics for PNA archives (stabilized, use `pna compat bsdtar` 
 
 ## `pna help experimental delete`
 
-Delete entry from archive
+Delete entry from archive (stabilized, use `pna delete` command instead. this command will be removed in the future)
 
 **Usage:** `pna help experimental delete`
 
