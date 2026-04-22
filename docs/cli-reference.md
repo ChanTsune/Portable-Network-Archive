@@ -1943,6 +1943,8 @@ Update entries in archive
 * `--newer-mtime-than <FILE>` — Only include files and directories newer than the specified file. This compares mtime entries.
 * `--older-ctime-than <FILE>` — Only include files and directories older than the specified file. This compares ctime entries.
 * `--older-mtime-than <FILE>` — Only include files and directories older than the specified file. This compares mtime entries.
+* `--archive-missing-ctime <ARCHIVE_MISSING_CTIME>` [alias: `arc-missing-ctime`] — Behavior for archive entries without ctime during update staleness judgment (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]
+* `--archive-missing-mtime <ARCHIVE_MISSING_MTIME>` [alias: `arc-missing-mtime`] — Behavior for archive entries without mtime during update staleness judgment (unstable). Values: include, exclude, now, epoch, or a datetime. [default: include]
 * `--files-from <FILE>` — Read archiving files from given path
 * `--files-from-stdin` — Read archiving files from stdin
 
