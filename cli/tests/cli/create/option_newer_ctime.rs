@@ -50,6 +50,7 @@ fn create_with_newer_ctime() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "create_with_newer_ctime/create_with_newer_ctime.pna",
         "--overwrite",
         "--no-keep-dir",

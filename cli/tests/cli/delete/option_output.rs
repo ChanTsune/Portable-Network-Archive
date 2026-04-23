@@ -16,6 +16,7 @@ fn delete_output() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "delete_output/delete_output.pna",
         "--overwrite",
         "--no-keep-dir",

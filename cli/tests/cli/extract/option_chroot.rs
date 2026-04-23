@@ -19,6 +19,7 @@ fn archive_extract_chroot() {
     cmd.args([
         "--quiet",
         "x",
+        "-f",
         "extract_chroot/zstd.pna",
         "--overwrite",
         "-C",

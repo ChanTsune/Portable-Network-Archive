@@ -13,6 +13,7 @@ fn xattr_set_restore() {
     cmd.args([
         "--quiet",
         "c",
+        "-f",
         "xattr_set_restore/xattr_set_restore.pna",
         "--overwrite",
         "xattr_set_restore/in/",
@@ -39,6 +40,7 @@ fn xattr_set_restore() {
         "--quiet",
         "xattr",
         "set",
+        "-f",
         "xattr_set_restore/xattr_set_restore.pna",
         "--restore",
         "-",
@@ -50,6 +52,7 @@ fn xattr_set_restore() {
     cmd.args([
         "--quiet",
         "x",
+        "-f",
         "xattr_set_restore/xattr_set_restore.pna",
         "--overwrite",
         "--out-dir",

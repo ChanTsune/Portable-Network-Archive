@@ -51,6 +51,7 @@ fn create_with_newer_ctime_than() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "create_newer_ctime_than/test.pna",
         "--overwrite",
         "--no-keep-dir",

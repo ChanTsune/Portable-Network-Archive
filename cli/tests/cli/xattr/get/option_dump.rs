@@ -13,6 +13,7 @@ fn xattr_get_dump() {
     cmd.args([
         "--quiet",
         "c",
+        "-f",
         "xattr_get_dump/xattr_get_dump.pna",
         "--overwrite",
         "xattr_get_dump/in/",
@@ -34,6 +35,7 @@ fn xattr_get_dump() {
             "--quiet",
             "xattr",
             "set",
+            "-f",
             archive_path,
             file_to_set_xattr,
             "--name",
@@ -56,6 +58,7 @@ fn xattr_get_dump() {
             "--quiet",
             "xattr",
             "get",
+            "-f",
             "xattr_get_dump/xattr_get_dump.pna",
             "xattr_get_dump/in/raw/empty.txt",
             "--dump",

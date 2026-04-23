@@ -15,6 +15,7 @@ fn extract_with_transform() {
         "pna",
         "--quiet",
         "x",
+        "-f",
         "extract_with_transform/zstd.pna",
         "--overwrite",
         "--out-dir",

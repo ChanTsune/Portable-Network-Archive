@@ -13,6 +13,7 @@ fn create_with_include() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "create_with_include/include.pna",
         "--overwrite",
         "create_with_include/in/",

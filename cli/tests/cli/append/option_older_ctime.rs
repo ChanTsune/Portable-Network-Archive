@@ -70,6 +70,7 @@ fn append_with_older_ctime() {
         "--no-keep-dir",
         "--older-ctime",
         "2025-10-11T00:00:00Z",
+        "-f",
         "append_with_older_ctime/append_with_older_ctime.pna",
         "append_with_older_ctime/in/",
         "--unstable",

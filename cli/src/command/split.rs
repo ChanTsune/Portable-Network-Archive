@@ -13,14 +13,11 @@ use std::{borrow::Cow, fs, path::PathBuf};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(
-    group(ArgGroup::new("archive_arg").args(["file", "archive"]).required(true)),
     group(ArgGroup::new("overwrite-flag").args(["overwrite", "no_overwrite"]))
 )]
 pub(crate) struct SplitCommand {
     #[arg(short = 'f', long = "file", help = "Archive file path", value_hint = ValueHint::FilePath)]
-    file: Option<PathBuf>,
-    #[arg(value_hint = ValueHint::FilePath, hide = true)]
-    pub(crate) archive: Option<PathBuf>,
+    file: PathBuf,
     #[arg(long, value_name = "DIRECTORY", help = "Output directory for split archives", value_hint = ValueHint::DirPath)]
     out_dir: Option<PathBuf>,
     #[arg(long, help = "Overwrite file")]
@@ -47,14 +44,7 @@ impl Command for SplitCommand {
 
 #[hooq::hooq(anyhow)]
 fn split_archive(args: SplitCommand) -> anyhow::Result<()> {
-    let archive_path = match (args.file, args.archive) {
-        (Some(f), _) => f,
-        (None, Some(a)) => {
-            log::warn!("positional `archive` is deprecated, use `--file` instead");
-            a
-        }
-        _ => unreachable!("required by ArgGroup"),
-    };
+    let archive_path = args.file;
     let max_file_size = usize::try_from(args.max_size.unwrap_or_else(|| ByteSize::gb(1)).as_u64())
         .context("--max-size is too large for this platform")?;
     ensure!(

@@ -40,6 +40,7 @@ fn create_with_older_ctime_than() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "create_older_ctime_than/test.pna",
         "--overwrite",
         "--no-keep-dir",

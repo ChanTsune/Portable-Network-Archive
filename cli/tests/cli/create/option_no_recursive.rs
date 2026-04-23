@@ -20,6 +20,7 @@ fn no_recursive() {
         "pna",
         "--quiet",
         "create",
+        "-f",
         "no_recursive/no_recursive.pna",
         "--overwrite",
         "--keep-dir",

@@ -39,6 +39,7 @@ fn create_with_newer_mtime_than() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "create_newer_mtime_than/test.pna",
         "--overwrite",
         "--unstable",

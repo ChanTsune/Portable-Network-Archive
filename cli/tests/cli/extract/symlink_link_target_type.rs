@@ -43,6 +43,7 @@ fn extract_symlink_with_fltp_directory_uses_symlink_dir() {
         "--overwrite",
         "--out-dir",
         out_dir.to_str().unwrap(),
+        "-f",
         archive_path.to_str().unwrap(),
     ])
     .unwrap()
@@ -98,6 +99,7 @@ fn extract_symlink_with_fltp_file_uses_symlink_file() {
         "--overwrite",
         "--out-dir",
         out_dir.to_str().unwrap(),
+        "-f",
         archive_path.to_str().unwrap(),
     ])
     .unwrap()
@@ -158,6 +160,7 @@ fn extract_symlink_with_fltp_file_overrides_existing_directory_target() {
         "--overwrite",
         "--out-dir",
         out_dir.to_str().unwrap(),
+        "-f",
         archive_path.to_str().unwrap(),
     ])
     .unwrap()
@@ -219,6 +222,7 @@ fn extract_symlink_with_fltp_directory_overrides_existing_file_target() {
         "--overwrite",
         "--out-dir",
         out_dir.to_str().unwrap(),
+        "-f",
         archive_path.to_str().unwrap(),
     ])
     .unwrap()
