@@ -15,7 +15,7 @@ pub mod diff;
 pub(super) mod experimental;
 pub mod extract;
 pub mod list;
-mod migrate;
+pub mod migrate;
 pub mod sort;
 pub mod split;
 pub(crate) mod strip;
@@ -74,6 +74,7 @@ impl Cli {
             Commands::Concat(cmd) => cmd.execute(ctx),
             Commands::Strip(cmd) => cmd.execute(ctx),
             Commands::Sort(cmd) => cmd.execute(ctx),
+            Commands::Migrate(cmd) => cmd.execute(ctx),
             Commands::Xattr(cmd) => cmd.execute(ctx),
             Commands::Complete(cmd) => cmd.execute(ctx),
             Commands::BugReport(cmd) => cmd.execute(ctx),
