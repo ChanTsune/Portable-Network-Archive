@@ -15,7 +15,6 @@ use std::path::PathBuf;
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 #[command(
-    group(ArgGroup::new("archive-args").args(["files", "archives"]).required(true)),
     group(ArgGroup::new("overwrite-flag").args(["overwrite", "no_overwrite"])),
 )]
 pub(crate) struct ConcatCommand {
@@ -26,9 +25,7 @@ pub(crate) struct ConcatCommand {
         help = "Do not overwrite files. This is the inverse option of --overwrite"
     )]
     no_overwrite: bool,
-    #[arg(help = "Archive files to concatenate (deprecated, use --files)", value_hint = ValueHint::FilePath)]
-    archives: Vec<PathBuf>,
-    #[arg(short, long, help = "Archive files to concatenate", value_hint = ValueHint::FilePath)]
+    #[arg(short, long, required = true, help = "Archive files to concatenate", value_hint = ValueHint::FilePath)]
     files: Vec<PathBuf>,
 }
 
@@ -41,14 +38,7 @@ impl Command for ConcatCommand {
 
 #[hooq::hooq(anyhow)]
 fn concat_entry(args: ConcatCommand) -> anyhow::Result<()> {
-    let mut archives = if args.files.is_empty() {
-        if !args.archives.is_empty() {
-            log::warn!("positional `archive` is deprecated, use `--file` instead");
-        }
-        args.archives
-    } else {
-        args.files
-    };
+    let mut archives = args.files;
     let archive = archives.remove(0);
     for item in &archives {
         if !utils::fs::is_pna(item)? {

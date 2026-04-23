@@ -16,6 +16,7 @@ fn delete_with_exclude_from() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "delete_exclude_from/exclude_from.pna",
         "--overwrite",
         "--no-keep-dir",

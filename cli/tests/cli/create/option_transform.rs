@@ -11,6 +11,7 @@ fn create_with_transform() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "create_with_transform/create_with_transform.pna",
         "--overwrite",
         "create_with_transform/in/",

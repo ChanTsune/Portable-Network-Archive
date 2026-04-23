@@ -11,6 +11,7 @@ fn create_numeric_owner() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "numeric_owner/numeric_owner.pna",
         "--overwrite",
         "numeric_owner/in/",

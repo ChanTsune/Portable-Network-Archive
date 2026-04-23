@@ -11,6 +11,7 @@ fn chown_no_owner_lookup() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "chown_no_owner_lookup/no_owner_lookup.pna",
         "--overwrite",
         "chown_no_owner_lookup/in/",

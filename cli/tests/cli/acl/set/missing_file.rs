@@ -13,6 +13,7 @@ fn fail_with_missing_file() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "acl_set_missing/archive.pna",
         "--overwrite",
         "acl_set_missing/in/",

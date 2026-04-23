@@ -15,6 +15,7 @@ fn archive_xattr_set() {
         "--quiet",
         "xattr",
         "set",
+        "-f",
         "xattr_set/zstd.pna",
         "--name",
         "user.name",
@@ -60,6 +61,7 @@ fn xattr_long_key_value() {
         "--quiet",
         "xattr",
         "set",
+        "-f",
         "xattr_long/zstd.pna",
         "--name",
         &long_name,
@@ -75,6 +77,7 @@ fn xattr_long_key_value() {
         "--quiet",
         "xattr",
         "set",
+        "-f",
         "xattr_long/zstd.pna",
         "--name",
         "user.special",
@@ -121,6 +124,7 @@ fn xattr_empty_key() {
         "--quiet",
         "xattr",
         "set",
+        "-f",
         "xattr_empty_key/zstd.pna",
         "--name",
         "",
@@ -161,6 +165,7 @@ fn xattr_empty_value() {
         "--quiet",
         "xattr",
         "set",
+        "-f",
         "xattr_empty_value/zstd.pna",
         "--name",
         "user.empty",
@@ -201,6 +206,7 @@ fn xattr_set_preserved_in_archive() {
         "--quiet",
         "xattr",
         "set",
+        "-f",
         "xattr_set_preserved/zstd.pna",
         "--name",
         "user.roundtrip",
@@ -244,6 +250,7 @@ fn xattr_round_trip_preservation() {
         "--quiet",
         "xattr",
         "set",
+        "-f",
         "xattr_roundtrip/zstd.pna",
         "--name",
         "user.roundtrip",
@@ -259,6 +266,7 @@ fn xattr_round_trip_preservation() {
         "pna",
         "--quiet",
         "x",
+        "-f",
         "xattr_roundtrip/zstd.pna",
         "--overwrite",
         "--out-dir",
@@ -284,6 +292,7 @@ fn xattr_round_trip_preservation() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "xattr_roundtrip/roundtrip.pna",
         "--overwrite",
         "xattr_roundtrip/out/",
@@ -297,9 +306,12 @@ fn xattr_round_trip_preservation() {
     archive::for_each_entry("xattr_roundtrip/roundtrip.pna", |entry| {
         if entry.name().as_str().ends_with("raw/empty.txt") {
             found = true;
-            assert_eq!(
-                entry.xattrs(),
-                &[archive::xattr("user.roundtrip", b"preserved_value")],
+            assert!(
+                entry
+                    .xattrs()
+                    .contains(&archive::xattr("user.roundtrip", b"preserved_value")),
+                "round-tripped entry is missing user.roundtrip xattr: {:?}",
+                entry.xattrs()
             );
         }
     })

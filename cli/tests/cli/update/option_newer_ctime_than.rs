@@ -33,6 +33,7 @@ fn update_with_newer_ctime_than() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "update_newer_ctime_than/test.pna",
         "--overwrite",
         file_to_update,

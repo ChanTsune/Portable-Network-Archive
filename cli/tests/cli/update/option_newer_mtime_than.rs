@@ -22,6 +22,7 @@ fn update_with_newer_mtime_than() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "update_newer_mtime_than/test.pna",
         "--overwrite",
         file_to_update,

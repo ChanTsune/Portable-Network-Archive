@@ -11,6 +11,7 @@ fn create_extract_with_cd() {
     cmd.args([
         "--quiet",
         "c",
+        "-f",
         "create_extract_with_cd/create_extract_with_cd.pna",
         "--overwrite",
         "-C",
@@ -25,6 +26,7 @@ fn create_extract_with_cd() {
     cmd.args([
         "--quiet",
         "x",
+        "-f",
         "create_extract_with_cd/create_extract_with_cd.pna",
         "--overwrite",
         "-C",
@@ -47,6 +49,7 @@ fn append_with_cd() {
     cmd.args([
         "--quiet",
         "c",
+        "-f",
         "append_with_cd/append_with_cd.pna",
         "--overwrite",
         "-C",
@@ -65,6 +68,7 @@ fn append_with_cd() {
     cmd.args([
         "--quiet",
         "append",
+        "-f",
         "append_with_cd/append_with_cd.pna",
         "-C",
         "append_with_cd/in/",
@@ -77,6 +81,7 @@ fn append_with_cd() {
     cmd.args([
         "--quiet",
         "x",
+        "-f",
         "append_with_cd/append_with_cd.pna",
         "--overwrite",
         "-C",
@@ -99,6 +104,7 @@ fn update_with_cd() {
     cmd.args([
         "--quiet",
         "c",
+        "-f",
         "update_with_cd/update_with_cd.pna",
         "--overwrite",
         "-C",
@@ -130,6 +136,7 @@ fn update_with_cd() {
     cmd.args([
         "--quiet",
         "x",
+        "-f",
         "update_with_cd/update_with_cd.pna",
         "--overwrite",
         "-C",

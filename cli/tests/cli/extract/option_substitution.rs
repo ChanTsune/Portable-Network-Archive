@@ -15,6 +15,7 @@ fn extract_with_substitution() {
         "pna",
         "--quiet",
         "x",
+        "-f",
         "extract_with_substitution/zstd.pna",
         "--overwrite",
         "--out-dir",

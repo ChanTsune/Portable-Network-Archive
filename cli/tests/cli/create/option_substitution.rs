@@ -11,6 +11,7 @@ fn create_with_substitution() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "create_with_substitution/create_with_substitution.pna",
         "--overwrite",
         "create_with_substitution/in/",

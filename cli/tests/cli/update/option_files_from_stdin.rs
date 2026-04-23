@@ -20,6 +20,7 @@ fn update_with_files_from_stdin() {
         .args([
             "--quiet",
             "create",
+            "-f",
             "update_files_from_stdin/base.pna",
             "--overwrite",
             "update_files_from_stdin/in/raw/pna/",
@@ -51,6 +52,7 @@ fn update_with_files_from_stdin() {
         .args([
             "--quiet",
             "extract",
+            "-f",
             "update_files_from_stdin/base.pna",
             "--overwrite",
             "--out-dir",
