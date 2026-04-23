@@ -79,7 +79,7 @@ pub(crate) fn derive_password_hash<'a>(
         }
         a => Err(io::Error::new(
             io::ErrorKind::Unsupported,
-            format!("Unsupported algorithm {a:?}"),
+            format!("unsupported algorithm {a:?}"),
         )),
     }
 }

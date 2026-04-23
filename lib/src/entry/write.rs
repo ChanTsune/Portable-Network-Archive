@@ -106,7 +106,7 @@ fn hash<'s, 'p: 's>(
     let hash = password_hash
         .hash
         .take()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::Unsupported, "Failed to get hash"))?;
+        .ok_or_else(|| io::Error::new(io::ErrorKind::Unsupported, "failed to get hash"))?;
     Ok((hash, password_hash.to_string()))
 }
 

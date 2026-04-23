@@ -83,7 +83,7 @@ impl<R: AsyncRead + Unpin> ChunkReader<R> {
         let crc = u32::from_be_bytes(crc);
 
         if crc != crc_hasher.finalize() {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "Broken chunk"));
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "broken chunk"));
         }
         let ty = ChunkType::new(ty)?;
         Ok(RawChunk {
@@ -146,7 +146,7 @@ pub(crate) fn read_chunk<R: Read>(
     let crc = u32::from_be_bytes(crc);
 
     if crc != crc_hasher.finalize() {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "Broken chunk"));
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "broken chunk"));
     }
     let ty = ChunkType::new(ty)?;
     Ok(RawChunk {
@@ -185,7 +185,7 @@ pub(crate) fn read_chunk_from_slice(bytes: &[u8]) -> io::Result<(RawChunk<&[u8]>
     let crc = u32::from_be_bytes(*crc);
 
     if crc != crc_hasher.finalize() {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "Broken chunk"));
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "broken chunk"));
     }
     let ty = ChunkType::new(*ty)?;
     Ok((
