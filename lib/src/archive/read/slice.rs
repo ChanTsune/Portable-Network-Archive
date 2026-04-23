@@ -12,7 +12,10 @@ pub(crate) fn read_header_from_slice(bytes: &[u8]) -> io::Result<&[u8]> {
         .split_at_checked(PNA_HEADER.len())
         .ok_or(io::ErrorKind::UnexpectedEof)?;
     if header != PNA_HEADER {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "It's not PNA"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "not a PNA archive",
+        ));
     }
     Ok(body)
 }
