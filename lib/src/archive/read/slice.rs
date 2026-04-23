@@ -38,7 +38,7 @@ impl<'d> Archive<&'d [u8]> {
         if chunk.ty != ChunkType::AHED {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("Unexpected Chunk `{}`", chunk.ty),
+                format!("unexpected chunk `{}`", chunk.ty),
             ));
         }
         let header = ArchiveHeader::try_from_bytes(chunk.data())?;
@@ -157,7 +157,7 @@ impl<'d> Archive<&'d [u8]> {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!(
-                    "Next archive number must be +1 (current: {}, detected: {})",
+                    "next archive number must be +1 (current: {}, detected: {})",
                     current_header.archive_number, next.header.archive_number
                 ),
             ));

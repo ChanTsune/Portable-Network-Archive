@@ -179,10 +179,10 @@ where
             match first_chunk.ty {
                 ChunkType::SHED => Ok(Self::Solid(SolidEntry::try_from(entry)?)),
                 ChunkType::FHED => Ok(Self::Normal(NormalEntry::try_from(entry)?)),
-                _ => Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid entry")),
+                _ => Err(io::Error::new(io::ErrorKind::InvalidData, "invalid entry")),
             }
         } else {
-            Err(io::Error::new(io::ErrorKind::InvalidData, "Empty entry"))
+            Err(io::Error::new(io::ErrorKind::InvalidData, "empty entry"))
         }
     }
 }
@@ -562,7 +562,7 @@ where
                     if chunk.ty().is_critical() {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidData,
-                            format!("Unknown critical chunk type: {}", chunk.ty()),
+                            format!("unknown critical chunk type: {}", chunk.ty()),
                         ));
                     }
                     extra.push(chunk);
@@ -666,7 +666,7 @@ where
                     if chunk.ty.is_critical() {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidData,
-                            format!("Unknown critical chunk type: {}", chunk.ty),
+                            format!("unknown critical chunk type: {}", chunk.ty),
                         ));
                     }
                     extra.push(chunk);
