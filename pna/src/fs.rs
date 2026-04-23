@@ -29,21 +29,45 @@ pub fn symlink<P: AsRef<Path>, Q: AsRef<Path>>(original: P, link: Q) -> io::Resu
     #[cfg(windows)]
     fn inner(original: &Path, link: &Path) -> io::Result<()> {
         use std::borrow::Cow;
+        use std::ffi::OsString;
+        use std::os::windows::ffi::{OsStrExt, OsStringExt};
+        use std::path::PathBuf;
+
+        fn normalize_windows_separators(path: &Path) -> Cow<'_, Path> {
+            let wide: Vec<u16> = path.as_os_str().encode_wide().collect();
+            if !wide.iter().any(|&unit| unit == u16::from(b'/')) {
+                return Cow::Borrowed(path);
+            }
+            let normalized = wide
+                .into_iter()
+                .map(|unit| {
+                    if unit == u16::from(b'/') {
+                        u16::from(b'\\')
+                    } else {
+                        unit
+                    }
+                })
+                .collect::<Vec<_>>();
+            Cow::Owned(PathBuf::from(OsString::from_wide(&normalized)))
+        }
+
+        let original = normalize_windows_separators(original);
+        let link = normalize_windows_separators(link);
         // Symlink targets are resolved relative to the link's parent directory,
         // not the current working directory. Resolve before checking is_dir()
         // so that relative targets pick the correct symlink type.
         let is_dir = if original.is_relative() {
             link.parent()
-                .map(|p| Cow::Owned(p.join(original)))
-                .unwrap_or(Cow::Borrowed(original))
+                .map(|p| p.join(original.as_ref()))
+                .unwrap_or_else(|| original.as_ref().to_path_buf())
                 .is_dir()
         } else {
             original.is_dir()
         };
         if is_dir {
-            os::windows::fs::symlink_dir(original, link)
+            os::windows::fs::symlink_dir(original.as_ref(), link.as_ref())
         } else {
-            os::windows::fs::symlink_file(original, link)
+            os::windows::fs::symlink_file(original.as_ref(), link.as_ref())
         }
     }
     #[cfg(target_os = "wasi")]
