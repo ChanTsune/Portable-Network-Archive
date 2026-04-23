@@ -12,6 +12,7 @@ fn chown_no_owner_lookup_numeric() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "chown_no_owner_lookup_numeric/numeric_owner.pna",
         "--overwrite",
         "chown_no_owner_lookup_numeric/in/",

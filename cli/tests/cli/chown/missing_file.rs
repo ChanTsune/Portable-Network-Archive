@@ -10,6 +10,7 @@ fn fail_with_missing_file() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "chown_missing/archive.pna",
         "--overwrite",
         "chown_missing/in/",

@@ -13,6 +13,7 @@ fn fail_with_missing_file() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "chmod_missing/archive.pna",
         "--overwrite",
         "chmod_missing/in/",

@@ -21,11 +21,11 @@ teardown() {
   PNA_FILE_PATH="${RESOURCE_DIR}${PNA_FILE}"
 
   # Create archive with store compression
-  run $PNA_EXECUTABLE create --store --overwrite "${PNA_FILE_PATH}" "${TEST_FILE_PATH}"
+  run $PNA_EXECUTABLE create --store --overwrite -f "${PNA_FILE_PATH}" "${TEST_FILE_PATH}"
   [ "$status" -eq 0 ]
 
   # Extract archive
-  run $PNA_EXECUTABLE extract --overwrite --out-dir "${RESOURCE_DIR}" "${PNA_FILE_PATH}"
+  run $PNA_EXECUTABLE extract --overwrite --out-dir "${RESOURCE_DIR}" -f "${PNA_FILE_PATH}"
   [ "$status" -eq 0 ]
 
   # Compare original and extracted files
@@ -41,11 +41,11 @@ teardown() {
   PNA_FILE_PATH="${RESOURCE_DIR}${PNA_FILE}"
 
   # Create archive with store solid compression
-  run $PNA_EXECUTABLE create --store --solid --overwrite "${PNA_FILE_PATH}" "${TEST_FILE_PATH}"
+  run $PNA_EXECUTABLE create --store --solid --overwrite -f "${PNA_FILE_PATH}" "${TEST_FILE_PATH}"
   [ "$status" -eq 0 ]
 
   # Extract archive
-  run $PNA_EXECUTABLE extract --overwrite --out-dir "${RESOURCE_DIR}" "${PNA_FILE_PATH}"
+  run $PNA_EXECUTABLE extract --overwrite --out-dir "${RESOURCE_DIR}" -f "${PNA_FILE_PATH}"
   [ "$status" -eq 0 ]
 
   # Compare original and extracted files

@@ -44,6 +44,7 @@ fn hardlink() {
         "pna",
         "--quiet",
         "x",
+        "-f",
         "hardlink/hardlink.pna",
         "--overwrite",
         "--out-dir",

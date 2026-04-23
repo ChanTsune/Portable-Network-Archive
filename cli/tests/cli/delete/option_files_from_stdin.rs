@@ -17,6 +17,7 @@ fn delete_with_files_from_stdin() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "delete_files_from_stdin/delete_files_from_stdin.pna",
         "--overwrite",
         "--no-keep-dir",

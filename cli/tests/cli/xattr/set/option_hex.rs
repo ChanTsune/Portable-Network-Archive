@@ -16,6 +16,7 @@ fn xattr_set_hex() {
         "--quiet",
         "xattr",
         "set",
+        "-f",
         "xattr_set_hex/zstd.pna",
         "--name",
         "user.hex",

@@ -1,6 +1,6 @@
 use crate::{
     chunk,
-    cli::{ColorChoice, DateTime, FileArgsCompat, MissingTimePolicy, PasswordArgs},
+    cli::{ColorChoice, DateTime, FileArgs, MissingTimePolicy, PasswordArgs},
     command::{
         Command, ask_password,
         core::{
@@ -246,7 +246,7 @@ pub(crate) struct ListCommand {
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
-    pub(crate) file: FileArgsCompat,
+    pub(crate) file: FileArgs,
     #[arg(long, action = clap::ArgAction::Help, help = "Print help")]
     help: (),
 }
@@ -536,8 +536,8 @@ fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::R
         color: ctx.color(),
         time_filters,
     };
-    let archive = args.file.archive();
-    let files = args.file.files();
+    let archive = args.file.archive;
+    let files = args.file.files;
     let files_globs = BsdGlobMatcher::new(files.iter().map(|it| it.as_str()))
         .with_no_recursive(args.no_recursive);
 

@@ -101,6 +101,7 @@ fn stdio_extract_mac_metadata_option_accepted() {
     cargo_bin_cmd!("pna")
         .args([
             "create",
+            "-f",
             "stdio_extract_mac_metadata_dir/test.pna",
             "--overwrite",
             "stdio_extract_mac_metadata_dir/test.txt",
@@ -139,6 +140,7 @@ fn stdio_append_mac_metadata_option_accepted() {
     cargo_bin_cmd!("pna")
         .args([
             "create",
+            "-f",
             "stdio_append_mac_metadata_dir/test.pna",
             "--overwrite",
             "stdio_append_mac_metadata_dir/file1.txt",
@@ -175,6 +177,7 @@ fn stdio_update_mac_metadata_option_accepted() {
     cargo_bin_cmd!("pna")
         .args([
             "create",
+            "-f",
             "stdio_update_mac_metadata_dir/test.pna",
             "--overwrite",
             "stdio_update_mac_metadata_dir/test.txt",

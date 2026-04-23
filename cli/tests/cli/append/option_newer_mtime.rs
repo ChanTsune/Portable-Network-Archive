@@ -60,6 +60,7 @@ fn append_with_newer_mtime() {
         "--newer-mtime",
         "2025-10-11T00:00:00Z",
         "--no-keep-dir",
+        "-f",
         "append_with_newer_mtime/append_with_newer_mtime.pna",
         "append_with_newer_mtime/in/",
         "--unstable",

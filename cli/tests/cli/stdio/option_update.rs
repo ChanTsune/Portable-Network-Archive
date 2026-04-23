@@ -20,6 +20,7 @@ fn stdio_update_basic() {
     // Create archive using pna create
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.arg("c")
+        .arg("-f")
         .arg(archive)
         .arg("--overwrite")
         .arg("--keep-timestamp")
@@ -72,6 +73,7 @@ fn stdio_update_short_flag() {
     // Create archive
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.arg("c")
+        .arg("-f")
         .arg(archive)
         .arg("--overwrite")
         .arg("--keep-timestamp")
@@ -162,6 +164,7 @@ fn stdio_update_preserves_unmodified() {
     // Create archive
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.arg("c")
+        .arg("-f")
         .arg(archive)
         .arg("--overwrite")
         .arg("--keep-timestamp")

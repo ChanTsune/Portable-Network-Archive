@@ -19,6 +19,7 @@ fn create_with_files_from_stdin() {
     cmd.args([
         "--quiet",
         "c",
+        "-f",
         "create_with_files_from_stdin/create_with_files_from_stdin.pna",
         "--overwrite",
         "--files-from-stdin",

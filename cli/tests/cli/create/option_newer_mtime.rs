@@ -40,6 +40,7 @@ fn create_with_newer_mtime() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "create_with_newer_mtime/create_with_newer_mtime.pna",
         "--overwrite",
         "create_with_newer_mtime/in/",

@@ -15,6 +15,7 @@ fn fail_without_overwrite() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         archive,
         "create_without_overwrite/src/",
     ])

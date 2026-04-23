@@ -16,6 +16,7 @@ fn delete_overwrite() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "delete_overwrite/delete_overwrite.pna",
         "--overwrite",
         "--no-keep-dir",

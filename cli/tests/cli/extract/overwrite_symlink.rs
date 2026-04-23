@@ -62,6 +62,7 @@ fn overwrite_symlink_does_not_remove_target_directory() {
         "pna",
         "--quiet",
         "x",
+        "-f",
         "overwrite_symlink/archive.pna",
         "--out-dir",
         "overwrite_symlink/dist",

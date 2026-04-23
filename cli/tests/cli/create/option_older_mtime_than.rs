@@ -39,6 +39,7 @@ fn create_with_older_mtime_than() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "create_older_mtime_than/test.pna",
         "--overwrite",
         "--no-keep-dir",
