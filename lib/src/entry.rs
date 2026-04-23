@@ -534,11 +534,7 @@ where
             if first_chunk.ty != ChunkType::SHED {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
-                    format!(
-                        "Expected {} chunk, but {} chunk was found",
-                        ChunkType::SHED,
-                        first_chunk.ty
-                    ),
+                    format!("expected {} chunk, got {}", ChunkType::SHED, first_chunk.ty),
                 ));
             } else {
                 SolidHeader::try_from(first_chunk.data())?
@@ -610,11 +606,7 @@ where
             if first_chunk.ty != ChunkType::FHED {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
-                    format!(
-                        "Expected {} chunk, but {} chunk was found",
-                        ChunkType::FHED,
-                        first_chunk.ty
-                    ),
+                    format!("expected {} chunk, got {}", ChunkType::FHED, first_chunk.ty),
                 ));
             }
             EntryHeader::try_from(first_chunk.data())?
@@ -628,7 +620,7 @@ where
             return Err(io::Error::new(
                 io::ErrorKind::Unsupported,
                 format!(
-                    "entry version {}.{} is not supported.",
+                    "entry version {}.{} is not supported",
                     header.major, header.minor
                 ),
             ));

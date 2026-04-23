@@ -89,7 +89,7 @@ where
                     }
                     return Err(io::Error::new(
                         io::ErrorKind::UnexpectedEof,
-                        format!("Expected block size {block_size} but {filled}"),
+                        format!("expected block of {block_size} bytes, got {filled}"),
                     ));
                 }
                 filled += read_len;
