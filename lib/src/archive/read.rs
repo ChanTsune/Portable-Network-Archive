@@ -151,8 +151,9 @@ impl<R: Read> Archive<R> {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!(
-                    "next archive number must be +1 (current: {}, detected: {})",
-                    current_header.archive_number, next.header.archive_number
+                    "next archive number must be {} (expected previous + 1, detected: {})",
+                    current_header.archive_number + 1,
+                    next.header.archive_number
                 ),
             ));
         }
