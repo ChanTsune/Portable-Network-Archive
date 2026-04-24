@@ -9,8 +9,8 @@ use crate::{
         append::AppendCommand, bugreport::BugReportCommand, compat::CompatCommand,
         complete::CompleteCommand, concat::ConcatCommand, core::Umask, create::CreateCommand,
         delete::DeleteCommand, experimental::ExperimentalCommand, extract::ExtractCommand,
-        list::ListCommand, sort::SortCommand, split::SplitCommand, strip::StripCommand,
-        xattr::XattrCommand,
+        list::ListCommand, migrate::MigrateCommand, sort::SortCommand, split::SplitCommand,
+        strip::StripCommand, xattr::XattrCommand,
     },
     utils::{fs::current_umask, process::is_running_as_root},
 };
@@ -195,6 +195,8 @@ pub(crate) enum Commands {
     Strip(StripCommand),
     #[command(about = "Sort entries in archive")]
     Sort(SortCommand),
+    #[command(about = "Upgrade archives created by older PNA versions")]
+    Migrate(MigrateCommand),
     #[command(about = "Manipulate extended attributes")]
     Xattr(XattrCommand),
     #[command(about = "Generate shell auto complete")]

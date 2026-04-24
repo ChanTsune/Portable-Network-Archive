@@ -39,7 +39,17 @@ impl Command for ExperimentalCommand {
             ExperimentalCommands::Chown(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Chmod(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Acl(cmd) => cmd.execute(ctx),
-            ExperimentalCommands::Migrate(cmd) => cmd.execute(ctx),
+            ExperimentalCommands::Migrate(cmd) => {
+                log::warn!(
+                    "`{0} experimental migrate` subcommand was stabilized, use `{0} migrate` instead. this command will be removed in the future.",
+                    std::env::current_exe()
+                        .ok()
+                        .and_then(|it| it.file_name().map(|n| n.to_os_string()))
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                );
+                cmd.execute(ctx)
+            }
             ExperimentalCommands::Chunk(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Sort(cmd) => {
                 log::warn!(
@@ -75,7 +85,9 @@ pub(crate) enum ExperimentalCommands {
     Chmod(command::chmod::ChmodCommand),
     #[command(about = "Manipulate ACLs of entries")]
     Acl(command::acl::AclCommand),
-    #[command(about = "Migrate old format to latest format")]
+    #[command(
+        about = "Upgrade archives created by older PNA versions (stabilized, use `pna migrate` command instead. this command will be removed in the future)"
+    )]
     Migrate(command::migrate::MigrateCommand),
     #[command(about = "Chunk level operation")]
     Chunk(command::chunk::ChunkCommand),
