@@ -110,6 +110,20 @@ jobs:
           disable-cache: true
           usesh: true
           prepare: |
+            # Workaround vmactions/freebsd-vm pkg signature config issue
+            # ("truncated reply for signature_fingerprints"); pull packages
+            # over HTTPS without fingerprint verification. See
+            # https://github.com/vmactions/freebsd-vm/issues/141 for the
+            # related geo-mirror flakiness pattern.
+            mkdir -p /usr/local/etc/pkg/repos
+            cat > /usr/local/etc/pkg/repos/FreeBSD.conf <<'EOF'
+            FreeBSD: {
+              url: "pkg+https://pkg.FreeBSD.org/${ABI}/quarterly",
+              mirror_type: "srv",
+              signature_type: "none",
+              enabled: yes
+            }
+            EOF
             pkg install -y curl cmake
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           run: |
