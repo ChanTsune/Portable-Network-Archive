@@ -534,7 +534,11 @@ where
             if first_chunk.ty != ChunkType::SHED {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
-                    format!("expected {} chunk, got {}", ChunkType::SHED, first_chunk.ty),
+                    format!(
+                        "expected `{}` chunk, got `{}`",
+                        ChunkType::SHED,
+                        first_chunk.ty
+                    ),
                 ));
             } else {
                 SolidHeader::try_from(first_chunk.data())?
@@ -542,7 +546,7 @@ where
         } else {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("{} chunk not found", ChunkType::SHED),
+                format!("`{}` chunk not found", ChunkType::SHED),
             ));
         };
         let mut extra = vec![];
@@ -562,7 +566,7 @@ where
                     if chunk.ty().is_critical() {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidData,
-                            format!("unknown critical chunk type: {}", chunk.ty()),
+                            format!("unknown critical chunk type: `{}`", chunk.ty()),
                         ));
                     }
                     extra.push(chunk);
@@ -606,14 +610,18 @@ where
             if first_chunk.ty != ChunkType::FHED {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
-                    format!("expected {} chunk, got {}", ChunkType::FHED, first_chunk.ty),
+                    format!(
+                        "expected `{}` chunk, got `{}`",
+                        ChunkType::FHED,
+                        first_chunk.ty
+                    ),
                 ));
             }
             EntryHeader::try_from(first_chunk.data())?
         } else {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("{} chunk not found", ChunkType::FHED),
+                format!("`{}` chunk not found", ChunkType::FHED),
             ));
         };
         if header.major != 0 || header.minor != 0 {
@@ -666,7 +674,7 @@ where
                     if chunk.ty.is_critical() {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidData,
-                            format!("unknown critical chunk type: {}", chunk.ty),
+                            format!("unknown critical chunk type: `{}`", chunk.ty),
                         ));
                     }
                     extra.push(chunk);
