@@ -131,10 +131,21 @@ jobs:
             . "$HOME/.cargo/env"
             export LC_ALL=C LANG=C
             uname -a
+            # vmactions/freebsd-vm root is ZFS+nfsv4acls; POSIX.1e ACL tests
+            # need a UFS+acls filesystem. Create a vnode-backed UFS image and
+            # point CARGO_TARGET_DIR there so integration test cwd
+            # (CARGO_TARGET_TMPDIR = $CARGO_TARGET_DIR/tmp) lives on UFS.
+            truncate -s 4g /tmp/ufs.img
+            mdconfig -a -t vnode -f /tmp/ufs.img -u 9
+            newfs /dev/md9
+            mkdir -p /mnt/ufs
+            mount -o acls /dev/md9 /mnt/ufs
+            export CARGO_TARGET_DIR=/mnt/ufs/target
+            mkdir -p "$CARGO_TARGET_DIR"
             chown -R $(whoami):$(id -gn) ./
             chmod -R a+rw ./
             cargo install -f cargo-hack --locked
-            cargo hack test --locked --release --feature-powerset --exclude-features wasm,acl
+            cargo hack test --locked --release --feature-powerset --exclude-features wasm
 
   OpenBSD-test:
     runs-on: ubuntu-latest
