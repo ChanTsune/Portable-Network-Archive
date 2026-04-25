@@ -691,6 +691,9 @@ fn run_bsdtar(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Result<()> {
             "Option '--block-size {block_size}' is accepted for compatibility but will be ignored."
         );
     }
+    if args.to_stdout && (args.create || args.append || args.update) {
+        anyhow::bail!("-O / --to-stdout is only valid in extract (-x) or list (-t) modes");
+    }
     if args.create {
         run_create_archive(args)
     } else if args.extract {
