@@ -1,0 +1,55 @@
+//! AES-256-GCM AEAD cipher.
+//!
+//! **Status: prototype skeleton (2026-04-24).**
+//!
+//! This module wraps the RustCrypto `aes-gcm` crate (NCC Group audited 2020,
+//! https://github.com/RustCrypto/AEADs/issues/87) to expose AES-256-GCM with
+//! the PNA-specific nonce derivation and AAD construction defined in
+//! [`super::AeadContext`].
+//!
+//! # Implementation TODO
+//!
+//! 1. Add `aes-gcm = "0.10"` to `lib/Cargo.toml`.
+//! 2. Implement `encrypt_chunk` / `decrypt_chunk` using `aes_gcm::Aes256Gcm`.
+//! 3. Plumb `AeadContext::build_nonce` and `AeadContext::build_aad`.
+//! 4. Add NIST CAVP test vectors in `lib/tests/aead/aes_gcm_nist_cavp.rs`.
+//! 5. Add OpenSSL CLI cross-validation in `lib/tests/aead/aes_gcm_openssl_compat.rs`.
+//!
+//! # References
+//!
+//! - NIST SP 800-38D (GCM normative spec)
+//! - RustCrypto aes-gcm crate: https://docs.rs/aes-gcm
+
+#![allow(dead_code)] // skeleton
+
+use super::{AeadContext, AuthFailure};
+
+/// Encrypt a single chunk under AES-256-GCM.
+///
+/// Returns ciphertext (same length as plaintext) appended with the 16-byte tag.
+///
+/// **Not yet implemented.** Will use `aes_gcm::Aes256Gcm::new(...).encrypt(nonce, payload)`
+/// where `payload.aad = ctx.build_aad(chunk_index, is_final)`.
+pub(crate) fn encrypt_chunk(
+    _ctx: &AeadContext,
+    _chunk_index: u32,
+    _is_final: bool,
+    _plaintext: &[u8],
+) -> Vec<u8> {
+    unimplemented!("AES-256-GCM encryption not yet implemented; see README.md for activation steps")
+}
+
+/// Decrypt and verify a single chunk under AES-256-GCM.
+///
+/// `chunk_data` is `(ciphertext || 16-byte tag)` per spec §7.5.1.
+/// Returns plaintext only if tag verification succeeds.
+///
+/// **Not yet implemented.**
+pub(crate) fn decrypt_chunk(
+    _ctx: &AeadContext,
+    _chunk_index: u32,
+    _is_final: bool,
+    _chunk_data: &[u8],
+) -> Result<Vec<u8>, AuthFailure> {
+    unimplemented!("AES-256-GCM decryption not yet implemented; see README.md for activation steps")
+}
