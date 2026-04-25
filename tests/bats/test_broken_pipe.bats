@@ -5,7 +5,7 @@
 # The implementation catches io::ErrorKind::BrokenPipe in main() so the same
 # behavior is obtained on platforms without SIGPIPE (e.g., Windows).
 
-load '../test_helper.bash'
+load 'test_helper.bash'
 
 EXECUTABLE="pna --log-level error compat bsdtar --unstable --keep-dir --overwrite"
 
