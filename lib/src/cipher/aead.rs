@@ -1,6 +1,6 @@
 //! Authenticated Encryption with Associated Data (AEAD) for PNA.
 //!
-//! **Status: prototype skeleton (2026-04-25, updated post-spec-finalization).**
+//! **Status: prototype skeleton (2026-04-26, post minimal-redesign).**
 //! This module is not yet wired into the build. See
 //! `lib/src/cipher/aead/README.md` for activation instructions.
 //!
@@ -8,16 +8,12 @@
 //! draft `spec/aead-gcm-introduction`:
 //!
 //! - [§7.4 GCM] — algorithm, parameters, AAD, nonce, key/nonce uniqueness
-//! - [§7.5] — FDAT/SDAT layout under AEAD (`ciphertext || 16-byte tag`)
-//! - [§8.3 HKDF] — per-entry subkey derivation
-//! - [§4.1.x AENC] — per-archive encryption context chunk
-//! - [§4.1.x FENC] — per-entry encryption context chunk
+//! - [§7.5] — FDAT/SDAT layout under AEAD (`12B random nonce || ciphertext || 16B tag`)
+//! - [§4.1.5 PHSF] — password-hash output is used directly as the per-entry GCM key
 //!
 //! [§7.4 GCM]: https://github.com/Portable-Network-Archive/Portable-Network-Archive-Specification/blob/spec/aead-gcm-introduction/cipher_modes/index.md
 //! [§7.5]: https://github.com/Portable-Network-Archive/Portable-Network-Archive-Specification/blob/spec/aead-gcm-introduction/cipher_modes/index.md
-//! [§8.3 HKDF]: https://github.com/Portable-Network-Archive/Portable-Network-Archive-Specification/blob/spec/aead-gcm-introduction/key_derivation_algorithms/index.md
-//! [§4.1.x AENC]: https://github.com/Portable-Network-Archive/Portable-Network-Archive-Specification/blob/spec/aead-gcm-introduction/chunk_specifications/index.md
-//! [§4.1.x FENC]: https://github.com/Portable-Network-Archive/Portable-Network-Archive-Specification/blob/spec/aead-gcm-introduction/chunk_specifications/index.md
+//! [§4.1.5 PHSF]: https://github.com/Portable-Network-Archive/Portable-Network-Archive-Specification/blob/spec/aead-gcm-introduction/chunk_specifications/index.md
 //!
 //! # Threat model
 //!
@@ -26,10 +22,18 @@
 //!
 //! # Implementation strategy
 //!
-//! Per design decision 2026-04-25:
+//! Per design decision 2026-04-26 (minimal redesign):
 //! - AES-256-GCM via `aes-gcm` crate (`Aes256Gcm`).
 //! - Camellia-256-GCM via `aes_gcm::AesGcm<Camellia256, U12>` (3-line composition,
 //!   leveraging the generic GCM machinery; the crate name is a misnomer).
+//! - Per-entry GCM key = PHSF output (Argon2id or PBKDF2, 32 bytes), used directly.
+//! - Per-chunk 12-byte nonce generated via CSPRNG; stored inline as the first
+//!   12 bytes of each FDAT/SDAT chunk's data field.
+//! - AAD = 11 bytes: encryption_byte || mode_byte || entry_index_be ||
+//!   chunk_index_be || final_flag.
+//! - **No** new chunk types are introduced. **No** additional key derivation
+//!   step is applied beyond the entry's PHSF chunk. **No** archive-level
+//!   AEAD context state is maintained.
 
 #![allow(dead_code)] // skeleton, not yet wired in
 
@@ -38,135 +42,80 @@ mod camellia_gcm;
 mod read;
 mod write;
 
-/// AAD construction magic constant (11 bytes, no NUL).
+/// Total AAD length per chunk.
 ///
-/// See spec §7.4.2. Fixed for the AEAD framework_version=1; future framework
-/// versions MUST use a different magic.
-pub(crate) const AEAD_AAD_MAGIC: &[u8; 11] = b"PNA-AEAD-v1";
+/// See spec §7.4.2. Layout (11 bytes):
+/// `encryption_byte (1) || mode_byte (1) || entry_index_be (4) || chunk_index_be (4) || final_flag (1)`.
+pub(crate) const AEAD_AAD_LEN: usize = 11;
 
-/// Total AAD length per chunk for framework_version = 1.
+/// Per-chunk nonce length in bytes.
 ///
-/// Layout: 11 (magic) + 1 (encryption_byte) + 1 (mode_byte) + 16 (archive_id)
-/// + 16 (entry_random) + 4 (entry_index) + 4 (chunk_index) + 1 (final_flag)
-/// + 32 (metadata_hash) = **86 bytes**.
-pub(crate) const AEAD_AAD_LEN: usize = 86;
+/// Required by spec §7.4.1 (96-bit nonces only) and NIST SP 800-38D §5.2.1.1.
+pub(crate) const AEAD_NONCE_LEN: usize = 12;
 
-/// AEAD framework version supported by this implementation.
+/// GCM authentication tag length in bytes.
 ///
-/// Matches the `framework_version` field of the `AENC` chunk (spec §4.1.x).
-pub(crate) const AEAD_FRAMEWORK_VERSION: u8 = 1;
-
-/// Per-archive encryption context (carried in `AENC` chunk).
-///
-/// See spec §4.1.x AENC. For framework_version=1 + cipher_mode_id=2 (GCM),
-/// the payload is exactly 16 bytes of CSPRNG-generated `archive_identifier`.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct ArchiveContext {
-    /// FHED `Cipher mode` value this AENC chunk applies to (e.g., 2 for GCM).
-    pub cipher_mode_id: u8,
-    /// AEAD framework version (currently always [`AEAD_FRAMEWORK_VERSION`]).
-    pub framework_version: u8,
-    /// 16-byte archive-unique random identifier from CSPRNG.
-    pub archive_identifier: [u8; 16],
-}
-
-/// Per-entry encryption context (carried in `FENC` chunk).
-///
-/// See spec §4.1.x FENC. For an entry with `Cipher mode = 2` (GCM) under
-/// framework_version=1, the payload is exactly 16 bytes of CSPRNG-generated
-/// `entry_random`.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct EntryContext {
-    /// 16-byte per-entry random from CSPRNG. Used as additional HKDF salt
-    /// input for defense-in-depth.
-    pub entry_random: [u8; 16],
-}
+/// Required by spec §7.4.1 (full 128-bit tags only; truncated tags forbidden).
+pub(crate) const AEAD_TAG_LEN: usize = 16;
 
 /// Per-entry AEAD execution context.
 ///
 /// Holds derived state needed for encrypting/decrypting a single entry's chunks.
-/// Constructed once per entry (after HKDF key derivation); reused for every
+/// Constructed once per entry from the entry's PHSF chunk; reused for every
 /// FDAT/SDAT chunk of that entry.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct AeadContext {
-    /// Per-entry derived key (32 bytes from HKDF-SHA-256). See spec §8.3.
+    /// Per-entry GCM key (32 bytes).
+    ///
+    /// Equal to the entry's PHSF password-hash output (Argon2id or PBKDF2 output).
+    /// No further key derivation is applied. See spec §4.1.5 (PHSF AEAD note).
     pub key: [u8; 32],
-    /// Copy of archive context for AAD construction.
-    pub archive: ArchiveContext,
-    /// Copy of entry context for AAD construction.
-    pub entry: EntryContext,
     /// FHED `Encryption method` byte (1 = AES, 2 = Camellia).
     pub encryption_byte: u8,
-    /// FHED `Cipher mode` byte (= 2 for GCM in framework_version=1).
+    /// FHED `Cipher mode` byte (= 2 for GCM in PNA Minor 1).
     pub mode_byte: u8,
     /// 0-indexed position of this entry within the archive.
+    ///
+    /// Authenticated via AAD; defends against intra-archive entry reorder
+    /// and cross-entry chunk swap attacks.
     pub entry_index: u32,
-    /// SHA-256 hash of FHED + ancillary metadata chunks. See spec §7.4.2.
-    pub metadata_hash: [u8; 32],
 }
 
 impl AeadContext {
-    /// Construct the 96-bit nonce for a given chunk index.
+    /// Construct the 11-byte AAD for a given chunk.
     ///
-    /// Per spec §7.4.3:
+    /// Per spec §7.4.2:
     /// ```text
-    /// nonce[0..8]   = archive.archive_identifier[0..8]
-    /// nonce[8..12]  = chunk_index (u32 BE)
+    /// AAD[0]      = encryption_byte
+    /// AAD[1]      = mode_byte
+    /// AAD[2..6]   = entry_index (u32 BE)
+    /// AAD[6..10]  = chunk_index (u32 BE)
+    /// AAD[10]     = if is_final { 0x01 } else { 0x00 }
     /// ```
-    #[inline]
-    pub(crate) fn build_nonce(&self, chunk_index: u32) -> [u8; 12] {
-        let mut nonce = [0u8; 12];
-        nonce[..8].copy_from_slice(&self.archive.archive_identifier[..8]);
-        nonce[8..12].copy_from_slice(&chunk_index.to_be_bytes());
-        nonce
-    }
-
-    /// Construct the 86-byte AAD for a given chunk.
-    ///
-    /// Per spec §7.4.2 (framework_version=1).
     pub(crate) fn build_aad(&self, chunk_index: u32, is_final: bool) -> [u8; AEAD_AAD_LEN] {
         let mut aad = [0u8; AEAD_AAD_LEN];
-        let mut off = 0;
-
-        // 11 bytes: magic
-        aad[off..off + 11].copy_from_slice(AEAD_AAD_MAGIC);
-        off += 11;
-
-        // 1 byte: encryption_byte
-        aad[off] = self.encryption_byte;
-        off += 1;
-
-        // 1 byte: mode_byte
-        aad[off] = self.mode_byte;
-        off += 1;
-
-        // 16 bytes: archive_identifier
-        aad[off..off + 16].copy_from_slice(&self.archive.archive_identifier);
-        off += 16;
-
-        // 16 bytes: entry_random
-        aad[off..off + 16].copy_from_slice(&self.entry.entry_random);
-        off += 16;
-
-        // 4 bytes: entry_index (u32 BE)
-        aad[off..off + 4].copy_from_slice(&self.entry_index.to_be_bytes());
-        off += 4;
-
-        // 4 bytes: chunk_index (u32 BE)
-        aad[off..off + 4].copy_from_slice(&chunk_index.to_be_bytes());
-        off += 4;
-
-        // 1 byte: is_final_chunk
-        aad[off] = if is_final { 0x01 } else { 0x00 };
-        off += 1;
-
-        // 32 bytes: metadata_hash
-        aad[off..off + 32].copy_from_slice(&self.metadata_hash);
-        off += 32;
-
-        debug_assert_eq!(off, AEAD_AAD_LEN);
+        aad[0] = self.encryption_byte;
+        aad[1] = self.mode_byte;
+        aad[2..6].copy_from_slice(&self.entry_index.to_be_bytes());
+        aad[6..10].copy_from_slice(&chunk_index.to_be_bytes());
+        aad[10] = if is_final { 0x01 } else { 0x00 };
         aad
     }
+}
+
+/// Generate a fresh 12-byte nonce from a cryptographically secure RNG.
+///
+/// Per spec §7.4.3 / §7.4.5: GCM nonces in PNA are random (NIST SP 800-38D
+/// §8.2.2 RBG-based construction), one fresh nonce per chunk.
+///
+/// Encoders MUST surface CSPRNG failure and abort archive creation rather than
+/// silently producing weak random values (spec §7.4.5).
+pub(crate) fn generate_nonce<R: rand_core::RngCore + rand_core::CryptoRng>(
+    rng: &mut R,
+) -> [u8; AEAD_NONCE_LEN] {
+    let mut nonce = [0u8; AEAD_NONCE_LEN];
+    rng.fill_bytes(&mut nonce);
+    nonce
 }
 
 /// AEAD authentication failure error.
@@ -190,87 +139,101 @@ mod tests {
     fn dummy_context() -> AeadContext {
         AeadContext {
             key: [0u8; 32],
-            archive: ArchiveContext {
-                cipher_mode_id: 2,
-                framework_version: 1,
-                archive_identifier: [
-                    0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xA8,
-                    0xB1, 0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0xB7, 0xB8,
-                ],
-            },
-            entry: EntryContext {
-                entry_random: [
-                    0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7, 0xC8,
-                    0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 0xD8,
-                ],
-            },
             encryption_byte: 1, // AES
             mode_byte: 2,       // GCM
             entry_index: 0x0102_0304,
-            metadata_hash: [0xEE; 32],
         }
     }
 
     #[test]
-    fn build_nonce_layout_per_spec_7_4_3() {
-        let ctx = dummy_context();
-        let nonce = ctx.build_nonce(0x0506_0708);
-        // First 8 bytes are archive_identifier[0..8]
-        assert_eq!(&nonce[..8], &[0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xA8]);
-        // Last 4 bytes are chunk_index BE
-        assert_eq!(&nonce[8..12], &[0x05, 0x06, 0x07, 0x08]);
-    }
-
-    #[test]
-    fn build_aad_length_86_bytes_per_spec_7_4_2() {
+    fn build_aad_length_11_bytes_per_spec_7_4_2() {
         let ctx = dummy_context();
         let aad = ctx.build_aad(0, false);
         assert_eq!(aad.len(), AEAD_AAD_LEN);
-        assert_eq!(aad.len(), 86);
-    }
-
-    #[test]
-    fn build_aad_starts_with_magic() {
-        let ctx = dummy_context();
-        let aad = ctx.build_aad(0, false);
-        assert_eq!(&aad[..11], AEAD_AAD_MAGIC);
-        assert_eq!(&aad[..11], b"PNA-AEAD-v1");
-    }
-
-    #[test]
-    fn build_aad_final_chunk_flag() {
-        let ctx = dummy_context();
-        let aad_nonfinal = ctx.build_aad(5, false);
-        let aad_final = ctx.build_aad(5, true);
-        // The final flag byte is at offset 11+1+1+16+16+4+4 = 53
-        assert_eq!(aad_nonfinal[53], 0x00);
-        assert_eq!(aad_final[53], 0x01);
-        // All other bytes identical
-        assert_eq!(&aad_nonfinal[..53], &aad_final[..53]);
-        assert_eq!(&aad_nonfinal[54..], &aad_final[54..]);
+        assert_eq!(aad.len(), 11);
     }
 
     #[test]
     fn build_aad_field_layout_offsets() {
         let ctx = dummy_context();
         let aad = ctx.build_aad(0x0506_0708, false);
-        // Offset table per spec §7.4.2:
-        //   0..11:  magic
-        //   11:     encryption_byte (= 1)
-        //   12:     mode_byte (= 2)
-        //   13..29: archive_identifier (16 bytes)
-        //   29..45: entry_random (16 bytes)
-        //   45..49: entry_index (= 0x0102_0304)
-        //   49..53: chunk_index (= 0x0506_0708)
-        //   53:     is_final_chunk
-        //   54..86: metadata_hash
-        assert_eq!(aad[11], 1); // AES
-        assert_eq!(aad[12], 2); // GCM
-        assert_eq!(&aad[13..29], &ctx.archive.archive_identifier);
-        assert_eq!(&aad[29..45], &ctx.entry.entry_random);
-        assert_eq!(&aad[45..49], &[0x01, 0x02, 0x03, 0x04]);
-        assert_eq!(&aad[49..53], &[0x05, 0x06, 0x07, 0x08]);
-        assert_eq!(aad[53], 0x00); // not final
-        assert_eq!(&aad[54..86], &[0xEE; 32]);
+        // Offset table per spec §7.4.2 (11 bytes total):
+        //   0:      encryption_byte (= 1, AES)
+        //   1:      mode_byte (= 2, GCM)
+        //   2..6:   entry_index (= 0x0102_0304)
+        //   6..10:  chunk_index (= 0x0506_0708)
+        //   10:     final flag (0x00 here)
+        assert_eq!(aad[0], 1);
+        assert_eq!(aad[1], 2);
+        assert_eq!(&aad[2..6], &[0x01, 0x02, 0x03, 0x04]);
+        assert_eq!(&aad[6..10], &[0x05, 0x06, 0x07, 0x08]);
+        assert_eq!(aad[10], 0x00);
+    }
+
+    #[test]
+    fn build_aad_final_chunk_flag_distinguishes_last_chunk() {
+        let ctx = dummy_context();
+        let aad_nonfinal = ctx.build_aad(5, false);
+        let aad_final = ctx.build_aad(5, true);
+        assert_eq!(aad_nonfinal[10], 0x00);
+        assert_eq!(aad_final[10], 0x01);
+        // All other bytes identical
+        assert_eq!(&aad_nonfinal[..10], &aad_final[..10]);
+    }
+
+    #[test]
+    fn build_aad_entry_index_distinguishes_entries() {
+        // Defense against cross-entry chunk swap: same chunk_index in two
+        // different entries must produce DIFFERENT AAD.
+        let ctx_entry_0 = AeadContext {
+            entry_index: 0,
+            ..dummy_context()
+        };
+        let ctx_entry_1 = AeadContext {
+            entry_index: 1,
+            ..dummy_context()
+        };
+        let aad_0 = ctx_entry_0.build_aad(5, false);
+        let aad_1 = ctx_entry_1.build_aad(5, false);
+        assert_ne!(aad_0, aad_1);
+        // Diff is in entry_index field (offset 2..6)
+        assert_eq!(&aad_0[..2], &aad_1[..2]);
+        assert_ne!(&aad_0[2..6], &aad_1[2..6]);
+        assert_eq!(&aad_0[6..], &aad_1[6..]);
+    }
+
+    #[test]
+    fn generate_nonce_returns_12_bytes() {
+        // Use a deterministic test RNG to make the assertion reproducible.
+        struct TestRng(u8);
+        impl rand_core::RngCore for TestRng {
+            fn next_u32(&mut self) -> u32 {
+                unimplemented!()
+            }
+            fn next_u64(&mut self) -> u64 {
+                unimplemented!()
+            }
+            fn fill_bytes(&mut self, dest: &mut [u8]) {
+                for b in dest {
+                    *b = self.0;
+                    self.0 = self.0.wrapping_add(1);
+                }
+            }
+            fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
+                self.fill_bytes(dest);
+                Ok(())
+            }
+        }
+        impl rand_core::CryptoRng for TestRng {}
+
+        let mut rng = TestRng(0xA0);
+        let nonce = generate_nonce(&mut rng);
+        assert_eq!(nonce.len(), AEAD_NONCE_LEN);
+        assert_eq!(
+            nonce,
+            [
+                0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xA8, 0xA9, 0xAA, 0xAB
+            ]
+        );
     }
 }

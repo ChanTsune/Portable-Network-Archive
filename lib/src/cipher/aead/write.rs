@@ -4,8 +4,8 @@
 //!
 //! Per spec §7.5.3, encoders MUST chunk plaintext into uniform-size segments
 //! (recommended 64 KiB) and emit each as one FDAT/SDAT chunk whose data is
-//! `(ciphertext || 16-byte tag)`. The final chunk preceding FEND/SEND MUST
-//! be marked with the AAD `is_final_chunk` flag = `0x01`.
+//! `(12-byte CSPRNG nonce || ciphertext || 16-byte tag)`. The final chunk
+//! preceding FEND/SEND MUST be marked with the AAD Final-chunk flag = `0x01`.
 
 #![allow(dead_code)] // skeleton
 
@@ -47,7 +47,7 @@ impl<W: Write> AeadWriter<W> {
         unimplemented!("AeadWriter not yet implemented; see README.md")
     }
 
-    /// Finalize the writer, emitting the last chunk with `is_final_chunk = 0x01`.
+    /// Finalize the writer, emitting the last chunk with the AAD Final-chunk flag = `0x01`.
     ///
     /// MUST be called before dropping. Failure to call `finish` is a bug:
     /// the last chunk will not have the final flag set, causing decoders
@@ -64,9 +64,9 @@ impl<W: Write> Write for AeadWriter<W> {
         //   2. While _chunk_buffer.len() >= _chunk_size:
         //      a. Take first _chunk_size bytes as plaintext.
         //      b. Compute AAD: _ctx.build_aad(_chunk_index, false).
-        //      c. Compute nonce: _ctx.build_nonce(_chunk_index).
+        //      c. Generate fresh nonce: super::generate_nonce(&mut rng) (CSPRNG, 12B).
         //      d. Encrypt under chosen algorithm; get (ciphertext, tag).
-        //      e. Emit one chunk to _inner: data = (ciphertext || tag).
+        //      e. Emit one chunk to _inner: data = (nonce || ciphertext || tag).
         //      f. _chunk_index += 1.
         //   3. Return _buf.len() as bytes written.
         unimplemented!()

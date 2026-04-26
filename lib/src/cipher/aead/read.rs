@@ -48,12 +48,15 @@ impl<R: Read> Read for AeadReader<R> {
     fn read(&mut self, _buf: &mut [u8]) -> io::Result<usize> {
         // TODO: per spec §12.3.2/12.3.3:
         //   1. Read next chunk header (length, type, ...) from inner.
-        //   2. Read full chunk data (ciphertext || 16-byte tag).
-        //   3. Compute AAD: ctx.build_aad(chunk_index, is_final_assumption).
-        //   4. Verify tag using `aes_gcm::Aes256Gcm` or `camellia_gcm::CamelliaGcm256`.
-        //   5. If verification fails, return InvalidData; do NOT release plaintext.
-        //   6. If success, append decrypted plaintext to pending buffer; serve from buffer.
-        //   7. On reaching FEND/SEND without seeing is_final_chunk = 0x01 set, return InvalidData (truncation).
+        //   2. Read full chunk data (12-byte nonce || ciphertext || 16-byte tag).
+        //      Reject any chunk whose data length is < 28 bytes (12 + 0 + 16).
+        //   3. Extract first 12 bytes as nonce; last 16 bytes as tag; middle as ciphertext.
+        //   4. Compute AAD: ctx.build_aad(chunk_index, is_final_assumption).
+        //   5. Verify tag using `aes_gcm::Aes256Gcm` or `camellia_gcm::CamelliaGcm256`.
+        //   6. If verification fails, return InvalidData; do NOT release plaintext (RUP).
+        //   7. If success, append decrypted plaintext to pending buffer; serve from buffer.
+        //   8. On reaching FEND/SEND without seeing Final-chunk flag = 0x01 authenticated,
+        //      return InvalidData (truncation).
         unimplemented!()
     }
 }
