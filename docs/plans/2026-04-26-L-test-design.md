@@ -84,7 +84,7 @@ Stage 4: bats 補完 (oracle 外)
 | L3 | `L_symlink_to_dir_dereferenced` | on | symlink → dir (中身あり) | 両者: archive 内 dir + 子 entry、extract 後 dir + contents |
 | L4 | `L_dangling_symlink_with_L` | on | symlink → non-existent | **bsdtar 実機実測結果 (macOS, libarchive 3.5.3)**: symlink として保持、exit 0、stderr 空。PNA の `core.rs:780-787` (`StoreAs::Symlink` 保持) と完全 parity 想定 |
 | L5 | `L_symlink_chain_2` | on | a → b → file | 両者: archive 内 final target ファイル、extract 後 file |
-| L6 | `L_symlink_explicit_in_cmdline` | on | command-line で symlink 直接指定 | 両者: archive 内 dereferenced |
+| L6 | `L_symlink_explicit_in_cmdline` | on | command-line で symlink 直接指定 | **Stage 3 では実装しない** (xtask は `-cf -C src .` 固定、cmdline-explicit path 軸を framework に持たない)。Stage 4 bats supplement で扱う |
 | L7 | `L_symlink_in_traversed_dir` | on | `-C dir .` で symlink を traverse | 両者: 同様 dereferenced |
 | L8 | `L_dereference_with_strip_components` | on + `--strip-components 1` | symlink → file with prefix path | strip 適用後の名前で archive |
 | L9 | `L_dereference_with_exclude` | on + `--exclude '*.bak'` | symlink → file (除外対象 / 非対象) | exclude 適用後 dereferenced |
