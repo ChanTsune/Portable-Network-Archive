@@ -51,6 +51,10 @@ enum ArchiveEntryType {
     File,
     Directory,
     Symlink,
+    SymlinkToDir,
+    SymlinkChainShallow,
+    SymlinkChainDeep,
+    SymlinkDangling,
     HardLink,
     NestedPath,
 }
@@ -60,6 +64,10 @@ impl ArchiveEntryType {
         Self::File,
         Self::Directory,
         Self::Symlink,
+        Self::SymlinkToDir,
+        Self::SymlinkChainShallow,
+        Self::SymlinkChainDeep,
+        Self::SymlinkDangling,
         Self::HardLink,
         Self::NestedPath,
     ];
@@ -69,6 +77,10 @@ impl ArchiveEntryType {
             Self::File => "File",
             Self::Directory => "Dir",
             Self::Symlink => "Sym",
+            Self::SymlinkToDir => "SymDir",
+            Self::SymlinkChainShallow => "SymChain2",
+            Self::SymlinkChainDeep => "SymChain4",
+            Self::SymlinkDangling => "SymDangling",
             Self::HardLink => "HLink",
             Self::NestedPath => "Nested",
         }
@@ -159,6 +171,32 @@ struct ExtractOptions {
 }
 
 // ---------------------------------------------------------------------------
+// Axis: Create-time options (parallel to ExtractOptions)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Dereference {
+    WithoutDereference,
+    WithDereference,
+}
+
+impl Dereference {
+    const ALL: &[Self] = &[Self::WithoutDereference, Self::WithDereference];
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::WithoutDereference => "no_L",
+            Self::WithDereference => "L",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CreateOptions {
+    dereference: Dereference,
+}
+
+// ---------------------------------------------------------------------------
 // Sub-axis: mtime relationship (only for KeepNewerFiles + pre-existing)
 // ---------------------------------------------------------------------------
 
@@ -177,6 +215,7 @@ struct GeneratedScenario {
     name: String,
     pre_existing: PreExisting,
     entry_type: ArchiveEntryType,
+    create_options: CreateOptions,
     options: ExtractOptions,
     mtime_relation: MtimeRelation,
 }
@@ -184,11 +223,13 @@ struct GeneratedScenario {
 fn build_scenario_name(
     pre: PreExisting,
     entry: ArchiveEntryType,
+    create_opts: &CreateOptions,
     opts: &ExtractOptions,
     mtime: MtimeRelation,
 ) -> String {
     let mut name = format!(
-        "{}_over_{}_{}",
+        "{}_{}_over_{}_{}",
+        create_opts.dereference.label(),
         entry.label(),
         pre.label(),
         opts.overwrite_mode.label()
@@ -234,54 +275,63 @@ fn build_scenario_name(
 fn generate_scenarios() -> Vec<GeneratedScenario> {
     let mut scenarios = Vec::new();
 
-    for &pre in PreExisting::ALL {
-        for &entry in ArchiveEntryType::ALL {
-            for &ow_mode in OverwriteMode::ALL {
-                for unlink in [false, true] {
-                    for abs_paths in [false, true] {
-                        for safe_writes in [false, true] {
-                            for no_mtime in [false, true] {
-                                for perm in [false, true] {
-                                    for no_same_owner in [false, true] {
-                                        for strip_components in STRIP_COMPONENTS_OPTIONS {
-                                            for exclude in EXCLUDE_PATTERNS {
-                                                for substitution in SUBSTITUTIONS {
-                                                    let options = ExtractOptions {
-                                                        overwrite_mode: ow_mode,
-                                                        unlink_first: unlink,
-                                                        absolute_paths: abs_paths,
-                                                        safe_writes,
-                                                        no_preserve_mtime: no_mtime,
-                                                        preserve_permissions: perm,
-                                                        no_same_owner,
-                                                        strip_components: *strip_components,
-                                                        exclude: *exclude,
-                                                        substitution: *substitution,
-                                                    };
+    for &deref in Dereference::ALL {
+        for &pre in PreExisting::ALL {
+            for &entry in ArchiveEntryType::ALL {
+                for &ow_mode in OverwriteMode::ALL {
+                    for unlink in [false, true] {
+                        for abs_paths in [false, true] {
+                            for safe_writes in [false, true] {
+                                for no_mtime in [false, true] {
+                                    for perm in [false, true] {
+                                        for no_same_owner in [false, true] {
+                                            for strip_components in STRIP_COMPONENTS_OPTIONS {
+                                                for exclude in EXCLUDE_PATTERNS {
+                                                    for substitution in SUBSTITUTIONS {
+                                                        let create_options =
+                                                            CreateOptions { dereference: deref };
+                                                        let options = ExtractOptions {
+                                                            overwrite_mode: ow_mode,
+                                                            unlink_first: unlink,
+                                                            absolute_paths: abs_paths,
+                                                            safe_writes,
+                                                            no_preserve_mtime: no_mtime,
+                                                            preserve_permissions: perm,
+                                                            no_same_owner,
+                                                            strip_components: *strip_components,
+                                                            exclude: *exclude,
+                                                            substitution: *substitution,
+                                                        };
 
-                                                    let mtime_variants = if ow_mode
-                                                        == OverwriteMode::KeepNewerFiles
-                                                        && pre != PreExisting::None
-                                                    {
-                                                        &[
-                                                            MtimeRelation::ArchiveNewer,
-                                                            MtimeRelation::ArchiveOlder,
-                                                        ][..]
-                                                    } else {
-                                                        &[MtimeRelation::Irrelevant][..]
-                                                    };
+                                                        let mtime_variants = if ow_mode
+                                                            == OverwriteMode::KeepNewerFiles
+                                                            && pre != PreExisting::None
+                                                        {
+                                                            &[
+                                                                MtimeRelation::ArchiveNewer,
+                                                                MtimeRelation::ArchiveOlder,
+                                                            ][..]
+                                                        } else {
+                                                            &[MtimeRelation::Irrelevant][..]
+                                                        };
 
-                                                    for &mtime_rel in mtime_variants {
-                                                        let name = build_scenario_name(
-                                                            pre, entry, &options, mtime_rel,
-                                                        );
-                                                        scenarios.push(GeneratedScenario {
-                                                            name,
-                                                            pre_existing: pre,
-                                                            entry_type: entry,
-                                                            options,
-                                                            mtime_relation: mtime_rel,
-                                                        });
+                                                        for &mtime_rel in mtime_variants {
+                                                            let name = build_scenario_name(
+                                                                pre,
+                                                                entry,
+                                                                &create_options,
+                                                                &options,
+                                                                mtime_rel,
+                                                            );
+                                                            scenarios.push(GeneratedScenario {
+                                                                name,
+                                                                pre_existing: pre,
+                                                                entry_type: entry,
+                                                                create_options,
+                                                                options,
+                                                                mtime_relation: mtime_rel,
+                                                            });
+                                                        }
                                                     }
                                                 }
                                             }
@@ -418,6 +468,63 @@ fn make_source_files(entry_type: ArchiveEntryType, mtime: MtimeRelation) -> Vec<
                 target: "symlink_dest",
             },
         ],
+        ArchiveEntryType::SymlinkToDir => vec![
+            FileSpec::Dir {
+                path: "symlink_dest_dir",
+                mtime_epoch: None,
+            },
+            FileSpec::File {
+                path: "symlink_dest_dir/inside.txt",
+                contents: b"inside_target_dir",
+                mtime_epoch: None,
+            },
+            FileSpec::Symlink {
+                path: "target",
+                target: "symlink_dest_dir",
+            },
+        ],
+        ArchiveEntryType::SymlinkChainShallow => vec![
+            FileSpec::File {
+                path: "chain_final",
+                contents: b"chain_final_content",
+                mtime_epoch: None,
+            },
+            FileSpec::Symlink {
+                path: "chain_b",
+                target: "chain_final",
+            },
+            FileSpec::Symlink {
+                path: "target",
+                target: "chain_b",
+            },
+        ],
+        ArchiveEntryType::SymlinkChainDeep => vec![
+            FileSpec::File {
+                path: "chain_final",
+                contents: b"chain_deep_content",
+                mtime_epoch: None,
+            },
+            FileSpec::Symlink {
+                path: "chain_d",
+                target: "chain_final",
+            },
+            FileSpec::Symlink {
+                path: "chain_c",
+                target: "chain_d",
+            },
+            FileSpec::Symlink {
+                path: "chain_b",
+                target: "chain_c",
+            },
+            FileSpec::Symlink {
+                path: "target",
+                target: "chain_b",
+            },
+        ],
+        ArchiveEntryType::SymlinkDangling => vec![FileSpec::Symlink {
+            path: "target",
+            target: "nonexistent_target",
+        }],
         ArchiveEntryType::HardLink => vec![
             FileSpec::File {
                 path: "link_original",
@@ -502,6 +609,14 @@ fn make_pre_existing(pre: PreExisting, mtime: MtimeRelation) -> Vec<FileSpec> {
             },
         ],
     }
+}
+
+fn make_create_args(opts: &CreateOptions) -> Vec<&'static str> {
+    let mut args = Vec::new();
+    if opts.dereference == Dereference::WithDereference {
+        args.push("-L");
+    }
+    args
 }
 
 fn make_extract_args(opts: &ExtractOptions) -> Vec<&'static str> {
@@ -750,6 +865,7 @@ fn run_scenario(
 ) -> Result<ScenarioResult, Box<dyn std::error::Error>> {
     let source_files = make_source_files(scenario.entry_type, scenario.mtime_relation);
     let pre_existing = make_pre_existing(scenario.pre_existing, scenario.mtime_relation);
+    let create_args = make_create_args(&scenario.create_options);
     let extract_args = make_extract_args(&scenario.options);
 
     let work = tempfile::tempdir()?;
@@ -768,6 +884,7 @@ fn run_scenario(
     run_cmd(
         Command::new(bsdtar_bin)
             .args(["-cf", bsdtar_archive.to_str().unwrap()])
+            .args(&create_args)
             .arg("-C")
             .arg(&bsdtar_src)
             .arg("."),
@@ -797,6 +914,7 @@ fn run_scenario(
         Command::new(pna_bin)
             .args(["compat", "bsdtar", "--unstable"])
             .args(["-cf", pna_archive.to_str().unwrap()])
+            .args(&create_args)
             .arg("-C")
             .arg(&pna_src)
             .arg("."),
