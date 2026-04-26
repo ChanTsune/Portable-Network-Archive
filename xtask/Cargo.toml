@@ -22,6 +22,7 @@ liblzma = { version = "0.4", features = ["static"] }
 lz4_flex = "0.13"
 portable-network-archive = { path = "../cli", default-features = false }
 tar = "0.4"
+tempfile = "3.15.0"
 time = "0.3.47"
 zstd = "0.13"
 zip = "8.5.1"
