@@ -313,3 +313,12 @@ Stage 3 着手前に必ず実施:
 ### Action items (Stage 3 範疇外、別 stage / issue で対応)
 
 すべての fail axes を `docs/issues/2026-04-26-bsdtar-compat-post-rebase-fail-axis-tracker.md` の Stage 3 section に集計表で追記する (個別 axis 名の網羅は 14583 件で過大、entry-type ごとの集計に集約)。
+
+## Stage 3 Completion Record
+
+- **Date**: 2026-04-27 (UTC)
+- **Final HEAD**: `19e3e197` (framework + outcome record + L6 defer)
+- **CI run**: `24961344621` `bsdtar compatibility`
+- **Conclusion**: `success` (全 6 jobs success: ubuntu/macos/windows × verify/test 双方)
+- **xtask oracle**: 317952 scenarios / 302921 pass / 14583 fail / 448 errors (run on macOS local; CI does not invoke xtask oracle directly, only `bsdtar_test` integration)
+- **Status**: Stage 3 framework は確立、`-L` axis + 4 symlink-shape variants が Dereference dual-run で全 scenario combinations をカバー。out-of-scope scenarios (L6/L10/L12/L13) は Stage 4 bats supplement へ defer。fail axes (PNA / bsdtar 挙動差) は別 issue として tracker md に集計済 (option C)。
