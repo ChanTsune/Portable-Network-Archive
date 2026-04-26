@@ -38,6 +38,7 @@ fn combination_fs() {
             [
                 "--quiet",
                 "c",
+                "-f",
                 &format!("combination_fs/{joined_options}.pna"),
                 "--overwrite",
                 "combination_fs/in/",
@@ -52,6 +53,7 @@ fn combination_fs() {
         cmd.args([
             "--quiet",
             "x",
+            "-f",
             &format!("combination_fs/{joined_options}.pna"),
             "--overwrite",
             "--out-dir",

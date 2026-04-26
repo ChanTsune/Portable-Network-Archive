@@ -42,6 +42,7 @@ fn build_concatenated_then_split_archive(base: &Path) -> PathBuf {
     cmd.args([
         "--quiet",
         "split",
+        "-f",
         source_archive.to_str().unwrap(),
         "--overwrite",
         "--max-size",

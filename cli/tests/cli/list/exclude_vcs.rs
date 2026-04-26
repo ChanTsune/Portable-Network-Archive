@@ -50,6 +50,7 @@ fn list_with_exclude_vcs() {
     cmd.args([
         "--quiet",
         "c",
+        "-f",
         "list_with_exclude_vcs/list_with_exclude_vcs.pna",
         "--overwrite",
         "list_with_exclude_vcs/in/",
@@ -76,6 +77,7 @@ fn list_with_exclude_vcs() {
     let assert = cmd
         .args([
             "list",
+            "-f",
             "list_with_exclude_vcs/list_with_exclude_vcs.pna",
             "--exclude-vcs",
             "--unstable",
@@ -147,6 +149,7 @@ fn list_without_exclude_vcs() {
     cmd.args([
         "--quiet",
         "c",
+        "-f",
         "list_without_exclude_vcs/list_without_exclude_vcs.pna",
         "--overwrite",
         "list_without_exclude_vcs/in/",
@@ -173,6 +176,7 @@ fn list_without_exclude_vcs() {
     let assert = cmd
         .args([
             "list",
+            "-f",
             "list_without_exclude_vcs/list_without_exclude_vcs.pna",
             "--unstable",
         ])

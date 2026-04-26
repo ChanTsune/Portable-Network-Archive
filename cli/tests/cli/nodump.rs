@@ -104,6 +104,7 @@ mod platform {
             "pna",
             "--quiet",
             "create",
+            "-f",
             archive_path,
             "--overwrite",
             "--unstable",
@@ -134,15 +135,23 @@ mod platform {
         set_nodump(Path::new(file_path));
 
         // Create an empty archive first.
-        cli::Cli::try_parse_from(["pna", "--quiet", "create", archive_path, "--overwrite"])
-            .unwrap()
-            .execute()
-            .unwrap();
+        cli::Cli::try_parse_from([
+            "pna",
+            "--quiet",
+            "create",
+            "-f",
+            archive_path,
+            "--overwrite",
+        ])
+        .unwrap()
+        .execute()
+        .unwrap();
 
         cli::Cli::try_parse_from([
             "pna",
             "--quiet",
             "append",
+            "-f",
             archive_path,
             "--unstable",
             "--nodump",

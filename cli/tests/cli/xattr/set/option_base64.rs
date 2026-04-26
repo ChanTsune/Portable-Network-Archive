@@ -16,6 +16,7 @@ fn xattr_set_base64() {
         "--quiet",
         "xattr",
         "set",
+        "-f",
         "xattr_set_base64/zstd.pna",
         "--name",
         "user.base64",

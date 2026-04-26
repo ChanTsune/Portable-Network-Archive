@@ -1,6 +1,6 @@
 use crate::{
     cli::{
-        FileArgsCompat, PasswordArgs, PrivateChunkType, SolidEntriesTransformStrategy,
+        FileArgs, PasswordArgs, PrivateChunkType, SolidEntriesTransformStrategy,
         SolidEntriesTransformStrategyArgs,
     },
     command::{
@@ -53,7 +53,7 @@ pub(crate) struct StripCommand {
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
-    pub(crate) file: FileArgsCompat,
+    pub(crate) file: FileArgs,
 }
 
 impl Command for StripCommand {
@@ -66,7 +66,7 @@ impl Command for StripCommand {
 #[hooq::hooq(anyhow)]
 fn strip_metadata(args: StripCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    let archive = args.file.archive();
+    let archive = args.file.archive;
     let mut source = SplitArchiveReader::new(collect_split_archives(&archive)?)?;
 
     let output_path = args.output.unwrap_or_else(|| archive.remove_part());

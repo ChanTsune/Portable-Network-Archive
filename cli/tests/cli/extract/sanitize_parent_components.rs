@@ -26,6 +26,7 @@ fn extract_command_sanitizes_parent_components_in_entry_names() {
         "pna",
         "--quiet",
         "x",
+        "-f",
         "extract_sanitize_parent_components/archive.pna",
         "--overwrite",
         "--out-dir",

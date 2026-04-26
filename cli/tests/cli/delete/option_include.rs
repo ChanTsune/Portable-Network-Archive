@@ -15,6 +15,7 @@ fn delete_with_include() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "delete_with_include/include.pna",
         "--overwrite",
         "--no-keep-dir",

@@ -14,6 +14,7 @@ fn delete_all_entries() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "delete_all_entries/delete_all_entries.pna",
         "--overwrite",
         "delete_all_entries/in/",

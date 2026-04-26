@@ -19,6 +19,7 @@ fn create_command_sanitizes_parent_components_in_input_paths() {
     cmd.args([
         "--quiet",
         "c",
+        "-f",
         "../archive.pna",
         "--overwrite",
         "../in/file.txt",

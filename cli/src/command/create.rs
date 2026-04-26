@@ -1,6 +1,6 @@
 use crate::{
     cli::{
-        CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileArgsCompat, HashAlgorithmArgs,
+        CipherAlgorithmArgs, CompressionAlgorithmArgs, DateTime, FileArgs, HashAlgorithmArgs,
         MissingTimePolicy, PasswordArgs,
     },
     command::{
@@ -399,7 +399,7 @@ pub(crate) struct CreateCommand {
     #[command(flatten)]
     pub(crate) password: PasswordArgs,
     #[command(flatten)]
-    pub(crate) file: FileArgsCompat,
+    pub(crate) file: FileArgs,
 }
 
 impl Command for CreateCommand {
@@ -415,7 +415,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
     check_password(&password, &args.cipher);
     let start = Instant::now();
-    let archive = &args.file.archive();
+    let archive = &args.file.archive;
     let max_file_size = args
         .split
         .map(|opt| {
@@ -434,7 +434,7 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         anyhow::bail!("{} already exists", archive.display());
     }
     log::info!("Create an archive: {}", archive.display());
-    let mut files = args.file.files();
+    let mut files = args.file.files;
     if args.files_from_stdin {
         files.extend(read_paths_stdin(args.null)?);
     } else if let Some(path) = args.files_from {

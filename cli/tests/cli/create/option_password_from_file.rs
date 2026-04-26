@@ -14,6 +14,7 @@ fn create_with_password_file() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         "create_with_password_file/password_from_file.pna",
         "--overwrite",
         "create_with_password_file/in/",

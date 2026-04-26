@@ -22,6 +22,7 @@ fn update_with_older_mtime_than() {
         "pna",
         "--quiet",
         "c",
+        "-f",
         &archive_path,
         "--overwrite",
         &file_to_update,

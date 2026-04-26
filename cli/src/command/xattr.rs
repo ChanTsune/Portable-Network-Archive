@@ -1,7 +1,6 @@
 use crate::{
     cli::{
-        FileArgsCompat, PasswordArgs, SolidEntriesTransformStrategy,
-        SolidEntriesTransformStrategyArgs,
+        FileArgs, PasswordArgs, SolidEntriesTransformStrategy, SolidEntriesTransformStrategyArgs,
     },
     command::{
         Command, ask_password,
@@ -56,7 +55,7 @@ pub(crate) enum XattrCommands {
 )]
 pub(crate) struct GetXattrCommand {
     #[command(flatten)]
-    file: FileArgsCompat,
+    file: FileArgs,
     #[arg(short, long, help = "Dump the value of the named extended attribute")]
     name: Option<String>,
     #[arg(
@@ -88,7 +87,7 @@ impl Command for GetXattrCommand {
 #[derive(Parser, Clone, Eq, PartialEq, Hash, Debug)]
 pub(crate) struct SetXattrCommand {
     #[command(flatten)]
-    file: FileArgsCompat,
+    file: FileArgs,
     #[arg(short, long, help = "Name of extended attribute")]
     name: Option<String>,
     #[arg(short, long, help = "Value of extended attribute")]
@@ -187,16 +186,16 @@ impl<'a> DumpOption<'a> {
 #[hooq::hooq(anyhow)]
 fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    if args.file.files().is_empty() {
+    if args.file.files.is_empty() {
         return Ok(());
     }
-    let files = args.file.files();
+    let files = args.file.files;
     let mut globs = GlobPatterns::new(files.iter().map(|p| p.as_str()))?;
     let encoding = args.encoding;
     let dump_option = DumpOption::new(args.dump, args.name.as_deref(), args.regex_match.as_deref())
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
 
-    let mut source = SplitArchiveReader::new(collect_split_archives(args.file.archive())?)?;
+    let mut source = SplitArchiveReader::new(collect_split_archives(&args.file.archive)?)?;
 
     source.for_each_entry(
         password.as_deref(),
@@ -233,7 +232,7 @@ fn archive_get_xattr(args: GetXattrCommand) -> anyhow::Result<()> {
 #[hooq::hooq(anyhow)]
 fn archive_set_xattr(args: SetXattrCommand) -> anyhow::Result<()> {
     let password = ask_password(args.password)?;
-    let files = args.file.files();
+    let files = args.file.files;
     let mut set_strategy = if let Some("-") = args.restore.as_deref() {
         SetAttrStrategy::Restore(parse_dump(io::stdin().lock())?)
     } else if let Some(path) = args.restore.as_deref() {
@@ -251,9 +250,9 @@ fn archive_set_xattr(args: SetXattrCommand) -> anyhow::Result<()> {
         }
     };
 
-    let mut source = SplitArchiveReader::new(collect_split_archives(args.file.archive())?)?;
+    let mut source = SplitArchiveReader::new(collect_split_archives(&args.file.archive)?)?;
 
-    let output_path = args.file.archive().remove_part();
+    let output_path = args.file.archive.remove_part();
     let mut temp_file =
         NamedTempFile::new(|| output_path.parent().unwrap_or_else(|| ".".as_ref()))?;
 
