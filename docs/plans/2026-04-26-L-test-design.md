@@ -82,7 +82,7 @@ Stage 4: bats 補完 (oracle 外)
 | L1 | `L_baseline_no_dereference` | off | symlink → file | 両者: archive 内 symlink、extract 後 symlink |
 | L2 | `L_symlink_to_file_dereferenced` | on | symlink → file | 両者: archive 内 regular file、extract 後 regular file (target contents) |
 | L3 | `L_symlink_to_dir_dereferenced` | on | symlink → dir (中身あり) | 両者: archive 内 dir + 子 entry、extract 後 dir + contents |
-| L4 | `L_dangling_symlink_with_L` | on | symlink → non-existent | **bsdtar 実機の挙動を pre-impl phase で実測**して oracle 化 (warn+skip / error / 保持 のいずれか) |
+| L4 | `L_dangling_symlink_with_L` | on | symlink → non-existent | **bsdtar 実機実測結果 (macOS, libarchive 3.5.3)**: symlink として保持、exit 0、stderr 空。PNA の `core.rs:780-787` (`StoreAs::Symlink` 保持) と完全 parity 想定 |
 | L5 | `L_symlink_chain_2` | on | a → b → file | 両者: archive 内 final target ファイル、extract 後 file |
 | L6 | `L_symlink_explicit_in_cmdline` | on | command-line で symlink 直接指定 | 両者: archive 内 dereferenced |
 | L7 | `L_symlink_in_traversed_dir` | on | `-C dir .` で symlink を traverse | 両者: 同様 dereferenced |
@@ -209,7 +209,7 @@ Scenario {
 |---|---|
 | symlink chain depth (L11) | **depth 4**。OS の `ELOOP` 上限 (Linux 40, macOS 32) より浅く、test 時間も増大させない |
 | symlink loop test (L15/L16) | bats のみ + bats 内 `timeout 5` で外側強制終了。oracle に入れると hang リスク。exit 124 を expected に含める |
-| dangling symlink (L4) | bsdtar 実機での挙動 (warn+skip / error / 保持) を **pre-implementation phase で実測**。spec 確定後 implementation 着手前のサブタスクとして固定 |
+| dangling symlink (L4) | **実測済 (macOS libarchive 3.5.3)**: bsdtar `-cLf` dangling symlink は symlink として保持、exit 0、warning なし。PNA も `StoreAs::Symlink` で保持するため両者 parity 一致想定 |
 | chain depth ≥ 4 で loop に陥らない構造 | fixture 作成時にレビュー、循環参照を排除 |
 
 ## Acceptance Criteria
