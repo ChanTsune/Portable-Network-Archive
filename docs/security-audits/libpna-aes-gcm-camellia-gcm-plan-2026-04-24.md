@@ -2,7 +2,7 @@
 
 > **⚠️ Superseded by the 2026-04-26 minimal redesign.**
 >
-> This document was authored before the AEAD minimal redesign of 2026-04-26. Sections describing AENC/FENC chunks, HKDF per-entry key derivation, and the 86-byte AAD are no longer current. The actual implementation follows the design in the spec repo's `docs/superpowers/specs/2026-04-26-aead-minimal-redesign.md` and the libpna prototype rewrite in commit `<TBD: filled in by Task 8 commit hash>`. This doc is preserved for historical context.
+> This document was authored before the AEAD minimal redesign of 2026-04-26. Sections describing AENC/FENC chunks, HKDF per-entry key derivation, and the 86-byte AAD are no longer current. The actual implementation follows the design in the spec repo's `docs/superpowers/specs/2026-04-26-aead-minimal-redesign.md` and the libpna prototype rewrite in commit `d5527cd0`. This doc is preserved for historical context.
 
 > **Status**: Design discussion outcome, pre-implementation. Captures decisions from the 2026-04-23/24 design session.
 > **Action**: Roadmap for Phase 1 AEAD introduction. Phase 2 (ChaCha20-Poly1305 etc.) deferred.
