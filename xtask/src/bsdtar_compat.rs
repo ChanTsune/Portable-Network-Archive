@@ -762,7 +762,7 @@ fn run_scenario(
 
     run_cmd(
         Command::new(pna_bin)
-            .args(["experimental", "stdio", "--unstable"])
+            .args(["compat", "bsdtar", "--unstable"])
             .args(["-cf", pna_archive.to_str().unwrap()])
             .arg("-C")
             .arg(&pna_src)
@@ -771,7 +771,7 @@ fn run_scenario(
 
     let pna_result = run_cmd_capture(
         Command::new(pna_bin)
-            .args(["experimental", "stdio", "--unstable"])
+            .args(["compat", "bsdtar", "--unstable"])
             .args(["-xf", pna_archive.to_str().unwrap()])
             .args(&extract_args)
             .arg("-C")
