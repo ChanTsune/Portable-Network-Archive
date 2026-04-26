@@ -258,3 +258,58 @@ Stage 3 着手前に必ず実施:
 | 特殊ファイル (FIFO/device/socket) PNA scope-out 明文化 | future, separate design 推奨 |
 | 既存 ci/bsdtar-compat-labels oracle framework | `docs/plans/2026-02-19-bsdtar-compat-oracle-design.md` |
 | 既存 ci/bsdtar-compat-labels implementation plan | `docs/plans/2026-02-19-bsdtar-compat-oracle.md` |
+
+## Implementation Outcome (Stage 3)
+
+- **Date**: 2026-04-27 (UTC)
+- **HEAD at run**: `a8ebb8ef`
+- **Run result**: `317952 scenarios: 302921 passed, 14583 failed, 448 errors`
+- **Run log**: `/tmp/bsdtar-compat-L.log` (local artifact)
+
+### Fail breakdown by `<deref>_<entry-type>`
+
+| Deref + entry | Failures | Notes |
+|---|---|---|
+| `L_SymDir` | 1207 | new variant; `-L` follow of symlink-to-dir → bsdtar/PNA divergence |
+| `no_L_SymChain4` | 1130 | new variant; `-L` 無しの chain depth 4 symlink 保存挙動差 |
+| `no_L_SymChain2` | 1118 | new variant; chain depth 2 同様 |
+| `L_Dir` / `no_L_Dir` | 1103 / 1094 | existing axis; dereference 軸非依存の Dir 挙動差 |
+| `L_Nested` / `no_L_Nested` | 992 / 992 | existing axis; same |
+| `no_L_SymDir` | 895 | new variant; without `-L` の symlink-to-dir 保存挙動差 |
+| `no_L_Sym` | 794 | existing axis; symlink 保存挙動差 |
+| `L_SymDangling` / `no_L_SymDangling` | 694 / 692 | new variant; dangling 保持挙動差 (両方類似で deref 非影響) |
+| `L_SymChain4` | 649 | new variant; `-L` chain depth 4 dereference |
+| `L_Sym` | 626 | existing; `-L` symlink-to-file follow |
+| `L_SymChain2` | 622 | new variant; `-L` chain depth 2 dereference |
+| `L_HLink` / `no_L_HLink` | 597 / 583 | existing axis |
+| `no_L_File` / `L_File` | 405 / 390 | existing baseline |
+
+### Errors (448 total)
+
+主要パターン: `no_L_File_over_Dir_keep_old_*: Permission denied (os error 13)` — extract destination が既存 Dir で `-k` (keep_old) 指定時、PNA が File を作ろうとして permission denied。**既存 PNA bug、`-L` axis 関係なし**。
+
+### Categorization of `-L` related new variant failures
+
+| Spec scenario | Pattern | Status |
+|---|---|---|
+| L1 (`L_baseline_no_dereference`, no `-L` Symlink) | `no_L_Sym` | 794 fails (既存 axis) |
+| L2 (`L_symlink_to_file_dereferenced`, `-L` Symlink) | `L_Sym` | 626 fails |
+| L3 (`L_symlink_to_dir_dereferenced`, `-L` SymDir) | `L_SymDir` | 1207 fails (新 variant、最多) |
+| L4 (`L_dangling_symlink_with_L`, `-L` SymDangling) | `L_SymDangling` | 694 fails |
+| L5 (`L_symlink_chain_2`, `-L` SymChain2) | `L_SymChain2` | 622 fails |
+| L11 (`L_symlink_chain_depth4`, `-L` SymChain4) | `L_SymChain4` | 649 fails |
+
+### Out-of-scope scenarios (Plan 想定だが Stage 2 確定の制約で実装せず)
+
+| Scenario | Reason |
+|---|---|
+| L6 (cmdline-explicit path) | xtask は `-cf -C src .` 固定、cmdline-explicit path 軸を framework に持たない。Stage 4 bats supplement へ defer |
+| L10 (target_permission_archived, `mode: Some(0o600)` 必要) | Stage 2 で `FileSpec` に mode 設定機能を持たない確定。fixture 側 metadata 設定不能。Stage 4 bats へ defer |
+| L12 (target_mtime_archived, mtime 設定) | 同上、Stage 4 bats へ defer |
+| L13 (target_uid_gid_archived, uid/gid 設定) | 同上、加えて chown 権限も必要。Stage 4 bats へ defer |
+| L14 (substitution + dereference) | 既存 substitution axis (`s_lit`/`s_re`) に dereference 軸が掛かるため `L_Sym_*_s_*` パターンとして暗黙テスト中。専用 scenario 不要 |
+| L7-L9 | 既存 axis (`-C dir .`, `--strip-components`, `--exclude`) に dereference 軸が掛かるため `L_*_strip1` / `L_*_excl` パターンとして暗黙テスト中。専用 scenario 不要 |
+
+### Action items (Stage 3 範疇外、別 stage / issue で対応)
+
+すべての fail axes を `docs/issues/2026-04-26-bsdtar-compat-post-rebase-fail-axis-tracker.md` の Stage 3 section に集計表で追記する (個別 axis 名の網羅は 14583 件で過大、entry-type ごとの集計に集約)。
