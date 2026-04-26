@@ -58,4 +58,46 @@ If Windows still fails after Stage 2, file a per-axis issue at that point.
 
 ## Stage 2 newly-detected fail axes
 
-(To be appended by Stage 2 Task 4 if new fail axes emerge post-Stage-2 deployment. Currently empty.)
+Stage 2 (`6c4173bf`) added `uid`/`gid` to `FsEntry::File`/`Dir` and `mtime_secs` to `Dir`. The Stage 2 CI run (`24957086937`) returned all 6 jobs success; no new fail axes detected at the bsdtar_test integration level (Windows xtask build green, ubuntu/macos PNA parity green). Detailed xtask `bsdtar-compat` differential outcomes were not recorded at this stage; see Stage 3 below for the first full xtask run.
+
+## Stage 3 newly-detected fail axes
+
+Stage 3 (`a8ebb8ef`) added Dereference axis (`-L`) and 4 symlink-shape ArchiveEntryType variants (SymlinkToDir, SymlinkChainShallow, SymlinkChainDeep, SymlinkDangling). The first full `cargo run -p xtask -- bsdtar-compat` execution on macOS (libarchive 3.5.3) produced:
+
+```
+317952 scenarios: 302921 passed, 14583 failed, 448 errors
+```
+
+### Fail breakdown by `<deref>_<entry-type>` (sorted by count)
+
+| Deref + entry | Fail count | New variant? |
+|---|---|---|
+| `L_SymDir` | 1207 | yes |
+| `no_L_SymChain4` | 1130 | yes |
+| `no_L_SymChain2` | 1118 | yes |
+| `L_Dir` | 1103 | no (existing) |
+| `no_L_Dir` | 1094 | no |
+| `L_Nested` | 992 | no |
+| `no_L_Nested` | 992 | no |
+| `no_L_SymDir` | 895 | yes |
+| `no_L_Sym` | 794 | no |
+| `L_SymDangling` | 694 | yes |
+| `no_L_SymDangling` | 692 | yes |
+| `L_SymChain4` | 649 | yes |
+| `L_Sym` | 626 | no |
+| `L_SymChain2` | 622 | yes |
+| `L_HLink` | 597 | no |
+| `no_L_HLink` | 583 | no |
+| `no_L_File` | 405 | no |
+| `L_File` | 390 | no |
+
+### Errors
+
+448 errors, dominated by pattern `no_L_File_over_Dir_keep_old_*: Permission denied (os error 13)`. This is an **existing PNA bug** unrelated to Dereference axis: when extract destination is a pre-existing Dir and `-k` (keep_old) is set, PNA attempts to write a File over the Dir without removing it first, hitting permission denied. Should be investigated as a separate issue.
+
+### Investigation pointers
+
+- The fact that `L_<X>` and `no_L_<X>` counts are similar for `Dir`, `Nested`, `Sym`, `HLink`, `SymDangling` indicates **Dereference 軸非依存の挙動差** for those entry types — the gap exists with or without `-L`.
+- The new variants `SymDir`, `SymChain2`, `SymChain4`, `SymDangling` show meaningful gaps — these are the new coverage axes Stage 3 added. Each represents a class of bsdtar-divergence in PNA's create-time symlink handling.
+- Detailed log: `/tmp/bsdtar-compat-L.log` (353692 lines on the run host).
+- Per-axis investigation belongs to follow-up issues, not Stage 3.
