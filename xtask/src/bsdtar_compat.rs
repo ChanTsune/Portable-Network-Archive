@@ -556,9 +556,14 @@ enum FsEntry {
         contents: Vec<u8>,
         mode: u32,
         mtime_secs: i64,
+        uid: u32,
+        gid: u32,
     },
     Dir {
         mode: u32,
+        mtime_secs: i64,
+        uid: u32,
+        gid: u32,
     },
     Symlink {
         target: PathBuf,
@@ -572,15 +577,28 @@ impl std::fmt::Display for FsEntry {
                 contents,
                 mode,
                 mtime_secs,
+                uid,
+                gid,
             } => match std::str::from_utf8(contents) {
-                Ok(s) => write!(f, "File({s:?}, mode={mode:04o}, mtime={mtime_secs})"),
+                Ok(s) => write!(
+                    f,
+                    "File({s:?}, mode={mode:04o}, mtime={mtime_secs}, uid={uid}, gid={gid})"
+                ),
                 Err(_) => write!(
                     f,
-                    "File({} bytes, mode={mode:04o}, mtime={mtime_secs})",
+                    "File({} bytes, mode={mode:04o}, mtime={mtime_secs}, uid={uid}, gid={gid})",
                     contents.len()
                 ),
             },
-            FsEntry::Dir { mode } => write!(f, "Dir(mode={mode:04o})"),
+            FsEntry::Dir {
+                mode,
+                mtime_secs,
+                uid,
+                gid,
+            } => write!(
+                f,
+                "Dir(mode={mode:04o}, mtime={mtime_secs}, uid={uid}, gid={gid})"
+            ),
             FsEntry::Symlink { target } => write!(f, "Symlink({})", target.display()),
         }
     }
@@ -610,18 +628,33 @@ impl FsSnapshot {
                 entries.insert(rel, FsEntry::Symlink { target });
             } else if meta.is_dir() {
                 let mode = meta.mode() & 0o7777;
-                entries.insert(rel.clone(), FsEntry::Dir { mode });
+                let mtime_secs = meta.mtime();
+                let uid = meta.uid();
+                let gid = meta.gid();
+                entries.insert(
+                    rel.clone(),
+                    FsEntry::Dir {
+                        mode,
+                        mtime_secs,
+                        uid,
+                        gid,
+                    },
+                );
                 Self::walk(root, &path, entries)?;
             } else {
                 let contents = fs::read(&path)?;
                 let mode = meta.mode() & 0o7777;
                 let mtime_secs = meta.mtime();
+                let uid = meta.uid();
+                let gid = meta.gid();
                 entries.insert(
                     rel,
                     FsEntry::File {
                         contents,
                         mode,
                         mtime_secs,
+                        uid,
+                        gid,
                     },
                 );
             }
