@@ -172,9 +172,25 @@ EOF
 
 | 関連 spec | 場所 |
 |---|---|
-| Stage 2: FsSnapshot extension design | TBD (別 brainstorming) |
+| Stage 2: FsSnapshot extension design | `docs/plans/2026-04-26-Stage2-fs-snapshot-extension-design.md` |
+| Stage 2: FsSnapshot extension implementation plan | `docs/plans/2026-04-26-Stage2-fs-snapshot-extension-implementation-plan.md` |
 | Stage 3: -L test design | `docs/plans/2026-04-26-L-test-design.md` (本 branch) |
 | Stage 3: -L test implementation plan | `docs/plans/2026-04-26-L-test-implementation-plan.md` (本 branch) |
 | Stage 4: bats supplement | TBD (別 brainstorming) |
 | 既存 oracle framework design (rebased 後) | `docs/plans/2026-02-19-bsdtar-compat-oracle-design.md` |
 | 既存 oracle framework plan (rebased 後) | `docs/plans/2026-02-19-bsdtar-compat-oracle.md` |
+
+## Stage 1 Completion Record
+
+- **Date**: 2026-04-26
+- **Final HEAD**: `a460c18d` (squash + alias replacement + Cargo.lock fix + design/plan docs for Stages 2-3)
+- **Final CI run**: 24956230264 (`bsdtar compatibility` workflow)
+- **Conclusion**: `failure` overall (Windows job only)
+  - ubuntu, macos: ✅ success (PNA passes bsdtar_test on Unix)
+  - windows: ❌ failure (xtask build error due to unconditional `MetadataExt` import)
+- **Fail axis tracker**: `docs/issues/2026-04-26-bsdtar-compat-post-rebase-fail-axis-tracker.md`
+- **Status**: **categorized complete** per design option (C). The Windows failure is an expected-by-design out-of-scope issue and will be resolved by Stage 2's `#[cfg(unix)]` sealing.
+
+### Note on Cargo.lock fix
+
+The original Stage 1 plan resolved Cargo.lock conflicts by taking the main side (`git checkout --ours`), which omitted xtask's transitive dependencies. This caused the first CI run to fail with `cannot update the lock file ... because --locked was passed`. A follow-up commit `:wrench: Update Cargo.lock to reflect xtask dependencies after Stage 1 rebase` was added to fix this. Subsequent stages should resolve Cargo.lock conflicts by accepting branch-side changes (or regenerate after merge) when xtask deps are in play.
