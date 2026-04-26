@@ -1,3 +1,4 @@
+#[cfg(unix)]
 mod bsdtar_compat;
 
 use clap::{CommandFactory, Parser, ValueEnum};
@@ -22,6 +23,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         Command::Docgen(args) => docgen(args),
         Command::Tar2pna(args) => tar2pna(args),
         Command::Zip2pna(args) => zip2pna(args),
+        #[cfg(unix)]
         Command::BsdtarCompat(args) => bsdtar_compat::run(args),
     }
 }
@@ -44,6 +46,7 @@ enum Command {
     /// Convert ZIP archive to PNA format
     Zip2pna(Zip2pnaArgs),
     /// Verify extraction behavior matches bsdtar
+    #[cfg(unix)]
     BsdtarCompat(bsdtar_compat::BsdtarCompatArgs),
 }
 
