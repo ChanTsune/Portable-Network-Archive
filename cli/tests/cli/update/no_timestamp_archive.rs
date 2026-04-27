@@ -75,7 +75,7 @@ fn update_no_timestamp_archive_always_updates() {
         if entry.header().path().as_str() == text_txt_path {
             let mut buf = Vec::new();
             entry
-                .reader(ReadOptions::with_password::<&[u8]>(None))
+                .reader(&mut ReadOptions::with_password::<&[u8]>(None))
                 .unwrap()
                 .read_to_end(&mut buf)
                 .unwrap();

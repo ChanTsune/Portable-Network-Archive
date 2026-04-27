@@ -14,8 +14,8 @@ fuzz_target!(|data: &[u8]| {
     let mut builder = EntryBuilder::new_file("fuzz".into(), write_option).unwrap();
     builder.write_all(data).unwrap();
     let entry = builder.build().unwrap();
-    let read_option = ReadOptions::with_password(Some("password"));
-    let mut reader = entry.reader(read_option).unwrap();
+    let mut read_option = ReadOptions::with_password(Some("password"));
+    let mut reader = entry.reader(&mut read_option).unwrap();
     let mut buf = Vec::with_capacity(data.len());
     reader.read_to_end(&mut buf).unwrap();
     assert_eq!(data, buf);

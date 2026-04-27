@@ -28,7 +28,7 @@ use path_slash::*;
 pub(crate) use path_transformer::PathTransformers;
 use pna::{
     Archive, EntryBuilder, EntryPart, LinkTargetType, MIN_CHUNK_BYTES_SIZE, NormalEntry,
-    PNA_HEADER, ReadEntry, SolidEntryBuilder, WriteOptions, prelude::*,
+    PNA_HEADER, ReadEntry, ReadOptions, SolidEntryBuilder, WriteOptions, prelude::*,
 };
 use std::{
     borrow::Cow,
@@ -1242,7 +1242,8 @@ impl TransformStrategy for TransformStrategyUnSolid {
     {
         match read_entry? {
             ReadEntry::Solid(s) => {
-                for n in s.entries(password)? {
+                let mut read_options = ReadOptions::with_password(password);
+                for n in s.entries(&mut read_options)? {
                     if let Some(entry) = transformer(n.map(Into::into))? {
                         archive.add_entry(entry)?;
                     }
@@ -1286,7 +1287,8 @@ impl TransformStrategy for TransformStrategyKeepSolid {
                         .password(password)
                         .build(),
                 )?;
-                for n in s.entries(password)? {
+                let mut read_options = ReadOptions::with_password(password);
+                for n in s.entries(&mut read_options)? {
                     if let Some(entry) = transformer(n.map(Into::into))? {
                         builder.add_entry(entry)?;
                     }
@@ -1389,10 +1391,13 @@ where
     F: FnMut(io::Result<NormalEntry>) -> io::Result<()>,
 {
     let password = password_provider();
+    let mut read_options = ReadOptions::with_password(password);
     run_read_entries(
         archive_provider,
         |entry| match entry? {
-            ReadEntry::Solid(solid) => solid.entries(password)?.try_for_each(&mut processor),
+            ReadEntry::Solid(solid) => solid
+                .entries(&mut read_options)?
+                .try_for_each(&mut processor),
             ReadEntry::Normal(regular) => processor(Ok(regular)),
         },
         allow_concatenated_archives,
@@ -1410,11 +1415,12 @@ where
     F: FnMut(io::Result<NormalEntry>) -> io::Result<ProcessAction>,
 {
     let password = password_provider();
+    let mut read_options = ReadOptions::with_password(password);
     run_read_entries_stoppable(
         archive_provider,
         |entry| match entry? {
             ReadEntry::Solid(solid) => {
-                for n in solid.entries(password)? {
+                for n in solid.entries(&mut read_options)? {
                     match processor(n)? {
                         ProcessAction::Continue => {}
                         ProcessAction::Stop => return Ok(ProcessAction::Stop),
@@ -1492,11 +1498,12 @@ where
     F: FnMut(io::Result<NormalEntry<Cow<'d, [u8]>>>) -> io::Result<()>,
 {
     let password = password_provider();
+    let mut read_options = ReadOptions::with_password(password);
     run_read_entries_mem(
         archives,
         |entry| match entry? {
             ReadEntry::Solid(s) => s
-                .entries(password)?
+                .entries(&mut read_options)?
                 .try_for_each(|r| processor(r.map(Into::into))),
             ReadEntry::Normal(r) => processor(Ok(r)),
         },
@@ -1577,11 +1584,12 @@ where
     F: FnMut(io::Result<NormalEntry<Cow<'d, [u8]>>>) -> io::Result<ProcessAction>,
 {
     let password = password_provider();
+    let mut read_options = ReadOptions::with_password(password);
     run_read_entries_mem_stoppable(
         archives,
         |entry| match entry? {
             ReadEntry::Solid(s) => {
-                for n in s.entries(password)? {
+                for n in s.entries(&mut read_options)? {
                     match processor(n.map(Into::into))? {
                         ProcessAction::Continue => {}
                         ProcessAction::Stop => return Ok(ProcessAction::Stop),

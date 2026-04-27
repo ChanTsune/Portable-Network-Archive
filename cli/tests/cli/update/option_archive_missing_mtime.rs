@@ -65,7 +65,7 @@ fn update_default_mtime_missing_still_updates() {
         .expect("entry should exist");
     let mut buf = Vec::new();
     entry
-        .reader(ReadOptions::with_password::<&[u8]>(None))
+        .reader(&mut ReadOptions::with_password::<&[u8]>(None))
         .unwrap()
         .read_to_end(&mut buf)
         .unwrap();
@@ -140,7 +140,7 @@ fn update_archive_missing_mtime_exclude_keeps_entry() {
         .expect("entry should exist");
     let mut buf = Vec::new();
     entry
-        .reader(ReadOptions::with_password::<&[u8]>(None))
+        .reader(&mut ReadOptions::with_password::<&[u8]>(None))
         .unwrap()
         .read_to_end(&mut buf)
         .unwrap();

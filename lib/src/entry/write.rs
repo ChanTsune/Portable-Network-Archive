@@ -4,7 +4,7 @@ use crate::{
     Cipher, CipherAlgorithm, HashAlgorithm,
     cipher::{CipherWriter, Ctr128BEWriter, EncryptCbcAes256Writer, EncryptCbcCamellia256Writer},
     compress::CompressionWriter,
-    entry::{CipherMode, Compress, HashAlgorithmParams, WriteOption},
+    entry::{CipherMode, CipherPassword, Compress, HashAlgorithmParams, WriteOption},
     hash, random,
 };
 use aes::Aes256;
@@ -35,13 +35,31 @@ pub(crate) struct EntryWriterContext {
 
 #[inline]
 fn to_hashed(cipher: &Cipher) -> io::Result<WriteCipher> {
-    let salt = random::salt_string();
-    let (key, phsf) = hash(
-        cipher.cipher_algorithm,
-        cipher.hash_algorithm,
-        cipher.password.as_bytes(),
-        &salt,
-    )?;
+    let (key, phsf) = match &cipher.password {
+        CipherPassword::Hashed(h) => {
+            let expected = key_size(cipher.cipher_algorithm);
+            if h.key.len() != expected {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!(
+                        "Hashed password key size {} does not match cipher requirement {}",
+                        h.key.len(),
+                        expected,
+                    ),
+                ));
+            }
+            (h.key, h.phsf.clone())
+        }
+        CipherPassword::Raw(password) => {
+            let salt = random::salt_string();
+            hash(
+                cipher.cipher_algorithm,
+                cipher.hash_algorithm,
+                password.as_bytes(),
+                &salt,
+            )?
+        }
+    };
     let iv = match cipher.cipher_algorithm {
         CipherAlgorithm::Aes => random::random_vec(Aes256::block_size()),
         CipherAlgorithm::Camellia => random::random_vec(Camellia256::block_size()),
