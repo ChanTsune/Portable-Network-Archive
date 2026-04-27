@@ -357,6 +357,7 @@ enum FileSpec {
         path: &'static str,
         contents: &'static [u8],
         mtime_epoch: Option<i64>,
+        mode: Option<u32>,
     },
     Dir {
         path: &'static str,
@@ -387,12 +388,17 @@ fn materialize(root: &Path, specs: &[FileSpec]) -> io::Result<()> {
                 path,
                 contents,
                 mtime_epoch,
+                mode,
             } => {
                 let full = root.join(path);
                 if let Some(parent) = full.parent() {
                     fs::create_dir_all(parent)?;
                 }
                 fs::write(&full, contents)?;
+                if let Some(m) = mode {
+                    use std::os::unix::fs::PermissionsExt;
+                    fs::set_permissions(&full, fs::Permissions::from_mode(*m))?;
+                }
                 let epoch = mtime_epoch.unwrap_or(DEFAULT_MTIME);
                 let time = epoch_to_system_time(epoch);
                 let file = fs::File::options().write(true).open(&full)?;
@@ -445,6 +451,7 @@ fn make_source_files(entry_type: ArchiveEntryType, mtime: MtimeRelation) -> Vec<
             path: "target",
             contents: b"from_archive",
             mtime_epoch,
+                mode: None,
         }],
         ArchiveEntryType::Directory => vec![
             FileSpec::Dir {
@@ -455,6 +462,7 @@ fn make_source_files(entry_type: ArchiveEntryType, mtime: MtimeRelation) -> Vec<
                 path: "target/marker.txt",
                 contents: b"inside_dir",
                 mtime_epoch,
+                mode: None,
             },
         ],
         ArchiveEntryType::Symlink => vec![
@@ -462,6 +470,7 @@ fn make_source_files(entry_type: ArchiveEntryType, mtime: MtimeRelation) -> Vec<
                 path: "symlink_dest",
                 contents: b"symlink_target_content",
                 mtime_epoch: None,
+                mode: None,
             },
             FileSpec::Symlink {
                 path: "target",
@@ -477,6 +486,7 @@ fn make_source_files(entry_type: ArchiveEntryType, mtime: MtimeRelation) -> Vec<
                 path: "symlink_dest_dir/inside.txt",
                 contents: b"inside_target_dir",
                 mtime_epoch: None,
+                mode: None,
             },
             FileSpec::Symlink {
                 path: "target",
@@ -488,6 +498,7 @@ fn make_source_files(entry_type: ArchiveEntryType, mtime: MtimeRelation) -> Vec<
                 path: "chain_final",
                 contents: b"chain_final_content",
                 mtime_epoch: None,
+                mode: None,
             },
             FileSpec::Symlink {
                 path: "chain_b",
@@ -503,6 +514,7 @@ fn make_source_files(entry_type: ArchiveEntryType, mtime: MtimeRelation) -> Vec<
                 path: "chain_final",
                 contents: b"chain_deep_content",
                 mtime_epoch: None,
+                mode: None,
             },
             FileSpec::Symlink {
                 path: "chain_d",
@@ -530,6 +542,7 @@ fn make_source_files(entry_type: ArchiveEntryType, mtime: MtimeRelation) -> Vec<
                 path: "link_original",
                 contents: b"hardlink_content",
                 mtime_epoch,
+                mode: None,
             },
             FileSpec::HardLink {
                 path: "target",
@@ -541,11 +554,13 @@ fn make_source_files(entry_type: ArchiveEntryType, mtime: MtimeRelation) -> Vec<
                 path: "target/sub/deep/file.txt",
                 contents: b"deep_content",
                 mtime_epoch,
+                mode: None,
             },
             FileSpec::File {
                 path: "independent.txt",
                 contents: b"independent_content",
                 mtime_epoch: None,
+                mode: None,
             },
         ],
     }
@@ -564,6 +579,7 @@ fn make_pre_existing(pre: PreExisting, mtime: MtimeRelation) -> Vec<FileSpec> {
             path: "target",
             contents: b"existing_content",
             mtime_epoch: existing_mtime,
+                mode: None,
         }],
         PreExisting::Directory => vec![
             FileSpec::Dir {
@@ -574,6 +590,7 @@ fn make_pre_existing(pre: PreExisting, mtime: MtimeRelation) -> Vec<FileSpec> {
                 path: "target/old_marker.txt",
                 contents: b"was_here",
                 mtime_epoch: existing_mtime,
+                mode: None,
             },
         ],
         PreExisting::SymlinkToFile => vec![
@@ -581,6 +598,7 @@ fn make_pre_existing(pre: PreExisting, mtime: MtimeRelation) -> Vec<FileSpec> {
                 path: "real_file",
                 contents: b"real_file_content",
                 mtime_epoch: existing_mtime,
+                mode: None,
             },
             FileSpec::Symlink {
                 path: "target",
@@ -602,6 +620,7 @@ fn make_pre_existing(pre: PreExisting, mtime: MtimeRelation) -> Vec<FileSpec> {
                 path: "target",
                 contents: b"existing_content",
                 mtime_epoch: existing_mtime,
+                mode: None,
             },
             FileSpec::HardLink {
                 path: "target_link",
