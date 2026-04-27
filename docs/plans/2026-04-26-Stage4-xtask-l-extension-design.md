@@ -171,6 +171,27 @@ enum ScenarioResult {
 3. **L12 mtime axis の既存対応確認**:
    `mtime_relation` axis (`Irrelevant` / `ArchiveNewer` / `ArchiveOlder`) が L12 (target_mtime_archived) で言いたい挙動を既にカバーしているか確認。カバー済みなら L12 は新 scenario 不要。
 
+## Pre-implementation observation results (recorded 2026-04-27)
+
+### bsdtar self-loop (`bsdtar -cLf` with `src/loop -> loop`)
+- Exit code: 0
+- Stderr: empty
+- Archive entries: `./loop -> loop` (symlink preserved as-is, no dereference attempted on the loop)
+
+### bsdtar mutual loop (`bsdtar -cLf` with `a -> b, b -> a`)
+- Exit code: 0
+- Stderr: empty
+- Archive entries: `./a -> b`, `./b -> a` (both symlinks preserved, no infinite traversal)
+
+### Decision on timeout safeguard
+bsdtar (libarchive 3.5.3) detects symlink loops at the `-L` create path and falls back to preserving the symlink rather than dereferencing — so no actual hang occurs in either tested loop topology. The `wait_timeout` mechanism in Stage 4 is therefore **defensive** rather than required. PNA behavior is expected to mirror bsdtar (both preserve dangling/loop symlinks). Loop scenarios should pass on both sides without triggering timeout.
+
+### `wait_timeout` dependency
+Already present in `Cargo.lock` as a transitive dependency (likely via `assert_cmd`). No direct addition to `xtask/Cargo.toml` required if the import resolves; if it doesn't, Task 1 Step 4 of the plan adds it.
+
+### L12 axis check
+`MtimeRelation::{Irrelevant, ArchiveNewer, ArchiveOlder}` already controls fixture mtime in conjunction with `Sym`/`SymDir`/`SymChain*` entry types. L12 (target_mtime_archived) is implicitly covered by the existing `*_arc_newer` / `*_arc_older` scenario suffixes when combined with symlink entry types under `WithDereference`. No new entry type or axis required for L12.
+
 ## Related specs
 
 | 関連 spec | 場所 |
