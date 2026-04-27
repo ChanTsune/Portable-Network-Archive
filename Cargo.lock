@@ -3457,6 +3457,7 @@ dependencies = [
  "lz4_flex",
  "portable-network-archive",
  "tar",
+ "tempfile",
  "time",
  "zip",
  "zstd",
