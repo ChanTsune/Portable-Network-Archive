@@ -55,6 +55,8 @@ enum ArchiveEntryType {
     SymlinkChainShallow,
     SymlinkChainDeep,
     SymlinkDangling,
+    SymlinkSelfLoop,
+    SymlinkMutualLoop,
     HardLink,
     NestedPath,
 }
@@ -68,6 +70,8 @@ impl ArchiveEntryType {
         Self::SymlinkChainShallow,
         Self::SymlinkChainDeep,
         Self::SymlinkDangling,
+        Self::SymlinkSelfLoop,
+        Self::SymlinkMutualLoop,
         Self::HardLink,
         Self::NestedPath,
     ];
@@ -81,6 +85,8 @@ impl ArchiveEntryType {
             Self::SymlinkChainShallow => "SymChain2",
             Self::SymlinkChainDeep => "SymChain4",
             Self::SymlinkDangling => "SymDangling",
+            Self::SymlinkSelfLoop => "SymLoopSelf",
+            Self::SymlinkMutualLoop => "SymLoopMutual",
             Self::HardLink => "HLink",
             Self::NestedPath => "Nested",
         }
@@ -574,6 +580,24 @@ fn make_source_files(entry_type: ArchiveEntryType, mtime: MtimeRelation) -> Vec<
             path: "target",
             target: "nonexistent_target",
         }],
+        ArchiveEntryType::SymlinkSelfLoop => vec![FileSpec::Symlink {
+            path: "target",
+            target: "target",
+        }],
+        ArchiveEntryType::SymlinkMutualLoop => vec![
+            FileSpec::Symlink {
+                path: "loop_a",
+                target: "loop_b",
+            },
+            FileSpec::Symlink {
+                path: "loop_b",
+                target: "loop_a",
+            },
+            FileSpec::Symlink {
+                path: "target",
+                target: "loop_a",
+            },
+        ],
         ArchiveEntryType::HardLink => vec![
             FileSpec::File {
                 path: "link_original",
