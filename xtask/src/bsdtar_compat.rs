@@ -212,6 +212,7 @@ impl CmdlinePath {
 struct CreateOptions {
     dereference: Dereference,
     cmdline_path: CmdlinePath,
+    follow_command_links: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -253,6 +254,9 @@ fn build_scenario_name(
         pre.label(),
         opts.overwrite_mode.label()
     );
+    if create_opts.follow_command_links {
+        name.push_str("_H");
+    }
     if opts.unlink_first {
         name.push_str("_unlink-first");
     }
@@ -296,63 +300,73 @@ fn generate_scenarios() -> Vec<GeneratedScenario> {
 
     for &deref in Dereference::ALL {
         for &cmd_path in CmdlinePath::ALL {
-            for &pre in PreExisting::ALL {
-                for &entry in ArchiveEntryType::ALL {
-                    for &ow_mode in OverwriteMode::ALL {
-                        for unlink in [false, true] {
-                            for abs_paths in [false, true] {
-                                for safe_writes in [false, true] {
-                                    for no_mtime in [false, true] {
-                                        for perm in [false, true] {
-                                            for no_same_owner in [false, true] {
-                                                for strip_components in STRIP_COMPONENTS_OPTIONS {
-                                                    for exclude in EXCLUDE_PATTERNS {
-                                                        for substitution in SUBSTITUTIONS {
-                                                            let create_options = CreateOptions {
-                                                                dereference: deref,
-                                                                cmdline_path: cmd_path,
-                                                            };
-                                                            let options = ExtractOptions {
-                                                                overwrite_mode: ow_mode,
-                                                                unlink_first: unlink,
-                                                                absolute_paths: abs_paths,
-                                                                safe_writes,
-                                                                no_preserve_mtime: no_mtime,
-                                                                preserve_permissions: perm,
-                                                                no_same_owner,
-                                                                strip_components: *strip_components,
-                                                                exclude: *exclude,
-                                                                substitution: *substitution,
-                                                            };
+            for follow_h in [false, true] {
+                for &pre in PreExisting::ALL {
+                    for &entry in ArchiveEntryType::ALL {
+                        for &ow_mode in OverwriteMode::ALL {
+                            for unlink in [false, true] {
+                                for abs_paths in [false, true] {
+                                    for safe_writes in [false, true] {
+                                        for no_mtime in [false, true] {
+                                            for perm in [false, true] {
+                                                for no_same_owner in [false, true] {
+                                                    for strip_components in STRIP_COMPONENTS_OPTIONS
+                                                    {
+                                                        for exclude in EXCLUDE_PATTERNS {
+                                                            for substitution in SUBSTITUTIONS {
+                                                                let create_options =
+                                                                    CreateOptions {
+                                                                        dereference: deref,
+                                                                        cmdline_path: cmd_path,
+                                                                        follow_command_links:
+                                                                            follow_h,
+                                                                    };
+                                                                let options = ExtractOptions {
+                                                                    overwrite_mode: ow_mode,
+                                                                    unlink_first: unlink,
+                                                                    absolute_paths: abs_paths,
+                                                                    safe_writes,
+                                                                    no_preserve_mtime: no_mtime,
+                                                                    preserve_permissions: perm,
+                                                                    no_same_owner,
+                                                                    strip_components:
+                                                                        *strip_components,
+                                                                    exclude: *exclude,
+                                                                    substitution: *substitution,
+                                                                };
 
-                                                            let mtime_variants = if ow_mode
-                                                                == OverwriteMode::KeepNewerFiles
-                                                                && pre != PreExisting::None
-                                                            {
-                                                                &[
-                                                                    MtimeRelation::ArchiveNewer,
-                                                                    MtimeRelation::ArchiveOlder,
-                                                                ][..]
-                                                            } else {
-                                                                &[MtimeRelation::Irrelevant][..]
-                                                            };
+                                                                let mtime_variants = if ow_mode
+                                                                    == OverwriteMode::KeepNewerFiles
+                                                                    && pre != PreExisting::None
+                                                                {
+                                                                    &[
+                                                                        MtimeRelation::ArchiveNewer,
+                                                                        MtimeRelation::ArchiveOlder,
+                                                                    ][..]
+                                                                } else {
+                                                                    &[MtimeRelation::Irrelevant][..]
+                                                                };
 
-                                                            for &mtime_rel in mtime_variants {
-                                                                let name = build_scenario_name(
-                                                                    pre,
-                                                                    entry,
-                                                                    &create_options,
-                                                                    &options,
-                                                                    mtime_rel,
-                                                                );
-                                                                scenarios.push(GeneratedScenario {
-                                                                    name,
-                                                                    pre_existing: pre,
-                                                                    entry_type: entry,
-                                                                    create_options,
-                                                                    options,
-                                                                    mtime_relation: mtime_rel,
-                                                                });
+                                                                for &mtime_rel in mtime_variants {
+                                                                    let name = build_scenario_name(
+                                                                        pre,
+                                                                        entry,
+                                                                        &create_options,
+                                                                        &options,
+                                                                        mtime_rel,
+                                                                    );
+                                                                    scenarios.push(
+                                                                        GeneratedScenario {
+                                                                            name,
+                                                                            pre_existing: pre,
+                                                                            entry_type: entry,
+                                                                            create_options,
+                                                                            options,
+                                                                            mtime_relation:
+                                                                                mtime_rel,
+                                                                        },
+                                                                    );
+                                                                }
                                                             }
                                                         }
                                                     }
@@ -657,6 +671,9 @@ fn make_create_args(opts: &CreateOptions) -> Vec<&'static str> {
     let mut args = Vec::new();
     if opts.dereference == Dereference::WithDereference {
         args.push("-L");
+    }
+    if opts.follow_command_links {
+        args.push("-H");
     }
     args
 }
