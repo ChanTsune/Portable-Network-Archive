@@ -144,7 +144,7 @@ fn aes_ctr_pbkdf2_with_params_archive() {
         "--aes",
         "ctr",
         "--pbkdf2",
-        "r=1",
+        "r=1000",
     ])
     .unwrap()
     .execute()
