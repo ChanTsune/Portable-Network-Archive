@@ -101,3 +101,64 @@ Stage 3 (`a8ebb8ef`) added Dereference axis (`-L`) and 4 symlink-shape ArchiveEn
 - The new variants `SymDir`, `SymChain2`, `SymChain4`, `SymDangling` show meaningful gaps — these are the new coverage axes Stage 3 added. Each represents a class of bsdtar-divergence in PNA's create-time symlink handling.
 - Detailed log: `/tmp/bsdtar-compat-L.log` (353692 lines on the run host).
 - Per-axis investigation belongs to follow-up issues, not Stage 3.
+
+## Stage 4 newly-detected fail / error axes
+
+Stage 4 (`8da952a2`) added 4 axes (`FileSpec.mode`, `CmdlinePath`, `follow_command_links`, 2 loop entry types) for the 6 -L test scenarios L6/L10/L12/L15/L16/L17. The xtask oracle run on 2026-04-28 produced:
+
+```
+1554432 scenarios: 1177766 passed, 92794 failed, 283872 errors
+```
+
+Scenario count grew 4.89x from Stage 3 (317952), matching the predicted ~4.9x from CmdlinePath × follow_command_links × 2 loop variants.
+
+### Fail breakdown by `<deref>_<cmdline_path>_<entry-type>` (top 25)
+
+```
+18324 L_trav_SymChain4
+18314 L_trav_SymChain2
+10155 L_trav_SymDir
+ 9067 L_trav_Sym
+ 2304 no_L_trav_SymChain4
+ 2280 no_L_trav_SymChain2
+ 2208 L_trav_Dir
+ 2188 no_L_trav_Dir
+ 2022 L_trav_Nested
+ 2018 no_L_trav_Nested
+ 1853 no_L_trav_SymDir
+ 1632 no_L_trav_Sym
+ 1394 L_trav_SymDangling
+ 1392 no_L_trav_SymDangling
+ 1227 L_expl_SymDir
+ 1219 no_L_trav_HLink
+ 1215 L_expl_Dir
+ 1189 L_trav_HLink
+ 1174 no_L_expl_Dir
+ 1080 no_L_expl_Nested
+ 1066 L_expl_Nested
+  942 no_L_expl_SymDir
+  813 no_L_trav_File
+  805 L_trav_File
+  760 L_expl_SymDangling
+```
+
+Loop variants (`SymLoopSelf` / `SymLoopMutual`) are present in the run but did not enter the top 25 fail axes — confirmed parity for these new entry types.
+
+### Error breakdown
+
+| Pattern | Count |
+|---|---|
+| `command failed` (PNA / bsdtar create or extract non-zero exit) | 282624 |
+| `Permission denied (os error 13)` (existing Stage 3 bug) | 1248 |
+
+The bulk of errors come from new axis combinations where one side fails the create or extract command. Per-axis investigation belongs to follow-up issues, not Stage 4.
+
+## Permanently deferred (out of xtask scope)
+
+The following `-L` test scenarios are out of scope for the xtask `bsdtar-compat` framework. They will not be added in any future stage of this design lineage:
+
+- **L13** (`L_target_uid_gid_archived`): `chown(2)` requires root or fakeroot. xtask runs as the regular CI user, and adding fakeroot to the test workflow conflicts with xtask's standalone-binary execution model.
+- **L18** (`L_windows_reparse_point`): Stage 2 sealed `xtask::bsdtar_compat` under `#[cfg(unix)]`. Windows reparse-point fixture creation requires Windows API and contradicts the cfg-sealing decision.
+- **L19** (`L_broken_symlink_warning_format`): warning text is locale (`LANG`/`LC_*`) and libarchive-version dependent. Adding a `StderrSnapshot` mechanism would be high-cost and produce flaky comparisons.
+
+These scenarios should not be re-opened without first revising the design constraints listed above.

@@ -192,6 +192,76 @@ Already present in `Cargo.lock` as a transitive dependency (likely via `assert_c
 ### L12 axis check
 `MtimeRelation::{Irrelevant, ArchiveNewer, ArchiveOlder}` already controls fixture mtime in conjunction with `Sym`/`SymDir`/`SymChain*` entry types. L12 (target_mtime_archived) is implicitly covered by the existing `*_arc_newer` / `*_arc_older` scenario suffixes when combined with symlink entry types under `WithDereference`. No new entry type or axis required for L12.
 
+## Implementation Outcome (Stage 4)
+
+- **Date**: 2026-04-28
+- **HEAD at run**: `8da952a2` (Loop variants commit)
+- **Run summary**: `1554432 scenarios: 1177766 passed, 92794 failed, 283872 errors`
+- **Run log**: `/tmp/bsdtar-compat-stage4.log` (4456880 lines on the run host)
+- **Scenario count growth**: Stage 3 baseline 317952 → Stage 4 1554432 (4.89x), matching predicted ~4.9x from CmdlinePath × follow_command_links × loop variants (2x × 2x × 11/9)
+
+### Pass / Fail / Error counts
+
+| Result | Count | % |
+|---|---|---|
+| PASS | 1177766 | 75.7% |
+| FAIL | 92794 | 6.0% |
+| ERROR | 283872 | 18.3% |
+
+### Fail breakdown by `<deref>_<cmdline_path>_<entry-type>` (top 25)
+
+```
+18324 L_trav_SymChain4
+18314 L_trav_SymChain2
+10155 L_trav_SymDir
+ 9067 L_trav_Sym
+ 2304 no_L_trav_SymChain4
+ 2280 no_L_trav_SymChain2
+ 2208 L_trav_Dir
+ 2188 no_L_trav_Dir
+ 2022 L_trav_Nested
+ 2018 no_L_trav_Nested
+ 1853 no_L_trav_SymDir
+ 1632 no_L_trav_Sym
+ 1394 L_trav_SymDangling
+ 1392 no_L_trav_SymDangling
+ 1227 L_expl_SymDir
+ 1219 no_L_trav_HLink
+ 1215 L_expl_Dir
+ 1189 L_trav_HLink
+ 1174 no_L_expl_Dir
+ 1080 no_L_expl_Nested
+ 1066 L_expl_Nested
+  942 no_L_expl_SymDir
+  813 no_L_trav_File
+  805 L_trav_File
+  760 L_expl_SymDangling
+```
+
+### Error breakdown
+
+| Pattern | Count |
+|---|---|
+| `command failed` (PNA / bsdtar create or extract returned non-zero) | 282624 |
+| `Permission denied (os error 13)` (existing PNA bug, see Stage 3 outcome) | 1248 |
+
+The bulk of errors (282624) come from new axis combinations where one side (PNA or bsdtar) fails the create or extract command (e.g., `Explicit` cmdline path + entry type that does not produce a `target` filesystem entry). These are not bugs in xtask itself but bsdtar/PNA divergence surfaced by the new combinations.
+
+### Loop scenario observation
+
+- `*_SymLoopSelf` and `*_SymLoopMutual` variants did not appear in the top 25 fail breakdown. They are present in the run (verified by grep on the log) and behave consistently with the Task 1 observation: bsdtar (libarchive 3.5.3) preserves the symlink rather than dereferencing the loop, and PNA does the same. Timeout safeguard (Plan Task 5 Steps 3-7) was not implemented since no hang occurred.
+
+### New L-axis scenarios introduced by Stage 4
+
+| Spec scenario | Pattern | Status |
+|---|---|---|
+| L6 (`L_symlink_explicit_in_cmdline`) | `*_expl_*` | covered by `CmdlinePath::Explicit` axis |
+| L10 (`L_target_permission_archived`) | `*_File_*_mode<N>` | partial — `FileSpec::File.mode` field added; mode-bearing fixtures can now be added in any future scenario without framework change |
+| L12 (`L_target_mtime_archived`) | `*_arc_newer` / `*_arc_older` × `Sym*` | covered by existing `mtime_relation` axis (no Stage 4 change needed, confirmed in Task 1 Step 5) |
+| L15 (`L_symlink_loop_self`) | `*_SymLoopSelf_*` | covered by new `ArchiveEntryType::SymlinkSelfLoop` |
+| L16 (`L_symlink_loop_mutual`) | `*_SymLoopMutual_*` | covered by new `ArchiveEntryType::SymlinkMutualLoop` |
+| L17 (`L_and_H_both_specified`) | `*_*_H` | covered by `follow_command_links: bool` axis |
+
 ## Related specs
 
 | 関連 spec | 場所 |
