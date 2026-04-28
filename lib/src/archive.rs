@@ -253,7 +253,7 @@ mod tests {
                 .compression(Compression::No)
                 .encryption(Encryption::Aes)
                 .cipher_mode(CipherMode::CBC)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"))
                 .build(),
         )
@@ -268,7 +268,7 @@ mod tests {
                 .compression(Compression::ZStandard)
                 .encryption(Encryption::Aes)
                 .cipher_mode(CipherMode::CTR)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"))
                 .build(),
         )
@@ -283,7 +283,7 @@ mod tests {
                 .compression(Compression::ZStandard)
                 .encryption(Encryption::Aes)
                 .cipher_mode(CipherMode::CBC)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"))
                 .build(),
         )
@@ -298,7 +298,7 @@ mod tests {
                 .compression(Compression::ZStandard)
                 .encryption(Encryption::Camellia)
                 .cipher_mode(CipherMode::CTR)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"))
                 .build(),
         )
@@ -313,7 +313,7 @@ mod tests {
                 .compression(Compression::ZStandard)
                 .encryption(Encryption::Camellia)
                 .cipher_mode(CipherMode::CBC)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"))
                 .build(),
         )
@@ -328,7 +328,7 @@ mod tests {
                 .compression(Compression::XZ)
                 .encryption(Encryption::Aes)
                 .cipher_mode(CipherMode::CBC)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"))
                 .build(),
         )
@@ -343,7 +343,7 @@ mod tests {
                 .compression(Compression::XZ)
                 .encryption(Encryption::Camellia)
                 .cipher_mode(CipherMode::CBC)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("password"))
                 .build(),
         )
@@ -415,7 +415,7 @@ mod tests {
                 .compression(Compression::No)
                 .encryption(Encryption::Camellia)
                 .cipher_mode(CipherMode::CBC)
-                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1)))
+                .hash_algorithm(HashAlgorithm::pbkdf2_sha256_with(Some(1000)))
                 .password(Some("PASSWORD"))
                 .build(),
         );

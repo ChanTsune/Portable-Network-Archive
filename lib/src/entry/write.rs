@@ -75,13 +75,13 @@ fn key_size(cipher_algorithm: CipherAlgorithm) -> usize {
 }
 
 #[inline]
-fn hash<'s, 'p: 's>(
+fn hash(
     cipher_algorithm: CipherAlgorithm,
     hash_algorithm: HashAlgorithm,
-    password: &'p [u8],
-    salt: &'s SaltString,
+    password: &[u8],
+    salt: &SaltString,
 ) -> io::Result<(Output, String)> {
-    let mut password_hash = match hash_algorithm.0 {
+    match hash_algorithm.0 {
         HashAlgorithmParams::Argon2Id {
             time_cost,
             memory_cost,
@@ -96,18 +96,12 @@ fn hash<'s, 'p: 's>(
             salt,
         ),
         HashAlgorithmParams::Pbkdf2Sha256 { rounds } => {
-            let mut params = pbkdf2::Params::default();
-            if let Some(rounds) = rounds {
-                params.rounds = rounds;
-            }
+            let rounds = rounds.unwrap_or(pbkdf2::Params::RECOMMENDED_ROUNDS);
+            let params = pbkdf2::Params::new_with_output_len(rounds, key_size(cipher_algorithm))
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
             hash::pbkdf2_with_salt(password, pbkdf2::Algorithm::Pbkdf2Sha256, params, salt)
         }
-    }?;
-    let hash = password_hash
-        .hash
-        .take()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::Unsupported, "failed to get hash"))?;
-    Ok((hash, password_hash.to_string()))
+    }
 }
 
 #[inline]

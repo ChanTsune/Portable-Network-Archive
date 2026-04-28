@@ -25,16 +25,13 @@ pub(crate) fn decrypt_reader<R: Read>(
             let s = phsf.ok_or_else(|| {
                 io::Error::new(io::ErrorKind::InvalidData, "`PHSF` chunk not found")
             })?;
-            let phsf = derive_password_hash(
+            let key_output = derive_password_hash(
                 s,
                 password.ok_or_else(|| {
                     io::Error::new(io::ErrorKind::InvalidInput, "password was not provided")
                 })?,
             )?;
-            let hash = phsf
-                .hash
-                .ok_or_else(|| io::Error::new(io::ErrorKind::Unsupported, "failed to get hash"))?;
-            let key = hash.as_bytes();
+            let key = key_output.as_bytes();
             match (encryption, cipher_mode) {
                 (Encryption::Aes, CipherMode::CBC) => {
                     let mut iv = vec![0; Aes256::block_size()];
