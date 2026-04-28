@@ -262,6 +262,16 @@ The bulk of errors (282624) come from new axis combinations where one side (PNA 
 | L16 (`L_symlink_loop_mutual`) | `*_SymLoopMutual_*` | covered by new `ArchiveEntryType::SymlinkMutualLoop` |
 | L17 (`L_and_H_both_specified`) | `*_*_H` | covered by `follow_command_links: bool` axis |
 
+## Stage 4 Completion Record
+
+- **Date**: 2026-04-28
+- **Final HEAD**: `479f7287` (framework + outcome record + Permanently deferred)
+- **CI run**: `25031534212` `bsdtar compatibility`
+- **Conclusion**: success (全 6 jobs success: ubuntu/macos/windows × verify/test 双方)
+- **xtask oracle run**: 1554432 scenarios / 1177766 pass (75.7%) / 92794 fail (6.0%) / 283872 errors (18.3%)
+- **L scope coverage**: L1-L9, L11-L17 covered by xtask oracle; L13/L18/L19 permanently deferred (see tracker md)
+- **Status**: Stage 4 完了。`-L` 検証 design lineage (Stages 1-4) 全完。Tier S 候補としての `-L` テスト基盤確立
+
 ## Related specs
 
 | 関連 spec | 場所 |
