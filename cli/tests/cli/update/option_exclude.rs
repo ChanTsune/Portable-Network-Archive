@@ -6,7 +6,7 @@ use std::{collections::HashSet, fs, io::prelude::*, time};
 const DURATION_24_HOURS: time::Duration = time::Duration::from_secs(24 * 60 * 60);
 
 /// Precondition: An archive contains multiple files.
-/// Action: Modify files, run `pna experimental update` with `--exclude` for one file.
+/// Action: Modify files, run `pna update` with `--exclude` for one file.
 /// Expectation: Excluded file retains original content; non-excluded files are updated.
 #[test]
 fn update_with_exclude() {
@@ -53,7 +53,6 @@ fn update_with_exclude() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "update",
         "-f",
         "update_with_exclude/archive.pna",

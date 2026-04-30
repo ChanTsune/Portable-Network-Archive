@@ -9,7 +9,7 @@ use std::{
 };
 
 /// Precondition: An archive created with `--no-keep-timestamp` (entries have no mtime).
-/// Action: Modify a file and run `pna experimental update` with `--no-keep-timestamp`.
+/// Action: Modify a file and run `pna update` with `--no-keep-timestamp`.
 /// Expectation: Modified content is reflected in the re-archived entry.
 #[test]
 fn update_no_timestamp_archive_always_updates() {
@@ -57,7 +57,6 @@ fn update_no_timestamp_archive_always_updates() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "update",
         "-f",
         "update_no_ts_always/archive.pna",
@@ -96,7 +95,7 @@ fn update_no_timestamp_archive_always_updates() {
 }
 
 /// Precondition: An archive created with `--no-keep-timestamp` (entries have no mtime).
-/// Action: Delete a source file and run `pna experimental update --sync`.
+/// Action: Delete a source file and run `pna update --sync`.
 /// Expectation: Deleted file is removed from archive; remaining entries preserved.
 #[test]
 fn update_no_timestamp_archive_with_sync() {
@@ -133,7 +132,6 @@ fn update_no_timestamp_archive_with_sync() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "update",
         "-f",
         "update_no_ts_sync/archive.pna",
@@ -163,7 +161,7 @@ fn update_no_timestamp_archive_with_sync() {
 }
 
 /// Precondition: An archive created with `--no-keep-timestamp` (entries have no mtime).
-/// Action: Run `pna experimental update` with `--keep-timestamp`.
+/// Action: Run `pna update` with `--keep-timestamp`.
 /// Expectation: All entries acquire mtime when updated with `--keep-timestamp`.
 #[test]
 fn update_no_timestamp_archive_gains_mtime_with_keep_timestamp() {
@@ -197,7 +195,6 @@ fn update_no_timestamp_archive_gains_mtime_with_keep_timestamp() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "update",
         "-f",
         "update_no_ts_gains_mtime/archive.pna",
@@ -222,7 +219,7 @@ fn update_no_timestamp_archive_gains_mtime_with_keep_timestamp() {
 }
 
 /// Precondition: An archive created with `--no-keep-timestamp` (entries have no mtime).
-/// Action: Run `pna experimental update` with `--no-keep-timestamp`.
+/// Action: Run `pna update` with `--no-keep-timestamp`.
 /// Expectation: All re-archived entries have no mtime.
 #[test]
 fn update_no_timestamp_archive_stays_without_mtime() {
@@ -246,7 +243,6 @@ fn update_no_timestamp_archive_stays_without_mtime() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "update",
         "-f",
         "update_no_ts_stays/archive.pna",
@@ -271,7 +267,7 @@ fn update_no_timestamp_archive_stays_without_mtime() {
 }
 
 /// Precondition: An archive created with `--keep-timestamp` (entries have mtime).
-/// Action: Modify a file, run `pna experimental update` with `--no-keep-timestamp`.
+/// Action: Modify a file, run `pna update` with `--no-keep-timestamp`.
 /// Expectation: Only the modified file is re-archived without mtime; unmodified entries
 ///   pass through with original mtime unchanged.
 #[test]
@@ -323,7 +319,6 @@ fn update_timestamped_archive_loses_mtime_with_no_keep_timestamp() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "update",
         "-f",
         "update_ts_loses_mtime/archive.pna",

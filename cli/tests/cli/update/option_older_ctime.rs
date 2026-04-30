@@ -4,7 +4,7 @@ use portable_network_archive::cli;
 use std::{collections::HashSet, fs, thread, time};
 
 /// Precondition: An archive contains a file.
-/// Action: Create files with different ctimes, run `pna experimental update` with `--older-ctime`.
+/// Action: Create files with different ctimes, run `pna update` with `--older-ctime`.
 /// Expectation: Only files with ctime older than threshold are updated in the archive.
 /// Note: This test requires filesystem support for creation time (birth time).
 #[test]
@@ -91,7 +91,6 @@ fn update_with_older_ctime() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "update",
         "--older-ctime",
         &format!("@{}", threshold_secs),

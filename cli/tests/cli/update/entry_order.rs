@@ -4,7 +4,7 @@ use portable_network_archive::cli;
 use std::fs;
 
 /// Precondition: An archive exists with entries, files of varying sizes exist for update.
-/// Action: Run `pna experimental update` with files in a specific order.
+/// Action: Run `pna update` with files in a specific order.
 /// Expectation: Updated archive preserves entry order from input arguments.
 #[test]
 fn update_preserves_cli_argument_order() {
@@ -47,7 +47,6 @@ fn update_preserves_cli_argument_order() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "update",
         "-f",
         &archive_path,
@@ -85,7 +84,7 @@ fn update_preserves_cli_argument_order() {
 }
 
 /// Precondition: An archive exists, multiple directories with files exist.
-/// Action: Run `pna experimental update` with multiple directory arguments.
+/// Action: Run `pna update` with multiple directory arguments.
 /// Expectation: Entries from first directory appear before second directory.
 #[test]
 fn update_preserves_multiple_directory_order() {
@@ -123,7 +122,6 @@ fn update_preserves_multiple_directory_order() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "update",
         "-f",
         &archive_path,

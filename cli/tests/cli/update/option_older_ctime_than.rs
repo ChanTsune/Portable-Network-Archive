@@ -7,7 +7,7 @@ use portable_network_archive::cli;
 use std::{collections::HashSet, fs, thread, time::Duration};
 
 /// Precondition: An archive exists with files to update, and the source tree contains a reference file and files with varying creation times.
-/// Action: Run `pna experimental update` with `--older-ctime-than` pointing to the reference file.
+/// Action: Run `pna update` with `--older-ctime-than` pointing to the reference file.
 /// Expectation: Only files whose creation time is older than the reference file are processed in the archive.
 /// Note: This test requires filesystem support for creation time (birth time).
 #[test]
@@ -62,7 +62,6 @@ fn update_with_older_ctime_than() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "update",
         "--file",
         &archive_path,

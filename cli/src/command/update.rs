@@ -22,7 +22,7 @@ use crate::{
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use indexmap::IndexMap;
-use pna::{Archive, EntryName, Metadata, prelude::*};
+use pna::{Archive, Metadata, prelude::*};
 use std::{env, fs, io, path::PathBuf};
 
 #[derive(Parser, Clone, Debug)]
@@ -583,7 +583,12 @@ where
     let mut target_files_mapping = target_items
         .into_iter()
         .enumerate()
-        .map(|(idx, item)| (EntryName::from_lossy(&item.path), (idx, item)))
+        .filter_map(|(idx, item)| {
+            create_options
+                .pathname_editor
+                .edit_entry_name(&item.path)
+                .map(|name| (name, (idx, item)))
+        })
         .collect::<IndexMap<_, _>>();
 
     rayon::scope_fifo(|s| -> anyhow::Result<()> {

@@ -4,7 +4,7 @@ use portable_network_archive::cli;
 use std::{collections::HashSet, fs};
 
 /// Precondition: An archive exists with initial files. A directory with nested subdirectories is added.
-/// Action: Run `pna experimental update` with default behavior (recursive enabled).
+/// Action: Run `pna update` with default behavior (recursive enabled).
 /// Expectation: All files including those in subdirectories are added to the archive.
 #[test]
 fn update_with_recursive() {
@@ -39,7 +39,6 @@ fn update_with_recursive() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "update",
         "-f",
         "update_recursive/archive.pna",
@@ -67,7 +66,7 @@ fn update_with_recursive() {
 }
 
 /// Precondition: An archive exists. A directory with nested files exists.
-/// Action: Run `pna experimental update` with `--no-recursive` and `--keep-dir` on the directory.
+/// Action: Run `pna update` with `--no-recursive` and `--keep-dir` on the directory.
 /// Expectation: Only the directory entry is added (with --keep-dir), not the files inside.
 #[test]
 fn update_with_no_recursive_keep_dir() {
@@ -106,7 +105,6 @@ fn update_with_no_recursive_keep_dir() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "update",
         "-f",
         "update_no_recursive_keep_dir/archive.pna",
@@ -138,7 +136,7 @@ fn update_with_no_recursive_keep_dir() {
 }
 
 /// Precondition: An archive exists. A new nested directory structure is created.
-/// Action: Run `pna experimental update` with `--recursive` flag explicitly.
+/// Action: Run `pna update` with `--recursive` flag explicitly.
 /// Expectation: Behaves same as default, all nested files are added.
 #[test]
 fn update_with_explicit_recursive_flag() {
@@ -172,7 +170,6 @@ fn update_with_explicit_recursive_flag() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "update",
         "-f",
         "update_explicit_recursive/archive.pna",
@@ -197,7 +194,7 @@ fn update_with_explicit_recursive_flag() {
 }
 
 /// Precondition: An archive exists with files including those in subdirectories.
-/// Action: Run `pna experimental update` with `--no-recursive` on a directory path.
+/// Action: Run `pna update` with `--no-recursive` on a directory path.
 /// Expectation: Existing entries from subdirectories remain in archive (not deleted), no new entries added.
 #[test]
 fn update_no_recursive_preserves_existing_entries() {
@@ -258,7 +255,6 @@ fn update_no_recursive_preserves_existing_entries() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "update",
         "-f",
         "update_no_recursive_preserve/archive.pna",
@@ -295,7 +291,7 @@ fn update_no_recursive_preserves_existing_entries() {
 }
 
 /// Precondition: An archive exists. Specific files are passed as arguments.
-/// Action: Run `pna experimental update` with `--no-recursive` and individual file paths.
+/// Action: Run `pna update` with `--no-recursive` and individual file paths.
 /// Expectation: Individual files are still processed (no directory recursion to skip).
 #[test]
 fn update_no_recursive_with_file_args() {
@@ -336,7 +332,6 @@ fn update_no_recursive_with_file_args() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "update",
         "-f",
         "update_no_recursive_files/archive.pna",
@@ -379,7 +374,7 @@ fn update_no_recursive_with_file_args() {
 }
 
 /// Precondition: An archive exists with deeply nested files.
-/// Action: Run `pna experimental update` with `--recursive` (default) then with `--no-recursive`.
+/// Action: Run `pna update` with `--recursive` (default) then with `--no-recursive`.
 /// Expectation: Recursive traverses all levels, non-recursive only processes the specified path.
 #[test]
 fn update_recursive_vs_no_recursive_comparison() {
@@ -415,7 +410,6 @@ fn update_recursive_vs_no_recursive_comparison() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "update",
         "-f",
         "update_recursive_compare/archive.pna",
@@ -456,7 +450,6 @@ fn update_recursive_vs_no_recursive_comparison() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "update",
         "-f",
         "update_recursive_compare/archive.pna",

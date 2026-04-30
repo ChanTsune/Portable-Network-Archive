@@ -8,7 +8,7 @@ use std::{
 };
 
 /// Precondition: An archive exists with files to update, and the source tree contains a reference file and files with varying creation times.
-/// Action: Run `pna experimental update` with `--newer-ctime-than` pointing to the reference file.
+/// Action: Run `pna update` with `--newer-ctime-than` pointing to the reference file.
 /// Expectation: Only files whose creation time is newer than the reference file are updated or added to the archive.
 /// Note: This test requires filesystem support for creation time (birth time).
 #[test]
@@ -66,7 +66,6 @@ fn update_with_newer_ctime_than() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "update",
         "--file",
         "update_newer_ctime_than/test.pna",

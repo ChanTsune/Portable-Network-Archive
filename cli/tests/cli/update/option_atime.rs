@@ -11,7 +11,7 @@ use std::{
 const DURATION_24_HOURS: Duration = Duration::seconds(24 * 60 * 60);
 
 /// Precondition: An archive contains files.
-/// Action: Modify a file, run `pna experimental update` with `--atime`.
+/// Action: Modify a file, run `pna update` with `--atime`.
 /// Expectation: All entries in the archive have the specified atime.
 #[test]
 fn update_with_atime() {
@@ -47,7 +47,6 @@ fn update_with_atime() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "update",
         "--atime",
         "2024-01-01T00:00:00Z",
@@ -69,7 +68,7 @@ fn update_with_atime() {
 }
 
 /// Precondition: An archive contains files.
-/// Action: Modify a file, run `pna experimental update` with `--atime` and `--clamp-atime`.
+/// Action: Modify a file, run `pna update` with `--atime` and `--clamp-atime`.
 /// Expectation: All entries in the archive have atime clamped to the specified value.
 #[test]
 fn update_with_clamp_atime() {
@@ -105,7 +104,6 @@ fn update_with_clamp_atime() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "update",
         "--atime",
         "2024-01-01T00:00:00Z",

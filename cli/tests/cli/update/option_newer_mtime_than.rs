@@ -4,7 +4,7 @@ use portable_network_archive::cli;
 use std::{collections::HashSet, fs, thread, time};
 
 /// Precondition: An archive exists with files to update, and the source tree contains a reference file and files with varying modification times.
-/// Action: Run `pna experimental update` with `--newer-mtime-than` pointing to the reference file.
+/// Action: Run `pna update` with `--newer-mtime-than` pointing to the reference file.
 /// Expectation: Only files whose modification time is newer than the reference file are updated or added to the archive.
 #[test]
 fn update_with_newer_mtime_than() {
@@ -54,7 +54,6 @@ fn update_with_newer_mtime_than() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "update",
         "--file",
         "update_newer_mtime_than/test.pna",
