@@ -4,7 +4,7 @@ use portable_network_archive::cli;
 use std::{collections::HashSet, fs};
 
 /// Precondition: An archive contains multiple files.
-/// Action: Delete a file from source, run `pna update` without `--sync`.
+/// Action: Delete a file from source, run `pna experimental update` without `--sync`.
 /// Expectation: Entries for deleted source files are preserved in the archive.
 #[test]
 fn update_without_sync() {
@@ -44,6 +44,7 @@ fn update_without_sync() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
+        "experimental",
         "update",
         "-f",
         "update_without_sync/archive.pna",
@@ -82,7 +83,7 @@ fn update_without_sync() {
 }
 
 /// Precondition: An archive contains multiple files.
-/// Action: Delete a file from source, run `pna update` with `--sync`.
+/// Action: Delete a file from source, run `pna experimental update` with `--sync`.
 /// Expectation: Entries for deleted source files are removed from the archive.
 #[test]
 fn update_with_sync() {
@@ -122,6 +123,7 @@ fn update_with_sync() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
+        "experimental",
         "update",
         "-f",
         "update_with_sync/archive.pna",

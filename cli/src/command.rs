@@ -69,7 +69,6 @@ impl Cli {
             Commands::Append(cmd) => cmd.execute(ctx),
             Commands::Extract(cmd) => cmd.execute(ctx),
             Commands::List(cmd) => cmd.execute(ctx),
-            Commands::Update(cmd) => cmd.execute(ctx),
             Commands::Delete(cmd) => cmd.execute(ctx),
             Commands::Split(cmd) => cmd.execute(ctx),
             Commands::Concat(cmd) => cmd.execute(ctx),

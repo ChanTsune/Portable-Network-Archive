@@ -4,7 +4,7 @@ use portable_network_archive::cli;
 use std::{collections::HashSet, fs, thread, time};
 
 /// Precondition: An archive contains a file.
-/// Action: Create files with different mtimes, run `pna update` with `--older-mtime`.
+/// Action: Create files with different mtimes, run `pna experimental update` with `--older-mtime`.
 /// Expectation: Only files with mtime older than threshold are added to the archive.
 #[test]
 fn update_with_older_mtime() {
@@ -56,6 +56,7 @@ fn update_with_older_mtime() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
+        "experimental",
         "update",
         "--older-mtime",
         &format!(

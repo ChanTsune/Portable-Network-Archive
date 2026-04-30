@@ -3,7 +3,7 @@ use clap::Parser;
 use portable_network_archive::cli;
 
 /// Precondition: No archive exists at the specified path.
-/// Action: Run `pna update` on a non-existent archive.
+/// Action: Run `pna experimental update` on a non-existent archive.
 /// Expectation: Command returns an error.
 #[test]
 fn update_non_existent_archive() {
@@ -11,6 +11,7 @@ fn update_non_existent_archive() {
 
     let args = cli::Cli::try_parse_from([
         "pna",
+        "experimental",
         "update",
         "-f",
         "non_existent_archive.pna",

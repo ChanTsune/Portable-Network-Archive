@@ -8,7 +8,7 @@ use std::{fs, io::prelude::*, time};
 const DURATION_24_HOURS: time::Duration = time::Duration::from_secs(24 * 60 * 60);
 
 /// Precondition: An encrypted archive exists with AES-CTR encryption and Argon2 key derivation.
-/// Action: Modify a file to have newer mtime, run `pna update` with same password.
+/// Action: Modify a file to have newer mtime, run `pna experimental update` with same password.
 /// Expectation: Archive is updated successfully and can be extracted with the original password.
 #[test]
 fn update_encrypted_archive() {
@@ -49,6 +49,7 @@ fn update_encrypted_archive() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
+        "experimental",
         "update",
         "-f",
         "update_encrypted/archive.pna",
@@ -83,7 +84,7 @@ fn update_encrypted_archive() {
 }
 
 /// Precondition: An encrypted archive contains initial files.
-/// Action: Add a new file to the source directory, run `pna update` with password.
+/// Action: Add a new file to the source directory, run `pna experimental update` with password.
 /// Expectation: Both existing and new entries are accessible with the password.
 #[test]
 fn update_encrypted_add_entry() {
@@ -120,6 +121,7 @@ fn update_encrypted_add_entry() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
+        "experimental",
         "update",
         "-f",
         "update_encrypted_add/archive.pna",
@@ -204,6 +206,7 @@ fn update_encrypted_keep_unchanged() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
+        "experimental",
         "update",
         "-f",
         "update_encrypted_keep/archive.pna",
@@ -238,7 +241,7 @@ fn update_encrypted_keep_unchanged() {
 }
 
 /// Precondition: An encrypted archive created with AES-CBC mode.
-/// Action: Run `pna update` with the same password.
+/// Action: Run `pna experimental update` with the same password.
 /// Expectation: Archive remains functional with AES-CBC encryption.
 #[test]
 fn update_encrypted_aes_cbc() {
@@ -278,6 +281,7 @@ fn update_encrypted_aes_cbc() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
+        "experimental",
         "update",
         "-f",
         "update_encrypted_aes_cbc/archive.pna",
@@ -317,7 +321,7 @@ fn update_encrypted_aes_cbc() {
 }
 
 /// Precondition: An encrypted archive created with Camellia-CTR.
-/// Action: Run `pna update` with the same password.
+/// Action: Run `pna experimental update` with the same password.
 /// Expectation: Archive remains functional with Camellia encryption.
 #[test]
 fn update_encrypted_camellia_ctr() {
@@ -357,6 +361,7 @@ fn update_encrypted_camellia_ctr() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
+        "experimental",
         "update",
         "-f",
         "update_encrypted_camellia/archive.pna",
@@ -396,7 +401,7 @@ fn update_encrypted_camellia_ctr() {
 }
 
 /// Precondition: An encrypted archive created with PBKDF2 key derivation.
-/// Action: Run `pna update` with the same password.
+/// Action: Run `pna experimental update` with the same password.
 /// Expectation: Archive remains functional with PBKDF2 derived key.
 #[test]
 fn update_encrypted_pbkdf2() {
@@ -437,6 +442,7 @@ fn update_encrypted_pbkdf2() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
+        "experimental",
         "update",
         "-f",
         "update_encrypted_pbkdf2/archive.pna",
@@ -518,6 +524,7 @@ fn update_encrypted_content_verify() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
+        "experimental",
         "update",
         "-f",
         "update_encrypted_content/archive.pna",

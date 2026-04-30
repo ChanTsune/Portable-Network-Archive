@@ -7,7 +7,7 @@ use std::{fs, io::prelude::*, time::SystemTime};
 const DURATION_24_HOURS: Duration = Duration::seconds(24 * 60 * 60);
 
 /// Precondition: An archive contains files.
-/// Action: Modify a file, run `pna update` with `--ctime`.
+/// Action: Modify a file, run `pna experimental update` with `--ctime`.
 /// Expectation: All entries in the archive have the specified ctime.
 #[test]
 fn update_with_ctime() {
@@ -43,6 +43,7 @@ fn update_with_ctime() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
+        "experimental",
         "update",
         "--ctime",
         "2024-01-01T00:00:00Z",
@@ -64,7 +65,7 @@ fn update_with_ctime() {
 }
 
 /// Precondition: An archive contains files.
-/// Action: Modify a file, run `pna update` with `--ctime` and `--clamp-ctime`.
+/// Action: Modify a file, run `pna experimental update` with `--ctime` and `--clamp-ctime`.
 /// Expectation: All entries in the archive have ctime clamped to the specified value.
 #[test]
 fn update_with_clamp_ctime() {
@@ -100,6 +101,7 @@ fn update_with_clamp_ctime() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
+        "experimental",
         "update",
         "--ctime",
         "2024-01-01T00:00:00Z",

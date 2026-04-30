@@ -6,7 +6,7 @@ use std::{collections::HashSet, fs, io::prelude::*, time};
 const DURATION_24_HOURS: time::Duration = time::Duration::from_secs(24 * 60 * 60);
 
 /// Precondition: An archive contains multiple files.
-/// Action: Modify files with different mtimes, run `pna update` with `--newer-mtime`.
+/// Action: Modify files with different mtimes, run `pna experimental update` with `--newer-mtime`.
 /// Expectation: Only files with mtime newer than threshold are updated in the archive.
 #[test]
 fn update_with_newer_mtime() {
@@ -54,6 +54,7 @@ fn update_with_newer_mtime() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
+        "experimental",
         "update",
         "--unstable",
         "--newer-mtime",

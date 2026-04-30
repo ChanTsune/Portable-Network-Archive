@@ -5,7 +5,7 @@ use portable_network_archive::cli;
 use std::{fs, io::prelude::*};
 
 /// Precondition: Archive contains an entry without mtime (mTIM chunk omitted).
-/// Action: Run `pna update` without `--archive-missing-mtime`.
+/// Action: Run `pna experimental update` without `--archive-missing-mtime`.
 /// Expectation: The entry is replaced with the newer source content
 /// (default `Include` policy treats mtime-missing entries as stale, reproducing the
 /// pre-change hardcoded behavior).
@@ -49,6 +49,7 @@ fn update_default_mtime_missing_still_updates() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
+        "experimental",
         "update",
         "-f",
         archive_path,
@@ -121,6 +122,7 @@ fn update_archive_missing_mtime_exclude_keeps_entry() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
+        "experimental",
         "update",
         "--unstable",
         "--archive-missing-mtime=exclude",

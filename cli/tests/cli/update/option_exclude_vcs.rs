@@ -4,7 +4,7 @@ use portable_network_archive::cli;
 use std::{collections::HashSet, fs};
 
 /// Precondition: An archive exists without VCS files.
-/// Action: Add VCS files to source, run `pna update` with `--exclude-vcs`.
+/// Action: Add VCS files to source, run `pna experimental update` with `--exclude-vcs`.
 /// Expectation: New VCS files are not added to the archive; regular files are added.
 #[test]
 fn update_with_exclude_vcs() {
@@ -50,6 +50,7 @@ fn update_with_exclude_vcs() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
+        "experimental",
         "update",
         "-f",
         "update_option_exclude_vcs/archive.pna",
@@ -85,7 +86,7 @@ fn update_with_exclude_vcs() {
 }
 
 /// Precondition: An archive exists without VCS files.
-/// Action: Add VCS files to source, run `pna update` without `--exclude-vcs`.
+/// Action: Add VCS files to source, run `pna experimental update` without `--exclude-vcs`.
 /// Expectation: VCS files are added to the archive.
 #[test]
 fn update_without_exclude_vcs() {
@@ -123,6 +124,7 @@ fn update_without_exclude_vcs() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
+        "experimental",
         "update",
         "-f",
         "update_option_no_exclude_vcs/archive.pna",

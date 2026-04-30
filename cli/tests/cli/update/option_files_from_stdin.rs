@@ -4,7 +4,7 @@ use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
 
 /// Precondition: An archive exists with some files.
-/// Action: Run `pna update` with `--files-from-stdin` providing additional paths.
+/// Action: Run `pna experimental update` with `--files-from-stdin` providing additional paths.
 /// Expectation: Files from stdin are added to the archive.
 #[test]
 fn update_with_files_from_stdin() {
@@ -35,6 +35,7 @@ fn update_with_files_from_stdin() {
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
+        "experimental",
         "update",
         "-f",
         "update_files_from_stdin/base.pna",
