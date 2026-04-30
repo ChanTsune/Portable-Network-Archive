@@ -867,14 +867,14 @@ struct Diff {
     pna: Option<FsEntry>,
 }
 
-fn compare_snapshots(bsdtar: &FsSnapshot, pna: &FsSnapshot) -> Vec<Diff> {
+fn compare_snapshots(bsdtar: &FsSnapshot, pna: &FsSnapshot, ignore_mtime: bool) -> Vec<Diff> {
     let mut diffs = Vec::new();
     let all_keys: std::collections::BTreeSet<_> = bsdtar.0.keys().chain(pna.0.keys()).collect();
 
     for key in all_keys {
         let b = bsdtar.0.get(key);
         let p = pna.0.get(key);
-        if b != p {
+        if !entries_match(b, p, ignore_mtime) {
             diffs.push(Diff {
                 path: key.clone(),
                 bsdtar: b.cloned(),
@@ -883,6 +883,48 @@ fn compare_snapshots(bsdtar: &FsSnapshot, pna: &FsSnapshot) -> Vec<Diff> {
         }
     }
     diffs
+}
+
+fn entries_match(a: Option<&FsEntry>, b: Option<&FsEntry>, ignore_mtime: bool) -> bool {
+    match (a, b) {
+        (None, None) => true,
+        (Some(x), Some(y)) if ignore_mtime => match (x, y) {
+            (
+                FsEntry::File {
+                    contents: ca,
+                    mode: ma,
+                    mtime_secs: _,
+                    uid: ua,
+                    gid: ga,
+                },
+                FsEntry::File {
+                    contents: cb,
+                    mode: mb,
+                    mtime_secs: _,
+                    uid: ub,
+                    gid: gb,
+                },
+            ) => ca == cb && ma == mb && ua == ub && ga == gb,
+            (
+                FsEntry::Dir {
+                    mode: ma,
+                    mtime_secs: _,
+                    uid: ua,
+                    gid: ga,
+                },
+                FsEntry::Dir {
+                    mode: mb,
+                    mtime_secs: _,
+                    uid: ub,
+                    gid: gb,
+                },
+            ) => ma == mb && ua == ub && ga == gb,
+            (FsEntry::Symlink { target: ta }, FsEntry::Symlink { target: tb }) => ta == tb,
+            _ => false,
+        },
+        (Some(x), Some(y)) => x == y,
+        _ => false,
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1026,7 +1068,7 @@ fn run_scenario(
         });
     }
 
-    let diffs = compare_snapshots(&bsdtar_snap, &pna_snap);
+    let diffs = compare_snapshots(&bsdtar_snap, &pna_snap, scenario.options.no_preserve_mtime);
     if diffs.is_empty() {
         Ok(ScenarioResult::Pass)
     } else {
