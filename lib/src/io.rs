@@ -45,12 +45,25 @@ impl FlattenWriter {
 impl io::Write for FlattenWriter {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        if buf.is_empty() {
+        let len = buf.len();
+        if len == 0 {
             return Ok(0);
         }
-        self.inner
-            .extend(buf.chunks(self.max_chunk_size).map(|it| it.to_vec()));
-        Ok(buf.len())
+        let mut buf = buf;
+        // Optimization: append to the last buffer if it has space.
+        if let Some(last) = self.inner.last_mut() {
+            let remaining = self.max_chunk_size.saturating_sub(last.len());
+            if remaining > 0 {
+                let to_write = remaining.min(buf.len());
+                last.extend_from_slice(&buf[..to_write]);
+                buf = &buf[to_write..];
+            }
+        }
+        if !buf.is_empty() {
+            self.inner
+                .extend(buf.chunks(self.max_chunk_size).map(|it| it.to_vec()));
+        }
+        Ok(len)
     }
 
     #[inline]

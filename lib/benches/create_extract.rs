@@ -317,6 +317,19 @@ fn bench_read_empty_archive(c: &mut Criterion) {
     });
 }
 
+fn bench_write_small_chunks(c: &mut Criterion) {
+    c.bench_function("write_small_chunks", |b| {
+        b.iter(|| {
+            let mut builder =
+                EntryBuilder::new_file("bench".into(), WriteOptions::store()).unwrap();
+            for _ in 0..1000 {
+                builder.write_all(b"a").unwrap();
+            }
+            builder.build().unwrap()
+        })
+    });
+}
+
 criterion_group!(
     benches,
     bench_write_store_archive,
@@ -340,6 +353,7 @@ criterion_group!(
     bench_write_camellia_cbc_archive,
     bench_read_camellia_cbc_archive,
     bench_write_empty_archive,
-    bench_read_empty_archive
+    bench_read_empty_archive,
+    bench_write_small_chunks
 );
 criterion_main!(benches);
