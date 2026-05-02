@@ -116,27 +116,25 @@ jobs:
             # https://github.com/vmactions/freebsd-vm/issues/141 for the
             # related geo-mirror flakiness pattern.
             mkdir -p /usr/local/etc/pkg/repos
+            # Use the rolling `latest` repository instead of `quarterly`.
+            # The current quarterly snapshot exposes group-level integrity
+            # failures during `pkg install`: it ships incompatible release
+            # and devel variants of pkg(8) and gcc12/13/14/15 that all claim
+            # ownership of the same files (e.g. _pkg.bash, c++14, libgccjit.h).
+            # The rolling `latest` index keeps the variant set internally
+            # consistent. Run ids witnessing the quarterly breakage:
+            # 25246917346 (initial), 25251665720, 25253956945.
             cat > /usr/local/etc/pkg/repos/FreeBSD.conf <<'EOF'
             FreeBSD: {
-              url: "pkg+https://pkg.FreeBSD.org/${ABI}/quarterly",
+              url: "pkg+https://pkg.FreeBSD.org/${ABI}/latest",
               mirror_type: "srv",
               signature_type: "none",
               enabled: yes
             }
             EOF
-            # Workaround for pkg/pkg-devel file collision over
-            # /usr/local/etc/bash_completion.d/_pkg.bash. The vmactions VM
-            # ships pkg-2.7.5 whose package metadata claims ownership of
-            # that file, while the FreeBSD repository's pkg-devel package
-            # also claims it. The conflict surfaces at pkg(8)'s metadata-level
-            # integrity check ("Checking integrity... done (1 conflicting)"),
-            # so removing the file from disk is insufficient -- the database
-            # entry still wins. Force-upgrade pkg(8) against the repository
-            # first so its metadata aligns with the repository version,
-            # dissolving the conflict before subsequent installs run.
-            # Observed on 2026-05-02 (FreeBSD VM Tests, run ids 25246917346
-            # and 25251665720).
-            pkg upgrade -y -f pkg
+            # cmake is required at build time by libz-ng-sys (transitive
+            # dependency activated by the zlib-ng feature, which is part of
+            # the feature-powerset matrix below).
             pkg install -y curl cmake
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           run: |
