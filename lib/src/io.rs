@@ -44,13 +44,21 @@ impl FlattenWriter {
 
 impl io::Write for FlattenWriter {
     #[inline]
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        if buf.is_empty() {
-            return Ok(0);
+    fn write(&mut self, mut buf: &[u8]) -> io::Result<usize> {
+        let total_written = buf.len();
+        if let Some(last) = self.inner.last_mut() {
+            let space = self.max_chunk_size.saturating_sub(last.len());
+            if space > 0 {
+                let to_write = space.min(buf.len());
+                last.extend_from_slice(&buf[..to_write]);
+                buf = &buf[to_write..];
+            }
         }
-        self.inner
-            .extend(buf.chunks(self.max_chunk_size).map(|it| it.to_vec()));
-        Ok(buf.len())
+        if !buf.is_empty() {
+            self.inner
+                .extend(buf.chunks(self.max_chunk_size).map(|chunk| chunk.to_vec()));
+        }
+        Ok(total_written)
     }
 
     #[inline]
@@ -202,5 +210,29 @@ pub(crate) mod tests {
 
         // 4th read: EOF
         assert_eq!(reader.read(&mut out).unwrap(), 0);
+    }
+
+    #[test]
+    fn flatten_writer_multiple_writes() {
+        let mut writer = FlattenWriter::new();
+        writer.write_all(b"abc").unwrap();
+        writer.write_all(b"def").unwrap();
+        assert_eq!(
+            writer.inner.len(),
+            1,
+            "Should have only 1 chunk, but has {}",
+            writer.inner.len()
+        );
+        assert_eq!(writer.inner[0], b"abcdef");
+    }
+
+    #[test]
+    fn flatten_writer_max_chunk_size() {
+        let mut writer = FlattenWriter::with_max_chunk_size(3);
+        writer.write_all(b"abc").unwrap();
+        writer.write_all(b"d").unwrap();
+        assert_eq!(writer.inner.len(), 2);
+        assert_eq!(writer.inner[0], b"abc");
+        assert_eq!(writer.inner[1], b"d");
     }
 }

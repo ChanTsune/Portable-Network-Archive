@@ -1,0 +1,3 @@
+## 2025-05-15 - [Optimization] **Learning:** Coalescing multiple small writes in `FlattenWriter` reduces heap allocations and improves archive structure by minimizing the number of data chunks. **Action:** Always check if the current buffer has capacity before allocating a new one in collection types.
+
+## 2025-05-15 - [Tooling] **Learning:** Even with Rust Edition 2024, "let chains" are still an unstable feature and will break the build in standard environments. **Action:** Stick to stable patterns for conditional bindings, or use `allow` attributes if the stable alternative significantly reduces readability.

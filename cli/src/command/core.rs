@@ -877,6 +877,7 @@ pub(crate) fn write_from_path(writer: &mut impl Write, path: impl AsRef<Path>) -
         .metadata()
         .ok()
         .and_then(|meta| usize::try_from(meta.len()).ok());
+    #[allow(clippy::collapsible_if)]
     if let Some(size) = file_size {
         if size < IN_MEMORY_THRESHOLD {
             // NOTE: Use read_exact with pre-sized buffer to avoid fstat and dynamic allocation
