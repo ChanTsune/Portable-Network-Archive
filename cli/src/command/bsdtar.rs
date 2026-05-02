@@ -371,12 +371,19 @@ pub(crate) struct BsdtarCommand {
         help = "Ignore files from .gitignore"
     )]
     gitignore: bool,
-    #[arg(short = 'L', long, visible_aliases = ["dereference"], help = "Follow symbolic links")]
+    #[arg(
+        short = 'L',
+        long,
+        visible_aliases = ["dereference"],
+        overrides_with = "follow_command_links",
+        help = "Follow symbolic links"
+    )]
     follow_links: bool,
     #[arg(
         short = 'H',
         long,
         requires = "unstable",
+        overrides_with = "follow_links",
         help_heading = "Unstable Options",
         help = "Follow symbolic links named on the command line"
     )]
