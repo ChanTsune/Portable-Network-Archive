@@ -124,6 +124,15 @@ jobs:
               enabled: yes
             }
             EOF
+            # Workaround for pkg/pkg-devel file collision over
+            # /usr/local/etc/bash_completion.d/_pkg.bash that surfaces during
+            # `pkg install` when the FreeBSD repository carries a pkg-devel
+            # build whose installed file set overlaps with the pre-installed
+            # pkg(8). Delete the disputed file before install so pkg can hand
+            # ownership to whichever package needs to provide it; the bash
+            # completion is not consumed inside the CI VM. Observed first on
+            # 2026-05-02 (FreeBSD VM Tests, run id 25246917346).
+            rm -f /usr/local/etc/bash_completion.d/_pkg.bash
             pkg install -y curl cmake
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           run: |
