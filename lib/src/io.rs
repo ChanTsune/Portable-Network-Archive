@@ -48,9 +48,17 @@ impl io::Write for FlattenWriter {
         if buf.is_empty() {
             return Ok(0);
         }
+        let written = buf.len();
+        let mut rest = buf;
+        if let Some(last) = self.inner.last_mut() {
+            let free = self.max_chunk_size.saturating_sub(last.len());
+            let (head, tail) = rest.split_at(rest.len().min(free));
+            last.extend_from_slice(head);
+            rest = tail;
+        }
         self.inner
-            .extend(buf.chunks(self.max_chunk_size).map(|it| it.to_vec()));
-        Ok(buf.len())
+            .extend(rest.chunks(self.max_chunk_size).map(<[u8]>::to_vec));
+        Ok(written)
     }
 
     #[inline]
@@ -181,6 +189,32 @@ pub(crate) mod tests {
     fn chain_consecutive_empty() {
         let reader = ChainReader::new([&b"abc"[..], &b""[..], &b""[..], &b"def"[..]]);
         assert_eq!("abcdef", io::read_to_string(reader).unwrap());
+    }
+
+    #[test]
+    fn flatten_writer_coalesces_small_writes_into_minimal_chunks() {
+        const N: usize = 1000;
+        const MAX: usize = 10;
+        let mut writer = FlattenWriter::with_max_chunk_size(MAX);
+        for _ in 0..N {
+            writer.write_all(b"a").unwrap();
+        }
+        assert_eq!(writer.inner.concat(), vec![b'a'; N]);
+        assert!(writer.inner.iter().all(|c| c.len() <= MAX));
+        assert_eq!(writer.inner.len(), N.div_ceil(MAX));
+    }
+
+    #[test]
+    fn flatten_writer_tops_up_last_then_splits_remainder() {
+        const MAX: usize = 10;
+        let mut writer = FlattenWriter::with_max_chunk_size(MAX);
+        writer.write_all(b"abcd").unwrap();
+        writer.write_all(&[b'X'; 25]).unwrap();
+        let mut expected = Vec::from(&b"abcd"[..]);
+        expected.resize(29, b'X');
+        assert_eq!(writer.inner.concat(), expected);
+        assert!(writer.inner.iter().all(|c| c.len() <= MAX));
+        assert_eq!(writer.inner.len(), expected.len().div_ceil(MAX));
     }
 
     #[test]
