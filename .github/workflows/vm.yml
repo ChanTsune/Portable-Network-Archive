@@ -125,14 +125,18 @@ jobs:
             }
             EOF
             # Workaround for pkg/pkg-devel file collision over
-            # /usr/local/etc/bash_completion.d/_pkg.bash that surfaces during
-            # `pkg install` when the FreeBSD repository carries a pkg-devel
-            # build whose installed file set overlaps with the pre-installed
-            # pkg(8). Delete the disputed file before install so pkg can hand
-            # ownership to whichever package needs to provide it; the bash
-            # completion is not consumed inside the CI VM. Observed first on
-            # 2026-05-02 (FreeBSD VM Tests, run id 25246917346).
-            rm -f /usr/local/etc/bash_completion.d/_pkg.bash
+            # /usr/local/etc/bash_completion.d/_pkg.bash. The vmactions VM
+            # ships pkg-2.7.5 whose package metadata claims ownership of
+            # that file, while the FreeBSD repository's pkg-devel package
+            # also claims it. The conflict surfaces at pkg(8)'s metadata-level
+            # integrity check ("Checking integrity... done (1 conflicting)"),
+            # so removing the file from disk is insufficient -- the database
+            # entry still wins. Force-upgrade pkg(8) against the repository
+            # first so its metadata aligns with the repository version,
+            # dissolving the conflict before subsequent installs run.
+            # Observed on 2026-05-02 (FreeBSD VM Tests, run ids 25246917346
+            # and 25251665720).
+            pkg upgrade -y -f pkg
             pkg install -y curl cmake
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           run: |
