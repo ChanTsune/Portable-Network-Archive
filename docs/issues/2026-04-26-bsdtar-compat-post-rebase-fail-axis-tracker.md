@@ -153,6 +153,26 @@ Loop variants (`SymLoopSelf` / `SymLoopMutual`) are present in the run but did n
 
 The bulk of errors come from new axis combinations where one side fails the create or extract command. Per-axis investigation belongs to follow-up issues, not Stage 4.
 
+## Stage 4 follow-up: Option A (clap `overrides_with` for `-L`/`-H`)
+
+After cherry-pick of `cli/bsdtar-LH-override` into `ci/bsdtar-compat-labels` (commits `3263bc24` + `2d2aa38e`), an additional xtask oracle run on 2026-05-02 produced:
+
+```
+1554432 scenarios: 1232764 passed, 37796 failed, 283872 errors
+```
+
+Compared to the prior mtime-fix-only baseline (Stage 4 fix1: 87250 failures), Option A reduced failures by **49454 (-57%)**. Effect concentrated on `-L -H` last-wins scenarios:
+
+| Pattern | Before Option A | After Option A | Δ |
+|---|---|---|---|
+| `L_trav_SymChain4` | 18164 | 1497 | -92% |
+| `L_trav_SymChain2` | 18160 | 1489 | -92% |
+| `L_trav_SymDir` | 9918 | 1796 | -82% |
+| `L_trav_Sym` | 8852 | 1164 | -87% |
+| `_H` containing fails | 42072 | 19323 | -54% |
+
+The remaining 37796 fails are unrelated to `-L` / `-H` semantics (`Dir`, `Nested`, `HLink`, `SymDangling` patterns at ~1000-2000 fails each). Per-axis investigation belongs to follow-up issues.
+
 ## Permanently deferred (out of xtask scope)
 
 The following `-L` test scenarios are out of scope for the xtask `bsdtar-compat` framework. They will not be added in any future stage of this design lineage:

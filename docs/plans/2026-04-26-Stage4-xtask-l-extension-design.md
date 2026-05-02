@@ -262,6 +262,20 @@ The bulk of errors (282624) come from new axis combinations where one side (PNA 
 | L16 (`L_symlink_loop_mutual`) | `*_SymLoopMutual_*` | covered by new `ArchiveEntryType::SymlinkMutualLoop` |
 | L17 (`L_and_H_both_specified`) | `*_*_H` | covered by `follow_command_links: bool` axis |
 
+## Stage 4 Follow-up: Option A (clap `overrides_with` for `-L`/`-H`)
+
+Date: 2026-05-02
+
+C1 root cause analysis on Stage 4 fix1 results identified the `-L -H` last-wins divergence between bsdtar parse-order semantics and PNA OR semantics as the dominant divergence source. The fix was implemented on `cli/src/command/bsdtar.rs:374-388` by adding `overrides_with = "follow_command_links"` to `-L` and `overrides_with = "follow_links"` to `-H`. The fix and 4 integration tests (`option_follow_links_combined.rs`) were committed to `ci/bsdtar-compat-labels` as `3263bc24` + `2d2aa38e`, and cherry-picked to `cli/bsdtar-LH-override` (main-derived) as `25a78e9d` + `416e4283` for an isolated PR candidate.
+
+xtask oracle re-run after the fix:
+
+```
+1554432 scenarios: 1232764 passed, 37796 failed, 283872 errors
+```
+
+vs Stage 4 fix1 (mtime-fix-only) baseline 87250 failures: **-49454 (-57%)**. SymChain pattern fails reduced by 92%. C1 root cause is conclusively confirmed and resolved.
+
 ## Stage 4 Completion Record
 
 - **Date**: 2026-04-28
