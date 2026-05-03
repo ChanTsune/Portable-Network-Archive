@@ -6,9 +6,9 @@ use std::{fs, io::prelude::*};
 
 /// Precondition: Archive contains an entry without mtime (mTIM chunk omitted).
 /// Action: Run `pna experimental update` without `--archive-missing-mtime`.
-/// Expectation: The entry is replaced with the newer source content
-/// (default `Include` policy treats mtime-missing entries as stale, reproducing the
-/// pre-change hardcoded behavior).
+/// Expectation: Default `Include` policy treats mtime-missing entries as stale,
+/// so under append-only update semantics a fresh copy with the modified content
+/// is appended; the latest copy of the entry holds `"new content"`.
 #[test]
 fn update_default_mtime_missing_still_updates() {
     setup();
@@ -59,20 +59,26 @@ fn update_default_mtime_missing_still_updates() {
     .execute()
     .unwrap();
 
-    // Read the entry content from the archive and confirm it was updated.
-    let entry = archive::extract_single_entry(archive_path, source)
-        .unwrap()
-        .expect("entry should exist");
-    let mut buf = Vec::new();
-    entry
-        .reader(ReadOptions::with_password::<&[u8]>(None))
-        .unwrap()
-        .read_to_end(&mut buf)
-        .unwrap();
+    // Append-only: collect every copy of the entry and verify the latest one
+    // reflects the modified content.
+    let mut contents: Vec<Vec<u8>> = Vec::new();
+    archive::for_each_entry(archive_path, |entry| {
+        if entry.header().path().as_str() == source {
+            let mut buf = Vec::new();
+            entry
+                .reader(ReadOptions::with_password::<&[u8]>(None))
+                .unwrap()
+                .read_to_end(&mut buf)
+                .unwrap();
+            contents.push(buf);
+        }
+    })
+    .unwrap();
+    assert!(!contents.is_empty(), "archive should contain {source}");
     assert_eq!(
-        buf.as_slice(),
+        contents.last().unwrap().as_slice(),
         b"new content",
-        "default policy should update mtime-missing entries"
+        "default policy should append a fresh copy with the modified content"
     );
 }
 

@@ -10,7 +10,9 @@ use std::{
 
 /// Precondition: An archive created with `--no-keep-timestamp` (entries have no mtime).
 /// Action: Modify a file and run `pna experimental update` with `--no-keep-timestamp`.
-/// Expectation: Modified content is reflected in the re-archived entry.
+/// Expectation: Under append-only update semantics, the original entry remains
+///   and a fresh copy with the modified content is appended; the latest copy
+///   reflects the modification.
 #[test]
 fn update_no_timestamp_archive_always_updates() {
     setup();
@@ -69,7 +71,7 @@ fn update_no_timestamp_archive_always_updates() {
     .unwrap();
 
     let mut post_entries = HashSet::new();
-    let mut found_updated_content = false;
+    let mut text_txt_contents: Vec<Vec<u8>> = Vec::new();
     archive::for_each_entry("update_no_ts_always/archive.pna", |entry| {
         post_entries.insert(entry.header().path().to_string());
         if entry.header().path().as_str() == text_txt_path {
@@ -79,19 +81,20 @@ fn update_no_timestamp_archive_always_updates() {
                 .unwrap()
                 .read_to_end(&mut buf)
                 .unwrap();
-            assert_eq!(
-                buf.as_slice(),
-                updated_content,
-                "text.txt content should reflect the modification"
-            );
-            found_updated_content = true;
+            text_txt_contents.push(buf);
         }
     })
     .unwrap();
-    assert!(found_updated_content, "text.txt entry should exist");
+    assert!(!text_txt_contents.is_empty(), "text.txt entry should exist");
+    // Append-only semantics: the latest text.txt copy reflects the modification.
+    assert_eq!(
+        text_txt_contents.last().unwrap().as_slice(),
+        updated_content,
+        "the most recent text.txt copy should reflect the modification"
+    );
     assert_eq!(
         initial_entries, post_entries,
-        "update should preserve all entries"
+        "update should preserve every original path-level entry"
     );
 }
 
@@ -164,7 +167,9 @@ fn update_no_timestamp_archive_with_sync() {
 
 /// Precondition: An archive created with `--no-keep-timestamp` (entries have no mtime).
 /// Action: Run `pna experimental update` with `--keep-timestamp`.
-/// Expectation: All entries acquire mtime when updated with `--keep-timestamp`.
+/// Expectation: Under append-only update semantics, the original mtime-less
+///   entries are preserved while newly appended copies acquire mtime from the
+///   filesystem.
 #[test]
 fn update_no_timestamp_archive_gains_mtime_with_keep_timestamp() {
     setup();
@@ -208,17 +213,24 @@ fn update_no_timestamp_archive_gains_mtime_with_keep_timestamp() {
     .execute()
     .unwrap();
 
-    let mut has_entries = false;
+    let mut has_mtime_entry = false;
+    let mut has_no_mtime_entry = false;
     archive::for_each_entry("update_no_ts_gains_mtime/archive.pna", |entry| {
-        has_entries = true;
-        assert!(
-            entry.metadata().modified().is_some(),
-            "entry {} should gain mtime after update with --keep-timestamp",
-            entry.header().path()
-        );
+        if entry.metadata().modified().is_some() {
+            has_mtime_entry = true;
+        } else {
+            has_no_mtime_entry = true;
+        }
     })
     .unwrap();
-    assert!(has_entries, "archive should contain entries");
+    assert!(
+        has_mtime_entry,
+        "newly appended entries should gain mtime with --keep-timestamp"
+    );
+    assert!(
+        has_no_mtime_entry,
+        "original mtime-less entries are preserved under append-only update"
+    );
 }
 
 /// Precondition: An archive created with `--no-keep-timestamp` (entries have no mtime).
@@ -272,8 +284,9 @@ fn update_no_timestamp_archive_stays_without_mtime() {
 
 /// Precondition: An archive created with `--keep-timestamp` (entries have mtime).
 /// Action: Modify a file, run `pna experimental update` with `--no-keep-timestamp`.
-/// Expectation: Only the modified file is re-archived without mtime; unmodified entries
-///   pass through with original mtime unchanged.
+/// Expectation: Under append-only update semantics, the original mtimed copy
+///   of the modified file is preserved and a fresh mtime-less copy is appended;
+///   unmodified entries pass through with original mtime unchanged.
 #[test]
 fn update_timestamped_archive_loses_mtime_with_no_keep_timestamp() {
     setup();
@@ -334,14 +347,13 @@ fn update_timestamped_archive_loses_mtime_with_no_keep_timestamp() {
     .execute()
     .unwrap();
 
-    // Updated entry (text.txt) loses mtime; non-updated entries pass through unchanged
+    // Updated entry (text.txt) is appended without mtime; the original mtimed
+    // copy is preserved alongside it. Non-updated entries pass through unchanged.
+    let mut text_txt_mtimes: Vec<Option<pna::Duration>> = Vec::new();
     archive::for_each_entry("update_ts_loses_mtime/archive.pna", |entry| {
         let path = entry.header().path().to_string();
         if path == text_txt_path {
-            assert!(
-                entry.metadata().modified().is_none(),
-                "updated entry {path} should have no mtime with --no-keep-timestamp"
-            );
+            text_txt_mtimes.push(entry.metadata().modified());
         } else {
             assert_eq!(
                 entry.metadata().modified(),
@@ -351,4 +363,13 @@ fn update_timestamped_archive_loses_mtime_with_no_keep_timestamp() {
         }
     })
     .unwrap();
+    assert!(
+        text_txt_mtimes.len() >= 2,
+        "text.txt should have an original copy plus an appended copy under append-only update"
+    );
+    assert_eq!(
+        text_txt_mtimes.last().copied(),
+        Some(None),
+        "the latest text.txt copy must have no mtime under --no-keep-timestamp"
+    );
 }

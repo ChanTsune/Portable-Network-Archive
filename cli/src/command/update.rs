@@ -610,7 +610,15 @@ where
                                         unreachable!("receiver is held by scope owner")
                                     });
                             });
-                            Ok(None)
+                            // `--sync` controls whether the archive is forcibly
+                            // realigned to the disk state. With sync the old
+                            // archive entry is dropped and replaced by the new
+                            // one (PNA-native semantics). Without sync the old
+                            // entry is preserved and the new one is appended,
+                            // matching bsdtar's append-only `-u` behavior
+                            // (duplicate entries are allowed; later wins on
+                            // extraction).
+                            if sync { Ok(None) } else { Ok(Some(entry)) }
                         } else {
                             Ok(Some(entry))
                         }

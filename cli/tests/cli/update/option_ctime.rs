@@ -7,8 +7,10 @@ use std::{fs, io::prelude::*, time::SystemTime};
 const DURATION_24_HOURS: Duration = Duration::seconds(24 * 60 * 60);
 
 /// Precondition: An archive contains files.
-/// Action: Modify a file, run `pna experimental update` with `--ctime`.
+/// Action: Modify a file, run `pna experimental update --sync` with `--ctime`.
 /// Expectation: All entries in the archive have the specified ctime.
+///   `--sync` forces realignment of the archive to the disk state, replacing
+///   pre-existing entries; without `--sync` the original copies would remain.
 #[test]
 fn update_with_ctime() {
     setup();
@@ -51,6 +53,7 @@ fn update_with_ctime() {
         "update_with_ctime/archive.pna",
         "update_with_ctime/in/",
         "--keep-timestamp",
+        "--sync",
     ])
     .unwrap()
     .execute()
