@@ -11,8 +11,10 @@ use std::{
 const DURATION_24_HOURS: Duration = Duration::seconds(24 * 60 * 60);
 
 /// Precondition: An archive contains files.
-/// Action: Modify a file, run `pna experimental update` with `--atime`.
+/// Action: Modify a file, run `pna experimental update --sync` with `--atime`.
 /// Expectation: All entries in the archive have the specified atime.
+///   `--sync` forces realignment of the archive to the disk state, replacing
+///   pre-existing entries; without `--sync` the original copies would remain.
 #[test]
 fn update_with_atime() {
     setup();
@@ -55,6 +57,7 @@ fn update_with_atime() {
         "update_with_atime/archive.pna",
         "update_with_atime/in/",
         "--keep-timestamp",
+        "--sync",
     ])
     .unwrap()
     .execute()

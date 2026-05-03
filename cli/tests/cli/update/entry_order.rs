@@ -5,11 +5,14 @@ use std::fs;
 
 /// Precondition: An archive exists with entries, files of varying sizes exist for update.
 /// Action: Run `pna experimental update` with files in a specific order.
-/// Expectation: Updated archive preserves entry order from input arguments.
+/// Expectation: Under append-only update semantics (`--sync` disabled), the
+///   original entries are preserved and the newly appended entries follow CLI
+///   argument order.
 #[test]
 fn update_preserves_cli_argument_order() {
     setup();
     let dir = "update_preserves_cli_argument_order";
+    let _ = fs::remove_dir_all(dir);
     fs::create_dir_all(dir).unwrap();
 
     // Create initial files
@@ -65,32 +68,39 @@ fn update_preserves_cli_argument_order() {
     })
     .unwrap();
 
-    // Update should preserve the order specified in CLI arguments: b, a, c
-    assert_eq!(entry_names.len(), 3);
+    // Append-only semantics: original 3 entries (a, b, c in creation order)
+    // remain, then 3 appended entries follow the CLI argument order (b, a, c).
+    assert_eq!(entry_names.len(), 6);
+    assert!(entry_names[0].ends_with("a.txt"));
+    assert!(entry_names[1].ends_with("b.txt"));
+    assert!(entry_names[2].ends_with("c.txt"));
     assert!(
-        entry_names[0].ends_with("b.txt"),
-        "First entry should be b.txt, got: {}",
-        entry_names[0]
+        entry_names[3].ends_with("b.txt"),
+        "First appended entry should be b.txt, got: {}",
+        entry_names[3]
     );
     assert!(
-        entry_names[1].ends_with("a.txt"),
-        "Second entry should be a.txt, got: {}",
-        entry_names[1]
+        entry_names[4].ends_with("a.txt"),
+        "Second appended entry should be a.txt, got: {}",
+        entry_names[4]
     );
     assert!(
-        entry_names[2].ends_with("c.txt"),
-        "Third entry should be c.txt, got: {}",
-        entry_names[2]
+        entry_names[5].ends_with("c.txt"),
+        "Third appended entry should be c.txt, got: {}",
+        entry_names[5]
     );
 }
 
 /// Precondition: An archive exists, multiple directories with files exist.
 /// Action: Run `pna experimental update` with multiple directory arguments.
-/// Expectation: Entries from first directory appear before second directory.
+/// Expectation: Within the appended portion of the archive (append-only `-u`
+///   semantics), entries from the first CLI directory argument appear before
+///   the second.
 #[test]
 fn update_preserves_multiple_directory_order() {
     setup();
     let dir = "update_preserves_multiple_directory_order";
+    let _ = fs::remove_dir_all(dir);
     fs::create_dir_all(format!("{dir}/dir_a")).unwrap();
     fs::create_dir_all(format!("{dir}/dir_b")).unwrap();
 
@@ -140,28 +150,39 @@ fn update_preserves_multiple_directory_order() {
     })
     .unwrap();
 
-    let dir_a_indices: Vec<usize> = entry_names
+    // Under append-only update semantics, the original archive entries remain
+    // followed by appended entries. Verify ordering only within the appended
+    // portion: entries from the first CLI argument (dir_a) must precede those
+    // from the second (dir_b).
+    let original_count = entry_names
+        .iter()
+        .position(|name| name.contains("extra.txt"))
+        .unwrap_or(entry_names.len())
+        .min(
+            // Heuristic: original archive has 4 entries (dir_a/, dir_a/file.txt,
+            // dir_b/, dir_b/file.txt). The newly-introduced extra.txt cannot
+            // appear before the appended portion.
+            4,
+        );
+    let appended = &entry_names[original_count..];
+
+    let dir_a_max = appended
         .iter()
         .enumerate()
         .filter(|(_, name)| name.contains("dir_a"))
         .map(|(i, _)| i)
-        .collect();
-    let dir_b_indices: Vec<usize> = entry_names
+        .max();
+    let dir_b_min = appended
         .iter()
         .enumerate()
         .filter(|(_, name)| name.contains("dir_b"))
         .map(|(i, _)| i)
-        .collect();
+        .min();
 
-    assert!(!dir_a_indices.is_empty(), "Should have dir_a entries");
-    assert!(!dir_b_indices.is_empty(), "Should have dir_b entries");
-
-    let max_dir_a = *dir_a_indices.iter().max().unwrap();
-    let min_dir_b = *dir_b_indices.iter().min().unwrap();
+    let dir_a_max = dir_a_max.expect("appended portion should contain dir_a entries");
+    let dir_b_min = dir_b_min.expect("appended portion should contain dir_b entries");
     assert!(
-        max_dir_a < min_dir_b,
-        "All dir_a entries (max index {}) should come before dir_b entries (min index {})",
-        max_dir_a,
-        min_dir_b
+        dir_a_max < dir_b_min,
+        "Appended dir_a entries (max index {dir_a_max}) should precede dir_b entries (min index {dir_b_min}). full order: {entry_names:?}",
     );
 }
