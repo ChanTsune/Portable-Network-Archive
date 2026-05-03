@@ -877,20 +877,20 @@ pub(crate) fn write_from_path(writer: &mut impl Write, path: impl AsRef<Path>) -
         .metadata()
         .ok()
         .and_then(|meta| usize::try_from(meta.len()).ok());
+    if let Some(size) = file_size.filter(|&size| size < IN_MEMORY_THRESHOLD) {
+        // File::read_to_end would call fstat+lseek internally to size its buffer;
+        // reuse the size already obtained from metadata() above and read with
+        // read_exact to skip that extra syscall pair.
+        let mut contents = vec![0u8; size];
+        file.read_exact(&mut contents)?;
+        writer.write_all(&contents)?;
+        return Ok(());
+    }
+    #[cfg(feature = "memmap")]
     if let Some(size) = file_size {
-        if size < IN_MEMORY_THRESHOLD {
-            // NOTE: Use read_exact with pre-sized buffer to avoid fstat and dynamic allocation
-            let mut contents = vec![0u8; size];
-            file.read_exact(&mut contents)?;
-            writer.write_all(&contents)?;
-            return Ok(());
-        }
-        #[cfg(feature = "memmap")]
-        {
-            let mmap = utils::mmap::Mmap::map_with_size(file, size)?;
-            writer.write_all(&mmap[..])?;
-            return Ok(());
-        }
+        let mmap = utils::mmap::Mmap::map_with_size(file, size)?;
+        writer.write_all(&mmap[..])?;
+        return Ok(());
     }
     // Fallback for large files without memmap, or when size is unknown
     copy_buffered(file, writer)
