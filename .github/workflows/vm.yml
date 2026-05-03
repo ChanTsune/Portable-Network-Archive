@@ -105,7 +105,14 @@ jobs:
         id: test
         uses: vmactions/freebsd-vm@d1e65811565151536c0c894fff74f06351ed26e6 # v1.4.5
         with:
-          envs: "RUST_BACKTRACE"
+          envs: "RUST_BACKTRACE CARGO_BUILD_JOBS"
+          # vmactions/freebsd-vm defaults to 6144 MiB which is insufficient
+          # for `cargo hack test --feature-powerset --release` of this
+          # workspace. Earlier failures (commit 5efebfe4 and aace5992) ended
+          # with the in-VM child process getting SIGKILL'd (exit 137,
+          # "Child process pid=... terminated abnormally: Killed"), pointing
+          # to OOM. Raise memory to 12 GiB; ubuntu-latest provides 16 GiB.
+          mem: 12288
           copyback: false
           disable-cache: true
           usesh: true
@@ -141,6 +148,11 @@ jobs:
             set -e
             . "$HOME/.cargo/env"
             export LC_ALL=C LANG=C
+            # Cap rustc parallelism. Even with 12 GiB allocated to the VM,
+            # the default rustc job count (1 per CPU, typically 4) lets a
+            # release-mode powerset build hit the OOM-killer; capping to 2
+            # jobs trades a slower build for a stable peak memory footprint.
+            export CARGO_BUILD_JOBS=2
             uname -a
             # vmactions/freebsd-vm root is ZFS+nfsv4acls; POSIX.1e ACL tests
             # need a UFS+acls filesystem. Create a vnode-backed UFS image and
