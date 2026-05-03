@@ -19,6 +19,7 @@ mod option_same_permissions;
 mod option_substitution;
 mod option_to_stdout;
 mod option_update;
+mod option_update_strip_components;
 mod option_version;
 mod path_traversal;
 mod strip_components;
