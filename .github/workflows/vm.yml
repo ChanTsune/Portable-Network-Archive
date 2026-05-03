@@ -139,9 +139,19 @@ jobs:
               enabled: yes
             }
             EOF
+            # The latest repository advertises a newer pkg(8) binary than
+            # the one shipped in the vmactions VM image. Without an
+            # explicit force-upgrade, every subsequent `pkg` invocation
+            # re-prints "New version of pkg detected; it needs to be
+            # installed first." and re-fetches the catalog instead of
+            # making progress. Commit 84853493's run logged 3629 such
+            # repetitions across 50 minutes, never reaching cargo. Use
+            # the static binary to upgrade pkg(8) once up front so
+            # subsequent invocations see no version skew.
+            ASSUME_ALWAYS_YES=yes pkg-static upgrade -fy pkg
             # cmake is required at build time by libz-ng-sys (transitive
-            # dependency activated by the zlib-ng feature, which is part of
-            # the feature-powerset matrix below).
+            # dependency activated by the zlib-ng feature, which is part
+            # of the feature-powerset matrix below).
             pkg install -y curl cmake
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           run: |
