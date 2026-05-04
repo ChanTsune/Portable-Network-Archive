@@ -1,0 +1,4 @@
+## 2025-05-15 - Integer Overflow in Archive Metadata and Structure
+**Vulnerability:** Malformed archives could trigger panics during parsing via integer overflows in reachable code paths, specifically in archive part numbering (`archive_number + 1`), chunk size calculations (`MIN_CHUNK_BYTES_SIZE + length`), and timestamp nanosecond additions.
+**Learning:** Standard arithmetic operators (`+`, `sum()`) on untrusted numeric input from archive headers or metadata are dangerous and can lead to Denial-of-Service (DoS) via panics, especially on 32-bit systems or with extreme values.
+**Prevention:** Always use `checked_add` with error propagation for structural fields (like sequence numbers) and `saturating_add` for size/length calculations. For non-critical metadata like sub-second timestamps, use `checked_add` with a safe fallback to the base value.

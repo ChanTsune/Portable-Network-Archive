@@ -1754,7 +1754,7 @@ where
         )
         .into());
     }
-    let mut part_num = 1;
+    let mut part_num: usize = 1;
     let mut writer = Archive::write_header(initial_writer)?;
 
     // NOTE: max_file_size - (PNA_HEADER + AHED + ANXT + AEND)
@@ -1769,7 +1769,9 @@ where
         )?;
         for part in parts {
             if written_entry_size + part.bytes_len() > max_file_size {
-                part_num += 1;
+                part_num = part_num.checked_add(1).ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidInput, "part number overflowed")
+                })?;
                 let file = get_next_writer(part_num)?;
                 writer = writer.split_to_next_archive(file)?;
                 written_entry_size = 0;

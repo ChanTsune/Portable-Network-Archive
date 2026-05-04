@@ -243,7 +243,9 @@ impl<W: Write> Archive<W> {
     /// ```
     #[inline]
     pub fn split_to_next_archive<OW: Write>(mut self, writer: OW) -> io::Result<Archive<OW>> {
-        let next_archive_number = self.header.archive_number + 1;
+        let next_archive_number = self.header.archive_number.checked_add(1).ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidInput, "archive number overflowed")
+        })?;
         let header = ArchiveHeader::new(0, 0, next_archive_number);
         let max_chunk_size = self.max_chunk_size;
         self.add_next_archive_marker()?;

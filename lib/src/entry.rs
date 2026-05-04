@@ -681,9 +681,18 @@ where
                 }
             }
         }
-        let ctime = ctime.map(|t| t + Duration::nanoseconds(ctime_ns.unwrap_or(0) as _));
-        let mtime = mtime.map(|t| t + Duration::nanoseconds(mtime_ns.unwrap_or(0) as _));
-        let atime = atime.map(|t| t + Duration::nanoseconds(atime_ns.unwrap_or(0) as _));
+        let ctime = ctime.map(|t| {
+            t.checked_add(Duration::nanoseconds(ctime_ns.unwrap_or(0) as _))
+                .unwrap_or(t)
+        });
+        let mtime = mtime.map(|t| {
+            t.checked_add(Duration::nanoseconds(mtime_ns.unwrap_or(0) as _))
+                .unwrap_or(t)
+        });
+        let atime = atime.map(|t| {
+            t.checked_add(Duration::nanoseconds(atime_ns.unwrap_or(0) as _))
+                .unwrap_or(t)
+        });
 
         Ok(Self {
             header,
@@ -1126,7 +1135,9 @@ where
     /// Returns the total length of this entry part in bytes.
     #[inline]
     pub fn bytes_len(&self) -> usize {
-        self.0.iter().map(|chunk| chunk.bytes_len()).sum()
+        self.0
+            .iter()
+            .fold(0, |acc, chunk| acc.saturating_add(chunk.bytes_len()))
     }
 
     /// Get reference.

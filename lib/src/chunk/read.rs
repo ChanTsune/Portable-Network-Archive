@@ -113,7 +113,10 @@ impl<R: Read + Seek> ChunkReader<R> {
         self.r
             .seek(SeekFrom::Current(mem::size_of::<u32>() as i64))?;
 
-        Ok((ChunkType::new(ty)?, MIN_CHUNK_BYTES_SIZE + length as usize))
+        Ok((
+            ChunkType::new(ty)?,
+            MIN_CHUNK_BYTES_SIZE.saturating_add(length as usize),
+        ))
     }
 }
 
