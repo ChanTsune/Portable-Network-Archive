@@ -153,12 +153,15 @@ impl<'d> Archive<&'d [u8]> {
     pub fn read_next_archive_from_slice(self, bytes: &[u8]) -> io::Result<Archive<&[u8]>> {
         let current_header = self.header;
         let next = Archive::read_header_from_slice_with_buffer(bytes, self.buf)?;
-        if current_header.archive_number + 1 != next.header.archive_number {
+        let next_number = current_header
+            .archive_number
+            .checked_add(1)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "archive number overflow"))?;
+        if next_number != next.header.archive_number {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!(
-                    "next archive number must be {} (expected previous + 1, detected: {})",
-                    current_header.archive_number + 1,
+                    "next archive number must be {next_number} (expected previous + 1, detected: {})",
                     next.header.archive_number
                 ),
             ));

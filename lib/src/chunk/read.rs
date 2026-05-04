@@ -113,7 +113,12 @@ impl<R: Read + Seek> ChunkReader<R> {
         self.r
             .seek(SeekFrom::Current(mem::size_of::<u32>() as i64))?;
 
-        Ok((ChunkType::new(ty)?, MIN_CHUNK_BYTES_SIZE + length as usize))
+        Ok((
+            ChunkType::new(ty)?,
+            MIN_CHUNK_BYTES_SIZE
+                .checked_add(length as usize)
+                .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "chunk size overflow"))?,
+        ))
     }
 }
 
