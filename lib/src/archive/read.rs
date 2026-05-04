@@ -147,12 +147,15 @@ impl<R: Read> Archive<R> {
         let current_header = self.header;
         let mut next = Archive::<OR>::read_header_with_buffer(reader, self.buf)?;
         next.max_chunk_size = self.max_chunk_size;
-        if current_header.archive_number + 1 != next.header.archive_number {
+        let next_number = current_header
+            .archive_number
+            .checked_add(1)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "archive number overflow"))?;
+        if next_number != next.header.archive_number {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!(
-                    "next archive number must be {} (expected previous + 1, detected: {})",
-                    current_header.archive_number + 1,
+                    "next archive number must be {next_number} (expected previous + 1, detected: {})",
                     next.header.archive_number
                 ),
             ));
