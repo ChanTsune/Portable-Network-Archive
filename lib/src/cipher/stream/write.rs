@@ -11,6 +11,7 @@ where
 {
     w: W,
     cipher: StreamCipherCoreWrapper<T>,
+    scratch: Vec<u8>,
 }
 
 impl<W, T> StreamCipherWriter<W, T>
@@ -25,6 +26,7 @@ where
             w,
             cipher: StreamCipherCoreWrapper::<T>::new_from_slices(key, iv)
                 .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?,
+            scratch: Vec::new(),
         })
     }
 
@@ -49,9 +51,10 @@ where
         if buf.is_empty() {
             return Ok(0);
         }
-        let mut buf = buf.to_vec();
-        self.cipher.apply_keystream(&mut buf);
-        self.w.write_all(&buf)?;
+        self.scratch.clear();
+        self.scratch.extend_from_slice(buf);
+        self.cipher.apply_keystream(&mut self.scratch);
+        self.w.write_all(&self.scratch)?;
         Ok(buf.len())
     }
 
