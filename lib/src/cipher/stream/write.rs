@@ -49,9 +49,12 @@ where
         if buf.is_empty() {
             return Ok(0);
         }
-        let mut buf = buf.to_vec();
-        self.cipher.apply_keystream(&mut buf);
-        self.w.write_all(&buf)?;
+        let mut tmp = [0u8; 4096];
+        for chunk in buf.chunks(tmp.len()) {
+            self.cipher
+                .apply_keystream_b2b(chunk, &mut tmp[..chunk.len()]);
+            self.w.write_all(&tmp[..chunk.len()])?;
+        }
         Ok(buf.len())
     }
 
