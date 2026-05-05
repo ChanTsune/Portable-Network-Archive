@@ -844,11 +844,13 @@ fn detect_symlink_target_type(
 pub(crate) fn collect_split_archives(first: impl AsRef<Path>) -> io::Result<Vec<fs::File>> {
     let first = first.as_ref();
     let mut archives = Vec::new();
-    let mut n = 1;
+    let mut n: usize = 1;
     let mut target_archive = Cow::from(first);
     while fs::exists(&target_archive)? {
         archives.push(fs::File::open(&target_archive)?);
-        n += 1;
+        n = n
+            .checked_add(1)
+            .ok_or_else(|| io::Error::other("too many archive parts"))?;
         target_archive = target_archive.with_part(n).into();
     }
     if archives.is_empty() {
@@ -1754,7 +1756,7 @@ where
         )
         .into());
     }
-    let mut part_num = 1;
+    let mut part_num: usize = 1;
     let mut writer = Archive::write_header(initial_writer)?;
 
     // NOTE: max_file_size - (PNA_HEADER + AHED + ANXT + AEND)
@@ -1769,7 +1771,9 @@ where
         )?;
         for part in parts {
             if written_entry_size + part.bytes_len() > max_file_size {
-                part_num += 1;
+                part_num = part_num
+                    .checked_add(1)
+                    .ok_or_else(|| anyhow::anyhow!("too many archive parts"))?;
                 let file = get_next_writer(part_num)?;
                 writer = writer.split_to_next_archive(file)?;
                 written_entry_size = 0;
