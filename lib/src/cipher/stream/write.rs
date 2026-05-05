@@ -51,10 +51,20 @@ where
         if buf.is_empty() {
             return Ok(0);
         }
-        self.scratch.clear();
-        self.scratch.extend_from_slice(buf);
-        self.cipher.apply_keystream(&mut self.scratch);
-        self.w.write_all(&self.scratch)?;
+        // For small writes (metadata, headers), use a stack buffer to avoid heap interaction.
+        if buf.len() <= 4096 {
+            let mut out = [0u8; 4096];
+            let out = &mut out[..buf.len()];
+            self.cipher.apply_keystream_b2b(buf, out);
+            self.w.write_all(out)?;
+        } else {
+            // For larger writes, use a reusable scratch buffer and a single write call
+            // to minimize system call overhead for unbuffered writers.
+            self.scratch.clear();
+            self.scratch.extend_from_slice(buf);
+            self.cipher.apply_keystream(&mut self.scratch);
+            self.w.write_all(&self.scratch)?;
+        }
         Ok(buf.len())
     }
 
