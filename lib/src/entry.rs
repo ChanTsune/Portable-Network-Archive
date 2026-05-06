@@ -681,9 +681,12 @@ where
                 }
             }
         }
-        let ctime = ctime.map(|t| t + Duration::nanoseconds(ctime_ns.unwrap_or(0) as _));
-        let mtime = mtime.map(|t| t + Duration::nanoseconds(mtime_ns.unwrap_or(0) as _));
-        let atime = atime.map(|t| t + Duration::nanoseconds(atime_ns.unwrap_or(0) as _));
+        let ctime =
+            ctime.map(|t| t.saturating_add(Duration::nanoseconds(ctime_ns.unwrap_or(0) as _)));
+        let mtime =
+            mtime.map(|t| t.saturating_add(Duration::nanoseconds(mtime_ns.unwrap_or(0) as _)));
+        let atime =
+            atime.map(|t| t.saturating_add(Duration::nanoseconds(atime_ns.unwrap_or(0) as _)));
 
         Ok(Self {
             header,
