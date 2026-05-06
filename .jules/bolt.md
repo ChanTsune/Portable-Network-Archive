@@ -1,0 +1,1 @@
+## 2026-05-06 - [StreamCipherWriter Optimization] **Learning:** Argon2 key derivation dominates benchmarks of encrypted archive operations, making micro-optimizations in the data path (like reducing memory passes) difficult to measure but still valuable for overall throughput. **Action:** Focus on algorithmic passes and allocation reuse even when masked by high constant costs.
