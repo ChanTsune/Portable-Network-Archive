@@ -51,10 +51,14 @@ where
         if buf.is_empty() {
             return Ok(0);
         }
-        self.scratch.clear();
-        self.scratch.extend_from_slice(buf);
-        self.cipher.apply_keystream(&mut self.scratch);
-        self.w.write_all(&self.scratch)?;
+        // Use apply_keystream_b2b to combine copy and encryption into a single pass.
+        // This reduces memory bandwidth usage and can improve performance for large writes.
+        if self.scratch.len() < buf.len() {
+            self.scratch.resize(buf.len(), 0);
+        }
+        let scratch = &mut self.scratch[..buf.len()];
+        self.cipher.apply_keystream_b2b(buf, scratch);
+        self.w.write_all(scratch)?;
         Ok(buf.len())
     }
 
