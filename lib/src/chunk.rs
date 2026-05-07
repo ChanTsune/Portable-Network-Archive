@@ -43,7 +43,7 @@ pub(crate) trait ChunkExt: Chunk {
     /// length, type, and CRC fields.
     #[inline]
     fn bytes_len(&self) -> usize {
-        MIN_CHUNK_BYTES_SIZE + self.data().len()
+        MIN_CHUNK_BYTES_SIZE.saturating_add(self.data().len())
     }
 
     /// Checks if the chunk is a stream chunk.

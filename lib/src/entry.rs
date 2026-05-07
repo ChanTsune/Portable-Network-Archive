@@ -54,9 +54,9 @@ fn chunks_write_in<W: Write>(
     chunks: impl Iterator<Item = impl Chunk>,
     writer: &mut W,
 ) -> io::Result<usize> {
-    let mut total = 0;
+    let mut total = 0usize;
     for chunk in chunks {
-        total += chunk.write_chunk_in(writer)?;
+        total = total.saturating_add(chunk.write_chunk_in(writer)?);
     }
     Ok(total)
 }
@@ -318,18 +318,20 @@ where
 {
     #[inline]
     fn chunks_write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        let mut total = 0;
-        total += (ChunkType::SHED, self.header.to_bytes()).write_chunk_in(writer)?;
+        let mut total = 0usize;
+        total =
+            total.saturating_add((ChunkType::SHED, self.header.to_bytes()).write_chunk_in(writer)?);
         for extra_chunk in &self.extra {
-            total += extra_chunk.write_chunk_in(writer)?;
+            total = total.saturating_add(extra_chunk.write_chunk_in(writer)?);
         }
         if let Some(phsf) = &self.phsf {
-            total += (ChunkType::PHSF, phsf.as_bytes()).write_chunk_in(writer)?;
+            total =
+                total.saturating_add((ChunkType::PHSF, phsf.as_bytes()).write_chunk_in(writer)?);
         }
         for data in &self.data {
-            total += (ChunkType::SDAT, data).write_chunk_in(writer)?;
+            total = total.saturating_add((ChunkType::SDAT, data).write_chunk_in(writer)?);
         }
-        total += (ChunkType::SEND, []).write_chunk_in(writer)?;
+        total = total.saturating_add((ChunkType::SEND, []).write_chunk_in(writer)?);
         Ok(total)
     }
 }
@@ -633,7 +635,7 @@ where
                 ),
             ));
         }
-        let mut compressed_size = 0;
+        let mut compressed_size = 0usize;
         let mut extra = vec![];
         let mut data = vec![];
         let mut xattrs = vec![];
@@ -657,7 +659,7 @@ where
                     );
                 }
                 ChunkType::FDAT => {
-                    compressed_size += chunk.data().len();
+                    compressed_size = compressed_size.saturating_add(chunk.data().len());
                     data.push(chunk.data);
                 }
                 ChunkType::fSIZ => size = Some(u128_from_be_bytes_last(chunk.data())),
@@ -681,9 +683,24 @@ where
                 }
             }
         }
-        let ctime = ctime.map(|t| t + Duration::nanoseconds(ctime_ns.unwrap_or(0) as _));
-        let mtime = mtime.map(|t| t + Duration::nanoseconds(mtime_ns.unwrap_or(0) as _));
-        let atime = atime.map(|t| t + Duration::nanoseconds(atime_ns.unwrap_or(0) as _));
+        let ctime = ctime
+            .map(|t| {
+                t.checked_add(Duration::nanoseconds(ctime_ns.unwrap_or(0) as _))
+                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "ctime overflow"))
+            })
+            .transpose()?;
+        let mtime = mtime
+            .map(|t| {
+                t.checked_add(Duration::nanoseconds(mtime_ns.unwrap_or(0) as _))
+                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "mtime overflow"))
+            })
+            .transpose()?;
+        let atime = atime
+            .map(|t| {
+                t.checked_add(Duration::nanoseconds(atime_ns.unwrap_or(0) as _))
+                    .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "atime overflow"))
+            })
+            .transpose()?;
 
         Ok(Self {
             header,
@@ -711,7 +728,7 @@ where
 {
     #[inline]
     fn chunks_write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        let mut total = 0;
+        let mut total = 0usize;
 
         let Metadata {
             raw_file_size,
@@ -723,55 +740,71 @@ where
             link_target_type,
         } = &self.metadata;
 
-        total += (ChunkType::FHED, self.header.to_bytes()).write_chunk_in(writer)?;
+        total =
+            total.saturating_add((ChunkType::FHED, self.header.to_bytes()).write_chunk_in(writer)?);
         for ex in &self.extra {
-            total += ex.write_chunk_in(writer)?;
+            total = total.saturating_add(ex.write_chunk_in(writer)?);
         }
         if let Some(raw_file_size) = raw_file_size {
-            total += (
-                ChunkType::fSIZ,
-                skip_while(&raw_file_size.to_be_bytes(), |i| *i == 0),
-            )
-                .write_chunk_in(writer)?;
+            total = total.saturating_add(
+                (
+                    ChunkType::fSIZ,
+                    skip_while(&raw_file_size.to_be_bytes(), |i| *i == 0),
+                )
+                    .write_chunk_in(writer)?,
+            );
         }
 
         if let Some(p) = &self.phsf {
-            total += (ChunkType::PHSF, p.as_bytes()).write_chunk_in(writer)?;
+            total = total.saturating_add((ChunkType::PHSF, p.as_bytes()).write_chunk_in(writer)?);
         }
         for data_chunk in &self.data {
-            total += (ChunkType::FDAT, data_chunk).write_chunk_in(writer)?;
+            total = total.saturating_add((ChunkType::FDAT, data_chunk).write_chunk_in(writer)?);
         }
         if let Some(c) = created {
-            total += (ChunkType::cTIM, c.whole_seconds().to_be_bytes()).write_chunk_in(writer)?;
+            total = total.saturating_add(
+                (ChunkType::cTIM, c.whole_seconds().to_be_bytes()).write_chunk_in(writer)?,
+            );
             if c.subsec_nanoseconds() != 0 {
-                total += (ChunkType::cTNS, c.subsec_nanoseconds().to_be_bytes())
-                    .write_chunk_in(writer)?;
+                total = total.saturating_add(
+                    (ChunkType::cTNS, c.subsec_nanoseconds().to_be_bytes())
+                        .write_chunk_in(writer)?,
+                );
             }
         }
         if let Some(d) = modified {
-            total += (ChunkType::mTIM, d.whole_seconds().to_be_bytes()).write_chunk_in(writer)?;
+            total = total.saturating_add(
+                (ChunkType::mTIM, d.whole_seconds().to_be_bytes()).write_chunk_in(writer)?,
+            );
             if d.subsec_nanoseconds() != 0 {
-                total += (ChunkType::mTNS, d.subsec_nanoseconds().to_be_bytes())
-                    .write_chunk_in(writer)?;
+                total = total.saturating_add(
+                    (ChunkType::mTNS, d.subsec_nanoseconds().to_be_bytes())
+                        .write_chunk_in(writer)?,
+                );
             }
         }
         if let Some(a) = accessed {
-            total += (ChunkType::aTIM, a.whole_seconds().to_be_bytes()).write_chunk_in(writer)?;
+            total = total.saturating_add(
+                (ChunkType::aTIM, a.whole_seconds().to_be_bytes()).write_chunk_in(writer)?,
+            );
             if a.subsec_nanoseconds() != 0 {
-                total += (ChunkType::aTNS, a.subsec_nanoseconds().to_be_bytes())
-                    .write_chunk_in(writer)?;
+                total = total.saturating_add(
+                    (ChunkType::aTNS, a.subsec_nanoseconds().to_be_bytes())
+                        .write_chunk_in(writer)?,
+                );
             }
         }
         if let Some(p) = permission {
-            total += (ChunkType::fPRM, p.to_bytes()).write_chunk_in(writer)?;
+            total = total.saturating_add((ChunkType::fPRM, p.to_bytes()).write_chunk_in(writer)?);
         }
         if let Some(ltp) = link_target_type {
-            total += (ChunkType::fLTP, ltp.to_bytes()).write_chunk_in(writer)?;
+            total = total.saturating_add((ChunkType::fLTP, ltp.to_bytes()).write_chunk_in(writer)?);
         }
         for xattr in &self.xattrs {
-            total += (ChunkType::xATR, xattr.to_bytes()).write_chunk_in(writer)?;
+            total =
+                total.saturating_add((ChunkType::xATR, xattr.to_bytes()).write_chunk_in(writer)?);
         }
-        total += (ChunkType::FEND, []).write_chunk_in(writer)?;
+        total = total.saturating_add((ChunkType::FEND, []).write_chunk_in(writer)?);
         Ok(total)
     }
 }
@@ -1126,7 +1159,9 @@ where
     /// Returns the total length of this entry part in bytes.
     #[inline]
     pub fn bytes_len(&self) -> usize {
-        self.0.iter().map(|chunk| chunk.bytes_len()).sum()
+        self.0
+            .iter()
+            .fold(0usize, |acc, chunk| acc.saturating_add(chunk.bytes_len()))
     }
 
     /// Get reference.
@@ -1150,11 +1185,13 @@ impl EntryPart<&[u8]> {
         }
         let mut remaining = VecDeque::from(self.0);
         let mut first = Vec::new();
-        let mut total_size = 0;
+        let mut total_size = 0usize;
         while let Some(chunk) = remaining.pop_front() {
             // NOTE: If over max size, restore to the remaining chunk
-            if max_bytes_len < total_size + chunk.bytes_len() {
-                if chunk.is_stream_chunk() && total_size + MIN_CHUNK_BYTES_SIZE < max_bytes_len {
+            if max_bytes_len < total_size.saturating_add(chunk.bytes_len()) {
+                if chunk.is_stream_chunk()
+                    && total_size.saturating_add(MIN_CHUNK_BYTES_SIZE) < max_bytes_len
+                {
                     let available_bytes_len = max_bytes_len - total_size;
                     let chunk_split_index = available_bytes_len - MIN_CHUNK_BYTES_SIZE;
                     let (x, y) = chunk_data_split(chunk.ty, chunk.data, chunk_split_index);
@@ -1167,7 +1204,7 @@ impl EntryPart<&[u8]> {
                 }
                 break;
             }
-            total_size += chunk.bytes_len();
+            total_size = total_size.saturating_add(chunk.bytes_len());
             first.push(chunk);
         }
         if first.is_empty() {
@@ -1486,5 +1523,18 @@ mod tests {
         assert!(result.is_ok());
         let entry = result.unwrap();
         assert_eq!(entry.extra.len(), 0);
+    }
+
+    #[test]
+    fn test_timestamp_nanos_invalid() {
+        let fhed = RawChunk::from_data(ChunkType::FHED, vec![0, 0, 0, 0, 0, 0]);
+        let ctim = RawChunk::from_data(ChunkType::cTIM, 0i64.to_be_bytes().to_vec());
+        let ctns = RawChunk::from_data(ChunkType::cTNS, 1_000_000_000u32.to_be_bytes().to_vec());
+        let fend = RawChunk::from_data(ChunkType::FEND, vec![]);
+
+        let raw_entry = RawEntry(vec![fhed, ctim, ctns, fend]);
+        let result = NormalEntry::try_from(raw_entry);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("nanoseconds"));
     }
 }

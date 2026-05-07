@@ -1,0 +1,4 @@
+## 2025-02-13 - Integer Overflows in Archive Parsing and Processing
+**Vulnerability:** Malformed archives could trigger panics via integer overflows in chunk size calculations, cumulative entry size tracking, and timestamp additions (seconds + nanoseconds).
+**Learning:** Archive metadata (sizes and timestamps) should be treated as untrusted input. The `time` crate's `Duration` addition panics on overflow, and standard `+`/`+=` operators on `usize` can panic in debug builds or wrap in release builds.
+**Prevention:** Use `checked_add` for calculations where overflow indicates invalid or malicious data (e.g., timestamps) and return an `io::Error`. Use `saturating_add` for length/size calculations to maintain safe upper bounds without crashing. Always validate component bounds (like nanoseconds < 1,000,000,000) before processing.
