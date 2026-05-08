@@ -317,8 +317,32 @@ fn bench_read_empty_archive(c: &mut Criterion) {
     });
 }
 
+fn bench_write_large_store_archive(c: &mut Criterion) {
+    let mut group = c.benchmark_group("large_archive");
+    group.sample_size(10);
+    let size = 10 * 1024 * 1024; // 10 MB
+    let buf = vec![24u8; size];
+    group.bench_function("write_large_store_archive", |b| {
+        b.iter(|| {
+            let mut vec = Vec::with_capacity(size + 1000);
+            let mut writer = Archive::write_header(&mut vec).unwrap();
+            writer
+                .add_entry({
+                    let mut builder = EntryBuilder::new_file("bench".into(), WriteOptions::store())
+                        .expect("failed to create entry builder");
+                    builder.write_all(&buf).expect("failed to write data");
+                    builder.build().expect("failed to build entry")
+                })
+                .expect("failed to add entry");
+            writer.finalize().expect("failed to finalize archive");
+        })
+    });
+    group.finish();
+}
+
 criterion_group!(
     benches,
+    bench_write_large_store_archive,
     bench_write_store_archive,
     bench_read_store_archive,
     bench_read_store_archive_from_slice,
