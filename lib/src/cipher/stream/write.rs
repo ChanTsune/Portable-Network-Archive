@@ -51,9 +51,8 @@ where
         if buf.is_empty() {
             return Ok(0);
         }
-        self.scratch.clear();
-        self.scratch.extend_from_slice(buf);
-        self.cipher.apply_keystream(&mut self.scratch);
+        self.scratch.resize(buf.len(), 0);
+        self.cipher.apply_keystream_b2b(buf, &mut self.scratch);
         self.w.write_all(&self.scratch)?;
         Ok(buf.len())
     }
