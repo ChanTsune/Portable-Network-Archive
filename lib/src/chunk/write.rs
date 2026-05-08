@@ -1,6 +1,8 @@
 //! Chunk writing and serialization to byte streams.
 
-use crate::chunk::{Chunk, ChunkExt, ChunkType, Crc32};
+#[cfg(any(test, feature = "unstable-async"))]
+use crate::chunk::{Chunk, ChunkExt};
+use crate::chunk::{ChunkType, Crc32};
 use core::num::NonZeroU32;
 #[cfg(feature = "unstable-async")]
 use futures_io::AsyncWrite;
@@ -20,7 +22,7 @@ impl<W> ChunkWriter<W> {
 }
 
 impl<W: Write> ChunkWriter<W> {
-    #[allow(dead_code)]
+    #[cfg(test)]
     #[inline]
     pub(crate) fn write_chunk(&mut self, chunk: impl Chunk) -> io::Result<usize> {
         chunk.write_chunk_in(&mut self.w)
