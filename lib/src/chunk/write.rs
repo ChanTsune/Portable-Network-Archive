@@ -8,46 +8,55 @@ use futures_io::AsyncWrite;
 use futures_util::AsyncWriteExt;
 use std::io::{self, Write};
 
-pub(crate) struct ChunkWriter<W> {
+/// Writes the entire chunk to a given writer in a single pass.
+///
+/// This function calculates the CRC32 checksum on-the-fly as it writes the
+/// chunk type and data, reducing the number of passes over the data from
+/// two to one. This is especially beneficial for large file data chunks.
+pub(crate) fn write_chunk_single_pass_in<W: Write>(
+    chunk: impl Chunk,
+    writer: &mut W,
+) -> io::Result<usize> {
+    writer.write_all(&chunk.length().to_be_bytes())?;
+    let crc = {
+        let mut crc_writer = CrcWriter::new(&mut *writer);
+        crc_writer.write_all(chunk.ty().as_bytes())?;
+        crc_writer.write_all(chunk.data())?;
+        crc_writer.crc.finalize()
+    };
+    writer.write_all(&crc.to_be_bytes())?;
+    Ok(chunk.bytes_len())
+}
+
+struct CrcWriter<W> {
     w: W,
+    crc: crate::chunk::Crc32,
 }
 
-impl<W> ChunkWriter<W> {
-    #[inline]
-    pub(crate) const fn new(writer: W) -> Self {
-        Self { w: writer }
+impl<W: Write> CrcWriter<W> {
+    fn new(w: W) -> Self {
+        Self {
+            w,
+            crc: crate::chunk::Crc32::new(),
+        }
     }
 }
 
-impl<W: Write> ChunkWriter<W> {
-    #[inline]
-    pub(crate) fn write_chunk(&mut self, chunk: impl Chunk) -> io::Result<usize> {
-        chunk.write_chunk_in(&mut self.w)
+impl<W: Write> Write for CrcWriter<W> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let n = self.w.write(buf)?;
+        self.crc.update(&buf[..n]);
+        Ok(n)
     }
-}
 
-#[cfg(feature = "unstable-async")]
-impl<W: AsyncWrite + Unpin> ChunkWriter<W> {
-    pub(crate) async fn write_chunk_async(&mut self, chunk: impl Chunk) -> io::Result<usize> {
-        // write length
-        let length = chunk.length();
-        self.w.write_all(&length.to_be_bytes()).await?;
-
-        // write a chunk type
-        self.w.write_all(chunk.ty().as_bytes()).await?;
-
-        // write data
-        self.w.write_all(chunk.data()).await?;
-
-        // write crc32
-        self.w.write_all(&chunk.crc().to_be_bytes()).await?;
-        Ok(chunk.bytes_len())
+    fn flush(&mut self) -> io::Result<()> {
+        self.w.flush()
     }
 }
 
 pub(crate) struct ChunkStreamWriter<W> {
     ty: ChunkType,
-    w: ChunkWriter<W>,
+    w: W,
     max_chunk_size: usize,
 }
 
@@ -56,7 +65,7 @@ impl<W> ChunkStreamWriter<W> {
     pub(crate) const fn new(ty: ChunkType, inner: W, max_chunk_size: Option<NonZeroU32>) -> Self {
         Self {
             ty,
-            w: ChunkWriter::new(inner),
+            w: inner,
             max_chunk_size: match max_chunk_size {
                 Some(n) => n.get() as usize,
                 None => u32::MAX as usize,
@@ -66,7 +75,7 @@ impl<W> ChunkStreamWriter<W> {
 
     #[inline]
     pub(crate) fn into_inner(self) -> W {
-        self.w.w
+        self.w
     }
 }
 
@@ -77,13 +86,13 @@ impl<W: Write> Write for ChunkStreamWriter<W> {
             return Ok(0);
         }
         let chunk = &buf[..buf.len().min(self.max_chunk_size)];
-        self.w.write_chunk((self.ty, chunk))?;
+        write_chunk_single_pass_in((self.ty, chunk), &mut self.w)?;
         Ok(chunk.len())
     }
 
     #[inline]
     fn flush(&mut self) -> io::Result<()> {
-        self.w.w.flush()
+        self.w.flush()
     }
 }
 
@@ -93,28 +102,27 @@ mod tests {
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
+
     #[test]
     fn write_aend_chunk() {
-        let mut chunk_writer = ChunkWriter::new(Vec::new());
-        assert_eq!(chunk_writer.write_chunk((ChunkType::AEND, [])).unwrap(), 12);
+        let mut buf = Vec::new();
         assert_eq!(
-            chunk_writer.w,
-            [0, 0, 0, 0, 65, 69, 78, 68, 107, 246, 72, 109]
+            write_chunk_single_pass_in((ChunkType::AEND, []), &mut buf).unwrap(),
+            12
         );
+        assert_eq!(buf, [0, 0, 0, 0, 65, 69, 78, 68, 107, 246, 72, 109]);
     }
 
     #[test]
     fn write_fdat_chunk() {
-        let mut chunk_writer = ChunkWriter::new(Vec::new());
+        let mut buf = Vec::new();
         assert_eq!(
-            chunk_writer
-                .write_chunk((ChunkType::FDAT, b"text data"))
-                .unwrap(),
+            write_chunk_single_pass_in((ChunkType::FDAT, b"text data"), &mut buf).unwrap(),
             21,
         );
 
         assert_eq!(
-            chunk_writer.w,
+            buf,
             [
                 0, 0, 0, 9, 70, 68, 65, 84, 116, 101, 120, 116, 32, 100, 97, 116, 97, 177, 70, 138,
                 128

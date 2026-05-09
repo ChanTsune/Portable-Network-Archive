@@ -301,10 +301,10 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
     #[inline]
     async fn write_header_with_async(mut write: W, header: ArchiveHeader) -> io::Result<Self> {
         write.write_all(PNA_HEADER).await?;
-        let mut chunk_writer = crate::chunk::ChunkWriter::new(&mut write);
-        chunk_writer
-            .write_chunk_async((ChunkType::AHED, header.to_bytes()))
-            .await?;
+        let chunk = (ChunkType::AHED, header.to_bytes());
+        let mut bytes = Vec::with_capacity(chunk.bytes_len());
+        crate::chunk::write_chunk_single_pass_in(chunk, &mut bytes)?;
+        write.write_all(&bytes).await?;
         Ok(Self::new(write, header))
     }
 
@@ -330,10 +330,10 @@ impl<W: AsyncWrite + Unpin> Archive<W> {
     /// Returns an error if writing the end-of-archive marker fails.
     #[inline]
     pub async fn finalize_async(mut self) -> io::Result<W> {
-        let mut chunk_writer = crate::chunk::ChunkWriter::new(&mut self.inner);
-        chunk_writer
-            .write_chunk_async((ChunkType::AEND, []))
-            .await?;
+        let chunk = (ChunkType::AEND, []);
+        let mut bytes = Vec::with_capacity(chunk.bytes_len());
+        crate::chunk::write_chunk_single_pass_in(chunk, &mut bytes)?;
+        self.inner.write_all(&bytes).await?;
         Ok(self.inner)
     }
 }
