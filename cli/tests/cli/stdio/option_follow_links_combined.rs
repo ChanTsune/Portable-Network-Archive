@@ -15,6 +15,14 @@ fn make_chain_fixture(dir: impl AsRef<Path>) {
     symlink("chain_b", dir.join("target")).unwrap();
 }
 
+fn make_symlink_dir_fixture(dir: impl AsRef<Path>) {
+    let dir = dir.as_ref();
+    let _ = fs::remove_dir_all(dir);
+    fs::create_dir_all(dir.join("dir")).unwrap();
+    fs::write(dir.join("dir/file"), b"inside").unwrap();
+    symlink("dir", dir.join("linkdir")).unwrap();
+}
+
 fn list_archive(archive: &str) -> String {
     let out = cargo_bin_cmd!("pna")
         .args(["compat", "bsdtar", "--unstable", "-tvf", archive])
@@ -158,5 +166,113 @@ fn stdio_create_with_H_only_preserves_nested_symlinks() {
     assert!(
         listing.contains("target -> chain_b"),
         "expected target symlink preserved; listing:\n{listing}"
+    );
+}
+
+/// Precondition: source dir contains linkdir -> dir, where dir is a directory.
+/// Action: pna compat bsdtar creates an archive from command-line operand `linkdir/`
+///   without -H or -L.
+/// Expectation: matches bsdtar by archiving the symlink itself, despite the trailing slash.
+#[test]
+fn stdio_create_trailing_slash_symlink_to_dir_without_follow_preserves_symlink() {
+    setup();
+    let src = "stdio_trailing_symlink_no_follow/src";
+    let archive = "stdio_trailing_symlink_no_follow/out.tar";
+    make_symlink_dir_fixture(src);
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "compat",
+            "bsdtar",
+            "--unstable",
+            "-cf",
+            archive,
+            "-C",
+            src,
+            "linkdir/",
+        ])
+        .assert()
+        .success();
+
+    let listing = list_archive(archive);
+    assert!(
+        listing.contains("linkdir -> dir"),
+        "expected trailing-slash symlink operand preserved; listing:\n{listing}"
+    );
+    assert!(
+        !listing.contains("linkdir/file"),
+        "expected symlink target contents not archived; listing:\n{listing}"
+    );
+}
+
+/// Precondition: source dir contains linkdir -> dir, where dir is a directory.
+/// Action: pna compat bsdtar creates an archive from command-line operand `linkdir/`
+///   with -H.
+/// Expectation: -H follows the command-line symlink and archives the target directory.
+#[test]
+fn stdio_create_trailing_slash_symlink_to_dir_with_H_follows() {
+    setup();
+    let src = "stdio_trailing_symlink_H/src";
+    let archive = "stdio_trailing_symlink_H/out.tar";
+    make_symlink_dir_fixture(src);
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "compat",
+            "bsdtar",
+            "--unstable",
+            "-cHf",
+            archive,
+            "-C",
+            src,
+            "linkdir/",
+        ])
+        .assert()
+        .success();
+
+    let listing = list_archive(archive);
+    assert!(
+        !listing.contains(" -> "),
+        "expected -H to dereference command-line symlink; listing:\n{listing}"
+    );
+    assert!(
+        listing.contains("linkdir/file"),
+        "expected target directory contents archived; listing:\n{listing}"
+    );
+}
+
+/// Precondition: source dir contains linkdir -> dir, where dir is a directory.
+/// Action: pna compat bsdtar creates an archive from command-line operand `linkdir/`
+///   with -L.
+/// Expectation: -L follows the symlink and archives the target directory.
+#[test]
+fn stdio_create_trailing_slash_symlink_to_dir_with_L_follows() {
+    setup();
+    let src = "stdio_trailing_symlink_L/src";
+    let archive = "stdio_trailing_symlink_L/out.tar";
+    make_symlink_dir_fixture(src);
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "compat",
+            "bsdtar",
+            "--unstable",
+            "-cLf",
+            archive,
+            "-C",
+            src,
+            "linkdir/",
+        ])
+        .assert()
+        .success();
+
+    let listing = list_archive(archive);
+    assert!(
+        !listing.contains(" -> "),
+        "expected -L to dereference symlink; listing:\n{listing}"
+    );
+    assert!(
+        listing.contains("linkdir/file"),
+        "expected target directory contents archived; listing:\n{listing}"
     );
 }

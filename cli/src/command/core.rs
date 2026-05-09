@@ -624,6 +624,29 @@ pub(crate) fn collect_items_from_paths<P: AsRef<Path>>(
     Ok(results)
 }
 
+/// Returns the path that walkdir should walk for this CLI operand.
+///
+/// When link-following is disabled and the operand resolves to a symlink,
+/// returns the path with trailing separators (and curdir components such as
+/// `link/.`) normalized away via `Path::components()`. Without this, POSIX
+/// `lstat("link/")` silently dereferences the symlink-to-directory and
+/// walkdir misclassifies the root. For ordinary directories the original
+/// path is preserved so the trailing slash propagates into descendants — on
+/// Windows `Path::push` only inserts `\` when the parent does not already
+/// end in a separator, and substitution/transform/`--exclude` rules match
+/// against those walkdir-emitted paths directly.
+fn normalize_non_follow_root_path<'a>(path: &'a Path, options: &CollectOptions<'_>) -> &'a Path {
+    if options.follow_links || options.follow_command_links {
+        return path;
+    }
+    let bare = path.components().as_path();
+    if fs::symlink_metadata(bare).is_ok_and(|m| m.file_type().is_symlink()) {
+        bare
+    } else {
+        path
+    }
+}
+
 /// Walks a single path and collects filesystem items to archive.
 ///
 /// Returns a list of [`CollectedEntry`] indicating how each discovered item
@@ -677,10 +700,14 @@ pub(crate) fn collect_items_with_state(
     let mut ig = ignore::Ignore::default();
     let mut out = Vec::new();
 
+    // Strip the trailing separator only for symlink-to-directory operands;
+    // see `normalize_non_follow_root_path` for the rationale.
+    let walk_path = normalize_non_follow_root_path(path, options);
+
     let mut iter = if options.recursive {
-        walkdir::WalkDir::new(path)
+        walkdir::WalkDir::new(walk_path)
     } else {
-        walkdir::WalkDir::new(path).max_depth(0)
+        walkdir::WalkDir::new(walk_path).max_depth(0)
     }
     .follow_links(options.follow_links)
     .follow_root_links(options.follow_command_links)
@@ -690,17 +717,28 @@ pub(crate) fn collect_items_with_state(
     while let Some(res) = iter.next() {
         match res {
             Ok(entry) => {
-                let path = entry.path();
+                let entry_path = entry.path();
                 let ty = entry.file_type();
                 let depth = entry.depth();
                 let should_follow =
                     options.follow_links || (depth == 0 && options.follow_command_links);
-                let is_dir = ty.is_dir() || (ty.is_symlink() && should_follow && path.is_dir());
-                let is_file = ty.is_file() || (ty.is_symlink() && should_follow && path.is_file());
+                let is_dir =
+                    ty.is_dir() || (ty.is_symlink() && should_follow && entry_path.is_dir());
+                let is_file =
+                    ty.is_file() || (ty.is_symlink() && should_follow && entry_path.is_file());
                 let is_symlink = ty.is_symlink() && !should_follow;
+                // At depth 0, restore the CLI-supplied trailing separator on
+                // the root archive entry — except for symlink roots, where
+                // walkdir is iterating the bare path we passed in, so we keep
+                // its emitted path.
+                let archive_path: &Path = if depth == 0 && !is_symlink {
+                    path
+                } else {
+                    entry_path
+                };
 
                 // Exclude (prunes descent when directory)
-                if options.filter.excluded(path.to_slash_lossy()) {
+                if options.filter.excluded(entry_path.to_slash_lossy()) {
                     if is_dir {
                         iter.skip_current_dir();
                     }
@@ -709,7 +747,7 @@ pub(crate) fn collect_items_with_state(
 
                 if options.gitignore {
                     // Gitignore pruning before reading this dir's .gitignore
-                    if ig.is_ignore(path, is_dir) {
+                    if ig.is_ignore(entry_path, is_dir) {
                         if is_dir {
                             iter.skip_current_dir();
                         }
@@ -717,12 +755,12 @@ pub(crate) fn collect_items_with_state(
                     }
                     // After confirming not ignored, load .gitignore from this directory
                     if is_dir {
-                        ig.add_path(path);
+                        ig.add_path(entry_path);
                     }
                 }
 
                 if options.nodump {
-                    match utils::fs::is_nodump(path) {
+                    match utils::fs::is_nodump(entry_path) {
                         Ok(true) => {
                             if is_dir {
                                 iter.skip_current_dir();
@@ -731,32 +769,36 @@ pub(crate) fn collect_items_with_state(
                         }
                         Ok(false) => {}
                         Err(e) => {
-                            log::warn!("Failed to check nodump flag for {}: {}", path.display(), e);
+                            log::warn!(
+                                "Failed to check nodump flag for {}: {}",
+                                entry_path.display(),
+                                e
+                            );
                         }
                     }
                 }
 
                 // Classify entry and maybe add it to output
                 let store = if is_symlink {
-                    let meta = fs::symlink_metadata(path)?;
-                    let link_target_type = detect_symlink_target_type(path, &meta)?;
+                    let meta = fs::symlink_metadata(entry_path)?;
+                    let link_target_type = detect_symlink_target_type(entry_path, &meta)?;
                     Some((StoreAs::Symlink(link_target_type), meta))
                 } else if is_file {
-                    if let Some(linked) = hardlink_resolver.resolve(path).ok().flatten() {
-                        Some((StoreAs::Hardlink(linked), fs::symlink_metadata(path)?))
+                    if let Some(linked) = hardlink_resolver.resolve(entry_path).ok().flatten() {
+                        Some((StoreAs::Hardlink(linked), fs::symlink_metadata(entry_path)?))
                     } else {
-                        Some((StoreAs::File, fs::metadata(path)?))
+                        Some((StoreAs::File, fs::metadata(entry_path)?))
                     }
                 } else if is_dir {
                     if options.keep_dir {
-                        Some((StoreAs::Dir, fs::metadata(path)?))
+                        Some((StoreAs::Dir, fs::metadata(entry_path)?))
                     } else {
                         None
                     }
                 } else {
                     return Err(io::Error::new(
                         io::ErrorKind::Unsupported,
-                        format!("Unsupported file type: {}", path.display()),
+                        format!("Unsupported file type: {}", entry_path.display()),
                     ));
                 };
 
@@ -766,7 +808,7 @@ pub(crate) fn collect_items_with_state(
                         .matches(metadata.created().ok(), metadata.modified().ok())
                 {
                     out.push(CollectedEntry {
-                        path: path.to_path_buf(),
+                        path: archive_path.to_path_buf(),
                         store_as,
                         metadata,
                     });
