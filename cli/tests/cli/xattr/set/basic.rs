@@ -30,10 +30,7 @@ fn archive_xattr_set() {
         if entry.name() == "raw/empty.txt" {
             assert_eq!(
                 entry.xattrs(),
-                &[pna::ExtendedAttribute::new(
-                    "user.name".into(),
-                    b"pna developers!".into()
-                )]
+                &[archive::xattr("user.name", b"pna developers!")]
             );
         } else {
             // Non-target entries should remain unaffected (no xattrs)
@@ -94,14 +91,8 @@ fn xattr_long_key_value() {
             assert_eq!(
                 entry.xattrs(),
                 &[
-                    pna::ExtendedAttribute::new(
-                        long_name.as_str().into(),
-                        long_value.as_bytes().into()
-                    ),
-                    pna::ExtendedAttribute::new(
-                        "user.special".into(),
-                        "\0\n\r\x7f\u{1F600}".into()
-                    ),
+                    archive::xattr(long_name.as_str(), long_value.as_bytes()),
+                    archive::xattr("user.special", "\0\n\r\x7f\u{1F600}".as_bytes()),
                 ]
             );
         } else {
@@ -143,10 +134,7 @@ fn xattr_empty_key() {
 
     archive::for_each_entry("xattr_empty_key/zstd.pna", |entry| {
         if entry.name() == "raw/empty.txt" {
-            assert_eq!(
-                entry.xattrs(),
-                &[pna::ExtendedAttribute::new("".into(), b"value".into())]
-            );
+            assert_eq!(entry.xattrs(), &[archive::xattr("", b"value")]);
         } else {
             // Non-target entries should remain unaffected (no xattrs)
             assert!(
@@ -186,10 +174,7 @@ fn xattr_empty_value() {
 
     archive::for_each_entry("xattr_empty_value/zstd.pna", |entry| {
         if entry.name() == "raw/empty.txt" {
-            assert_eq!(
-                entry.xattrs(),
-                &[pna::ExtendedAttribute::new("user.empty".into(), b"".into())]
-            );
+            assert_eq!(entry.xattrs(), &[archive::xattr("user.empty", b"")]);
         } else {
             // Non-target entries should remain unaffected (no xattrs)
             assert!(
@@ -233,10 +218,7 @@ fn xattr_set_preserved_in_archive() {
             found = true;
             assert_eq!(
                 entry.xattrs(),
-                &[pna::ExtendedAttribute::new(
-                    "user.roundtrip".into(),
-                    b"preserved_value".into()
-                )]
+                &[archive::xattr("user.roundtrip", b"preserved_value")]
             );
         }
     })
@@ -317,10 +299,7 @@ fn xattr_round_trip_preservation() {
             found = true;
             assert_eq!(
                 entry.xattrs(),
-                &[pna::ExtendedAttribute::new(
-                    "user.roundtrip".into(),
-                    b"preserved_value".into()
-                )],
+                &[archive::xattr("user.roundtrip", b"preserved_value")],
             );
         }
     })

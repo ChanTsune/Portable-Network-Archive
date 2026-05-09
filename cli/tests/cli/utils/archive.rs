@@ -12,6 +12,16 @@ pub struct FileEntryDef<'a> {
     pub permission: u16,
 }
 
+/// Constructs an [`pna::ExtendedAttribute`] from raw name/value, panicking on
+/// length-bound violations. Test-only helper; production code must propagate
+/// the [`pna::LengthExceeded`] error instead.
+pub fn xattr(name: &str, value: &[u8]) -> pna::ExtendedAttribute {
+    pna::ExtendedAttribute::new(
+        pna::XattrName::try_from(name).expect("xattr name fits within u32::MAX bytes"),
+        pna::XattrValue::try_from(value).expect("xattr value fits within u32::MAX bytes"),
+    )
+}
+
 /// Creates an archive with file entries having specific permissions.
 /// This bypasses filesystem permission requirements by constructing entries programmatically.
 pub fn create_archive_with_permissions(
@@ -26,9 +36,9 @@ pub fn create_archive_with_permissions(
             pna::EntryBuilder::new_file(entry_def.path.into(), pna::WriteOptions::store())?;
         builder.permission(pna::Permission::new(
             1000,
-            "user".into(),
+            pna::UserName::try_from("user").unwrap(),
             1000,
-            "group".into(),
+            pna::GroupName::try_from("group").unwrap(),
             entry_def.permission,
         ));
         builder.write_all(entry_def.content)?;
@@ -54,9 +64,9 @@ pub fn create_solid_archive_with_permissions(
             pna::EntryBuilder::new_file(entry_def.path.into(), pna::WriteOptions::store())?;
         builder.permission(pna::Permission::new(
             1000,
-            "user".into(),
+            pna::UserName::try_from("user").unwrap(),
             1000,
-            "group".into(),
+            pna::GroupName::try_from("group").unwrap(),
             entry_def.permission,
         ));
         builder.write_all(entry_def.content)?;
@@ -90,9 +100,9 @@ pub fn create_encrypted_archive_with_permissions(
             pna::EntryBuilder::new_file(entry_def.path.into(), write_options.clone())?;
         builder.permission(pna::Permission::new(
             1000,
-            "user".into(),
+            pna::UserName::try_from("user").unwrap(),
             1000,
-            "group".into(),
+            pna::GroupName::try_from("group").unwrap(),
             entry_def.permission,
         ));
         builder.write_all(entry_def.content)?;
@@ -201,9 +211,9 @@ pub fn create_archive_with_symlinks(
             pna::EntryBuilder::new_file(entry_def.path.into(), pna::WriteOptions::store())?;
         builder.permission(pna::Permission::new(
             1000,
-            "user".into(),
+            pna::UserName::try_from("user").unwrap(),
             1000,
-            "group".into(),
+            pna::GroupName::try_from("group").unwrap(),
             entry_def.permission,
         ));
         builder.write_all(entry_def.content)?;
@@ -218,9 +228,9 @@ pub fn create_archive_with_symlinks(
         if let Some(mode) = symlink_def.permission {
             builder.permission(pna::Permission::new(
                 1000,
-                "user".into(),
+                pna::UserName::try_from("user").unwrap(),
                 1000,
-                "group".into(),
+                pna::GroupName::try_from("group").unwrap(),
                 mode,
             ));
         }

@@ -308,7 +308,14 @@ impl SetAttrStrategy<'_> {
                         .collect::<IndexMap<_, _>>();
                     let xattrs = xattrs
                         .into_iter()
-                        .map(|(key, value)| pna::ExtendedAttribute::new(key.into(), value.into()))
+                        .map(|(key, value)| {
+                            pna::ExtendedAttribute::new(
+                                pna::XattrName::try_from(key)
+                                    .expect("xattr name must fit within u32::MAX bytes"),
+                                pna::XattrValue::try_from(value)
+                                    .expect("xattr value must fit within u32::MAX bytes"),
+                            )
+                        })
                         .collect::<Vec<_>>();
                     entry.with_xattrs(xattrs)
                 } else {
@@ -386,7 +393,13 @@ fn transform_xattr(
     }
     xattrs
         .into_iter()
-        .map(|(key, value)| pna::ExtendedAttribute::new(key.into(), value.into()))
+        .map(|(key, value)| {
+            pna::ExtendedAttribute::new(
+                pna::XattrName::try_from(key).expect("xattr name must fit within u32::MAX bytes"),
+                pna::XattrValue::try_from(value)
+                    .expect("xattr value must fit within u32::MAX bytes"),
+            )
+        })
         .collect()
 }
 
@@ -643,14 +656,20 @@ mod tests {
 
         assert_eq!(
             xattrs,
-            vec![pna::ExtendedAttribute::new("key".into(), b"value".into()),]
+            vec![pna::ExtendedAttribute::new(
+                pna::XattrName::try_from("key").unwrap(),
+                pna::XattrValue::try_from(b"value".as_slice()).unwrap(),
+            ),]
         );
     }
 
     #[test]
     fn overwrite_xattr() {
         let xattrs = transform_xattr(
-            &[pna::ExtendedAttribute::new("key".into(), b"origin".into())],
+            &[pna::ExtendedAttribute::new(
+                pna::XattrName::try_from("key").unwrap(),
+                pna::XattrValue::try_from(b"origin".as_slice()).unwrap(),
+            )],
             Some("key"),
             b"value",
             None,
@@ -658,14 +677,20 @@ mod tests {
 
         assert_eq!(
             xattrs,
-            vec![pna::ExtendedAttribute::new("key".into(), b"value".into()),]
+            vec![pna::ExtendedAttribute::new(
+                pna::XattrName::try_from("key").unwrap(),
+                pna::XattrValue::try_from(b"value".as_slice()).unwrap(),
+            ),]
         );
     }
 
     #[test]
     fn remove_xattr() {
         let xattrs = transform_xattr(
-            &[pna::ExtendedAttribute::new("key".into(), b"origin".into())],
+            &[pna::ExtendedAttribute::new(
+                pna::XattrName::try_from("key").unwrap(),
+                pna::XattrValue::try_from(b"origin".as_slice()).unwrap(),
+            )],
             None,
             b"value",
             Some("key"),

@@ -954,11 +954,14 @@ impl<T> NormalEntry<T> {
     /// # Examples
     /// ```rust
     /// # use std::io;
-    /// use libpna::{EntryBuilder, ExtendedAttribute};
+    /// use libpna::{EntryBuilder, ExtendedAttribute, XattrName, XattrValue};
     ///
     /// # fn main() -> io::Result<()> {
     /// let mut entry = EntryBuilder::new_dir("dir_entry".into()).build()?;
-    /// entry.with_xattrs(&[ExtendedAttribute::new("key".into(), b"value".into())]);
+    /// entry.with_xattrs(&[ExtendedAttribute::new(
+    ///     XattrName::try_from("key").unwrap(),
+    ///     XattrValue::try_from(b"value".as_slice()).unwrap(),
+    /// )]);
     /// # Ok(())
     /// # }
     /// ```

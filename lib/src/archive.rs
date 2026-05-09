@@ -514,7 +514,13 @@ mod tests {
             builder.created(Duration::seconds(31));
             builder.modified(Duration::seconds(32));
             builder.accessed(Duration::seconds(33));
-            builder.permission(Permission::new(1, "uname".into(), 2, "gname".into(), 0o775));
+            builder.permission(Permission::new(
+                1,
+                UserName::try_from("uname").unwrap(),
+                2,
+                GroupName::try_from("gname").unwrap(),
+                0o775,
+            ));
             builder.write_all(b"entry data").unwrap();
             builder.build().unwrap()
         };

@@ -127,7 +127,15 @@ fn transform_entry<T>(entry: NormalEntry<T>, owner: &Ownership) -> NormalEntry<T
             ),
         });
         let (gid, gname) = group.unwrap_or_else(|| (p.gid(), p.gname().into()));
-        pna::Permission::new(uid, uname, gid, gname, p.permissions())
+        let uname: String = uname;
+        let gname: String = gname;
+        pna::Permission::new(
+            uid,
+            pna::UserName::try_from(uname).expect("uname must fit within 255 bytes"),
+            gid,
+            pna::GroupName::try_from(gname).expect("gname must fit within 255 bytes"),
+            p.permissions(),
+        )
     });
     entry.with_metadata(metadata.with_permission(permission))
 }

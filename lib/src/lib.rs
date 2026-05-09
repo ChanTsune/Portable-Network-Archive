@@ -150,6 +150,7 @@ pub use chunk::*;
 pub use entry::*;
 pub use error::UnknownValueError;
 pub use time::Duration;
+pub use util::bounded::LengthExceeded;
 
 #[cfg(test)]
 mod tests {

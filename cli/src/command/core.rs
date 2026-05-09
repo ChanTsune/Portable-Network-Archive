@@ -1054,9 +1054,9 @@ pub(crate) fn apply_metadata(
         };
         entry.permission(pna::Permission::new(
             uid.into(),
-            uname,
+            pna::UserName::try_from(uname).expect("uname must fit within 255 bytes"),
             gid.into(),
-            gname,
+            pna::GroupName::try_from(gname).expect("gname must fit within 255 bytes"),
             mode,
         ));
     }
@@ -1078,7 +1078,13 @@ pub(crate) fn apply_metadata(
         let gid = options.gid.map_or(u64::MAX, Into::into);
         let uname = options.uname.clone().unwrap_or(user.name);
         let gname = options.gname.clone().unwrap_or(group.name);
-        entry.permission(pna::Permission::new(uid, uname, gid, gname, mode));
+        entry.permission(pna::Permission::new(
+            uid,
+            pna::UserName::try_from(uname).expect("uname must fit within 255 bytes"),
+            gid,
+            pna::GroupName::try_from(gname).expect("gname must fit within 255 bytes"),
+            mode,
+        ));
     }
     // On macOS, when mac_metadata_strategy is Always, AppleDouble packing via copyfile()
     // already includes xattrs and ACLs. Skip separate handling to avoid duplication.
@@ -2084,11 +2090,13 @@ fn transform_normal_entry(
         if (uid.is_some() || gid.is_some() || uname.is_some() || gname.is_some())
             && let Some(perm) = metadata.permission()
         {
+            let resolved_uname = uname.clone().unwrap_or_else(|| perm.uname().to_string());
+            let resolved_gname = gname.clone().unwrap_or_else(|| perm.gname().to_string());
             let new_perm = pna::Permission::new(
                 uid.map(u64::from).unwrap_or_else(|| perm.uid()),
-                uname.clone().unwrap_or_else(|| perm.uname().to_string()),
+                pna::UserName::try_from(resolved_uname).expect("uname must fit within 255 bytes"),
                 gid.map(u64::from).unwrap_or_else(|| perm.gid()),
-                gname.clone().unwrap_or_else(|| perm.gname().to_string()),
+                pna::GroupName::try_from(resolved_gname).expect("gname must fit within 255 bytes"),
                 perm.permissions(),
             );
             metadata = metadata.with_permission(Some(new_perm));

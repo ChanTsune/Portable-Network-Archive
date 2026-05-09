@@ -97,12 +97,15 @@ use std::{
 ///
 /// ```
 /// # use std::io::{self, Write};
-/// use libpna::{EntryBuilder, WriteOptions, ExtendedAttribute};
+/// use libpna::{EntryBuilder, WriteOptions, ExtendedAttribute, XattrName, XattrValue};
 ///
 /// # fn main() -> io::Result<()> {
 /// let mut builder = EntryBuilder::new_file("data.txt".into(), WriteOptions::store())?;
 /// builder.write_all(b"file content")?;
-/// builder.add_xattr(ExtendedAttribute::new("user.comment".into(), b"important".to_vec()));
+/// builder.add_xattr(ExtendedAttribute::new(
+///     XattrName::try_from("user.comment").unwrap(),
+///     XattrValue::try_from(b"important".as_slice()).unwrap(),
+/// ));
 /// let entry = builder.build()?;
 /// # Ok(())
 /// # }

@@ -59,10 +59,7 @@ fn xattr_multiple_set_and_remove() {
 
     archive::for_each_entry("xattr_multi/zstd.pna", |entry| {
         if entry.name() == "raw/empty.txt" {
-            assert_eq!(
-                entry.xattrs(),
-                &[pna::ExtendedAttribute::new("user.b".into(), b"B".into())]
-            );
+            assert_eq!(entry.xattrs(), &[archive::xattr("user.b", b"B")]);
         } else {
             // Non-target entries should remain unaffected (no xattrs)
             assert!(

@@ -32,10 +32,7 @@ fn xattr_set_base64() {
         if entry.name() == "raw/empty.txt" {
             assert_eq!(
                 entry.xattrs(),
-                &[pna::ExtendedAttribute::new(
-                    "user.base64".into(),
-                    b"Hello World".to_vec()
-                )]
+                &[archive::xattr("user.base64", b"Hello World")]
             );
         } else {
             // Non-target entries should remain unaffected (no xattrs)
