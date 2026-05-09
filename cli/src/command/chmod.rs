@@ -103,10 +103,10 @@ fn transform_entry<T>(entry: NormalEntry<T>, mode: &Mode) -> NormalEntry<T> {
         pna::Permission::new(
             p.uid(),
             pna::UserName::try_from(p.uname())
-                .expect("source Permission's uname is already bounded"),
+                .expect("p's uname is already bounded by UserName invariant"),
             p.gid(),
             pna::GroupName::try_from(p.gname())
-                .expect("source Permission's gname is already bounded"),
+                .expect("p's gname is already bounded by GroupName invariant"),
             mode,
         )
     });

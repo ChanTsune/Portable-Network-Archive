@@ -10,7 +10,7 @@ use crate::{
             collect_split_archives,
         },
     },
-    utils::{GlobPatterns, PathPartExt, env::NamedTempFile},
+    utils::{GlobPatterns, PathPartExt, cli_parsers::parse_xattr_name, env::NamedTempFile},
 };
 use base64::Engine;
 use bstr::{ByteSlice, io::BufReadExt};
@@ -89,8 +89,13 @@ impl Command for GetXattrCommand {
 pub(crate) struct SetXattrCommand {
     #[command(flatten)]
     file: FileArgsCompat,
-    #[arg(short, long, help = "Name of extended attribute")]
-    name: Option<String>,
+    #[arg(
+        short,
+        long,
+        value_parser = parse_xattr_name,
+        help = "Name of extended attribute"
+    )]
+    name: Option<pna::XattrName>,
     #[arg(short, long, help = "Value of extended attribute")]
     value: Option<Value>,
     #[arg(
@@ -262,14 +267,14 @@ fn archive_set_xattr(args: SetXattrCommand) -> anyhow::Result<()> {
             temp_file.as_file_mut(),
             password.as_deref(),
             #[hooq::skip_all]
-            |entry| Ok(Some(set_strategy.transform_entry(entry?))),
+            |entry| Ok(Some(set_strategy.transform_entry(entry?)?)),
             TransformStrategyUnSolid,
         ),
         SolidEntriesTransformStrategy::KeepSolid => source.transform_entries(
             temp_file.as_file_mut(),
             password.as_deref(),
             #[hooq::skip_all]
-            |entry| Ok(Some(set_strategy.transform_entry(entry?))),
+            |entry| Ok(Some(set_strategy.transform_entry(entry?)?)),
             TransformStrategyKeepSolid,
         ),
     }?;
@@ -288,7 +293,7 @@ enum SetAttrStrategy<'s> {
     Restore(HashMap<String, Vec<(String, Value)>>),
     Apply {
         globs: GlobPatterns<'s>,
-        name: Option<String>,
+        name: Option<pna::XattrName>,
         value: Value,
         remove: Option<String>,
     },
@@ -296,7 +301,7 @@ enum SetAttrStrategy<'s> {
 
 impl SetAttrStrategy<'_> {
     #[inline]
-    fn transform_entry<T>(&mut self, entry: NormalEntry<T>) -> NormalEntry<T> {
+    fn transform_entry<T>(&mut self, entry: NormalEntry<T>) -> io::Result<NormalEntry<T>> {
         match self {
             SetAttrStrategy::Restore(restore) => {
                 if let Some(attrs) = restore.get(entry.name().as_str()) {
@@ -308,18 +313,20 @@ impl SetAttrStrategy<'_> {
                         .collect::<IndexMap<_, _>>();
                     let xattrs = xattrs
                         .into_iter()
-                        .map(|(key, value)| {
-                            pna::ExtendedAttribute::new(
-                                pna::XattrName::try_from(key)
-                                    .expect("xattr name must fit within u32::MAX bytes"),
-                                pna::XattrValue::try_from(value)
-                                    .expect("xattr value must fit within u32::MAX bytes"),
-                            )
+                        .map(|(key, value)| -> io::Result<pna::ExtendedAttribute> {
+                            // dump-file-derived names/values may exceed the
+                            // u32 length prefix; existing entry xattrs are
+                            // already bounded by their newtype invariants.
+                            let name = pna::XattrName::try_from(key)
+                                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+                            let value = pna::XattrValue::try_from(value)
+                                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+                            Ok(pna::ExtendedAttribute::new(name, value))
                         })
-                        .collect::<Vec<_>>();
-                    entry.with_xattrs(xattrs)
+                        .collect::<io::Result<Vec<_>>>()?;
+                    Ok(entry.with_xattrs(xattrs))
                 } else {
-                    entry
+                    Ok(entry)
                 }
             }
             SetAttrStrategy::Apply {
@@ -329,9 +336,9 @@ impl SetAttrStrategy<'_> {
                 remove,
             } => {
                 if globs.matches_any(entry.name()) {
-                    transform_entry(entry, name.as_deref(), value.as_bytes(), remove.as_deref())
+                    transform_entry(entry, name.as_ref(), value.as_bytes(), remove.as_deref())
                 } else {
-                    entry
+                    Ok(entry)
                 }
             }
         }
@@ -366,39 +373,44 @@ fn parse_dump(reader: impl io::BufRead) -> io::Result<HashMap<String, Vec<(Strin
 #[inline]
 fn transform_entry<T>(
     entry: NormalEntry<T>,
-    name: Option<&str>,
+    name: Option<&pna::XattrName>,
     value: &[u8],
     remove: Option<&str>,
-) -> NormalEntry<T> {
-    let xattrs = transform_xattr(entry.xattrs(), name, value, remove);
-    entry.with_xattrs(xattrs)
+) -> io::Result<NormalEntry<T>> {
+    let xattrs = transform_xattr(entry.xattrs(), name, value, remove)?;
+    Ok(entry.with_xattrs(xattrs))
 }
 
 #[inline]
 fn transform_xattr(
     xattrs: &[pna::ExtendedAttribute],
-    name: Option<&str>,
+    name: Option<&pna::XattrName>,
     value: &[u8],
     remove: Option<&str>,
-) -> Vec<pna::ExtendedAttribute> {
+) -> io::Result<Vec<pna::ExtendedAttribute>> {
     let mut xattrs = xattrs
         .iter()
         .map(|it| (it.name(), it.value()))
         .collect::<IndexMap<_, _>>();
     if let Some(name) = name {
-        xattrs.insert(name, value);
+        xattrs.insert(name.as_str(), value);
     }
     if let Some(name) = remove {
         xattrs.shift_remove_entry(name);
     }
     xattrs
         .into_iter()
-        .map(|(key, value)| {
-            pna::ExtendedAttribute::new(
-                pna::XattrName::try_from(key).expect("xattr name must fit within u32::MAX bytes"),
-                pna::XattrValue::try_from(value)
-                    .expect("xattr value must fit within u32::MAX bytes"),
-            )
+        .map(|(key, value)| -> io::Result<pna::ExtendedAttribute> {
+            // CLI-supplied --name was validated by clap value_parser; existing
+            // entry xattrs are already bounded by their newtype invariants. The
+            // CLI-supplied --value's argv-bounded size cannot reach u32::MAX,
+            // so this conversion is provably safe here, but propagating any
+            // future bound violation as InvalidData costs nothing.
+            let name = pna::XattrName::try_from(key)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+            let value = pna::XattrValue::try_from(value)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+            Ok(pna::ExtendedAttribute::new(name, value))
         })
         .collect()
 }
@@ -652,7 +664,8 @@ mod tests {
 
     #[test]
     fn set_xattr() {
-        let xattrs = transform_xattr(&[], Some("key"), b"value", None);
+        let key = pna::XattrName::try_from("key").unwrap();
+        let xattrs = transform_xattr(&[], Some(&key), b"value", None).unwrap();
 
         assert_eq!(
             xattrs,
@@ -665,15 +678,17 @@ mod tests {
 
     #[test]
     fn overwrite_xattr() {
+        let key = pna::XattrName::try_from("key").unwrap();
         let xattrs = transform_xattr(
             &[pna::ExtendedAttribute::new(
                 pna::XattrName::try_from("key").unwrap(),
                 pna::XattrValue::try_from(b"origin".as_slice()).unwrap(),
             )],
-            Some("key"),
+            Some(&key),
             b"value",
             None,
-        );
+        )
+        .unwrap();
 
         assert_eq!(
             xattrs,
@@ -694,7 +709,8 @@ mod tests {
             None,
             b"value",
             Some("key"),
-        );
+        )
+        .unwrap();
 
         assert_eq!(xattrs, vec![]);
     }
