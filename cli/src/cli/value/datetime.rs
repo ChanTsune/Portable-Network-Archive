@@ -1,4 +1,3 @@
-use pna::Duration;
 use std::{
     borrow::Cow,
     fmt::{self, Display, Formatter},
@@ -8,14 +7,12 @@ use std::{
 
 #[derive(Debug, thiserror::Error)]
 pub enum DateTimeError {
-    #[error("Failed to parse seconds since unix epoch")]
-    InvalidNumber,
-    #[error("Failed to parse seconds since unix epoch")]
-    ParseInt(#[from] std::num::ParseIntError),
     #[error(transparent)]
     ChronoParse(#[from] chrono::ParseError),
     #[error(transparent)]
     ParseDateTime(#[from] parse_datetime::ParseDateTimeError),
+    #[error("Date/time '{0}' is out of range for SystemTime on this platform")]
+    OutOfRange(String),
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -27,40 +24,73 @@ pub enum DateTime {
 }
 
 impl DateTime {
+    /// Returns this instant as `(seconds, subsec_nanoseconds)` such that
+    /// the represented instant equals
+    /// `UNIX_EPOCH + seconds * 1s + subsec_nanoseconds * 1ns`.
     #[inline]
-    pub fn to_system_time(&self) -> SystemTime {
-        #[inline]
-        fn from_timestamp(seconds: i64, nanoseconds: u32) -> SystemTime {
-            UNIX_EPOCH + Duration::new(seconds, nanoseconds as _)
-        }
+    fn epoch_components(&self) -> (i64, u32) {
         match self {
-            Self::Naive(naive) => {
-                let (seconds, nanos) = match naive.and_local_timezone(chrono::Local) {
-                    chrono::LocalResult::Single(local) => {
-                        (local.timestamp(), local.timestamp_subsec_nanos())
-                    }
-                    chrono::LocalResult::Ambiguous(earlier, _) => {
-                        (earlier.timestamp(), earlier.timestamp_subsec_nanos())
-                    }
-                    chrono::LocalResult::None => {
-                        // Fallback to interpreting the naive value as UTC rather than panic.
-                        let utc = naive.and_utc();
-                        (utc.timestamp(), utc.timestamp_subsec_nanos())
-                    }
-                };
-                from_timestamp(seconds, nanos)
-            }
+            Self::Naive(naive) => match naive.and_local_timezone(chrono::Local) {
+                chrono::LocalResult::Single(local) => {
+                    (local.timestamp(), local.timestamp_subsec_nanos())
+                }
+                chrono::LocalResult::Ambiguous(earlier, _) => {
+                    (earlier.timestamp(), earlier.timestamp_subsec_nanos())
+                }
+                chrono::LocalResult::None => {
+                    // Fallback to interpreting the naive value as UTC rather than panic.
+                    let utc = naive.and_utc();
+                    (utc.timestamp(), utc.timestamp_subsec_nanos())
+                }
+            },
             Self::Zoned(zoned) => {
                 let ts = zoned.timestamp();
-                from_timestamp(ts.as_second(), zoned.subsec_nanosecond() as u32)
+                (ts.as_second(), zoned.subsec_nanosecond() as u32)
             }
             Self::Date(date) => {
                 let utc = date.and_hms_opt(0, 0, 0).unwrap().and_utc();
-                from_timestamp(utc.timestamp(), utc.timestamp_subsec_nanos())
+                (utc.timestamp(), utc.timestamp_subsec_nanos())
             }
-            Self::Epoch(seconds, nanos) => from_timestamp(*seconds, *nanos),
+            Self::Epoch(seconds, nanos) => (*seconds, *nanos),
         }
     }
+
+    /// Returns `true` if this instant is representable as `SystemTime` on
+    /// the current platform.
+    #[inline]
+    fn is_representable(&self) -> bool {
+        let (seconds, nanos) = self.epoch_components();
+        epoch_to_system_time(seconds, nanos).is_some()
+    }
+
+    /// Converts this `DateTime` to `SystemTime`.
+    ///
+    /// `FromStr` validates every variant against the platform's `SystemTime`
+    /// range, so production values produced by parsing are guaranteed to be
+    /// representable. The `expect` here makes that invariant explicit and
+    /// surfaces a real bug loudly if the parser is ever bypassed.
+    #[inline]
+    pub fn to_system_time(&self) -> SystemTime {
+        let (seconds, nanos) = self.epoch_components();
+        epoch_to_system_time(seconds, nanos)
+            .expect("DateTime invariant: FromStr must reject values that overflow SystemTime")
+    }
+}
+
+/// Returns the `SystemTime` equal to
+/// `UNIX_EPOCH + seconds * 1s + nanoseconds * 1ns`, or `None` if it is
+/// outside the platform's representable range.
+#[inline]
+fn epoch_to_system_time(seconds: i64, nanoseconds: u32) -> Option<SystemTime> {
+    // `unsigned_abs` handles `i64::MIN` without panicking.
+    let abs_secs = std::time::Duration::from_secs(seconds.unsigned_abs());
+    let subsec = std::time::Duration::from_nanos(nanoseconds as u64);
+    let floor = if seconds >= 0 {
+        UNIX_EPOCH.checked_add(abs_secs)?
+    } else {
+        UNIX_EPOCH.checked_sub(abs_secs)?
+    };
+    floor.checked_add(subsec)
 }
 
 impl Display for DateTime {
@@ -70,7 +100,23 @@ impl Display for DateTime {
             Self::Naive(naive) => Display::fmt(naive, f),
             Self::Zoned(zoned) => Display::fmt(zoned, f),
             Self::Date(date) => Display::fmt(date, f),
-            Self::Epoch(seconds, nanos) => write!(f, "@{seconds}.{nanos:09}"),
+            Self::Epoch(seconds, nanos) => {
+                if *seconds < 0 && *nanos > 0 {
+                    // Reverse the timespec encoding: `(secs<0, nanos>0)`
+                    // represents algebraic `-((|secs|-1).(1e9-nanos))`. The
+                    // `|secs|-1 == 0` case prints `-0.<frac>` so the sign is
+                    // not lost when the magnitude is sub-second.
+                    let display_nanos = 1_000_000_000 - nanos;
+                    let display_secs_abs = seconds.unsigned_abs() - 1;
+                    if display_secs_abs == 0 {
+                        write!(f, "@-0.{display_nanos:09}")
+                    } else {
+                        write!(f, "@-{display_secs_abs}.{display_nanos:09}")
+                    }
+                } else {
+                    write!(f, "@{seconds}.{nanos:09}")
+                }
+            }
         }
     }
 }
@@ -80,45 +126,42 @@ impl FromStr for DateTime {
 
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if let Some(seconds) = s.strip_prefix('@') {
-            // GNU tar allows both comma and dot as decimal separators
-            let seconds_str = if seconds.contains(',') {
-                Cow::Owned(seconds.replace(',', "."))
+        let dt = if s.starts_with('@') {
+            // Delegate `@<seconds>[.<frac>]` parsing to parse_datetime
+            // (the GNU coreutils-compatible parser): it gives algebraic
+            // semantics for negative fractions, accepts comma as decimal
+            // separator, and preserves the sign on `@-0.f`. Pre-pad a
+            // trailing dot (`@123.`) with `0` since parse_datetime rejects
+            // a bare dot, and re-package as `Self::Epoch` to keep the
+            // `@<secs>.<nanos>` Display round-trip.
+            let normalized: Cow<str> = if s.ends_with('.') {
+                Cow::Owned(format!("{s}0"))
             } else {
-                Cow::Borrowed(seconds)
+                Cow::Borrowed(s)
             };
-            // split integer and fractional parts
-            let mut split = seconds_str.splitn(2, '.');
-            let int_part = split.next().expect("split always has at least one part");
-            let frac_part = split.next();
-
-            // parse seconds
-            let secs = i64::from_str(int_part)?;
-
-            // parse fractional (nanoseconds)
-            let nanos: u32 = if let Some(frac) = frac_part {
-                // allow only digits
-                if !frac.bytes().all(|c| c.is_ascii_digit()) {
-                    return Err(Self::Err::InvalidNumber);
-                }
-                // take up to 9 digits (nanoseconds); pad right with zeros
-                let digits = frac.as_bytes();
-                let mut ns: u32 = 0;
-                // pad with zeros to reach 9 digits and truncate beyond ns
-                for &b in digits.iter().chain(std::iter::repeat(&b'0')).take(9) {
-                    ns = (ns * 10) + (b - b'0') as u32;
-                }
-                ns
-            } else {
-                0
-            };
-            Ok(Self::Epoch(secs, nanos))
+            let ns = parse_datetime::parse_datetime(&*normalized)?
+                .timestamp()
+                .as_nanosecond();
+            // Euclidean division converts the algebraic nanoseconds-since-
+            // epoch into the timespec `(floor, non-negative offset)` pair
+            // expected by `epoch_components` / `epoch_to_system_time`.
+            let secs: i64 = ns
+                .div_euclid(1_000_000_000)
+                .try_into()
+                .map_err(|_| Self::Err::OutOfRange(s.to_owned()))?;
+            let nanos = ns.rem_euclid(1_000_000_000) as u32;
+            Self::Epoch(secs, nanos)
         } else if let Ok(naive) = chrono::NaiveDateTime::from_str(s) {
-            Ok(Self::Naive(naive))
+            Self::Naive(naive)
         } else if let Ok(naive_date) = chrono::NaiveDate::from_str(s) {
-            Ok(Self::Date(naive_date))
+            Self::Date(naive_date)
         } else {
-            Ok(Self::Zoned(parse_datetime::parse_datetime(s)?))
+            Self::Zoned(parse_datetime::parse_datetime(s)?)
+        };
+        if dt.is_representable() {
+            Ok(dt)
+        } else {
+            Err(Self::Err::OutOfRange(s.to_owned()))
         }
     }
 }
@@ -234,6 +277,12 @@ mod tests {
     }
 
     #[test]
+    fn test_relative_time_format_negative_subsecond() {
+        let datetime = DateTime::from_str("@-0.5").unwrap();
+        assert_eq!(datetime.to_string(), "@-0.500000000");
+    }
+
+    #[test]
     fn test_datetime_parse_and_display_date() {
         let datetime = DateTime::from_str("2024-04-01").unwrap();
         assert_eq!(datetime.to_string(), "2024-04-01");
@@ -263,5 +312,60 @@ mod tests {
         let datetime = DateTime::Epoch(1234567890, 0);
         let system_time = datetime.to_system_time();
         assert!(system_time > UNIX_EPOCH);
+    }
+
+    #[test]
+    fn test_to_system_time_epoch_negative_subsecond() {
+        let dt = DateTime::from_str("@-0.5").unwrap();
+        assert_eq!(
+            dt.to_system_time(),
+            UNIX_EPOCH - std::time::Duration::from_millis(500)
+        );
+    }
+
+    #[test]
+    fn test_to_system_time_epoch_negative_with_fraction() {
+        let dt = DateTime::from_str("@-1.5").unwrap();
+        assert_eq!(
+            dt.to_system_time(),
+            UNIX_EPOCH - std::time::Duration::from_millis(1500)
+        );
+    }
+
+    #[test]
+    fn test_to_system_time_epoch_negative_multi_second_fraction() {
+        let dt = DateTime::from_str("@-123.456").unwrap();
+        assert_eq!(
+            dt.to_system_time(),
+            UNIX_EPOCH - std::time::Duration::from_millis(123_456)
+        );
+    }
+
+    #[test]
+    fn test_epoch_extreme_values_rejected() {
+        assert!(matches!(
+            DateTime::from_str("@9223372036854775807"),
+            Err(DateTimeError::ParseDateTime(_))
+        ));
+        assert!(matches!(
+            DateTime::from_str("@-9223372036854775808"),
+            Err(DateTimeError::ParseDateTime(_))
+        ));
+    }
+
+    #[cfg(all(unix, not(target_family = "wasm")))]
+    #[test]
+    fn test_extreme_naive_accepted_on_unix() {
+        let dt = DateTime::from_str("+200000-01-01T00:00:00").unwrap();
+        assert!(dt.to_system_time() > UNIX_EPOCH);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn test_extreme_naive_rejected_on_windows() {
+        assert!(matches!(
+            DateTime::from_str("+200000-01-01T00:00:00"),
+            Err(DateTimeError::OutOfRange(_))
+        ));
     }
 }
