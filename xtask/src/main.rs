@@ -375,9 +375,11 @@ fn build_permission(header: &tar::Header, path: &str) -> libpna::Permission {
     };
     libpna::Permission::new(
         uid,
-        libpna::UserName::try_from(uname).expect("uname must fit within 255 bytes"),
+        libpna::UserName::try_from(uname)
+            .expect("ustar header username field is bounded to 32 bytes by tar format spec"),
         gid,
-        libpna::GroupName::try_from(gname).expect("gname must fit within 255 bytes"),
+        libpna::GroupName::try_from(gname)
+            .expect("ustar header groupname field is bounded to 32 bytes by tar format spec"),
         mode,
     )
 }

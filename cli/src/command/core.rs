@@ -315,8 +315,8 @@ pub(crate) struct PermissionStrategyResolver {
     pub(crate) keep_permission: bool,
     pub(crate) no_keep_permission: bool,
     pub(crate) same_owner: bool,
-    pub(crate) uname: Option<String>,
-    pub(crate) gname: Option<String>,
+    pub(crate) uname: Option<pna::UserName>,
+    pub(crate) gname: Option<pna::GroupName>,
     pub(crate) uid: Option<u32>,
     pub(crate) gid: Option<u32>,
     pub(crate) numeric_owner: bool,
@@ -340,12 +340,12 @@ impl PermissionStrategyResolver {
                 OwnerStrategy::Preserve {
                     options: OwnerOptions {
                         uname: if self.numeric_owner {
-                            Some(String::new())
+                            Some(pna::UserName::default())
                         } else {
                             self.uname
                         },
                         gname: if self.numeric_owner {
-                            Some(String::new())
+                            Some(pna::GroupName::default())
                         } else {
                             self.gname
                         },
@@ -1038,25 +1038,33 @@ pub(crate) fn apply_metadata(
         // Get owner info: use overrides from OwnerStrategy if Preserve, else use filesystem values
         let uid = options.uid.unwrap_or(meta.uid());
         let gid = options.gid.unwrap_or(meta.gid());
-        let uname = match &options.uname {
-            None => User::from_uid(uid.into())?
-                .name()
-                .unwrap_or_default()
-                .into(),
+        let uname: pna::UserName = match &options.uname {
+            None => {
+                let nss_name = User::from_uid(uid.into())?
+                    .name()
+                    .unwrap_or_default()
+                    .to_string();
+                pna::UserName::try_from(nss_name)
+                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
+            }
             Some(uname) => uname.clone(),
         };
-        let gname = match &options.gname {
-            None => Group::from_gid(gid.into())?
-                .name()
-                .unwrap_or_default()
-                .into(),
+        let gname: pna::GroupName = match &options.gname {
+            None => {
+                let nss_name = Group::from_gid(gid.into())?
+                    .name()
+                    .unwrap_or_default()
+                    .to_string();
+                pna::GroupName::try_from(nss_name)
+                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
+            }
             Some(gname) => gname.clone(),
         };
         entry.permission(pna::Permission::new(
             uid.into(),
-            pna::UserName::try_from(uname).expect("uname must fit within 255 bytes"),
+            uname,
             gid.into(),
-            pna::GroupName::try_from(gname).expect("gname must fit within 255 bytes"),
+            gname,
             mode,
         ));
     }
@@ -1076,15 +1084,17 @@ pub(crate) fn apply_metadata(
         // Get owner info: use overrides from OwnerStrategy
         let uid = options.uid.map_or(u64::MAX, Into::into);
         let gid = options.gid.map_or(u64::MAX, Into::into);
-        let uname = options.uname.clone().unwrap_or(user.name);
-        let gname = options.gname.clone().unwrap_or(group.name);
-        entry.permission(pna::Permission::new(
-            uid,
-            pna::UserName::try_from(uname).expect("uname must fit within 255 bytes"),
-            gid,
-            pna::GroupName::try_from(gname).expect("gname must fit within 255 bytes"),
-            mode,
-        ));
+        let uname: pna::UserName = match options.uname.clone() {
+            Some(uname) => uname,
+            None => pna::UserName::try_from(user.name)
+                .expect("Windows AD/SAM contracts limit usernames well within 255 bytes"),
+        };
+        let gname: pna::GroupName = match options.gname.clone() {
+            Some(gname) => gname,
+            None => pna::GroupName::try_from(group.name)
+                .expect("Windows AD/SAM contracts limit group names well within 255 bytes"),
+        };
+        entry.permission(pna::Permission::new(uid, uname, gid, gname, mode));
     }
     // On macOS, when mac_metadata_strategy is Always, AppleDouble packing via copyfile()
     // already includes xattrs and ACLs. Skip separate handling to avoid duplication.
@@ -2090,13 +2100,19 @@ fn transform_normal_entry(
         if (uid.is_some() || gid.is_some() || uname.is_some() || gname.is_some())
             && let Some(perm) = metadata.permission()
         {
-            let resolved_uname = uname.clone().unwrap_or_else(|| perm.uname().to_string());
-            let resolved_gname = gname.clone().unwrap_or_else(|| perm.gname().to_string());
+            let resolved_uname: pna::UserName = uname.clone().unwrap_or_else(|| {
+                pna::UserName::try_from(perm.uname())
+                    .expect("perm's uname is already bounded by UserName invariant")
+            });
+            let resolved_gname: pna::GroupName = gname.clone().unwrap_or_else(|| {
+                pna::GroupName::try_from(perm.gname())
+                    .expect("perm's gname is already bounded by GroupName invariant")
+            });
             let new_perm = pna::Permission::new(
                 uid.map(u64::from).unwrap_or_else(|| perm.uid()),
-                pna::UserName::try_from(resolved_uname).expect("uname must fit within 255 bytes"),
+                resolved_uname,
                 gid.map(u64::from).unwrap_or_else(|| perm.gid()),
-                pna::GroupName::try_from(resolved_gname).expect("gname must fit within 255 bytes"),
+                resolved_gname,
                 perm.permissions(),
             );
             metadata = metadata.with_permission(Some(new_perm));

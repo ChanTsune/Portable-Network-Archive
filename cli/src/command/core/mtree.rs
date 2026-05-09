@@ -461,7 +461,7 @@ fn apply_mtree_metadata(
         let uid = resolve_id(nochange, options.uid, mtree_entry.uid(), fs_metadata.uid());
         let gid = resolve_id(nochange, options.gid, mtree_entry.gid(), fs_metadata.gid());
 
-        let uname = resolve_name(
+        let uname: pna::UserName = resolve_name(
             nochange,
             options.uname.as_ref(),
             mtree_entry.uname(),
@@ -470,8 +470,8 @@ fn apply_mtree_metadata(
                     .ok()
                     .and_then(|u| u.name().map(String::from))
             },
-        );
-        let gname = resolve_name(
+        )?;
+        let gname: pna::GroupName = resolve_name(
             nochange,
             options.gname.as_ref(),
             mtree_entry.gname(),
@@ -480,13 +480,13 @@ fn apply_mtree_metadata(
                     .ok()
                     .and_then(|g| g.name().map(String::from))
             },
-        );
+        )?;
 
         entry.permission(pna::Permission::new(
             uid.into(),
-            pna::UserName::try_from(uname).expect("uname must fit within 255 bytes"),
+            uname,
             gid.into(),
-            pna::GroupName::try_from(gname).expect("gname must fit within 255 bytes"),
+            gname,
             mode,
         ));
     }
@@ -506,22 +506,25 @@ fn resolve_id(nochange: bool, override_id: Option<u32>, mtree_id: Option<u32>, f
 
 /// Resolves a name (uname or gname) with nochange, override, and mtree handling.
 #[cfg(unix)]
-fn resolve_name<F>(
+fn resolve_name<N, F>(
     nochange: bool,
-    override_name: Option<&String>,
+    override_name: Option<&N>,
     mtree_name: Option<&[u8]>,
     lookup_from_id: F,
-) -> String
+) -> io::Result<N>
 where
+    N: Clone + TryFrom<String, Error = pna::LengthExceeded>,
     F: FnOnce() -> Option<String>,
 {
     if let Some(name) = override_name {
-        return name.clone();
+        return Ok(name.clone());
     }
     if !nochange && let Some(name) = mtree_name {
-        return String::from_utf8_lossy(name).into_owned();
+        let raw = String::from_utf8_lossy(name).into_owned();
+        return N::try_from(raw).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e));
     }
-    lookup_from_id().unwrap_or_default()
+    let raw = lookup_from_id().unwrap_or_default();
+    N::try_from(raw).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
 }
 
 /// Applies metadata from mtree entry only (no filesystem metadata available).
@@ -545,14 +548,16 @@ fn apply_mtree_metadata_without_fs(
             .map(|m| u32::from(m) as u16)
             .unwrap_or(0o755);
 
-        let uname = resolve_name(false, options.uname.as_ref(), mtree_entry.uname(), || None);
-        let gname = resolve_name(false, options.gname.as_ref(), mtree_entry.gname(), || None);
+        let uname: pna::UserName =
+            resolve_name(false, options.uname.as_ref(), mtree_entry.uname(), || None)?;
+        let gname: pna::GroupName =
+            resolve_name(false, options.gname.as_ref(), mtree_entry.gname(), || None)?;
 
         entry.permission(pna::Permission::new(
             uid.into(),
-            pna::UserName::try_from(uname).expect("uname must fit within 255 bytes"),
+            uname,
             gid.into(),
-            pna::GroupName::try_from(gname).expect("gname must fit within 255 bytes"),
+            gname,
             mode,
         ));
     }

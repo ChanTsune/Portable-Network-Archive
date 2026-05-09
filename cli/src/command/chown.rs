@@ -73,7 +73,7 @@ fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
             |entry| {
                 let entry = entry?;
                 if globs.matches_any(entry.name()) {
-                    Ok(Some(transform_entry(entry, &owner)))
+                    Ok(Some(transform_entry(entry, &owner)?))
                 } else {
                     Ok(Some(entry))
                 }
@@ -87,7 +87,7 @@ fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
             |entry| {
                 let entry = entry?;
                 if globs.matches_any(entry.name()) {
-                    Ok(Some(transform_entry(entry, &owner)))
+                    Ok(Some(transform_entry(entry, &owner)?))
                 } else {
                     Ok(Some(entry))
                 }
@@ -105,39 +105,48 @@ fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
 }
 
 #[inline]
-fn transform_entry<T>(entry: NormalEntry<T>, owner: &Ownership) -> NormalEntry<T> {
+fn transform_entry<T>(entry: NormalEntry<T>, owner: &Ownership) -> io::Result<NormalEntry<T>> {
     let metadata = entry.metadata().clone();
-    let permission = metadata.permission().map(|p| {
-        let user = owner.user.as_ref().map(|it| match it {
-            OwnerSpecifier::Name(uname) => (u64::MAX, uname.into()),
-            OwnerSpecifier::ID(uid) => (*uid, String::new()),
-            OwnerSpecifier::System(user) => (
-                user.uid().unwrap_or(u64::MAX),
-                user.name().unwrap_or_default().into(),
-            ),
-        });
-        let (uid, uname) = user.unwrap_or_else(|| (p.uid(), p.uname().into()));
+    let permission = metadata
+        .permission()
+        .map(|p| -> io::Result<pna::Permission> {
+            let user = owner.user.as_ref().map(|it| match it {
+                OwnerSpecifier::Name(uname) => (u64::MAX, uname.clone()),
+                OwnerSpecifier::ID(uid) => (*uid, String::new()),
+                OwnerSpecifier::System(user) => (
+                    user.uid().unwrap_or(u64::MAX),
+                    user.name().unwrap_or_default().to_string(),
+                ),
+            });
+            let (uid, uname) = user.unwrap_or_else(|| (p.uid(), p.uname().to_string()));
 
-        let group = owner.group.as_ref().map(|it| match it {
-            OwnerSpecifier::Name(gname) => (u64::MAX, gname.into()),
-            OwnerSpecifier::ID(gid) => (*gid, String::new()),
-            OwnerSpecifier::System(group) => (
-                group.gid().unwrap_or(u64::MAX),
-                group.name().unwrap_or_default().into(),
-            ),
-        });
-        let (gid, gname) = group.unwrap_or_else(|| (p.gid(), p.gname().into()));
-        let uname: String = uname;
-        let gname: String = gname;
-        pna::Permission::new(
-            uid,
-            pna::UserName::try_from(uname).expect("uname must fit within 255 bytes"),
-            gid,
-            pna::GroupName::try_from(gname).expect("gname must fit within 255 bytes"),
-            p.permissions(),
-        )
-    });
-    entry.with_metadata(metadata.with_permission(permission))
+            let group = owner.group.as_ref().map(|it| match it {
+                OwnerSpecifier::Name(gname) => (u64::MAX, gname.clone()),
+                OwnerSpecifier::ID(gid) => (*gid, String::new()),
+                OwnerSpecifier::System(group) => (
+                    group.gid().unwrap_or(u64::MAX),
+                    group.name().unwrap_or_default().to_string(),
+                ),
+            });
+            let (gid, gname) = group.unwrap_or_else(|| (p.gid(), p.gname().to_string()));
+            // CLI-derived names are bounded by RawOwnership::FromStr; archive-derived
+            // names are bounded by the UserName / GroupName invariants on `p`. The
+            // remaining failure mode is an NSS lookup whose pw_name / gr_name exceeds
+            // the format's u8 length prefix, which we surface as `InvalidData`.
+            let uname = pna::UserName::try_from(uname)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+            let gname = pna::GroupName::try_from(gname)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+            Ok(pna::Permission::new(
+                uid,
+                uname,
+                gid,
+                gname,
+                p.permissions(),
+            ))
+        })
+        .transpose()?;
+    Ok(entry.with_metadata(metadata.with_permission(permission)))
 }
 
 pub(crate) enum OwnerSpecifier<T> {
@@ -226,6 +235,11 @@ impl RawOwnership {
     }
 }
 
+/// Maximum byte length of a uname or gname stored in an archive entry.
+/// Matches the `u8` length prefix in the `fPRM` chunk; UserName / GroupName
+/// share this bound.
+const NAME_MAX_BYTES: usize = u8::MAX as usize;
+
 impl FromStr for RawOwnership {
     type Err = String;
 
@@ -233,15 +247,32 @@ impl FromStr for RawOwnership {
         if s.is_empty() || s == ":" {
             return Err("owner must not be empty".into());
         }
-        let (user, group, use_login_group) = if let Some((user, group)) = s.split_once(':') {
-            (
-                user.is_empty().not().then(|| user.into()),
-                group.is_empty().not().then(|| group.into()),
-                !user.is_empty() && group.is_empty(),
-            )
-        } else {
-            (Some(s.into()), None, false)
-        };
+        let (user, group, use_login_group): (Option<String>, Option<String>, bool) =
+            if let Some((user, group)) = s.split_once(':') {
+                (
+                    user.is_empty().not().then(|| user.to_string()),
+                    group.is_empty().not().then(|| group.to_string()),
+                    !user.is_empty() && group.is_empty(),
+                )
+            } else {
+                (Some(s.to_string()), None, false)
+            };
+        if let Some(name) = user.as_deref()
+            && name.len() > NAME_MAX_BYTES
+        {
+            return Err(format!(
+                "user name length {} exceeds {NAME_MAX_BYTES}",
+                name.len()
+            ));
+        }
+        if let Some(name) = group.as_deref()
+            && name.len() > NAME_MAX_BYTES
+        {
+            return Err(format!(
+                "group name length {} exceeds {NAME_MAX_BYTES}",
+                name.len()
+            ));
+        }
         Ok(Self {
             user,
             group,

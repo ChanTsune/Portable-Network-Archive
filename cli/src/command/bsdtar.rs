@@ -24,7 +24,10 @@ use crate::{
         update::run_update_archive,
     },
     utils::{
-        self, BsdGlobMatcher, PathPartExt, VCS_FILES, env::NamedTempFile, fs::HardlinkResolver,
+        self, BsdGlobMatcher, PathPartExt, VCS_FILES,
+        cli_parsers::{parse_gname, parse_uname},
+        env::NamedTempFile,
+        fs::HardlinkResolver,
     },
 };
 use clap::{ArgGroup, Args, Parser, ValueHint};
@@ -416,15 +419,17 @@ pub(crate) struct BsdtarCommand {
     #[arg(
         long,
         value_name = "NAME",
+        value_parser = parse_uname,
         help = "On create, archiving user to the entries from given name. On extract, restore user from given name"
     )]
-    uname: Option<String>,
+    uname: Option<pna::UserName>,
     #[arg(
         long,
         value_name = "NAME",
+        value_parser = parse_gname,
         help = "On create, archiving group to the entries from given name. On extract, restore group from given name"
     )]
-    gname: Option<String>,
+    gname: Option<pna::GroupName>,
     #[arg(
         long,
         value_name = "ID",
@@ -745,8 +750,8 @@ struct CreationPermissionStrategyResolver {
     no_same_permissions: bool,
     no_same_owner: bool,
     numeric_owner: bool,
-    uname: Option<String>,
-    gname: Option<String>,
+    uname: Option<pna::UserName>,
+    gname: Option<pna::GroupName>,
     uid: Option<u32>,
     gid: Option<u32>,
 }
@@ -764,12 +769,12 @@ impl CreationPermissionStrategyResolver {
             OwnerStrategy::Preserve {
                 options: OwnerOptions {
                     uname: if self.numeric_owner {
-                        Some(String::new())
+                        Some(pna::UserName::default())
                     } else {
                         self.uname
                     },
                     gname: if self.numeric_owner {
-                        Some(String::new())
+                        Some(pna::GroupName::default())
                     } else {
                         self.gname
                     },
@@ -791,10 +796,10 @@ struct ExtractionPermissionStrategyResolver {
     no_same_permissions: bool,
     same_owner: bool,
     numeric_owner: bool,
-    uname: Option<String>,
+    uname: Option<pna::UserName>,
     umask: Umask,
     is_root: bool,
-    gname: Option<String>,
+    gname: Option<pna::GroupName>,
     uid: Option<u32>,
     gid: Option<u32>,
     keep_xattr: bool,
@@ -837,12 +842,12 @@ impl ExtractionPermissionStrategyResolver {
             OwnerStrategy::Preserve {
                 options: OwnerOptions {
                     uname: if self.numeric_owner {
-                        Some(String::new())
+                        Some(pna::UserName::default())
                     } else {
                         self.uname
                     },
                     gname: if self.numeric_owner {
-                        Some(String::new())
+                        Some(pna::GroupName::default())
                     } else {
                         self.gname
                     },
@@ -950,8 +955,8 @@ fn run_create_archive(args: BsdtarCommand) -> anyhow::Result<()> {
         args.options.as_ref(),
         password,
     );
-    let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
-    let (gname, gid) = resolve_name_id(args.group, args.gname, args.gid);
+    let (uname, uid) = resolve_name_id::<pna::UserName>(args.owner, args.uname, args.uid)?;
+    let (gname, gid) = resolve_name_id::<pna::GroupName>(args.group, args.gname, args.gid)?;
     let (mode_strategy, owner_strategy) = CreationPermissionStrategyResolver {
         no_same_permissions: args.no_same_permissions,
         no_same_owner: args.no_same_owner,
@@ -1059,8 +1064,8 @@ fn run_extract_archive(ctx: &GlobalContext, args: BsdtarCommand) -> anyhow::Resu
         missing_mtime: MissingTimePolicy::Include,
     }
     .resolve()?;
-    let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
-    let (gname, gid) = resolve_name_id(args.group, args.gname, args.gid);
+    let (uname, uid) = resolve_name_id::<pna::UserName>(args.owner, args.uname, args.uid)?;
+    let (gname, gid) = resolve_name_id::<pna::GroupName>(args.group, args.gname, args.gid)?;
     let (
         mode_strategy,
         owner_strategy,
@@ -1268,8 +1273,8 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
         args.options.as_ref(),
         password,
     );
-    let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
-    let (gname, gid) = resolve_name_id(args.group, args.gname, args.gid);
+    let (uname, uid) = resolve_name_id::<pna::UserName>(args.owner, args.uname, args.uid)?;
+    let (gname, gid) = resolve_name_id::<pna::GroupName>(args.group, args.gname, args.gid)?;
     let (mode_strategy, owner_strategy) = CreationPermissionStrategyResolver {
         no_same_permissions: args.no_same_permissions,
         no_same_owner: args.no_same_owner,
@@ -1408,14 +1413,20 @@ fn run_append(args: BsdtarCommand) -> anyhow::Result<()> {
     }
 }
 
-fn resolve_name_id(
+fn resolve_name_id<N>(
     spec: Option<NameIdPair>,
-    name: Option<String>,
+    name: Option<N>,
     id: Option<u32>,
-) -> (Option<String>, Option<u32>) {
+) -> Result<(Option<N>, Option<u32>), pna::LengthExceeded>
+where
+    N: TryFrom<String, Error = pna::LengthExceeded>,
+{
     match spec {
-        Some(spec) => (spec.name, spec.id),
-        None => (name, id),
+        Some(spec) => {
+            let resolved = spec.name.map(N::try_from).transpose()?;
+            Ok((resolved, spec.id))
+        }
+        None => Ok((name, id)),
     }
 }
 
@@ -1431,8 +1442,8 @@ fn run_update(args: BsdtarCommand) -> anyhow::Result<()> {
         args.options.as_ref(),
         password,
     );
-    let (uname, uid) = resolve_name_id(args.owner, args.uname, args.uid);
-    let (gname, gid) = resolve_name_id(args.group, args.gname, args.gid);
+    let (uname, uid) = resolve_name_id::<pna::UserName>(args.owner, args.uname, args.uid)?;
+    let (gname, gid) = resolve_name_id::<pna::GroupName>(args.group, args.gname, args.gid)?;
     let (mode_strategy, owner_strategy) = CreationPermissionStrategyResolver {
         no_same_permissions: args.no_same_permissions,
         no_same_owner: args.no_same_owner,
