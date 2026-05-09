@@ -1,3 +1,4 @@
+use jiff::civil::{Date as JiffDate, DateTime as JiffDateTime};
 use std::{
     borrow::Cow,
     fmt::{self, Display, Formatter},
@@ -8,7 +9,7 @@ use std::{
 #[derive(Debug, thiserror::Error)]
 pub enum DateTimeError {
     #[error(transparent)]
-    ChronoParse(#[from] chrono::ParseError),
+    JiffParse(#[from] jiff::Error),
     #[error(transparent)]
     ParseDateTime(#[from] parse_datetime::ParseDateTimeError),
     #[error("Date/time '{0}' is out of range for SystemTime on this platform")]
@@ -17,9 +18,9 @@ pub enum DateTimeError {
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum DateTime {
-    Naive(chrono::NaiveDateTime),
+    Naive(JiffDateTime),
     Zoned(jiff::Zoned),
-    Date(chrono::NaiveDate),
+    Date(JiffDate),
     Epoch(i64, u32), // Unix epoch timestamp in seconds and subsec nanos
 }
 
@@ -30,26 +31,29 @@ impl DateTime {
     #[inline]
     fn epoch_components(&self) -> (i64, u32) {
         match self {
-            Self::Naive(naive) => match naive.and_local_timezone(chrono::Local) {
-                chrono::LocalResult::Single(local) => {
-                    (local.timestamp(), local.timestamp_subsec_nanos())
-                }
-                chrono::LocalResult::Ambiguous(earlier, _) => {
-                    (earlier.timestamp(), earlier.timestamp_subsec_nanos())
-                }
-                chrono::LocalResult::None => {
-                    // Fallback to interpreting the naive value as UTC rather than panic.
-                    let utc = naive.and_utc();
-                    (utc.timestamp(), utc.timestamp_subsec_nanos())
-                }
-            },
+            Self::Naive(naive) => {
+                // Resolve in the system time zone with jiff's default
+                // disambiguation, falling back to UTC interpretation if the
+                // system zone cannot be resolved (e.g. on minimal embedded
+                // builds where no tzdata is available).
+                let zoned = naive
+                    .in_tz("system")
+                    .or_else(|_| naive.to_zoned(jiff::tz::TimeZone::UTC))
+                    .expect("UTC accepts any civil DateTime");
+                let ts = zoned.timestamp();
+                (ts.as_second(), zoned.subsec_nanosecond() as u32)
+            }
             Self::Zoned(zoned) => {
                 let ts = zoned.timestamp();
                 (ts.as_second(), zoned.subsec_nanosecond() as u32)
             }
             Self::Date(date) => {
-                let utc = date.and_hms_opt(0, 0, 0).unwrap().and_utc();
-                (utc.timestamp(), utc.timestamp_subsec_nanos())
+                let zoned = date
+                    .at(0, 0, 0, 0)
+                    .to_zoned(jiff::tz::TimeZone::UTC)
+                    .expect("UTC accepts any civil DateTime");
+                let ts = zoned.timestamp();
+                (ts.as_second(), zoned.subsec_nanosecond() as u32)
             }
             Self::Epoch(seconds, nanos) => (*seconds, *nanos),
         }
@@ -97,7 +101,10 @@ impl Display for DateTime {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Naive(naive) => Display::fmt(naive, f),
+            // Preserve the historical chrono-style space-separated form so
+            // user-visible output (errors, debug rendering) does not flip to
+            // the T-separated jiff default during the chrono → jiff migration.
+            Self::Naive(naive) => write!(f, "{}", naive.strftime("%Y-%m-%d %H:%M:%S")),
             Self::Zoned(zoned) => Display::fmt(zoned, f),
             Self::Date(date) => Display::fmt(date, f),
             Self::Epoch(seconds, nanos) => {
@@ -119,6 +126,25 @@ impl Display for DateTime {
             }
         }
     }
+}
+
+/// Detect whether a string carries a time-zone marker (`Z`, `+HH:MM`,
+/// `-HH:MM`, or jiff's `[Region/City]` suffix). jiff's
+/// [`civil::DateTime::from_str`] silently drops such suffixes — letting a
+/// TZ-aware string fall through to the [`Naive`](DateTime::Naive) branch and
+/// silently lose the offset. This filter routes those inputs to the [`Zoned`]
+/// branch instead.
+#[inline]
+fn has_timezone_marker(s: &str) -> bool {
+    if s.ends_with('Z') || s.contains('[') {
+        return true;
+    }
+    let Some(t_pos) = s.find('T') else {
+        return false;
+    };
+    // Within the time portion, only digits, `:`, and `.` are valid; any `+`
+    // or `-` therefore signals a UTC offset.
+    s[t_pos + 1..].bytes().any(|b| b == b'+' || b == b'-')
 }
 
 impl FromStr for DateTime {
@@ -151,10 +177,20 @@ impl FromStr for DateTime {
                 .map_err(|_| Self::Err::OutOfRange(s.to_owned()))?;
             let nanos = ns.rem_euclid(1_000_000_000) as u32;
             Self::Epoch(secs, nanos)
-        } else if let Ok(naive) = chrono::NaiveDateTime::from_str(s) {
-            Self::Naive(naive)
-        } else if let Ok(naive_date) = chrono::NaiveDate::from_str(s) {
-            Self::Date(naive_date)
+        } else if has_timezone_marker(s) {
+            Self::Zoned(parse_datetime::parse_datetime(s)?)
+        } else if s.contains('T') {
+            // Time-of-day component present: route to civil::DateTime. Falling
+            // back to parse_datetime keeps unusual but acceptable forms working.
+            match JiffDateTime::from_str(s) {
+                Ok(naive) => Self::Naive(naive),
+                Err(_) => Self::Zoned(parse_datetime::parse_datetime(s)?),
+            }
+        } else if let Ok(date) = JiffDate::from_str(s) {
+            // No `T` separator: treat as date-only. We branch on `T` first
+            // because jiff's `Date::from_str` and `DateTime::from_str` are
+            // both lenient about trailing characters.
+            Self::Date(date)
         } else {
             Self::Zoned(parse_datetime::parse_datetime(s)?)
         };
@@ -290,10 +326,7 @@ mod tests {
 
     #[test]
     fn test_to_system_time_naive() {
-        let naive = chrono::NaiveDate::from_ymd_opt(2024, 4, 1)
-            .unwrap()
-            .and_hms_opt(12, 0, 0)
-            .unwrap();
+        let naive = JiffDate::new(2024, 4, 1).unwrap().at(12, 0, 0, 0);
         let datetime = DateTime::Naive(naive);
         let system_time = datetime.to_system_time();
         assert!(system_time > UNIX_EPOCH);
@@ -301,7 +334,7 @@ mod tests {
 
     #[test]
     fn test_to_system_time_date() {
-        let date = chrono::NaiveDate::from_ymd_opt(2024, 4, 1).unwrap();
+        let date = JiffDate::new(2024, 4, 1).unwrap();
         let datetime = DateTime::Date(date);
         let system_time = datetime.to_system_time();
         assert!(system_time > UNIX_EPOCH);
@@ -353,19 +386,21 @@ mod tests {
         ));
     }
 
-    #[cfg(all(unix, not(target_family = "wasm")))]
     #[test]
-    fn test_extreme_naive_accepted_on_unix() {
-        let dt = DateTime::from_str("+200000-01-01T00:00:00").unwrap();
-        assert!(dt.to_system_time() > UNIX_EPOCH);
+    fn test_extreme_naive_rejected() {
+        // jiff's civil::DateTime is constrained to year ±9999, so extreme
+        // values that the historical chrono parser used to accept (e.g.
+        // +200000) bounce out at parse time on every platform now.
+        assert!(DateTime::from_str("+200000-01-01T00:00:00").is_err());
     }
 
-    #[cfg(target_os = "windows")]
     #[test]
-    fn test_extreme_naive_rejected_on_windows() {
-        assert!(matches!(
-            DateTime::from_str("+200000-01-01T00:00:00"),
-            Err(DateTimeError::OutOfRange(_))
-        ));
+    fn test_year_9999_accepted() {
+        // Within jiff's civil DateTime range, the parse succeeds and the
+        // resulting SystemTime is far past UNIX_EPOCH. The date-only form
+        // routes through `Self::Date`, anchoring the conversion at UTC
+        // 00:00 so the result is independent of the system time zone.
+        let dt = DateTime::from_str("9999-12-30").unwrap();
+        assert!(dt.to_system_time() > UNIX_EPOCH);
     }
 }
