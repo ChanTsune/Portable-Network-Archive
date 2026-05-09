@@ -484,9 +484,9 @@ fn apply_mtree_metadata(
 
         entry.permission(pna::Permission::new(
             uid.into(),
-            uname,
+            pna::UserName::try_from(uname).expect("uname must fit within 255 bytes"),
             gid.into(),
-            gname,
+            pna::GroupName::try_from(gname).expect("gname must fit within 255 bytes"),
             mode,
         ));
     }
@@ -550,9 +550,9 @@ fn apply_mtree_metadata_without_fs(
 
         entry.permission(pna::Permission::new(
             uid.into(),
-            uname,
+            pna::UserName::try_from(uname).expect("uname must fit within 255 bytes"),
             gid.into(),
-            gname,
+            pna::GroupName::try_from(gname).expect("gname must fit within 255 bytes"),
             mode,
         ));
     }

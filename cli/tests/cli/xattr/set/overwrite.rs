@@ -43,13 +43,7 @@ fn xattr_overwrite() {
 
     archive::for_each_entry("xattr_overwrite/zstd.pna", |entry| {
         if entry.name() == "raw/empty.txt" {
-            assert_eq!(
-                entry.xattrs(),
-                &[pna::ExtendedAttribute::new(
-                    "user.name".into(),
-                    b"second".into()
-                )]
-            );
+            assert_eq!(entry.xattrs(), &[archive::xattr("user.name", b"second")]);
         } else {
             // Non-target entries should remain unaffected (no xattrs)
             assert!(

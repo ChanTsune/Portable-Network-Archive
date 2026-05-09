@@ -100,7 +100,15 @@ fn transform_entry<T>(entry: NormalEntry<T>, mode: &Mode) -> NormalEntry<T> {
     let metadata = entry.metadata().clone();
     let permission = metadata.permission().map(|p| {
         let mode = mode.apply_to(p.permissions());
-        pna::Permission::new(p.uid(), p.uname().into(), p.gid(), p.gname().into(), mode)
+        pna::Permission::new(
+            p.uid(),
+            pna::UserName::try_from(p.uname())
+                .expect("source Permission's uname is already bounded"),
+            p.gid(),
+            pna::GroupName::try_from(p.gname())
+                .expect("source Permission's gname is already bounded"),
+            mode,
+        )
     });
     entry.with_metadata(metadata.with_permission(permission))
 }

@@ -1,4 +1,8 @@
-use crate::utils::{EmbedExt, TestResources, archive::for_each_entry, setup};
+use crate::utils::{
+    EmbedExt, TestResources,
+    archive::{for_each_entry, xattr},
+    setup,
+};
 use assert_cmd::cargo::cargo_bin_cmd;
 use clap::Parser;
 use portable_network_archive::cli;
@@ -61,22 +65,10 @@ fn xattr_get_name_match_encoding() {
     for_each_entry("xattr_get_opts/archive.pna", |entry| {
         match entry.header().path().as_str() {
             "xattr_get_opts/in/raw/empty.txt" => {
-                assert_eq!(
-                    entry.xattrs(),
-                    &[pna::ExtendedAttribute::new(
-                        "user.name".into(),
-                        b"pna".to_vec()
-                    )]
-                );
+                assert_eq!(entry.xattrs(), &[xattr("user.name", b"pna")]);
             }
             "xattr_get_opts/in/raw/text.txt" => {
-                assert_eq!(
-                    entry.xattrs(),
-                    &[pna::ExtendedAttribute::new(
-                        "user.value".into(),
-                        b"data".to_vec()
-                    )]
-                );
+                assert_eq!(entry.xattrs(), &[xattr("user.value", b"data")]);
             }
             _ => {
                 assert!(entry.xattrs().is_empty());

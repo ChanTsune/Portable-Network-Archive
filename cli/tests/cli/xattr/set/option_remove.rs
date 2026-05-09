@@ -1,4 +1,8 @@
-use crate::utils::{EmbedExt, TestResources, archive::for_each_entry, setup};
+use crate::utils::{
+    EmbedExt, TestResources,
+    archive::{for_each_entry, xattr},
+    setup,
+};
 use clap::Parser;
 use portable_network_archive::cli;
 
@@ -38,13 +42,7 @@ fn archive_xattr_remove() {
 
     for_each_entry("xattr_remove/xattr_remove.pna", |entry| {
         if entry.name() == "xattr_remove/in/raw/empty.txt" {
-            assert_eq!(
-                entry.xattrs(),
-                &[pna::ExtendedAttribute::new(
-                    "user.name".into(),
-                    b"pna developers!".into()
-                )],
-            );
+            assert_eq!(entry.xattrs(), &[xattr("user.name", b"pna developers!")],);
         } else {
             // Non-target entries should have no xattrs
             assert!(

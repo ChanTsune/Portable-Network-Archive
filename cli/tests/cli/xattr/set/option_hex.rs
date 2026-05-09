@@ -32,10 +32,7 @@ fn xattr_set_hex() {
         if entry.name() == "raw/empty.txt" {
             assert_eq!(
                 entry.xattrs(),
-                &[pna::ExtendedAttribute::new(
-                    "user.hex".into(),
-                    b"Hello World".to_vec()
-                )]
+                &[archive::xattr("user.hex", b"Hello World")]
             );
         } else {
             // Non-target entries should remain unaffected (no xattrs)

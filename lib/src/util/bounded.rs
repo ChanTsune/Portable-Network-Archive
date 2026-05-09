@@ -33,17 +33,20 @@ pub mod str;
 
 use std::{error, fmt};
 
-/// Error returned when a value exceeds the byte-length bound of a
-/// [`str::BoundedString`] or [`bytes::BoundedBytes`].
+/// Error returned when a value exceeds the byte-length bound of a bounded
+/// owned string or byte slice.
+///
+/// Inspect the bound and the actual length via [`max`](Self::max) and
+/// [`actual`](Self::actual).
 ///
 /// # Examples
 ///
-/// ```ignore
-/// use libpna::util::bounded::str::BoundedString;
+/// ```
+/// use libpna::{LengthExceeded, UserName};
 ///
-/// let err = BoundedString::<3>::new("hello").unwrap_err();
-/// assert_eq!(err.max(), 3);
-/// assert_eq!(err.actual(), 5);
+/// let err: LengthExceeded = UserName::try_from("a".repeat(256)).unwrap_err();
+/// assert_eq!(err.max(), 255);
+/// assert_eq!(err.actual(), 256);
 /// ```
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[non_exhaustive]
@@ -73,6 +76,7 @@ impl LengthExceeded {
 }
 
 impl fmt::Display for LengthExceeded {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "length {} exceeds bound {}", self.actual, self.max)
     }

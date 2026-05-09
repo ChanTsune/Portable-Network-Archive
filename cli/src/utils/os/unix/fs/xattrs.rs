@@ -38,7 +38,12 @@ pub(crate) fn get_xattrs<P: AsRef<Path>>(path: P) -> io::Result<Vec<ExtendedAttr
                 continue;
             }
             let value = xattr::get(path, &name)?.unwrap_or_default();
-            xattrs.push(ExtendedAttribute::new(name_cow.into_owned(), value))
+            xattrs.push(ExtendedAttribute::new(
+                pna::XattrName::try_from(name_cow.into_owned())
+                    .expect("xattr name must fit within u32::MAX bytes"),
+                pna::XattrValue::try_from(value)
+                    .expect("xattr value must fit within u32::MAX bytes"),
+            ))
         }
         Ok(xattrs)
     }
