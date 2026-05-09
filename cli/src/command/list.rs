@@ -12,14 +12,11 @@ use crate::{
     utils::{BsdGlobMatcher, VCS_FILES},
 };
 use base64::Engine;
-use chrono::{
-    DateTime as ChronoLocalDateTime, Local,
-    format::{DelayedFormat, StrftimeItems},
-};
 use clap::{
     ArgGroup, Parser, ValueEnum, ValueHint,
     builder::styling::{AnsiColor, Color as Colour, Style},
 };
+use jiff::{Timestamp, Zoned, tz::TimeZone};
 use pna::{
     Compression, DataKind, Encryption, ExtendedAttribute, NormalEntry, RawChunk, ReadEntry,
     ReadOptions, SolidHeader, prelude::*,
@@ -837,13 +834,8 @@ fn bsd_tar_list_entries_to(
     Ok(())
 }
 
-fn bsd_tar_time(now: SystemTime, time: SystemTime) -> DelayedFormat<StrftimeItems<'static>> {
-    let datetime = ChronoLocalDateTime::<Local>::from(time);
-    if within_six_months(now, time) {
-        datetime.format("%b %e %H:%M")
-    } else {
-        datetime.format("%b %e  %Y")
-    }
+fn bsd_tar_time(now: SystemTime, time: SystemTime) -> String {
+    datetime(TimeFormat::Auto(now), time)
 }
 
 struct SimpleListDisplay<'a> {
@@ -1064,18 +1056,56 @@ fn within_six_months(now: SystemTime, x: SystemTime) -> bool {
 }
 
 fn datetime(format: TimeFormat, time: SystemTime) -> String {
-    let datetime = ChronoLocalDateTime::<Local>::from(time);
+    let Some(zoned) = system_time_to_local_opt(time) else {
+        return UNREPRESENTABLE_TIME_PLACEHOLDER.to_owned();
+    };
     match format {
         TimeFormat::Auto(now) => {
             if within_six_months(now, time) {
-                datetime.format("%b %e %H:%M")
+                zoned.strftime("%b %e %H:%M").to_string()
             } else {
-                datetime.format("%b %e  %Y")
+                zoned.strftime("%b %e  %Y").to_string()
             }
         }
-        TimeFormat::Long => datetime.format("%b %e %H:%M:%S %Y"),
+        TimeFormat::Long => zoned.strftime("%b %e %H:%M:%S %Y").to_string(),
     }
-    .to_string()
+}
+
+/// Literal bsdtar `tar/util.c` emits when `localtime`/`strftime` cannot render
+/// an mtime; matched byte-for-byte so unrepresentable values never look like
+/// real dates.
+const UNREPRESENTABLE_TIME_PLACEHOLDER: &str = "-- -- ----";
+
+/// Returns `None` when `time` falls outside jiff's representable range
+/// (years -9999..=9999) or its seconds overflow `i64`.
+#[inline]
+fn system_time_to_local_opt(time: SystemTime) -> Option<Zoned> {
+    let (sec, nsec) = system_time_to_unix_timestamp(time)?;
+    unix_timestamp_to_local_opt(sec, nsec)
+}
+
+#[inline]
+fn system_time_to_unix_timestamp(time: SystemTime) -> Option<(i64, u32)> {
+    match time.duration_since(SystemTime::UNIX_EPOCH) {
+        Ok(d) => Some((i64::try_from(d.as_secs()).ok()?, d.subsec_nanos())),
+        Err(e) => {
+            let d = e.duration();
+            let secs = i64::try_from(d.as_secs()).ok()?;
+            let nsec = d.subsec_nanos();
+            if nsec == 0 {
+                Some((-secs, 0))
+            } else {
+                Some((-secs - 1, 1_000_000_000 - nsec))
+            }
+        }
+    }
+}
+
+#[inline]
+fn unix_timestamp_to_local_opt(sec: i64, nsec: u32) -> Option<Zoned> {
+    Timestamp::new(sec, nsec as i32)
+        .ok()
+        .map(|ts| ts.to_zoned(TimeZone::system()))
 }
 
 #[inline]
@@ -1530,5 +1560,69 @@ fn format_name<'a>(name: &'a str, kind: DataKind, options: &ListOptions) -> Cow<
         Cow::Owned(hide_control_chars(&name).to_string())
     } else {
         name
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unix_epoch_is_representable() {
+        assert!(system_time_to_local_opt(SystemTime::UNIX_EPOCH).is_some());
+        assert_eq!(
+            system_time_to_unix_timestamp(SystemTime::UNIX_EPOCH),
+            Some((0, 0))
+        );
+    }
+
+    #[test]
+    fn pre_epoch_subsecond_borrows_one_second() {
+        assert_eq!(
+            system_time_to_unix_timestamp(SystemTime::UNIX_EPOCH - Duration::from_millis(1)),
+            Some((-1, 999_000_000))
+        );
+    }
+
+    #[test]
+    fn pre_epoch_whole_second_keeps_zero_subsecond() {
+        assert_eq!(
+            system_time_to_unix_timestamp(SystemTime::UNIX_EPOCH - Duration::from_secs(1)),
+            Some((-1, 0))
+        );
+    }
+
+    #[test]
+    fn jiff_window_inclusive_boundaries_are_representable() {
+        assert!(unix_timestamp_to_local_opt(Timestamp::MIN.as_second(), 0).is_some());
+        assert!(unix_timestamp_to_local_opt(Timestamp::MAX.as_second(), 0).is_some());
+    }
+
+    #[test]
+    fn one_second_past_jiff_max_is_unrepresentable() {
+        assert!(unix_timestamp_to_local_opt(Timestamp::MAX.as_second() + 1, 0).is_none());
+    }
+
+    #[test]
+    fn i64_max_seconds_exceed_jiff_window() {
+        assert!(unix_timestamp_to_local_opt(i64::MAX, 0).is_none());
+    }
+
+    #[test]
+    fn i64_min_seconds_exceed_jiff_window() {
+        assert!(unix_timestamp_to_local_opt(i64::MIN, 0).is_none());
+    }
+
+    #[test]
+    fn system_time_past_jiff_max_renders_placeholder() {
+        let past_jiff_window =
+            SystemTime::UNIX_EPOCH + Duration::from_secs(Timestamp::MAX.as_second() as u64 + 1);
+        let now = SystemTime::UNIX_EPOCH;
+        assert_eq!(bsd_tar_time(now, past_jiff_window), "-- -- ----");
+        assert_eq!(
+            datetime(TimeFormat::Auto(now), past_jiff_window),
+            "-- -- ----"
+        );
+        assert_eq!(datetime(TimeFormat::Long, past_jiff_window), "-- -- ----");
     }
 }
