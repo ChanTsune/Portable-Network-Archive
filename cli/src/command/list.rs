@@ -793,6 +793,7 @@ fn bsd_tar_list_entries_to(
     mut out: impl Write,
 ) -> io::Result<()> {
     let now = SystemTime::now();
+    let tz = TimeZone::system();
     let mut u_width = 6usize;
     let mut gs_width = 13usize;
     for row in entries {
@@ -801,7 +802,7 @@ fn bsd_tar_list_entries_to(
         let has_acl = !row.acl.is_empty();
         let perm = PermissionDisplay::bsdtar(&row.entry_type, permission, has_acl);
         let size = row.raw_size.unwrap_or(0);
-        let mtime = bsd_tar_time(now, row.modified.unwrap_or(now));
+        let mtime = bsd_tar_time(now, &tz, row.modified.unwrap_or(now));
         let (uname, gname) = match &row.permission {
             Some(p) => (
                 if options.numeric_owner || p.uname().is_empty() {
@@ -834,8 +835,9 @@ fn bsd_tar_list_entries_to(
     Ok(())
 }
 
-fn bsd_tar_time(now: SystemTime, time: SystemTime) -> String {
-    datetime(TimeFormat::Auto(now), time)
+#[inline]
+fn bsd_tar_time(now: SystemTime, tz: &TimeZone, time: SystemTime) -> String {
+    datetime(TimeFormat::Auto(now), tz, time)
 }
 
 struct SimpleListDisplay<'a> {
@@ -888,6 +890,7 @@ fn detail_list_entries_to(
 ) -> io::Result<()> {
     let underline = Color::new("\x1B[4m", "\x1B[0m");
     let reset = Color::new("\x1B[8m", "\x1B[0m");
+    let tz = TimeZone::system();
     let mut acl_rows = Vec::new();
     let mut xattr_rows = Vec::new();
     let mut builder = TableBuilder::new();
@@ -950,7 +953,7 @@ fn detail_list_entries_to(
                         TimeField::Modified => content.modified,
                         TimeField::Accessed => content.accessed,
                     }
-                    .map_or_else(|| "-".into(), |d| datetime(options.time_format, d)),
+                    .map_or_else(|| "-".into(), |d| datetime(options.time_format, &tz, d)),
                 ),
                 Some(detailed_format_name(content.entry_type, options)),
             ]
@@ -1055,33 +1058,25 @@ fn within_six_months(now: SystemTime, x: SystemTime) -> bool {
     six_months_ago <= x
 }
 
-fn datetime(format: TimeFormat, time: SystemTime) -> String {
-    let Some(zoned) = system_time_to_local_opt(time) else {
+fn datetime(format: TimeFormat, tz: &TimeZone, time: SystemTime) -> String {
+    let Some(zoned) = system_time_to_local_opt(tz, time) else {
         return UNREPRESENTABLE_TIME_PLACEHOLDER.to_owned();
     };
-    match format {
-        TimeFormat::Auto(now) => {
-            if within_six_months(now, time) {
-                zoned.strftime("%b %e %H:%M").to_string()
-            } else {
-                zoned.strftime("%b %e  %Y").to_string()
-            }
-        }
-        TimeFormat::Long => zoned.strftime("%b %e %H:%M:%S %Y").to_string(),
-    }
+    let fmt = match format {
+        TimeFormat::Auto(now) if within_six_months(now, time) => "%b %e %H:%M",
+        TimeFormat::Auto(_) => "%b %e  %Y",
+        TimeFormat::Long => "%b %e %H:%M:%S %Y",
+    };
+    zoned.strftime(fmt).to_string()
 }
 
-/// Literal bsdtar `tar/util.c` emits when `localtime`/`strftime` cannot render
-/// an mtime; matched byte-for-byte so unrepresentable values never look like
-/// real dates.
+/// Matches bsdtar's placeholder so unrepresentable values never look like real dates.
 const UNREPRESENTABLE_TIME_PLACEHOLDER: &str = "-- -- ----";
 
-/// Returns `None` when `time` falls outside jiff's representable range
-/// (years -9999..=9999) or its seconds overflow `i64`.
 #[inline]
-fn system_time_to_local_opt(time: SystemTime) -> Option<Zoned> {
+fn system_time_to_local_opt(tz: &TimeZone, time: SystemTime) -> Option<Zoned> {
     let (sec, nsec) = system_time_to_unix_timestamp(time)?;
-    unix_timestamp_to_local_opt(sec, nsec)
+    unix_timestamp_to_local_opt(tz, sec, nsec)
 }
 
 #[inline]
@@ -1091,21 +1086,20 @@ fn system_time_to_unix_timestamp(time: SystemTime) -> Option<(i64, u32)> {
         Err(e) => {
             let d = e.duration();
             let secs = i64::try_from(d.as_secs()).ok()?;
-            let nsec = d.subsec_nanos();
-            if nsec == 0 {
-                Some((-secs, 0))
-            } else {
-                Some((-secs - 1, 1_000_000_000 - nsec))
-            }
+            let (carry, nsec) = match d.subsec_nanos() {
+                0 => (0, 0),
+                n => (1, 1_000_000_000 - n),
+            };
+            Some((-secs - carry, nsec))
         }
     }
 }
 
 #[inline]
-fn unix_timestamp_to_local_opt(sec: i64, nsec: u32) -> Option<Zoned> {
+fn unix_timestamp_to_local_opt(tz: &TimeZone, sec: i64, nsec: u32) -> Option<Zoned> {
     Timestamp::new(sec, nsec as i32)
         .ok()
-        .map(|ts| ts.to_zoned(TimeZone::system()))
+        .map(|ts| ts.to_zoned(tz.clone()))
 }
 
 #[inline]
@@ -1307,6 +1301,7 @@ fn json_line_entries_to(
     let show_fflags = options.show_fflags;
     let show_acl = options.show_acl;
     let show_xattr = options.show_xattr;
+    let tz = TimeZone::system();
     let entries = entries
         .par_iter()
         .map(|it| {
@@ -1336,13 +1331,13 @@ fn json_line_entries_to(
                 compression: &it.compression,
                 created: it
                     .created
-                    .map_or_else(String::new, |d| datetime(TimeFormat::Long, d)),
+                    .map_or_else(String::new, |d| datetime(TimeFormat::Long, &tz, d)),
                 modified: it
                     .modified
-                    .map_or_else(String::new, |d| datetime(TimeFormat::Long, d)),
+                    .map_or_else(String::new, |d| datetime(TimeFormat::Long, &tz, d)),
                 accessed: it
                     .accessed
-                    .map_or_else(String::new, |d| datetime(TimeFormat::Long, d)),
+                    .map_or_else(String::new, |d| datetime(TimeFormat::Long, &tz, d)),
                 fflags: show_fflags.then_some(it.fflags.as_slice()),
                 acl: show_acl.then(|| {
                     it.acl
@@ -1415,6 +1410,7 @@ fn delimited_entries_to(
         .flatten(),
     )?;
 
+    let tz = TimeZone::system();
     let rows = entries
         .par_iter()
         .map(|row| {
@@ -1430,7 +1426,7 @@ fn delimited_entries_to(
                 TimeField::Modified => row.modified,
                 TimeField::Accessed => row.accessed,
             }
-            .map_or_else(String::new, |d| datetime(TimeFormat::Long, d));
+            .map_or_else(String::new, |d| datetime(TimeFormat::Long, &tz, d));
 
             [
                 Some(row.entry_type.name().to_string()),
@@ -1569,7 +1565,7 @@ mod tests {
 
     #[test]
     fn unix_epoch_is_representable() {
-        assert!(system_time_to_local_opt(SystemTime::UNIX_EPOCH).is_some());
+        assert!(system_time_to_local_opt(&TimeZone::UTC, SystemTime::UNIX_EPOCH).is_some());
         assert_eq!(
             system_time_to_unix_timestamp(SystemTime::UNIX_EPOCH),
             Some((0, 0))
@@ -1594,23 +1590,30 @@ mod tests {
 
     #[test]
     fn jiff_window_inclusive_boundaries_are_representable() {
-        assert!(unix_timestamp_to_local_opt(Timestamp::MIN.as_second(), 0).is_some());
-        assert!(unix_timestamp_to_local_opt(Timestamp::MAX.as_second(), 0).is_some());
+        assert!(
+            unix_timestamp_to_local_opt(&TimeZone::UTC, Timestamp::MIN.as_second(), 0).is_some()
+        );
+        assert!(
+            unix_timestamp_to_local_opt(&TimeZone::UTC, Timestamp::MAX.as_second(), 0).is_some()
+        );
     }
 
     #[test]
     fn one_second_past_jiff_max_is_unrepresentable() {
-        assert!(unix_timestamp_to_local_opt(Timestamp::MAX.as_second() + 1, 0).is_none());
+        assert!(
+            unix_timestamp_to_local_opt(&TimeZone::UTC, Timestamp::MAX.as_second() + 1, 0)
+                .is_none()
+        );
     }
 
     #[test]
     fn i64_max_seconds_exceed_jiff_window() {
-        assert!(unix_timestamp_to_local_opt(i64::MAX, 0).is_none());
+        assert!(unix_timestamp_to_local_opt(&TimeZone::UTC, i64::MAX, 0).is_none());
     }
 
     #[test]
     fn i64_min_seconds_exceed_jiff_window() {
-        assert!(unix_timestamp_to_local_opt(i64::MIN, 0).is_none());
+        assert!(unix_timestamp_to_local_opt(&TimeZone::UTC, i64::MIN, 0).is_none());
     }
 
     #[test]
@@ -1618,11 +1621,15 @@ mod tests {
         let past_jiff_window =
             SystemTime::UNIX_EPOCH + Duration::from_secs(Timestamp::MAX.as_second() as u64 + 1);
         let now = SystemTime::UNIX_EPOCH;
-        assert_eq!(bsd_tar_time(now, past_jiff_window), "-- -- ----");
+        let tz = TimeZone::UTC;
+        assert_eq!(bsd_tar_time(now, &tz, past_jiff_window), "-- -- ----");
         assert_eq!(
-            datetime(TimeFormat::Auto(now), past_jiff_window),
+            datetime(TimeFormat::Auto(now), &tz, past_jiff_window),
             "-- -- ----"
         );
-        assert_eq!(datetime(TimeFormat::Long, past_jiff_window), "-- -- ----");
+        assert_eq!(
+            datetime(TimeFormat::Long, &tz, past_jiff_window),
+            "-- -- ----"
+        );
     }
 }
