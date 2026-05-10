@@ -1,0 +1,4 @@
+## 2026-05-10 - Prevent metadata injection via length truncation
+**Vulnerability:** Integer truncation in `Permission::to_bytes` and `ExtendedAttribute::to_bytes` allowed names longer than 255 bytes (for `uname`/`gname`) or 4GB (for xattrs) to be stored with a truncated length-prefix. This could lead to parser desynchronization where the remainder of a long name is misinterpreted as subsequent metadata fields (like UID, GID, or mode).
+**Learning:** Using `as u8` or `as u32` on untrusted or unchecked lengths in serialization logic can create "parser confusion" vulnerabilities similar to those found in classic binary format parsers.
+**Prevention:** Always use `try_from` when casting lengths to fixed-size width fields in binary formats. Serialization methods for metadata should return `io::Result` to allow propagating overflow errors back to the caller.

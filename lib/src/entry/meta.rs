@@ -273,16 +273,24 @@ impl Permission {
         self.permission
     }
 
-    pub(crate) fn to_bytes(&self) -> Vec<u8> {
+    pub(crate) fn to_bytes(&self) -> io::Result<Vec<u8>> {
         let mut bytes = Vec::with_capacity(20 + self.uname.len() + self.gname.len());
         bytes.extend_from_slice(&self.uid.to_be_bytes());
-        bytes.extend_from_slice(&(self.uname.len() as u8).to_be_bytes());
+        bytes.extend_from_slice(
+            &u8::try_from(self.uname.len())
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
+                .to_be_bytes(),
+        );
         bytes.extend_from_slice(self.uname.as_bytes());
         bytes.extend_from_slice(&self.gid.to_be_bytes());
-        bytes.extend_from_slice(&(self.gname.len() as u8).to_be_bytes());
+        bytes.extend_from_slice(
+            &u8::try_from(self.gname.len())
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
+                .to_be_bytes(),
+        );
         bytes.extend_from_slice(self.gname.as_bytes());
         bytes.extend_from_slice(&self.permission.to_be_bytes());
-        bytes
+        Ok(bytes)
     }
 
     pub(crate) fn try_from_bytes(mut bytes: &[u8]) -> io::Result<Self> {
@@ -407,7 +415,18 @@ mod tests {
     #[test]
     fn permission() {
         let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
-        assert_eq!(perm, Permission::try_from_bytes(&perm.to_bytes()).unwrap());
+        assert_eq!(
+            perm,
+            Permission::try_from_bytes(&perm.to_bytes().unwrap()).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_permission_long_name_truncation() {
+        let long_name = "a".repeat(256);
+        let perm = Permission::new(1000, long_name.clone(), 100, "group".into(), 0o755);
+        let result = perm.to_bytes();
+        assert!(result.is_err());
     }
 
     #[test]

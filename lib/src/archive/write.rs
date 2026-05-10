@@ -566,7 +566,7 @@ where
         }
     }
     if let Some(p) = metadata.permission {
-        (ChunkType::fPRM, p.to_bytes()).write_chunk_in(inner)?;
+        (ChunkType::fPRM, p.to_bytes()?).write_chunk_in(inner)?;
     }
     let context = get_writer_context(option)?;
     if let Some(WriteCipher { context: c, .. }) = &context.cipher {

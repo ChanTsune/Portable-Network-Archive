@@ -74,14 +74,22 @@ impl ExtendedAttribute {
         Ok(Self { name, value })
     }
 
-    pub(crate) fn to_bytes(&self) -> Vec<u8> {
+    pub(crate) fn to_bytes(&self) -> io::Result<Vec<u8>> {
         let mut vec =
             Vec::with_capacity(self.name.len() + self.value.len() + mem::size_of::<u32>() * 2);
-        vec.extend_from_slice(&(self.name.len() as u32).to_be_bytes());
+        vec.extend_from_slice(
+            &u32::try_from(self.name.len())
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
+                .to_be_bytes(),
+        );
         vec.extend_from_slice(self.name.as_bytes());
-        vec.extend_from_slice(&(self.value.len() as u32).to_be_bytes());
+        vec.extend_from_slice(
+            &u32::try_from(self.value.len())
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?
+                .to_be_bytes(),
+        );
         vec.extend_from_slice(&self.value);
-        vec
+        Ok(vec)
     }
 }
 
@@ -96,7 +104,7 @@ mod tests {
         let xattr = ExtendedAttribute::new("name".into(), "value".into());
         assert_eq!(
             xattr,
-            ExtendedAttribute::try_from_bytes(&xattr.to_bytes()).unwrap()
+            ExtendedAttribute::try_from_bytes(&xattr.to_bytes().unwrap()).unwrap()
         );
     }
 }

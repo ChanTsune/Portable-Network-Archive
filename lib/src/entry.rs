@@ -38,6 +38,7 @@ mod private {
     use super::*;
     pub trait SealedEntryExt {
         fn into_chunks(self) -> Vec<RawChunk>;
+        fn try_into_chunks(self) -> io::Result<Vec<RawChunk>>;
         fn write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize>;
     }
 }
@@ -68,6 +69,11 @@ where
     #[inline]
     fn into_chunks(self) -> Vec<RawChunk> {
         self.0.into_iter().map(Into::into).collect()
+    }
+
+    #[inline]
+    fn try_into_chunks(self) -> io::Result<Vec<RawChunk>> {
+        Ok(self.into_chunks())
     }
 
     #[inline]
@@ -153,6 +159,14 @@ where
         match self {
             Self::Normal(r) => r.into_chunks(),
             Self::Solid(s) => s.into_chunks(),
+        }
+    }
+
+    #[inline]
+    fn try_into_chunks(self) -> io::Result<Vec<RawChunk>> {
+        match self {
+            Self::Normal(r) => r.try_into_chunks(),
+            Self::Solid(s) => s.try_into_chunks(),
         }
     }
 
@@ -339,7 +353,12 @@ where
     T: AsRef<[u8]>,
     RawChunk<T>: Chunk + Into<RawChunk>,
 {
+    #[inline]
     fn into_chunks(self) -> Vec<RawChunk> {
+        self.try_into_chunks().unwrap()
+    }
+
+    fn try_into_chunks(self) -> io::Result<Vec<RawChunk>> {
         let mut chunks = vec![];
         chunks.push(RawChunk::from_data(ChunkType::SHED, self.header.to_bytes()));
         chunks.extend(self.extra.into_iter().map(Into::into));
@@ -351,7 +370,7 @@ where
             chunks.push(RawChunk::from((ChunkType::SDAT, data)).into());
         }
         chunks.push(RawChunk::from_data(ChunkType::SEND, Vec::new()));
-        chunks
+        Ok(chunks)
     }
 
     #[inline]
@@ -766,13 +785,13 @@ where
             }
         }
         if let Some(p) = permission {
-            total += (ChunkType::fPRM, p.to_bytes()).write_chunk_in(writer)?;
+            total += (ChunkType::fPRM, p.to_bytes()?).write_chunk_in(writer)?;
         }
         if let Some(ltp) = link_target_type {
             total += (ChunkType::fLTP, ltp.to_bytes()).write_chunk_in(writer)?;
         }
         for xattr in &self.xattrs {
-            total += (ChunkType::xATR, xattr.to_bytes()).write_chunk_in(writer)?;
+            total += (ChunkType::xATR, xattr.to_bytes()?).write_chunk_in(writer)?;
         }
         total += (ChunkType::FEND, []).write_chunk_in(writer)?;
         Ok(total)
@@ -784,7 +803,12 @@ where
     T: AsRef<[u8]>,
     RawChunk<T>: Chunk + Into<RawChunk>,
 {
+    #[inline]
     fn into_chunks(self) -> Vec<RawChunk> {
+        self.try_into_chunks().unwrap()
+    }
+
+    fn try_into_chunks(self) -> io::Result<Vec<RawChunk>> {
         let Metadata {
             raw_file_size,
             compressed_size: _,
@@ -847,16 +871,16 @@ where
             }
         }
         if let Some(p) = permission {
-            vec.push(RawChunk::from_data(ChunkType::fPRM, p.to_bytes()));
+            vec.push(RawChunk::from_data(ChunkType::fPRM, p.to_bytes()?));
         }
         if let Some(ltp) = link_target_type {
             vec.push(RawChunk::from_data(ChunkType::fLTP, ltp.to_bytes()));
         }
         for xattr in self.xattrs {
-            vec.push(RawChunk::from_data(ChunkType::xATR, xattr.to_bytes()));
+            vec.push(RawChunk::from_data(ChunkType::xATR, xattr.to_bytes()?));
         }
         vec.push(RawChunk::from_data(ChunkType::FEND, Vec::new()));
-        vec
+        Ok(vec)
     }
 
     #[inline]
