@@ -173,6 +173,29 @@ Compared to the prior mtime-fix-only baseline (Stage 4 fix1: 87250 failures), Op
 
 The remaining 37796 fails are unrelated to `-L` / `-H` semantics (`Dir`, `Nested`, `HLink`, `SymDangling` patterns at ~1000-2000 fails each). Per-axis investigation belongs to follow-up issues.
 
+## Per-axis root-cause analysis (C2-C8)
+
+Each remaining category was investigated against libarchive source (3.7.4) and PNA source. Categories C3/C4/C6/C7 + Pattern F traced to libarchive bsdtar bugs (issue #972 NO_OVERWRITE skip path omitting `a->todo` clear; `check_symlinks_fsobj` unconditional `unlinkat` bypassing NO_OVERWRITE; create-time mtime overwrite). PNA's behavior matched POSIX/GNU tar/star reference implementations in those categories — no PNA-side action.
+
+### C2: PNA-side bail-on-first-error in deferred link extraction (3840 fails)
+
+**Pattern**: `bsdtar: Symlink(chain_*) | pna: (absent)` in `no_L_trav_SymChain2/4_over_Dir_ow_*` scenarios. Counts: chain_final=1920, chain_d=960, chain_c=960.
+
+**Root cause**: `cli/src/command/extract.rs:870-873` and `:1025-1028` use `.with_context(...)?` inside `for (name, item) in link_entries { extract_link_entry(...)?; }`, so a single deferred-link extraction failure aborts the entire pass. When the archive entry order places a conflicting symlink (e.g. `src/target` colliding with a pre-existing non-empty directory) before independent symlinks (`chain_b`, `chain_d`, ...), the failure on `target` short-circuits the loop and the independent links are never attempted.
+
+**Manual reproduction (2026-05-05)** with PNA archive containing `src/{target → chain_b, chain_b → chain_final, chain_final}` and pre-existing `pna_dst/src/target/old_marker.txt`:
+
+```
+2: extracting deferred link src/target
+3: Directory not empty (os error 66)
+```
+
+`pna_dst` ends up with `src/chain_final` only (`src/chain_b` missing). Reference behavior: bsdtar / GNU tar / star all treat per-entry extraction errors as warnings and continue with subsequent entries.
+
+**Classification**: PNA-side bug, first one identified in the C2-C8 sweep. All other categories are libarchive bsdtar bugs.
+
+**Fix scope**: Convert the two `for ... extract_link_entry(...)?` loops to per-entry error reporting (log + continue) matching tar-family `--ignore-failed-read` default semantics, while preserving the final non-zero exit code if any entry failed. Applies analogously to the `dir_metadata` deferred-metadata loops at `:879-883` and `:1034-1038` which exhibit the same fail-fast pattern.
+
 ## Permanently deferred (out of xtask scope)
 
 The following `-L` test scenarios are out of scope for the xtask `bsdtar-compat` framework. They will not be added in any future stage of this design lineage:
