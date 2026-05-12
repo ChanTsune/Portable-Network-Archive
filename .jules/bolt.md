@@ -1,0 +1,1 @@
+## 2026-05-12 - [Single-pass CRC calculation] **Learning:** Redundant data passes in hot paths (like chunk writing) can be avoided by interleaving I/O and CRC calculation, providing a measurable performance boost in micro-benchmarks. **Action:** Use CrcWriter and write_chunk_single_pass for ephemeral chunks to maintain single-pass I/O.
