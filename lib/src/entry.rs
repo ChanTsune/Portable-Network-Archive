@@ -633,7 +633,7 @@ where
                 ),
             ));
         }
-        let mut compressed_size = 0;
+        let mut compressed_size: usize = 0;
         let mut extra = vec![];
         let mut data = vec![];
         let mut xattrs = vec![];
@@ -657,7 +657,7 @@ where
                     );
                 }
                 ChunkType::FDAT => {
-                    compressed_size += chunk.data().len();
+                    compressed_size = compressed_size.saturating_add(chunk.data().len());
                     data.push(chunk.data);
                 }
                 ChunkType::fSIZ => size = Some(u128_from_be_bytes_last(chunk.data())),
@@ -1132,7 +1132,9 @@ where
     /// Returns the total length of this entry part in bytes.
     #[inline]
     pub fn bytes_len(&self) -> usize {
-        self.0.iter().map(|chunk| chunk.bytes_len()).sum()
+        self.0
+            .iter()
+            .fold(0, |acc, chunk| acc.saturating_add(chunk.bytes_len()))
     }
 
     /// Get reference.
@@ -1156,11 +1158,18 @@ impl EntryPart<&[u8]> {
         }
         let mut remaining = VecDeque::from(self.0);
         let mut first = Vec::new();
-        let mut total_size = 0;
+        let mut total_size: usize = 0;
         while let Some(chunk) = remaining.pop_front() {
             // NOTE: If over max size, restore to the remaining chunk
-            if max_bytes_len < total_size + chunk.bytes_len() {
-                if chunk.is_stream_chunk() && total_size + MIN_CHUNK_BYTES_SIZE < max_bytes_len {
+            if total_size
+                .checked_add(chunk.bytes_len())
+                .is_none_or(|sum| max_bytes_len < sum)
+            {
+                if chunk.is_stream_chunk()
+                    && total_size
+                        .checked_add(MIN_CHUNK_BYTES_SIZE)
+                        .is_some_and(|sum| sum < max_bytes_len)
+                {
                     let available_bytes_len = max_bytes_len - total_size;
                     let chunk_split_index = available_bytes_len - MIN_CHUNK_BYTES_SIZE;
                     let (x, y) = chunk_data_split(chunk.ty, chunk.data, chunk_split_index);
@@ -1173,7 +1182,7 @@ impl EntryPart<&[u8]> {
                 }
                 break;
             }
-            total_size += chunk.bytes_len();
+            total_size = total_size.saturating_add(chunk.bytes_len());
             first.push(chunk);
         }
         if first.is_empty() {
