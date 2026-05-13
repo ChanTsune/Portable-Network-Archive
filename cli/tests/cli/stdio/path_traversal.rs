@@ -116,6 +116,48 @@ fn build_archive_with_file_and_hardlink(
     writer.finalize().unwrap();
 }
 
+#[cfg(unix)]
+fn build_archive_with_dir_and_symlink_same_name(
+    archive_path: &Path,
+    name: &str,
+    dir_permission: u16,
+    symlink_target: &Path,
+) {
+    if let Some(parent) = archive_path.parent() {
+        fs::create_dir_all(parent).unwrap();
+    }
+    let file = fs::File::create(archive_path).unwrap();
+    let mut writer = Archive::write_header(file).unwrap();
+
+    writer
+        .add_entry({
+            let mut builder = EntryBuilder::new_dir(EntryName::from_utf8_preserve_root(name));
+            builder.permission(pna::Permission::new(
+                1000,
+                pna::UserName::try_from("user").unwrap(),
+                1000,
+                pna::GroupName::try_from("group").unwrap(),
+                dir_permission,
+            ));
+            builder.build().unwrap()
+        })
+        .unwrap();
+
+    writer
+        .add_entry({
+            EntryBuilder::new_symlink(
+                EntryName::from_utf8_preserve_root(name),
+                EntryReference::from_utf8_preserve_root(symlink_target.to_str().unwrap()),
+            )
+            .unwrap()
+            .build()
+            .unwrap()
+        })
+        .unwrap();
+
+    writer.finalize().unwrap();
+}
+
 // --- Symlink target defense ---
 // Note: stdio mode defaults to allow_unsafe_links=true (bsdtar-compatible).
 // Use --no-allow-unsafe-links to enable blocking.
@@ -495,6 +537,58 @@ fn stdio_extract_symlink_with_safe_relative_target() {
 
     let target = fs::read_link(&link_path).unwrap();
     assert_eq!(target, Path::new("b/file.txt"));
+}
+
+/// Precondition: Archive contains directory `d` with permissive metadata followed by
+/// a same-name symlink `d` that points outside the extraction root.
+/// Action: Extract with bsdtar-compatible defaults, where unsafe symlinks are allowed.
+/// Expectation: Deferred directory metadata does not follow the symlink to the outside target.
+#[cfg(unix)]
+#[test]
+fn bsdtar_extract_deferred_directory_metadata_does_not_follow_replaced_symlink() {
+    use std::os::unix::fs::PermissionsExt;
+
+    setup();
+
+    let root = PathBuf::from("bsdtar_extract_dir_metadata_no_follow_symlink");
+    let archive_path = root.join("archive.pna");
+    let out_dir = root.join("out");
+    let victim = root.join("victim");
+    fs::create_dir_all(&out_dir).unwrap();
+    fs::write(&victim, b"victim").unwrap();
+    fs::set_permissions(&victim, fs::Permissions::from_mode(0o600)).unwrap();
+
+    let victim = fs::canonicalize(&victim).unwrap();
+    build_archive_with_dir_and_symlink_same_name(&archive_path, "d", 0o777, &victim);
+
+    cargo_bin_cmd!("pna")
+        .args([
+            "--quiet",
+            "compat",
+            "bsdtar",
+            "--unstable",
+            "-xf",
+            archive_path.to_str().unwrap(),
+            "-C",
+            out_dir.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    let extracted = out_dir.join("d");
+    assert!(
+        fs::symlink_metadata(&extracted)
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+        "same-name symlink should still be extracted in bsdtar-compatible mode"
+    );
+    assert_eq!(fs::read_link(&extracted).unwrap(), victim);
+    assert_eq!(
+        fs::metadata(&victim).unwrap().permissions().mode() & 0o777,
+        0o600,
+        "directory metadata restore must not chmod the symlink target"
+    );
 }
 
 /// Precondition: Archive contains a hardlink with a safe target (no .., no /)

@@ -3,21 +3,117 @@ pub(crate) mod owner;
 
 #[cfg(target_os = "redox")]
 pub(crate) use crate::utils::os::redox::fs::owner;
-use std::{fs, io, os::unix::fs::PermissionsExt, path::Path};
+use std::{
+    ffi::CString,
+    fs, io,
+    os::{
+        fd::{AsRawFd, FromRawFd, OwnedFd},
+        unix::ffi::OsStrExt,
+    },
+    path::Path,
+};
 pub(crate) mod xattrs;
 
 #[inline]
 pub(crate) fn chmod(path: &Path, mode: u16) -> io::Result<()> {
-    match fs::set_permissions(path, fs::Permissions::from_mode(mode.into())) {
-        Err(e)
-            if e.kind() == io::ErrorKind::NotFound
-                && fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink()) =>
-        {
-            // NOTE: broken symlink will never success set permissions
-            Ok(())
-        }
-        result => result,
+    #[cfg(not(target_os = "redox"))]
+    {
+        chmod_no_follow(path, mode)
     }
+    #[cfg(target_os = "redox")]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        fs::set_permissions(path, fs::Permissions::from_mode(mode.into()))
+    }
+}
+
+#[cfg(not(target_os = "redox"))]
+fn chmod_no_follow(path: &Path, mode: u16) -> io::Result<()> {
+    let c_path = CString::new(path.as_os_str().as_bytes())?;
+    match fchmodat_no_follow(&c_path, mode) {
+        Ok(()) => Ok(()),
+        Err(e) if should_ignore_symlink_chmod_error(path, &e) => Ok(()),
+        Err(e) if fchmodat_no_follow_unavailable(&e) => {
+            match fchmod_open_no_follow(&c_path, mode) {
+                Ok(()) => Ok(()),
+                Err(e) if should_ignore_symlink_chmod_error(path, &e) => Ok(()),
+                Err(e) => Err(e),
+            }
+        }
+        Err(e) => Err(e),
+    }
+}
+
+#[cfg(not(target_os = "redox"))]
+fn fchmodat_no_follow(path: &CString, mode: u16) -> io::Result<()> {
+    let result = unsafe {
+        libc::fchmodat(
+            libc::AT_FDCWD,
+            path.as_ptr(),
+            mode as libc::mode_t,
+            libc::AT_SYMLINK_NOFOLLOW,
+        )
+    };
+    if result == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
+#[cfg(not(target_os = "redox"))]
+fn fchmod_open_no_follow(path: &CString, mode: u16) -> io::Result<()> {
+    let mut first_error = None;
+    for access_mode in [libc::O_RDONLY, libc::O_WRONLY] {
+        let fd = unsafe {
+            libc::open(
+                path.as_ptr(),
+                access_mode | libc::O_CLOEXEC | libc::O_NOFOLLOW,
+            )
+        };
+        if fd >= 0 {
+            let fd = unsafe { OwnedFd::from_raw_fd(fd) };
+            let result = unsafe { libc::fchmod(fd.as_raw_fd(), mode as libc::mode_t) };
+            return if result == 0 {
+                Ok(())
+            } else {
+                Err(io::Error::last_os_error())
+            };
+        }
+
+        let error = io::Error::last_os_error();
+        if error.raw_os_error() == Some(libc::ELOOP) {
+            return Err(error);
+        }
+        first_error.get_or_insert(error);
+    }
+
+    Err(first_error.unwrap_or_else(|| io::Error::other("failed to open path for no-follow chmod")))
+}
+
+#[cfg(not(target_os = "redox"))]
+fn fchmodat_no_follow_unavailable(error: &io::Error) -> bool {
+    matches!(
+        error.raw_os_error(),
+        Some(code)
+            if code == libc::EINVAL || code == libc::ENOTSUP || code == libc::EOPNOTSUPP
+    )
+}
+
+#[cfg(not(target_os = "redox"))]
+fn should_ignore_symlink_chmod_error(path: &Path, error: &io::Error) -> bool {
+    let is_symlink = fs::symlink_metadata(path).is_ok_and(|m| m.file_type().is_symlink());
+    is_symlink
+        && (error.kind() == io::ErrorKind::NotFound
+            || matches!(
+                error.raw_os_error(),
+                Some(code)
+                    if code == libc::ELOOP
+                        || code == libc::EINVAL
+                        || code == libc::ENOTSUP
+                        || code == libc::EOPNOTSUPP
+            ))
 }
 
 #[cfg(target_os = "macos")]

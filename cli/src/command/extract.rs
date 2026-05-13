@@ -1593,8 +1593,8 @@ fn restore_path_timestamps(
 /// - Timestamps are restored for non-file entries (symlinks, directories, hardlinks) via path-based API;
 ///   regular files are handled earlier by `restore_timestamps()` with an open file handle
 /// - Ownership is restored via `lchown` when `owner_strategy` is `Preserve` (does not follow symlinks)
-/// - Mode bits are restored when `mode_strategy` is `Preserve`, but skipped for symlinks since
-///   `chmod()` follows symlinks and would corrupt the target's permissions
+/// - Mode bits are restored when `mode_strategy` is `Preserve`, but skipped for symlink entries
+///   since symlink permissions are not portable and no metadata restore should affect a link target
 /// - These are independent: `--keep-permission --no-same-owner` restores mode but not ownership
 fn restore_metadata<T>(
     item: &NormalEntry<T>,
@@ -1604,11 +1604,16 @@ fn restore_metadata<T>(
 where
     T: AsRef<[u8]>,
 {
+    let entry_kind = item.header().data_kind();
+    if !should_restore_metadata_for_current_target(path, entry_kind)? {
+        return Ok(());
+    }
+
     // Restore timestamps for non-file entries (symlinks, directories, hardlinks).
     // Regular files are handled by restore_timestamps() with an open file handle.
     // On WASM, path-based timestamp restoration is not supported (filetime limitation).
     #[cfg(not(target_family = "wasm"))]
-    if item.header().data_kind() != DataKind::File {
+    if entry_kind != DataKind::File {
         restore_path_timestamps(path, item.metadata(), keep_options)?;
     }
     if let Some(p) = item.metadata().permission() {
@@ -1617,9 +1622,8 @@ where
             restore_owner(path, p, options)?;
         }
         // Restore mode bits when configured.
-        // Skip for symlinks: symlink permissions are not settable via chmod() on most
-        // platforms, and chmod() follows symlinks, which would corrupt the target's permissions.
-        if item.header().data_kind() != DataKind::SymbolicLink {
+        // Skip for symlink entries: symlink permissions are not settable on most platforms.
+        if entry_kind != DataKind::SymbolicLink {
             match keep_options.mode_strategy {
                 ModeStrategy::Preserve => restore_mode(path, p)?,
                 ModeStrategy::Masked(mask) => restore_mode_masked(path, p, mask)?,
@@ -1658,8 +1662,7 @@ where
     }
     #[cfg(feature = "acl")]
     if !skip_xattr_acl {
-        let follow_links = item.header().data_kind() != DataKind::SymbolicLink;
-        restore_acls(path, item.acl()?, keep_options.acl_strategy, follow_links)?;
+        restore_acls(path, item.acl()?, keep_options.acl_strategy, false)?;
     }
     #[cfg(not(feature = "acl"))]
     if let AclStrategy::Always = keep_options.acl_strategy {
@@ -1713,6 +1716,26 @@ where
         );
     }
     Ok(())
+}
+
+fn should_restore_metadata_for_current_target(
+    path: &Path,
+    entry_kind: DataKind,
+) -> io::Result<bool> {
+    if entry_kind == DataKind::SymbolicLink {
+        return Ok(true);
+    }
+
+    if fs::symlink_metadata(path)?.file_type().is_symlink() {
+        log::warn!(
+            "Skipped restoring metadata for '{}': destination is a symbolic link, but archive entry is {:?}.",
+            path.display(),
+            entry_kind
+        );
+        return Ok(false);
+    }
+
+    Ok(true)
 }
 
 /// Restore POSIX/Windows ACLs on a filesystem path when ACL preservation is enabled.
