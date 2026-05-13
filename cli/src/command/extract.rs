@@ -47,6 +47,9 @@ use std::{
     time::Instant,
 };
 
+/// Maximum byte size for a symbolic or hard link target path to prevent memory exhaustion.
+const MAX_LINK_TARGET_SIZE: u64 = 64 * 1024;
+
 #[derive(Parser, Clone, Debug)]
 #[command(
     group(
@@ -1432,7 +1435,14 @@ where
     match item.header().data_kind() {
         DataKind::SymbolicLink => {
             let reader = item.reader(ReadOptions::with_password(password))?;
-            let original = io::read_to_string(reader)?;
+            let mut limited_reader = reader.take(MAX_LINK_TARGET_SIZE + 1);
+            let original = io::read_to_string(&mut limited_reader)?;
+            if original.len() as u64 > MAX_LINK_TARGET_SIZE {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("symbolic link target exceeds {} bytes", MAX_LINK_TARGET_SIZE),
+                ));
+            }
             let original = pathname_editor.edit_symlink(original.as_ref());
             if !allow_unsafe_links && is_unsafe_link(&original) {
                 log::warn!(
@@ -1448,7 +1458,14 @@ where
         }
         DataKind::HardLink => {
             let reader = item.reader(ReadOptions::with_password(password))?;
-            let original = io::read_to_string(reader)?;
+            let mut limited_reader = reader.take(MAX_LINK_TARGET_SIZE + 1);
+            let original = io::read_to_string(&mut limited_reader)?;
+            if original.len() as u64 > MAX_LINK_TARGET_SIZE {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("hard link target exceeds {} bytes", MAX_LINK_TARGET_SIZE),
+                ));
+            }
             let Some((original, had_root)) = pathname_editor.edit_hardlink(original.as_ref())
             else {
                 log::warn!(
