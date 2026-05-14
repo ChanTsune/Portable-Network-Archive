@@ -1505,6 +1505,7 @@ dependencies = [
  "aes",
  "argon2",
  "arrayvec",
+ "bitflags",
  "block-buffer 0.12.0",
  "camellia",
  "camino",

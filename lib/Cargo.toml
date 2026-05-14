@@ -15,6 +15,7 @@ rust-version = "1.88"
 aes = "0.9.0"
 argon2 = { version = "0.5.3", features = ["std"] }
 arrayvec = "0.7.6"
+bitflags = "2.9.1"
 block-buffer = "0.12.0"
 camellia = "0.2.0"
 camino = "1.2.2"
