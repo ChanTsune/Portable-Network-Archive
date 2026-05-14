@@ -381,12 +381,18 @@ impl EntryBuilder {
         if let Some(iv) = self.iv {
             data.insert(0, iv);
         }
+        let mut compressed_size: usize = 0;
+        for d in &data {
+            compressed_size = compressed_size.checked_add(d.len()).ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidData, "compressed size overflow")
+            })?;
+        }
         let metadata = Metadata {
             raw_file_size: match (self.store_file_size, self.header.data_kind) {
                 (true, DataKind::File) => Some(self.file_size),
                 _ => None,
             },
-            compressed_size: data.iter().map(|d| d.len()).sum(),
+            compressed_size,
             created: self.created,
             modified: self.last_modified,
             accessed: self.accessed,
@@ -408,7 +414,12 @@ impl Write for EntryBuilder {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         if let Some(w) = &mut self.data {
-            return w.write(buf).inspect(|len| self.file_size += *len as u128);
+            return w.write(buf).and_then(|len| {
+                self.file_size = self.file_size.checked_add(len as u128).ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidData, "file size overflow")
+                })?;
+                Ok(len)
+            });
         }
         Ok(buf.len())
     }

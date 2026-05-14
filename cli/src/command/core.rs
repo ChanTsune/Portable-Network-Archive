@@ -1812,12 +1812,12 @@ where
         )
         .into());
     }
-    let mut part_num = 1;
+    let mut part_num: usize = 1;
     let mut writer = Archive::write_header(initial_writer)?;
 
     // NOTE: max_file_size - (PNA_HEADER + AHED + ANXT + AEND)
     let max_file_size = max_file_size - SPLIT_ARCHIVE_OVERHEAD_BYTES;
-    let mut written_entry_size = 0;
+    let mut written_entry_size: usize = 0;
     for entry in entries {
         let p = EntryPart::from(entry?);
         let parts = split_to_parts(
@@ -1826,13 +1826,19 @@ where
             max_file_size,
         )?;
         for part in parts {
-            if written_entry_size + part.bytes_len() > max_file_size {
-                part_num += 1;
+            if written_entry_size.saturating_add(part.bytes_len()) > max_file_size {
+                part_num = part_num.checked_add(1).ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidData, "part number overflow")
+                })?;
                 let file = get_next_writer(part_num)?;
                 writer = writer.split_to_next_archive(file)?;
                 written_entry_size = 0;
             }
-            written_entry_size += writer.add_entry_part(part)?;
+            written_entry_size = written_entry_size
+                .checked_add(writer.add_entry_part(part)?)
+                .ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidData, "written entry size overflow")
+                })?;
         }
     }
     writer.finalize()?;

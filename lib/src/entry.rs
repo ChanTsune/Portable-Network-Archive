@@ -54,9 +54,13 @@ fn chunks_write_in<W: Write>(
     chunks: impl Iterator<Item = impl Chunk>,
     writer: &mut W,
 ) -> io::Result<usize> {
-    let mut total = 0;
+    let mut total: usize = 0;
     for chunk in chunks {
-        total += chunk.write_chunk_in(writer)?;
+        total = total
+            .checked_add(chunk.write_chunk_in(writer)?)
+            .ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidData, "total write size overflow")
+            })?;
     }
     Ok(total)
 }
@@ -318,18 +322,38 @@ where
 {
     #[inline]
     fn chunks_write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        let mut total = 0;
-        total += (ChunkType::SHED, self.header.to_bytes()).write_chunk_in(writer)?;
+        let mut total: usize = 0;
+        total = total
+            .checked_add((ChunkType::SHED, self.header.to_bytes()).write_chunk_in(writer)?)
+            .ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidData, "total write size overflow")
+            })?;
         for extra_chunk in &self.extra {
-            total += extra_chunk.write_chunk_in(writer)?;
+            total = total
+                .checked_add(extra_chunk.write_chunk_in(writer)?)
+                .ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidData, "total write size overflow")
+                })?;
         }
         if let Some(phsf) = &self.phsf {
-            total += (ChunkType::PHSF, phsf.as_bytes()).write_chunk_in(writer)?;
+            total = total
+                .checked_add((ChunkType::PHSF, phsf.as_bytes()).write_chunk_in(writer)?)
+                .ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidData, "total write size overflow")
+                })?;
         }
         for data in &self.data {
-            total += (ChunkType::SDAT, data).write_chunk_in(writer)?;
+            total = total
+                .checked_add((ChunkType::SDAT, data).write_chunk_in(writer)?)
+                .ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidData, "total write size overflow")
+                })?;
         }
-        total += (ChunkType::SEND, []).write_chunk_in(writer)?;
+        total = total
+            .checked_add((ChunkType::SEND, []).write_chunk_in(writer)?)
+            .ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidData, "total write size overflow")
+            })?;
         Ok(total)
     }
 }
@@ -633,7 +657,7 @@ where
                 ),
             ));
         }
-        let mut compressed_size = 0;
+        let mut compressed_size: usize = 0;
         let mut extra = vec![];
         let mut data = vec![];
         let mut xattrs = vec![];
@@ -657,7 +681,15 @@ where
                     );
                 }
                 ChunkType::FDAT => {
-                    compressed_size += chunk.data().len();
+                    compressed_size =
+                        compressed_size
+                            .checked_add(chunk.data().len())
+                            .ok_or_else(|| {
+                                io::Error::new(
+                                    io::ErrorKind::InvalidData,
+                                    "compressed size overflow",
+                                )
+                            })?;
                     data.push(chunk.data);
                 }
                 ChunkType::fSIZ => size = Some(u128_from_be_bytes_last(chunk.data())),
@@ -714,7 +746,7 @@ where
 {
     #[inline]
     fn chunks_write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
-        let mut total = 0;
+        let mut total: usize = 0;
 
         let Metadata {
             raw_file_size,
@@ -726,55 +758,129 @@ where
             link_target_type,
         } = &self.metadata;
 
-        total += (ChunkType::FHED, self.header.to_bytes()).write_chunk_in(writer)?;
+        total = total
+            .checked_add((ChunkType::FHED, self.header.to_bytes()).write_chunk_in(writer)?)
+            .ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidData, "total write size overflow")
+            })?;
         for ex in &self.extra {
-            total += ex.write_chunk_in(writer)?;
+            total = total
+                .checked_add(ex.write_chunk_in(writer)?)
+                .ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidData, "total write size overflow")
+                })?;
         }
         if let Some(raw_file_size) = raw_file_size {
-            total += (
-                ChunkType::fSIZ,
-                skip_while(&raw_file_size.to_be_bytes(), |i| *i == 0),
-            )
-                .write_chunk_in(writer)?;
+            total = total
+                .checked_add(
+                    (
+                        ChunkType::fSIZ,
+                        skip_while(&raw_file_size.to_be_bytes(), |i| *i == 0),
+                    )
+                        .write_chunk_in(writer)?,
+                )
+                .ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidData, "total write size overflow")
+                })?;
         }
 
         if let Some(p) = &self.phsf {
-            total += (ChunkType::PHSF, p.as_bytes()).write_chunk_in(writer)?;
+            total = total
+                .checked_add((ChunkType::PHSF, p.as_bytes()).write_chunk_in(writer)?)
+                .ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidData, "total write size overflow")
+                })?;
         }
         for data_chunk in &self.data {
-            total += (ChunkType::FDAT, data_chunk).write_chunk_in(writer)?;
+            total = total
+                .checked_add((ChunkType::FDAT, data_chunk).write_chunk_in(writer)?)
+                .ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidData, "total write size overflow")
+                })?;
         }
         if let Some(c) = created {
-            total += (ChunkType::cTIM, c.whole_seconds().to_be_bytes()).write_chunk_in(writer)?;
+            total = total
+                .checked_add(
+                    (ChunkType::cTIM, c.whole_seconds().to_be_bytes()).write_chunk_in(writer)?,
+                )
+                .ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidData, "total write size overflow")
+                })?;
             if c.subsec_nanoseconds() != 0 {
-                total += (ChunkType::cTNS, c.subsec_nanoseconds().to_be_bytes())
-                    .write_chunk_in(writer)?;
+                total = total
+                    .checked_add(
+                        (ChunkType::cTNS, c.subsec_nanoseconds().to_be_bytes())
+                            .write_chunk_in(writer)?,
+                    )
+                    .ok_or_else(|| {
+                        io::Error::new(io::ErrorKind::InvalidData, "total write size overflow")
+                    })?;
             }
         }
         if let Some(d) = modified {
-            total += (ChunkType::mTIM, d.whole_seconds().to_be_bytes()).write_chunk_in(writer)?;
+            total = total
+                .checked_add(
+                    (ChunkType::mTIM, d.whole_seconds().to_be_bytes()).write_chunk_in(writer)?,
+                )
+                .ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidData, "total write size overflow")
+                })?;
             if d.subsec_nanoseconds() != 0 {
-                total += (ChunkType::mTNS, d.subsec_nanoseconds().to_be_bytes())
-                    .write_chunk_in(writer)?;
+                total = total
+                    .checked_add(
+                        (ChunkType::mTNS, d.subsec_nanoseconds().to_be_bytes())
+                            .write_chunk_in(writer)?,
+                    )
+                    .ok_or_else(|| {
+                        io::Error::new(io::ErrorKind::InvalidData, "total write size overflow")
+                    })?;
             }
         }
         if let Some(a) = accessed {
-            total += (ChunkType::aTIM, a.whole_seconds().to_be_bytes()).write_chunk_in(writer)?;
+            total = total
+                .checked_add(
+                    (ChunkType::aTIM, a.whole_seconds().to_be_bytes()).write_chunk_in(writer)?,
+                )
+                .ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidData, "total write size overflow")
+                })?;
             if a.subsec_nanoseconds() != 0 {
-                total += (ChunkType::aTNS, a.subsec_nanoseconds().to_be_bytes())
-                    .write_chunk_in(writer)?;
+                total = total
+                    .checked_add(
+                        (ChunkType::aTNS, a.subsec_nanoseconds().to_be_bytes())
+                            .write_chunk_in(writer)?,
+                    )
+                    .ok_or_else(|| {
+                        io::Error::new(io::ErrorKind::InvalidData, "total write size overflow")
+                    })?;
             }
         }
         if let Some(p) = permission {
-            total += (ChunkType::fPRM, p.to_bytes()).write_chunk_in(writer)?;
+            total = total
+                .checked_add((ChunkType::fPRM, p.to_bytes()).write_chunk_in(writer)?)
+                .ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidData, "total write size overflow")
+                })?;
         }
         if let Some(ltp) = link_target_type {
-            total += (ChunkType::fLTP, ltp.to_bytes()).write_chunk_in(writer)?;
+            total = total
+                .checked_add((ChunkType::fLTP, ltp.to_bytes()).write_chunk_in(writer)?)
+                .ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidData, "total write size overflow")
+                })?;
         }
         for xattr in &self.xattrs {
-            total += (ChunkType::xATR, xattr.to_bytes()).write_chunk_in(writer)?;
+            total = total
+                .checked_add((ChunkType::xATR, xattr.to_bytes()).write_chunk_in(writer)?)
+                .ok_or_else(|| {
+                    io::Error::new(io::ErrorKind::InvalidData, "total write size overflow")
+                })?;
         }
-        total += (ChunkType::FEND, []).write_chunk_in(writer)?;
+        total = total
+            .checked_add((ChunkType::FEND, []).write_chunk_in(writer)?)
+            .ok_or_else(|| {
+                io::Error::new(io::ErrorKind::InvalidData, "total write size overflow")
+            })?;
         Ok(total)
     }
 }
@@ -1156,13 +1262,21 @@ impl EntryPart<&[u8]> {
         }
         let mut remaining = VecDeque::from(self.0);
         let mut first = Vec::new();
-        let mut total_size = 0;
+        let mut total_size: usize = 0;
         while let Some(chunk) = remaining.pop_front() {
             // NOTE: If over max size, restore to the remaining chunk
-            if max_bytes_len < total_size + chunk.bytes_len() {
-                if chunk.is_stream_chunk() && total_size + MIN_CHUNK_BYTES_SIZE < max_bytes_len {
-                    let available_bytes_len = max_bytes_len - total_size;
-                    let chunk_split_index = available_bytes_len - MIN_CHUNK_BYTES_SIZE;
+            if let Some(next_total_size) = total_size.checked_add(chunk.bytes_len())
+                && next_total_size <= max_bytes_len
+            {
+                total_size = next_total_size;
+                first.push(chunk);
+            } else {
+                if chunk.is_stream_chunk()
+                    && total_size.saturating_add(MIN_CHUNK_BYTES_SIZE) < max_bytes_len
+                {
+                    let available_bytes_len = max_bytes_len.saturating_sub(total_size);
+                    let chunk_split_index =
+                        available_bytes_len.saturating_sub(MIN_CHUNK_BYTES_SIZE);
                     let (x, y) = chunk_data_split(chunk.ty, chunk.data, chunk_split_index);
                     first.push(x);
                     if let Some(y) = y {
@@ -1173,8 +1287,6 @@ impl EntryPart<&[u8]> {
                 }
                 break;
             }
-            total_size += chunk.bytes_len();
-            first.push(chunk);
         }
         if first.is_empty() {
             return Err(Self(Vec::from(remaining)));
