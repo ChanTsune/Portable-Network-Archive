@@ -23,7 +23,8 @@ pub(crate) use self::{private::*, read::*, write::*};
 use crate::{
     Duration,
     chunk::{
-        Chunk, ChunkExt, ChunkReader, ChunkType, MIN_CHUNK_BYTES_SIZE, RawChunk, chunk_data_split,
+        Chunk, ChunkExt, ChunkReader, ChunkType, ChunkWriter, MIN_CHUNK_BYTES_SIZE, RawChunk,
+        chunk_data_split,
     },
     io::ChainReader,
     util::slice::skip_while,
@@ -326,8 +327,9 @@ where
         if let Some(phsf) = &self.phsf {
             total += (ChunkType::PHSF, phsf.as_bytes()).write_chunk_in(writer)?;
         }
+        let mut chunk_writer = ChunkWriter::new(&mut *writer);
         for data in &self.data {
-            total += (ChunkType::SDAT, data).write_chunk_in(writer)?;
+            total += chunk_writer.write_chunk_single_pass(ChunkType::SDAT, data.as_ref())?;
         }
         total += (ChunkType::SEND, []).write_chunk_in(writer)?;
         Ok(total)
@@ -741,8 +743,9 @@ where
         if let Some(p) = &self.phsf {
             total += (ChunkType::PHSF, p.as_bytes()).write_chunk_in(writer)?;
         }
+        let mut chunk_writer = ChunkWriter::new(&mut *writer);
         for data_chunk in &self.data {
-            total += (ChunkType::FDAT, data_chunk).write_chunk_in(writer)?;
+            total += chunk_writer.write_chunk_single_pass(ChunkType::FDAT, data_chunk.as_ref())?;
         }
         if let Some(c) = created {
             total += (ChunkType::cTIM, c.whole_seconds().to_be_bytes()).write_chunk_in(writer)?;
