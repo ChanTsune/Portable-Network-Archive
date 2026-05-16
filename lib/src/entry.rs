@@ -23,7 +23,8 @@ pub(crate) use self::{private::*, read::*, write::*};
 use crate::{
     Duration,
     chunk::{
-        Chunk, ChunkExt, ChunkReader, ChunkType, MIN_CHUNK_BYTES_SIZE, RawChunk, chunk_data_split,
+        Chunk, ChunkExt, ChunkReader, ChunkType, ChunkWriter, MIN_CHUNK_BYTES_SIZE, RawChunk,
+        chunk_data_split,
     },
     io::ChainReader,
     util::slice::skip_while,
@@ -319,17 +320,18 @@ where
     #[inline]
     fn chunks_write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         let mut total = 0;
-        total += (ChunkType::SHED, self.header.to_bytes()).write_chunk_in(writer)?;
+        let mut chunk_writer = ChunkWriter::new(writer);
+        total += chunk_writer.write_chunk_single_pass(ChunkType::SHED, &self.header.to_bytes())?;
         for extra_chunk in &self.extra {
-            total += extra_chunk.write_chunk_in(writer)?;
+            total += chunk_writer.write_chunk(extra_chunk)?;
         }
         if let Some(phsf) = &self.phsf {
-            total += (ChunkType::PHSF, phsf.as_bytes()).write_chunk_in(writer)?;
+            total += chunk_writer.write_chunk_single_pass(ChunkType::PHSF, phsf.as_bytes())?;
         }
         for data in &self.data {
-            total += (ChunkType::SDAT, data).write_chunk_in(writer)?;
+            total += chunk_writer.write_chunk_single_pass(ChunkType::SDAT, data.as_ref())?;
         }
-        total += (ChunkType::SEND, []).write_chunk_in(writer)?;
+        total += chunk_writer.write_chunk_single_pass(ChunkType::SEND, &[])?;
         Ok(total)
     }
 }
@@ -715,6 +717,7 @@ where
     #[inline]
     fn chunks_write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         let mut total = 0;
+        let mut chunk_writer = ChunkWriter::new(writer);
 
         let Metadata {
             raw_file_size,
@@ -726,55 +729,63 @@ where
             link_target_type,
         } = &self.metadata;
 
-        total += (ChunkType::FHED, self.header.to_bytes()).write_chunk_in(writer)?;
+        total += chunk_writer.write_chunk_single_pass(ChunkType::FHED, &self.header.to_bytes())?;
         for ex in &self.extra {
-            total += ex.write_chunk_in(writer)?;
+            total += chunk_writer.write_chunk(ex)?;
         }
         if let Some(raw_file_size) = raw_file_size {
-            total += (
+            total += chunk_writer.write_chunk_single_pass(
                 ChunkType::fSIZ,
                 skip_while(&raw_file_size.to_be_bytes(), |i| *i == 0),
-            )
-                .write_chunk_in(writer)?;
+            )?;
         }
 
         if let Some(p) = &self.phsf {
-            total += (ChunkType::PHSF, p.as_bytes()).write_chunk_in(writer)?;
+            total += chunk_writer.write_chunk_single_pass(ChunkType::PHSF, p.as_bytes())?;
         }
         for data_chunk in &self.data {
-            total += (ChunkType::FDAT, data_chunk).write_chunk_in(writer)?;
+            total += chunk_writer.write_chunk_single_pass(ChunkType::FDAT, data_chunk.as_ref())?;
         }
         if let Some(c) = created {
-            total += (ChunkType::cTIM, c.whole_seconds().to_be_bytes()).write_chunk_in(writer)?;
+            total += chunk_writer
+                .write_chunk_single_pass(ChunkType::cTIM, &c.whole_seconds().to_be_bytes())?;
             if c.subsec_nanoseconds() != 0 {
-                total += (ChunkType::cTNS, c.subsec_nanoseconds().to_be_bytes())
-                    .write_chunk_in(writer)?;
+                total += chunk_writer.write_chunk_single_pass(
+                    ChunkType::cTNS,
+                    &c.subsec_nanoseconds().to_be_bytes(),
+                )?;
             }
         }
         if let Some(d) = modified {
-            total += (ChunkType::mTIM, d.whole_seconds().to_be_bytes()).write_chunk_in(writer)?;
+            total += chunk_writer
+                .write_chunk_single_pass(ChunkType::mTIM, &d.whole_seconds().to_be_bytes())?;
             if d.subsec_nanoseconds() != 0 {
-                total += (ChunkType::mTNS, d.subsec_nanoseconds().to_be_bytes())
-                    .write_chunk_in(writer)?;
+                total += chunk_writer.write_chunk_single_pass(
+                    ChunkType::mTNS,
+                    &d.subsec_nanoseconds().to_be_bytes(),
+                )?;
             }
         }
         if let Some(a) = accessed {
-            total += (ChunkType::aTIM, a.whole_seconds().to_be_bytes()).write_chunk_in(writer)?;
+            total += chunk_writer
+                .write_chunk_single_pass(ChunkType::aTIM, &a.whole_seconds().to_be_bytes())?;
             if a.subsec_nanoseconds() != 0 {
-                total += (ChunkType::aTNS, a.subsec_nanoseconds().to_be_bytes())
-                    .write_chunk_in(writer)?;
+                total += chunk_writer.write_chunk_single_pass(
+                    ChunkType::aTNS,
+                    &a.subsec_nanoseconds().to_be_bytes(),
+                )?;
             }
         }
         if let Some(p) = permission {
-            total += (ChunkType::fPRM, p.to_bytes()).write_chunk_in(writer)?;
+            total += chunk_writer.write_chunk_single_pass(ChunkType::fPRM, &p.to_bytes())?;
         }
         if let Some(ltp) = link_target_type {
-            total += (ChunkType::fLTP, ltp.to_bytes()).write_chunk_in(writer)?;
+            total += chunk_writer.write_chunk_single_pass(ChunkType::fLTP, &ltp.to_bytes())?;
         }
         for xattr in &self.xattrs {
-            total += (ChunkType::xATR, xattr.to_bytes()).write_chunk_in(writer)?;
+            total += chunk_writer.write_chunk_single_pass(ChunkType::xATR, &xattr.to_bytes())?;
         }
-        total += (ChunkType::FEND, []).write_chunk_in(writer)?;
+        total += chunk_writer.write_chunk_single_pass(ChunkType::FEND, &[])?;
         Ok(total)
     }
 }

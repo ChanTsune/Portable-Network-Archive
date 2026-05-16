@@ -2,7 +2,7 @@
 
 use crate::{
     archive::{Archive, ArchiveHeader, PNA_HEADER, SolidArchive},
-    chunk::{Chunk, ChunkExt, ChunkStreamWriter, ChunkType, RawChunk},
+    chunk::{Chunk, ChunkStreamWriter, ChunkType, ChunkWriter, RawChunk},
     cipher::CipherWriter,
     compress::CompressionWriter,
     entry::{
@@ -90,7 +90,8 @@ impl<W: Write> Archive<W> {
     #[inline]
     fn write_header_with(mut write: W, header: ArchiveHeader) -> io::Result<Self> {
         write.write_all(PNA_HEADER)?;
-        (ChunkType::AHED, header.to_bytes()).write_chunk_in(&mut write)?;
+        let mut chunk_writer = ChunkWriter::new(&mut write);
+        chunk_writer.write_chunk_single_pass(ChunkType::AHED, &header.to_bytes())?;
         Ok(Self::new(write, header))
     }
 
@@ -205,15 +206,17 @@ impl<W: Write> Archive<W> {
         RawChunk<T>: Chunk,
     {
         let mut written_len = 0;
+        let mut chunk_writer = ChunkWriter::new(&mut self.inner);
         for chunk in entry_part.0 {
-            written_len += chunk.write_chunk_in(&mut self.inner)?;
+            written_len += chunk_writer.write_chunk(chunk)?;
         }
         Ok(written_len)
     }
 
     #[inline]
     fn add_next_archive_marker(&mut self) -> io::Result<usize> {
-        (ChunkType::ANXT, []).write_chunk_in(&mut self.inner)
+        let mut chunk_writer = ChunkWriter::new(&mut self.inner);
+        chunk_writer.write_chunk_single_pass(ChunkType::ANXT, &[])
     }
 
     /// Splits to the next archive.
@@ -279,7 +282,8 @@ impl<W: Write> Archive<W> {
     #[inline]
     #[must_use = "archive is not complete until finalize succeeds"]
     pub fn finalize(mut self) -> io::Result<W> {
-        (ChunkType::AEND, []).write_chunk_in(&mut self.inner)?;
+        let mut chunk_writer = ChunkWriter::new(&mut self.inner);
+        chunk_writer.write_chunk_single_pass(ChunkType::AEND, &[])?;
         Ok(self.inner)
     }
 }
@@ -376,10 +380,11 @@ impl<W: Write> Archive<W> {
         );
         let context = get_writer_context(option)?;
 
-        (ChunkType::SHED, header.to_bytes()).write_chunk_in(&mut self.inner)?;
+        let mut chunk_writer = ChunkWriter::new(&mut self.inner);
+        chunk_writer.write_chunk_single_pass(ChunkType::SHED, &header.to_bytes())?;
         if let Some(WriteCipher { context: c, .. }) = &context.cipher {
-            (ChunkType::PHSF, c.phsf.as_bytes()).write_chunk_in(&mut self.inner)?;
-            (ChunkType::SDAT, c.iv.as_slice()).write_chunk_in(&mut self.inner)?;
+            chunk_writer.write_chunk_single_pass(ChunkType::PHSF, c.phsf.as_bytes())?;
+            chunk_writer.write_chunk_single_pass(ChunkType::SDAT, c.iv.as_slice())?;
         }
         self.inner.flush()?;
         let max_chunk_size = self.max_chunk_size;
@@ -523,7 +528,8 @@ impl<W: Write> SolidArchive<W> {
     fn finalize_solid_entry(mut self) -> io::Result<Archive<W>> {
         self.inner.flush()?;
         let mut inner = self.inner.try_into_inner()?.try_into_inner()?.into_inner();
-        (ChunkType::SEND, []).write_chunk_in(&mut inner)?;
+        let mut chunk_writer = ChunkWriter::new(&mut inner);
+        chunk_writer.write_chunk_single_pass(ChunkType::SEND, &[])?;
         Ok(Archive::new(inner, self.archive_header))
     }
 }
@@ -546,41 +552,47 @@ where
         option.cipher_mode(),
         name,
     );
-    (ChunkType::FHED, header.to_bytes()).write_chunk_in(inner)?;
+    let mut chunk_writer = ChunkWriter::new(inner);
+    chunk_writer.write_chunk_single_pass(ChunkType::FHED, &header.to_bytes())?;
     if let Some(c) = metadata.created {
-        (ChunkType::cTIM, c.whole_seconds().to_be_bytes()).write_chunk_in(inner)?;
+        chunk_writer.write_chunk_single_pass(ChunkType::cTIM, &c.whole_seconds().to_be_bytes())?;
         if c.subsec_nanoseconds() != 0 {
-            (ChunkType::cTNS, c.subsec_nanoseconds().to_be_bytes()).write_chunk_in(inner)?;
+            chunk_writer
+                .write_chunk_single_pass(ChunkType::cTNS, &c.subsec_nanoseconds().to_be_bytes())?;
         }
     }
     if let Some(m) = metadata.modified {
-        (ChunkType::mTIM, m.whole_seconds().to_be_bytes()).write_chunk_in(inner)?;
+        chunk_writer.write_chunk_single_pass(ChunkType::mTIM, &m.whole_seconds().to_be_bytes())?;
         if m.subsec_nanoseconds() != 0 {
-            (ChunkType::mTNS, m.subsec_nanoseconds().to_be_bytes()).write_chunk_in(inner)?;
+            chunk_writer
+                .write_chunk_single_pass(ChunkType::mTNS, &m.subsec_nanoseconds().to_be_bytes())?;
         }
     }
     if let Some(a) = metadata.accessed {
-        (ChunkType::aTIM, a.whole_seconds().to_be_bytes()).write_chunk_in(inner)?;
+        chunk_writer.write_chunk_single_pass(ChunkType::aTIM, &a.whole_seconds().to_be_bytes())?;
         if a.subsec_nanoseconds() != 0 {
-            (ChunkType::aTNS, a.subsec_nanoseconds().to_be_bytes()).write_chunk_in(inner)?;
+            chunk_writer
+                .write_chunk_single_pass(ChunkType::aTNS, &a.subsec_nanoseconds().to_be_bytes())?;
         }
     }
     if let Some(p) = metadata.permission {
-        (ChunkType::fPRM, p.to_bytes()).write_chunk_in(inner)?;
+        chunk_writer.write_chunk_single_pass(ChunkType::fPRM, &p.to_bytes())?;
     }
     let context = get_writer_context(option)?;
     if let Some(WriteCipher { context: c, .. }) = &context.cipher {
-        (ChunkType::PHSF, c.phsf.as_bytes()).write_chunk_in(inner)?;
-        (ChunkType::FDAT, &c.iv[..]).write_chunk_in(inner)?;
+        chunk_writer.write_chunk_single_pass(ChunkType::PHSF, c.phsf.as_bytes())?;
+        chunk_writer.write_chunk_single_pass(ChunkType::FDAT, &c.iv[..])?;
     }
     let inner = {
-        let writer = ChunkStreamWriter::new(ChunkType::FDAT, inner, max_chunk_size);
+        let writer =
+            ChunkStreamWriter::new(ChunkType::FDAT, chunk_writer.into_inner(), max_chunk_size);
         let writer = get_writer(writer, &context)?;
         let mut writer = f(writer)?;
         writer.flush()?;
         writer.try_into_inner()?.try_into_inner()?.into_inner()
     };
-    (ChunkType::FEND, Vec::<u8>::new()).write_chunk_in(inner)?;
+    let mut chunk_writer = ChunkWriter::new(inner);
+    chunk_writer.write_chunk_single_pass(ChunkType::FEND, &[])?;
     Ok(())
 }
 
