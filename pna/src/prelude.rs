@@ -9,5 +9,6 @@
 //! ```
 pub use crate::ext::{
     ArchiveFsExt, EntryBuilderExt, EntryFsExt, MetadataFsExt, MetadataPathExt, MetadataTimeExt,
+    SystemTimeDurationExt, SystemTimeOutOfRange,
 };
 pub use libpna::prelude::*;

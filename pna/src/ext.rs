@@ -19,6 +19,7 @@ mod archive;
 mod entry;
 mod entry_builder;
 mod metadata;
+mod time;
 
 pub use archive::*;
 pub use entry::*;
@@ -26,6 +27,7 @@ pub use entry_builder::*;
 use libpna::{Archive, EntryBuilder, Metadata, NormalEntry};
 pub use metadata::*;
 use std::fs;
+pub use time::*;
 
 mod private {
     //! Implementation detail: sealing for extension traits.
@@ -47,4 +49,5 @@ mod private {
     impl Sealed for Metadata {}
     impl Sealed for NormalEntry {}
     impl Sealed for EntryBuilder {}
+    impl Sealed for std::time::SystemTime {}
 }
