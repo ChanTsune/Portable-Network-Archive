@@ -373,15 +373,7 @@ fn build_permission(header: &tar::Header, path: &str) -> libpna::Permission {
             String::new()
         }
     };
-    libpna::Permission::new(
-        uid,
-        libpna::UserName::try_from(uname)
-            .expect("ustar header username field is bounded to 32 bytes by tar format spec"),
-        gid,
-        libpna::GroupName::try_from(gname)
-            .expect("ustar header groupname field is bounded to 32 bytes by tar format spec"),
-        mode,
-    )
+    libpna::Permission::new(uid, uname, gid, gname, mode)
 }
 
 fn zip2pna(args: Zip2pnaArgs) -> Result<(), Box<dyn std::error::Error>> {
@@ -489,12 +481,6 @@ fn build_zip_permission<R: Read + io::Seek>(
 ) -> Option<libpna::Permission> {
     entry.unix_mode().map(|mode| {
         let mode_bits = (mode & 0o7777) as u16;
-        libpna::Permission::new(
-            0,
-            libpna::UserName::default(),
-            0,
-            libpna::GroupName::default(),
-            mode_bits,
-        )
+        libpna::Permission::new(0, String::new(), 0, String::new(), mode_bits)
     })
 }

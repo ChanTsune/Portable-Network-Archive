@@ -20,7 +20,6 @@ use crate::{
     },
     utils::{
         self, BsdGlobMatcher, PathWithCwd, VCS_FILES,
-        cli_parsers::{parse_gname, parse_uname},
         fmt::DurationDisplay,
         fs::{Group, User},
     },
@@ -184,20 +183,10 @@ pub(crate) struct ExtractCommand {
         help = "Do not restore ACLs. This is the inverse option of --keep-acl"
     )]
     no_keep_acl: bool,
-    #[arg(
-        long,
-        value_name = "NAME",
-        value_parser = parse_uname,
-        help = "Restore user from given name"
-    )]
-    uname: Option<pna::UserName>,
-    #[arg(
-        long,
-        value_name = "NAME",
-        value_parser = parse_gname,
-        help = "Restore group from given name"
-    )]
-    gname: Option<pna::GroupName>,
+    #[arg(long, value_name = "NAME", help = "Restore user from given name")]
+    uname: Option<String>,
+    #[arg(long, value_name = "NAME", help = "Restore group from given name")]
+    gname: Option<String>,
     #[arg(
         long,
         value_name = "ID",

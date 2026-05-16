@@ -1,139 +1,7 @@
 //! Metadata and permission types for archive entries.
 
-use crate::{
-    Duration, UnknownValueError,
-    util::bounded::{LengthExceeded, str::BoundedString},
-};
-use std::{
-    io::{self, Read},
-    ops::Deref,
-};
-
-/// User name identifier for an archive entry.
-///
-/// Bounded to 255 bytes to fit the `u8` length prefix used in the `fPRM`
-/// chunk's serialized form.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
-#[repr(transparent)]
-pub struct UserName(BoundedString<255>);
-
-impl UserName {
-    /// Constructs a [`UserName`], rejecting inputs whose byte length exceeds
-    /// 255.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`LengthExceeded`] when the input's byte length is greater than
-    /// 255.
-    #[inline]
-    pub fn new(value: impl Into<Box<str>>) -> Result<Self, LengthExceeded> {
-        BoundedString::new(value).map(Self)
-    }
-
-    /// Returns the user name as a string slice.
-    #[inline]
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-}
-
-impl Deref for UserName {
-    type Target = str;
-
-    #[inline]
-    fn deref(&self) -> &str {
-        self.0.as_str()
-    }
-}
-
-impl TryFrom<String> for UserName {
-    type Error = LengthExceeded;
-
-    #[inline]
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::new(value)
-    }
-}
-
-impl TryFrom<&str> for UserName {
-    type Error = LengthExceeded;
-
-    #[inline]
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        Self::new(value)
-    }
-}
-
-impl From<UserName> for String {
-    #[inline]
-    fn from(value: UserName) -> Self {
-        value.0.into()
-    }
-}
-
-/// Group name identifier for an archive entry.
-///
-/// Bounded to 255 bytes to fit the `u8` length prefix used in the `fPRM`
-/// chunk's serialized form.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
-#[repr(transparent)]
-pub struct GroupName(BoundedString<255>);
-
-impl GroupName {
-    /// Constructs a [`GroupName`], rejecting inputs whose byte length exceeds
-    /// 255.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`LengthExceeded`] when the input's byte length is greater than
-    /// 255.
-    #[inline]
-    pub fn new(value: impl Into<Box<str>>) -> Result<Self, LengthExceeded> {
-        BoundedString::new(value).map(Self)
-    }
-
-    /// Returns the group name as a string slice.
-    #[inline]
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-}
-
-impl Deref for GroupName {
-    type Target = str;
-
-    #[inline]
-    fn deref(&self) -> &str {
-        self.0.as_str()
-    }
-}
-
-impl TryFrom<String> for GroupName {
-    type Error = LengthExceeded;
-
-    #[inline]
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::new(value)
-    }
-}
-
-impl TryFrom<&str> for GroupName {
-    type Error = LengthExceeded;
-
-    #[inline]
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        Self::new(value)
-    }
-}
-
-impl From<GroupName> for String {
-    #[inline]
-    fn from(value: GroupName) -> Self {
-        value.0.into()
-    }
-}
+use crate::{Duration, UnknownValueError};
+use std::io::{self, Read};
 
 /// Metadata information about an entry.
 /// # Examples
@@ -301,9 +169,9 @@ impl Default for Metadata {
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Permission {
     uid: u64,
-    uname: UserName,
+    uname: String,
     gid: u64,
-    gname: GroupName,
+    gname: String,
     permission: u16,
 }
 
@@ -311,30 +179,17 @@ impl Permission {
     /// Creates a new [`Permission`] with the given user, group, and permission bits.
     ///
     /// The `uid`/`gid` are numeric POSIX IDs, `uname`/`gname` are the
-    /// corresponding names (each bounded to 255 bytes by [`UserName`] and
-    /// [`GroupName`]), and `permission` holds the file mode bits (e.g. `0o755`).
+    /// corresponding names, and `permission` holds the file mode bits (e.g. `0o755`).
     ///
     /// # Examples
     ///
     /// ```
-    /// use libpna::{Permission, UserName, GroupName};
+    /// use libpna::Permission;
     ///
-    /// let perm = Permission::new(
-    ///     1000,
-    ///     UserName::try_from("user").unwrap(),
-    ///     100,
-    ///     GroupName::try_from("group").unwrap(),
-    ///     0o755,
-    /// );
+    /// let perm = Permission::new(1000, "user".into(), 100, "group".into(), 0o755);
     /// ```
     #[inline]
-    pub const fn new(
-        uid: u64,
-        uname: UserName,
-        gid: u64,
-        gname: GroupName,
-        permission: u16,
-    ) -> Self {
+    pub const fn new(uid: u64, uname: String, gid: u64, gname: String, permission: u16) -> Self {
         Self {
             uid,
             uname,
@@ -348,15 +203,9 @@ impl Permission {
     /// # Examples
     ///
     /// ```
-    /// use libpna::{Permission, UserName, GroupName};
+    /// use libpna::Permission;
     ///
-    /// let perm = Permission::new(
-    ///     1000,
-    ///     UserName::try_from("user1").unwrap(),
-    ///     100,
-    ///     GroupName::try_from("group1").unwrap(),
-    ///     0o644,
-    /// );
+    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
     /// assert_eq!(perm.uid(), 1000);
     /// ```
     #[inline]
@@ -369,20 +218,14 @@ impl Permission {
     /// # Examples
     ///
     /// ```
-    /// use libpna::{Permission, UserName, GroupName};
+    /// use libpna::Permission;
     ///
-    /// let perm = Permission::new(
-    ///     1000,
-    ///     UserName::try_from("user1").unwrap(),
-    ///     100,
-    ///     GroupName::try_from("group1").unwrap(),
-    ///     0o644,
-    /// );
+    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
     /// assert_eq!(perm.uname(), "user1");
     /// ```
     #[inline]
     pub fn uname(&self) -> &str {
-        self.uname.as_str()
+        &self.uname
     }
 
     /// Returns the group ID associated with this permission.
@@ -390,15 +233,9 @@ impl Permission {
     /// # Examples
     ///
     /// ```
-    /// use libpna::{Permission, UserName, GroupName};
+    /// use libpna::Permission;
     ///
-    /// let perm = Permission::new(
-    ///     1000,
-    ///     UserName::try_from("user1").unwrap(),
-    ///     100,
-    ///     GroupName::try_from("group1").unwrap(),
-    ///     0o644,
-    /// );
+    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
     /// assert_eq!(perm.gid(), 100);
     /// ```
     #[inline]
@@ -411,20 +248,14 @@ impl Permission {
     /// # Examples
     ///
     /// ```
-    /// use libpna::{Permission, UserName, GroupName};
+    /// use libpna::Permission;
     ///
-    /// let perm = Permission::new(
-    ///     1000,
-    ///     UserName::try_from("user1").unwrap(),
-    ///     100,
-    ///     GroupName::try_from("group1").unwrap(),
-    ///     0o644,
-    /// );
+    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
     /// assert_eq!(perm.gname(), "group1");
     /// ```
     #[inline]
     pub fn gname(&self) -> &str {
-        self.gname.as_str()
+        &self.gname
     }
 
     /// Returns the permission bits associated with this permission.
@@ -432,15 +263,9 @@ impl Permission {
     /// # Examples
     ///
     /// ```
-    /// use libpna::{Permission, UserName, GroupName};
+    /// use libpna::Permission;
     ///
-    /// let perm = Permission::new(
-    ///     1000,
-    ///     UserName::try_from("user1").unwrap(),
-    ///     100,
-    ///     GroupName::try_from("group1").unwrap(),
-    ///     0o644,
-    /// );
+    /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
     /// assert_eq!(perm.permissions(), 0o644);
     /// ```
     #[inline]
@@ -449,17 +274,13 @@ impl Permission {
     }
 
     pub(crate) fn to_bytes(&self) -> Vec<u8> {
-        let uname_bytes = self.uname.as_str().as_bytes();
-        let gname_bytes = self.gname.as_str().as_bytes();
-        let mut bytes = Vec::with_capacity(20 + uname_bytes.len() + gname_bytes.len());
+        let mut bytes = Vec::with_capacity(20 + self.uname.len() + self.gname.len());
         bytes.extend_from_slice(&self.uid.to_be_bytes());
-        // Type guarantees uname.len() <= 255 (UserName invariant).
-        bytes.extend_from_slice(&(uname_bytes.len() as u8).to_be_bytes());
-        bytes.extend_from_slice(uname_bytes);
+        bytes.extend_from_slice(&(self.uname.len() as u8).to_be_bytes());
+        bytes.extend_from_slice(self.uname.as_bytes());
         bytes.extend_from_slice(&self.gid.to_be_bytes());
-        // Type guarantees gname.len() <= 255 (GroupName invariant).
-        bytes.extend_from_slice(&(gname_bytes.len() as u8).to_be_bytes());
-        bytes.extend_from_slice(gname_bytes);
+        bytes.extend_from_slice(&(self.gname.len() as u8).to_be_bytes());
+        bytes.extend_from_slice(self.gname.as_bytes());
         bytes.extend_from_slice(&self.permission.to_be_bytes());
         bytes
     }
@@ -475,15 +296,12 @@ impl Permission {
             bytes.read_exact(&mut buf)?;
             buf[0] as usize
         };
-        let uname_string = String::from_utf8({
+        let uname = String::from_utf8({
             let mut buf = vec![0; uname_len];
             bytes.read_exact(&mut buf)?;
             buf
         })
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-        // u8 length read above already enforces UserName's 255-byte bound.
-        let uname = UserName::new(uname_string)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         let gid = u64::from_be_bytes({
             let mut buf = [0; 8];
             bytes.read_exact(&mut buf)?;
@@ -494,14 +312,12 @@ impl Permission {
             bytes.read_exact(&mut buf)?;
             buf[0] as usize
         };
-        let gname_string = String::from_utf8({
+        let gname = String::from_utf8({
             let mut buf = vec![0; gname_len];
             bytes.read_exact(&mut buf)?;
             buf
         })
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-        let gname = GroupName::new(gname_string)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         let permission = u16::from_be_bytes({
             let mut buf = [0; 2];
             bytes.read_exact(&mut buf)?;
@@ -590,13 +406,7 @@ mod tests {
 
     #[test]
     fn permission() {
-        let perm = Permission::new(
-            1000,
-            UserName::try_from("user1").unwrap(),
-            100,
-            GroupName::try_from("group1").unwrap(),
-            0o644,
-        );
+        let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
         assert_eq!(perm, Permission::try_from_bytes(&perm.to_bytes()).unwrap());
     }
 
@@ -659,37 +469,5 @@ mod tests {
             LinkTargetType::try_from_bytes(&[0x01, 0xFF, 0xFF]).unwrap(),
             Some(LinkTargetType::File),
         );
-    }
-
-    #[test]
-    fn user_name_at_boundary() {
-        let raw = "u".repeat(255);
-        let name = UserName::new(raw.clone()).unwrap();
-        assert_eq!(name.as_str(), raw);
-    }
-
-    #[test]
-    fn user_name_rejects_one_over() {
-        let raw = "u".repeat(256);
-        assert!(UserName::new(raw).is_err());
-    }
-
-    #[test]
-    fn group_name_at_boundary() {
-        let raw = "g".repeat(255);
-        let name = GroupName::new(raw.clone()).unwrap();
-        assert_eq!(name.as_str(), raw);
-    }
-
-    #[test]
-    fn group_name_rejects_one_over() {
-        let raw = "g".repeat(256);
-        assert!(GroupName::new(raw).is_err());
-    }
-
-    #[test]
-    fn user_and_group_name_default_is_empty() {
-        assert!(UserName::default().is_empty());
-        assert!(GroupName::default().is_empty());
     }
 }

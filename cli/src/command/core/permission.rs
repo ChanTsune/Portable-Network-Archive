@@ -3,8 +3,8 @@
 /// During extraction: Override values restored from archive (None = use archive)
 #[derive(Clone, Debug, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) struct OwnerOptions {
-    pub(crate) uname: Option<pna::UserName>,
-    pub(crate) gname: Option<pna::GroupName>,
+    pub(crate) uname: Option<String>,
+    pub(crate) gname: Option<String>,
     pub(crate) uid: Option<u32>,
     pub(crate) gid: Option<u32>,
 }
