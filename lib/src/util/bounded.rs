@@ -41,12 +41,12 @@ use std::{error, fmt};
 ///
 /// # Examples
 ///
-/// ```
-/// use libpna::{LengthExceeded, UserName};
+/// ```ignore
+/// use libpna::util::bounded::str::BoundedString;
 ///
-/// let err: LengthExceeded = UserName::try_from("a".repeat(256)).unwrap_err();
-/// assert_eq!(err.max(), 255);
-/// assert_eq!(err.actual(), 256);
+/// let err = BoundedString::<3>::new("hello").unwrap_err();
+/// assert_eq!(err.max(), 3);
+/// assert_eq!(err.actual(), 5);
 /// ```
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[non_exhaustive]

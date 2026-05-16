@@ -16,12 +16,7 @@ use crate::{
             read_paths, read_paths_stdin, spawn_entry_results, write_split_archive,
         },
     },
-    utils::{
-        self, VCS_FILES,
-        cli_parsers::{parse_gname, parse_uname},
-        fmt::DurationDisplay,
-        fs::HardlinkResolver,
-    },
+    utils::{self, VCS_FILES, fmt::DurationDisplay, fs::HardlinkResolver},
 };
 use anyhow::ensure;
 use bytesize::ByteSize;
@@ -169,20 +164,10 @@ pub(crate) struct CreateCommand {
         help = "Compress multiple files together for better compression ratio"
     )]
     solid: bool,
-    #[arg(
-        long,
-        value_name = "NAME",
-        value_parser = parse_uname,
-        help = "Set user name for archive entries"
-    )]
-    uname: Option<pna::UserName>,
-    #[arg(
-        long,
-        value_name = "NAME",
-        value_parser = parse_gname,
-        help = "Set group name for archive entries"
-    )]
-    gname: Option<pna::GroupName>,
+    #[arg(long, value_name = "NAME", help = "Set user name for archive entries")]
+    uname: Option<String>,
+    #[arg(long, value_name = "NAME", help = "Set group name for archive entries")]
+    gname: Option<String>,
     #[arg(
         long,
         value_name = "ID",

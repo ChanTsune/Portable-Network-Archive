@@ -36,9 +36,9 @@ pub fn create_archive_with_permissions(
             pna::EntryBuilder::new_file(entry_def.path.into(), pna::WriteOptions::store())?;
         builder.permission(pna::Permission::new(
             1000,
-            pna::UserName::try_from("user").unwrap(),
+            "user".into(),
             1000,
-            pna::GroupName::try_from("group").unwrap(),
+            "group".into(),
             entry_def.permission,
         ));
         builder.write_all(entry_def.content)?;
@@ -64,9 +64,9 @@ pub fn create_solid_archive_with_permissions(
             pna::EntryBuilder::new_file(entry_def.path.into(), pna::WriteOptions::store())?;
         builder.permission(pna::Permission::new(
             1000,
-            pna::UserName::try_from("user").unwrap(),
+            "user".into(),
             1000,
-            pna::GroupName::try_from("group").unwrap(),
+            "group".into(),
             entry_def.permission,
         ));
         builder.write_all(entry_def.content)?;
@@ -100,9 +100,9 @@ pub fn create_encrypted_archive_with_permissions(
             pna::EntryBuilder::new_file(entry_def.path.into(), write_options.clone())?;
         builder.permission(pna::Permission::new(
             1000,
-            pna::UserName::try_from("user").unwrap(),
+            "user".into(),
             1000,
-            pna::GroupName::try_from("group").unwrap(),
+            "group".into(),
             entry_def.permission,
         ));
         builder.write_all(entry_def.content)?;
@@ -211,9 +211,9 @@ pub fn create_archive_with_symlinks(
             pna::EntryBuilder::new_file(entry_def.path.into(), pna::WriteOptions::store())?;
         builder.permission(pna::Permission::new(
             1000,
-            pna::UserName::try_from("user").unwrap(),
+            "user".into(),
             1000,
-            pna::GroupName::try_from("group").unwrap(),
+            "group".into(),
             entry_def.permission,
         ));
         builder.write_all(entry_def.content)?;
@@ -228,9 +228,9 @@ pub fn create_archive_with_symlinks(
         if let Some(mode) = symlink_def.permission {
             builder.permission(pna::Permission::new(
                 1000,
-                pna::UserName::try_from("user").unwrap(),
+                "user".into(),
                 1000,
-                pna::GroupName::try_from("group").unwrap(),
+                "group".into(),
                 mode,
             ));
         }

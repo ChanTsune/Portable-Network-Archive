@@ -1,8 +1,6 @@
 use crate::utils::setup;
 use assert_cmd::cargo::cargo_bin_cmd;
-use pna::{
-    Archive, Duration, EntryBuilder, EntryName, GroupName, Permission, UserName, WriteOptions,
-};
+use pna::{Archive, Duration, EntryBuilder, EntryName, Permission, WriteOptions};
 use std::{fs, io::Write, path::Path};
 
 fn create_archive_with_trailing_slash_dir(path: &str) {
@@ -16,9 +14,9 @@ fn create_archive_with_trailing_slash_dir(path: &str) {
     let mut dir_builder = EntryBuilder::new_dir(EntryName::from_utf8_preserve_root("dir/"));
     dir_builder.modified(mtime).permission(Permission::new(
         0,
-        UserName::try_from("root").unwrap(),
+        "root".into(),
         0,
-        GroupName::try_from("root").unwrap(),
+        "root".into(),
         0o755,
     ));
     archive.add_entry(dir_builder.build().unwrap()).unwrap();
@@ -30,9 +28,9 @@ fn create_archive_with_trailing_slash_dir(path: &str) {
     .unwrap();
     file_builder.modified(mtime).permission(Permission::new(
         0,
-        UserName::try_from("root").unwrap(),
+        "root".into(),
         0,
-        GroupName::try_from("root").unwrap(),
+        "root".into(),
         0o644,
     ));
     file_builder.write_all(b"hello").unwrap();

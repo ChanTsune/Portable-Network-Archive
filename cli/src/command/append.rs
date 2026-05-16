@@ -14,11 +14,7 @@ use crate::{
             read_paths, read_paths_stdin, spawn_entry_results,
         },
     },
-    utils::{
-        PathPartExt, VCS_FILES,
-        cli_parsers::{parse_gname, parse_uname},
-        fs::HardlinkResolver,
-    },
+    utils::{PathPartExt, VCS_FILES, fs::HardlinkResolver},
 };
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::{Archive, prelude::*};
@@ -144,20 +140,10 @@ pub(crate) struct AppendCommand {
         help = "Do not archive ACLs. This is the inverse option of --keep-acl"
     )]
     no_keep_acl: bool,
-    #[arg(
-        long,
-        value_name = "NAME",
-        value_parser = parse_uname,
-        help = "Set user name for archive entries"
-    )]
-    uname: Option<pna::UserName>,
-    #[arg(
-        long,
-        value_name = "NAME",
-        value_parser = parse_gname,
-        help = "Set group name for archive entries"
-    )]
-    gname: Option<pna::GroupName>,
+    #[arg(long, value_name = "NAME", help = "Set user name for archive entries")]
+    uname: Option<String>,
+    #[arg(long, value_name = "NAME", help = "Set group name for archive entries")]
+    gname: Option<String>,
     #[arg(
         long,
         value_name = "ID",
