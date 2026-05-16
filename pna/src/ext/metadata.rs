@@ -10,10 +10,37 @@ use std::{fs, io, path::Path, time::SystemTime};
 /// [`Metadata`] time-related extension methods.
 pub trait MetadataTimeExt: private::Sealed {
     /// Returns the created time.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the stored duration is outside the platform's representable
+    /// `SystemTime` range.
+    #[deprecated(
+        since = "0.34.0",
+        note = "panics for archive timestamps outside the platform's SystemTime range; use try_created_time or saturating_created_time"
+    )]
     fn created_time(&self) -> Option<SystemTime>;
     /// Returns the modified time.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the stored duration is outside the platform's representable
+    /// `SystemTime` range.
+    #[deprecated(
+        since = "0.34.0",
+        note = "panics for archive timestamps outside the platform's SystemTime range; use try_modified_time or saturating_modified_time"
+    )]
     fn modified_time(&self) -> Option<SystemTime>;
     /// Returns the accessed time.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the stored duration is outside the platform's representable
+    /// `SystemTime` range.
+    #[deprecated(
+        since = "0.34.0",
+        note = "panics for archive timestamps outside the platform's SystemTime range; use try_accessed_time or saturating_accessed_time"
+    )]
     fn accessed_time(&self) -> Option<SystemTime>;
     /// Returns the created time, or `Err` if the stored duration is outside
     /// the platform's representable [`SystemTime`] range.
@@ -61,6 +88,7 @@ impl MetadataTimeExt for Metadata {
     ///
     /// This is the same as [Metadata::created] + [SystemTime::UNIX_EPOCH].
     /// ```
+    /// # #![allow(deprecated)]
     /// use pna::{Duration, Metadata, prelude::*};
     /// use std::time::UNIX_EPOCH;
     ///
@@ -71,6 +99,7 @@ impl MetadataTimeExt for Metadata {
     ///     metadata.created_time(),
     /// );
     /// ```
+    #[allow(deprecated)]
     #[inline]
     fn created_time(&self) -> Option<SystemTime> {
         self.created().map(|it| SystemTime::UNIX_EPOCH + it)
@@ -80,6 +109,7 @@ impl MetadataTimeExt for Metadata {
     ///
     /// This is the same as [Metadata::modified] + [SystemTime::UNIX_EPOCH].
     /// ```
+    /// # #![allow(deprecated)]
     /// use pna::{Duration, Metadata, prelude::*};
     /// use std::time::UNIX_EPOCH;
     ///
@@ -90,6 +120,7 @@ impl MetadataTimeExt for Metadata {
     ///     metadata.modified_time(),
     /// );
     /// ```
+    #[allow(deprecated)]
     #[inline]
     fn modified_time(&self) -> Option<SystemTime> {
         self.modified().map(|it| SystemTime::UNIX_EPOCH + it)
@@ -99,6 +130,7 @@ impl MetadataTimeExt for Metadata {
     ///
     /// This is the same as [Metadata::accessed] + [SystemTime::UNIX_EPOCH].
     /// ```
+    /// # #![allow(deprecated)]
     /// use pna::{Duration, Metadata, prelude::*};
     /// use std::time::UNIX_EPOCH;
     ///
@@ -109,6 +141,7 @@ impl MetadataTimeExt for Metadata {
     ///     metadata.accessed_time(),
     /// );
     /// ```
+    #[allow(deprecated)]
     #[inline]
     fn accessed_time(&self) -> Option<SystemTime> {
         self.accessed().map(|it| SystemTime::UNIX_EPOCH + it)
@@ -148,6 +181,7 @@ impl MetadataTimeExt for Metadata {
     ///
     /// # Examples
     /// ```
+    /// # #![allow(deprecated)]
     /// use pna::{Metadata, prelude::*};
     /// use std::time::{Duration, SystemTime, UNIX_EPOCH};
     ///
@@ -173,6 +207,7 @@ impl MetadataTimeExt for Metadata {
     ///
     /// # Examples
     /// ```
+    /// # #![allow(deprecated)]
     /// use pna::{Metadata, prelude::*};
     /// use std::time::{Duration, SystemTime, UNIX_EPOCH};
     ///
@@ -198,6 +233,7 @@ impl MetadataTimeExt for Metadata {
     ///
     /// # Examples
     /// ```
+    /// # #![allow(deprecated)]
     /// use pna::{Metadata, prelude::*};
     /// use std::time::{Duration, SystemTime, UNIX_EPOCH};
     ///
