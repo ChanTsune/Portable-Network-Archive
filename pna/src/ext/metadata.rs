@@ -1,6 +1,6 @@
 //! Provides extension traits for [`Metadata`].
 use super::private;
-use crate::prelude::*;
+use crate::ext::time::opt_system_time_to_duration;
 use libpna::Metadata;
 use std::{fs, io, path::Path, time::SystemTime};
 
@@ -100,7 +100,7 @@ impl MetadataTimeExt for Metadata {
     /// ```
     #[inline]
     fn with_created_time(self, time: impl Into<Option<SystemTime>>) -> Self {
-        self.with_created(time.into().map(|it| it.duration_since_unix_epoch_signed()))
+        self.with_created(opt_system_time_to_duration(time.into()))
     }
 
     /// Sets the modified time.
@@ -125,7 +125,7 @@ impl MetadataTimeExt for Metadata {
     /// ```
     #[inline]
     fn with_modified_time(self, time: impl Into<Option<SystemTime>>) -> Self {
-        self.with_modified(time.into().map(|it| it.duration_since_unix_epoch_signed()))
+        self.with_modified(opt_system_time_to_duration(time.into()))
     }
 
     /// Sets the accessed time.
@@ -150,7 +150,7 @@ impl MetadataTimeExt for Metadata {
     /// ```
     #[inline]
     fn with_accessed_time(self, time: impl Into<Option<SystemTime>>) -> Self {
-        self.with_accessed(time.into().map(|it| it.duration_since_unix_epoch_signed()))
+        self.with_accessed(opt_system_time_to_duration(time.into()))
     }
 }
 

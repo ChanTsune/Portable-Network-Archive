@@ -1,5 +1,5 @@
 //! Provides extension traits for [`EntryBuilder`].
-use crate::{ext::private, prelude::*};
+use crate::ext::{private, time::opt_system_time_to_duration};
 use libpna::{EntryBuilder, Metadata};
 use std::time::SystemTime;
 
@@ -76,8 +76,7 @@ impl EntryBuilderExt for EntryBuilder {
     /// ```
     #[inline]
     fn created_time(&mut self, time: impl Into<Option<SystemTime>>) -> &mut Self {
-        let time = time.into();
-        self.created(time.map(|it| it.duration_since_unix_epoch_signed()))
+        self.created(opt_system_time_to_duration(time.into()))
     }
 
     /// Sets the modified time using [`SystemTime`].
@@ -96,8 +95,7 @@ impl EntryBuilderExt for EntryBuilder {
     /// ```
     #[inline]
     fn modified_time(&mut self, time: impl Into<Option<SystemTime>>) -> &mut Self {
-        let time = time.into();
-        self.modified(time.map(|it| it.duration_since_unix_epoch_signed()))
+        self.modified(opt_system_time_to_duration(time.into()))
     }
 
     /// Sets the accessed time using [`SystemTime`].
@@ -116,7 +114,6 @@ impl EntryBuilderExt for EntryBuilder {
     /// ```
     #[inline]
     fn accessed_time(&mut self, time: impl Into<Option<SystemTime>>) -> &mut Self {
-        let time = time.into();
-        self.accessed(time.map(|it| it.duration_since_unix_epoch_signed()))
+        self.accessed(opt_system_time_to_duration(time.into()))
     }
 }
