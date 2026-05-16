@@ -78,9 +78,6 @@ impl SystemTimeDurationExt for SystemTime {
 /// signatures are infallible, so the conscious decision to drop such a value
 /// is documented here once instead of being scattered silently across the
 /// call sites.
-// Consumed by the builder/setter call sites in a subsequent migration step;
-// introduced here alongside the conversion API it depends on.
-#[allow(dead_code)]
 pub(crate) fn opt_system_time_to_duration(t: Option<SystemTime>) -> Option<Duration> {
     t.and_then(|st| st.try_duration_since_unix_epoch_signed().ok())
 }
