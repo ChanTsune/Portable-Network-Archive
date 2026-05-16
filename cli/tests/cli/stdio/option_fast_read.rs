@@ -1,4 +1,4 @@
-use crate::utils::setup;
+use crate::utils::{list_lines, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use pna::{Archive, EntryBuilder, WriteOptions};
 use std::{
@@ -43,7 +43,7 @@ fn stdio_list_with_fast_read() {
         .args(["experimental", "stdio", "--list", "-q", "a.txt", "b.txt"])
         .assert()
         .success()
-        .stdout("a.txt\na.txt\nb.txt\n");
+        .stdout(list_lines(&["a.txt", "a.txt", "b.txt"]));
 }
 
 /// Precondition: Archive contains duplicate entries.
@@ -59,7 +59,7 @@ fn stdio_list_with_fast_read_without_operands() {
         .args(["experimental", "stdio", "--list", "--fast-read"])
         .assert()
         .success()
-        .stdout("a.txt\na.txt\nb.txt\nb.txt\n");
+        .stdout(list_lines(&["a.txt", "a.txt", "b.txt", "b.txt"]));
 }
 
 /// Precondition: Archive contains duplicate entries for multiple operands.

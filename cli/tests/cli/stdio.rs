@@ -1,5 +1,6 @@
 mod archive_inclusion;
 mod files_from;
+mod list_line_ending;
 mod missing_file;
 #[cfg(unix)]
 mod mtree;
