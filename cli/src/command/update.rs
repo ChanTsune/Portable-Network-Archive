@@ -681,7 +681,7 @@ fn is_newer_than_archive(
     metadata: &Metadata,
 ) -> Option<bool> {
     let fs_mtime = fs_meta.modified().ok()?;
-    let archive_mtime = match (metadata.modified_time(), archive_missing_mtime) {
+    let archive_mtime = match (metadata.saturating_modified_time(), archive_missing_mtime) {
         (Some(t), _) => t,
         (None, MissingTimePolicy::Include) => return Some(true),
         (None, MissingTimePolicy::Exclude) => return Some(false),

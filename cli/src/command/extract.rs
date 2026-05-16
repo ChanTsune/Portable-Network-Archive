@@ -1059,7 +1059,10 @@ where
     pna::RawChunk<T>: Chunk,
 {
     let metadata = item.metadata();
-    filters.matches(metadata.created_time(), metadata.modified_time())
+    filters.matches(
+        metadata.saturating_created_time(),
+        metadata.saturating_modified_time(),
+    )
 }
 
 fn filter_entry<T: AsRef<[u8]>>(
@@ -1516,14 +1519,14 @@ fn restore_timestamps(
     } = keep_options.timestamp_strategy
     {
         let mut times = fs::FileTimes::new();
-        if let Some(accessed) = atime.resolve(metadata.accessed_time()) {
+        if let Some(accessed) = atime.resolve(metadata.saturating_accessed_time()) {
             times = times.set_accessed(accessed);
         }
-        if let Some(modified) = mtime.resolve(metadata.modified_time()) {
+        if let Some(modified) = mtime.resolve(metadata.saturating_modified_time()) {
             times = times.set_modified(modified);
         }
         #[cfg(any(windows, target_os = "macos"))]
-        if let Some(created) = _ctime.resolve(metadata.created_time()) {
+        if let Some(created) = _ctime.resolve(metadata.saturating_created_time()) {
             times = times.set_created(created);
         }
         file.set_times(times)?;
@@ -1553,10 +1556,10 @@ fn restore_path_timestamps(
     } = keep_options.timestamp_strategy
     {
         let atime = atime
-            .resolve(metadata.accessed_time())
+            .resolve(metadata.saturating_accessed_time())
             .map(filetime::FileTime::from_system_time);
         let mtime = mtime
-            .resolve(metadata.modified_time())
+            .resolve(metadata.saturating_modified_time())
             .map(filetime::FileTime::from_system_time);
         if atime.is_some() || mtime.is_some() {
             // set_symlink_file_times always sets both timestamps; when one is absent,
@@ -1874,9 +1877,10 @@ fn is_existing_newer<T>(metadata: &fs::Metadata, item: &NormalEntry<T>) -> bool
 where
     T: AsRef<[u8]>,
 {
-    if let (Ok(existing_modified), Some(entry_modified)) =
-        (metadata.modified(), item.metadata().modified_time())
-    {
+    if let (Ok(existing_modified), Some(entry_modified)) = (
+        metadata.modified(),
+        item.metadata().saturating_modified_time(),
+    ) {
         existing_modified >= entry_modified
     } else {
         false
