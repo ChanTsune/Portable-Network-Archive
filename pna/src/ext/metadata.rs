@@ -1,6 +1,9 @@
 //! Provides extension traits for [`Metadata`].
 use super::private;
-use crate::ext::time::opt_system_time_to_duration;
+use crate::ext::time::{
+    SystemTimeOutOfRange, duration_to_system_time, opt_system_time_to_duration,
+    saturating_duration_to_system_time,
+};
 use libpna::Metadata;
 use std::{fs, io, path::Path, time::SystemTime};
 
@@ -12,6 +15,39 @@ pub trait MetadataTimeExt: private::Sealed {
     fn modified_time(&self) -> Option<SystemTime>;
     /// Returns the accessed time.
     fn accessed_time(&self) -> Option<SystemTime>;
+    /// Returns the created time, or `Err` if the stored duration is outside
+    /// the platform's representable [`SystemTime`] range.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SystemTimeOutOfRange`] when the stored duration cannot be
+    /// represented as a [`SystemTime`] on the current platform.
+    fn try_created_time(&self) -> Result<Option<SystemTime>, SystemTimeOutOfRange>;
+    /// Returns the modified time, or `Err` if the stored duration is outside
+    /// the platform's representable [`SystemTime`] range.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SystemTimeOutOfRange`] when the stored duration cannot be
+    /// represented as a [`SystemTime`] on the current platform.
+    fn try_modified_time(&self) -> Result<Option<SystemTime>, SystemTimeOutOfRange>;
+    /// Returns the accessed time, or `Err` if the stored duration is outside
+    /// the platform's representable [`SystemTime`] range.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`SystemTimeOutOfRange`] when the stored duration cannot be
+    /// represented as a [`SystemTime`] on the current platform.
+    fn try_accessed_time(&self) -> Result<Option<SystemTime>, SystemTimeOutOfRange>;
+    /// Returns the created time, clamping an out-of-range stored duration to
+    /// the platform's representable bound.
+    fn saturating_created_time(&self) -> Option<SystemTime>;
+    /// Returns the modified time, clamping an out-of-range stored duration to
+    /// the platform's representable bound.
+    fn saturating_modified_time(&self) -> Option<SystemTime>;
+    /// Returns the accessed time, clamping an out-of-range stored duration to
+    /// the platform's representable bound.
+    fn saturating_accessed_time(&self) -> Option<SystemTime>;
     /// Sets the created time.
     fn with_created_time(self, time: impl Into<Option<SystemTime>>) -> Self;
     /// Sets the modified time.
@@ -76,6 +112,36 @@ impl MetadataTimeExt for Metadata {
     #[inline]
     fn accessed_time(&self) -> Option<SystemTime> {
         self.accessed().map(|it| SystemTime::UNIX_EPOCH + it)
+    }
+
+    #[inline]
+    fn try_created_time(&self) -> Result<Option<SystemTime>, SystemTimeOutOfRange> {
+        self.created().map(duration_to_system_time).transpose()
+    }
+
+    #[inline]
+    fn try_modified_time(&self) -> Result<Option<SystemTime>, SystemTimeOutOfRange> {
+        self.modified().map(duration_to_system_time).transpose()
+    }
+
+    #[inline]
+    fn try_accessed_time(&self) -> Result<Option<SystemTime>, SystemTimeOutOfRange> {
+        self.accessed().map(duration_to_system_time).transpose()
+    }
+
+    #[inline]
+    fn saturating_created_time(&self) -> Option<SystemTime> {
+        self.created().map(saturating_duration_to_system_time)
+    }
+
+    #[inline]
+    fn saturating_modified_time(&self) -> Option<SystemTime> {
+        self.modified().map(saturating_duration_to_system_time)
+    }
+
+    #[inline]
+    fn saturating_accessed_time(&self) -> Option<SystemTime> {
+        self.accessed().map(saturating_duration_to_system_time)
     }
 
     /// Sets the created time.
@@ -263,4 +329,38 @@ fn fs_metadata_to_metadata(meta: &fs::Metadata) -> io::Result<Metadata> {
         .with_accessed_time(meta.accessed().ok())
         .with_created_time(meta.created().ok())
         .with_modified_time(meta.modified().ok()))
+}
+
+#[cfg(test)]
+mod time_ext_tests {
+    use super::*;
+    use libpna::Duration;
+
+    #[test]
+    fn try_modified_time_absent_is_ok_none() {
+        let m = Metadata::new();
+        assert_eq!(m.try_modified_time(), Ok(None));
+    }
+
+    #[test]
+    fn try_modified_time_ordinary_is_ok_some() {
+        let m = Metadata::new().with_modified(Some(Duration::seconds(1_000)));
+        assert_eq!(
+            m.try_modified_time(),
+            Ok(Some(
+                SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_000)
+            ))
+        );
+    }
+
+    #[test]
+    fn saturating_modified_time_out_of_range_is_some_clamped() {
+        let m = Metadata::new().with_modified(Some(Duration::MAX));
+        assert!(m.saturating_modified_time().is_some());
+    }
+
+    #[test]
+    fn saturating_modified_time_absent_is_none() {
+        assert_eq!(Metadata::new().saturating_modified_time(), None);
+    }
 }

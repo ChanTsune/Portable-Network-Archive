@@ -106,7 +106,6 @@ fn platform_clamp_target(into_future: bool) -> SystemTime {
 /// `None` from the platform's checked arithmetic (the stored duration is
 /// outside the platform's representable `SystemTime` range) becomes
 /// `Err(SystemTimeOutOfRange)`. Never panics.
-#[allow(dead_code)] // consumed by MetadataTimeExt in the next change
 pub(crate) fn duration_to_system_time(d: Duration) -> Result<SystemTime, SystemTimeOutOfRange> {
     let magnitude = d.unsigned_abs();
     let converted = if d.is_negative() {
@@ -120,7 +119,6 @@ pub(crate) fn duration_to_system_time(d: Duration) -> Result<SystemTime, SystemT
 /// Converts a libpna [`Duration`] to a [`SystemTime`], clamping to the
 /// platform's representable bound instead of failing. Saturation is the
 /// caller's explicit, named choice.
-#[allow(dead_code)] // consumed by MetadataTimeExt in the next change
 pub(crate) fn saturating_duration_to_system_time(d: Duration) -> SystemTime {
     duration_to_system_time(d).unwrap_or_else(|_| platform_clamp_target(!d.is_negative()))
 }
