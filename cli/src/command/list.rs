@@ -421,9 +421,9 @@ impl TableRow {
             permission: metadata.permission().cloned(),
             raw_size: metadata.raw_file_size(),
             compressed_size: metadata.compressed_size(),
-            created: metadata.created_time(),
-            modified: metadata.modified_time(),
-            accessed: metadata.accessed_time(),
+            created: metadata.saturating_created_time(),
+            modified: metadata.saturating_modified_time(),
+            accessed: metadata.saturating_accessed_time(),
             entry_type: match entry.data_kind() {
                 DataKind::SymbolicLink => EntryType::SymbolicLink(
                     entry.name().to_string(),

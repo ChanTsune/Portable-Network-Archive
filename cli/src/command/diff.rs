@@ -182,7 +182,7 @@ fn compare_file_metadata<T: AsRef<[u8]>>(
     }
 
     // Compare mtime
-    if let Some(archive_mtime) = entry.metadata().modified_time()
+    if let Some(archive_mtime) = entry.metadata().saturating_modified_time()
         && let Ok(fs_mtime) = fs_meta.modified()
         && !times_equal(archive_mtime, fs_mtime)
     {
@@ -232,7 +232,7 @@ fn compare_directory_metadata<T: AsRef<[u8]>>(
 
     // Only compare mtime and ownership with --full-compare
     if options.full_compare {
-        if let Some(archive_mtime) = entry.metadata().modified_time()
+        if let Some(archive_mtime) = entry.metadata().saturating_modified_time()
             && let Ok(fs_mtime) = fs_meta.modified()
             && !times_equal(archive_mtime, fs_mtime)
         {

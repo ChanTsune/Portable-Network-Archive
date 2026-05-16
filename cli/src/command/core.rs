@@ -1900,8 +1900,8 @@ pub(crate) fn transform_archive_entries<R: io::Read>(
             if filter.excluded(entry.header().path()) {
                 return Ok(());
             }
-            let ctime = entry.metadata().created_time();
-            let mtime = entry.metadata().modified_time();
+            let ctime = entry.metadata().saturating_created_time();
+            let mtime = entry.metadata().saturating_modified_time();
             if !time_filters.matches(ctime, mtime) {
                 return Ok(());
             }
@@ -2053,9 +2053,9 @@ fn transform_normal_entry(
             ctime,
             atime,
         } => {
-            let created = ctime.resolve(metadata.created_time());
-            let modified = mtime.resolve(metadata.modified_time());
-            let accessed = atime.resolve(metadata.accessed_time());
+            let created = ctime.resolve(metadata.saturating_created_time());
+            let modified = mtime.resolve(metadata.saturating_modified_time());
+            let accessed = atime.resolve(metadata.saturating_accessed_time());
             metadata = metadata
                 .with_created_time(created)
                 .with_modified_time(modified)
