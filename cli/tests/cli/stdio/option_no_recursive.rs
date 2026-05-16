@@ -1,4 +1,4 @@
-use crate::utils::{EmbedExt, TestResources, setup};
+use crate::utils::{EmbedExt, TestResources, list_lines, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
 
@@ -21,12 +21,12 @@ fn stdio_list_recursive_by_default() {
         // Without -n, matches directory and all children
         // Directory entries have trailing slash in this archive
         .success()
-        .stdout(concat!(
-            "raw/images/\n",
-            "raw/images/icon.svg\n",
-            "raw/images/icon.png\n",
-            "raw/images/icon.bmp\n",
-        ));
+        .stdout(list_lines(&[
+            "raw/images/",
+            "raw/images/icon.svg",
+            "raw/images/icon.png",
+            "raw/images/icon.bmp",
+        ]));
 }
 
 /// Precondition: An archive contains entries under 'raw/images/' directory.
@@ -47,7 +47,7 @@ fn stdio_list_no_recursive_matches_exact_only() {
         // With -n, only matches the exact entry, not children
         // Directory entries have trailing slash in this archive
         .success()
-        .stdout("raw/images/\n");
+        .stdout(list_lines(&["raw/images/"]));
 }
 
 /// Precondition: An archive contains entries under 'raw/images/' directory.
@@ -73,7 +73,7 @@ fn stdio_list_no_recursive_long_form() {
         .assert()
         // Directory entries have trailing slash in this archive
         .success()
-        .stdout("raw/images/\n");
+        .stdout(list_lines(&["raw/images/"]));
 }
 
 /// Precondition: An archive contains multiple file entries.
@@ -92,7 +92,7 @@ fn stdio_list_no_recursive_exact_file_path() {
         .args(["experimental", "stdio", "--list", "-n", "raw/text.txt"])
         .assert()
         .success()
-        .stdout("raw/text.txt\n");
+        .stdout(list_lines(&["raw/text.txt"]));
 }
 
 /// Precondition: An archive contains entries like 'raw/images/icon.png'.
@@ -112,7 +112,7 @@ fn stdio_list_no_recursive_glob_still_works() {
         .assert()
         // Glob patterns work regardless of -n
         .success()
-        .stdout("raw/images/icon.png\n");
+        .stdout(list_lines(&["raw/images/icon.png"]));
 }
 
 /// Precondition: An archive contains entries.
@@ -140,7 +140,7 @@ fn stdio_list_no_recursive_multiple_patterns() {
         // Only exact directory entries, no children
         // Directory entries have trailing slash in stdio output
         .success()
-        .stdout(concat!("raw/images/\n", "raw/pna/\n",));
+        .stdout(list_lines(&["raw/images/", "raw/pna/"]));
 }
 
 /// Precondition: An archive contains entries but no exact match for pattern.

@@ -1,4 +1,4 @@
-use crate::utils::setup;
+use crate::utils::{list_lines, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use pna::{Archive, EntryBuilder, ReadOptions, WriteOptions};
 use predicates::prelude::*;
@@ -116,7 +116,7 @@ fn stdio_list_ignore_zeros_controls_concatenated_archive_handling() {
         .args(["experimental", "stdio", "--list"])
         .assert()
         .success()
-        .stdout("a.txt\n")
+        .stdout(list_lines(&["a.txt"]))
         .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
 
     let mut cmd = cargo_bin_cmd!("pna");
@@ -130,7 +130,7 @@ fn stdio_list_ignore_zeros_controls_concatenated_archive_handling() {
         ])
         .assert()
         .success()
-        .stdout("a.txt\nb.txt\n")
+        .stdout(list_lines(&["a.txt", "b.txt"]))
         .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
 }
 
@@ -152,7 +152,7 @@ fn stdio_list_ignore_zeros_with_fast_read_continues_into_next_archive() {
         ])
         .assert()
         .success()
-        .stdout("b.txt\n")
+        .stdout(list_lines(&["b.txt"]))
         .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
 }
 
@@ -665,7 +665,7 @@ fn stdio_append_ignore_zeros_handles_concatenated_archive_before_split_archive()
     ])
     .assert()
     .success()
-    .stdout("a.txt\nsplit.txt\nc.txt\n")
+    .stdout(list_lines(&["a.txt", "split.txt", "c.txt"]))
     .stderr(predicate::str::contains(STDIO_DEPRECATION_WARNING));
 }
 

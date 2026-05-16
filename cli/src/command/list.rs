@@ -532,6 +532,7 @@ fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::R
         out_to_stderr: false,
         color: ctx.color(),
         time_filters,
+        line_ending: LineEnding::default(),
     };
     let archive = args.file.archive();
     let files = args.file.files();
@@ -586,6 +587,23 @@ fn list_archive(ctx: &crate::cli::GlobalContext, args: ListCommand) -> anyhow::R
     print_entries(entries, files_globs, filter, options)
 }
 
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) enum LineEnding {
+    #[default]
+    Lf,
+    Crlf,
+}
+
+impl LineEnding {
+    #[inline]
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            LineEnding::Lf => "\n",
+            LineEnding::Crlf => "\r\n",
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum TimeFormat {
     Auto(SystemTime),
@@ -630,6 +648,7 @@ pub(crate) struct ListOptions {
     pub(crate) out_to_stderr: bool,
     pub(crate) color: ColorChoice,
     pub(crate) time_filters: TimeFilters,
+    pub(crate) line_ending: LineEnding,
 }
 
 pub(crate) fn run_list_archive<'a>(
@@ -827,9 +846,10 @@ fn bsd_tar_list_entries_to(
 
         // permission nlink uname gname size mtime name link
         // ex: -rw-r--r--  0 1000   1000        0 Jan  1  1980 f
-        writeln!(
+        write!(
             out,
-            "{perm} {nlink} {uname:<u_width$} {gname}{size_str:>size_width$} {mtime} {name}"
+            "{perm} {nlink} {uname:<u_width$} {gname}{size_str:>size_width$} {mtime} {name}{}",
+            options.line_ending.as_str()
         )?;
     }
     Ok(())
@@ -866,7 +886,7 @@ impl<'a> Display for SimpleListDisplay<'a> {
                 EntryType::SymbolicLink(_, _) if self.options.classify => f.write_char('@')?,
                 _ => (),
             };
-            f.write_char('\n')
+            f.write_str(self.options.line_ending.as_str())
         })
     }
 }
@@ -1631,5 +1651,20 @@ mod tests {
             datetime(TimeFormat::Long, &tz, past_jiff_window),
             "-- -- ----"
         );
+    }
+
+    #[test]
+    fn line_ending_lf_as_str() {
+        assert_eq!(LineEnding::Lf.as_str(), "\n");
+    }
+
+    #[test]
+    fn line_ending_crlf_as_str() {
+        assert_eq!(LineEnding::Crlf.as_str(), "\r\n");
+    }
+
+    #[test]
+    fn line_ending_default_is_lf() {
+        assert_eq!(LineEnding::default(), LineEnding::Lf);
     }
 }

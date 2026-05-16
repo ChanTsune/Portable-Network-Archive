@@ -20,7 +20,7 @@ use crate::{
         },
         create::{CreationContext, create_archive_file},
         extract::{OutputOption, OverwriteStrategy, run_extract_archive_reader},
-        list::{Format, ListOptions, TimeField, TimeFormat},
+        list::{Format, LineEnding, ListOptions, TimeField, TimeFormat},
         update::run_update_archive,
     },
     utils::{
@@ -1214,6 +1214,11 @@ fn run_list_archive(args: BsdtarCommand) -> anyhow::Result<()> {
         out_to_stderr: args.to_stdout,
         color: ColorChoice::Auto,
         time_filters,
+        line_ending: if cfg!(target_os = "windows") {
+            LineEnding::Crlf
+        } else {
+            LineEnding::Lf
+        },
     };
     let files_globs = BsdGlobMatcher::new(args.files.iter().map(|it| it.as_str()))
         .with_no_recursive(args.no_recursive);

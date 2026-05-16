@@ -73,6 +73,33 @@ pub fn setup() {
     std::env::set_current_dir(env!("CARGO_TARGET_TMPDIR")).expect("Failed to set current dir");
 }
 
+/// Record separator that the bsdtar-compat list output is expected to emit on
+/// the host platform. Reference bsdtar relies on the C runtime's text-mode
+/// translation, so Windows list output ends each record with CRLF while every
+/// other platform keeps a bare LF.
+pub fn list_record_separator() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "\r\n"
+    } else {
+        "\n"
+    }
+}
+
+/// Build the expected stdout payload for a list command by joining each record
+/// with the platform's record separator and terminating the final record with
+/// the same separator.
+pub fn list_lines(records: &[&str]) -> String {
+    let separator = list_record_separator();
+    let mut out = String::with_capacity(
+        records.iter().map(|r| r.len()).sum::<usize>() + separator.len() * records.len(),
+    );
+    for record in records {
+        out.push_str(record);
+        out.push_str(separator);
+    }
+    out
+}
+
 pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> {
     fs::create_dir_all(&dst)?;
     for entry in fs::read_dir(src)? {
