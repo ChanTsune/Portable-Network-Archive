@@ -700,6 +700,13 @@ where
                 accessed: atime,
                 permission,
                 link_target_type,
+                owner_uid: None,
+                owner_gid: None,
+                owner_user_name: None,
+                owner_group_name: None,
+                owner_user_sid: None,
+                owner_group_sid: None,
+                permission_mode: None,
             },
             data,
             xattrs,
@@ -724,6 +731,13 @@ where
             accessed,
             permission,
             link_target_type,
+            owner_uid: _owner_uid,
+            owner_gid: _owner_gid,
+            owner_user_name: _owner_user_name,
+            owner_group_name: _owner_group_name,
+            owner_user_sid: _owner_user_sid,
+            owner_group_sid: _owner_group_sid,
+            permission_mode: _permission_mode,
         } = &self.metadata;
 
         total += (ChunkType::FHED, self.header.to_bytes()).write_chunk_in(writer)?;
@@ -793,6 +807,13 @@ where
             accessed,
             permission,
             link_target_type,
+            owner_uid: _owner_uid,
+            owner_gid: _owner_gid,
+            owner_user_name: _owner_user_name,
+            owner_group_name: _owner_group_name,
+            owner_user_sid: _owner_user_sid,
+            owner_group_sid: _owner_group_sid,
+            permission_mode: _permission_mode,
         } = self.metadata;
         let mut vec = Vec::new();
         vec.push(RawChunk::from_data(ChunkType::FHED, self.header.to_bytes()));

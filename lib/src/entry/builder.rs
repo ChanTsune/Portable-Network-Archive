@@ -8,8 +8,9 @@ use crate::{
     compress::CompressionWriter,
     entry::{
         DataKind, Entry, EntryHeader, EntryName, EntryReference, ExtendedAttribute, LinkTargetType,
-        Metadata, NormalEntry, Permission, SolidEntry, SolidHeader, WriteCipher, WriteOption,
-        WriteOptions, get_writer, get_writer_context, private::SealedEntryExt,
+        Metadata, NormalEntry, OwnerGid, OwnerGroupName, OwnerGroupSid, OwnerUid, OwnerUserName,
+        OwnerUserSid, Permission, PermissionMode, SolidEntry, SolidHeader, WriteCipher,
+        WriteOption, WriteOptions, get_writer, get_writer_context, private::SealedEntryExt,
     },
     io::{FlattenWriter, TryIntoInner},
 };
@@ -148,6 +149,13 @@ pub struct EntryBuilder {
     last_modified: Option<Duration>,
     accessed: Option<Duration>,
     permission: Option<Permission>,
+    owner_uid: Option<OwnerUid>,
+    owner_gid: Option<OwnerGid>,
+    owner_user_name: Option<OwnerUserName>,
+    owner_group_name: Option<OwnerGroupName>,
+    owner_user_sid: Option<OwnerUserSid>,
+    owner_group_sid: Option<OwnerGroupSid>,
+    permission_mode: Option<PermissionMode>,
     link_target_type: Option<LinkTargetType>,
     store_file_size: bool,
     file_size: u128,
@@ -166,6 +174,13 @@ impl EntryBuilder {
             last_modified: None,
             accessed: None,
             permission: None,
+            owner_uid: None,
+            owner_gid: None,
+            owner_user_name: None,
+            owner_group_name: None,
+            owner_user_sid: None,
+            owner_group_sid: None,
+            permission_mode: None,
             link_target_type: None,
             store_file_size: true,
             file_size: 0,
@@ -297,6 +312,49 @@ impl EntryBuilder {
         self
     }
 
+    /// Sets the owner user id facet (`fUId`).
+    #[inline]
+    pub fn owner_uid(&mut self, value: impl Into<Option<OwnerUid>>) -> &mut Self {
+        self.owner_uid = value.into();
+        self
+    }
+    /// Sets the owner group id facet (`fGId`).
+    #[inline]
+    pub fn owner_gid(&mut self, value: impl Into<Option<OwnerGid>>) -> &mut Self {
+        self.owner_gid = value.into();
+        self
+    }
+    /// Sets the owner user name facet (`fONm`).
+    #[inline]
+    pub fn owner_user_name(&mut self, value: impl Into<Option<OwnerUserName>>) -> &mut Self {
+        self.owner_user_name = value.into();
+        self
+    }
+    /// Sets the owner group name facet (`fGNm`).
+    #[inline]
+    pub fn owner_group_name(&mut self, value: impl Into<Option<OwnerGroupName>>) -> &mut Self {
+        self.owner_group_name = value.into();
+        self
+    }
+    /// Sets the owner user SID facet (`fOSi`).
+    #[inline]
+    pub fn owner_user_sid(&mut self, value: impl Into<Option<OwnerUserSid>>) -> &mut Self {
+        self.owner_user_sid = value.into();
+        self
+    }
+    /// Sets the owner group SID facet (`fGSi`).
+    #[inline]
+    pub fn owner_group_sid(&mut self, value: impl Into<Option<OwnerGroupSid>>) -> &mut Self {
+        self.owner_group_sid = value.into();
+        self
+    }
+    /// Sets the POSIX permission mode facet (`fMOd`).
+    #[inline]
+    pub fn permission_mode(&mut self, value: impl Into<Option<PermissionMode>>) -> &mut Self {
+        self.permission_mode = value.into();
+        self
+    }
+
     /// Sets the link target type for link entries.
     ///
     /// Combined with [`DataKind`](crate::DataKind), this determines the link type:
@@ -392,6 +450,13 @@ impl EntryBuilder {
             accessed: self.accessed,
             permission: self.permission,
             link_target_type: self.link_target_type,
+            owner_uid: self.owner_uid,
+            owner_gid: self.owner_gid,
+            owner_user_name: self.owner_user_name,
+            owner_group_name: self.owner_group_name,
+            owner_user_sid: self.owner_user_sid,
+            owner_group_sid: self.owner_group_sid,
+            permission_mode: self.permission_mode,
         };
         Ok(NormalEntry {
             header: self.header,
