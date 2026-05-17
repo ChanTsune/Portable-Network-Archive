@@ -950,6 +950,27 @@ mod tests {
     }
 
     #[test]
+    fn owner_name_facets_round_trip_via_entry() {
+        use crate::entry::{OwnerGroupName, OwnerUserName};
+        use crate::{Archive, EntryBuilder, WriteOptions};
+        let mut buf = Vec::new();
+        {
+            let mut archive = Archive::write_header(&mut buf).unwrap();
+            let mut b = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
+            b.owner_user_name(OwnerUserName::new("alice").unwrap());
+            b.owner_group_name(OwnerGroupName::new("").unwrap());
+            let entry = b.build().unwrap();
+            archive.add_entry(entry).unwrap();
+            archive.finalize().unwrap();
+        }
+        let mut archive = Archive::read_header(&buf[..]).unwrap();
+        let entry = archive.entries().skip_solid().next().unwrap().unwrap();
+        let m = entry.metadata();
+        assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("alice"));
+        assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("")); // recorded empty name, NOT absent
+    }
+
+    #[test]
     fn link_target_type_roundtrip_unknown() {
         let ltp = LinkTargetType::Unknown;
         assert_eq!(
