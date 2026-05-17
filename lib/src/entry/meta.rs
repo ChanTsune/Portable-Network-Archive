@@ -971,6 +971,55 @@ mod tests {
     }
 
     #[test]
+    fn owner_sid_facets_round_trip_via_entry() {
+        use crate::entry::{OwnerGroupSid, OwnerUserSid};
+        use crate::{Archive, EntryBuilder, WriteOptions};
+        let mut buf = Vec::new();
+        {
+            let mut archive = Archive::write_header(&mut buf).unwrap();
+            let mut b = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
+            b.owner_user_sid(OwnerUserSid::new("S-1-5-21-1-2-3-1001").unwrap());
+            b.owner_group_sid(OwnerGroupSid::new("S-1-5-32-544").unwrap());
+            let entry = b.build().unwrap();
+            archive.add_entry(entry).unwrap();
+            archive.finalize().unwrap();
+        }
+        let mut archive = Archive::read_header(&buf[..]).unwrap();
+        let entry = archive.entries().skip_solid().next().unwrap().unwrap();
+        let m = entry.metadata();
+        assert_eq!(
+            m.owner_user_sid().map(|v| v.as_str()),
+            Some("S-1-5-21-1-2-3-1001")
+        );
+        assert_eq!(
+            m.owner_group_sid().map(|v| v.as_str()),
+            Some("S-1-5-32-544")
+        );
+    }
+
+    #[test]
+    fn fosi_length_prefixed_round_trip_and_empty() {
+        use crate::entry::{OwnerGroupSid, OwnerUserSid};
+        use crate::{Archive, EntryBuilder, WriteOptions};
+        let mut buf = Vec::new();
+        {
+            let mut a = Archive::write_header(&mut buf).unwrap();
+            let mut b = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
+            b.owner_user_sid(OwnerUserSid::new("S-1-5-21-1-2-3-1001").unwrap());
+            b.owner_group_sid(OwnerGroupSid::new("").unwrap()); // empty -> [0] -> Some("")
+            a.add_entry(b.build().unwrap()).unwrap();
+            a.finalize().unwrap();
+        }
+        let mut a = Archive::read_header(&buf[..]).unwrap();
+        let e = a.entries().skip_solid().next().unwrap().unwrap();
+        assert_eq!(
+            e.metadata().owner_user_sid().map(|v| v.as_str()),
+            Some("S-1-5-21-1-2-3-1001")
+        );
+        assert_eq!(e.metadata().owner_group_sid().map(|v| v.as_str()), Some(""));
+    }
+
+    #[test]
     fn link_target_type_roundtrip_unknown() {
         let ltp = LinkTargetType::Unknown;
         assert_eq!(
