@@ -10,7 +10,7 @@ use crate::{
             collect_split_archives,
         },
     },
-    utils::{GlobPatterns, PathPartExt, cli_parsers::parse_xattr_name, env::NamedTempFile},
+    utils::{GlobPatterns, PathPartExt, env::NamedTempFile},
 };
 use base64::Engine;
 use bstr::{ByteSlice, io::BufReadExt};
@@ -89,12 +89,7 @@ impl Command for GetXattrCommand {
 pub(crate) struct SetXattrCommand {
     #[command(flatten)]
     file: FileArgsCompat,
-    #[arg(
-        short,
-        long,
-        value_parser = parse_xattr_name,
-        help = "Name of extended attribute"
-    )]
+    #[arg(short, long, help = "Name of extended attribute")]
     name: Option<pna::XattrName>,
     #[arg(short, long, help = "Value of extended attribute")]
     value: Option<Value>,

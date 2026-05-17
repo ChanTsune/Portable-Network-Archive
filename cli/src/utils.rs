@@ -1,6 +1,5 @@
 #[cfg(feature = "acl")]
 pub(crate) mod acl;
-pub(crate) mod cli_parsers;
 pub(crate) mod env;
 pub(crate) mod fmt;
 pub(crate) mod fs;
