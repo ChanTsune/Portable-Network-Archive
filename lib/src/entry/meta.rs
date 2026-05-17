@@ -929,6 +929,27 @@ mod tests {
     }
 
     #[test]
+    fn owner_id_facets_round_trip_via_entry() {
+        use crate::entry::{OwnerGid, OwnerUid};
+        use crate::{Archive, EntryBuilder, WriteOptions};
+        let mut buf = Vec::new();
+        {
+            let mut archive = Archive::write_header(&mut buf).unwrap();
+            let mut b = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
+            b.owner_uid(OwnerUid::from(1000));
+            b.owner_gid(OwnerGid::from(2000));
+            let entry = b.build().unwrap();
+            archive.add_entry(entry).unwrap();
+            archive.finalize().unwrap();
+        }
+        let mut archive = Archive::read_header(&buf[..]).unwrap();
+        let entry = archive.entries().skip_solid().next().unwrap().unwrap();
+        let m = entry.metadata();
+        assert_eq!(m.owner_uid().map(|v| v.get()), Some(1000));
+        assert_eq!(m.owner_gid().map(|v| v.get()), Some(2000));
+    }
+
+    #[test]
     fn link_target_type_roundtrip_unknown() {
         let ltp = LinkTargetType::Unknown;
         assert_eq!(
