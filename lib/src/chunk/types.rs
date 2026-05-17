@@ -146,6 +146,27 @@ impl ChunkType {
     /// Link target type.
     #[allow(non_upper_case_globals)]
     pub const fLTP: ChunkType = ChunkType(*b"fLTP");
+    /// Owner user id.
+    #[allow(non_upper_case_globals)]
+    pub const fUId: ChunkType = ChunkType(*b"fUId");
+    /// Owner group id.
+    #[allow(non_upper_case_globals)]
+    pub const fGId: ChunkType = ChunkType(*b"fGId");
+    /// Owner user name.
+    #[allow(non_upper_case_globals)]
+    pub const fONm: ChunkType = ChunkType(*b"fONm");
+    /// Owner group name.
+    #[allow(non_upper_case_globals)]
+    pub const fGNm: ChunkType = ChunkType(*b"fGNm");
+    /// Owner user SID.
+    #[allow(non_upper_case_globals)]
+    pub const fOSi: ChunkType = ChunkType(*b"fOSi");
+    /// Owner group SID.
+    #[allow(non_upper_case_globals)]
+    pub const fGSi: ChunkType = ChunkType(*b"fGSi");
+    /// POSIX permission mode.
+    #[allow(non_upper_case_globals)]
+    pub const fMOd: ChunkType = ChunkType(*b"fMOd");
 
     /// Returns the length of the chunk type code.
     ///
