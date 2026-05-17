@@ -4,8 +4,9 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            PathFilter, ProcessAction, SplitArchiveReader, TimeFilterResolver, TimeFilters,
-            collect_split_archives, read_paths, run_read_entries, run_read_entries_stoppable,
+            MAX_LINK_TARGET_SIZE, PathFilter, ProcessAction, SplitArchiveReader,
+            TimeFilterResolver, TimeFilters, collect_split_archives, read_paths, run_read_entries,
+            run_read_entries_stoppable,
         },
     },
     ext::*,
@@ -429,10 +430,22 @@ impl TableRow {
                     entry.name().to_string(),
                     // Only read link target if needed (requires decompression)
                     if collect.link_target {
-                        entry
-                            .reader(ReadOptions::with_password(password))
-                            .and_then(io::read_to_string)
-                            .unwrap_or_else(|_| "-".into())
+                        (|| {
+                            let mut reader = entry.reader(ReadOptions::with_password(password))?;
+                            let mut s = String::new();
+                            reader
+                                .by_ref()
+                                .take(MAX_LINK_TARGET_SIZE as u64 + 1)
+                                .read_to_string(&mut s)?;
+                            if s.len() > MAX_LINK_TARGET_SIZE {
+                                return Err(io::Error::new(
+                                    io::ErrorKind::InvalidData,
+                                    "link target too long",
+                                ));
+                            }
+                            Ok(s)
+                        })()
+                        .unwrap_or_else(|_| "-".into())
                     } else {
                         String::new()
                     },
@@ -441,10 +454,22 @@ impl TableRow {
                     entry.name().to_string(),
                     // Only read link target if needed (requires decompression)
                     if collect.link_target {
-                        entry
-                            .reader(ReadOptions::with_password(password))
-                            .and_then(io::read_to_string)
-                            .unwrap_or_else(|_| "-".into())
+                        (|| {
+                            let mut reader = entry.reader(ReadOptions::with_password(password))?;
+                            let mut s = String::new();
+                            reader
+                                .by_ref()
+                                .take(MAX_LINK_TARGET_SIZE as u64 + 1)
+                                .read_to_string(&mut s)?;
+                            if s.len() > MAX_LINK_TARGET_SIZE {
+                                return Err(io::Error::new(
+                                    io::ErrorKind::InvalidData,
+                                    "link target too long",
+                                ));
+                            }
+                            Ok(s)
+                        })()
+                        .unwrap_or_else(|_| "-".into())
                     } else {
                         String::new()
                     },

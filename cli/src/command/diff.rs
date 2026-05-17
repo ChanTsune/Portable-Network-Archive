@@ -2,7 +2,7 @@ use crate::{
     cli::{FileArgs, PasswordArgs},
     command::{
         Command, ask_password,
-        core::{SplitArchiveReader, collect_split_archives},
+        core::{MAX_LINK_TARGET_SIZE, SplitArchiveReader, collect_split_archives},
     },
     utils::{BsdGlobMatcher, io::streams_equal},
 };
@@ -308,7 +308,16 @@ fn compare_entry<T: AsRef<[u8]>>(
             let link = fs::read_link(path)?;
             let mut reader = entry.reader(ReadOptions::with_password(password))?;
             let mut link_str = String::new();
-            reader.read_to_string(&mut link_str)?;
+            reader
+                .by_ref()
+                .take(MAX_LINK_TARGET_SIZE as u64 + 1)
+                .read_to_string(&mut link_str)?;
+            if link_str.len() > MAX_LINK_TARGET_SIZE {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "link target too long",
+                ));
+            }
             if link.as_path() != Path::new(&link_str) {
                 println!("{}", DiffKind::SymlinkDiffers.display(path_str));
             }
@@ -319,7 +328,16 @@ fn compare_entry<T: AsRef<[u8]>>(
         DataKind::HardLink if meta.is_file() => {
             let mut reader = entry.reader(ReadOptions::with_password(password))?;
             let mut target = String::new();
-            reader.read_to_string(&mut target)?;
+            reader
+                .by_ref()
+                .take(MAX_LINK_TARGET_SIZE as u64 + 1)
+                .read_to_string(&mut target)?;
+            if target.len() > MAX_LINK_TARGET_SIZE {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "link target too long",
+                ));
+            }
 
             match is_same_file(path, &target) {
                 Ok(true) => (),

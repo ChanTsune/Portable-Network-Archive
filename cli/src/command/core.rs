@@ -153,6 +153,10 @@ pub(crate) const SPLIT_ARCHIVE_OVERHEAD_BYTES: usize =
 /// Minimum bytes required for a split archive part (overhead + one minimal chunk).
 pub(crate) const MIN_SPLIT_PART_BYTES: usize = SPLIT_ARCHIVE_OVERHEAD_BYTES + MIN_CHUNK_BYTES_SIZE;
 
+/// Maximum size of a link target in bytes.
+/// Prevents memory exhaustion when reading link targets from untrusted archives.
+pub(crate) const MAX_LINK_TARGET_SIZE: usize = 64 * 1024;
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) enum XattrStrategy {
     Never,

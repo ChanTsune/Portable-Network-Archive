@@ -8,11 +8,11 @@ use crate::{
     command::{
         Command, ask_password,
         core::{
-            AclStrategy, FflagsStrategy, KeepOptions, MacMetadataStrategy, ModeStrategy,
-            OwnerOptions, OwnerStrategy, PathFilter, PathTransformers, PathnameEditor,
-            PermissionStrategyResolver, ProcessAction, SafeWriter, TimeFilterResolver, TimeFilters,
-            TimestampStrategy, TimestampStrategyResolver, Umask, XattrStrategy, apply_chroot,
-            collect_split_archives,
+            AclStrategy, FflagsStrategy, KeepOptions, MAX_LINK_TARGET_SIZE, MacMetadataStrategy,
+            ModeStrategy, OwnerOptions, OwnerStrategy, PathFilter, PathTransformers,
+            PathnameEditor, PermissionStrategyResolver, ProcessAction, SafeWriter,
+            TimeFilterResolver, TimeFilters, TimestampStrategy, TimestampStrategyResolver, Umask,
+            XattrStrategy, apply_chroot, collect_split_archives,
             path_lock::OrderedPathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, run_process_archive, run_process_archive_stoppable,
@@ -1423,8 +1423,18 @@ where
 
     match item.header().data_kind() {
         DataKind::SymbolicLink => {
-            let reader = item.reader(ReadOptions::with_password(password))?;
-            let original = io::read_to_string(reader)?;
+            let mut reader = item.reader(ReadOptions::with_password(password))?;
+            let mut original = String::new();
+            reader
+                .by_ref()
+                .take(MAX_LINK_TARGET_SIZE as u64 + 1)
+                .read_to_string(&mut original)?;
+            if original.len() > MAX_LINK_TARGET_SIZE {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "link target too long",
+                ));
+            }
             let original = pathname_editor.edit_symlink(original.as_ref());
             if !allow_unsafe_links && is_unsafe_link(&original) {
                 log::warn!(
@@ -1439,8 +1449,18 @@ where
             symlink_with_type(&original, &path, link_target_type)?;
         }
         DataKind::HardLink => {
-            let reader = item.reader(ReadOptions::with_password(password))?;
-            let original = io::read_to_string(reader)?;
+            let mut reader = item.reader(ReadOptions::with_password(password))?;
+            let mut original = String::new();
+            reader
+                .by_ref()
+                .take(MAX_LINK_TARGET_SIZE as u64 + 1)
+                .read_to_string(&mut original)?;
+            if original.len() > MAX_LINK_TARGET_SIZE {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "link target too long",
+                ));
+            }
             let Some((original, had_root)) = pathname_editor.edit_hardlink(original.as_ref())
             else {
                 log::warn!(
