@@ -653,6 +653,7 @@ where
         let mut owner_group_name = None;
         let mut owner_user_sid = None;
         let mut owner_group_sid = None;
+        let mut permission_mode = None;
         for chunk in chunks {
             match chunk.ty {
                 ChunkType::FEND => break,
@@ -687,6 +688,9 @@ where
                 }
                 ChunkType::fGSi => {
                     owner_group_sid = Some(OwnerGroupSid::try_from_bytes(chunk.data())?)
+                }
+                ChunkType::fMOd => {
+                    permission_mode = Some(PermissionMode::try_from_bytes(chunk.data())?)
                 }
                 ChunkType::xATR => xattrs.push(ExtendedAttribute::try_from_bytes(chunk.data())?),
                 ChunkType::fLTP => link_target_type = LinkTargetType::try_from_bytes(chunk.data())?,
@@ -726,7 +730,7 @@ where
                 owner_group_name,
                 owner_user_sid,
                 owner_group_sid,
-                permission_mode: None,
+                permission_mode,
             },
             data,
             xattrs,
@@ -757,7 +761,7 @@ where
             owner_group_name,
             owner_user_sid,
             owner_group_sid,
-            permission_mode: _permission_mode,
+            permission_mode,
         } = &self.metadata;
 
         total += (ChunkType::FHED, self.header.to_bytes()).write_chunk_in(writer)?;
@@ -820,6 +824,9 @@ where
         if let Some(v) = owner_group_sid {
             total += (ChunkType::fGSi, v.to_bytes()).write_chunk_in(writer)?;
         }
+        if let Some(v) = permission_mode {
+            total += (ChunkType::fMOd, v.to_bytes()).write_chunk_in(writer)?;
+        }
         if let Some(ltp) = link_target_type {
             total += (ChunkType::fLTP, ltp.to_bytes()).write_chunk_in(writer)?;
         }
@@ -851,7 +858,7 @@ where
             owner_group_name,
             owner_user_sid,
             owner_group_sid,
-            permission_mode: _permission_mode,
+            permission_mode,
         } = self.metadata;
         let mut vec = Vec::new();
         vec.push(RawChunk::from_data(ChunkType::FHED, self.header.to_bytes()));
@@ -925,6 +932,9 @@ where
         }
         if let Some(v) = owner_group_sid {
             vec.push(RawChunk::from_data(ChunkType::fGSi, v.to_bytes()));
+        }
+        if let Some(v) = permission_mode {
+            vec.push(RawChunk::from_data(ChunkType::fMOd, v.to_bytes()));
         }
         if let Some(ltp) = link_target_type {
             vec.push(RawChunk::from_data(ChunkType::fLTP, ltp.to_bytes()));
