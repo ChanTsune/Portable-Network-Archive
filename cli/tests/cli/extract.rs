@@ -1,4 +1,5 @@
 mod hardlink;
+#[cfg(not(target_family = "wasm"))]
 mod link_limit;
 mod missing_file;
 #[cfg(not(target_family = "wasm"))]

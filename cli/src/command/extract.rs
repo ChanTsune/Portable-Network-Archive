@@ -1649,6 +1649,8 @@ where
     ) && item.mac_metadata().is_some();
     #[cfg(not(target_os = "macos"))]
     let skip_xattr_acl = false;
+    #[cfg(not(target_os = "macos"))]
+    let _ = skip_xattr_acl;
 
     #[cfg(unix)]
     if !skip_xattr_acl && matches!(keep_options.xattr_strategy, XattrStrategy::Always) {
