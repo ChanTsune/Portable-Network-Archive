@@ -651,6 +651,8 @@ where
         let mut owner_gid = None;
         let mut owner_user_name = None;
         let mut owner_group_name = None;
+        let mut owner_user_sid = None;
+        let mut owner_group_sid = None;
         for chunk in chunks {
             match chunk.ty {
                 ChunkType::FEND => break,
@@ -679,6 +681,12 @@ where
                 }
                 ChunkType::fGNm => {
                     owner_group_name = Some(OwnerGroupName::try_from_bytes(chunk.data())?)
+                }
+                ChunkType::fOSi => {
+                    owner_user_sid = Some(OwnerUserSid::try_from_bytes(chunk.data())?)
+                }
+                ChunkType::fGSi => {
+                    owner_group_sid = Some(OwnerGroupSid::try_from_bytes(chunk.data())?)
                 }
                 ChunkType::xATR => xattrs.push(ExtendedAttribute::try_from_bytes(chunk.data())?),
                 ChunkType::fLTP => link_target_type = LinkTargetType::try_from_bytes(chunk.data())?,
@@ -716,8 +724,8 @@ where
                 owner_gid,
                 owner_user_name,
                 owner_group_name,
-                owner_user_sid: None,
-                owner_group_sid: None,
+                owner_user_sid,
+                owner_group_sid,
                 permission_mode: None,
             },
             data,
@@ -747,8 +755,8 @@ where
             owner_gid,
             owner_user_name,
             owner_group_name,
-            owner_user_sid: _owner_user_sid,
-            owner_group_sid: _owner_group_sid,
+            owner_user_sid,
+            owner_group_sid,
             permission_mode: _permission_mode,
         } = &self.metadata;
 
@@ -806,6 +814,12 @@ where
         if let Some(v) = owner_group_name {
             total += (ChunkType::fGNm, v.to_bytes()).write_chunk_in(writer)?;
         }
+        if let Some(v) = owner_user_sid {
+            total += (ChunkType::fOSi, v.to_bytes()).write_chunk_in(writer)?;
+        }
+        if let Some(v) = owner_group_sid {
+            total += (ChunkType::fGSi, v.to_bytes()).write_chunk_in(writer)?;
+        }
         if let Some(ltp) = link_target_type {
             total += (ChunkType::fLTP, ltp.to_bytes()).write_chunk_in(writer)?;
         }
@@ -835,8 +849,8 @@ where
             owner_gid,
             owner_user_name,
             owner_group_name,
-            owner_user_sid: _owner_user_sid,
-            owner_group_sid: _owner_group_sid,
+            owner_user_sid,
+            owner_group_sid,
             permission_mode: _permission_mode,
         } = self.metadata;
         let mut vec = Vec::new();
@@ -905,6 +919,12 @@ where
         }
         if let Some(v) = owner_group_name {
             vec.push(RawChunk::from_data(ChunkType::fGNm, v.to_bytes()));
+        }
+        if let Some(v) = owner_user_sid {
+            vec.push(RawChunk::from_data(ChunkType::fOSi, v.to_bytes()));
+        }
+        if let Some(v) = owner_group_sid {
+            vec.push(RawChunk::from_data(ChunkType::fGSi, v.to_bytes()));
         }
         if let Some(ltp) = link_target_type {
             vec.push(RawChunk::from_data(ChunkType::fLTP, ltp.to_bytes()));
