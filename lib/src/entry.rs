@@ -881,10 +881,10 @@ where
             vec.push(RawChunk::from_data(ChunkType::fPRM, p.to_bytes()));
         }
         if let Some(v) = owner_uid {
-            vec.push(RawChunk::from_data(ChunkType::fUId, v.to_bytes().to_vec()));
+            vec.push(RawChunk::from_data(ChunkType::fUId, v.to_bytes()));
         }
         if let Some(v) = owner_gid {
-            vec.push(RawChunk::from_data(ChunkType::fGId, v.to_bytes().to_vec()));
+            vec.push(RawChunk::from_data(ChunkType::fGId, v.to_bytes()));
         }
         if let Some(ltp) = link_target_type {
             vec.push(RawChunk::from_data(ChunkType::fLTP, ltp.to_bytes()));
