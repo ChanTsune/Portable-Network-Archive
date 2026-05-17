@@ -1093,4 +1093,79 @@ mod tests {
             Some(LinkTargetType::File),
         );
     }
+
+    #[test]
+    fn all_owner_facets_and_fprm_coexist_round_trip() {
+        use crate::entry::{
+            OwnerGid, OwnerGroupName, OwnerGroupSid, OwnerUid, OwnerUserName, OwnerUserSid,
+            PermissionMode,
+        };
+        use crate::{Archive, EntryBuilder, WriteOptions};
+        let mut buf = Vec::new();
+        {
+            let mut archive = Archive::write_header(&mut buf).unwrap();
+            let mut b = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
+            // Legacy fPRM (Permission uses plain String uname/gname on this branch).
+            b.permission(Permission::new(
+                7,
+                "legacy".to_string(),
+                8,
+                "grp".to_string(),
+                0o600,
+            ));
+            // All 7 new owner facets.
+            b.owner_uid(OwnerUid::from(1));
+            b.owner_gid(OwnerGid::from(2));
+            b.owner_user_name(OwnerUserName::new("u").unwrap());
+            b.owner_group_name(OwnerGroupName::new("g").unwrap());
+            b.owner_user_sid(OwnerUserSid::new("S-1-1").unwrap());
+            b.owner_group_sid(OwnerGroupSid::new("S-1-2").unwrap());
+            b.permission_mode(PermissionMode::from(0o644));
+            let entry = b.build().unwrap();
+            archive.add_entry(entry).unwrap();
+            archive.finalize().unwrap();
+        }
+        let mut archive = Archive::read_header(&buf[..]).unwrap();
+        let entry = archive.entries().skip_solid().next().unwrap().unwrap();
+        let m = entry.metadata();
+        // All 7 new facets survived.
+        assert_eq!(m.owner_uid().map(|v| v.get()), Some(1));
+        assert_eq!(m.owner_gid().map(|v| v.get()), Some(2));
+        assert_eq!(m.owner_user_name().map(|v| v.as_str()), Some("u"));
+        assert_eq!(m.owner_group_name().map(|v| v.as_str()), Some("g"));
+        assert_eq!(m.owner_user_sid().map(|v| v.as_str()), Some("S-1-1"));
+        assert_eq!(m.owner_group_sid().map(|v| v.as_str()), Some("S-1-2"));
+        assert_eq!(m.permission_mode().map(|v| v.get()), Some(0o644));
+        // Legacy fPRM still round-trips intact, independently of the new owner facets.
+        let p = m
+            .permission()
+            .expect("fPRM permission must still be present");
+        assert_eq!(p.uid(), 7);
+        assert_eq!(p.uname(), "legacy");
+        assert_eq!(p.gid(), 8);
+        assert_eq!(p.gname(), "grp");
+        assert_eq!(p.permissions(), 0o600);
+    }
+
+    #[test]
+    fn fonm_trailing_bytes_after_length_are_ignored() {
+        use crate::{Archive, ChunkType, EntryBuilder, RawChunk, WriteOptions};
+        let mut buf = Vec::new();
+        {
+            let mut a = Archive::write_header(&mut buf).unwrap();
+            let mut b = EntryBuilder::new_file("g".into(), WriteOptions::store()).unwrap();
+            b.add_extra_chunk(RawChunk::from_data(
+                ChunkType::fONm,
+                vec![3, b'a', b'b', b'c', 0xFF],
+            ));
+            a.add_entry(b.build().unwrap()).unwrap();
+            a.finalize().unwrap();
+        }
+        let mut a = Archive::read_header(&buf[..]).unwrap();
+        let e = a.entries().skip_solid().next().unwrap().unwrap();
+        assert_eq!(
+            e.metadata().owner_user_name().map(|v| v.as_str()),
+            Some("abc")
+        );
+    }
 }
