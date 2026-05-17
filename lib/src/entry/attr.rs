@@ -1,7 +1,11 @@
 //! Extended attribute types for PNA archive entries.
 
 use crate::util::bounded::{LengthExceeded, bytes::BoundedBytes, str::BoundedString};
-use std::{io, mem, ops::Deref, str};
+use std::{
+    io, mem,
+    ops::Deref,
+    str::{self, FromStr},
+};
 
 const XATTR_LENGTH_LIMIT: usize = u32::MAX as usize;
 
@@ -65,6 +69,15 @@ impl From<XattrName> for String {
     #[inline]
     fn from(value: XattrName) -> Self {
         value.0.into()
+    }
+}
+
+impl FromStr for XattrName {
+    type Err = LengthExceeded;
+
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::new(s)
     }
 }
 
@@ -252,6 +265,12 @@ mod tests {
         let name = XattrName::new("user.foo").unwrap();
         assert_eq!(name.as_str(), "user.foo");
         assert_eq!(String::from(name), "user.foo");
+    }
+
+    #[test]
+    fn xattr_name_parses_from_str() {
+        let name: XattrName = "user.comment".parse().unwrap();
+        assert_eq!(name.as_str(), "user.comment");
     }
 
     #[test]
