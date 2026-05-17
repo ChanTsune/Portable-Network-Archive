@@ -1,12 +1,56 @@
 //! Chunk writing and serialization to byte streams.
 
-use crate::chunk::{Chunk, ChunkExt, ChunkType};
+use crate::chunk::{ChunkType, Crc32, MIN_CHUNK_BYTES_SIZE};
+
+#[cfg(feature = "unstable-async")]
+use crate::chunk::Chunk;
 use core::num::NonZeroU32;
 #[cfg(feature = "unstable-async")]
 use futures_io::AsyncWrite;
 #[cfg(feature = "unstable-async")]
 use futures_util::AsyncWriteExt;
 use std::io::{self, Write};
+
+pub(crate) struct CrcWriter<W> {
+    w: W,
+    crc: Crc32,
+}
+
+impl<W> CrcWriter<W> {
+    #[inline]
+    pub(crate) fn new(w: W) -> Self {
+        Self {
+            w,
+            crc: Crc32::new(),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn finalize(self) -> u32 {
+        self.crc.finalize()
+    }
+}
+
+impl<W: Write> Write for CrcWriter<W> {
+    #[inline]
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let n = self.w.write(buf)?;
+        self.crc.update(&buf[..n]);
+        Ok(n)
+    }
+
+    #[inline]
+    fn flush(&mut self) -> io::Result<()> {
+        self.w.flush()
+    }
+
+    #[inline]
+    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
+        self.w.write_all(buf)?;
+        self.crc.update(buf);
+        Ok(())
+    }
+}
 
 pub(crate) struct ChunkWriter<W> {
     w: W,
@@ -20,9 +64,23 @@ impl<W> ChunkWriter<W> {
 }
 
 impl<W: Write> ChunkWriter<W> {
+    /// Writes a chunk in a single pass over the data.
+    ///
+    /// This method is optimized for chunks where the CRC is not already known.
+    /// It calculates the CRC while writing the chunk type and data to the underlying writer.
     #[inline]
-    pub(crate) fn write_chunk(&mut self, chunk: impl Chunk) -> io::Result<usize> {
-        chunk.write_chunk_in(&mut self.w)
+    pub(crate) fn write_chunk_single_pass(
+        &mut self,
+        ty: ChunkType,
+        data: &[u8],
+    ) -> io::Result<usize> {
+        self.w.write_all(&(data.len() as u32).to_be_bytes())?;
+        let mut crc_writer = CrcWriter::new(&mut self.w);
+        crc_writer.write_all(ty.as_bytes())?;
+        crc_writer.write_all(data)?;
+        let crc = crc_writer.finalize();
+        self.w.write_all(&crc.to_be_bytes())?;
+        Ok(MIN_CHUNK_BYTES_SIZE + data.len())
     }
 }
 
@@ -77,7 +135,7 @@ impl<W: Write> Write for ChunkStreamWriter<W> {
             return Ok(0);
         }
         let chunk = &buf[..buf.len().min(self.max_chunk_size)];
-        self.w.write_chunk((self.ty, chunk))?;
+        self.w.write_chunk_single_pass(self.ty, chunk)?;
         Ok(chunk.len())
     }
 
@@ -96,7 +154,12 @@ mod tests {
     #[test]
     fn write_aend_chunk() {
         let mut chunk_writer = ChunkWriter::new(Vec::new());
-        assert_eq!(chunk_writer.write_chunk((ChunkType::AEND, [])).unwrap(), 12);
+        assert_eq!(
+            chunk_writer
+                .write_chunk_single_pass(ChunkType::AEND, &[])
+                .unwrap(),
+            12
+        );
         assert_eq!(
             chunk_writer.w,
             [0, 0, 0, 0, 65, 69, 78, 68, 107, 246, 72, 109]
@@ -108,7 +171,7 @@ mod tests {
         let mut chunk_writer = ChunkWriter::new(Vec::new());
         assert_eq!(
             chunk_writer
-                .write_chunk((ChunkType::FDAT, b"text data"))
+                .write_chunk_single_pass(ChunkType::FDAT, b"text data")
                 .unwrap(),
             21,
         );
