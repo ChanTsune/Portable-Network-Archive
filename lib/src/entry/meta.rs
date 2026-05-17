@@ -437,7 +437,6 @@ const OWNER_STR_MAX: usize = u8::MAX as usize;
 #[repr(transparent)]
 pub struct OwnerUserName(BoundedString<OWNER_STR_MAX>);
 
-#[allow(dead_code)]
 impl OwnerUserName {
     /// Constructs an [`OwnerUserName`].
     ///
@@ -505,7 +504,6 @@ impl From<OwnerUserName> for String {
 #[repr(transparent)]
 pub struct OwnerGroupName(BoundedString<OWNER_STR_MAX>);
 
-#[allow(dead_code)]
 impl OwnerGroupName {
     /// Constructs an [`OwnerGroupName`].
     ///
@@ -573,7 +571,6 @@ impl From<OwnerGroupName> for String {
 #[repr(transparent)]
 pub struct OwnerUserSid(BoundedString<OWNER_STR_MAX>);
 
-#[allow(dead_code)]
 impl OwnerUserSid {
     /// Constructs an [`OwnerUserSid`].
     ///
@@ -641,7 +638,6 @@ impl From<OwnerUserSid> for String {
 #[repr(transparent)]
 pub struct OwnerGroupSid(BoundedString<OWNER_STR_MAX>);
 
-#[allow(dead_code)]
 impl OwnerGroupSid {
     /// Constructs an [`OwnerGroupSid`].
     ///
@@ -709,7 +705,6 @@ impl From<OwnerGroupSid> for String {
 #[repr(transparent)]
 pub struct OwnerUid(u64);
 
-#[allow(dead_code)]
 impl OwnerUid {
     /// Returns the raw user id.
     #[inline]
@@ -739,7 +734,6 @@ impl From<u64> for OwnerUid {
 #[repr(transparent)]
 pub struct OwnerGid(u64);
 
-#[allow(dead_code)]
 impl OwnerGid {
     /// Returns the raw group id.
     #[inline]
@@ -770,7 +764,6 @@ impl From<u64> for OwnerGid {
 #[repr(transparent)]
 pub struct PermissionMode(u16);
 
-#[allow(dead_code)]
 impl PermissionMode {
     /// Returns the permission bits (`0o7777`-masked).
     #[inline]
@@ -1017,6 +1010,27 @@ mod tests {
             Some("S-1-5-21-1-2-3-1001")
         );
         assert_eq!(e.metadata().owner_group_sid().map(|v| v.as_str()), Some(""));
+    }
+
+    #[test]
+    fn permission_mode_facet_round_trip_via_entry() {
+        use crate::entry::PermissionMode;
+        use crate::{Archive, EntryBuilder, WriteOptions};
+        let mut buf = Vec::new();
+        {
+            let mut archive = Archive::write_header(&mut buf).unwrap();
+            let mut b = EntryBuilder::new_file("f".into(), WriteOptions::store()).unwrap();
+            b.permission_mode(PermissionMode::from(0o750));
+            let entry = b.build().unwrap();
+            archive.add_entry(entry).unwrap();
+            archive.finalize().unwrap();
+        }
+        let mut archive = Archive::read_header(&buf[..]).unwrap();
+        let entry = archive.entries().skip_solid().next().unwrap().unwrap();
+        assert_eq!(
+            entry.metadata().permission_mode().map(|v| v.get()),
+            Some(0o750)
+        );
     }
 
     #[test]
