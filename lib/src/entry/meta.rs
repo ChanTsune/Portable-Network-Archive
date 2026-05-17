@@ -1,7 +1,10 @@
 //! Metadata and permission types for archive entries.
 
+use crate::util::bounded::{LengthExceeded, str::BoundedString};
 use crate::{Duration, UnknownValueError};
 use std::io::{self, Read};
+use std::ops::Deref;
+use std::str;
 
 /// Metadata information about an entry.
 /// # Examples
@@ -27,6 +30,13 @@ pub struct Metadata {
     pub(crate) accessed: Option<Duration>,
     pub(crate) permission: Option<Permission>,
     pub(crate) link_target_type: Option<LinkTargetType>,
+    pub(crate) owner_uid: Option<OwnerUid>,
+    pub(crate) owner_gid: Option<OwnerGid>,
+    pub(crate) owner_user_name: Option<OwnerUserName>,
+    pub(crate) owner_group_name: Option<OwnerGroupName>,
+    pub(crate) owner_user_sid: Option<OwnerUserSid>,
+    pub(crate) owner_group_sid: Option<OwnerGroupSid>,
+    pub(crate) permission_mode: Option<PermissionMode>,
 }
 
 impl Metadata {
@@ -41,6 +51,13 @@ impl Metadata {
             accessed: None,
             permission: None,
             link_target_type: None,
+            owner_uid: None,
+            owner_gid: None,
+            owner_user_name: None,
+            owner_group_name: None,
+            owner_user_sid: None,
+            owner_group_sid: None,
+            permission_mode: None,
         }
     }
 
@@ -108,6 +125,49 @@ impl Metadata {
         self
     }
 
+    /// Sets the owner user id facet (`fUId`).
+    #[inline]
+    pub fn with_owner_uid(mut self, value: Option<OwnerUid>) -> Self {
+        self.owner_uid = value;
+        self
+    }
+    /// Sets the owner group id facet (`fGId`).
+    #[inline]
+    pub fn with_owner_gid(mut self, value: Option<OwnerGid>) -> Self {
+        self.owner_gid = value;
+        self
+    }
+    /// Sets the owner user name facet (`fONm`).
+    #[inline]
+    pub fn with_owner_user_name(mut self, value: Option<OwnerUserName>) -> Self {
+        self.owner_user_name = value;
+        self
+    }
+    /// Sets the owner group name facet (`fGNm`).
+    #[inline]
+    pub fn with_owner_group_name(mut self, value: Option<OwnerGroupName>) -> Self {
+        self.owner_group_name = value;
+        self
+    }
+    /// Sets the owner user SID facet (`fOSi`).
+    #[inline]
+    pub fn with_owner_user_sid(mut self, value: Option<OwnerUserSid>) -> Self {
+        self.owner_user_sid = value;
+        self
+    }
+    /// Sets the owner group SID facet (`fGSi`).
+    #[inline]
+    pub fn with_owner_group_sid(mut self, value: Option<OwnerGroupSid>) -> Self {
+        self.owner_group_sid = value;
+        self
+    }
+    /// Sets the POSIX permission mode facet (`fMOd`).
+    #[inline]
+    pub fn with_permission_mode(mut self, value: Option<PermissionMode>) -> Self {
+        self.permission_mode = value;
+        self
+    }
+
     /// Sets the link target type of the entry.
     /// Only meaningful for symbolic link and hard link entries.
     #[inline]
@@ -145,6 +205,41 @@ impl Metadata {
     #[inline]
     pub const fn permission(&self) -> Option<&Permission> {
         self.permission.as_ref()
+    }
+    /// Returns the owner user id facet (`fUId`), if recorded.
+    #[inline]
+    pub const fn owner_uid(&self) -> Option<OwnerUid> {
+        self.owner_uid
+    }
+    /// Returns the owner group id facet (`fGId`), if recorded.
+    #[inline]
+    pub const fn owner_gid(&self) -> Option<OwnerGid> {
+        self.owner_gid
+    }
+    /// Returns the owner user name facet (`fONm`), if recorded.
+    #[inline]
+    pub fn owner_user_name(&self) -> Option<&OwnerUserName> {
+        self.owner_user_name.as_ref()
+    }
+    /// Returns the owner group name facet (`fGNm`), if recorded.
+    #[inline]
+    pub fn owner_group_name(&self) -> Option<&OwnerGroupName> {
+        self.owner_group_name.as_ref()
+    }
+    /// Returns the owner user SID facet (`fOSi`), if recorded.
+    #[inline]
+    pub fn owner_user_sid(&self) -> Option<&OwnerUserSid> {
+        self.owner_user_sid.as_ref()
+    }
+    /// Returns the owner group SID facet (`fGSi`), if recorded.
+    #[inline]
+    pub fn owner_group_sid(&self) -> Option<&OwnerGroupSid> {
+        self.owner_group_sid.as_ref()
+    }
+    /// Returns the POSIX permission mode facet (`fMOd`), if recorded.
+    #[inline]
+    pub const fn permission_mode(&self) -> Option<PermissionMode> {
+        self.permission_mode
     }
 
     /// Returns the link target type for this entry, if present.
@@ -333,6 +428,373 @@ impl Permission {
     }
 }
 
+/// Maximum owner-facet string byte length (the `fONm`/`fGNm`/`fOSi`/`fGSi`
+/// chunk Body uses a 1-byte length prefix).
+const OWNER_STR_MAX: usize = u8::MAX as usize;
+
+/// Owner user name (`fONm`).
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+#[repr(transparent)]
+pub struct OwnerUserName(BoundedString<OWNER_STR_MAX>);
+
+#[allow(dead_code)]
+impl OwnerUserName {
+    /// Constructs an [`OwnerUserName`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`LengthExceeded`] when the byte length exceeds 255.
+    #[inline]
+    pub fn new(value: impl Into<Box<str>>) -> Result<Self, LengthExceeded> {
+        BoundedString::new(value).map(Self)
+    }
+    /// Returns the name as a string slice.
+    #[inline]
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+    pub(crate) fn to_bytes(&self) -> Vec<u8> {
+        let b = self.0.as_str().as_bytes();
+        let mut v = Vec::with_capacity(1 + b.len());
+        // Type guarantees b.len() <= 255 (BoundedString<255> invariant).
+        v.push(b.len() as u8);
+        v.extend_from_slice(b);
+        v
+    }
+    pub(crate) fn try_from_bytes(bytes: &[u8]) -> io::Result<Self> {
+        let (&len, rest) = bytes.split_first().ok_or(io::ErrorKind::UnexpectedEof)?;
+        let s = rest
+            .get(..len as usize)
+            .ok_or(io::ErrorKind::UnexpectedEof)?;
+        let s = str::from_utf8(s).map_err(|_| io::ErrorKind::InvalidData)?;
+        Self::new(s.to_owned()).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+    }
+}
+
+impl Deref for OwnerUserName {
+    type Target = str;
+    #[inline]
+    fn deref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+impl TryFrom<String> for OwnerUserName {
+    type Error = LengthExceeded;
+    #[inline]
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+impl TryFrom<&str> for OwnerUserName {
+    type Error = LengthExceeded;
+    #[inline]
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+impl From<OwnerUserName> for String {
+    #[inline]
+    fn from(value: OwnerUserName) -> Self {
+        value.0.into()
+    }
+}
+
+/// Owner group name (`fGNm`).
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+#[repr(transparent)]
+pub struct OwnerGroupName(BoundedString<OWNER_STR_MAX>);
+
+#[allow(dead_code)]
+impl OwnerGroupName {
+    /// Constructs an [`OwnerGroupName`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`LengthExceeded`] when the byte length exceeds 255.
+    #[inline]
+    pub fn new(value: impl Into<Box<str>>) -> Result<Self, LengthExceeded> {
+        BoundedString::new(value).map(Self)
+    }
+    /// Returns the name as a string slice.
+    #[inline]
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+    pub(crate) fn to_bytes(&self) -> Vec<u8> {
+        let b = self.0.as_str().as_bytes();
+        let mut v = Vec::with_capacity(1 + b.len());
+        // Type guarantees b.len() <= 255 (BoundedString<255> invariant).
+        v.push(b.len() as u8);
+        v.extend_from_slice(b);
+        v
+    }
+    pub(crate) fn try_from_bytes(bytes: &[u8]) -> io::Result<Self> {
+        let (&len, rest) = bytes.split_first().ok_or(io::ErrorKind::UnexpectedEof)?;
+        let s = rest
+            .get(..len as usize)
+            .ok_or(io::ErrorKind::UnexpectedEof)?;
+        let s = str::from_utf8(s).map_err(|_| io::ErrorKind::InvalidData)?;
+        Self::new(s.to_owned()).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+    }
+}
+
+impl Deref for OwnerGroupName {
+    type Target = str;
+    #[inline]
+    fn deref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+impl TryFrom<String> for OwnerGroupName {
+    type Error = LengthExceeded;
+    #[inline]
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+impl TryFrom<&str> for OwnerGroupName {
+    type Error = LengthExceeded;
+    #[inline]
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+impl From<OwnerGroupName> for String {
+    #[inline]
+    fn from(value: OwnerGroupName) -> Self {
+        value.0.into()
+    }
+}
+
+/// Owner user SID (`fOSi`).
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+#[repr(transparent)]
+pub struct OwnerUserSid(BoundedString<OWNER_STR_MAX>);
+
+#[allow(dead_code)]
+impl OwnerUserSid {
+    /// Constructs an [`OwnerUserSid`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`LengthExceeded`] when the byte length exceeds 255.
+    #[inline]
+    pub fn new(value: impl Into<Box<str>>) -> Result<Self, LengthExceeded> {
+        BoundedString::new(value).map(Self)
+    }
+    /// Returns the name as a string slice.
+    #[inline]
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+    pub(crate) fn to_bytes(&self) -> Vec<u8> {
+        let b = self.0.as_str().as_bytes();
+        let mut v = Vec::with_capacity(1 + b.len());
+        // Type guarantees b.len() <= 255 (BoundedString<255> invariant).
+        v.push(b.len() as u8);
+        v.extend_from_slice(b);
+        v
+    }
+    pub(crate) fn try_from_bytes(bytes: &[u8]) -> io::Result<Self> {
+        let (&len, rest) = bytes.split_first().ok_or(io::ErrorKind::UnexpectedEof)?;
+        let s = rest
+            .get(..len as usize)
+            .ok_or(io::ErrorKind::UnexpectedEof)?;
+        let s = str::from_utf8(s).map_err(|_| io::ErrorKind::InvalidData)?;
+        Self::new(s.to_owned()).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+    }
+}
+
+impl Deref for OwnerUserSid {
+    type Target = str;
+    #[inline]
+    fn deref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+impl TryFrom<String> for OwnerUserSid {
+    type Error = LengthExceeded;
+    #[inline]
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+impl TryFrom<&str> for OwnerUserSid {
+    type Error = LengthExceeded;
+    #[inline]
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+impl From<OwnerUserSid> for String {
+    #[inline]
+    fn from(value: OwnerUserSid) -> Self {
+        value.0.into()
+    }
+}
+
+/// Owner group SID (`fGSi`).
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+#[repr(transparent)]
+pub struct OwnerGroupSid(BoundedString<OWNER_STR_MAX>);
+
+#[allow(dead_code)]
+impl OwnerGroupSid {
+    /// Constructs an [`OwnerGroupSid`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`LengthExceeded`] when the byte length exceeds 255.
+    #[inline]
+    pub fn new(value: impl Into<Box<str>>) -> Result<Self, LengthExceeded> {
+        BoundedString::new(value).map(Self)
+    }
+    /// Returns the name as a string slice.
+    #[inline]
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+    pub(crate) fn to_bytes(&self) -> Vec<u8> {
+        let b = self.0.as_str().as_bytes();
+        let mut v = Vec::with_capacity(1 + b.len());
+        // Type guarantees b.len() <= 255 (BoundedString<255> invariant).
+        v.push(b.len() as u8);
+        v.extend_from_slice(b);
+        v
+    }
+    pub(crate) fn try_from_bytes(bytes: &[u8]) -> io::Result<Self> {
+        let (&len, rest) = bytes.split_first().ok_or(io::ErrorKind::UnexpectedEof)?;
+        let s = rest
+            .get(..len as usize)
+            .ok_or(io::ErrorKind::UnexpectedEof)?;
+        let s = str::from_utf8(s).map_err(|_| io::ErrorKind::InvalidData)?;
+        Self::new(s.to_owned()).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+    }
+}
+
+impl Deref for OwnerGroupSid {
+    type Target = str;
+    #[inline]
+    fn deref(&self) -> &str {
+        self.0.as_str()
+    }
+}
+impl TryFrom<String> for OwnerGroupSid {
+    type Error = LengthExceeded;
+    #[inline]
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+impl TryFrom<&str> for OwnerGroupSid {
+    type Error = LengthExceeded;
+    #[inline]
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+impl From<OwnerGroupSid> for String {
+    #[inline]
+    fn from(value: OwnerGroupSid) -> Self {
+        value.0.into()
+    }
+}
+
+/// Owner user id (`fUId`).
+#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+#[repr(transparent)]
+pub struct OwnerUid(u64);
+
+#[allow(dead_code)]
+impl OwnerUid {
+    /// Returns the raw user id.
+    #[inline]
+    #[must_use]
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+    pub(crate) fn to_bytes(self) -> [u8; 8] {
+        self.0.to_be_bytes()
+    }
+    pub(crate) fn try_from_bytes(bytes: &[u8]) -> io::Result<Self> {
+        let a: [u8; 8] = bytes
+            .try_into()
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "fUId must be 8 bytes"))?;
+        Ok(Self(u64::from_be_bytes(a)))
+    }
+}
+impl From<u64> for OwnerUid {
+    #[inline]
+    fn from(v: u64) -> Self {
+        Self(v)
+    }
+}
+
+/// Owner group id (`fGId`).
+#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+#[repr(transparent)]
+pub struct OwnerGid(u64);
+
+#[allow(dead_code)]
+impl OwnerGid {
+    /// Returns the raw group id.
+    #[inline]
+    #[must_use]
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+    pub(crate) fn to_bytes(self) -> [u8; 8] {
+        self.0.to_be_bytes()
+    }
+    pub(crate) fn try_from_bytes(bytes: &[u8]) -> io::Result<Self> {
+        let a: [u8; 8] = bytes
+            .try_into()
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "fGId must be 8 bytes"))?;
+        Ok(Self(u64::from_be_bytes(a)))
+    }
+}
+impl From<u64> for OwnerGid {
+    #[inline]
+    fn from(v: u64) -> Self {
+        Self(v)
+    }
+}
+
+/// POSIX permission mode (`fMOd`). Reserved bits outside `0o7777`
+/// (the rwx + setuid/setgid/sticky bits) are masked to 0 on construction.
+#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+#[repr(transparent)]
+pub struct PermissionMode(u16);
+
+#[allow(dead_code)]
+impl PermissionMode {
+    /// Returns the permission bits (`0o7777`-masked).
+    #[inline]
+    #[must_use]
+    pub const fn get(self) -> u16 {
+        self.0
+    }
+    pub(crate) fn to_bytes(self) -> [u8; 2] {
+        self.0.to_be_bytes()
+    }
+    pub(crate) fn try_from_bytes(bytes: &[u8]) -> io::Result<Self> {
+        let a: [u8; 2] = bytes
+            .try_into()
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "fMOd must be 2 bytes"))?;
+        Ok(Self::from(u16::from_be_bytes(a)))
+    }
+}
+impl From<u16> for PermissionMode {
+    #[inline]
+    fn from(v: u16) -> Self {
+        Self(v & 0o7777)
+    }
+}
+
 /// Link target type for link entries.
 ///
 /// Stored in the `fLTP` ancillary chunk. Indicates whether the link target
@@ -408,6 +870,62 @@ mod tests {
     fn permission() {
         let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
         assert_eq!(perm, Permission::try_from_bytes(&perm.to_bytes()).unwrap());
+    }
+
+    #[test]
+    fn owner_string_newtype_bound_and_codec() {
+        use crate::entry::OwnerUserName;
+        assert!(OwnerUserName::new("").is_ok());
+        assert!(OwnerUserName::new("alice").is_ok());
+        assert!(OwnerUserName::new("a".repeat(255)).is_ok());
+        assert!(OwnerUserName::new("a".repeat(256)).is_err());
+        let n = OwnerUserName::new("alice").unwrap();
+        assert_eq!(n.to_bytes(), vec![5, b'a', b'l', b'i', b'c', b'e']);
+        assert_eq!(OwnerUserName::try_from_bytes(&n.to_bytes()).unwrap(), n);
+        assert_eq!(OwnerUserName::try_from_bytes(&[0]).unwrap().as_str(), "");
+        assert_eq!(
+            OwnerUserName::try_from_bytes(&[3, b'a', b'b', b'c', 0xFF])
+                .unwrap()
+                .as_str(),
+            "abc"
+        );
+        assert!(OwnerUserName::try_from_bytes(&[]).is_err());
+        assert!(OwnerUserName::try_from_bytes(&[5, b'a']).is_err());
+        assert!(OwnerUserName::try_from_bytes(&[1, 0xFF]).is_err());
+    }
+
+    #[test]
+    fn owner_uid_and_permission_mode_codec() {
+        use crate::entry::{OwnerUid, PermissionMode};
+        let u = OwnerUid::from(1000u64);
+        assert_eq!(u.get(), 1000);
+        assert_eq!(u.to_bytes(), 1000u64.to_be_bytes());
+        assert_eq!(OwnerUid::try_from_bytes(&u.to_bytes()).unwrap(), u);
+        assert!(OwnerUid::try_from_bytes(&[0, 0, 0]).is_err());
+        assert_eq!(PermissionMode::from(0o7777u16).get(), 0o7777);
+        assert_eq!(PermissionMode::from(0o170755u16).get(), 0o0755);
+        let m = PermissionMode::from(0o644u16);
+        assert_eq!(m.to_bytes(), 0o644u16.to_be_bytes());
+        assert_eq!(PermissionMode::try_from_bytes(&m.to_bytes()).unwrap(), m);
+        assert_eq!(
+            PermissionMode::try_from_bytes(&0o170644u16.to_be_bytes())
+                .unwrap()
+                .get(),
+            0o0644
+        );
+        assert!(PermissionMode::try_from_bytes(&[0]).is_err());
+    }
+
+    #[test]
+    fn metadata_owner_facets_default_none() {
+        let m = Metadata::new();
+        assert_eq!(m.owner_uid(), None);
+        assert_eq!(m.owner_gid(), None);
+        assert_eq!(m.owner_user_name(), None);
+        assert_eq!(m.owner_group_name(), None);
+        assert_eq!(m.owner_user_sid(), None);
+        assert_eq!(m.owner_group_sid(), None);
+        assert_eq!(m.permission_mode(), None);
     }
 
     #[test]
