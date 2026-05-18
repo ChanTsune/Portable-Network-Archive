@@ -67,7 +67,7 @@ jobs:
           cargo clippy --locked --all-targets --all-features --message-format=json | clippy-sarif | tee rust-clippy-results.sarif | sarif-fmt
       - name: Upload analysis results to GitHub
         if: always()
-        uses: github/codeql-action/upload-sarif@68bde559dea0fdcac2102bfdf6230c5f70eb485e # v4.35.4
+        uses: github/codeql-action/upload-sarif@9e0d7b8d25671d64c341c19c0152d693099fb5ba # v4.35.5
         with:
           sarif_file: rust-clippy-results.sarif
           category: clippy-${{ matrix.os }}
