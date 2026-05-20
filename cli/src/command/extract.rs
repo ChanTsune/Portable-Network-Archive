@@ -47,6 +47,10 @@ use std::{
     time::Instant,
 };
 
+/// Maximum size of a link target in bytes (64 KiB).
+/// Used to bound memory allocation when reading link targets from an archive.
+const MAX_LINK_TARGET_SIZE: usize = 64 * 1024;
+
 #[derive(Parser, Clone, Debug)]
 #[command(
     group(
@@ -1432,7 +1436,13 @@ where
     match item.header().data_kind() {
         DataKind::SymbolicLink => {
             let reader = item.reader(ReadOptions::with_password(password))?;
-            let original = io::read_to_string(reader)?;
+            let original = io::read_to_string(reader.take(MAX_LINK_TARGET_SIZE as u64 + 1))?;
+            if original.len() > MAX_LINK_TARGET_SIZE {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("Symbolic link target is too long (max {MAX_LINK_TARGET_SIZE} bytes)"),
+                ));
+            }
             let original = pathname_editor.edit_symlink(original.as_ref());
             if !allow_unsafe_links && is_unsafe_link(&original) {
                 log::warn!(
@@ -1448,7 +1458,13 @@ where
         }
         DataKind::HardLink => {
             let reader = item.reader(ReadOptions::with_password(password))?;
-            let original = io::read_to_string(reader)?;
+            let original = io::read_to_string(reader.take(MAX_LINK_TARGET_SIZE as u64 + 1))?;
+            if original.len() > MAX_LINK_TARGET_SIZE {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("Hard link target is too long (max {MAX_LINK_TARGET_SIZE} bytes)"),
+                ));
+            }
             let Some((original, had_root)) = pathname_editor.edit_hardlink(original.as_ref())
             else {
                 log::warn!(
