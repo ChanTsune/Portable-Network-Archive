@@ -19,7 +19,7 @@ block-buffer = "0.12.0"
 camellia = "0.2.0"
 camino = "1.2.2"
 cbc = { version = "0.2.0", features = ["alloc"] }
-cipher = { version = "0.5.1", features = ["alloc", "block-padding", "stream-wrapper"] }
+cipher = { version = "0.5.2", features = ["alloc", "block-padding", "stream-wrapper"] }
 crc32fast = "1.5.0"
 crypto-common = { version = "0.2.1", default-features = false }
 ctr = "0.10.0"
