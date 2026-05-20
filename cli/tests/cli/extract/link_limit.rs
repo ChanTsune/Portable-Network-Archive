@@ -33,9 +33,15 @@ fn extract_huge_symlink_fails() {
     setup();
     let pna_file = "extract_huge_symlink/huge.pna";
     init_huge_link_resource(pna_file, false);
-    let result = cli::Cli::try_parse_from(["pna", "x", pna_file, "--out-dir", "extract_huge_symlink/dist"])
-        .unwrap()
-        .execute();
+    let result = cli::Cli::try_parse_from([
+        "pna",
+        "x",
+        pna_file,
+        "--out-dir",
+        "extract_huge_symlink/dist",
+    ])
+    .unwrap()
+    .execute();
 
     assert!(result.is_err());
     let err = format!("{:?}", result.unwrap_err());
@@ -48,9 +54,15 @@ fn extract_huge_hardlink_fails() {
     setup();
     let pna_file = "extract_huge_hardlink/huge.pna";
     init_huge_link_resource(pna_file, true);
-    let result = cli::Cli::try_parse_from(["pna", "x", pna_file, "--out-dir", "extract_huge_hardlink/dist"])
-        .unwrap()
-        .execute();
+    let result = cli::Cli::try_parse_from([
+        "pna",
+        "x",
+        pna_file,
+        "--out-dir",
+        "extract_huge_hardlink/dist",
+    ])
+    .unwrap()
+    .execute();
 
     assert!(result.is_err());
     let err = format!("{:?}", result.unwrap_err());

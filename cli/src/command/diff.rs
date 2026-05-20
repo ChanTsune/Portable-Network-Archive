@@ -306,9 +306,15 @@ fn compare_entry<T: AsRef<[u8]>>(
         }
         DataKind::SymbolicLink if meta.is_symlink() => {
             let link = fs::read_link(path)?;
-            let mut reader = entry.reader(ReadOptions::with_password(password))?;
+            let reader = entry.reader(ReadOptions::with_password(password))?;
             let mut link_str = String::new();
-            reader.read_to_string(&mut link_str)?;
+            reader.take(64 * 1024 + 1).read_to_string(&mut link_str)?;
+            if link_str.len() > 64 * 1024 {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("Symbolic link target is too long (max {} bytes)", 64 * 1024),
+                ));
+            }
             if link.as_path() != Path::new(&link_str) {
                 println!("{}", DiffKind::SymlinkDiffers.display(path_str));
             }
@@ -317,9 +323,15 @@ fn compare_entry<T: AsRef<[u8]>>(
             println!("{}", DiffKind::TypeMismatch.display(path_str));
         }
         DataKind::HardLink if meta.is_file() => {
-            let mut reader = entry.reader(ReadOptions::with_password(password))?;
+            let reader = entry.reader(ReadOptions::with_password(password))?;
             let mut target = String::new();
-            reader.read_to_string(&mut target)?;
+            reader.take(64 * 1024 + 1).read_to_string(&mut target)?;
+            if target.len() > 64 * 1024 {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("Hard link target is too long (max {} bytes)", 64 * 1024),
+                ));
+            }
 
             match is_same_file(path, &target) {
                 Ok(true) => (),
