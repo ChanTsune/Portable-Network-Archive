@@ -109,9 +109,6 @@ fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
 fn transform_entry<T>(entry: NormalEntry<T>, owner: &Ownership) -> NormalEntry<T> {
     let metadata = entry.metadata().clone();
     let own = crate::ext::ResolvedOwnership::from_metadata(&metadata);
-    if own.is_empty() {
-        return entry.with_metadata(metadata);
-    }
     let (uid, uname): (Option<u64>, String) = match owner.user.as_ref() {
         Some(OwnerSpecifier::Name(uname)) => (Some(u64::MAX), uname.clone()),
         Some(OwnerSpecifier::ID(uid)) => (Some(*uid), String::new()),

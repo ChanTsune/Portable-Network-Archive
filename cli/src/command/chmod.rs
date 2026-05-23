@@ -18,7 +18,7 @@ use nom::{
     combinator::{map, opt},
     multi::{many0, many1, separated_list1},
 };
-use pna::NormalEntry;
+use pna::{DataKind, NormalEntry};
 use std::{ops::BitOr, path::PathBuf, str::FromStr};
 
 #[derive(Parser, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -100,9 +100,9 @@ fn archive_chmod(args: ChmodCommand) -> anyhow::Result<()> {
 fn transform_entry<T>(entry: NormalEntry<T>, mode: &Mode) -> NormalEntry<T> {
     let metadata = entry.metadata().clone();
     let own = crate::ext::ResolvedOwnership::from_metadata(&metadata);
-    let Some(cur_mode) = own.mode else {
-        return entry.with_metadata(metadata);
-    };
+    let cur_mode = own
+        .mode
+        .unwrap_or_else(|| default_permission_mode(entry.header().data_kind()));
     let new_mode = mode.apply_to(cur_mode);
     let metadata = metadata
         .with_permission(None)
@@ -130,6 +130,14 @@ fn transform_entry<T>(entry: NormalEntry<T>, mode: &Mode) -> NormalEntry<T> {
         )
         .with_permission_mode(Some(pna::PermissionMode::from(new_mode)));
     entry.with_metadata(metadata)
+}
+
+#[inline]
+const fn default_permission_mode(kind: DataKind) -> u16 {
+    match kind {
+        DataKind::Directory => 0o755,
+        DataKind::File | DataKind::SymbolicLink | DataKind::HardLink => 0o644,
+    }
 }
 
 bitflags! {
