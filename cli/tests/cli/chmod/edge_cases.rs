@@ -40,15 +40,12 @@ fn chmod_edge_set_no_permissions() {
     archive::for_each_entry("chmod_edge_000.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
             found = true;
-            let perm = entry
+            let mode = entry
                 .metadata()
-                .permission()
-                .expect("entry should have permission metadata");
-            assert_eq!(
-                perm.permissions() & 0o777,
-                0o000,
-                "000 on 0o777 should yield 0o000"
-            );
+                .permission_mode()
+                .expect("entry should have permission mode metadata")
+                .get();
+            assert_eq!(mode & 0o777, 0o000, "000 on 0o777 should yield 0o000");
         }
     })
     .unwrap();
@@ -90,15 +87,12 @@ fn chmod_edge_set_full_permissions() {
     archive::for_each_entry("chmod_edge_777.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
             found = true;
-            let perm = entry
+            let mode = entry
                 .metadata()
-                .permission()
-                .expect("entry should have permission metadata");
-            assert_eq!(
-                perm.permissions() & 0o777,
-                0o777,
-                "777 on 0o000 should yield 0o777"
-            );
+                .permission_mode()
+                .expect("entry should have permission mode metadata")
+                .get();
+            assert_eq!(mode & 0o777, 0o777, "777 on 0o000 should yield 0o777");
         }
     })
     .unwrap();
@@ -140,15 +134,12 @@ fn chmod_edge_idempotent_operation() {
     archive::for_each_entry("chmod_edge_idem.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
             found = true;
-            let perm = entry
+            let mode = entry
                 .metadata()
-                .permission()
-                .expect("entry should have permission metadata");
-            assert_eq!(
-                perm.permissions() & 0o777,
-                0o644,
-                "644 on 0o644 should remain 0o644"
-            );
+                .permission_mode()
+                .expect("entry should have permission mode metadata")
+                .get();
+            assert_eq!(mode & 0o777, 0o644, "644 on 0o644 should remain 0o644");
         }
     })
     .unwrap();
@@ -190,15 +181,12 @@ fn chmod_edge_symbolic_clear_all() {
     archive::for_each_entry("chmod_edge_clear.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
             found = true;
-            let perm = entry
+            let mode = entry
                 .metadata()
-                .permission()
-                .expect("entry should have permission metadata");
-            assert_eq!(
-                perm.permissions() & 0o777,
-                0o000,
-                "a= on 0o755 should yield 0o000"
-            );
+                .permission_mode()
+                .expect("entry should have permission mode metadata")
+                .get();
+            assert_eq!(mode & 0o777, 0o000, "a= on 0o755 should yield 0o000");
         }
     })
     .unwrap();
@@ -240,15 +228,12 @@ fn chmod_edge_symbolic_full_permissions() {
     archive::for_each_entry("chmod_edge_full.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
             found = true;
-            let perm = entry
+            let mode = entry
                 .metadata()
-                .permission()
-                .expect("entry should have permission metadata");
-            assert_eq!(
-                perm.permissions() & 0o777,
-                0o777,
-                "a=rwx on 0o000 should yield 0o777"
-            );
+                .permission_mode()
+                .expect("entry should have permission mode metadata")
+                .get();
+            assert_eq!(mode & 0o777, 0o777, "a=rwx on 0o000 should yield 0o777");
         }
     })
     .unwrap();
@@ -291,15 +276,12 @@ fn chmod_edge_idempotent_add_execute() {
     archive::for_each_entry("chmod_edge_idem_x.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
             found = true;
-            let perm = entry
+            let mode = entry
                 .metadata()
-                .permission()
-                .expect("entry should have permission metadata");
-            assert_eq!(
-                perm.permissions() & 0o777,
-                0o755,
-                "+x on 0o755 should remain 0o755"
-            );
+                .permission_mode()
+                .expect("entry should have permission mode metadata")
+                .get();
+            assert_eq!(mode & 0o777, 0o755, "+x on 0o755 should remain 0o755");
         }
     })
     .unwrap();
@@ -342,15 +324,12 @@ fn chmod_edge_idempotent_remove_execute() {
     archive::for_each_entry("chmod_edge_idem_no_x.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
             found = true;
-            let perm = entry
+            let mode = entry
                 .metadata()
-                .permission()
-                .expect("entry should have permission metadata");
-            assert_eq!(
-                perm.permissions() & 0o777,
-                0o644,
-                "-x on 0o644 should remain 0o644"
-            );
+                .permission_mode()
+                .expect("entry should have permission mode metadata")
+                .get();
+            assert_eq!(mode & 0o777, 0o644, "-x on 0o644 should remain 0o644");
         }
     })
     .unwrap();

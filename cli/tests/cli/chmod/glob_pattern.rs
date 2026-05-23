@@ -53,20 +53,11 @@ fn chmod_glob_pattern_txt_files() {
     archive::for_each_entry("chmod_glob_txt.pna", |entry| {
         let path = entry.header().path();
         let path_str = path.as_str();
-        if let Some(perm) = entry.metadata().permission() {
+        if let Some(pm) = entry.metadata().permission_mode() {
             if path_str.ends_with(".txt") {
-                assert_eq!(
-                    perm.permissions() & 0o777,
-                    0o755,
-                    "{} should be 755",
-                    path_str
-                );
+                assert_eq!(pm.get() & 0o777, 0o755, "{} should be 755", path_str);
             } else if path_str.ends_with(".png") {
-                assert_eq!(
-                    perm.permissions() & 0o777,
-                    0o600,
-                    "icon.png should remain 600"
-                );
+                assert_eq!(pm.get() & 0o777, 0o600, "icon.png should remain 600");
             }
         }
     })
@@ -120,20 +111,11 @@ fn chmod_multiple_explicit_files() {
     archive::for_each_entry("chmod_multi_files.pna", |entry| {
         let path = entry.header().path();
         let path_str = path.as_str();
-        if let Some(perm) = entry.metadata().permission() {
+        if let Some(pm) = entry.metadata().permission_mode() {
             if path_str == "dir/text.txt" || path_str == "dir/empty.txt" {
-                assert_eq!(
-                    perm.permissions() & 0o777,
-                    0o755,
-                    "{} should be 755",
-                    path_str
-                );
+                assert_eq!(pm.get() & 0o777, 0o755, "{} should be 755", path_str);
             } else if path_str.ends_with(".png") {
-                assert_eq!(
-                    perm.permissions() & 0o777,
-                    0o600,
-                    "icon.png should remain 600"
-                );
+                assert_eq!(pm.get() & 0o777, 0o600, "icon.png should remain 600");
             }
         }
     })
@@ -186,20 +168,11 @@ fn chmod_glob_pattern_subdirectory() {
     archive::for_each_entry("chmod_glob_subdir.pna", |entry| {
         let path = entry.header().path();
         let path_str = path.as_str();
-        if let Some(perm) = entry.metadata().permission() {
+        if let Some(pm) = entry.metadata().permission_mode() {
             if path_str.contains("/images/") {
-                assert_eq!(
-                    perm.permissions() & 0o777,
-                    0o755,
-                    "{} should be 755",
-                    path_str
-                );
+                assert_eq!(pm.get() & 0o777, 0o755, "{} should be 755", path_str);
             } else if path_str.ends_with(".txt") {
-                assert_eq!(
-                    perm.permissions() & 0o777,
-                    0o644,
-                    "text.txt should remain 644"
-                );
+                assert_eq!(pm.get() & 0o777, 0o644, "text.txt should remain 644");
             }
         }
     })
@@ -241,15 +214,12 @@ fn chmod_verify_archive_metadata() {
     archive::for_each_entry("chmod_verify_meta.pna", |entry| {
         if entry.header().path() == "test.txt" {
             found = true;
-            let perm = entry
+            let mode = entry
                 .metadata()
-                .permission()
-                .expect("entry should have permission metadata");
-            assert_eq!(
-                perm.permissions() & 0o777,
-                0o755,
-                "archive entry should have 755"
-            );
+                .permission_mode()
+                .expect("entry should have permission mode metadata")
+                .get();
+            assert_eq!(mode & 0o777, 0o755, "archive entry should have 755");
         }
     })
     .unwrap();

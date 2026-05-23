@@ -40,12 +40,13 @@ fn chmod_multiple_clauses_standard_754() {
     archive::for_each_entry("chmod_multi_754.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
             found = true;
-            let perm = entry
+            let mode = entry
                 .metadata()
-                .permission()
-                .expect("entry should have permission metadata");
+                .permission_mode()
+                .expect("entry should have permission mode metadata")
+                .get();
             assert_eq!(
-                perm.permissions() & 0o777,
+                mode & 0o777,
                 0o754,
                 "u=rwx,g=rx,o=r on 0o000 should yield 0o754"
             );
@@ -90,12 +91,13 @@ fn chmod_multiple_clauses_restrictive() {
     archive::for_each_entry("chmod_multi_640.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
             found = true;
-            let perm = entry
+            let mode = entry
                 .metadata()
-                .permission()
-                .expect("entry should have permission metadata");
+                .permission_mode()
+                .expect("entry should have permission mode metadata")
+                .get();
             assert_eq!(
-                perm.permissions() & 0o777,
+                mode & 0o777,
                 0o640,
                 "u=rw,g=r,o= on 0o777 should yield 0o640"
             );
@@ -140,12 +142,13 @@ fn chmod_multiple_clauses_mixed_operations() {
     archive::for_each_entry("chmod_multi_mixed.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
             found = true;
-            let perm = entry
+            let mode = entry
                 .metadata()
-                .permission()
-                .expect("entry should have permission metadata");
+                .permission_mode()
+                .expect("entry should have permission mode metadata")
+                .get();
             assert_eq!(
-                perm.permissions() & 0o777,
+                mode & 0o777,
                 0o760,
                 "u+x,g+w,o-r on 0o644 should yield 0o760"
             );
@@ -190,12 +193,13 @@ fn chmod_multiple_clauses_combined_targets() {
     archive::for_each_entry("chmod_multi_combined.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
             found = true;
-            let perm = entry
+            let mode = entry
                 .metadata()
-                .permission()
-                .expect("entry should have permission metadata");
+                .permission_mode()
+                .expect("entry should have permission mode metadata")
+                .get();
             assert_eq!(
-                perm.permissions() & 0o777,
+                mode & 0o777,
                 0o775,
                 "ug=rwx,o=rx on 0o777 should yield 0o775"
             );

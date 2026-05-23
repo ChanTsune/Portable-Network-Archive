@@ -40,15 +40,12 @@ fn chmod_symbolic_user_add_execute() {
     archive::for_each_entry("chmod_sym_u_add_x.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
             found = true;
-            let perm = entry
+            let mode = entry
                 .metadata()
-                .permission()
-                .expect("entry should have permission metadata");
-            assert_eq!(
-                perm.permissions() & 0o777,
-                0o744,
-                "u+x on 0o644 should yield 0o744"
-            );
+                .permission_mode()
+                .expect("entry should have permission mode metadata")
+                .get();
+            assert_eq!(mode & 0o777, 0o744, "u+x on 0o644 should yield 0o744");
         }
     })
     .unwrap();
@@ -90,15 +87,12 @@ fn chmod_symbolic_user_remove_execute() {
     archive::for_each_entry("chmod_sym_u_rm_x.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
             found = true;
-            let perm = entry
+            let mode = entry
                 .metadata()
-                .permission()
-                .expect("entry should have permission metadata");
-            assert_eq!(
-                perm.permissions() & 0o777,
-                0o655,
-                "u-x on 0o755 should yield 0o655"
-            );
+                .permission_mode()
+                .expect("entry should have permission mode metadata")
+                .get();
+            assert_eq!(mode & 0o777, 0o655, "u-x on 0o755 should yield 0o655");
         }
     })
     .unwrap();
@@ -140,15 +134,12 @@ fn chmod_symbolic_user_set_readwrite() {
     archive::for_each_entry("chmod_sym_u_set_rw.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
             found = true;
-            let perm = entry
+            let mode = entry
                 .metadata()
-                .permission()
-                .expect("entry should have permission metadata");
-            assert_eq!(
-                perm.permissions() & 0o777,
-                0o677,
-                "u=rw on 0o777 should yield 0o677"
-            );
+                .permission_mode()
+                .expect("entry should have permission mode metadata")
+                .get();
+            assert_eq!(mode & 0o777, 0o677, "u=rw on 0o777 should yield 0o677");
         }
     })
     .unwrap();
@@ -190,15 +181,12 @@ fn chmod_symbolic_user_set_full() {
     archive::for_each_entry("chmod_sym_u_set_rwx.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
             found = true;
-            let perm = entry
+            let mode = entry
                 .metadata()
-                .permission()
-                .expect("entry should have permission metadata");
-            assert_eq!(
-                perm.permissions() & 0o777,
-                0o700,
-                "u=rwx on 0o000 should yield 0o700"
-            );
+                .permission_mode()
+                .expect("entry should have permission mode metadata")
+                .get();
+            assert_eq!(mode & 0o777, 0o700, "u=rwx on 0o000 should yield 0o700");
         }
     })
     .unwrap();
