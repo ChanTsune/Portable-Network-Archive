@@ -27,7 +27,19 @@ fn chown_no_owner_lookup_numeric() {
     archive::for_each_entry("chown_no_owner_lookup_numeric/numeric_owner.pna", |entry| {
         original_owners.insert(
             entry.header().path().to_string(),
-            entry.metadata().permission().cloned(),
+            (
+                entry.metadata().owner_uid().map(|v| v.get()),
+                entry.metadata().owner_gid().map(|v| v.get()),
+                entry
+                    .metadata()
+                    .owner_user_name()
+                    .map(|v| v.as_str().to_string()),
+                entry
+                    .metadata()
+                    .owner_group_name()
+                    .map(|v| v.as_str().to_string()),
+                entry.metadata().permission_mode().map(|v| v.get()),
+            ),
         );
     })
     .unwrap();
@@ -53,18 +65,32 @@ fn chown_no_owner_lookup_numeric() {
         "chown_no_owner_lookup_numeric/numeric_owner.pna",
         |entry| match entry.header().path().as_str() {
             path @ "chown_no_owner_lookup_numeric/in/raw/text.txt" => {
-                let permission = entry.metadata().permission().unwrap();
-                let original = original_owners.get(path).unwrap().clone().unwrap();
-                assert_eq!(permission.gname(), "");
-                assert_eq!(permission.uname(), "");
-                assert_eq!(permission.uid(), 1000);
-                assert_eq!(permission.gid(), 2000);
-                assert_eq!(permission.permissions(), original.permissions());
+                let original = original_owners.get(path).unwrap();
+                assert!(entry.metadata().owner_group_name().is_none());
+                assert!(entry.metadata().owner_user_name().is_none());
+                assert_eq!(entry.metadata().owner_uid().unwrap().get(), 1000);
+                assert_eq!(entry.metadata().owner_gid().unwrap().get(), 2000);
+                assert_eq!(
+                    entry.metadata().permission_mode().map(|v| v.get()),
+                    original.4
+                );
             }
             path => {
-                let permission = entry.metadata().permission();
                 let original = original_owners.get(path).unwrap();
-                assert_eq!(permission, original.as_ref());
+                let actual = (
+                    entry.metadata().owner_uid().map(|v| v.get()),
+                    entry.metadata().owner_gid().map(|v| v.get()),
+                    entry
+                        .metadata()
+                        .owner_user_name()
+                        .map(|v| v.as_str().to_string()),
+                    entry
+                        .metadata()
+                        .owner_group_name()
+                        .map(|v| v.as_str().to_string()),
+                    entry.metadata().permission_mode().map(|v| v.get()),
+                );
+                assert_eq!(&actual, original);
             }
         },
     )

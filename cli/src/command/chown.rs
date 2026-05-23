@@ -105,31 +105,50 @@ fn archive_chown(args: ChownCommand) -> anyhow::Result<()> {
 }
 
 #[inline]
+#[allow(deprecated)]
 fn transform_entry<T>(entry: NormalEntry<T>, owner: &Ownership) -> NormalEntry<T> {
     let metadata = entry.metadata().clone();
-    let permission = metadata.permission().map(|p| {
-        let user = owner.user.as_ref().map(|it| match it {
-            OwnerSpecifier::Name(uname) => (u64::MAX, uname.into()),
-            OwnerSpecifier::ID(uid) => (*uid, String::new()),
-            OwnerSpecifier::System(user) => (
-                user.uid().unwrap_or(u64::MAX),
-                user.name().unwrap_or_default().into(),
-            ),
-        });
-        let (uid, uname) = user.unwrap_or_else(|| (p.uid(), p.uname().into()));
-
-        let group = owner.group.as_ref().map(|it| match it {
-            OwnerSpecifier::Name(gname) => (u64::MAX, gname.into()),
-            OwnerSpecifier::ID(gid) => (*gid, String::new()),
-            OwnerSpecifier::System(group) => (
-                group.gid().unwrap_or(u64::MAX),
-                group.name().unwrap_or_default().into(),
-            ),
-        });
-        let (gid, gname) = group.unwrap_or_else(|| (p.gid(), p.gname().into()));
-        pna::Permission::new(uid, uname, gid, gname, p.permissions())
-    });
-    entry.with_metadata(metadata.with_permission(permission))
+    let own = crate::ext::ResolvedOwnership::from_metadata(&metadata);
+    if own.is_empty() {
+        return entry.with_metadata(metadata);
+    }
+    let (uid, uname): (Option<u64>, String) = match owner.user.as_ref() {
+        Some(OwnerSpecifier::Name(uname)) => (Some(u64::MAX), uname.clone()),
+        Some(OwnerSpecifier::ID(uid)) => (Some(*uid), String::new()),
+        Some(OwnerSpecifier::System(user)) => (
+            Some(user.uid().unwrap_or(u64::MAX)),
+            user.name().unwrap_or_default().into(),
+        ),
+        None => (own.uid, own.uname.clone().unwrap_or_default()),
+    };
+    let (gid, gname): (Option<u64>, String) = match owner.group.as_ref() {
+        Some(OwnerSpecifier::Name(gname)) => (Some(u64::MAX), gname.clone()),
+        Some(OwnerSpecifier::ID(gid)) => (Some(*gid), String::new()),
+        Some(OwnerSpecifier::System(group)) => (
+            Some(group.gid().unwrap_or(u64::MAX)),
+            group.name().unwrap_or_default().into(),
+        ),
+        None => (own.gid, own.gname.clone().unwrap_or_default()),
+    };
+    let metadata =
+        metadata
+            .with_permission(None)
+            .with_owner_uid(uid.map(pna::OwnerUid::from))
+            .with_owner_gid(gid.map(pna::OwnerGid::from))
+            .with_owner_user_name(crate::command::core::permission::owner_name_opt(&uname))
+            .with_owner_group_name(crate::command::core::permission::owner_group_name_opt(
+                &gname,
+            ))
+            .with_permission_mode(own.mode.map(pna::PermissionMode::from))
+            .with_owner_user_sid(
+                own.user_sid.clone().map(|s| {
+                    pna::OwnerUserSid::new(s).expect("rescued sid within owner-facet bound")
+                }),
+            )
+            .with_owner_group_sid(own.group_sid.clone().map(|s| {
+                pna::OwnerGroupSid::new(s).expect("rescued sid within owner-facet bound")
+            }));
+    entry.with_metadata(metadata)
 }
 
 pub(crate) enum OwnerSpecifier<T> {
