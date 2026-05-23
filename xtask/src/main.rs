@@ -294,13 +294,13 @@ fn convert_entry<R: Read, W: Write>(
         0
     });
     let mtime_duration = libpna::Duration::new(mtime as i64, 0);
-    let permission = build_permission(header, &path);
+    let owner = TarOwner::from_header(header, &path);
     let entry_name = libpna::EntryName::from_utf8_preserve_root(&path);
 
     if entry_type.is_dir() {
         let mut builder = libpna::EntryBuilder::new_dir(entry_name);
         builder.modified(mtime_duration);
-        builder.permission(permission);
+        owner.apply(&mut builder);
         archive.add_entry(builder.build()?)?;
     } else if entry_type.is_symlink() {
         let link = entry
@@ -313,7 +313,7 @@ fn convert_entry<R: Read, W: Write>(
             libpna::EntryReference::from_utf8_preserve_root(&link),
         )?;
         builder.modified(mtime_duration);
-        builder.permission(permission);
+        owner.apply(&mut builder);
         archive.add_entry(builder.build()?)?;
     } else if entry_type.is_hard_link() {
         let link = entry
@@ -326,13 +326,13 @@ fn convert_entry<R: Read, W: Write>(
             libpna::EntryReference::from_utf8_preserve_root(&link),
         )?;
         builder.modified(mtime_duration);
-        builder.permission(permission);
+        owner.apply(&mut builder);
         archive.add_entry(builder.build()?)?;
     } else if entry_type.is_file() {
         let mut builder = libpna::EntryBuilder::new_file(entry_name, write_options)?;
         io::copy(entry, &mut builder)?;
         builder.modified(mtime_duration);
-        builder.permission(permission);
+        owner.apply(&mut builder);
         archive.add_entry(builder.build()?)?;
     } else {
         eprintln!(
@@ -344,36 +344,86 @@ fn convert_entry<R: Read, W: Write>(
     Ok(())
 }
 
-fn build_permission(header: &tar::Header, path: &str) -> libpna::Permission {
-    let uid = header.uid().unwrap_or_else(|e| {
-        eprintln!("warning: {path}: failed to read uid ({e}), defaulting to 0");
-        0
-    });
-    let gid = header.gid().unwrap_or_else(|e| {
-        eprintln!("warning: {path}: failed to read gid ({e}), defaulting to 0");
-        0
-    });
-    let mode = (header.mode().unwrap_or_else(|e| {
-        eprintln!("warning: {path}: failed to read mode ({e}), defaulting to 0o644");
-        0o644
-    }) & 0o7777) as u16;
-    let uname = match header.username() {
-        Ok(Some(name)) => name.to_string(),
-        Ok(None) => String::new(),
-        Err(e) => {
-            eprintln!("warning: {path}: username is not valid UTF-8 ({e})");
-            String::new()
+fn owner_name_opt(s: &str) -> Option<libpna::OwnerUserName> {
+    owner_name_bounded(s)
+        .map(|t| libpna::OwnerUserName::new(t).expect("owner_name_bounded guarantees <= 255 bytes"))
+}
+
+fn owner_group_name_opt(s: &str) -> Option<libpna::OwnerGroupName> {
+    owner_name_bounded(s).map(|t| {
+        libpna::OwnerGroupName::new(t).expect("owner_name_bounded guarantees <= 255 bytes")
+    })
+}
+
+fn owner_name_bounded(s: &str) -> Option<&str> {
+    if s.is_empty() {
+        return None;
+    }
+    const MAX: usize = u8::MAX as usize;
+    if s.len() <= MAX {
+        return Some(s);
+    }
+    let mut end = MAX;
+    while !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    Some(&s[..end])
+}
+
+struct TarOwner {
+    uid: u64,
+    gid: u64,
+    mode: u16,
+    uname: String,
+    gname: String,
+}
+
+impl TarOwner {
+    fn from_header(header: &tar::Header, path: &str) -> Self {
+        let uid = header.uid().unwrap_or_else(|e| {
+            eprintln!("warning: {path}: failed to read uid ({e}), defaulting to 0");
+            0
+        });
+        let gid = header.gid().unwrap_or_else(|e| {
+            eprintln!("warning: {path}: failed to read gid ({e}), defaulting to 0");
+            0
+        });
+        let mode = (header.mode().unwrap_or_else(|e| {
+            eprintln!("warning: {path}: failed to read mode ({e}), defaulting to 0o644");
+            0o644
+        }) & 0o7777) as u16;
+        let uname = match header.username() {
+            Ok(Some(name)) => name.to_string(),
+            Ok(None) => String::new(),
+            Err(e) => {
+                eprintln!("warning: {path}: username is not valid UTF-8 ({e})");
+                String::new()
+            }
+        };
+        let gname = match header.groupname() {
+            Ok(Some(name)) => name.to_string(),
+            Ok(None) => String::new(),
+            Err(e) => {
+                eprintln!("warning: {path}: groupname is not valid UTF-8 ({e})");
+                String::new()
+            }
+        };
+        Self {
+            uid,
+            gid,
+            mode,
+            uname,
+            gname,
         }
-    };
-    let gname = match header.groupname() {
-        Ok(Some(name)) => name.to_string(),
-        Ok(None) => String::new(),
-        Err(e) => {
-            eprintln!("warning: {path}: groupname is not valid UTF-8 ({e})");
-            String::new()
-        }
-    };
-    libpna::Permission::new(uid, uname, gid, gname, mode)
+    }
+
+    fn apply(&self, builder: &mut libpna::EntryBuilder) {
+        builder.owner_uid(libpna::OwnerUid::from(self.uid));
+        builder.owner_gid(libpna::OwnerGid::from(self.gid));
+        builder.permission_mode(libpna::PermissionMode::from(self.mode));
+        builder.owner_user_name(owner_name_opt(&self.uname));
+        builder.owner_group_name(owner_group_name_opt(&self.gname));
+    }
 }
 
 fn zip2pna(args: Zip2pnaArgs) -> Result<(), Box<dyn std::error::Error>> {
@@ -414,15 +464,12 @@ fn convert_zip_entry<R: Read + io::Seek, W: Write>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let path = entry.name().to_string();
     let mtime = zip_last_modified(entry, &path);
-    let permission = build_zip_permission(entry);
     let entry_name = libpna::EntryName::from_utf8_preserve_root(&path);
 
     if entry.is_dir() {
         let mut builder = libpna::EntryBuilder::new_dir(entry_name);
         builder.modified(mtime);
-        if let Some(perm) = permission {
-            builder.permission(perm);
-        }
+        apply_zip_owner(&mut builder, entry);
         archive.add_entry(builder.build()?)?;
     } else if entry.is_symlink() {
         let mut target = String::new();
@@ -432,17 +479,13 @@ fn convert_zip_entry<R: Read + io::Seek, W: Write>(
             libpna::EntryReference::from_utf8_preserve_root(&target),
         )?;
         builder.modified(mtime);
-        if let Some(perm) = permission {
-            builder.permission(perm);
-        }
+        apply_zip_owner(&mut builder, entry);
         archive.add_entry(builder.build()?)?;
     } else if entry.is_file() {
         let mut builder = libpna::EntryBuilder::new_file(entry_name, write_options)?;
         io::copy(entry, &mut builder)?;
         builder.modified(mtime);
-        if let Some(perm) = permission {
-            builder.permission(perm);
-        }
+        apply_zip_owner(&mut builder, entry);
         archive.add_entry(builder.build()?)?;
     } else {
         eprintln!("warning: skipping unsupported entry: {path}");
@@ -476,11 +519,12 @@ fn zip_last_modified<R: Read + io::Seek>(
     }
 }
 
-fn build_zip_permission<R: Read + io::Seek>(
+fn apply_zip_owner<R: Read + io::Seek>(
+    builder: &mut libpna::EntryBuilder,
     entry: &zip::read::ZipFile<'_, R>,
-) -> Option<libpna::Permission> {
-    entry.unix_mode().map(|mode| {
+) {
+    if let Some(mode) = entry.unix_mode() {
         let mode_bits = (mode & 0o7777) as u16;
-        libpna::Permission::new(0, String::new(), 0, String::new(), mode_bits)
-    })
+        builder.permission_mode(libpna::PermissionMode::from(mode_bits));
+    }
 }
