@@ -171,10 +171,11 @@ fn compare_file_metadata<T: AsRef<[u8]>>(
     _options: &CompareOptions,
 ) -> Vec<DiffKind> {
     let mut diffs = Vec::new();
+    let ownership = crate::ext::ResolvedOwnership::from_metadata(entry.metadata());
 
     // Compare mode
-    if let Some(perm) = entry.metadata().permission() {
-        let archive_mode = perm.permissions() & 0o7777;
+    if let Some(mode) = ownership.mode {
+        let archive_mode = mode & 0o7777;
         let fs_mode = (fs_meta.permissions().mode() & 0o7777) as u16;
         if archive_mode != fs_mode {
             diffs.push(DiffKind::ModeDiffers);
@@ -190,13 +191,15 @@ fn compare_file_metadata<T: AsRef<[u8]>>(
     }
 
     // Compare uid/gid
-    if let Some(perm) = entry.metadata().permission() {
-        if perm.uid() != fs_meta.uid() as u64 {
-            diffs.push(DiffKind::UidDiffers);
-        }
-        if perm.gid() != fs_meta.gid() as u64 {
-            diffs.push(DiffKind::GidDiffers);
-        }
+    if let Some(uid) = ownership.uid
+        && uid != fs_meta.uid() as u64
+    {
+        diffs.push(DiffKind::UidDiffers);
+    }
+    if let Some(gid) = ownership.gid
+        && gid != fs_meta.gid() as u64
+    {
+        diffs.push(DiffKind::GidDiffers);
     }
 
     diffs
@@ -220,10 +223,11 @@ fn compare_directory_metadata<T: AsRef<[u8]>>(
     options: &CompareOptions,
 ) -> Vec<DiffKind> {
     let mut diffs = Vec::new();
+    let ownership = crate::ext::ResolvedOwnership::from_metadata(entry.metadata());
 
     // Always compare mode for directories
-    if let Some(perm) = entry.metadata().permission() {
-        let archive_mode = perm.permissions() & 0o7777;
+    if let Some(mode) = ownership.mode {
+        let archive_mode = mode & 0o7777;
         let fs_mode = (fs_meta.permissions().mode() & 0o7777) as u16;
         if archive_mode != fs_mode {
             diffs.push(DiffKind::ModeDiffers);
@@ -239,13 +243,15 @@ fn compare_directory_metadata<T: AsRef<[u8]>>(
             diffs.push(DiffKind::MtimeDiffers);
         }
 
-        if let Some(perm) = entry.metadata().permission() {
-            if perm.uid() != fs_meta.uid() as u64 {
-                diffs.push(DiffKind::UidDiffers);
-            }
-            if perm.gid() != fs_meta.gid() as u64 {
-                diffs.push(DiffKind::GidDiffers);
-            }
+        if let Some(uid) = ownership.uid
+            && uid != fs_meta.uid() as u64
+        {
+            diffs.push(DiffKind::UidDiffers);
+        }
+        if let Some(gid) = ownership.gid
+            && gid != fs_meta.gid() as u64
+        {
+            diffs.push(DiffKind::GidDiffers);
         }
     }
 

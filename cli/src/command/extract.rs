@@ -27,8 +27,7 @@ use crate::{
 use anyhow::Context;
 use clap::{ArgGroup, Parser, ValueHint};
 use pna::{
-    DataKind, EntryName, EntryReference, LinkTargetType, NormalEntry, Permission, ReadOptions,
-    prelude::*,
+    DataKind, EntryName, EntryReference, LinkTargetType, NormalEntry, ReadOptions, prelude::*,
 };
 #[cfg(target_os = "macos")]
 use std::os::macos::fs::FileTimesExt;
@@ -1603,20 +1602,25 @@ where
     if item.header().data_kind() != DataKind::File {
         restore_path_timestamps(path, item.metadata(), keep_options)?;
     }
-    if let Some(p) = item.metadata().permission() {
-        // Restore ownership when owner_strategy is Preserve (independent of mode)
-        if let OwnerStrategy::Preserve { options } = &keep_options.owner_strategy {
-            restore_owner(path, p, options)?;
-        }
-        // Restore mode bits when configured.
-        // Skip for symlinks: symlink permissions are not settable via chmod() on most
-        // platforms, and chmod() follows symlinks, which would corrupt the target's permissions.
-        if item.header().data_kind() != DataKind::SymbolicLink {
-            match keep_options.mode_strategy {
-                ModeStrategy::Preserve => restore_mode(path, p)?,
-                ModeStrategy::Masked(mask) => restore_mode_masked(path, p, mask)?,
-                ModeStrategy::Never => {}
-            }
+    let ownership = crate::ext::ResolvedOwnership::from_metadata(item.metadata());
+    // Restore ownership when owner_strategy is Preserve (independent of mode).
+    // A permission-mode-only entry (`fMOd`) is not owner identity and must not
+    // fall back to uid/gid 0.
+    if let OwnerStrategy::Preserve { options } = &keep_options.owner_strategy
+        && should_restore_owner(&ownership, options)
+    {
+        restore_owner(path, &ownership, options)?;
+    }
+    // Restore mode bits when configured.
+    // Skip for symlinks: symlink permissions are not settable via chmod() on most
+    // platforms, and chmod() follows symlinks, which would corrupt the target's permissions.
+    if item.header().data_kind() != DataKind::SymbolicLink
+        && let Some(mode) = ownership.mode
+    {
+        match keep_options.mode_strategy {
+            ModeStrategy::Preserve => restore_mode(path, mode)?,
+            ModeStrategy::Masked(mask) => restore_mode_masked(path, mode, mask)?,
+            ModeStrategy::Never => {}
         }
     }
     // On macOS, when mac_metadata_strategy is Always and the entry has mac_metadata,
@@ -1776,7 +1780,7 @@ fn restore_acls(
 /// 2. Override uname/gname if specified, searching by name
 /// 3. Archive's uname/gname with fallback to archive's uid/gid
 fn resolve_owner(
-    permission: &Permission,
+    ownership: &crate::ext::ResolvedOwnership,
     uname_override: Option<&str>,
     gname_override: Option<&str>,
     uid_override: Option<u32>,
@@ -1785,26 +1789,35 @@ fn resolve_owner(
     let user = if let Some(uid) = uid_override {
         User::from_uid(uid.into()).ok()
     } else {
-        let name = uname_override.unwrap_or(permission.uname());
-        search_owner(name, permission.uid()).ok()
+        let name = uname_override.or(ownership.uname.as_deref()).unwrap_or("");
+        search_owner(name, ownership.uid.unwrap_or(0)).ok()
     };
     let group = if let Some(gid) = gid_override {
         Group::from_gid(gid.into()).ok()
     } else {
-        let name = gname_override.unwrap_or(permission.gname());
-        search_group(name, permission.gid()).ok()
+        let name = gname_override.or(ownership.gname.as_deref()).unwrap_or("");
+        search_group(name, ownership.gid.unwrap_or(0)).ok()
     };
     (user, group)
+}
+
+#[inline]
+fn should_restore_owner(ownership: &crate::ext::ResolvedOwnership, options: &OwnerOptions) -> bool {
+    ownership.has_posix_owner_identity() || options.has_overrides()
 }
 
 /// Restores file ownership (uid/gid) for an extracted entry.
 /// Called when `OwnerStrategy::Preserve` is set.
 #[inline]
-fn restore_owner(path: &Path, p: &Permission, options: &OwnerOptions) -> io::Result<()> {
+fn restore_owner(
+    path: &Path,
+    ownership: &crate::ext::ResolvedOwnership,
+    options: &OwnerOptions,
+) -> io::Result<()> {
     #[cfg(any(unix, windows))]
     {
         let (user, group) = resolve_owner(
-            p,
+            ownership,
             options.uname.as_deref(),
             options.gname.as_deref(),
             options.uid,
@@ -1819,7 +1832,7 @@ fn restore_owner(path: &Path, p: &Permission, options: &OwnerOptions) -> io::Res
     }
     #[cfg(not(any(unix, windows)))]
     {
-        let _ = (path, p, options);
+        let _ = (path, ownership, options);
         log::warn!("Currently ownership restoration is not supported on this platform.");
     }
     Ok(())
@@ -1828,14 +1841,14 @@ fn restore_owner(path: &Path, p: &Permission, options: &OwnerOptions) -> io::Res
 /// Restores file mode bits (permissions like 0755) for an extracted entry.
 /// Called when `ModeStrategy::Preserve` is set.
 #[inline]
-fn restore_mode(path: &Path, p: &Permission) -> io::Result<()> {
+fn restore_mode(path: &Path, mode: u16) -> io::Result<()> {
     #[cfg(any(unix, windows))]
     {
-        utils::fs::chmod(path, p.permissions())?;
+        utils::fs::chmod(path, mode)?;
     }
     #[cfg(not(any(unix, windows)))]
     {
-        let _ = (path, p);
+        let _ = (path, mode);
         log::warn!(
             "Skipping mode restoration for '{}': not supported on this platform.",
             path.display()
@@ -1846,14 +1859,14 @@ fn restore_mode(path: &Path, p: &Permission) -> io::Result<()> {
 
 /// Restores file mode bits with umask applied and suid/sgid/sticky cleared.
 #[inline]
-fn restore_mode_masked(path: &Path, p: &Permission, umask: Umask) -> io::Result<()> {
+fn restore_mode_masked(path: &Path, mode: u16, umask: Umask) -> io::Result<()> {
     #[cfg(any(unix, windows))]
     {
-        utils::fs::chmod(path, umask.apply(p.permissions()))?;
+        utils::fs::chmod(path, umask.apply(mode))?;
     }
     #[cfg(not(any(unix, windows)))]
     {
-        let _ = (path, p, umask);
+        let _ = (path, mode, umask);
         log::warn!(
             "Skipping mode restoration for '{}': not supported on this platform.",
             path.display()
@@ -2020,4 +2033,41 @@ fn symlink_with_type<P: AsRef<Path>, Q: AsRef<Path>>(
     _link_target_type: Option<LinkTargetType>,
 ) -> io::Result<()> {
     pna::fs::symlink(original, link)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mode_only_metadata_does_not_request_owner_restore() {
+        let ownership = crate::ext::ResolvedOwnership {
+            mode: Some(0o644),
+            ..Default::default()
+        };
+        assert!(!should_restore_owner(&ownership, &OwnerOptions::default()));
+    }
+
+    #[test]
+    fn explicit_owner_override_requests_owner_restore_without_archive_owner() {
+        let ownership = crate::ext::ResolvedOwnership {
+            mode: Some(0o644),
+            ..Default::default()
+        };
+        let options = OwnerOptions {
+            uid: Some(4242),
+            ..Default::default()
+        };
+        assert!(should_restore_owner(&ownership, &options));
+    }
+
+    #[test]
+    fn archive_owner_identity_requests_owner_restore() {
+        let ownership = crate::ext::ResolvedOwnership {
+            uid: Some(1000),
+            mode: Some(0o644),
+            ..Default::default()
+        };
+        assert!(should_restore_owner(&ownership, &OwnerOptions::default()));
+    }
 }

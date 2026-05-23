@@ -20,4 +20,6 @@ mod option_no_recursive;
 #[cfg(not(target_family = "wasm"))]
 mod option_show_fflags;
 #[cfg(not(target_family = "wasm"))]
+mod owner_facet_mode_only;
+#[cfg(not(target_family = "wasm"))]
 mod trailing_slash;

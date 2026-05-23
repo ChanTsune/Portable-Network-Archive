@@ -10,7 +10,7 @@ use crate::{
             collect_split_archives,
         },
     },
-    ext::{Acls, NormalEntryExt, PermissionExt},
+    ext::{Acls, NormalEntryExt},
     utils::{GlobPatterns, PathPartExt, env::NamedTempFile},
 };
 use clap::{ArgGroup, Parser, ValueHint};
@@ -297,14 +297,14 @@ fn archive_get_acl(args: GetAclCommand) -> anyhow::Result<()> {
             let entry = entry?;
             let name = entry.name();
             if globs.matches_any(name) {
-                let permission = entry.metadata().permission();
+                let ownership = crate::ext::ResolvedOwnership::from_metadata(entry.metadata());
                 println!("# file: {name}");
-                if let Some(permission) = permission {
-                    println!("# owner: {}", permission.owner_display(numeric_owner));
-                    println!("# group: {}", permission.group_display(numeric_owner));
-                } else {
+                if ownership.is_empty() {
                     println!("# owner: ");
                     println!("# group: ");
+                } else {
+                    println!("# owner: {}", ownership.owner_display(numeric_owner));
+                    println!("# group: {}", ownership.group_display(numeric_owner));
                 }
                 for (platform, acl) in entry
                     .acl()?
