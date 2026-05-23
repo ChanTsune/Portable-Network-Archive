@@ -48,14 +48,14 @@ fn migrate_metadata(args: MigrateCommand) -> anyhow::Result<()> {
             temp_file.as_file_mut(),
             password.as_deref(),
             #[hooq::skip_all]
-            |entry| Ok(Some(strip_entry_metadata(entry?)?)),
+            |entry| Ok(Some(convert_entry_to_owner_facet(entry?)?)),
             TransformStrategyUnSolid,
         ),
         SolidEntriesTransformStrategy::KeepSolid => source.transform_entries(
             temp_file.as_file_mut(),
             password.as_deref(),
             #[hooq::skip_all]
-            |entry| Ok(Some(strip_entry_metadata(entry?)?)),
+            |entry| Ok(Some(convert_entry_to_owner_facet(entry?)?)),
             TransformStrategyKeepSolid,
         ),
     }?;
@@ -67,7 +67,7 @@ fn migrate_metadata(args: MigrateCommand) -> anyhow::Result<()> {
 }
 
 #[inline]
-fn strip_entry_metadata<T>(entry: NormalEntry<T>) -> io::Result<NormalEntry<T>>
+fn convert_entry_to_owner_facet<T>(entry: NormalEntry<T>) -> io::Result<NormalEntry<T>>
 where
     T: Clone,
     RawChunk<T>: Chunk,
@@ -82,7 +82,6 @@ where
             acl.push(RawChunk::from_data(crate::chunk::faCe, ace.to_bytes()).into());
         }
     }
-
     acl.extend(
         entry
             .extra_chunks()
@@ -90,5 +89,38 @@ where
             .filter(|it| !keep_private_chunks.contains(&it.ty()))
             .cloned(),
     );
-    Ok(entry.with_extra_chunks(acl))
+
+    let own = crate::ext::ResolvedOwnership::from_metadata(entry.metadata());
+    let src = entry.metadata();
+    let created = src.created();
+    let modified = src.modified();
+    let accessed = src.accessed();
+    let link_target_type = src.link_target_type();
+    let new_meta = pna::Metadata::new()
+        .with_created(created)
+        .with_modified(modified)
+        .with_accessed(accessed)
+        .with_link_target_type(link_target_type)
+        .with_owner_uid(own.uid.map(pna::OwnerUid::from))
+        .with_owner_gid(own.gid.map(pna::OwnerGid::from))
+        .with_owner_user_name(
+            own.uname
+                .as_deref()
+                .and_then(crate::command::core::permission::owner_name_opt),
+        )
+        .with_owner_group_name(
+            own.gname
+                .as_deref()
+                .and_then(crate::command::core::permission::owner_group_name_opt),
+        )
+        .with_permission_mode(own.mode.map(pna::PermissionMode::from))
+        .with_owner_user_sid(
+            own.user_sid
+                .map(|s| pna::OwnerUserSid::new(s).expect("rescued sid within owner-facet bound")),
+        )
+        .with_owner_group_sid(
+            own.group_sid
+                .map(|s| pna::OwnerGroupSid::new(s).expect("rescued sid within owner-facet bound")),
+        );
+    Ok(entry.with_metadata(new_meta).with_extra_chunks(acl))
 }
