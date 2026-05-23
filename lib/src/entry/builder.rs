@@ -1,5 +1,7 @@
 //! Builder types for constructing archive entries.
 
+#[allow(deprecated)]
+use crate::entry::Permission;
 use crate::{
     Duration,
     archive::{InternalArchiveDataWriter, InternalDataWriter, write_file_entry},
@@ -9,8 +11,8 @@ use crate::{
     entry::{
         DataKind, Entry, EntryHeader, EntryName, EntryReference, ExtendedAttribute, LinkTargetType,
         Metadata, NormalEntry, OwnerGid, OwnerGroupName, OwnerGroupSid, OwnerUid, OwnerUserName,
-        OwnerUserSid, Permission, PermissionMode, SolidEntry, SolidHeader, WriteCipher,
-        WriteOption, WriteOptions, get_writer, get_writer_context, private::SealedEntryExt,
+        OwnerUserSid, PermissionMode, SolidEntry, SolidHeader, WriteCipher, WriteOption,
+        WriteOptions, get_writer, get_writer_context, private::SealedEntryExt,
     },
     io::{FlattenWriter, TryIntoInner},
 };
@@ -148,6 +150,7 @@ pub struct EntryBuilder {
     created: Option<Duration>,
     last_modified: Option<Duration>,
     accessed: Option<Duration>,
+    #[allow(deprecated)]
     permission: Option<Permission>,
     owner_uid: Option<OwnerUid>,
     owner_gid: Option<OwnerGid>,
@@ -164,6 +167,7 @@ pub struct EntryBuilder {
 }
 
 impl EntryBuilder {
+    #[allow(deprecated)]
     const fn new(header: EntryHeader) -> Self {
         Self {
             header,
@@ -306,6 +310,11 @@ impl EntryBuilder {
     }
 
     /// Sets the permission of the entry to the given owner, group, and permissions.
+    #[deprecated(
+        since = "0.34.0",
+        note = "the fPRM chunk is superseded by the owner facet chunks; use EntryBuilder::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode"
+    )]
+    #[allow(deprecated)]
     #[inline]
     pub fn permission(&mut self, permission: impl Into<Option<Permission>>) -> &mut Self {
         self.permission = permission.into();
@@ -428,6 +437,7 @@ impl EntryBuilder {
     /// # Errors
     ///
     /// Returns an error if an I/O error occurs while building entry into buffer.
+    #[allow(deprecated)]
     #[inline]
     #[must_use = "building an entry without using it is wasteful"]
     pub fn build(self) -> io::Result<NormalEntry> {
