@@ -104,7 +104,28 @@ where
 {
     let mut metadata = Metadata::new();
     if options.keep_permission {
-        metadata = metadata.with_permission(entry.metadata().permission().cloned());
+        let own = crate::ext::ResolvedOwnership::from_metadata(entry.metadata());
+        metadata =
+            metadata
+                .with_owner_uid(own.uid.map(pna::OwnerUid::from))
+                .with_owner_gid(own.gid.map(pna::OwnerGid::from))
+                .with_owner_user_name(
+                    own.uname
+                        .as_deref()
+                        .and_then(crate::command::core::permission::owner_name_opt),
+                )
+                .with_owner_group_name(
+                    own.gname
+                        .as_deref()
+                        .and_then(crate::command::core::permission::owner_group_name_opt),
+                )
+                .with_permission_mode(own.mode.map(pna::PermissionMode::from))
+                .with_owner_user_sid(own.user_sid.map(|s| {
+                    pna::OwnerUserSid::new(s).expect("rescued sid within owner-facet bound")
+                }))
+                .with_owner_group_sid(own.group_sid.map(|s| {
+                    pna::OwnerGroupSid::new(s).expect("rescued sid within owner-facet bound")
+                }));
     }
     if options.keep_timestamp {
         metadata = metadata.with_accessed(entry.metadata().accessed());
