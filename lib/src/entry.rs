@@ -603,6 +603,7 @@ where
 {
     type Error = io::Error;
 
+    #[allow(deprecated)]
     #[inline]
     fn try_from(entry: RawEntry<T>) -> Result<Self, Self::Error> {
         let mut chunks = entry.0.into_iter();
@@ -743,6 +744,7 @@ where
     RawChunk<T>: Chunk,
     T: AsRef<[u8]>,
 {
+    #[allow(deprecated)]
     #[inline]
     fn chunks_write_in<W: Write>(&self, writer: &mut W) -> io::Result<usize> {
         let mut total = 0;
@@ -843,6 +845,7 @@ where
     T: AsRef<[u8]>,
     RawChunk<T>: Chunk + Into<RawChunk>,
 {
+    #[allow(deprecated)]
     fn into_chunks(self) -> Vec<RawChunk> {
         let Metadata {
             raw_file_size,

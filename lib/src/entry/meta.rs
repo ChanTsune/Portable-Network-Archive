@@ -21,6 +21,7 @@ use std::str;
 /// # Ok(())
 /// # }
 /// ```
+#[allow(deprecated)]
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Metadata {
     pub(crate) raw_file_size: Option<u128>,
@@ -119,6 +120,11 @@ impl Metadata {
     }
 
     /// Sets the permission of the entry.
+    #[deprecated(
+        since = "0.34.0",
+        note = "the fPRM chunk is superseded by the owner facet chunks; use Metadata::with_owner_uid/with_owner_gid/with_owner_user_name/with_owner_group_name/with_owner_user_sid/with_owner_group_sid/with_permission_mode"
+    )]
+    #[allow(deprecated)]
     #[inline]
     pub fn with_permission(mut self, permission: Option<Permission>) -> Self {
         self.permission = permission;
@@ -202,6 +208,11 @@ impl Metadata {
         self.accessed
     }
     /// Returns the owner, group, and permission bits for the entry.
+    #[deprecated(
+        since = "0.34.0",
+        note = "the fPRM chunk is superseded by the owner facet chunks; use Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode"
+    )]
+    #[allow(deprecated)]
     #[inline]
     pub const fn permission(&self) -> Option<&Permission> {
         self.permission.as_ref()
@@ -261,6 +272,10 @@ impl Default for Metadata {
 }
 
 /// Owner, group, and permission bits for an archive entry.
+#[deprecated(
+    since = "0.34.0",
+    note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching EntryBuilder/with_* setters)"
+)]
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct Permission {
     uid: u64,
@@ -270,6 +285,7 @@ pub struct Permission {
     permission: u16,
 }
 
+#[allow(deprecated)]
 impl Permission {
     /// Creates a new [`Permission`] with the given user, group, and permission bits.
     ///
@@ -279,10 +295,15 @@ impl Permission {
     /// # Examples
     ///
     /// ```
+    /// # #![allow(deprecated)]
     /// use libpna::Permission;
     ///
     /// let perm = Permission::new(1000, "user".into(), 100, "group".into(), 0o755);
     /// ```
+    #[deprecated(
+        since = "0.34.0",
+        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching EntryBuilder/with_* setters)"
+    )]
     #[inline]
     pub const fn new(uid: u64, uname: String, gid: u64, gname: String, permission: u16) -> Self {
         Self {
@@ -298,11 +319,16 @@ impl Permission {
     /// # Examples
     ///
     /// ```
+    /// # #![allow(deprecated)]
     /// use libpna::Permission;
     ///
     /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
     /// assert_eq!(perm.uid(), 1000);
     /// ```
+    #[deprecated(
+        since = "0.34.0",
+        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching EntryBuilder/with_* setters)"
+    )]
     #[inline]
     pub const fn uid(&self) -> u64 {
         self.uid
@@ -313,11 +339,16 @@ impl Permission {
     /// # Examples
     ///
     /// ```
+    /// # #![allow(deprecated)]
     /// use libpna::Permission;
     ///
     /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
     /// assert_eq!(perm.uname(), "user1");
     /// ```
+    #[deprecated(
+        since = "0.34.0",
+        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching EntryBuilder/with_* setters)"
+    )]
     #[inline]
     pub fn uname(&self) -> &str {
         &self.uname
@@ -328,11 +359,16 @@ impl Permission {
     /// # Examples
     ///
     /// ```
+    /// # #![allow(deprecated)]
     /// use libpna::Permission;
     ///
     /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
     /// assert_eq!(perm.gid(), 100);
     /// ```
+    #[deprecated(
+        since = "0.34.0",
+        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching EntryBuilder/with_* setters)"
+    )]
     #[inline]
     pub const fn gid(&self) -> u64 {
         self.gid
@@ -343,11 +379,16 @@ impl Permission {
     /// # Examples
     ///
     /// ```
+    /// # #![allow(deprecated)]
     /// use libpna::Permission;
     ///
     /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
     /// assert_eq!(perm.gname(), "group1");
     /// ```
+    #[deprecated(
+        since = "0.34.0",
+        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching EntryBuilder/with_* setters)"
+    )]
     #[inline]
     pub fn gname(&self) -> &str {
         &self.gname
@@ -358,11 +399,16 @@ impl Permission {
     /// # Examples
     ///
     /// ```
+    /// # #![allow(deprecated)]
     /// use libpna::Permission;
     ///
     /// let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
     /// assert_eq!(perm.permissions(), 0o644);
     /// ```
+    #[deprecated(
+        since = "0.34.0",
+        note = "the fPRM chunk is superseded by the owner facet chunks; use the owner facet API (Metadata::owner_uid/owner_gid/owner_user_name/owner_group_name/owner_user_sid/owner_group_sid/permission_mode and the matching EntryBuilder/with_* setters)"
+    )]
     #[inline]
     pub const fn permissions(&self) -> u16 {
         self.permission
@@ -859,6 +905,7 @@ mod tests {
     #[cfg(all(target_family = "wasm", target_os = "unknown"))]
     use wasm_bindgen_test::wasm_bindgen_test as test;
 
+    #[allow(deprecated)]
     #[test]
     fn permission() {
         let perm = Permission::new(1000, "user1".into(), 100, "group1".into(), 0o644);
@@ -1094,6 +1141,7 @@ mod tests {
         );
     }
 
+    #[allow(deprecated)]
     #[test]
     fn all_owner_facets_and_fprm_coexist_round_trip() {
         use crate::entry::{

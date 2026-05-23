@@ -139,6 +139,10 @@ impl ChunkType {
     pub const aTNS: ChunkType = ChunkType(*b"aTNS");
     /// Entry permissions.
     #[allow(non_upper_case_globals)]
+    #[deprecated(
+        since = "0.34.0",
+        note = "the fPRM chunk is superseded by the owner facet chunks fUId/fGId/fONm/fGNm/fOSi/fGSi/fMOd"
+    )]
     pub const fPRM: ChunkType = ChunkType(*b"fPRM");
     /// Extended attribute.
     #[allow(non_upper_case_globals)]

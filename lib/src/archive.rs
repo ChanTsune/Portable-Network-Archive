@@ -506,6 +506,7 @@ mod tests {
         assert!(entries.next().is_none());
     }
 
+    #[allow(deprecated)]
     #[test]
     fn metadata() {
         let original_entry = {

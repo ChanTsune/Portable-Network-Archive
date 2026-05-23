@@ -528,6 +528,7 @@ impl<W: Write> SolidArchive<W> {
     }
 }
 
+#[allow(deprecated)]
 pub(crate) fn write_file_entry<W, F>(
     inner: &mut W,
     name: EntryName,
@@ -567,6 +568,27 @@ where
     }
     if let Some(p) = metadata.permission {
         (ChunkType::fPRM, p.to_bytes()).write_chunk_in(inner)?;
+    }
+    if let Some(v) = metadata.owner_uid {
+        (ChunkType::fUId, v.to_bytes()).write_chunk_in(inner)?;
+    }
+    if let Some(v) = metadata.owner_gid {
+        (ChunkType::fGId, v.to_bytes()).write_chunk_in(inner)?;
+    }
+    if let Some(v) = metadata.owner_user_name {
+        (ChunkType::fONm, v.to_bytes()).write_chunk_in(inner)?;
+    }
+    if let Some(v) = metadata.owner_group_name {
+        (ChunkType::fGNm, v.to_bytes()).write_chunk_in(inner)?;
+    }
+    if let Some(v) = metadata.owner_user_sid {
+        (ChunkType::fOSi, v.to_bytes()).write_chunk_in(inner)?;
+    }
+    if let Some(v) = metadata.owner_group_sid {
+        (ChunkType::fGSi, v.to_bytes()).write_chunk_in(inner)?;
+    }
+    if let Some(v) = metadata.permission_mode {
+        (ChunkType::fMOd, v.to_bytes()).write_chunk_in(inner)?;
     }
     let context = get_writer_context(option)?;
     if let Some(WriteCipher { context: c, .. }) = &context.cipher {
@@ -629,6 +651,58 @@ mod tests {
         assert_eq!(&data[..], b"text");
     }
 
+    fn owner_facet_metadata() -> Metadata {
+        Metadata::new()
+            .with_owner_uid(Some(crate::OwnerUid::from(1000)))
+            .with_owner_gid(Some(crate::OwnerGid::from(100)))
+            .with_owner_user_name(Some(crate::OwnerUserName::new("alice").unwrap()))
+            .with_owner_group_name(Some(crate::OwnerGroupName::new("devs").unwrap()))
+            .with_owner_user_sid(Some(crate::OwnerUserSid::new("S-1-1").unwrap()))
+            .with_owner_group_sid(Some(crate::OwnerGroupSid::new("S-1-2").unwrap()))
+            .with_permission_mode(Some(crate::PermissionMode::from(0o750)))
+    }
+
+    fn assert_owner_facet_metadata(metadata: &Metadata) {
+        assert_eq!(metadata.owner_uid().map(|v| v.get()), Some(1000));
+        assert_eq!(metadata.owner_gid().map(|v| v.get()), Some(100));
+        assert_eq!(
+            metadata.owner_user_name().map(|v| v.as_str()),
+            Some("alice")
+        );
+        assert_eq!(
+            metadata.owner_group_name().map(|v| v.as_str()),
+            Some("devs")
+        );
+        assert_eq!(metadata.owner_user_sid().map(|v| v.as_str()), Some("S-1-1"));
+        assert_eq!(
+            metadata.owner_group_sid().map(|v| v.as_str()),
+            Some("S-1-2")
+        );
+        assert_eq!(metadata.permission_mode().map(|v| v.get()), Some(0o750));
+    }
+
+    #[test]
+    fn archive_write_file_entry_preserves_owner_facets() {
+        let mut writer = Archive::write_header(Vec::new()).expect("failed to write header");
+        writer
+            .write_file(
+                EntryName::from_lossy("text.txt"),
+                owner_facet_metadata(),
+                WriteOptions::store(),
+                |writer| writer.write_all(b"text"),
+            )
+            .expect("failed to write");
+        let file = writer.finalize().expect("failed to finalize");
+        let mut reader = Archive::read_header(&file[..]).expect("failed to read archive");
+        let entry = reader
+            .entries()
+            .skip_solid()
+            .next()
+            .expect("failed to get entry")
+            .expect("failed to read entry");
+        assert_owner_facet_metadata(entry.metadata());
+    }
+
     #[test]
     fn solid_write_file_entry() {
         let option = WriteOptions::builder().build();
@@ -656,6 +730,28 @@ mod tests {
             .read_to_end(&mut data)
             .expect("failed to read data");
         assert_eq!(&data[..], b"text");
+    }
+
+    #[test]
+    fn solid_write_file_entry_preserves_owner_facets() {
+        let mut writer = Archive::write_solid_header(Vec::new(), WriteOptions::store())
+            .expect("failed to write header");
+        writer
+            .write_file(
+                EntryName::from_lossy("text.txt"),
+                owner_facet_metadata(),
+                |writer| writer.write_all(b"text"),
+            )
+            .expect("failed to write");
+        let file = writer.finalize().expect("failed to finalize");
+        let mut reader = Archive::read_header(&file[..]).expect("failed to read archive");
+        let entry = reader
+            .entries()
+            .extract_solid_entries(None)
+            .next()
+            .expect("failed to get entry")
+            .expect("failed to read entry");
+        assert_owner_facet_metadata(entry.metadata());
     }
 
     fn count_chunks(archive: &[u8], ty: ChunkType) -> usize {
