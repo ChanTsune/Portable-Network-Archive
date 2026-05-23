@@ -32,7 +32,19 @@ fn chown_empty_files_is_noop() {
     archive::for_each_entry("chown_empty_files.pna", |entry| {
         before.insert(
             entry.header().path().to_string(),
-            entry.metadata().permission().cloned(),
+            (
+                entry.metadata().owner_uid().map(|v| v.get()),
+                entry.metadata().owner_gid().map(|v| v.get()),
+                entry
+                    .metadata()
+                    .owner_user_name()
+                    .map(|v| v.as_str().to_string()),
+                entry
+                    .metadata()
+                    .owner_group_name()
+                    .map(|v| v.as_str().to_string()),
+                entry.metadata().permission_mode().map(|v| v.get()),
+            ),
         );
     })
     .unwrap();
@@ -60,11 +72,20 @@ fn chown_empty_files_is_noop() {
         let original = before
             .get(&path)
             .unwrap_or_else(|| panic!("unexpected entry after chown: {path}"));
-        assert_eq!(
-            entry.metadata().permission(),
-            original.as_ref(),
-            "metadata should be unchanged for {path}"
+        let actual = (
+            entry.metadata().owner_uid().map(|v| v.get()),
+            entry.metadata().owner_gid().map(|v| v.get()),
+            entry
+                .metadata()
+                .owner_user_name()
+                .map(|v| v.as_str().to_string()),
+            entry
+                .metadata()
+                .owner_group_name()
+                .map(|v| v.as_str().to_string()),
+            entry.metadata().permission_mode().map(|v| v.get()),
         );
+        assert_eq!(&actual, original, "metadata should be unchanged for {path}");
     })
     .unwrap();
     assert_eq!(after_count, before.len(), "entry count should be preserved");

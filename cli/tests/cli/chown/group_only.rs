@@ -48,20 +48,24 @@ fn chown_group_only() {
         match entry.header().path().as_str() {
             "target.txt" => {
                 found = true;
-                let p = entry.metadata().permission().unwrap();
-                assert_eq!(p.gname(), "new_group");
-                assert_eq!(p.gid(), u64::MAX);
-                assert_eq!(p.uname(), "user");
-                assert_eq!(p.uid(), 1000);
-                assert_eq!(p.permissions(), 0o644);
+                assert_eq!(
+                    entry.metadata().owner_group_name().unwrap().as_str(),
+                    "new_group"
+                );
+                assert_eq!(entry.metadata().owner_gid().unwrap().get(), u64::MAX);
+                assert_eq!(entry.metadata().owner_user_name().unwrap().as_str(), "user");
+                assert_eq!(entry.metadata().owner_uid().unwrap().get(), 1000);
+                assert_eq!(entry.metadata().permission_mode().unwrap().get(), 0o644);
             }
             "other.txt" => {
-                let p = entry.metadata().permission().unwrap();
-                assert_eq!(p.uname(), "user");
-                assert_eq!(p.gname(), "group");
-                assert_eq!(p.uid(), 1000);
-                assert_eq!(p.gid(), 1000);
-                assert_eq!(p.permissions(), 0o755);
+                assert_eq!(entry.metadata().owner_user_name().unwrap().as_str(), "user");
+                assert_eq!(
+                    entry.metadata().owner_group_name().unwrap().as_str(),
+                    "group"
+                );
+                assert_eq!(entry.metadata().owner_uid().unwrap().get(), 1000);
+                assert_eq!(entry.metadata().owner_gid().unwrap().get(), 1000);
+                assert_eq!(entry.metadata().permission_mode().unwrap().get(), 0o755);
             }
             other => panic!("unexpected entry: {other}"),
         }
