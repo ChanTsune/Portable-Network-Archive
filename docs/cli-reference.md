@@ -14,6 +14,7 @@ This document contains the help content for the `pna` command-line program.
 * [`pna concat`↴](#pna-concat)
 * [`pna strip`↴](#pna-strip)
 * [`pna sort`↴](#pna-sort)
+* [`pna migrate`↴](#pna-migrate)
 * [`pna xattr`↴](#pna-xattr)
 * [`pna xattr get`↴](#pna-xattr-get)
 * [`pna xattr set`↴](#pna-xattr-set)
@@ -74,6 +75,7 @@ This document contains the help content for the `pna` command-line program.
 * [`pna help concat`↴](#pna-help-concat)
 * [`pna help strip`↴](#pna-help-strip)
 * [`pna help sort`↴](#pna-help-sort)
+* [`pna help migrate`↴](#pna-help-migrate)
 * [`pna help xattr`↴](#pna-help-xattr)
 * [`pna help xattr get`↴](#pna-help-xattr-get)
 * [`pna help xattr set`↴](#pna-help-xattr-set)
@@ -114,6 +116,7 @@ Portable-Network-Archive cli
 * `concat` — Concat archives
 * `strip` — Strip entries metadata
 * `sort` — Sort entries in archive
+* `migrate` — Upgrade archives created by older PNA versions
 * `xattr` — Manipulate extended attributes
 * `complete` — Generate shell auto complete
 * `bug-report` — Generate bug report template
@@ -971,6 +974,49 @@ Sort entries in archive
 
 
 
+## `pna migrate`
+
+Upgrade archives created by older PNA versions
+
+**Usage:** `pna migrate [OPTIONS] --file <ARCHIVE> --output <OUTPUT>`
+
+###### **Options:**
+
+* `--unsolid` — Convert solid entries to regular entries
+
+  Default value: `false`
+* `--keep-solid` — Preserve solid entries without conversion
+
+  Default value: `false`
+* `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
+* `--password-file <FILE>` — Read password from specified file
+* `-f`, `--file <ARCHIVE>`
+* `--output <OUTPUT>` — Output file path
+* `--quiet` — Make some output more quiet (alias for --log-level off)
+
+  Default value: `false`
+* `--verbose` — Make some output more verbose (alias for --log-level debug)
+
+  Default value: `false`
+* `--log-level <LEVEL>` — Set the log level
+
+  Default value: `warn`
+
+  Possible values: `off`, `error`, `warn`, `info`, `debug`, `trace`
+
+* `--color <WHEN>` — Control color output
+
+  Default value: `auto`
+
+  Possible values: `auto`, `always`, `never`
+
+* `--unstable` — Enable experimental options. Required for flags marked as unstable; behavior may change or be removed.
+
+  Default value: `false`
+* `-h`, `--help` — Print help
+
+
+
 ## `pna xattr`
 
 Manipulate extended attributes
@@ -1537,7 +1583,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 * `chown` — Change owner
 * `chmod` — Change mode
 * `acl` — Manipulate ACLs of entries
-* `migrate` — Migrate old format to latest format
+* `migrate` — Upgrade archives created by older PNA versions (stabilized, use `pna migrate` command instead. this command will be removed in the future)
 * `chunk` — Chunk level operation
 * `sort` — Sort entries in archive (stabilized, use `pna sort` command instead. this command will be removed in the future)
 * `diff` — Compare archive entries with filesystem
@@ -2303,7 +2349,7 @@ Print this message or the help of the given subcommand(s)
 
 ## `pna experimental migrate`
 
-Migrate old format to latest format
+Upgrade archives created by older PNA versions (stabilized, use `pna migrate` command instead. this command will be removed in the future)
 
 **Usage:** `pna experimental migrate [OPTIONS] --file <ARCHIVE> --output <OUTPUT>`
 
@@ -2549,7 +2595,7 @@ Print this message or the help of the given subcommand(s)
 * `chown` — Change owner
 * `chmod` — Change mode
 * `acl` — Manipulate ACLs of entries
-* `migrate` — Migrate old format to latest format
+* `migrate` — Upgrade archives created by older PNA versions (stabilized, use `pna migrate` command instead. this command will be removed in the future)
 * `chunk` — Chunk level operation
 * `sort` — Sort entries in archive (stabilized, use `pna sort` command instead. this command will be removed in the future)
 * `diff` — Compare archive entries with filesystem
@@ -2628,7 +2674,7 @@ Set acl of entries
 
 ## `pna experimental help migrate`
 
-Migrate old format to latest format
+Upgrade archives created by older PNA versions (stabilized, use `pna migrate` command instead. this command will be removed in the future)
 
 **Usage:** `pna experimental help migrate`
 
@@ -2695,6 +2741,7 @@ Print this message or the help of the given subcommand(s)
 * `concat` — Concat archives
 * `strip` — Strip entries metadata
 * `sort` — Sort entries in archive
+* `migrate` — Upgrade archives created by older PNA versions
 * `xattr` — Manipulate extended attributes
 * `complete` — Generate shell auto complete
 * `bug-report` — Generate bug report template
@@ -2773,6 +2820,14 @@ Strip entries metadata
 Sort entries in archive
 
 **Usage:** `pna help sort`
+
+
+
+## `pna help migrate`
+
+Upgrade archives created by older PNA versions
+
+**Usage:** `pna help migrate`
 
 
 
@@ -2855,7 +2910,7 @@ Unstable experimental commands; behavior and interface may change or be removed
 * `chown` — Change owner
 * `chmod` — Change mode
 * `acl` — Manipulate ACLs of entries
-* `migrate` — Migrate old format to latest format
+* `migrate` — Upgrade archives created by older PNA versions (stabilized, use `pna migrate` command instead. this command will be removed in the future)
 * `chunk` — Chunk level operation
 * `sort` — Sort entries in archive (stabilized, use `pna sort` command instead. this command will be removed in the future)
 * `diff` — Compare archive entries with filesystem
@@ -2933,7 +2988,7 @@ Set acl of entries
 
 ## `pna help experimental migrate`
 
-Migrate old format to latest format
+Upgrade archives created by older PNA versions (stabilized, use `pna migrate` command instead. this command will be removed in the future)
 
 **Usage:** `pna help experimental migrate`
 
