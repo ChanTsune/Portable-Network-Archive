@@ -19,8 +19,8 @@ fn strip_removes_unspecified_metadata() {
         let path = entry.header().path().to_string();
         let meta = entry.metadata();
         assert!(
-            meta.permission().is_some() && meta.modified().is_some(),
-            "entry {path} should have both permission and timestamp before strip"
+            meta.permission_mode().is_some() && meta.modified().is_some(),
+            "entry {path} should have both permission mode and timestamp before strip"
         );
         pre_timestamps.insert(path, meta.modified());
     })
@@ -76,31 +76,44 @@ fn strip_removes_unspecified_metadata() {
     );
 }
 
-/// Precondition: An fPRM-only archive carries ownership metadata.
+/// Precondition: An archive carries ownership metadata as owner facets.
 /// Action: Run `pna strip --keep-permission`.
-/// Expectation: Ownership is preserved as owner-facet chunks (rescued from fPRM); the legacy fPRM chunk is not emitted.
+/// Expectation: Ownership is preserved as owner-facet chunks; the legacy fPRM chunk is not emitted.
 #[test]
 #[allow(deprecated)]
-fn strip_keep_permission_rescues_fprm_to_owner_facet() {
+fn strip_keep_permission_preserves_owner_facets() {
+    struct OwnerFacets {
+        uid: Option<u64>,
+        gid: Option<u64>,
+        uname: Option<String>,
+        gname: Option<String>,
+        mode: Option<u16>,
+    }
+
     setup();
     TestResources::extract_in("zstd_keep_all.pna", "strip_keep_perm/").unwrap();
 
-    let mut pre: BTreeMap<String, (u64, u64, String, String, u16)> = BTreeMap::new();
+    let mut pre: BTreeMap<String, OwnerFacets> = BTreeMap::new();
     archive::for_each_entry("strip_keep_perm/zstd_keep_all.pna", |entry| {
         let path = entry.header().path().to_string();
-        let p = entry
-            .metadata()
-            .permission()
-            .expect("fixture entry should carry fPRM permission");
+        let meta = entry.metadata();
+        assert!(
+            meta.permission().is_none(),
+            "fixture entry should not carry fPRM permission for {path}"
+        );
+        assert!(
+            meta.permission_mode().is_some(),
+            "fixture entry should carry owner-facet permission mode for {path}"
+        );
         pre.insert(
             path,
-            (
-                p.uid(),
-                p.gid(),
-                p.uname().to_string(),
-                p.gname().to_string(),
-                p.permissions(),
-            ),
+            OwnerFacets {
+                uid: meta.owner_uid().map(|v| v.get()),
+                gid: meta.owner_gid().map(|v| v.get()),
+                uname: meta.owner_user_name().map(|v| v.as_str().to_owned()),
+                gname: meta.owner_group_name().map(|v| v.as_str().to_owned()),
+                mode: meta.permission_mode().map(|v| v.get()),
+            },
         );
     })
     .unwrap();
@@ -123,40 +136,36 @@ fn strip_keep_permission_rescues_fprm_to_owner_facet() {
         post_count += 1;
         let path = entry.header().path().to_string();
         let meta = entry.metadata();
-        let (uid, gid, uname, gname, mode) = pre
+        let expected = pre
             .get(&path)
             .unwrap_or_else(|| panic!("unexpected entry after strip: {path}"));
         assert!(
             meta.permission().is_none(),
             "fPRM must not be emitted after strip --keep-permission for {path}"
         );
-        assert_eq!(meta.owner_uid().map(|v| v.get()), Some(*uid), "uid {path}");
-        assert_eq!(meta.owner_gid().map(|v| v.get()), Some(*gid), "gid {path}");
-        let expected_uname = if uname.is_empty() {
-            None
-        } else {
-            Some(uname.as_str())
-        };
-        let expected_gname = if gname.is_empty() {
-            None
-        } else {
-            Some(gname.as_str())
-        };
+        assert_eq!(
+            meta.owner_uid().map(|v| v.get()),
+            expected.uid,
+            "uid {path}"
+        );
+        assert_eq!(
+            meta.owner_gid().map(|v| v.get()),
+            expected.gid,
+            "gid {path}"
+        );
         assert_eq!(
             meta.owner_user_name().map(|v| v.as_str()),
-            expected_uname,
+            expected.uname.as_deref(),
             "uname {path}"
         );
         assert_eq!(
             meta.owner_group_name().map(|v| v.as_str()),
-            expected_gname,
+            expected.gname.as_deref(),
             "gname {path}"
         );
-        // `PermissionMode::from` masks reserved bits outside `0o7777`
-        // (file-type bits in the legacy fPRM `st_mode`) to 0 on construction.
         assert_eq!(
             meta.permission_mode().map(|v| v.get()),
-            Some(*mode & 0o7777),
+            expected.mode,
             "mode {path}"
         );
     })
