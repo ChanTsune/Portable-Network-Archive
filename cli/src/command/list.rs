@@ -360,7 +360,7 @@ impl CollectOptions {
 struct TableRow {
     encryption: String,
     compression: String,
-    permission: Option<pna::Permission>,
+    ownership: crate::ext::ResolvedOwnership,
     raw_size: Option<u128>,
     compressed_size: usize,
     created: Option<SystemTime>,
@@ -376,7 +376,7 @@ struct TableRow {
 impl TableRow {
     #[inline]
     fn permission_mode(&self) -> u16 {
-        self.permission.as_ref().map_or(0, |it| it.permissions())
+        self.ownership.mode.unwrap_or(0)
     }
 
     /// Construct a TableRow from an entry, only collecting expensive metadata when needed.
@@ -418,7 +418,7 @@ impl TableRow {
                 (method, None) => format!("{method:?}").to_ascii_lowercase(),
                 (method, Some(_)) => format!("{method:?}(solid)").to_ascii_lowercase(),
             },
-            permission: metadata.permission().cloned(),
+            ownership: crate::ext::ResolvedOwnership::from_metadata(metadata),
             raw_size: metadata.raw_file_size(),
             compressed_size: metadata.compressed_size(),
             created: metadata.saturating_created_time(),
@@ -806,6 +806,18 @@ fn print_formatted_entries(
     Ok(())
 }
 
+/// True when the resolved ownership carries a displayable user/group identity
+/// (a uid/gid, or a non-empty user/group name). A `permission_mode`-only or
+/// SID-only entry has no POSIX owner/group to show and must render blank
+/// rather than a synthesized uid/gid `0`.
+#[inline]
+fn has_owner_group_identity(o: &crate::ext::ResolvedOwnership) -> bool {
+    o.uid.is_some()
+        || o.gid.is_some()
+        || o.uname.as_deref().is_some_and(|v| !v.is_empty())
+        || o.gname.as_deref().is_some_and(|v| !v.is_empty())
+}
+
 fn bsd_tar_list_entries_to(
     entries: Vec<TableRow>,
     options: &ListOptions,
@@ -822,20 +834,24 @@ fn bsd_tar_list_entries_to(
         let perm = PermissionDisplay::bsdtar(&row.entry_type, permission, has_acl);
         let size = row.raw_size.unwrap_or(0);
         let mtime = bsd_tar_time(now, &tz, row.modified.unwrap_or(now));
-        let (uname, gname) = match &row.permission {
-            Some(p) => (
-                if options.numeric_owner || p.uname().is_empty() {
-                    Cow::Owned(format!("{} ", p.uid()))
+        let (uname, gname): (Cow<str>, Cow<str>) = if !has_owner_group_identity(&row.ownership) {
+            (Cow::default(), Cow::default())
+        } else {
+            let o = &row.ownership;
+            (
+                if options.numeric_owner || o.uname.as_deref().unwrap_or("").is_empty() {
+                    o.uid
+                        .map_or_else(Cow::default, |uid| Cow::Owned(format!("{uid} ")))
                 } else {
-                    Cow::Borrowed(p.uname())
+                    Cow::Owned(o.uname.clone().unwrap_or_default())
                 },
-                if options.numeric_owner || p.gname().is_empty() {
-                    Cow::Owned(p.gid().to_string())
+                if options.numeric_owner || o.gname.as_deref().unwrap_or("").is_empty() {
+                    o.gid
+                        .map_or_else(Cow::default, |gid| Cow::Owned(gid.to_string()))
                 } else {
-                    Cow::Borrowed(p.gname())
+                    Cow::Owned(o.gname.clone().unwrap_or_default())
                 },
-            ),
-            None => (Cow::default(), Cow::default()),
+            )
         };
         let name = row.entry_type.bsd_long_style_display();
         u_width = u_width.max(uname.len());
@@ -934,14 +950,20 @@ fn detail_list_entries_to(
         let has_acl = !content.acl.is_empty();
         let has_xattr = !content.xattrs.is_empty();
         let permission_mode = content.permission_mode();
-        let user = content.permission.as_ref().map_or_else(
-            || "-".into(),
-            |it| it.owner_display(options.numeric_owner).to_string(),
-        );
-        let group = content.permission.as_ref().map_or_else(
-            || "-".into(),
-            |it| it.group_display(options.numeric_owner).to_string(),
-        );
+        let (user, group) = if !has_owner_group_identity(&content.ownership) {
+            ("-".to_string(), "-".to_string())
+        } else {
+            (
+                content
+                    .ownership
+                    .owner_display(options.numeric_owner)
+                    .to_string(),
+                content
+                    .ownership
+                    .group_display(options.numeric_owner)
+                    .to_string(),
+            )
+        };
         builder.push_record(
             [
                 Some(content.encryption),
@@ -1326,14 +1348,8 @@ fn json_line_entries_to(
         .par_iter()
         .map(|it| {
             let permission_mode = it.permission_mode();
-            let owner = it
-                .permission
-                .as_ref()
-                .map_or_else(String::new, |it| it.uname().to_string());
-            let group = it
-                .permission
-                .as_ref()
-                .map_or_else(String::new, |it| it.gname().to_string());
+            let owner = it.ownership.uname.clone().unwrap_or_default();
+            let group = it.ownership.gname.clone().unwrap_or_default();
             FileInfo {
                 filename: it.entry_type.name(),
                 permissions: PermissionDisplay::new(
@@ -1435,12 +1451,18 @@ fn delimited_entries_to(
         .par_iter()
         .map(|row| {
             let permission_mode = row.permission_mode();
-            let owner = row.permission.as_ref().map_or_else(String::new, |it| {
-                it.owner_display(options.numeric_owner).to_string()
-            });
-            let group = row.permission.as_ref().map_or_else(String::new, |it| {
-                it.group_display(options.numeric_owner).to_string()
-            });
+            let (owner, group) = if !has_owner_group_identity(&row.ownership) {
+                (String::new(), String::new())
+            } else {
+                (
+                    row.ownership
+                        .owner_display(options.numeric_owner)
+                        .to_string(),
+                    row.ownership
+                        .group_display(options.numeric_owner)
+                        .to_string(),
+                )
+            };
             let time = match options.time_field {
                 TimeField::Created => row.created,
                 TimeField::Modified => row.modified,

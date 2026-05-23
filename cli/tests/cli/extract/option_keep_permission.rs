@@ -88,8 +88,8 @@ fn extract_preserves_executable_permission() {
     archive::for_each_entry("extract_perm_755/archive.pna", |entry| {
         if entry.header().path().as_str().ends_with("raw/text.txt") {
             found = true;
-            let perm = entry.metadata().permission().unwrap();
-            assert_eq!(perm.permissions() & 0o777, 0o755);
+            let mode = entry.metadata().permission_mode().unwrap();
+            assert_eq!(mode.get() & 0o777, 0o755);
         }
     })
     .unwrap();
@@ -147,8 +147,8 @@ fn extract_preserves_readonly_permission() {
     archive::for_each_entry("extract_perm_644/archive.pna", |entry| {
         if entry.header().path().as_str().ends_with("raw/text.txt") {
             found = true;
-            let perm = entry.metadata().permission().unwrap();
-            assert_eq!(perm.permissions() & 0o777, 0o644);
+            let mode = entry.metadata().permission_mode().unwrap();
+            assert_eq!(mode.get() & 0o777, 0o644);
         }
     })
     .unwrap();
@@ -206,8 +206,8 @@ fn extract_preserves_private_permission() {
     archive::for_each_entry("extract_perm_600/archive.pna", |entry| {
         if entry.header().path().as_str().ends_with("raw/text.txt") {
             found = true;
-            let perm = entry.metadata().permission().unwrap();
-            assert_eq!(perm.permissions() & 0o777, 0o600);
+            let mode = entry.metadata().permission_mode().unwrap();
+            assert_eq!(mode.get() & 0o777, 0o600);
         }
     })
     .unwrap();
@@ -330,8 +330,8 @@ fn extract_preserves_full_permission() {
     archive::for_each_entry("extract_perm_777/archive.pna", |entry| {
         if entry.header().path().as_str().ends_with("raw/text.txt") {
             found = true;
-            let perm = entry.metadata().permission().unwrap();
-            assert_eq!(perm.permissions() & 0o777, 0o777);
+            let mode = entry.metadata().permission_mode().unwrap();
+            assert_eq!(mode.get() & 0o777, 0o777);
         }
     })
     .unwrap();
@@ -395,13 +395,13 @@ fn extract_preserves_mixed_permissions() {
         if entry.header().path().as_str().ends_with("raw/text.txt") {
             found_text = true;
             assert_eq!(
-                entry.metadata().permission().unwrap().permissions() & 0o777,
+                entry.metadata().permission_mode().unwrap().get() & 0o777,
                 0o755
             );
         } else if entry.header().path().as_str().ends_with("raw/empty.txt") {
             found_empty = true;
             assert_eq!(
-                entry.metadata().permission().unwrap().permissions() & 0o777,
+                entry.metadata().permission_mode().unwrap().get() & 0o777,
                 0o644
             );
         } else if entry
@@ -412,7 +412,7 @@ fn extract_preserves_mixed_permissions() {
         {
             found_icon = true;
             assert_eq!(
-                entry.metadata().permission().unwrap().permissions() & 0o777,
+                entry.metadata().permission_mode().unwrap().get() & 0o777,
                 0o600
             );
         }
@@ -489,8 +489,8 @@ fn extract_preserves_directory_permission() {
         if entry.header().path().as_str().ends_with("raw/images") {
             found = true;
             assert_eq!(entry.header().data_kind(), pna::DataKind::Directory);
-            let perm = entry.metadata().permission().unwrap();
-            assert_eq!(perm.permissions() & 0o777, 0o750);
+            let mode = entry.metadata().permission_mode().unwrap();
+            assert_eq!(mode.get() & 0o777, 0o750);
         }
     })
     .unwrap();

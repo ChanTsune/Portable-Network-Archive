@@ -1,6 +1,6 @@
 use crate::utils::setup;
 use assert_cmd::cargo::cargo_bin_cmd;
-use pna::{Archive, Duration, EntryBuilder, EntryName, Permission, WriteOptions};
+use pna::{Archive, Duration, EntryBuilder, EntryName, WriteOptions};
 use std::{fs, io::Write, path::Path};
 
 fn create_archive_with_trailing_slash_dir(path: &str) {
@@ -12,13 +12,12 @@ fn create_archive_with_trailing_slash_dir(path: &str) {
     let mtime = Duration::new(1737849600, 0);
 
     let mut dir_builder = EntryBuilder::new_dir(EntryName::from_utf8_preserve_root("dir/"));
-    dir_builder.modified(mtime).permission(Permission::new(
-        0,
-        "root".into(),
-        0,
-        "root".into(),
-        0o755,
-    ));
+    dir_builder.modified(mtime);
+    dir_builder.owner_uid(pna::OwnerUid::from(0));
+    dir_builder.owner_gid(pna::OwnerGid::from(0));
+    dir_builder.owner_user_name(pna::OwnerUserName::new("root").unwrap());
+    dir_builder.owner_group_name(pna::OwnerGroupName::new("root").unwrap());
+    dir_builder.permission_mode(pna::PermissionMode::from(0o755));
     archive.add_entry(dir_builder.build().unwrap()).unwrap();
 
     let mut file_builder = EntryBuilder::new_file(
@@ -26,13 +25,12 @@ fn create_archive_with_trailing_slash_dir(path: &str) {
         WriteOptions::store(),
     )
     .unwrap();
-    file_builder.modified(mtime).permission(Permission::new(
-        0,
-        "root".into(),
-        0,
-        "root".into(),
-        0o644,
-    ));
+    file_builder.modified(mtime);
+    file_builder.owner_uid(pna::OwnerUid::from(0));
+    file_builder.owner_gid(pna::OwnerGid::from(0));
+    file_builder.owner_user_name(pna::OwnerUserName::new("root").unwrap());
+    file_builder.owner_group_name(pna::OwnerGroupName::new("root").unwrap());
+    file_builder.permission_mode(pna::PermissionMode::from(0o644));
     file_builder.write_all(b"hello").unwrap();
     archive.add_entry(file_builder.build().unwrap()).unwrap();
 
