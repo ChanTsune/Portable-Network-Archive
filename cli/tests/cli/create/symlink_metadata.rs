@@ -51,13 +51,13 @@ fn create_symlink_stores_own_permissions() {
     let mut found_symlink = false;
     archive::for_each_entry(format!("{base}/{base}.pna"), |entry| {
         if entry.header().data_kind() == pna::DataKind::SymbolicLink {
-            let perm = entry
+            let pm = entry
                 .metadata()
-                .permission()
+                .permission_mode()
                 .expect("symlink entry should have permission metadata");
             // On most Unix systems, symlink permissions are 0o777 (0o120777 with type bits).
             // We only verify that permission metadata exists and contains the symlink type bit.
-            let mode = perm.permissions();
+            let mode = pm.get();
             assert!(
                 mode & 0o777 != 0,
                 "symlink permission bits should be non-zero, got {mode:#o}"
@@ -157,7 +157,7 @@ fn create_broken_symlink_stores_metadata() {
             #[cfg(not(target_os = "wasi"))]
             {
                 assert!(
-                    entry.metadata().permission().is_some(),
+                    entry.metadata().permission_mode().is_some(),
                     "broken symlink should have permission metadata"
                 );
                 assert!(
@@ -213,7 +213,7 @@ fn create_follow_links_stores_target_metadata() {
     archive::for_each_entry(format!("{base}/{base}.pna"), |entry| {
         if entry.header().path().as_str().ends_with("link.txt") {
             link_entry_kind = Some(entry.header().data_kind());
-            link_entry_perm = entry.metadata().permission().map(|p| p.permissions());
+            link_entry_perm = entry.metadata().permission_mode().map(|v| v.get());
         }
     })
     .unwrap();
@@ -327,16 +327,10 @@ fn create_symlink_does_not_store_target_permissions() {
     let mut symlink_perm = None;
     archive::for_each_entry(format!("{base}/{base}.pna"), |entry| {
         if entry.header().path().as_str().ends_with("target.txt") {
-            target_perm = entry
-                .metadata()
-                .permission()
-                .map(|p| p.permissions() & 0o777);
+            target_perm = entry.metadata().permission_mode().map(|v| v.get() & 0o777);
         }
         if entry.header().data_kind() == pna::DataKind::SymbolicLink {
-            symlink_perm = entry
-                .metadata()
-                .permission()
-                .map(|p| p.permissions() & 0o777);
+            symlink_perm = entry.metadata().permission_mode().map(|v| v.get() & 0o777);
         }
     })
     .unwrap();
@@ -383,7 +377,7 @@ fn roundtrip_symlink_metadata_preserved() {
             // wasi has no POSIX mode; permission is never populated there.
             #[cfg(not(target_os = "wasi"))]
             {
-                assert!(entry.metadata().permission().is_some());
+                assert!(entry.metadata().permission_mode().is_some());
                 assert!(entry.metadata().modified().is_some());
             }
             has_symlink_with_perm = true;
@@ -455,7 +449,7 @@ fn roundtrip_broken_symlink_metadata_preserved() {
             assert_eq!(archive::read_symlink_target(&entry), "nonexistent");
             // wasi has no POSIX mode; permission is never populated there.
             #[cfg(not(target_os = "wasi"))]
-            assert!(entry.metadata().permission().is_some());
+            assert!(entry.metadata().permission_mode().is_some());
             has_broken_symlink = true;
         }
     })

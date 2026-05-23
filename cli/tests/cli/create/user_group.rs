@@ -29,9 +29,9 @@ fn archive_create_uname_gname() {
     archive::for_each_entry(
         "archive_create_uname_gname/create_uname_gname.pna",
         |entry| {
-            let permission = entry.metadata().permission().unwrap();
-            assert_eq!(permission.uname(), "test_user");
-            assert_eq!(permission.gname(), "test_group");
+            let m = entry.metadata();
+            assert_eq!(m.owner_user_name().unwrap().as_str(), "test_user");
+            assert_eq!(m.owner_group_name().unwrap().as_str(), "test_group");
         },
     )
     .unwrap();
@@ -113,9 +113,9 @@ fn archive_create_uid_gid() {
     .execute()
     .unwrap();
     archive::for_each_entry("archive_create_uid_gid/create_uid_gid.pna", |entry| {
-        let permission = entry.metadata().permission().unwrap();
-        assert_eq!(permission.uid(), 0);
-        assert_eq!(permission.gid(), 2);
+        let m = entry.metadata();
+        assert_eq!(m.owner_uid().unwrap().get(), 0);
+        assert_eq!(m.owner_gid().unwrap().get(), 2);
     })
     .unwrap();
     cli::Cli::try_parse_from([

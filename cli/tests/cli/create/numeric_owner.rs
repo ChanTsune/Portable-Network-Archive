@@ -23,9 +23,12 @@ fn create_numeric_owner() {
     .execute()
     .unwrap();
     archive::for_each_entry("numeric_owner/numeric_owner.pna", |entry| {
-        let p = entry.metadata().permission().unwrap();
-        assert_eq!(p.uname(), "");
-        assert_eq!(p.gname(), "");
+        let m = entry.metadata();
+        assert!(m.owner_user_name().is_none());
+        assert!(m.owner_group_name().is_none());
+        assert!(m.owner_uid().is_some());
+        assert!(m.owner_gid().is_some());
+        assert!(m.permission_mode().is_some());
     })
     .unwrap();
 }

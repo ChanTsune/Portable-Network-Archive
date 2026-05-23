@@ -482,13 +482,13 @@ fn apply_mtree_metadata(
             },
         );
 
-        entry.permission(pna::Permission::new(
-            uid.into(),
-            uname,
-            gid.into(),
-            gname,
-            mode,
+        entry.owner_uid(pna::OwnerUid::from(u64::from(uid)));
+        entry.owner_gid(pna::OwnerGid::from(u64::from(gid)));
+        entry.owner_user_name(crate::command::core::permission::owner_name_opt(&uname));
+        entry.owner_group_name(crate::command::core::permission::owner_group_name_opt(
+            &gname,
         ));
+        entry.permission_mode(pna::PermissionMode::from(mode));
     }
 
     Ok(entry)
@@ -548,13 +548,13 @@ fn apply_mtree_metadata_without_fs(
         let uname = resolve_name(false, options.uname.as_ref(), mtree_entry.uname(), || None);
         let gname = resolve_name(false, options.gname.as_ref(), mtree_entry.gname(), || None);
 
-        entry.permission(pna::Permission::new(
-            uid.into(),
-            uname,
-            gid.into(),
-            gname,
-            mode,
+        entry.owner_uid(pna::OwnerUid::from(u64::from(uid)));
+        entry.owner_gid(pna::OwnerGid::from(u64::from(gid)));
+        entry.owner_user_name(crate::command::core::permission::owner_name_opt(&uname));
+        entry.owner_group_name(crate::command::core::permission::owner_group_name_opt(
+            &gname,
         ));
+        entry.permission_mode(pna::PermissionMode::from(mode));
     }
 
     Ok(entry)

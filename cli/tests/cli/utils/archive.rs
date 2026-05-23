@@ -34,13 +34,11 @@ pub fn create_archive_with_permissions(
     for entry_def in entries {
         let mut builder =
             pna::EntryBuilder::new_file(entry_def.path.into(), pna::WriteOptions::store())?;
-        builder.permission(pna::Permission::new(
-            1000,
-            "user".into(),
-            1000,
-            "group".into(),
-            entry_def.permission,
-        ));
+        builder.owner_uid(pna::OwnerUid::from(1000));
+        builder.owner_gid(pna::OwnerGid::from(1000));
+        builder.owner_user_name(pna::OwnerUserName::new("user").unwrap());
+        builder.owner_group_name(pna::OwnerGroupName::new("group").unwrap());
+        builder.permission_mode(pna::PermissionMode::from(entry_def.permission));
         builder.write_all(entry_def.content)?;
         let entry = builder.build()?;
         archive.add_entry(entry)?;
@@ -62,13 +60,11 @@ pub fn create_solid_archive_with_permissions(
     for entry_def in entries {
         let mut builder =
             pna::EntryBuilder::new_file(entry_def.path.into(), pna::WriteOptions::store())?;
-        builder.permission(pna::Permission::new(
-            1000,
-            "user".into(),
-            1000,
-            "group".into(),
-            entry_def.permission,
-        ));
+        builder.owner_uid(pna::OwnerUid::from(1000));
+        builder.owner_gid(pna::OwnerGid::from(1000));
+        builder.owner_user_name(pna::OwnerUserName::new("user").unwrap());
+        builder.owner_group_name(pna::OwnerGroupName::new("group").unwrap());
+        builder.permission_mode(pna::PermissionMode::from(entry_def.permission));
         builder.write_all(entry_def.content)?;
         let entry = builder.build()?;
         solid_builder.add_entry(entry)?;
@@ -98,13 +94,11 @@ pub fn create_encrypted_archive_with_permissions(
     for entry_def in entries {
         let mut builder =
             pna::EntryBuilder::new_file(entry_def.path.into(), write_options.clone())?;
-        builder.permission(pna::Permission::new(
-            1000,
-            "user".into(),
-            1000,
-            "group".into(),
-            entry_def.permission,
-        ));
+        builder.owner_uid(pna::OwnerUid::from(1000));
+        builder.owner_gid(pna::OwnerGid::from(1000));
+        builder.owner_user_name(pna::OwnerUserName::new("user").unwrap());
+        builder.owner_group_name(pna::OwnerGroupName::new("group").unwrap());
+        builder.permission_mode(pna::PermissionMode::from(entry_def.permission));
         builder.write_all(entry_def.content)?;
         let entry = builder.build()?;
         archive.add_entry(entry)?;
@@ -209,13 +203,11 @@ pub fn create_archive_with_symlinks(
     for entry_def in file_entries {
         let mut builder =
             pna::EntryBuilder::new_file(entry_def.path.into(), pna::WriteOptions::store())?;
-        builder.permission(pna::Permission::new(
-            1000,
-            "user".into(),
-            1000,
-            "group".into(),
-            entry_def.permission,
-        ));
+        builder.owner_uid(pna::OwnerUid::from(1000));
+        builder.owner_gid(pna::OwnerGid::from(1000));
+        builder.owner_user_name(pna::OwnerUserName::new("user").unwrap());
+        builder.owner_group_name(pna::OwnerGroupName::new("group").unwrap());
+        builder.permission_mode(pna::PermissionMode::from(entry_def.permission));
         builder.write_all(entry_def.content)?;
         let entry = builder.build()?;
         archive.add_entry(entry)?;
@@ -226,13 +218,11 @@ pub fn create_archive_with_symlinks(
             pna::EntryBuilder::new_symlink(symlink_def.path.into(), symlink_def.target.into())?;
         builder.link_target_type(symlink_def.link_target_type);
         if let Some(mode) = symlink_def.permission {
-            builder.permission(pna::Permission::new(
-                1000,
-                "user".into(),
-                1000,
-                "group".into(),
-                mode,
-            ));
+            builder.owner_uid(pna::OwnerUid::from(1000));
+            builder.owner_gid(pna::OwnerGid::from(1000));
+            builder.owner_user_name(pna::OwnerUserName::new("user").unwrap());
+            builder.owner_group_name(pna::OwnerGroupName::new("group").unwrap());
+            builder.permission_mode(pna::PermissionMode::from(mode));
         }
         if let Some(m) = symlink_def.modified {
             builder.modified(m);
