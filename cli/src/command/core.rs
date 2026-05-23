@@ -1052,13 +1052,13 @@ pub(crate) fn apply_metadata(
                 .into(),
             Some(gname) => gname.clone(),
         };
-        entry.permission(pna::Permission::new(
-            uid.into(),
-            uname,
-            gid.into(),
-            gname,
-            mode,
+        entry.owner_uid(pna::OwnerUid::from(u64::from(uid)));
+        entry.owner_gid(pna::OwnerGid::from(u64::from(gid)));
+        entry.owner_user_name(crate::command::core::permission::owner_name_opt(&uname));
+        entry.owner_group_name(crate::command::core::permission::owner_group_name_opt(
+            &gname,
         ));
+        entry.permission_mode(pna::PermissionMode::from(mode));
     }
     #[cfg(windows)]
     if let OwnerStrategy::Preserve { options } = &keep_options.owner_strategy {
@@ -1078,7 +1078,13 @@ pub(crate) fn apply_metadata(
         let gid = options.gid.map_or(u64::MAX, Into::into);
         let uname = options.uname.clone().unwrap_or(user.name);
         let gname = options.gname.clone().unwrap_or(group.name);
-        entry.permission(pna::Permission::new(uid, uname, gid, gname, mode));
+        entry.owner_uid(pna::OwnerUid::from(uid));
+        entry.owner_gid(pna::OwnerGid::from(gid));
+        entry.owner_user_name(crate::command::core::permission::owner_name_opt(&uname));
+        entry.owner_group_name(crate::command::core::permission::owner_group_name_opt(
+            &gname,
+        ));
+        entry.permission_mode(pna::PermissionMode::from(mode));
     }
     // On macOS, when mac_metadata_strategy is Always, AppleDouble packing via copyfile()
     // already includes xattrs and ACLs. Skip separate handling to avoid duplication.
@@ -2081,17 +2087,37 @@ fn transform_normal_entry(
     } = &keep_options.owner_strategy
     {
         // Only apply if at least one override is specified
-        if (uid.is_some() || gid.is_some() || uname.is_some() || gname.is_some())
-            && let Some(perm) = metadata.permission()
+        let own = crate::ext::ResolvedOwnership::from_metadata(&metadata);
+        if (uid.is_some() || gid.is_some() || uname.is_some() || gname.is_some()) && !own.is_empty()
         {
-            let new_perm = pna::Permission::new(
-                uid.map(u64::from).unwrap_or_else(|| perm.uid()),
-                uname.clone().unwrap_or_else(|| perm.uname().to_string()),
-                gid.map(u64::from).unwrap_or_else(|| perm.gid()),
-                gname.clone().unwrap_or_else(|| perm.gname().to_string()),
-                perm.permissions(),
-            );
-            metadata = metadata.with_permission(Some(new_perm));
+            let new_uid = uid.map(u64::from).or(own.uid);
+            let new_gid = gid.map(u64::from).or(own.gid);
+            let new_uname = uname
+                .clone()
+                .or_else(|| own.uname.clone())
+                .unwrap_or_default();
+            let new_gname = gname
+                .clone()
+                .or_else(|| own.gname.clone())
+                .unwrap_or_default();
+            metadata = pna::Metadata::new()
+                .with_created(metadata.created())
+                .with_modified(metadata.modified())
+                .with_accessed(metadata.accessed())
+                .with_link_target_type(metadata.link_target_type())
+                .with_owner_uid(new_uid.map(pna::OwnerUid::from))
+                .with_owner_gid(new_gid.map(pna::OwnerGid::from))
+                .with_owner_user_name(crate::command::core::permission::owner_name_opt(&new_uname))
+                .with_owner_group_name(crate::command::core::permission::owner_group_name_opt(
+                    &new_gname,
+                ))
+                .with_permission_mode(own.mode.map(pna::PermissionMode::from))
+                .with_owner_user_sid(own.user_sid.clone().map(|s| {
+                    pna::OwnerUserSid::new(s).expect("rescued sid within owner-facet bound")
+                }))
+                .with_owner_group_sid(own.group_sid.clone().map(|s| {
+                    pna::OwnerGroupSid::new(s).expect("rescued sid within owner-facet bound")
+                }));
         }
     }
 

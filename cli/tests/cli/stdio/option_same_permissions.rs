@@ -659,22 +659,22 @@ fn stdio_create_stores_permissions_by_default() {
     let mut found = false;
     archive::for_each_entry(&archive_path, |entry| {
         if entry.header().path().as_str() == "test.txt" {
-            let perm = entry
-                .metadata()
-                .permission()
-                .expect("entry should have permission metadata");
+            let m = entry.metadata();
+            let mode = m
+                .permission_mode()
+                .expect("entry should have permission mode metadata");
             assert_eq!(
-                perm.permissions() & 0o777,
+                mode.get() & 0o777,
                 0o755,
                 "archive entry should have 0o755 permission"
             );
             // Verify owner metadata is stored by default
             assert!(
-                !perm.uname().is_empty() || perm.uid() > 0,
+                m.owner_user_name().is_some() || m.owner_uid().is_some(),
                 "archive entry should have owner metadata (uid or uname)"
             );
             assert!(
-                !perm.gname().is_empty() || perm.gid() > 0,
+                m.owner_group_name().is_some() || m.owner_gid().is_some(),
                 "archive entry should have group metadata (gid or gname)"
             );
             found = true;
@@ -726,8 +726,13 @@ fn stdio_create_with_no_same_owner_omits_permission() {
     archive::for_each_entry(&archive_path, |entry| {
         if entry.header().path().as_str() == "test.txt" {
             // Current behavior: no permission metadata when --no-same-owner is used
+            let m = entry.metadata();
             assert!(
-                entry.metadata().permission().is_none(),
+                m.owner_uid().is_none()
+                    && m.owner_gid().is_none()
+                    && m.owner_user_name().is_none()
+                    && m.owner_group_name().is_none()
+                    && m.permission_mode().is_none(),
                 "archive entry should NOT have permission metadata with --no-same-owner"
             );
             found = true;

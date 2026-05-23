@@ -676,10 +676,13 @@ fn stdio_mtree_nochange_uses_filesystem_metadata() {
     let mut found = false;
     for_each_entry(&output_archive, |entry| {
         if entry.header().path().as_str() == "file.txt" {
-            let permission = entry.metadata().permission().expect("permission not set");
+            let mode = entry
+                .metadata()
+                .permission_mode()
+                .expect("permission mode not set");
             // nochange should cause filesystem mode (0644) to be used, not mtree mode (0755)
             assert_eq!(
-                permission.permissions() & 0o777,
+                mode.get() & 0o777,
                 0o644,
                 "nochange should use filesystem mode, not mtree mode"
             );

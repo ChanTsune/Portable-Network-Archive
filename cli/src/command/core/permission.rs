@@ -40,6 +40,13 @@ impl Umask {
     }
 }
 
+impl OwnerOptions {
+    #[inline]
+    pub(crate) const fn has_overrides(&self) -> bool {
+        self.uname.is_some() || self.gname.is_some() || self.uid.is_some() || self.gid.is_some()
+    }
+}
+
 /// How to handle file mode bits (permissions).
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) enum ModeStrategy {
@@ -63,6 +70,34 @@ pub(crate) enum OwnerStrategy {
     Never,
     /// Restore ownership with optional overrides
     Preserve { options: OwnerOptions },
+}
+
+/// Maps a CLI-produced owner/group name to an optional owner-facet name:
+/// empty → `None` (no `fONm`/`fGNm`, e.g. `--numeric-owner`); otherwise the
+/// largest UTF-8-char-boundary prefix ≤255 bytes (the owner-facet wire bound).
+pub(crate) fn owner_name_opt(s: &str) -> Option<pna::OwnerUserName> {
+    owner_name_bounded(s)
+        .map(|t| pna::OwnerUserName::new(t).expect("owner_name_bounded guarantees <= 255 bytes"))
+}
+
+pub(crate) fn owner_group_name_opt(s: &str) -> Option<pna::OwnerGroupName> {
+    owner_name_bounded(s)
+        .map(|t| pna::OwnerGroupName::new(t).expect("owner_name_bounded guarantees <= 255 bytes"))
+}
+
+fn owner_name_bounded(s: &str) -> Option<&str> {
+    if s.is_empty() {
+        return None;
+    }
+    const MAX: usize = u8::MAX as usize;
+    if s.len() <= MAX {
+        return Some(s);
+    }
+    let mut end = MAX;
+    while !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    Some(&s[..end])
 }
 
 #[cfg(test)]
@@ -128,5 +163,41 @@ mod tests {
         let umask = Umask::new(0o027);
         assert_eq!(umask.apply(0o4755), 0o750);
         assert_eq!(umask.apply(0o7777), 0o750);
+    }
+
+    #[test]
+    fn owner_name_opt_empty_is_none() {
+        assert!(owner_name_opt("").is_none());
+        assert!(owner_group_name_opt("").is_none());
+    }
+
+    #[test]
+    fn owner_name_opt_passes_through_short() {
+        assert_eq!(owner_name_opt("alice").unwrap().as_str(), "alice");
+        let exactly_255 = "a".repeat(255);
+        assert_eq!(owner_name_opt(&exactly_255).unwrap().as_str(), exactly_255);
+    }
+
+    #[test]
+    fn owner_name_opt_truncates_long_ascii_to_255() {
+        assert_eq!(
+            owner_name_opt(&"a".repeat(300)).unwrap().as_str().len(),
+            255
+        );
+        assert_eq!(
+            owner_name_opt(&"a".repeat(256)).unwrap().as_str().len(),
+            255
+        );
+    }
+
+    #[test]
+    fn owner_name_opt_truncates_on_utf8_boundary() {
+        let two_byte_char = 'é';
+        assert_eq!(two_byte_char.len_utf8(), 2);
+        let s = String::from(two_byte_char).repeat(200); // 400 bytes
+        let out = owner_name_opt(&s).unwrap();
+        assert_eq!(out.as_str().len(), 254);
+        assert_eq!(out.as_str().chars().count(), 127);
+        assert!(out.as_str().chars().all(|c| c == two_byte_char));
     }
 }
