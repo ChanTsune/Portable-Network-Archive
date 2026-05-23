@@ -40,15 +40,12 @@ fn chmod_symbolic_other_add_read() {
     archive::for_each_entry("chmod_sym_o_add_r.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
             found = true;
-            let perm = entry
+            let mode = entry
                 .metadata()
-                .permission()
-                .expect("entry should have permission metadata");
-            assert_eq!(
-                perm.permissions() & 0o777,
-                0o644,
-                "o+r on 0o640 should yield 0o644"
-            );
+                .permission_mode()
+                .expect("entry should have permission mode metadata")
+                .get();
+            assert_eq!(mode & 0o777, 0o644, "o+r on 0o640 should yield 0o644");
         }
     })
     .unwrap();
@@ -90,15 +87,12 @@ fn chmod_symbolic_other_remove_all() {
     archive::for_each_entry("chmod_sym_o_rm_rwx.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
             found = true;
-            let perm = entry
+            let mode = entry
                 .metadata()
-                .permission()
-                .expect("entry should have permission metadata");
-            assert_eq!(
-                perm.permissions() & 0o777,
-                0o770,
-                "o-rwx on 0o777 should yield 0o770"
-            );
+                .permission_mode()
+                .expect("entry should have permission mode metadata")
+                .get();
+            assert_eq!(mode & 0o777, 0o770, "o-rwx on 0o777 should yield 0o770");
         }
     })
     .unwrap();
@@ -140,15 +134,12 @@ fn chmod_symbolic_other_set_none() {
     archive::for_each_entry("chmod_sym_o_set_none.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
             found = true;
-            let perm = entry
+            let mode = entry
                 .metadata()
-                .permission()
-                .expect("entry should have permission metadata");
-            assert_eq!(
-                perm.permissions() & 0o777,
-                0o770,
-                "o= on 0o777 should yield 0o770"
-            );
+                .permission_mode()
+                .expect("entry should have permission mode metadata")
+                .get();
+            assert_eq!(mode & 0o777, 0o770, "o= on 0o777 should yield 0o770");
         }
     })
     .unwrap();

@@ -42,15 +42,12 @@ fn chmod_unsolid() {
     archive::for_each_entry("chmod_unsolid.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
             found = true;
-            let perm = entry
+            let mode = entry
                 .metadata()
-                .permission()
-                .expect("entry should have permission metadata");
-            assert_eq!(
-                perm.permissions() & 0o777,
-                0o666,
-                "-x on 0o777 should yield 0o666"
-            );
+                .permission_mode()
+                .expect("entry should have permission mode metadata")
+                .get();
+            assert_eq!(mode & 0o777, 0o666, "-x on 0o777 should yield 0o666");
         }
     })
     .unwrap();

@@ -96,13 +96,40 @@ fn archive_chmod(args: ChmodCommand) -> anyhow::Result<()> {
 }
 
 #[inline]
+#[allow(deprecated)]
 fn transform_entry<T>(entry: NormalEntry<T>, mode: &Mode) -> NormalEntry<T> {
     let metadata = entry.metadata().clone();
-    let permission = metadata.permission().map(|p| {
-        let mode = mode.apply_to(p.permissions());
-        pna::Permission::new(p.uid(), p.uname().into(), p.gid(), p.gname().into(), mode)
-    });
-    entry.with_metadata(metadata.with_permission(permission))
+    let own = crate::ext::ResolvedOwnership::from_metadata(&metadata);
+    let Some(cur_mode) = own.mode else {
+        return entry.with_metadata(metadata);
+    };
+    let new_mode = mode.apply_to(cur_mode);
+    let metadata = metadata
+        .with_permission(None)
+        .with_owner_uid(own.uid.map(pna::OwnerUid::from))
+        .with_owner_gid(own.gid.map(pna::OwnerGid::from))
+        .with_owner_user_name(
+            own.uname
+                .as_deref()
+                .and_then(crate::command::core::permission::owner_name_opt),
+        )
+        .with_owner_group_name(
+            own.gname
+                .as_deref()
+                .and_then(crate::command::core::permission::owner_group_name_opt),
+        )
+        .with_owner_user_sid(
+            own.user_sid
+                .clone()
+                .map(|s| pna::OwnerUserSid::new(s).expect("rescued sid within owner-facet bound")),
+        )
+        .with_owner_group_sid(
+            own.group_sid
+                .clone()
+                .map(|s| pna::OwnerGroupSid::new(s).expect("rescued sid within owner-facet bound")),
+        )
+        .with_permission_mode(Some(pna::PermissionMode::from(new_mode)));
+    entry.with_metadata(metadata)
 }
 
 bitflags! {

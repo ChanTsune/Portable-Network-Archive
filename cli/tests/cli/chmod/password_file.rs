@@ -49,15 +49,12 @@ fn chmod_with_password_file() {
     archive::for_each_entry_with_password("chmod_password_file.pna", Some(PASSWORD), |entry| {
         if entry.header().path() == ENTRY_PATH {
             found = true;
-            let perm = entry
+            let mode = entry
                 .metadata()
-                .permission()
-                .expect("entry should have permission metadata");
-            assert_eq!(
-                perm.permissions() & 0o777,
-                0o666,
-                "-x on 0o777 should yield 0o666"
-            );
+                .permission_mode()
+                .expect("entry should have permission mode metadata")
+                .get();
+            assert_eq!(mode & 0o777, 0o666, "-x on 0o777 should yield 0o666");
         }
     })
     .unwrap();

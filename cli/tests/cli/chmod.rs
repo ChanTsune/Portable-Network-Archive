@@ -15,7 +15,12 @@ mod unsolid;
 
 use crate::utils::{archive, archive::FileEntryDef, setup};
 use clap::Parser;
+#[allow(deprecated)]
+use pna::Permission;
+use pna::{Archive, EntryBuilder, EntryName, WriteOptions};
 use portable_network_archive::cli;
+use std::fs::File;
+use std::io::Write;
 
 const ENTRY_PATH: &str = "test.txt";
 const ENTRY_CONTENT: &[u8] = b"test content";
@@ -54,16 +59,64 @@ fn archive_chmod() {
 
     archive::for_each_entry("chmod.pna", |entry| {
         if entry.header().path() == ENTRY_PATH {
-            let perm = entry
+            let mode = entry
                 .metadata()
-                .permission()
-                .expect("entry should have permission metadata");
-            assert_eq!(
-                perm.permissions() & 0o777,
-                0o666,
-                "-x on 0o777 should yield 0o666"
-            );
+                .permission_mode()
+                .expect("entry should have permission mode metadata")
+                .get();
+            assert_eq!(mode & 0o777, 0o666, "-x on 0o777 should yield 0o666");
         }
+    })
+    .unwrap();
+}
+
+/// Precondition: An archive entry carries legacy fPRM metadata.
+/// Action: Run `pna experimental chmod` to change its mode.
+/// Expectation: The updated mode is emitted as fMOd, and stale fPRM is removed.
+#[test]
+#[allow(deprecated)]
+fn archive_chmod_drops_legacy_fprm() {
+    setup();
+    let path = "chmod_legacy_fprm.pna";
+    {
+        let mut archive = Archive::write_header(File::create(path).unwrap()).unwrap();
+        let mut builder = EntryBuilder::new_file(
+            EntryName::from_utf8_preserve_root(ENTRY_PATH),
+            WriteOptions::store(),
+        )
+        .unwrap();
+        builder.permission(Permission::new(
+            1000,
+            "user".to_string(),
+            1000,
+            "group".to_string(),
+            0o777,
+        ));
+        builder.write_all(ENTRY_CONTENT).unwrap();
+        archive.add_entry(builder.build().unwrap()).unwrap();
+        archive.finalize().unwrap();
+    }
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "experimental",
+        "chmod",
+        "-f",
+        path,
+        "644",
+        ENTRY_PATH,
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    archive::for_each_entry(path, |entry| {
+        assert!(
+            entry.metadata().permission().is_none(),
+            "legacy fPRM must be removed after chmod"
+        );
+        assert_eq!(entry.metadata().permission_mode().unwrap().get(), 0o644);
     })
     .unwrap();
 }
