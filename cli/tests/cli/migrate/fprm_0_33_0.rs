@@ -5,6 +5,7 @@ use portable_network_archive::cli;
 use std::collections::BTreeMap;
 
 const PERMISSION_MODE_BITS: u16 = 0o7777;
+const LEGACY_FIXTURE: &str = "migrate_fprm_0_33_0/0.33.0/zstd_keep_all.pna";
 
 struct Captured {
     uid: u64,
@@ -24,10 +25,10 @@ struct Captured {
 #[allow(deprecated)]
 fn migrate_converts_fprm_to_owner_facet() {
     setup();
-    TestResources::extract_in("zstd_keep_all.pna", "migrate_fprm_to_owner_facet/").unwrap();
+    TestResources::extract_in("0.33.0/zstd_keep_all.pna", "migrate_fprm_0_33_0/").unwrap();
 
     let mut pre: BTreeMap<String, Captured> = BTreeMap::new();
-    archive::for_each_entry("migrate_fprm_to_owner_facet/zstd_keep_all.pna", |entry| {
+    archive::for_each_entry(LEGACY_FIXTURE, |entry| {
         let path = entry.header().path().to_string();
         let meta = entry.metadata();
         let p = meta
@@ -54,16 +55,16 @@ fn migrate_converts_fprm_to_owner_facet() {
         "experimental",
         "migrate",
         "-f",
-        "migrate_fprm_to_owner_facet/zstd_keep_all.pna",
+        LEGACY_FIXTURE,
         "--output",
-        "migrate_fprm_to_owner_facet/migrated.pna",
+        "migrate_fprm_0_33_0/migrated.pna",
     ])
     .unwrap()
     .execute()
     .unwrap();
 
     let mut post_count = 0usize;
-    archive::for_each_entry("migrate_fprm_to_owner_facet/migrated.pna", |entry| {
+    archive::for_each_entry("migrate_fprm_0_33_0/migrated.pna", |entry| {
         post_count += 1;
         let path = entry.header().path().to_string();
         let meta = entry.metadata();
