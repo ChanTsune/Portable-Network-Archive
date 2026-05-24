@@ -156,13 +156,12 @@ Portable-Network-Archive cli
 
 Create archive
 
-**Usage:** `pna create [OPTIONS] <--file <FILE>|ARCHIVE> [FILES]...`
+**Usage:** `pna create [OPTIONS] --file <ARCHIVE> [FILES]...`
 
 **Command Alias:** `c`
 
 ###### **Arguments:**
 
-* `<ARCHIVE>` — Archive file path (deprecated, use --file)
 * `<FILES>` — Files or directories to process
 
 ###### **Options:**
@@ -290,7 +289,7 @@ Create archive
 * `--pbkdf2 <PARAMS>` — Use pbkdf2 for password hashing
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read password from specified file
-* `-f`, `--file <FILE>` — Archive file path
+* `-f`, `--file <ARCHIVE>` — Archive file path
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -320,13 +319,12 @@ Create archive
 
 Append files to archive
 
-**Usage:** `pna append [OPTIONS] <--file <FILE>|ARCHIVE> [FILES]...`
+**Usage:** `pna append [OPTIONS] --file <ARCHIVE> [FILES]...`
 
 **Command Alias:** `a`
 
 ###### **Arguments:**
 
-* `<ARCHIVE>` — Archive file path (deprecated, use --file)
 * `<FILES>` — Files or directories to process
 
 ###### **Options:**
@@ -444,7 +442,7 @@ Append files to archive
 
 * `--argon2 <PARAMS>` — Use argon2 for password hashing
 * `--pbkdf2 <PARAMS>` — Use pbkdf2 for password hashing
-* `-f`, `--file <FILE>` — Archive file path
+* `-f`, `--file <ARCHIVE>` — Archive file path
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -474,13 +472,12 @@ Append files to archive
 
 Extract files from archive
 
-**Usage:** `pna extract [OPTIONS] <--file <FILE>|ARCHIVE> [FILES]...`
+**Usage:** `pna extract [OPTIONS] --file <ARCHIVE> [FILES]...`
 
 **Command Alias:** `x`
 
 ###### **Arguments:**
 
-* `<ARCHIVE>` — Archive file path (deprecated, use --file)
 * `<FILES>` — Files or directories to process
 
 ###### **Options:**
@@ -588,7 +585,7 @@ Extract files from archive
 * `--no-safe-writes` — Disable atomic extraction. This is the inverse option of --safe-writes
 
   Default value: `false`
-* `-f`, `--file <FILE>` — Archive file path
+* `-f`, `--file <ARCHIVE>` — Archive file path
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -618,13 +615,12 @@ Extract files from archive
 
 List files in archive
 
-**Usage:** `pna list [OPTIONS] <--file <FILE>|ARCHIVE> [FILES]...`
+**Usage:** `pna list [OPTIONS] --file <ARCHIVE> [FILES]...`
 
 **Command Aliases:** `l`, `ls`
 
 ###### **Arguments:**
 
-* `<ARCHIVE>` — Archive file path (deprecated, use --file)
 * `<FILES>` — Files or directories to process
 
 ###### **Options:**
@@ -697,7 +693,7 @@ List files in archive
   Default value: `false`
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read password from specified file
-* `-f`, `--file <FILE>` — Archive file path
+* `-f`, `--file <ARCHIVE>` — Archive file path
 * `--help` — Print help
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
@@ -731,7 +727,7 @@ Delete entry from archive
 
 ###### **Arguments:**
 
-* `<FILES>`
+* `<FILES>` — Files or directories to process
 
 ###### **Options:**
 
@@ -757,7 +753,7 @@ Delete entry from archive
 * `--keep-solid` — Preserve solid entries without conversion
 
   Default value: `false`
-* `-f`, `--file <ARCHIVE>`
+* `-f`, `--file <ARCHIVE>` — Archive file path
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -787,11 +783,7 @@ Delete entry from archive
 
 Split archive
 
-**Usage:** `pna split [OPTIONS] <--file <FILE>|ARCHIVE>`
-
-###### **Arguments:**
-
-* `<ARCHIVE>`
+**Usage:** `pna split [OPTIONS] --file <FILE>`
 
 ###### **Options:**
 
@@ -833,11 +825,7 @@ Split archive
 
 Concat archives
 
-**Usage:** `pna concat [OPTIONS] <--files <FILES>|ARCHIVES>`
-
-###### **Arguments:**
-
-* `<ARCHIVES>` — Archive files to concatenate (deprecated, use --files)
+**Usage:** `pna concat [OPTIONS] --files <FILES>`
 
 ###### **Options:**
 
@@ -877,11 +865,10 @@ Concat archives
 
 Strip entries metadata
 
-**Usage:** `pna strip [OPTIONS] <--file <FILE>|ARCHIVE> [FILES]...`
+**Usage:** `pna strip [OPTIONS] --file <ARCHIVE> [FILES]...`
 
 ###### **Arguments:**
 
-* `<ARCHIVE>` — Archive file path (deprecated, use --file)
 * `<FILES>` — Files or directories to process
 
 ###### **Options:**
@@ -908,7 +895,7 @@ Strip entries metadata
 * `--output <OUTPUT>` — Output file path
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read password from specified file
-* `-f`, `--file <FILE>` — Archive file path
+* `-f`, `--file <ARCHIVE>` — Archive file path
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -1061,16 +1048,15 @@ Manipulate extended attributes
 
 Get extended attributes of entries
 
-**Usage:** `pna xattr get [OPTIONS] <--file <FILE>|ARCHIVE> [FILES]...`
+**Usage:** `pna xattr get [OPTIONS] --file <ARCHIVE> [FILES]...`
 
 ###### **Arguments:**
 
-* `<ARCHIVE>` — Archive file path (deprecated, use --file)
 * `<FILES>` — Files or directories to process
 
 ###### **Options:**
 
-* `-f`, `--file <FILE>` — Archive file path
+* `-f`, `--file <ARCHIVE>` — Archive file path
 * `-n`, `--name <NAME>` — Dump the value of the named extended attribute
 * `-d`, `--dump` — Dump the values of all matched extended attributes
 
@@ -1111,16 +1097,15 @@ Get extended attributes of entries
 
 Set extended attributes of entries
 
-**Usage:** `pna xattr set [OPTIONS] <--file <FILE>|ARCHIVE> [FILES]...`
+**Usage:** `pna xattr set [OPTIONS] --file <ARCHIVE> [FILES]...`
 
 ###### **Arguments:**
 
-* `<ARCHIVE>` — Archive file path (deprecated, use --file)
 * `<FILES>` — Files or directories to process
 
 ###### **Options:**
 
-* `-f`, `--file <FILE>` — Archive file path
+* `-f`, `--file <ARCHIVE>` — Archive file path
 * `-n`, `--name <NAME>` — Name of extended attribute
 * `-v`, `--value <VALUE>` — Value of extended attribute
 * `-x`, `--remove <NAME>` — Remove extended attribute
@@ -1855,7 +1840,7 @@ Delete entry from archive (stabilized, use `pna delete` command instead. this co
 
 ###### **Arguments:**
 
-* `<FILES>`
+* `<FILES>` — Files or directories to process
 
 ###### **Options:**
 
@@ -1881,7 +1866,7 @@ Delete entry from archive (stabilized, use `pna delete` command instead. this co
 * `--keep-solid` — Preserve solid entries without conversion
 
   Default value: `false`
-* `-f`, `--file <ARCHIVE>`
+* `-f`, `--file <ARCHIVE>` — Archive file path
 * `--quiet` — Make some output more quiet (alias for --log-level off)
 
   Default value: `false`
@@ -1915,7 +1900,7 @@ Update entries in archive
 
 ###### **Arguments:**
 
-* `<FILES>`
+* `<FILES>` — Files or directories to process
 
 ###### **Options:**
 
@@ -2028,7 +2013,7 @@ Update entries in archive
 * `--keep-solid` — Preserve solid entries without conversion
 
   Default value: `false`
-* `-f`, `--file <ARCHIVE>`
+* `-f`, `--file <ARCHIVE>` — Archive file path
 * `--null` — Filenames or patterns are separated by null characters, not by newlines
 
   Default value: `false`
@@ -2220,7 +2205,7 @@ Get acl of entries
 
 ###### **Arguments:**
 
-* `<FILES>`
+* `<FILES>` — Files or directories to process
 
 ###### **Options:**
 
@@ -2228,7 +2213,7 @@ Get acl of entries
 * `-n`, `--numeric` — List numeric user and group IDs
 
   Default value: `false`
-* `-f`, `--file <ARCHIVE>`
+* `-f`, `--file <ARCHIVE>` — Archive file path
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read password from specified file
 * `--quiet` — Make some output more quiet (alias for --log-level off)
@@ -2264,11 +2249,11 @@ Set acl of entries
 
 ###### **Arguments:**
 
-* `<FILES>`
+* `<FILES>` — Files or directories to process
 
 ###### **Options:**
 
-* `-f`, `--file <ARCHIVE>`
+* `-f`, `--file <ARCHIVE>` — Archive file path
 * `--set <SET>` — Set the ACL on the specified file.
 * `-m`, `--modify <MODIFY>` — Modify the ACL on the specified file. New entries will be added, and existing entries will be modified according to the entries argument.
 * `-x`, `--remove <REMOVE>` — Remove the ACL entries specified there from the access or default ACL of the specified files.
@@ -2546,11 +2531,11 @@ Compare archive entries with filesystem
 
 ###### **Arguments:**
 
-* `<FILES>`
+* `<FILES>` — Files or directories to process
 
 ###### **Options:**
 
-* `-f`, `--file <ARCHIVE>`
+* `-f`, `--file <ARCHIVE>` — Archive file path
 * `--password <PASSWORD>` [alias: `passphrase`] — Password of archive. If password is not given it's asked from the tty
 * `--password-file <FILE>` — Read password from specified file
 * `--full-compare` — Compare directory mtime and ownership (by default, only mode is compared for directories)
