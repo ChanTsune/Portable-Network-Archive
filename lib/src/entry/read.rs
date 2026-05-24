@@ -58,6 +58,12 @@ pub(crate) fn decrypt_reader<R: Read>(
                 }
             }
         }
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                format!("unsupported encryption method: {encryption:?}"),
+            ));
+        }
     })
 }
 
@@ -76,6 +82,12 @@ pub(crate) fn decompress_reader<R: Read>(
         }
         Compression::ZStandard => DecompressReader::ZStd(zstd::Decoder::with_buffer(reader)?),
         Compression::XZ => DecompressReader::Xz(liblzma::bufread::XzDecoder::new(reader)),
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                format!("unsupported compression method: {compression:?}"),
+            ));
+        }
     })
 }
 

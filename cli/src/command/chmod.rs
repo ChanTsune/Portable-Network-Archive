@@ -137,6 +137,7 @@ const fn default_permission_mode(kind: DataKind) -> u16 {
     match kind {
         DataKind::Directory => 0o755,
         DataKind::File | DataKind::SymbolicLink | DataKind::HardLink => 0o644,
+        DataKind::Reserved(_) | DataKind::Private(_) => 0,
     }
 }
 

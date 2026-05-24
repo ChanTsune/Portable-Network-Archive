@@ -288,6 +288,7 @@ enum EntryType {
     Directory(String),
     SymbolicLink(String, String),
     HardLink(String, String),
+    Unknown(String, DataKind),
 }
 
 impl EntryType {
@@ -297,7 +298,8 @@ impl EntryType {
             EntryType::File(name)
             | EntryType::Directory(name)
             | EntryType::SymbolicLink(name, _)
-            | EntryType::HardLink(name, _) => name,
+            | EntryType::HardLink(name, _)
+            | EntryType::Unknown(name, _) => name,
         }
     }
 
@@ -322,6 +324,7 @@ impl Display for EntryTypeBsdLongStyleDisplay<'_> {
             EntryType::HardLink(name, link_to) => {
                 write!(f, "{name} link to {link_to}")
             }
+            EntryType::Unknown(name, _) => Display::fmt(&name, f),
         }
     }
 }
@@ -451,6 +454,7 @@ impl TableRow {
                 ),
                 DataKind::Directory => EntryType::Directory(entry.name().to_string()),
                 DataKind::File => EntryType::File(entry.name().to_string()),
+                kind => EntryType::Unknown(entry.name().to_string(), kind),
             },
             // Only collect xattrs if needed
             xattrs: if collect.xattrs {
@@ -1081,7 +1085,7 @@ fn detailed_format_name(entry: EntryType, options: &ListOptions) -> String {
         EntryType::SymbolicLink(name, link_to) if options.classify => {
             format!("{name}@ -> {link_to}")
         }
-        EntryType::File(path) | EntryType::Directory(path) => path,
+        EntryType::File(path) | EntryType::Directory(path) | EntryType::Unknown(path, _) => path,
         EntryType::SymbolicLink(path, link_to) | EntryType::HardLink(path, link_to) => {
             format!("{path} -> {link_to}")
         }
@@ -1200,6 +1204,7 @@ fn kind_paint(kind: &EntryType) -> impl Display + 'static {
         EntryType::File(_) | EntryType::HardLink(_, _) => STYLE_HYPHEN.paint('.'),
         EntryType::Directory(_) => STYLE_DIR.paint('d'),
         EntryType::SymbolicLink(_, _) => STYLE_LINK.paint('l'),
+        EntryType::Unknown(_, _) => STYLE_HYPHEN.paint('?'),
     }
 }
 
@@ -1239,6 +1244,7 @@ const fn kind_char(kind: &EntryType) -> char {
         EntryType::File(_) | EntryType::HardLink(_, _) => '-',
         EntryType::Directory(_) => 'd',
         EntryType::SymbolicLink(_, _) => 'l',
+        EntryType::Unknown(_, _) => '?',
     }
 }
 
@@ -1272,6 +1278,7 @@ impl PermissionDisplay {
                 EntryType::HardLink(_, _) => 'h',
                 EntryType::Directory(_) => 'd',
                 EntryType::SymbolicLink(_, _) => 'l',
+                EntryType::Unknown(_, _) => '?',
             },
             permission,
             indicator: if has_acl { '+' } else { ' ' },
@@ -1526,6 +1533,7 @@ fn tree_entries_to(
         EntryType::Directory(name) => (name.as_str(), DataKind::Directory),
         EntryType::SymbolicLink(name, _) => (name.as_str(), DataKind::SymbolicLink),
         EntryType::HardLink(name, _) => (name.as_str(), DataKind::HardLink),
+        EntryType::Unknown(name, kind) => (name.as_str(), *kind),
     });
     let map = build_tree_map(entries);
     let tree = build_term_tree(&map, Cow::Borrowed(""), None, DataKind::Directory, options);
@@ -1645,6 +1653,26 @@ mod tests {
         assert!(
             unix_timestamp_to_local_opt(&TimeZone::UTC, Timestamp::MAX.as_second() + 1, 0)
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn unknown_entry_type_does_not_render_as_file() {
+        let entry_type = EntryType::Unknown("private-entry".into(), DataKind::Private(128));
+
+        assert_eq!(entry_type.name(), "private-entry");
+        assert_eq!(
+            entry_type.bsd_long_style_display().to_string(),
+            "private-entry"
+        );
+        assert_eq!(kind_char(&entry_type), '?');
+        assert_eq!(
+            PermissionDisplay::new(&entry_type, 0o644, false, false).to_string(),
+            "?rw-r--r-- "
+        );
+        assert_eq!(
+            PermissionDisplay::bsdtar(&entry_type, 0o644, false).to_string(),
+            "?rw-r--r-- "
         );
     }
 

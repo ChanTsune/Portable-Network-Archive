@@ -341,6 +341,9 @@ fn compare_entry<T: AsRef<[u8]>>(
         DataKind::HardLink => {
             println!("{}", DiffKind::TypeMismatch.display(path_str));
         }
+        _ => {
+            println!("{}", DiffKind::TypeMismatch.display(path_str));
+        }
     }
     Ok(())
 }
