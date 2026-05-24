@@ -122,10 +122,10 @@ impl EntryHeader {
         let mut data = Vec::with_capacity(6 + name.len());
         data.push(self.major);
         data.push(self.minor);
-        data.push(self.data_kind as u8);
-        data.push(self.compression as u8);
-        data.push(self.encryption as u8);
-        data.push(self.cipher_mode as u8);
+        data.push(self.data_kind.to_byte());
+        data.push(self.compression.to_byte());
+        data.push(self.encryption.to_byte());
+        data.push(self.cipher_mode.to_byte());
         data.extend_from_slice(name);
         data
     }
@@ -272,9 +272,9 @@ impl SolidHeader {
         [
             self.major,
             self.minor,
-            self.compression as u8,
-            self.encryption as u8,
-            self.cipher_mode as u8,
+            self.compression.to_byte(),
+            self.encryption.to_byte(),
+            self.cipher_mode.to_byte(),
         ]
     }
 

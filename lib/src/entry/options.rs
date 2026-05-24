@@ -132,16 +132,45 @@ mod private {
 
 /// Compression method.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-#[repr(u8)]
 pub enum Compression {
     /// Do not apply any compression.
-    No = 0,
+    No,
     /// Zlib format.
-    Deflate = 1,
+    Deflate,
     /// ZStandard format.
-    ZStandard = 2,
+    ZStandard,
     /// Xz format.
-    XZ = 4,
+    XZ,
+    /// Value reserved for future PNA specification (raw value < 128).
+    Reserved(u8),
+    /// Application-specific private value (raw value >= 128).
+    Private(u8),
+}
+
+impl Compression {
+    /// Serialize this compression method to its u8 representation.
+    #[inline]
+    pub const fn to_byte(self) -> u8 {
+        match self {
+            Self::No => 0,
+            Self::Deflate => 1,
+            Self::ZStandard => 2,
+            Self::XZ => 4,
+            Self::Reserved(v) | Self::Private(v) => v,
+        }
+    }
+
+    /// Returns `true` if this is a reserved value.
+    #[inline]
+    pub const fn is_reserved(self) -> bool {
+        matches!(self, Self::Reserved(_))
+    }
+
+    /// Returns `true` if this is a private value.
+    #[inline]
+    pub const fn is_private(self) -> bool {
+        matches!(self, Self::Private(_))
+    }
 }
 
 impl TryFrom<u8> for Compression {
@@ -154,7 +183,8 @@ impl TryFrom<u8> for Compression {
             1 => Ok(Self::Deflate),
             2 => Ok(Self::ZStandard),
             4 => Ok(Self::XZ),
-            value => Err(UnknownValueError(value)),
+            v if v < 128 => Ok(Self::Reserved(v)),
+            v => Ok(Self::Private(v)),
         }
     }
 }
@@ -291,14 +321,42 @@ impl<T: AsRef<[u8]>> From<T> for Password {
 
 /// Encryption algorithm.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-#[repr(u8)]
 pub enum Encryption {
     /// Do not apply any encryption.
-    No = 0,
+    No,
     /// Aes algorithm.
-    Aes = 1,
+    Aes,
     /// Camellia algorithm.
-    Camellia = 2,
+    Camellia,
+    /// Value reserved for future PNA specification (raw value < 128).
+    Reserved(u8),
+    /// Application-specific private value (raw value >= 128).
+    Private(u8),
+}
+
+impl Encryption {
+    /// Serialize this encryption method to its u8 representation.
+    #[inline]
+    pub const fn to_byte(self) -> u8 {
+        match self {
+            Self::No => 0,
+            Self::Aes => 1,
+            Self::Camellia => 2,
+            Self::Reserved(v) | Self::Private(v) => v,
+        }
+    }
+
+    /// Returns `true` if this is a reserved value.
+    #[inline]
+    pub const fn is_reserved(self) -> bool {
+        matches!(self, Self::Reserved(_))
+    }
+
+    /// Returns `true` if this is a private value.
+    #[inline]
+    pub const fn is_private(self) -> bool {
+        matches!(self, Self::Private(_))
+    }
 }
 
 impl TryFrom<u8> for Encryption {
@@ -310,19 +368,47 @@ impl TryFrom<u8> for Encryption {
             0 => Ok(Self::No),
             1 => Ok(Self::Aes),
             2 => Ok(Self::Camellia),
-            value => Err(UnknownValueError(value)),
+            v if v < 128 => Ok(Self::Reserved(v)),
+            v => Ok(Self::Private(v)),
         }
     }
 }
 
 /// Cipher mode of encryption algorithm.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-#[repr(u8)]
 pub enum CipherMode {
     /// Cipher Block Chaining mode.
-    CBC = 0,
+    CBC,
     /// Counter mode.
-    CTR = 1,
+    CTR,
+    /// Value reserved for future PNA specification (raw value < 128).
+    Reserved(u8),
+    /// Application-specific private value (raw value >= 128).
+    Private(u8),
+}
+
+impl CipherMode {
+    /// Serialize this cipher mode to its u8 representation.
+    #[inline]
+    pub const fn to_byte(self) -> u8 {
+        match self {
+            Self::CBC => 0,
+            Self::CTR => 1,
+            Self::Reserved(v) | Self::Private(v) => v,
+        }
+    }
+
+    /// Returns `true` if this is a reserved value.
+    #[inline]
+    pub const fn is_reserved(self) -> bool {
+        matches!(self, Self::Reserved(_))
+    }
+
+    /// Returns `true` if this is a private value.
+    #[inline]
+    pub const fn is_private(self) -> bool {
+        matches!(self, Self::Private(_))
+    }
 }
 
 impl TryFrom<u8> for CipherMode {
@@ -333,7 +419,8 @@ impl TryFrom<u8> for CipherMode {
         match value {
             0 => Ok(Self::CBC),
             1 => Ok(Self::CTR),
-            value => Err(UnknownValueError(value)),
+            v if v < 128 => Ok(Self::Reserved(v)),
+            v => Ok(Self::Private(v)),
         }
     }
 }
@@ -472,17 +559,46 @@ impl HashAlgorithm {
 /// Each variant determines how the entry's data should be interpreted
 /// and how the entry should be extracted to the filesystem.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-#[repr(u8)]
 pub enum DataKind {
     /// Regular file. Entry data contains the file contents.
-    File = 0,
+    File,
     /// Directory. Entry has no data content.
-    Directory = 1,
+    Directory,
     /// Symbolic link. Entry data contains the UTF-8 encoded link target path.
-    SymbolicLink = 2,
+    SymbolicLink,
     /// Hard link. Entry data contains the UTF-8 encoded path of the target entry
     /// within the same archive.
-    HardLink = 3,
+    HardLink,
+    /// Value reserved for future PNA specification (raw value < 128).
+    Reserved(u8),
+    /// Application-specific private value (raw value >= 128).
+    Private(u8),
+}
+
+impl DataKind {
+    /// Serialize this data kind to its u8 representation.
+    #[inline]
+    pub const fn to_byte(self) -> u8 {
+        match self {
+            Self::File => 0,
+            Self::Directory => 1,
+            Self::SymbolicLink => 2,
+            Self::HardLink => 3,
+            Self::Reserved(v) | Self::Private(v) => v,
+        }
+    }
+
+    /// Returns `true` if this is a reserved value.
+    #[inline]
+    pub const fn is_reserved(self) -> bool {
+        matches!(self, Self::Reserved(_))
+    }
+
+    /// Returns `true` if this is a private value.
+    #[inline]
+    pub const fn is_private(self) -> bool {
+        matches!(self, Self::Private(_))
+    }
 }
 
 impl TryFrom<u8> for DataKind {
@@ -495,7 +611,8 @@ impl TryFrom<u8> for DataKind {
             1 => Ok(Self::Directory),
             2 => Ok(Self::SymbolicLink),
             3 => Ok(Self::HardLink),
-            value => Err(UnknownValueError(value)),
+            v if v < 128 => Ok(Self::Reserved(v)),
+            v => Ok(Self::Private(v)),
         }
     }
 }
@@ -778,7 +895,10 @@ impl WriteOptionsBuilder {
                 match self.encryption {
                     Encryption::Aes => CipherAlgorithm::Aes,
                     Encryption::Camellia => CipherAlgorithm::Camellia,
-                    Encryption::No => unreachable!(),
+                    other => panic!(
+                        "unsupported encryption method for writing: byte={}",
+                        other.to_byte()
+                    ),
                 },
                 self.cipher_mode,
             ))
@@ -791,6 +911,10 @@ impl WriteOptionsBuilder {
                 Compression::Deflate => Compress::Deflate(self.compression_level.into()),
                 Compression::ZStandard => Compress::ZStandard(self.compression_level.into()),
                 Compression::XZ => Compress::XZ(self.compression_level.into()),
+                other => panic!(
+                    "unsupported compression method for writing: byte={}",
+                    other.to_byte()
+                ),
             },
             cipher,
         }

@@ -161,6 +161,12 @@ fn encryption_writer<W: Write>(
                     ..
                 },
         }) => CipherWriter::CtrCamellia(Ctr128BEWriter::new(writer, key.as_bytes(), iv)?),
+        Some(WriteCipher { context, .. }) => {
+            return Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                format!("unsupported cipher mode for writing: {:?}", context.mode),
+            ));
+        }
     })
 }
 
