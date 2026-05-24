@@ -106,10 +106,8 @@ impl<'a> From<RawEntry<&'a [u8]>> for RawEntry<Cow<'a, [u8]>> {
     }
 }
 
-type InternalIterMap<'r, T> = std::iter::Map<std::slice::Iter<'r, T>, fn(&T) -> &[u8]>;
-
 /// Reader for Entry data.
-pub struct EntryDataReader<'r>(EntryReader<ChainReader<std::vec::IntoIter<&'r [u8]>, &'r [u8]>>);
+pub struct EntryDataReader<'r>(EntryReader<EncodedDataReader<'r>>);
 
 impl<'r> Read for EntryDataReader<'r> {
     #[inline]
@@ -128,6 +126,42 @@ impl<'r> futures_io::AsyncRead for EntryDataReader<'r> {
     ) -> std::task::Poll<io::Result<usize>> {
         std::task::Poll::Ready(self.get_mut().read(buf))
     }
+}
+
+/// Reader for encoded entry data.
+///
+/// This reader returns the concatenated body bytes of `FDAT` chunks for
+/// [`NormalEntry`] and `SDAT` chunks for [`SolidEntry`]. The returned stream is
+/// the data as stored in the archive, before decryption or decompression, and
+/// does not include chunk length, type, or CRC bytes.
+pub struct EncodedDataReader<'r>(ChainReader<std::vec::IntoIter<&'r [u8]>, &'r [u8]>);
+
+impl<'r> Read for EncodedDataReader<'r> {
+    #[inline]
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.read(buf)
+    }
+}
+
+#[cfg(feature = "unstable-async")]
+impl<'r> futures_io::AsyncRead for EncodedDataReader<'r> {
+    #[inline]
+    fn poll_read(
+        self: std::pin::Pin<&mut Self>,
+        _cx: &mut std::task::Context<'_>,
+        buf: &mut [u8],
+    ) -> std::task::Poll<io::Result<usize>> {
+        std::task::Poll::Ready(self.get_mut().read(buf))
+    }
+}
+
+#[inline]
+fn encoded_data_reader<T: AsRef<[u8]>>(data: &[T]) -> EncodedDataReader<'_> {
+    EncodedDataReader(ChainReader::new(
+        data.iter()
+            .map(AsRef::as_ref as fn(&T) -> &[u8])
+            .collect::<Vec<_>>(),
+    ))
 }
 
 /// A [`NormalEntry`] or [`SolidEntry`] read from an archive.
@@ -241,7 +275,7 @@ impl<'a> From<ReadEntry<&'a [u8]>> for ReadEntry<Cow<'a, [u8]>> {
     }
 }
 
-pub(crate) struct EntryIterator<'s, T>(EntryReader<ChainReader<InternalIterMap<'s, T>, &'s [u8]>>);
+pub(crate) struct EntryIterator<'s>(EntryReader<EncodedDataReader<'s>>);
 
 #[inline]
 fn read_next_normal_entry_from_stream<R: Read>(reader: &mut R) -> Option<io::Result<NormalEntry>> {
@@ -270,7 +304,7 @@ fn read_next_normal_entry_from_stream<R: Read>(reader: &mut R) -> Option<io::Res
     Some(RawEntry(chunks).try_into())
 }
 
-impl<T> Iterator for EntryIterator<'_, T> {
+impl Iterator for EntryIterator<'_> {
     type Item = io::Result<NormalEntry>;
 
     #[inline]
@@ -395,6 +429,17 @@ impl<T> SolidEntry<T> {
 }
 
 impl<T: AsRef<[u8]>> SolidEntry<T> {
+    /// Returns a reader over the encoded `SDAT` chunk body bytes.
+    ///
+    /// This reader exposes the solid entry data as stored in the archive,
+    /// before decryption or decompression. It returns the concatenated bodies
+    /// of all `SDAT` chunks and does not include chunk length, type, or CRC
+    /// bytes.
+    #[inline]
+    pub fn encoded_reader(&self) -> EncodedDataReader<'_> {
+        encoded_data_reader(&self.data)
+    }
+
     /// Returns an iterator over the entries in the [`SolidEntry`].
     ///
     /// # Errors
@@ -434,7 +479,7 @@ impl<T: AsRef<[u8]>> SolidEntry<T> {
         password: Option<&[u8]>,
     ) -> io::Result<impl Iterator<Item = io::Result<NormalEntry>> + '_> {
         let reader = decrypt_reader(
-            ChainReader::new(self.data.iter().map(AsRef::as_ref as fn(&T) -> &[u8])),
+            self.encoded_reader(),
             self.header.encryption,
             self.header.cipher_mode,
             self.phsf.as_deref(),
@@ -1110,6 +1155,16 @@ impl<T: Clone> NormalEntry<T> {
 }
 
 impl<T: AsRef<[u8]>> NormalEntry<T> {
+    /// Returns a reader over the encoded `FDAT` chunk body bytes.
+    ///
+    /// This reader exposes the entry data as stored in the archive, before
+    /// decryption or decompression. It returns the concatenated bodies of all
+    /// `FDAT` chunks and does not include chunk length, type, or CRC bytes.
+    #[inline]
+    pub fn encoded_reader(&self) -> EncodedDataReader<'_> {
+        encoded_data_reader(&self.data)
+    }
+
     /// Returns the reader of this [`NormalEntry`].
     ///
     /// # Errors
@@ -1137,14 +1192,8 @@ impl<T: AsRef<[u8]>> NormalEntry<T> {
     /// ```
     #[inline]
     pub fn reader(&self, option: impl ReadOption) -> io::Result<EntryDataReader<'_>> {
-        let raw_data_reader = ChainReader::new(
-            self.data
-                .iter()
-                .map(AsRef::as_ref as fn(&T) -> &[u8])
-                .collect::<Vec<_>>(),
-        );
         let decrypt_reader = decrypt_reader(
-            raw_data_reader,
+            self.encoded_reader(),
             self.header.encryption,
             self.header.cipher_mode,
             self.phsf.as_deref(),
@@ -1486,6 +1535,48 @@ mod tests {
         let renamed = entry.with_name("new".into());
         assert_eq!(renamed.header().path().as_str(), "new");
         assert_eq!(renamed.name().as_str(), "new");
+    }
+
+    #[test]
+    fn normal_entry_encoded_reader_returns_encoded_fdat_body() {
+        let data = b"plain data plain data plain data";
+        let mut builder = EntryBuilder::new_file(
+            "encoded".into(),
+            WriteOptions::builder()
+                .compression(Compression::Deflate)
+                .build(),
+        )
+        .unwrap();
+        builder.write_all(data).unwrap();
+        let entry = builder.build().unwrap();
+
+        let mut encoded = Vec::new();
+        entry.encoded_reader().read_to_end(&mut encoded).unwrap();
+
+        let mut decoded = Vec::new();
+        entry
+            .reader(ReadOptions::builder().build())
+            .unwrap()
+            .read_to_end(&mut decoded)
+            .unwrap();
+
+        assert_eq!(decoded, data);
+        assert_ne!(encoded, data);
+    }
+
+    #[test]
+    fn solid_entry_encoded_reader_concatenates_sdat_bodies() {
+        let solid = SolidEntry {
+            header: SolidHeader::new(Compression::No, Encryption::No, CipherMode::CBC),
+            phsf: None,
+            data: vec![b"abc".to_vec(), b"def".to_vec()],
+            extra: Vec::new(),
+        };
+
+        let mut encoded = Vec::new();
+        solid.encoded_reader().read_to_end(&mut encoded).unwrap();
+
+        assert_eq!(encoded, b"abcdef");
     }
 
     #[test]
