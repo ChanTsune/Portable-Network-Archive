@@ -165,7 +165,7 @@ jobs:
           persist-credentials: false
       - name: Test in OpenBSD
         id: test
-        uses: vmactions/OpenBSD-vm@6fac4962055fe9952d29930942445739e509fecd # v1.4.2
+        uses: vmactions/OpenBSD-vm@fcf799d7ce9c305ad89eabef1fb2fa5c1c42d0ee # v1.4.3
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
