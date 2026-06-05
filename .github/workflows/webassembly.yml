@@ -80,7 +80,7 @@ jobs:
           cargo test -p libpna --locked --target "$TARGET" -- --nocapture
         env:
           TARGET: ${{ matrix.target }}
-      - if: ${{ startsWith(matrix.target, 'wasm32-wasip1') && startsWith(matrix.rust, 'nightly')}}
+      - if: ${{ startsWith(matrix.target, 'wasm32-wasi') && startsWith(matrix.rust, 'nightly')}}
         name: Run test
         run: |
           cargo test --locked --target "$TARGET" -- --nocapture
