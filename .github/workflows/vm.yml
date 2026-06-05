@@ -43,7 +43,7 @@ jobs:
           persist-credentials: false
       - name: Test in Solaris
         id: test
-        uses: vmactions/solaris-vm@3702ccf20b84c7f7c0a9bb68894aba7623f8301d # v1.3.6
+        uses: vmactions/solaris-vm@d30dd6c228c8661ade859e36ead7660b9a62efcc # v1.3.7
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
@@ -73,7 +73,7 @@ jobs:
           persist-credentials: false
       - name: Test in NetBSD
         id: test
-        uses: vmactions/NetBSD-vm@ad31081832386a0ba569aee243e6edf9524f3f80 # v1.3.9
+        uses: vmactions/NetBSD-vm@99816dccf75edf233ed6cd00a159e3a5b85ea373 # v1.4.0
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
@@ -165,7 +165,7 @@ jobs:
           persist-credentials: false
       - name: Test in OpenBSD
         id: test
-        uses: vmactions/OpenBSD-vm@6fac4962055fe9952d29930942445739e509fecd # v1.4.2
+        uses: vmactions/OpenBSD-vm@fcf799d7ce9c305ad89eabef1fb2fa5c1c42d0ee # v1.4.3
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
@@ -219,7 +219,7 @@ jobs:
           persist-credentials: false
       - name: Test in OmniOS
         id: test
-        uses: vmactions/omnios-vm@493aabc6b4f4dd6dcb81e748548b5f4bf56dd2b1 # v1.3.1
+        uses: vmactions/omnios-vm@d42d894b41dd58cf7e31c194709a1c0fe3d04ace # v1.3.2
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
