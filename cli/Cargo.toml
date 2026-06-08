@@ -55,7 +55,7 @@ walkdir = "2.5.0"
 filetime = "0.2"
 
 [target.'cfg(unix)'.dependencies]
-mtree2 = "0.6.15"
+mtree2 = "0.6.16"
 nix = { version = "0.31.3", features = ["user"] }
 xattr = "1.6.1"
 

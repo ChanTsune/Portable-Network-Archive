@@ -1610,9 +1610,9 @@ dependencies = [
 
 [[package]]
 name = "mtree2"
-version = "0.6.15"
+version = "0.6.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "63a9c42187e8079b8db9bc8fca7109ebe0f96c121174b0366c26a16a97bf4d5c"
+checksum = "397379946ce6b8f99757cb6c2388b7c7e04c3ab6060d6981dcc82bce1b4811ec"
 dependencies = [
  "bitflags",
  "faster-hex",
