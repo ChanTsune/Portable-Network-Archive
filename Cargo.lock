@@ -293,11 +293,10 @@ dependencies = [
 
 [[package]]
 name = "camellia"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26f8497bae7a64e5ba66a107df01378570a9a6b282a61913d1e9c28e76f8c65a"
+checksum = "d3ed33f9863ee76491bbe0d7e16a225c694d8525287e320dc7fbe71ee212254c"
 dependencies = [
- "byteorder",
  "cipher",
 ]
 
