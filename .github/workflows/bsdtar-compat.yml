@@ -82,7 +82,7 @@ jobs:
           brew install autoconf automake libtool make pkg-config
 
       - name: Clone libarchive
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: libarchive/libarchive
           ref: v3.8.5
@@ -200,7 +200,7 @@ jobs:
           git config --global core.longpaths true
 
       - name: Checkout pna
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           path: pna
           persist-credentials: false
@@ -245,7 +245,7 @@ jobs:
         working-directory: pna
 
       - name: Clone libarchive
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: libarchive/libarchive
           ref: v3.8.5
