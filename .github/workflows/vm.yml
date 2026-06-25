@@ -103,7 +103,7 @@ jobs:
           persist-credentials: false
       - name: Test in FreeBSD
         id: test
-        uses: vmactions/freebsd-vm@a6de9343ef5747433d9c25784c90e84998b9d69a # v1.4.6
+        uses: vmactions/freebsd-vm@b84ab5559b5a1bb4b8ee2737d2506a16e1737636 # v1.4.8
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
@@ -165,7 +165,7 @@ jobs:
           persist-credentials: false
       - name: Test in OpenBSD
         id: test
-        uses: vmactions/OpenBSD-vm@fcf799d7ce9c305ad89eabef1fb2fa5c1c42d0ee # v1.4.3
+        uses: vmactions/OpenBSD-vm@18edb32f4e48dae5865d7b8b3a9587bc01218a20 # v1.4.4
         with:
           envs: "RUST_BACKTRACE"
           copyback: false
