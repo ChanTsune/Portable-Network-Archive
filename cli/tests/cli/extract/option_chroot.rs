@@ -1,4 +1,5 @@
 #![cfg(all(unix, not(target_family = "wasm")))]
+use crate::utils::unix::skip_if_not_root;
 use crate::utils::{EmbedExt, TestResources, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
@@ -8,10 +9,7 @@ use std::fs;
 /// Expectation: Absolute output path is resolved relative to chroot root, not filesystem root.
 #[test]
 fn archive_extract_chroot() {
-    // chroot need root privileges
-    if !nix::unistd::Uid::effective().is_root() {
-        return;
-    }
+    skip_if_not_root!();
     setup();
     TestResources::extract_in("zstd.pna", "extract_chroot/").unwrap();
 
