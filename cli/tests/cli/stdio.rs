@@ -10,6 +10,8 @@ mod option_auto_compress;
 mod option_block_size;
 mod option_cd;
 mod option_check_links;
+#[cfg(unix)]
+mod option_chroot;
 mod option_exclude_vcs;
 mod option_fast_read;
 mod option_follow_links_combined;
