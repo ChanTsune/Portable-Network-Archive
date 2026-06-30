@@ -352,15 +352,6 @@ pub(crate) struct UpdateCommand {
         help = "Modify file or archive member names according to pattern that like GNU tar -transform option"
     )]
     transforms: Option<Vec<TransformRule>>,
-    #[arg(
-        short = 'C',
-        long = "cd",
-        visible_aliases = ["directory"],
-        value_name = "DIRECTORY",
-        help = "Change directory before adding the following files",
-        value_hint = ValueHint::DirPath
-    )]
-    working_dir: Option<PathBuf>,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -504,10 +495,6 @@ fn update_archive(args: UpdateCommand) -> anyhow::Result<()> {
     );
 
     let archive_path = current_dir.join(args.file.archive);
-    if let Some(working_dir) = args.working_dir {
-        env::set_current_dir(working_dir)?;
-    }
-
     let collect_options = CollectOptions {
         recursive: !args.no_recursive,
         keep_dir: !args.no_keep_dir,

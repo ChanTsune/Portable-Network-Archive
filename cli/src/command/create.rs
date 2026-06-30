@@ -381,15 +381,6 @@ pub(crate) struct CreateCommand {
         help = "Modify file or archive member names according to pattern that like GNU tar -transform option"
     )]
     transforms: Option<Vec<TransformRule>>,
-    #[arg(
-        short = 'C',
-        long = "cd",
-        visible_aliases = ["directory"],
-        value_name = "DIRECTORY",
-        help = "Change directory before adding the following files",
-        value_hint = ValueHint::DirPath
-    )]
-    working_dir: Option<PathBuf>,
     #[command(flatten)]
     pub(crate) compression: CompressionAlgorithmArgs,
     #[command(flatten)]
@@ -468,9 +459,6 @@ fn create_archive(args: CreateCommand) -> anyhow::Result<()> {
         missing_mtime: MissingTimePolicy::Include,
     }
     .resolve()?;
-    if let Some(working_dir) = args.working_dir {
-        env::set_current_dir(working_dir)?;
-    }
     let collect_options = CollectOptions {
         recursive: !args.no_recursive,
         keep_dir: !args.no_keep_dir,

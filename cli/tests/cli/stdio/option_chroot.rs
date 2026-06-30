@@ -3,12 +3,12 @@ use crate::utils::{EmbedExt, TestResources, setup};
 use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
 
-/// Precondition: Archive contains entries and extraction uses absolute `--out-dir` path with `--chroot`.
-/// Action: Extract with `--chroot` option where `-C .` sets the chroot root.
+/// Precondition: Archive contains entries and compat extraction uses absolute `--out-dir` with `--chroot`.
+/// Action: Extract with `pna compat bsdtar --chroot` where `-C .` sets the chroot root.
 /// Expectation: Absolute output path is resolved relative to chroot root, not filesystem root.
 #[test]
-fn archive_extract_chroot() {
-    // chroot need root privileges
+fn compat_bsdtar_extract_chroot() {
+    // chroot needs root privileges.
     if !nix::unistd::Uid::effective().is_root() {
         return;
     }
@@ -18,7 +18,10 @@ fn archive_extract_chroot() {
     let mut cmd = cargo_bin_cmd!("pna");
     cmd.args([
         "--quiet",
-        "x",
+        "compat",
+        "bsdtar",
+        "--unstable",
+        "-x",
         "-f",
         "extract_chroot/zstd.pna",
         "--overwrite",
@@ -31,7 +34,7 @@ fn archive_extract_chroot() {
     ]);
     cmd.assert().success();
 
-    // Verify chroot resolved absolute path within test workspace (not at system root)
+    // Verify chroot resolved absolute path within the test workspace, not at system root.
     assert!(
         fs::exists("extract_chroot/out/raw/text.txt").unwrap(),
         "Extracted file should exist within chroot-relative path"

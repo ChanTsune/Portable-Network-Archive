@@ -11,7 +11,7 @@ use crate::{
             AclStrategy, FflagsStrategy, KeepOptions, MacMetadataStrategy, ModeStrategy,
             OwnerOptions, OwnerStrategy, PathFilter, PathTransformers, PathnameEditor,
             PermissionStrategyResolver, ProcessAction, SafeWriter, TimeFilterResolver, TimeFilters,
-            TimestampStrategy, TimestampStrategyResolver, Umask, XattrStrategy, apply_chroot,
+            TimestampStrategy, TimestampStrategyResolver, Umask, XattrStrategy,
             collect_split_archives,
             path_lock::OrderedPathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
@@ -35,7 +35,7 @@ use std::os::macos::fs::FileTimesExt;
 use std::os::windows::fs::FileTimesExt;
 use std::{
     borrow::Cow,
-    env, fs,
+    fs,
     io::{self, prelude::*},
     path::{Component, Path, PathBuf},
     sync::{
@@ -365,20 +365,6 @@ pub(crate) struct ExtractCommand {
     #[arg(long, help = "Extract files as yourself")]
     no_same_owner: bool,
     #[arg(
-        short = 'C',
-        long = "cd",
-        visible_aliases = ["directory"],
-        value_name = "DIRECTORY",
-        help = "Change directories after opening the archive but before extracting entries from the archive",
-        value_hint = ValueHint::DirPath
-    )]
-    working_dir: Option<PathBuf>,
-    #[arg(
-        long,
-        help = "chroot() to the current directory after processing any --cd options and before extracting any files (requires root privileges)"
-    )]
-    chroot: bool,
-    #[arg(
         long,
         help = "Allow extracting symbolic links and hard links that contain root or parent paths"
     )]
@@ -524,11 +510,6 @@ fn extract_archive(args: ExtractCommand) -> anyhow::Result<()> {
         absolute_paths: false,
         warned_lead_slash: Arc::new(AtomicBool::new(false)),
     };
-    if let Some(working_dir) = args.working_dir {
-        env::set_current_dir(&working_dir)
-            .with_context(|| format!("changing directory to {}", PathWithCwd::new(&working_dir)))?;
-    }
-    apply_chroot(args.chroot)?;
     #[cfg(not(feature = "memmap"))]
     run_extract_archive_reader(
         archives

@@ -1,7 +1,5 @@
 mod hardlink;
 mod missing_file;
-#[cfg(not(target_family = "wasm"))]
-mod option_chroot;
 mod option_exclude;
 mod option_exclude_vcs;
 mod option_files_from;

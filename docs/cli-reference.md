@@ -270,7 +270,6 @@ Create archive
   Default value: `false`
 * `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option
 * `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option
-* `-C`, `--cd <DIRECTORY>` [alias: `directory`] — Change directory before adding the following files
 * `--store` — No compression
 
   Default value: `false`
@@ -423,7 +422,6 @@ Append files to archive
   Default value: `false`
 * `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option
 * `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option
-* `-C`, `--cd <DIRECTORY>` [alias: `directory`] — Change directory before adding the following files
 * `--store` — No compression
 
   Default value: `false`
@@ -567,10 +565,6 @@ Extract files from archive
 
   Default value: `false`
 * `--no-same-owner` — Extract files as yourself
-
-  Default value: `false`
-* `-C`, `--cd <DIRECTORY>` [alias: `directory`] — Change directories after opening the archive but before extracting entries from the archive
-* `--chroot` — chroot() to the current directory after processing any --cd options and before extracting any files (requires root privileges)
 
   Default value: `false`
 * `--allow-unsafe-links` — Allow extracting symbolic links and hard links that contain root or parent paths
@@ -1988,7 +1982,6 @@ Update entries in archive
   Default value: `false`
 * `-s <PATTERN>` — Modify file or archive member names according to pattern that like BSD tar -s option
 * `--transform <PATTERN>` [alias: `xform`] — Modify file or archive member names according to pattern that like GNU tar -transform option
-* `-C`, `--cd <DIRECTORY>` [alias: `directory`] — Change directory before adding the following files
 * `--store` — No compression
 
   Default value: `false`
