@@ -2058,9 +2058,9 @@ fn symlink_with_type<P: AsRef<Path>, Q: AsRef<Path>>(
 /// - On Windows, relative targets are resolved against `link`'s parent then
 ///   canonicalized to an absolute path (the kernel requires junction targets
 ///   to be absolute). If canonicalization fails (e.g. the target does not
-///   exist), the raw join is used instead: when that join is absolute a
-///   dangling junction is created; `create_junction` errors only when the
-///   join is not absolute.
+///   exist), the raw join is used instead: an absolute join is still
+///   attempted, possibly producing a dangling junction, while a non-absolute
+///   join is rejected by `create_junction`.
 /// - On non-Windows, the raw stored string is passed to `symlink` verbatim
 ///   so the resulting symlink is identical to what the archive encoded.
 ///
@@ -2115,10 +2115,8 @@ fn create_junction_or_fallback(link: &Path, target: &EntryReference) -> io::Resu
 /// attributes for hard-link entries through follow-link syscalls; run
 /// against a junction path they would mutate the external directory the
 /// junction points at. Junction entries therefore restore timestamps only,
-/// via `restore_path_timestamps`, which uses
-/// `filetime::set_symlink_file_times` (opens the reparse point itself with
-/// `FILE_FLAG_OPEN_REPARSE_POINT` on Windows; `utimensat(AT_SYMLINK_NOFOLLOW)`
-/// / `lutimes` on Unix).
+/// applied to the link itself without following it, so the junction's
+/// external target is never touched.
 ///
 /// TODO: restore the junction's own mode/owner/ACL/xattr through no-follow
 /// APIs instead of skipping them.
