@@ -7,14 +7,18 @@
 //! individual items is required here.
 
 use std::{
+    ffi::OsString,
     io,
-    os::windows::ffi::OsStrExt,
+    os::windows::{
+        ffi::{OsStrExt, OsStringExt},
+        io::{AsRawHandle, FromRawHandle, OwnedHandle},
+    },
     path::{Path, PathBuf},
 };
 
 use windows::{
     Win32::{
-        Foundation::{CloseHandle, GENERIC_READ, GENERIC_WRITE, HANDLE},
+        Foundation::{GENERIC_READ, GENERIC_WRITE, HANDLE},
         Storage::FileSystem::{
             CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_FLAG_BACKUP_SEMANTICS,
             FILE_FLAG_OPEN_REPARSE_POINT, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
@@ -29,11 +33,17 @@ use windows::{
 
 use crate::utils::str::encode_wide;
 
+/// Kernel-enforced upper bound for a full `REPARSE_DATA_BUFFER`, including
+/// the 8-byte tag/length/reserved header.
+const MAXIMUM_REPARSE_DATA_BUFFER_SIZE: usize = 16 * 1024;
+
 /// Parsed contents of a reparse point.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReparsePoint {
-    /// `IO_REPARSE_TAG_MOUNT_POINT` (junction). Target is always absolute as
-    /// stored in the reparse buffer after the `\??\` NT-object prefix is stripped.
+    /// `IO_REPARSE_TAG_MOUNT_POINT` (junction). Target is as stored in the
+    /// reparse buffer with any leading `\??\` NT-object prefix stripped —
+    /// typically an absolute drive path, though volume-GUID mount targets
+    /// (`Volume{...}\...`) are also possible.
     Junction(PathBuf),
     /// `IO_REPARSE_TAG_SYMLINK` (file or directory symbolic link). `is_relative`
     /// reflects the `SYMLINK_FLAG_RELATIVE` bit in the reparse header.
@@ -43,9 +53,18 @@ pub enum ReparsePoint {
     Other(u32),
 }
 
+/// Strip a leading `\??\` NT-object prefix from a UTF-16 name, if present.
+fn strip_nt_prefix(name: &[u16]) -> &[u16] {
+    const NT_PREFIX: [u16; 4] = [b'\\' as u16, b'?' as u16, b'?' as u16, b'\\' as u16];
+    name.strip_prefix(&NT_PREFIX[..]).unwrap_or(name)
+}
+
 /// Parse a raw reparse-point buffer (the payload of `FSCTL_GET_REPARSE_POINT`).
 ///
-/// Errors when the buffer is truncated or contains malformed UTF-16.
+/// Names are decoded losslessly (WTF-16 → `PathBuf`), matching what
+/// `create_junction` writes, so targets containing unpaired surrogates
+/// round-trip. Errors when the buffer is truncated, shorter than its declared
+/// `ReparseDataLength`, or contains an odd-length name.
 pub(crate) fn parse_reparse_buffer(buf: &[u8]) -> io::Result<ReparsePoint> {
     const IO_REPARSE_TAG_MOUNT_POINT: u32 = 0xA000_0003;
     const IO_REPARSE_TAG_SYMLINK: u32 = 0xA000_000C;
@@ -60,6 +79,13 @@ pub(crate) fn parse_reparse_buffer(buf: &[u8]) -> io::Result<ReparsePoint> {
         ));
     }
     let tag = u32::from_le_bytes(buf[0..4].try_into().unwrap());
+    let declared_len = u16::from_le_bytes(buf[4..6].try_into().unwrap()) as usize;
+    if HEADER_LEN + declared_len > buf.len() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "reparse buffer shorter than declared ReparseDataLength",
+        ));
+    }
 
     let read_u16 = |offset: usize| -> io::Result<u16> {
         buf.get(offset..offset + 2)
@@ -67,8 +93,8 @@ pub(crate) fn parse_reparse_buffer(buf: &[u8]) -> io::Result<ReparsePoint> {
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "reparse buffer truncated"))
     };
 
-    let extract_utf16 = |offset: usize, len: u16, pathbuf_base: usize| -> io::Result<String> {
-        let start = pathbuf_base + offset as usize;
+    let extract_wide = |offset: usize, len: u16, pathbuf_base: usize| -> io::Result<Vec<u16>> {
+        let start = pathbuf_base + offset;
         let end = start + len as usize;
         let slice = buf.get(start..end).ok_or_else(|| {
             io::Error::new(
@@ -82,22 +108,21 @@ pub(crate) fn parse_reparse_buffer(buf: &[u8]) -> io::Result<ReparsePoint> {
                 "odd-length utf16 in reparse path",
             ));
         }
-        let utf16: Vec<u16> = slice
+        Ok(slice
             .chunks_exact(2)
             .map(|c| u16::from_le_bytes([c[0], c[1]]))
-            .collect();
-        String::from_utf16(&utf16).map_err(|_| {
-            io::Error::new(io::ErrorKind::InvalidData, "invalid utf16 in reparse path")
-        })
+            .collect())
     };
 
     match tag {
         IO_REPARSE_TAG_MOUNT_POINT => {
             let subst_offset = read_u16(HEADER_LEN)?;
             let subst_len = read_u16(HEADER_LEN + 2)?;
-            let subst = extract_utf16(subst_offset as usize, subst_len, MP_PATHBUF_OFFSET)?;
-            let stripped = subst.strip_prefix(r"\??\").unwrap_or(&subst).to_string();
-            Ok(ReparsePoint::Junction(PathBuf::from(stripped)))
+            let subst = extract_wide(subst_offset as usize, subst_len, MP_PATHBUF_OFFSET)?;
+            let stripped = strip_nt_prefix(&subst);
+            Ok(ReparsePoint::Junction(PathBuf::from(OsString::from_wide(
+                stripped,
+            ))))
         }
         IO_REPARSE_TAG_SYMLINK => {
             if buf.len() < HEADER_LEN + 12 {
@@ -111,14 +136,14 @@ pub(crate) fn parse_reparse_buffer(buf: &[u8]) -> io::Result<ReparsePoint> {
             let flags =
                 u32::from_le_bytes(buf[HEADER_LEN + 8..HEADER_LEN + 12].try_into().unwrap());
             let is_relative = flags & 0x1 != 0; // SYMLINK_FLAG_RELATIVE
-            let subst = extract_utf16(subst_offset as usize, subst_len, SYMLINK_PATHBUF_OFFSET)?;
+            let subst = extract_wide(subst_offset as usize, subst_len, SYMLINK_PATHBUF_OFFSET)?;
             let stripped = if is_relative {
-                subst
+                &subst[..]
             } else {
-                subst.strip_prefix(r"\??\").unwrap_or(&subst).to_string()
+                strip_nt_prefix(&subst)
             };
             Ok(ReparsePoint::Symlink {
-                target: PathBuf::from(stripped),
+                target: PathBuf::from(OsString::from_wide(stripped)),
                 is_relative,
             })
         }
@@ -161,8 +186,6 @@ fn io_error_from_win32(e: WinError) -> io::Error {
 /// (4390) when `path` is not a reparse point. Callers who want to treat that
 /// condition as "not a junction" should inspect `err.raw_os_error()`.
 pub(crate) fn read_reparse_point(path: &Path) -> io::Result<ReparsePoint> {
-    const MAXIMUM_REPARSE_DATA_BUFFER_SIZE: usize = 16 * 1024;
-
     let wide = encode_wide(path.as_os_str())?;
 
     let handle: HANDLE = unsafe {
@@ -177,13 +200,15 @@ pub(crate) fn read_reparse_point(path: &Path) -> io::Result<ReparsePoint> {
         )
     }
     .map_err(io_error_from_win32)?;
+    // Owning wrapper closes the handle on every exit path, including panics.
+    let handle = unsafe { OwnedHandle::from_raw_handle(handle.0) };
 
     let mut buf = vec![0u8; MAXIMUM_REPARSE_DATA_BUFFER_SIZE];
     let mut bytes_returned: u32 = 0;
 
-    let ioctl_result = unsafe {
+    unsafe {
         DeviceIoControl(
-            handle,
+            HANDLE(handle.as_raw_handle()),
             FSCTL_GET_REPARSE_POINT,
             None,
             0,
@@ -192,21 +217,78 @@ pub(crate) fn read_reparse_point(path: &Path) -> io::Result<ReparsePoint> {
             Some(&mut bytes_returned),
             None,
         )
-    };
-    // Always attempt to close the handle; do not let a close failure mask an
-    // earlier DeviceIoControl error.
-    let close_result = unsafe { CloseHandle(handle) };
-    ioctl_result.map_err(io_error_from_win32)?;
-    let _ = close_result;
+    }
+    .map_err(io_error_from_win32)?;
 
     buf.truncate(bytes_returned as usize);
     parse_reparse_buffer(&buf)
 }
 
+/// Best-effort rollback of the directory created for a junction. A failure
+/// leaves a plain empty directory where the junction should be; log it so
+/// the leftover is explicable.
+fn remove_created_dir_logged(link: &Path) {
+    if let Err(e) = std::fs::remove_dir(link) {
+        log::warn!(
+            "failed to remove {} while rolling back a failed junction creation: {e}",
+            link.display()
+        );
+    }
+}
+
+/// Compute the reparse-buffer `SubstituteName` (NT namespace form) and
+/// `PrintName` (Win32 form) for a junction target, as UTF-16 without NUL
+/// terminators.
+///
+/// `std::fs::canonicalize` returns verbatim (`\\?\`-prefixed) paths on
+/// Windows. Blindly prepending `\??\` to such a target would produce a
+/// nested-prefix substitute name (`\??\\\?\C:\...`) that
+/// `FSCTL_SET_REPARSE_POINT` accepts but the kernel cannot resolve at
+/// traversal time. This helper normalizes verbatim (`\\?\`, `\\?\UNC\`) and
+/// NT (`\??\`) prefixes before building the two names.
+///
+/// Errors with `InvalidInput` when the target is not absolute in its Win32
+/// form.
+fn junction_names(target: &Path) -> io::Result<(Vec<u16>, Vec<u16>)> {
+    fn utf16(s: &str) -> Vec<u16> {
+        s.encode_utf16().collect()
+    }
+    let target_wide: Vec<u16> = target.as_os_str().encode_wide().collect();
+    let strip = |prefix: &str| -> Option<Vec<u16>> {
+        let p = utf16(prefix);
+        (target_wide.len() >= p.len() && target_wide[..p.len()] == p[..])
+            .then(|| target_wide[p.len()..].to_vec())
+    };
+
+    let (subst, print) = if let Some(rest) = strip(r"\??\UNC\") {
+        (target_wide.clone(), [utf16(r"\\"), rest].concat())
+    } else if let Some(rest) = strip(r"\??\") {
+        (target_wide.clone(), rest)
+    } else if let Some(rest) = strip(r"\\?\UNC\") {
+        (
+            [utf16(r"\??\UNC\"), rest.clone()].concat(),
+            [utf16(r"\\"), rest].concat(),
+        )
+    } else if let Some(rest) = strip(r"\\?\") {
+        ([utf16(r"\??\"), rest.clone()].concat(), rest)
+    } else {
+        ([utf16(r"\??\"), target_wide.clone()].concat(), target_wide)
+    };
+
+    if !PathBuf::from(OsString::from_wide(&print)).is_absolute() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("junction target must be absolute: {}", target.display()),
+        ));
+    }
+    Ok((subst, print))
+}
+
 /// Create a junction at `link` pointing to the absolute `target`.
 ///
-/// `link` must not already exist; `target` must be an absolute path to a
-/// directory.
+/// `link` must not already exist; `target` must be absolute. Verbatim
+/// (`\\?\`) and NT (`\??\`) prefixes on `target` are normalized via
+/// [`junction_names`].
 ///
 /// The path `link` itself is routed through the shared
 /// `crate::utils::str::encode_wide` helper, which rejects embedded NUL
@@ -215,37 +297,29 @@ pub(crate) fn read_reparse_point(path: &Path) -> io::Result<ReparsePoint> {
 /// NUL terminator, no lossy conversion) so non-Unicode path bytes are
 /// preserved exactly.
 pub(crate) fn create_junction(link: &Path, target: &Path) -> io::Result<()> {
-    if !target.is_absolute() {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "junction target must be absolute",
-        ));
-    }
-
     // Build and size-validate the reparse-buffer payload before any filesystem
-    // mutation so an oversized target never leaves a half-created junction
-    // directory behind.
-    //
-    // SubstituteName = \??\ + target (as raw UTF-16, no NUL terminator, no lossy conversion).
-    let mut subst_wide: Vec<u16> = r"\??\".encode_utf16().collect();
-    subst_wide.extend(target.as_os_str().encode_wide());
-    let print_wide: Vec<u16> = target.as_os_str().encode_wide().collect();
+    // mutation so an invalid or oversized target never leaves a half-created
+    // junction directory behind.
+    let (subst_wide, print_wide) = junction_names(target)?;
 
-    // The reparse buffer header stores byte lengths in `u16` fields. Guard
-    // against silent truncation / wrapping: 16-bit byte lengths, the 8-byte
-    // offset header, and the two UTF-16 NUL terminators (one after
-    // SubstituteName, one after PrintName) together must fit in `u16`.
+    // The whole REPARSE_DATA_BUFFER (8-byte tag/length/reserved header +
+    // 8-byte offset header + both names + their UTF-16 NUL terminators) must
+    // fit the kernel's 16 KiB cap; that bound also keeps the `u16` length
+    // fields below from truncating or wrapping.
     let subst_byte_count = subst_wide.len() * 2;
     let print_byte_count = print_wide.len() * 2;
-    let total_payload = 8_usize
+    let total_buffer = 16_usize
         .checked_add(subst_byte_count)
         .and_then(|n| n.checked_add(2)) // NUL terminator after SubstituteName
         .and_then(|n| n.checked_add(print_byte_count))
         .and_then(|n| n.checked_add(2)); // NUL terminator after PrintName
-    if total_payload.is_none_or(|n| n > u16::MAX as usize) {
+    if total_buffer.is_none_or(|n| n > MAXIMUM_REPARSE_DATA_BUFFER_SIZE) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            "junction target too long for reparse buffer",
+            format!(
+                "junction target too long for reparse buffer: {}",
+                target.display()
+            ),
         ));
     }
     let subst_bytes_len = subst_byte_count as u16;
@@ -268,9 +342,11 @@ pub(crate) fn create_junction(link: &Path, target: &Path) -> io::Result<()> {
     }
     .map_err(|e| {
         let err = io_error_from_win32(e);
-        let _ = std::fs::remove_dir(link);
+        remove_created_dir_logged(link);
         err
     })?;
+    // Owning wrapper closes the handle on every exit path, including panics.
+    let handle = unsafe { OwnedHandle::from_raw_handle(handle.0) };
 
     let mut buf = Vec::<u8>::new();
     buf.extend(&0xA000_0003u32.to_le_bytes()); // ReparseTag = IO_REPARSE_TAG_MOUNT_POINT
@@ -296,7 +372,7 @@ pub(crate) fn create_junction(link: &Path, target: &Path) -> io::Result<()> {
     let mut bytes_returned = 0u32;
     let ioctl_result = unsafe {
         DeviceIoControl(
-            handle,
+            HANDLE(handle.as_raw_handle()),
             FSCTL_SET_REPARSE_POINT,
             Some(buf.as_ptr().cast()),
             buf.len() as u32,
@@ -306,14 +382,15 @@ pub(crate) fn create_junction(link: &Path, target: &Path) -> io::Result<()> {
             None,
         )
     };
-    let close_result = unsafe { CloseHandle(handle) };
+    // Close before any rollback so our own open handle cannot block the
+    // directory removal.
+    drop(handle);
 
     if let Err(e) = ioctl_result {
         let err = io_error_from_win32(e);
-        let _ = std::fs::remove_dir(link);
+        remove_created_dir_logged(link);
         return Err(err);
     }
-    let _ = close_result;
     Ok(())
 }
 
@@ -322,25 +399,20 @@ mod tests {
     use super::*;
     use windows::core::Error as WinError;
 
-    /// Build a REPARSE_DATA_BUFFER for a junction pointing at `C:\target`.
-    fn sample_junction_buffer() -> Vec<u8> {
-        // MountPointReparseBuffer layout:
-        //   ReparseTag          u32 = 0xA000_0003
-        //   ReparseDataLength   u16
-        //   Reserved            u16 = 0
-        //   SubstituteNameOffset u16
-        //   SubstituteNameLength u16
-        //   PrintNameOffset     u16
-        //   PrintNameLength     u16
-        //   PathBuffer          [u16 UTF-16 LE, no null terminator]
-        let subst: Vec<u8> = "\\??\\C:\\target"
-            .encode_utf16()
-            .flat_map(|u| u.to_le_bytes())
-            .collect();
-        let print: Vec<u8> = "C:\\target"
-            .encode_utf16()
-            .flat_map(|u| u.to_le_bytes())
-            .collect();
+    /// Build a junction REPARSE_DATA_BUFFER from raw UTF-16 name units.
+    ///
+    /// MountPointReparseBuffer layout:
+    ///   ReparseTag          u32 = 0xA000_0003
+    ///   ReparseDataLength   u16
+    ///   Reserved            u16 = 0
+    ///   SubstituteNameOffset u16
+    ///   SubstituteNameLength u16
+    ///   PrintNameOffset     u16
+    ///   PrintNameLength     u16
+    ///   PathBuffer          [u16 UTF-16 LE, no null terminator]
+    fn junction_buffer_from_wide(subst: &[u16], print: &[u16]) -> Vec<u8> {
+        let subst: Vec<u8> = subst.iter().flat_map(|u| u.to_le_bytes()).collect();
+        let print: Vec<u8> = print.iter().flat_map(|u| u.to_le_bytes()).collect();
         let mut path_buffer = subst.clone();
         path_buffer.extend(&print);
 
@@ -360,6 +432,43 @@ mod tests {
         buf.extend(&print_len.to_le_bytes());
         buf.extend(&path_buffer);
         buf
+    }
+
+    /// Build a REPARSE_DATA_BUFFER for a junction pointing at `C:\target`.
+    fn sample_junction_buffer() -> Vec<u8> {
+        junction_buffer_from_wide(&wide(r"\??\C:\target"), &wide(r"C:\target"))
+    }
+
+    /// Windows path names are arbitrary u16 sequences (WTF-16); an unpaired
+    /// surrogate written by `create_junction` must parse back losslessly.
+    #[test]
+    fn parses_junction_with_unpaired_surrogate_target() {
+        let mut subst = wide(r"\??\C:\t");
+        subst.push(0xD800); // unpaired high surrogate
+        let mut print = wide(r"C:\t");
+        print.push(0xD800);
+        let buf = junction_buffer_from_wide(&subst, &print);
+
+        let parsed = parse_reparse_buffer(&buf).unwrap();
+        match parsed {
+            ReparsePoint::Junction(t) => {
+                let round_tripped: Vec<u16> = t.as_os_str().encode_wide().collect();
+                let mut expected = wide(r"C:\t");
+                expected.push(0xD800);
+                assert_eq!(round_tripped, expected);
+            }
+            other => panic!("expected Junction, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn declared_length_exceeding_buffer_errors() {
+        let mut buf = sample_junction_buffer();
+        // Inflate ReparseDataLength (bytes 4..6) past the actual buffer size.
+        let inflated = (buf.len() as u16) * 2;
+        buf[4..6].copy_from_slice(&inflated.to_le_bytes());
+        let err = parse_reparse_buffer(&buf).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
     }
 
     #[test]
@@ -500,6 +609,97 @@ mod tests {
         let hr = windows::core::HRESULT(0x8000_4005u32 as i32);
         let err = super::io_error_from_win32(WinError::from(hr));
         assert_eq!(err.raw_os_error(), Some(0x8000_4005u32 as i32));
+    }
+
+    fn wide(s: &str) -> Vec<u16> {
+        s.encode_utf16().collect()
+    }
+
+    #[test]
+    fn junction_names_plain_absolute_target() {
+        let (subst, print) = super::junction_names(Path::new(r"C:\target")).unwrap();
+        assert_eq!(subst, wide(r"\??\C:\target"));
+        assert_eq!(print, wide(r"C:\target"));
+    }
+
+    #[test]
+    fn junction_names_normalizes_verbatim_prefix() {
+        let (subst, print) = super::junction_names(Path::new(r"\\?\C:\target")).unwrap();
+        assert_eq!(subst, wide(r"\??\C:\target"));
+        assert_eq!(print, wide(r"C:\target"));
+    }
+
+    #[test]
+    fn junction_names_normalizes_verbatim_unc_prefix() {
+        let (subst, print) = super::junction_names(Path::new(r"\\?\UNC\server\share")).unwrap();
+        assert_eq!(subst, wide(r"\??\UNC\server\share"));
+        assert_eq!(print, wide(r"\\server\share"));
+    }
+
+    #[test]
+    fn junction_names_accepts_nt_prefixed_target() {
+        let (subst, print) = super::junction_names(Path::new(r"\??\C:\target")).unwrap();
+        assert_eq!(subst, wide(r"\??\C:\target"));
+        assert_eq!(print, wide(r"C:\target"));
+    }
+
+    #[test]
+    fn junction_names_rejects_relative_target() {
+        let err = super::junction_names(Path::new(r"..\target")).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+    }
+
+    #[test]
+    fn create_junction_rejects_relative_target_without_side_effects() {
+        let tmp = tempfile::tempdir().unwrap();
+        let link = tmp.path().join("junction");
+        let err = super::create_junction(&link, Path::new(r"..\target")).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        assert!(
+            std::fs::symlink_metadata(&link).is_err(),
+            "failed create_junction must not leave a directory behind"
+        );
+    }
+
+    #[test]
+    fn create_junction_rejects_oversized_target_without_side_effects() {
+        let tmp = tempfile::tempdir().unwrap();
+        let link = tmp.path().join("junction");
+        let target = format!(r"C:\{}", "a".repeat(u16::MAX as usize));
+        let err = super::create_junction(&link, Path::new(&target)).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        assert!(
+            std::fs::symlink_metadata(&link).is_err(),
+            "failed create_junction must not leave a directory behind"
+        );
+    }
+
+    /// `std::fs::canonicalize` returns `\\?\`-verbatim paths on Windows; a
+    /// junction created from such a target must still resolve at traversal time.
+    #[test]
+    fn create_junction_from_canonicalized_target_resolves() -> io::Result<()> {
+        let tmp = tempfile::tempdir()?;
+        let target = tmp.path().join("target");
+        std::fs::create_dir(&target)?;
+        std::fs::write(target.join("payload.txt"), b"payload")?;
+        let verbatim = std::fs::canonicalize(&target)?;
+
+        let link = tmp.path().join("junction");
+        super::create_junction(&link, &verbatim)?;
+
+        match super::read_reparse_point(&link)? {
+            ReparsePoint::Junction(t) => {
+                let s = t.as_os_str().to_string_lossy().into_owned();
+                assert!(
+                    !s.contains(r"\?\"),
+                    "substitute name must not nest a verbatim prefix; got {s:?}"
+                );
+            }
+            other => panic!("expected Junction, got {other:?}"),
+        }
+        let read_through = std::fs::read(link.join("payload.txt"))?;
+        assert_eq!(read_through, b"payload");
+        Ok(())
     }
 
     #[test]
