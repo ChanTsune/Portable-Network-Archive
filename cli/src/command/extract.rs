@@ -2063,8 +2063,18 @@ fn symlink_with_type<P: AsRef<Path>, Q: AsRef<Path>>(
 ///   join is not absolute.
 /// - On non-Windows, the raw stored string is passed to `symlink` verbatim
 ///   so the resulting symlink is identical to what the archive encoded.
+///
+/// An empty stored target is rejected with an `InvalidInput` error on every
+/// platform: joining an empty target would otherwise silently produce a link
+/// pointing at `link`'s own parent directory.
 fn create_junction_or_fallback(link: &Path, target: &EntryReference) -> io::Result<()> {
     let target = target.as_str();
+    if target.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("junction target for {} is empty", link.display()),
+        ));
+    }
     #[cfg(windows)]
     {
         let raw = Path::new(target);
@@ -2089,7 +2099,7 @@ fn create_junction_or_fallback(link: &Path, target: &EntryReference) -> io::Resu
     }
     #[cfg(not(windows))]
     {
-        log::info!(
+        log::warn!(
             "Creating symbolic link instead of Windows junction: {} -> {}",
             link.display(),
             target

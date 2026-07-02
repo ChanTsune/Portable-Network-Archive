@@ -1047,6 +1047,12 @@ pub(crate) fn create_entry(
             // UTF-16 is not valid Unicode (unpaired surrogates) degrade
             // lossily in `from_path_lossy_preserve_root`, matching how
             // symlink targets are encoded.
+            if target.to_str().is_none() {
+                log::warn!(
+                    "Junction target of {} contains non-Unicode data; it was replaced with U+FFFD in the archived target",
+                    path.display()
+                );
+            }
             let reference = pathname_editor.edit_junction(target);
             let entry = junction_entry_builder(entry_name, reference)?;
             apply_metadata(entry, path, keep_options, metadata)?.build()
