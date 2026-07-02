@@ -149,6 +149,12 @@ impl MountPointReparseData {
     /// `/` is accepted by `FSCTL_SET_REPARSE_POINT` yet unresolvable at
     /// traversal time.
     ///
+    /// NTFS mount points cannot target UNC paths: the `\??\UNC\`/`\\?\UNC\`
+    /// branches normalize the name, but the kernel does not resolve mount
+    /// points through the network redirector, and a plain `\\server\share`
+    /// target yields a substitute name (`\??\\\server\share`) that is not a
+    /// valid NT name. Such junctions are created but do not resolve.
+    ///
     /// Errors with `InvalidInput` when the target carries no explicit
     /// NT/verbatim prefix and is not absolute in its Win32 form, or when the
     /// encoded buffer would exceed the kernel's 16 KiB reparse-buffer cap.
@@ -380,7 +386,7 @@ pub(crate) fn parse_reparse_buffer(buf: &[u8]) -> io::Result<ReparsePoint> {
 /// surfaces a `Result<_, windows::core::Error>`.
 fn io_error_from_win32(e: WinError) -> io::Error {
     let hr = e.code().0 as u32;
-    let facility = (hr >> 16) & 0x1FFF;
+    let facility = (hr >> 16) & 0x7FF;
     let raw = if facility == 0x0007 {
         (hr & 0xFFFF) as i32
     } else {
@@ -398,10 +404,13 @@ fn io_error_from_win32(e: WinError) -> io::Error {
 pub(crate) fn read_reparse_point(path: &Path) -> io::Result<ReparsePoint> {
     let wide = encode_wide(path.as_os_str())?;
 
+    // FSCTL_GET_REPARSE_POINT requires no specific access right; requesting
+    // GENERIC_READ would make the probe fail with ACCESS_DENIED on reparse
+    // points whose ACL denies reads.
     let handle: HANDLE = unsafe {
         CreateFileW(
             PCWSTR::from_raw(wide.as_ptr()),
-            GENERIC_READ.0,
+            0,
             FILE_SHARE_READ | FILE_SHARE_WRITE,
             None,
             OPEN_EXISTING,

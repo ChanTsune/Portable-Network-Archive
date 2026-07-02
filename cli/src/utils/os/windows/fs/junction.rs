@@ -12,7 +12,8 @@ use windows::Win32::Foundation::ERROR_NOT_A_REPARSE_POINT;
 
 use crate::utils::os::windows::fs::reparse::{ReparsePoint, read_reparse_point};
 
-/// If `path` is a junction, returns its absolute target; otherwise `Ok(None)`.
+/// If `path` is a junction, returns its external target (as stored in the
+/// reparse point); otherwise `Ok(None)`.
 ///
 /// Returns `Ok(None)` for:
 /// - Non-reparse paths (mapped from `ERROR_NOT_A_REPARSE_POINT`)
