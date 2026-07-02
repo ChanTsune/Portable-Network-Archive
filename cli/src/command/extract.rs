@@ -1443,7 +1443,7 @@ where
                 if *safe_writes || remove_existing {
                     utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
                 }
-                create_junction_or_fallback(&path, target_str)?;
+                create_junction_or_fallback(&path, &transformed)?;
 
                 // Junction entries bypass `restore_metadata()`: its follow-link
                 // operations (chmod, ACL, xattr) would mutate the external
@@ -2063,7 +2063,8 @@ fn symlink_with_type<P: AsRef<Path>, Q: AsRef<Path>>(
 ///   join is not absolute.
 /// - On non-Windows, the raw stored string is passed to `symlink` verbatim
 ///   so the resulting symlink is identical to what the archive encoded.
-fn create_junction_or_fallback(link: &Path, target: &str) -> io::Result<()> {
+fn create_junction_or_fallback(link: &Path, target: &EntryReference) -> io::Result<()> {
+    let target = target.as_str();
     #[cfg(windows)]
     {
         let raw = Path::new(target);
