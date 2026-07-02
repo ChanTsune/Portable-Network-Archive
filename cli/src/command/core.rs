@@ -27,8 +27,9 @@ pub(crate) use path_filter::PathFilter;
 use path_slash::*;
 pub(crate) use path_transformer::PathTransformers;
 use pna::{
-    Archive, EntryBuilder, EntryPart, LinkTargetType, MIN_CHUNK_BYTES_SIZE, NormalEntry,
-    PNA_HEADER, ReadEntry, SolidEntryBuilder, WriteOptions, prelude::*,
+    Archive, DataKind, EntryBuilder, EntryName, EntryPart, EntryReference, LinkTargetType,
+    MIN_CHUNK_BYTES_SIZE, NormalEntry, PNA_HEADER, ReadEntry, SolidEntryBuilder, WriteOptions,
+    prelude::*,
 };
 use std::{
     borrow::Cow,
@@ -383,6 +384,12 @@ pub(crate) enum StoreAs {
     Dir,
     Symlink(LinkTargetType),
     Hardlink(PathBuf),
+    /// Windows NTFS junction. The inner `PathBuf` is the **external** target
+    /// path as read from the reparse point — typically an absolute drive
+    /// path, though volume-GUID mount targets are also possible. Only
+    /// produced on Windows, but declared on every platform so match sites do
+    /// not need `#[cfg]`-gated arms.
+    Junction(PathBuf),
 }
 
 /// Source of an archive to include (file path or stdin).
@@ -781,8 +788,12 @@ pub(crate) fn collect_items_with_state(
                 // Classify entry and maybe add it to output
                 let store = if is_symlink {
                     let meta = fs::symlink_metadata(entry_path)?;
-                    let link_target_type = detect_symlink_target_type(entry_path, &meta)?;
-                    Some((StoreAs::Symlink(link_target_type), meta))
+                    if let Some(target) = classify_junction(entry_path) {
+                        Some((StoreAs::Junction(target), meta))
+                    } else {
+                        let link_target_type = detect_symlink_target_type(entry_path, &meta)?;
+                        Some((StoreAs::Symlink(link_target_type), meta))
+                    }
                 } else if is_file {
                     if let Some(linked) = hardlink_resolver.resolve(entry_path).ok().flatten() {
                         Some((StoreAs::Hardlink(linked), fs::symlink_metadata(entry_path)?))
@@ -883,6 +894,31 @@ fn detect_symlink_target_type(
     }
 }
 
+/// Returns the junction target if `path` is a Windows junction, or `None` for
+/// any non-junction path (including regular directories, symlinks, and
+/// unknown reparse tags). A probe failure (permission denied, sharing
+/// violation, ...) is reported as a warning and classification falls through
+/// to the symlink handler, matching the per-entry non-fatal error policy:
+/// the entry is then stored as a symbolic link rather than a junction.
+#[cfg(windows)]
+fn classify_junction(path: &Path) -> Option<PathBuf> {
+    match crate::utils::os::windows::fs::junction::detect_junction(path) {
+        Ok(v) => v,
+        Err(e) => {
+            log::warn!(
+                "Failed to inspect reparse point {}; storing it as a symbolic link: {e}",
+                path.display()
+            );
+            None
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn classify_junction(_path: &Path) -> Option<PathBuf> {
+    None
+}
+
 pub(crate) fn collect_split_archives(first: impl AsRef<Path>) -> io::Result<Vec<fs::File>> {
     let first = first.as_ref();
     let mut archives = Vec::new();
@@ -938,6 +974,30 @@ pub(crate) fn write_from_path(writer: &mut impl Write, path: impl AsRef<Path>) -
     copy_buffered(file, writer)
 }
 
+/// Returns whether an entry encodes a Windows junction.
+///
+/// A junction has no dedicated entry kind; it is encoded as a hard link whose
+/// link-target type is `Directory` (`DataKind::HardLink` + `fLTP=Directory`).
+/// [`junction_entry_builder`] emits the combination and this predicate is the
+/// decode-side check, so the wire encoding has a single definition.
+pub(crate) fn is_encoded_junction(
+    data_kind: DataKind,
+    link_target_type: Option<LinkTargetType>,
+) -> bool {
+    data_kind == DataKind::HardLink && link_target_type == Some(LinkTargetType::Directory)
+}
+
+/// Start building an entry that encodes a Windows junction (see
+/// [`is_encoded_junction`] for the wire encoding).
+pub(crate) fn junction_entry_builder(
+    name: EntryName,
+    reference: EntryReference,
+) -> io::Result<EntryBuilder> {
+    let mut builder = EntryBuilder::new_hard_link(name, reference)?;
+    builder.link_target_type(LinkTargetType::Directory);
+    Ok(builder)
+}
+
 pub(crate) fn create_entry(
     item: &CollectedEntry,
     CreateOptions {
@@ -978,6 +1038,23 @@ pub(crate) fn create_entry(
         }
         StoreAs::Dir => {
             let entry = EntryBuilder::new_dir(entry_name);
+            apply_metadata(entry, path, keep_options, metadata)?.build()
+        }
+        StoreAs::Junction(target) => {
+            // Route the target through PathnameEditor::edit_junction so user-
+            // specified `-s` / `--transform` substitutions apply to junction
+            // targets on the same footing as symlink targets. Targets whose
+            // UTF-16 is not valid Unicode (unpaired surrogates) degrade
+            // lossily in `from_path_lossy_preserve_root`, matching how
+            // symlink targets are encoded.
+            if target.to_str().is_none() {
+                log::warn!(
+                    "Junction target of {} contains non-Unicode data; it was replaced with U+FFFD in the archived target",
+                    path.display()
+                );
+            }
+            let reference = pathname_editor.edit_junction(target);
+            let entry = junction_entry_builder(entry_name, reference)?;
             apply_metadata(entry, path, keep_options, metadata)?.build()
         }
     }

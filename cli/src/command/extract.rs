@@ -12,7 +12,7 @@ use crate::{
             OwnerOptions, OwnerStrategy, PathFilter, PathTransformers, PathnameEditor,
             PermissionStrategyResolver, ProcessAction, SafeWriter, TimeFilterResolver, TimeFilters,
             TimestampStrategy, TimestampStrategyResolver, Umask, XattrStrategy,
-            collect_split_archives,
+            collect_split_archives, is_encoded_junction,
             path_lock::OrderedPathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, run_process_archive, run_process_archive_stoppable,
@@ -366,12 +366,12 @@ pub(crate) struct ExtractCommand {
     no_same_owner: bool,
     #[arg(
         long,
-        help = "Allow extracting symbolic links and hard links that contain root or parent paths"
+        help = "Allow extracting symbolic links and hard links that contain root or parent paths, or any Windows junction"
     )]
     allow_unsafe_links: bool,
     #[arg(
         long,
-        help = "Do not allow extracting symbolic links and hard links that contain root or parent paths (default)"
+        help = "Do not allow extracting symbolic links and hard links that contain root or parent paths, or any Windows junction (default)"
     )]
     no_allow_unsafe_links: bool,
     #[arg(
@@ -1421,6 +1421,38 @@ where
         DataKind::HardLink => {
             let reader = item.reader(ReadOptions::with_password(password))?;
             let original = io::read_to_string(reader)?;
+            let is_directory_link = is_encoded_junction(
+                item.header().data_kind(),
+                item.metadata().link_target_type(),
+            );
+
+            if is_directory_link {
+                // Encoded junction: apply user transforms but preserve absolute
+                // paths and do NOT sanitize (no edit_hardlink).
+                let transformed = pathname_editor.edit_junction(Path::new(original.as_str()));
+                let target_str = transformed.as_str();
+
+                if !allow_unsafe_links {
+                    log::warn!(
+                        "Skipped extracting a Windows junction: {} -> {}. If you need to extract it, use `--allow-unsafe-links`.",
+                        item.header().path(),
+                        target_str
+                    );
+                    return Ok(());
+                }
+                if *safe_writes || remove_existing {
+                    utils::io::ignore_not_found(utils::fs::remove_path(&path))?;
+                }
+                create_junction_or_fallback(&path, &transformed)?;
+
+                // Junction entries bypass `restore_metadata()`: its follow-link
+                // operations (chmod, ACL, xattr) would mutate the external
+                // directory the junction points at. Only no-follow timestamp
+                // restoration is applied; see `restore_link_timestamps_no_follow`.
+                restore_link_timestamps_no_follow(&path, item.metadata(), keep_options)?;
+                return Ok(());
+            }
+
             let Some((original, had_root)) = pathname_editor.edit_hardlink(original.as_ref())
             else {
                 log::warn!(
@@ -2014,6 +2046,98 @@ fn symlink_with_type<P: AsRef<Path>, Q: AsRef<Path>>(
     _link_target_type: Option<LinkTargetType>,
 ) -> io::Result<()> {
     pna::fs::symlink(original, link)
+}
+
+/// Create the link for a HardLink+fLTP=Directory entry.
+///
+/// On Windows, builds a real junction. On non-Windows, falls back to a
+/// symbolic link, as permitted by the "Directory hard link" constraints in
+/// the PNA spec (`chunk_specifications/index.md`). Accepts both absolute and
+/// relative stored targets:
+///
+/// - On Windows, relative targets are resolved against `link`'s parent then
+///   canonicalized to an absolute path (the kernel requires junction targets
+///   to be absolute). If canonicalization fails (e.g. the target does not
+///   exist), the raw join is used instead: an absolute join is still
+///   attempted, possibly producing a dangling junction, while a non-absolute
+///   join is rejected by `create_junction`.
+/// - On non-Windows, the raw stored string is passed to `symlink` verbatim
+///   so the resulting symlink is identical to what the archive encoded.
+///
+/// An empty stored target is rejected with an `InvalidInput` error on every
+/// platform: joining an empty target would otherwise silently produce a link
+/// pointing at `link`'s own parent directory.
+fn create_junction_or_fallback(link: &Path, target: &EntryReference) -> io::Result<()> {
+    let target = target.as_str();
+    if target.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("junction target for {} is empty", link.display()),
+        ));
+    }
+    #[cfg(windows)]
+    {
+        let raw = Path::new(target);
+        let absolute = if raw.is_absolute() {
+            raw.to_path_buf()
+        } else {
+            let base = link.parent().unwrap_or_else(|| Path::new("."));
+            let joined = base.join(raw);
+            match std::fs::canonicalize(&joined) {
+                Ok(canon) => canon,
+                Err(e) => {
+                    log::warn!(
+                        "Failed to canonicalize junction target {}: {}; using the raw join (the created junction may not resolve)",
+                        joined.display(),
+                        e
+                    );
+                    joined
+                }
+            }
+        };
+        crate::utils::os::windows::fs::reparse::create_junction(link, &absolute)
+    }
+    #[cfg(not(windows))]
+    {
+        log::warn!(
+            "Creating symbolic link instead of Windows junction: {} -> {}",
+            link.display(),
+            target
+        );
+        pna::fs::symlink(target, link)
+    }
+}
+
+/// Restore only the timestamps of a junction or fallback-symlink entry,
+/// without following the link.
+///
+/// The default `restore_metadata()` restores permissions, ACLs, and extended
+/// attributes for hard-link entries through follow-link syscalls; run
+/// against a junction path they would mutate the external directory the
+/// junction points at. Junction entries therefore restore timestamps only,
+/// applied to the link itself without following it, so the junction's
+/// external target is never touched.
+///
+/// TODO: restore the junction's own mode/owner/ACL/xattr through no-follow
+/// APIs instead of skipping them.
+#[cfg(not(target_family = "wasm"))]
+#[inline]
+fn restore_link_timestamps_no_follow(
+    path: &Path,
+    metadata: &pna::Metadata,
+    keep_options: &KeepOptions,
+) -> io::Result<()> {
+    restore_path_timestamps(path, metadata, keep_options)
+}
+
+#[cfg(target_family = "wasm")]
+#[inline]
+fn restore_link_timestamps_no_follow(
+    _path: &Path,
+    _metadata: &pna::Metadata,
+    _keep_options: &KeepOptions,
+) -> io::Result<()> {
+    Ok(())
 }
 
 #[cfg(test)]
