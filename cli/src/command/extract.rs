@@ -12,7 +12,7 @@ use crate::{
             OwnerOptions, OwnerStrategy, PathFilter, PathTransformers, PathnameEditor,
             PermissionStrategyResolver, ProcessAction, SafeWriter, TimeFilterResolver, TimeFilters,
             TimestampStrategy, TimestampStrategyResolver, Umask, XattrStrategy,
-            collect_split_archives,
+            collect_split_archives, is_encoded_junction,
             path_lock::OrderedPathLocks,
             re::{bsd::SubstitutionRule, gnu::TransformRule},
             read_paths, run_process_archive, run_process_archive_stoppable,
@@ -1434,7 +1434,9 @@ where
 
                 if !allow_unsafe_links {
                     log::warn!(
-                        "Skipped extracting a Windows junction. If you need to extract it, use `--allow-unsafe-links`."
+                        "Skipped extracting a Windows junction: {} -> {}. If you need to extract it, use `--allow-unsafe-links`.",
+                        item.header().path(),
+                        target_str
                     );
                     return Ok(());
                 }
@@ -1443,15 +1445,10 @@ where
                 }
                 create_junction_or_fallback(&path, target_str)?;
 
-                // SAFETY (Invariant I2): the default `restore_metadata()` call
-                // at the end of this function would apply chmod/chown/ACL/
-                // xattr/fflags to the junction via follow-link syscalls,
-                // mutating the EXTERNAL directory the junction points at
-                // (outside the extraction root). For the MVP we bypass the
-                // full metadata restore and only apply no-follow timestamp
-                // restoration. See `restore_link_timestamps_no_follow` for
-                // the follow-up that would properly restore junction-owned
-                // metadata.
+                // Junction entries bypass `restore_metadata()`: its follow-link
+                // operations (chmod, ACL, xattr) would mutate the external
+                // directory the junction points at. Only no-follow timestamp
+                // restoration is applied; see `restore_link_timestamps_no_follow`.
                 restore_link_timestamps_no_follow(&path, item.metadata(), keep_options)?;
                 return Ok(());
             }
@@ -2051,27 +2048,19 @@ fn symlink_with_type<P: AsRef<Path>, Q: AsRef<Path>>(
     pna::fs::symlink(original, link)
 }
 
-/// Returns whether an entry encodes a Windows junction.
-///
-/// A junction has no dedicated entry kind; it is encoded as a hard link whose
-/// link-target type is `Directory` (`DataKind::HardLink` + `fLTP=Directory`).
-/// This is the single decode-side check for that encoding, mirrored by the
-/// create path that emits the same combination.
-fn is_encoded_junction(data_kind: DataKind, link_target_type: Option<LinkTargetType>) -> bool {
-    data_kind == DataKind::HardLink && link_target_type == Some(LinkTargetType::Directory)
-}
-
 /// Create the link for a HardLink+fLTP=Directory entry.
 ///
 /// On Windows, builds a real junction. On non-Windows, falls back to a
-/// symbolic link per the PNA spec `chunk_specifications/index.md:332-336`
-/// MAY clause. Accepts both absolute and relative stored targets:
+/// symbolic link, as permitted by the "Directory hard link" constraints in
+/// the PNA spec (`chunk_specifications/index.md`). Accepts both absolute and
+/// relative stored targets:
 ///
 /// - On Windows, relative targets are resolved against `link`'s parent then
-///   canonicalized to an absolute path (kernel requires absolute for
-///   junctions). If canonicalization fails (e.g. the target does not exist),
-///   the join result is passed through; `create_junction` will then fail with
-///   a descriptive I/O error.
+///   canonicalized to an absolute path (the kernel requires junction targets
+///   to be absolute). If canonicalization fails (e.g. the target does not
+///   exist), the raw join is used instead: when that join is absolute a
+///   dangling junction is created; `create_junction` errors only when the
+///   join is not absolute.
 /// - On non-Windows, the raw stored string is passed to `symlink` verbatim
 ///   so the resulting symlink is identical to what the archive encoded.
 fn create_junction_or_fallback(link: &Path, target: &str) -> io::Result<()> {
@@ -2086,8 +2075,8 @@ fn create_junction_or_fallback(link: &Path, target: &str) -> io::Result<()> {
             match std::fs::canonicalize(&joined) {
                 Ok(canon) => canon,
                 Err(e) => {
-                    log::debug!(
-                        "Failed to canonicalize junction target {}: {}; using raw join",
+                    log::warn!(
+                        "Failed to canonicalize junction target {}: {}; using the raw join (the created junction may not resolve)",
                         joined.display(),
                         e
                     );
@@ -2099,7 +2088,7 @@ fn create_junction_or_fallback(link: &Path, target: &str) -> io::Result<()> {
     }
     #[cfg(not(windows))]
     {
-        log::debug!(
+        log::info!(
             "Creating symbolic link instead of Windows junction: {} -> {}",
             link.display(),
             target
@@ -2111,37 +2100,17 @@ fn create_junction_or_fallback(link: &Path, target: &str) -> io::Result<()> {
 /// Restore only the timestamps of a junction or fallback-symlink entry,
 /// without following the link.
 ///
-/// # Why not the full `restore_metadata()` path?
+/// The default `restore_metadata()` restores permissions, ACLs, and extended
+/// attributes for hard-link entries through follow-link syscalls; run
+/// against a junction path they would mutate the external directory the
+/// junction points at. Junction entries therefore restore timestamps only,
+/// via `restore_path_timestamps`, which uses
+/// `filetime::set_symlink_file_times` (opens the reparse point itself with
+/// `FILE_FLAG_OPEN_REPARSE_POINT` on Windows; `utimensat(AT_SYMLINK_NOFOLLOW)`
+/// / `lutimes` on Unix).
 ///
-/// `DataKind::HardLink + fLTP=Directory` encodes a Windows junction (or a
-/// fallback symlink on non-Windows). The default `restore_metadata()` uses
-/// `chmod`, `chown`, `set_facl(follow_links=true)`, `setxattr`, `set_flags`,
-/// and macOS `copyfile` — every one of those follows links. If we let them
-/// run against the junction path, they would mutate the **external**
-/// directory the junction points at (outside the extraction root), which is
-/// a security hole (Invariant I2, spec §7).
-///
-/// For the MVP we bypass the full metadata path for junction entries and
-/// apply only timestamps through the existing `restore_path_timestamps`
-/// helper, which already uses `filetime::set_symlink_file_times` and thus
-/// opens the reparse point itself with `FILE_FLAG_OPEN_REPARSE_POINT` on
-/// Windows / uses `utimensat(AT_SYMLINK_NOFOLLOW)` / `lutimes` on Unix.
-/// Delegation is sufficient — no separate `utils::fs` helper is required.
-///
-/// # TODO: junction-aware no-follow metadata (deferred follow-up, spec §11)
-///
-/// A full implementation should restore mode/owner/ACL/xattr/fflags on the
-/// junction itself using no-follow APIs:
-/// - Unix: `lchmod` (BSD), `lchown`, `lsetxattr`, `lremovexattr`.
-/// - Linux: mode-on-symlink is not supported by the kernel; either skip
-///   silently or gate behind `#[cfg(target_os = "linux")]` with a `warn!`.
-/// - Windows: open the reparse point via `FILE_FLAG_OPEN_REPARSE_POINT` and
-///   apply ACL/security info with `SetSecurityInfo` on that handle; mode is
-///   expressed via the Windows security descriptor, not `chmod`.
-/// - ACL restoration must pass `follow_links = false` into `restore_acls`.
-///
-/// When implemented, replace this helper with a junction-aware branch of
-/// `restore_metadata` that keeps Invariant I2 but preserves all attributes.
+/// TODO: restore the junction's own mode/owner/ACL/xattr through no-follow
+/// APIs instead of skipping them.
 #[cfg(not(target_family = "wasm"))]
 #[inline]
 fn restore_link_timestamps_no_follow(
