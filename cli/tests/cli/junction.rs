@@ -159,6 +159,22 @@ fn build_junction_fixture_with_optional_mode(target: &str, mode: Option<u16>) ->
     out
 }
 
+/// Like [`build_junction_fixture`] but stamps a modification timestamp on the
+/// junction entry. Used by the `--keep-timestamp` test.
+fn build_junction_fixture_with_modified(target: &str, modified: pna::Duration) -> Vec<u8> {
+    let mut out = Vec::new();
+    let mut archive = Archive::write_header(&mut out).unwrap();
+    let name = EntryName::from_utf8_preserve_root("link_dir");
+    let reference = EntryReference::from_utf8_preserve_root(target);
+    let mut builder = EntryBuilder::new_hard_link(name, reference).unwrap();
+    builder.link_target_type(LinkTargetType::Directory);
+    builder.modified(modified);
+    let entry = builder.build().unwrap();
+    archive.add_entry(entry).unwrap();
+    archive.finalize().unwrap();
+    out
+}
+
 /// Precondition: archive with a HardLink+fLTP=Directory entry pointing at a
 /// well-known absolute path.
 /// Action: extract without `--allow-unsafe-links`.
@@ -624,5 +640,337 @@ fn bsdtar_extract_junction_with_no_allow_unsafe_links_skips() {
     assert!(
         fs::symlink_metadata(&link).is_err(),
         "junction entry must not be extracted with --no-allow-unsafe-links"
+    );
+}
+
+/// Precondition: archive with a junction entry whose stored target is a
+/// relative path.
+/// Action: extract with `--allow-unsafe-links` on a non-Windows host.
+/// Expectation: the fallback symlink's target equals the stored relative
+/// string verbatim — the non-Windows arm performs no join or resolution.
+#[test]
+#[cfg(not(any(windows, target_family = "wasm")))]
+fn extract_junction_with_relative_target_passes_through_verbatim() {
+    setup();
+    let base = "extract_junction_with_relative_target_passes_through_verbatim";
+    let _ = fs::remove_dir_all(base);
+    let out_dir = format!("{base}/out");
+    fs::create_dir_all(&out_dir).unwrap();
+
+    let archive_path = format!("{base}/{base}.pna");
+    fs::write(&archive_path, build_junction_fixture("real")).unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        &archive_path,
+        "--out-dir",
+        &out_dir,
+        "--allow-unsafe-links",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let link = std::path::Path::new(&out_dir).join("link_dir");
+    assert_eq!(
+        fs::read_link(&link).unwrap(),
+        std::path::PathBuf::from("real"),
+        "relative junction target must pass through to the symlink unchanged"
+    );
+}
+
+/// Precondition: archive with a real directory (containing a file) and a
+/// junction entry whose stored target is a relative path resolvable against
+/// the link's parent after extraction.
+/// Action: extract with `--allow-unsafe-links`.
+/// Expectation: the deferred link phase runs after files/directories are
+/// restored, so the relative target canonicalizes; the created junction
+/// resolves and the file is readable through it.
+#[test]
+#[cfg(windows)]
+fn extract_junction_with_relative_target_resolves() {
+    setup();
+    let base = "extract_junction_with_relative_target_resolves";
+    let _ = fs::remove_dir_all(base);
+    let out_dir = format!("{base}/out");
+    fs::create_dir_all(base).unwrap();
+
+    let archive_path = format!("{base}/{base}.pna");
+    let file = fs::File::create(&archive_path).unwrap();
+    let mut archive = Archive::write_header(file).unwrap();
+    archive
+        .add_entry(EntryBuilder::new_dir("data".into()).build().unwrap())
+        .unwrap();
+    archive
+        .add_entry(EntryBuilder::new_dir("data/real".into()).build().unwrap())
+        .unwrap();
+    let mut file_builder =
+        EntryBuilder::new_file("data/real/inside.txt".into(), pna::WriteOptions::store()).unwrap();
+    std::io::Write::write_all(&mut file_builder, b"payload").unwrap();
+    archive.add_entry(file_builder.build().unwrap()).unwrap();
+    let mut junction_builder = EntryBuilder::new_hard_link(
+        EntryName::from_utf8_preserve_root("data/link"),
+        EntryReference::from_utf8_preserve_root("real"),
+    )
+    .unwrap();
+    junction_builder.link_target_type(LinkTargetType::Directory);
+    archive
+        .add_entry(junction_builder.build().unwrap())
+        .unwrap();
+    archive.finalize().unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        &archive_path,
+        "--out-dir",
+        &out_dir,
+        "--allow-unsafe-links",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let link = std::path::Path::new(&out_dir).join("data/link");
+    let meta = fs::symlink_metadata(&link).unwrap();
+    use std::os::windows::fs::FileTypeExt;
+    let ft = meta.file_type();
+    assert!(
+        ft.is_symlink() || ft.is_symlink_dir(),
+        "expected a reparse point at {}; got {ft:?}",
+        link.display()
+    );
+    let read_through = fs::read(link.join("inside.txt")).unwrap();
+    assert_eq!(
+        read_through, b"payload",
+        "the junction must resolve to the sibling directory restored earlier"
+    );
+}
+
+/// Precondition: archive with a junction entry whose stored target is a
+/// relative path that exists neither in the archive nor on disk.
+/// Action: extract with `--allow-unsafe-links` into an absolute output
+/// directory.
+/// Expectation: canonicalization of the joined target fails, the raw join is
+/// absolute and is used as-is, so extraction succeeds and creates a dangling
+/// junction.
+#[test]
+#[cfg(windows)]
+fn extract_junction_with_unresolvable_relative_target_creates_dangling() {
+    setup();
+    let base = "extract_junction_with_unresolvable_relative_target_creates_dangling";
+    let _ = fs::remove_dir_all(base);
+    let out_dir = format!("{base}/out");
+    fs::create_dir_all(&out_dir).unwrap();
+    // The raw-join fallback produces an absolute path only when the link path
+    // itself is absolute, so pass the output directory in absolute form.
+    let out_dir_abs = fs::canonicalize(&out_dir).unwrap();
+
+    let archive_path = format!("{base}/{base}.pna");
+    fs::write(&archive_path, build_junction_fixture("missing_target")).unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        &archive_path,
+        "--out-dir",
+        out_dir_abs.to_str().unwrap(),
+        "--allow-unsafe-links",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let link = out_dir_abs.join("link_dir");
+    let meta = fs::symlink_metadata(&link).unwrap();
+    use std::os::windows::fs::FileTypeExt;
+    let ft = meta.file_type();
+    assert!(
+        ft.is_symlink() || ft.is_symlink_dir(),
+        "expected a dangling reparse point at {}; got {ft:?}",
+        link.display()
+    );
+    assert!(
+        fs::metadata(&link).is_err(),
+        "the junction target must be absent — following the link must fail"
+    );
+}
+
+/// Precondition: archive with a junction entry whose stored target is an
+/// absolute path.
+/// Action: extract with a `-s` substitution rule rewriting the target prefix
+/// plus `--allow-unsafe-links`.
+/// Expectation: the fallback symlink's target reflects the substitution.
+#[test]
+#[cfg(not(any(windows, target_family = "wasm")))]
+fn extract_junction_with_substitution_rewrites_target() {
+    setup();
+    let base = "extract_junction_with_substitution_rewrites_target";
+    let _ = fs::remove_dir_all(base);
+    let out_dir = format!("{base}/out");
+    fs::create_dir_all(&out_dir).unwrap();
+
+    let archive_path = format!("{base}/{base}.pna");
+    fs::write(&archive_path, build_junction_fixture("/before/target")).unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        &archive_path,
+        "--out-dir",
+        &out_dir,
+        "--allow-unsafe-links",
+        "-s",
+        "#/before/#/after/#",
+        "--unstable",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let link = std::path::Path::new(&out_dir).join("link_dir");
+    assert_eq!(
+        fs::read_link(&link).unwrap(),
+        std::path::PathBuf::from("/after/target"),
+        "the substitution rule must apply to the junction target"
+    );
+}
+
+/// Precondition: archive with a junction entry carrying a modification
+/// timestamp different from the external target directory's mtime.
+/// Action: extract with `--allow-unsafe-links --keep-timestamp`.
+/// Expectation: the link's own no-follow mtime equals the archived value and
+/// the external target directory's mtime is unchanged.
+#[test]
+#[cfg(not(target_family = "wasm"))]
+fn extract_junction_with_keep_timestamp_restores_link_times() {
+    setup();
+    let base = "extract_junction_with_keep_timestamp_restores_link_times";
+    let _ = fs::remove_dir_all(base);
+    let target_rel = format!("{base}/external_target");
+    let out_dir = format!("{base}/out");
+    fs::create_dir_all(&target_rel).unwrap();
+    fs::create_dir_all(&out_dir).unwrap();
+    let target_abs = fs::canonicalize(&target_rel).unwrap();
+    let target_str = target_abs.to_string_lossy().into_owned();
+    let baseline_mtime = fs::metadata(&target_abs).unwrap().modified().unwrap();
+
+    let archive_path = format!("{base}/{base}.pna");
+    let mtime = pna::Duration::seconds(1_704_067_200); // 2024-01-01T00:00:00Z
+    fs::write(
+        &archive_path,
+        build_junction_fixture_with_modified(&target_str, mtime),
+    )
+    .unwrap();
+
+    cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        &archive_path,
+        "--out-dir",
+        &out_dir,
+        "--allow-unsafe-links",
+        "--keep-timestamp",
+    ])
+    .unwrap()
+    .execute()
+    .unwrap();
+
+    let link = std::path::Path::new(&out_dir).join("link_dir");
+    let link_mtime = fs::symlink_metadata(&link).unwrap().modified().unwrap();
+    let link_mtime_secs = link_mtime
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    assert_eq!(
+        link_mtime_secs, 1_704_067_200,
+        "the junction's own no-follow mtime must equal the archived value"
+    );
+
+    let after_mtime = fs::metadata(&target_abs).unwrap().modified().unwrap();
+    assert_eq!(
+        baseline_mtime, after_mtime,
+        "--keep-timestamp must not mutate the junction's external target"
+    );
+}
+
+/// Precondition: a directory tree containing a junction that points at its
+/// own ancestor.
+/// Action: `pna create --follow-links` over the tree.
+/// Expectation: walkdir's loop detection yields an error for the cyclic
+/// junction, which create surfaces as a failure — the command terminates
+/// instead of hanging.
+#[test]
+#[cfg(windows)]
+fn create_with_follow_links_cyclic_junction_terminates() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path().join("root");
+    std::fs::create_dir(&root).unwrap();
+    std::fs::write(root.join("file.txt"), b"data").unwrap();
+    let junction = root.join("loop");
+    mklink_junction(&junction, &root);
+
+    let archive_path = tmp.path().join("cyclic.pna");
+    let status = std::process::Command::new(env!("CARGO_BIN_EXE_pna"))
+        .current_dir(tmp.path())
+        .args(["create", "-f"])
+        .arg(&archive_path)
+        .args(["--follow-links", "root"])
+        .status()
+        .unwrap();
+    assert!(
+        !status.success(),
+        "following a cyclic junction must terminate with a loop error, not hang"
+    );
+}
+
+/// Precondition: archive with a junction entry whose stored target is the
+/// empty string.
+/// Action: extract with `--allow-unsafe-links`.
+/// Expectation: extraction fails and no filesystem object exists at the link
+/// path.
+#[test]
+fn extract_junction_with_empty_target_fails() {
+    setup();
+    let base = "extract_junction_with_empty_target_fails";
+    let _ = fs::remove_dir_all(base);
+    let out_dir = format!("{base}/out");
+    fs::create_dir_all(&out_dir).unwrap();
+
+    let archive_path = format!("{base}/{base}.pna");
+    fs::write(&archive_path, build_junction_fixture("")).unwrap();
+
+    let result = cli::Cli::try_parse_from([
+        "pna",
+        "--quiet",
+        "x",
+        "-f",
+        &archive_path,
+        "--out-dir",
+        &out_dir,
+        "--allow-unsafe-links",
+    ])
+    .unwrap()
+    .execute();
+
+    assert!(
+        result.is_err(),
+        "an empty junction target must fail extraction"
+    );
+    let link = std::path::Path::new(&out_dir).join("link_dir");
+    assert!(
+        fs::symlink_metadata(&link).is_err(),
+        "no filesystem object must be created at the link path"
     );
 }

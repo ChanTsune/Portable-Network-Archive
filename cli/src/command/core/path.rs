@@ -1207,4 +1207,15 @@ mod tests {
         // strip_components does NOT apply to junction targets, matching symlink semantics.
         assert_eq!(out.as_str(), "/abs/target");
     }
+
+    #[test]
+    fn editor_junction_applies_substitution() {
+        use super::super::{PathTransformers, re::bsd::SubstitutionRules};
+
+        let rules = SubstitutionRules::new(vec!["#/old/#/new/#".parse().unwrap()]);
+        let transformers = Some(PathTransformers::BsdSubstitutions(rules));
+        let editor = PathnameEditor::new(None, transformers, false, false);
+        let out = editor.edit_junction(Path::new("/old/target"));
+        assert_eq!(out.as_str(), "/new/target");
+    }
 }
