@@ -59,6 +59,197 @@ fn strip_nt_prefix(name: &[u16]) -> &[u16] {
     name.strip_prefix(&NT_PREFIX[..]).unwrap_or(name)
 }
 
+const IO_REPARSE_TAG_MOUNT_POINT: u32 = 0xA000_0003;
+const IO_REPARSE_TAG_SYMLINK: u32 = 0xA000_000C;
+/// ReparseTag(4) + ReparseDataLength(2) + Reserved(2).
+const HEADER_LEN: usize = 8;
+
+/// Read a little-endian `u16` at `offset`, failing with `InvalidData` when
+/// `buf` is too short.
+fn read_u16_le(buf: &[u8], offset: usize) -> io::Result<u16> {
+    buf.get(offset..offset + 2)
+        .map(|b| u16::from_le_bytes(b.try_into().unwrap()))
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "reparse buffer truncated"))
+}
+
+/// Decode the UTF-16 name occupying `len` bytes at `offset` in `path_buffer`.
+fn extract_wide(path_buffer: &[u8], offset: usize, len: usize) -> io::Result<Vec<u16>> {
+    let slice = path_buffer.get(offset..offset + len).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "reparse path buffer out of range",
+        )
+    })?;
+    if slice.len() % 2 != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "odd-length utf16 in reparse path",
+        ));
+    }
+    Ok(slice
+        .chunks_exact(2)
+        .map(|c| u16::from_le_bytes([c[0], c[1]]))
+        .collect())
+}
+
+/// Substitute and print names of a MOUNT_POINT (junction) reparse point,
+/// without NUL terminators.
+///
+/// This is the single codec for the MOUNT_POINT `REPARSE_DATA_BUFFER` wire
+/// layout: [`Self::to_bytes`] is the only encoder and [`Self::try_from_bytes`]
+/// the only decoder.
+#[derive(Debug)]
+struct MountPointReparseData {
+    /// `SubstituteName`, NT namespace form (`\??\...`).
+    substitute: Vec<u16>,
+    /// `PrintName`, Win32 form.
+    print: Vec<u16>,
+}
+
+impl MountPointReparseData {
+    /// Compute the reparse-buffer `SubstituteName` (NT namespace form) and
+    /// `PrintName` (Win32 form) for a junction target.
+    ///
+    /// `std::fs::canonicalize` returns verbatim (`\\?\`-prefixed) paths on
+    /// Windows. Blindly prepending `\??\` to such a target would produce a
+    /// nested-prefix substitute name (`\??\\\?\C:\...`) that
+    /// `FSCTL_SET_REPARSE_POINT` accepts but the kernel cannot resolve at
+    /// traversal time. This constructor normalizes verbatim (`\\?\`,
+    /// `\\?\UNC\`) and NT (`\??\`) prefixes before building the two names.
+    ///
+    /// Errors with `InvalidInput` when the target is not absolute in its
+    /// Win32 form, or when the encoded buffer would exceed the kernel's
+    /// 16 KiB reparse-buffer cap.
+    fn from_target(target: &Path) -> io::Result<Self> {
+        fn utf16(s: &str) -> Vec<u16> {
+            s.encode_utf16().collect()
+        }
+        let target_wide: Vec<u16> = target.as_os_str().encode_wide().collect();
+        let strip = |prefix: &str| -> Option<Vec<u16>> {
+            let p = utf16(prefix);
+            (target_wide.len() >= p.len() && target_wide[..p.len()] == p[..])
+                .then(|| target_wide[p.len()..].to_vec())
+        };
+
+        let (substitute, print) = if let Some(rest) = strip(r"\??\UNC\") {
+            (target_wide.clone(), [utf16(r"\\"), rest].concat())
+        } else if let Some(rest) = strip(r"\??\") {
+            (target_wide.clone(), rest)
+        } else if let Some(rest) = strip(r"\\?\UNC\") {
+            (
+                [utf16(r"\??\UNC\"), rest.clone()].concat(),
+                [utf16(r"\\"), rest].concat(),
+            )
+        } else if let Some(rest) = strip(r"\\?\") {
+            ([utf16(r"\??\"), rest.clone()].concat(), rest)
+        } else {
+            ([utf16(r"\??\"), target_wide.clone()].concat(), target_wide)
+        };
+
+        if !PathBuf::from(OsString::from_wide(&print)).is_absolute() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("junction target must be absolute: {}", target.display()),
+            ));
+        }
+
+        // The whole REPARSE_DATA_BUFFER (8-byte tag/length/reserved header +
+        // 8-byte offset header + both names + their UTF-16 NUL terminators)
+        // must fit the kernel's 16 KiB cap; that bound also keeps the `u16`
+        // length and offset fields in `to_bytes` from truncating or wrapping.
+        let subst_byte_count = substitute.len() * 2;
+        let print_byte_count = print.len() * 2;
+        let total_buffer = 16_usize
+            .checked_add(subst_byte_count)
+            .and_then(|n| n.checked_add(2)) // NUL terminator after SubstituteName
+            .and_then(|n| n.checked_add(print_byte_count))
+            .and_then(|n| n.checked_add(2)); // NUL terminator after PrintName
+        if total_buffer.is_none_or(|n| n > MAXIMUM_REPARSE_DATA_BUFFER_SIZE) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!(
+                    "junction target too long for reparse buffer: {}",
+                    target.display()
+                ),
+            ));
+        }
+        Ok(Self { substitute, print })
+    }
+
+    /// Encode as a complete `FSCTL_SET_REPARSE_POINT` input buffer (reparse
+    /// tag, `ReparseDataLength`, name offsets/lengths, and name data).
+    ///
+    /// PathBuffer layout: [SubstituteName][NUL u16][PrintName][NUL u16].
+    /// Length fields exclude the NUL terminators; offsets skip them. The
+    /// 16 KiB cap enforced by [`Self::from_target`] guarantees the `u16`
+    /// casts below are lossless.
+    fn to_bytes(&self) -> Vec<u8> {
+        let subst_bytes_len = (self.substitute.len() * 2) as u16;
+        let print_bytes_len = (self.print.len() * 2) as u16;
+        let data_len: u16 = 8 + subst_bytes_len + 2 + print_bytes_len + 2;
+        let print_offset: u16 = subst_bytes_len + 2;
+
+        let mut buf = Vec::with_capacity(HEADER_LEN + data_len as usize);
+        buf.extend(&IO_REPARSE_TAG_MOUNT_POINT.to_le_bytes());
+        buf.extend(&data_len.to_le_bytes()); // ReparseDataLength
+        buf.extend(&0u16.to_le_bytes()); // Reserved
+        buf.extend(&0u16.to_le_bytes()); // SubstituteNameOffset
+        buf.extend(&subst_bytes_len.to_le_bytes()); // SubstituteNameLength
+        buf.extend(&print_offset.to_le_bytes()); // PrintNameOffset (after subst + NUL)
+        buf.extend(&print_bytes_len.to_le_bytes()); // PrintNameLength
+        for u in &self.substitute {
+            buf.extend(&u.to_le_bytes());
+        }
+        buf.extend(&0u16.to_le_bytes()); // NUL terminator after SubstituteName
+        for u in &self.print {
+            buf.extend(&u.to_le_bytes());
+        }
+        buf.extend(&0u16.to_le_bytes()); // NUL terminator after PrintName
+        buf
+    }
+
+    /// Decode a complete MOUNT_POINT reparse buffer (the payload of
+    /// `FSCTL_GET_REPARSE_POINT`).
+    ///
+    /// Name extraction is bounded by the declared `ReparseDataLength` region,
+    /// not merely the physical buffer: a name whose offset+length extends
+    /// past the declared data region fails with `InvalidData` even when the
+    /// physical buffer would contain it.
+    fn try_from_bytes(buf: &[u8]) -> io::Result<Self> {
+        if buf.len() < HEADER_LEN {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "reparse buffer too short for header",
+            ));
+        }
+        let tag = u32::from_le_bytes(buf[0..4].try_into().unwrap());
+        if tag != IO_REPARSE_TAG_MOUNT_POINT {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "not a MOUNT_POINT reparse buffer",
+            ));
+        }
+        let declared_len = u16::from_le_bytes(buf[4..6].try_into().unwrap()) as usize;
+        let data = buf
+            .get(HEADER_LEN..HEADER_LEN + declared_len)
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "reparse buffer shorter than declared ReparseDataLength",
+                )
+            })?;
+        let subst_offset = read_u16_le(data, 0)?;
+        let subst_len = read_u16_le(data, 2)?;
+        let print_offset = read_u16_le(data, 4)?;
+        let print_len = read_u16_le(data, 6)?;
+        // The reads above guarantee the 8-byte offset/length header is present.
+        let path_buffer = &data[8..];
+        let substitute = extract_wide(path_buffer, subst_offset as usize, subst_len as usize)?;
+        let print = extract_wide(path_buffer, print_offset as usize, print_len as usize)?;
+        Ok(Self { substitute, print })
+    }
+}
+
 /// Parse a raw reparse-point buffer (the payload of `FSCTL_GET_REPARSE_POINT`).
 ///
 /// Names are decoded losslessly (WTF-16 → `PathBuf`), matching what
@@ -66,10 +257,6 @@ fn strip_nt_prefix(name: &[u16]) -> &[u16] {
 /// round-trip. Errors when the buffer is truncated, shorter than its declared
 /// `ReparseDataLength`, or contains an odd-length name.
 pub(crate) fn parse_reparse_buffer(buf: &[u8]) -> io::Result<ReparsePoint> {
-    const IO_REPARSE_TAG_MOUNT_POINT: u32 = 0xA000_0003;
-    const IO_REPARSE_TAG_SYMLINK: u32 = 0xA000_000C;
-    const HEADER_LEN: usize = 8; // ReparseTag(4) + DataLength(2) + Reserved(2)
-    const MP_PATHBUF_OFFSET: usize = HEADER_LEN + 8; // + 4 u16 offsets/lens
     const SYMLINK_PATHBUF_OFFSET: usize = HEADER_LEN + 12; // + 4 u16 offsets/lens + Flags(u32)
 
     if buf.len() < HEADER_LEN {
@@ -87,56 +274,31 @@ pub(crate) fn parse_reparse_buffer(buf: &[u8]) -> io::Result<ReparsePoint> {
         ));
     }
 
-    let read_u16 = |offset: usize| -> io::Result<u16> {
-        buf.get(offset..offset + 2)
-            .map(|b| u16::from_le_bytes(b.try_into().unwrap()))
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "reparse buffer truncated"))
-    };
-
-    let extract_wide = |offset: usize, len: u16, pathbuf_base: usize| -> io::Result<Vec<u16>> {
-        let start = pathbuf_base + offset;
-        let end = start + len as usize;
-        let slice = buf.get(start..end).ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                "reparse path buffer out of range",
-            )
-        })?;
-        if slice.len() % 2 != 0 {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "odd-length utf16 in reparse path",
-            ));
-        }
-        Ok(slice
-            .chunks_exact(2)
-            .map(|c| u16::from_le_bytes([c[0], c[1]]))
-            .collect())
-    };
-
     match tag {
         IO_REPARSE_TAG_MOUNT_POINT => {
-            let subst_offset = read_u16(HEADER_LEN)?;
-            let subst_len = read_u16(HEADER_LEN + 2)?;
-            let subst = extract_wide(subst_offset as usize, subst_len, MP_PATHBUF_OFFSET)?;
-            let stripped = strip_nt_prefix(&subst);
+            let data = MountPointReparseData::try_from_bytes(buf)?;
+            let stripped = strip_nt_prefix(&data.substitute);
             Ok(ReparsePoint::Junction(PathBuf::from(OsString::from_wide(
                 stripped,
             ))))
         }
         IO_REPARSE_TAG_SYMLINK => {
-            if buf.len() < HEADER_LEN + 12 {
+            if buf.len() < SYMLINK_PATHBUF_OFFSET {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     "reparse buffer too short for symlink flags",
                 ));
             }
-            let subst_offset = read_u16(HEADER_LEN)?;
-            let subst_len = read_u16(HEADER_LEN + 2)?;
+            let subst_offset = read_u16_le(buf, HEADER_LEN)?;
+            let subst_len = read_u16_le(buf, HEADER_LEN + 2)?;
             let flags =
                 u32::from_le_bytes(buf[HEADER_LEN + 8..HEADER_LEN + 12].try_into().unwrap());
             let is_relative = flags & 0x1 != 0; // SYMLINK_FLAG_RELATIVE
-            let subst = extract_wide(subst_offset as usize, subst_len, SYMLINK_PATHBUF_OFFSET)?;
+            let subst = extract_wide(
+                &buf[SYMLINK_PATHBUF_OFFSET..],
+                subst_offset as usize,
+                subst_len as usize,
+            )?;
             let stripped = if is_relative {
                 &subst[..]
             } else {
@@ -236,59 +398,11 @@ fn remove_created_dir_logged(link: &Path) {
     }
 }
 
-/// Compute the reparse-buffer `SubstituteName` (NT namespace form) and
-/// `PrintName` (Win32 form) for a junction target, as UTF-16 without NUL
-/// terminators.
-///
-/// `std::fs::canonicalize` returns verbatim (`\\?\`-prefixed) paths on
-/// Windows. Blindly prepending `\??\` to such a target would produce a
-/// nested-prefix substitute name (`\??\\\?\C:\...`) that
-/// `FSCTL_SET_REPARSE_POINT` accepts but the kernel cannot resolve at
-/// traversal time. This helper normalizes verbatim (`\\?\`, `\\?\UNC\`) and
-/// NT (`\??\`) prefixes before building the two names.
-///
-/// Errors with `InvalidInput` when the target is not absolute in its Win32
-/// form.
-fn junction_names(target: &Path) -> io::Result<(Vec<u16>, Vec<u16>)> {
-    fn utf16(s: &str) -> Vec<u16> {
-        s.encode_utf16().collect()
-    }
-    let target_wide: Vec<u16> = target.as_os_str().encode_wide().collect();
-    let strip = |prefix: &str| -> Option<Vec<u16>> {
-        let p = utf16(prefix);
-        (target_wide.len() >= p.len() && target_wide[..p.len()] == p[..])
-            .then(|| target_wide[p.len()..].to_vec())
-    };
-
-    let (subst, print) = if let Some(rest) = strip(r"\??\UNC\") {
-        (target_wide.clone(), [utf16(r"\\"), rest].concat())
-    } else if let Some(rest) = strip(r"\??\") {
-        (target_wide.clone(), rest)
-    } else if let Some(rest) = strip(r"\\?\UNC\") {
-        (
-            [utf16(r"\??\UNC\"), rest.clone()].concat(),
-            [utf16(r"\\"), rest].concat(),
-        )
-    } else if let Some(rest) = strip(r"\\?\") {
-        ([utf16(r"\??\"), rest.clone()].concat(), rest)
-    } else {
-        ([utf16(r"\??\"), target_wide.clone()].concat(), target_wide)
-    };
-
-    if !PathBuf::from(OsString::from_wide(&print)).is_absolute() {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!("junction target must be absolute: {}", target.display()),
-        ));
-    }
-    Ok((subst, print))
-}
-
 /// Create a junction at `link` pointing to the absolute `target`.
 ///
 /// `link` must not already exist; `target` must be absolute. Verbatim
 /// (`\\?\`) and NT (`\??\`) prefixes on `target` are normalized via
-/// [`junction_names`].
+/// [`MountPointReparseData::from_target`].
 ///
 /// The path `link` itself is routed through the shared
 /// `crate::utils::str::encode_wide` helper, which rejects embedded NUL
@@ -300,30 +414,7 @@ pub(crate) fn create_junction(link: &Path, target: &Path) -> io::Result<()> {
     // Build and size-validate the reparse-buffer payload before any filesystem
     // mutation so an invalid or oversized target never leaves a half-created
     // junction directory behind.
-    let (subst_wide, print_wide) = junction_names(target)?;
-
-    // The whole REPARSE_DATA_BUFFER (8-byte tag/length/reserved header +
-    // 8-byte offset header + both names + their UTF-16 NUL terminators) must
-    // fit the kernel's 16 KiB cap; that bound also keeps the `u16` length
-    // fields below from truncating or wrapping.
-    let subst_byte_count = subst_wide.len() * 2;
-    let print_byte_count = print_wide.len() * 2;
-    let total_buffer = 16_usize
-        .checked_add(subst_byte_count)
-        .and_then(|n| n.checked_add(2)) // NUL terminator after SubstituteName
-        .and_then(|n| n.checked_add(print_byte_count))
-        .and_then(|n| n.checked_add(2)); // NUL terminator after PrintName
-    if total_buffer.is_none_or(|n| n > MAXIMUM_REPARSE_DATA_BUFFER_SIZE) {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!(
-                "junction target too long for reparse buffer: {}",
-                target.display()
-            ),
-        ));
-    }
-    let subst_bytes_len = subst_byte_count as u16;
-    let print_bytes_len = print_byte_count as u16;
+    let buf = MountPointReparseData::from_target(target)?.to_bytes();
 
     std::fs::create_dir(link)?;
 
@@ -347,27 +438,6 @@ pub(crate) fn create_junction(link: &Path, target: &Path) -> io::Result<()> {
     })?;
     // Owning wrapper closes the handle on every exit path, including panics.
     let handle = unsafe { OwnedHandle::from_raw_handle(handle.0) };
-
-    let mut buf = Vec::<u8>::new();
-    buf.extend(&0xA000_0003u32.to_le_bytes()); // ReparseTag = IO_REPARSE_TAG_MOUNT_POINT
-    // PathBuffer layout: [SubstituteName][NUL u16][PrintName][NUL u16].
-    // Length fields exclude the NUL terminators; offsets skip them.
-    let data_len: u16 = 8 + subst_bytes_len + 2 + print_bytes_len + 2;
-    let print_offset: u16 = subst_bytes_len + 2;
-    buf.extend(&data_len.to_le_bytes()); // ReparseDataLength
-    buf.extend(&0u16.to_le_bytes()); // Reserved
-    buf.extend(&0u16.to_le_bytes()); // SubstituteNameOffset
-    buf.extend(&subst_bytes_len.to_le_bytes()); // SubstituteNameLength
-    buf.extend(&print_offset.to_le_bytes()); // PrintNameOffset (after subst + NUL)
-    buf.extend(&print_bytes_len.to_le_bytes()); // PrintNameLength
-    for u in &subst_wide {
-        buf.extend(&u.to_le_bytes());
-    }
-    buf.extend(&0u16.to_le_bytes()); // NUL terminator after SubstituteName
-    for u in &print_wide {
-        buf.extend(&u.to_le_bytes());
-    }
-    buf.extend(&0u16.to_le_bytes()); // NUL terminator after PrintName
 
     let mut bytes_returned = 0u32;
     let ioctl_result = unsafe {
@@ -399,66 +469,41 @@ mod tests {
     use super::*;
     use windows::core::Error as WinError;
 
-    /// Build a junction REPARSE_DATA_BUFFER from raw UTF-16 name units.
-    ///
-    /// MountPointReparseBuffer layout:
-    ///   ReparseTag          u32 = 0xA000_0003
-    ///   ReparseDataLength   u16
-    ///   Reserved            u16 = 0
-    ///   SubstituteNameOffset u16
-    ///   SubstituteNameLength u16
-    ///   PrintNameOffset     u16
-    ///   PrintNameLength     u16
-    ///   PathBuffer          [u16 UTF-16 LE, no null terminator]
-    fn junction_buffer_from_wide(subst: &[u16], print: &[u16]) -> Vec<u8> {
-        let subst: Vec<u8> = subst.iter().flat_map(|u| u.to_le_bytes()).collect();
-        let print: Vec<u8> = print.iter().flat_map(|u| u.to_le_bytes()).collect();
-        let mut path_buffer = subst.clone();
-        path_buffer.extend(&print);
-
-        let subst_offset: u16 = 0;
-        let subst_len: u16 = subst.len() as u16;
-        let print_offset: u16 = subst_len;
-        let print_len: u16 = print.len() as u16;
-
-        let mut buf = Vec::new();
-        buf.extend(&0xA000_0003u32.to_le_bytes()); // IO_REPARSE_TAG_MOUNT_POINT
-        let data_len: u16 = (8 + path_buffer.len()) as u16;
-        buf.extend(&data_len.to_le_bytes());
-        buf.extend(&0u16.to_le_bytes()); // Reserved
-        buf.extend(&subst_offset.to_le_bytes());
-        buf.extend(&subst_len.to_le_bytes());
-        buf.extend(&print_offset.to_le_bytes());
-        buf.extend(&print_len.to_le_bytes());
-        buf.extend(&path_buffer);
-        buf
-    }
-
-    /// Build a REPARSE_DATA_BUFFER for a junction pointing at `C:\target`.
+    /// Build a REPARSE_DATA_BUFFER for a junction pointing at `C:\target`
+    /// with the production encoder.
     fn sample_junction_buffer() -> Vec<u8> {
-        junction_buffer_from_wide(&wide(r"\??\C:\target"), &wide(r"C:\target"))
+        MountPointReparseData::from_target(Path::new(r"C:\target"))
+            .unwrap()
+            .to_bytes()
     }
 
     /// Windows path names are arbitrary u16 sequences (WTF-16); an unpaired
     /// surrogate written by `create_junction` must parse back losslessly.
     #[test]
     fn parses_junction_with_unpaired_surrogate_target() {
-        let mut subst = wide(r"\??\C:\t");
-        subst.push(0xD800); // unpaired high surrogate
-        let mut print = wide(r"C:\t");
-        print.push(0xD800);
-        let buf = junction_buffer_from_wide(&subst, &print);
+        let mut target_units = wide(r"C:\t");
+        target_units.push(0xD800); // unpaired high surrogate
+        let target = PathBuf::from(OsString::from_wide(&target_units));
+        let buf = MountPointReparseData::from_target(&target)
+            .unwrap()
+            .to_bytes();
 
         let parsed = parse_reparse_buffer(&buf).unwrap();
         match parsed {
             ReparsePoint::Junction(t) => {
                 let round_tripped: Vec<u16> = t.as_os_str().encode_wide().collect();
-                let mut expected = wide(r"C:\t");
-                expected.push(0xD800);
-                assert_eq!(round_tripped, expected);
+                assert_eq!(round_tripped, target_units);
             }
             other => panic!("expected Junction, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn mount_point_reparse_data_round_trips() {
+        let encoded = MountPointReparseData::from_target(Path::new(r"C:\target")).unwrap();
+        let decoded = MountPointReparseData::try_from_bytes(&encoded.to_bytes()).unwrap();
+        assert_eq!(decoded.substitute, encoded.substitute);
+        assert_eq!(decoded.print, encoded.print);
     }
 
     #[test]
@@ -467,6 +512,22 @@ mod tests {
         // Inflate ReparseDataLength (bytes 4..6) past the actual buffer size.
         let inflated = (buf.len() as u16) * 2;
         buf[4..6].copy_from_slice(&inflated.to_le_bytes());
+        let err = parse_reparse_buffer(&buf).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+    }
+
+    /// A name whose offset+length extends past the declared
+    /// `ReparseDataLength` region must be rejected even when the physical
+    /// buffer still contains it.
+    #[test]
+    fn name_extending_past_declared_region_errors() {
+        let mut buf = sample_junction_buffer();
+        // SubstituteNameLength lives at bytes 10..12.
+        let subst_len = u16::from_le_bytes(buf[10..12].try_into().unwrap());
+        // Shrink ReparseDataLength (bytes 4..6) so the substitute name no
+        // longer fits the declared data region.
+        let shrunk = 8 + subst_len - 2;
+        buf[4..6].copy_from_slice(&shrunk.to_le_bytes());
         let err = parse_reparse_buffer(&buf).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
     }
@@ -616,36 +677,43 @@ mod tests {
     }
 
     #[test]
-    fn junction_names_plain_absolute_target() {
-        let (subst, print) = super::junction_names(Path::new(r"C:\target")).unwrap();
-        assert_eq!(subst, wide(r"\??\C:\target"));
-        assert_eq!(print, wide(r"C:\target"));
+    fn from_target_plain_absolute_target() {
+        let names = MountPointReparseData::from_target(Path::new(r"C:\target")).unwrap();
+        assert_eq!(names.substitute, wide(r"\??\C:\target"));
+        assert_eq!(names.print, wide(r"C:\target"));
     }
 
     #[test]
-    fn junction_names_normalizes_verbatim_prefix() {
-        let (subst, print) = super::junction_names(Path::new(r"\\?\C:\target")).unwrap();
-        assert_eq!(subst, wide(r"\??\C:\target"));
-        assert_eq!(print, wide(r"C:\target"));
+    fn from_target_normalizes_verbatim_prefix() {
+        let names = MountPointReparseData::from_target(Path::new(r"\\?\C:\target")).unwrap();
+        assert_eq!(names.substitute, wide(r"\??\C:\target"));
+        assert_eq!(names.print, wide(r"C:\target"));
     }
 
     #[test]
-    fn junction_names_normalizes_verbatim_unc_prefix() {
-        let (subst, print) = super::junction_names(Path::new(r"\\?\UNC\server\share")).unwrap();
-        assert_eq!(subst, wide(r"\??\UNC\server\share"));
-        assert_eq!(print, wide(r"\\server\share"));
+    fn from_target_normalizes_verbatim_unc_prefix() {
+        let names = MountPointReparseData::from_target(Path::new(r"\\?\UNC\server\share")).unwrap();
+        assert_eq!(names.substitute, wide(r"\??\UNC\server\share"));
+        assert_eq!(names.print, wide(r"\\server\share"));
     }
 
     #[test]
-    fn junction_names_accepts_nt_prefixed_target() {
-        let (subst, print) = super::junction_names(Path::new(r"\??\C:\target")).unwrap();
-        assert_eq!(subst, wide(r"\??\C:\target"));
-        assert_eq!(print, wide(r"C:\target"));
+    fn from_target_accepts_nt_prefixed_target() {
+        let names = MountPointReparseData::from_target(Path::new(r"\??\C:\target")).unwrap();
+        assert_eq!(names.substitute, wide(r"\??\C:\target"));
+        assert_eq!(names.print, wide(r"C:\target"));
     }
 
     #[test]
-    fn junction_names_rejects_relative_target() {
-        let err = super::junction_names(Path::new(r"..\target")).unwrap_err();
+    fn from_target_rejects_relative_target() {
+        let err = MountPointReparseData::from_target(Path::new(r"..\target")).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+    }
+
+    #[test]
+    fn from_target_rejects_oversized_target() {
+        let target = format!(r"C:\{}", "a".repeat(u16::MAX as usize));
+        let err = MountPointReparseData::from_target(Path::new(&target)).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
     }
 
