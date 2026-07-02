@@ -40,10 +40,11 @@ const MAXIMUM_REPARSE_DATA_BUFFER_SIZE: usize = 16 * 1024;
 /// Parsed contents of a reparse point.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReparsePoint {
-    /// `IO_REPARSE_TAG_MOUNT_POINT` (junction). Target is as stored in the
-    /// reparse buffer with any leading `\??\` NT-object prefix stripped —
-    /// typically an absolute drive path, though volume-GUID mount targets
-    /// (`Volume{...}\...`) are also possible.
+    /// `IO_REPARSE_TAG_MOUNT_POINT` (junction). Drive-letter targets are
+    /// stored bare (`C:\...`); other NT-namespace targets, such as
+    /// volume-GUID mount targets, are stored in Win32 verbatim form
+    /// (`\\?\Volume{...}\...`). Both forms are absolute per
+    /// `Path::is_absolute()`.
     Junction(PathBuf),
     /// `IO_REPARSE_TAG_SYMLINK` (file or directory symbolic link). `is_relative`
     /// reflects the `SYMLINK_FLAG_RELATIVE` bit in the reparse header.
@@ -53,10 +54,37 @@ pub enum ReparsePoint {
     Other(u32),
 }
 
+const NT_PREFIX: [u16; 4] = [b'\\' as u16, b'?' as u16, b'?' as u16, b'\\' as u16];
+
 /// Strip a leading `\??\` NT-object prefix from a UTF-16 name, if present.
 fn strip_nt_prefix(name: &[u16]) -> &[u16] {
-    const NT_PREFIX: [u16; 4] = [b'\\' as u16, b'?' as u16, b'?' as u16, b'\\' as u16];
     name.strip_prefix(&NT_PREFIX[..]).unwrap_or(name)
+}
+
+/// True when `name` starts with a drive-letter designator (`X:`).
+fn starts_with_drive_letter(name: &[u16]) -> bool {
+    matches!(name, [letter, colon, ..]
+        if *colon == u16::from(b':')
+            && u8::try_from(*letter).is_ok_and(|l| l.is_ascii_alphabetic()))
+}
+
+/// Convert a MOUNT_POINT `SubstituteName` into the target representation
+/// exposed by [`ReparsePoint::Junction`]: drive-letter targets bare
+/// (`C:\...`), other NT-namespace targets (e.g. volume-GUID mount targets)
+/// in Win32 verbatim form (`\\?\Volume{...}\...`). Both forms are absolute
+/// per `Path::is_absolute()`, so a stored target passed back to
+/// [`create_junction`] reproduces the original substitute name.
+fn junction_target(substitute: &[u16]) -> PathBuf {
+    let wide = match substitute.strip_prefix(&NT_PREFIX[..]) {
+        Some(rest) if starts_with_drive_letter(rest) => rest.to_vec(),
+        Some(rest) => {
+            let mut w: Vec<u16> = r"\\?\".encode_utf16().collect();
+            w.extend_from_slice(rest);
+            w
+        }
+        None => substitute.to_vec(),
+    };
+    PathBuf::from(OsString::from_wide(&wide))
 }
 
 const IO_REPARSE_TAG_MOUNT_POINT: u32 = 0xA000_0003;
@@ -116,37 +144,60 @@ impl MountPointReparseData {
     /// `FSCTL_SET_REPARSE_POINT` accepts but the kernel cannot resolve at
     /// traversal time. This constructor normalizes verbatim (`\\?\`,
     /// `\\?\UNC\`) and NT (`\??\`) prefixes before building the two names.
+    /// `/` separators are rewritten to `\` first: the NT object namespace
+    /// does not treat `/` as a separator, so a substitute name containing
+    /// `/` is accepted by `FSCTL_SET_REPARSE_POINT` yet unresolvable at
+    /// traversal time.
     ///
-    /// Errors with `InvalidInput` when the target is not absolute in its
-    /// Win32 form, or when the encoded buffer would exceed the kernel's
-    /// 16 KiB reparse-buffer cap.
+    /// Errors with `InvalidInput` when the target carries no explicit
+    /// NT/verbatim prefix and is not absolute in its Win32 form, or when the
+    /// encoded buffer would exceed the kernel's 16 KiB reparse-buffer cap.
     fn from_target(target: &Path) -> io::Result<Self> {
         fn utf16(s: &str) -> Vec<u16> {
             s.encode_utf16().collect()
         }
-        let target_wide: Vec<u16> = target.as_os_str().encode_wide().collect();
+        let target_wide: Vec<u16> = target
+            .as_os_str()
+            .encode_wide()
+            .map(|u| {
+                if u == u16::from(b'/') {
+                    u16::from(b'\\')
+                } else {
+                    u
+                }
+            })
+            .collect();
         let strip = |prefix: &str| -> Option<Vec<u16>> {
             let p = utf16(prefix);
             (target_wide.len() >= p.len() && target_wide[..p.len()] == p[..])
                 .then(|| target_wide[p.len()..].to_vec())
         };
 
-        let (substitute, print) = if let Some(rest) = strip(r"\??\UNC\") {
-            (target_wide.clone(), [utf16(r"\\"), rest].concat())
+        let (substitute, print, has_explicit_prefix) = if let Some(rest) = strip(r"\??\UNC\") {
+            (target_wide.clone(), [utf16(r"\\"), rest].concat(), true)
         } else if let Some(rest) = strip(r"\??\") {
-            (target_wide.clone(), rest)
+            (target_wide.clone(), rest, true)
         } else if let Some(rest) = strip(r"\\?\UNC\") {
             (
                 [utf16(r"\??\UNC\"), rest.clone()].concat(),
                 [utf16(r"\\"), rest].concat(),
+                true,
             )
         } else if let Some(rest) = strip(r"\\?\") {
-            ([utf16(r"\??\"), rest.clone()].concat(), rest)
+            ([utf16(r"\??\"), rest.clone()].concat(), rest, true)
         } else {
-            ([utf16(r"\??\"), target_wide.clone()].concat(), target_wide)
+            (
+                [utf16(r"\??\"), target_wide.clone()].concat(),
+                target_wide,
+                false,
+            )
         };
 
-        if !PathBuf::from(OsString::from_wide(&print)).is_absolute() {
+        // A volume-GUID target's Win32 form (`Volume{...}\...`) is not
+        // drive-absolute, so `is_absolute()` alone would reject it; an
+        // explicit NT/verbatim prefix marks the target as already fully
+        // qualified.
+        if !has_explicit_prefix && !PathBuf::from(OsString::from_wide(&print)).is_absolute() {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 format!("junction target must be absolute: {}", target.display()),
@@ -277,10 +328,7 @@ pub(crate) fn parse_reparse_buffer(buf: &[u8]) -> io::Result<ReparsePoint> {
     match tag {
         IO_REPARSE_TAG_MOUNT_POINT => {
             let data = MountPointReparseData::try_from_bytes(buf)?;
-            let stripped = strip_nt_prefix(&data.substitute);
-            Ok(ReparsePoint::Junction(PathBuf::from(OsString::from_wide(
-                stripped,
-            ))))
+            Ok(ReparsePoint::Junction(junction_target(&data.substitute)))
         }
         IO_REPARSE_TAG_SYMLINK => {
             if buf.len() < SYMLINK_PATHBUF_OFFSET {
@@ -705,8 +753,70 @@ mod tests {
     }
 
     #[test]
+    fn from_target_normalizes_forward_slashes() {
+        let names = MountPointReparseData::from_target(Path::new(r"C:/data/target")).unwrap();
+        assert_eq!(names.substitute, wide(r"\??\C:\data\target"));
+        assert_eq!(names.print, wide(r"C:\data\target"));
+    }
+
+    const VOLUME_GUID_NT: &str = r"\??\Volume{01234567-89ab-cdef-0123-456789abcdef}\";
+    const VOLUME_GUID_VERBATIM: &str = r"\\?\Volume{01234567-89ab-cdef-0123-456789abcdef}\";
+
+    #[test]
+    fn parses_volume_guid_junction_as_verbatim_target() {
+        let buf = MountPointReparseData::from_target(Path::new(VOLUME_GUID_NT))
+            .unwrap()
+            .to_bytes();
+        let parsed = parse_reparse_buffer(&buf).unwrap();
+        assert_eq!(
+            parsed,
+            ReparsePoint::Junction(PathBuf::from(VOLUME_GUID_VERBATIM))
+        );
+    }
+
+    #[test]
+    fn from_target_volume_guid_verbatim_produces_nt_substitute() {
+        let names = MountPointReparseData::from_target(Path::new(VOLUME_GUID_VERBATIM)).unwrap();
+        assert_eq!(names.substitute, wide(VOLUME_GUID_NT));
+        assert_eq!(
+            names.print,
+            wide(r"Volume{01234567-89ab-cdef-0123-456789abcdef}\")
+        );
+    }
+
+    /// Decoding a stored junction target and re-encoding it must reproduce
+    /// the original reparse buffer byte-for-byte.
+    #[test]
+    fn junction_buffer_round_trips_through_parsed_target() {
+        for target in [r"C:\target", VOLUME_GUID_NT] {
+            let original = MountPointReparseData::from_target(Path::new(target))
+                .unwrap()
+                .to_bytes();
+            let ReparsePoint::Junction(parsed) = parse_reparse_buffer(&original).unwrap() else {
+                panic!("expected Junction for {target}");
+            };
+            let re_encoded = MountPointReparseData::from_target(&parsed)
+                .unwrap()
+                .to_bytes();
+            assert_eq!(re_encoded, original, "round trip mismatch for {target}");
+        }
+    }
+
+    #[test]
     fn from_target_rejects_relative_target() {
         let err = MountPointReparseData::from_target(Path::new(r"..\target")).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+    }
+
+    #[test]
+    fn from_target_rejects_bare_relative_target() {
+        let err = MountPointReparseData::from_target(Path::new(r"foo\bar")).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+    }
+
+    #[test]
+    fn from_target_rejects_empty_target() {
+        let err = MountPointReparseData::from_target(Path::new("")).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
     }
 
