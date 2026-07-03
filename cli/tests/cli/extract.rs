@@ -18,3 +18,5 @@ mod sanitize_parent_components;
 #[cfg(windows)]
 mod symlink_link_target_type;
 mod symlink_metadata;
+#[cfg(windows)]
+mod verbatim_out_dir;

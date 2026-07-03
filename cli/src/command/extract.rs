@@ -1944,7 +1944,16 @@ fn ensure_directory_components(
                 current.pop();
                 continue;
             }
-            Component::RootDir | Component::Prefix(_) | Component::Normal(_) => {
+            // A prefix or root names the volume/share root, which cannot be a
+            // symlink and must not be probed: `symlink_metadata` on a bare
+            // verbatim disk prefix (`\\?\C:`, no trailing separator) addresses
+            // the volume device rather than the drive's root directory and
+            // fails with `ERROR_INVALID_FUNCTION`.
+            Component::RootDir | Component::Prefix(_) => {
+                current.push(component.as_os_str());
+                continue;
+            }
+            Component::Normal(_) => {
                 current.push(component.as_os_str());
             }
         }
