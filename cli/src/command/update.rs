@@ -571,8 +571,7 @@ where
                         target_files_mapping.shift_remove(entry.header().path())
                     {
                         let need_update =
-                            is_newer_than_archive(missing_time, &item.metadata, entry.metadata())
-                                .unwrap_or(true);
+                            is_newer_than_archive(missing_time, &item.metadata, entry.metadata());
                         if need_update {
                             let tx = tx.clone();
                             let create_options = create_options.clone();
@@ -632,18 +631,26 @@ where
     Ok(())
 }
 
+// The missing-time policy applies to whichever side lacks an mtime: the
+// filesystem side (unreadable metadata) as well as the archive side (no mTIM
+// chunk). With `Assume(t)` and both sides missing, `t < t` never updates.
 #[inline]
 fn is_newer_than_archive(
     missing_time: MissingTimePolicy,
     fs_meta: &fs::Metadata,
     metadata: &Metadata,
-) -> Option<bool> {
-    let fs_mtime = fs_meta.modified().ok()?;
+) -> bool {
+    let fs_mtime = match (fs_meta.modified(), missing_time) {
+        (Ok(t), _) => t,
+        (Err(_), MissingTimePolicy::Include) => return true,
+        (Err(_), MissingTimePolicy::Exclude) => return false,
+        (Err(_), MissingTimePolicy::Assume(t)) => t,
+    };
     let archive_mtime = match (metadata.saturating_modified_time(), missing_time) {
         (Some(t), _) => t,
-        (None, MissingTimePolicy::Include) => return Some(true),
-        (None, MissingTimePolicy::Exclude) => return Some(false),
+        (None, MissingTimePolicy::Include) => return true,
+        (None, MissingTimePolicy::Exclude) => return false,
         (None, MissingTimePolicy::Assume(t)) => t,
     };
-    Some(archive_mtime < fs_mtime)
+    archive_mtime < fs_mtime
 }
