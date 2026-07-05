@@ -36,7 +36,6 @@ fn delete_with_files_from() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "delete",
         "-f",
         "delete_files_from/delete_files_from.pna",

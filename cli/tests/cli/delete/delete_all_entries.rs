@@ -26,7 +26,6 @@ fn delete_all_entries() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "delete",
         "-f",
         "delete_all_entries/delete_all_entries.pna",

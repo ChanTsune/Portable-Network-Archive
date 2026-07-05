@@ -29,7 +29,6 @@ fn delete_output() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "delete",
         "-f",
         "delete_output/delete_output.pna",

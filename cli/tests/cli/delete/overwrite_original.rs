@@ -29,7 +29,6 @@ fn delete_overwrite() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "delete",
         "-f",
         "delete_overwrite/delete_overwrite.pna",

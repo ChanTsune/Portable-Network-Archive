@@ -25,7 +25,6 @@ fn delete_fail_with_missing_file() {
     let result = cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "delete",
         "-f",
         "delete_missing/archive.pna",

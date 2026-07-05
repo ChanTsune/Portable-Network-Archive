@@ -24,17 +24,6 @@ impl Command for ExperimentalCommand {
                 );
                 cmd.execute(ctx)
             }
-            ExperimentalCommands::Delete(cmd) => {
-                log::warn!(
-                    "`{0} experimental delete` subcommand was stabilized, use `{0} delete` instead. this command will be removed in the future.",
-                    std::env::current_exe()
-                        .ok()
-                        .and_then(|it| it.file_name().map(|n| n.to_os_string()))
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                );
-                cmd.execute(ctx)
-            }
             ExperimentalCommands::Update(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Chown(cmd) => cmd.execute(ctx),
             ExperimentalCommands::Chmod(cmd) => cmd.execute(ctx),
@@ -74,10 +63,6 @@ pub(crate) enum ExperimentalCommands {
         about = "bsdtar-like CLI semantics for PNA archives (stabilized, use `pna compat bsdtar` instead)"
     )]
     Stdio(command::bsdtar::BsdtarCommand),
-    #[command(
-        about = "Delete entry from archive (stabilized, use `pna delete` command instead. this command will be removed in the future)"
-    )]
-    Delete(command::delete::DeleteCommand),
     #[command(about = "Update entries in archive")]
     Update(command::update::UpdateCommand),
     #[command(about = "Change owner")]

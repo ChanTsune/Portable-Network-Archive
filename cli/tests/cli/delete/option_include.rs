@@ -28,7 +28,6 @@ fn delete_with_include() {
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
-        "experimental",
         "delete",
         "-f",
         "delete_with_include/include.pna",
