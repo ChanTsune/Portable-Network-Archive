@@ -5,17 +5,17 @@ use portable_network_archive::cli;
 use std::{fs, io::prelude::*};
 
 /// Precondition: Archive contains an entry without mtime (mTIM chunk omitted).
-/// Action: Run `pna experimental update` without `--archive-missing-mtime`.
-/// Expectation: Default `Include` policy treats mtime-missing entries as stale,
+/// Action: Run `pna experimental update` without `--missing-time`.
+/// Expectation: Default `include` policy treats mtime-missing entries as stale,
 /// so under append-only update semantics a fresh copy with the modified content
 /// is appended; the latest copy of the entry holds `"new content"`.
 #[test]
 fn update_default_mtime_missing_still_updates() {
     setup();
-    let _ = fs::remove_dir_all("update_arc_missing_mtime_default");
-    fs::create_dir_all("update_arc_missing_mtime_default").unwrap();
-    let source = "update_arc_missing_mtime_default/file.txt";
-    let archive_path = "update_arc_missing_mtime_default/archive.pna";
+    let _ = fs::remove_dir_all("update_missing_time_default");
+    fs::create_dir_all("update_missing_time_default").unwrap();
+    let source = "update_missing_time_default/file.txt";
+    let archive_path = "update_missing_time_default/archive.pna";
 
     // Create an initial archive whose entry has no mTIM chunk.
     fs::write(source, "old content").unwrap();
@@ -46,7 +46,7 @@ fn update_default_mtime_missing_still_updates() {
     // Modify the source file.
     fs::write(source, "new content").unwrap();
 
-    // Default behavior: no `--archive-missing-mtime` flag.
+    // Default behavior: no `--missing-time` flag.
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
@@ -84,18 +84,18 @@ fn update_default_mtime_missing_still_updates() {
 }
 
 /// Precondition: Archive contains an entry without mtime.
-/// Action: Run `pna experimental update --archive-missing-mtime=exclude` on its own
-/// (no time-filter flag). Update's Path B staleness judgment fires for every entry
-/// regardless of time-filter flags, so the archive-missing policy takes effect.
+/// Action: Run `pna experimental update --missing-time=exclude` on its own
+/// (no time-filter flag). The staleness judgment fires for every entry
+/// regardless of time-filter flags, so the missing-time policy takes effect.
 /// Expectation: The entry is kept (pass-through) because `exclude` treats mtime-missing
 /// archive entries as NOT stale.
 #[test]
-fn update_archive_missing_mtime_exclude_keeps_entry() {
+fn update_missing_time_exclude_keeps_entry() {
     setup();
-    let _ = fs::remove_dir_all("update_arc_missing_mtime_exclude");
-    fs::create_dir_all("update_arc_missing_mtime_exclude").unwrap();
-    let source = "update_arc_missing_mtime_exclude/file.txt";
-    let archive_path = "update_arc_missing_mtime_exclude/archive.pna";
+    let _ = fs::remove_dir_all("update_missing_time_exclude");
+    fs::create_dir_all("update_missing_time_exclude").unwrap();
+    let source = "update_missing_time_exclude/file.txt";
+    let archive_path = "update_missing_time_exclude/archive.pna";
 
     // Create an initial archive whose entry has no mTIM chunk.
     fs::write(source, "old content").unwrap();
@@ -125,15 +125,15 @@ fn update_archive_missing_mtime_exclude_keeps_entry() {
     // Modify the source file.
     fs::write(source, "new content").unwrap();
 
-    // Run update with --archive-missing-mtime=exclude alone (no time filter);
-    // Path B staleness judgment consults the policy for every entry.
+    // Run update with --missing-time=exclude alone (no time filter);
+    // the staleness judgment consults the policy for every entry.
     cli::Cli::try_parse_from([
         "pna",
         "--quiet",
         "experimental",
         "update",
         "--unstable",
-        "--archive-missing-mtime=exclude",
+        "--missing-time=exclude",
         "-f",
         archive_path,
         source,
